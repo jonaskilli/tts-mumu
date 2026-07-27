@@ -1,0 +1,48 @@
+*.iml
+.idea
+.gradle
+.DS_Store
+/build
+/captures
+.externalNativeBuild
+.cxx
+local.properties
+
+*.jks
+
+.kotlin
+.gitignore
+lib-rhino-android
+
+# CNB云原生开发配置备份
+gradle.properties.backup
+
+# Build outputs
+app/build
+lib-*/build
+build
+build-logic/build
+*.flat
+*.class
+
+# Build caches
+*.flat
+*.class
+*.jar
+*.aar
+.DS_Store
+*.log
+build.log
+
+# 不应提交到仓库的二进制/噪声(体积大或含密钥)
+*.apk
+nohup.out
+images/
+Screenshot*
+build-deps/
+_autobuild.log
+_build.log
+_bg*.log
+_probe.log
+_bgtest.log
+newapk/

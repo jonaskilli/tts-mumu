@@ -1,0 +1,41 @@
+package com.github.jing332.database.entities.systts.source
+
+import androidx.annotation.Keep
+import com.github.jing332.database.entities.plugin.Plugin
+import kotlinx.parcelize.IgnoredOnParcel
+import kotlinx.serialization.SerialName
+import kotlinx.serialization.Serializable
+import kotlinx.serialization.Transient
+
+@Keep
+@Serializable
+@SerialName("plugin")
+data class PluginTtsSource(
+    override val locale: String = "",
+    override val voice: String = "",
+    val pluginId: String = "",
+    // 仅界面模式：隐藏语音专属 chrome(语言/发音人/语速音量音调/试听)，
+    // 只显示插件 onLoadUI 自定义界面。用于非发音人的工具型插件。
+    val isUiOnly: Boolean = false,
+    val speed: Float = 1f,
+    val volume: Float = 1f,
+    val pitch: Float = 1f,
+    val data: Map<String, String> = mutableMapOf(),
+
+    @Transient
+    @IgnoredOnParcel
+    val plugin: Plugin? = null,
+) : TextToSpeechSource() {
+    companion object{
+        const val SPEED_FOLLOW = 0f
+        const val PITCH_FOLLOW = 0f
+        const val VOLUME_FOLLOW = 0f
+    }
+
+
+
+    override fun getKey(): String {
+        // 防止 CachedEngineManager 创建单例 Engine
+        return pluginId
+    }
+}

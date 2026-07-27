@@ -1,0 +1,59 @@
+<configuration xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xmlns="https://tony19.github.io/logback-android/xml"
+    xsi:schemaLocation="https://tony19.github.io/logback-android/xml https://cdn.jsdelivr.net/gh/tony19/logback-android/logback.xsd">
+
+    <property name="LOG_DIR" value="/storage/emulated/0/Android/data/${PACKAGE_NAME}/cache/log" />
+
+    <appender name="logcat" class="ch.qos.logback.classic.android.LogcatAppender">
+        <tagEncoder>
+            <pattern>%logger{12}</pattern>
+        </tagEncoder>
+        <encoder>
+            <pattern>[%-20thread] %msg</pattern>
+        </encoder>
+    </appender>
+
+    <appender name="CrashLog" class="ch.qos.logback.core.FileAppender">
+        <file>${LOG_DIR}/crash.log</file>
+
+        <encoder>
+            <immediateFlush>true</immediateFlush>
+            <pattern>%d{MM-dd HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n</pattern>
+        </encoder>
+
+        <filter class="com.github.jing332.tts_server_android.CrashFilter" />
+    </appender>
+
+    <appender name="Log" class="ch.qos.logback.core.rolling.RollingFileAppender">
+        <file>${LOG_DIR}/debug.log</file>
+        <encoder>
+            <pattern>%d{MM-dd HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n</pattern>
+        </encoder>
+        <rollingPolicy class="ch.qos.logback.core.rolling.TimeBasedRollingPolicy">
+            <fileNamePattern>${LOG_DIR}/debug_%d.log</fileNamePattern>
+
+            <maxHistory>3</maxHistory>
+        </rollingPolicy>
+    </appender>
+
+    <appender name="SystemTTS" class="ch.qos.logback.core.rolling.RollingFileAppender">
+        <file>${LOG_DIR}/system_tts.log</file>
+        <encoder>
+            <pattern>%d{yyyy-MM-dd HH:mm:ss.SSS} | %-5level | %msg%n</pattern>
+        </encoder>
+
+        <filter class="com.github.jing332.tts_server_android.SysttsFilter" />
+        <rollingPolicy class="ch.qos.logback.core.rolling.TimeBasedRollingPolicy">
+            <fileNamePattern>${LOG_DIR}/system_tts_%d.log</fileNamePattern>
+
+            <maxHistory>1</maxHistory>
+        </rollingPolicy>
+    </appender>
+
+    <root level="TRACE">
+        <appender-ref ref="logcat" />
+        <appender-ref ref="CrashLog" />
+        <appender-ref ref="Log" />
+        <appender-ref ref="SystemTTS" />
+    </root>
+</configuration>

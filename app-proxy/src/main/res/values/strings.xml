@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">混元太极</string>
+    <string name="delete_session_after_reply">完成回复后删除会话</string>
+</resources>
