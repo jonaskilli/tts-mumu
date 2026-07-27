@@ -1,0 +1,60 @@
+name: Build Test
+
+on:
+  push:
+    branches:
+      - "master"
+      - "compose"
+    paths-ignore:
+      - "**.md"
+  workflow_dispatch:
+
+jobs:
+  build:
+    strategy:
+      matrix:
+        product: [ { name: "App原版", value: app }, { name: "Dev共存版", value: dev } ]
+      fail-fast: false
+    runs-on: ubuntu-latest
+    env:
+      product: ${{ matrix.product.value }}
+      outputs_dir: "${{ github.workspace }}/app/build/outputs"
+      # 👇 核心修复：限制 Gradle 使用最大 4GB 内存，防止 R8 混淆时撑爆服务器
+      GRADLE_OPTS: "-Dorg.gradle.jvmargs=-Xmx4096m -XX:MaxMetaspaceSize=512m -XX:+HeapDumpOnOutOfMemoryError -Dfile.encoding=UTF-8"
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Init Signature
+        run: |
+          touch local.properties
+          echo "ALIAS_NAME=${{ secrets.ALIAS_NAME }}" >> local.properties
+          echo "ALIAS_PASSWORD=${{ secrets.ALIAS_PASSWORD }}" >> local.properties
+          echo "KEY_PASSWORD=${{ secrets.KEY_PASSWORD }}" >> local.properties
+          echo "KEY_PATH=${{ github.workspace }}/app/key.jks" >> local.properties
+          echo "${{ secrets.KEY_STORE }}" | base64 --decode > ${{ github.workspace }}/app/key.jks
+
+      - name: Build with Gradle
+        run: |
+          chmod +x gradlew
+          ./gradlew assemble${{ env.product }}release --build-cache --parallel --daemon --warning-mode all
+
+      - name: Set Version Name
+        run: |
+          echo "ver_name=$(grep -m 1 'versionName' ${{ env.outputs_dir }}/apk/${{ env.product }}/release/output-metadata.json | cut -d\" -f4)" >> $GITHUB_ENV
+
+      - name: Upload APK To Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: "TTS-Server_${{ env.product }}_${{ env.ver_name }}"
+          path: ${{ env.outputs_dir }}/apk/${{ env.product }}/release/*.apk
