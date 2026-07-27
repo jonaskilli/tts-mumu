@@ -1,0 +1,28 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+    <!-- 阳(白) -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M12,1 a11,11 0 0,0 0,22 a5.5,5.5 0 0,0 0,-11 a5.5,5.5 0 0,1 0,-11 z" />
+    <!-- 阴(黑) -->
+    <path
+        android:fillColor="#000000"
+        android:pathData="M12,1 a11,11 0 0,1 0,22 a5.5,5.5 0 0,1 0,-11 a5.5,5.5 0 0,0 0,-11 z" />
+    <!-- 白眼(在黑鱼中,下) -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M12,14 a3.5,3.5 0 1,0 0,7 a3.5,3.5 0 1,0 0,-7 z" />
+    <!-- 黑眼(在白鱼中,上) -->
+    <path
+        android:fillColor="#000000"
+        android:pathData="M12,3 a3.5,3.5 0 1,0 0,7 a3.5,3.5 0 1,0 0,-7 z" />
+    <!-- 外圈 -->
+    <path
+        android:fillColor="#00000000"
+        android:strokeColor="#000000"
+        android:strokeWidth="1"
+        android:pathData="M12,1 a11,11 0 1,0 0,22 a11,11 0 1,0 0,-22 z" />
+</vector>

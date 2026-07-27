@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="error">خطا</string>
+    <string name="close">بستن</string>
+    <string name="search">جستجو</string>
+    <string name="empty_list">لیست خالی است</string>
+    <string name="copied">کپی شد</string>
+    <string name="desc_seekbar_remove">کاهش دکمه اسکرول</string>
+    <string name="desc_seekbar_add">افزایش دکمه اسکرول</string>
+    <string name="loading">در حال بارگذاری</string>
+    <string name="start">شروع</string>
+</resources>

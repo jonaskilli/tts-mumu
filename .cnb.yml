@@ -1,0 +1,50 @@
+# CNB云原生开发配置
+# 用于构建Android TTS Server项目
+
+**:
+  # 点击仓库页面"云原生开发"按钮时触发
+  vscode:
+    - name: android-dev-env
+      runner:
+        # Android构建需要较多资源，分配8核16GB
+        cpus: 8
+      docker:
+        # 使用自定义Dockerfile构建环境
+        build: .ide/Dockerfile
+      services:
+        - vscode
+        - docker
+      # 启动环境后执行的任务
+      stages:
+        - name: 配置国内镜像加速
+          script:
+            - echo "配置Gradle国内镜像..."
+            - if [ ! -f gradle.properties.backup ]; then cp gradle.properties gradle.properties.backup 2>/dev/null || true; fi
+            - cp gradle.properties.cnb gradle.properties
+            - echo "Gradle镜像配置完成"
+            - cat gradle.properties
+        - name: 检查环境
+          script:
+            - echo "=== 环境信息 ==="
+            - echo "Java version:"
+            - java -version
+            - echo "Android SDK location:"
+            - echo $ANDROID_HOME
+            - echo "Gradle version:"
+            - ./gradlew --version
+            - echo "=== 检查Android SDK ==="
+            - ls -la $ANDROID_HOME/build-tools/ || echo "build-tools未安装"
+            - ls -la $ANDROID_HOME/platforms/ || echo "platforms未安装"
+        - name: 检查签名配置
+          script:
+            - echo "=== 签名配置检查 ==="
+            - if [ -f local.properties ]; then echo "✓ 签名配置已就绪"; cat local.properties; else echo "✗ 警告：未找到local.properties文件，请先配置签名"; fi
+      # 开发环境销毁前执行的任务（可选）
+      endStages:
+        - name: 清理构建缓存
+          script: |
+            echo "开发环境即将关闭"
+            # 恢复原始gradle.properties
+            - if [ -f gradle.properties.backup ]; then mv gradle.properties.backup gradle.properties; fi
+            # 可选：清理Gradle缓存以节省空间
+            # ./gradlew clean

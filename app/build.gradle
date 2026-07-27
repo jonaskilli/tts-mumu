@@ -1,0 +1,259 @@
+plugins {
+    id("com.android.application")
+    id("org.jetbrains.kotlin.android")
+    id("kotlinx-serialization")
+    id("kotlin-parcelize")
+    id("com.google.devtools.ksp")
+    id("com.mikepenz.aboutlibraries.plugin")
+    alias(libs.plugins.compose.compiler)
+}
+
+static def buildTime() {
+    def t = new Date().time / 1000
+    return (long) t
+}
+
+static def releaseTime() {
+    return new Date().format("yy.MMddHH", TimeZone.getTimeZone("GMT+8"))
+}
+
+def version = "1.26.062507"
+def gitCommits = 1509
+
+android {
+    compileSdk libs.versions.compileSdk.get().toInteger()
+    namespace 'com.github.jing332.tts_server_android'
+
+    defaultConfig {
+        applicationId 'com.github.jing332.tts_server_android'
+        minSdk libs.versions.minSdk.get().toInteger()
+        targetSdk libs.versions.targetSdk.get().toInteger()
+        versionCode gitCommits
+        versionName version
+
+        ksp {
+            arg("room.schemaLocation", "$projectDir/schemas".toString())
+            arg("room.incremental", "true")
+            arg("room.expandProjection", "true")
+        }
+
+        // 读取strings.xml所在文件夹 获得应用支持的语言
+        tasks.register('buildTranslationArray') {
+            def defaultCode = "zh-CN"
+            def foundLocales = new StringBuilder()
+            foundLocales.append("new String[]{")
+
+            fileTree("src/main/res").visit { details ->
+                if (details.file.path.endsWith("strings.xml")) {
+                    def path = details.file.parent.replaceAll('\\\\', "/")
+                    def languageCode = path.tokenize('/').last().replaceAll('values-', '').replaceAll('-r', '-')
+                    languageCode = (languageCode == "values") ? defaultCode : languageCode;
+                    foundLocales.append("\"").append(languageCode).append("\"").append(",")
+                }
+            }
+            foundLocales.append("}")
+            def foundLocalesString = foundLocales.toString().replaceAll(',}', '}')
+            buildConfigField "String[]", "TRANSLATION_ARRAY", foundLocalesString
+        }
+        preBuild.dependsOn buildTranslationArray
+        buildConfigField "long", "BUILD_TIME", buildTime().toString()
+
+        testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
+    }
+
+    lint {
+        checkReleaseBuilds false
+        checkDependencies  true
+    }
+
+    signingConfigs {
+        release {
+            // read sign from local.properties
+            Properties pro = new Properties()
+            def localPropsFile = project.rootProject.file("local.properties")
+            if (localPropsFile.exists()) {
+                InputStream input = localPropsFile.newDataInputStream()
+                pro.load(input)
+                def keyPath = pro.getProperty("KEY_PATH")
+                if (keyPath != null) {
+                    storeFile file(keyPath)
+                    storePassword pro.getProperty("KEY_PASSWORD")
+                    keyAlias pro.getProperty("ALIAS_NAME")
+                    keyPassword pro.getProperty("ALIAS_PASSWORD")
+                } else {
+                    // 使用 debug 签名
+                    storeFile file("${System.getProperty('user.home')}/.android/debug.keystore")
+                    storePassword "android"
+                    keyAlias "androiddebugkey"
+                    keyPassword "android"
+                }
+            } else {
+                // 使用 debug 签名
+                storeFile file("${System.getProperty('user.home')}/.android/debug.keystore")
+                storePassword "android"
+                keyAlias "androiddebugkey"
+                keyPassword "android"
+            }
+        }
+    }
+
+    buildTypes {
+        release {
+            signingConfig signingConfigs.release
+            minifyEnabled true
+            shrinkResources true
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+        }
+        debug {
+            signingConfig signingConfigs.release
+            applicationIdSuffix ".debug"
+            versionNameSuffix "_debug"
+        }
+    }
+    packagingOptions {
+        resources {
+            excludes += ['META-INF/*']
+        }
+    }
+
+
+    // 分别打包APK 原版 和 dev共存版
+    flavorDimensions += "version"
+    productFlavors {
+        app {
+            dimension = "version"
+        }
+        dev {
+            dimension = "version"
+            applicationIdSuffix ".dev"
+        }
+    }
+
+    android.applicationVariants.configureEach { variant ->
+        variant.outputs.configureEach { output ->
+            //noinspection GrDeprecatedAPIUsage
+            def abiName = output.getFilter(com.android.build.OutputFile.ABI)
+            if (abiName == null)
+                output.outputFileName = "TTS-Server-v${variant.versionName}.apk"
+            else
+                output.outputFileName = "TTS-Server-v${variant.versionName}_${abiName}.apk"
+        }
+    }
+
+    compileOptions {
+        coreLibraryDesugaringEnabled true
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+
+    kotlinOptions {
+        jvmTarget = '17'
+    }
+
+    kotlin {
+        jvmToolchain(21)
+    }
+
+    buildFeatures {
+        viewBinding true
+        buildConfig true
+        compose true
+    }
+
+}
+
+dependencies {
+    // WebDAV 支持库
+    implementation(libs.sardine)
+    
+    // 扩展图标库
+    implementation 'androidx.compose.material:material-icons-extended'
+
+    coreLibraryDesugaring(libs.desugar)
+    api(project(":lib-common"))
+    implementation(project(":lib-compose"))
+    implementation(project(":lib-script"))
+    implementation(project(":lib-tts"))
+    implementation(project(":lib-server"))
+
+
+    implementation fileTree(include: ['*.jar', '*.aar'], dir: 'libs')
+    implementation 'androidx.legacy:legacy-support-v4:1.0.0'
+
+    implementation(libs.logging)
+    implementation(libs.slf4j.api)
+    
+    // 🛠️ 关键修复 1：在 Logback 依赖中彻底排除引起冲突的 XML 库
+    implementation(libs.logback.android) {
+        exclude group: 'xmlpull', module: 'xmlpull'
+        exclude group: 'xpp3', module: 'xpp3'
+    }
+
+    implementation libs.activityKtx
+    implementation libs.bundles.andorid.base
+
+
+    implementation libs.kotlinx.coroutines.android
+    implementation libs.kotlinx.serialization.json
+
+    implementation(libs.bundles.markwon)
+
+
+    // Code Editor
+    implementation(libs.bundles.codeEditor)
+    implementation(libs.bundles.network)
+
+    // 混元太极本地中转服务 (OpenAI 兼容) —— 复用 ktor CIO 引擎
+    implementation(libs.ktor.server.cio)
+    implementation(libs.ktor.server.core)
+    implementation(libs.ktor.server.content.negotiation)
+    implementation(libs.ktor.server.serialization.json)
+    implementation(libs.ktor.server.cors)
+
+
+    implementation(libs.bundles.room)
+    ksp(libs.roomCompiler)
+
+
+    implementation(libs.splitties.systemservices)
+    implementation(libs.splitties.appctx)
+    implementation(libs.hutool.crypto)
+
+
+    implementation(libs.bundles.media3)
+
+    implementation 'me.rosuh:AndroidFilePicker:1.0.1'
+
+    implementation(libs.hanlp)
+
+
+    implementation(libs.bundles.about)
+
+    implementation libs.bundles.accompanist
+
+
+    implementation(libs.bundles.lifecycle)
+
+    def composeBom = platform(libs.compose.bom)
+    implementation composeBom
+    androidTestImplementation composeBom
+
+    implementation(libs.bundles.compose)
+    implementation(libs.bundles.compose.material3)
+
+    androidTestImplementation 'androidx.compose.ui:ui-test-junit4'
+    debugImplementation 'androidx.compose.ui:ui-test-manifest'
+    implementation 'androidx.compose.ui:ui-tooling-preview'
+    debugImplementation 'androidx.compose.ui:ui-tooling'
+
+    testImplementation(libs.junit)
+    androidTestImplementation(libs.ext.junit)
+    androidTestImplementation(libs.espresso.core)
+}
+
+// 🛠️ 关键修复 2：添加全局排除规则
+// 确保没有任何间接依赖（如 sardine 或其他网络库）带入 xmlpull
+configurations.all {
+    exclude group: 'xmlpull', module: 'xmlpull'
+    exclude group: 'xpp3', module: 'xpp3'
+}
