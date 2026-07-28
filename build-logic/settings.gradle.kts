@@ -1,20 +1,28 @@
+// CI 环境直接用官方仓库, 本地用阿里云镜像加速
+val isCI = System.getenv("CI") == "true" || System.getenv("GITHUB_ACTIONS") == "true"
+
 pluginManagement {
     repositories {
-        maven("https://maven.aliyun.com/repository/gradle-plugin")
-        maven("https://maven.aliyun.com/repository/public")
-        maven("https://maven.aliyun.com/repository/central")
+        if (!isCI) {
+            maven("https://maven.aliyun.com/repository/gradle-plugin")
+            maven("https://maven.aliyun.com/repository/public")
+            maven("https://maven.aliyun.com/repository/central")
+        }
         gradlePluginPortal()
         mavenCentral()
+        google()
     }
 }
 
 dependencyResolutionManagement {
     repositories {
-        maven("https://maven.aliyun.com/repository/google")
-        maven("https://maven.aliyun.com/repository/public")
-        maven("https://maven.aliyun.com/repository/central")
-        mavenCentral()
+        if (!isCI) {
+            maven("https://maven.aliyun.com/repository/google")
+            maven("https://maven.aliyun.com/repository/public")
+            maven("https://maven.aliyun.com/repository/central")
+        }
         google()
+        mavenCentral()
     }
     versionCatalogs {
         create("libs") {
