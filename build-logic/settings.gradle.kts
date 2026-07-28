@@ -1,9 +1,7 @@
-// CI 环境直接用官方仓库, 本地用阿里云镜像加速
-val isCI = System.getenv("CI") == "true" || System.getenv("GITHUB_ACTIONS") == "true"
-
 pluginManagement {
     repositories {
-        if (!isCI) {
+        // CI 环境直接用官方仓库, 本地用阿里云镜像加速
+        if (!(System.getenv("CI") == "true" || System.getenv("GITHUB_ACTIONS") == "true")) {
             maven("https://maven.aliyun.com/repository/gradle-plugin")
             maven("https://maven.aliyun.com/repository/public")
             maven("https://maven.aliyun.com/repository/central")
@@ -16,7 +14,7 @@ pluginManagement {
 
 dependencyResolutionManagement {
     repositories {
-        if (!isCI) {
+        if (!(System.getenv("CI") == "true" || System.getenv("GITHUB_ACTIONS") == "true")) {
             maven("https://maven.aliyun.com/repository/google")
             maven("https://maven.aliyun.com/repository/public")
             maven("https://maven.aliyun.com/repository/central")

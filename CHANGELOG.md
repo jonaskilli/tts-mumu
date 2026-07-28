@@ -2,6 +2,7 @@
 - 修复: settings.gradle pluginManagement 缺 google() 导致 CI 找不到 Android 插件
 - 修复: KSP 插件 2.1.10-1.0.29 仅在 Maven Central, 阿里云镜像未同步, 补 mavenCentral() 仓库
 - 修复: CI 环境改用官方仓库(google()/mavenCentral()/gradlePluginPortal), 阿里云镜像仅本地开发使用
+- 修复: settings.gradle pluginManagement 必须为脚本首条语句, 改用块内条件判断切换仓库
 - 性能优化: 选中选项(分组/朗读规则/插件/替换规则)消除卡顿，多选用 derivedStateOf 减少重组
 - 性能优化: 各界面拖拽排序改 IO 线程批量更新，避免主线程 DB 阻塞
 - 性能优化: 导入(发音人/朗读规则/插件/替换规则)改 IO 线程异步执行

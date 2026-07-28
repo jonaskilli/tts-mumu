@@ -1,11 +1,9 @@
-// CI 环境 (如 GitHub Actions) 直接用官方仓库, 避免阿里云镜像同步不完整导致解析失败
-// 本地开发优先用阿里云镜像加速
-def isCI = System.getenv('CI') == 'true' || System.getenv('GITHUB_ACTIONS') == 'true'
-
 pluginManagement {
     includeBuild("build-logic")
     repositories {
-        if (!isCI) {
+        // CI 环境 (如 GitHub Actions) 直接用官方仓库, 避免阿里云镜像同步不完整导致解析失败
+        // 本地开发优先用阿里云镜像加速
+        if (!(System.getenv('CI') == 'true' || System.getenv('GITHUB_ACTIONS') == 'true')) {
             maven { url 'https://maven.aliyun.com/repository/gradle-plugin' }
             maven { url 'https://maven.aliyun.com/repository/public' }
             maven { url 'https://maven.aliyun.com/repository/google' }
@@ -18,7 +16,7 @@ pluginManagement {
 dependencyResolutionManagement {
     repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
     repositories {
-        if (!isCI) {
+        if (!(System.getenv('CI') == 'true' || System.getenv('GITHUB_ACTIONS') == 'true')) {
             maven { url 'https://maven.aliyun.com/repository/google' }
             maven { url 'https://maven.aliyun.com/repository/public' }
             maven { url 'https://maven.aliyun.com/repository/central' }
