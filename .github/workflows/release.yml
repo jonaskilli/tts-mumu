@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - "compose"
+      - "mumu_tts_github"
     paths:
       - "CHANGELOG.md"
   workflow_dispatch:
