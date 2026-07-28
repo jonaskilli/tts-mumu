@@ -6,6 +6,7 @@ pluginManagement {
         maven { url 'https://maven.aliyun.com/repository/google' }
         google()
         gradlePluginPortal()
+        mavenCentral()
     }
 }
 dependencyResolutionManagement {
@@ -14,6 +15,8 @@ dependencyResolutionManagement {
         maven { url 'https://maven.aliyun.com/repository/google' }
         maven { url 'https://maven.aliyun.com/repository/public' }
         maven { url 'https://maven.aliyun.com/repository/central' }
+        mavenCentral()
+        google()
         maven { url 'https://www.jitpack.io' }
     }
 
