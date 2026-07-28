@@ -340,8 +340,8 @@
     <string name="plugin">插件</string>
     <string name="replace_rule">替换规则</string>
     <string name="speech_rule">朗读规则</string>
-    <string name="toolbox">工具箱</string>
-    <string name="toolbox_empty">暂无工具。在发音人配置中开启「仅界面模式」后会出现在这里。</string>
+    <string name="toolbox">角色管理</string>
+    <string name="toolbox_empty">暂无角色\n\n在发音人编辑界面开启「仅界面模式」后，对应插件会作为角色管理项显示在此处。</string>
     <string name="plugin_not_found">未找到对应插件</string>
     <string name="import_auto_detected">已自动识别为：%1$s</string>
     <string name="invalid_scheme_msg">无效的Scheme: %1$s</string>

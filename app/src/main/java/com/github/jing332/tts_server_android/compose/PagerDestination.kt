@@ -4,7 +4,7 @@ import androidx.annotation.StringRes
 import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.TextSnippet
-import androidx.compose.material.icons.filled.Build
+import androidx.compose.material.icons.filled.AccountCircle
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.Icon
 import androidx.compose.runtime.Composable
@@ -41,11 +41,11 @@ sealed class PagerDestination(
         )
     })
 
-    // 工具箱：独立于发音人，承载「仅界面模式」的工具型插件（如角色管理）
+    // 角色管理：独立于发音人，承载「仅界面模式」的工具型插件
     object Tool : PagerDestination(1, R.string.toolbox, R.string.toolbox, {
         Icon(
             modifier = Modifier.size(24.dp),
-            imageVector = Icons.Default.Build,
+            imageVector = Icons.Default.AccountCircle,
             contentDescription = null
         )
     })
