@@ -1,3 +1,12 @@
+- 性能优化: 选中选项(分组/朗读规则/插件/替换规则)消除卡顿，多选用 derivedStateOf 减少重组
+- 性能优化: 各界面拖拽排序改 IO 线程批量更新，避免主线程 DB 阻塞
+- 性能优化: 导入(发音人/朗读规则/插件/替换规则)改 IO 线程异步执行
+- 性能优化: ManagerActivity 与 MainActivity 的 onSave 回调改 IO 线程
+- 新功能: 同标签发音人去重，启用新项时自动禁用同 tag 旧项
+- 修复: 主线程数据库操作(分组删除/重命名/展开/启用切换等)
+- 修复: OkHttp Response 与 InputStream 资源泄漏
+- 修复: LaunchedEffect 内嵌套 scope.launch 的协程泄漏
+- 修复: ReplaceRule/Replace SortDialog 主线程阻塞
 - 有好的配置导入提示
 - 添加三种主题色
 - 新用户自动添加默认配置
