@@ -132,7 +132,7 @@ fun GroupItem(
 
         Text(
             name,
-            style = MaterialTheme.typography.titleMedium.copy(fontSize = 18.sp),
+            style = MaterialTheme.typography.titleMedium.copy(fontSize = 20.sp),
             modifier = Modifier
                 .align(Alignment.CenterVertically)
                 .weight(1f)
