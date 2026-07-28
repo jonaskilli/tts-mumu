@@ -1,5 +1,6 @@
 package com.github.jing332.compose.widgets
 
+import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.lazy.LazyListState
@@ -7,7 +8,6 @@ import androidx.compose.material3.BottomAppBarScrollBehavior
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.remember
 
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -18,26 +18,11 @@ fun ControlBottomBarVisibility(
 ) {
     val bottomAppBarState = bottomBarBehavior.state
 
-    val heightOffset =
-        remember { androidx.compose.animation.core.Animatable(1f) }
-
-    LaunchedEffect(heightOffset.value) {
-        bottomAppBarState.heightOffset = heightOffset.value
-    }
-
     LaunchedEffect(state) {
         if (state) {
-            heightOffset.snapTo(bottomAppBarState.heightOffset)
-            heightOffset.animateTo(
-                targetValue = 0f,
-                animationSpec = tween(
-                    durationMillis = 300,
-                    easing = FastOutSlowInEasing
-                )
-            )
+            animateBottomBarToShow(bottomAppBarState)
         }
     }
-
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -48,24 +33,30 @@ fun ControlBottomBarVisibility(
 ) {
     val bottomAppBarState = bottomBarBehavior.state
 
-    val heightOffset =
-        remember { androidx.compose.animation.core.Animatable(1f) }
-
-     LaunchedEffect(heightOffset.value) {
-        bottomAppBarState.heightOffset = heightOffset.value
-    }
-
+    // 列表回到顶部或内容不足以向上滚动时，确保底部栏可见；
+    // 修复：原条件 !(canScrollBackward || canScrollForward) 过于严格，
+    // 仅在列表完全不可滚动时才复位，导致用户滚动隐藏后回到顶部时底部栏不再出现。
     LaunchedEffect(listState.canScrollBackward, listState.canScrollForward) {
-        if (!(listState.canScrollBackward || listState.canScrollForward)) {
-            heightOffset.snapTo(bottomAppBarState.heightOffset)
-            heightOffset.animateTo(
-                targetValue = 0f,
-                animationSpec = tween(
-                    durationMillis = 300,
-                    easing = FastOutSlowInEasing
-                )
-            )
+        if (!listState.canScrollBackward) {
+            animateBottomBarToShow(bottomAppBarState)
         }
     }
+}
 
+@OptIn(ExperimentalMaterial3Api::class)
+private suspend fun animateBottomBarToShow(
+    bottomAppBarState: androidx.compose.material3.BottomAppBarState,
+) {
+    val start = bottomAppBarState.heightOffset
+    if (start == 0f) return
+    val anim = Animatable(start)
+    anim.animateTo(
+        targetValue = 0f,
+        animationSpec = tween(
+            durationMillis = 300,
+            easing = FastOutSlowInEasing
+        )
+    ) {
+        bottomAppBarState.heightOffset = value
+    }
 }
