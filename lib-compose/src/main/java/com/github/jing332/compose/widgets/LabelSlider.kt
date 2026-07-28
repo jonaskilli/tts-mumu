@@ -240,7 +240,7 @@ fun PreviewSlider() {
         onValueChange = { value = it },
         valueRange = 0.1f..3.0f,
         a11yDescription = str,
-        buttonSteps = 0.1f,
+        buttonSteps = 0.01f,
     ) {
         Text(str)
     }
