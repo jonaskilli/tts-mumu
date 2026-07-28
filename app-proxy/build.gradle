@@ -1,0 +1,94 @@
+plugins {
+    id 'com.android.application'
+    id 'org.jetbrains.kotlin.android'
+    id 'kotlinx-serialization'
+    alias(libs.plugins.compose.compiler)
+}
+
+android {
+    compileSdk libs.versions.compileSdk.get().toInteger()
+    namespace 'com.github.jing332.deepseekproxy'
+
+    defaultConfig {
+        applicationId 'com.github.jing332.deepseekproxy'
+        minSdk libs.versions.minSdk.get().toInteger()
+        targetSdk libs.versions.targetSdk.get().toInteger()
+        versionCode 6
+        versionName '1.0.5'
+        testInstrumentationRunner 'androidx.test.runner.AndroidJUnitRunner'
+    }
+
+    signingConfigs {
+        release {
+            // read sign from local.properties
+            Properties pro = new Properties()
+            def localPropsFile = project.rootProject.file("local.properties")
+            if (localPropsFile.exists()) {
+                InputStream input = localPropsFile.newDataInputStream()
+                pro.load(input)
+                def keyPath = pro.getProperty("KEY_PATH")
+                if (keyPath != null) {
+                    storeFile file(keyPath)
+                    storePassword pro.getProperty("KEY_PASSWORD")
+                    keyAlias pro.getProperty("ALIAS_NAME")
+                    keyPassword pro.getProperty("ALIAS_PASSWORD")
+                } else {
+                    storeFile file("${System.getProperty('user.home')}/.android/debug.keystore")
+                    storePassword "android"
+                    keyAlias "androiddebugkey"
+                    keyPassword "android"
+                }
+            } else {
+                storeFile file("${System.getProperty('user.home')}/.android/debug.keystore")
+                storePassword "android"
+                keyAlias "androiddebugkey"
+                keyPassword "android"
+            }
+        }
+    }
+
+    buildTypes {
+        release {
+            signingConfig signingConfigs.release
+            minifyEnabled false
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+        }
+    }
+
+    compileOptions {
+        coreLibraryDesugaringEnabled true
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+    kotlinOptions { jvmTarget = '17' }
+    kotlin { jvmToolchain(21) }
+
+    buildFeatures {
+        compose true
+        buildConfig true
+    }
+}
+
+dependencies {
+    coreLibraryDesugaring(libs.desugar)
+
+    implementation(libs.kotlinx.coroutines.android)
+    implementation(libs.kotlinx.serialization.json)
+    implementation(libs.okhttp)
+    implementation(libs.activityKtx)
+
+    implementation(libs.bundles.lifecycle)
+    def composeBom = platform(libs.compose.bom)
+    implementation composeBom
+    implementation(libs.bundles.compose)
+    implementation(libs.bundles.compose.material3)
+    implementation 'androidx.compose.ui:ui-tooling-preview'
+    debugImplementation 'androidx.compose.ui:ui-tooling'
+
+    // 本地中转服务 (OpenAI 兼容)
+    implementation(libs.ktor.server.cio)
+    implementation(libs.ktor.server.core)
+    implementation(libs.ktor.server.content.negotiation)
+    implementation(libs.ktor.server.serialization.json)
+    implementation(libs.ktor.server.cors)
+}

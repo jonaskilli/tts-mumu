@@ -1,0 +1,399 @@
+var req = {}
+var callback = null
+var audioCacheBytes = null
+var audioLock = new java.lang.Object()
+var globalChatId = null
+
+let cookie = ttsrv.userVars['cookie']
+let authToken = ''
+
+function extractKimiAuth() {
+    if (!cookie) return
+    const reg = /kimi-auth=([^;]+)/
+    const match = cookie.match(reg)
+    if (match && match[1]) {
+        authToken = match[1].trim()
+        logger.i("✅ 从Cookie中提取kimi-auth成功")
+    } else {
+        authToken = ''
+        logger.e("❌ Cookie格式错误，未提取到kimi-auth，请重新抓取Cookie")
+    }
+}
+
+function getAuthToken() {
+    if (!authToken || authToken.trim() === "") {
+        throw "未提取到有效kimi-auth，请先抓取Cookie"
+    }
+    return authToken
+}
+
+function check() {
+    cookie || function () { throw "未设置Cookie，请先一键抓取" }()
+    authToken || function () { throw "Cookie中无有效kimi-auth，请重新抓取" }()
+}
+
+var PluginJS = {
+    "name": "Kimi",
+    "id": "kimi.tts",
+    "author": "TTS Server",
+    "version": 1,
+    "iconUrl": "https://statics.moonshot.cn/kimi-chat/favicon.ico",
+    "vars": {
+        "cookie": {
+            "label": "Kimi Cookie",
+            "hint": "一键抓取即可，无需手动编辑",
+            "loginUrl": "https://www.kimi.com/",
+            "binding": "cookies",
+            "ua": "pc"
+        }
+    },
+    "isNeedDecode": function(locale, voice) {
+        return false;
+    },
+    "onStop": function () {},
+    "getAudioV2": function (request, callback2) {
+        cookie = ttsrv.userVars['cookie']
+        extractKimiAuth()
+        try {
+            check()
+        } catch (e) {
+            logger.e("Auth校验失败：" + e)
+            if(callback2 && callback2.error) callback2.error(e);
+            return
+        }
+
+        logger.i("=== Kimi TTS 开始 ===")
+        audioCacheBytes = null
+        
+        var text = request.text
+        var voice = request.voice
+        if (!voice || voice.trim() === "") {
+             voice = "S_LvP7QSYN"
+             logger.w("未指定音色，使用默认音色: " + voice)
+        } else {
+             logger.i("使用音色: " + voice)
+        }
+
+        var promptText = "请严格百分百原样复述以下内容，不做任何修改、删减、补充、解释：" + text
+        if (!promptText || promptText.trim() === "") {
+            logger.e("文本为空，无法生成音频")
+            if(callback2 && callback2.error) callback2.error("文本不能为空");
+            return
+        }
+        if (promptText.length > 500) {
+            logger.w("文本过长（" + promptText.length + "字），可能触发接口截断，建议拆分")
+        }
+        
+        var inputRate = (request.rate !== undefined && request.rate !== null) ? request.rate : 50;
+        var speedValue = 0.5 + (inputRate / 100) * 1.5
+        speedValue = Math.min(speedValue, 1.8)
+        
+        logger.i("语速参数: rate=" + inputRate + " -> speed=" + speedValue)
+        
+        var blockJson = '{"id":"","parentId":null,"messageId":null,"text":{"content":' + JSON.stringify(promptText) + ',"tips":null},"search":null,"file":null,"think":null,"exception":null,"memory":null,"contractReview":null,"tool":null,"artifact":null,"slidesView":null,"stage":null,"multiStage":null,"elemeMenuCard":null,"elemeOrderCard":null,"videoCards":null,"explorerResearch":null,"explorerResearchReanswer":null,"aippt":null,"contentViewZhidemaiCard":null,"error":null,"createTime":null}'
+        var kimiPlusJson = '{"id":"","avatarUrl":"","name":""}'
+        var messageJson = '{"id":"","parentId":"","role":"user","status":null,"refs":null,"scenario":"SCENARIO_CHAT","kimiPlus":' + kimiPlusJson + ',"vote":null,"error":null,"createTime":null,"childrenMessageIds":[],"blocks":[' + blockJson + '],"labels":[],"labelsValue":[]}'
+        var optionsJson = '{"lbs":null,"voiceId":"' + voice + '","speed":' + speedValue + ',"thinking":false,"systemPrompt":null,"slides":null}'
+        var toolsJson = '[{"type":"TOOL_TYPE_DEVICE_LBS","search":null,"genImage":null,"name":""},{"type":"TOOL_TYPE_SEARCH","search":null,"genImage":null,"content":null,"name":""}]'
+        var jsonStr = '{"chatId":' + (globalChatId ? JSON.stringify(globalChatId) : '""') + ',"kimiplusId":"conph6gt7lagfi80vfrg","scenario":"SCENARIO_CHAT","message":' + messageJson + ',"options":' + optionsJson + ',"projectId":null,"tools":' + toolsJson + '}'
+        
+        var headers = {
+            "Authorization": "Bearer " + getAuthToken(),
+            "Content-Type": "application/connect+json",
+            "Accept": "application/json",
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/133.0.0.0 Safari/537.36 Edg/133.0.0.0",
+            "x-msh-platform": "android",
+            "x-language": "zh-CN",
+            "r-timezone": "Asia/Shanghai"
+        }
+
+        try {
+            var jsonBytes = ttsrv.strToBytes(jsonStr)
+            var jsonLength = jsonBytes.length
+            
+            var baos = new java.io.ByteArrayOutputStream()
+            baos.write(0x00)
+            baos.write((jsonLength >> 24) & 0xFF)
+            baos.write((jsonLength >> 16) & 0xFF)
+            baos.write((jsonLength >> 8) & 0xFF)
+            baos.write(jsonLength & 0xFF)
+            baos.write(jsonBytes, 0, jsonBytes.length)
+            var requestBody = baos.toByteArray()
+            baos.close()
+            
+            var url = new java.net.URL("https://www.kimi.com/apiv2/kimi.gateway.chat.v1.ChatService/Chat")
+            var conn = url.openConnection()
+            conn.setRequestMethod("POST")
+            conn.setDoOutput(true)
+            conn.setDoInput(true)
+            conn.setConnectTimeout(10000)
+            conn.setReadTimeout(30000)
+            
+            for (var key in headers) {
+                conn.setRequestProperty(key, headers[key])
+            }
+            
+            var os = conn.getOutputStream()
+            os.write(requestBody)
+            os.flush()
+            os.close()
+            
+            var responseCode = conn.getResponseCode()
+            logger.i("HTTP响应码: " + responseCode)
+            
+            var is = (responseCode >= 200 && responseCode < 300) ? conn.getInputStream() : conn.getErrorStream()
+            var buffer = ttsrv.strToBytes("");
+            buffer = java.util.Arrays.copyOf(buffer, 4096);
+            var baos2 = new java.io.ByteArrayOutputStream()
+            var bytesRead
+            while ((bytesRead = is.read(buffer)) != -1) {
+                baos2.write(buffer, 0, bytesRead)
+            }
+            is.close()
+            var respBytes = baos2.toByteArray()
+            baos2.close()
+            var respText = new java.lang.String(respBytes, "UTF-8")
+            logger.i("响应长度: " + respBytes.length + " bytes")
+            
+            if (responseCode < 200 || responseCode >= 300) {
+                logger.e("请求失败: " + respText.substring(0, 500))
+                if(callback2 && callback2.error) callback2.error("HTTP " + responseCode);
+                return
+            }
+            
+            // 在整个响应中搜索 tts.audioUrl
+            var ttsIdx = respText.indexOf('"tts"')
+            logger.i("tts字段位置: " + ttsIdx)
+            if (ttsIdx > -1) {
+                var snippet = respText.substring(ttsIdx, Math.min(ttsIdx + 500, respText.length))
+                logger.i("tts片段: " + snippet)
+            }
+            
+            var chatId = null
+            var messageId = null
+            var audioUrl = null
+            
+            try {
+                // 提取chatId
+                var chatIdMatch = respText.match(/"chat":\{"id":"([^"]+)"/) 
+                if (chatIdMatch) {
+                    chatId = chatIdMatch[1]
+                    logger.i("提取到chatId: " + chatId)
+                }
+                globalChatId = chatId
+                
+                // 提取messageId (assistant的)
+                var msgRegex = /"message":\{([^}]+)\}/g
+                var msgMatch
+                var lastAssistantMsg = null
+                while ((msgMatch = msgRegex.exec(respText)) !== null) {
+                    var msgContent = msgMatch[1]
+                    if (msgContent.indexOf('"role":"assistant"') > -1) {
+                        lastAssistantMsg = msgContent
+                    }
+                }
+                if (lastAssistantMsg) {
+                    var idMatch = lastAssistantMsg.match(/"id":"([^"]+)"/)
+                    if (idMatch) {
+                        messageId = idMatch[1]
+                        logger.i("提取到messageId: " + messageId)
+                    }
+                }
+                
+                // 【关键修复】从响应中提取tts.audioUrl (翻译通格式)
+                // 模式1: 紧凑格式
+                var ttsMatch1 = respText.match(new RegExp('"tts":\\{[^}]*"audioUrl":"(https:[^"]+)"'))
+                if (ttsMatch1) {
+                    audioUrl = ttsMatch1[1]
+                }
+                // 模式2: 宽松格式（跨行）
+                if (!audioUrl) {
+                    var ttsMatch2 = respText.match(new RegExp('"tts"[\\s\\S]*?"audioUrl":"(https:[^"]+)"'))
+                    if (ttsMatch2) {
+                        audioUrl = ttsMatch2[1]
+                    }
+                }
+                // 模式3: 直接匹配TOS URL
+                if (!audioUrl) {
+                    var ttsMatch3 = respText.match(new RegExp('"audioUrl":"(https://[^"]*prod-chat-kimi-tos[^"]*)"'))
+                    if (ttsMatch3) {
+                        audioUrl = ttsMatch3[1]
+                    }
+                }
+                if (audioUrl) {
+                    logger.i("从响应中提取到TTS音频URL: " + audioUrl.substring(0, 60) + "...")
+                }
+            } catch (e) {
+                logger.e("解析响应失败: " + e.message)
+            }
+            
+            // 如果没有从响应中提取到audioUrl，使用CDN格式构建
+            if (!audioUrl) {
+                if (!chatId || !messageId) {
+                    logger.e("未能提取 chatId 或 messageId")
+                    logger.e("响应预览: " + respText.substring(0, 500))
+                    if(callback2 && callback2.error) callback2.error("Kimi API 响应异常");
+                    return
+                }
+                audioUrl = "https://cdn-audio.moonshot.cn/tts/" + chatId + "/" + messageId + "/" + voice + "_1.mp3"
+                logger.i("使用CDN格式音频URL: " + audioUrl)
+            }
+            
+            // 等待音频生成（轮询检测）
+            logger.i("等待音频生成...")
+            var audioReady = false
+            var checkCount = 0
+            var maxCheck = 60
+            var pollInterval = 1000
+            
+            while (checkCount < maxCheck && !audioReady) {
+                try {
+                    var checkUrl = new java.net.URL(audioUrl)
+                    var checkConn = checkUrl.openConnection()
+                    checkConn.setRequestMethod("HEAD")
+                    checkConn.setConnectTimeout(3000)
+                    checkConn.setReadTimeout(3000)
+                    checkConn.setRequestProperty("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36")
+                    var checkCode = checkConn.getResponseCode()
+                    if (checkCount % 10 === 0 || checkCode === 200) {
+                        logger.i("音频检测 [" + (checkCount+1) + "] code: " + checkCode)
+                    }
+                    if (checkCode == 200) {
+                        audioReady = true
+                    } else {
+                        java.lang.Thread.sleep(pollInterval)
+                        checkCount++
+                    }
+                } catch (e) {
+                    java.lang.Thread.sleep(pollInterval)
+                    checkCount++
+                }
+            }
+            
+            if (!audioReady) {
+                logger.e("音频生成超时，尝试备用格式...")
+                // 尝试TOS格式URL
+                var dateStr = new Date().toISOString().split('T')[0]
+                audioUrl = "https://prod-chat-kimi-tos.moonshot.cn/prod-chat-kimi/tts/" + dateStr + "/" + chatId + "/" + messageId + "/" + chatId.substring(0, 8) + "-tts.mp3"
+                logger.i("尝试TOS格式: " + audioUrl)
+            }
+            
+            // 下载音频（使用单段下载方式）
+            logger.i("下载音频: " + audioUrl.substring(0, 80) + "...")
+            var audioBaos = new java.io.ByteArrayOutputStream()
+            var audioIs = null
+            
+            try {
+                var urlObj = new java.net.URL(audioUrl)
+                var audioConn = urlObj.openConnection()
+                audioConn.setRequestProperty("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/133.0.0.0 Safari/537.36 Edg/133.0.0.0")
+                audioConn.setRequestProperty("Accept-Encoding", "identity")
+                audioConn.setConnectTimeout(15000)
+                audioConn.setReadTimeout(60000)
+
+                var audioCode = audioConn.getResponseCode()
+                logger.i("音频HTTP状态码: " + audioCode)
+                if (audioCode !== 200) {
+                    throw new Error("音频下载失败，HTTP状态码: " + audioCode)
+                }
+
+                audioIs = audioConn.getInputStream()
+                var audioBuffer = java.util.Arrays.copyOf(ttsrv.strToBytes(""), 4096)
+                var audioBytesRead
+                var totalBytes = 0
+
+                while ((audioBytesRead = audioIs.read(audioBuffer)) != -1) {
+                    if (audioBytesRead > 0) {
+                        audioBaos.write(audioBuffer, 0, audioBytesRead)
+                        totalBytes += audioBytesRead
+                    }
+                }
+
+                if (totalBytes < 1000) {
+                    throw new Error("音频数据过小 (" + totalBytes + "B)")
+                }
+                
+                audioCacheBytes = audioBaos.toByteArray()
+                logger.i("音频下载完成，总大小: " + totalBytes + " bytes")
+                
+            } catch (e) {
+                logger.e("音频下载失败: " + e.message)
+                if(callback2 && callback2.error) callback2.error("音频下载失败: " + e.message);
+            } finally {
+                if (audioIs != null) {
+                    try { audioIs.close() } catch (e) {}
+                }
+                audioBaos.close()
+            }
+
+        } catch (e) {
+            logger.e("GetAudioV2 异常: " + e.message)
+            if(callback2 && callback2.error) callback2.error("异常: " + e.message);
+        }
+    },
+    "getAudio": function(text, locale, voice, speed, volume, pitch) {
+        logger.i("=== Kimi 适配启动 ===")
+        audioCacheBytes = null
+        cookie = ttsrv.userVars['cookie']
+        extractKimiAuth()
+        try {
+            check()
+        } catch (e) {
+            logger.e("Auth校验失败：" + e)
+            throw e
+        }
+        var request = {
+            text: text,
+            voice: voice,
+            rate: speed
+        }
+        this.getAudioV2(request, null)
+        var waitCount = 0
+        while (waitCount < 300 && !audioCacheBytes) {
+            java.lang.Thread.sleep(100)
+            waitCount++
+            if (waitCount % 30 === 0) {
+                logger.i("音频缓存等待中，已等待" + (waitCount*0.1) + "秒")
+            }
+        }
+        if (!audioCacheBytes) {
+            throw "音频获取超时或失败"
+        }
+        logger.i("返回音频: " + audioCacheBytes.length + " bytes")
+        return audioCacheBytes
+    }
+}
+
+var voicesCache = []
+var localesCache = ['zh-CN']
+
+var EditorJS = {
+    "getAudioSampleRate": function (locale, voice) {
+        if (voice === "502001" || voice === "602002") {
+            return 16000
+        }
+        return 24000
+    },
+    "getAudioFormat": function (locale, voice) { return "mp3" },
+    "getLocales": function () { return localesCache },
+    "getVoices": function (locale) {
+        var mm = {}
+        voicesCache.forEach(function(v) {
+            mm[v.id] = { name: v.displayName, gender: "unknown" }
+        })
+        return mm
+    },
+    "onLoadData": function () {
+        voicesCache = [
+            {"id": "S_LvP7QSYN", "displayName": "丁丁", "description": "Kimi标准女声"},
+            {"id": "S_PnGf3nM41", "displayName": "小月", "description": "知性"},
+            {"id": "S_zHG83nM41", "displayName": "KK", "description": "开朗"},
+            {"id": "502001", "displayName": "舒然", "description": "温柔"},
+            {"id": "BV406_V2_streaming", "displayName": "灿灿", "description": "活力"},
+            {"id": "BV700_V2_streaming", "displayName": "木木", "description": "沉稳"},
+            {"id": "602002", "displayName": "诗诗", "description": "甜美"}
+        ]
+    },
+    "onLoadUI": function (ctx, linerLayout) {},
+    "onVoiceChanged": function (locale, voiceCode) {}
+}

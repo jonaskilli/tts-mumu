@@ -1,0 +1,33 @@
+pluginManagement {
+    includeBuild("build-logic")
+    repositories {
+        maven { url 'https://maven.aliyun.com/repository/gradle-plugin' }
+        maven { url 'https://maven.aliyun.com/repository/public' }
+        maven { url 'https://maven.aliyun.com/repository/google' }
+    }
+}
+dependencyResolutionManagement {
+    repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
+    repositories {
+        maven { url 'https://maven.aliyun.com/repository/google' }
+        maven { url 'https://maven.aliyun.com/repository/public' }
+        maven { url 'https://maven.aliyun.com/repository/central' }
+        maven { url 'https://www.jitpack.io' }
+    }
+
+    versionCatalogs {
+        libs {
+            from(files("./libs.versions.toml"))
+        }
+    }
+}
+
+rootProject.name = "TTS Server"
+include ':app'
+include ':lib-common'
+include ':lib-compose'
+include ':lib-database'
+include ':lib-tts'
+include ':lib-script'
+include ':lib-server'
+include ':app-proxy'

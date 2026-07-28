@@ -1,0 +1,35 @@
+*.iml
+.idea
+.gradle
+.DS_Store
+/build
+/captures
+.externalNativeBuild
+.cxx
+local.properties
+
+*.jks
+
+.kotlin
+.gitignore
+lib-rhino-android
+
+# CNB云原生开发配置备份
+gradle.properties.backup
+
+# Build outputs
+app/build
+lib-*/build
+build
+build-logic/build
+*.flat
+*.class
+
+# Build caches
+*.flat
+*.class
+*.jar
+*.aar
+.DS_Store
+*.log
+build.log
