@@ -30,6 +30,8 @@ build-logic/build
 *.class
 *.jar
 *.aar
+# gradle-wrapper.jar 必须纳入版本控制, 否则 CI 无法运行 gradlew
+!gradle/wrapper/gradle-wrapper.jar
 .DS_Store
 *.log
 build.log
