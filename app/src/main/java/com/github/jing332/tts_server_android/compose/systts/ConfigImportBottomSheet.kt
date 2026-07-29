@@ -93,9 +93,10 @@ fun ConfigImportBottomSheet(
     ): String {
         return when (src) {
             ImportSource.URL -> withContext(Dispatchers.IO) {
-                Net.get(url.toString()) {
+                val resp: Response = Net.get(url.toString()) {
                     setClient { trustSSLCertificate() }
-                }.execute().use { resp ->
+                }.execute()
+                resp.use {
                     val str = resp.body?.string()
                     if (resp.isSuccessful && !str.isNullOrBlank()) str
                     else throw Exception("GET $url failed: code=${resp.code}, message=${resp.message}, body=${str}")
