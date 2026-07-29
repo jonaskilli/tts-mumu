@@ -17,6 +17,8 @@ jobs:
 
       fail-fast: false
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     env:
       product: ${{ matrix.product.value }}
       product_name: ${{matrix.product.value}}

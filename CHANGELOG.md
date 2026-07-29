@@ -5,6 +5,7 @@
 - 修复: settings.gradle pluginManagement 必须为脚本首条语句, 改用块内条件判断切换仓库
 - 修复: CI 签名初始化用 printf 替换 echo, 避免末尾换行符破坏 jks 二进制
 - 修复: CI Init Signature 增加空 Secret 校验, 避免白跑14分钟编译才发现签名失败
+- 修复: CI Release 改用默认 GITHUB_TOKEN 并加 contents:write 权限, 避免创建 Release 403
 - 性能优化: 选中选项(分组/朗读规则/插件/替换规则)消除卡顿，多选用 derivedStateOf 减少重组
 - 性能优化: 各界面拖拽排序改 IO 线程批量更新，避免主线程 DB 阻塞
 - 性能优化: 导入(发音人/朗读规则/插件/替换规则)改 IO 线程异步执行
