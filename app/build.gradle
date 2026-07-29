@@ -17,7 +17,7 @@ static def releaseTime() {
     return new Date().format("yy.MMddHH", TimeZone.getTimeZone("GMT+8"))
 }
 
-def version = "1.26.062507"
+def version = "1.26.072900"
 def gitCommits = 1509
 
 android {

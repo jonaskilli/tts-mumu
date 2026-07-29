@@ -93,4 +93,4 @@ jobs:
           prerelease: false
           files: ${{env.outputs_dir}}/apk/${{ env.product }}/release/*.apk
         env:
-          GITHUB_TOKEN: ${{ secrets.TOKEN }}    
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
