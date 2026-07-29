@@ -43,8 +43,11 @@ jobs:
           echo ALIAS_PASSWORD='${{ secrets.ALIAS_PASSWORD }}' >> local.properties
           echo KEY_PASSWORD='${{ secrets.KEY_PASSWORD }}' >> local.properties
           echo KEY_PATH='./key.jks' >> local.properties
-          # 从Secrets读取无换行符Base64解码, 然后保存到到app/key.jks
-          echo ${{ secrets.KEY_STORE }} | base64 --decode > $GITHUB_WORKSPACE/app/key.jks
+          # 从Secrets读取Base64并解码为 key.jks (用 printf 避免 echo 末尾换行污染二进制)
+          printf '%s' '${{ secrets.KEY_STORE }}' | base64 --decode > $GITHUB_WORKSPACE/app/key.jks
+          # 校验解码后的文件确实是 Java KeyStore
+          file $GITHUB_WORKSPACE/app/key.jks
+          ls -l $GITHUB_WORKSPACE/app/key.jks
 
       - name: Build with Gradle
         run: |
