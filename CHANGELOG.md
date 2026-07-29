@@ -1,3 +1,4 @@
+- 修复: PR#2 标题声明的性能优化代码实际未合入, 本次补全全部 IO 线程迁移/资源泄漏/协程泄漏修复
 - 修复: gradle-wrapper.jar 缺失导致 CI 无法打包
 - 修复: settings.gradle pluginManagement 缺 google() 导致 CI 找不到 Android 插件
 - 修复: KSP 插件 2.1.10-1.0.29 仅在 Maven Central, 阿里云镜像未同步, 补 mavenCentral() 仓库

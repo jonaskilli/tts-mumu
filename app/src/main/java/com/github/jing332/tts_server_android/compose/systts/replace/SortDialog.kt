@@ -11,6 +11,7 @@ import com.github.jing332.tts_server_android.R
 import com.github.jing332.tts_server_android.compose.systts.ListSortSettingsDialog
 import com.github.jing332.database.dbm
 import com.github.jing332.database.entities.replace.ReplaceRule
+import com.drake.net.utils.withIO
 
 internal enum class SortType(@StringRes val strId: Int) {
     CREATE_TIME(R.string.created_time_id),
@@ -32,23 +33,25 @@ internal fun SortDialog(onDismissRequest: () -> Unit, list: List<ReplaceRule>) {
         onIndexChange = { index = it },
         entries = SortType.values().map { stringResource(id = it.strId) },
         onConfirm = { _, descending ->
-            val sortedList = when (SortType.values()[index]) {
-                SortType.CREATE_TIME -> list.sortedBy { it.id }
-                SortType.NAME -> list.sortedBy { it.name }
-                SortType.PATTERN -> list.sortedBy { it.pattern }
-                SortType.REPLACEMENT -> list.sortedBy { it.replacement }
+            withIO {
+                val sortedList = when (SortType.values()[index]) {
+                    SortType.CREATE_TIME -> list.sortedBy { it.id }
+                    SortType.NAME -> list.sortedBy { it.name }
+                    SortType.PATTERN -> list.sortedBy { it.pattern }
+                    SortType.REPLACEMENT -> list.sortedBy { it.replacement }
 
-                SortType.ENABLED -> list.sortedByDescending { it.isEnabled }
-                SortType.USE_REGEX -> list.sortedByDescending { it.isRegex }
-            }.run {
-                if (descending) this.reversed() else this
+                    SortType.ENABLED -> list.sortedByDescending { it.isEnabled }
+                    SortType.USE_REGEX -> list.sortedByDescending { it.isRegex }
+                }.run {
+                    if (descending) this.reversed() else this
+                }
+
+                dbm.replaceRuleDao.update(
+                    *sortedList.mapIndexed { i, rule ->
+                        rule.copy(order = i)
+                    }.toTypedArray()
+                )
             }
-
-            dbm.replaceRuleDao.update(
-                *sortedList.mapIndexed { i, rule ->
-                    rule.copy(order = i)
-                }.toTypedArray()
-            )
         }
     )
 }

@@ -4,6 +4,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import com.github.jing332.tts_server_android.compose.systts.ConfigImportBottomSheet
 import com.github.jing332.tts_server_android.compose.systts.ConfigModel
@@ -12,6 +13,8 @@ import com.github.jing332.tts_server_android.constant.AppConst
 import com.github.jing332.common.utils.toJsonListString
 import com.github.jing332.database.dbm
 import com.github.jing332.database.entities.plugin.Plugin
+import com.drake.net.utils.withIO
+import kotlinx.coroutines.launch
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
@@ -23,6 +26,7 @@ import kotlinx.serialization.json.jsonPrimitive
 
 @Composable
 fun PluginImportBottomSheet(onDismissRequest: () -> Unit) {
+    val scope = rememberCoroutineScope()
     var list by remember { mutableStateOf<List<Plugin>?>(null) }
     if (list != null) {
         SelectImportConfigDialog(
@@ -36,7 +40,10 @@ fun PluginImportBottomSheet(onDismissRequest: () -> Unit) {
                 )
             },
             onSelectedList = {
-                dbm.pluginDao.insert(*it.map { plugin -> plugin as Plugin }.toTypedArray())
+                val plugins = it.map { plugin -> plugin as Plugin }
+                scope.launch {
+                    withIO { dbm.pluginDao.insert(*plugins.toTypedArray()) }
+                }
 
                 it.size
             }

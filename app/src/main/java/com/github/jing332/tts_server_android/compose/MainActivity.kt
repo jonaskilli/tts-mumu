@@ -30,6 +30,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.staticCompositionLocalOf
@@ -52,7 +53,9 @@ import com.github.jing332.tts_server_android.compose.systts.list.ui.widgets.TtsE
 import com.github.jing332.tts_server_android.compose.theme.AppTheme
 import com.github.jing332.tts_server_android.conf.AppConfig
 import com.github.jing332.tts_server_android.service.systts.SystemTtsService
+import com.drake.net.utils.withIO
 import com.google.accompanist.permissions.ExperimentalPermissionsApi
+import kotlinx.coroutines.launch
 import com.google.accompanist.permissions.isGranted
 import com.google.accompanist.permissions.rememberPermissionState
 
@@ -172,6 +175,7 @@ private fun MainScreen(finish: () -> Unit) {
 
 
             composable(NavRoutes.TtsEdit.id) {
+                val scope = rememberCoroutineScope()
                 var stateSystemTts by rememberSaveable {
                     mutableStateOf(
                         checkNotNull(sharedVM.getOnce<SystemTtsV2>(NavRoutes.TtsEdit.DATA)) {
@@ -190,8 +194,10 @@ private fun MainScreen(finish: () -> Unit) {
                     },
                     onSave = {
                         navController.popBackStack()
-                        dbm.systemTtsV2.insert(stateSystemTts)
-                        if (stateSystemTts.isEnabled) SystemTtsService.notifyUpdateConfig()
+                        scope.launch {
+                            withIO { dbm.systemTtsV2.insert(stateSystemTts) }
+                            if (stateSystemTts.isEnabled) SystemTtsService.notifyUpdateConfig()
+                        }
                     },
                     onCancel = {
                         navController.popBackStack()

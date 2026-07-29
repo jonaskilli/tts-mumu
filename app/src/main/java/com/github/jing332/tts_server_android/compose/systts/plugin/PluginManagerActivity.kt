@@ -7,6 +7,7 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -19,6 +20,8 @@ import com.github.jing332.tts_server_android.compose.ComposeActivity
 import com.github.jing332.tts_server_android.compose.LocalNavController
 import com.github.jing332.tts_server_android.compose.SharedViewModel
 import com.github.jing332.tts_server_android.compose.theme.AppTheme
+import com.drake.net.utils.withIO
+import kotlinx.coroutines.launch
 
 class PluginManagerActivity : ComposeActivity() {
     private var jsCode by mutableStateOf("")
@@ -48,11 +51,14 @@ class PluginManagerActivity : ComposeActivity() {
                         }
 
                         composable(NavRoutes.PluginEdit.id) {
+                            val scope = rememberCoroutineScope()
                             val plugin: Plugin = rememberSaveable {
                                 checkNotNull(sharedVM.getOnce(NavRoutes.PluginEdit.KEY_DATA)) { "No Plugin Data" }
                             }
 
-                            PluginEditorScreen(plugin, onSave = { dbm.pluginDao.insert(it) })
+                            PluginEditorScreen(plugin, onSave = {
+                                scope.launch { withIO { dbm.pluginDao.insert(it) } }
+                            })
                         }
                     }
                 }

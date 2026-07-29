@@ -4,6 +4,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import com.github.jing332.common.utils.StringUtils
 import com.github.jing332.database.dbm
@@ -16,25 +17,30 @@ import com.github.jing332.tts_server_android.compose.systts.ConfigImportBottomSh
 import com.github.jing332.tts_server_android.compose.systts.ConfigModel
 import com.github.jing332.tts_server_android.compose.systts.SelectImportConfigDialog
 import com.github.jing332.tts_server_android.constant.AppConst
+import com.drake.net.utils.withIO
+import kotlinx.coroutines.launch
 
 @Composable
 fun ListImportBottomSheet(onDismissRequest: () -> Unit) {
+    val scope = rememberCoroutineScope()
     var selectDialog by remember { mutableStateOf<List<ConfigModel>?>(null) }
     if (selectDialog != null) {
         SelectImportConfigDialog(
             onDismissRequest = { selectDialog = null },
             models = selectDialog!!,
             onSelectedList = { list ->
-                list.map {
+                val pairs = list.map {
                     @Suppress("UNCHECKED_CAST")
                     it as Pair<SystemTtsGroup, SystemTtsV2>
                 }
-                    .forEach {
-                        val group = it.first
-                        val tts = it.second
-                        dbm.systemTtsV2.insertGroup(group)
-                        dbm.systemTtsV2.insert(tts)
+                scope.launch {
+                    withIO {
+                        pairs.forEach {
+                            dbm.systemTtsV2.insertGroup(it.first)
+                            dbm.systemTtsV2.insert(it.second)
+                        }
                     }
+                }
 
                 list.size
             }

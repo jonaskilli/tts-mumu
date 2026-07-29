@@ -5,6 +5,7 @@ import androidx.activity.compose.setContent
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -19,6 +20,8 @@ import com.github.jing332.tts_server_android.compose.SharedViewModel
 import com.github.jing332.tts_server_android.compose.systts.replace.edit.RuleEditScreen
 import com.github.jing332.tts_server_android.compose.theme.AppTheme
 import com.github.jing332.tts_server_android.service.systts.SystemTtsService
+import com.drake.net.utils.withIO
+import kotlinx.coroutines.launch
 
 class ReplaceManagerActivity : ComposeActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -37,15 +40,18 @@ class ReplaceManagerActivity : ComposeActivity() {
                             ReplaceRuleManagerScreen(sharedVM) { finishAfterTransition() }
                         }
                         composable(NavRoutes.Edit.id) { stackEntry ->
+                            val scope = rememberCoroutineScope()
                             var rule by rememberSaveable {
                                 mutableStateOf(
                                     sharedVM.getOnce(NavRoutes.Edit.KEY_DATA) ?: ReplaceRule()
                                 )
                             }
                             RuleEditScreen(rule, onRuleChange = { rule = it }, onSave = {
-                                dbm.replaceRuleDao.insert(rule)
-                                if (rule.isEnabled)
-                                    SystemTtsService.notifyUpdateConfig(isOnlyReplacer = true)
+                                scope.launch {
+                                    withIO { dbm.replaceRuleDao.insert(rule) }
+                                    if (rule.isEnabled)
+                                        SystemTtsService.notifyUpdateConfig(isOnlyReplacer = true)
+                                }
                             })
                         }
                     }

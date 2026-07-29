@@ -156,7 +156,7 @@ class ListManagerViewModel : ViewModel() {
     fun updateTtsEnabled(
         item: SystemTtsV2,
         enabled: Boolean,
-    ) {
+    ) = viewModelScope.launch(Dispatchers.IO) {
         if (!SystemTtsConfig.isVoiceMultipleEnabled.value && enabled) {
             val itemConfig = (item.config as? TtsConfigurationDTO)
             if (itemConfig != null)
@@ -181,7 +181,7 @@ class ListManagerViewModel : ViewModel() {
     fun updateGroupEnable(
         item: GroupWithSystemTts,
         enabled: Boolean,
-    ) {
+    ) = viewModelScope.launch(Dispatchers.IO) {
         if (!SystemTtsConfig.isGroupMultipleEnabled.value && enabled) {
             list.value.forEach {
                 it.list.forEach { systts ->
@@ -245,12 +245,18 @@ class ListManagerViewModel : ViewModel() {
             blocks.add(insertIndex, movedBlock)
 
             var order = 0
+            val toUpdate = mutableListOf<SystemTtsV2>()
             for (block in blocks) {
                 for (item in block.items) {
                     if (item.order != order) {
-                        dbm.systemTtsV2.update(item.copy(order = order))
+                        toUpdate.add(item.copy(order = order))
                     }
                     order++
+                }
+            }
+            if (toUpdate.isNotEmpty()) {
+                viewModelScope.launch(Dispatchers.IO) {
+                    toUpdate.forEach { dbm.systemTtsV2.update(it) }
                 }
             }
             return
@@ -287,9 +293,12 @@ class ListManagerViewModel : ViewModel() {
                 return
             }
 
-            allItems.forEachIndexed { index, systts ->
-                if (systts.order != index) {
-                    dbm.systemTtsV2.update(systts.copy(order = index))
+            val itemUpdates = allItems.mapIndexedNotNull { index, systts ->
+                if (systts.order != index) systts.copy(order = index) else null
+            }
+            if (itemUpdates.isNotEmpty()) {
+                viewModelScope.launch(Dispatchers.IO) {
+                    itemUpdates.forEach { dbm.systemTtsV2.update(it) }
                 }
             }
             return
@@ -309,9 +318,13 @@ class ListManagerViewModel : ViewModel() {
             } catch (_: IndexOutOfBoundsException) {
                 return
             }
-            mList.forEachIndexed { index, systemTtsGroup ->
-                if (systemTtsGroup.order != index)
-                    dbm.systemTtsV2.updateGroup(systemTtsGroup.copy(order = index))
+            val groupUpdates = mList.mapIndexedNotNull { index, group ->
+                if (group.order != index) group.copy(order = index) else null
+            }
+            if (groupUpdates.isNotEmpty()) {
+                viewModelScope.launch(Dispatchers.IO) {
+                    groupUpdates.forEach { dbm.systemTtsV2.updateGroup(it) }
+                }
             }
         } else if (!fromKey.startsWith("g_") && !toKey.startsWith("g_")) {
             val (fromGId, fromId) = fromKey.split("_").map { it.toLong() }
@@ -329,10 +342,14 @@ class ListManagerViewModel : ViewModel() {
                 return
             }
 
-            listInGroup.forEachIndexed { index, systts ->
+            val itemUpdates = listInGroup.mapIndexedNotNull { index, systts ->
                 Log.d(TAG, "$index ${systts.displayName}")
-                if (systts.order != index)
-                    dbm.systemTtsV2.update(systts.copy(order = index))
+                if (systts.order != index) systts.copy(order = index) else null
+            }
+            if (itemUpdates.isNotEmpty()) {
+                viewModelScope.launch(Dispatchers.IO) {
+                    itemUpdates.forEach { dbm.systemTtsV2.update(it) }
+                }
             }
         }
     }

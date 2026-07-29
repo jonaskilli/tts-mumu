@@ -44,6 +44,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -1366,14 +1367,18 @@ internal fun ListManagerScreen(
                                     vm.updateGroupEnable(groupWithSystemTts, it)
                                 },
                                 onClick = {
-                                    dbm.systemTtsV2.updateGroup(g.copy(isExpanded = !g.isExpanded))
+                                    scope.launch { withIO { dbm.systemTtsV2.updateGroup(g.copy(isExpanded = !g.isExpanded)) } }
                                 },
                                 onDelete = {
-                                    dbm.systemTtsV2.delete(*groupWithSystemTts.list.toTypedArray())
-                                    dbm.systemTtsV2.deleteGroup(g)
+                                    scope.launch {
+                                        withIO {
+                                            dbm.systemTtsV2.delete(*groupWithSystemTts.list.toTypedArray())
+                                            dbm.systemTtsV2.deleteGroup(g)
+                                        }
+                                    }
                                 },
                                 onRename = {
-                                    dbm.systemTtsV2.updateGroup(g.copy(name = it))
+                                    scope.launch { withIO { dbm.systemTtsV2.updateGroup(g.copy(name = it)) } }
                                 },
                                 onCopy = {
                                     scope.launch {
@@ -1463,7 +1468,7 @@ internal fun ListManagerScreen(
                                     }
                                 },
                                 inSelectionMode = selectionMode,
-                                isSelected = g.id in selectedGroupIds,
+                                isSelected = remember(g.id) { derivedStateOf { g.id in selectedGroupIds } }.value,
                                 onToggleSelect = {
                                     selectedGroupIds = if (g.id in selectedGroupIds)
                                         selectedGroupIds - g.id else selectedGroupIds + g.id

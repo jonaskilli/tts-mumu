@@ -4,6 +4,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import com.github.jing332.tts_server_android.compose.systts.ConfigImportBottomSheet
 import com.github.jing332.tts_server_android.compose.systts.ConfigModel
@@ -15,24 +16,29 @@ import com.github.jing332.database.entities.replace.ReplaceRule
 import com.github.jing332.database.entities.replace.ReplaceRuleGroup
 import com.github.jing332.common.utils.StringUtils
 import com.github.jing332.common.utils.toJsonListString
+import com.drake.net.utils.withIO
+import kotlinx.coroutines.launch
 
 @Suppress("UNCHECKED_CAST")
 @Composable
 fun ReplaceRuleImportBottomSheet(onDismissRequest: () -> Unit) {
+    val scope = rememberCoroutineScope()
     var list by remember { mutableStateOf<List<ConfigModel>?>(null) }
     if (list != null) {
         SelectImportConfigDialog(
             onDismissRequest = { list = null },
             models = list!!,
             onSelectedList = { selectedList ->
-                selectedList.map { it as Pair<ReplaceRuleGroup, ReplaceRule> }.forEach {
-                    val group = it.first
-                    val rule = it.second
-
-                    dbm.replaceRuleDao.insert(rule)
-                    dbm.replaceRuleDao.insertGroup(group)
+                val pairs = selectedList.map { it as Pair<ReplaceRuleGroup, ReplaceRule> }
+                scope.launch {
+                    withIO {
+                        pairs.forEach {
+                            dbm.replaceRuleDao.insert(it.second)
+                            dbm.replaceRuleDao.insertGroup(it.first)
+                        }
+                        dbm.replaceRuleDao.updateAllOrder()
+                    }
                 }
-                dbm.replaceRuleDao.updateAllOrder()
                 selectedList.size
             }
         )

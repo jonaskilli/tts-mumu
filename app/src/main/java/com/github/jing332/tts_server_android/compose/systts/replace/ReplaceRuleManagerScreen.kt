@@ -37,6 +37,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -61,6 +62,8 @@ import com.github.jing332.tts_server_android.compose.SharedViewModel
 import com.github.jing332.tts_server_android.compose.systts.sizeToToggleableState
 import com.github.jing332.tts_server_android.service.systts.SystemTtsService
 import com.github.jing332.tts_server_android.utils.MyTools
+import com.drake.net.utils.withIO
+import kotlinx.coroutines.launch
 import okhttp3.internal.toLongOrDefault
 import org.burnoutcrew.reorderable.detectReorderAfterLongPress
 import org.burnoutcrew.reorderable.rememberReorderableLazyListState
@@ -75,6 +78,7 @@ internal fun ReplaceRuleManagerScreen(
 ) {
     val context = LocalContext.current
     val navController = LocalNavController.current
+    val scope = rememberCoroutineScope()
 
     fun navigateToEdit(rule: ReplaceRule = ReplaceRule()) {
         sharedVM.put(NavRoutes.Edit.KEY_DATA, rule)
@@ -101,7 +105,7 @@ internal fun ReplaceRuleManagerScreen(
             onTextChange = { text = it },
             onDismissRequest = { showAddGroupDialog = false },
             onConfirm = {
-                dbm.replaceRuleDao.insertGroup(ReplaceRuleGroup(name = text))
+                scope.launch { withIO { dbm.replaceRuleDao.insertGroup(ReplaceRuleGroup(name = text)) } }
             }
         )
     }
@@ -115,7 +119,7 @@ internal fun ReplaceRuleManagerScreen(
             },
             group = group,
             onGroupChange = { group = it },
-            onConfirm = { dbm.replaceRuleDao.updateGroup(group) }
+            onConfirm = { scope.launch { withIO { dbm.replaceRuleDao.updateGroup(group) } } }
         )
     }
 
@@ -245,26 +249,30 @@ internal fun ReplaceRuleManagerScreen(
             rememberReorderableLazyListState(listState = listState, onMove = { from, to ->
                 val fromKey = from.key.toString()
                 val toKey = to.key.toString()
-                if (fromKey.startsWith("g_") && toKey.startsWith("g_")) {
-                    val src = dbm.replaceRuleDao.getGroup(fromKey.substring(2).toLong())
-                        ?: return@rememberReorderableLazyListState
-                    val target = dbm.replaceRuleDao.getGroup(toKey.substring(2).toLong())
-                        ?: return@rememberReorderableLazyListState
+                scope.launch {
+                    withIO {
+                        if (fromKey.startsWith("g_") && toKey.startsWith("g_")) {
+                            val src = dbm.replaceRuleDao.getGroup(fromKey.substring(2).toLong())
+                                ?: return@withIO
+                            val target = dbm.replaceRuleDao.getGroup(toKey.substring(2).toLong())
+                                ?: return@withIO
 
-                    dbm.replaceRuleDao.updateGroup(
-                        src.copy(order = target.order),
-                        target.copy(order = src.order)
-                    )
-                } else {
-                    val src = dbm.replaceRuleDao.get(fromKey.toLongOrDefault(Long.MIN_VALUE))
-                        ?: return@rememberReorderableLazyListState
-                    val target = dbm.replaceRuleDao.get(toKey.toLongOrDefault(Long.MIN_VALUE))
-                        ?: return@rememberReorderableLazyListState
+                            dbm.replaceRuleDao.updateGroup(
+                                src.copy(order = target.order),
+                                target.copy(order = src.order)
+                            )
+                        } else {
+                            val src = dbm.replaceRuleDao.get(fromKey.toLongOrDefault(Long.MIN_VALUE))
+                                ?: return@withIO
+                            val target = dbm.replaceRuleDao.get(toKey.toLongOrDefault(Long.MIN_VALUE))
+                                ?: return@withIO
 
-                    dbm.replaceRuleDao.update(
-                        src.copy(order = target.order),
-                        target.copy(order = src.order)
-                    )
+                            dbm.replaceRuleDao.update(
+                                src.copy(order = target.order),
+                                target.copy(order = src.order)
+                            )
+                        }
+                    }
                 }
             })
 
@@ -292,12 +300,16 @@ internal fun ReplaceRuleManagerScreen(
                             isExpanded = g.isExpanded,
                             toggleableState = toggleableState,
                             onToggleableStateChange = { enabled ->
-                                groupWithRules.list.map {
-                                    if (it.isEnabled != enabled)
-                                        dbm.replaceRuleDao.update(it.copy(isEnabled = enabled))
+                                scope.launch {
+                                    withIO {
+                                        groupWithRules.list.filter { it.isEnabled != enabled }
+                                            .forEach { dbm.replaceRuleDao.update(it.copy(isEnabled = enabled)) }
+                                    }
                                 }
                             },
-                            onClick = { dbm.replaceRuleDao.updateGroup(g.copy(isExpanded = !g.isExpanded)) },
+                            onClick = {
+                                scope.launch { withIO { dbm.replaceRuleDao.updateGroup(g.copy(isExpanded = !g.isExpanded)) } }
+                            },
                             onEdit = { showGroupEditDialog = g },
                             onDelete = {
                                 vm.deleteGroup(groupWithRules)
@@ -324,10 +336,12 @@ internal fun ReplaceRuleManagerScreen(
                                     .detectReorderAfterLongPress(reorderState),
                                 isEnabled = rule.isEnabled,
                                 onCheckedChange = { enabled ->
-                                    dbm.replaceRuleDao.update(rule.copy(isEnabled = enabled))
-                                    if (enabled) SystemTtsService.notifyUpdateConfig(
-                                        isOnlyReplacer = true
-                                    )
+                                    scope.launch {
+                                        withIO { dbm.replaceRuleDao.update(rule.copy(isEnabled = enabled)) }
+                                        if (enabled) SystemTtsService.notifyUpdateConfig(
+                                            isOnlyReplacer = true
+                                        )
+                                    }
                                 },
                                 onClick = { },
                                 onEdit = { navigateToEdit(rule) },

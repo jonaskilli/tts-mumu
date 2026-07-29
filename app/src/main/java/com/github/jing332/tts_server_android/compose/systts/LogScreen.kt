@@ -82,9 +82,7 @@ fun LogScreen(
 
         LaunchedEffect(list.size) {
             if (autoScrollToBottom && list.isNotEmpty())
-                scope.launch {
-                    listState.animateScrollToItem(list.size - 1)
-                }
+                listState.animateScrollToItem(list.size - 1)
         }
 
         if (list.isEmpty())

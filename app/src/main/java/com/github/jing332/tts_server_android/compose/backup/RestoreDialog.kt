@@ -35,14 +35,12 @@ internal fun RestoreDialog(
     val context = LocalContext.current
 
     LaunchedEffect(Unit) {
-        scope.launch {
-            runCatching {
-                needRestart = vm.restore(bytes)
-                isLoading = false
-            }.onFailure {
-                context.displayErrorDialog(it)
-                onDismissRequest() 
-            }
+        runCatching {
+            needRestart = vm.restore(bytes)
+            isLoading = false
+        }.onFailure {
+            context.displayErrorDialog(it)
+            onDismissRequest()
         }
     }
 
