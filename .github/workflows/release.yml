@@ -43,11 +43,24 @@ jobs:
           echo ALIAS_PASSWORD='${{ secrets.ALIAS_PASSWORD }}' >> local.properties
           echo KEY_PASSWORD='${{ secrets.KEY_PASSWORD }}' >> local.properties
           echo KEY_PATH='./key.jks' >> local.properties
+          # 校验 Secrets 是否已配置 (空 KEY_STORE 会让签名 task 跑 14 分钟才失败)
+          if [ -z "${{ secrets.KEY_STORE }}" ]; then
+            echo "::error::Secret KEY_STORE 未配置, 请到 Settings > Secrets > Actions 添加 key.jks 的 Base64 编码"
+            exit 1
+          fi
+          if [ -z "${{ secrets.ALIAS_NAME }}" ] || [ -z "${{ secrets.ALIAS_PASSWORD }}" ] || [ -z "${{ secrets.KEY_PASSWORD }}" ]; then
+            echo "::error::签名 Secrets (ALIAS_NAME/ALIAS_PASSWORD/KEY_PASSWORD) 未完整配置"
+            exit 1
+          fi
           # 从Secrets读取Base64并解码为 key.jks (用 printf 避免 echo 末尾换行污染二进制)
           printf '%s' '${{ secrets.KEY_STORE }}' | base64 --decode > $GITHUB_WORKSPACE/app/key.jks
-          # 校验解码后的文件确实是 Java KeyStore
+          # 校验解码后的文件非空且是 Java KeyStore
           file $GITHUB_WORKSPACE/app/key.jks
           ls -l $GITHUB_WORKSPACE/app/key.jks
+          if [ ! -s $GITHUB_WORKSPACE/app/key.jks ]; then
+            echo "::error::解码后的 key.jks 为空文件, 请检查 KEY_STORE Base64 是否正确"
+            exit 1
+          fi
 
       - name: Build with Gradle
         run: |
