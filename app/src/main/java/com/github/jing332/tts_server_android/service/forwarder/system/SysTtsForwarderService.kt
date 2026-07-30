@@ -48,6 +48,11 @@ class SysTtsForwarderService(
             get() = instance?.isRunning == true
 
         var instance: SysTtsForwarderService? = null
+
+        // 第2项: "转发器引擎"标识 = APP自身包名(非真实TTS引擎)。
+        // 选择此项时, 合成回退到系统默认TTS引擎(与 Android 端 importToLegado 行为一致)。
+        val forwarderEngineName: String
+            get() = App.context.packageName
     }
 
     private var mServer: SystemTtsForwardServer? = null
@@ -73,11 +78,15 @@ class SysTtsForwarderService(
                 val speed = (params.speed + 100) / 100f
                 val pitch = params.pitch / 100f
 
+                // 第2项: 转发器引擎(APP包名)用空串让Android用默认引擎
+                val engineForInit =
+                    if (params.engine == forwarderEngineName) "" else params.engine
+
                 return withContext(NonCancellable) {
                     withTimeoutOrNull(130000L) {
-                        Log.d(TAG, "android tts init: ${params.engine}")
-                        sendLog(com.github.jing332.common.LogLevel.DEBUG, "初始化引擎: ${params.engine}")
-                        androidTts.init(params.engine)
+                        Log.d(TAG, "android tts init: $engineForInit")
+                        sendLog(com.github.jing332.common.LogLevel.DEBUG, "初始化引擎: $engineForInit")
+                        androidTts.init(engineForInit)
 
                         Log.d(TAG, "android tts get file...")
                         sendLog(com.github.jing332.common.LogLevel.DEBUG, "获取音频文件...")
@@ -106,7 +115,10 @@ class SysTtsForwarderService(
             }
 
             override suspend fun voices(engine: String): List<Voice> {
-                val ok = mLocalTtsHelper.setEngine(engine)
+                // 第2项: 转发器引擎(APP包名)用默认引擎获取语音列表
+                val engineForInit =
+                    if (engine == forwarderEngineName) "" else engine
+                val ok = mLocalTtsHelper.setEngine(engineForInit)
                 if (!ok) throw IllegalStateException(getString(R.string.systts_engine_init_failed_timeout))
 
                 return mLocalTtsHelper.voices.map {
@@ -119,8 +131,18 @@ class SysTtsForwarderService(
                 }
             }
 
-            override suspend fun engines(): List<Engine> =
-                getSysTtsEngines().map { Engine(name = it.name, it.label) }
+            // 第2项: 引擎选择限制为两个 —— 当前安装的TTS(系统默认引擎) + 转发器引擎(APP包名)
+            override suspend fun engines(): List<Engine> {
+                // 取系统默认引擎作为"当前安装的TTS"
+                val defaultEngine = getDefaultEngine()
+                val result = mutableListOf<Engine>()
+                if (defaultEngine != null) {
+                    result.add(Engine(name = defaultEngine.name, defaultEngine.label.ifBlank { "当前安装的TTS" }))
+                }
+                // 转发器引擎: 用APP包名标识, 合成时回退到系统默认
+                result.add(Engine(name = forwarderEngineName, "转发器引擎"))
+                return result
+            }
 
 
         })
@@ -146,6 +168,14 @@ class SysTtsForwarderService(
         val engines = tts.engines
         tts.shutdown()
         return engines
+    }
+
+    // 第2项: 获取系统默认TTS引擎(即"当前安装的TTS")
+    private fun getDefaultEngine(): TextToSpeech.EngineInfo? {
+        val tts = TextToSpeech(App.context, null)
+        val default = tts.defaultEngine
+        tts.shutdown()
+        return default
     }
 
 }

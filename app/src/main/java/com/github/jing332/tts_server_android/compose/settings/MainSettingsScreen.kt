@@ -21,6 +21,7 @@ import androidx.compose.material.icons.filled.Language
 import androidx.compose.material.icons.filled.Lan
 import androidx.compose.material.icons.filled.Link
 import androidx.compose.material.icons.filled.OpenInBrowser
+import androidx.compose.material.icons.filled.Input
 import androidx.compose.material.icons.filled.PowerSettingsNew
 import androidx.compose.ui.res.painterResource
 import androidx.compose.material.icons.filled.SettingsBackupRestore
@@ -214,6 +215,34 @@ fun SettingsScreen() {
                     icon = { Icon(Icons.Default.Lan, null) },
                     title = { Text(stringResource(id = R.string.listen_port)) },
                     subTitle = { Text(forwarderPort.toString()) }
+                )
+
+                // 第2项: 导入阅读(常用项) —— 直接用转发器引擎(APP包名)生成导入链接并跳转阅读
+                BasePreferenceWidget(
+                    onClick = {
+                        if (forwarderRunning) {
+                            val pkg = context.packageName
+                            val appName = context.applicationInfo.loadLabel(context.packageManager).toString()
+                            val name = "$appName $pkg"
+                            val api = "http://localhost:$forwarderPort/api/tts"
+                            val apiLegado = "http://localhost:$forwarderPort/api/legado" +
+                                    "?api=" + java.net.URLEncoder.encode(api, "UTF-8") +
+                                    "&name=" + java.net.URLEncoder.encode(name, "UTF-8") +
+                                    "&engine=" + java.net.URLEncoder.encode(pkg, "UTF-8") +
+                                    "&pitch=100"
+                            val deepLink = "legado://import/httpTTS?src=" + java.net.URLEncoder.encode(apiLegado, "UTF-8")
+                            kotlin.runCatching {
+                                context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(deepLink)))
+                            }.onFailure {
+                                context.toast(R.string.toast_legado_import_failed)
+                            }
+                        } else {
+                            context.toast(R.string.toast_forwarder_not_running)
+                        }
+                    },
+                    icon = { Icon(Icons.Default.Input, null) },
+                    title = { Text("导入阅读") },
+                    subTitle = { Text("一键导入到阅读APP(转发器引擎)") }
                 )
 
                 // 第3项: 网页入口(选择引擎并导入阅读) —— 转发器运行时打开网页UI
