@@ -3,22 +3,22 @@ package com.github.jing332.tts_server_android.compose.systts.list
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.selection.selectable
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.CreateNewFolder
-import androidx.compose.material.icons.filled.RadioButtonChecked
-import androidx.compose.material.icons.filled.RadioButtonUnchecked
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -30,12 +30,13 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.window.DialogProperties
 import com.github.jing332.database.dbm
 
 /**
  * 第6项: 统一分组树选择器
  *
- * 支持“一级分组(大分组) + 子分组(categoryPath)”两级层级切换：
+ * 支持"一级分组(大分组) + 子分组(categoryPath)"两级层级切换：
  * - 组内切换: 同一大分组下选择已有子分组，或新建子分组；
  * - 组外切换: 选择别的大分组，再选其子分组或新建子分组；
  * - 识别当前层级: 顶部摘要展示当前已选位置，默认展开并选中当前所在大分组/子分组。
@@ -68,9 +69,15 @@ fun GroupTreePickerDialog(
 
     AlertDialog(
         onDismissRequest = onDismissRequest,
+        modifier = Modifier.fillMaxWidth(0.9f),
+        shape = RoundedCornerShape(16.dp),
+        properties = DialogProperties(usePlatformDefaultWidth = false),
         title = { Text("选择分组") },
         text = {
-            Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
+            Column(modifier = Modifier
+                .heightIn(max = 500.dp)
+                .verticalScroll(rememberScrollState())
+            ) {
                 // 顶部摘要: 识别当前/已选层级位置
                 val locationText = buildString {
                     append(selGroupName.ifBlank { "(未分组)" })
@@ -105,7 +112,7 @@ fun GroupTreePickerDialog(
                                     newSubGroupName = ""
                                 }
                             )
-                            .padding(vertical = 6.dp),
+                            .padding(vertical = 4.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         IconButton(
@@ -120,15 +127,19 @@ fun GroupTreePickerDialog(
                                 modifier = Modifier.rotate(if (isExpanded) 90f else 0f)
                             )
                         }
-                        Icon(
-                            imageVector = if (isGroupRootSelected) Icons.Default.RadioButtonChecked
-                            else Icons.Default.RadioButtonUnchecked,
-                            contentDescription = null
+                        RadioButton(
+                            selected = isGroupRootSelected,
+                            onClick = {
+                                selectedGroupId = group.id
+                                selectedCategoryPath = ""
+                                isCreatingNew = false
+                                newSubGroupName = ""
+                            }
                         )
                         Text(
                             text = group.name.ifBlank { "默认分组" },
                             style = MaterialTheme.typography.titleMedium,
-                            modifier = Modifier.padding(start = 6.dp)
+                            modifier = Modifier.padding(start = 4.dp)
                         )
                     }
 
@@ -146,19 +157,22 @@ fun GroupTreePickerDialog(
                                         newSubGroupName = ""
                                     }
                                 )
-                                .padding(start = 56.dp, top = 4.dp, bottom = 4.dp),
+                                .padding(start = 48.dp, top = 2.dp, bottom = 2.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Icon(
-                                imageVector = if (isGroupRootSelected) Icons.Default.RadioButtonChecked
-                                else Icons.Default.RadioButtonUnchecked,
-                                contentDescription = null,
-                                modifier = Modifier.size(20.dp)
+                            RadioButton(
+                                selected = isGroupRootSelected,
+                                onClick = {
+                                    selectedGroupId = group.id
+                                    selectedCategoryPath = ""
+                                    isCreatingNew = false
+                                    newSubGroupName = ""
+                                }
                             )
                             Text(
                                 text = "（根目录，不设子分组）",
                                 style = MaterialTheme.typography.bodyMedium,
-                                modifier = Modifier.padding(start = 6.dp)
+                                modifier = Modifier.padding(start = 4.dp)
                             )
                         }
 
@@ -178,19 +192,22 @@ fun GroupTreePickerDialog(
                                             newSubGroupName = ""
                                         }
                                     )
-                                    .padding(start = 56.dp, top = 4.dp, bottom = 4.dp),
+                                    .padding(start = 48.dp, top = 2.dp, bottom = 2.dp),
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
-                                Icon(
-                                    imageVector = if (isPathSelected) Icons.Default.RadioButtonChecked
-                                    else Icons.Default.RadioButtonUnchecked,
-                                    contentDescription = null,
-                                    modifier = Modifier.size(20.dp)
+                                RadioButton(
+                                    selected = isPathSelected,
+                                    onClick = {
+                                        selectedGroupId = group.id
+                                        selectedCategoryPath = path
+                                        isCreatingNew = false
+                                        newSubGroupName = ""
+                                    }
                                 )
                                 Text(
                                     text = path.replace("/", " / "),
                                     style = MaterialTheme.typography.bodyMedium,
-                                    modifier = Modifier.padding(start = 6.dp)
+                                    modifier = Modifier.padding(start = 4.dp)
                                 )
                             }
                         }
@@ -208,18 +225,26 @@ fun GroupTreePickerDialog(
                                         selectedCategoryPath = ""
                                     }
                                 )
-                                .padding(start = 56.dp, top = 4.dp, bottom = 4.dp),
+                                .padding(start = 48.dp, top = 2.dp, bottom = 2.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
+                            RadioButton(
+                                selected = isCreateSelected,
+                                onClick = {
+                                    selectedGroupId = group.id
+                                    isCreatingNew = true
+                                    selectedCategoryPath = ""
+                                }
+                            )
                             Icon(
                                 Icons.Default.CreateNewFolder,
                                 contentDescription = null,
-                                modifier = Modifier.size(20.dp)
+                                modifier = Modifier.padding(start = 4.dp)
                             )
                             Text(
                                 text = "新建子分组",
                                 style = MaterialTheme.typography.bodyMedium,
-                                modifier = Modifier.padding(start = 6.dp)
+                                modifier = Modifier.padding(start = 4.dp)
                             )
                         }
                         if (isCreateSelected) {
@@ -229,7 +254,7 @@ fun GroupTreePickerDialog(
                                 label = { Text("子分组名称 (支持 a/b 多级)") },
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .padding(start = 56.dp, top = 4.dp),
+                                    .padding(start = 48.dp, top = 4.dp),
                                 singleLine = true
                             )
                         }
@@ -244,7 +269,7 @@ fun GroupTreePickerDialog(
                 onClick = { onConfirm(selectedGroupId, finalCategoryPath) },
                 enabled = !isCreatingNew || newSubGroupName.isNotBlank()
             ) {
-                Text("确定")
+                Text("确认")
             }
         },
         dismissButton = {
