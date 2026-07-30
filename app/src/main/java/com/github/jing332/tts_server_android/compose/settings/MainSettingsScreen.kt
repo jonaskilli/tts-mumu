@@ -20,7 +20,6 @@ import androidx.compose.material.icons.filled.HideSource
 import androidx.compose.material.icons.filled.Language
 import androidx.compose.material.icons.filled.Lan
 import androidx.compose.material.icons.filled.Link
-import androidx.compose.material.icons.filled.OpenInBrowser
 import androidx.compose.material.icons.filled.Input
 import androidx.compose.material.icons.filled.PowerSettingsNew
 import androidx.compose.ui.res.painterResource
@@ -55,7 +54,7 @@ import com.github.jing332.tts_server_android.AppLocale
 import com.github.jing332.tts_server_android.R
 import com.github.jing332.tts_server_android.app
 import com.github.jing332.tts_server_android.compose.backup.BackupRestoreActivity
-import com.github.jing332.tts_server_android.compose.forwarder.systts.SystemTtsForwarderActivity
+import com.github.jing332.tts_server_android.compose.forwarder.systts.ForwarderWebDialog
 import com.github.jing332.tts_server_android.compose.nav.NavTopAppBar
 import com.github.jing332.tts_server_android.compose.systts.directlink.LinkUploadRuleActivity
 import com.github.jing332.tts_server_android.compose.theme.getAppTheme
@@ -110,6 +109,15 @@ fun SettingsScreen() {
                     }
                     showPortDialog = false
                 }
+            )
+        }
+
+        // 第2项: 转发器网页弹窗(点击转发器项非开关时触发, 自动启动+内嵌WebView)
+        var showForwarderWebDialog by remember { mutableStateOf(false) }
+        if (showForwarderWebDialog) {
+            ForwarderWebDialog(
+                port = forwarderPort,
+                onDismissRequest = { showForwarderWebDialog = false }
             )
         }
 
@@ -179,11 +187,9 @@ fun SettingsScreen() {
                         )
                     },
                     onClick = {
-                        context.startActivity(
-                            Intent(
-                                context,
-                                SystemTtsForwarderActivity::class.java
-                            ).apply { action = Intent.ACTION_VIEW })
+                        // 第2项: 点击转发器项(非开关)自动启动转发器并弹出网页弹窗
+                        // (功能与原网页Tab一致, 日志详情已删除)
+                        showForwarderWebDialog = true
                     },
                     title = { Text(stringResource(id = R.string.forwarder_systts)) },
                     subTitle = {
@@ -217,17 +223,18 @@ fun SettingsScreen() {
                     subTitle = { Text(forwarderPort.toString()) }
                 )
 
-                // 第2项: 导入阅读(常用项) —— 直接用转发器引擎(APP包名)生成导入链接并跳转阅读
+                // 第2项: 导入阅读(常用项) —— 始终用转发器引擎(APP包名),
+                // name=应用名, engine=APP包名, 端口跟随当前软件。
+                // 转发器运行时直接跳转阅读APP选择导入; 未运行时提示。
                 BasePreferenceWidget(
                     onClick = {
                         if (forwarderRunning) {
                             val pkg = context.packageName
                             val appName = context.applicationInfo.loadLabel(context.packageManager).toString()
-                            val name = "$appName $pkg"
                             val api = "http://localhost:$forwarderPort/api/tts"
                             val apiLegado = "http://localhost:$forwarderPort/api/legado" +
                                     "?api=" + java.net.URLEncoder.encode(api, "UTF-8") +
-                                    "&name=" + java.net.URLEncoder.encode(name, "UTF-8") +
+                                    "&name=" + java.net.URLEncoder.encode(appName, "UTF-8") +
                                     "&engine=" + java.net.URLEncoder.encode(pkg, "UTF-8") +
                                     "&pitch=100"
                             val deepLink = "legado://import/httpTTS?src=" + java.net.URLEncoder.encode(apiLegado, "UTF-8")
@@ -242,23 +249,7 @@ fun SettingsScreen() {
                     },
                     icon = { Icon(Icons.Default.Input, null) },
                     title = { Text("导入阅读") },
-                    subTitle = { Text("一键导入到阅读APP(转发器引擎)") }
-                )
-
-                // 第3项: 网页入口(选择引擎并导入阅读) —— 转发器运行时打开网页UI
-                BasePreferenceWidget(
-                    onClick = {
-                        if (forwarderRunning) {
-                            context.startActivity(
-                                Intent(Intent.ACTION_VIEW, Uri.parse("http://localhost:$forwarderPort"))
-                            )
-                        } else {
-                            context.toast(R.string.toast_forwarder_not_running)
-                        }
-                    },
-                    icon = { Icon(Icons.Default.OpenInBrowser, null) },
-                    title = { Text(stringResource(id = R.string.open_web)) },
-                    subTitle = { Text("选择引擎并导入阅读") }
+                    subTitle = { Text("一键导入到阅读APP") }
                 )
 
                 BasePreferenceWidget(
