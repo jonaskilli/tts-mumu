@@ -17,6 +17,7 @@ import androidx.compose.material.icons.filled.ColorLens
 import androidx.compose.material.icons.filled.FileOpen
 import androidx.compose.material.icons.filled.HideSource
 import androidx.compose.material.icons.filled.Language
+import androidx.compose.material.icons.filled.Lan
 import androidx.compose.material.icons.filled.Link
 import androidx.compose.material.icons.filled.PowerSettingsNew
 import androidx.compose.ui.res.painterResource
@@ -27,6 +28,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.material3.Switch
 import androidx.compose.ui.Alignment
 import com.github.jing332.compose.widgets.LocalBroadcastReceiver
+import com.github.jing332.compose.widgets.TextFieldDialog
 import com.github.jing332.tts_server_android.service.forwarder.system.SysTtsForwarderService
 import com.github.jing332.tts_server_android.service.forwarder.ForwarderServiceManager.switchSysTtsForwarder
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -55,6 +57,7 @@ import com.github.jing332.tts_server_android.compose.systts.directlink.LinkUploa
 import com.github.jing332.tts_server_android.compose.theme.getAppTheme
 import com.github.jing332.tts_server_android.compose.theme.setAppTheme
 import com.github.jing332.tts_server_android.conf.AppConfig
+import com.github.jing332.tts_server_android.conf.SystemTtsForwarderConfig
 import com.github.jing332.tts_server_android.constant.FilePickerMode
 import androidx.core.content.ContextCompat.startActivity
 
@@ -85,6 +88,25 @@ fun SettingsScreen() {
                 SysTtsForwarderService.ACTION_ON_STARTED -> forwarderRunning = true
                 SysTtsForwarderService.ACTION_ON_CLOSED -> forwarderRunning = false
             }
+        }
+
+        // 第3项: 转发器端口快捷编辑(无需进入转发器页即可修改端口)
+        var forwarderPort by remember { SystemTtsForwarderConfig.port }
+        var showPortDialog by remember { mutableStateOf(false) }
+        if (showPortDialog) {
+            var portText by remember { mutableStateOf(forwarderPort.toString()) }
+            TextFieldDialog(
+                title = stringResource(id = R.string.listen_port),
+                text = portText,
+                onTextChange = { portText = it.filter { c -> c.isDigit() } },
+                onDismissRequest = { showPortDialog = false },
+                onConfirm = {
+                    portText.toIntOrNull()?.let { p ->
+                        if (p in 1..65535) forwarderPort = p
+                    }
+                    showPortDialog = false
+                }
+            )
         }
 
         Scaffold(
@@ -172,9 +194,23 @@ fun SettingsScreen() {
                             onCheckedChange = null,
                             modifier = Modifier
                                 .align(Alignment.CenterVertically)
-                                .clickable { context.switchSysTtsForwarder() }
+                                .clickable {
+                                    // 第3项: 与转发器详情页一致, 先写“记忆启动”状态再切换服务,
+                                    // 保证 App/开机重启时按记忆恢复, 而非“一直启动”
+                                    SystemTtsForwarderConfig.isAutoStart.value =
+                                        !SysTtsForwarderService.isRunning
+                                    context.switchSysTtsForwarder()
+                                }
                         )
                     }
+                )
+
+                // 第3项: 转发器端口快捷入口(点击弹窗改端口, 无需进入转发器页面)
+                BasePreferenceWidget(
+                    onClick = { showPortDialog = true },
+                    icon = { Icon(Icons.Default.Lan, null) },
+                    title = { Text(stringResource(id = R.string.listen_port)) },
+                    subTitle = { Text(forwarderPort.toString()) }
                 )
 
                 BasePreferenceWidget(
