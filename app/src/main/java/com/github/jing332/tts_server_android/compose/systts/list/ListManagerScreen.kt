@@ -36,6 +36,7 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Scaffold
 import androidx.compose.material.icons.filled.CheckBox
 import androidx.compose.material3.Surface
@@ -1188,12 +1189,16 @@ internal fun ListManagerScreen(
         }
         val s = jStr
         if (s == null) {
-            Box(
-                Modifier
-                    .fillMaxSize()
-                    .wrapContentSize(Alignment.Center)
-            ) {
-                CircularProgressIndicator()
+            // 加载状态放进 ModalBottomSheet 内, 避免全屏灰色遮罩
+            ModalBottomSheet(onDismissRequest = { showExportSheet = null }) {
+                Box(
+                    Modifier
+                        .fillMaxWidth()
+                        .height(120.dp)
+                        .wrapContentSize(Alignment.Center)
+                ) {
+                    CircularProgressIndicator()
+                }
             }
         } else {
             ConfigExportBottomSheet(json = s) { showExportSheet = null }

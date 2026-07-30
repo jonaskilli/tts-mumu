@@ -1,10 +1,13 @@
 package com.github.jing332.tts_server_android.compose.systts.plugin
 
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.wrapContentSize
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -22,6 +25,7 @@ import com.github.jing332.tts_server_android.compose.systts.ConfigExportBottomSh
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 internal fun PluginExportBottomSheet(
     onDismissRequest: () -> Unit,
@@ -37,12 +41,16 @@ internal fun PluginExportBottomSheet(
     }
     val jStr = json
     if (jStr == null) {
-        Box(
-            Modifier
-                .fillMaxSize()
-                .wrapContentSize(Alignment.Center)
-        ) {
-            CircularProgressIndicator()
+        // 加载状态放进 ModalBottomSheet 内, 避免全屏灰色遮罩
+        ModalBottomSheet(onDismissRequest = onDismissRequest) {
+            Box(
+                Modifier
+                    .fillMaxWidth()
+                    .height(120.dp)
+                    .wrapContentSize(Alignment.Center)
+            ) {
+                CircularProgressIndicator()
+            }
         }
     } else {
         ConfigExportBottomSheet(
