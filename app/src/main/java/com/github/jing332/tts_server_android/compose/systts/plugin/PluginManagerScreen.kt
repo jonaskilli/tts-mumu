@@ -2,6 +2,7 @@ package com.github.jing332.tts_server_android.compose.systts.plugin
 
 import android.content.Intent
 import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -19,11 +20,13 @@ import androidx.compose.material.icons.automirrored.filled.Input
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.AppShortcut
 import androidx.compose.material.icons.filled.CleaningServices
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.DeleteForever
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.EditNote
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Output
+import androidx.compose.material.icons.filled.SelectAll
 import androidx.compose.material.icons.filled.VolumeUp
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.DropdownMenu
@@ -39,9 +42,11 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -60,6 +65,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.github.jing332.common.utils.longToast
 import com.github.jing332.compose.rememberLazyListReorderCache
+import com.github.jing332.compose.widgets.AppDialog
 import com.github.jing332.compose.widgets.ShadowedDraggableItem
 import com.github.jing332.database.dbm
 import com.github.jing332.database.entities.plugin.Plugin
@@ -71,7 +77,9 @@ import com.github.jing332.tts_server_android.compose.systts.ConfigDeleteDialog
 import com.github.jing332.tts_server_android.constant.AppConst
 import com.github.jing332.tts_server_android.service.systts.SystemTtsService
 import com.github.jing332.tts_server_android.utils.MyTools
+import com.drake.net.utils.withIO
 import kotlinx.coroutines.flow.conflate
+import kotlinx.coroutines.launch
 import kotlinx.serialization.encodeToString
 import org.burnoutcrew.reorderable.detectReorderAfterLongPress
 import org.burnoutcrew.reorderable.rememberReorderableLazyListState
@@ -80,6 +88,40 @@ import org.burnoutcrew.reorderable.reorderable
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
 fun PluginManagerScreen(sharedVM: SharedViewModel, onFinishActivity: () -> Unit) {
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+
+    // 多选删除
+    var selectionMode by remember { mutableStateOf(false) }
+    var selectedIds by remember { mutableStateOf<Set<Long>>(emptySet()) }
+    var showMultiDeleteDialog by remember { mutableStateOf(false) }
+
+    if (showMultiDeleteDialog) {
+        AppDialog(
+            onDismissRequest = { showMultiDeleteDialog = false },
+            title = { Text(stringResource(id = R.string.delete)) },
+            content = { Text(context.getString(R.string.selected_count, selectedIds.size)) },
+            buttons = {
+                androidx.compose.material3.TextButton(onClick = { showMultiDeleteDialog = false }) {
+                    Text(stringResource(id = R.string.cancel))
+                }
+                androidx.compose.material3.TextButton(onClick = {
+                    val toDelete = selectedIds
+                    scope.launch {
+                        withIO {
+                            dbm.pluginDao.all.forEach {
+                                if (it.id in toDelete) dbm.pluginDao.delete(it)
+                            }
+                        }
+                    }
+                    selectedIds = emptySet()
+                    selectionMode = false
+                    showMultiDeleteDialog = false
+                }) { Text(stringResource(id = R.string.confirm)) }
+            }
+        )
+    }
+
     var showImportConfig by remember { mutableStateOf(false) }
     if (showImportConfig) {
         PluginImportBottomSheet(onDismissRequest = { showImportConfig = false })
@@ -124,7 +166,6 @@ fun PluginManagerScreen(sharedVM: SharedViewModel, onFinishActivity: () -> Unit)
     }
 
     val navController = LocalNavController.current
-    val context = LocalContext.current
 
     // 插件音频参数对话框
     var showAudioParamsDialog by remember { mutableStateOf<Plugin?>(null) }
@@ -157,16 +198,51 @@ fun PluginManagerScreen(sharedVM: SharedViewModel, onFinishActivity: () -> Unit)
         topBar = {
             TopAppBar(
                 scrollBehavior = scrollBehavior,
-                title = { Text(stringResource(id = R.string.plugin_manager)) },
+                title = {
+                    if (selectionMode) {
+                        Text(context.getString(R.string.selected_count, selectedIds.size))
+                    } else {
+                        Text(stringResource(id = R.string.plugin_manager))
+                    }
+                },
                 navigationIcon = {
-                    IconButton(onClick = onFinishActivity) {
-                        Icon(
-                            Icons.AutoMirrored.Filled.ArrowBack,
-                            stringResource(id = R.string.nav_back)
-                        )
+                    if (selectionMode) {
+                        IconButton(onClick = {
+                            selectionMode = false
+                            selectedIds = emptySet()
+                        }) {
+                            Icon(Icons.Default.Close, stringResource(id = R.string.cancel))
+                        }
+                    } else {
+                        IconButton(onClick = onFinishActivity) {
+                            Icon(
+                                Icons.AutoMirrored.Filled.ArrowBack,
+                                stringResource(id = R.string.nav_back)
+                            )
+                        }
                     }
                 },
                 actions = {
+                    if (selectionMode) {
+                        IconButton(onClick = {
+                            selectedIds = if (selectedIds.size == list.size) emptySet()
+                            else list.map { it.id }.toSet()
+                        }) {
+                            Icon(Icons.Default.SelectAll, stringResource(id = R.string.select_all))
+                        }
+                        IconButton(
+                            enabled = selectedIds.isNotEmpty(),
+                            onClick = { showMultiDeleteDialog = true }
+                        ) {
+                            Icon(
+                                Icons.Default.DeleteForever,
+                                stringResource(id = R.string.delete),
+                                tint = if (selectedIds.isNotEmpty())
+                                    MaterialTheme.colorScheme.error
+                                else MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    } else {
                     IconButton(onClick = {
                         onEdit()
                     }) {
@@ -182,6 +258,14 @@ fun PluginManagerScreen(sharedVM: SharedViewModel, onFinishActivity: () -> Unit)
                         DropdownMenu(
                             expanded = showOptions,
                             onDismissRequest = { showOptions = false }) {
+                            DropdownMenuItem(
+                                text = { Text(stringResource(id = R.string.select_delete)) },
+                                onClick = {
+                                    showOptions = false
+                                    selectionMode = true
+                                },
+                                leadingIcon = { Icon(Icons.Default.DeleteForever, null) }
+                            )
                             DropdownMenuItem(
                                 text = { Text(stringResource(id = R.string.import_config)) },
                                 onClick = {
@@ -218,6 +302,7 @@ fun PluginManagerScreen(sharedVM: SharedViewModel, onFinishActivity: () -> Unit)
                             )
                         }
                     }
+                    } // end else
                 }
             )
         }) { paddingValues ->
@@ -246,14 +331,13 @@ fun PluginManagerScreen(sharedVM: SharedViewModel, onFinishActivity: () -> Unit)
             itemsIndexed(cache.list, key = { _, item -> item.id }) { _, item ->
                 val desc = remember { "${item.author} - v${item.version}" }
                 ShadowedDraggableItem(reorderableState = reorderState, key = item.id) {
-                    Modifier
-                        .fillMaxWidth()
-                        .padding(vertical = 4.dp, horizontal = 8.dp)
-                        .detectReorderAfterLongPress(reorderState)
+                    val isSelected = remember(item.id) {
+                        derivedStateOf { item.id in selectedIds }
+                    }.value
                     Item(
                         modifier = Modifier
                             .padding(horizontal = 8.dp, vertical = 4.dp)
-                            .detectReorderAfterLongPress(reorderState),
+                            .then(if (!selectionMode) { Modifier.detectReorderAfterLongPress(reorderState) } else Modifier),
                         hasDefVars = item.defVars.isNotEmpty(),
                         needSetVars = item.defVars.isNotEmpty() && item.userVars.isEmpty(),
                         name = item.name,
@@ -262,6 +346,13 @@ fun PluginManagerScreen(sharedVM: SharedViewModel, onFinishActivity: () -> Unit)
                         isEnabled = item.isEnabled,
                         onEnabledChange = {
                             dbm.pluginDao.update(item.copy(isEnabled = it))
+                        },
+                        isSelectionMode = selectionMode,
+                        isSelected = isSelected,
+                        onToggleSelection = {
+                            selectedIds = if (item.id in selectedIds)
+                                selectedIds - item.id
+                            else selectedIds + item.id
                         },
                         onEdit = { onEdit(item) },
                         onSetVars = { showVarsSettings = item },
@@ -299,33 +390,36 @@ private fun Item(
     onAudioParams: () -> Unit,
     onExport: () -> Unit,
     onDelete: () -> Unit,
+    isSelectionMode: Boolean = false,
+    isSelected: Boolean = false,
+    onToggleSelection: () -> Unit = {},
 ) {
     val context = LocalContext.current
-    ElevatedCard(modifier = modifier.semantics {
-        customActions =
-            listOf(
-                CustomAccessibilityAction(
-                    context.getString(R.string.edit_desc, name)
-                ) { onEdit();true },
-                CustomAccessibilityAction(
-                    context.getString(R.string.plugin_set_vars, name)
-                ) { onSetVars();true },
-                CustomAccessibilityAction(
-                    context.getString(R.string.export_config)
-                ) { onExport();true },
-
-                CustomAccessibilityAction(
-                    context.getString(R.string.clear_cache, name)
-                ) { onClear();true },
-                CustomAccessibilityAction(
-                    context.getString(R.string.delete, name)
-                ) { onDelete();true },
-            )
-    }, onClick = {
-        if (hasDefVars) onSetVars()
-    }) {
+    ElevatedCard(modifier = modifier
+        .combinedClickable(
+            onClick = { if (isSelectionMode) onToggleSelection() else if (hasDefVars) onSetVars() },
+            onLongClick = { if (!isSelectionMode) onToggleSelection() }
+        )
+        .semantics {
+            if (!isSelectionMode) {
+                customActions = listOf(
+                    CustomAccessibilityAction(context.getString(R.string.edit_desc, name)) { onEdit(); true },
+                    CustomAccessibilityAction(context.getString(R.string.plugin_set_vars, name)) { onSetVars(); true },
+                    CustomAccessibilityAction(context.getString(R.string.export_config)) { onExport(); true },
+                    CustomAccessibilityAction(context.getString(R.string.clear_cache, name)) { onClear(); true },
+                    CustomAccessibilityAction(context.getString(R.string.delete, name)) { onDelete(); true },
+                )
+            }
+        }
+    ) {
         Box(modifier = Modifier.padding(4.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
+                if (isSelectionMode) {
+                    Checkbox(
+                        checked = isSelected,
+                        onCheckedChange = { onToggleSelection() },
+                    )
+                } else {
                 Checkbox(
                     checked = isEnabled,
                     onCheckedChange = onEnabledChange,
@@ -342,6 +436,7 @@ private fun Item(
                             }
                     }
                 )
+                }
 
                 PluginImage(model = iconUrl, name = name)
 
@@ -364,6 +459,7 @@ private fun Item(
                     )
                 }
 
+                if (!isSelectionMode) {
                 Row {
                     IconButton(onClick = onEdit) {
                         Icon(Icons.Default.Edit, stringResource(id = R.string.edit_desc, name))
@@ -452,9 +548,10 @@ private fun Item(
                     }
 
                 }
+                }
             }
 
-            if (needSetVars)
+            if (needSetVars && !isSelectionMode)
                 Text(
                     text = stringResource(id = R.string.systts_plugin_please_set_vars),
                     modifier = Modifier.align(Alignment.Center),
