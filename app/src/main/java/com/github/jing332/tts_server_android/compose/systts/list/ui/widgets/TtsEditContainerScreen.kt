@@ -15,7 +15,6 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.github.jing332.common.utils.toast
-import com.github.jing332.database.dbm
 import com.github.jing332.database.entities.systts.EmptyConfiguration
 import com.github.jing332.database.entities.systts.SystemTtsV2
 import com.github.jing332.database.entities.systts.TtsConfigurationDTO
@@ -50,14 +49,10 @@ fun TtsEditContainerScreen(
             modifier = modifier,
             systemTts = systts,
             content = {
-                val existingPaths = remember(systts.groupId) {
-                    dbm.systemTtsV2.getCategoryPathsByGroup(systts.groupId)
-                }
                 SpeechRuleEditScreen(
                     Modifier.padding(8.dp),
                     systts,
                     onSysttsChange = onSysttsChange,
-                    existingCategoryPaths = existingPaths
                 )
             },
             onSystemTtsChange = onSysttsChange,

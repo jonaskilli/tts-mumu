@@ -580,20 +580,14 @@ internal fun ListManagerScreen(
     var showMoveToSubGroup by remember { mutableStateOf<SystemTtsV2?>(null) }
     if (showMoveToSubGroup != null) {
         val targetItem = showMoveToSubGroup!!
-        val currentGroup = models.find { it.group.id == targetItem.groupId }
-        val existingPaths = remember(currentGroup?.group?.id) {
-            currentGroup?.list?.map { it.categoryPath }
-                ?.filter { it.isNotBlank() }
-                ?.distinct()
-                ?.sorted()
-                ?: emptyList()
-        }
-        MoveToSubGroupDialog(
-            existingPaths = existingPaths,
+        // 第6项: 列表“移动”改用统一分组树选择器，支持组内切子分组 / 组外跨大组切换 / 新建子分组
+        GroupTreePickerDialog(
+            currentGroupId = targetItem.groupId,
+            currentCategoryPath = targetItem.categoryPath,
             onDismissRequest = { showMoveToSubGroup = null },
-            onConfirm = { path ->
+            onConfirm = { gid, path ->
                 scope.launch {
-                    dbm.systemTtsV2.update(targetItem.copy(categoryPath = path))
+                    dbm.systemTtsV2.update(targetItem.copy(groupId = gid, categoryPath = path))
                     showMoveToSubGroup = null
                 }
             }
