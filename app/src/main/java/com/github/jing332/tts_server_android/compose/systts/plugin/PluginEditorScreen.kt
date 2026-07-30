@@ -43,7 +43,9 @@ import io.github.rosemoe.sora.widget.CodeEditor
 internal fun PluginEditorScreen(
     plugin: Plugin,
     onSave: (Plugin) -> Unit,
-    vm: PluginEditorViewModel = viewModel()
+    vm: PluginEditorViewModel = viewModel(),
+    // 第11项: 由列表项"运行键"传入，true 时等代码加载完成后自动弹出调试面板并执行
+    autoDebug: Boolean = false,
 ) {
     val navController = LocalNavController.current
     val context = LocalContext.current
@@ -100,6 +102,15 @@ internal fun PluginEditorScreen(
             }.onFailure {
                 context.displayErrorDialog(it)
             }
+        }
+    }
+
+    // 第11项: autoDebug 模式下，等代码加载完成自动弹出调试面板（onLaunched 会立即执行 debug）
+    var autoDebugTriggered by remember { mutableStateOf(false) }
+    LaunchedEffect(autoDebug, code, codeEditor) {
+        if (autoDebug && !autoDebugTriggered && code.isNotEmpty() && codeEditor != null) {
+            autoDebugTriggered = true
+            showDebugLogger = true
         }
     }
 

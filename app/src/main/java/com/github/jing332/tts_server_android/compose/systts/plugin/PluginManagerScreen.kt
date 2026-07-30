@@ -1,6 +1,7 @@
 package com.github.jing332.tts_server_android.compose.systts.plugin
 
 import android.content.Intent
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Box
@@ -24,8 +25,10 @@ import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.DeleteForever
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.EditNote
+import androidx.compose.material.icons.filled.ExpandCircleDown
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Output
+import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.SelectAll
 import androidx.compose.material.icons.filled.VolumeUp
 import androidx.compose.material3.Checkbox
@@ -37,8 +40,10 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
@@ -50,6 +55,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
@@ -69,6 +75,7 @@ import com.github.jing332.compose.widgets.AppDialog
 import com.github.jing332.compose.widgets.ShadowedDraggableItem
 import com.github.jing332.database.dbm
 import com.github.jing332.database.entities.plugin.Plugin
+import com.github.jing332.script.JsMetadataSyncer
 import com.github.jing332.tts_server_android.R
 import com.github.jing332.tts_server_android.compose.AppDefaultProperties
 import com.github.jing332.tts_server_android.compose.LocalNavController
@@ -190,6 +197,10 @@ fun PluginManagerScreen(sharedVM: SharedViewModel, onFinishActivity: () -> Unit)
     }
 
     val scrollBehavior = TopAppBarDefaults.pinnedScrollBehavior()
+    // 第11项修复: list 原本声明在 content lambda 内，但 actions 也引用它，
+    // 作用域不通会编译失败。提到 Scaffold 外层，actions 与 content 均可访问。
+    val flowAll = remember { dbm.pluginDao.flowAll().conflate() }
+    val list by flowAll.collectAsStateWithLifecycle(emptyList())
 
     Scaffold(contentWindowInsets = WindowInsets(0),
         modifier = Modifier
@@ -306,9 +317,6 @@ fun PluginManagerScreen(sharedVM: SharedViewModel, onFinishActivity: () -> Unit)
                 }
             )
         }) { paddingValues ->
-        val flowAll = remember { dbm.pluginDao.flowAll().conflate() }
-        val list by flowAll.collectAsStateWithLifecycle(emptyList())
-
         val cache = rememberLazyListReorderCache(list)
 
         val reorderState = rememberReorderableLazyListState(onMove = { from, to ->
@@ -362,7 +370,15 @@ fun PluginManagerScreen(sharedVM: SharedViewModel, onFinishActivity: () -> Unit)
                             PluginManager(item).clearCache()
                             context.longToast(R.string.clear_cache_ok)
                         },
-                        onExport = { showExportConfig = listOf(item) }
+                        onExport = { showExportConfig = listOf(item) },
+                        // 第11项: 内联展开编辑 + 运行键（跳编辑器并自动调试）
+                        plugin = item,
+                        onUpdatePlugin = { dbm.pluginDao.update(it) },
+                        onRun = {
+                            sharedVM.put(NavRoutes.PluginEdit.KEY_DATA, item)
+                            sharedVM.put("autoDebug", true)
+                            navController.navigate(NavRoutes.PluginEdit.id)
+                        }
                     )
                 }
             }
@@ -393,8 +409,13 @@ private fun Item(
     isSelectionMode: Boolean = false,
     isSelected: Boolean = false,
     onToggleSelection: () -> Unit = {},
+    // 第11项: 列表项内联展开编辑元数据
+    plugin: Plugin? = null,
+    onUpdatePlugin: ((Plugin) -> Unit)? = null,
+    onRun: (() -> Unit)? = null,
 ) {
     val context = LocalContext.current
+    var expanded by remember(plugin?.id) { mutableStateOf(false) }
     ElevatedCard(modifier = modifier
         .combinedClickable(
             onClick = { if (isSelectionMode) onToggleSelection() else if (hasDefVars) onSetVars() },
@@ -461,6 +482,22 @@ private fun Item(
 
                 if (!isSelectionMode) {
                 Row {
+                    // 第11项: 展开/收起内联编辑面板
+                    if (plugin != null && onUpdatePlugin != null) {
+                        IconButton(onClick = { expanded = !expanded }) {
+                            Icon(
+                                Icons.Default.ExpandCircleDown,
+                                if (expanded) "收起" else "展开编辑",
+                                modifier = Modifier.rotate(if (expanded) 0f else -90f)
+                            )
+                        }
+                    }
+                    // 第11项: 运行键（跳转代码编辑器并自动调试）
+                    if (onRun != null) {
+                        IconButton(onClick = onRun) {
+                            Icon(Icons.Default.PlayArrow, "运行")
+                        }
+                    }
                     IconButton(onClick = onEdit) {
                         Icon(Icons.Default.Edit, stringResource(id = R.string.edit_desc, name))
                     }
@@ -548,6 +585,81 @@ private fun Item(
                     }
 
                 }
+                }
+            }
+
+            // 第11项: 内联展开编辑面板（name / pluginId / author / version + 同步JS）
+            AnimatedVisibility(visible = expanded && !isSelectionMode && plugin != null) {
+                val p = plugin!!
+                var editName by remember(p.id, expanded) { mutableStateOf(p.name) }
+                var editPluginId by remember(p.id, expanded) { mutableStateOf(p.pluginId) }
+                var editAuthor by remember(p.id, expanded) { mutableStateOf(p.author) }
+                var editVersion by remember(p.id, expanded) { mutableStateOf(p.version.toString()) }
+
+                Column(
+                    Modifier
+                        .fillMaxWidth()
+                        .padding(top = 8.dp)
+                ) {
+                    OutlinedTextField(
+                        label = { Text("name") },
+                        value = editName,
+                        onValueChange = { editName = it },
+                        modifier = Modifier.fillMaxWidth(),
+                        singleLine = true
+                    )
+                    OutlinedTextField(
+                        label = { Text("pluginId (JS: id)") },
+                        value = editPluginId,
+                        onValueChange = { editPluginId = it },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(top = 4.dp),
+                        singleLine = true
+                    )
+                    OutlinedTextField(
+                        label = { Text("author") },
+                        value = editAuthor,
+                        onValueChange = { editAuthor = it },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(top = 4.dp),
+                        singleLine = true
+                    )
+                    OutlinedTextField(
+                        label = { Text("version") },
+                        value = editVersion,
+                        onValueChange = { editVersion = it.filter { c -> c.isDigit() } },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(top = 4.dp),
+                        singleLine = true
+                    )
+                    Spacer(Modifier.height(4.dp))
+                    TextButton(
+                        onClick = {
+                            val newVersion = editVersion.toIntOrNull() ?: p.version
+                            // 同步更新 JS 代码里的元数据字面量，保证下次 eval 一致
+                            var newCode = p.code
+                            newCode = JsMetadataSyncer.updateStringField(newCode, "name", editName)
+                            newCode = JsMetadataSyncer.updateStringField(newCode, "id", editPluginId)
+                            newCode = JsMetadataSyncer.updateStringField(newCode, "author", editAuthor)
+                            newCode = JsMetadataSyncer.updateIntField(newCode, "version", newVersion)
+                            onUpdatePlugin?.invoke(
+                                p.copy(
+                                    name = editName,
+                                    pluginId = editPluginId,
+                                    author = editAuthor,
+                                    version = newVersion,
+                                    code = newCode
+                                )
+                            )
+                            expanded = false
+                        },
+                        modifier = Modifier.align(Alignment.End)
+                    ) {
+                        Text(stringResource(id = R.string.save))
+                    }
                 }
             }
 

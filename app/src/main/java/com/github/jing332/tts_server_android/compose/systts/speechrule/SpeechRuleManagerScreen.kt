@@ -1,12 +1,15 @@
 package com.github.jing332.tts_server_android.compose.systts.speechrule
 
 import android.content.Intent
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListState
@@ -19,8 +22,10 @@ import androidx.compose.material.icons.filled.AppShortcut
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.DeleteForever
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.ExpandCircleDown
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Output
+import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.SelectAll
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.DropdownMenu
@@ -31,8 +36,10 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
@@ -44,6 +51,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
@@ -59,6 +67,7 @@ import com.github.jing332.compose.widgets.LazyListIndexStateSaver
 import com.github.jing332.compose.widgets.ShadowedDraggableItem
 import com.github.jing332.database.dbm
 import com.github.jing332.database.entities.SpeechRule
+import com.github.jing332.script.JsMetadataSyncer
 import com.github.jing332.tts_server_android.R
 import com.github.jing332.tts_server_android.compose.LocalNavController
 import com.github.jing332.tts_server_android.compose.SharedViewModel
@@ -135,6 +144,11 @@ fun SpeechRuleManagerScreen(sharedVM: SharedViewModel, finish: () -> Unit) {
 
 
     val scrollBehavior = TopAppBarDefaults.pinnedScrollBehavior()
+    // 第11项修复: list 原本声明在 content lambda 内，但 actions 也引用它，
+    // 作用域不通会编译失败。提到 Scaffold 外层，actions 与 content 均可访问。
+    val flowAll = remember { dbm.speechRuleDao.flowAll().conflate() }
+    val list by flowAll.collectAsState(initial = emptyList())
+
     Scaffold(
         modifier = Modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
         topBar = {
@@ -261,9 +275,6 @@ fun SpeechRuleManagerScreen(sharedVM: SharedViewModel, finish: () -> Unit) {
 //            }
 //        }
 
-        val flowAll = remember { dbm.speechRuleDao.flowAll().conflate() }
-        val list by flowAll.collectAsState(initial = emptyList())
-
         val listState = remember { LazyListState() }
         LazyListIndexStateSaver(
             models = list,
@@ -324,7 +335,15 @@ fun SpeechRuleManagerScreen(sharedVM: SharedViewModel, finish: () -> Unit) {
                             navController.navigate(NavRoutes.SpeechRuleEdit.id)
                         },
                         onExport = { showExportSheet = listOf(item) },
-                        onDelete = { showDeleteDialog = item }
+                        onDelete = { showDeleteDialog = item },
+                        // 第11项: 内联展开编辑 + 运行键（跳编辑器并自动调试）
+                        rule = item,
+                        onUpdateRule = { dbm.speechRuleDao.update(it) },
+                        onRun = {
+                            sharedVM.put(NavRoutes.SpeechRuleEdit.KEY_DATA, item)
+                            sharedVM.put("autoDebug", true)
+                            navController.navigate(NavRoutes.SpeechRuleEdit.id)
+                        }
                     )
                 }
             }
@@ -348,8 +367,13 @@ internal fun Item(
     isSelectionMode: Boolean = false,
     isSelected: Boolean = false,
     onToggleSelection: () -> Unit = {},
+    // 第11项: 列表项内联展开编辑元数据
+    rule: SpeechRule? = null,
+    onUpdateRule: ((SpeechRule) -> Unit)? = null,
+    onRun: (() -> Unit)? = null,
 ) {
     val context = LocalContext.current
+    var expanded by remember(rule?.id) { mutableStateOf(false) }
     ElevatedCard(
         modifier = modifier.combinedClickable(
             onClick = { if (isSelectionMode) onToggleSelection() else onClick() },
@@ -387,6 +411,22 @@ internal fun Item(
                 }
                 if (!isSelectionMode) {
                 Row {
+                    // 第11项: 展开/收起内联编辑面板
+                    if (rule != null && onUpdateRule != null) {
+                        IconButton(onClick = { expanded = !expanded }) {
+                            Icon(
+                                Icons.Default.ExpandCircleDown,
+                                if (expanded) "收起" else "展开编辑",
+                                modifier = Modifier.rotate(if (expanded) 0f else -90f)
+                            )
+                        }
+                    }
+                    // 第11项: 运行键（跳转代码编辑器并运行）
+                    if (onRun != null) {
+                        IconButton(onClick = onRun) {
+                            Icon(Icons.Default.PlayArrow, "运行")
+                        }
+                    }
                     IconButton(onClick = onEdit) {
                         Icon(Icons.Default.Edit, stringResource(id = R.string.edit_desc, name))
                     }
@@ -441,7 +481,80 @@ internal fun Item(
                 }
             }
 
+            // 第11项: 内联展开编辑面板（name / ruleId / author / version + 同步JS）
+            AnimatedVisibility(visible = expanded && !isSelectionMode && rule != null) {
+                val r = rule!!
+                var editName by remember(r.id, expanded) { mutableStateOf(r.name) }
+                var editRuleId by remember(r.id, expanded) { mutableStateOf(r.ruleId) }
+                var editAuthor by remember(r.id, expanded) { mutableStateOf(r.author) }
+                var editVersion by remember(r.id, expanded) { mutableStateOf(r.version.toString()) }
 
+                Column(
+                    Modifier
+                        .fillMaxWidth()
+                        .padding(top = 8.dp)
+                ) {
+                    OutlinedTextField(
+                        label = { Text("name") },
+                        value = editName,
+                        onValueChange = { editName = it },
+                        modifier = Modifier.fillMaxWidth(),
+                        singleLine = true
+                    )
+                    OutlinedTextField(
+                        label = { Text("ruleId (JS: id)") },
+                        value = editRuleId,
+                        onValueChange = { editRuleId = it },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(top = 4.dp),
+                        singleLine = true
+                    )
+                    OutlinedTextField(
+                        label = { Text("author") },
+                        value = editAuthor,
+                        onValueChange = { editAuthor = it },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(top = 4.dp),
+                        singleLine = true
+                    )
+                    OutlinedTextField(
+                        label = { Text("version") },
+                        value = editVersion,
+                        onValueChange = { editVersion = it.filter { c -> c.isDigit() } },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(top = 4.dp),
+                        singleLine = true
+                    )
+                    Spacer(Modifier.height(4.dp))
+                    TextButton(
+                        onClick = {
+                            val newVersion = editVersion.toIntOrNull() ?: r.version
+                            // 同步更新 JS 代码里的元数据字面量，保证下次 eval 一致
+                            var newCode = r.code
+                            newCode = JsMetadataSyncer.updateStringField(newCode, "name", editName)
+                            newCode = JsMetadataSyncer.updateStringField(newCode, "id", editRuleId)
+                            newCode = JsMetadataSyncer.updateStringField(newCode, "author", editAuthor)
+                            newCode = JsMetadataSyncer.updateIntField(newCode, "version", newVersion)
+                            onUpdateRule?.invoke(
+                                r.copy(
+                                    name = editName,
+                                    ruleId = editRuleId,
+                                    author = editAuthor,
+                                    version = newVersion,
+                                    code = newCode
+                                )
+                            )
+                            expanded = false
+                        },
+                        modifier = Modifier.align(Alignment.End)
+                    ) {
+                        Text(stringResource(id = R.string.save))
+                    }
+                }
+            }
         }
     }
 }

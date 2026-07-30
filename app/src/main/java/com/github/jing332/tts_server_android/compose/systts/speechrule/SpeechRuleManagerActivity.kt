@@ -60,7 +60,11 @@ class SpeechRuleManagerActivity : ComposeActivity() {
                                 sharedVM.getOnce<SpeechRule>(NavRoutes.SpeechRuleEdit.KEY_DATA)
                                     ?: SpeechRule()
                             }
-                            SpeechRuleEditScreen(rule, onSave = {
+                            // 第11项: 列表项"运行键"传入的自动调试标志
+                            val autoDebug = remember {
+                                sharedVM.getOnce<Boolean>("autoDebug") ?: false
+                            }
+                            SpeechRuleEditScreen(rule, autoDebug = autoDebug, onSave = {
                                 scope.launch { withIO { dbm.speechRuleDao.insert(it) } }
                             })
                         }

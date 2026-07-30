@@ -55,8 +55,12 @@ class PluginManagerActivity : ComposeActivity() {
                             val plugin: Plugin = rememberSaveable {
                                 checkNotNull(sharedVM.getOnce(NavRoutes.PluginEdit.KEY_DATA)) { "No Plugin Data" }
                             }
+                            // 第11项: 列表项"运行键"传入的自动调试标志
+                            val autoDebug = remember {
+                                sharedVM.getOnce<Boolean>("autoDebug") ?: false
+                            }
 
-                            PluginEditorScreen(plugin, onSave = {
+                            PluginEditorScreen(plugin, autoDebug = autoDebug, onSave = {
                                 scope.launch { withIO { dbm.pluginDao.insert(it) } }
                             })
                         }
