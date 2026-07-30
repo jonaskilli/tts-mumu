@@ -2,6 +2,7 @@ package com.github.jing332.tts_server_android.compose.settings
 
 import android.content.Context
 import android.content.Intent
+import android.net.Uri
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
@@ -19,6 +20,7 @@ import androidx.compose.material.icons.filled.HideSource
 import androidx.compose.material.icons.filled.Language
 import androidx.compose.material.icons.filled.Lan
 import androidx.compose.material.icons.filled.Link
+import androidx.compose.material.icons.filled.OpenInBrowser
 import androidx.compose.material.icons.filled.PowerSettingsNew
 import androidx.compose.ui.res.painterResource
 import androidx.compose.material.icons.filled.SettingsBackupRestore
@@ -29,6 +31,7 @@ import androidx.compose.material3.Switch
 import androidx.compose.ui.Alignment
 import com.github.jing332.compose.widgets.LocalBroadcastReceiver
 import com.github.jing332.compose.widgets.TextFieldDialog
+import com.github.jing332.common.utils.toast
 import com.github.jing332.tts_server_android.service.forwarder.system.SysTtsForwarderService
 import com.github.jing332.tts_server_android.service.forwarder.ForwarderServiceManager.switchSysTtsForwarder
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -211,6 +214,22 @@ fun SettingsScreen() {
                     icon = { Icon(Icons.Default.Lan, null) },
                     title = { Text(stringResource(id = R.string.listen_port)) },
                     subTitle = { Text(forwarderPort.toString()) }
+                )
+
+                // 第3项: 网页入口(选择引擎并导入阅读) —— 转发器运行时打开网页UI
+                BasePreferenceWidget(
+                    onClick = {
+                        if (forwarderRunning) {
+                            context.startActivity(
+                                Intent(Intent.ACTION_VIEW, Uri.parse("http://localhost:$forwarderPort"))
+                            )
+                        } else {
+                            context.toast(R.string.toast_forwarder_not_running)
+                        }
+                    },
+                    icon = { Icon(Icons.Default.OpenInBrowser, null) },
+                    title = { Text(stringResource(id = R.string.open_web)) },
+                    subTitle = { Text("选择引擎并导入阅读") }
                 )
 
                 BasePreferenceWidget(
