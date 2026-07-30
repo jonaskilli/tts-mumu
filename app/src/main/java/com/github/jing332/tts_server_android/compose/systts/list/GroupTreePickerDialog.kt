@@ -1,5 +1,7 @@
 package com.github.jing332.tts_server_android.compose.systts.list
 
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -10,12 +12,11 @@ import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ChevronRight
+import androidx.compose.material.icons.filled.ExpandCircleDown
 import androidx.compose.material.icons.filled.CreateNewFolder
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.RadioButton
@@ -29,6 +30,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.rotate
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.DialogProperties
 import com.github.jing332.database.dbm
@@ -116,19 +118,22 @@ fun GroupTreePickerDialog(
                             .padding(vertical = 4.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        IconButton(
-                            onClick = {
-                                // 手风琴: 同时只展开一个一级分组
-                                expandedGroups = if (isExpanded) expandedGroups - group.id
-                                else setOf(group.id)
-                            }
-                        ) {
-                            Icon(
-                                Icons.Default.ChevronRight,
-                                contentDescription = if (isExpanded) "收起" else "展开",
-                                modifier = Modifier.rotate(if (isExpanded) 90f else 0f)
-                            )
-                        }
+                        val rotationAngle by animateFloatAsState(
+                            targetValue = if (isExpanded) 0f else -45f,
+                            label = "groupExpandRotation"
+                        )
+                        Icon(
+                            Icons.Default.ExpandCircleDown,
+                            contentDescription = if (isExpanded) "收起" else "展开",
+                            modifier = Modifier
+                                .clickable {
+                                    // 手风琴: 同时只展开一个一级分组
+                                    expandedGroups = if (isExpanded) expandedGroups - group.id
+                                    else setOf(group.id)
+                                }
+                                .rotate(rotationAngle)
+                                .graphicsLayer { rotationZ = rotationAngle }
+                        )
                         RadioButton(
                             selected = isGroupRootSelected,
                             onClick = {
