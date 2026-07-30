@@ -27,10 +27,11 @@ import kotlinx.serialization.encodeToString
 @Composable
 fun ListExportBottomSheet(onDismissRequest: () -> Unit, list: List<GroupWithSystemTts>) {
     // 第9项: 将大 JSON 序列化移到 IO 线程, 避免主线程阻塞导致导出页卡顿/慢。
+    // 第1项: 用 compactJsonBuilder 关闭 prettyPrint, 减小体积+加速序列化。
     var json by remember(list) { mutableStateOf<String?>(null) }
     LaunchedEffect(list) {
         json = withContext(Dispatchers.IO) {
-            AppConst.jsonBuilder.encodeToString(list)
+            AppConst.compactJsonBuilder.encodeToString(list)
         }
     }
     val jStr = json

@@ -32,7 +32,21 @@ object AppConst {
             ignoreUnknownKeys = true
             prettyPrint = true
             isLenient = true
-            explicitNulls = false 
+            explicitNulls = false
+        }
+    }
+
+    // 第1项: 导出文件用紧凑 JSON, 关闭 prettyPrint。
+    // prettyPrint 会让 3-4MB JSON 膨胀 30~60% 且拖慢序列化, 紧凑版体积更小、速度更快。
+    // 导出页已改为只预览前 32KB, 显示不再依赖格式; 文件/复制/上传均用紧凑版。
+    @OptIn(ExperimentalSerializationApi::class)
+    val compactJsonBuilder: Json by lazy {
+        Json {
+            allowStructuredMapKeys = true
+            ignoreUnknownKeys = true
+            prettyPrint = false
+            isLenient = true
+            explicitNulls = false
         }
     }
 

@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -32,7 +33,12 @@ import com.github.jing332.tts_server_android.compose.systts.directlink.LinkUploa
 import com.github.jing332.tts_server_android.ui.AppActivityResultContracts
 import com.github.jing332.tts_server_android.ui.FilePickerActivity
 import com.github.jing332.tts_server_android.ui.view.BigTextView
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
+// 第1项: 大文本只预览前 32KB, 避免 TextView 对 MB 级全文排版导致卡顿。
+private const val PREVIEW_MAX_CHARS = 32 * 1024
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -83,33 +89,47 @@ fun ConfigExportBottomSheet(
 
                 TextButton(
                     onClick = {
-                        fileSaver.launch(
-                            FilePickerActivity.RequestSaveFile(
-                                fileName = fileName,
-                                fileMime = "application/json",
-                                fileBytes = json.toByteArray()
+                        // 第1项: toByteArray 移到 IO 线程, 避免大 JSON 在主线程转 ByteArray 卡顿
+                        val src = json
+                        val name = fileName
+                        scope.launch {
+                            val bytes = withContext(Dispatchers.IO) { src.toByteArray() }
+                            fileSaver.launch(
+                                FilePickerActivity.RequestSaveFile(
+                                    fileName = name,
+                                    fileMime = "application/json",
+                                    fileBytes = bytes
+                                )
                             )
-                        )
+                        }
                     }) {
                     Text(stringResource(id = R.string.save_as_file))
                 }
+            }
+
+            // 第1项: 大文本截断提示
+            val isTruncated = json.length > PREVIEW_MAX_CHARS
+            if (isTruncated) {
+                Text(
+                    text = "内容过长(${json.length}字符), 仅显示前 ${PREVIEW_MAX_CHARS} 字符预览, 完整内容请复制或保存为文件",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp)
+                )
             }
 
             var tv by remember {
                 mutableStateOf<BigTextView?>(null)
             }
 
-            // 第9项: 移除 update 内的 setText —— 原先每次重组都会对整篇大 JSON 重新 setText,
-            // 触发 TextView 全文测量/排版, 是导出页卡顿的主因之一。现仅由下面的 LaunchedEffect
-            // 在 json 变化时设置一次。
             AndroidView(modifier = Modifier.verticalScroll(rememberScrollState()), factory = {
                 tv = BigTextView(it)
-
                 tv!!
             })
 
+            // 第1项: 只把预览子串交给 TextView, 避免全文排版卡顿
             LaunchedEffect(key1 = json) {
-                tv?.setText(json)
+                tv?.setText(if (isTruncated) json.substring(0, PREVIEW_MAX_CHARS) else json)
             }
         }
     }

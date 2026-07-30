@@ -1184,7 +1184,7 @@ internal fun ListManagerScreen(
         var jStr by remember(exportList) { mutableStateOf<String?>(null) }
         LaunchedEffect(exportList) {
             jStr = withContext(Dispatchers.IO) {
-                AppConst.jsonBuilder.encodeToString(exportList)
+                AppConst.compactJsonBuilder.encodeToString(exportList)
             }
         }
         val s = jStr
