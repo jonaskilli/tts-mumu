@@ -575,6 +575,7 @@
     <string name="select_all">全选</string>
     <string name="deselect_all">取消全选</string>
     <string name="select_delete_groups">多选删除分组</string>
+    <string name="select_delete">多选删除</string>
     <string name="selected_groups">已选 %1$d 个分组</string>
     <string name="delete_selected_groups_confirm">确定删除选中的 %1$d 个分组及其全部配置？</string>
     <!-- Background Keep Alive -->
