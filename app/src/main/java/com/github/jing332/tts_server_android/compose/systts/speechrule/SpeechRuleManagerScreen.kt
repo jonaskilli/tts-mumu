@@ -352,7 +352,7 @@ fun SpeechRuleManagerScreen(sharedVM: SharedViewModel, finish: () -> Unit) {
 }
 
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, androidx.compose.foundation.ExperimentalFoundationApi::class)
 @Composable
 internal fun Item(
     modifier: Modifier,
@@ -482,13 +482,14 @@ internal fun Item(
             }
 
             // 第11项: 内联展开编辑面板（name / ruleId / author / version + 同步JS）
-            AnimatedVisibility(visible = expanded && !isSelectionMode && rule != null) {
-                val r = rule!!
-                var editName by remember(r.id, expanded) { mutableStateOf(r.name) }
-                var editRuleId by remember(r.id, expanded) { mutableStateOf(r.ruleId) }
-                var editAuthor by remember(r.id, expanded) { mutableStateOf(r.author) }
-                var editVersion by remember(r.id, expanded) { mutableStateOf(r.version.toString()) }
+            // 状态声明放在 AnimatedVisibility 外层，避免在 content lambda 内声明导致 @Composable 上下文错误
+            val r = rule
+            var editName by remember(r?.id, expanded) { mutableStateOf(r?.name ?: "") }
+            var editRuleId by remember(r?.id, expanded) { mutableStateOf(r?.ruleId ?: "") }
+            var editAuthor by remember(r?.id, expanded) { mutableStateOf(r?.author ?: "") }
+            var editVersion by remember(r?.id, expanded) { mutableStateOf(r?.version?.toString() ?: "") }
 
+            AnimatedVisibility(visible = expanded && !isSelectionMode && r != null) {
                 Column(
                     Modifier
                         .fillMaxWidth()
@@ -531,15 +532,16 @@ internal fun Item(
                     Spacer(Modifier.height(4.dp))
                     TextButton(
                         onClick = {
-                            val newVersion = editVersion.toIntOrNull() ?: r.version
+                            val cur = r!!
+                            val newVersion = editVersion.toIntOrNull() ?: cur.version
                             // 同步更新 JS 代码里的元数据字面量，保证下次 eval 一致
-                            var newCode = r.code
+                            var newCode = cur.code
                             newCode = JsMetadataSyncer.updateStringField(newCode, "name", editName)
                             newCode = JsMetadataSyncer.updateStringField(newCode, "id", editRuleId)
                             newCode = JsMetadataSyncer.updateStringField(newCode, "author", editAuthor)
                             newCode = JsMetadataSyncer.updateIntField(newCode, "version", newVersion)
                             onUpdateRule?.invoke(
-                                r.copy(
+                                cur.copy(
                                     name = editName,
                                     ruleId = editRuleId,
                                     author = editAuthor,

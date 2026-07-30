@@ -67,8 +67,8 @@ fun BasicInfoEditScreen(
             },
             supportingText = {
                 if (systemTts.categoryPath.isNotBlank()) {
-                    val levels = systemTts.getCategoryLevels()
-                    Text("${group.name} > ${levels.joinToString(" > ")}")
+                    val parts = systemTts.parsedCategoryPath()
+                    Text("${group.name} > ${parts.joinToString(" > ")}")
                 } else {
                     Text("${group.name}")
                 }

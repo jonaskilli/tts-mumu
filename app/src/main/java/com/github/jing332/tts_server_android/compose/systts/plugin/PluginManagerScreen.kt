@@ -390,6 +390,7 @@ fun PluginManagerScreen(sharedVM: SharedViewModel, onFinishActivity: () -> Unit)
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
 private fun Item(
     modifier: Modifier,
@@ -589,13 +590,14 @@ private fun Item(
             }
 
             // 第11项: 内联展开编辑面板（name / pluginId / author / version + 同步JS）
-            AnimatedVisibility(visible = expanded && !isSelectionMode && plugin != null) {
-                val p = plugin!!
-                var editName by remember(p.id, expanded) { mutableStateOf(p.name) }
-                var editPluginId by remember(p.id, expanded) { mutableStateOf(p.pluginId) }
-                var editAuthor by remember(p.id, expanded) { mutableStateOf(p.author) }
-                var editVersion by remember(p.id, expanded) { mutableStateOf(p.version.toString()) }
+            // 状态声明放在 AnimatedVisibility 外层，避免在 content lambda 内声明导致 @Composable 上下文错误
+            val p = plugin
+            var editName by remember(p?.id, expanded) { mutableStateOf(p?.name ?: "") }
+            var editPluginId by remember(p?.id, expanded) { mutableStateOf(p?.pluginId ?: "") }
+            var editAuthor by remember(p?.id, expanded) { mutableStateOf(p?.author ?: "") }
+            var editVersion by remember(p?.id, expanded) { mutableStateOf(p?.version?.toString() ?: "") }
 
+            AnimatedVisibility(visible = expanded && !isSelectionMode && p != null) {
                 Column(
                     Modifier
                         .fillMaxWidth()
@@ -638,15 +640,16 @@ private fun Item(
                     Spacer(Modifier.height(4.dp))
                     TextButton(
                         onClick = {
-                            val newVersion = editVersion.toIntOrNull() ?: p.version
+                            val cur = p!!
+                            val newVersion = editVersion.toIntOrNull() ?: cur.version
                             // 同步更新 JS 代码里的元数据字面量，保证下次 eval 一致
-                            var newCode = p.code
+                            var newCode = cur.code
                             newCode = JsMetadataSyncer.updateStringField(newCode, "name", editName)
                             newCode = JsMetadataSyncer.updateStringField(newCode, "id", editPluginId)
                             newCode = JsMetadataSyncer.updateStringField(newCode, "author", editAuthor)
                             newCode = JsMetadataSyncer.updateIntField(newCode, "version", newVersion)
                             onUpdatePlugin?.invoke(
-                                p.copy(
+                                cur.copy(
                                     name = editName,
                                     pluginId = editPluginId,
                                     author = editAuthor,
