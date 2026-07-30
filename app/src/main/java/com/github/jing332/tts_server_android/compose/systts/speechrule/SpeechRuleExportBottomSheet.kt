@@ -27,11 +27,11 @@ import kotlinx.serialization.encodeToString
 @Composable
 fun SpeechRuleExportBottomSheet(onDismissRequest: () -> Unit, list: List<SpeechRule>) {
     // 第9项: 将大 JSON 序列化移到 IO 线程, 避免主线程阻塞导致导出页卡顿/慢。
-    // 第1项: 用 compactJsonBuilder 关闭 prettyPrint, 减小体积+加速序列化。
+    // 修复: 导出文件用 prettyPrint (jsonBuilder), 每个配置项独立一行可读。
     var json by remember(list) { mutableStateOf<String?>(null) }
     LaunchedEffect(list) {
         json = withContext(Dispatchers.IO) {
-            AppConst.compactJsonBuilder.encodeToString(list)
+            AppConst.jsonBuilder.encodeToString(list)
         }
     }
     val jStr = json

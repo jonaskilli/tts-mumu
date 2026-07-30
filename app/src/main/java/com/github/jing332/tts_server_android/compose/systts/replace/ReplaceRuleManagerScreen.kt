@@ -66,6 +66,7 @@ import com.github.jing332.tts_server_android.compose.AppDefaultProperties
 import com.github.jing332.tts_server_android.compose.LocalNavController
 import com.github.jing332.tts_server_android.compose.SharedViewModel
 import com.github.jing332.tts_server_android.compose.systts.sizeToToggleableState
+import androidx.compose.ui.state.ToggleableState
 import com.github.jing332.tts_server_android.service.systts.SystemTtsService
 import com.github.jing332.tts_server_android.utils.MyTools
 import com.drake.net.utils.withIO
@@ -137,9 +138,14 @@ internal fun ReplaceRuleManagerScreen(
         )
     }
 
-    // 第3项: 多选删除(与朗读规则/插件一致)
+    // 第3项: 多选删除规则(与朗读规则/插件一致)
     var selectionMode by remember { mutableStateOf(false) }
     var selectedIds by remember { mutableStateOf<Set<Long>>(emptySet()) }
+
+    // 多选删除分组
+    var groupSelectionMode by remember { mutableStateOf(false) }
+    var selectedGroupIds by remember { mutableStateOf<Set<Long>>(emptySet()) }
+
     var showMultiDeleteDialog by remember { mutableStateOf(false) }
     if (showMultiDeleteDialog) {
         AppDialog(
@@ -174,10 +180,46 @@ internal fun ReplaceRuleManagerScreen(
         )
     }
 
+    // 删除分组确认对话框
+    var showDeleteGroupsDialog by remember { mutableStateOf(false) }
+    if (showDeleteGroupsDialog) {
+        AppDialog(
+            onDismissRequest = { showDeleteGroupsDialog = false },
+            title = { Text(stringResource(id = R.string.delete)) },
+            content = { Text(context.getString(R.string.delete_selected_groups_confirm, selectedGroupIds.size)) },
+            buttons = {
+                androidx.compose.material3.TextButton(onClick = { showDeleteGroupsDialog = false }) {
+                    Text(stringResource(id = R.string.cancel))
+                }
+                androidx.compose.material3.TextButton(onClick = {
+                    val toDelete = selectedGroupIds
+                    scope.launch {
+                        withIO {
+                            val enabledDeleted = models.any { gwt ->
+                                gwt.group.id in toDelete && gwt.list.any { it.isEnabled }
+                            }
+                            models.filter { it.group.id in toDelete }.forEach { gwt ->
+                                vm.deleteGroup(gwt)
+                            }
+                            if (enabledDeleted) SystemTtsService.notifyUpdateConfig(
+                                isOnlyReplacer = true
+                            )
+                        }
+                    }
+                    selectedGroupIds = emptySet()
+                    groupSelectionMode = false
+                    showDeleteGroupsDialog = false
+                }) { Text(stringResource(id = R.string.confirm)) }
+            }
+        )
+    }
+
     // 多选模式按返回键退出选择而非退出页面
-    androidx.activity.compose.BackHandler(enabled = selectionMode) {
+    androidx.activity.compose.BackHandler(enabled = selectionMode || groupSelectionMode) {
         selectionMode = false
         selectedIds = emptySet()
+        groupSelectionMode = false
+        selectedGroupIds = emptySet()
     }
 
     val scrollBehavior = TopAppBarDefaults.pinnedScrollBehavior()
@@ -193,6 +235,8 @@ internal fun ReplaceRuleManagerScreen(
                 title = {
                     if (selectionMode) {
                         Text(context.getString(R.string.selected_count, selectedIds.size))
+                    } else if (groupSelectionMode) {
+                        Text(context.getString(R.string.selected_count, selectedGroupIds.size))
                     } else {
                         LaunchedEffect(vm.searchText, vm.searchType) {
                             vm.updateSearchResult()
@@ -249,6 +293,13 @@ internal fun ReplaceRuleManagerScreen(
                         }) {
                             Icon(Icons.Default.Close, stringResource(id = R.string.cancel))
                         }
+                    } else if (groupSelectionMode) {
+                        IconButton(onClick = {
+                            groupSelectionMode = false
+                            selectedGroupIds = emptySet()
+                        }) {
+                            Icon(Icons.Default.Close, stringResource(id = R.string.cancel))
+                        }
                     } else {
                         IconButton(onClick = finish) {
                             Icon(
@@ -285,6 +336,32 @@ internal fun ReplaceRuleManagerScreen(
                                 else MaterialTheme.colorScheme.onSurface
                             )
                         }
+                    } else if (groupSelectionMode) {
+                        // 全选分组
+                        val allGroupIds = remember(models) {
+                            models.map { it.group.id }.toSet()
+                        }
+                        val allGroupsSelected by remember(selectedGroupIds, allGroupIds) {
+                            derivedStateOf { allGroupIds.isNotEmpty() && allGroupIds.all { it in selectedGroupIds } }
+                        }
+                        IconButton(onClick = {
+                            selectedGroupIds = if (allGroupsSelected) emptySet() else allGroupIds
+                        }) {
+                            Icon(Icons.Default.SelectAll, stringResource(id = R.string.select_all))
+                        }
+                        // 删除选中的分组
+                        IconButton(
+                            enabled = selectedGroupIds.isNotEmpty(),
+                            onClick = { showDeleteGroupsDialog = true }
+                        ) {
+                            Icon(
+                                Icons.Default.DeleteForever,
+                                stringResource(id = R.string.delete),
+                                tint = if (selectedGroupIds.isNotEmpty())
+                                    MaterialTheme.colorScheme.error
+                                else MaterialTheme.colorScheme.onSurface
+                            )
+                        }
                     } else {
                         // 第3项: 顶部整理图标(多选删除入口), 不再藏在更多菜单里
                         IconButton(onClick = { selectionMode = true }) {
@@ -297,6 +374,15 @@ internal fun ReplaceRuleManagerScreen(
                             DropdownMenu(
                                 expanded = showOptions,
                                 onDismissRequest = { showOptions = false }) {
+                                DropdownMenuItem(
+                                    text = { Text(stringResource(id = R.string.select_delete_groups)) },
+                                    onClick = {
+                                        showOptions = false
+                                        groupSelectionMode = true
+                                    },
+                                    leadingIcon = { Icon(Icons.Default.DeleteSweep, null) }
+                                )
+
                                 DropdownMenuItem(
                                     text = { Text(stringResource(id = R.string.import_config)) },
                                     onClick = {
@@ -384,35 +470,59 @@ internal fun ReplaceRuleManagerScreen(
                         groupWithRules.list.size
                     )
                 val key = "g_${g.id}"
+                val isGroupSelected = g.id in selectedGroupIds
                 stickyHeader(key = key) {
                     ShadowedDraggableItem(reorderableState = reorderState, key = key) {
-                        Group(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .detectReorderAfterLongPress(reorderState),
-                            name = g.name,
-                            isExpanded = g.isExpanded,
-                            toggleableState = toggleableState,
-                            onToggleableStateChange = { enabled ->
-                                scope.launch {
-                                    withIO {
-                                        groupWithRules.list.filter { it.isEnabled != enabled }
-                                            .forEach { dbm.replaceRuleDao.update(it.copy(isEnabled = enabled)) }
+                        if (groupSelectionMode) {
+                            // 分组多选模式: 点击分组标题切换选中状态
+                            Group(
+                                modifier = Modifier
+                                    .fillMaxWidth(),
+                                name = g.name,
+                                isExpanded = g.isExpanded,
+                                toggleableState = if (isGroupSelected) ToggleableState.On else ToggleableState.Off,
+                                onToggleableStateChange = { _ ->
+                                    selectedGroupIds = if (g.id in selectedGroupIds) selectedGroupIds - g.id
+                                    else selectedGroupIds + g.id
+                                },
+                                onClick = {
+                                    selectedGroupIds = if (g.id in selectedGroupIds) selectedGroupIds - g.id
+                                    else selectedGroupIds + g.id
+                                },
+                                onEdit = { },
+                                onDelete = { },
+                                onExport = { },
+                                onSort = { }
+                            )
+                        } else {
+                            Group(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .detectReorderAfterLongPress(reorderState),
+                                name = g.name,
+                                isExpanded = g.isExpanded,
+                                toggleableState = toggleableState,
+                                onToggleableStateChange = { enabled ->
+                                    scope.launch {
+                                        withIO {
+                                            groupWithRules.list.filter { it.isEnabled != enabled }
+                                                .forEach { dbm.replaceRuleDao.update(it.copy(isEnabled = enabled)) }
+                                        }
                                     }
-                                }
-                            },
-                            onClick = {
-                                scope.launch { withIO { dbm.replaceRuleDao.updateGroup(g.copy(isExpanded = !g.isExpanded)) } }
-                            },
-                            onEdit = { showGroupEditDialog = g },
-                            onDelete = {
-                                vm.deleteGroup(groupWithRules)
-                                if (groupWithRules.list.find { it.isEnabled } != null)
-                                    SystemTtsService.notifyUpdateConfig(isOnlyReplacer = true)
-                            },
-                            onExport = { showExportSheet = listOf(groupWithRules) },
-                            onSort = { showSortDialog = groupWithRules.list }
-                        )
+                                },
+                                onClick = {
+                                    scope.launch { withIO { dbm.replaceRuleDao.updateGroup(g.copy(isExpanded = !g.isExpanded)) } }
+                                },
+                                onEdit = { showGroupEditDialog = g },
+                                onDelete = {
+                                    vm.deleteGroup(groupWithRules)
+                                    if (groupWithRules.list.find { it.isEnabled } != null)
+                                        SystemTtsService.notifyUpdateConfig(isOnlyReplacer = true)
+                                },
+                                onExport = { showExportSheet = listOf(groupWithRules) },
+                                onSort = { showSortDialog = groupWithRules.list }
+                            )
+                        }
                     }
                 }
 

@@ -142,7 +142,9 @@ class SysTtsForwarderService(
                     result.add(Engine(name = defaultPkg, defaultInfo?.label?.ifBlank { "当前安装的TTS" } ?: "当前安装的TTS"))
                 }
                 // 转发器引擎: 用APP包名标识, 合成时回退到系统默认
-                result.add(Engine(name = forwarderEngineName, "转发器引擎"))
+                // 显示名 = 应用名(包名), 与阅读导入链接一致
+                val appLabel = App.context.applicationInfo.loadLabel(App.context.packageManager).toString()
+                result.add(Engine(name = forwarderEngineName, "$appLabel ($forwarderEngineName)"))
                 return result
             }
 

@@ -140,11 +140,11 @@ fun PluginManagerScreen(sharedVM: SharedViewModel, onFinishActivity: () -> Unit)
         PluginExportBottomSheet(
             fileName = if (pluginList.size == 1) "ttsrv-plugin-${pluginList[0].name}.json" else "ttsrv-plugins.json",
             onDismissRequest = { showExportConfig = null }) { isExportVars ->
-            // 第1项: 导出用紧凑 JSON, 减小体积+加速
+            // 修复: 导出用 prettyPrint, 每个配置项独立一行可读
             if (isExportVars) {
-                AppConst.compactJsonBuilder.encodeToString(pluginList)
+                AppConst.jsonBuilder.encodeToString(pluginList)
             } else {
-                AppConst.compactJsonBuilder.encodeToString(pluginList.map { it.copy(userVars = mutableMapOf()) })
+                AppConst.jsonBuilder.encodeToString(pluginList.map { it.copy(userVars = mutableMapOf()) })
             }
         }
     }

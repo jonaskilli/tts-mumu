@@ -89,13 +89,13 @@ fun SystemTtsForwarderScreen(cfgVM: ConfigViewModel = viewModel()) {
 
 /**
  * 生成阅读的 httpTTS 导入链接并跳转阅读APP。
- * 使用当前APP自身的包名与名称（共存版包名不同也能正确导入）。
+ * name=应用名(包名), engine=APP包名, 端口跟随当前软件。
  * 接口格式：http://localhost:端口/api/tts?engine=包名&text={{java.encodeURI(speakText)}}&rate={{speakSpeed * 2}}&pitch=100&voice=
  */
 private fun importToLegado(context: Context, port: Int) {
     val pkg = context.packageName
     val appName = context.applicationInfo.loadLabel(context.packageManager).toString()
-    val name = "$appName $pkg"
+    val name = "$appName ($pkg)"
 
     val api = "http://localhost:$port/api/tts"
     val apiLegado = "http://localhost:$port/api/legado" +
