@@ -1,3 +1,4 @@
+- 修复: AnimatedVisibility在Box作用域被解析为ColumnScope重载,改用全限定名调用
 - 修复: 编译错误(getCategoryLevels未定义/remember未导入/AnimatedVisibility上下文/experimental API OptIn)
 - 修复: SpeechRuleManagerScreen if条件缺括号导致编译失败
 - 新功能(第9项): 导出大文件改用临时文件+FileProvider方案，绕开Binder 1MB限制，避免大配置导出崩溃
