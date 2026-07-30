@@ -29,6 +29,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.minimumInteractiveComponentSize
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -77,6 +78,28 @@ fun SpeechRuleEditScreen(
     val systts by rememberUpdatedState(newValue = systts)
     val config by rememberUpdatedState(newValue = systts.config as TtsConfigurationDTO)
     val speechRule by rememberUpdatedState(newValue = speechRules.find { it.ruleId == config.speechRule.tagRuleId })
+
+    // 第4项: 标签/personality实时刷新 - 修改tag或tagData后立即重算tagName
+    LaunchedEffect(config.speechRule.tag, config.speechRule.tagData, config.speechRule.tagRuleId) {
+        if (speechRule != null) {
+            var tagName = ""
+            runCatching {
+                tagName = SpeechRuleEngine.getTagName(context, speechRule!!, info = config.speechRule)
+            }.onFailure {
+                // 静默失败，不弹框打扰用户编辑
+            }
+            tagName = tagName.ifBlank {
+                StringUtils.WARNING_EMOJI + speechRule?.tags[config.speechRule.tag]
+            }
+            if (tagName != config.speechRule.tagName) {
+                onSysttsChange(
+                    systts.copy(
+                        config = config.copy(config.speechRule.copy(tagName = tagName))
+                    )
+                )
+            }
+        }
+    }
 
     SaveActionHandler {
         var tagName = ""
