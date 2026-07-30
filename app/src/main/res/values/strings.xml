@@ -184,6 +184,7 @@
     <string name="more_options">更多选项</string>
     <string name="add_group">添加分组</string>
     <string name="group">分组</string>
+    <string name="category_path">子分组路径</string>
     <string name="belonging_group">所属分组</string>
     <string name="msg_group_is_empty">分组为空，请添加配置</string>
     <string name="group_name">分组名称</string>

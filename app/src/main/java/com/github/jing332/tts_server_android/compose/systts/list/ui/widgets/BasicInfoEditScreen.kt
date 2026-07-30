@@ -46,6 +46,35 @@ fun BasicInfoEditScreen(
                 onSystemTtsChange(systemTts.copy(groupId = (k as SystemTtsGroup).id))
             }
         )
+
+        // 第6项: 分组配置项完整层级展示 - 显示并编辑categoryPath层级
+        OutlinedTextField(
+            label = { Text(stringResource(R.string.category_path)) },
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(top = 4.dp),
+            value = systemTts.categoryPath,
+            onValueChange = {
+                onSystemTtsChange(systemTts.copy(categoryPath = it))
+            },
+            trailingIcon = {
+                if (systemTts.categoryPath.isNotEmpty())
+                    IconButton(onClick = {
+                        onSystemTtsChange(systemTts.copy(categoryPath = ""))
+                    }) {
+                        Icon(Icons.Default.Clear, stringResource(id = R.string.clear_text_content))
+                    }
+            },
+            supportingText = {
+                if (systemTts.categoryPath.isNotBlank()) {
+                    val levels = systemTts.getCategoryLevels()
+                    Text("${group.name} > ${levels.joinToString(" > ")}")
+                } else {
+                    Text("${group.name}")
+                }
+            }
+        )
+
         OutlinedTextField(
             label = { Text(stringResource(R.string.display_name)) },
             modifier = Modifier
