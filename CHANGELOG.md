@@ -1,3 +1,7 @@
+- 新功能(第9项): 导出大文件改用临时文件+FileProvider方案，绕开Binder 1MB限制，避免大配置导出崩溃
+- 新功能(第11项): 朗读规则/插件列表项支持内联展开编辑 name/id/author/version，无需进代码编辑器；新增运行键一键自动调试
+- 新功能(第12项): 代码编辑器新增"从文件导入"菜单项，可从本地JS文件覆盖当前代码
+- 修复: 朗读规则/插件列表页 list 声明作用域 bug（原在content lambda内导致actions引用编译失败）
 - 修复: PR#2 标题声明的性能优化代码实际未合入, 本次补全全部 IO 线程迁移/资源泄漏/协程泄漏修复
 - 修复: gradle-wrapper.jar 缺失导致 CI 无法打包
 - 修复: settings.gradle pluginManagement 缺 google() 导致 CI 找不到 Android 插件
