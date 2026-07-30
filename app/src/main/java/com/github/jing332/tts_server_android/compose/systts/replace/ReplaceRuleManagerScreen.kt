@@ -86,6 +86,7 @@ internal fun ReplaceRuleManagerScreen(
     val context = LocalContext.current
     val navController = LocalNavController.current
     val scope = rememberCoroutineScope()
+    val models by vm.list.collectAsStateWithLifecycle()
 
     fun navigateToEdit(rule: ReplaceRule = ReplaceRule()) {
         sharedVM.put(NavRoutes.Edit.KEY_DATA, rule)
@@ -223,7 +224,6 @@ internal fun ReplaceRuleManagerScreen(
     }
 
     val scrollBehavior = TopAppBarDefaults.pinnedScrollBehavior()
-    val models by vm.list.collectAsStateWithLifecycle()
     Scaffold(
         contentWindowInsets = WindowInsets(0),
         modifier = Modifier
