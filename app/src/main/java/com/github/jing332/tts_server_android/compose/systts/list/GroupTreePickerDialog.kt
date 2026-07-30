@@ -190,7 +190,7 @@ fun GroupTreePickerDialog(
                                 !isCreatingNew && selectedCategoryPath == path
                             // 层级越深(路径中 / 越多)，向右缩进越多，树状层级更明显
                             val pathDepth = path.count { it == '/' }
-                            val subIndent = 64.dp + pathDepth * 20.dp
+                            val subIndent = 64.dp + 20.dp * pathDepth
                             Row(
                                 modifier = Modifier
                                     .fillMaxWidth()
