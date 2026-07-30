@@ -23,6 +23,7 @@ import androidx.compose.material.icons.filled.AppShortcut
 import androidx.compose.material.icons.filled.CleaningServices
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.DeleteForever
+import androidx.compose.material.icons.filled.DeleteSweep
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.EditNote
 import androidx.compose.material.icons.filled.ExpandCircleDown
@@ -260,6 +261,14 @@ fun PluginManagerScreen(sharedVM: SharedViewModel, onFinishActivity: () -> Unit)
                         Icon(Icons.Default.Add, stringResource(id = R.string.add_config))
                     }
 
+                    // 第10项: 顶部整理图标(批量多选删除),不再藏在更多菜单里
+                    IconButton(onClick = { selectionMode = true }) {
+                        Icon(
+                            Icons.Default.DeleteSweep,
+                            stringResource(id = R.string.select_delete)
+                        )
+                    }
+
                     var showOptions by remember { mutableStateOf(false) }
                     IconButton(onClick = {
                         showOptions = true
@@ -269,14 +278,6 @@ fun PluginManagerScreen(sharedVM: SharedViewModel, onFinishActivity: () -> Unit)
                         DropdownMenu(
                             expanded = showOptions,
                             onDismissRequest = { showOptions = false }) {
-                            DropdownMenuItem(
-                                text = { Text(stringResource(id = R.string.select_delete)) },
-                                onClick = {
-                                    showOptions = false
-                                    selectionMode = true
-                                },
-                                leadingIcon = { Icon(Icons.Default.DeleteForever, null) }
-                            )
                             DropdownMenuItem(
                                 text = { Text(stringResource(id = R.string.import_config)) },
                                 onClick = {
