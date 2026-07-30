@@ -1,12 +1,8 @@
 name: Build Release
 
 on:
-  push:
-    branches:
-      - "compose"
-      - "mumu_tts_github"
-    paths:
-      - "CHANGELOG.md"
+  # 测试阶段: 去掉 push 自动触发, 避免与 test.yml 重复打包。
+  # 只保留手动触发, 需要发正式 Release 时再在 Actions 页面手动运行。
   workflow_dispatch:
 
 jobs:
