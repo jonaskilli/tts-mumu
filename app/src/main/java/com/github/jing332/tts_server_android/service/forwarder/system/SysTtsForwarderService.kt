@@ -133,11 +133,13 @@ class SysTtsForwarderService(
 
             // 第2项: 引擎选择限制为两个 —— 当前安装的TTS(系统默认引擎) + 转发器引擎(APP包名)
             override suspend fun engines(): List<Engine> {
-                // 取系统默认引擎作为"当前安装的TTS"
-                val defaultEngine = getDefaultEngine()
+                // 取系统默认引擎包名, 再从引擎列表里找对应label作为"当前安装的TTS"
+                val defaultPkg = getDefaultEngineName()
+                val allEngines = getSysTtsEngines()
                 val result = mutableListOf<Engine>()
-                if (defaultEngine != null) {
-                    result.add(Engine(name = defaultEngine.name, defaultEngine.label.ifBlank { "当前安装的TTS" }))
+                if (defaultPkg != null) {
+                    val defaultInfo = allEngines.firstOrNull { it.name == defaultPkg }
+                    result.add(Engine(name = defaultPkg, defaultInfo?.label?.ifBlank { "当前安装的TTS" } ?: "当前安装的TTS"))
                 }
                 // 转发器引擎: 用APP包名标识, 合成时回退到系统默认
                 result.add(Engine(name = forwarderEngineName, "转发器引擎"))
@@ -170,8 +172,8 @@ class SysTtsForwarderService(
         return engines
     }
 
-    // 第2项: 获取系统默认TTS引擎(即"当前安装的TTS")
-    private fun getDefaultEngine(): TextToSpeech.EngineInfo? {
+    // 第2项: 获取系统默认TTS引擎包名(即"当前安装的TTS")
+    private fun getDefaultEngineName(): String? {
         val tts = TextToSpeech(App.context, null)
         val default = tts.defaultEngine
         tts.shutdown()
