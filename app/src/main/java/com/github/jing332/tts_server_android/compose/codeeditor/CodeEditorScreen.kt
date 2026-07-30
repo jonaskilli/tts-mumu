@@ -27,6 +27,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.InsertDriveFile
+import androidx.compose.material.icons.automirrored.filled.Input
 import androidx.compose.material.icons.automirrored.filled.Redo
 import androidx.compose.material.icons.automirrored.filled.Undo
 import androidx.compose.material.icons.automirrored.filled.WrapText
@@ -141,6 +142,29 @@ fun CodeEditorScreen(
 
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
+
+    // 第12项: 从文件导入覆盖当前编辑器代码
+    val fileLoader =
+        rememberLauncherForActivityResult(AppActivityResultContracts.filePickerActivity()) { (_, uri) ->
+            if (uri != null) {
+                runCatching {
+                    val content = context.contentResolver.openInputStream(uri)?.use { input ->
+                        input.readBytes().toString(Charsets.UTF_8)
+                    } ?: ""
+                    codeEditor?.setText(content)
+                    // 导入新代码后重置折叠状态（旧 foldMarks 已失效）
+                    foldingManager?.let { fm ->
+                        foldStateKey?.let { key ->
+                            CodeEditorConfig.saveFoldStates(key, emptyList())
+                        }
+                        fm.unfoldAll()
+                    }
+                    context.longToast("已导入 ${content.lineSequence().count()} 行")
+                }.onFailure {
+                    context.displayErrorDialog(it)
+                }
+            }
+        }
     LaunchedEffect(vm) {
         if (CodeEditorConfig.isRemoteSyncEnabled.value)
             vm.startSyncServer(
@@ -293,6 +317,30 @@ fun CodeEditorScreen(
                                         )
                                     }
                                 )
+
+                            // 第12项: 从文件导入覆盖当前编辑器代码
+                            DropdownMenuItem(
+                                text = { Text("从文件导入") },
+                                onClick = {
+                                    showOptions = false
+                                    fileLoader.launch(
+                                        FilePickerActivity.RequestSelectFile(
+                                            fileMimes = listOf(
+                                                "application/javascript",
+                                                "text/javascript",
+                                                "text/plain",
+                                                "*"
+                                            )
+                                        )
+                                    )
+                                },
+                                leadingIcon = {
+                                    Icon(
+                                        Icons.AutoMirrored.Filled.Input,
+                                        "从文件导入"
+                                    )
+                                }
+                            )
 
                             var syncEnabled by remember { CodeEditorConfig.isRemoteSyncEnabled }
                             CheckedMenuItem(
