@@ -12,13 +12,10 @@ on:
 
 jobs:
   build:
-    strategy:
-      matrix:
-        product: [ { name: "App原版", value: app }, { name: "Dev共存版", value: dev } ]
-      fail-fast: false
     runs-on: ubuntu-latest
     env:
-      product: ${{ matrix.product.value }}
+      # 测试阶段只打 app 原版, 不打 dev 共存版, 避免多余包
+      product: app
       outputs_dir: "${{ github.workspace }}/app/build/outputs"
       # 👇 核心修复：限制 Gradle 使用最大 4GB 内存，防止 R8 混淆时撑爆服务器
       GRADLE_OPTS: "-Dorg.gradle.jvmargs=-Xmx4096m -XX:MaxMetaspaceSize=512m -XX:+HeapDumpOnOutOfMemoryError -Dfile.encoding=UTF-8"
