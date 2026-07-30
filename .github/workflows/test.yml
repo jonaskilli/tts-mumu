@@ -5,6 +5,7 @@ on:
     branches:
       - "master"
       - "compose"
+      - "mumu_tts_github"
     paths-ignore:
       - "**.md"
   workflow_dispatch:
