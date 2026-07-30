@@ -1,5 +1,6 @@
 package com.github.jing332.tts_server_android.compose.systts.replace
 
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -50,6 +51,10 @@ internal fun Item(
     onMoveBottom: () -> Unit,
     isEnabled: Boolean,
     onCheckedChange: (Boolean) -> Unit,
+    // 第3项: 多选删除支持(与朗读规则/插件一致)
+    isSelectionMode: Boolean = false,
+    isSelected: Boolean = false,
+    onToggleSelection: () -> Unit = {},
 ) {
     val context = LocalContext.current
     var deleteDialog by remember { mutableStateOf(false) }
@@ -58,29 +63,49 @@ internal fun Item(
             onDelete()
         }
 
+    // 第3项: 多选模式下卡片点击切换选中, 长按进入多选; 非多选模式保持原行为
+    val cardModifier = if (isSelectionMode) {
+        modifier.combinedClickable(
+            onClick = onToggleSelection,
+            onLongClick = onToggleSelection
+        )
+    } else {
+        // 非多选模式: ElevatedCard 的 onClick 仍由参数提供
+        modifier
+    }
+
     ElevatedCard(
-        onClick = onClick,
-        modifier = modifier
+        onClick = if (isSelectionMode) ({ /* 点击由 combinedClickable 处理 */ }) else onClick,
+        modifier = cardModifier
     ) {
-        Row(modifier = modifier.fillMaxSize()) {
-            Checkbox(
-                modifier = Modifier
-                    .align(Alignment.CenterVertically)
-                    .semantics {
-                        role = Role.Switch
-                        context
-                            .getString(
-                                if (isEnabled) R.string.rule_enabled_desc else R.string.rule_disabled_desc,
-                                name
-                            )
-                            .let {
-                                contentDescription = it
-                                stateDescription = it
-                            }
-                    },
-                checked = isEnabled,
-                onCheckedChange = onCheckedChange
-            )
+        Row(modifier = Modifier.fillMaxSize()) {
+            // 多选模式显示选中状态, 非多选模式显示启用开关
+            if (isSelectionMode) {
+                Checkbox(
+                    modifier = Modifier.align(Alignment.CenterVertically),
+                    checked = isSelected,
+                    onCheckedChange = { onToggleSelection() }
+                )
+            } else {
+                Checkbox(
+                    modifier = Modifier
+                        .align(Alignment.CenterVertically)
+                        .semantics {
+                            role = Role.Switch
+                            context
+                                .getString(
+                                    if (isEnabled) R.string.rule_enabled_desc else R.string.rule_disabled_desc,
+                                    name
+                                )
+                                .let {
+                                    contentDescription = it
+                                    stateDescription = it
+                                }
+                        },
+                    checked = isEnabled,
+                    onCheckedChange = onCheckedChange
+                )
+            }
             Text(
                 name,
                 maxLines = 1,
@@ -90,67 +115,70 @@ internal fun Item(
                     .fillMaxWidth()
                     .align(Alignment.CenterVertically),
             )
-            Row {
-                IconButton(onClick = onEdit) {
-                    Icon(Icons.Default.Edit, stringResource(id = R.string.edit_desc, name))
-                }
-                var isMoreOptionsVisible by remember { mutableStateOf(false) }
-                IconButton(onClick = {
-                    isMoreOptionsVisible = true
-                }, modifier = Modifier.padding(end = 10.dp)) {
-                    Icon(
-                        imageVector = Icons.Filled.MoreVert,
-                        contentDescription = stringResource(id = R.string.more_options_desc, name),
-                        tint = MaterialTheme.colorScheme.onBackground
-                    )
-
-                    DropdownMenu(expanded = isMoreOptionsVisible,
-                        onDismissRequest = { isMoreOptionsVisible = false }) {
-
-                        DropdownMenuItem(
-                            text = { Text(stringResource(R.string.move_to_top)) },
-                            leadingIcon = {
-                                Icon(
-                                    imageVector = Icons.Filled.VerticalAlignTop,
-                                    contentDescription = null,
-                                )
-                            },
-                            onClick = {
-                                onMoveTop()
-                                isMoreOptionsVisible = false
-                            }
+            // 多选模式隐藏编辑/更多操作
+            if (!isSelectionMode) {
+                Row {
+                    IconButton(onClick = onEdit) {
+                        Icon(Icons.Default.Edit, stringResource(id = R.string.edit_desc, name))
+                    }
+                    var isMoreOptionsVisible by remember { mutableStateOf(false) }
+                    IconButton(onClick = {
+                        isMoreOptionsVisible = true
+                    }, modifier = Modifier.padding(end = 10.dp)) {
+                        Icon(
+                            imageVector = Icons.Filled.MoreVert,
+                            contentDescription = stringResource(id = R.string.more_options_desc, name),
+                            tint = MaterialTheme.colorScheme.onBackground
                         )
 
-                        DropdownMenuItem(
-                            text = { Text(stringResource(R.string.move_to_bottom)) },
-                            leadingIcon = {
-                                Icon(
-                                    imageVector = Icons.Filled.VerticalAlignBottom,
-                                    contentDescription = null,
-                                )
-                            },
-                            onClick = {
-                                onMoveBottom()
-                                isMoreOptionsVisible = false
-                            }
-                        )
+                        DropdownMenu(expanded = isMoreOptionsVisible,
+                            onDismissRequest = { isMoreOptionsVisible = false }) {
 
-                        HorizontalDivider()
-                        DropdownMenuItem(
-                            text = { Text(stringResource(R.string.delete)) },
-                            leadingIcon = {
-                                Icon(
-                                    Icons.Filled.DeleteForever,
-                                    null,
-                                    tint = MaterialTheme.colorScheme.error
-                                )
-                            },
-                            onClick = {
-                                isMoreOptionsVisible = false
-                                deleteDialog = true
-                            }
-                        )
+                            DropdownMenuItem(
+                                text = { Text(stringResource(R.string.move_to_top)) },
+                                leadingIcon = {
+                                    Icon(
+                                        imageVector = Icons.Filled.VerticalAlignTop,
+                                        contentDescription = null,
+                                    )
+                                },
+                                onClick = {
+                                    onMoveTop()
+                                    isMoreOptionsVisible = false
+                                }
+                            )
 
+                            DropdownMenuItem(
+                                text = { Text(stringResource(R.string.move_to_bottom)) },
+                                leadingIcon = {
+                                    Icon(
+                                        imageVector = Icons.Filled.VerticalAlignBottom,
+                                        contentDescription = null,
+                                    )
+                                },
+                                onClick = {
+                                    onMoveBottom()
+                                    isMoreOptionsVisible = false
+                                }
+                            )
+
+                            HorizontalDivider()
+                            DropdownMenuItem(
+                                text = { Text(stringResource(R.string.delete)) },
+                                leadingIcon = {
+                                    Icon(
+                                        Icons.Filled.DeleteForever,
+                                        null,
+                                        tint = MaterialTheme.colorScheme.error
+                                    )
+                                },
+                                onClick = {
+                                    isMoreOptionsVisible = false
+                                    deleteDialog = true
+                                }
+                            )
+
+                        }
                     }
                 }
             }

@@ -20,8 +20,12 @@ import androidx.compose.material.icons.automirrored.filled.PlaylistAdd
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.AddCard
 import androidx.compose.material.icons.filled.AppShortcut
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.DeleteForever
+import androidx.compose.material.icons.filled.DeleteSweep
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Output
+import androidx.compose.material.icons.filled.SelectAll
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -34,6 +38,7 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -48,6 +53,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.github.jing332.compose.widgets.AppDialog
 import com.github.jing332.compose.widgets.LazyListIndexStateSaver
 import com.github.jing332.compose.widgets.ShadowedDraggableItem
 import com.github.jing332.compose.widgets.TextFieldDialog
@@ -131,6 +137,49 @@ internal fun ReplaceRuleManagerScreen(
         )
     }
 
+    // 第3项: 多选删除(与朗读规则/插件一致)
+    var selectionMode by remember { mutableStateOf(false) }
+    var selectedIds by remember { mutableStateOf<Set<Long>>(emptySet()) }
+    var showMultiDeleteDialog by remember { mutableStateOf(false) }
+    if (showMultiDeleteDialog) {
+        AppDialog(
+            onDismissRequest = { showMultiDeleteDialog = false },
+            title = { Text(stringResource(id = R.string.delete)) },
+            content = { Text(context.getString(R.string.selected_count, selectedIds.size)) },
+            buttons = {
+                androidx.compose.material3.TextButton(onClick = { showMultiDeleteDialog = false }) {
+                    Text(stringResource(id = R.string.cancel))
+                }
+                androidx.compose.material3.TextButton(onClick = {
+                    val toDelete = selectedIds
+                    scope.launch {
+                        withIO {
+                            // 收集被删中启用的规则, 删除后通知服务刷新
+                            val enabledDeleted = dbm.replaceRuleDao.all.any {
+                                it.id in toDelete && it.isEnabled
+                            }
+                            dbm.replaceRuleDao.all.forEach {
+                                if (it.id in toDelete) dbm.replaceRuleDao.delete(it)
+                            }
+                            if (enabledDeleted) SystemTtsService.notifyUpdateConfig(
+                                isOnlyReplacer = true
+                            )
+                        }
+                    }
+                    selectedIds = emptySet()
+                    selectionMode = false
+                    showMultiDeleteDialog = false
+                }) { Text(stringResource(id = R.string.confirm)) }
+            }
+        )
+    }
+
+    // 多选模式按返回键退出选择而非退出页面
+    androidx.activity.compose.BackHandler(enabled = selectionMode) {
+        selectionMode = false
+        selectedIds = emptySet()
+    }
+
     val scrollBehavior = TopAppBarDefaults.pinnedScrollBehavior()
     val models by vm.list.collectAsStateWithLifecycle()
     Scaffold(
@@ -142,100 +191,145 @@ internal fun ReplaceRuleManagerScreen(
             TopAppBar(
                 scrollBehavior = scrollBehavior,
                 title = {
-                    LaunchedEffect(vm.searchText, vm.searchType) {
-                        vm.updateSearchResult()
-                    }
-                    Row(
-                        modifier = Modifier
-                            .clip(CircleShape)
-                            .background(MaterialTheme.colorScheme.surfaceContainerLow),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        SearchTextField(
-                            modifier = Modifier.weight(1f),
-                            value = vm.searchText,
-                            onValueChange = { vm.searchText = it },
-                            searchType = vm.searchType,
-                            onSearchTypeChange = { vm.searchType = it }
-                        )
-                        var showAddOptions by remember { mutableStateOf(false) }
-                        IconButton(onClick = { showAddOptions = true }) {
-                            Icon(Icons.Default.Add, stringResource(id = R.string.add_config))
-                            DropdownMenu(
-                                expanded = showAddOptions,
-                                onDismissRequest = { showAddOptions = false }) {
-                                DropdownMenuItem(
-                                    text = { Text(stringResource(id = R.string.add_config)) },
-                                    onClick = {
-                                        showAddOptions = false
-                                        navigateToEdit()
-                                    },
-                                    leadingIcon = {
-                                        Icon(Icons.AutoMirrored.Filled.PlaylistAdd, stringResource(R.string.add_config))
-                                    }
-                                )
-                                DropdownMenuItem(
-                                    text = { Text(stringResource(id = R.string.add_group)) },
-                                    onClick = {
-                                        showAddOptions = false
-                                        showAddGroupDialog = true
-                                    },
-                                    leadingIcon = {
-                                        Icon(Icons.Default.AddCard, stringResource(R.string.add_group))
-                                    }
-                                )
+                    if (selectionMode) {
+                        Text(context.getString(R.string.selected_count, selectedIds.size))
+                    } else {
+                        LaunchedEffect(vm.searchText, vm.searchType) {
+                            vm.updateSearchResult()
+                        }
+                        Row(
+                            modifier = Modifier
+                                .clip(CircleShape)
+                                .background(MaterialTheme.colorScheme.surfaceContainerLow),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            SearchTextField(
+                                modifier = Modifier.weight(1f),
+                                value = vm.searchText,
+                                onValueChange = { vm.searchText = it },
+                                searchType = vm.searchType,
+                                onSearchTypeChange = { vm.searchType = it }
+                            )
+                            var showAddOptions by remember { mutableStateOf(false) }
+                            IconButton(onClick = { showAddOptions = true }) {
+                                Icon(Icons.Default.Add, stringResource(id = R.string.add_config))
+                                DropdownMenu(
+                                    expanded = showAddOptions,
+                                    onDismissRequest = { showAddOptions = false }) {
+                                    DropdownMenuItem(
+                                        text = { Text(stringResource(id = R.string.add_config)) },
+                                        onClick = {
+                                            showAddOptions = false
+                                            navigateToEdit()
+                                        },
+                                        leadingIcon = {
+                                            Icon(Icons.AutoMirrored.Filled.PlaylistAdd, stringResource(R.string.add_config))
+                                        }
+                                    )
+                                    DropdownMenuItem(
+                                        text = { Text(stringResource(id = R.string.add_group)) },
+                                        onClick = {
+                                            showAddOptions = false
+                                            showAddGroupDialog = true
+                                        },
+                                        leadingIcon = {
+                                            Icon(Icons.Default.AddCard, stringResource(R.string.add_group))
+                                        }
+                                    )
+                                }
                             }
                         }
                     }
                 },
                 navigationIcon = {
-                    IconButton(onClick = finish) {
-                        Icon(
-                            Icons.AutoMirrored.Filled.ArrowBack,
-                            stringResource(id = R.string.nav_back)
-                        )
+                    if (selectionMode) {
+                        IconButton(onClick = {
+                            selectionMode = false
+                            selectedIds = emptySet()
+                        }) {
+                            Icon(Icons.Default.Close, stringResource(id = R.string.cancel))
+                        }
+                    } else {
+                        IconButton(onClick = finish) {
+                            Icon(
+                                Icons.AutoMirrored.Filled.ArrowBack,
+                                stringResource(id = R.string.nav_back)
+                            )
+                        }
                     }
                 },
                 actions = {
-                    var showOptions by remember { mutableStateOf(false) }
-                    IconButton(onClick = { showOptions = true }) {
-                        Icon(Icons.Default.MoreVert, stringResource(id = R.string.more_options))
-
-                        DropdownMenu(
-                            expanded = showOptions,
-                            onDismissRequest = { showOptions = false }) {
-                            DropdownMenuItem(
-                                text = { Text(stringResource(id = R.string.import_config)) },
-                                onClick = {
-                                    showOptions = false
-                                    showImportSheet = true
-                                },
-                                leadingIcon = { Icon(Icons.AutoMirrored.Filled.Input, null) }
+                    if (selectionMode) {
+                        // 全选: 针对当前显示的规则(跨分组)
+                        val allDisplayedIds = remember(models) {
+                            models.flatMap { it.list }.map { it.id }.toSet()
+                        }
+                        val allSelected by remember(selectedIds, allDisplayedIds) {
+                            derivedStateOf { allDisplayedIds.isNotEmpty() && allDisplayedIds.all { it in selectedIds } }
+                        }
+                        IconButton(onClick = {
+                            selectedIds = if (allSelected) emptySet() else allDisplayedIds
+                        }) {
+                            Icon(Icons.Default.SelectAll, stringResource(id = R.string.select_all))
+                        }
+                        // 删除选中
+                        IconButton(
+                            enabled = selectedIds.isNotEmpty(),
+                            onClick = { showMultiDeleteDialog = true }
+                        ) {
+                            Icon(
+                                Icons.Default.DeleteForever,
+                                stringResource(id = R.string.delete),
+                                tint = if (selectedIds.isNotEmpty())
+                                    MaterialTheme.colorScheme.error
+                                else MaterialTheme.colorScheme.onSurface
                             )
+                        }
+                    } else {
+                        // 第3项: 顶部整理图标(多选删除入口), 不再藏在更多菜单里
+                        IconButton(onClick = { selectionMode = true }) {
+                            Icon(Icons.Default.DeleteSweep, stringResource(id = R.string.select_delete))
+                        }
+                        var showOptions by remember { mutableStateOf(false) }
+                        IconButton(onClick = { showOptions = true }) {
+                            Icon(Icons.Default.MoreVert, stringResource(id = R.string.more_options))
 
-                            DropdownMenuItem(
-                                text = { Text(stringResource(id = R.string.export_config)) },
-                                onClick = {
-                                    showOptions = false
-                                    showExportSheet = models
-                                },
-                                leadingIcon = { Icon(Icons.Default.Output, null) }
-                            )
+                            DropdownMenu(
+                                expanded = showOptions,
+                                onDismissRequest = { showOptions = false }) {
+                                DropdownMenuItem(
+                                    text = { Text(stringResource(id = R.string.import_config)) },
+                                    onClick = {
+                                        showOptions = false
+                                        showImportSheet = true
+                                    },
+                                    leadingIcon = { Icon(Icons.AutoMirrored.Filled.Input, null) }
+                                )
 
-                            DropdownMenuItem(
-                                text = { Text(stringResource(id = R.string.desktop_shortcut)) },
-                                onClick = {
-                                    showOptions = false
-                                    MyTools.addShortcut(
-                                        context,
-                                        context.getString(R.string.replace_rule_manager),
-                                        "replace",
-                                        R.drawable.ic_shortcut_replace,
-                                        Intent(context, ReplaceManagerActivity::class.java)
-                                    )
-                                },
-                                leadingIcon = { Icon(Icons.Default.AppShortcut, null) }
-                            )
+                                DropdownMenuItem(
+                                    text = { Text(stringResource(id = R.string.export_config)) },
+                                    onClick = {
+                                        showOptions = false
+                                        showExportSheet = models
+                                    },
+                                    leadingIcon = { Icon(Icons.Default.Output, null) }
+                                )
+
+                                DropdownMenuItem(
+                                    text = { Text(stringResource(id = R.string.desktop_shortcut)) },
+                                    onClick = {
+                                        showOptions = false
+                                        MyTools.addShortcut(
+                                            context,
+                                            context.getString(R.string.replace_rule_manager),
+                                            "replace",
+                                            R.drawable.ic_shortcut_replace,
+                                            Intent(context, ReplaceManagerActivity::class.java)
+                                        )
+                                    },
+                                    leadingIcon = { Icon(Icons.Default.AppShortcut, null) }
+                                )
+                            }
                         }
                     }
                 }
@@ -324,6 +418,7 @@ internal fun ReplaceRuleManagerScreen(
 
                 if (g.isExpanded) {
                     items(groupWithRules.list, key = { it.id }) { rule ->
+                        val isSelected = rule.id in selectedIds
                         ShadowedDraggableItem(
                             reorderableState = reorderState,
                             key = rule.id
@@ -333,7 +428,7 @@ internal fun ReplaceRuleManagerScreen(
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .padding(horizontal = 8.dp, vertical = 4.dp)
-                                    .detectReorderAfterLongPress(reorderState),
+                                    .then(if (!selectionMode) Modifier.detectReorderAfterLongPress(reorderState) else Modifier),
                                 isEnabled = rule.isEnabled,
                                 onCheckedChange = { enabled ->
                                     scope.launch {
@@ -351,7 +446,14 @@ internal fun ReplaceRuleManagerScreen(
                                         SystemTtsService.notifyUpdateConfig(isOnlyReplacer = true)
                                 },
                                 onMoveTop = { vm.moveTop(rule) },
-                                onMoveBottom = { vm.moveBottom(rule) }
+                                onMoveBottom = { vm.moveBottom(rule) },
+                                // 第3项: 多选支持
+                                isSelectionMode = selectionMode,
+                                isSelected = isSelected,
+                                onToggleSelection = {
+                                    selectedIds = if (rule.id in selectedIds) selectedIds - rule.id
+                                    else selectedIds + rule.id
+                                }
                             )
                         }
                     }
