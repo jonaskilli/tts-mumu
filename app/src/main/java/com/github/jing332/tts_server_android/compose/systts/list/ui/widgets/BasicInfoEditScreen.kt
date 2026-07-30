@@ -12,6 +12,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -56,6 +57,8 @@ fun BasicInfoEditScreen(
 
     Column(modifier) {
         // 分组选择: 用 OutlinedTextField 风格, 与上下显示名/试听文本框一致
+        // enabled=false 防止 BasicTextField 拦截点击, clickable 打开树形选择器
+        // colors 覆盖 disabled 颜色使其看起来与正常输入框一致
         val locationText = remember(systemTts.groupId, systemTts.categoryPath, group.name) {
             buildString {
                 append(group.name.ifBlank { "默认分组" })
@@ -69,23 +72,23 @@ fun BasicInfoEditScreen(
             modifier = Modifier
                 .fillMaxWidth()
                 .clickable { showGroupPicker = true },
+            enabled = false,
             readOnly = true,
+            colors = OutlinedTextFieldDefaults.colors(
+                disabledTextColor = MaterialTheme.colorScheme.onSurface,
+                disabledBorderColor = MaterialTheme.colorScheme.outline,
+                disabledLeadingIconColor = MaterialTheme.colorScheme.primary,
+                disabledTrailingIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                disabledLabelColor = MaterialTheme.colorScheme.onSurfaceVariant,
+            ),
             label = { Text(stringResource(R.string.group)) },
             value = locationText,
             onValueChange = {},
             leadingIcon = {
-                Icon(
-                    Icons.Default.Folder,
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.primary
-                )
+                Icon(Icons.Default.Folder, contentDescription = null)
             },
             trailingIcon = {
-                Icon(
-                    Icons.Default.ChevronRight,
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant
-                )
+                Icon(Icons.Default.ChevronRight, contentDescription = null)
             }
         )
 

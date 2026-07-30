@@ -66,7 +66,6 @@ import com.github.jing332.tts_server_android.compose.AppDefaultProperties
 import com.github.jing332.tts_server_android.compose.LocalNavController
 import com.github.jing332.tts_server_android.compose.SharedViewModel
 import com.github.jing332.tts_server_android.compose.systts.sizeToToggleableState
-import androidx.compose.ui.state.ToggleableState
 import com.github.jing332.tts_server_android.service.systts.SystemTtsService
 import com.github.jing332.tts_server_android.utils.MyTools
 import com.drake.net.utils.withIO
@@ -473,56 +472,39 @@ internal fun ReplaceRuleManagerScreen(
                 val isGroupSelected = g.id in selectedGroupIds
                 stickyHeader(key = key) {
                     ShadowedDraggableItem(reorderableState = reorderState, key = key) {
-                        if (groupSelectionMode) {
-                            // 分组多选模式: 点击分组标题切换选中状态
-                            Group(
-                                modifier = Modifier
-                                    .fillMaxWidth(),
-                                name = g.name,
-                                isExpanded = g.isExpanded,
-                                toggleableState = if (isGroupSelected) ToggleableState.On else ToggleableState.Off,
-                                onToggleableStateChange = { _ ->
-                                    selectedGroupIds = if (g.id in selectedGroupIds) selectedGroupIds - g.id
-                                    else selectedGroupIds + g.id
-                                },
-                                onClick = {
-                                    selectedGroupIds = if (g.id in selectedGroupIds) selectedGroupIds - g.id
-                                    else selectedGroupIds + g.id
-                                },
-                                onEdit = { },
-                                onDelete = { },
-                                onExport = { },
-                                onSort = { }
-                            )
-                        } else {
-                            Group(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .detectReorderAfterLongPress(reorderState),
-                                name = g.name,
-                                isExpanded = g.isExpanded,
-                                toggleableState = toggleableState,
-                                onToggleableStateChange = { enabled ->
-                                    scope.launch {
-                                        withIO {
-                                            groupWithRules.list.filter { it.isEnabled != enabled }
-                                                .forEach { dbm.replaceRuleDao.update(it.copy(isEnabled = enabled)) }
-                                        }
+                        Group(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .then(if (!groupSelectionMode) Modifier.detectReorderAfterLongPress(reorderState) else Modifier),
+                            name = g.name,
+                            isExpanded = g.isExpanded,
+                            toggleableState = toggleableState,
+                            onToggleableStateChange = { enabled ->
+                                scope.launch {
+                                    withIO {
+                                        groupWithRules.list.filter { it.isEnabled != enabled }
+                                            .forEach { dbm.replaceRuleDao.update(it.copy(isEnabled = enabled)) }
                                     }
-                                },
-                                onClick = {
-                                    scope.launch { withIO { dbm.replaceRuleDao.updateGroup(g.copy(isExpanded = !g.isExpanded)) } }
-                                },
-                                onEdit = { showGroupEditDialog = g },
-                                onDelete = {
-                                    vm.deleteGroup(groupWithRules)
-                                    if (groupWithRules.list.find { it.isEnabled } != null)
-                                        SystemTtsService.notifyUpdateConfig(isOnlyReplacer = true)
-                                },
-                                onExport = { showExportSheet = listOf(groupWithRules) },
-                                onSort = { showSortDialog = groupWithRules.list }
-                            )
-                        }
+                                }
+                            },
+                            onClick = {
+                                scope.launch { withIO { dbm.replaceRuleDao.updateGroup(g.copy(isExpanded = !g.isExpanded)) } }
+                            },
+                            onEdit = { showGroupEditDialog = g },
+                            onDelete = {
+                                vm.deleteGroup(groupWithRules)
+                                if (groupWithRules.list.find { it.isEnabled } != null)
+                                    SystemTtsService.notifyUpdateConfig(isOnlyReplacer = true)
+                            },
+                            onExport = { showExportSheet = listOf(groupWithRules) },
+                            onSort = { showSortDialog = groupWithRules.list },
+                            inSelectionMode = groupSelectionMode,
+                            isSelected = isGroupSelected,
+                            onToggleSelect = {
+                                selectedGroupIds = if (g.id in selectedGroupIds) selectedGroupIds - g.id
+                                else selectedGroupIds + g.id
+                            }
+                        )
                     }
                 }
 

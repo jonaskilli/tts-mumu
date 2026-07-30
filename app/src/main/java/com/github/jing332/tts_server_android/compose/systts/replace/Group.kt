@@ -30,6 +30,9 @@ internal fun Group(
     onDelete: () -> Unit,
     onExport: () -> Unit,
     onSort:()->Unit,
+    inSelectionMode: Boolean = false,
+    isSelected: Boolean = false,
+    onToggleSelect: () -> Unit = {},
 ) {
     val context = LocalContext.current
     GroupItem(
@@ -60,6 +63,9 @@ internal fun Group(
         onClick = onClick,
         onExport = onExport,
         onDelete = onDelete,
+        inSelectionMode = inSelectionMode,
+        isSelected = isSelected,
+        onToggleSelect = onToggleSelect,
         actions = { dismiss ->
             DropdownMenuItem(
                 leadingIcon = {

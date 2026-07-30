@@ -131,20 +131,21 @@ class SysTtsForwarderService(
                 }
             }
 
-            // 第2项: 引擎选择限制为两个 —— 当前安装的TTS(系统默认引擎) + 转发器引擎(APP包名)
+            // 第2项: 引擎选择 —— 转发器引擎(APP包名)为默认(第一个), 其次为系统默认TTS
             override suspend fun engines(): List<Engine> {
-                // 取系统默认引擎包名, 再从引擎列表里找对应label作为"当前安装的TTS"
+                val result = mutableListOf<Engine>()
+
+                // 转发器引擎: 用APP包名标识, 合成时回退到系统默认; 显示名=应用名(不含包名, 避免与engine字段重复)
+                val appLabel = App.context.applicationInfo.loadLabel(App.context.packageManager).toString()
+                result.add(Engine(name = forwarderEngineName, appLabel))
+
+                // 系统默认引擎
                 val defaultPkg = getDefaultEngineName()
                 val allEngines = getSysTtsEngines()
-                val result = mutableListOf<Engine>()
                 if (defaultPkg != null) {
                     val defaultInfo = allEngines.firstOrNull { it.name == defaultPkg }
                     result.add(Engine(name = defaultPkg, defaultInfo?.label?.ifBlank { "当前安装的TTS" } ?: "当前安装的TTS"))
                 }
-                // 转发器引擎: 用APP包名标识, 合成时回退到系统默认
-                // 显示名 = 应用名(包名), 与阅读导入链接一致
-                val appLabel = App.context.applicationInfo.loadLabel(App.context.packageManager).toString()
-                result.add(Engine(name = forwarderEngineName, "$appLabel ($forwarderEngineName)"))
                 return result
             }
 
