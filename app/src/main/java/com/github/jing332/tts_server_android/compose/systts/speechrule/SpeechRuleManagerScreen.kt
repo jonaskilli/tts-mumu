@@ -311,7 +311,7 @@ fun SpeechRuleManagerScreen(sharedVM: SharedViewModel, finish: () -> Unit) {
                         modifier = Modifier
                             .fillMaxWidth()
                             .padding(horizontal = 8.dp, vertical = 4.dp)
-                            .then(if !selectionMode { Modifier.detectReorderAfterLongPress(reorderState) } else Modifier),
+                            .then(if (!selectionMode) { Modifier.detectReorderAfterLongPress(reorderState) } else Modifier),
                         name = item.name,
                         desc = "${item.author} - v${item.version}",
                         isEnabled = item.isEnabled,
