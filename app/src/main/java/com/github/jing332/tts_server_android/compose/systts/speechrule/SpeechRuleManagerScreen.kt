@@ -3,7 +3,6 @@ package com.github.jing332.tts_server_android.compose.systts.speechrule
 import android.content.Intent
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.combinedClickable
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -380,7 +379,8 @@ internal fun Item(
             onLongClick = { if (!isSelectionMode) onToggleSelection() }
         )
     ) {
-        Box(modifier = Modifier.padding(4.dp)) {
+        // 第11项修复: Box会堆叠子项导致展开面板与Row重叠,改用Column使展开面板下移
+        Column(modifier = Modifier.padding(4.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 if (isSelectionMode) {
                     Checkbox(
@@ -421,15 +421,6 @@ internal fun Item(
                             )
                         }
                     }
-                    // 第11项: 运行键（跳转代码编辑器并运行）
-                    if (onRun != null) {
-                        IconButton(onClick = onRun) {
-                            Icon(Icons.Default.PlayArrow, "运行")
-                        }
-                    }
-                    IconButton(onClick = onEdit) {
-                        Icon(Icons.Default.Edit, stringResource(id = R.string.edit_desc, name))
-                    }
 
                     var showOptions by remember { mutableStateOf(false) }
                     IconButton(onClick = { showOptions = true }) {
@@ -441,6 +432,31 @@ internal fun Item(
                             expanded = showOptions,
                             onDismissRequest = { showOptions = false }) {
 
+                            // 第11项修复: 编辑/运行移入菜单,释放顶部空间给规则名
+                            DropdownMenuItem(
+                                text = { Text(stringResource(id = R.string.edit)) },
+                                onClick = {
+                                    showOptions = false
+                                    onEdit()
+                                },
+                                leadingIcon = {
+                                    Icon(Icons.Default.Edit, stringResource(R.string.edit))
+                                }
+                            )
+
+                            // 第11项: 运行键（跳转代码编辑器并运行）
+                            if (onRun != null) {
+                                DropdownMenuItem(
+                                    text = { Text("运行") },
+                                    onClick = {
+                                        showOptions = false
+                                        onRun()
+                                    },
+                                    leadingIcon = {
+                                        Icon(Icons.Default.PlayArrow, "运行")
+                                    }
+                                )
+                            }
 
                             DropdownMenuItem(
                                 text = { Text(stringResource(id = R.string.export_config)) },

@@ -4,7 +4,6 @@ import android.content.Intent
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.combinedClickable
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -435,7 +434,8 @@ private fun Item(
             }
         }
     ) {
-        Box(modifier = Modifier.padding(4.dp)) {
+        // 第11项修复: Box会堆叠子项导致展开面板与Row重叠,改用Column使展开面板下移
+        Column(modifier = Modifier.padding(4.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 if (isSelectionMode) {
                     Checkbox(
@@ -494,15 +494,6 @@ private fun Item(
                             )
                         }
                     }
-                    // 第11项: 运行键（跳转代码编辑器并自动调试）
-                    if (onRun != null) {
-                        IconButton(onClick = onRun) {
-                            Icon(Icons.Default.PlayArrow, "运行")
-                        }
-                    }
-                    IconButton(onClick = onEdit) {
-                        Icon(Icons.Default.Edit, stringResource(id = R.string.edit_desc, name))
-                    }
 
                     var showOptions by remember { mutableStateOf(false) }
                     IconButton(onClick = { showOptions = true }) {
@@ -513,6 +504,32 @@ private fun Item(
                         DropdownMenu(
                             expanded = showOptions,
                             onDismissRequest = { showOptions = false }) {
+
+                            // 第11项修复: 编辑/运行移入菜单,释放顶部空间给插件名
+                            DropdownMenuItem(
+                                text = { Text(stringResource(id = R.string.edit)) },
+                                onClick = {
+                                    showOptions = false
+                                    onEdit()
+                                },
+                                leadingIcon = {
+                                    Icon(Icons.Default.Edit, stringResource(R.string.edit))
+                                }
+                            )
+
+                            // 第11项: 运行键（跳转代码编辑器并自动调试）
+                            if (onRun != null) {
+                                DropdownMenuItem(
+                                    text = { Text("运行") },
+                                    onClick = {
+                                        showOptions = false
+                                        onRun()
+                                    },
+                                    leadingIcon = {
+                                        Icon(Icons.Default.PlayArrow, "运行")
+                                    }
+                                )
+                            }
 
                             if (hasDefVars)
                                 DropdownMenuItem(
@@ -525,8 +542,6 @@ private fun Item(
                                         Icon(Icons.Default.EditNote, stringResource(R.string.plugin_set_vars))
                                     }
                                 )
-
-
 
                             DropdownMenuItem(
                                 text = { Text(stringResource(id = R.string.export_config)) },
@@ -670,7 +685,7 @@ private fun Item(
             if (needSetVars && !isSelectionMode)
                 Text(
                     text = stringResource(id = R.string.systts_plugin_please_set_vars),
-                    modifier = Modifier.align(Alignment.Center),
+                    modifier = Modifier.align(Alignment.CenterHorizontally),
                     style = MaterialTheme.typography.titleMedium,
                     color = MaterialTheme.colorScheme.primary
                 )
