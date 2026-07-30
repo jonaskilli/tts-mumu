@@ -99,12 +99,13 @@ fun ConfigExportBottomSheet(
                 mutableStateOf<BigTextView?>(null)
             }
 
+            // 第9项: 移除 update 内的 setText —— 原先每次重组都会对整篇大 JSON 重新 setText,
+            // 触发 TextView 全文测量/排版, 是导出页卡顿的主因之一。现仅由下面的 LaunchedEffect
+            // 在 json 变化时设置一次。
             AndroidView(modifier = Modifier.verticalScroll(rememberScrollState()), factory = {
                 tv = BigTextView(it)
 
                 tv!!
-            }, update = {
-                it.setText(json)
             })
 
             LaunchedEffect(key1 = json) {

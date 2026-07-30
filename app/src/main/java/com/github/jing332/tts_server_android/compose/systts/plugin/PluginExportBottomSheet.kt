@@ -1,8 +1,13 @@
 package com.github.jing332.tts_server_android.compose.systts.plugin
 
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.wrapContentSize
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -14,6 +19,8 @@ import androidx.compose.ui.unit.dp
 import com.github.jing332.compose.widgets.TextCheckBox
 import com.github.jing332.tts_server_android.R
 import com.github.jing332.tts_server_android.compose.systts.ConfigExportBottomSheet
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 
 @Composable
 internal fun PluginExportBottomSheet(
@@ -22,17 +29,34 @@ internal fun PluginExportBottomSheet(
     onGetJson: (isExportVars: Boolean) -> String,
 ) {
     var isExportVars by remember { mutableStateOf(false) }
-    ConfigExportBottomSheet(
-        fileName = fileName,
-        json = onGetJson(isExportVars),
-        onDismissRequest = onDismissRequest,
-        content = {
-            TextCheckBox(modifier = Modifier
-                .align(Alignment.CenterHorizontally)
-                .padding(vertical = 8.dp),
-                text = { Text(stringResource(id = R.string.export_vars)) },
-                checked = isExportVars,
-                onCheckedChange = { isExportVars = !isExportVars })
+    // 第9项: 序列化移到 IO 线程, 避免大插件列表导出时主线程卡顿。
+    // 切换 isExportVars 时也会重新在 IO 线程序列化。
+    var json by remember(isExportVars) { mutableStateOf<String?>(null) }
+    LaunchedEffect(isExportVars) {
+        json = withContext(Dispatchers.IO) { onGetJson(isExportVars) }
+    }
+    val jStr = json
+    if (jStr == null) {
+        Box(
+            Modifier
+                .fillMaxSize()
+                .wrapContentSize(Alignment.Center)
+        ) {
+            CircularProgressIndicator()
         }
-    )
+    } else {
+        ConfigExportBottomSheet(
+            fileName = fileName,
+            json = jStr,
+            onDismissRequest = onDismissRequest,
+            content = {
+                TextCheckBox(modifier = Modifier
+                    .align(Alignment.CenterHorizontally)
+                    .padding(vertical = 8.dp),
+                    text = { Text(stringResource(id = R.string.export_vars)) },
+                    checked = isExportVars,
+                    onCheckedChange = { isExportVars = !isExportVars })
+            }
+        )
+    }
 }

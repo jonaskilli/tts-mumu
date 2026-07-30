@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.wrapContentSize
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
@@ -29,6 +30,7 @@ import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.SelectAll
 import androidx.compose.material.icons.filled.AccountTree
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -1176,8 +1178,26 @@ internal fun ListManagerScreen(
 
     var showExportSheet by remember { mutableStateOf<List<SystemTtsV2>?>(null) }
     if (showExportSheet != null) {
-        val jStr = remember { AppConst.jsonBuilder.encodeToString(showExportSheet!!) }
-        ConfigExportBottomSheet(json = jStr) { showExportSheet = null }
+        // 第9项: 序列化移到 IO 线程, 避免大列表导出时主线程卡顿。
+        val exportList = showExportSheet!!
+        var jStr by remember(exportList) { mutableStateOf<String?>(null) }
+        LaunchedEffect(exportList) {
+            jStr = withContext(Dispatchers.IO) {
+                AppConst.jsonBuilder.encodeToString(exportList)
+            }
+        }
+        val s = jStr
+        if (s == null) {
+            Box(
+                Modifier
+                    .fillMaxSize()
+                    .wrapContentSize(Alignment.Center)
+            ) {
+                CircularProgressIndicator()
+            }
+        } else {
+            ConfigExportBottomSheet(json = s) { showExportSheet = null }
+        }
     }
 
     var addPluginDialog by remember { mutableStateOf(false) }
