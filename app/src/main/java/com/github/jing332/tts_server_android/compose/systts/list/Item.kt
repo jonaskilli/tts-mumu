@@ -2,7 +2,6 @@ package com.github.jing332.tts_server_android.compose.systts.list
 
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.combinedClickable
-import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxHeight
@@ -38,6 +37,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.input.pointer.pointerInput
+
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.CustomAccessibilityAction
 import androidx.compose.ui.semantics.Role
@@ -109,19 +109,6 @@ internal fun Item(
                     onClickLabel = stringResource(if (swapButton) R.string.edit else R.string.audition),
                     onClick = { if (swapButton) onEdit() else onAudition() },
                 )
-                // 向右滑动触发快速编辑
-                .pointerInput(Unit) {
-                    detectHorizontalDragGestures(
-                        onDragEnd = {},
-                        onDragCancel = {}
-                    ) { change, dragAmount ->
-                        // 向右滑动一定距离触发快速编辑
-                        if (dragAmount > 8f) {
-                            change.consume()
-                            onClick()
-                        }
-                    }
-                }
                 .semantics {
                     customActions = listOf(
                         CustomAccessibilityAction(context.getString(R.string.edit)) { onEdit(); true },
