@@ -138,61 +138,37 @@ internal fun ReplaceRuleManagerScreen(
         )
     }
 
-    // 统一多选删除: 同时支持分组和规则
+    // 多选删除: 只针对分组(删除分组含其下所有规则)
     var selectionMode by remember { mutableStateOf(false) }
-    var selectedIds by remember { mutableStateOf<Set<Long>>(emptySet()) } // 规则ID
-    var selectedGroupIds by remember { mutableStateOf<Set<Long>>(emptySet()) } // 分组ID
+    var selectedGroupIds by remember { mutableStateOf<Set<Long>>(emptySet()) }
 
     var showMultiDeleteDialog by remember { mutableStateOf(false) }
     if (showMultiDeleteDialog) {
-        val groupCount = selectedGroupIds.size
-        val ruleCount = selectedIds.size
         AppDialog(
             onDismissRequest = { showMultiDeleteDialog = false },
             title = { Text(stringResource(id = R.string.delete)) },
             content = {
-                Text(if (groupCount > 0 && ruleCount > 0)
-                    "将删除 $groupCount 个分组(含其下规则)和 $ruleCount 个规则"
-                else if (groupCount > 0)
-                    context.getString(R.string.delete_selected_groups_confirm, groupCount)
-                else
-                    context.getString(R.string.selected_count, ruleCount)
-                )
+                Text(context.getString(R.string.delete_selected_groups_confirm, selectedGroupIds.size))
             },
             buttons = {
                 androidx.compose.material3.TextButton(onClick = { showMultiDeleteDialog = false }) {
                     Text(stringResource(id = R.string.cancel))
                 }
                 androidx.compose.material3.TextButton(onClick = {
-                    val toDeleteGroups = selectedGroupIds
-                    val toDeleteRules = selectedIds
+                    val toDelete = selectedGroupIds
                     scope.launch {
                         withIO {
-                            // 先删选中的分组(含其下规则)
-                            val enabledGroupDeleted = models.any { gwt ->
-                                gwt.group.id in toDeleteGroups && gwt.list.any { it.isEnabled }
+                            val enabledDeleted = models.any { gwt ->
+                                gwt.group.id in toDelete && gwt.list.any { it.isEnabled }
                             }
-                            models.filter { it.group.id in toDeleteGroups }.forEach { gwt ->
+                            models.filter { it.group.id in toDelete }.forEach { gwt ->
                                 vm.deleteGroup(gwt)
                             }
-                            // 再删剩余的选中规则(排除已随分组删除的)
-                            val rulesInDeletedGroups = models
-                                .filter { it.group.id in toDeleteGroups }
-                                .flatMap { it.list }
-                                .map { it.id }
-                                .toSet()
-                            val remainingRules = toDeleteRules - rulesInDeletedGroups
-                            val enabledRuleDeleted = dbm.replaceRuleDao.all.any {
-                                it.id in remainingRules && it.isEnabled
-                            }
-                            dbm.replaceRuleDao.all.forEach {
-                                if (it.id in remainingRules) dbm.replaceRuleDao.delete(it)
-                            }
-                            if (enabledGroupDeleted || enabledRuleDeleted)
-                                SystemTtsService.notifyUpdateConfig(isOnlyReplacer = true)
+                            if (enabledDeleted) SystemTtsService.notifyUpdateConfig(
+                                isOnlyReplacer = true
+                            )
                         }
                     }
-                    selectedIds = emptySet()
                     selectedGroupIds = emptySet()
                     selectionMode = false
                     showMultiDeleteDialog = false
@@ -204,7 +180,6 @@ internal fun ReplaceRuleManagerScreen(
     // 多选模式按返回键退出选择而非退出页面
     androidx.activity.compose.BackHandler(enabled = selectionMode) {
         selectionMode = false
-        selectedIds = emptySet()
         selectedGroupIds = emptySet()
     }
 
@@ -219,8 +194,7 @@ internal fun ReplaceRuleManagerScreen(
                 scrollBehavior = scrollBehavior,
                 title = {
                     if (selectionMode) {
-                        val total = selectedIds.size + selectedGroupIds.size
-                        Text(context.getString(R.string.selected_count, total))
+                        Text(context.getString(R.string.selected_count, selectedGroupIds.size))
                     } else {
                         LaunchedEffect(vm.searchText, vm.searchType) {
                             vm.updateSearchResult()
@@ -273,7 +247,6 @@ internal fun ReplaceRuleManagerScreen(
                     if (selectionMode) {
                         IconButton(onClick = {
                             selectionMode = false
-                            selectedIds = emptySet()
                             selectedGroupIds = emptySet()
                         }) {
                             Icon(Icons.Default.Close, stringResource(id = R.string.cancel))
@@ -289,36 +262,28 @@ internal fun ReplaceRuleManagerScreen(
                 },
                 actions = {
                     if (selectionMode) {
-                        // 全选: 所有分组 + 所有规则
+                        // 全选: 所有分组
                         val allGroupIds = remember(models) { models.map { it.group.id }.toSet() }
-                        val allRuleIds = remember(models) { models.flatMap { it.list }.map { it.id }.toSet() }
-                        val allSelected by remember(selectedIds, selectedGroupIds, allGroupIds, allRuleIds) {
+                        val allSelected by remember(selectedGroupIds, allGroupIds) {
                             derivedStateOf {
                                 allGroupIds.isNotEmpty() &&
-                                allGroupIds.all { it in selectedGroupIds } &&
-                                allRuleIds.all { it in selectedIds }
+                                allGroupIds.all { it in selectedGroupIds }
                             }
                         }
                         IconButton(onClick = {
-                            if (allSelected) {
-                                selectedIds = emptySet()
-                                selectedGroupIds = emptySet()
-                            } else {
-                                selectedIds = allRuleIds
-                                selectedGroupIds = allGroupIds
-                            }
+                            selectedGroupIds = if (allSelected) emptySet() else allGroupIds
                         }) {
                             Icon(Icons.Default.SelectAll, stringResource(id = R.string.select_all))
                         }
-                        // 删除选中(分组+规则)
+                        // 删除选中的分组
                         IconButton(
-                            enabled = selectedIds.isNotEmpty() || selectedGroupIds.isNotEmpty(),
+                            enabled = selectedGroupIds.isNotEmpty(),
                             onClick = { showMultiDeleteDialog = true }
                         ) {
                             Icon(
                                 Icons.Default.DeleteForever,
                                 stringResource(id = R.string.delete),
-                                tint = if (selectedIds.isNotEmpty() || selectedGroupIds.isNotEmpty())
+                                tint = if (selectedGroupIds.isNotEmpty())
                                     MaterialTheme.colorScheme.error
                                 else MaterialTheme.colorScheme.onSurface
                             )
@@ -463,7 +428,6 @@ internal fun ReplaceRuleManagerScreen(
 
                 if (g.isExpanded) {
                     items(groupWithRules.list, key = { it.id }) { rule ->
-                        val isSelected = rule.id in selectedIds
                         ShadowedDraggableItem(
                             reorderableState = reorderState,
                             key = rule.id
@@ -473,7 +437,7 @@ internal fun ReplaceRuleManagerScreen(
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .padding(horizontal = 8.dp, vertical = 4.dp)
-                                    .then(if (!selectionMode) Modifier.detectReorderAfterLongPress(reorderState) else Modifier),
+                                    .detectReorderAfterLongPress(reorderState),
                                 isEnabled = rule.isEnabled,
                                 onCheckedChange = { enabled ->
                                     scope.launch {
@@ -491,14 +455,7 @@ internal fun ReplaceRuleManagerScreen(
                                         SystemTtsService.notifyUpdateConfig(isOnlyReplacer = true)
                                 },
                                 onMoveTop = { vm.moveTop(rule) },
-                                onMoveBottom = { vm.moveBottom(rule) },
-                                // 第3项: 多选支持
-                                isSelectionMode = selectionMode,
-                                isSelected = isSelected,
-                                onToggleSelection = {
-                                    selectedIds = if (rule.id in selectedIds) selectedIds - rule.id
-                                    else selectedIds + rule.id
-                                }
+                                onMoveBottom = { vm.moveBottom(rule) }
                             )
                         }
                     }
