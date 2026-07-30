@@ -138,41 +138,62 @@ internal fun ReplaceRuleManagerScreen(
         )
     }
 
-    // 第3项: 多选删除规则(与朗读规则/插件一致)
+    // 统一多选删除: 同时支持分组和规则
     var selectionMode by remember { mutableStateOf(false) }
-    var selectedIds by remember { mutableStateOf<Set<Long>>(emptySet()) }
-
-    // 多选删除分组
-    var groupSelectionMode by remember { mutableStateOf(false) }
-    var selectedGroupIds by remember { mutableStateOf<Set<Long>>(emptySet()) }
+    var selectedIds by remember { mutableStateOf<Set<Long>>(emptySet()) } // 规则ID
+    var selectedGroupIds by remember { mutableStateOf<Set<Long>>(emptySet()) } // 分组ID
 
     var showMultiDeleteDialog by remember { mutableStateOf(false) }
     if (showMultiDeleteDialog) {
+        val groupCount = selectedGroupIds.size
+        val ruleCount = selectedIds.size
         AppDialog(
             onDismissRequest = { showMultiDeleteDialog = false },
             title = { Text(stringResource(id = R.string.delete)) },
-            content = { Text(context.getString(R.string.selected_count, selectedIds.size)) },
+            content = {
+                Text(if (groupCount > 0 && ruleCount > 0)
+                    "将删除 $groupCount 个分组(含其下规则)和 $ruleCount 个规则"
+                else if (groupCount > 0)
+                    context.getString(R.string.delete_selected_groups_confirm, groupCount)
+                else
+                    context.getString(R.string.selected_count, ruleCount)
+                )
+            },
             buttons = {
                 androidx.compose.material3.TextButton(onClick = { showMultiDeleteDialog = false }) {
                     Text(stringResource(id = R.string.cancel))
                 }
                 androidx.compose.material3.TextButton(onClick = {
-                    val toDelete = selectedIds
+                    val toDeleteGroups = selectedGroupIds
+                    val toDeleteRules = selectedIds
                     scope.launch {
                         withIO {
-                            // 收集被删中启用的规则, 删除后通知服务刷新
-                            val enabledDeleted = dbm.replaceRuleDao.all.any {
-                                it.id in toDelete && it.isEnabled
+                            // 先删选中的分组(含其下规则)
+                            val enabledGroupDeleted = models.any { gwt ->
+                                gwt.group.id in toDeleteGroups && gwt.list.any { it.isEnabled }
+                            }
+                            models.filter { it.group.id in toDeleteGroups }.forEach { gwt ->
+                                vm.deleteGroup(gwt)
+                            }
+                            // 再删剩余的选中规则(排除已随分组删除的)
+                            val rulesInDeletedGroups = models
+                                .filter { it.group.id in toDeleteGroups }
+                                .flatMap { it.list }
+                                .map { it.id }
+                                .toSet()
+                            val remainingRules = toDeleteRules - rulesInDeletedGroups
+                            val enabledRuleDeleted = dbm.replaceRuleDao.all.any {
+                                it.id in remainingRules && it.isEnabled
                             }
                             dbm.replaceRuleDao.all.forEach {
-                                if (it.id in toDelete) dbm.replaceRuleDao.delete(it)
+                                if (it.id in remainingRules) dbm.replaceRuleDao.delete(it)
                             }
-                            if (enabledDeleted) SystemTtsService.notifyUpdateConfig(
-                                isOnlyReplacer = true
-                            )
+                            if (enabledGroupDeleted || enabledRuleDeleted)
+                                SystemTtsService.notifyUpdateConfig(isOnlyReplacer = true)
                         }
                     }
                     selectedIds = emptySet()
+                    selectedGroupIds = emptySet()
                     selectionMode = false
                     showMultiDeleteDialog = false
                 }) { Text(stringResource(id = R.string.confirm)) }
@@ -180,45 +201,10 @@ internal fun ReplaceRuleManagerScreen(
         )
     }
 
-    // 删除分组确认对话框
-    var showDeleteGroupsDialog by remember { mutableStateOf(false) }
-    if (showDeleteGroupsDialog) {
-        AppDialog(
-            onDismissRequest = { showDeleteGroupsDialog = false },
-            title = { Text(stringResource(id = R.string.delete)) },
-            content = { Text(context.getString(R.string.delete_selected_groups_confirm, selectedGroupIds.size)) },
-            buttons = {
-                androidx.compose.material3.TextButton(onClick = { showDeleteGroupsDialog = false }) {
-                    Text(stringResource(id = R.string.cancel))
-                }
-                androidx.compose.material3.TextButton(onClick = {
-                    val toDelete = selectedGroupIds
-                    scope.launch {
-                        withIO {
-                            val enabledDeleted = models.any { gwt ->
-                                gwt.group.id in toDelete && gwt.list.any { it.isEnabled }
-                            }
-                            models.filter { it.group.id in toDelete }.forEach { gwt ->
-                                vm.deleteGroup(gwt)
-                            }
-                            if (enabledDeleted) SystemTtsService.notifyUpdateConfig(
-                                isOnlyReplacer = true
-                            )
-                        }
-                    }
-                    selectedGroupIds = emptySet()
-                    groupSelectionMode = false
-                    showDeleteGroupsDialog = false
-                }) { Text(stringResource(id = R.string.confirm)) }
-            }
-        )
-    }
-
     // 多选模式按返回键退出选择而非退出页面
-    androidx.activity.compose.BackHandler(enabled = selectionMode || groupSelectionMode) {
+    androidx.activity.compose.BackHandler(enabled = selectionMode) {
         selectionMode = false
         selectedIds = emptySet()
-        groupSelectionMode = false
         selectedGroupIds = emptySet()
     }
 
@@ -233,9 +219,8 @@ internal fun ReplaceRuleManagerScreen(
                 scrollBehavior = scrollBehavior,
                 title = {
                     if (selectionMode) {
-                        Text(context.getString(R.string.selected_count, selectedIds.size))
-                    } else if (groupSelectionMode) {
-                        Text(context.getString(R.string.selected_count, selectedGroupIds.size))
+                        val total = selectedIds.size + selectedGroupIds.size
+                        Text(context.getString(R.string.selected_count, total))
                     } else {
                         LaunchedEffect(vm.searchText, vm.searchType) {
                             vm.updateSearchResult()
@@ -289,12 +274,6 @@ internal fun ReplaceRuleManagerScreen(
                         IconButton(onClick = {
                             selectionMode = false
                             selectedIds = emptySet()
-                        }) {
-                            Icon(Icons.Default.Close, stringResource(id = R.string.cancel))
-                        }
-                    } else if (groupSelectionMode) {
-                        IconButton(onClick = {
-                            groupSelectionMode = false
                             selectedGroupIds = emptySet()
                         }) {
                             Icon(Icons.Default.Close, stringResource(id = R.string.cancel))
@@ -310,59 +289,42 @@ internal fun ReplaceRuleManagerScreen(
                 },
                 actions = {
                     if (selectionMode) {
-                        // 全选: 针对当前显示的规则(跨分组)
-                        val allDisplayedIds = remember(models) {
-                            models.flatMap { it.list }.map { it.id }.toSet()
-                        }
-                        val allSelected by remember(selectedIds, allDisplayedIds) {
-                            derivedStateOf { allDisplayedIds.isNotEmpty() && allDisplayedIds.all { it in selectedIds } }
+                        // 全选: 所有分组 + 所有规则
+                        val allGroupIds = remember(models) { models.map { it.group.id }.toSet() }
+                        val allRuleIds = remember(models) { models.flatMap { it.list }.map { it.id }.toSet() }
+                        val allSelected by remember(selectedIds, selectedGroupIds, allGroupIds, allRuleIds) {
+                            derivedStateOf {
+                                allGroupIds.isNotEmpty() &&
+                                allGroupIds.all { it in selectedGroupIds } &&
+                                allRuleIds.all { it in selectedIds }
+                            }
                         }
                         IconButton(onClick = {
-                            selectedIds = if (allSelected) emptySet() else allDisplayedIds
+                            if (allSelected) {
+                                selectedIds = emptySet()
+                                selectedGroupIds = emptySet()
+                            } else {
+                                selectedIds = allRuleIds
+                                selectedGroupIds = allGroupIds
+                            }
                         }) {
                             Icon(Icons.Default.SelectAll, stringResource(id = R.string.select_all))
                         }
-                        // 删除选中
+                        // 删除选中(分组+规则)
                         IconButton(
-                            enabled = selectedIds.isNotEmpty(),
+                            enabled = selectedIds.isNotEmpty() || selectedGroupIds.isNotEmpty(),
                             onClick = { showMultiDeleteDialog = true }
                         ) {
                             Icon(
                                 Icons.Default.DeleteForever,
                                 stringResource(id = R.string.delete),
-                                tint = if (selectedIds.isNotEmpty())
-                                    MaterialTheme.colorScheme.error
-                                else MaterialTheme.colorScheme.onSurface
-                            )
-                        }
-                    } else if (groupSelectionMode) {
-                        // 全选分组
-                        val allGroupIds = remember(models) {
-                            models.map { it.group.id }.toSet()
-                        }
-                        val allGroupsSelected by remember(selectedGroupIds, allGroupIds) {
-                            derivedStateOf { allGroupIds.isNotEmpty() && allGroupIds.all { it in selectedGroupIds } }
-                        }
-                        IconButton(onClick = {
-                            selectedGroupIds = if (allGroupsSelected) emptySet() else allGroupIds
-                        }) {
-                            Icon(Icons.Default.SelectAll, stringResource(id = R.string.select_all))
-                        }
-                        // 删除选中的分组
-                        IconButton(
-                            enabled = selectedGroupIds.isNotEmpty(),
-                            onClick = { showDeleteGroupsDialog = true }
-                        ) {
-                            Icon(
-                                Icons.Default.DeleteForever,
-                                stringResource(id = R.string.delete),
-                                tint = if (selectedGroupIds.isNotEmpty())
+                                tint = if (selectedIds.isNotEmpty() || selectedGroupIds.isNotEmpty())
                                     MaterialTheme.colorScheme.error
                                 else MaterialTheme.colorScheme.onSurface
                             )
                         }
                     } else {
-                        // 第3项: 顶部整理图标(多选删除入口), 不再藏在更多菜单里
+                        // 多选删除入口
                         IconButton(onClick = { selectionMode = true }) {
                             Icon(Icons.Default.DeleteSweep, stringResource(id = R.string.select_delete))
                         }
@@ -373,15 +335,6 @@ internal fun ReplaceRuleManagerScreen(
                             DropdownMenu(
                                 expanded = showOptions,
                                 onDismissRequest = { showOptions = false }) {
-                                DropdownMenuItem(
-                                    text = { Text(stringResource(id = R.string.select_delete_groups)) },
-                                    onClick = {
-                                        showOptions = false
-                                        groupSelectionMode = true
-                                    },
-                                    leadingIcon = { Icon(Icons.Default.DeleteSweep, null) }
-                                )
-
                                 DropdownMenuItem(
                                     text = { Text(stringResource(id = R.string.import_config)) },
                                     onClick = {
@@ -475,7 +428,7 @@ internal fun ReplaceRuleManagerScreen(
                         Group(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .then(if (!groupSelectionMode) Modifier.detectReorderAfterLongPress(reorderState) else Modifier),
+                                .then(if (!selectionMode) Modifier.detectReorderAfterLongPress(reorderState) else Modifier),
                             name = g.name,
                             isExpanded = g.isExpanded,
                             toggleableState = toggleableState,
@@ -498,7 +451,7 @@ internal fun ReplaceRuleManagerScreen(
                             },
                             onExport = { showExportSheet = listOf(groupWithRules) },
                             onSort = { showSortDialog = groupWithRules.list },
-                            inSelectionMode = groupSelectionMode,
+                            inSelectionMode = selectionMode,
                             isSelected = isGroupSelected,
                             onToggleSelect = {
                                 selectedGroupIds = if (g.id in selectedGroupIds) selectedGroupIds - g.id

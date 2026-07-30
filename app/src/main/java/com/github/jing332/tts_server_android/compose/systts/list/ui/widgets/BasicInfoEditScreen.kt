@@ -7,7 +7,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.Clear
-import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -84,9 +83,6 @@ fun BasicInfoEditScreen(
             label = { Text(stringResource(R.string.group)) },
             value = locationText,
             onValueChange = {},
-            leadingIcon = {
-                Icon(Icons.Default.Folder, contentDescription = null)
-            },
             trailingIcon = {
                 Icon(Icons.Default.ChevronRight, contentDescription = null)
             }

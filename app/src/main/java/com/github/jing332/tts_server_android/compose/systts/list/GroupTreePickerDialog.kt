@@ -99,7 +99,7 @@ fun GroupTreePickerDialog(
                     val isGroupRootSelected = selectedGroupId == group.id &&
                         !isCreatingNew && selectedCategoryPath.isBlank()
 
-                    // 大分组标题行: 点击选中该大分组(根目录); 左侧图标展开/收起其子分组
+                    // 大分组标题行: 点击选中该大分组(根目录)并展开; 左侧图标展开/收起
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -110,6 +110,7 @@ fun GroupTreePickerDialog(
                                     selectedCategoryPath = ""
                                     isCreatingNew = false
                                     newSubGroupName = ""
+                                    expandedGroups = setOf(group.id)
                                 }
                             )
                             .padding(vertical = 4.dp),
@@ -117,8 +118,9 @@ fun GroupTreePickerDialog(
                     ) {
                         IconButton(
                             onClick = {
+                                // 手风琴: 同时只展开一个一级分组
                                 expandedGroups = if (isExpanded) expandedGroups - group.id
-                                else expandedGroups + group.id
+                                else setOf(group.id)
                             }
                         ) {
                             Icon(
@@ -134,6 +136,7 @@ fun GroupTreePickerDialog(
                                 selectedCategoryPath = ""
                                 isCreatingNew = false
                                 newSubGroupName = ""
+                                expandedGroups = setOf(group.id)
                             }
                         )
                         Text(
@@ -251,7 +254,7 @@ fun GroupTreePickerDialog(
                             OutlinedTextField(
                                 value = newSubGroupName,
                                 onValueChange = { newSubGroupName = it },
-                                label = { Text("子分组名称 (支持 a/b 多级)") },
+                                label = { Text("子分组名称") },
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .padding(start = 48.dp, top = 4.dp),
