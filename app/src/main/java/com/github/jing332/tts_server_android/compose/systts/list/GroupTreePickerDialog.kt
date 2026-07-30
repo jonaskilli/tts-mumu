@@ -160,7 +160,7 @@ fun GroupTreePickerDialog(
                                         newSubGroupName = ""
                                     }
                                 )
-                                .padding(start = 48.dp, top = 2.dp, bottom = 2.dp),
+                                .padding(start = 64.dp, top = 2.dp, bottom = 2.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             RadioButton(
@@ -183,6 +183,9 @@ fun GroupTreePickerDialog(
                         paths.forEach { path ->
                             val isPathSelected = selectedGroupId == group.id &&
                                 !isCreatingNew && selectedCategoryPath == path
+                            // 层级越深(路径中 / 越多)，向右缩进越多，树状层级更明显
+                            val pathDepth = path.count { it == '/' }
+                            val subIndent = 64.dp + pathDepth * 20.dp
                             Row(
                                 modifier = Modifier
                                     .fillMaxWidth()
@@ -195,7 +198,7 @@ fun GroupTreePickerDialog(
                                             newSubGroupName = ""
                                         }
                                     )
-                                    .padding(start = 48.dp, top = 2.dp, bottom = 2.dp),
+                                    .padding(start = subIndent, top = 2.dp, bottom = 2.dp),
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
                                 RadioButton(
@@ -228,7 +231,7 @@ fun GroupTreePickerDialog(
                                         selectedCategoryPath = ""
                                     }
                                 )
-                                .padding(start = 48.dp, top = 2.dp, bottom = 2.dp),
+                                .padding(start = 64.dp, top = 2.dp, bottom = 2.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             RadioButton(
@@ -257,7 +260,7 @@ fun GroupTreePickerDialog(
                                 label = { Text("子分组名称") },
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .padding(start = 48.dp, top = 4.dp),
+                                    .padding(start = 64.dp, top = 4.dp),
                                 singleLine = true
                             )
                         }
