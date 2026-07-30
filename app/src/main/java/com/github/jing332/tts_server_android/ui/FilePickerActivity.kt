@@ -110,16 +110,14 @@ class FilePickerActivity : ComposeActivity() {
                     if (fileDir == null) {
                         toast(R.string.path_is_empty)
                     } else {
-                        if (FileUtils.saveFile(
-                                fileDir + "/${reqSaveFile.fileName}",
-                                reqSaveFile.fileBytes!!
-                            )
-                        ) toast(R.string.save_success)
+                        val targetPath = "$fileDir/${reqSaveFile.fileName}"
+                        if (saveToFile(targetPath)) toast(R.string.save_success)
                         else
                             toast(getString(R.string.file_save_failed, ""))
 
                     }
                 }
+                cleanupTempFile()
                 finish()
             }
 
@@ -189,19 +187,23 @@ class FilePickerActivity : ComposeActivity() {
             docCreate =
                 registerForActivityResult(ActivityResultContracts.CreateDocument(reqSaveFile.fileMime)) { uri ->
                     if (uri == null) {
+                        cleanupTempFile()
                         finish()
                         return@registerForActivityResult
                     }
                     uri.grantReadWritePermission(contentResolver)
                     lifecycleScope.launch(Dispatchers.IO) {
                         kotlin.runCatching {
-                            contentResolver.openOutputStream(uri)
-                                .use { it?.write(reqSaveFile.fileBytes) }
+                            // 第9项: 流式复制，避免一次性载入大文件到内存
+                            saveToUri(uri)
                             toast(R.string.save_success)
                         }.onFailure {
                             displayErrorDialog(it)
                         }.onSuccess {
-                            withMain { finish() }
+                            withMain {
+                                cleanupTempFile()
+                                finish()
+                            }
                         }
                     }
                 }
@@ -260,15 +262,68 @@ class FilePickerActivity : ComposeActivity() {
     private fun doAction() {
         when (requestData) {
             is RequestSaveFile -> {
-                val binder = intent.getBinder()
-                if (binder is ByteArrayBinder) {
-                    reqSaveFile.fileBytes = binder.data
-                    saveFile()
+                // 第9项: 优先使用临时文件 URI；向后兼容 ByteArrayBinder
+                if (reqSaveFile.fileUri == null) {
+                    val binder = intent.getBinder()
+                    if (binder is ByteArrayBinder) {
+                        reqSaveFile.fileBytes = binder.data
+                    }
                 }
+                saveFile()
             }
 
             is RequestSelectFile -> selectFile()
             is RequestSelectDir -> selectDir()
+        }
+    }
+
+    /**
+     * 第9项: 流式复制源数据到目标 URI。
+     * 优先从临时文件 URI 读取；向后兼容直接写 fileBytes。
+     */
+    private fun saveToUri(targetUri: Uri) {
+        val srcUriStr = reqSaveFile.fileUri
+        if (srcUriStr != null) {
+            val srcUri = srcUriStr.toUri()
+            contentResolver.openInputStream(srcUri).use { input ->
+                contentResolver.openOutputStream(targetUri).use { out ->
+                    if (input != null && out != null) input.copyTo(out)
+                }
+            }
+        } else {
+            val bytes = reqSaveFile.fileBytes
+            if (bytes != null) {
+                contentResolver.openOutputStream(targetUri).use { it?.write(bytes) }
+            }
+        }
+    }
+
+    /**
+     * 第9项: 流式复制源数据到目标文件路径（内置选择器分支用）。
+     */
+    private fun saveToFile(targetPath: String): Boolean {
+        return runCatching {
+            val srcUriStr = reqSaveFile.fileUri
+            if (srcUriStr != null) {
+                contentResolver.openInputStream(srcUriStr.toUri()).use { input ->
+                    java.io.FileOutputStream(targetPath).use { out ->
+                        input?.copyTo(out)
+                    }
+                }
+                true
+            } else {
+                val bytes = reqSaveFile.fileBytes
+                if (bytes != null) FileUtils.saveFile(targetPath, bytes) else false
+            }
+        }.getOrDefault(false)
+    }
+
+    /**
+     * 第9项: 清理本次导出产生的临时文件（FileProvider 不支持 delete()，按命名前缀清理）。
+     */
+    private fun cleanupTempFile() {
+        runCatching {
+            cacheDir.listFiles { f -> f.name.startsWith("export_") }?.forEach { it.delete() }
         }
     }
 
@@ -360,7 +415,11 @@ class FilePickerActivity : ComposeActivity() {
         // 大数据使用Binder传递 这里只是负责临时存取
         @IgnoredOnParcel
         @Suppress("ArrayInDataClass")
-        var fileBytes: ByteArray? = null
+        var fileBytes: ByteArray? = null,
+
+        // 第9项: 大文件改用临时文件 URI 传递，绕开 Binder 1MB 限制（替代 fileBytes+ByteArrayBinder）
+        // 由 AppActivityResultContracts.createIntent 在写入临时文件后填充
+        val fileUri: String? = null,
     ) : IRequestData
 
     @Parcelize

@@ -6,9 +6,9 @@ import android.content.Intent
 import android.net.Uri
 import android.os.Parcelable
 import androidx.activity.result.contract.ActivityResultContract
+import androidx.core.content.FileProvider
 import com.github.jing332.tts_server_android.constant.KeyConst
-import com.github.jing332.tts_server_android.help.ByteArrayBinder
-import com.github.jing332.common.utils.setBinder
+import java.io.File
 
 object AppActivityResultContracts {
     /**
@@ -36,9 +36,24 @@ object AppActivityResultContracts {
                 input: FilePickerActivity.IRequestData
             ): Intent {
                 return Intent(context, FilePickerActivity::class.java).apply {
-                    if (input is FilePickerActivity.RequestSaveFile)
-                        setBinder(ByteArrayBinder(input.fileBytes!!))
-
+                    if (input is FilePickerActivity.RequestSaveFile) {
+                        // 第9项: 大文件改用临时文件 + FileProvider URI 传递，绕开 Binder 1MB 限制
+                        val bytes = input.fileBytes
+                        if (bytes != null && bytes.isNotEmpty()) {
+                            val tempFile = File(
+                                context.cacheDir,
+                                "export_${System.currentTimeMillis()}_${input.fileName}"
+                            )
+                            tempFile.writeBytes(bytes)
+                            val authority = "${context.packageName}.fileprovider"
+                            val uri = FileProvider.getUriForFile(context, authority, tempFile)
+                            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                            // 用 URI 代替 bytes 传给 FilePickerActivity；fileBytes 置空避免再次走 Binder
+                            val newInput = input.copy(fileUri = uri.toString(), fileBytes = null)
+                            putExtra(FilePickerActivity.KEY_REQUEST_DATA, newInput)
+                            return@apply
+                        }
+                    }
                     putExtra(FilePickerActivity.KEY_REQUEST_DATA, input)
                 }
             }
