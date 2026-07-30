@@ -232,7 +232,8 @@ class FilePickerActivity : ComposeActivity() {
                         onClick = { index, _ ->
                             showPromptDialog = false
                             useSystem = index == 0
-                            doAction()
+                            // 第7项: 系统选择器不需要权限；内置选择器需要存储权限
+                            if (useSystem || hasPermission) doAction()
                         }
                     )
             }
@@ -245,7 +246,8 @@ class FilePickerActivity : ComposeActivity() {
 
             FilePickerMode.SYSTEM -> {
                 useSystem = true
-                if (hasPermission) doAction()
+                // 第7项: 系统选择器(SAF)不需要存储权限，直接执行
+                doAction()
             }
 
             FilePickerMode.BUILTIN -> {
@@ -293,7 +295,7 @@ class FilePickerActivity : ComposeActivity() {
                 docSelector.launch(mimes.toTypedArray())
             }.onFailure {
                 toast(R.string.sys_doc_picker_error)
-                useSystem = true
+                useSystem = false
                 return selectFile()
             }
         } else {
@@ -322,7 +324,7 @@ class FilePickerActivity : ComposeActivity() {
                 docTreeSelector.launch(Uri.EMPTY)
             }.onFailure {
                 toast(R.string.sys_doc_picker_error)
-                useSystem = true
+                useSystem = false
                 return selectDir()
             }
         } else {
