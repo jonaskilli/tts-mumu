@@ -16,7 +16,6 @@ import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Output
 import androidx.compose.material.icons.filled.Speed
 import androidx.compose.material.icons.automirrored.filled.Sort
-import androidx.compose.material.icons.automirrored.filled.ExitToApp
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.HorizontalDivider
@@ -50,11 +49,11 @@ fun SubGroupHeader(
     onRename: () -> Unit = {},
     onEditAudioParams: () -> Unit = {},
     onSort: () -> Unit = {},
-    onBatchAssignTags: () -> Unit = {},
     onReassignTagsByGroupName: () -> Unit = {},
     onDelete: () -> Unit = {},
     onExport: () -> Unit = {},
-    onExtractToGroup: () -> Unit = {},
+    onDeleteEnabled: () -> Unit = {},
+    onDeleteDisabled: () -> Unit = {},
 ) {
     val rotationAngle by animateFloatAsState(
         targetValue = if (isExpanded) 0f else -45f,
