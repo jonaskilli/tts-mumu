@@ -464,12 +464,13 @@ class ListManagerViewModel : ViewModel() {
     }
 
     fun checkListData(context: Context) {
-        dbm.systemTtsV2.getGroup(DEFAULT_GROUP_ID) ?: kotlin.run {
+        // 仅在分组表完全为空时（首次安装/清数据）创建默认分组；用户主动删除后不再自动重建
+        if (dbm.systemTtsV2.groupCount == 0) {
             dbm.systemTtsV2.insertGroup(
                 com.github.jing332.database.entities.systts.SystemTtsGroup(
                     DEFAULT_GROUP_ID,
                     context.getString(R.string.default_group),
-                    dbm.systemTtsV2.groupCount
+                    0
                 )
             )
         }

@@ -33,11 +33,29 @@ fun ListImportBottomSheet(onDismissRequest: () -> Unit) {
                     @Suppress("UNCHECKED_CAST")
                     it as Pair<SystemTtsGroup, SystemTtsV2>
                 }
+                // 导入的分组一律排到末尾，且重新生成 group/tts id 避免与库内已有记录撞车被 REPLACE 覆盖
                 scope.launch {
                     withIO {
-                        pairs.forEach {
-                            dbm.systemTtsV2.insertGroup(it.first)
-                            dbm.systemTtsV2.insert(it.second)
+                        val baseId = System.currentTimeMillis()
+                        var nextOrder = dbm.systemTtsV2.groupCount
+                        var groupSeq = 0
+                        var ttsSeq = 0
+                        // 旧 groupId → (新 groupId, 新 order)
+                        val oldToNewGroupId = mutableMapOf<Long, Pair<Long, Int>>()
+                        for ((group, _) in pairs) {
+                            if (group.id !in oldToNewGroupId) {
+                                oldToNewGroupId[group.id] = (baseId + groupSeq) to nextOrder
+                                groupSeq++
+                                nextOrder++
+                            }
+                        }
+                        pairs.forEach { (group, tts) ->
+                            val (newGroupId, newOrder) = oldToNewGroupId[group.id]!!
+                            val newGroup = group.copy(id = newGroupId, order = newOrder)
+                            dbm.systemTtsV2.insertGroup(newGroup)
+                            val newTts = tts.copy(id = baseId + 100000 + ttsSeq, groupId = newGroupId)
+                            dbm.systemTtsV2.insert(newTts)
+                            ttsSeq++
                         }
                     }
                 }

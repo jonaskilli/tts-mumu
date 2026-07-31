@@ -1167,7 +1167,7 @@ internal fun ListManagerScreen(
             onTextChange = { name = it },
             onDismissRequest = { addGroupDialog = false }) {
             addGroupDialog = false
-            dbm.systemTtsV2.insertGroup(SystemTtsGroup(name = name))
+            dbm.systemTtsV2.insertGroup(SystemTtsGroup(name = name, order = dbm.systemTtsV2.groupCount))
         }
     }
 
