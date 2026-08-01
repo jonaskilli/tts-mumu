@@ -1616,98 +1616,102 @@ internal fun ListManagerScreen(
                                 }
                             }
 
-                            itemsIndexed(visibleItems,
-                                key = { _, v ->
-                                    when (v) {
-                                        is FlattenedCategoryItem.SubGroupHeader -> "sub_${g.id}_${v.node.fullPath}"
-                                        is FlattenedCategoryItem.TtsItem -> "item_${g.id}_${v.categoryPath}_${v.item.id}"
-                                    }
-                                }) { _, fItem ->
+                            visibleItems.forEach { fItem ->
                                 when (fItem) {
                                     is FlattenedCategoryItem.SubGroupHeader -> {
                                         val subKey = "sub_${g.id}_${fItem.node.fullPath}"
                                         val subDragModifier = if (searchKeyword.isNotEmpty() || selectionMode) Modifier
                                             else Modifier.detectReorderAfterLongPress(reorderState)
-                                        ShadowedDraggableItem(
-                                            reorderableState = reorderState,
-                                            key = subKey
-                                        ) { _ ->
-                                            val subItems = fItem.node.items
-                                            val subCheckState = subItems.filter { it.isEnabled }.size.sizeToToggleableState(subItems.size)
-                                            SubGroupHeader(
-                                                modifier = subDragModifier,
-                                                name = fItem.node.name,
-                                                level = fItem.node.level,
-                                                isExpanded = expandedSubGroups.contains(fItem.node.fullPath),
-                                                toggleableState = subCheckState,
-                                                onToggleableStateChange = { enabled ->
-                                                    vm.updateSubGroupEnable(g.id, subItems, enabled)
-                                                },
-                                                onClick = {
-                                                    expandedSubGroups = if (expandedSubGroups.contains(fItem.node.fullPath)) {
-                                                        expandedSubGroups - fItem.node.fullPath
-                                                    } else {
-                                                        expandedSubGroups + fItem.node.fullPath
-                                                    }
-                                                },
-                                                onRename = {
-                                                    showSubGroupRename = subItems to fItem.node.fullPath
-                                                },
-                                                onEditAudioParams = {
-                                                    showSubGroupAudioParams = g to fItem.node.fullPath
-                                                },
-                                                onSort = {
-                                                    showSortDialog = subItems to groupWithSystemTts.list
-                                                },
-                                                onBatchAssignTags = {
-                                                    showSubGroupBatchTag = subItems
-                                                },
-                                                hasTagKeyword = detectTagKeyword(fItem.node.name) != null,
-                                                onReassignTagsByGroupName = {
-                                                    scope.launch {
-                                                        val detected = detectTagKeyword(fItem.node.name)
-                                                        if (detected == null) {
-                                                            context.toast("分组名未包含关键词")
-                                                            return@launch
+                                        val subItems = fItem.node.items
+                                        val subCheckState = subItems.filter { it.isEnabled }.size.sizeToToggleableState(subItems.size)
+
+                                        val headerContent: @Composable () -> Unit = {
+                                            ShadowedDraggableItem(
+                                                reorderableState = reorderState,
+                                                key = subKey
+                                            ) { _ ->
+                                                SubGroupHeader(
+                                                    modifier = subDragModifier,
+                                                    name = fItem.node.name,
+                                                    level = fItem.node.level,
+                                                    isExpanded = expandedSubGroups.contains(fItem.node.fullPath),
+                                                    toggleableState = subCheckState,
+                                                    onToggleableStateChange = { enabled ->
+                                                        vm.updateSubGroupEnable(g.id, subItems, enabled)
+                                                    },
+                                                    onClick = {
+                                                        expandedSubGroups = if (expandedSubGroups.contains(fItem.node.fullPath)) {
+                                                            expandedSubGroups - fItem.node.fullPath
+                                                        } else {
+                                                            expandedSubGroups + fItem.node.fullPath
                                                         }
-                                                        val count =
-                                                            reassignTagsByGroupName(subItems, fItem.node.name)
-                                                        context.toast("已按「${detected.prefix}」整理 $count 个标签")
-                                                    }
-                                                },
-                                                onDelete = {
-                                                    scope.launch {
-                                                        dbm.systemTtsV2.delete(*subItems.toTypedArray())
-                                                    }
-                                                },
-                                                onDeleteEnabled = {
-                                                    scope.launch {
-                                                        subItems.filter { it.isEnabled }.forEach {
-                                                            dbm.systemTtsV2.delete(it)
+                                                    },
+                                                    onRename = {
+                                                        showSubGroupRename = subItems to fItem.node.fullPath
+                                                    },
+                                                    onEditAudioParams = {
+                                                        showSubGroupAudioParams = g to fItem.node.fullPath
+                                                    },
+                                                    onSort = {
+                                                        showSortDialog = subItems to groupWithSystemTts.list
+                                                    },
+                                                    onBatchAssignTags = {
+                                                        showSubGroupBatchTag = subItems
+                                                    },
+                                                    hasTagKeyword = detectTagKeyword(fItem.node.name) != null,
+                                                    onReassignTagsByGroupName = {
+                                                        scope.launch {
+                                                            val detected = detectTagKeyword(fItem.node.name)
+                                                            if (detected == null) {
+                                                                context.toast("分组名未包含关键词")
+                                                                return@launch
+                                                            }
+                                                            val count =
+                                                                reassignTagsByGroupName(subItems, fItem.node.name)
+                                                            context.toast("已按「${detected.prefix}」整理 $count 个标签")
                                                         }
-                                                        if (subItems.any { it.isEnabled })
-                                                            SystemTtsService.notifyUpdateConfig()
-                                                    }
-                                                },
-                                                onDeleteDisabled = {
-                                                    scope.launch {
-                                                        subItems.filter { !it.isEnabled }.forEach {
-                                                            dbm.systemTtsV2.delete(it)
+                                                    },
+                                                    onDelete = {
+                                                        scope.launch {
+                                                            dbm.systemTtsV2.delete(*subItems.toTypedArray())
                                                         }
+                                                    },
+                                                    onDeleteEnabled = {
+                                                        scope.launch {
+                                                            subItems.filter { it.isEnabled }.forEach {
+                                                                dbm.systemTtsV2.delete(it)
+                                                            }
+                                                            if (subItems.any { it.isEnabled })
+                                                                SystemTtsService.notifyUpdateConfig()
+                                                        }
+                                                    },
+                                                    onDeleteDisabled = {
+                                                        scope.launch {
+                                                            subItems.filter { !it.isEnabled }.forEach {
+                                                                dbm.systemTtsV2.delete(it)
+                                                            }
+                                                        }
+                                                    },
+                                                    onExport = {
+                                                        showExportSheet = subItems.map {
+                                                            it.copy(groupId = AbstractListGroup.DEFAULT_GROUP_ID)
+                                                        }
+                                                    },
+                                                    onExtractToGroup = {
+                                                        showSubGroupExtractToGroup = g to fItem.node.fullPath
+                                                    },
+                                                    onMoveEnabledToGroup = {
+                                                        showMoveEnabledDialog = GroupWithSystemTts(g, subItems)
                                                     }
-                                                },
-                                                onExport = {
-                                                    showExportSheet = subItems.map {
-                                                        it.copy(groupId = AbstractListGroup.DEFAULT_GROUP_ID)
-                                                    }
-                                                },
-                                                onExtractToGroup = {
-                                                    showSubGroupExtractToGroup = g to fItem.node.fullPath
-                                                },
-                                                onMoveEnabledToGroup = {
-                                                    showMoveEnabledDialog = GroupWithSystemTts(g, subItems)
-                                                }
-                                            )
+                                                )
+                                            }
+                                        }
+
+                                        // 展开的子分组使用 stickyHeader 置顶，折叠时用普通 item
+                                        if (expandedSubGroups.contains(fItem.node.fullPath)) {
+                                            stickyHeader(key = subKey) { headerContent() }
+                                        } else {
+                                            item(key = subKey) { headerContent() }
                                         }
                                     }
                                     is FlattenedCategoryItem.TtsItem -> {
@@ -1715,54 +1719,56 @@ internal fun ListManagerScreen(
                                         val itemKey = "item_${g.id}_${fItem.categoryPath}_${item.id}"
                                         val itemDragModifier = if (searchKeyword.isNotEmpty() || selectionMode) Modifier
                                             else Modifier.detectReorderAfterLongPress(reorderState)
-                                        ShadowedDraggableItem(
-                                            reorderableState = reorderState,
-                                            key = itemKey
-                                        ) { _ ->
-                                            val descriptor = remember(item) {
-                                                ItemDescriptorFactory.from(context, item)
-                                            }
-                                            Item(
-                                                reorderState = reorderState,
-                                                modifier = itemDragModifier.padding(
-                                                    start = 8.dp,
-                                                    end = 8.dp,
-                                                    top = 4.dp,
-                                                    bottom = 4.dp
-                                                ),
-                                                name = item.displayName,
-                                                tagName = descriptor.tagName,
-                                                type = descriptor.type,
-                                                standby = descriptor.standby,
-                                                enabled = item.isEnabled,
-                                                onEnabledChange = {
-                                                    vm.updateTtsEnabled(item, it)
-                                                    if (it) SystemTtsService.notifyUpdateConfig()
-                                                },
-                                                desc = descriptor.desc,
-                                                params = descriptor.bottom,
-                                                onClick = { showQuickEdit = item },
-                                                onLongClick = { switchSpeechTarget(item) },
-                                                onCopy = {
-                                                    navigateToEdit(item.copy(id = System.currentTimeMillis()))
-                                                },
-                                                onDelete = { deleteTts = item },
-                                                onEdit = { navigateToEdit(item) },
-                                                onAudition = {
-                                                    if (item.config is TtsConfigurationDTO) {
-                                                        showAuditionDialog = item.copy()
-                                                    } else
-                                                        context.toast(R.string.not_support_audition)
-                                                },
-                                                isInSubGroup = fItem.displayLevel > 0,
-                                                onExport = {
-                                                    showExportSheet =
-                                                        listOf(item.copy(groupId = AbstractListGroup.DEFAULT_GROUP_ID))
-                                                },
-                                                onMoveToSubGroup = {
-                                                    showMoveToSubGroup = item
+                                        item(key = itemKey) {
+                                            ShadowedDraggableItem(
+                                                reorderableState = reorderState,
+                                                key = itemKey
+                                            ) { _ ->
+                                                val descriptor = remember(item) {
+                                                    ItemDescriptorFactory.from(context, item)
                                                 }
-                                            )
+                                                Item(
+                                                    reorderState = reorderState,
+                                                    modifier = itemDragModifier.padding(
+                                                        start = 8.dp,
+                                                        end = 8.dp,
+                                                        top = 4.dp,
+                                                        bottom = 4.dp
+                                                    ),
+                                                    name = item.displayName,
+                                                    tagName = descriptor.tagName,
+                                                    type = descriptor.type,
+                                                    standby = descriptor.standby,
+                                                    enabled = item.isEnabled,
+                                                    onEnabledChange = {
+                                                        vm.updateTtsEnabled(item, it)
+                                                        if (it) SystemTtsService.notifyUpdateConfig()
+                                                    },
+                                                    desc = descriptor.desc,
+                                                    params = descriptor.bottom,
+                                                    onClick = { showQuickEdit = item },
+                                                    onLongClick = { switchSpeechTarget(item) },
+                                                    onCopy = {
+                                                        navigateToEdit(item.copy(id = System.currentTimeMillis()))
+                                                    },
+                                                    onDelete = { deleteTts = item },
+                                                    onEdit = { navigateToEdit(item) },
+                                                    onAudition = {
+                                                        if (item.config is TtsConfigurationDTO) {
+                                                            showAuditionDialog = item.copy()
+                                                        } else
+                                                            context.toast(R.string.not_support_audition)
+                                                    },
+                                                    isInSubGroup = fItem.displayLevel > 0,
+                                                    onExport = {
+                                                        showExportSheet =
+                                                            listOf(item.copy(groupId = AbstractListGroup.DEFAULT_GROUP_ID))
+                                                    },
+                                                    onMoveToSubGroup = {
+                                                        showMoveToSubGroup = item
+                                                    }
+                                                )
+                                            }
                                         }
                                     }
                                 }
