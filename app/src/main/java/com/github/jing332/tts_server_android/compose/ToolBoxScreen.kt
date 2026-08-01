@@ -45,13 +45,21 @@ fun ToolBoxScreen(sharedVM: SharedViewModel) {
     val context = LocalContext.current
     val flow = remember { dbm.systemTtsV2.flowAllGroupWithTts().conflate() }
     val groups by flow.collectAsStateWithLifecycle(emptyList())
-    val tools = remember(groups) {
-        groups.flatMap { it.list }.filter { tts ->
+
+    // 角色管理栏专属：仅展示 pluginId为mingwuyan 且 name含"角色管理" 的插件配置
+    val isMingwuyanRoleManagement = remember {
+        val plugin = dbm.pluginDao.getByPluginId("mingwuyan")
+        plugin != null && plugin.name.contains("角色管理")
+    }
+
+    val tools = remember(groups, isMingwuyanRoleManagement) {
+        if (!isMingwuyanRoleManagement) emptyList()
+        else groups.flatMap { it.list }.filter { tts ->
             val config = tts.config
             if (config !is TtsConfigurationDTO) false
             else {
                 val source = config.source
-                source is PluginTtsSource && source.isUiOnly
+                source is PluginTtsSource && source.pluginId == "mingwuyan"
             }
         }
     }

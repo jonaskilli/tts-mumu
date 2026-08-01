@@ -1622,16 +1622,7 @@ internal fun ListManagerScreen(
                                                 isExpanded = expandedSubGroups.contains(fItem.node.fullPath),
                                                 toggleableState = subCheckState,
                                                 onToggleableStateChange = { enabled ->
-                                                    scope.launch {
-                                                        subItems.forEach { item ->
-                                                            if (item.isEnabled != enabled) {
-                                                                dbm.systemTtsV2.update(
-                                                                    item.copy(isEnabled = enabled)
-                                                                )
-                                                            }
-                                                        }
-                                                        if (enabled) SystemTtsService.notifyUpdateConfig()
-                                                    }
+                                                    vm.updateSubGroupEnable(g.id, subItems, enabled)
                                                 },
                                                 onClick = {
                                                     expandedSubGroups = if (expandedSubGroups.contains(fItem.node.fullPath)) {

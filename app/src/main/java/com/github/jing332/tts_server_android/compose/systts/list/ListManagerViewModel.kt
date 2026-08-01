@@ -15,6 +15,7 @@ import com.github.jing332.database.entities.systts.source.PluginTtsSource
 import com.github.jing332.database.entities.systts.SystemTtsGroup
 import com.github.jing332.tts_server_android.R
 import com.github.jing332.tts_server_android.conf.SystemTtsConfig
+import com.github.jing332.tts_server_android.service.systts.SystemTtsService
 import kotlinx.serialization.encodeToString
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -178,23 +179,107 @@ class ListManagerViewModel : ViewModel() {
         dbm.systemTtsV2.update(item.copy(isEnabled = enabled))
     }
 
+    /**
+     * 标签去重键：相同 target/tagRuleId/tag/tagName/isStandby 视为同标签。
+     */
+    private data class TagKey(
+        val target: Int,
+        val tagRuleId: String,
+        val tag: String,
+        val tagName: String,
+        val isStandby: Boolean,
+    )
+
+    private fun extractTagKey(systts: SystemTtsV2): TagKey? {
+        val config = systts.config as? TtsConfigurationDTO ?: return null
+        val tag = config.speechRule.tag
+        if (tag.isBlank()) return null
+        return TagKey(
+            config.speechRule.target,
+            config.speechRule.tagRuleId,
+            tag,
+            config.speechRule.tagName,
+            config.speechRule.isStandby,
+        )
+    }
+
     fun updateGroupEnable(
         item: GroupWithSystemTts,
         enabled: Boolean,
     ) = viewModelScope.launch(Dispatchers.IO) {
+        val allUpdates = mutableListOf<SystemTtsV2>()
+        val affectedGroupIds = mutableSetOf<Long>()
+
         if (!SystemTtsConfig.isGroupMultipleEnabled.value && enabled) {
-            list.value.forEach {
-                it.list.forEach { systts ->
-                    if (systts.isEnabled)
-                        dbm.systemTtsV2.update(systts.copy(isEnabled = false))
+            // 非多选模式：禁用所有其他已启用项
+            list.value.forEach { gwt ->
+                gwt.list.forEach { systts ->
+                    if (systts.isEnabled) {
+                        allUpdates.add(systts.copy(isEnabled = false))
+                        affectedGroupIds.add(gwt.group.id)
+                    }
                 }
             }
         }
 
-        dbm.systemTtsV2.update(
-            *item.list.filter { it.isEnabled != enabled }.map { it.copy(isEnabled = enabled) }
-                .toTypedArray()
-        )
+        // 启用/禁用当前分组的所有项
+        val groupUpdates = item.list.filter { it.isEnabled != enabled }
+            .map { it.copy(isEnabled = enabled) }
+        allUpdates.addAll(groupUpdates)
+        affectedGroupIds.add(item.group.id)
+
+        // 3.⑨: 分组多选时同tag去重——新启用分组中item的tag若与其他已启用分组中item的tag相同，
+        // 则取消其他分组中相同tag的item（保留新启用的）
+        if (enabled && SystemTtsConfig.isGroupMultipleEnabled.value) {
+            val newEnabledTags = groupUpdates.mapNotNull { extractTagKey(it) }.toSet()
+            if (newEnabledTags.isNotEmpty()) {
+                list.value.forEach { gwt ->
+                    if (gwt.group.id != item.group.id) {
+                        gwt.list.forEach { systts ->
+                            if (systts.isEnabled) {
+                                val tagKey = extractTagKey(systts)
+                                if (tagKey != null && tagKey in newEnabledTags) {
+                                    allUpdates.add(systts.copy(isEnabled = false))
+                                    affectedGroupIds.add(gwt.group.id)
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        if (allUpdates.isNotEmpty()) {
+            dbm.systemTtsV2.update(*allUpdates.toTypedArray())
+            // 立即更新内存列表，使UI即时响应
+            updateMultipleGroupsInMemory(affectedGroupIds, allUpdates)
+        }
+        if (enabled) SystemTtsService.notifyUpdateConfig()
+    }
+
+    /**
+     * 子分组批量启用/禁用（3.⑥）：批量更新数据库并即时刷新内存列表。
+     */
+    fun updateSubGroupEnable(
+        groupId: Long,
+        subItems: List<SystemTtsV2>,
+        enabled: Boolean,
+    ) = viewModelScope.launch(Dispatchers.IO) {
+        val subIds = subItems.map { it.id }.toSet()
+        val updates = subItems.filter { it.isEnabled != enabled }
+            .map { it.copy(isEnabled = enabled) }
+        if (updates.isNotEmpty()) {
+            dbm.systemTtsV2.update(*updates.toTypedArray())
+            // 立即更新内存列表
+            val currentList = findListInGroup(groupId)
+            val newItems = currentList.map { systts ->
+                if (systts.id in subIds && systts.isEnabled != enabled)
+                    systts.copy(isEnabled = enabled)
+                else systts
+            }
+            updateGroupListInMemory(groupId, newItems)
+        }
+        if (enabled) SystemTtsService.notifyUpdateConfig()
     }
 
     fun reorder(from: ItemPosition, to: ItemPosition) {
@@ -246,17 +331,22 @@ class ListManagerViewModel : ViewModel() {
 
             var order = 0
             val toUpdate = mutableListOf<SystemTtsV2>()
+            val newAllItems = mutableListOf<SystemTtsV2>()
             for (block in blocks) {
                 for (item in block.items) {
                     if (item.order != order) {
                         toUpdate.add(item.copy(order = order))
+                        newAllItems.add(item.copy(order = order))
+                    } else {
+                        newAllItems.add(item)
                     }
                     order++
                 }
             }
             if (toUpdate.isNotEmpty()) {
+                updateGroupListInMemory(fromGroupId, newAllItems)
                 viewModelScope.launch(Dispatchers.IO) {
-                    toUpdate.forEach { dbm.systemTtsV2.update(it) }
+                    dbm.systemTtsV2.update(*toUpdate.toTypedArray())
                 }
             }
             return
@@ -297,8 +387,12 @@ class ListManagerViewModel : ViewModel() {
                 if (systts.order != index) systts.copy(order = index) else null
             }
             if (itemUpdates.isNotEmpty()) {
+                val newItems = allItems.mapIndexed { index, systts ->
+                    if (systts.order != index) systts.copy(order = index) else systts
+                }
+                updateGroupListInMemory(fromGroupId, newItems)
                 viewModelScope.launch(Dispatchers.IO) {
-                    itemUpdates.forEach { dbm.systemTtsV2.update(it) }
+                    dbm.systemTtsV2.update(*itemUpdates.toTypedArray())
                 }
             }
             return
@@ -322,6 +416,14 @@ class ListManagerViewModel : ViewModel() {
                 if (group.order != index) group.copy(order = index) else null
             }
             if (groupUpdates.isNotEmpty()) {
+                // 立即更新内存中分组顺序
+                val swappedList = mList.toMutableList()
+                _list.value = _list.value.map { gwt ->
+                    val newOrder = swappedList.indexOfFirst { it.id == gwt.group.id }
+                    if (newOrder != -1 && gwt.group.order != newOrder) {
+                        gwt.copy(group = gwt.group.copy(order = newOrder))
+                    } else gwt
+                }
                 viewModelScope.launch(Dispatchers.IO) {
                     groupUpdates.forEach { dbm.systemTtsV2.updateGroup(it) }
                 }
@@ -334,7 +436,6 @@ class ListManagerViewModel : ViewModel() {
             val listInGroup = findListInGroup(fromGId).toMutableList()
             val fromIndex = listInGroup.indexOfFirst { it.id == fromId }
             val toIndex = listInGroup.indexOfFirst { it.id == toId }
-            Log.d(TAG, "fromIndex: $fromIndex, toIndex: $toIndex")
 
             try {
                 Collections.swap(listInGroup, fromIndex, toIndex)
@@ -343,12 +444,15 @@ class ListManagerViewModel : ViewModel() {
             }
 
             val itemUpdates = listInGroup.mapIndexedNotNull { index, systts ->
-                Log.d(TAG, "$index ${systts.displayName}")
                 if (systts.order != index) systts.copy(order = index) else null
             }
             if (itemUpdates.isNotEmpty()) {
+                val newItems = listInGroup.mapIndexed { index, systts ->
+                    if (systts.order != index) systts.copy(order = index) else systts
+                }
+                updateGroupListInMemory(fromGId, newItems)
                 viewModelScope.launch(Dispatchers.IO) {
-                    itemUpdates.forEach { dbm.systemTtsV2.update(it) }
+                    dbm.systemTtsV2.update(*itemUpdates.toTypedArray())
                 }
             }
         }
@@ -461,6 +565,29 @@ class ListManagerViewModel : ViewModel() {
     private fun findListInGroup(groupId: Long): List<SystemTtsV2> {
         return list.value.find { it.group.id == groupId }?.list?.sortedBy { it.order }
             ?: emptyList()
+    }
+
+    /**
+     * 立即更新内存中的分组列表，使UI即时响应而不必等待数据库flow。
+     */
+    private fun updateGroupListInMemory(groupId: Long, newItems: List<SystemTtsV2>) {
+        _list.value = _list.value.map { gwt ->
+            if (gwt.group.id == groupId) gwt.copy(list = newItems) else gwt
+        }
+    }
+
+    /**
+     * 批量更新多个分组的内存列表（用于跨分组去重等场景）。
+     */
+    private fun updateMultipleGroupsInMemory(groupIds: Set<Long>, updates: List<SystemTtsV2>) {
+        val updatesById = updates.associateBy { it.id }
+        _list.value = _list.value.map { gwt ->
+            if (gwt.group.id in groupIds) {
+                gwt.copy(list = gwt.list.map { item ->
+                    updatesById[item.id] ?: item
+                })
+            } else gwt
+        }
     }
 
     fun checkListData(context: Context) {
