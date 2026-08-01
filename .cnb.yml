@@ -16,11 +16,6 @@
         - docker
       # 启动环境后执行的任务
       stages:
-        - name: 配置GitHub推送凭证
-          script:
-            - echo "=== 配置 GitHub 推送凭证（自动注入，无需跳转授权）==="
-            - git remote set-url github https://x-access-token:${GITHUB_TOKEN}@github.com/jonaskilli/tts-mumu.git
-            - git remote -v
         - name: 配置国内镜像加速
           script:
             - echo "配置Gradle国内镜像..."
