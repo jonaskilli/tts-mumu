@@ -6,7 +6,6 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.AccountTree
 import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.DeleteForever
 import androidx.compose.material.icons.filled.DoneAll
@@ -42,7 +41,6 @@ fun GroupEditContentDialog(
     var searchType by remember { mutableStateOf(GroupSearchType.NAME) }
     val availableConfigs by vm.availableConfigs.collectAsStateWithLifecycle()
     val pluginNameCache by vm.pluginNameCache.collectAsStateWithLifecycle()
-    val currentGroupSubPaths by vm.currentGroupSubPaths.collectAsStateWithLifecycle()
 
     LaunchedEffect(group.id) {
         vm.load(group.id)
@@ -50,25 +48,6 @@ fun GroupEditContentDialog(
 
     val filteredConfigs = remember(searchQuery, searchType, availableConfigs, pluginNameCache) {
         vm.filterConfigs(availableConfigs, searchQuery, searchType, pluginNameCache)
-    }
-
-    var showMoveToSubGroup by remember { mutableStateOf(false) }
-    if (showMoveToSubGroup && selectedConfigs.isNotEmpty()) {
-        // 修复：从当前分组所有已有配置中获取子分组路径，而非仅从选中项获取
-        val existingPaths = currentGroupSubPaths
-        MoveToSubGroupDialog(
-            existingPaths = existingPaths,
-            onDismissRequest = { showMoveToSubGroup = false },
-            onConfirm = { path ->
-                scope.launch {
-                    selectedConfigs.forEach { config ->
-                        dbm.systemTtsV2.update(config.copy(categoryPath = path))
-                    }
-                    showMoveToSubGroup = false
-                    onDismissRequest()
-                }
-            }
-        )
     }
 
     var showDeleteConfirm by remember { mutableStateOf(false) }
@@ -228,13 +207,6 @@ fun GroupEditContentDialog(
         },
         dismissButton = {
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                TextButton(
-                    onClick = { showMoveToSubGroup = true },
-                    enabled = selectedConfigs.isNotEmpty()
-                ) {
-                    Icon(Icons.Default.AccountTree, null, modifier = Modifier.padding(end = 4.dp))
-                    Text(stringResource(R.string.move_to_sub_group))
-                }
                 TextButton(
                     onClick = { showDeleteConfirm = true },
                     enabled = selectedConfigs.isNotEmpty()
