@@ -99,7 +99,7 @@ internal fun SortDialog(
                 val field = SortFields.values()[index]
                 val comparator = when (field) {
                     SortFields.NAME -> compareBy<SystemTtsV2> { it.displayName }
-                    SortFields.TAG_NAME -> compareBy<SystemTtsV2>(naturalStringComparator) {
+                    SortFields.TAG_NAME -> compareBy<SystemTtsV2, String>(naturalStringComparator) {
                         (it.config as? TtsConfigurationDTO)?.speechRule?.tag ?: ""
                     }
                     SortFields.TYPE -> compareBy<SystemTtsV2> { getTypeString(it, pluginNameCache) }
