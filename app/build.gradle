@@ -17,8 +17,8 @@ static def releaseTime() {
     return new Date().format("yy.MMddHH", TimeZone.getTimeZone("GMT+8"))
 }
 
-def version = "1.26.073000"
-def gitCommits = 1509
+def version = "1.26.080100"
+def gitCommits = 1510
 
 android {
     compileSdk libs.versions.compileSdk.get().toInteger()
