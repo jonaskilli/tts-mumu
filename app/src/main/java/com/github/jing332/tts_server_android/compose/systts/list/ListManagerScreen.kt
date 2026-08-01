@@ -9,7 +9,9 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.wrapContentSize
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
@@ -67,6 +69,7 @@ import com.github.jing332.common.utils.StringUtils
 import com.github.jing332.common.utils.longToast
 import com.github.jing332.common.utils.toast
 import com.github.jing332.compose.widgets.ControlBottomBarVisibility
+import com.github.jing332.compose.widgets.DraggableVerticalScrollbar
 import com.github.jing332.compose.widgets.LazyListIndexStateSaver
 import com.github.jing332.compose.widgets.ShadowedDraggableItem
 import com.github.jing332.compose.widgets.TextFieldDialog
@@ -1772,6 +1775,14 @@ internal fun ListManagerScreen(
                     Spacer(Modifier.padding(bottom = AppDefaultProperties.LIST_END_PADDING))
                 }
             }
+
+            DraggableVerticalScrollbar(
+                modifier = Modifier
+                    .align(Alignment.End)
+                    .fillMaxHeight()
+                    .width(12.dp),
+                listState = listState
+            )
 
             FloatingAddConfigButtonGroup(
                 modifier = Modifier
