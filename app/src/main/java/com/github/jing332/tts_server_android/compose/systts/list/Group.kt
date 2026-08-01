@@ -3,11 +3,11 @@ package com.github.jing332.tts_server_android.compose.systts.list
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Sort
 import androidx.compose.material.icons.filled.DeleteForever
-import androidx.compose.material.icons.filled.DriveFileMove
+import androidx.compose.material.icons.automirrored.filled.DriveFileMove
 import androidx.compose.material.icons.filled.DriveFileRenameOutline
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.AccountTree
-import androidx.compose.material.icons.filled.Label
+import androidx.compose.material.icons.automirrored.filled.Label
 import androidx.compose.material.icons.filled.Speed
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
@@ -163,7 +163,7 @@ fun Group(
                     onMoveEnabledToGroup()
                 },
                 leadingIcon = {
-                    Icon(Icons.Default.DriveFileMove, null)
+                    Icon(Icons.AutoMirrored.Filled.DriveFileMove, null)
                 }
             )
         },
@@ -256,7 +256,7 @@ fun Group(
                         onReassignAllSubGroups()
                     },
                     leadingIcon = {
-                        Icon(Icons.Default.Label, null)
+                        Icon(Icons.AutoMirrored.Filled.Label, null)
                     }
                 )
             }

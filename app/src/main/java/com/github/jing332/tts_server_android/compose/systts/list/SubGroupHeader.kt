@@ -11,10 +11,10 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.DeleteForever
-import androidx.compose.material.icons.filled.DriveFileMove
+import androidx.compose.material.icons.automirrored.filled.DriveFileMove
 import androidx.compose.material.icons.filled.DriveFileRenameOutline
 import androidx.compose.material.icons.filled.ExpandCircleDown
-import androidx.compose.material.icons.filled.Label
+import androidx.compose.material.icons.automirrored.filled.Label
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Output
 import androidx.compose.material.icons.filled.Speed
@@ -180,7 +180,7 @@ fun SubGroupHeader(
                         onMoveEnabledToGroup()
                     },
                     leadingIcon = {
-                        Icon(Icons.Default.DriveFileMove, null)
+                        Icon(Icons.AutoMirrored.Filled.DriveFileMove, null)
                     }
                 )
             }
@@ -231,7 +231,7 @@ fun SubGroupHeader(
                             onReassignTagsByGroupName()
                         },
                         leadingIcon = {
-                            Icon(Icons.Default.Label, null)
+                            Icon(Icons.AutoMirrored.Filled.Label, null)
                         }
                     )
                 }
