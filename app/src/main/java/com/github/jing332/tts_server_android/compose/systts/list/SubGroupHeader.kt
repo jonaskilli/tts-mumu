@@ -3,6 +3,7 @@ package com.github.jing332.tts_server_android.compose.systts.list
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -73,6 +74,7 @@ fun SubGroupHeader(
     }
 
     var showOptions by remember { mutableStateOf(false) }
+    var showExtraOptions by remember { mutableStateOf(false) }
     var showDeleteDialog by remember { mutableStateOf(false) }
 
     if (showDeleteDialog)
@@ -87,7 +89,7 @@ fun SubGroupHeader(
                 if (level == 0) MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
                 else MaterialTheme.colorScheme.surface
             )
-            .clickable { if (!showOptions) onClick() }
+            .clickable { if (!showOptions && !showExtraOptions) onClick() }
             .padding(
                 start = 8.dp,
                 top = paddingTop,
@@ -126,14 +128,49 @@ fun SubGroupHeader(
             },
         )
 
-        Box {
-            IconButton(onClick = { showOptions = true }) {
-                Icon(
-                    Icons.Default.MoreVert,
-                    contentDescription = "更多选项"
+        Box(
+            modifier = Modifier
+                .size(48.dp)
+                .combinedClickable(
+                    onClick = { showOptions = true },
+                    onLongClick = { showExtraOptions = true }
+                ),
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(
+                Icons.Default.MoreVert,
+                contentDescription = "更多选项"
+            )
+
+            // 长按菜单：仅启用相关功能
+            DropdownMenu(
+                expanded = showExtraOptions,
+                onDismissRequest = { showExtraOptions = false }
+            ) {
+                DropdownMenuItem(
+                    text = { Text("删除启用的配置") },
+                    onClick = {
+                        showExtraOptions = false
+                        onDeleteEnabled()
+                    },
+                    leadingIcon = {
+                        Icon(Icons.Default.DeleteForever, null)
+                    }
+                )
+
+                DropdownMenuItem(
+                    text = { Text("删除未启用的配置") },
+                    onClick = {
+                        showExtraOptions = false
+                        onDeleteDisabled()
+                    },
+                    leadingIcon = {
+                        Icon(Icons.Default.DeleteForever, null)
+                    }
                 )
             }
 
+            // 主菜单：与启用状态无关的功能
             DropdownMenu(
                 expanded = showOptions,
                 onDismissRequest = { showOptions = false }
@@ -171,17 +208,6 @@ fun SubGroupHeader(
                     }
                 )
 
-                DropdownMenuItem(
-                    text = { Text("批量分配标签") },
-                    onClick = {
-                        showOptions = false
-                        onBatchAssignTags()
-                    },
-                    leadingIcon = {
-                        Icon(Icons.Default.Label, null)
-                    }
-                )
-
                 if (hasTagKeyword) {
                     DropdownMenuItem(
                         text = { Text("按分组名一键分配标签") },
@@ -194,28 +220,6 @@ fun SubGroupHeader(
                         }
                     )
                 }
-
-                DropdownMenuItem(
-                    text = { Text("删除启用的配置") },
-                    onClick = {
-                        showOptions = false
-                        onDeleteEnabled()
-                    },
-                    leadingIcon = {
-                        Icon(Icons.Default.DeleteForever, null)
-                    }
-                )
-
-                DropdownMenuItem(
-                    text = { Text("删除未启用的配置") },
-                    onClick = {
-                        showOptions = false
-                        onDeleteDisabled()
-                    },
-                    leadingIcon = {
-                        Icon(Icons.Default.DeleteForever, null)
-                    }
-                )
 
                 DropdownMenuItem(
                     text = { Text("转为一级分组") },
