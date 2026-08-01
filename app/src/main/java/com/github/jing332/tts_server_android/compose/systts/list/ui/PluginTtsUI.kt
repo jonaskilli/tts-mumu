@@ -3,10 +3,7 @@ package com.github.jing332.tts_server_android.compose.systts.list.ui
 import android.util.Log
 import android.widget.LinearLayout
 import androidx.compose.animation.animateContentSize
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.ui.Alignment
@@ -15,7 +12,6 @@ import androidx.compose.material.icons.filled.Headset
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -180,34 +176,6 @@ class PluginTtsUI : IConfigUI() {
         val isUiOnly = tts.isUiOnly
         val context = LocalContext.current
         val scope = rememberCoroutineScope()
-
-        // 角色管理插件判定：pluginId为mingwuyan且name含"角色管理"
-        // 仅此插件可开启仅界面模式，且自动启用
-        val isRoleManagementPlugin = remember(tts.pluginId, plugin?.name) {
-            tts.pluginId == "mingwuyan" &&
-                (plugin?.name?.contains("角色管理") ?: true)
-        }
-
-        // 角色管理插件自动启用仅界面模式；非角色管理插件强制关闭
-        LaunchedEffect(isRoleManagementPlugin, tts.pluginId) {
-            if (isRoleManagementPlugin && !tts.isUiOnly) {
-                onSysttsChange(
-                    systts.copy(
-                        config = (systts.config as TtsConfigurationDTO).copy(
-                            source = tts.copy(isUiOnly = true)
-                        )
-                    )
-                )
-            } else if (!isRoleManagementPlugin && tts.isUiOnly) {
-                onSysttsChange(
-                    systts.copy(
-                        config = (systts.config as TtsConfigurationDTO).copy(
-                            source = tts.copy(isUiOnly = false)
-                        )
-                    )
-                )
-            }
-        }
 
         LaunchedEffect(Unit) {
             vm.loadPluginList()
@@ -391,31 +359,6 @@ class PluginTtsUI : IConfigUI() {
                             )
                         }
                     )
-                }
-
-                // 仅界面模式：仅角色管理插件(mingwuyan)可开启，其他插件不显示此开关
-                if (isRoleManagementPlugin) {
-                    Row(
-                        Modifier
-                            .fillMaxWidth()
-                            .padding(top = 8.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.SpaceBetween
-                    ) {
-                        Text(stringResource(R.string.plugin_ui_only_mode))
-                        Switch(
-                            checked = isUiOnly,
-                            onCheckedChange = { checked ->
-                                onSysttsChange(
-                                    systts.copy(
-                                        config = (systts.config as TtsConfigurationDTO).copy(
-                                            source = tts.copy(isUiOnly = checked)
-                                        )
-                                    )
-                                )
-                            }
-                        )
-                    }
                 }
 
                 key(tts.pluginId) {
