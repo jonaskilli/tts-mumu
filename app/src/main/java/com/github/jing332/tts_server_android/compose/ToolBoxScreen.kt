@@ -125,7 +125,15 @@ fun ToolBoxScreen(sharedVM: SharedViewModel) {
             }
         } else if (existingTts != null) {
             // 直接展示角色管理插件UI（无需点击卡片再打开Activity）
-            var systts by remember(existingTts.id) { mutableStateOf(existingTts) }
+            // 强制 isUiOnly=true，防止旧备份数据缺少该标记导致显示多余控件
+            val uiOnlyTts = existingTts.let { tts ->
+                val config = tts.config as TtsConfigurationDTO
+                val source = config.source as PluginTtsSource
+                if (!source.isUiOnly) tts.copy(
+                    config = config.copy(source = source.copy(isUiOnly = true))
+                ) else tts
+            }
+            var systts by remember(uiOnlyTts.id) { mutableStateOf(uiOnlyTts) }
             val latestSystts by rememberUpdatedState(systts)
 
             // 离开页面时保存，持久化 ttsrv.tts.data 的变更
