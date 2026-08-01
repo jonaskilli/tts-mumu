@@ -578,6 +578,7 @@ class PluginTtsUI : IConfigUI() {
                         )
                         }
                     }
+                }
 
             }
 
