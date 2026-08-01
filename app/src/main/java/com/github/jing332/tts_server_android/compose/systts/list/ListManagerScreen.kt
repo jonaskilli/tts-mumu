@@ -229,8 +229,10 @@ internal fun ListManagerScreen(
                 val newPath = if (oldPath.contains('/')) {
                     oldPath.substringBeforeLast('/') + "/" + newName
                 } else newName
-                items.forEach { item ->
-                    dbm.systemTtsV2.update(item.copy(categoryPath = newPath))
+                withIO {
+                    items.forEach { item ->
+                        dbm.systemTtsV2.update(item.copy(categoryPath = newPath))
+                    }
                 }
                 showSubGroupRename = null
             }
@@ -252,7 +254,9 @@ internal fun ListManagerScreen(
                 scope.launch {
                     val newMap = subGroupMap.toMutableMap().apply { put(path, params) }
                     val newJson = SystemTtsV2.Converters.json.encodeToString(newMap)
-                    dbm.systemTtsV2.updateGroup(group.copy(subGroupAudioParamsJson = newJson))
+                    withIO {
+                        dbm.systemTtsV2.updateGroup(group.copy(subGroupAudioParamsJson = newJson))
+                    }
                     SystemTtsService.notifyUpdateConfig()
                     showSubGroupAudioParams = null
                 }
@@ -290,26 +294,28 @@ internal fun ListManagerScreen(
                         }
                         val audioParamsForNewGroup = subGroupAudioParams[path] ?: AudioParams()
 
-                        if (subGroupAudioParams.containsKey(path)) {
-                            val newSubMap = subGroupAudioParams.toMutableMap().apply { remove(path) }
-                            val newSubJson = SystemTtsV2.Converters.json.encodeToString(newSubMap)
-                            dbm.systemTtsV2.updateGroup(group.copy(subGroupAudioParamsJson = newSubJson))
-                        }
+                        withIO {
+                            if (subGroupAudioParams.containsKey(path)) {
+                                val newSubMap = subGroupAudioParams.toMutableMap().apply { remove(path) }
+                                val newSubJson = SystemTtsV2.Converters.json.encodeToString(newSubMap)
+                                dbm.systemTtsV2.updateGroup(group.copy(subGroupAudioParamsJson = newSubJson))
+                            }
 
-                        val groupName = path.substringAfterLast('/')
-                        val newGroup = SystemTtsGroup(
-                            id = System.currentTimeMillis(),
-                            name = groupName,
-                            audioParams = audioParamsForNewGroup
-                        )
-                        dbm.systemTtsV2.insertGroup(newGroup)
-                        itemsToMove.forEach { item ->
-                            dbm.systemTtsV2.update(
-                                item.copy(
-                                    groupId = newGroup.id,
-                                    categoryPath = ""
-                                )
+                            val groupName = path.substringAfterLast('/')
+                            val newGroup = SystemTtsGroup(
+                                id = System.currentTimeMillis(),
+                                name = groupName,
+                                audioParams = audioParamsForNewGroup
                             )
+                            dbm.systemTtsV2.insertGroup(newGroup)
+                            itemsToMove.forEach { item ->
+                                dbm.systemTtsV2.update(
+                                    item.copy(
+                                        groupId = newGroup.id,
+                                        categoryPath = ""
+                                    )
+                                )
+                            }
                         }
                         showSubGroupExtractToGroup = null
                     }
@@ -328,8 +334,13 @@ internal fun ListManagerScreen(
     var showQuickEdit by remember { mutableStateOf<SystemTtsV2?>(null) }
     if (showQuickEdit != null) {
         QuickEditBottomSheet(onDismissRequest = {
-            dbm.systemTtsV2.insert(showQuickEdit!!)
-            if (showQuickEdit?.isEnabled == true) SystemTtsService.notifyUpdateConfig()
+            val toSave = showQuickEdit
+            if (toSave != null) {
+                scope.launch {
+                    withIO { dbm.systemTtsV2.insert(toSave) }
+                    if (toSave.isEnabled) SystemTtsService.notifyUpdateConfig()
+                }
+            }
             showQuickEdit = null
         }, systts = showQuickEdit!!, onSysttsChange = {
             showQuickEdit = it
@@ -677,10 +688,12 @@ internal fun ListManagerScreen(
                 onDismissRequest = { showCreateSubGroup = null },
                 onConfirm = { subGroupName, selectedItems ->
                     scope.launch {
-                        selectedItems.forEach { item ->
-                            dbm.systemTtsV2.update(
-                                item.copy(categoryPath = subGroupName)
-                            )
+                        withIO {
+                            selectedItems.forEach { item ->
+                                dbm.systemTtsV2.update(
+                                    item.copy(categoryPath = subGroupName)
+                                )
+                            }
                         }
                         showCreateSubGroup = null
                     }
@@ -699,7 +712,9 @@ internal fun ListManagerScreen(
             onDismissRequest = { showMoveToSubGroup = null },
             onConfirm = { gid, path ->
                 scope.launch {
-                    dbm.systemTtsV2.update(targetItem.copy(groupId = gid, categoryPath = path))
+                    withIO {
+                        dbm.systemTtsV2.update(targetItem.copy(groupId = gid, categoryPath = path))
+                    }
                     showMoveToSubGroup = null
                 }
             }
@@ -740,11 +755,13 @@ internal fun ListManagerScreen(
                             TextButton(
                                 onClick = {
                                     scope.launch {
-                                        currentGroupWithTts?.list
-                                            ?.filter { it.categoryPath == path }
-                                            ?.forEach { item ->
-                                                dbm.systemTtsV2.update(item.copy(categoryPath = ""))
-                                            }
+                                        withIO {
+                                            currentGroupWithTts?.list
+                                                ?.filter { it.categoryPath == path }
+                                                ?.forEach { item ->
+                                                    dbm.systemTtsV2.update(item.copy(categoryPath = ""))
+                                                }
+                                        }
                                         showReleaseSubGroup = null
                                     }
                                 },
@@ -796,26 +813,28 @@ internal fun ListManagerScreen(
                             TextButton(
                                 onClick = {
                                     scope.launch {
-                                        // 将原大分组的音频参数作为子分组参数保存到目标分组
-                                        val subMap = otherGroup.subGroupAudioParamsJson.let { jsonStr ->
-                                            if (jsonStr.isBlank() || jsonStr == "{}") emptyMap()
-                                            else SystemTtsV2.Converters.json.decodeFromString<Map<String, com.github.jing332.database.entities.systts.AudioParams>>(jsonStr)
-                                        }.toMutableMap()
-                                        subMap[targetGroup.name] = targetGroup.audioParams
-                                        val newJson = SystemTtsV2.Converters.json.encodeToString(subMap)
-                                        dbm.systemTtsV2.updateGroup(otherGroup.copy(subGroupAudioParamsJson = newJson))
+                                        withIO {
+                                            // 将原大分组的音频参数作为子分组参数保存到目标分组
+                                            val subMap = otherGroup.subGroupAudioParamsJson.let { jsonStr ->
+                                                if (jsonStr.isBlank() || jsonStr == "{}") emptyMap()
+                                                else SystemTtsV2.Converters.json.decodeFromString<Map<String, com.github.jing332.database.entities.systts.AudioParams>>(jsonStr)
+                                            }.toMutableMap()
+                                            subMap[targetGroup.name] = targetGroup.audioParams
+                                            val newJson = SystemTtsV2.Converters.json.encodeToString(subMap)
+                                            dbm.systemTtsV2.updateGroup(otherGroup.copy(subGroupAudioParamsJson = newJson))
 
-                                        currentGroupWithTts?.list?.forEach { item ->
-                                            dbm.systemTtsV2.update(
-                                                item.copy(
-                                                    groupId = otherGroup.id,
-                                                    categoryPath = targetGroup.name
+                                            currentGroupWithTts?.list?.forEach { item ->
+                                                dbm.systemTtsV2.update(
+                                                    item.copy(
+                                                        groupId = otherGroup.id,
+                                                        categoryPath = targetGroup.name
+                                                    )
                                                 )
-                                            )
-                                        }
-                                        // 空分组也保留，不删除
-                                        if (currentGroupWithTts?.list?.isNotEmpty() == true) {
-                                            dbm.systemTtsV2.deleteGroup(targetGroup)
+                                            }
+                                            // 空分组也保留，不删除
+                                            if (currentGroupWithTts?.list?.isNotEmpty() == true) {
+                                                dbm.systemTtsV2.deleteGroup(targetGroup)
+                                            }
                                         }
                                         showConvertToSubGroup = null
                                     }
@@ -857,18 +876,20 @@ internal fun ListManagerScreen(
                             TextButton(
                                 onClick = {
                                     scope.launch {
-                                        convertible.forEach { src ->
-                                            val subMap = otherGroup.subGroupAudioParamsJson.let { jsonStr ->
-                                                if (jsonStr.isBlank() || jsonStr == "{}") emptyMap()
-                                                else SystemTtsV2.Converters.json.decodeFromString<Map<String, AudioParams>>(jsonStr)
-                                            }.toMutableMap()
-                                            subMap[src.group.name] = src.group.audioParams
-                                            val newJson = SystemTtsV2.Converters.json.encodeToString(subMap)
-                                            dbm.systemTtsV2.updateGroup(otherGroup.copy(subGroupAudioParamsJson = newJson))
-                                            src.list.forEach { item ->
-                                                dbm.systemTtsV2.update(item.copy(groupId = otherGroup.id, categoryPath = src.group.name))
+                                        withIO {
+                                            convertible.forEach { src ->
+                                                val subMap = otherGroup.subGroupAudioParamsJson.let { jsonStr ->
+                                                    if (jsonStr.isBlank() || jsonStr == "{}") emptyMap()
+                                                    else SystemTtsV2.Converters.json.decodeFromString<Map<String, AudioParams>>(jsonStr)
+                                                }.toMutableMap()
+                                                subMap[src.group.name] = src.group.audioParams
+                                                val newJson = SystemTtsV2.Converters.json.encodeToString(subMap)
+                                                dbm.systemTtsV2.updateGroup(otherGroup.copy(subGroupAudioParamsJson = newJson))
+                                                src.list.forEach { item ->
+                                                    dbm.systemTtsV2.update(item.copy(groupId = otherGroup.id, categoryPath = src.group.name))
+                                                }
+                                                dbm.systemTtsV2.deleteGroup(src.group)
                                             }
-                                            dbm.systemTtsV2.deleteGroup(src.group)
                                         }
                                         showConvertToSubGroupMulti = false
                                         selectionMode = false
@@ -1017,14 +1038,16 @@ internal fun ListManagerScreen(
             if (sourceGwt != null) {
                 val enabledItems = sourceGwt.list.filter { it.isEnabled }
                 scope.launch {
-                    val newGroup = SystemTtsGroup(id = System.currentTimeMillis(), name = newGroupNameForMove)
-                    dbm.systemTtsV2.insertGroup(newGroup)
-                    enabledItems.forEachIndexed { idx, item ->
-                        dbm.systemTtsV2.update(item.copy(
-                            groupId = newGroup.id,
-                            categoryPath = "",
-                            order = idx
-                        ))
+                    withIO {
+                        val newGroup = SystemTtsGroup(id = System.currentTimeMillis(), name = newGroupNameForMove)
+                        dbm.systemTtsV2.insertGroup(newGroup)
+                        enabledItems.forEachIndexed { idx, item ->
+                            dbm.systemTtsV2.update(item.copy(
+                                groupId = newGroup.id,
+                                categoryPath = "",
+                                order = idx
+                            ))
+                        }
                     }
                     SystemTtsService.notifyUpdateConfig()
                     showNewGroupForMove = false
@@ -1033,9 +1056,11 @@ internal fun ListManagerScreen(
             } else if (showMoveSingleSubGroupDialog != null) {
                 val (sourceGroup, subPath) = showMoveSingleSubGroupDialog!!
                 scope.launch {
-                    val newGroup = SystemTtsGroup(id = System.currentTimeMillis(), name = newGroupNameForMove)
-                    dbm.systemTtsV2.insertGroup(newGroup)
-                    moveSubGroupsToGroup(sourceGroup, setOf(subPath), newGroup)
+                    withIO {
+                        val newGroup = SystemTtsGroup(id = System.currentTimeMillis(), name = newGroupNameForMove)
+                        dbm.systemTtsV2.insertGroup(newGroup)
+                        moveSubGroupsToGroup(sourceGroup, setOf(subPath), newGroup)
+                    }
                     showNewGroupForMove = false
                     showMoveSingleSubGroupDialog = null
                 }
@@ -1239,11 +1264,13 @@ internal fun ListManagerScreen(
                                 TextButton(
                                     onClick = {
                                         scope.launch {
-                                            moveSubGroupsToGroup(
-                                                sourceGroup = sourceGroup,
-                                                paths = selectedPaths,
-                                                targetGroup = targetGroup
-                                            )
+                                            withIO {
+                                                moveSubGroupsToGroup(
+                                                    sourceGroup = sourceGroup,
+                                                    paths = selectedPaths,
+                                                    targetGroup = targetGroup
+                                                )
+                                            }
                                             showMoveSubGroupsDialog = null
                                         }
                                     },
@@ -1282,11 +1309,13 @@ internal fun ListManagerScreen(
                         TextButton(
                             onClick = {
                                 scope.launch {
-                                    moveSubGroupsToGroup(
-                                        sourceGroup = sourceGroup,
-                                        paths = setOf(subPath),
-                                        targetGroup = targetGroup
-                                    )
+                                    withIO {
+                                        moveSubGroupsToGroup(
+                                            sourceGroup = sourceGroup,
+                                            paths = setOf(subPath),
+                                            targetGroup = targetGroup
+                                        )
+                                    }
                                     showMoveSingleSubGroupDialog = null
                                 }
                             },
@@ -1320,16 +1349,17 @@ internal fun ListManagerScreen(
             tagData = config.speechRule.tagData.toString(),
             onDismissRequest = { showTagClearDialog = null },
             onConfirm = {
-                dbm.systemTtsV2.update(
-                    systts.copy(
-                        config = config.copy(
-                            speechRule = config.speechRule.copy(
-                                target = SpeechTarget.ALL,
-                            ).apply { resetTag() },
-                        )
+                val updated = systts.copy(
+                    config = config.copy(
+                        speechRule = config.speechRule.copy(
+                            target = SpeechTarget.ALL,
+                        ).apply { resetTag() },
                     )
                 )
-                if (systts.isEnabled) SystemTtsService.notifyUpdateConfig()
+                scope.launch {
+                    withIO { dbm.systemTtsV2.update(updated) }
+                    if (systts.isEnabled) SystemTtsService.notifyUpdateConfig()
+                }
                 showTagClearDialog = null
             }
         )
@@ -1380,8 +1410,11 @@ internal fun ListManagerScreen(
             }
         }
 
-        dbm.systemTtsV2.update(systts.copy(config = systts.ttsConfig.copy(speechRule = ruleData)))
-        if (systts.isEnabled) SystemTtsService.notifyUpdateConfig()
+        val updated = systts.copy(config = systts.ttsConfig.copy(speechRule = ruleData))
+        scope.launch {
+            withIO { dbm.systemTtsV2.update(updated) }
+            if (systts.isEnabled) SystemTtsService.notifyUpdateConfig()
+        }
     }
 
     var deleteTts by remember { mutableStateOf<SystemTtsV2?>(null) }
@@ -1389,7 +1422,12 @@ internal fun ListManagerScreen(
         ConfigDeleteDialog(
             onDismissRequest = { deleteTts = null }, content = deleteTts?.displayName ?: ""
         ) {
-            dbm.systemTtsV2.delete(deleteTts!!)
+            val toDelete = deleteTts
+            if (toDelete != null) {
+                scope.launch {
+                    withIO { dbm.systemTtsV2.delete(toDelete) }
+                }
+            }
             deleteTts = null
         }
     }
@@ -1402,9 +1440,11 @@ internal fun ListManagerScreen(
             content = context.getString(R.string.delete_selected_groups_confirm, selectedGroupIds.size)
         ) {
             scope.launch {
-                models.filter { it.group.id in selectedGroupIds }.forEach { gwt ->
-                    dbm.systemTtsV2.delete(*gwt.list.toTypedArray())
-                    dbm.systemTtsV2.deleteGroup(gwt.group)
+                withIO {
+                    models.filter { it.group.id in selectedGroupIds }.forEach { gwt ->
+                        dbm.systemTtsV2.delete(*gwt.list.toTypedArray())
+                        dbm.systemTtsV2.deleteGroup(gwt.group)
+                    }
                 }
                 selectedGroupIds = emptySet()
                 selectionMode = false
@@ -1418,11 +1458,11 @@ internal fun ListManagerScreen(
         GroupAudioParamsDialog(onDismissRequest = { groupAudioParamsDialog = null },
             params = groupAudioParamsDialog!!.audioParams,
             onConfirm = {
-                dbm.systemTtsV2.updateGroup(
-                    groupAudioParamsDialog!!.copy(audioParams = it)
-                )
-                // 通知服务更新配置
-                SystemTtsService.notifyUpdateConfig()
+                val groupToUpdate = groupAudioParamsDialog!!.copy(audioParams = it)
+                scope.launch {
+                    withIO { dbm.systemTtsV2.updateGroup(groupToUpdate) }
+                    SystemTtsService.notifyUpdateConfig()
+                }
                 groupAudioParamsDialog = null
             })
     }
@@ -1443,7 +1483,11 @@ internal fun ListManagerScreen(
             onTextChange = { name = it },
             onDismissRequest = { addGroupDialog = false }) {
             addGroupDialog = false
-            dbm.systemTtsV2.insertGroup(SystemTtsGroup(name = name, order = dbm.systemTtsV2.groupCount))
+            scope.launch {
+                withIO {
+                    dbm.systemTtsV2.insertGroup(SystemTtsGroup(name = name, order = dbm.systemTtsV2.groupCount))
+                }
+            }
         }
     }
 
@@ -1705,18 +1749,20 @@ internal fun ListManagerScreen(
                                 },
                                 onCopy = {
                                     scope.launch {
-                                        val group = g.copy(id = System.currentTimeMillis(),
-                                            name = it.ifBlank { context.getString(R.string.unnamed) })
-                                        dbm.systemTtsV2.insertGroup(group)
-                                        dbm.systemTtsV2.getByGroup(g.id)
-                                            .forEachIndexed { index, tts ->
-                                                dbm.systemTtsV2.insert(
-                                                    tts.copy(
-                                                        id = System.currentTimeMillis() + index,
-                                                        groupId = group.id
+                                        withIO {
+                                            val group = g.copy(id = System.currentTimeMillis(),
+                                                name = it.ifBlank { context.getString(R.string.unnamed) })
+                                            dbm.systemTtsV2.insertGroup(group)
+                                            dbm.systemTtsV2.getByGroup(g.id)
+                                                .forEachIndexed { index, tts ->
+                                                    dbm.systemTtsV2.insert(
+                                                        tts.copy(
+                                                            id = System.currentTimeMillis() + index,
+                                                            groupId = group.id
+                                                        )
                                                     )
-                                                )
-                                            }
+                                                }
+                                        }
                                     }
                                 },
                                 onEditAudioParams = {
@@ -1748,8 +1794,10 @@ internal fun ListManagerScreen(
                                 },
                                 onDeleteEnabled = {
                                     scope.launch {
-                                        groupWithSystemTts.list.filter { it.isEnabled }.forEach {
-                                            dbm.systemTtsV2.delete(it)
+                                        withIO {
+                                            groupWithSystemTts.list.filter { it.isEnabled }.forEach {
+                                                dbm.systemTtsV2.delete(it)
+                                            }
                                         }
                                         if (groupWithSystemTts.list.any { it.isEnabled })
                                             SystemTtsService.notifyUpdateConfig()
@@ -1757,8 +1805,10 @@ internal fun ListManagerScreen(
                                 },
                                 onDeleteDisabled = {
                                     scope.launch {
-                                        groupWithSystemTts.list.filter { !it.isEnabled }.forEach {
-                                            dbm.systemTtsV2.delete(it)
+                                        withIO {
+                                            groupWithSystemTts.list.filter { !it.isEnabled }.forEach {
+                                                dbm.systemTtsV2.delete(it)
+                                            }
                                         }
                                     }
                                 },
@@ -1989,13 +2039,15 @@ internal fun ListManagerScreen(
                                                     },
                                                     onDelete = {
                                                         scope.launch {
-                                                            dbm.systemTtsV2.delete(*subItems.toTypedArray())
+                                                            withIO { dbm.systemTtsV2.delete(*subItems.toTypedArray()) }
                                                         }
                                                     },
                                                     onDeleteEnabled = {
                                                         scope.launch {
-                                                            subItems.filter { it.isEnabled }.forEach {
-                                                                dbm.systemTtsV2.delete(it)
+                                                            withIO {
+                                                                subItems.filter { it.isEnabled }.forEach {
+                                                                    dbm.systemTtsV2.delete(it)
+                                                                }
                                                             }
                                                             if (subItems.any { it.isEnabled })
                                                                 SystemTtsService.notifyUpdateConfig()
@@ -2003,8 +2055,10 @@ internal fun ListManagerScreen(
                                                     },
                                                     onDeleteDisabled = {
                                                         scope.launch {
-                                                            subItems.filter { !it.isEnabled }.forEach {
-                                                                dbm.systemTtsV2.delete(it)
+                                                            withIO {
+                                                                subItems.filter { !it.isEnabled }.forEach {
+                                                                    dbm.systemTtsV2.delete(it)
+                                                                }
                                                             }
                                                         }
                                                     },
