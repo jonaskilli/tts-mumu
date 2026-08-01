@@ -1700,6 +1700,9 @@ internal fun ListManagerScreen(
                                                 },
                                                 onExtractToGroup = {
                                                     showSubGroupExtractToGroup = g to fItem.node.fullPath
+                                                },
+                                                onMoveEnabledToGroup = {
+                                                    showMoveEnabledDialog = GroupWithSystemTts(g, subItems)
                                                 }
                                             )
                                         }

@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.DeleteForever
+import androidx.compose.material.icons.filled.DriveFileMove
 import androidx.compose.material.icons.filled.DriveFileRenameOutline
 import androidx.compose.material.icons.filled.ExpandCircleDown
 import androidx.compose.material.icons.filled.Label
@@ -60,6 +61,7 @@ fun SubGroupHeader(
     onDeleteEnabled: () -> Unit = {},
     onDeleteDisabled: () -> Unit = {},
     onExtractToGroup: () -> Unit = {},
+    onMoveEnabledToGroup: () -> Unit = {},
 ) {
     val rotationAngle by animateFloatAsState(
         targetValue = if (isExpanded) 0f else -45f,
@@ -166,6 +168,17 @@ fun SubGroupHeader(
                     },
                     leadingIcon = {
                         Icon(Icons.Default.DeleteForever, null)
+                    }
+                )
+
+                DropdownMenuItem(
+                    text = { Text("移动启用配置到其他分组") },
+                    onClick = {
+                        showExtraOptions = false
+                        onMoveEnabledToGroup()
+                    },
+                    leadingIcon = {
+                        Icon(Icons.Default.DriveFileMove, null)
                     }
                 )
             }
