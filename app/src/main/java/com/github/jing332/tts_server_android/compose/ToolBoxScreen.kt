@@ -1,28 +1,24 @@
 package com.github.jing332.tts_server_android.compose
 
-import android.content.Context
-import android.content.Intent
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AccountCircle
-import androidx.compose.material3.ElevatedCard
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
@@ -30,42 +26,39 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import com.github.jing332.common.utils.longToast
 import com.github.jing332.database.dbm
 import com.github.jing332.database.entities.systts.SystemTtsV2
 import com.github.jing332.database.entities.systts.TtsConfigurationDTO
 import com.github.jing332.database.entities.systts.source.PluginTtsSource
+import com.github.jing332.tts_server_android.AppLocale
 import com.github.jing332.tts_server_android.R
-import com.github.jing332.tts_server_android.compose.systts.plugin.PluginPreviewActivity
-import com.github.jing332.tts_server_android.compose.AppDefaultProperties
+import com.github.jing332.tts_server_android.compose.systts.list.ui.PluginTtsUI
+import com.github.jing332.tts_server_android.toCode
 import kotlinx.coroutines.flow.conflate
 
 @Composable
 fun ToolBoxScreen(sharedVM: SharedViewModel) {
     val context = LocalContext.current
+
+    // 角色管理栏专属：仅展示 pluginId为mingwuyan 且 name含"角色管理" 的插件
+    val plugin = remember { dbm.pluginDao.getByPluginId("mingwuyan") }
+    val isRoleManagementPlugin = plugin != null && plugin.name.contains("角色管理")
+
     val flow = remember { dbm.systemTtsV2.flowAllGroupWithTts().conflate() }
     val groups by flow.collectAsStateWithLifecycle(emptyList())
 
-    // 角色管理栏专属：仅展示 pluginId为mingwuyan 且 name含"角色管理" 的插件配置
-    val isMingwuyanRoleManagement = remember {
-        val plugin = dbm.pluginDao.getByPluginId("mingwuyan")
-        plugin != null && plugin.name.contains("角色管理")
-    }
-
-    val tools = remember(groups, isMingwuyanRoleManagement) {
-        if (!isMingwuyanRoleManagement) emptyList()
-        else groups.flatMap { it.list }.filter { tts ->
+    // 查找已有的角色管理配置
+    val existingTts = remember(groups, isRoleManagementPlugin) {
+        if (!isRoleManagementPlugin) null
+        else groups.flatMap { it.list }.firstOrNull { tts ->
             val config = tts.config
-            if (config !is TtsConfigurationDTO) false
-            else {
-                val source = config.source
-                source is PluginTtsSource && source.pluginId == "mingwuyan"
-            }
+            config is TtsConfigurationDTO &&
+                (config.source as? PluginTtsSource)?.pluginId == "mingwuyan"
         }
     }
 
     Scaffold { paddingValues ->
-        if (tools.isEmpty()) {
+        if (!isRoleManagementPlugin || plugin == null) {
             Box(
                 Modifier
                     .fillMaxSize()
@@ -92,69 +85,32 @@ fun ToolBoxScreen(sharedVM: SharedViewModel) {
                 }
             }
         } else {
-            LazyColumn(
-                Modifier
+            // 直接展示角色管理插件UI（无需点击卡片再打开Activity）
+            val initialTts = remember(existingTts, plugin) {
+                existingTts ?: SystemTtsV2(
+                    config = TtsConfigurationDTO(
+                        source = PluginTtsSource(
+                            pluginId = "mingwuyan",
+                            locale = AppLocale.current(context).toCode(),
+                            plugin = plugin
+                        )
+                    )
+                )
+            }
+            var systts by remember { mutableStateOf(initialTts) }
+
+            val ui = remember { PluginTtsUI() }
+            ui.EditContentScreen(
+                modifier = Modifier
                     .fillMaxSize()
                     .padding(paddingValues)
-            ) {
-                items(tools, key = { it.id }) { tts ->
-                    ToolItem(tts) { openTool(context, tts) }
-                }
-                item {
-                    androidx.compose.foundation.layout.Spacer(
-                        Modifier.padding(bottom = AppDefaultProperties.LIST_END_PADDING)
-                    )
-                }
-            }
-        }
-    }
-}
-
-@Composable
-private fun ToolItem(tts: SystemTtsV2, onClick: () -> Unit) {
-    val name = tts.displayName ?: ""
-    ElevatedCard(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 8.dp, vertical = 4.dp)
-            .clickable(onClick = onClick)
-    ) {
-        Row(
-            Modifier.padding(16.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(12.dp)
-        ) {
-            Icon(
-                Icons.Default.AccountCircle,
-                contentDescription = null,
-                modifier = Modifier.size(28.dp),
-                tint = MaterialTheme.colorScheme.primary
+                    .verticalScroll(rememberScrollState()),
+                systts = systts,
+                onSysttsChange = { systts = it },
+                showBasicInfo = false,
+                plugin = plugin,
+                showPluginSelector = false,
             )
-            Column {
-                Text(
-                    name.ifBlank { stringResource(R.string.unnamed) },
-                    style = MaterialTheme.typography.titleMedium
-                )
-                Text(
-                    stringResource(R.string.plugin_ui_only_mode_desc),
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
         }
     }
-}
-
-private fun openTool(context: Context, tts: SystemTtsV2) {
-    val source = (tts.config as TtsConfigurationDTO).source as PluginTtsSource
-    val plugin = dbm.pluginDao.getByPluginId(source.pluginId)
-    if (plugin == null) {
-        context.longToast(R.string.plugin_not_found)
-        return
-    }
-    val intent = Intent(context, PluginPreviewActivity::class.java).apply {
-        putExtra(PluginPreviewActivity.KEY_SOURCE, source)
-        putExtra(PluginPreviewActivity.KEY_PLUGIN, plugin)
-    }
-    context.startActivity(intent)
 }
