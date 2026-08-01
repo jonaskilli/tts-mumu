@@ -306,6 +306,8 @@
     <string name="import_replace_rule">导入替换规则</string>
     <string name="select_import">选择导入</string>
     <string name="config_import_success_msg">共导入 %1$d 条配置</string>
+    <string name="import_in_progress">正在识别并导入…</string>
+    <string name="import_no_valid_config">未识别到有效配置</string>
     <string name="file_save_failed">文件保存失败：%1$s</string>
     <string name="save_success">保存成功</string>
     <string name="failed_timed_out">已超时：%1$dms</string>
@@ -557,6 +559,7 @@
     <string name="edit_group_content">编辑分组</string>
     <string name="move_to_group">移动 %1$d 项到 %2$s</string>
     <string name="create_sub_group">新建子分组</string>
+    <string name="group_empty_hint">暂无配置项，可通过右下角 + 添加或菜单新建子分组</string>
     <string name="move_to_sub_group">移入子分组</string>
     <string name="batch_assign_tags">批量分配标签</string>
     <string name="selected_count">已选 %1$d 项</string>
