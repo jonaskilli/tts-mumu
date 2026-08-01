@@ -543,15 +543,31 @@ internal fun ListManagerScreen(
     /**
      * 整理某大分组下全部子分组：每个子分组按其名称匹配关键词后重新编号。
      * 仅处理名称含关键词的子分组（无关键词的子分组跳过，避免误改）。
+     * 优化：收集所有子分组的更新后一次性批量写入数据库，提升整理速度。
      */
     suspend fun reassignTagsForAllSubGroups(list: List<SystemTtsV2>) {
         val tree = buildSubCategoryTree(list)
         val flattened = flattenSubCategoryTree(tree)
+        val allUpdates = mutableListOf<SystemTtsV2>()
         flattened.filterIsInstance<FlattenedCategoryItem.SubGroupHeader>().forEach { header ->
             val detected = detectTagKeyword(header.node.name)
             if (detected != null) {
-                reassignTagsWithPrefix(header.node.items, detected.prefix, detected.zeroPad)
+                val subItems = header.node.items.filter { it.config is TtsConfigurationDTO }
+                    .sortedBy { it.order }
+                if (subItems.isEmpty()) return@forEach
+                subItems.forEachIndexed { idx, item ->
+                    val seq = if (detected.zeroPad) String.format("%02d", idx + 1) else (idx + 1).toString()
+                    val newTag = detected.prefix + seq
+                    val config = item.config as TtsConfigurationDTO
+                    val newRule = config.speechRule.copy(tag = newTag)
+                    computeTagNameOrFallback(context, newRule, newTag)
+                    allUpdates.add(item.copy(config = config.copy(speechRule = newRule)))
+                }
             }
+        }
+        if (allUpdates.isNotEmpty()) {
+            dbm.systemTtsV2.update(*allUpdates.toTypedArray())
+            SystemTtsService.notifyUpdateConfig()
         }
     }
 

@@ -168,7 +168,7 @@ fun Group(
                 }
             )
 
-            DropdownMenuItem(text = { Text("按原有序号重排标签(仅启用)") },
+            DropdownMenuItem(text = { Text("按原有序号重排标签") },
                 onClick = {
                     dismiss()
                     onResortTagsByExisting()
@@ -178,7 +178,7 @@ fun Group(
                 }
             )
 
-            DropdownMenuItem(text = { Text("从01重排标签(仅启用)") },
+            DropdownMenuItem(text = { Text("从01重排标签") },
                 onClick = {
                     dismiss()
                     onResortTagsFromZero()
