@@ -6,6 +6,7 @@ on:
       - "master"
       - "compose"
       - "mumu_tts_github"
+      - "mumu_work"
     paths-ignore:
       - "**.md"
   workflow_dispatch:
