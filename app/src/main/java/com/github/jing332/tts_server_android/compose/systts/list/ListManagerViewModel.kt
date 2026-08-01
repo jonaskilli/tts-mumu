@@ -180,27 +180,12 @@ class ListManagerViewModel : ViewModel() {
     }
 
     /**
-     * 标签去重键：相同 target/tagRuleId/tag/tagName/isStandby 视为同标签。
+     * 提取标签字符串（空返回null）
      */
-    private data class TagKey(
-        val target: Int,
-        val tagRuleId: String,
-        val tag: String,
-        val tagName: String,
-        val isStandby: Boolean,
-    )
-
-    private fun extractTagKey(systts: SystemTtsV2): TagKey? {
+    private fun extractTag(systts: SystemTtsV2): String? {
         val config = systts.config as? TtsConfigurationDTO ?: return null
         val tag = config.speechRule.tag
-        if (tag.isBlank()) return null
-        return TagKey(
-            config.speechRule.target,
-            config.speechRule.tagRuleId,
-            tag,
-            config.speechRule.tagName,
-            config.speechRule.isStandby,
-        )
+        return if (tag.isBlank()) null else tag
     }
 
     fun updateGroupEnable(
@@ -229,16 +214,16 @@ class ListManagerViewModel : ViewModel() {
         affectedGroupIds.add(item.group.id)
 
         // 3.⑨: 分组多选时同tag去重——新启用分组中item的tag若与其他已启用分组中item的tag相同，
-        // 则取消其他分组中相同tag的item（保留新启用的）
+        // 则将其他分组中相同tag的item置为不启用（保留新启用的，仅不启用，不删除）
         if (enabled && SystemTtsConfig.isGroupMultipleEnabled.value) {
-            val newEnabledTags = groupUpdates.mapNotNull { extractTagKey(it) }.toSet()
+            val newEnabledTags = groupUpdates.mapNotNull { extractTag(it) }.toSet()
             if (newEnabledTags.isNotEmpty()) {
                 list.value.forEach { gwt ->
                     if (gwt.group.id != item.group.id) {
                         gwt.list.forEach { systts ->
                             if (systts.isEnabled) {
-                                val tagKey = extractTagKey(systts)
-                                if (tagKey != null && tagKey in newEnabledTags) {
+                                val tag = extractTag(systts)
+                                if (tag != null && tag in newEnabledTags) {
                                     allUpdates.add(systts.copy(isEnabled = false))
                                     affectedGroupIds.add(gwt.group.id)
                                 }
