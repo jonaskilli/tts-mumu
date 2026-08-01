@@ -16,7 +16,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.rememberSaveable
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
@@ -26,6 +26,7 @@ import com.github.jing332.tts_server_android.R
 import com.github.jing332.tts_server_android.compose.AboutDialog
 import com.github.jing332.tts_server_android.compose.LocalUpdateCheckTrigger
 import com.github.jing332.tts_server_android.ui.AppHelpDocumentActivity
+import java.io.File
 
 @Composable
 internal fun ColumnScope.OtherSettingsScreen() {
@@ -95,7 +96,7 @@ internal fun ColumnScope.OtherSettingsScreen() {
                     context.cacheDir.deleteRecursively()
                     context.filesDir.deleteRecursively()
                     context.databaseList().forEach { context.deleteDatabase(it) }
-                    context.getSharedPreferencesDir()?.deleteRecursively()
+                    File(context.filesDir.parentFile, "shared_prefs").deleteRecursively()
                     // 杀掉进程让应用重启
                     android.os.Process.killProcess(android.os.Process.myPid())
                 }) {
