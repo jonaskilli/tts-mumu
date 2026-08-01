@@ -63,23 +63,7 @@ data class TtsEngineContext(
 
         // 1. 查找匹配的配置项（仅限当前插件管理的）
         val allEnabled = dbm.systemTtsV2.allEnabled
-        val match = allEnabled.firstOrNull {
-            val config = it.config as? TtsConfigurationDTO ?: return@firstOrNull false
-            config.speechRule.tagRuleId == engineId && config.speechRule.tag == trimmedTag
-        } ?: allEnabled.firstOrNull {
-            val config = it.config as? TtsConfigurationDTO ?: return@firstOrNull false
-            config.speechRule.tagRuleId == engineId &&
-                    config.speechRule.tagData["personality"]?.trim() == trimmedTag
-        } ?: allEnabled.firstOrNull {
-            val config = it.config as? TtsConfigurationDTO ?: return@firstOrNull false
-            config.speechRule.tagRuleId == engineId && config.source.voice == trimmedTag
-        } ?: allEnabled.firstOrNull {
-            val config = it.config as? TtsConfigurationDTO ?: return@firstOrNull false
-            config.speechRule.tagRuleId == engineId && it.displayName == trimmedTag
-        } ?: allEnabled.firstOrNull {
-            val config = it.config as? TtsConfigurationDTO ?: return@firstOrNull false
-            config.speechRule.tagRuleId == engineId && config.speechRule.tagName.contains(trimmedTag)
-        } ?: return null
+        val match = findConfigByTag(allEnabled, trimmedTag) ?: return null
 
         val ttsConfig = match.config as TtsConfigurationDTO
         val source = ttsConfig.source
@@ -114,6 +98,61 @@ data class TtsEngineContext(
             audioBytes
         } else {
             wrapPcmInWav(audioBytes, ttsConfig.audioFormat.sampleRate)
+        }
+    }
+
+    /**
+     * 通过标签(tag)或角色名(personality)查找当前已启用的TTS配置项的发音人显示名。
+     *
+     * 用于切换分组后实时获取实际生效的发音人名称，替代静态存储的 record.voice。
+     * 匹配逻辑与 getAudioByTag 一致，仅查找 tagRuleId == engineId 且已启用的配置项。
+     *
+     * @param tag 标签名(如"男主1")或角色名(如"冷酷霸总")或发音人名
+     * @return 配置项的 displayName，未匹配返回 null
+     */
+    @ScriptInterface
+    fun getVoiceByTag(tag: String): String? {
+        return try {
+            val trimmedTag = tag.trim()
+            if (trimmedTag.isEmpty()) return null
+
+            val allEnabled = dbm.systemTtsV2.allEnabled
+            val match = findConfigByTag(allEnabled, trimmedTag) ?: return null
+
+            val config = match.config as TtsConfigurationDTO
+            val source = config.source
+            if (source is PluginTtsSource && source.pluginId == engineId) return null
+
+            match.displayName
+        } catch (e: Exception) {
+            Log.w(TAG, "getVoiceByTag failed: ${e.message}")
+            null
+        }
+    }
+
+    /**
+     * 查找匹配 tag 的已启用配置项（五级匹配，与 getAudioByTag 共用）
+     */
+    private fun findConfigByTag(
+        allEnabled: List<com.github.jing332.database.entities.systts.SystemTtsV2>,
+        trimmedTag: String
+    ): com.github.jing332.database.entities.systts.SystemTtsV2? {
+        return allEnabled.firstOrNull {
+            val config = it.config as? TtsConfigurationDTO ?: return@firstOrNull false
+            config.speechRule.tagRuleId == engineId && config.speechRule.tag == trimmedTag
+        } ?: allEnabled.firstOrNull {
+            val config = it.config as? TtsConfigurationDTO ?: return@firstOrNull false
+            config.speechRule.tagRuleId == engineId &&
+                    config.speechRule.tagData["personality"]?.trim() == trimmedTag
+        } ?: allEnabled.firstOrNull {
+            val config = it.config as? TtsConfigurationDTO ?: return@firstOrNull false
+            config.speechRule.tagRuleId == engineId && config.source.voice == trimmedTag
+        } ?: allEnabled.firstOrNull {
+            val config = it.config as? TtsConfigurationDTO ?: return@firstOrNull false
+            config.speechRule.tagRuleId == engineId && it.displayName == trimmedTag
+        } ?: allEnabled.firstOrNull {
+            val config = it.config as? TtsConfigurationDTO ?: return@firstOrNull false
+            config.speechRule.tagRuleId == engineId && config.speechRule.tagName.contains(trimmedTag)
         }
     }
 

@@ -2136,6 +2136,45 @@ var EditorJS = {
 
         bookSectionLayout.addView(bookInputLayout);
 
+        // 刷新按钮（书籍框右侧，文字分两行"刷\n新"，样式参考全选按钮，青绿色）
+        var refreshBtn = new android.widget.TextView(ctx);
+        refreshBtn.setText("刷\n新");
+        refreshBtn.setTextSize(14);
+        refreshBtn.setGravity(android.view.Gravity.CENTER);
+        var refreshBtnBg = new android.graphics.drawable.GradientDrawable();
+        refreshBtnBg.setShape(android.graphics.drawable.GradientDrawable.RECTANGLE);
+        refreshBtnBg.setCornerRadius(dipToPx(8));
+        refreshBtnBg.setColor(android.graphics.Color.parseColor("#E0F2F1"));
+        refreshBtnBg.setStroke(dipToPx(1), android.graphics.Color.parseColor("#00897B"));
+        refreshBtn.setBackground(refreshBtnBg);
+        refreshBtn.setTextColor(android.graphics.Color.parseColor("#00897B"));
+        refreshBtn.setPadding(dipToPx(12), dipToPx(4), dipToPx(12), dipToPx(4));
+        refreshBtn.setOnClickListener(new android.view.View.OnClickListener({
+            onClick: function(view) {
+                try { refreshCharacterData(); } catch (e) { Toast.makeText(ctx, "刷新失败: " + e.toString(), Toast.LENGTH_SHORT).show(); }
+            }
+        }));
+
+        // 将书籍框和刷新按钮放到同一行
+        bookSectionLayout.removeView(bookInputLayout);
+        var bookRowLayout = new android.widget.LinearLayout(ctx);
+        bookRowLayout.setOrientation(android.widget.LinearLayout.HORIZONTAL);
+        bookRowLayout.setGravity(android.view.Gravity.CENTER_VERTICAL);
+        var bookRowLp = new android.widget.LinearLayout.LayoutParams(
+            android.widget.LinearLayout.LayoutParams.MATCH_PARENT,
+            android.widget.LinearLayout.LayoutParams.WRAP_CONTENT
+        );
+        bookRowLayout.setLayoutParams(bookRowLp);
+        var bookInputLp2 = new android.widget.LinearLayout.LayoutParams(
+            0,
+            android.widget.LinearLayout.LayoutParams.WRAP_CONTENT,
+            1
+        );
+        bookInputLayout.setLayoutParams(bookInputLp2);
+        bookRowLayout.addView(bookInputLayout);
+        bookRowLayout.addView(refreshBtn);
+        bookSectionLayout.addView(bookRowLayout);
+
 
         // ---------------------- 先定义字符串标准化函数（供后续复用） ----------------------
         function normalizeString(str) {
@@ -4065,6 +4104,20 @@ var EditorJS = {
                         var storeVal = reverseReplaceFayinrenName(record.voice);
                         record.voice = replaceFayinrenName(storeVal);
                     }
+                    // 查询当前已启用配置项的实际发音人，更新显示
+                    if (record) {
+                        var charName = safeGetName(record);
+                        try {
+                            var liveVoice = ttsrv.getVoiceByTag(charName);
+                            if (liveVoice) {
+                                // 用 fayinren 映射转为显示名
+                                var displayVoice = replaceFayinrenName(liveVoice);
+                                if (displayVoice && displayVoice !== record.voice) {
+                                    record.voice = displayVoice;
+                                }
+                            }
+                        } catch (eGv) { console.log("getVoiceByTag(" + charName + ")失败: " + eGv.toString()); }
+                    }
                     var displayText = generateDisplayText(record);
                     var row = createListRow(displayText, i, record);
                     rowViews.push(row);
@@ -4094,9 +4147,20 @@ var EditorJS = {
             _initFayinrenMapCache(true);
             for (var i = 0; i < filteredIndices.length && i < rowViews.length; i++) {
                 var record = characterRecords[filteredIndices[i]];
-                if (record && record.voice) {
-                    var storeVal = reverseReplaceFayinrenName(record.voice);
-                    record.voice = replaceFayinrenName(storeVal);
+                if (record) {
+                    // 查询当前已启用配置项的实际发音人
+                    var charName = safeGetName(record);
+                    try {
+                        var liveVoice = ttsrv.getVoiceByTag(charName);
+                        if (liveVoice) {
+                            var displayVoice = replaceFayinrenName(liveVoice);
+                            if (displayVoice) record.voice = displayVoice;
+                        }
+                    } catch (eGv) {}
+                    if (record.voice) {
+                        var storeVal = reverseReplaceFayinrenName(record.voice);
+                        record.voice = replaceFayinrenName(storeVal);
+                    }
                     var existingRow = rowViews[i];
                     if (existingRow) {
                         var voiceView = existingRow.findViewWithTag("voiceTag");
@@ -6596,6 +6660,8 @@ var EditorJS = {
         try {
             _initFayinrenMapCache(true);
             console.log("onVoiceChanged: personality缓存已强制刷新");
+            // 刷新角色列表，获取当前已启用配置项的实际发音人
+            try { refreshCharacterList(); } catch (eRef) { console.error("onVoiceChanged刷新列表失败: " + eRef.toString()); }
         } catch (e) {
             console.error("onVoiceChanged刷新缓存失败: " + e.toString());
         }
