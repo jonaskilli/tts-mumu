@@ -67,6 +67,7 @@ fun GroupItem(
     inSelectionMode: Boolean = false,
     isSelected: Boolean = false,
     onToggleSelect: () -> Unit = {},
+    itemCount: Int = -1,
     actions: @Composable ColumnScope.(() -> Unit) -> Unit,
     extraActions: (@Composable ColumnScope.(() -> Unit) -> Unit)? = null,
 ) {
@@ -130,15 +131,26 @@ fun GroupItem(
             modifier = Modifier
                 .rotate(rotationAngle)
                 .graphicsLayer { rotationZ = rotationAngle }
+                .clickable { onClick() }
         )
 
         Text(
             name,
-            style = MaterialTheme.typography.titleMedium.copy(fontSize = 20.sp),
+            style = MaterialTheme.typography.titleMedium.copy(fontSize = 17.sp),
             modifier = Modifier
                 .align(Alignment.CenterVertically)
                 .weight(1f)
         )
+        if (itemCount >= 0) {
+            Text(
+                "($itemCount)",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier
+                    .align(Alignment.CenterVertically)
+                    .padding(end = 4.dp)
+            )
+        }
         Row {
             if (inSelectionMode) {
                 Checkbox(

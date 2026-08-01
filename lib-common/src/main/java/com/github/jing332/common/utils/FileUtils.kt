@@ -124,10 +124,8 @@ object FileUtils {
     fun Uri.readBytes(context: Context): ByteArray {
         return when (scheme) {
             ContentResolver.SCHEME_CONTENT -> {
-                val input = context.contentResolver.openInputStream(this)
-                val bytes = input!!.readBytes()
-                input.close()
-                bytes
+                context.contentResolver.openInputStream(this)?.use { it.readBytes() }
+                    ?: throw Exception("Cannot open input stream for $this")
             }
 
             ContentResolver.SCHEME_FILE -> toFile().readBytes()
@@ -136,7 +134,16 @@ object FileUtils {
     }
 
     fun Uri.readAllText(context: Context): String {
-        return readBytes(context).decodeToString()
+        return when (scheme) {
+            ContentResolver.SCHEME_CONTENT -> {
+                context.contentResolver.openInputStream(this)?.use { 
+                    it.bufferedReader().readText() 
+                } ?: throw Exception("Cannot open input stream for $this")
+            }
+
+            ContentResolver.SCHEME_FILE -> toFile().readText()
+            else -> File(this.toString()).readText()
+        }
     }
 
 

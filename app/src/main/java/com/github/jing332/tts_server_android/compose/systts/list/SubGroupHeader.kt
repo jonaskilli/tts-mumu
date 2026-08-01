@@ -40,6 +40,7 @@ import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.state.ToggleableState
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.compose.foundation.ExperimentalFoundationApi
 
 @OptIn(ExperimentalFoundationApi::class)
@@ -63,6 +64,8 @@ fun SubGroupHeader(
     onDeleteEnabled: () -> Unit = {},
     onDeleteDisabled: () -> Unit = {},
     onExtractToGroup: () -> Unit = {},
+    onReleaseItems: () -> Unit = {},
+    onMoveToOtherGroup: () -> Unit = {},
     onMoveEnabledToGroup: () -> Unit = {},
 ) {
     val rotationAngle by animateFloatAsState(
@@ -115,9 +118,9 @@ fun SubGroupHeader(
         Text(
             text = name,
             style = when (level) {
-                0 -> MaterialTheme.typography.titleMedium
-                1 -> MaterialTheme.typography.bodyLarge
-                else -> MaterialTheme.typography.bodyMedium
+                0 -> MaterialTheme.typography.titleMedium.copy(fontSize = 15.sp)
+                1 -> MaterialTheme.typography.bodyLarge.copy(fontSize = 15.sp)
+                else -> MaterialTheme.typography.bodyMedium.copy(fontSize = 15.sp)
             },
             color = MaterialTheme.colorScheme.onSurface,
             modifier = Modifier
@@ -225,7 +228,7 @@ fun SubGroupHeader(
 
                 if (hasTagKeyword) {
                     DropdownMenuItem(
-                        text = { Text("按分组名一键分配标签") },
+                        text = { Text("一键整理标签") },
                         onClick = {
                             showOptions = false
                             onReassignTagsByGroupName()
@@ -237,6 +240,17 @@ fun SubGroupHeader(
                 }
 
                 DropdownMenuItem(
+                    text = { Text("释放配置项") },
+                    onClick = {
+                        showOptions = false
+                        onReleaseItems()
+                    },
+                    leadingIcon = {
+                        Icon(Icons.Default.AccountTree, null)
+                    }
+                )
+
+                DropdownMenuItem(
                     text = { Text("转为一级分组") },
                     onClick = {
                         showOptions = false
@@ -244,6 +258,17 @@ fun SubGroupHeader(
                     },
                     leadingIcon = {
                         Icon(Icons.AutoMirrored.Filled.ExitToApp, null)
+                    }
+                )
+
+                DropdownMenuItem(
+                    text = { Text("移动到其他一级分组") },
+                    onClick = {
+                        showOptions = false
+                        onMoveToOtherGroup()
+                    },
+                    leadingIcon = {
+                        Icon(Icons.AutoMirrored.Filled.DriveFileMove, null)
                     }
                 )
 

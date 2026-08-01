@@ -50,6 +50,13 @@ class App : Application() {
         // 启动超时看门狗：独立守护线程，监测"超时后卡死"并自动重启 APP
         TtsTimeoutWatchdog.start()
 
+        // 过滤 Compose 的 LeftCompositionCancellationException，避免页面快速切换时崩溃
+        val previousHandler = Thread.getDefaultUncaughtExceptionHandler()
+        Thread.setDefaultUncaughtExceptionHandler { t, e ->
+            if (e::class.java.simpleName == "LeftCompositionCancellationException") return@setDefaultUncaughtExceptionHandler
+            previousHandler?.uncaughtException(t, e)
+        }
+
         // 🛠️ 拔掉引线：暂时关闭 CrashHandler，它会触发崩溃的日志初始化
         // CrashHandler(this) 
 

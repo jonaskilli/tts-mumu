@@ -48,6 +48,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -61,7 +62,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.input.pointer.ViewConfiguration
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalViewConfiguration
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -85,6 +88,7 @@ import com.github.jing332.database.entities.systts.SystemTtsV2
 import com.github.jing332.database.entities.systts.TtsConfigurationDTO
 import com.github.jing332.database.entities.systts.source.LocalTtsSource
 import com.github.jing332.database.entities.systts.source.PluginTtsSource
+import com.github.jing332.database.entities.SpeechRule
 import com.github.jing332.tts_server_android.AppLocale
 import com.github.jing332.tts_server_android.R
 import com.github.jing332.tts_server_android.compose.AppDefaultProperties
@@ -409,14 +413,23 @@ internal fun ListManagerScreen(
         context: android.content.Context,
         ruleData: com.github.jing332.database.entities.systts.SpeechRuleInfo,
         fallback: String,
+        ruleCache: MutableMap<String, SpeechRule?>? = null,
     ) {
         val ruleId = ruleData.tagRuleId
         if (ruleId.isBlank()) {
             ruleData.tagName = computeTagName(context, null, ruleData, fallback)
             return
         }
-        val speechRule = withContext(Dispatchers.IO) {
-            runCatching { dbm.speechRuleDao.getByRuleId(ruleId) }.getOrDefault(null)
+        val speechRule = if (ruleCache != null) {
+            ruleCache.getOrPut(ruleId) {
+                withContext(Dispatchers.IO) {
+                    runCatching { dbm.speechRuleDao.getByRuleId(ruleId) }.getOrDefault(null)
+                }
+            }
+        } else {
+            withContext(Dispatchers.IO) {
+                runCatching { dbm.speechRuleDao.getByRuleId(ruleId) }.getOrDefault(null)
+            }
         }
         ruleData.tagName = computeTagName(context, speechRule, ruleData, fallback)
     }
@@ -430,6 +443,7 @@ internal fun ListManagerScreen(
         // narration 特殊标签：重排时第一项保留原 tag，后续用其 tagName(旁白)+序号
         val NARRATION_TAG = "narration"
         val toUpdate = mutableListOf<SystemTtsV2>()
+        val ruleCache = mutableMapOf<String, SpeechRule?>()
         // 按 categoryPath 分组
         list.groupBy { it.categoryPath }.forEach { (path, items) ->
             val targetItems = items.filter { it.config is TtsConfigurationDTO }
@@ -451,7 +465,7 @@ internal fun ListManagerScreen(
                         val first = prefixItems.first()
                         val firstConfig = first.config as TtsConfigurationDTO
                         val firstRule = firstConfig.speechRule.copy()
-                        computeTagNameOrFallback(context, firstRule, NARRATION_TAG)
+                        computeTagNameOrFallback(context, firstRule, NARRATION_TAG, ruleCache)
                         toUpdate.add(first.copy(
                             config = firstConfig.copy(speechRule = firstRule)
                         ))
@@ -461,7 +475,7 @@ internal fun ListManagerScreen(
                             val newTag = subPrefix + String.format("%02d", idx + 1)
                             val config = item.config as TtsConfigurationDTO
                             val newRule = config.speechRule.copy(tag = newTag)
-                            computeTagNameOrFallback(context, newRule, newTag)
+                            computeTagNameOrFallback(context, newRule, newTag, ruleCache)
                             toUpdate.add(item.copy(
                                 config = config.copy(speechRule = newRule)
                             ))
@@ -472,7 +486,7 @@ internal fun ListManagerScreen(
                             val newTag = prefix + String.format("%02d", idx + 1)
                             val config = item.config as TtsConfigurationDTO
                             val newRule = config.speechRule.copy(tag = newTag)
-                            computeTagNameOrFallback(context, newRule, newTag)
+                            computeTagNameOrFallback(context, newRule, newTag, ruleCache)
                             toUpdate.add(item.copy(
                                 config = config.copy(speechRule = newRule)
                             ))
@@ -489,7 +503,7 @@ internal fun ListManagerScreen(
                         val newTag = prefix + String.format("%02d", existingSeqs[idx])
                         val config = item.config as TtsConfigurationDTO
                         val newRule = config.speechRule.copy(tag = newTag)
-                        computeTagNameOrFallback(context, newRule, newTag)
+                        computeTagNameOrFallback(context, newRule, newTag, ruleCache)
                         toUpdate.add(item.copy(
                             config = config.copy(speechRule = newRule)
                         ))
@@ -513,6 +527,7 @@ internal fun ListManagerScreen(
         zeroPad: Boolean = true,
     ) {
         val toUpdate = mutableListOf<SystemTtsV2>()
+        val ruleCache = mutableMapOf<String, SpeechRule?>()
         // 按 categoryPath 分组，每个独立处理
         list.groupBy { it.categoryPath }.forEach { (path, items) ->
             val targetItems = items.filter { it.config is TtsConfigurationDTO }
@@ -524,7 +539,7 @@ internal fun ListManagerScreen(
                 val newTag = prefix + seq
                 val config = item.config as TtsConfigurationDTO
                 val newRule = config.speechRule.copy(tag = newTag)
-                computeTagNameOrFallback(context, newRule, newTag)
+                computeTagNameOrFallback(context, newRule, newTag, ruleCache)
                 toUpdate.add(item.copy(config = config.copy(speechRule = newRule)))
             }
         }
@@ -554,6 +569,7 @@ internal fun ListManagerScreen(
         val tree = buildSubCategoryTree(list)
         val flattened = flattenSubCategoryTree(tree)
         val allUpdates = mutableListOf<SystemTtsV2>()
+        val ruleCache = mutableMapOf<String, SpeechRule?>()
         flattened.filterIsInstance<FlattenedCategoryItem.SubGroupHeader>().forEach { header ->
             val detected = detectTagKeyword(header.node.name)
             if (detected != null) {
@@ -565,7 +581,7 @@ internal fun ListManagerScreen(
                     val newTag = detected.prefix + seq
                     val config = item.config as TtsConfigurationDTO
                     val newRule = config.speechRule.copy(tag = newTag)
-                    computeTagNameOrFallback(context, newRule, newTag)
+                    computeTagNameOrFallback(context, newRule, newTag, ruleCache)
                     allUpdates.add(item.copy(config = config.copy(speechRule = newRule)))
                 }
             }
@@ -728,8 +744,10 @@ internal fun ListManagerScreen(
                                                 )
                                             )
                                         }
-                                        // 当前分组已为空，直接删除
-                                        dbm.systemTtsV2.deleteGroup(targetGroup)
+                                        // 空分组也保留，不删除
+                                        if (currentGroupWithTts?.list?.isNotEmpty() == true) {
+                                            dbm.systemTtsV2.deleteGroup(targetGroup)
+                                        }
                                         showConvertToSubGroup = null
                                     }
                                 },
@@ -762,12 +780,6 @@ internal fun ListManagerScreen(
             title = { Text("转为子分组") },
             text = {
                 Column {
-                    if (withSubGroups.isNotEmpty()) {
-                        Text(
-                            "以下分组包含子分组，将跳过：${withSubGroups.joinToString { it.group.name }}",
-                            modifier = Modifier.padding(bottom = 8.dp)
-                        )
-                    }
                     if (convertible.isEmpty()) {
                         Text("所选分组均包含子分组，无法转换。")
                     } else {
@@ -1176,11 +1188,6 @@ internal fun ListManagerScreen(
     val reorderState = rememberReorderableLazyListState(
         listState = listState,
         onMove = vm::reorder,
-        onDragEnd = { _, _ ->
-            scope.launch {
-                vm.handleCrossMove()?.let { context.toast(it) }
-            }
-        }
     )
 
     var addGroupDialog by remember { mutableStateOf(false) }
@@ -1392,6 +1399,14 @@ internal fun ListManagerScreen(
     ) { paddingValues ->
     Box(Modifier.fillMaxSize().padding(top = paddingValues.calculateTopPadding())) {
         ControlBottomBarVisibility(listState, LocalBottomBarBehavior.current)
+        // 缩短长按超时时间(默认约500ms→300ms)，使拖拽排序和长按菜单响应更快
+        val defaultViewConfig = LocalViewConfiguration.current
+        val fastLongPressConfig = remember(defaultViewConfig) {
+            object : ViewConfiguration by defaultViewConfig {
+                override val longPressTimeout: Long = 300L
+            }
+        }
+        CompositionLocalProvider(LocalViewConfiguration provides fastLongPressConfig) {
         LazyColumn(
                 Modifier
                     .fillMaxSize()
@@ -1421,7 +1436,17 @@ internal fun ListManagerScreen(
                                     vm.updateGroupEnable(groupWithSystemTts, it)
                                 },
                                 onClick = {
-                                    scope.launch { withIO { dbm.systemTtsV2.updateGroup(g.copy(isExpanded = !g.isExpanded)) } }
+                                    val wasExpanded = g.isExpanded
+                                    scope.launch {
+                                        if (!wasExpanded) {
+                                            // 展开前先将分组头部滚动到顶部，确保展开后首项紧跟分组名下方
+                                            val headerIndex = listState.layoutInfo.visibleItemsInfo.find { it.key == key }?.index
+                                            if (headerIndex != null) {
+                                                listState.animateScrollToItem(headerIndex)
+                                            }
+                                        }
+                                        withIO { dbm.systemTtsV2.updateGroup(g.copy(isExpanded = !g.isExpanded)) }
+                                    }
                                 },
                                 onDelete = {
                                     scope.launch {
@@ -1464,6 +1489,7 @@ internal fun ListManagerScreen(
                                 },
                                 hasSubGroups = groupWithSystemTts.list.any { it.categoryPath.isNotBlank() },
                                 hasTagKeyword = detectTagKeyword(g.name) != null,
+                                itemCount = groupWithSystemTts.list.size,
                                 onBatchAssignTags = {
                                     showBatchTagDialog = groupWithSystemTts.list
                                 },
@@ -1794,6 +1820,7 @@ internal fun ListManagerScreen(
                     Spacer(Modifier.padding(bottom = AppDefaultProperties.LIST_END_PADDING))
                 }
             }
+        }
 
             DraggableVerticalScrollbar(
                 modifier = Modifier

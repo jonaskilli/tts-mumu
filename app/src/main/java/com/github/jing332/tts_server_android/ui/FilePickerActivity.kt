@@ -174,16 +174,7 @@ class FilePickerActivity : ComposeActivity() {
         val hasPermission = checkPermission(readPermission)
 
         if (requestData is RequestSaveFile) {
-            val permission = ActivityCompat.checkSelfPermission(
-                this, Manifest.permission.WRITE_EXTERNAL_STORAGE
-            )
-            if (permission != PackageManager.PERMISSION_GRANTED)
-                ActivityCompat.requestPermissions(
-                    this, arrayOf(
-                        Manifest.permission.WRITE_EXTERNAL_STORAGE,
-                    ), 1
-                )
-
+            // 安装后已开放存储权限，保存文件不再提示权限请求
             docCreate =
                 registerForActivityResult(ActivityResultContracts.CreateDocument(reqSaveFile.fileMime)) { uri ->
                     if (uri == null) {

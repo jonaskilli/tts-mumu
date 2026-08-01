@@ -41,11 +41,6 @@ class ListManagerViewModel : ViewModel() {
     private val _list = MutableStateFlow<List<GroupWithSystemTts>>(emptyList())
     val list: StateFlow<List<GroupWithSystemTts>> get() = _list
 
-    // 跨分组拖拽：记录待执行的转移意图，真正执行在 onDragEnd
-    data class CrossMoveIntent(val fromKey: String, val toKey: String)
-    private val _pendingCrossMove = MutableStateFlow<CrossMoveIntent?>(null)
-    val pendingCrossMove: StateFlow<CrossMoveIntent?> get() = _pendingCrossMove
-
     // 缓存插件名称
     private val pluginNameCache = MutableStateFlow<Map<String, String>>(emptyMap())
 
@@ -66,8 +61,15 @@ class ListManagerViewModel : ViewModel() {
                     } else {
                         filterList(list, key, searchType)
                     }
-                    Log.d(TAG, "update list: ${result.size}")
-                    _list.value = result
+                    // 过滤掉角色管理(mingwuyan)配置项，它不属于发音人，只在角色管理栏展示
+                    val filtered = result.map { gwt ->
+                        gwt.copy(list = gwt.list.filter { item ->
+                            val config = item.config as? TtsConfigurationDTO
+                            (config?.source as? PluginTtsSource)?.pluginId != "mingwuyan"
+                        })
+                    }.filter { it.list.isNotEmpty() || it.group.id == DEFAULT_GROUP_ID }
+                    Log.d(TAG, "update list: ${filtered.size}")
+                    _list.value = filtered
                 }
         }
     }
@@ -273,12 +275,6 @@ class ListManagerViewModel : ViewModel() {
         val fromKey = from.key as? String ?: return
         val toKey = to.key as? String ?: return
 
-        // 跨分组拖拽：记录意图，交由 onDragEnd 执行结构性转移
-        if (isCrossMove(fromKey, toKey)) {
-            _pendingCrossMove.value = CrossMoveIntent(fromKey, toKey)
-            return
-        }
-
         // 子分组拖动：交换两个子分组的整组内容顺序
         if (fromKey.startsWith("sub_") || toKey.startsWith("sub_")) {
             if (!fromKey.startsWith("sub_") || !toKey.startsWith("sub_")) return
@@ -342,17 +338,25 @@ class ListManagerViewModel : ViewModel() {
             if (!fromKey.startsWith("item_") || !toKey.startsWith("item_")) return
 
             // 解析 key 格式: item_${groupId}_${categoryPath}_${itemId}
-            val fromParts = fromKey.removePrefix("item_").split("_", limit = 3)
-            val toParts = toKey.removePrefix("item_").split("_", limit = 3)
-            if (fromParts.size < 3 || toParts.size < 3) return
+            // categoryPath 可能含下划线，所以从两端解析：第一个下划线前是groupId，最后一个下划线后是itemId
+            val fromBody = fromKey.removePrefix("item_")
+            val toBody = toKey.removePrefix("item_")
+            
+            val fromFirstUnder = fromBody.indexOf('_')
+            val fromLastUnder = fromBody.lastIndexOf('_')
+            if (fromFirstUnder == -1 || fromLastUnder == -1 || fromFirstUnder == fromLastUnder) return
+            
+            val fromGroupId = fromBody.substring(0, fromFirstUnder).toLongOrNull() ?: return
+            val fromCategoryPath = fromBody.substring(fromFirstUnder + 1, fromLastUnder)
+            val fromItemId = fromBody.substring(fromLastUnder + 1).toLongOrNull() ?: return
 
-            val fromGroupId = fromParts[0].toLongOrNull() ?: return
-            val fromCategoryPath = fromParts[1]
-            val fromItemId = fromParts.drop(2).joinToString("_").toLongOrNull() ?: return
-
-            val toGroupId = toParts[0].toLongOrNull() ?: return
-            val toCategoryPath = toParts[1]
-            val toItemId = toParts.drop(2).joinToString("_").toLongOrNull() ?: return
+            val toFirstUnder = toBody.indexOf('_')
+            val toLastUnder = toBody.lastIndexOf('_')
+            if (toFirstUnder == -1 || toLastUnder == -1 || toFirstUnder == toLastUnder) return
+            
+            val toGroupId = toBody.substring(0, toFirstUnder).toLongOrNull() ?: return
+            val toCategoryPath = toBody.substring(toFirstUnder + 1, toLastUnder)
+            val toItemId = toBody.substring(toLastUnder + 1).toLongOrNull() ?: return
 
             // 确保在同一分组和同一子分组内
             if (fromGroupId != toGroupId || fromCategoryPath != toCategoryPath) return
@@ -441,110 +445,6 @@ class ListManagerViewModel : ViewModel() {
                 }
             }
         }
-    }
-
-    /**
-     * 判断是否为跨分组拖拽（需要结构性转移，而非同组内排序）。
-     */
-    private fun isCrossMove(fromKey: String, toKey: String): Boolean {
-        // 分组拖到不同分组 → 把源分组降级为目标分组的子分组
-        if (fromKey.startsWith("g_") && toKey.startsWith("g_")) {
-            return fromKey.substring(2) != toKey.substring(2)
-        }
-        // 配置项拖到其它分组 / 其它分组的子分组 → 转移配置项
-        if (fromKey.startsWith("item_") && (toKey.startsWith("g_") || toKey.startsWith("sub_"))) {
-            val fromGId = runCatching {
-                fromKey.removePrefix("item_").split("_", limit = 3)[0].toLong()
-            }.getOrNull() ?: return false
-            val toGId = if (toKey.startsWith("g_")) {
-                runCatching { toKey.substring(2).toLong() }.getOrNull()
-            } else {
-                runCatching { toKey.removePrefix("sub_").substringBefore("_").toLong() }.getOrNull()
-            } ?: return false
-            return fromGId != toGId
-        }
-        return false
-    }
-
-    /**
-     * 拖拽结束时执行真正的跨分组转移。返回非空字符串表示失败原因（需提示）。
-     */
-    suspend fun handleCrossMove(): String? = withContext(Dispatchers.IO) {
-        val intent = _pendingCrossMove.value ?: return@withContext null
-        _pendingCrossMove.value = null
-        val (fromKey, toKey) = intent
-
-        // 分组 → 分组：把源分组降级为目标分组的子分组
-        if (fromKey.startsWith("g_") && toKey.startsWith("g_")) {
-            val fromId = fromKey.substring(2).toLong()
-            val toId = toKey.substring(2).toLong()
-            val src = dbm.systemTtsV2.getGroup(fromId) ?: return@withContext "未找到源分组"
-            val target = dbm.systemTtsV2.getGroup(toId) ?: return@withContext "未找到目标分组"
-            return@withContext convertGroupToSubGroup(src, target)
-        }
-
-        // 配置项 → 分组 / 子分组
-        if (fromKey.startsWith("item_") && (toKey.startsWith("g_") || toKey.startsWith("sub_"))) {
-            val fromParts = fromKey.removePrefix("item_").split("_", limit = 3)
-            if (fromParts.size < 3) return@withContext "拖拽数据异常"
-            val fromItemId = runCatching { fromParts.drop(2).joinToString("_").toLong() }.getOrNull()
-                ?: return@withContext "拖拽数据异常"
-            val item = runCatching { dbm.systemTtsV2.get(fromItemId) }.getOrNull()
-                ?: return@withContext "未找到配置项"
-
-            val (targetGroupId, targetCategoryPath) = if (toKey.startsWith("g_")) {
-                toKey.substring(2).toLong() to ""
-            } else {
-                val gId = toKey.removePrefix("sub_").substringBefore("_").toLong()
-                val path = toKey.removePrefix("sub_${gId}_")
-                gId to path
-            }
-            return@withContext moveItemToGroup(item, targetGroupId, targetCategoryPath)
-        }
-        null
-    }
-
-    private fun convertGroupToSubGroup(src: SystemTtsGroup, target: SystemTtsGroup): String? {
-        val srcItems = dbm.systemTtsV2.getTtsListByGroupId(src.id)
-        if (srcItems.any { it.categoryPath.isNotBlank() }) {
-            return "分组「${src.name}」包含子分组，无法转为子分组"
-        }
-
-        // 目标分组已有同名子分组则合并，避免覆盖其音频参数
-        val subName = src.name
-        val subMap: Map<String, AudioParams> =
-            if (target.subGroupAudioParamsJson.isBlank() || target.subGroupAudioParamsJson == "{}") emptyMap()
-            else runCatching {
-                SystemTtsV2.Converters.json.decodeFromString<Map<String, AudioParams>>(target.subGroupAudioParamsJson)
-            }.getOrNull() ?: emptyMap()
-
-        if (subName !in subMap) {
-            val newMap = subMap.toMutableMap().apply { this[subName] = src.audioParams }
-            dbm.systemTtsV2.updateGroup(
-                target.copy(subGroupAudioParamsJson = SystemTtsV2.Converters.json.encodeToString(newMap))
-            )
-        }
-
-        srcItems.forEach { item ->
-            dbm.systemTtsV2.update(item.copy(groupId = target.id, categoryPath = subName))
-        }
-        dbm.systemTtsV2.deleteGroup(src)
-        dbm.systemTtsV2.updateAllOrder()
-        return null
-    }
-
-    private fun moveItemToGroup(
-        item: SystemTtsV2,
-        targetGroupId: Long,
-        targetCategoryPath: String,
-    ): String? {
-        if (item.groupId == targetGroupId && item.categoryPath == targetCategoryPath) return null
-        val maxOrder = dbm.systemTtsV2.getTtsListByGroupId(targetGroupId).maxOfOrNull { it.order } ?: -1
-        dbm.systemTtsV2.update(
-            item.copy(groupId = targetGroupId, categoryPath = targetCategoryPath, order = maxOrder + 1)
-        )
-        dbm.systemTtsV2.updateAllOrder()
-        return null
     }
 
     private fun findListInGroup(groupId: Long): List<SystemTtsV2> {
