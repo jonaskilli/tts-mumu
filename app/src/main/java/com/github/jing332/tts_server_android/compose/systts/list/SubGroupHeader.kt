@@ -3,6 +3,7 @@ package com.github.jing332.tts_server_android.compose.systts.list
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -16,6 +17,7 @@ import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Output
 import androidx.compose.material.icons.filled.Speed
 import androidx.compose.material.icons.automirrored.filled.Sort
+import androidx.compose.material.icons.automirrored.filled.ExitToApp
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.HorizontalDivider
@@ -49,11 +51,13 @@ fun SubGroupHeader(
     onRename: () -> Unit = {},
     onEditAudioParams: () -> Unit = {},
     onSort: () -> Unit = {},
+    onBatchAssignTags: () -> Unit = {},
     onReassignTagsByGroupName: () -> Unit = {},
     onDelete: () -> Unit = {},
     onExport: () -> Unit = {},
     onDeleteEnabled: () -> Unit = {},
     onDeleteDisabled: () -> Unit = {},
+    onExtractToGroup: () -> Unit = {},
 ) {
     val rotationAngle by animateFloatAsState(
         targetValue = if (isExpanded) 0f else -45f,
@@ -82,7 +86,7 @@ fun SubGroupHeader(
                 if (level == 0) MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
                 else MaterialTheme.colorScheme.surface
             )
-            .clickable { onClick() }
+            .clickable { if (!showOptions) onClick() }
             .padding(
                 start = 8.dp,
                 top = paddingTop,
@@ -121,11 +125,13 @@ fun SubGroupHeader(
             },
         )
 
-        IconButton(onClick = { showOptions = true }) {
-            Icon(
-                Icons.Default.MoreVert,
-                contentDescription = "更多选项"
-            )
+        Box {
+            IconButton(onClick = { showOptions = true }) {
+                Icon(
+                    Icons.Default.MoreVert,
+                    contentDescription = "更多选项"
+                )
+            }
 
             DropdownMenu(
                 expanded = showOptions,
@@ -187,6 +193,39 @@ fun SubGroupHeader(
                 )
 
                 DropdownMenuItem(
+                    text = { Text("删除启用的配置") },
+                    onClick = {
+                        showOptions = false
+                        onDeleteEnabled()
+                    },
+                    leadingIcon = {
+                        Icon(Icons.Default.DeleteForever, null)
+                    }
+                )
+
+                DropdownMenuItem(
+                    text = { Text("删除未启用的配置") },
+                    onClick = {
+                        showOptions = false
+                        onDeleteDisabled()
+                    },
+                    leadingIcon = {
+                        Icon(Icons.Default.DeleteForever, null)
+                    }
+                )
+
+                DropdownMenuItem(
+                    text = { Text("转为一级分组") },
+                    onClick = {
+                        showOptions = false
+                        onExtractToGroup()
+                    },
+                    leadingIcon = {
+                        Icon(Icons.AutoMirrored.Filled.ExitToApp, null)
+                    }
+                )
+
+                DropdownMenuItem(
                     text = { Text("导出") },
                     onClick = {
                         showOptions = false
@@ -194,17 +233,6 @@ fun SubGroupHeader(
                     },
                     leadingIcon = {
                         Icon(Icons.Default.Output, null)
-                    }
-                )
-
-                DropdownMenuItem(
-                    text = { Text("转为大分组") },
-                    onClick = {
-                        showOptions = false
-                        onExtractToGroup()
-                    },
-                    leadingIcon = {
-                        Icon(Icons.AutoMirrored.Filled.ExitToApp, null)
                     }
                 )
 

@@ -74,6 +74,8 @@ fun GroupItem(
     val context = LocalContext.current
 
     var showDeleteDialog by remember { mutableStateOf(false) }
+    var showOptions by remember { mutableStateOf(false) }
+    var showExtraOptions by remember { mutableStateOf(false) }
     if (showDeleteDialog)
         ConfigDeleteDialog(
             onDismissRequest = { showDeleteDialog = false }, content = name, onConfirm = onDelete
@@ -114,7 +116,7 @@ fun GroupItem(
                     }
 
             }
-            .clickable { if (inSelectionMode) onToggleSelect() else onClick() }
+            .clickable { if (!showOptions && !showExtraOptions) { if (inSelectionMode) onToggleSelect() else onClick() } }
             .padding(vertical = 4.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
@@ -161,8 +163,6 @@ fun GroupItem(
             )
             }
 
-            var showOptions by remember { mutableStateOf(false) }
-            var showExtraOptions by remember { mutableStateOf(false) }
             Box(
                 modifier = Modifier
                     .size(48.dp)

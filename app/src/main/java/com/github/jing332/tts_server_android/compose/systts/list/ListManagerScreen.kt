@@ -246,14 +246,14 @@ internal fun ListManagerScreen(
         )
     }
 
-    // 子分组转为大分组确认对话框
+    // 子分组转为一级分组确认对话框
     var showSubGroupExtractToGroup by remember { mutableStateOf<Pair<SystemTtsGroup, String>?>(null) }
     if (showSubGroupExtractToGroup != null) {
         val (group, path) = showSubGroupExtractToGroup!!
         AlertDialog(
             onDismissRequest = { showSubGroupExtractToGroup = null },
-            title = { Text("转为大分组") },
-            text = { Text("将子分组 \"${path.substringAfterLast('/')}\" 移出为独立的大分组？") },
+            title = { Text("转为一级分组") },
+            text = { Text("将子分组 \"${path.substringAfterLast('/')}\" 移出为独立的一级分组？") },
             confirmButton = {
                 TextButton(onClick = {
                     scope.launch {
@@ -1427,6 +1427,7 @@ internal fun ListManagerScreen(
                                 onCreateSubGroup = {
                                     showCreateSubGroup = g.id
                                 },
+                                hasSubGroups = groupWithSystemTts.list.any { it.categoryPath.isNotBlank() },
                                 onBatchAssignTags = {
                                     showBatchTagDialog = groupWithSystemTts.list
                                 },
@@ -1654,6 +1655,22 @@ internal fun ListManagerScreen(
                                                 onDelete = {
                                                     scope.launch {
                                                         dbm.systemTtsV2.delete(*subItems.toTypedArray())
+                                                    }
+                                                },
+                                                onDeleteEnabled = {
+                                                    scope.launch {
+                                                        subItems.filter { it.isEnabled }.forEach {
+                                                            dbm.systemTtsV2.delete(it)
+                                                        }
+                                                        if (subItems.any { it.isEnabled })
+                                                            SystemTtsService.notifyUpdateConfig()
+                                                    }
+                                                },
+                                                onDeleteDisabled = {
+                                                    scope.launch {
+                                                        subItems.filter { !it.isEnabled }.forEach {
+                                                            dbm.systemTtsV2.delete(it)
+                                                        }
                                                     }
                                                 },
                                                 onExport = {
