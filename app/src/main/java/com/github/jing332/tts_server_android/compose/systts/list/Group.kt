@@ -3,7 +3,6 @@ package com.github.jing332.tts_server_android.compose.systts.list
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Sort
 import androidx.compose.material.icons.filled.DeleteForever
-import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.DriveFileMove
 import androidx.compose.material.icons.filled.DriveFileRenameOutline
 import androidx.compose.material.icons.filled.Edit
@@ -141,6 +140,33 @@ fun Group(
         inSelectionMode = inSelectionMode,
         isSelected = isSelected,
         onToggleSelect = onToggleSelect,
+        extraActions = { dismiss ->
+            DropdownMenuItem(text = { Text("删除启用的配置") },
+                onClick = {
+                    dismiss()
+                    onDeleteEnabled()
+                },
+                leadingIcon = { Icon(Icons.Default.DeleteForever, null) }
+            )
+
+            DropdownMenuItem(text = { Text("删除未启用的配置") },
+                onClick = {
+                    dismiss()
+                    onDeleteDisabled()
+                },
+                leadingIcon = { Icon(Icons.Default.DeleteForever, null) }
+            )
+
+            DropdownMenuItem(text = { Text("移动启用配置到其他分组") },
+                onClick = {
+                    dismiss()
+                    onMoveEnabledToGroup()
+                },
+                leadingIcon = {
+                    Icon(Icons.Default.DriveFileMove, null)
+                }
+            )
+        },
         actions = { dismiss ->
             DropdownMenuItem(text = { Text(stringResource(id = R.string.rename)) },
                 onClick = {
@@ -149,16 +175,6 @@ fun Group(
                 },
                 leadingIcon = {
                     Icon(Icons.Default.DriveFileRenameOutline, null)
-                }
-            )
-
-            DropdownMenuItem(text = { Text(stringResource(id = R.string.copy)) },
-                onClick = {
-                    dismiss()
-                    showCopyDialog = true
-                },
-                leadingIcon = {
-                    Icon(Icons.Default.ContentCopy, null)
                 }
             )
 
@@ -182,7 +198,7 @@ fun Group(
                 }
             )
 
-            DropdownMenuItem(text = { Text(stringResource(id = R.string.edit_group_content)) },
+            DropdownMenuItem(text = { Text("编辑分组") },
                 onClick = {
                     dismiss()
                     showEditContentDialog = true
@@ -231,85 +247,6 @@ fun Group(
                     Icon(Icons.Default.AccountTree, null)
                 }
             )
-
-            DropdownMenuItem(text = { Text(stringResource(id = R.string.batch_assign_tags)) },
-                onClick = {
-                    dismiss()
-                    onBatchAssignTags()
-                },
-                leadingIcon = {
-                    Icon(Icons.Default.Label, null)
-                }
-            )
-
-            DropdownMenuItem(text = { Text("删除启用的配置") },
-                onClick = {
-                    dismiss()
-                    onDeleteEnabled()
-                },
-                leadingIcon = { Icon(Icons.Default.DeleteForever, null) }
-            )
-
-            DropdownMenuItem(text = { Text("删除未启用的配置") },
-                onClick = {
-                    dismiss()
-                    onDeleteDisabled()
-                },
-                leadingIcon = { Icon(Icons.Default.DeleteForever, null) }
-            )
-
-            DropdownMenuItem(text = { Text("移动启用配置到其他分组") },
-                onClick = {
-                    dismiss()
-                    onMoveEnabledToGroup()
-                },
-                leadingIcon = {
-                    Icon(Icons.Default.DriveFileMove, null)
-                }
-            )
-
-            DropdownMenuItem(text = { Text("按原有序号重排标签") },
-                onClick = {
-                    dismiss()
-                    onResortTagsByExisting()
-                },
-                leadingIcon = {
-                    Icon(Icons.Default.Label, null)
-                }
-            )
-
-            DropdownMenuItem(text = { Text("从01重排标签") },
-                onClick = {
-                    dismiss()
-                    onResortTagsFromZero()
-                },
-                leadingIcon = {
-                    Icon(Icons.Default.Label, null)
-                }
-            )
-
-            DropdownMenuItem(text = { Text("重新分配标签(输入前缀)") },
-                onClick = {
-                    dismiss()
-                    onReassignTags()
-                },
-                leadingIcon = {
-                    Icon(Icons.Default.Label, null)
-                }
-            )
-
-            // 仅当不含子分组且分组名含关键词时显示：按分组名一键分配标签
-            if (!hasSubGroups && hasTagKeyword) {
-                DropdownMenuItem(text = { Text("按分组名一键分配标签") },
-                    onClick = {
-                        dismiss()
-                        onReassignTagsByGroupName()
-                    },
-                    leadingIcon = {
-                        Icon(Icons.Default.Label, null)
-                    }
-                )
-            }
 
             // 仅当含子分组时显示：整理全部子分组标签
             if (hasSubGroups) {
