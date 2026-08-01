@@ -1403,7 +1403,7 @@ internal fun ListManagerScreen(
         val defaultViewConfig = LocalViewConfiguration.current
         val fastLongPressConfig = remember(defaultViewConfig) {
             object : ViewConfiguration by defaultViewConfig {
-                override val longPressTimeout: Long = 300L
+                override val longPressTimeoutMillis: Long = 300L
             }
         }
         CompositionLocalProvider(LocalViewConfiguration provides fastLongPressConfig) {
