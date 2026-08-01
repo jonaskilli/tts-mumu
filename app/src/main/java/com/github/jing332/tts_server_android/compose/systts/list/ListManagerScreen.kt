@@ -1638,7 +1638,7 @@ internal fun ListManagerScreen(
                                         val subItems = fItem.node.items
                                         val subCheckState = subItems.filter { it.isEnabled }.size.sizeToToggleableState(subItems.size)
 
-                                        val headerContent: LazyItemScope.() -> Unit = {
+                                        val headerContent: @Composable LazyItemScope.() -> Unit = {
                                             ShadowedDraggableItem(
                                                 reorderableState = reorderState,
                                                 key = subKey
