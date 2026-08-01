@@ -18,6 +18,7 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyItemScope
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
@@ -1637,7 +1638,7 @@ internal fun ListManagerScreen(
                                         val subItems = fItem.node.items
                                         val subCheckState = subItems.filter { it.isEnabled }.size.sizeToToggleableState(subItems.size)
 
-                                        val headerContent: @Composable () -> Unit = {
+                                        val headerContent: LazyItemScope.() -> Unit = {
                                             ShadowedDraggableItem(
                                                 reorderableState = reorderState,
                                                 key = subKey
