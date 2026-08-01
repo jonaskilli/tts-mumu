@@ -68,6 +68,7 @@ fun SubGroupHeader(
     onReleaseItems: () -> Unit = {},
     onMoveToOtherGroup: () -> Unit = {},
     onMoveEnabledToGroup: () -> Unit = {},
+    itemCount: Int = -1,
 ) {
     val rotationAngle by animateFloatAsState(
         targetValue = if (isExpanded) 0f else -45f,
@@ -119,15 +120,25 @@ fun SubGroupHeader(
         Text(
             text = name,
             style = when (level) {
-                0 -> MaterialTheme.typography.titleMedium.copy(fontSize = 15.sp)
-                1 -> MaterialTheme.typography.bodyLarge.copy(fontSize = 15.sp)
-                else -> MaterialTheme.typography.bodyMedium.copy(fontSize = 15.sp)
+                0 -> MaterialTheme.typography.titleMedium.copy(fontSize = 17.sp)
+                1 -> MaterialTheme.typography.titleSmall.copy(fontSize = 16.sp)
+                else -> MaterialTheme.typography.bodyLarge.copy(fontSize = 16.sp)
             },
             color = MaterialTheme.colorScheme.onSurface,
             modifier = Modifier
                 .padding(start = 8.dp)
                 .weight(1f)
         )
+
+        if (itemCount >= 0) {
+            Text(
+                "($itemCount)",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier
+                    .padding(end = 4.dp)
+            )
+        }
 
         TriStateCheckbox(
             state = toggleableState,

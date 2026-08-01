@@ -187,7 +187,9 @@ internal fun Item(
                 modifier = Modifier
                     .constrainAs(nameRef) {
                         start.linkTo(checkRef.end)
+                        end.linkTo(buttonsRef.start)
                         top.linkTo(parent.top)
+                        width = Dimension.fillToConstraints
                     }
                     .padding(bottom = 4.dp)
             )
@@ -196,10 +198,11 @@ internal fun Item(
                 Modifier
                     .constrainAs(contentRef) {
                         start.linkTo(checkRef.end)
+                        end.linkTo(buttonsRef.start)
                         top.linkTo(nameRef.bottom)
                         bottom.linkTo(parent.bottom)
-                    }
-                    .fillMaxWidth(),
+                        width = Dimension.fillToConstraints
+                    },
                 horizontalAlignment = Alignment.Start
             ) {
                 HtmlText(

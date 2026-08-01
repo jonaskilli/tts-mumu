@@ -608,16 +608,17 @@ private fun Item(
 
             // 第11项: 内联展开编辑面板（name / pluginId / author / version + 同步JS）
             // 状态声明放在 AnimatedVisibility 外层，避免在 content lambda 内声明导致 @Composable 上下文错误
+            // 第13项: remember key 去掉 expanded, 避免每次展开/收起都重置输入框导致动画期间重组卡顿
             val p = plugin
-            var editName by remember(p?.id, expanded) { mutableStateOf(p?.name ?: "") }
-            var editPluginId by remember(p?.id, expanded) { mutableStateOf(p?.pluginId ?: "") }
-            var editAuthor by remember(p?.id, expanded) { mutableStateOf(p?.author ?: "") }
-            var editVersion by remember(p?.id, expanded) { mutableStateOf(p?.version?.toString() ?: "") }
+            var editName by remember(p?.id) { mutableStateOf(p?.name ?: "") }
+            var editPluginId by remember(p?.id) { mutableStateOf(p?.pluginId ?: "") }
+            var editAuthor by remember(p?.id) { mutableStateOf(p?.author ?: "") }
+            var editVersion by remember(p?.id) { mutableStateOf(p?.version?.toString() ?: "") }
 
             androidx.compose.animation.AnimatedVisibility(
                 visible = expanded && !isSelectionMode && p != null,
-                enter = androidx.compose.animation.expandVertically(),
-                exit = androidx.compose.animation.shrinkVertically(),
+                enter = androidx.compose.animation.expandVertically() + androidx.compose.animation.fadeIn(),
+                exit = androidx.compose.animation.shrinkVertically() + androidx.compose.animation.fadeOut(),
             ) {
                 Column(
                     Modifier

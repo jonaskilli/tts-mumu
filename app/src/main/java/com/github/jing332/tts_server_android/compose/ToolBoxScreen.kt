@@ -49,9 +49,11 @@ import kotlinx.coroutines.flow.conflate
 fun ToolBoxScreen(sharedVM: SharedViewModel) {
     val context = LocalContext.current
 
-    // 角色管理栏专属：仅展示 pluginId为mingwuyan 且 name含"角色管理" 的插件
+    // 角色管理栏专属：只要存在 pluginId为mingwuyan 的插件即立即展示其UI
+    // 第8项: 之前用 plugin.name.contains("角色管理") 判断, 插件元数据未就绪时名称可能不匹配,
+    //        导致"过了一段时间才显示"; 改为仅按 pluginId 判断, 有插件即立即显示
     val plugin = remember { dbm.pluginDao.getByPluginId("mingwuyan") }
-    val isRoleManagementPlugin = plugin != null && plugin.name.contains("角色管理")
+    val isRoleManagementPlugin = plugin != null
 
     val flow = remember { dbm.systemTtsV2.flowAllGroupWithTts().conflate() }
     val groups by flow.collectAsStateWithLifecycle(emptyList())

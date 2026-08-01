@@ -66,6 +66,8 @@ internal fun Group(
         inSelectionMode = inSelectionMode,
         isSelected = isSelected,
         onToggleSelect = onToggleSelect,
+        // 第9项: 替换规则多选时, 点击右侧方框=选中, 点击分组名/图标=展开
+        selectOnRowClick = false,
         actions = { dismiss ->
             DropdownMenuItem(
                 leadingIcon = {

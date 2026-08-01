@@ -3,6 +3,7 @@ package com.github.jing332.tts_server_android.compose.systts.list
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
@@ -34,18 +35,20 @@ import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.SelectAll
 import androidx.compose.material.icons.automirrored.filled.DriveFileMove
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.TextButton
+import androidx.compose.material3.TriStateCheckbox
 import androidx.compose.material.icons.filled.CheckBox
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
@@ -56,6 +59,7 @@ import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.ui.state.ToggleableState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -414,10 +418,11 @@ internal fun ListManagerScreen(
         ruleData: com.github.jing332.database.entities.systts.SpeechRuleInfo,
         fallback: String,
         ruleCache: MutableMap<String, SpeechRule?>? = null,
+        engineCache: MutableMap<String, SpeechRuleEngine>? = null,
     ) {
         val ruleId = ruleData.tagRuleId
         if (ruleId.isBlank()) {
-            ruleData.tagName = computeTagName(context, null, ruleData, fallback)
+            ruleData.tagName = computeTagName(context, null, ruleData, fallback, engineCache)
             return
         }
         val speechRule = if (ruleCache != null) {
@@ -431,7 +436,7 @@ internal fun ListManagerScreen(
                 runCatching { dbm.speechRuleDao.getByRuleId(ruleId) }.getOrDefault(null)
             }
         }
-        ruleData.tagName = computeTagName(context, speechRule, ruleData, fallback)
+        ruleData.tagName = computeTagName(context, speechRule, ruleData, fallback, engineCache)
     }
 
     /**
@@ -444,6 +449,7 @@ internal fun ListManagerScreen(
         val NARRATION_TAG = "narration"
         val toUpdate = mutableListOf<SystemTtsV2>()
         val ruleCache = mutableMapOf<String, SpeechRule?>()
+        val engineCache = mutableMapOf<String, SpeechRuleEngine>()
         // 按 categoryPath 分组
         list.groupBy { it.categoryPath }.forEach { (path, items) ->
             val targetItems = items.filter { it.config is TtsConfigurationDTO }
@@ -465,7 +471,7 @@ internal fun ListManagerScreen(
                         val first = prefixItems.first()
                         val firstConfig = first.config as TtsConfigurationDTO
                         val firstRule = firstConfig.speechRule.copy()
-                        computeTagNameOrFallback(context, firstRule, NARRATION_TAG, ruleCache)
+                        computeTagNameOrFallback(context, firstRule, NARRATION_TAG, ruleCache, engineCache)
                         toUpdate.add(first.copy(
                             config = firstConfig.copy(speechRule = firstRule)
                         ))
@@ -475,7 +481,7 @@ internal fun ListManagerScreen(
                             val newTag = subPrefix + String.format("%02d", idx + 1)
                             val config = item.config as TtsConfigurationDTO
                             val newRule = config.speechRule.copy(tag = newTag)
-                            computeTagNameOrFallback(context, newRule, newTag, ruleCache)
+                            computeTagNameOrFallback(context, newRule, newTag, ruleCache, engineCache)
                             toUpdate.add(item.copy(
                                 config = config.copy(speechRule = newRule)
                             ))
@@ -486,7 +492,7 @@ internal fun ListManagerScreen(
                             val newTag = prefix + String.format("%02d", idx + 1)
                             val config = item.config as TtsConfigurationDTO
                             val newRule = config.speechRule.copy(tag = newTag)
-                            computeTagNameOrFallback(context, newRule, newTag, ruleCache)
+                            computeTagNameOrFallback(context, newRule, newTag, ruleCache, engineCache)
                             toUpdate.add(item.copy(
                                 config = config.copy(speechRule = newRule)
                             ))
@@ -503,7 +509,7 @@ internal fun ListManagerScreen(
                         val newTag = prefix + String.format("%02d", existingSeqs[idx])
                         val config = item.config as TtsConfigurationDTO
                         val newRule = config.speechRule.copy(tag = newTag)
-                        computeTagNameOrFallback(context, newRule, newTag, ruleCache)
+                        computeTagNameOrFallback(context, newRule, newTag, ruleCache, engineCache)
                         toUpdate.add(item.copy(
                             config = config.copy(speechRule = newRule)
                         ))
@@ -528,6 +534,7 @@ internal fun ListManagerScreen(
     ) {
         val toUpdate = mutableListOf<SystemTtsV2>()
         val ruleCache = mutableMapOf<String, SpeechRule?>()
+        val engineCache = mutableMapOf<String, SpeechRuleEngine>()
         // 按 categoryPath 分组，每个独立处理
         list.groupBy { it.categoryPath }.forEach { (path, items) ->
             val targetItems = items.filter { it.config is TtsConfigurationDTO }
@@ -539,7 +546,7 @@ internal fun ListManagerScreen(
                 val newTag = prefix + seq
                 val config = item.config as TtsConfigurationDTO
                 val newRule = config.speechRule.copy(tag = newTag)
-                computeTagNameOrFallback(context, newRule, newTag, ruleCache)
+                computeTagNameOrFallback(context, newRule, newTag, ruleCache, engineCache)
                 toUpdate.add(item.copy(config = config.copy(speechRule = newRule)))
             }
         }
@@ -570,6 +577,7 @@ internal fun ListManagerScreen(
         val flattened = flattenSubCategoryTree(tree)
         val allUpdates = mutableListOf<SystemTtsV2>()
         val ruleCache = mutableMapOf<String, SpeechRule?>()
+        val engineCache = mutableMapOf<String, SpeechRuleEngine>()
         flattened.filterIsInstance<FlattenedCategoryItem.SubGroupHeader>().forEach { header ->
             val detected = detectTagKeyword(header.node.name)
             if (detected != null) {
@@ -581,7 +589,7 @@ internal fun ListManagerScreen(
                     val newTag = detected.prefix + seq
                     val config = item.config as TtsConfigurationDTO
                     val newRule = config.speechRule.copy(tag = newTag)
-                    computeTagNameOrFallback(context, newRule, newTag, ruleCache)
+                    computeTagNameOrFallback(context, newRule, newTag, ruleCache, engineCache)
                     allUpdates.add(item.copy(config = config.copy(speechRule = newRule)))
                 }
             }
@@ -590,6 +598,58 @@ internal fun ListManagerScreen(
             dbm.systemTtsV2.update(*allUpdates.toTypedArray())
             SystemTtsService.notifyUpdateConfig()
         }
+    }
+
+    /**
+     * 第3项: 把源一级分组中选中的若干子分组(含其配置项与音频参数)移动到目标一级分组。
+     * - 配置项 groupId 改为目标分组, categoryPath 保留原路径(若目标已有同名子分组则合并)
+     * - 子分组音频参数从源分组 subGroupAudioParamsJson 迁移到目标分组
+     * - 顺序追加到目标分组对应子分组末尾
+     */
+    suspend fun moveSubGroupsToGroup(
+        sourceGroup: SystemTtsGroup,
+        paths: Set<String>,
+        targetGroup: SystemTtsGroup,
+    ) {
+        if (sourceGroup.id == targetGroup.id) return
+        val sourceGwt = models.find { it.group.id == sourceGroup.id } ?: return
+        // 待移动的配置项
+        val itemsToMove = sourceGwt.list.filter { it.categoryPath in paths }
+        if (itemsToMove.isEmpty()) return
+
+        // 1. 迁移子分组音频参数: 源 -> 目标
+        val srcSubMap = sourceGroup.subGroupAudioParamsJson.let { jsonStr ->
+            if (jsonStr.isBlank() || jsonStr == "{}") emptyMap()
+            else SystemTtsV2.Converters.json.decodeFromString<Map<String, AudioParams>>(jsonStr)
+        }
+        val dstSubMap = targetGroup.subGroupAudioParamsJson.let { jsonStr ->
+            if (jsonStr.isBlank() || jsonStr == "{}") emptyMap()
+            else SystemTtsV2.Converters.json.decodeFromString<Map<String, AudioParams>>(jsonStr)
+        }.toMutableMap()
+        paths.forEach { p -> srcSubMap[p]?.let { dstSubMap[p] = it } }
+
+        // 2. 更新目标分组音频参数
+        dbm.systemTtsV2.updateGroup(
+            targetGroup.copy(subGroupAudioParamsJson = SystemTtsV2.Converters.json.encodeToString(dstSubMap))
+        )
+        // 3. 从源分组移除已迁移的子分组参数
+        val newSrcMap = srcSubMap.toMutableMap().apply { paths.forEach { remove(it) } }
+        dbm.systemTtsV2.updateGroup(
+            sourceGroup.copy(subGroupAudioParamsJson = SystemTtsV2.Converters.json.encodeToString(newSrcMap))
+        )
+
+        // 4. 移动配置项: 按目标分组内各子分组现有最大 order 追加
+        val targetGwt = dbm.systemTtsV2.getAllGroupWithTts().find { it.group.id == targetGroup.id }
+        val updates = mutableListOf<SystemTtsV2>()
+        paths.forEach { path ->
+            val pathItems = itemsToMove.filter { it.categoryPath == path }.sortedBy { it.order }
+            val maxOrder = targetGwt?.list?.filter { it.categoryPath == path }?.maxOfOrNull { it.order } ?: -1
+            pathItems.forEachIndexed { idx, item ->
+                updates.add(item.copy(groupId = targetGroup.id, order = maxOrder + 1 + idx))
+            }
+        }
+        dbm.systemTtsV2.update(*updates.toTypedArray())
+        SystemTtsService.notifyUpdateConfig()
     }
 
     var hasShownTip by rememberSaveable { mutableStateOf(false) }
@@ -783,7 +843,7 @@ internal fun ListManagerScreen(
                     if (convertible.isEmpty()) {
                         Text("所选分组均包含子分组，无法转换。")
                     } else {
-                        Text("选择目标分组，选中的分组将作为其子分组：", modifier = Modifier.padding(bottom = 8.dp))
+                        Text("选择目标一级分组，将作为其子分组：", modifier = Modifier.padding(bottom = 8.dp))
                         otherGroups.forEach { otherGroup ->
                             TextButton(
                                 onClick = {
@@ -827,6 +887,10 @@ internal fun ListManagerScreen(
 
     // 长按菜单：移动启用配置到其他分组
     var showMoveEnabledDialog by remember { mutableStateOf<GroupWithSystemTts?>(null) }
+
+    // 第3项: 移动子分组到其他一级分组 (一级分组菜单"移动子分组" / 子分组菜单"移动到其他一级分组" 共用)
+    // Pair<源一级分组, 预选子分组路径(null=不预选)>
+    var showMoveSubGroupsDialog by remember { mutableStateOf<Pair<SystemTtsGroup, String?>?>(null) }
 
     // 长按菜单：重新分配标签（输入前缀，从01开始）
     var showReassignTagDialog by remember { mutableStateOf<GroupWithSystemTts?>(null) }
@@ -1061,6 +1125,119 @@ internal fun ListManagerScreen(
             confirmButton = {},
             dismissButton = {
                 TextButton(onClick = { showMoveEnabledDialog = null }) {
+                    Text(stringResource(R.string.cancel))
+                }
+            }
+        )
+    }
+
+    // 第3项: 移动子分组对话框 —— 多选子分组(支持全选) + 选择目标一级分组
+    if (showMoveSubGroupsDialog != null) {
+        val sourceGroup = showMoveSubGroupsDialog!!.first
+        val preSelectPath = showMoveSubGroupsDialog!!.second
+        val sourceGwt = models.find { it.group.id == sourceGroup.id }
+        val subPaths = remember(sourceGwt) {
+            sourceGwt?.list?.map { it.categoryPath }?.filter { it.isNotBlank() }?.distinct()?.sorted()
+                ?: emptyList()
+        }
+        // 选中子分组路径集合
+        var selectedPaths by remember(sourceGroup.id) {
+            mutableStateOf<Set<String>>(preSelectPath?.let { setOf(it) } ?: emptySet())
+        }
+        val allSelected = subPaths.isNotEmpty() && selectedPaths.containsAll(subPaths)
+
+        AlertDialog(
+            onDismissRequest = { showMoveSubGroupsDialog = null },
+            properties = androidx.compose.ui.window.DialogProperties(usePlatformDefaultWidth = false),
+            modifier = Modifier.fillMaxWidth(0.92f),
+            title = { Text("移动子分组 (${selectedPaths.size}/${subPaths.size})") },
+            text = {
+                Column(modifier = Modifier.fillMaxWidth()) {
+                    if (subPaths.isEmpty()) {
+                        Text("当前分组没有子分组")
+                    } else {
+                        // 全选 / 取消全选
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable {
+                                    selectedPaths = if (allSelected) emptySet() else subPaths.toSet()
+                                }
+                                .padding(vertical = 4.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            TriStateCheckbox(
+                                state = if (allSelected) ToggleableState.On
+                                else if (selectedPaths.isEmpty()) ToggleableState.Off
+                                else ToggleableState.Indeterminate,
+                                onClick = {
+                                    selectedPaths = if (allSelected) emptySet() else subPaths.toSet()
+                                }
+                            )
+                            Text("全选", modifier = Modifier.padding(start = 8.dp))
+                        }
+                        HorizontalDivider()
+
+                        // 子分组多选列表
+                        LazyColumn(
+                            modifier = Modifier.heightIn(max = 240.dp),
+                            verticalArrangement = Arrangement.spacedBy(2.dp)
+                        ) {
+                            items(subPaths, key = { it }) { path ->
+                                val checked = path in selectedPaths
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .clickable {
+                                            selectedPaths = if (checked) selectedPaths - path
+                                            else selectedPaths + path
+                                        }
+                                        .padding(vertical = 2.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Checkbox(
+                                        checked = checked,
+                                        onCheckedChange = {
+                                            selectedPaths = if (it) selectedPaths + path
+                                            else selectedPaths - path
+                                        }
+                                    )
+                                    Text(path, modifier = Modifier.padding(start = 8.dp))
+                                }
+                            }
+                        }
+
+                        if (selectedPaths.isNotEmpty()) {
+                            HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
+                            Text("选择目标一级分组：", modifier = Modifier.padding(bottom = 4.dp))
+                            // 目标一级分组(排除源分组)
+                            val otherGroups = models.filter { it.group.id != sourceGroup.id }.map { it.group }
+                            LazyColumn(
+                                modifier = Modifier.heightIn(max = 200.dp)
+                            ) {
+                                items(otherGroups, key = { "tg_${it.id}" }) { targetGroup ->
+                                    TextButton(
+                                        onClick = {
+                                            scope.launch {
+                                                moveSubGroupsToGroup(
+                                                    sourceGroup = sourceGroup,
+                                                    paths = selectedPaths,
+                                                    targetGroup = targetGroup
+                                                )
+                                                showMoveSubGroupsDialog = null
+                                            }
+                                        },
+                                        modifier = Modifier.fillMaxWidth()
+                                    ) { Text(targetGroup.name) }
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            confirmButton = {},
+            dismissButton = {
+                TextButton(onClick = { showMoveSubGroupsDialog = null }) {
                     Text(stringResource(R.string.cancel))
                 }
             }
@@ -1403,7 +1580,7 @@ internal fun ListManagerScreen(
         val defaultViewConfig = LocalViewConfiguration.current
         val fastLongPressConfig = remember(defaultViewConfig) {
             object : ViewConfiguration by defaultViewConfig {
-                override val longPressTimeoutMillis: Long = 300L
+                override val longPressTimeoutMillis: Long = 200L
             }
         }
         CompositionLocalProvider(LocalViewConfiguration provides fastLongPressConfig) {
@@ -1520,6 +1697,10 @@ internal fun ListManagerScreen(
                                 },
                                 onMoveEnabledToGroup = {
                                     showMoveEnabledDialog = groupWithSystemTts
+                                },
+                                onMoveSubGroups = {
+                                    // 第3项: 一级分组"移动子分组", 进入多选移动子分组对话框(不预选)
+                                    showMoveSubGroupsDialog = g to null
                                 },
                                 onResortTagsByExisting = {
                                     scope.launch {
@@ -1741,7 +1922,12 @@ internal fun ListManagerScreen(
                                                     },
                                                     onMoveEnabledToGroup = {
                                                         showMoveEnabledDialog = GroupWithSystemTts(g, subItems)
-                                                    }
+                                                    },
+                                                    onMoveToOtherGroup = {
+                                                        // 第3项: 子分组"移动到其他一级分组", 进入多选对话框并预选当前子分组
+                                                        showMoveSubGroupsDialog = g to fItem.node.fullPath
+                                                    },
+                                                    itemCount = subItems.size
                                                 )
                                             }
                                         }

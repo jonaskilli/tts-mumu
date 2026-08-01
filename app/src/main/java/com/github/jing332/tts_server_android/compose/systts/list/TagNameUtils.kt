@@ -12,15 +12,29 @@ import com.github.jing332.tts_server_android.model.rhino.speech_rule.SpeechRuleE
  * 2. 算不出时回退到规则自身的 tags 映射(带 ⚠ 提示)；
  * 3. 若配置了角色性格(personality)且名字中未含，则追加到末尾。
  * 必须在 IO 线程调用。
+ *
+ * 第12项性能优化: 传入 engineCache 后, 同一 ruleId 的 JS 引擎只编译执行一次,
+ * 后续调用直接复用已 eval 的引擎调用 getTagName, 避免逐条重新编译 JS 造成卡顿。
  */
 suspend fun computeTagName(
     context: Context,
     speechRule: SpeechRule?,
     ruleData: SpeechRuleInfo,
     fallback: String,
+    engineCache: MutableMap<String, SpeechRuleEngine>? = null,
 ): String {
     val computed = if (speechRule != null) {
-        runCatching { SpeechRuleEngine.getTagName(context, speechRule, ruleData) }.getOrNull()
+        runCatching {
+            if (engineCache != null) {
+                // 复用已编译引擎: 同 ruleId 只 eval 一次
+                val engine = engineCache.getOrPut(speechRule.ruleId) {
+                    SpeechRuleEngine(context, speechRule).also { it.eval() }
+                }
+                engine.getTagName(ruleData.tag, ruleData.tagData)
+            } else {
+                SpeechRuleEngine.getTagName(context, speechRule, ruleData)
+            }
+        }.getOrNull()
     } else null
     // 与朗读规则编辑器(SpeechRuleEditScreen)保持一致：
     // 规则能算出名字则用；算不出时回退到规则自身的 tags 映射(带 ⚠ 提示)，

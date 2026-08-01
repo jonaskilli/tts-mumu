@@ -62,12 +62,13 @@ class ListManagerViewModel : ViewModel() {
                         filterList(list, key, searchType)
                     }
                     // 过滤掉角色管理(mingwuyan)配置项，它不属于发音人，只在角色管理栏展示
+                    // 注意: 不再隐藏空分组(用户要求即使没有配置项也要显示分组,便于添加分组后立即可见)
                     val filtered = result.map { gwt ->
                         gwt.copy(list = gwt.list.filter { item ->
                             val config = item.config as? TtsConfigurationDTO
                             (config?.source as? PluginTtsSource)?.pluginId != "mingwuyan"
                         })
-                    }.filter { it.list.isNotEmpty() || it.group.id == DEFAULT_GROUP_ID }
+                    }
                     Log.d(TAG, "update list: ${filtered.size}")
                     _list.value = filtered
                 }
@@ -307,7 +308,9 @@ class ListManagerViewModel : ViewModel() {
             if (fromBlockIndex == -1 || toBlockIndex == -1) return
 
             val movedBlock = blocks.removeAt(fromBlockIndex)
-            val insertIndex = if (toBlockIndex > fromBlockIndex) toBlockIndex - 1 else toBlockIndex
+            // 修复: 向下拖动时之前用 toBlockIndex-1 导致移动无效或方向错误;
+            // 移除 from 后, 直接用原始 toBlockIndex 即可正确落到目标位置(向上同理)
+            val insertIndex = toBlockIndex.coerceAtMost(blocks.size)
             blocks.add(insertIndex, movedBlock)
 
             var order = 0

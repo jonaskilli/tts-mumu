@@ -70,6 +70,8 @@ fun GroupItem(
     itemCount: Int = -1,
     actions: @Composable ColumnScope.(() -> Unit) -> Unit,
     extraActions: (@Composable ColumnScope.(() -> Unit) -> Unit)? = null,
+    // 多选模式下点击分组名/行是否切换选中：true=点击行选中(系统TTS默认), false=仅右侧方框选中, 点击名/行展开(替换规则)
+    selectOnRowClick: Boolean = true,
 ) {
     val view = LocalView.current
     val context = LocalContext.current
@@ -117,7 +119,14 @@ fun GroupItem(
                     }
 
             }
-            .clickable { if (!showOptions && !showExtraOptions) { if (inSelectionMode) onToggleSelect() else onClick() } }
+            .clickable {
+                if (!showOptions && !showExtraOptions) {
+                    if (inSelectionMode) {
+                        // 替换规则: 多选时点击行=展开; 系统TTS: 点击行=选中
+                        if (selectOnRowClick) onToggleSelect() else onClick()
+                    } else onClick()
+                }
+            }
             .padding(vertical = 4.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
@@ -136,7 +145,7 @@ fun GroupItem(
 
         Text(
             name,
-            style = MaterialTheme.typography.titleMedium.copy(fontSize = 17.sp),
+            style = MaterialTheme.typography.titleMedium.copy(fontSize = 18.sp),
             modifier = Modifier
                 .align(Alignment.CenterVertically)
                 .weight(1f)

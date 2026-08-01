@@ -14,7 +14,9 @@ import com.github.jing332.common.utils.toJsonListString
 import com.github.jing332.database.dbm
 import com.github.jing332.database.entities.plugin.Plugin
 import com.drake.net.utils.withIO
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
@@ -51,7 +53,10 @@ fun PluginImportBottomSheet(onDismissRequest: () -> Unit) {
     }
 
     ConfigImportBottomSheet(onDismissRequest = onDismissRequest, onImport = {
-        list = parsePluginsJson(it)
+        // 第14项: 大文件(可达5MB)解析移到 IO 线程, 避免主线程阻塞导致 ANR/闪退
+        scope.launch {
+            list = withContext(Dispatchers.IO) { parsePluginsJson(it) }
+        }
     })
 }
 
@@ -63,16 +68,28 @@ fun PluginImportBottomSheet(onDismissRequest: () -> Unit) {
  * 注意：ConfigImportBottomSheet 会调用 toJsonListString() 给字符串加 []，
  * 所以 JRead 格式可能被包裹成 [{"format":...,"plugins":[...]}]，需要兼容处理。
  *
- * JRead格式与原生格式的差异及转换：
- * - 嵌套在 plugins 数组中 → 提取出来
- * - version 是字符串(如"20260625.v2") → Plugin.version 是 Int，无法转换则设为0
- * - enabled 字段 → 映射到 isEnabled
- * - defVars 子字段 name → 映射到 label（原生用 label）
- * - 多余字段(pluginGroupId等) → ignoreUnknownKeys=true 自动忽略
+ * 第14项性能优化(避免大文件OOM闪退):
+ * - 原生格式: 先用廉价字符串检测排除JRead, 再直接 decodeFromString, 不构建中间 JsonElement DOM,
+ *   避免「输入串 + DOM + toString副本 + List<Plugin>」同时驻留内存导致峰值过高(3.78MB即闪退)。
+ * - JRead格式: 仅在确认是JRead时才 parseToJsonElement, 且用 decodeFromJsonElement 而非 toString()+decodeFromString。
  */
 private fun parsePluginsJson(jsonStr: String): List<Plugin> {
     val json = AppConst.jsonBuilder
     val trimmed = jsonStr.trim()
+
+    // 廉价检测 JRead 格式：只看前200字符是否含 jread/plugins 标记，避免对大文件全量构建 DOM
+    val head = trimmed.take(200)
+    val isLikelyJRead = head.contains("\"format\"") &&
+        (head.contains("jread") || head.contains("\"plugins\""))
+
+    // 原生格式：直接解码，不构建中间 JsonElement DOM，大幅降低峰值内存
+    if (!isLikelyJRead) {
+        return runCatching { json.decodeFromString<List<Plugin>>(trimmed) }
+            .recoverCatching { json.decodeFromString<Plugin>(trimmed).let { listOf(it) } }
+            .getOrDefault(emptyList())
+    }
+
+    // JRead 格式：需要解析 DOM 提取 plugins 数组
     val element = json.parseToJsonElement(trimmed)
 
     // 辅助函数：从 JsonObject 提取 JRead 插件列表
@@ -113,17 +130,18 @@ private fun parsePluginsJson(jsonStr: String): List<Plugin> {
 
     // 情况2：是 JsonArray，可能被 toJsonListString 包裹过
     if (element is JsonArray) {
-        // 检查数组第一个元素是否是 JRead 包格式
         if (element.isNotEmpty() && element[0] is JsonObject) {
             val jreadList = extractJReadPlugins(element[0] as JsonObject)
             if (jreadList != null) return jreadList
         }
-        // 普通数组格式，按原生解析
-        return json.decodeFromString<List<Plugin>>(JsonArray(element).toString())
+        // 普通数组格式：直接从已解析的 DOM 解码，避免 toString() 再造一份大字符串
+        return runCatching { json.decodeFromJsonElement<List<Plugin>>(element) }.getOrDefault(emptyList())
     }
 
     // 情况3：其他情况按原生格式解析
-    return json.decodeFromString<List<Plugin>>(trimmed.toJsonListString())
+    return runCatching { json.decodeFromString<List<Plugin>>(trimmed.toJsonListString()) }
+        .recoverCatching { json.decodeFromString<Plugin>(trimmed).let { listOf(it) } }
+        .getOrDefault(emptyList())
 }
 
 /**

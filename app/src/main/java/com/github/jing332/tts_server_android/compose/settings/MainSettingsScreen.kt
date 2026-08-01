@@ -225,6 +225,12 @@ fun SettingsScreen() {
 
                 BasePreferenceWidget(
                     onClick = {
+                        // 第10项: 导入到阅读前必须强制开启转发器, 否则阅读无法访问接口
+                        // 之前修改有误(仅跳转深链但未启动服务), 此处先确保转发器运行再导入
+                        if (!SysTtsForwarderService.isRunning) {
+                            SystemTtsForwarderConfig.isAutoStart.value = true
+                            context.switchSysTtsForwarder()
+                        }
                         val pkg = context.packageName
                         val appName = context.applicationInfo.loadLabel(context.packageManager).toString()
                         val name = "$appName ($pkg)"

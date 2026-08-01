@@ -13,7 +13,9 @@ import com.github.jing332.tts_server_android.constant.AppConst
 import com.github.jing332.database.dbm
 import com.github.jing332.database.entities.SpeechRule
 import com.drake.net.utils.withIO
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 @Composable
 fun SpeechRuleImportBottomSheet(onDismissRequest: () -> Unit) {
@@ -36,6 +38,11 @@ fun SpeechRuleImportBottomSheet(onDismissRequest: () -> Unit) {
     }
 
     ConfigImportBottomSheet(onDismissRequest = onDismissRequest, onImport = {
-        showSelectDialog = AppConst.jsonBuilder.decodeFromString<List<SpeechRule>>(it)
+        // 第14项: 大文件解析移到 IO 线程, 避免主线程阻塞
+        scope.launch {
+            showSelectDialog = withContext(Dispatchers.IO) {
+                AppConst.jsonBuilder.decodeFromString<List<SpeechRule>>(it)
+            }
+        }
     })
 }
