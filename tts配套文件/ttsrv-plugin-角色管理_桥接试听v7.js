@@ -2053,7 +2053,7 @@ var EditorJS = {
         bookBorder.setStroke(dipToPx(1), android.graphics.Color.parseColor("#E0E0E0"));
         bookBorder.setColor(android.graphics.Color.parseColor("#E3F2FD"));
         bookInputLayout.setBackground(bookBorder);
-        bookInputLayout.setPadding(dipToPx(10), dipToPx(12), dipToPx(8), dipToPx(12));
+        bookInputLayout.setPadding(dipToPx(10), dipToPx(8), dipToPx(8), dipToPx(8));
 
         // 书名标签
         var bookLabel = new android.widget.TextView(ctx);
@@ -2148,7 +2148,7 @@ var EditorJS = {
         refreshBtnBg.setStroke(dipToPx(1), android.graphics.Color.parseColor("#00897B"));
         refreshBtn.setBackground(refreshBtnBg);
         refreshBtn.setTextColor(android.graphics.Color.parseColor("#00897B"));
-        refreshBtn.setPadding(dipToPx(12), dipToPx(4), dipToPx(12), dipToPx(4));
+        refreshBtn.setPadding(dipToPx(14), dipToPx(8), dipToPx(14), dipToPx(8));
         refreshBtn.setOnClickListener(new android.view.View.OnClickListener({
             onClick: function(view) {
                 try { refreshCharacterData(); } catch (e) { Toast.makeText(ctx, "刷新失败: " + e.toString(), Toast.LENGTH_SHORT).show(); }
@@ -2172,6 +2172,13 @@ var EditorJS = {
         );
         bookInputLayout.setLayoutParams(bookInputLp2);
         bookRowLayout.addView(bookInputLayout);
+        // 刷新按钮高度跟随书籍栏（MATCH_PARENT），使两者高度一致
+        var refreshBtnLp = new android.widget.LinearLayout.LayoutParams(
+            android.widget.LinearLayout.LayoutParams.WRAP_CONTENT,
+            android.widget.LinearLayout.LayoutParams.MATCH_PARENT
+        );
+        refreshBtnLp.setMargins(dipToPx(8), 0, 0, 0);
+        refreshBtn.setLayoutParams(refreshBtnLp);
         bookRowLayout.addView(refreshBtn);
         bookSectionLayout.addView(bookRowLayout);
 
