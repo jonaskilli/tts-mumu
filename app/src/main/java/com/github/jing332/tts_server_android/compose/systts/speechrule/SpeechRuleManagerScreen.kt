@@ -239,7 +239,11 @@ fun SpeechRuleManagerScreen(sharedVM: SharedViewModel, finish: () -> Unit) {
                                 text = { Text(text = stringResource(id = R.string.export_config)) },
                                 onClick = {
                                     showOptions = false
-                                    showExportSheet = dbm.speechRuleDao.allEnabled
+                                    scope.launch {
+                                        showExportSheet = withIO {
+                                            dbm.speechRuleDao.allEnabled
+                                        }
+                                    }
                                 },
                                 leadingIcon = {
                                     Icon(Icons.Default.Output, null)

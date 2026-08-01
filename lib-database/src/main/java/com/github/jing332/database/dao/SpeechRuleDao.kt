@@ -12,8 +12,28 @@ interface SpeechRuleDao {
     @get:Query("SELECT * FROM speech_rules WHERE isEnabled = '1'")
     val allEnabled: List<SpeechRule>
 
+    /**
+     * 轻量查询：code返回空字符串，避免大code导致Cursor窗口溢出闪退
+     * 用于列表展示等不需要code的场景
+     */
+    @Query("SELECT id, isEnabled, name, version, ruleId, author, '' AS code, tags, tagsData, `order` FROM speech_rules ORDER BY `order` ASC")
+    fun getAllWithoutCode(): List<SpeechRule>
+
+    /**
+     * 轻量查询：code返回空字符串，避免大code导致Cursor窗口溢出闪退
+     * 用于列表展示等不需要code的场景
+     */
+    @Query("SELECT id, isEnabled, name, version, ruleId, author, '' AS code, tags, tagsData, `order` FROM speech_rules WHERE isEnabled = '1'")
+    fun getAllEnabledWithoutCode(): List<SpeechRule>
+
     @Query("SELECT * FROM speech_rules ORDER BY `order` ASC")
     fun flowAll(): Flow<List<SpeechRule>>
+
+    /**
+     * 轻量Flow查询：code返回空字符串，避免大code导致Cursor窗口溢出闪退
+     */
+    @Query("SELECT id, isEnabled, name, version, ruleId, author, '' AS code, tags, tagsData, `order` FROM speech_rules ORDER BY `order` ASC")
+    fun flowAllWithoutCode(): Flow<List<SpeechRule>>
 
     @get:Query("SELECT count(*) FROM speech_rules")
     val count: Int

@@ -311,15 +311,6 @@ class BgmConfigUI : IConfigUI() {
                 warnButton(text = stringResource(R.string.grant_permission_storage_file)) {
                     storagePermission.launchPermissionRequest()
                 }
-
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) { // A13
-                val audioPermission = rememberPermissionState(Manifest.permission.READ_MEDIA_AUDIO)
-
-                if (!audioPermission.status.isGranted)
-                    warnButton(text = stringResource(R.string.grant_permission_audio_file)) {
-                        audioPermission.launchPermissionRequest()
-                    }
-            }
         }
     }
 

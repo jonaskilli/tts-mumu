@@ -61,16 +61,8 @@ class ListManagerViewModel : ViewModel() {
                     } else {
                         filterList(list, key, searchType)
                     }
-                    // 过滤掉角色管理(mingwuyan)配置项，它不属于发音人，只在角色管理栏展示
-                    // 注意: 不再隐藏空分组(用户要求即使没有配置项也要显示分组,便于添加分组后立即可见)
-                    val filtered = result.map { gwt ->
-                        gwt.copy(list = gwt.list.filter { item ->
-                            val config = item.config as? TtsConfigurationDTO
-                            (config?.source as? PluginTtsSource)?.pluginId != "mingwuyan"
-                        })
-                    }
-                    Log.d(TAG, "update list: ${filtered.size}")
-                    _list.value = filtered
+                    Log.d(TAG, "update list: ${result.size}")
+                    _list.value = result
                 }
         }
     }
@@ -268,6 +260,20 @@ class ListManagerViewModel : ViewModel() {
             updateGroupListInMemory(groupId, newItems)
         }
         if (enabled) SystemTtsService.notifyUpdateConfig()
+    }
+
+    /**
+     * 切换一级分组展开/折叠状态：立即更新内存列表使UI即时响应，后台异步写入DB持久化。
+     */
+    fun toggleGroupExpanded(group: SystemTtsGroup) {
+        _list.value = _list.value.map { gwt ->
+            if (gwt.group.id == group.id) {
+                gwt.copy(group = gwt.group.copy(isExpanded = !gwt.group.isExpanded))
+            } else gwt
+        }
+        viewModelScope.launch(Dispatchers.IO) {
+            dbm.systemTtsV2.updateGroup(group.copy(isExpanded = !group.isExpanded))
+        }
     }
 
     fun reorder(from: ItemPosition, to: ItemPosition) {

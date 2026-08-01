@@ -8,6 +8,7 @@ import com.github.jing332.common.utils.longToast
 import com.github.jing332.common.utils.runOnUI
 import com.github.jing332.tts_server_android.constant.AppConst
 import io.github.oshai.kotlinlogging.KotlinLogging
+import kotlinx.coroutines.CancellationException
 import org.slf4j.LoggerFactory
 import java.time.LocalDateTime
 
@@ -24,6 +25,8 @@ class CrashHandler(val context: Context) : Thread.UncaughtExceptionHandler {
     }
 
     override fun uncaughtException(t: Thread, e: Throwable) {
+        // 协程取消异常(含 Compose LeftCompositionCancellationException)是正常行为，不是崩溃
+        if (e is CancellationException) return
         handleException(e)
         val ctx = LoggerFactory.getILoggerFactory() as LoggerContext
         ctx.stop()

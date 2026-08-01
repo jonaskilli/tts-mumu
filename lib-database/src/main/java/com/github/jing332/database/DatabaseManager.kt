@@ -24,6 +24,7 @@ import splitties.init.appCtx
 val dbm: DatabaseManager by lazy {
     Room.databaseBuilder(appCtx, DatabaseManager::class.java, "systts.db")
         .allowMainThreadQueries()
+        .openHelperFactory(LargeCursorOpenHelperFactory())
         .build()
 }
 
@@ -80,6 +81,7 @@ abstract class DatabaseManager : RoomDatabase() {
         fun createDatabase(context: Context) = Room
             .databaseBuilder(context, DatabaseManager::class.java, DATABASE_NAME)
             .allowMainThreadQueries()
+            .openHelperFactory(LargeCursorOpenHelperFactory())
             .build()
     }
 

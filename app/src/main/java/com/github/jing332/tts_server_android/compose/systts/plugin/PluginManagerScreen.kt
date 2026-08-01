@@ -292,7 +292,11 @@ fun PluginManagerScreen(sharedVM: SharedViewModel, onFinishActivity: () -> Unit)
                                 text = { Text(stringResource(id = R.string.export_config)) },
                                 onClick = {
                                     showOptions = false
-                                    showExportConfig = dbm.pluginDao.allEnabled
+                                    scope.launch {
+                                        showExportConfig = withIO {
+                                            dbm.pluginDao.allEnabled
+                                        }
+                                    }
                                 },
                                 leadingIcon = {
                                     Icon(Icons.Default.Output, stringResource(R.string.export_config))

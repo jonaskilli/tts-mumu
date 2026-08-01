@@ -97,8 +97,8 @@ internal fun ColumnScope.OtherSettingsScreen() {
                     context.filesDir.deleteRecursively()
                     context.databaseList().forEach { context.deleteDatabase(it) }
                     File(context.filesDir.parentFile, "shared_prefs").deleteRecursively()
-                    // 杀掉进程让应用重启
-                    android.os.Process.killProcess(android.os.Process.myPid())
+                    // 重启应用
+                    com.github.jing332.tts_server_android.App.instance.restart()
                 }) {
                     Text("确定", color = MaterialTheme.colorScheme.error)
                 }

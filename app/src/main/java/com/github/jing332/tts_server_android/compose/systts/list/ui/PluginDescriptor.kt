@@ -40,7 +40,7 @@ class PluginDescriptor(val context: Context, val systemTts: SystemTtsV2) : ItemD
         "${sampleRate}hz" + if (isNeedDecode) " | " + context.getString(R.string.decode) else ""
     }
     override val type: String =
-        dbm.pluginDao.getEnabled(source.pluginId)?.name
+        dbm.pluginDao.getEnabledName(source.pluginId)
             ?: context.getString(R.string.not_found_plugin, source.pluginId)
     override val tagName: String = cfg.speechRule.tagName
     override val standby: Boolean = cfg.speechRule.isStandby

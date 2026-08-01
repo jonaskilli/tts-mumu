@@ -73,7 +73,6 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
-import com.drake.net.utils.withIO
 import com.github.jing332.common.utils.StringUtils
 import com.github.jing332.common.utils.longToast
 import com.github.jing332.common.utils.toast
@@ -891,6 +890,7 @@ internal fun ListManagerScreen(
     // 第3项: 移动子分组到其他一级分组 (一级分组菜单"移动子分组" / 子分组菜单"移动到其他一级分组" 共用)
     // Pair<源一级分组, 预选子分组路径(null=不预选)>
     var showMoveSubGroupsDialog by remember { mutableStateOf<Pair<SystemTtsGroup, String?>?>(null) }
+    var showMoveSingleSubGroupDialog by remember { mutableStateOf<Pair<SystemTtsGroup, String>?>(null) }
 
     // 长按菜单：重新分配标签（输入前缀，从01开始）
     var showReassignTagDialog by remember { mutableStateOf<GroupWithSystemTts?>(null) }
@@ -994,7 +994,7 @@ internal fun ListManagerScreen(
     var newGroupNameForMove by remember { mutableStateOf("") }
     if (showNewGroupForMove) {
         TextFieldDialog(
-            title = "新建大分组并移动",
+            title = "新建一级分组并移动",
             text = newGroupNameForMove,
             onTextChange = { newGroupNameForMove = it },
             onDismissRequest = { showNewGroupForMove = false }
@@ -1015,6 +1015,15 @@ internal fun ListManagerScreen(
                     SystemTtsService.notifyUpdateConfig()
                     showNewGroupForMove = false
                     showMoveEnabledDialog = null
+                }
+            } else if (showMoveSingleSubGroupDialog != null) {
+                val (sourceGroup, subPath) = showMoveSingleSubGroupDialog!!
+                scope.launch {
+                    val newGroup = SystemTtsGroup(id = System.currentTimeMillis(), name = newGroupNameForMove)
+                    dbm.systemTtsV2.insertGroup(newGroup)
+                    moveSubGroupsToGroup(sourceGroup, setOf(subPath), newGroup)
+                    showNewGroupForMove = false
+                    showMoveSingleSubGroupDialog = null
                 }
             }
         }
@@ -1117,7 +1126,7 @@ internal fun ListManagerScreen(
                                     showNewGroupForMove = true
                                 },
                                 modifier = Modifier.fillMaxWidth()
-                            ) { Text("新建大分组") }
+                            ) { Text("新建一级分组") }
                         }
                     }
                 }
@@ -1238,6 +1247,57 @@ internal fun ListManagerScreen(
             confirmButton = {},
             dismissButton = {
                 TextButton(onClick = { showMoveSubGroupsDialog = null }) {
+                    Text(stringResource(R.string.cancel))
+                }
+            }
+        )
+    }
+
+    // 子分组"移动到其他一级分组" —— 直接选择目标分组, 无多选
+    if (showMoveSingleSubGroupDialog != null) {
+        val sourceGroup = showMoveSingleSubGroupDialog!!.first
+        val subPath = showMoveSingleSubGroupDialog!!.second
+        val otherGroups = models.filter { it.group.id != sourceGroup.id }.map { it.group }
+        AlertDialog(
+            onDismissRequest = { showMoveSingleSubGroupDialog = null },
+            properties = androidx.compose.ui.window.DialogProperties(usePlatformDefaultWidth = false),
+            modifier = Modifier.fillMaxWidth(0.92f),
+            title = { Text("移动子分组「$subPath」到") },
+            text = {
+                Column(modifier = Modifier.fillMaxWidth()) {
+                    LazyColumn(
+                        modifier = Modifier.heightIn(max = 300.dp),
+                        verticalArrangement = Arrangement.spacedBy(2.dp)
+                    ) {
+                        items(otherGroups, key = { "tg_${it.id}" }) { targetGroup ->
+                            TextButton(
+                                onClick = {
+                                    scope.launch {
+                                        moveSubGroupsToGroup(
+                                            sourceGroup = sourceGroup,
+                                            paths = setOf(subPath),
+                                            targetGroup = targetGroup
+                                        )
+                                        showMoveSingleSubGroupDialog = null
+                                    }
+                                },
+                                modifier = Modifier.fillMaxWidth()
+                            ) { Text(targetGroup.name) }
+                        }
+                    }
+                    HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
+                    TextButton(
+                        onClick = {
+                            newGroupNameForMove = ""
+                            showNewGroupForMove = true
+                        },
+                        modifier = Modifier.fillMaxWidth()
+                    ) { Text("新建一级分组") }
+                }
+            },
+            confirmButton = {},
+            dismissButton = {
+                TextButton(onClick = { showMoveSingleSubGroupDialog = null }) {
                     Text(stringResource(R.string.cancel))
                 }
             }
@@ -1614,16 +1674,15 @@ internal fun ListManagerScreen(
                                 },
                                 onClick = {
                                     val wasExpanded = g.isExpanded
-                                    scope.launch {
-                                        if (!wasExpanded) {
-                                            // 展开前先将分组头部滚动到顶部，确保展开后首项紧跟分组名下方
+                                    if (!wasExpanded) {
+                                        scope.launch {
                                             val headerIndex = listState.layoutInfo.visibleItemsInfo.find { it.key == key }?.index
                                             if (headerIndex != null) {
                                                 listState.animateScrollToItem(headerIndex)
                                             }
                                         }
-                                        withIO { dbm.systemTtsV2.updateGroup(g.copy(isExpanded = !g.isExpanded)) }
                                     }
+                                    vm.toggleGroupExpanded(g)
                                 },
                                 onDelete = {
                                     scope.launch {
@@ -1924,8 +1983,7 @@ internal fun ListManagerScreen(
                                                         showMoveEnabledDialog = GroupWithSystemTts(g, subItems)
                                                     },
                                                     onMoveToOtherGroup = {
-                                                        // 第3项: 子分组"移动到其他一级分组", 进入多选对话框并预选当前子分组
-                                                        showMoveSubGroupsDialog = g to fItem.node.fullPath
+                                                        showMoveSingleSubGroupDialog = g to fItem.node.fullPath
                                                     },
                                                     itemCount = subItems.size
                                                 )

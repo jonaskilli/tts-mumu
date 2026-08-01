@@ -70,7 +70,7 @@ private fun getTypeString(systts: SystemTtsV2, pluginNameCache: MutableMap<Strin
                     val pluginId = (source as? com.github.jing332.database.entities.systts.source.PluginTtsSource)?.pluginId
                     if (pluginId != null) {
                         pluginNameCache.getOrPut(pluginId) {
-                            dbm.pluginDao.getEnabled(pluginId)?.name ?: pluginId
+                            dbm.pluginDao.getEnabledName(pluginId) ?: pluginId
                         }
                     } else "Unknown"
                 }
