@@ -1784,7 +1784,7 @@ internal fun ListManagerScreen(
 
             DraggableVerticalScrollbar(
                 modifier = Modifier
-                    .align(Alignment.End)
+                    .align(Alignment.TopEnd)
                     .fillMaxHeight()
                     .width(12.dp),
                 listState = listState
