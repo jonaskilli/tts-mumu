@@ -37,6 +37,12 @@ fun BatchTagDialog(
     var selectedItems by remember { mutableStateOf<Set<SystemTtsV2>>(emptySet()) }
     var selectedTagKey by remember { mutableStateOf<String>("") }
 
+    // 批量分配/清空标签时显示加载遮罩，避免弹窗在处理期间看起来卡住
+    var loading by remember { mutableStateOf(false) }
+    if (loading) {
+        com.github.jing332.compose.widgets.LoadingDialog(onDismissRequest = { loading = false })
+    }
+
     // 按当前顺序排列，并只保留有 TtsConfigurationDTO 的项
     val sortedItems = remember(groupItems) {
         groupItems.sortedBy { it.order }.filter { it.config is TtsConfigurationDTO }
@@ -200,6 +206,7 @@ fun BatchTagDialog(
         confirmButton = {
             TextButton(
                 onClick = {
+                    loading = true
                     scope.launch {
                         withContext(Dispatchers.IO) {
                             val keys = tagKeys
@@ -223,6 +230,7 @@ fun BatchTagDialog(
                         if (selectedItems.any { it.isEnabled }) {
                             SystemTtsService.notifyUpdateConfig()
                         }
+                        loading = false
                         onDismissRequest()
                     }
                 },
@@ -235,6 +243,7 @@ fun BatchTagDialog(
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 TextButton(
                     onClick = {
+                        loading = true
                         scope.launch {
                             withContext(Dispatchers.IO) {
                                 selectedItems.forEach { item ->
@@ -250,6 +259,7 @@ fun BatchTagDialog(
                             if (selectedItems.any { it.isEnabled }) {
                                 SystemTtsService.notifyUpdateConfig()
                             }
+                            loading = false
                             onDismissRequest()
                         }
                     },

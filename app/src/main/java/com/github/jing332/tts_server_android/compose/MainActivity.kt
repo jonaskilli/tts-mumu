@@ -190,7 +190,6 @@ private fun MainScreen(finish: () -> Unit) {
                     systts = stateSystemTts,
                     onSysttsChange = {
                         stateSystemTts = it
-                        println("UpdateSystemTTS: $it")
                     },
                     onSave = {
                         navController.popBackStack()

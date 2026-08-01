@@ -23,6 +23,8 @@ import androidx.compose.foundation.lazy.LazyItemScope
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
@@ -79,6 +81,7 @@ import com.github.jing332.common.utils.longToast
 import com.github.jing332.common.utils.toast
 import com.github.jing332.compose.widgets.ControlBottomBarVisibility
 import com.github.jing332.compose.widgets.DraggableVerticalScrollbar
+import com.github.jing332.compose.widgets.LoadingDialog
 import com.github.jing332.compose.widgets.LazyListIndexStateSaver
 import com.github.jing332.compose.widgets.ShadowedDraggableItem
 import com.github.jing332.compose.widgets.TextFieldDialog
@@ -181,6 +184,12 @@ internal fun ListManagerScreen(
 
     // 子分组展开状态：存储已展开的子分组完整路径（持久化，默认全部折叠）
     var expandedSubGroups by remember { AppConfig.expandedSubGroups }
+
+    // 整理标签时的加载遮罩，避免主线程被 JS 引擎评估阻塞导致界面变灰卡住
+    var showTagOrganizeLoading by remember { mutableStateOf(false) }
+    if (showTagOrganizeLoading) {
+        LoadingDialog(onDismissRequest = { showTagOrganizeLoading = false })
+    }
 
     BackHandler(enabled = isSearchMode || selectionMode) {
         when {
@@ -906,9 +915,13 @@ internal fun ListManagerScreen(
             val sourceGwt = showReassignTagDialog!!
             val prefix = reassignTagPrefix.trim()
             if (prefix.isNotEmpty()) {
+                showReassignTagDialog = null
+                showTagOrganizeLoading = true
                 scope.launch {
-                    reassignTagsWithPrefix(sourceGwt.list, prefix)
-                    showReassignTagDialog = null
+                    withContext(Dispatchers.IO) {
+                        reassignTagsWithPrefix(sourceGwt.list, prefix)
+                    }
+                    showTagOrganizeLoading = false
                 }
             }
         }
@@ -1034,7 +1047,10 @@ internal fun ListManagerScreen(
         val sourceGwt = showMoveEnabledDialog!!
         val sourceGroup = sourceGwt.group
         val enabledItems = sourceGwt.list.filter { it.isEnabled }
-        val allGroups = remember { dbm.systemTtsV2.getAllGroupWithTts() }
+        // 直接复用内存列表 models，避免主线程重复查库
+        val otherGroups = remember(sourceGroup.id) {
+            models.filter { it.group.id != sourceGroup.id }
+        }
         // 展开的大分组ID集合
         var expandedMoveGroups by remember { mutableStateOf<Set<Long>>(emptySet()) }
 
@@ -1044,41 +1060,40 @@ internal fun ListManagerScreen(
             modifier = Modifier.fillMaxWidth(0.92f),
             title = { Text("移动启用配置 (${enabledItems.size}个)") },
             text = {
-                Column(modifier = Modifier.fillMaxWidth()) {
+                Column(modifier = Modifier
+                    .fillMaxWidth()
+                    .heightIn(max = 500.dp)
+                    .verticalScroll(rememberScrollState())) {
                     Text("移动到：", modifier = Modifier.padding(bottom = 8.dp))
-                    LazyColumn(
-                        modifier = Modifier.heightIn(max = 400.dp),
-                        verticalArrangement = Arrangement.spacedBy(2.dp)
-                    ) {
-                        val otherGroups = allGroups.filter { it.group.id != sourceGroup.id }
-                        items(otherGroups, key = { "g_${it.group.id}" }) { gwt ->
-                            val grp = gwt.group
-                            val subPaths = gwt.list.map { it.categoryPath }
-                                .filter { it.isNotBlank() }.distinct().sorted()
-                            val isExpanded = grp.id in expandedMoveGroups
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                if (subPaths.isNotEmpty()) {
-                                    IconButton(onClick = {
-                                        expandedMoveGroups = if (isExpanded)
-                                            expandedMoveGroups - grp.id
-                                        else expandedMoveGroups + grp.id
-                                    }) {
-                                        Icon(
-                                            Icons.Default.ExpandCircleDown,
-                                            contentDescription = null,
-                                            modifier = Modifier.rotate(if (isExpanded) 0f else -45f)
-                                        )
-                                    }
-                                } else {
-                                    Spacer(Modifier.size(48.dp))
+                    otherGroups.forEach { gwt ->
+                        val grp = gwt.group
+                        val subPaths = gwt.list.map { it.categoryPath }
+                            .filter { it.isNotBlank() }.distinct().sorted()
+                        val isExpanded = grp.id in expandedMoveGroups
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            if (subPaths.isNotEmpty()) {
+                                IconButton(onClick = {
+                                    expandedMoveGroups = if (isExpanded)
+                                        expandedMoveGroups - grp.id
+                                    else expandedMoveGroups + grp.id
+                                }) {
+                                    Icon(
+                                        Icons.Default.ExpandCircleDown,
+                                        contentDescription = null,
+                                        modifier = Modifier.rotate(if (isExpanded) 0f else -45f)
+                                    )
                                 }
-                                TextButton(
-                                    onClick = {
-                                        scope.launch {
-                                            val maxOrder = gwt.list.maxOfOrNull { it.order } ?: -1
+                            } else {
+                                Spacer(Modifier.size(48.dp))
+                            }
+                            TextButton(
+                                onClick = {
+                                    scope.launch {
+                                        val maxOrder = gwt.list.maxOfOrNull { it.order } ?: -1
+                                        withIO {
                                             enabledItems.forEachIndexed { idx, item ->
                                                 dbm.systemTtsV2.update(item.copy(
                                                     groupId = grp.id,
@@ -1086,21 +1101,23 @@ internal fun ListManagerScreen(
                                                     order = maxOrder + 1 + idx
                                                 ))
                                             }
-                                            SystemTtsService.notifyUpdateConfig()
-                                            showMoveEnabledDialog = null
                                         }
-                                    },
-                                    modifier = Modifier.weight(1f)
-                                ) { Text(grp.name) }
-                            }
+                                        SystemTtsService.notifyUpdateConfig()
+                                        showMoveEnabledDialog = null
+                                    }
+                                },
+                                modifier = Modifier.weight(1f)
+                            ) { Text(grp.name) }
+                        }
 
-                            if (isExpanded) {
-                                subPaths.forEach { path ->
-                                    TextButton(
-                                        onClick = {
-                                            scope.launch {
-                                                val subItems = gwt.list.filter { it.categoryPath == path }
-                                                val maxOrder = subItems.maxOfOrNull { it.order } ?: -1
+                        if (isExpanded) {
+                            subPaths.forEach { path ->
+                                TextButton(
+                                    onClick = {
+                                        scope.launch {
+                                            val subItems = gwt.list.filter { it.categoryPath == path }
+                                            val maxOrder = subItems.maxOfOrNull { it.order } ?: -1
+                                            withIO {
                                                 enabledItems.forEachIndexed { idx, item ->
                                                     dbm.systemTtsV2.update(item.copy(
                                                         groupId = grp.id,
@@ -1108,28 +1125,26 @@ internal fun ListManagerScreen(
                                                         order = maxOrder + 1 + idx
                                                     ))
                                                 }
-                                                SystemTtsService.notifyUpdateConfig()
-                                                showMoveEnabledDialog = null
                                             }
-                                        },
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .padding(start = 56.dp)
-                                    ) { Text(path) }
-                                }
+                                            SystemTtsService.notifyUpdateConfig()
+                                            showMoveEnabledDialog = null
+                                        }
+                                    },
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(start = 56.dp)
+                                ) { Text(path) }
                             }
                         }
-                        item {
-                            HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
-                            TextButton(
-                                onClick = {
-                                    newGroupNameForMove = ""
-                                    showNewGroupForMove = true
-                                },
-                                modifier = Modifier.fillMaxWidth()
-                            ) { Text("新建一级分组") }
-                        }
                     }
+                    HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
+                    TextButton(
+                        onClick = {
+                            newGroupNameForMove = ""
+                            showNewGroupForMove = true
+                        },
+                        modifier = Modifier.fillMaxWidth()
+                    ) { Text("新建一级分组") }
                 }
             },
             confirmButton = {},
@@ -1162,7 +1177,10 @@ internal fun ListManagerScreen(
             modifier = Modifier.fillMaxWidth(0.92f),
             title = { Text("移动子分组 (${selectedPaths.size}/${subPaths.size})") },
             text = {
-                Column(modifier = Modifier.fillMaxWidth()) {
+                Column(modifier = Modifier
+                    .fillMaxWidth()
+                    .heightIn(max = 500.dp)
+                    .verticalScroll(rememberScrollState())) {
                     if (subPaths.isEmpty()) {
                         Text("当前分组没有子分组")
                     } else {
@@ -1188,58 +1206,49 @@ internal fun ListManagerScreen(
                         }
                         HorizontalDivider()
 
-                        // 子分组多选列表
-                        LazyColumn(
-                            modifier = Modifier.heightIn(max = 240.dp),
-                            verticalArrangement = Arrangement.spacedBy(2.dp)
-                        ) {
-                            items(subPaths, key = { it }) { path ->
-                                val checked = path in selectedPaths
-                                Row(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .clickable {
-                                            selectedPaths = if (checked) selectedPaths - path
-                                            else selectedPaths + path
-                                        }
-                                        .padding(vertical = 2.dp),
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    Checkbox(
-                                        checked = checked,
-                                        onCheckedChange = {
-                                            selectedPaths = if (it) selectedPaths + path
-                                            else selectedPaths - path
-                                        }
-                                    )
-                                    Text(path, modifier = Modifier.padding(start = 8.dp))
-                                }
+                        // 子分组多选列表（全部展示，超出可滚动）
+                        subPaths.forEach { path ->
+                            val checked = path in selectedPaths
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clickable {
+                                        selectedPaths = if (checked) selectedPaths - path
+                                        else selectedPaths + path
+                                    }
+                                    .padding(vertical = 2.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Checkbox(
+                                    checked = checked,
+                                    onCheckedChange = {
+                                        selectedPaths = if (it) selectedPaths + path
+                                        else selectedPaths - path
+                                    }
+                                )
+                                Text(path, modifier = Modifier.padding(start = 8.dp))
                             }
                         }
 
                         if (selectedPaths.isNotEmpty()) {
                             HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
                             Text("选择目标一级分组：", modifier = Modifier.padding(bottom = 4.dp))
-                            // 目标一级分组(排除源分组)
+                            // 目标一级分组(排除源分组) —— 全部展示
                             val otherGroups = models.filter { it.group.id != sourceGroup.id }.map { it.group }
-                            LazyColumn(
-                                modifier = Modifier.heightIn(max = 200.dp)
-                            ) {
-                                items(otherGroups, key = { "tg_${it.id}" }) { targetGroup ->
-                                    TextButton(
-                                        onClick = {
-                                            scope.launch {
-                                                moveSubGroupsToGroup(
-                                                    sourceGroup = sourceGroup,
-                                                    paths = selectedPaths,
-                                                    targetGroup = targetGroup
-                                                )
-                                                showMoveSubGroupsDialog = null
-                                            }
-                                        },
-                                        modifier = Modifier.fillMaxWidth()
-                                    ) { Text(targetGroup.name) }
-                                }
+                            otherGroups.forEach { targetGroup ->
+                                TextButton(
+                                    onClick = {
+                                        scope.launch {
+                                            moveSubGroupsToGroup(
+                                                sourceGroup = sourceGroup,
+                                                paths = selectedPaths,
+                                                targetGroup = targetGroup
+                                            )
+                                            showMoveSubGroupsDialog = null
+                                        }
+                                    },
+                                    modifier = Modifier.fillMaxWidth()
+                                ) { Text(targetGroup.name) }
                             }
                         }
                     }
@@ -1265,26 +1274,24 @@ internal fun ListManagerScreen(
             modifier = Modifier.fillMaxWidth(0.92f),
             title = { Text("移动子分组「$subPath」到") },
             text = {
-                Column(modifier = Modifier.fillMaxWidth()) {
-                    LazyColumn(
-                        modifier = Modifier.heightIn(max = 300.dp),
-                        verticalArrangement = Arrangement.spacedBy(2.dp)
-                    ) {
-                        items(otherGroups, key = { "tg_${it.id}" }) { targetGroup ->
-                            TextButton(
-                                onClick = {
-                                    scope.launch {
-                                        moveSubGroupsToGroup(
-                                            sourceGroup = sourceGroup,
-                                            paths = setOf(subPath),
-                                            targetGroup = targetGroup
-                                        )
-                                        showMoveSingleSubGroupDialog = null
-                                    }
-                                },
-                                modifier = Modifier.fillMaxWidth()
-                            ) { Text(targetGroup.name) }
-                        }
+                Column(modifier = Modifier
+                    .fillMaxWidth()
+                    .heightIn(max = 500.dp)
+                    .verticalScroll(rememberScrollState())) {
+                    otherGroups.forEach { targetGroup ->
+                        TextButton(
+                            onClick = {
+                                scope.launch {
+                                    moveSubGroupsToGroup(
+                                        sourceGroup = sourceGroup,
+                                        paths = setOf(subPath),
+                                        targetGroup = targetGroup
+                                    )
+                                    showMoveSingleSubGroupDialog = null
+                                }
+                            },
+                            modifier = Modifier.fillMaxWidth()
+                        ) { Text(targetGroup.name) }
                     }
                     HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
                     TextButton(
@@ -1763,13 +1770,21 @@ internal fun ListManagerScreen(
                                     showMoveSubGroupsDialog = g to null
                                 },
                                 onResortTagsByExisting = {
+                                    showTagOrganizeLoading = true
                                     scope.launch {
-                                        resortTags(groupWithSystemTts.list, fromZero = false)
+                                        withContext(Dispatchers.IO) {
+                                            resortTags(groupWithSystemTts.list, fromZero = false)
+                                        }
+                                        showTagOrganizeLoading = false
                                     }
                                 },
                                 onResortTagsFromZero = {
+                                    showTagOrganizeLoading = true
                                     scope.launch {
-                                        resortTags(groupWithSystemTts.list, fromZero = true)
+                                        withContext(Dispatchers.IO) {
+                                            resortTags(groupWithSystemTts.list, fromZero = true)
+                                        }
+                                        showTagOrganizeLoading = false
                                     }
                                 },
                                 onReassignTags = {
@@ -1777,20 +1792,27 @@ internal fun ListManagerScreen(
                                     showReassignTagDialog = groupWithSystemTts
                                 },
                                 onReassignTagsByGroupName = {
-                                    scope.launch {
-                                        val detected = detectTagKeyword(g.name)
-                                        if (detected == null) {
-                                            context.toast("分组名未包含关键词")
-                                            return@launch
+                                    val detected = detectTagKeyword(g.name)
+                                    if (detected == null) {
+                                        context.toast("分组名未包含关键词")
+                                    } else {
+                                        showTagOrganizeLoading = true
+                                        scope.launch {
+                                            val count = withContext(Dispatchers.IO) {
+                                                reassignTagsByGroupName(groupWithSystemTts.list, g.name)
+                                            }
+                                            showTagOrganizeLoading = false
+                                            context.toast("已按「${detected.prefix}」整理 $count 个标签")
                                         }
-                                        val count =
-                                            reassignTagsByGroupName(groupWithSystemTts.list, g.name)
-                                        context.toast("已按「${detected.prefix}」整理 $count 个标签")
                                     }
                                 },
                                 onReassignAllSubGroups = {
+                                    showTagOrganizeLoading = true
                                     scope.launch {
-                                        reassignTagsForAllSubGroups(groupWithSystemTts.list)
+                                        withContext(Dispatchers.IO) {
+                                            reassignTagsForAllSubGroups(groupWithSystemTts.list)
+                                        }
+                                        showTagOrganizeLoading = false
                                         context.toast("已按各子分组关键词整理标签")
                                     }
                                 },
@@ -1809,10 +1831,21 @@ internal fun ListManagerScreen(
 
                         if (!hasSubGroups) {
                             // 无子分组时保持原有扁平渲染（支持拖拽排序）
+                            if (groupWithSystemTts.list.isEmpty()) {
+                                // 空的一级分组也作为正常分组处理：展开时显示占位提示，明确其为可用状态
+                                item(key = "empty_${g.id}") {
+                                    Text(
+                                        text = stringResource(R.string.group_empty_hint),
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .padding(horizontal = 16.dp, vertical = 12.dp)
+                                    )
+                                }
+                            }
                             itemsIndexed(groupWithSystemTts.list.sortedBy { it.order },
                                 key = { _, v -> "${g.id}_${v.id}" }) { _, item ->
-                                if (g.id == 1L) println(item.displayName + ", " + item.order)
-
                                 ShadowedDraggableItem(
                                     reorderableState = reorderState,
                                     key = "${g.id}_${item.id}"
@@ -1940,15 +1973,18 @@ internal fun ListManagerScreen(
                                                     },
                                                     hasTagKeyword = detectTagKeyword(fItem.node.name) != null,
                                                     onReassignTagsByGroupName = {
-                                                        scope.launch {
-                                                            val detected = detectTagKeyword(fItem.node.name)
-                                                            if (detected == null) {
-                                                                context.toast("分组名未包含关键词")
-                                                                return@launch
+                                                        val detected = detectTagKeyword(fItem.node.name)
+                                                        if (detected == null) {
+                                                            context.toast("分组名未包含关键词")
+                                                        } else {
+                                                            showTagOrganizeLoading = true
+                                                            scope.launch {
+                                                                val count = withContext(Dispatchers.IO) {
+                                                                    reassignTagsByGroupName(subItems, fItem.node.name)
+                                                                }
+                                                                showTagOrganizeLoading = false
+                                                                context.toast("已按「${detected.prefix}」整理 $count 个标签")
                                                             }
-                                                            val count =
-                                                                reassignTagsByGroupName(subItems, fItem.node.name)
-                                                            context.toast("已按「${detected.prefix}」整理 $count 个标签")
                                                         }
                                                     },
                                                     onDelete = {
@@ -1991,12 +2027,9 @@ internal fun ListManagerScreen(
                                             }
                                         }
 
-                                        // 展开的子分组使用 stickyHeader 置顶，折叠时用普通 item
-                                        if (expandedSubGroups.contains(fItem.node.fullPath)) {
-                                            stickyHeader(key = subKey) { headerContent() }
-                                        } else {
-                                            item(key = subKey) { headerContent() }
-                                        }
+                                        // 子分组头统一使用普通 item：stickyHeader 与拖拽库(reorderable)配合时，
+                                        // 顶部粘性置顶的子分组会出现无法长按拖动的情况(尤其是前两个)，改回 item 以恢复拖拽。
+                                        item(key = subKey) { headerContent() }
                                     }
                                     is FlattenedCategoryItem.TtsItem -> {
                                         val item = fItem.item
