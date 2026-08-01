@@ -25,12 +25,13 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.DeleteForever
+import androidx.compose.material.icons.filled.Deselect
 import androidx.compose.material.icons.filled.ExpandCircleDown
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.SelectAll
-import androidx.compose.material.icons.filled.AccountTree
+import androidx.compose.material.icons.automirrored.filled.DriveFileMove
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -1330,21 +1331,32 @@ internal fun ListManagerScreen(
                                 selectedGroupIds = if (allSelected) emptySet() else models.map { it.group.id }.toSet()
                             }) {
                                 Icon(
-                                    Icons.Default.SelectAll,
+                                    if (allSelected) Icons.Default.Deselect else Icons.Default.SelectAll,
                                     stringResource(id = if (allSelected) R.string.deselect_all else R.string.select_all)
                                 )
                             }
-                            IconButton(onClick = { if (selectedGroupIds.isNotEmpty()) showDeleteSelectedDialog = true }) {
+                            IconButton(
+                                enabled = selectedGroupIds.isNotEmpty(),
+                                onClick = { showDeleteSelectedDialog = true }
+                            ) {
                                 Icon(
                                     Icons.Default.DeleteForever,
                                     stringResource(id = R.string.delete),
-                                    tint = MaterialTheme.colorScheme.error
+                                    tint = if (selectedGroupIds.isNotEmpty())
+                                        MaterialTheme.colorScheme.error
+                                    else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f)
                                 )
                             }
-                            IconButton(onClick = { if (selectedGroupIds.isNotEmpty()) showConvertToSubGroupMulti = true }) {
+                            IconButton(
+                                enabled = selectedGroupIds.isNotEmpty(),
+                                onClick = { showConvertToSubGroupMulti = true }
+                            ) {
                                 Icon(
-                                    Icons.Default.AccountTree,
-                                    "转为子分组"
+                                    Icons.AutoMirrored.Filled.DriveFileMove,
+                                    "转为子分组",
+                                    tint = if (selectedGroupIds.isNotEmpty())
+                                        MaterialTheme.colorScheme.onSurfaceVariant
+                                    else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f)
                                 )
                             }
                             IconButton(onClick = {
