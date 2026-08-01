@@ -52,6 +52,7 @@ fun SubGroupHeader(
     onEditAudioParams: () -> Unit = {},
     onSort: () -> Unit = {},
     onBatchAssignTags: () -> Unit = {},
+    hasTagKeyword: Boolean = false,
     onReassignTagsByGroupName: () -> Unit = {},
     onDelete: () -> Unit = {},
     onExport: () -> Unit = {},
@@ -181,16 +182,18 @@ fun SubGroupHeader(
                     }
                 )
 
-                DropdownMenuItem(
-                    text = { Text("按分组名一键分配标签") },
-                    onClick = {
-                        showOptions = false
-                        onReassignTagsByGroupName()
-                    },
-                    leadingIcon = {
-                        Icon(Icons.Default.Label, null)
-                    }
-                )
+                if (hasTagKeyword) {
+                    DropdownMenuItem(
+                        text = { Text("按分组名一键分配标签") },
+                        onClick = {
+                            showOptions = false
+                            onReassignTagsByGroupName()
+                        },
+                        leadingIcon = {
+                            Icon(Icons.Default.Label, null)
+                        }
+                    )
+                }
 
                 DropdownMenuItem(
                     text = { Text("删除启用的配置") },

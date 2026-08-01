@@ -51,6 +51,7 @@ fun Group(
     onEditContent: () -> Unit = {},
     onCreateSubGroup: () -> Unit = {},
     hasSubGroups: Boolean = false,
+    hasTagKeyword: Boolean = false,
     onBatchAssignTags: () -> Unit = {},
     onReleaseSubGroup: () -> Unit = {},
     onConvertToSubGroup: () -> Unit = {},
@@ -197,8 +198,8 @@ fun Group(
                 }
             )
 
-            // 仅当不含子分组时显示：按分组名一键分配标签
-            if (!hasSubGroups) {
+            // 仅当不含子分组且分组名含关键词时显示：按分组名一键分配标签
+            if (!hasSubGroups && hasTagKeyword) {
                 DropdownMenuItem(text = { Text("按分组名一键分配标签") },
                     onClick = {
                         dismiss()

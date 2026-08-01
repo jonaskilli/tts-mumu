@@ -140,9 +140,9 @@ private data class DetectedKeyword(val prefix: String, val zeroPad: Boolean)
  * 返回前缀与是否补零：男主不补零，其余(含女主)两位补零，与朗读规则一致。
  * 无匹配时回退为原分组名作为前缀。
  */
-private fun detectTagKeyword(name: String): DetectedKeyword {
+private fun detectTagKeyword(name: String): DetectedKeyword? {
     val kw = GROUP_TAG_KEYWORDS.filter { name.contains(it) }
-        .maxByOrNull { it.length } ?: name
+        .maxByOrNull { it.length } ?: return null
     return DetectedKeyword(kw, zeroPad = kw !in NO_ZERO_PAD_PREFIXES)
 }
 
@@ -424,15 +424,15 @@ internal fun ListManagerScreen(
         val tagPattern = Regex("^(.+?)(\\d+)$")
         // narration 特殊标签：重排时第一项保留原 tag，后续用其 tagName(旁白)+序号
         val NARRATION_TAG = "narration"
+        val toUpdate = mutableListOf<SystemTtsV2>()
         // 按 categoryPath 分组
         list.groupBy { it.categoryPath }.forEach { (path, items) ->
-            // 只处理启用的、且有 TtsConfigurationDTO 的配置
-            val enabledItems = items.filter { it.isEnabled && it.config is TtsConfigurationDTO }
+            val targetItems = items.filter { it.config is TtsConfigurationDTO }
                 .sortedBy { it.order }
-            if (enabledItems.isEmpty()) return@forEach
+            if (targetItems.isEmpty()) return@forEach
 
             // 按标签前缀分组
-            val byPrefix = enabledItems.groupBy { item ->
+            val byPrefix = targetItems.groupBy { item ->
                 val tag = (item.config as TtsConfigurationDTO).speechRule.tag
                 tagPattern.matchEntire(tag)?.groupValues?.getOrNull(1) ?: tag
             }
@@ -447,7 +447,7 @@ internal fun ListManagerScreen(
                         val firstConfig = first.config as TtsConfigurationDTO
                         val firstRule = firstConfig.speechRule.copy()
                         computeTagNameOrFallback(context, firstRule, NARRATION_TAG)
-                        dbm.systemTtsV2.update(first.copy(
+                        toUpdate.add(first.copy(
                             config = firstConfig.copy(speechRule = firstRule)
                         ))
                         // 后续项：tag = 旁白01、旁白02...（用第一项计算出的 tagName 作为前缀）
@@ -457,7 +457,7 @@ internal fun ListManagerScreen(
                             val config = item.config as TtsConfigurationDTO
                             val newRule = config.speechRule.copy(tag = newTag)
                             computeTagNameOrFallback(context, newRule, newTag)
-                            dbm.systemTtsV2.update(item.copy(
+                            toUpdate.add(item.copy(
                                 config = config.copy(speechRule = newRule)
                             ))
                         }
@@ -468,7 +468,7 @@ internal fun ListManagerScreen(
                             val config = item.config as TtsConfigurationDTO
                             val newRule = config.speechRule.copy(tag = newTag)
                             computeTagNameOrFallback(context, newRule, newTag)
-                            dbm.systemTtsV2.update(item.copy(
+                            toUpdate.add(item.copy(
                                 config = config.copy(speechRule = newRule)
                             ))
                         }
@@ -485,18 +485,21 @@ internal fun ListManagerScreen(
                         val config = item.config as TtsConfigurationDTO
                         val newRule = config.speechRule.copy(tag = newTag)
                         computeTagNameOrFallback(context, newRule, newTag)
-                        dbm.systemTtsV2.update(item.copy(
+                        toUpdate.add(item.copy(
                             config = config.copy(speechRule = newRule)
                         ))
                     }
                 }
             }
         }
-        SystemTtsService.notifyUpdateConfig()
+        if (toUpdate.isNotEmpty()) {
+            dbm.systemTtsV2.update(*toUpdate.toTypedArray())
+            SystemTtsService.notifyUpdateConfig()
+        }
     }
 
     /**
-     * 重新分配标签：用指定前缀，按当前位置顺序从01开始连续编号（仅启用配置）。
+     * 重新分配标签：用指定前缀，按当前位置顺序从01开始连续编号。
      * [zeroPad]=false 时不补零（如男主1…男主N，匹配朗读规则）。
      */
     suspend fun reassignTagsWithPrefix(
@@ -504,35 +507,37 @@ internal fun ListManagerScreen(
         prefix: String,
         zeroPad: Boolean = true,
     ) {
+        val toUpdate = mutableListOf<SystemTtsV2>()
         // 按 categoryPath 分组，每个独立处理
         list.groupBy { it.categoryPath }.forEach { (path, items) ->
-            val enabledItems = items.filter { it.isEnabled && it.config is TtsConfigurationDTO }
+            val targetItems = items.filter { it.config is TtsConfigurationDTO }
                 .sortedBy { it.order }
-            if (enabledItems.isEmpty()) return@forEach
+            if (targetItems.isEmpty()) return@forEach
 
-            enabledItems.forEachIndexed { idx, item ->
+            targetItems.forEachIndexed { idx, item ->
                 val seq = if (zeroPad) String.format("%02d", idx + 1) else (idx + 1).toString()
                 val newTag = prefix + seq
                 val config = item.config as TtsConfigurationDTO
                 val newRule = config.speechRule.copy(tag = newTag)
                 computeTagNameOrFallback(context, newRule, newTag)
-                dbm.systemTtsV2.update(item.copy(
-                    config = config.copy(speechRule = newRule)
-                ))
+                toUpdate.add(item.copy(config = config.copy(speechRule = newRule)))
             }
         }
-        SystemTtsService.notifyUpdateConfig()
+        if (toUpdate.isNotEmpty()) {
+            dbm.systemTtsV2.update(*toUpdate.toTypedArray())
+            SystemTtsService.notifyUpdateConfig()
+        }
     }
 
     /**
      * 按分组名一键分配标签：从分组名匹配固定关键词(女童/少女/…/男主/女主)，
-     * 用该关键词作为前缀编号（仅启用配置）。男主不补零，其余两位补零。
+     * 用该关键词作为前缀编号。男主不补零，其余两位补零。
      * @return 实际整理的标签数量
      */
     suspend fun reassignTagsByGroupName(list: List<SystemTtsV2>, groupName: String): Int {
-        val detected = detectTagKeyword(groupName)
+        val detected = detectTagKeyword(groupName) ?: return 0
         reassignTagsWithPrefix(list, detected.prefix, detected.zeroPad)
-        return list.count { it.isEnabled && it.config is TtsConfigurationDTO }
+        return list.count { it.config is TtsConfigurationDTO }
     }
 
     /**
@@ -544,12 +549,10 @@ internal fun ListManagerScreen(
         val flattened = flattenSubCategoryTree(tree)
         flattened.filterIsInstance<FlattenedCategoryItem.SubGroupHeader>().forEach { header ->
             val detected = detectTagKeyword(header.node.name)
-            // 名称含关键词时 detected.prefix 才不等于原名
-            if (detected.prefix != header.node.name) {
+            if (detected != null) {
                 reassignTagsWithPrefix(header.node.items, detected.prefix, detected.zeroPad)
             }
         }
-        SystemTtsService.notifyUpdateConfig()
     }
 
     var hasShownTip by rememberSaveable { mutableStateOf(false) }
@@ -1428,6 +1431,7 @@ internal fun ListManagerScreen(
                                     showCreateSubGroup = g.id
                                 },
                                 hasSubGroups = groupWithSystemTts.list.any { it.categoryPath.isNotBlank() },
+                                hasTagKeyword = detectTagKeyword(g.name) != null,
                                 onBatchAssignTags = {
                                     showBatchTagDialog = groupWithSystemTts.list
                                 },
@@ -1476,6 +1480,10 @@ internal fun ListManagerScreen(
                                 onReassignTagsByGroupName = {
                                     scope.launch {
                                         val detected = detectTagKeyword(g.name)
+                                        if (detected == null) {
+                                            context.toast("分组名未包含关键词")
+                                            return@launch
+                                        }
                                         val count =
                                             reassignTagsByGroupName(groupWithSystemTts.list, g.name)
                                         context.toast("已按「${detected.prefix}」整理 $count 个标签")
@@ -1644,9 +1652,14 @@ internal fun ListManagerScreen(
                                                 onBatchAssignTags = {
                                                     showSubGroupBatchTag = subItems
                                                 },
+                                                hasTagKeyword = detectTagKeyword(fItem.node.name) != null,
                                                 onReassignTagsByGroupName = {
                                                     scope.launch {
                                                         val detected = detectTagKeyword(fItem.node.name)
+                                                        if (detected == null) {
+                                                            context.toast("分组名未包含关键词")
+                                                            return@launch
+                                                        }
                                                         val count =
                                                             reassignTagsByGroupName(subItems, fItem.node.name)
                                                         context.toast("已按「${detected.prefix}」整理 $count 个标签")
