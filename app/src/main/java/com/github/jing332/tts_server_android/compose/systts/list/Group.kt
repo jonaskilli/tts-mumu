@@ -141,89 +141,6 @@ fun Group(
         inSelectionMode = inSelectionMode,
         isSelected = isSelected,
         onToggleSelect = onToggleSelect,
-        extraActions = { dismiss ->
-            DropdownMenuItem(text = { Text("删除启用的配置") },
-                onClick = {
-                    dismiss()
-                    onDeleteEnabled()
-                },
-                leadingIcon = { Icon(Icons.Default.DeleteForever, null) }
-            )
-
-            DropdownMenuItem(text = { Text("删除未启用的配置") },
-                onClick = {
-                    dismiss()
-                    onDeleteDisabled()
-                },
-                leadingIcon = { Icon(Icons.Default.DeleteForever, null) }
-            )
-
-            DropdownMenuItem(text = { Text("移动启用配置到其他分组") },
-                onClick = {
-                    dismiss()
-                    onMoveEnabledToGroup()
-                },
-                leadingIcon = {
-                    Icon(Icons.Default.DriveFileMove, null)
-                }
-            )
-
-            DropdownMenuItem(text = { Text("按原有序号重排标签") },
-                onClick = {
-                    dismiss()
-                    onResortTagsByExisting()
-                },
-                leadingIcon = {
-                    Icon(Icons.Default.Label, null)
-                }
-            )
-
-            DropdownMenuItem(text = { Text("从01重排标签") },
-                onClick = {
-                    dismiss()
-                    onResortTagsFromZero()
-                },
-                leadingIcon = {
-                    Icon(Icons.Default.Label, null)
-                }
-            )
-
-            DropdownMenuItem(text = { Text("重新分配标签(输入前缀)") },
-                onClick = {
-                    dismiss()
-                    onReassignTags()
-                },
-                leadingIcon = {
-                    Icon(Icons.Default.Label, null)
-                }
-            )
-
-            // 仅当不含子分组且分组名含关键词时显示：按分组名一键分配标签
-            if (!hasSubGroups && hasTagKeyword) {
-                DropdownMenuItem(text = { Text("按分组名一键分配标签") },
-                    onClick = {
-                        dismiss()
-                        onReassignTagsByGroupName()
-                    },
-                    leadingIcon = {
-                        Icon(Icons.Default.Label, null)
-                    }
-                )
-            }
-
-            // 仅当含子分组时显示：整理全部子分组标签
-            if (hasSubGroups) {
-                DropdownMenuItem(text = { Text("整理全部子分组标签") },
-                    onClick = {
-                        dismiss()
-                        onReassignAllSubGroups()
-                    },
-                    leadingIcon = {
-                        Icon(Icons.Default.Label, null)
-                    }
-                )
-            }
-        },
         actions = { dismiss ->
             DropdownMenuItem(text = { Text(stringResource(id = R.string.rename)) },
                 onClick = {
@@ -324,6 +241,88 @@ fun Group(
                     Icon(Icons.Default.Label, null)
                 }
             )
+
+            DropdownMenuItem(text = { Text("删除启用的配置") },
+                onClick = {
+                    dismiss()
+                    onDeleteEnabled()
+                },
+                leadingIcon = { Icon(Icons.Default.DeleteForever, null) }
+            )
+
+            DropdownMenuItem(text = { Text("删除未启用的配置") },
+                onClick = {
+                    dismiss()
+                    onDeleteDisabled()
+                },
+                leadingIcon = { Icon(Icons.Default.DeleteForever, null) }
+            )
+
+            DropdownMenuItem(text = { Text("移动启用配置到其他分组") },
+                onClick = {
+                    dismiss()
+                    onMoveEnabledToGroup()
+                },
+                leadingIcon = {
+                    Icon(Icons.Default.DriveFileMove, null)
+                }
+            )
+
+            DropdownMenuItem(text = { Text("按原有序号重排标签") },
+                onClick = {
+                    dismiss()
+                    onResortTagsByExisting()
+                },
+                leadingIcon = {
+                    Icon(Icons.Default.Label, null)
+                }
+            )
+
+            DropdownMenuItem(text = { Text("从01重排标签") },
+                onClick = {
+                    dismiss()
+                    onResortTagsFromZero()
+                },
+                leadingIcon = {
+                    Icon(Icons.Default.Label, null)
+                }
+            )
+
+            DropdownMenuItem(text = { Text("重新分配标签(输入前缀)") },
+                onClick = {
+                    dismiss()
+                    onReassignTags()
+                },
+                leadingIcon = {
+                    Icon(Icons.Default.Label, null)
+                }
+            )
+
+            // 仅当不含子分组且分组名含关键词时显示：按分组名一键分配标签
+            if (!hasSubGroups && hasTagKeyword) {
+                DropdownMenuItem(text = { Text("按分组名一键分配标签") },
+                    onClick = {
+                        dismiss()
+                        onReassignTagsByGroupName()
+                    },
+                    leadingIcon = {
+                        Icon(Icons.Default.Label, null)
+                    }
+                )
+            }
+
+            // 仅当含子分组时显示：整理全部子分组标签
+            if (hasSubGroups) {
+                DropdownMenuItem(text = { Text("整理全部子分组标签") },
+                    onClick = {
+                        dismiss()
+                        onReassignAllSubGroups()
+                    },
+                    leadingIcon = {
+                        Icon(Icons.Default.Label, null)
+                    }
+                )
+            }
         }
     )
 
