@@ -376,6 +376,7 @@ class PluginTtsUI : IConfigUI() {
                     }
 
                     LoadingContent(isLoading = vm.isLoading) {
+                        Column {
                         if (!isUiOnly) {
                         Column {
                             AppSpinner(
@@ -566,17 +567,16 @@ class PluginTtsUI : IConfigUI() {
                             }
                         )
                         }
-                    }
 
-                    // 插件自定义 UI 始终展示，即使界面模式(isUiOnly)下也可见
-                    AndroidView(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .animateContentSize(),
-                        factory = { customViewLayout }
-                    )
-                }
-                }
+                        // 插件自定义 UI 始终展示，即使界面模式(isUiOnly)下也可见
+                        AndroidView(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .animateContentSize(),
+                            factory = { customViewLayout }
+                        )
+                        }
+                    }
 
             }
 
