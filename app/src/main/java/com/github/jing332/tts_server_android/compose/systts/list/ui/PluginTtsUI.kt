@@ -16,6 +16,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.Switch
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -325,6 +326,34 @@ class PluginTtsUI : IConfigUI() {
                         systemTts = systts,
                         onSystemTtsChange = onSysttsChange
                     )
+
+                // 仅界面模式开关：仅角色管理插件(mingwuyan)可开启，开启后工具箱显示此配置项编辑页
+                if (tts.pluginId == "mingwuyan") {
+                    Row(
+                        Modifier
+                            .fillMaxWidth()
+                            .padding(top = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            stringResource(R.string.plugin_ui_only_mode),
+                            modifier = Modifier.weight(1f),
+                            style = MaterialTheme.typography.bodyMedium
+                        )
+                        Switch(
+                            checked = isUiOnly,
+                            onCheckedChange = { enabled ->
+                                onSysttsChange(
+                                    systts.copy(
+                                        config = (systts.config as TtsConfigurationDTO).copy(
+                                            source = tts.copy(isUiOnly = enabled)
+                                        )
+                                    )
+                                )
+                            }
+                        )
+                    }
+                }
 
                 if (!isUiOnly) {
                     AuditionTextField(

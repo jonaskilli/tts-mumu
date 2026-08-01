@@ -18,7 +18,6 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -27,63 +26,37 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.nestedscroll.nestedScroll
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.github.jing332.database.dbm
-import com.github.jing332.database.entities.AbstractListGroup.Companion.DEFAULT_GROUP_ID
-import com.github.jing332.database.entities.systts.SystemTtsV2
 import com.github.jing332.database.entities.systts.TtsConfigurationDTO
 import com.github.jing332.database.entities.systts.source.PluginTtsSource
-import com.github.jing332.tts_server_android.AppLocale
 import com.github.jing332.tts_server_android.R
 import com.github.jing332.tts_server_android.compose.nav.NavTopAppBar
 import com.github.jing332.tts_server_android.compose.systts.list.ui.PluginTtsUI
-import com.github.jing332.tts_server_android.toCode
 import kotlinx.coroutines.flow.conflate
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ToolBoxScreen(sharedVM: SharedViewModel) {
-    val context = LocalContext.current
-
-    // 角色管理栏专属：只要存在 pluginId为mingwuyan 的插件即立即展示其UI
-    // 第8项: 之前用 plugin.name.contains("角色管理") 判断, 插件元数据未就绪时名称可能不匹配,
-    //        导致"过了一段时间才显示"; 改为仅按 pluginId 判断, 有插件即立即显示
+    // 角色管理插件：按 pluginId 查找
     val plugin = remember { dbm.pluginDao.getByPluginId("mingwuyan") }
     val isRoleManagementPlugin = plugin != null
 
     val flow = remember { dbm.systemTtsV2.flowAllGroupWithTts().conflate() }
     val groups by flow.collectAsStateWithLifecycle(emptyList())
 
-    // 查找已有的角色管理配置
-    val existingTts = remember(groups, isRoleManagementPlugin) {
+    // 查找已开启「仅界面模式」的角色管理配置项（旧方法：由用户在编辑页手动开启）
+    val uiOnlyTts = remember(groups, isRoleManagementPlugin) {
         if (!isRoleManagementPlugin) null
         else groups.flatMap { it.list }.firstOrNull { tts ->
             val config = tts.config
             config is TtsConfigurationDTO &&
-                (config.source as? PluginTtsSource)?.pluginId == "mingwuyan"
-        }
-    }
-
-    // 首次打开时自动创建角色管理配置项并存入数据库，使 ttsrv.tts.data 可持久化
-    LaunchedEffect(isRoleManagementPlugin, plugin, existingTts) {
-        if (isRoleManagementPlugin && plugin != null && existingTts == null) {
-            val newTts = SystemTtsV2(
-                displayName = "角色管理",
-                groupId = DEFAULT_GROUP_ID,
-                config = TtsConfigurationDTO(
-                    source = PluginTtsSource(
-                        pluginId = "mingwuyan",
-                        locale = AppLocale.current(context).toCode(),
-                        isUiOnly = true,
-                        plugin = plugin
-                    )
-                )
-            )
-            dbm.systemTtsV2.insert(newTts)
+                (config.source as? PluginTtsSource)?.let {
+                    it.pluginId == "mingwuyan" && it.isUiOnly
+                } == true
         }
     }
 
@@ -98,6 +71,7 @@ fun ToolBoxScreen(sharedVM: SharedViewModel) {
         }
     ) { paddingValues ->
         if (!isRoleManagementPlugin || plugin == null) {
+            // 插件未安装
             Box(
                 Modifier
                     .fillMaxSize()
@@ -123,21 +97,13 @@ fun ToolBoxScreen(sharedVM: SharedViewModel) {
                     )
                 }
             }
-        } else if (existingTts != null) {
-            // 直接展示角色管理插件UI（无需点击卡片再打开Activity）
-            // 强制 isUiOnly=true，防止旧备份数据缺少该标记导致显示多余控件
-            val uiOnlyTts = existingTts.let { tts ->
-                val config = tts.config as TtsConfigurationDTO
-                val source = config.source as PluginTtsSource
-                if (!source.isUiOnly) tts.copy(
-                    config = config.copy(source = source.copy(isUiOnly = true))
-                ) else tts
-            }
+        } else if (uiOnlyTts != null) {
+            // 显示已开启仅界面模式的角色管理配置项编辑页面（与编辑界面一致，变更联通）
             var systts by remember(uiOnlyTts.id) { mutableStateOf(uiOnlyTts) }
             val latestSystts by rememberUpdatedState(systts)
 
-            // 离开页面时保存，持久化 ttsrv.tts.data 的变更
-            DisposableEffect(existingTts.id) {
+            // 离开页面时保存，持久化变更
+            DisposableEffect(uiOnlyTts.id) {
                 onDispose {
                     Thread {
                         dbm.systemTtsV2.insert(latestSystts)
@@ -157,6 +123,33 @@ fun ToolBoxScreen(sharedVM: SharedViewModel) {
                 plugin = plugin,
                 showPluginSelector = false,
             )
+        } else {
+            // 插件已安装但未开启仅界面模式
+            Box(
+                Modifier
+                    .fillMaxSize()
+                    .padding(paddingValues)
+                    .padding(24.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    Icon(
+                        Icons.Default.AccountCircle,
+                        contentDescription = null,
+                        modifier = Modifier.size(56.dp),
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
+                    )
+                    Text(
+                        stringResource(R.string.toolbox_no_ui_only_config),
+                        style = MaterialTheme.typography.bodyLarge,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        textAlign = TextAlign.Center
+                    )
+                }
+            }
         }
     }
 }

@@ -290,6 +290,7 @@
     <string name="edit_plugin_tts">编辑插件TTS</string>
     <string name="toolbox">Characters</string>
     <string name="toolbox_empty">No character management plugin found.\n\nPlease import the plugin first.</string>
+    <string name="toolbox_no_ui_only_config">No role management config with \"UI-only mode\" enabled.\n\nPlease add a role management config in System TTS and enable \"UI-only mode\" in its edit page.</string>
     <string name="plugin_not_found">Plugin not found</string>
     <string name="import_auto_detected">Auto-detected as: %1$s</string>
     <string name="not_found_plugin">⚠️未找到插件: %1$s</string>
