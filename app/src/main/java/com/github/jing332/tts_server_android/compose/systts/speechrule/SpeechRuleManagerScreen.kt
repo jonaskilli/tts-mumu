@@ -505,7 +505,11 @@ internal fun Item(
             var editAuthor by remember(r?.id, expanded) { mutableStateOf(r?.author ?: "") }
             var editVersion by remember(r?.id, expanded) { mutableStateOf(r?.version?.toString() ?: "") }
 
-            androidx.compose.animation.AnimatedVisibility(visible = expanded && !isSelectionMode && r != null) {
+            androidx.compose.animation.AnimatedVisibility(
+                visible = expanded && !isSelectionMode && r != null,
+                enter = androidx.compose.animation.expandVertically(),
+                exit = androidx.compose.animation.shrinkVertically(),
+            ) {
                 Column(
                     Modifier
                         .fillMaxWidth()

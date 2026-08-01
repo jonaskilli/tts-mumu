@@ -25,8 +25,8 @@ sealed class PagerDestination(
         val routes by lazy {
             listOf(
                 SystemTts,
-                Tool,
                 SystemTtsLog,
+                Tool,
                 HunyuanTaiji,
                 Settings
             )
@@ -42,7 +42,7 @@ sealed class PagerDestination(
     })
 
     // 角色管理：独立于发音人，承载「仅界面模式」的工具型插件
-    object Tool : PagerDestination(1, R.string.toolbox, R.string.toolbox, {
+    object Tool : PagerDestination(2, R.string.toolbox, R.string.toolbox, {
         Icon(
             modifier = Modifier.size(24.dp),
             imageVector = Icons.Default.AccountCircle,
@@ -50,7 +50,7 @@ sealed class PagerDestination(
         )
     })
 
-    object SystemTtsLog : PagerDestination(2, R.string.log, R.string.log, {
+    object SystemTtsLog : PagerDestination(1, R.string.log, R.string.log, {
         Icon(
             Icons.AutoMirrored.Default.TextSnippet,
             contentDescription = null

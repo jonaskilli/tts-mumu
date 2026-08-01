@@ -223,34 +223,26 @@ fun SettingsScreen() {
                     subTitle = { Text(forwarderPort.toString()) }
                 )
 
-                // 第2项: 导入阅读(常用项) —— 始终用转发器引擎(APP包名),
-                // name=应用名(包名), engine=APP包名, 端口跟随当前软件。
-                // 转发器运行时直接跳转阅读APP选择导入; 未运行时提示。
                 BasePreferenceWidget(
                     onClick = {
-                        if (forwarderRunning) {
-                            val pkg = context.packageName
-                            val appName = context.applicationInfo.loadLabel(context.packageManager).toString()
-                            val name = "$appName ($pkg)"
-                            val api = "http://localhost:$forwarderPort/api/tts"
-                            val apiLegado = "http://localhost:$forwarderPort/api/legado" +
-                                    "?api=" + java.net.URLEncoder.encode(api, "UTF-8") +
-                                    "&name=" + java.net.URLEncoder.encode(name, "UTF-8") +
-                                    "&engine=" + java.net.URLEncoder.encode(pkg, "UTF-8") +
-                                    "&pitch=100"
-                            val deepLink = "legado://import/httpTTS?src=" + java.net.URLEncoder.encode(apiLegado, "UTF-8")
-                            kotlin.runCatching {
-                                context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(deepLink)))
-                            }.onFailure {
-                                context.toast(R.string.toast_legado_import_failed)
-                            }
-                        } else {
-                            context.toast(R.string.toast_forwarder_not_running)
+                        val pkg = context.packageName
+                        val appName = context.applicationInfo.loadLabel(context.packageManager).toString()
+                        val name = "$appName ($pkg)"
+                        val api = "http://localhost:$forwarderPort/api/tts"
+                        val apiLegado = "http://localhost:$forwarderPort/api/legado" +
+                                "?api=" + java.net.URLEncoder.encode(api, "UTF-8") +
+                                "&name=" + java.net.URLEncoder.encode(name, "UTF-8") +
+                                "&engine=" + java.net.URLEncoder.encode(pkg, "UTF-8") +
+                                "&pitch=100"
+                        val deepLink = "legado://import/httpTTS?src=" + java.net.URLEncoder.encode(apiLegado, "UTF-8")
+                        kotlin.runCatching {
+                            context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(deepLink)))
+                        }.onFailure {
+                            context.toast(R.string.toast_legado_import_failed)
                         }
                     },
                     icon = { Icon(Icons.Default.Input, null) },
-                    title = { Text("导入阅读") },
-                    subTitle = { Text("一键导入到阅读APP") }
+                    title = { Text("导入TTS转发器引擎到阅读") }
                 )
 
                 BasePreferenceWidget(

@@ -55,6 +55,7 @@ fun Group(
     onReleaseSubGroup: () -> Unit = {},
     onConvertToSubGroup: () -> Unit = {},
     onExtractSubGroup: () -> Unit = {},
+    onMoveSubGroups: () -> Unit = {},
     onDeleteEnabled: () -> Unit = {},
     onDeleteDisabled: () -> Unit = {},
     onMoveEnabledToGroup: () -> Unit = {},
@@ -63,6 +64,7 @@ fun Group(
     onReassignTags: () -> Unit = {},
     onReassignTagsByGroupName: () -> Unit = {},
     onReassignAllSubGroups: () -> Unit = {},
+    itemCount: Int = -1,
 ) {
 
     var showRenameDialog by remember { mutableStateOf(false) }
@@ -140,6 +142,7 @@ fun Group(
         inSelectionMode = inSelectionMode,
         isSelected = isSelected,
         onToggleSelect = onToggleSelect,
+        itemCount = itemCount,
         extraActions = { dismiss ->
             DropdownMenuItem(text = { Text("删除启用的配置") },
                 onClick = {
@@ -218,37 +221,59 @@ fun Group(
                 }
             )
 
-            DropdownMenuItem(text = { Text("释放子分组") },
-                onClick = {
-                    dismiss()
-                    onReleaseSubGroup()
-                },
-                leadingIcon = {
-                    Icon(Icons.Default.AccountTree, null)
-                }
-            )
+            // 释放子分组：仅含子分组的一级分组显示
+            if (hasSubGroups) {
+                DropdownMenuItem(text = { Text("释放子分组") },
+                    onClick = {
+                        dismiss()
+                        onReleaseSubGroup()
+                    },
+                    leadingIcon = {
+                        Icon(Icons.Default.AccountTree, null)
+                    }
+                )
+            }
 
-            DropdownMenuItem(text = { Text("转为子分组") },
-                onClick = {
-                    dismiss()
-                    onConvertToSubGroup()
-                },
-                leadingIcon = {
-                    Icon(Icons.Default.AccountTree, null)
-                }
-            )
+            // 转为子分组：仅一级分组无子分组时显示
+            if (!hasSubGroups) {
+                DropdownMenuItem(text = { Text("转为子分组") },
+                    onClick = {
+                        dismiss()
+                        onConvertToSubGroup()
+                    },
+                    leadingIcon = {
+                        Icon(Icons.Default.AccountTree, null)
+                    }
+                )
+            }
 
-            DropdownMenuItem(text = { Text("移出子分组") },
-                onClick = {
-                    dismiss()
-                    onExtractSubGroup()
-                },
-                leadingIcon = {
-                    Icon(Icons.Default.AccountTree, null)
-                }
-            )
+            // 移动子分组：仅含子分组的一级分组显示，移动子分组到其他一级分组
+            if (hasSubGroups) {
+                DropdownMenuItem(text = { Text("移动子分组") },
+                    onClick = {
+                        dismiss()
+                        onMoveSubGroups()
+                    },
+                    leadingIcon = {
+                        Icon(Icons.AutoMirrored.Filled.DriveFileMove, null)
+                    }
+                )
+            }
 
-            // 仅当含子分组时显示：整理全部子分组标签
+            // 一键整理标签：一级分组无子分组且名字匹配关键词时显示
+            if (!hasSubGroups && hasTagKeyword) {
+                DropdownMenuItem(text = { Text("一键整理标签") },
+                    onClick = {
+                        dismiss()
+                        onReassignTagsByGroupName()
+                    },
+                    leadingIcon = {
+                        Icon(Icons.AutoMirrored.Filled.Label, null)
+                    }
+                )
+            }
+
+            // 整理全部子分组标签：仅含子分组时显示
             if (hasSubGroups) {
                 DropdownMenuItem(text = { Text("整理全部子分组标签") },
                     onClick = {
