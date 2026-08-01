@@ -64,6 +64,7 @@ fun BasicAudioParamsDialog(
                     onValueChange = { onSpeedChange(it.toScale(2)) },
                     valueRange = speedRange,
                     step = 0.05f,
+                    buttonLongSteps = 0.05f,
                     text = str
                 )
 
@@ -77,6 +78,7 @@ fun BasicAudioParamsDialog(
                     onValueChange = { onVolumeChange(it.toScale(2)) },
                     valueRange = volumeRange,
                     step = 0.05f,
+                    buttonLongSteps = 0.05f,
                     text = volStr
                 )
 
@@ -90,6 +92,7 @@ fun BasicAudioParamsDialog(
                     onValueChange = { onPitchChange(it.toScale(2)) },
                     valueRange = pitchRange,
                     step = 0.05f,
+                    buttonLongSteps = 0.05f,
                     text = pitchStr
                 )
 

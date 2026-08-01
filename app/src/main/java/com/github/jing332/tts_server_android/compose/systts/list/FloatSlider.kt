@@ -23,6 +23,6 @@ fun FloatSlider(
         step = step,
         text = "$label: ${valueFormatter(value)}",
         buttonSteps = 0.01f,
-        buttonLongSteps = 0.1f
+        buttonLongSteps = 0.05f
     )
 }

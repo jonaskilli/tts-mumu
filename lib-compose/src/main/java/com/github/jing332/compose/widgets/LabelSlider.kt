@@ -45,6 +45,7 @@ import androidx.compose.ui.unit.dp
 import com.github.jing332.common.utils.performLongPress
 import com.github.jing332.compose.R
 import kotlin.math.max
+import kotlin.math.roundToInt
 
 @OptIn(ExperimentalComposeUiApi::class)
 @Composable
@@ -172,10 +173,8 @@ fun LabelSlider(
                         stateDescription = a11yDescription
                         contentDescription = a11yDescription
 
-                        println("value: $value, valueRange: $valueRange, steps: $steps")
                         progressBarRangeInfo = ProgressBarRangeInfo(value, valueRange, sliderSteps)
                         setProgress {
-                            println("setProgress $it")
                             onValueChange(it)
                             true
                         }
@@ -193,14 +192,21 @@ fun LabelSlider(
                         .semantics { invisibleToUser() },
                     value = value,
                     onValueChange = {
-                        onValueChange(it)
+                        val snapped = if (step > 0f) {
+                            val stepsCount = ((it - valueRange.start) / step).roundToInt()
+                            (valueRange.start + stepsCount * step).coerceIn(
+                                valueRange.start,
+                                valueRange.endInclusive
+                            )
+                        } else it
+                        onValueChange(snapped)
 
-                        if (it == valueRange.start || it == valueRange.endInclusive)
+                        if (snapped == valueRange.start || snapped == valueRange.endInclusive)
                             view.performLongPress()
                     },
                     enabled = enabled,
                     valueRange = valueRange,
-                    steps = sliderSteps,
+                    steps = 0,
                     onValueChangeFinished = onValueChangeFinished,
                     thumb = {
                         SliderDefaults.Thumb(
