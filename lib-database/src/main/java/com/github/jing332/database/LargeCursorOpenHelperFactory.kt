@@ -68,7 +68,7 @@ private class LargeCursorDatabase(
         }
     }
 
-    override fun query(query: String, bindArgs: Array<out Any?>?): Cursor {
+    override fun query(query: String, bindArgs: Array<out Any?>): Cursor {
         return delegate.query(query, bindArgs).applyLargeWindow()
     }
 
