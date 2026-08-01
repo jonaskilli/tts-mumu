@@ -1,5 +1,5 @@
 var PluginJS = {
-    'name': "角色管理系统tts试听v6.4",
+    'name': "角色管理_桥接试听v7",
     'id': "mingwuyan",
     'author': "命無言",
     'iconUrl': 'https://img.picui.cn/free/2025/02/24/67bc5a1bac4cf.png',
@@ -209,7 +209,6 @@ var EditorJS = {
         }
         // 初始加载
         refreshFayinrenList();
-        _initSystemTTS();
 
         function getKeyMapAndList() {
             var keyMap = getKeyMapFromData();
@@ -3958,6 +3957,31 @@ var EditorJS = {
                 }
             }
 
+            // 试听按钮（角色有发音人时显示）
+            if (record && record.voice) {
+                var charPvBtn = new android.widget.TextView(ctx);
+                charPvBtn.setText("▶");
+                charPvBtn.setTextSize(16);
+                charPvBtn.setTextColor(android.graphics.Color.parseColor("#1976D2"));
+                charPvBtn.setSingleLine(true);
+                charPvBtn.setGravity(android.view.Gravity.CENTER);
+                charPvBtn.setPadding(dipToPx(10), dipToPx(8), dipToPx(2), dipToPx(8));
+                var charPvLp = new android.widget.LinearLayout.LayoutParams(
+                    android.widget.LinearLayout.LayoutParams.WRAP_CONTENT,
+                    android.widget.LinearLayout.LayoutParams.WRAP_CONTENT
+                );
+                charPvLp.setMargins(dipToPx(6), 0, 0, 0);
+                charPvBtn.setLayoutParams(charPvLp);
+                var _charPvVoice = record.voice;
+                charPvBtn.setOnClickListener(new android.view.View.OnClickListener({
+                    onClick: function(v) {
+                        try { previewVoiceByName(_charPvVoice, charPvBtn); }
+                        catch (e) { Toast.makeText(ctx, "试听异常: " + e.toString(), Toast.LENGTH_SHORT).show(); }
+                    }
+                }));
+                row.addView(charPvBtn);
+            }
+
             // 右侧圆形选中指示器已移除（选中状态通过背景色体现）
 
             // 单击：切换标记
@@ -4672,10 +4696,6 @@ var EditorJS = {
         var _pvMediaPlayer = null;
         var _pvCurrentBtn = null;
         var _pvVoicesCache = null;
-        var _systemTTS = null;
-        var _systemTTSReady = false;
-        var _systemVoices = null;
-        var _pvCurrentUtteranceId = null;
         var _pvHandler = null;
         try { _pvHandler = new android.os.Handler(android.os.Looper.getMainLooper()); } catch (eHp) {}
 
@@ -4687,8 +4707,6 @@ var EditorJS = {
                     _pvMediaPlayer = null;
                 }
             } catch (e) {}
-            // 不在此处stop系统TTS，speak(QUEUE_FLUSH)会自动中断；onUtteranceCompleted也已表示播放完成
-            _pvCurrentUtteranceId = null;
             if (_pvCurrentBtn !== null) {
                 try { _pvCurrentBtn.setText("▶"); _pvCurrentBtn.setTextColor(android.graphics.Color.parseColor("#1976D2")); } catch (e) {}
                 _pvCurrentBtn = null;
@@ -4716,190 +4734,6 @@ var EditorJS = {
                 }));
                 mp.prepareAsync();
             } catch (e) { _pvStop(); Toast.makeText(ctx, "播放失败", Toast.LENGTH_SHORT).show(); }
-        }
-
-        // 初始化系统TTS（用于不开转发器时的试听）
-        function _initSystemTTS() {
-            try {
-                // 只用2参数构造函数，使用系统已设的默认TTS引擎（用户已在系统设置中选择）
-                _systemTTS = new android.speech.tts.TextToSpeech(ctx,
-                    new android.speech.tts.TextToSpeech.OnInitListener({
-                        onInit: function(status) {
-                            try {
-                                if (status == 0) { // TextToSpeech.SUCCESS = 0
-                                    _systemTTSReady = true;
-                                    console.log("系统TTS初始化成功");
-                                    // 获取可用发音人列表
-                                    try {
-                                        var voices = _systemTTS.getVoices();
-                                        if (voices) {
-                                            _systemVoices = [];
-                                            var it = voices.iterator();
-                                            while (it.hasNext()) {
-                                                var v = it.next();
-                                                _systemVoices.push(String(v.getName()));
-                                            }
-                                            console.log("系统TTS发音人数量: " + _systemVoices.length);
-                                        }
-                                    } catch (e) {
-                                        console.error("获取系统TTS发音人失败: " + e.toString());
-                                    }
-                                    _pvHandler.post(new java.lang.Runnable({ run: function() {
-                                        Toast.makeText(ctx, "系统TTS已就绪" + (_systemVoices ? "（" + _systemVoices.length + "个发音人）" : ""), Toast.LENGTH_SHORT).show();
-                                    } }));
-                                } else {
-                                    _systemTTSReady = false;
-                                    console.error("系统TTS初始化失败, status=" + status);
-                                    _pvHandler.post(new java.lang.Runnable({ run: function() {
-                                        Toast.makeText(ctx, "系统TTS初始化失败，请确认系统TTS引擎设置", Toast.LENGTH_LONG).show();
-                                    } }));
-                                }
-                            } catch (e) {
-                                console.error("系统TTS onInit异常: " + e.toString());
-                                _systemTTSReady = false;
-                            }
-                        }
-                    }));
-                console.log("系统TTS构造完成，等待onInit回调...");
-            } catch (e) {
-                console.error("系统TTS初始化异常: " + e.toString());
-                _systemTTSReady = false;
-                _systemTTS = null;
-            }
-        }
-
-        // 重新初始化系统TTS（用于首次初始化失败时重试）
-        function _ensureSystemTTS(callback) {
-            if (_systemTTSReady && _systemTTS) {
-                if (callback) callback(true);
-                return;
-            }
-            try {
-                if (_systemTTS) {
-                    try { _systemTTS.shutdown(); } catch (eS) {}
-                    _systemTTS = null;
-                }
-                _systemTTSReady = false;
-                _systemTTS = new android.speech.tts.TextToSpeech(ctx,
-                    new android.speech.tts.TextToSpeech.OnInitListener({
-                        onInit: function(status) {
-                            try {
-                                if (status == 0) {
-                                    _systemTTSReady = true;
-                                    try {
-                                        var voices = _systemTTS.getVoices();
-                                        if (voices) {
-                                            _systemVoices = [];
-                                            var it = voices.iterator();
-                                            while (it.hasNext()) {
-                                                var v = it.next();
-                                                _systemVoices.push(String(v.getName()));
-                                            }
-                                        }
-                                    } catch (e) {}
-                                    if (callback) _pvHandler.post(new java.lang.Runnable({ run: function() { callback(true); } }));
-                                } else {
-                                    _systemTTSReady = false;
-                                    if (callback) _pvHandler.post(new java.lang.Runnable({ run: function() { callback(false); } }));
-                                }
-                            } catch (e) {
-                                _systemTTSReady = false;
-                                if (callback) _pvHandler.post(new java.lang.Runnable({ run: function() { callback(false); } }));
-                            }
-                        }
-                    }));
-            } catch (e) {
-                if (callback) _pvHandler.post(new java.lang.Runnable({ run: function() { callback(false); } }));
-            }
-        }
-
-        function _systemTTSPlay(text, voiceName, btn) {
-            if (!_systemTTS || !_systemTTSReady) {
-                console.log("系统TTS未就绪: _systemTTS=" + (_systemTTS ? "有" : "无") + " ready=" + _systemTTSReady);
-                return false;
-            }
-            try {
-                var target = String(voiceName || "").trim();
-                var persona = target;
-                try {
-                    var parts = splitVoiceDisplay(target);
-                    if (parts.persona) persona = parts.persona;
-                } catch (e) {}
-
-                // 尝试匹配并设置发音人（匹配失败不影响播放，用默认发音人）
-                var matchedVoiceName = null;
-                if (_systemVoices && _systemVoices.length > 0) {
-                    console.log("系统TTS发音人列表(" + _systemVoices.length + "个), 目标: " + target + " persona: " + persona);
-                    for (var i = 0; i < _systemVoices.length; i++) {
-                        var vn = _systemVoices[i];
-                        // 精确匹配
-                        if (vn === target || vn === persona) { matchedVoiceName = vn; break; }
-                        // 包含匹配
-                        if (vn.indexOf(target) >= 0 || target.indexOf(vn) >= 0) { matchedVoiceName = vn; break; }
-                        if (persona && persona.length > 1 && (vn.indexOf(persona) >= 0 || persona.indexOf(vn) >= 0)) { matchedVoiceName = vn; break; }
-                    }
-                }
-                
-                if (matchedVoiceName) {
-                    console.log("匹配到系统TTS发音人: " + matchedVoiceName);
-                    try {
-                        var voices = _systemTTS.getVoices();
-                        if (voices) {
-                            var it = voices.iterator();
-                            while (it.hasNext()) {
-                                var v = it.next();
-                                if (String(v.getName()) === matchedVoiceName) {
-                                    _systemTTS.setVoice(v);
-                                    console.log("已设置系统TTS发音人: " + matchedVoiceName);
-                                    break;
-                                }
-                            }
-                        }
-                    } catch (eSet) {
-                        console.error("设置系统TTS发音人失败: " + eSet.toString());
-                    }
-                } else {
-                    console.log("未匹配到系统TTS发音人，使用默认发音人播放");
-                }
-
-                // 设置播放完成回调
-                try {
-                    _systemTTS.setOnUtteranceCompletedListener(new android.speech.tts.TextToSpeech.OnUtteranceCompletedListener({
-                        onUtteranceCompleted: function(uid) {
-                            // 只处理当前播放的回调，忽略stop()触发的旧回调
-                            if (uid && _pvCurrentUtteranceId && String(uid) === String(_pvCurrentUtteranceId)) {
-                                _pvCurrentUtteranceId = null;
-                                _pvHandler.post(new java.lang.Runnable({ run: function() { _pvStop(); } }));
-                            }
-                        }
-                    }));
-                } catch (eCb) {
-                    console.error("设置完成回调失败: " + eCb.toString());
-                }
-
-                var utteranceId = "preview_" + java.lang.System.currentTimeMillis();
-                _pvCurrentUtteranceId = utteranceId;
-                var result = _systemTTS.speak(text, android.speech.tts.TextToSpeech.QUEUE_FLUSH, null, utteranceId);
-                console.log("speak第一次结果: " + result + " (SUCCESS=0)");
-                // speak失败(可能是刚stop过TTS引擎未恢复)，延迟后重试
-                if (result != 0) {
-                    try { java.lang.Thread.sleep(300); } catch (eSl) {}
-                    result = _systemTTS.speak(text, android.speech.tts.TextToSpeech.QUEUE_FLUSH, null, utteranceId);
-                    console.log("speak第二次结果: " + result + " (SUCCESS=0)");
-                }
-                if (result == 0) { // TextToSpeech.SUCCESS = 0
-                    btn.setText("\u25a0");
-                    btn.setTextColor(android.graphics.Color.parseColor("#F44336"));
-                    var label = matchedVoiceName ? matchedVoiceName : voiceName;
-                    Toast.makeText(ctx, "试听(系统TTS)：" + label, Toast.LENGTH_SHORT).show();
-                    return true;
-                }
-                console.error("speak调用失败(重试后仍失败), result=" + result);
-                return false;
-            } catch (e) {
-                console.error("系统TTS播放异常: " + e.toString());
-                return false;
-            }
         }
 
         function _fetchVoicesList(port) {
@@ -4934,43 +4768,47 @@ var EditorJS = {
 
         function previewVoiceByName(voiceDisplayName, btn) {
             try {
-                if (_pvCurrentBtn === btn && (_pvMediaPlayer !== null || _systemTTSReady)) {
-                    // 用户点击正在播放的按钮，主动停止系统TTS
-                    _pvCurrentUtteranceId = null;
-                    try { if (_systemTTS && _systemTTSReady) { _systemTTS.stop(); } } catch (eStop) {}
+                if (_pvCurrentBtn === btn && _pvMediaPlayer !== null) {
+                    // 用户点击正在播放的按钮，停止播放
                     _pvStop(); return;
                 }
                 // 切换到新发音人，先停止当前播放
-                _pvCurrentUtteranceId = null;
-                try { if (_systemTTS && _systemTTSReady) { _systemTTS.stop(); } } catch (eStop2) {}
                 _pvStop();
                 btn.setText("…"); btn.setTextColor(android.graphics.Color.parseColor("#FF6F00"));
                 new java.lang.Thread(new java.lang.Runnable({
                     run: function () {
                         try {
+                            // 优先尝试通过 app TTS 配置项试听（ttsrv.getAudioByTag）
+                            try {
+                                var previewText = "你好，这是试听语音。";
+                                var storageName = "";
+                                try { storageName = reverseReplaceFayinrenName(voiceDisplayName); } catch (eRev) {}
+                                var tagCandidates = [voiceDisplayName];
+                                if (storageName && storageName !== voiceDisplayName) tagCandidates.push(storageName);
+                                var audioPath = null;
+                                for (var ti = 0; ti < tagCandidates.length; ti++) {
+                                    try {
+                                        audioPath = ttsrv.getAudioByTag(tagCandidates[ti], previewText);
+                                        if (audioPath) break;
+                                    } catch (eTag) { console.log("getAudioByTag尝试失败(" + tagCandidates[ti] + "): " + eTag.toString()); }
+                                }
+                                if (audioPath) {
+                                    var fileUri = "file://" + audioPath;
+                                    var playLabel = voiceDisplayName;
+                                    _pvHandler.post(new java.lang.Runnable({ run: function () { _pvPlay(fileUri, playLabel, btn); } }));
+                                    return;
+                                }
+                                console.log("getAudioByTag未匹配到配置项，回退到本地服务器");
+                            } catch (eAppTts) { console.log("getAudioByTag异常，回退: " + eAppTts.toString()); }
                             var port = 3211;
                             var voices = _pvVoicesCache;
                             if (!voices) {
                                 voices = _fetchVoicesList(port);
                                 if (!voices || voices.length === 0) {
-                                    // 转发器未启动，尝试系统TTS直连试听
-                                    var sttText = "你好，这是试听语音。";
-                                    // 先尝试直接播放
-                                    var sttResult = _systemTTSPlay(sttText, voiceDisplayName, btn);
-                                    if (sttResult) { _pvCurrentBtn = btn; return; }
-                                    // 系统TTS未就绪，尝试重新初始化
-                                    console.log("系统TTS未就绪，尝试重新初始化...");
-                                    _ensureSystemTTS(function(ok) {
-                                        if (ok) {
-                                            try { java.lang.Thread.sleep(200); } catch (eSl2) {}
-                                            var sttResult2 = _systemTTSPlay(sttText, voiceDisplayName, btn);
-                                            if (sttResult2) { _pvCurrentBtn = btn; return; }
-                                        }
-                                        _pvHandler.post(new java.lang.Runnable({ run: function () {
-                                            _pvStop();
-                                            Toast.makeText(ctx, "系统TTS不可用，请确认：\n1.系统设置中TTS引擎已选I-TTS Server\n2.TTS Server应用在后台运行", Toast.LENGTH_LONG).show();
-                                        } }));
-                                    });
+                                    _pvHandler.post(new java.lang.Runnable({ run: function () {
+                                        _pvStop();
+                                        Toast.makeText(ctx, "试听失败：未匹配到配置项，且本地服务器未启动", Toast.LENGTH_LONG).show();
+                                    } }));
                                     return;
                                 }
                                 _pvVoicesCache = voices;
