@@ -318,9 +318,9 @@ fun CodeEditorScreen(
                                     }
                                 )
 
-                            // 第12项: 从文件导入覆盖当前编辑器代码
+                            // 第12项: 从JS文件导入覆盖当前编辑器代码
                             DropdownMenuItem(
-                                text = { Text("从文件导入") },
+                                text = { Text(stringResource(id = R.string.import_from_js_file)) },
                                 onClick = {
                                     showOptions = false
                                     fileLoader.launch(
@@ -337,7 +337,7 @@ fun CodeEditorScreen(
                                 leadingIcon = {
                                     Icon(
                                         Icons.AutoMirrored.Filled.Input,
-                                        "从文件导入"
+                                        stringResource(id = R.string.import_from_js_file)
                                     )
                                 }
                             )
