@@ -1,9 +1,8 @@
 name: Build Test
 
 on:
-  push:
-    branches:
-      - "mumu_tts_github"
+  # 改为只手动触发，避免每次 push 都构建浪费 Actions 额度
+  # 想测试时去 Actions 页面手动运行
   workflow_dispatch:
 
 jobs:
