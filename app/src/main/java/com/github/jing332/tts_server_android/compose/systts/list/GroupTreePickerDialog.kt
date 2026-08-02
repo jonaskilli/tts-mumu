@@ -23,6 +23,7 @@ import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -66,8 +67,20 @@ fun GroupTreePickerDialog(
     // 默认展开当前所在大分组，便于识别当前位置
     var expandedGroups by remember { mutableStateOf(setOf(currentGroupId)) }
 
+    // 初始校验：若当前所在大分组已含子分组，但当前项却在根目录(历史数据/混放)，
+    // 则清空根目录选中，强制用户选一个子分组，避免继续混放
+    LaunchedEffect(Unit) {
+        val curPaths = subPathsByGroup[currentGroupId] ?: emptyList()
+        if (curPaths.isNotEmpty() && currentCategoryPath.isBlank()) {
+            isCreatingNew = true
+        }
+    }
+
     val finalCategoryPath = if (isCreatingNew) newSubGroupName.trim() else selectedCategoryPath
     val selGroupName = groups.firstOrNull { it.id == selectedGroupId }?.name ?: ""
+    // 目标大分组含子分组时，禁止确认根目录选中（只能选子分组或新建）
+    val targetHasSubGroups = (subPathsByGroup[selectedGroupId] ?: emptyList()).isNotEmpty()
+    val isRootSelectedInvalid = targetHasSubGroups && !isCreatingNew && selectedCategoryPath.isBlank()
 
     AlertDialog(
         onDismissRequest = onDismissRequest,
@@ -98,15 +111,18 @@ fun GroupTreePickerDialog(
                 groups.forEach { group ->
                     val paths = subPathsByGroup[group.id] ?: emptyList()
                     val isExpanded = group.id in expandedGroups
+                    // 含子分组的大分组禁止选择根目录（避免配置项与子分组混放），只能选子分组或新建
+                    val canSelectRoot = paths.isEmpty()
                     val isGroupRootSelected = selectedGroupId == group.id &&
                         !isCreatingNew && selectedCategoryPath.isBlank()
 
-                    // 大分组标题行: 点击选中该大分组(根目录)并展开; 左侧图标展开/收起
+                    // 大分组标题行: 可选根目录时点击选中并展开; 不可选根目录(含子分组)时点击仅展开/收起
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
                             .selectable(
                                 selected = isGroupRootSelected,
+                                enabled = canSelectRoot,
                                 onClick = {
                                     selectedGroupId = group.id
                                     selectedCategoryPath = ""
@@ -136,6 +152,7 @@ fun GroupTreePickerDialog(
                         )
                         RadioButton(
                             selected = isGroupRootSelected,
+                            enabled = canSelectRoot,
                             onClick = {
                                 selectedGroupId = group.id
                                 selectedCategoryPath = ""
@@ -149,14 +166,35 @@ fun GroupTreePickerDialog(
                             style = MaterialTheme.typography.titleMedium,
                             modifier = Modifier.padding(start = 4.dp)
                         )
+                        if (!canSelectRoot) {
+                            Text(
+                                text = "（含子分组，需选子分组）",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.padding(start = 4.dp)
+                            )
+                        }
                     }
 
                     if (isExpanded) {
-                        // 根目录选项(该大分组本身, 不设子分组)
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .selectable(
+                        // 根目录选项(该大分组本身, 不设子分组): 仅当该大分组无子分组时才显示
+                        if (canSelectRoot) {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .selectable(
+                                        selected = isGroupRootSelected,
+                                        onClick = {
+                                            selectedGroupId = group.id
+                                            selectedCategoryPath = ""
+                                            isCreatingNew = false
+                                            newSubGroupName = ""
+                                        }
+                                    )
+                                    .padding(start = 64.dp, top = 2.dp, bottom = 2.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                RadioButton(
                                     selected = isGroupRootSelected,
                                     onClick = {
                                         selectedGroupId = group.id
@@ -165,23 +203,12 @@ fun GroupTreePickerDialog(
                                         newSubGroupName = ""
                                     }
                                 )
-                                .padding(start = 64.dp, top = 2.dp, bottom = 2.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            RadioButton(
-                                selected = isGroupRootSelected,
-                                onClick = {
-                                    selectedGroupId = group.id
-                                    selectedCategoryPath = ""
-                                    isCreatingNew = false
-                                    newSubGroupName = ""
-                                }
-                            )
-                            Text(
-                                text = "（根目录，不设子分组）",
-                                style = MaterialTheme.typography.bodyMedium,
-                                modifier = Modifier.padding(start = 4.dp)
-                            )
+                                Text(
+                                    text = "（根目录，不设子分组）",
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    modifier = Modifier.padding(start = 4.dp)
+                                )
+                            }
                         }
 
                         // 已有子分组
@@ -278,7 +305,7 @@ fun GroupTreePickerDialog(
         confirmButton = {
             TextButton(
                 onClick = { onConfirm(selectedGroupId, finalCategoryPath) },
-                enabled = !isCreatingNew || newSubGroupName.isNotBlank()
+                enabled = !isRootSelectedInvalid && (!isCreatingNew || newSubGroupName.isNotBlank())
             ) {
                 Text("确认")
             }

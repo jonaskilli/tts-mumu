@@ -65,7 +65,6 @@ fun SubGroupHeader(
     onDeleteEnabled: () -> Unit = {},
     onDeleteDisabled: () -> Unit = {},
     onExtractToGroup: () -> Unit = {},
-    onReleaseItems: () -> Unit = {},
     onMoveToOtherGroup: () -> Unit = {},
     onMoveEnabledToGroup: () -> Unit = {},
     itemCount: Int = -1,
@@ -250,17 +249,6 @@ fun SubGroupHeader(
                         }
                     )
                 }
-
-                DropdownMenuItem(
-                    text = { Text("释放配置项") },
-                    onClick = {
-                        showOptions = false
-                        onReleaseItems()
-                    },
-                    leadingIcon = {
-                        Icon(Icons.Default.AccountTree, null)
-                    }
-                )
 
                 DropdownMenuItem(
                     text = { Text("转为一级分组") },

@@ -221,9 +221,9 @@ fun Group(
                 }
             )
 
-            // 释放子分组：仅含子分组的一级分组显示
+            // 释放全部子分组到根目录：仅含子分组的一级分组显示
             if (hasSubGroups) {
-                DropdownMenuItem(text = { Text("释放子分组") },
+                DropdownMenuItem(text = { Text("释放全部子分组到根目录") },
                     onClick = {
                         dismiss()
                         onReleaseSubGroup()
