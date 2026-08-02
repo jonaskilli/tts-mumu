@@ -736,54 +736,6 @@ internal fun ListManagerScreen(
         )
     }
 
-    // === 释放全部子分组到根目录确认对话框 ===
-    var showReleaseSubGroup by remember { mutableStateOf<SystemTtsGroup?>(null) }
-    if (showReleaseSubGroup != null) {
-        val targetGroup = showReleaseSubGroup!!
-        val currentGroupWithTts = models.find { it.group.id == targetGroup.id }
-        val subGroupItems = remember(currentGroupWithTts) {
-            currentGroupWithTts?.list?.filter { it.categoryPath.isNotBlank() } ?: emptyList()
-        }
-        AlertDialog(
-            onDismissRequest = { showReleaseSubGroup = null },
-            title = { Text("释放全部子分组到根目录") },
-            text = {
-                Text("将 \"${targetGroup.name}\" 下全部 ${subGroupItems.size} 项配置（含所有子分组）释放到一级分组根目录？\n\n释放后所有配置项的子分组归属将被清除。")
-            },
-            confirmButton = {
-                TextButton(onClick = {
-                    // 立即关闭弹窗，避免操作期间“愣在那儿”
-                    showReleaseSubGroup = null
-                    scope.launch {
-                        withIO {
-                            // 1. 清除所有配置项的子分组归属(categoryPath 置空)
-                            if (subGroupItems.isNotEmpty()) {
-                                dbm.systemTtsV2.update(
-                                    *subGroupItems.map { it.copy(categoryPath = "") }.toTypedArray()
-                                )
-                            }
-                            // 2. 清除分组上保存的子分组音频参数(子分组名字一并删除),
-                            //    使其变为不带子分组的一级分组, 不再被当作含子分组处理
-                            if (targetGroup.subGroupAudioParamsJson.isNotBlank()
-                                && targetGroup.subGroupAudioParamsJson != "{}") {
-                                dbm.systemTtsV2.updateGroup(
-                                    targetGroup.copy(subGroupAudioParamsJson = "")
-                                )
-                            }
-                        }
-                        SystemTtsService.notifyUpdateConfig()
-                    }
-                }) {
-                    Text("确定")
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = { showReleaseSubGroup = null }) {
-                    Text(stringResource(R.string.cancel))
-                }
-            }
-        )
-    }
 
     var showConvertToSubGroup by remember { mutableStateOf<SystemTtsGroup?>(null) }
     if (showConvertToSubGroup != null) {
@@ -1255,7 +1207,7 @@ internal fun ListManagerScreen(
                     Column(modifier = Modifier.fillMaxWidth()) {
                         // 说明文字（可滚动，避免内容多时被截断）
                         Text(
-                            text = "移动子分组到其他一级分组",
+                            text = "移动子分组到其他一级分组，注意区域可上下滑动",
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                             modifier = Modifier
@@ -1919,9 +1871,6 @@ internal fun ListManagerScreen(
                                 itemCount = groupWithSystemTts.list.size,
                                 onBatchAssignTags = {
                                     showBatchTagDialog = groupWithSystemTts.list
-                                },
-                                onReleaseSubGroup = {
-                                    showReleaseSubGroup = g
                                 },
                                 onConvertToSubGroup = {
                                     showConvertToSubGroup = g
