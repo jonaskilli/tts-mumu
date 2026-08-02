@@ -6,78 +6,49 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.platform.LocalContext
+import com.github.jing332.common.utils.longToast
+import com.github.jing332.common.utils.toast
+import com.github.jing332.compose.widgets.LoadingDialog
+import com.github.jing332.tts_server_android.R
 import com.github.jing332.tts_server_android.compose.systts.ConfigImportBottomSheet
-import com.github.jing332.tts_server_android.compose.systts.ConfigModel
-import com.github.jing332.tts_server_android.compose.systts.SelectImportConfigDialog
-import com.github.jing332.tts_server_android.constant.AppConst
-import com.github.jing332.database.dbm
-import com.github.jing332.database.entities.replace.GroupWithReplaceRule
-import com.github.jing332.database.entities.replace.ReplaceRule
-import com.github.jing332.database.entities.replace.ReplaceRuleGroup
-import com.github.jing332.common.utils.StringUtils
-import com.github.jing332.common.utils.toJsonListString
+import com.github.jing332.tts_server_android.compose.systts.list.AutoImportResult
+import com.github.jing332.tts_server_android.compose.systts.list.doAutoImport
 import com.drake.net.utils.withIO
 import kotlinx.coroutines.launch
 
-@Suppress("UNCHECKED_CAST")
 @Composable
 fun ReplaceRuleImportBottomSheet(onDismissRequest: () -> Unit) {
     val scope = rememberCoroutineScope()
-    var list by remember { mutableStateOf<List<ConfigModel>?>(null) }
-    if (list != null) {
-        SelectImportConfigDialog(
-            onDismissRequest = { list = null },
-            models = list!!,
-            onSelectedList = { selectedList ->
-                val pairs = selectedList.map { it as Pair<ReplaceRuleGroup, ReplaceRule> }
-                scope.launch {
-                    withIO {
-                        pairs.forEach {
-                            dbm.replaceRuleDao.insert(it.second)
-                            dbm.replaceRuleDao.insertGroup(it.first)
-                        }
-                        dbm.replaceRuleDao.updateAllOrder()
-                    }
-                }
-                selectedList.size
-            }
-        )
+    val context = LocalContext.current
+
+    var importing by remember { mutableStateOf(false) }
+    if (importing) {
+        LoadingDialog(onDismissRequest = { /* 不可取消，等待导入完成 */ })
     }
 
     ConfigImportBottomSheet(onDismissRequest = onDismissRequest,
         autoImport = true,
         onImport = { json ->
-        val allList = mutableListOf<ConfigModel>()
-        if (json.contains("\"group\"")) {
-            AppConst.jsonBuilder.decodeFromString<List<GroupWithReplaceRule>>(json.toJsonListString())
-                .forEach { groupWithRule ->
-                    val group = groupWithRule.group
-                    groupWithRule.list.forEach {
-                        allList.add(
-                            ConfigModel(
-                                isSelected = true,
-                                title = it.name,
-                                subtitle = group.name,
-                                data = Pair(group, it)
-                            )
-                        )
+            // 自动识别 JSON 类型并直接导入，无需手动选择/确认
+            importing = true
+            context.toast(R.string.import_in_progress)
+            scope.launch {
+                val result = withIO { doAutoImport(json) }
+                importing = false
+                when (result) {
+                    AutoImportResult.EmptyOrUnrecognized -> {
+                        context.longToast(R.string.import_no_valid_config)
+                    }
+                    is AutoImportResult.Truncated -> {
+                        context.longToast(R.string.import_truncated_hint, result.detail)
+                    }
+                    is AutoImportResult.Success -> {
+                        context.longToast("已导入 ${result.count} 项${result.typeName}")
+                        onDismissRequest()
                     }
                 }
-
-        } else {
-            val groupName = StringUtils.formattedDate()
-            val group = ReplaceRuleGroup(name = groupName)
-            AppConst.jsonBuilder.decodeFromString<List<ReplaceRule>>(json.toJsonListString())
-                .forEach {
-                    allList.add(
-                        ConfigModel(
-                            isSelected = true, title = it.name, subtitle = groupName,
-                            data = Pair(group, it.apply { groupId = group.id })
-                        )
-                    )
-                }
+            }
         }
-
-        list = allList
-    })
+    )
 }

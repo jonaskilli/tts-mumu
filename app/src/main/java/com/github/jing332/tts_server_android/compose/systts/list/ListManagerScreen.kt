@@ -1789,13 +1789,22 @@ internal fun ListManagerScreen(
             }
         }
         CompositionLocalProvider(LocalViewConfiguration provides fastLongPressConfig) {
-        // 预计算每个分组的可见子分组项，避免 LazyColumn 重组时重复构建/扁平化树导致左右滑动卡顿
+        // 树结构缓存：仅当各分组的 TTS 项内容变化时重建（展开/折叠只改 isExpanded，不改 TTS 项，
+        // 因此 hash 签名不变，树缓存命中）。避免每次展开/折叠都为所有分组重建树导致卡顿。
+        val ttsItemsSignature = remember(models) { models.map { it.list.hashCode() } }
+        val subGroupTrees = remember(ttsItemsSignature) {
+            models.associate { gwt ->
+                gwt.group.id to if (gwt.list.any { it.categoryPath.isNotBlank() }) {
+                    flattenSubCategoryTree(buildSubCategoryTree(gwt.list))
+                } else null
+            }
+        }
+        // 可见项过滤：轻量操作，每次展开/折叠时执行（仅遍历已缓存的扁平树做过滤，不重建树）
         val subGroupVisibleItemsMap = remember(models, expandedSubGroups) {
             models.associate { gwt ->
                 val g = gwt.group
-                if (g.isExpanded && gwt.list.any { it.categoryPath.isNotBlank() }) {
-                    val tree = buildSubCategoryTree(gwt.list)
-                    val flattened = flattenSubCategoryTree(tree)
+                val flattened = subGroupTrees[g.id]
+                if (g.isExpanded && flattened != null) {
                     val visItems = mutableListOf<FlattenedCategoryItem>()
                     var skipLevel = Int.MAX_VALUE
                     for (fItem in flattened) {
@@ -2197,10 +2206,9 @@ internal fun ListManagerScreen(
                                             }
                                         }
 
-                                        // 子分组头使用 stickyHeader：上滑浏览子分组内配置项时，
-                                        // 子分组名会粘在一级分组 stickyHeader 下方，实现"一级分组+子分组"双置顶。
-                                        // 拖拽排序时仍可正常长按拖动(reorderable 库已兼容)。
-                                        stickyHeader(key = subKey) { headerContent() }
+                                        // 子分组头不置顶：仅一级分组名 sticky 置顶，子分组随列表滚动。
+                                        // 避免一级+子分组双置顶导致视觉混乱。
+                                        item(key = subKey) { headerContent() }
                                     }
                                     is FlattenedCategoryItem.TtsItem -> {
                                         // 根目录配置项(不属于任何子分组)且之前有子分组:插入分隔标题以区分
