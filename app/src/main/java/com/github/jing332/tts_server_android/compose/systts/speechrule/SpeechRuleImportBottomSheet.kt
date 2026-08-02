@@ -37,7 +37,9 @@ fun SpeechRuleImportBottomSheet(onDismissRequest: () -> Unit) {
         )
     }
 
-    ConfigImportBottomSheet(onDismissRequest = onDismissRequest, onImport = {
+    ConfigImportBottomSheet(onDismissRequest = onDismissRequest,
+        autoImport = true,
+        onImport = {
         // 第14项: 大文件解析移到 IO 线程, 避免主线程阻塞
         scope.launch {
             showSelectDialog = withContext(Dispatchers.IO) {

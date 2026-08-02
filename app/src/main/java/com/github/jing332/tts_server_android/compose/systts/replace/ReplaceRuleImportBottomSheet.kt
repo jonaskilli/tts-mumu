@@ -44,7 +44,9 @@ fun ReplaceRuleImportBottomSheet(onDismissRequest: () -> Unit) {
         )
     }
 
-    ConfigImportBottomSheet(onDismissRequest = onDismissRequest, onImport = { json ->
+    ConfigImportBottomSheet(onDismissRequest = onDismissRequest,
+        autoImport = true,
+        onImport = { json ->
         val allList = mutableListOf<ConfigModel>()
         if (json.contains("\"group\"")) {
             AppConst.jsonBuilder.decodeFromString<List<GroupWithReplaceRule>>(json.toJsonListString())

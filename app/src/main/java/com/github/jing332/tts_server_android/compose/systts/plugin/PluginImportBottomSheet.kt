@@ -53,7 +53,9 @@ fun PluginImportBottomSheet(onDismissRequest: () -> Unit) {
         )
     }
 
-    ConfigImportBottomSheet(onDismissRequest = onDismissRequest, onImport = {
+    ConfigImportBottomSheet(onDismissRequest = onDismissRequest,
+        autoImport = true,
+        onImport = {
         // 第14项: 大文件(可达5MB)解析移到 IO 线程, 避免主线程阻塞导致 ANR/闪退
         scope.launch {
             list = withContext(Dispatchers.IO) { parsePluginsJson(it) }
