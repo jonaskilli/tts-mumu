@@ -39,6 +39,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -68,7 +69,10 @@ internal fun TtsLogScreen(vm: TtsLogViewModel = viewModel()) {
     
     // 同步搜索词到 ViewModel
     vm.searchQuery.value = searchQuery
-    
+
+    // 用 derivedStateOf 缓存过滤结果，避免 HorizontalPager 滑动时每次重组都重算 filteredLogs（O(n)）
+    val filteredLogs by remember(vm) { derivedStateOf { vm.filteredLogs } }
+
     val scrollBehavior = TopAppBarDefaults.pinnedScrollBehavior()
     Scaffold(
         modifier = Modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
@@ -231,7 +235,7 @@ internal fun TtsLogScreen(vm: TtsLogViewModel = viewModel()) {
             modifier = Modifier
                 .fillMaxSize()
                 .padding(top = paddingValues.calculateTopPadding()),
-            list = vm.filteredLogs,
+            list = filteredLogs,
             autoScrollToBottom = vm.autoScrollToBottom.value
         )
     }

@@ -57,6 +57,7 @@ import com.github.jing332.common.utils.FileUtils.readAllText
 import com.github.jing332.common.utils.longToast
 import com.github.jing332.common.utils.toJsonListString
 import com.github.jing332.compose.widgets.AppDialog
+import com.github.jing332.compose.widgets.LoadingDialog
 import com.github.jing332.tts_server_android.R
 import com.github.jing332.tts_server_android.ui.AppActivityResultContracts
 import com.github.jing332.tts_server_android.ui.FilePickerActivity
@@ -116,13 +117,25 @@ fun ConfigImportBottomSheet(
         }
     }
 
+    // 读取文件/网络阶段的 loading 遮罩：从触发导入到 onImport 被调用前，
+    // 避免大文件读取期间界面无反馈，用户以为"没反应"。
+    var isLoading by remember { mutableStateOf(false) }
+    if (isLoading) {
+        LoadingDialog(onDismissRequest = {})
+    }
+
     // 统一的导入触发逻辑，文件选择回调和「导入」按钮共用
     fun launchImport(src: Int, urlStr: String? = null, uri: Uri? = null) {
+        isLoading = true
         scope.launch {
             runCatching {
                 val jsonStr = getConfig(src = src, url = urlStr, uri = uri)
-                onImport(jsonStr.toJsonListString())
+                // 大字符串预处理放到 IO 线程，避免阻塞主线程
+                val processed = withContext(Dispatchers.IO) { jsonStr.toJsonListString() }
+                isLoading = false
+                onImport(processed)
             }.onFailure {
+                isLoading = false
                 context.displayErrorDialog(it)
             }
         }
