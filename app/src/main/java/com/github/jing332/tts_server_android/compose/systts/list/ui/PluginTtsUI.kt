@@ -173,6 +173,8 @@ class PluginTtsUI : IConfigUI() {
         showPluginSelector: Boolean = true,
         // 是否显示「仅界面模式」开关：角色管理栏顶部已有独立开关，传 false 隐藏内容区开关节省空间
         showUiOnlySwitch: Boolean = true,
+        // 插件 UI 重建触发器：变化时强制重新 onLoadUI（用于运行规则后刷新角色列表）
+        reloadKey: Any? = null,
     ) {
         var displayName by remember { mutableStateOf("") }
 
@@ -395,10 +397,10 @@ class PluginTtsUI : IConfigUI() {
                     )
                 }
 
-                key(tts.pluginId) {
+                key(tts.pluginId, reloadKey) {
                     val customViewLayout = remember { LinearLayout(context).apply { orientation = LinearLayout.VERTICAL } }
-                    
-                    LaunchedEffect(tts.pluginId) {
+
+                    LaunchedEffect(tts.pluginId, reloadKey) {
                         runCatching {
                             vm.load(context, plugin, tts, customViewLayout)
                         }.onFailure {

@@ -27,6 +27,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -39,6 +40,9 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.github.jing332.common.utils.toast
 import com.github.jing332.database.dbm
@@ -248,6 +252,25 @@ fun ToolBoxScreen(sharedVM: SharedViewModel) {
                     }
                 }
 
+                // 运行朗读规则后回到本页（ON_RESUME）时重建插件 UI，刷新角色列表标签
+                // 跳过首次 ON_RESUME（首次进入由 LaunchedEffect 初始加载，避免重复 load）
+                var reloadKey by remember { mutableIntStateOf(0) }
+                var firstResume by remember { mutableStateOf(true) }
+                val lifecycleOwner = LocalLifecycleOwner.current
+                DisposableEffect(lifecycleOwner) {
+                    val observer = LifecycleEventObserver { _, event ->
+                        if (event == Lifecycle.Event.ON_RESUME) {
+                            if (firstResume) {
+                                firstResume = false
+                            } else {
+                                reloadKey++
+                            }
+                        }
+                    }
+                    lifecycleOwner.lifecycle.addObserver(observer)
+                    onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+                }
+
                 val ui = remember { PluginTtsUI() }
                 ui.EditContentScreen(
                     modifier = Modifier
@@ -260,6 +283,7 @@ fun ToolBoxScreen(sharedVM: SharedViewModel) {
                     plugin = plugin,
                     showPluginSelector = false,
                     showUiOnlySwitch = false,
+                    reloadKey = reloadKey,
                 )
             }
             else -> {
