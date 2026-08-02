@@ -1195,6 +1195,9 @@ internal fun ListManagerScreen(
             mutableStateOf<Set<String>>(preSelectPath?.let { setOf(it) } ?: emptySet())
         }
         val allSelected = subPaths.isNotEmpty() && selectedPaths.containsAll(subPaths)
+        val otherGroups = remember(sourceGroup.id) {
+            models.filter { it.group.id != sourceGroup.id }.map { it.group }
+        }
 
         AlertDialog(
             onDismissRequest = { showMoveSubGroupsDialog = null },
@@ -1202,80 +1205,97 @@ internal fun ListManagerScreen(
             modifier = Modifier.fillMaxWidth(0.92f),
             title = { Text("移动子分组 (${selectedPaths.size}/${subPaths.size})") },
             text = {
-                Column(modifier = Modifier
-                    .fillMaxWidth()
-                    .heightIn(max = 500.dp)
-                    .verticalScroll(rememberScrollState())) {
-                    if (subPaths.isEmpty()) {
-                        Text("当前分组没有子分组")
-                    } else {
-                        // 全选 / 取消全选
-                        Row(
+                if (subPaths.isEmpty()) {
+                    Text("当前分组没有子分组")
+                } else {
+                    Column(modifier = Modifier.fillMaxWidth()) {
+                        // 上区：子分组多选（固定高度，内部滚动，避免挤压目标分组区域）
+                        Column(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .clickable {
-                                    selectedPaths = if (allSelected) emptySet() else subPaths.toSet()
-                                }
-                                .padding(vertical = 4.dp),
-                            verticalAlignment = Alignment.CenterVertically
+                                .heightIn(max = 240.dp)
+                                .verticalScroll(rememberScrollState())
                         ) {
-                            TriStateCheckbox(
-                                state = if (allSelected) ToggleableState.On
-                                else if (selectedPaths.isEmpty()) ToggleableState.Off
-                                else ToggleableState.Indeterminate,
-                                onClick = {
-                                    selectedPaths = if (allSelected) emptySet() else subPaths.toSet()
-                                }
-                            )
-                            Text("全选", modifier = Modifier.padding(start = 8.dp))
-                        }
-                        HorizontalDivider()
-
-                        // 子分组多选列表（全部展示，超出可滚动）
-                        subPaths.forEach { path ->
-                            val checked = path in selectedPaths
+                            // 全选 / 取消全选
                             Row(
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .clickable {
-                                        selectedPaths = if (checked) selectedPaths - path
-                                        else selectedPaths + path
+                                        selectedPaths = if (allSelected) emptySet() else subPaths.toSet()
                                     }
-                                    .padding(vertical = 2.dp),
+                                    .padding(vertical = 4.dp),
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
-                                Checkbox(
-                                    checked = checked,
-                                    onCheckedChange = {
-                                        selectedPaths = if (it) selectedPaths + path
-                                        else selectedPaths - path
+                                TriStateCheckbox(
+                                    state = if (allSelected) ToggleableState.On
+                                    else if (selectedPaths.isEmpty()) ToggleableState.Off
+                                    else ToggleableState.Indeterminate,
+                                    onClick = {
+                                        selectedPaths = if (allSelected) emptySet() else subPaths.toSet()
                                     }
                                 )
-                                Text(path, modifier = Modifier.padding(start = 8.dp))
+                                Text("全选", modifier = Modifier.padding(start = 8.dp))
+                            }
+                            HorizontalDivider()
+
+                            subPaths.forEach { path ->
+                                val checked = path in selectedPaths
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .clickable {
+                                            selectedPaths = if (checked) selectedPaths - path
+                                            else selectedPaths + path
+                                        }
+                                        .padding(vertical = 2.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Checkbox(
+                                        checked = checked,
+                                        onCheckedChange = {
+                                            selectedPaths = if (it) selectedPaths + path
+                                            else selectedPaths - path
+                                        }
+                                    )
+                                    Text(path, modifier = Modifier.padding(start = 8.dp))
+                                }
                             }
                         }
 
+                        // 下区：目标一级分组（始终可见，不会被上区挤出视口）
                         if (selectedPaths.isNotEmpty()) {
                             HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
                             Text("选择目标一级分组：", modifier = Modifier.padding(bottom = 4.dp))
-                            // 目标一级分组(排除源分组) —— 全部展示
-                            val otherGroups = models.filter { it.group.id != sourceGroup.id }.map { it.group }
-                            otherGroups.forEach { targetGroup ->
+                            Column(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .heightIn(max = 200.dp)
+                                    .verticalScroll(rememberScrollState())
+                            ) {
+                                otherGroups.forEach { targetGroup ->
+                                    TextButton(
+                                        onClick = {
+                                            scope.launch {
+                                                withIO {
+                                                    moveSubGroupsToGroup(
+                                                        sourceGroup = sourceGroup,
+                                                        paths = selectedPaths,
+                                                        targetGroup = targetGroup
+                                                    )
+                                                }
+                                                showMoveSubGroupsDialog = null
+                                            }
+                                        },
+                                        modifier = Modifier.fillMaxWidth()
+                                    ) { Text(targetGroup.name) }
+                                }
                                 TextButton(
                                     onClick = {
-                                        scope.launch {
-                                            withIO {
-                                                moveSubGroupsToGroup(
-                                                    sourceGroup = sourceGroup,
-                                                    paths = selectedPaths,
-                                                    targetGroup = targetGroup
-                                                )
-                                            }
-                                            showMoveSubGroupsDialog = null
-                                        }
+                                        newGroupNameForMove = ""
+                                        showNewGroupForMove = true
                                     },
                                     modifier = Modifier.fillMaxWidth()
-                                ) { Text(targetGroup.name) }
+                                ) { Text("新建一级分组") }
                             }
                         }
                     }
@@ -1303,7 +1323,7 @@ internal fun ListManagerScreen(
             text = {
                 Column(modifier = Modifier
                     .fillMaxWidth()
-                    .heightIn(max = 500.dp)
+                    .heightIn(max = 400.dp)
                     .verticalScroll(rememberScrollState())) {
                     otherGroups.forEach { targetGroup ->
                         TextButton(
