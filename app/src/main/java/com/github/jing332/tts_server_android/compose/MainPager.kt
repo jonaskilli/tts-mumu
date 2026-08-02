@@ -25,7 +25,6 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.DisposableEffect
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.rememberCoroutineScope
@@ -78,11 +77,6 @@ fun AnimatedContentScope.MainPager(sharedVM: SharedViewModel) {
         !a11yTouchEnabled
     })
     ControlBottomBarVisibility(a11yTouchEnabled, scrollBehavior)
-
-    // 切换页面时复位底部栏，避免上一页滚动隐藏后切到无列表的页面（如角色管理）时底部栏不再出现
-    LaunchedEffect(pagerState.currentPage) {
-        scrollBehavior.state.heightOffset = 0f
-    }
 
     val overlayController = rememberOverlayController()
 
