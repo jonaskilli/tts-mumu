@@ -6735,8 +6735,8 @@ var EditorJS = {
         try {
             _initFayinrenMapCache(true);
             console.log("onVoiceChanged: personality缓存已强制刷新");
-            // 刷新角色列表，获取当前已启用配置项的实际发音人
-            try { refreshCharacterList(); } catch (eRef) { console.error("onVoiceChanged刷新列表失败: " + eRef.toString()); }
+            // 注意：refreshCharacterList 定义在 onLoadUI 作用域内，此处无法访问。
+            // App 层切换发音人后会自行刷新 UI，此处只需刷新缓存即可。
         } catch (e) {
             console.error("onVoiceChanged刷新缓存失败: " + e.toString());
         }
