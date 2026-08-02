@@ -880,27 +880,39 @@ internal fun ListManagerScreen(
                         otherGroups.forEach { otherGroup ->
                             TextButton(
                                 onClick = {
+                                    // 立即关闭弹窗 + 显示加载遮罩
+                                    showConvertToSubGroupMulti = false
+                                    showTagOrganizeLoading = true
                                     scope.launch {
                                         withIO {
+                                            // 1. 一次性合并所有源分组的音频参数到目标分组（只 update 一次目标分组）
+                                            val dstSubMap = otherGroup.subGroupAudioParamsJson.let { jsonStr ->
+                                                if (jsonStr.isBlank() || jsonStr == "{}") emptyMap()
+                                                else SystemTtsV2.Converters.json.decodeFromString<Map<String, AudioParams>>(jsonStr)
+                                            }.toMutableMap()
                                             convertible.forEach { src ->
-                                                val subMap = otherGroup.subGroupAudioParamsJson.let { jsonStr ->
-                                                    if (jsonStr.isBlank() || jsonStr == "{}") emptyMap()
-                                                    else SystemTtsV2.Converters.json.decodeFromString<Map<String, AudioParams>>(jsonStr)
-                                                }.toMutableMap()
-                                                subMap[src.group.name] = src.group.audioParams
-                                                val newJson = SystemTtsV2.Converters.json.encodeToString(subMap)
-                                                dbm.systemTtsV2.updateGroup(otherGroup.copy(subGroupAudioParamsJson = newJson))
-                                                if (src.list.isNotEmpty()) {
-                                                    dbm.systemTtsV2.update(
-                                                        *src.list.map {
-                                                            it.copy(groupId = otherGroup.id, categoryPath = src.group.name)
-                                                        }.toTypedArray()
-                                                    )
+                                                dstSubMap[src.group.name] = src.group.audioParams
+                                            }
+                                            dbm.systemTtsV2.updateGroup(
+                                                otherGroup.copy(
+                                                    subGroupAudioParamsJson = SystemTtsV2.Converters.json.encodeToString(dstSubMap)
+                                                )
+                                            )
+                                            // 2. 一次性批量更新所有配置项（合并所有源分组的配置）
+                                            val allMoveItems = convertible.flatMap { src ->
+                                                src.list.map {
+                                                    it.copy(groupId = otherGroup.id, categoryPath = src.group.name)
                                                 }
+                                            }
+                                            if (allMoveItems.isNotEmpty()) {
+                                                dbm.systemTtsV2.update(*allMoveItems.toTypedArray())
+                                            }
+                                            // 3. 逐个删除源分组（delete 较快，无法批量）
+                                            convertible.forEach { src ->
                                                 dbm.systemTtsV2.deleteGroup(src.group)
                                             }
                                         }
-                                        showConvertToSubGroupMulti = false
+                                        showTagOrganizeLoading = false
                                         selectionMode = false
                                         selectedGroupIds = emptySet()
                                     }
