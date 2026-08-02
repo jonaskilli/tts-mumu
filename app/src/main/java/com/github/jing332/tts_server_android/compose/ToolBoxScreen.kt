@@ -55,15 +55,19 @@ fun ToolBoxScreen(sharedVM: SharedViewModel) {
     val groups by flow.collectAsStateWithLifecycle(emptyList())
 
     // 查找已开启「仅界面模式」的角色管理配置项（用于初始加载和检测新增）
+    // 注意：Room 2.6.1 的 @Relation 不支持 orderBy，list 顺序由 SQLite 决定可能不稳定，
+    // 因此这里用 minByOrNull(id) 选 id 最小的那个，保证 flow 重发时 firstOrNull 不漂移
     val uiOnlyTts = remember(groups, isRoleManagementPlugin) {
         if (!isRoleManagementPlugin) null
-        else groups.flatMap { it.list }.firstOrNull { tts ->
-            val config = tts.config
-            config is TtsConfigurationDTO &&
-                (config.source as? PluginTtsSource)?.let {
-                    it.pluginId == "mingwuyan" && it.isUiOnly
-                } == true
-        }
+        else groups.flatMap { it.list }
+            .filter { tts ->
+                val config = tts.config
+                config is TtsConfigurationDTO &&
+                    (config.source as? PluginTtsSource)?.let {
+                        it.pluginId == "mingwuyan" && it.isUiOnly
+                    } == true
+            }
+            .minByOrNull { it.id }
     }
 
     // 本地编辑状态：只在首次或切换到不同 id 的 uiOnly 配置时更新，
