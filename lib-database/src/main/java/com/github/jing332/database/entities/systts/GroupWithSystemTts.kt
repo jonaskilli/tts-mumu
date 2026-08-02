@@ -9,8 +9,10 @@ data class GroupWithSystemTts(
     val group: SystemTtsGroup,
 
     @Relation(
+        entity = SystemTtsV2::class,
         parentColumn = "groupId",
-        entityColumn = "groupId"
+        entityColumn = "groupId",
+        orderBy = "id ASC"
     )
     val list: List<SystemTtsV2>
 )
