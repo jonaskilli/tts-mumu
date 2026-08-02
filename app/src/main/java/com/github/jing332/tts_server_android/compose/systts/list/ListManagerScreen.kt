@@ -2105,10 +2105,22 @@ internal fun ListManagerScreen(
                                                         vm.updateSubGroupEnable(g.id, subItems, enabled)
                                                     },
                                                     onClick = {
-                                                        expandedSubGroups = if (expandedSubGroups.contains(fItem.node.fullPath)) {
-                                                            expandedSubGroups - fItem.node.fullPath
+                                                        val wasExpanded = expandedSubGroups.contains(fItem.node.fullPath)
+                                                        if (wasExpanded) {
+                                                            // 折叠前先滚动到该子分组头,使其处于 sticky 位置:
+                                                            // 未处于 sticky 状态(直接可见的前几个)的子分组折叠时,
+                                                            // 内容变化会引发 sticky 状态切换导致位置跳动;
+                                                            // 先平滑滚到 sticky 位置再折叠,可保持位置稳定。
+                                                            // 已处于 sticky 位置的(滑动后到达的)滚动距离为0,行为不变。
+                                                            scope.launch {
+                                                                val headerIndex = listState.layoutInfo.visibleItemsInfo.find { it.key == subKey }?.index
+                                                                if (headerIndex != null) {
+                                                                    listState.animateScrollToItem(headerIndex)
+                                                                }
+                                                                expandedSubGroups = expandedSubGroups - fItem.node.fullPath
+                                                            }
                                                         } else {
-                                                            expandedSubGroups + fItem.node.fullPath
+                                                            expandedSubGroups = expandedSubGroups + fItem.node.fullPath
                                                         }
                                                     },
                                                     onRename = {
