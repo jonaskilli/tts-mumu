@@ -65,25 +65,10 @@ fun ToolBoxScreen(sharedVM: SharedViewModel) {
     val flow = remember { dbm.systemTtsV2.flowAllGroupWithTts().conflate() }
     val groups by flow.collectAsStateWithLifecycle(emptyList())
 
-    // 查找已开启「仅界面模式」的角色管理配置项（用于初始加载和检测新增）
-    // 注意：Room 2.6.1 的 @Relation 不支持 orderBy，list 顺序由 SQLite 决定可能不稳定，
-    // 因此这里用 minByOrNull(id) 选 id 最小的那个，保证 flow 重发时 firstOrNull 不漂移
-    val uiOnlyTts = remember(groups, isRoleManagementPlugin) {
-        if (!isRoleManagementPlugin) null
-        else groups.flatMap { it.list }
-            .filter { tts ->
-                val config = tts.config
-                config is TtsConfigurationDTO &&
-                    (config.source as? PluginTtsSource)?.let {
-                        it.pluginId == "mingwuyan" && it.isUiOnly
-                    } == true
-            }
-            .minByOrNull { it.id }
-    }
-
-    // 查找任意一个角色管理插件(mingwuyan)配置项：用于决定顶栏开关是否可用
-    // 没有任何 mingwuyan 配置项时开关禁用（不自动创建，需用户先在系统TTS添加）
-    val anyMingwuyanTts = remember(groups, isRoleManagementPlugin) {
+    // 查找角色管理插件(mingwuyan)配置项：本栏专为外置角色管理 UI 而设，全局只应有一个。
+    // 优先取已开启 isUiOnly 的；没有则取任意一个（用于顶栏开关目标）。
+    // 用 minByOrNull(id) 保证 flow 重发时不漂移。
+    val mingwuyanTts = remember(groups, isRoleManagementPlugin) {
         if (!isRoleManagementPlugin) null
         else groups.flatMap { it.list }
             .filter { tts ->
@@ -93,13 +78,16 @@ fun ToolBoxScreen(sharedVM: SharedViewModel) {
             }
             .minByOrNull { it.id }
     }
+    val uiOnlyTts = mingwuyanTts?.takeIf {
+        ((it.config as? TtsConfigurationDTO)?.source as? PluginTtsSource)?.isUiOnly == true
+    }
 
-    // 本地编辑状态：只在首次或切换到不同 id 的 uiOnly 配置时更新，
-    // 不随 flow 抖动重置，避免用户在 ToolBox 内切换开关时 UI 重建丢失插件UI
+    // 本地编辑状态：仅在 uiOnly 配置项出现/消失/切换 id 时更新，
+    // 不随 flow 抖动重置，避免用户在 ToolBox 内编辑时 UI 重建丢失插件 UI
     var currentTts by remember { mutableStateOf<SystemTtsV2?>(null) }
     LaunchedEffect(uiOnlyTts?.id) {
         if (uiOnlyTts == null) {
-            // 没有任何 uiOnly 配置项（被外部关闭或删除）：清空本地状态，UI 收起
+            // 没有 uiOnly 配置项（被外部关闭或删除）：清空本地状态，UI 收起
             currentTts = null
         } else if (currentTts?.id != uiOnlyTts.id) {
             // 切换到不同的 uiOnly 配置项
@@ -167,10 +155,8 @@ fun ToolBoxScreen(sharedVM: SharedViewModel) {
     }
 
     val scope = rememberCoroutineScope()
-    // 顶部「仅界面模式」简易开关：与配置项编辑页内的开关功能一致，仅切换 isUiOnly 字段
-    // 开关目标优先取已开启 isUiOnly 的配置项（与 UI 显示目标一致），
-    // 没有则取任意一个 mingwuyan 配置项；都没有时开关禁用
-    val switchTarget = uiOnlyTts ?: anyMingwuyanTts
+    // 顶部「仅界面模式」开关目标 = 角色管理配置项；没有时开关禁用（不自动创建）
+    val switchTarget = mingwuyanTts
     val isUiOnlyOn = switchTarget?.let { tts ->
         ((tts.config as? TtsConfigurationDTO)?.source as? PluginTtsSource)?.isUiOnly == true
     } ?: false
