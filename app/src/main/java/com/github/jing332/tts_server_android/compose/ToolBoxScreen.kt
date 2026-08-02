@@ -4,6 +4,7 @@ import android.content.Intent
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -19,6 +20,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBarDefaults
@@ -39,6 +41,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.github.jing332.common.utils.toast
 import com.github.jing332.database.dbm
 import com.github.jing332.database.entities.systts.SystemTtsV2
 import com.github.jing332.database.entities.systts.TtsConfigurationDTO
@@ -146,6 +149,12 @@ fun ToolBoxScreen(sharedVM: SharedViewModel) {
         )
     }
 
+    val scope = rememberCoroutineScope()
+    // 顶部「仅界面模式」简易开关：与配置项编辑页内的开关功能一致，仅切换 isUiOnly 字段
+    val isUiOnlyOn = currentTts?.let { tts ->
+        ((tts.config as? TtsConfigurationDTO)?.source as? PluginTtsSource)?.isUiOnly == true
+    } ?: false
+
     val scrollBehavior = TopAppBarDefaults.pinnedScrollBehavior()
     Scaffold(
         modifier = Modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
@@ -154,6 +163,43 @@ fun ToolBoxScreen(sharedVM: SharedViewModel) {
                 title = { Text(stringResource(R.string.toolbox)) },
                 scrollBehavior = scrollBehavior,
                 actions = {
+                    // 仅界面模式开关：仅角色管理插件(mingwuyan)安装后显示
+                    if (isRoleManagementPlugin && plugin != null) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                stringResource(R.string.plugin_ui_only_mode),
+                                style = MaterialTheme.typography.labelMedium
+                            )
+                            Switch(
+                                checked = isUiOnlyOn,
+                                onCheckedChange = { enabled ->
+                                    val tts = currentTts
+                                    if (tts == null) {
+                                        // 没有可切换的配置项：提示去配置列表添加
+                                        context.toast("请先在系统TTS添加角色管理配置项")
+                                    } else {
+                                        val src = (tts.config as? TtsConfigurationDTO)
+                                            ?.source as? PluginTtsSource
+                                        if (src == null) {
+                                            context.toast("当前配置项非插件类型，无法切换")
+                                        } else {
+                                            val updated = tts.copy(
+                                                config = (tts.config as TtsConfigurationDTO).copy(
+                                                    source = src.copy(isUiOnly = enabled)
+                                                )
+                                            )
+                                            currentTts = updated
+                                            scope.launch(Dispatchers.IO + NonCancellable) {
+                                                dbm.systemTtsV2.insert(updated)
+                                            }
+                                        }
+                                    }
+                                }
+                            )
+                        }
+                    }
                     // 运行朗读规则 JS 快捷键：选择规则后自动进入编辑器并运行
                     IconButton(onClick = { showSpeechRulePicker = true }) {
                         Icon(
@@ -199,7 +245,6 @@ fun ToolBoxScreen(sharedVM: SharedViewModel) {
                 // 显示角色管理配置项的编辑页面（不管 isUiOnly 状态，始终显示完整内容）
                 var systts by remember(activeTts.id) { mutableStateOf(activeTts) }
                 val latestSystts by rememberUpdatedState(systts)
-                val scope = rememberCoroutineScope()
 
                 // 离开页面时保存，持久化变更；用结构化协程替代裸 Thread，保证写入时机可控
                 DisposableEffect(activeTts.id) {

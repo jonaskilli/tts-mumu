@@ -11,15 +11,14 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
-import androidx.compose.material3.BottomAppBar
 import androidx.compose.material3.BottomAppBarDefaults
 import androidx.compose.material3.BottomAppBarScrollBehavior
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
@@ -122,27 +121,25 @@ fun AnimatedContentScope.MainPager(sharedVM: SharedViewModel) {
             Scaffold(
                 modifier = Modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
                 bottomBar = {
-                    BottomAppBar(
+                    NavigationBar(
                         modifier = Modifier
                             .fillMaxWidth(),
-                        scrollBehavior = scrollBehavior,
-                        actions = {
-                            for (destination in PagerDestination.routes) {
-                                val isSelected = pagerState.currentPage == destination.index
-                                NavigationBarItem(
-                                    selected = isSelected,
-                                    alwaysShowLabel = a11yTouchEnabled,
-                                    onClick = {
-                                        scope.launch {
-                                            pagerState.animateScrollToPage(destination.index)
-                                        }
-                                    },
-                                    icon = destination.icon,
-                                    label = { Text(stringResource(destination.strId)) }
-                                )
-                            }
+                    ) {
+                        for (destination in PagerDestination.routes) {
+                            val isSelected = pagerState.currentPage == destination.index
+                            NavigationBarItem(
+                                selected = isSelected,
+                                alwaysShowLabel = a11yTouchEnabled,
+                                onClick = {
+                                    scope.launch {
+                                        pagerState.animateScrollToPage(destination.index)
+                                    }
+                                },
+                                icon = destination.icon,
+                                label = { Text(stringResource(destination.strId)) }
+                            )
                         }
-                    )
+                    }
 
                 }
             ) { paddingValues ->
