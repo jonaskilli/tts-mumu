@@ -1,20 +1,26 @@
 package com.github.jing332.tts_server_android.compose
 
+import android.content.Intent
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AccountCircle
+import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
@@ -28,6 +34,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -39,6 +46,7 @@ import com.github.jing332.database.entities.systts.source.PluginTtsSource
 import com.github.jing332.tts_server_android.R
 import com.github.jing332.tts_server_android.compose.nav.NavTopAppBar
 import com.github.jing332.tts_server_android.compose.systts.list.ui.PluginTtsUI
+import com.github.jing332.tts_server_android.compose.systts.speechrule.SpeechRuleManagerActivity
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.flow.conflate
@@ -87,6 +95,57 @@ fun ToolBoxScreen(sharedVM: SharedViewModel) {
         }
     }
 
+    val context = LocalContext.current
+    // 朗读规则列表（轻量查询，不含 code，避免 Cursor 窗口溢出）
+    var showSpeechRulePicker by remember { mutableStateOf(false) }
+    val speechRules = remember { dbm.speechRuleDao.getAllWithoutCode() }
+    if (showSpeechRulePicker) {
+        AlertDialog(
+            onDismissRequest = { showSpeechRulePicker = false },
+            title = { Text("选择朗读规则运行") },
+            text = {
+                if (speechRules.isEmpty()) {
+                    Text("暂无朗读规则")
+                } else {
+                    Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
+                        speechRules.forEach { rule ->
+                            TextButton(
+                                onClick = {
+                                    showSpeechRulePicker = false
+                                    context.startActivity(
+                                        Intent(context, SpeechRuleManagerActivity::class.java).apply {
+                                            putExtra("ruleDbId", rule.id)
+                                            putExtra("autoDebug", true)
+                                        }
+                                    )
+                                },
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Column(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalAlignment = Alignment.Start
+                                ) {
+                                    Text(rule.name.ifBlank { rule.ruleId })
+                                    Text(
+                                        "${rule.author.ifBlank { "未知" }} - v${rule.version}",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            confirmButton = {},
+            dismissButton = {
+                TextButton(onClick = { showSpeechRulePicker = false }) {
+                    Text(stringResource(R.string.cancel))
+                }
+            }
+        )
+    }
+
     val scrollBehavior = TopAppBarDefaults.pinnedScrollBehavior()
     Scaffold(
         modifier = Modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
@@ -94,6 +153,15 @@ fun ToolBoxScreen(sharedVM: SharedViewModel) {
             NavTopAppBar(
                 title = { Text(stringResource(R.string.toolbox)) },
                 scrollBehavior = scrollBehavior,
+                actions = {
+                    // 运行朗读规则 JS 快捷键：选择规则后自动进入编辑器并运行
+                    IconButton(onClick = { showSpeechRulePicker = true }) {
+                        Icon(
+                            Icons.Default.PlayArrow,
+                            contentDescription = "运行朗读规则"
+                        )
+                    }
+                }
             )
         }
     ) { paddingValues ->

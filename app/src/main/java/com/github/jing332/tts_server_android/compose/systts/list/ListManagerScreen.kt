@@ -1827,6 +1827,42 @@ internal fun ListManagerScreen(
             }
         }
         CompositionLocalProvider(LocalViewConfiguration provides fastLongPressConfig) {
+        // 预计算每个分组的可见子分组项，避免 LazyColumn 重组时重复构建/扁平化树导致左右滑动卡顿
+        val subGroupVisibleItemsMap = remember(models, expandedSubGroups) {
+            models.associate { gwt ->
+                val g = gwt.group
+                if (g.isExpanded && gwt.list.any { it.categoryPath.isNotBlank() }) {
+                    val tree = buildSubCategoryTree(gwt.list)
+                    val flattened = flattenSubCategoryTree(tree)
+                    val visItems = mutableListOf<FlattenedCategoryItem>()
+                    var skipLevel = Int.MAX_VALUE
+                    for (fItem in flattened) {
+                        when (fItem) {
+                            is FlattenedCategoryItem.SubGroupHeader -> {
+                                if (fItem.node.level <= skipLevel) {
+                                    skipLevel = Int.MAX_VALUE
+                                }
+                                if (fItem.node.level > skipLevel) {
+                                    continue
+                                }
+                                visItems.add(fItem)
+                                if (!expandedSubGroups.contains(fItem.node.fullPath)) {
+                                    skipLevel = fItem.node.level
+                                }
+                            }
+                            is FlattenedCategoryItem.TtsItem -> {
+                                if (fItem.displayLevel <= skipLevel) {
+                                    visItems.add(fItem)
+                                }
+                            }
+                        }
+                    }
+                    g.id to visItems
+                } else {
+                    g.id to null
+                }
+            }
+        }
         LazyColumn(
                 Modifier
                     .fillMaxSize()
@@ -2077,38 +2113,8 @@ internal fun ListManagerScreen(
                                 }
                             }
                         } else {
-                            // 有子分组时使用树形渲染
-                            val tree = buildSubCategoryTree(groupWithSystemTts.list)
-                            val flattened = flattenSubCategoryTree(tree)
-
-                            // 过滤掉折叠的子分组内容
-                            val visibleItems = mutableListOf<FlattenedCategoryItem>()
-                            var skipLevel = Int.MAX_VALUE
-                            for (fItem in flattened) {
-                                when (fItem) {
-                                    is FlattenedCategoryItem.SubGroupHeader -> {
-                                        // 遇到同级或上级的 header 时重置跳过状态
-                                        if (fItem.node.level <= skipLevel) {
-                                            skipLevel = Int.MAX_VALUE
-                                        }
-                                        // 被跳过的子分组 header 不显示
-                                        if (fItem.node.level > skipLevel) {
-                                            continue
-                                        }
-                                        visibleItems.add(fItem)
-                                        if (!expandedSubGroups.contains(fItem.node.fullPath)) {
-                                            skipLevel = fItem.node.level
-                                        }
-                                    }
-                                    is FlattenedCategoryItem.TtsItem -> {
-                                        // 修复：displayLevel 必须 <= skipLevel 才显示，
-                                        // 之前 <= skipLevel + 1 导致折叠子分组后其直接内容仍然显示
-                                        if (fItem.displayLevel <= skipLevel) {
-                                            visibleItems.add(fItem)
-                                        }
-                                    }
-                                }
-                            }
+                            // 有子分组时使用树形渲染（树已在 LazyColumn 外预计算并缓存，避免重组时重复构建）
+                            val visibleItems = subGroupVisibleItemsMap[g.id] ?: emptyList()
 
                             // 标记是否已插入"根目录配置"分隔标题
                             // 当一级分组下同时有子分组和根目录配置项时,在根目录配置项前插入分隔,

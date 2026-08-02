@@ -25,12 +25,18 @@ import kotlinx.coroutines.launch
 
 class SpeechRuleManagerActivity : ComposeActivity() {
     private var jsCode by mutableStateOf("")
+    // 由外部传入的待运行规则数据库 id（角色管理界面"运行朗读规则"快捷键使用）
+    private var ruleDbId by mutableStateOf<Long?>(null)
+    private var autoDebug by mutableStateOf(false)
 
     @Suppress("DEPRECATION")
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        if (intent != null) importJsCodeFromIntent(intent)
+        if (intent != null) {
+            importJsCodeFromIntent(intent)
+            importRuleFromIntent(intent)
+        }
 
         setContent {
             AppTheme {
@@ -43,6 +49,20 @@ class SpeechRuleManagerActivity : ComposeActivity() {
                                 NavRoutes.SpeechRuleEdit.KEY_DATA, SpeechRule(code = jsCode)
                             )
                             navController.navigate(NavRoutes.SpeechRuleEdit.id)
+                        }
+                    }
+
+                    // 角色管理快捷键：按 id 取出规则并跳转编辑页运行
+                    LaunchedEffect(ruleDbId) {
+                        val id = ruleDbId
+                        if (id != null) {
+                            val rule = withIO { dbm.speechRuleDao.all.find { it.id == id } }
+                            if (rule != null) {
+                                sharedVM.put(NavRoutes.SpeechRuleEdit.KEY_DATA, rule)
+                                if (autoDebug) sharedVM.put("autoDebug", true)
+                                navController.navigate(NavRoutes.SpeechRuleEdit.id)
+                            }
+                            ruleDbId = null
                         }
                     }
 
@@ -78,11 +98,23 @@ class SpeechRuleManagerActivity : ComposeActivity() {
         super.onNewIntent(intent)
 
         importJsCodeFromIntent(intent)
+        importRuleFromIntent(intent)
     }
 
 
     private fun importJsCodeFromIntent(intent: Intent) {
         jsCode = intent.getStringExtra("js") ?: return
         intent.removeExtra("js")
+    }
+
+    // 角色管理快捷键传入：ruleDbId 指定要运行的规则, autoDebug 控制是否自动运行
+    private fun importRuleFromIntent(intent: Intent) {
+        val id = intent.getLongExtra("ruleDbId", -1L)
+        if (id > 0L) {
+            ruleDbId = id
+            autoDebug = intent.getBooleanExtra("autoDebug", false)
+            intent.removeExtra("ruleDbId")
+            intent.removeExtra("autoDebug")
+        }
     }
 }
