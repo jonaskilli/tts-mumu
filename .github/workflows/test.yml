@@ -3,10 +3,7 @@ name: Build Test
 on:
   push:
     branches:
-      - "master"
-      - "compose"
       - "mumu_tts_github"
-      - "mumu_work"
   workflow_dispatch:
 
 jobs:
