@@ -178,16 +178,17 @@ class TtsLogViewModel : ViewModel() {
     suspend fun pull() {
         runCatching {
             if (file.exists()) {
-                // 最多读取最近 1500 行
-                file.readLines().takeLast(1500).apply {
-                    withMain {
-                        forEach { add(it) }
-                    }
+                // 最多读取最近 1500 行，解析后批量添加，避免逐条 add 触发多次重组
+                val entries = file.readLines().takeLast(1500).mapNotNull { line ->
+                    runCatching { toLogEntry(line) }.getOrNull()
+                }
+                withMain {
+                    logs.addAll(entries)
                 }
             }
         }.onFailure {
             logs.add(LogEntry(level = LogLevel.ERROR, message = it.stackTraceToString()))
-            Log.e(TAG, "pull: ", it) 
+            Log.e(TAG, "pull: ", it)
         }
 
     }
