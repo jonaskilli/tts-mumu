@@ -9,13 +9,24 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalContext
 import com.github.jing332.common.utils.longToast
 import com.github.jing332.common.utils.toast
+import com.github.jing332.common.utils.toJsonListString
 import com.github.jing332.compose.widgets.LoadingDialog
+import com.github.jing332.database.entities.plugin.Plugin
 import com.github.jing332.tts_server_android.R
 import com.github.jing332.tts_server_android.compose.systts.ConfigImportBottomSheet
 import com.github.jing332.tts_server_android.compose.systts.list.AutoImportResult
 import com.github.jing332.tts_server_android.compose.systts.list.doAutoImport
+import com.github.jing332.tts_server_android.constant.AppConst
 import com.drake.net.utils.withIO
 import kotlinx.coroutines.launch
+import kotlinx.serialization.json.JsonArray
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.contentOrNull
+import kotlinx.serialization.json.intOrNull
+import kotlinx.serialization.json.jsonArray
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
 
 @Composable
 fun PluginImportBottomSheet(onDismissRequest: () -> Unit) {
