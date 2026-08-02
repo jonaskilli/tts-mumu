@@ -988,54 +988,56 @@ internal fun ListManagerScreen(
                     if (subPaths.isEmpty()) {
                         Text("当前分组没有子分组")
                     } else {
-                        Text("选择要移出的子分组，将创建为独立分组：", modifier = Modifier.padding(bottom = 8.dp))
-                        subPaths.forEach { path ->
-                            TextButton(
-                                onClick = {
-                                    // 立即关闭弹窗 + 显示加载遮罩
-                                    showExtractSubGroup = null
-                                    showTagOrganizeLoading = true
-                                    scope.launch {
-                                        val itemsToMove = currentGroupWithTts?.list
-                                            ?.filter { it.categoryPath == path }
-                                            ?: emptyList()
+                        Text("移出子分组到其他一级分组，注意区域可上下滑动", modifier = Modifier.padding(bottom = 8.dp))
+                        Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
+                            subPaths.forEach { path ->
+                                TextButton(
+                                    onClick = {
+                                        // 立即关闭弹窗 + 显示加载遮罩
+                                        showExtractSubGroup = null
+                                        showTagOrganizeLoading = true
+                                        scope.launch {
+                                            val itemsToMove = currentGroupWithTts?.list
+                                                ?.filter { it.categoryPath == path }
+                                                ?: emptyList()
 
-                                        // 读取子分组音频参数
-                                        val subGroupAudioParams = targetGroup.subGroupAudioParamsJson.let { jsonStr ->
-                                            if (jsonStr.isBlank() || jsonStr == "{}") emptyMap()
-                                            else SystemTtsV2.Converters.json.decodeFromString<Map<String, com.github.jing332.database.entities.systts.AudioParams>>(jsonStr)
-                                        }
-                                        val audioParamsForNewGroup = subGroupAudioParams[path] ?: com.github.jing332.database.entities.systts.AudioParams()
-
-                                        withIO {
-                                            // 从原分组中移除该子分组参数记录
-                                            if (subGroupAudioParams.containsKey(path)) {
-                                                val newSubMap = subGroupAudioParams.toMutableMap().apply { remove(path) }
-                                                val newSubJson = SystemTtsV2.Converters.json.encodeToString(newSubMap)
-                                                dbm.systemTtsV2.updateGroup(targetGroup.copy(subGroupAudioParamsJson = newSubJson))
+                                            // 读取子分组音频参数
+                                            val subGroupAudioParams = targetGroup.subGroupAudioParamsJson.let { jsonStr ->
+                                                if (jsonStr.isBlank() || jsonStr == "{}") emptyMap()
+                                                else SystemTtsV2.Converters.json.decodeFromString<Map<String, com.github.jing332.database.entities.systts.AudioParams>>(jsonStr)
                                             }
+                                            val audioParamsForNewGroup = subGroupAudioParams[path] ?: com.github.jing332.database.entities.systts.AudioParams()
 
-                                            val groupName = path.substringAfterLast('/')
-                                            val newGroup = SystemTtsGroup(
-                                                id = System.currentTimeMillis(),
-                                                name = groupName,
-                                                audioParams = audioParamsForNewGroup
-                                            )
-                                            dbm.systemTtsV2.insertGroup(newGroup)
-                                            if (itemsToMove.isNotEmpty()) {
-                                                dbm.systemTtsV2.update(
-                                                    *itemsToMove.map {
-                                                        it.copy(groupId = newGroup.id, categoryPath = "")
-                                                    }.toTypedArray()
+                                            withIO {
+                                                // 从原分组中移除该子分组参数记录
+                                                if (subGroupAudioParams.containsKey(path)) {
+                                                    val newSubMap = subGroupAudioParams.toMutableMap().apply { remove(path) }
+                                                    val newSubJson = SystemTtsV2.Converters.json.encodeToString(newSubMap)
+                                                    dbm.systemTtsV2.updateGroup(targetGroup.copy(subGroupAudioParamsJson = newSubJson))
+                                                }
+
+                                                val groupName = path.substringAfterLast('/')
+                                                val newGroup = SystemTtsGroup(
+                                                    id = System.currentTimeMillis(),
+                                                    name = groupName,
+                                                    audioParams = audioParamsForNewGroup
                                                 )
+                                                dbm.systemTtsV2.insertGroup(newGroup)
+                                                if (itemsToMove.isNotEmpty()) {
+                                                    dbm.systemTtsV2.update(
+                                                        *itemsToMove.map {
+                                                            it.copy(groupId = newGroup.id, categoryPath = "")
+                                                        }.toTypedArray()
+                                                    )
+                                                }
                                             }
+                                            showTagOrganizeLoading = false
                                         }
-                                        showTagOrganizeLoading = false
-                                    }
-                                },
-                                modifier = Modifier.fillMaxWidth()
-                            ) {
-                                Text(path)
+                                    },
+                                    modifier = Modifier.fillMaxWidth()
+                                ) {
+                                    Text(path)
+                                }
                             }
                         }
                     }

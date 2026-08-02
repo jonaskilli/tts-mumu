@@ -74,7 +74,7 @@ fun ListImportBottomSheet(onDismissRequest: () -> Unit) {
 }
 
 /** 自动导入结果 */
-private sealed class AutoImportResult {
+internal sealed class AutoImportResult {
     object EmptyOrUnrecognized : AutoImportResult()
     data class Truncated(val detail: String) : AutoImportResult()
     data class Success(val count: Int, val type: ImportType, val typeName: String) : AutoImportResult()
@@ -84,7 +84,7 @@ private sealed class AutoImportResult {
  * 自动识别 JSON 类型并直接导入，无需手动选择/确认。
  * 支持：配置列表 / 插件 / 朗读规则 / 替换规则。
  */
-private fun doAutoImport(json: String): AutoImportResult {
+internal fun doAutoImport(json: String): AutoImportResult {
     val trimmed = json.trim()
     if (trimmed.isEmpty()) return AutoImportResult.EmptyOrUnrecognized
 

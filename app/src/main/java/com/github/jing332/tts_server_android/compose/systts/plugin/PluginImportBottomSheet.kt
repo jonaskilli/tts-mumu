@@ -6,61 +6,51 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.platform.LocalContext
+import com.github.jing332.common.utils.longToast
+import com.github.jing332.common.utils.toast
+import com.github.jing332.compose.widgets.LoadingDialog
+import com.github.jing332.tts_server_android.R
 import com.github.jing332.tts_server_android.compose.systts.ConfigImportBottomSheet
-import com.github.jing332.tts_server_android.compose.systts.ConfigModel
-import com.github.jing332.tts_server_android.compose.systts.SelectImportConfigDialog
-import com.github.jing332.tts_server_android.constant.AppConst
-import com.github.jing332.common.utils.toJsonListString
-import com.github.jing332.database.dbm
-import com.github.jing332.database.entities.plugin.Plugin
+import com.github.jing332.tts_server_android.compose.systts.list.AutoImportResult
+import com.github.jing332.tts_server_android.compose.systts.list.doAutoImport
 import com.drake.net.utils.withIO
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
-import kotlinx.serialization.json.JsonArray
-import kotlinx.serialization.json.JsonObject
-import kotlinx.serialization.json.JsonPrimitive
-import kotlinx.serialization.json.contentOrNull
-import kotlinx.serialization.json.decodeFromJsonElement
-import kotlinx.serialization.json.intOrNull
-import kotlinx.serialization.json.jsonArray
-import kotlinx.serialization.json.jsonObject
-import kotlinx.serialization.json.jsonPrimitive
 
 @Composable
 fun PluginImportBottomSheet(onDismissRequest: () -> Unit) {
     val scope = rememberCoroutineScope()
-    var list by remember { mutableStateOf<List<Plugin>?>(null) }
-    if (list != null) {
-        SelectImportConfigDialog(
-            onDismissRequest = { list = null },
-            models = list!!.map {
-                ConfigModel(
-                    isSelected = true,
-                    title = it.name,
-                    subtitle = it.author,
-                    it
-                )
-            },
-            onSelectedList = {
-                val plugins = it.map { plugin -> plugin as Plugin }
-                scope.launch {
-                    withIO { dbm.pluginDao.insert(*plugins.toTypedArray()) }
-                }
+    val context = LocalContext.current
 
-                it.size
-            }
-        )
+    var importing by remember { mutableStateOf(false) }
+    if (importing) {
+        LoadingDialog(onDismissRequest = { /* 不可取消，等待导入完成 */ })
     }
 
     ConfigImportBottomSheet(onDismissRequest = onDismissRequest,
         autoImport = true,
-        onImport = {
-        // 第14项: 大文件(可达5MB)解析移到 IO 线程, 避免主线程阻塞导致 ANR/闪退
-        scope.launch {
-            list = withContext(Dispatchers.IO) { parsePluginsJson(it) }
+        onImport = { json ->
+            // 自动识别 JSON 类型并直接导入，无需手动选择/确认
+            importing = true
+            context.toast(R.string.import_in_progress)
+            scope.launch {
+                val result = withIO { doAutoImport(json) }
+                importing = false
+                when (result) {
+                    AutoImportResult.EmptyOrUnrecognized -> {
+                        context.longToast(R.string.import_no_valid_config)
+                    }
+                    is AutoImportResult.Truncated -> {
+                        context.longToast(R.string.import_truncated_hint, result.detail)
+                    }
+                    is AutoImportResult.Success -> {
+                        context.longToast("已导入 ${result.count} 项${result.typeName}")
+                        onDismissRequest()
+                    }
+                }
+            }
         }
-    })
+    )
 }
 
 /**

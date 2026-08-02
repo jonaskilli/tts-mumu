@@ -50,6 +50,9 @@ interface SpeechRuleDao {
     @Query("SELECT * FROM speech_rules WHERE ruleId = :ruleId AND isEnabled = :isEnabled LIMIT 1")
     fun getByRuleId(ruleId: String, isEnabled: Boolean = true): SpeechRule?
 
+    @Query("SELECT * FROM speech_rules WHERE ruleId = :ruleId LIMIT 1")
+    fun getByRuleIdAll(ruleId: String): SpeechRule?
+
 //    @Query("SELECT * FROM speech_rules WHERE ruleId = :ruleId")
 //    fun getByRuleId(ruleId: String): SpeechRule?
 

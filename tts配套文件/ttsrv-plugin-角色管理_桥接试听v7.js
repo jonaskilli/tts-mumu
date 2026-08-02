@@ -3696,16 +3696,17 @@ var EditorJS = {
                         Toast.makeText(ctx, "没有可用的朗读规则", Toast.LENGTH_SHORT).show();
                         return;
                     }
-                    var items = [];
+                    // 构造 Java String[] 而非 JS 数组，确保 setItems(CharSequence[]) 能正确匹配重载
+                    var names = java.lang.reflect.Array.newInstance(java.lang.String.class, list.length);
                     for (var i = 0; i < list.length; i++) {
-                        items.push(new Item(list[i].name, list[i].id));
+                        names[i] = String(list[i].name);
                     }
                     var builder = new android.app.AlertDialog.Builder(ctx);
                     builder.setTitle("选择要运行的朗读规则");
-                    builder.setItems(items, new android.content.DialogInterface.OnClickListener({
+                    builder.setItems(names, new android.content.DialogInterface.OnClickListener({
                         onClick: function(dialog, which) {
-                            var ruleId = list[which].id;
-                            var ruleName = list[which].name;
+                            var ruleId = String(list[which].ruleId);
+                            var ruleName = String(list[which].name);
                             Toast.makeText(ctx, "正在运行：" + ruleName, Toast.LENGTH_SHORT).show();
                             new java.lang.Thread(new java.lang.Runnable({
                                 run: function() {

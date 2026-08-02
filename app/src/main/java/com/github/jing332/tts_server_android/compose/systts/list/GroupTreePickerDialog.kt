@@ -166,14 +166,6 @@ fun GroupTreePickerDialog(
                             style = MaterialTheme.typography.titleMedium,
                             modifier = Modifier.padding(start = 4.dp)
                         )
-                        if (!canSelectRoot) {
-                            Text(
-                                text = "（含子分组，需选子分组）",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                modifier = Modifier.padding(start = 4.dp)
-                            )
-                        }
                     }
 
                     if (isExpanded) {

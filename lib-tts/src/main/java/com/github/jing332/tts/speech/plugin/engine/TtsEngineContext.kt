@@ -137,18 +137,18 @@ data class TtsEngineContext(
     /**
      * 获取所有朗读规则列表（供 JS 插件选择并运行规则）。
      *
-     * 返回 JSON 数组字符串，每项为 {"id": <数据库id>, "name": <规则名>, "ruleId": <规则内的id>}。
+     * 返回 JSON 数组字符串，每项为 {"name": <规则名>, "ruleId": <规则内的id>}。
      * JS 侧解析后弹出原生列表让用户选择，再调用 [runSpeechRule] 运行选中的规则。
      *
-     * 注意：返回的是数据库主键 id（Long），用于 [runSpeechRule] 的入参；
-     * ruleId 是规则 js 内部的 id（String，如 "mingwuyan"），决定文件写入目录，仅作展示。
+     * 使用 getAllWithoutCode() 避免加载大 code 字段导致 Cursor 窗口溢出闪退。
+     * ruleId 是规则 js 内部的 id（String，如 "mingwuyan"），决定文件写入目录，
+     * 同时作为 [runSpeechRule] 的入参（String 类型，避免 Long→Int 溢出）。
      */
     @ScriptInterface
     fun getSpeechRuleList(): String {
         val arr = JSONArray()
-        dbm.speechRuleDao.all.forEach { rule ->
+        dbm.speechRuleDao.getAllWithoutCode().forEach { rule ->
             val obj = org.json.JSONObject()
-            obj.put("id", rule.id)
             obj.put("name", rule.name)
             obj.put("ruleId", rule.ruleId)
             arr.put(obj)
@@ -165,14 +165,14 @@ data class TtsEngineContext(
      * 只要规则的 ruleId 与当前插件的 engineId 相同，文件就写入同一目录，
      * 当前插件随后即可读到更新后的数据。
      *
-     * @param id 朗读规则数据库主键（[getSpeechRuleList] 返回的 id 字段）
+     * @param ruleId 朗读规则内部 id（[getSpeechRuleList] 返回的 ruleId 字段）
      * @return 成功返回 null；失败返回错误信息字符串
      */
     @ScriptInterface
-    fun runSpeechRule(id: Long): String? {
+    fun runSpeechRule(ruleId: String): String? {
         return try {
-            val rule = dbm.speechRuleDao.all.firstOrNull { it.id == id }
-                ?: return "未找到 id=$id 的朗读规则"
+            val rule = dbm.speechRuleDao.getByRuleIdAll(ruleId)
+                ?: return "未找到 ruleId=$ruleId 的朗读规则"
             // 复刻 SpeechRuleEngine.eval()：用 ruleId 作为 engineId，保证文件写入目录与规则一致
             val engine = SimpleScriptEngine(context, rule.ruleId)
             engine.execute(StringScriptSource(rule.code, sourceName = rule.ruleId))
