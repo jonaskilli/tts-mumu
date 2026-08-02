@@ -756,12 +756,22 @@ internal fun ListManagerScreen(
                     showReleaseSubGroup = null
                     scope.launch {
                         withIO {
+                            // 1. 清除所有配置项的子分组归属(categoryPath 置空)
                             if (subGroupItems.isNotEmpty()) {
                                 dbm.systemTtsV2.update(
                                     *subGroupItems.map { it.copy(categoryPath = "") }.toTypedArray()
                                 )
                             }
+                            // 2. 清除分组上保存的子分组音频参数(子分组名字一并删除),
+                            //    使其变为不带子分组的一级分组, 不再被当作含子分组处理
+                            if (targetGroup.subGroupAudioParamsJson.isNotBlank()
+                                && targetGroup.subGroupAudioParamsJson != "{}") {
+                                dbm.systemTtsV2.updateGroup(
+                                    targetGroup.copy(subGroupAudioParamsJson = "")
+                                )
+                            }
                         }
+                        SystemTtsService.notifyUpdateConfig()
                     }
                 }) {
                     Text("确定")
