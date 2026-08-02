@@ -308,6 +308,7 @@
     <string name="config_import_success_msg">共导入 %1$d 条配置</string>
     <string name="import_in_progress">正在识别并导入…</string>
     <string name="import_no_valid_config">未识别到有效配置</string>
+    <string name="import_truncated_hint">导入失败，JSON 可能被截断：%1$s\n\n若为大配置列表，请先关闭系统TTS服务再导入。</string>
     <string name="file_save_failed">文件保存失败：%1$s</string>
     <string name="save_success">保存成功</string>
     <string name="failed_timed_out">已超时：%1$dms</string>
