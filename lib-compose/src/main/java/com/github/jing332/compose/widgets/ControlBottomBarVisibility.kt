@@ -1,8 +1,5 @@
 package com.github.jing332.compose.widgets
 
-import androidx.compose.animation.core.Animatable
-import androidx.compose.animation.core.FastOutSlowInEasing
-import androidx.compose.animation.core.tween
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.material3.BottomAppBarScrollBehavior
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -47,16 +44,8 @@ fun ControlBottomBarVisibility(
 private suspend fun animateBottomBarToShow(
     bottomAppBarState: androidx.compose.material3.BottomAppBarState,
 ) {
-    val start = bottomAppBarState.heightOffset
-    if (start == 0f) return
-    val anim = Animatable(start)
-    anim.animateTo(
-        targetValue = 0f,
-        animationSpec = tween(
-            durationMillis = 300,
-            easing = FastOutSlowInEasing
-        )
-    ) {
-        bottomAppBarState.heightOffset = value
+    // 瞬间复位，避免切换页面时 300ms 动画与首次组合叠加导致掉帧
+    if (bottomAppBarState.heightOffset != 0f) {
+        bottomAppBarState.heightOffset = 0f
     }
 }
