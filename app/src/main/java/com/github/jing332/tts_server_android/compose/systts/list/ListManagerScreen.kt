@@ -336,6 +336,39 @@ internal fun ListManagerScreen(
         )
     }
 
+    // 子分组"释放配置项"确认对话框：将子分组下的配置项移到一级分组根目录(categoryPath="")
+    var showReleaseItemsConfirm by remember { mutableStateOf<Pair<List<SystemTtsV2>, String>?>(null) }
+    if (showReleaseItemsConfirm != null) {
+        val (items, subName) = showReleaseItemsConfirm!!
+        AlertDialog(
+            onDismissRequest = { showReleaseItemsConfirm = null },
+            title = { Text("释放配置项") },
+            text = { Text("将子分组 \"$subName\" 下的 ${items.size} 项配置释放到一级分组根目录？") },
+            confirmButton = {
+                TextButton(onClick = {
+                    // 立即关闭弹窗，避免操作期间"愣在那儿"
+                    showReleaseItemsConfirm = null
+                    scope.launch {
+                        withIO {
+                            if (items.isNotEmpty()) {
+                                dbm.systemTtsV2.update(
+                                    *items.map { it.copy(categoryPath = "") }.toTypedArray()
+                                )
+                            }
+                        }
+                    }
+                }) {
+                    Text("确定")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showReleaseItemsConfirm = null }) {
+                    Text(stringResource(R.string.cancel))
+                }
+            }
+        )
+    }
+
     var showQuickEdit by remember { mutableStateOf<SystemTtsV2?>(null) }
     if (showQuickEdit != null) {
         QuickEditBottomSheet(onDismissRequest = {
@@ -2184,6 +2217,9 @@ internal fun ListManagerScreen(
                                                     },
                                                     onExtractToGroup = {
                                                         showSubGroupExtractToGroup = g to fItem.node.fullPath
+                                                    },
+                                                    onReleaseItems = {
+                                                        showReleaseItemsConfirm = subItems to fItem.node.name
                                                     },
                                                     onMoveEnabledToGroup = {
                                                         showMoveEnabledDialog = GroupWithSystemTts(g, subItems)
