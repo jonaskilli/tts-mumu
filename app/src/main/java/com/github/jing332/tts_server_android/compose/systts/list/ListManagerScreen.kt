@@ -940,7 +940,7 @@ internal fun ListManagerScreen(
     // 长按菜单：移动启用配置到其他分组
     var showMoveEnabledDialog by remember { mutableStateOf<GroupWithSystemTts?>(null) }
 
-    // 第3项: 移出子分组到其他一级分组 (一级分组菜单"移出子分组" / 子分组菜单"移出到其他一级分组" 共用)
+    // 第3项: 移动子分组到其他一级分组 (一级分组菜单"移动子分组" / 子分组菜单"移动到其他一级分组" 共用)
     // Pair<源一级分组, 预选子分组路径(null=不预选)>
     var showMoveSubGroupsDialog by remember { mutableStateOf<Pair<SystemTtsGroup, String?>?>(null) }
     var showMoveSingleSubGroupDialog by remember { mutableStateOf<Pair<SystemTtsGroup, String>?>(null) }
@@ -982,13 +982,13 @@ internal fun ListManagerScreen(
         }
         AlertDialog(
             onDismissRequest = { showExtractSubGroup = null },
-            title = { Text("移出子分组") },
+            title = { Text("移动子分组") },
             text = {
                 Column {
                     if (subPaths.isEmpty()) {
                         Text("当前分组没有子分组")
                     } else {
-                        Text("移出子分组到其他一级分组，注意区域可上下滑动", modifier = Modifier.padding(bottom = 8.dp))
+                        Text("移动子分组到其他一级分组，注意区域可上下滑动", modifier = Modifier.padding(bottom = 8.dp))
                         Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
                             subPaths.forEach { path ->
                                 TextButton(
@@ -1225,7 +1225,7 @@ internal fun ListManagerScreen(
         )
     }
 
-    // 第3项: 移出子分组对话框 —— 多选子分组(支持全选) + 选择目标一级分组
+    // 第3项: 移动子分组对话框 —— 多选子分组(支持全选) + 选择目标一级分组
     if (showMoveSubGroupsDialog != null) {
         val sourceGroup = showMoveSubGroupsDialog!!.first
         val preSelectPath = showMoveSubGroupsDialog!!.second
@@ -1247,7 +1247,7 @@ internal fun ListManagerScreen(
             onDismissRequest = { showMoveSubGroupsDialog = null },
             properties = androidx.compose.ui.window.DialogProperties(usePlatformDefaultWidth = false),
             modifier = Modifier.fillMaxWidth(0.92f),
-            title = { Text("移出到其他一级分组 (${selectedPaths.size}/${subPaths.size})") },
+            title = { Text("移动到其他一级分组 (${selectedPaths.size}/${subPaths.size})") },
             text = {
                 if (subPaths.isEmpty()) {
                     Text("当前分组没有子分组")
@@ -1367,7 +1367,7 @@ internal fun ListManagerScreen(
         )
     }
 
-    // 子分组"移出到其他一级分组" —— 直接选择目标分组, 无多选
+    // 子分组"移动到其他一级分组" —— 直接选择目标分组, 无多选
     if (showMoveSingleSubGroupDialog != null) {
         val sourceGroup = showMoveSingleSubGroupDialog!!.first
         val subPath = showMoveSingleSubGroupDialog!!.second
@@ -1376,7 +1376,7 @@ internal fun ListManagerScreen(
             onDismissRequest = { showMoveSingleSubGroupDialog = null },
             properties = androidx.compose.ui.window.DialogProperties(usePlatformDefaultWidth = false),
             modifier = Modifier.fillMaxWidth(0.92f),
-            title = { Text("移出子分组「$subPath」到其他一级分组") },
+            title = { Text("移动子分组「$subPath」到其他一级分组") },
             text = {
                 Column(modifier = Modifier
                     .fillMaxWidth()
@@ -1954,7 +1954,7 @@ internal fun ListManagerScreen(
                                     showMoveEnabledDialog = groupWithSystemTts
                                 },
                                 onMoveSubGroups = {
-                                    // 第3项: 一级分组"移出子分组", 进入多选移出子分组对话框(不预选)
+                                    // 第3项: 一级分组"移动子分组", 进入多选移动子分组对话框(不预选)
                                     showMoveSubGroupsDialog = g to null
                                 },
                                 onResortTagsByExisting = {
@@ -2117,18 +2117,9 @@ internal fun ListManagerScreen(
                                                     onClick = {
                                                         val wasExpanded = expandedSubGroups.contains(fItem.node.fullPath)
                                                         if (wasExpanded) {
-                                                            // 折叠前先滚动到该子分组头,使其处于 sticky 位置:
-                                                            // 未处于 sticky 状态(直接可见的前几个)的子分组折叠时,
-                                                            // 内容变化会引发 sticky 状态切换导致位置跳动;
-                                                            // 先平滑滚到 sticky 位置再折叠,可保持位置稳定。
-                                                            // 已处于 sticky 位置的(滑动后到达的)滚动距离为0,行为不变。
-                                                            scope.launch {
-                                                                val headerIndex = listState.layoutInfo.visibleItemsInfo.find { it.key == subKey }?.index
-                                                                if (headerIndex != null) {
-                                                                    listState.animateScrollToItem(headerIndex)
-                                                                }
-                                                                expandedSubGroups = expandedSubGroups - fItem.node.fullPath
-                                                            }
+                                                            // 直接折叠：子分组头已是普通 item（非 stickyHeader），
+                                                            // 折叠时其下方 item 移除，LazyColumn 会自动保持上方内容位置稳定。
+                                                            expandedSubGroups = expandedSubGroups - fItem.node.fullPath
                                                         } else {
                                                             expandedSubGroups = expandedSubGroups + fItem.node.fullPath
                                                         }
