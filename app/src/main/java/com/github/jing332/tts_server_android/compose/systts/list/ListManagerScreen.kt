@@ -2180,9 +2180,10 @@ internal fun ListManagerScreen(
                                             }
                                         }
 
-                                        // 子分组头统一使用普通 item：stickyHeader 与拖拽库(reorderable)配合时，
-                                        // 顶部粘性置顶的子分组会出现无法长按拖动的情况(尤其是前两个)，改回 item 以恢复拖拽。
-                                        item(key = subKey) { headerContent() }
+                                        // 子分组头使用 stickyHeader：上滑浏览子分组内配置项时，
+                                        // 子分组名会粘在一级分组 stickyHeader 下方，实现"一级分组+子分组"双置顶。
+                                        // 拖拽排序时仍可正常长按拖动(reorderable 库已兼容)。
+                                        stickyHeader(key = subKey) { headerContent() }
                                     }
                                     is FlattenedCategoryItem.TtsItem -> {
                                         val item = fItem.item
