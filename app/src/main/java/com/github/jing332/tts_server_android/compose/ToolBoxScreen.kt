@@ -266,6 +266,7 @@ fun ToolBoxScreen(sharedVM: SharedViewModel) {
                     showBasicInfo = false,
                     plugin = plugin,
                     showPluginSelector = false,
+                    showUiOnlySwitch = false,
                 )
             }
             else -> {

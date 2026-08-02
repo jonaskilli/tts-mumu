@@ -171,6 +171,8 @@ class PluginTtsUI : IConfigUI() {
         vm: PluginTtsViewModel = viewModel(),
         // 是否显示切换插件的选择框（预览界面设为 false，只显示当前插件 UI，避免混乱）
         showPluginSelector: Boolean = true,
+        // 是否显示「仅界面模式」开关：角色管理栏顶部已有独立开关，传 false 隐藏内容区开关节省空间
+        showUiOnlySwitch: Boolean = true,
     ) {
         var displayName by remember { mutableStateOf("") }
 
@@ -329,7 +331,7 @@ class PluginTtsUI : IConfigUI() {
                     )
 
                 // 仅界面模式开关：仅角色管理插件(mingwuyan)可开启，开启后工具箱显示此配置项编辑页
-                if (tts.pluginId == "mingwuyan") {
+                if (showUiOnlySwitch && tts.pluginId == "mingwuyan") {
                     Row(
                         Modifier
                             .fillMaxWidth()
