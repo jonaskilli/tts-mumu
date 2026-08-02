@@ -2077,6 +2077,10 @@ internal fun ListManagerScreen(
                                 }
                             }
 
+                            // 标记是否已插入"根目录配置"分隔标题
+                            // 当一级分组下同时有子分组和根目录配置项时,在根目录配置项前插入分隔,
+                            // 让用户能区分这些是不属于任何子分组的配置项
+                            var rootSectionHeaderInserted = false
                             visibleItems.forEach { fItem ->
                                 when (fItem) {
                                     is FlattenedCategoryItem.SubGroupHeader -> {
@@ -2186,6 +2190,26 @@ internal fun ListManagerScreen(
                                         stickyHeader(key = subKey) { headerContent() }
                                     }
                                     is FlattenedCategoryItem.TtsItem -> {
+                                        // 根目录配置项(不属于任何子分组)且之前有子分组:插入分隔标题以区分
+                                        if (fItem.displayLevel == 0 && !rootSectionHeaderInserted) {
+                                            rootSectionHeaderInserted = true
+                                            item(key = "root_sep_${g.id}") {
+                                                Surface(
+                                                    modifier = Modifier
+                                                        .fillMaxWidth()
+                                                        .padding(horizontal = 8.dp, vertical = 2.dp),
+                                                    color = MaterialTheme.colorScheme.surfaceVariant,
+                                                    shape = MaterialTheme.shapes.small
+                                                ) {
+                                                    Text(
+                                                        text = "根目录配置",
+                                                        style = MaterialTheme.typography.labelMedium,
+                                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)
+                                                    )
+                                                }
+                                            }
+                                        }
                                         val item = fItem.item
                                         val itemKey = "item_${g.id}_${fItem.categoryPath}_${item.id}"
                                         val itemDragModifier = if (searchKeyword.isNotEmpty() || selectionMode) Modifier
