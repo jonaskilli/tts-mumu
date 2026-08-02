@@ -1255,7 +1255,7 @@ internal fun ListManagerScreen(
                     Column(modifier = Modifier.fillMaxWidth()) {
                         // 说明文字（可滚动，避免内容多时被截断）
                         Text(
-                            text = "移动子分组到其他一级分组，注意区域可上下滑动",
+                            text = "移动子分组到其他一级分组",
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                             modifier = Modifier
