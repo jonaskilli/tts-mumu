@@ -23,13 +23,18 @@ import com.github.jing332.tts_server_android.JsConsoleManager
 import com.github.jing332.tts_server_android.app
 import io.github.oshai.kotlinlogging.KotlinLogging
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 class PluginTtsViewModel(app: Application) : AndroidViewModel(app) {
     companion object {
         private val logger = KotlinLogging.logger { PluginTtsViewModel::class.java.name }
     }
 
+    private val engineLock = Any()
+
+    @Volatile
     lateinit var engine: TtsPluginUiEngineV2
     val pluginList = mutableStateListOf<Plugin>()
 
@@ -51,17 +56,24 @@ class PluginTtsViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     private fun initEngine(plugin: Plugin?, source: PluginTtsSource) {
-        if (this::engine.isInitialized) {
-            if (plugin == null && engine.plugin.pluginId == source.pluginId) return
-            if (plugin != null && engine.plugin.pluginId == plugin.pluginId) return
+        synchronized(engineLock) {
+            if (this::engine.isInitialized) {
+                val samePlugin = if (plugin != null) engine.plugin.pluginId == plugin.pluginId
+                else engine.plugin.pluginId == source.pluginId
+                if (samePlugin) {
+                    // 早返回时也更新 source，避免 JS 读写旧对象导致数据丢失
+                    engine.source = source
+                    return
+                }
+            }
+
+            engine = if (plugin == null)
+                TtsPluginEngineManager.get(getApplication<Application>() as Context, getPluginFromDB(source.pluginId))
+            else TtsPluginUiEngineV2(getApplication<Application>() as Context, plugin).apply { eval() }
+
+            engine.console = JsConsoleManager.ui
+            engine.source = source
         }
-
-        engine = if (plugin == null)
-            TtsPluginEngineManager.get(getApplication<Application>() as Context, getPluginFromDB(source.pluginId))
-        else TtsPluginUiEngineV2(getApplication<Application>() as Context, plugin).apply { eval() }
-
-        engine.console = JsConsoleManager.ui
-        engine.source = source
     }
 
     private fun getPluginFromDB(id: String) =
@@ -100,7 +112,8 @@ class PluginTtsViewModel(app: Application) : AndroidViewModel(app) {
             } catch (t: Throwable) {
                 throw t
             } finally {
-                withMain { isLoading = false }
+                // 用 NonCancellable 确保协程取消时也能清理 loading 状态，避免卡在加载态
+                withContext(NonCancellable) { withMain { isLoading = false } }
             }
         }
 

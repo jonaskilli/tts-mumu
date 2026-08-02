@@ -151,6 +151,7 @@ fun AnimatedContentScope.MainPager(sharedVM: SharedViewModel) {
                         .fillMaxSize(),
                     state = pagerState,
                     userScrollEnabled = true,
+                    beyondViewportPageCount = 1,
                 ) { index ->
                     when (index) {
                         PagerDestination.SystemTts.index -> ListManagerScreen(sharedVM)
