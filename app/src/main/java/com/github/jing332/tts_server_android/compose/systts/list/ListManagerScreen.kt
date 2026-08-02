@@ -230,8 +230,8 @@ internal fun ListManagerScreen(
                     oldPath.substringBeforeLast('/') + "/" + newName
                 } else newName
                 withIO {
-                    items.forEach { item ->
-                        dbm.systemTtsV2.update(item.copy(categoryPath = newPath))
+                    if (items.isNotEmpty()) {
+                        dbm.systemTtsV2.update(*items.map { it.copy(categoryPath = newPath) }.toTypedArray())
                     }
                 }
                 showSubGroupRename = null
@@ -282,6 +282,9 @@ internal fun ListManagerScreen(
             text = { Text("将子分组 \"${path.substringAfterLast('/')}\" 移出为独立的一级分组？") },
             confirmButton = {
                 TextButton(onClick = {
+                    // 立即关闭弹窗 + 显示加载遮罩，避免"愣在那儿"
+                    showSubGroupExtractToGroup = null
+                    showTagOrganizeLoading = true
                     scope.launch {
                         val currentGroupWithTts = models.find { it.group.id == group.id }
                         val itemsToMove = currentGroupWithTts?.list
@@ -308,16 +311,16 @@ internal fun ListManagerScreen(
                                 audioParams = audioParamsForNewGroup
                             )
                             dbm.systemTtsV2.insertGroup(newGroup)
-                            itemsToMove.forEach { item ->
+                            // 批量更新配置项，替代逐条 forEach update
+                            if (itemsToMove.isNotEmpty()) {
                                 dbm.systemTtsV2.update(
-                                    item.copy(
-                                        groupId = newGroup.id,
-                                        categoryPath = ""
-                                    )
+                                    *itemsToMove.map {
+                                        it.copy(groupId = newGroup.id, categoryPath = "")
+                                    }.toTypedArray()
                                 )
                             }
                         }
-                        showSubGroupExtractToGroup = null
+                        showTagOrganizeLoading = false
                     }
                 }) {
                     Text("确定")
@@ -689,9 +692,9 @@ internal fun ListManagerScreen(
                 onConfirm = { subGroupName, selectedItems ->
                     scope.launch {
                         withIO {
-                            selectedItems.forEach { item ->
+                            if (selectedItems.isNotEmpty()) {
                                 dbm.systemTtsV2.update(
-                                    item.copy(categoryPath = subGroupName)
+                                    *selectedItems.map { it.copy(categoryPath = subGroupName) }.toTypedArray()
                                 )
                             }
                         }
@@ -756,11 +759,13 @@ internal fun ListManagerScreen(
                                 onClick = {
                                     scope.launch {
                                         withIO {
-                                            currentGroupWithTts?.list
+                                            val releaseItems = currentGroupWithTts?.list
                                                 ?.filter { it.categoryPath == path }
-                                                ?.forEach { item ->
-                                                    dbm.systemTtsV2.update(item.copy(categoryPath = ""))
-                                                }
+                                            if (!releaseItems.isNullOrEmpty()) {
+                                                dbm.systemTtsV2.update(
+                                                    *releaseItems.map { it.copy(categoryPath = "") }.toTypedArray()
+                                                )
+                                            }
                                         }
                                         showReleaseSubGroup = null
                                     }
@@ -823,12 +828,12 @@ internal fun ListManagerScreen(
                                             val newJson = SystemTtsV2.Converters.json.encodeToString(subMap)
                                             dbm.systemTtsV2.updateGroup(otherGroup.copy(subGroupAudioParamsJson = newJson))
 
-                                            currentGroupWithTts?.list?.forEach { item ->
+                                            val moveItems = currentGroupWithTts?.list
+                                            if (!moveItems.isNullOrEmpty()) {
                                                 dbm.systemTtsV2.update(
-                                                    item.copy(
-                                                        groupId = otherGroup.id,
-                                                        categoryPath = targetGroup.name
-                                                    )
+                                                    *moveItems.map {
+                                                        it.copy(groupId = otherGroup.id, categoryPath = targetGroup.name)
+                                                    }.toTypedArray()
                                                 )
                                             }
                                             // 空分组也保留，不删除
@@ -885,8 +890,12 @@ internal fun ListManagerScreen(
                                                 subMap[src.group.name] = src.group.audioParams
                                                 val newJson = SystemTtsV2.Converters.json.encodeToString(subMap)
                                                 dbm.systemTtsV2.updateGroup(otherGroup.copy(subGroupAudioParamsJson = newJson))
-                                                src.list.forEach { item ->
-                                                    dbm.systemTtsV2.update(item.copy(groupId = otherGroup.id, categoryPath = src.group.name))
+                                                if (src.list.isNotEmpty()) {
+                                                    dbm.systemTtsV2.update(
+                                                        *src.list.map {
+                                                            it.copy(groupId = otherGroup.id, categoryPath = src.group.name)
+                                                        }.toTypedArray()
+                                                    )
                                                 }
                                                 dbm.systemTtsV2.deleteGroup(src.group)
                                             }
@@ -996,12 +1005,11 @@ internal fun ListManagerScreen(
                                             audioParams = audioParamsForNewGroup
                                         )
                                         dbm.systemTtsV2.insertGroup(newGroup)
-                                        itemsToMove.forEach { item ->
+                                        if (itemsToMove.isNotEmpty()) {
                                             dbm.systemTtsV2.update(
-                                                item.copy(
-                                                    groupId = newGroup.id,
-                                                    categoryPath = ""
-                                                )
+                                                *itemsToMove.map {
+                                                    it.copy(groupId = newGroup.id, categoryPath = "")
+                                                }.toTypedArray()
                                             )
                                         }
                                         showExtractSubGroup = null
