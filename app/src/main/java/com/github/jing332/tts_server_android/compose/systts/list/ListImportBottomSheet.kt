@@ -7,17 +7,27 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalContext
+import com.github.jing332.common.utils.StringUtils
 import com.github.jing332.common.utils.longToast
 import com.github.jing332.common.utils.toast
+import com.github.jing332.common.utils.toJsonListString
 import com.github.jing332.compose.widgets.LoadingDialog
 import com.github.jing332.database.dbm
+import com.github.jing332.database.entities.SpeechRule
+import com.github.jing332.database.entities.plugin.Plugin
+import com.github.jing332.database.entities.replace.GroupWithReplaceRule
+import com.github.jing332.database.entities.replace.ReplaceRule
+import com.github.jing332.database.entities.replace.ReplaceRuleGroup
 import com.github.jing332.database.entities.systts.GroupWithSystemTts
 import com.github.jing332.database.entities.systts.SystemTtsMigration
 import com.github.jing332.database.entities.systts.v1.GroupWithV1TTS
 import com.github.jing332.tts_server_android.R
 import com.github.jing332.tts_server_android.compose.systts.ConfigImportBottomSheet
+import com.github.jing332.tts_server_android.compose.systts.plugin.parsePluginsJson
 import com.github.jing332.tts_server_android.constant.AppConst
 import com.github.jing332.tts_server_android.service.systts.SystemTtsService
+import com.github.jing332.tts_server_android.ui.systts.ImportConfigFactory
+import com.github.jing332.tts_server_android.ui.systts.ImportType
 import com.drake.net.utils.withIO
 import kotlinx.coroutines.launch
 
@@ -35,23 +45,26 @@ fun ListImportBottomSheet(onDismissRequest: () -> Unit) {
     ConfigImportBottomSheet(onDismissRequest = onDismissRequest,
         autoImport = true,
         onImport = { json ->
-            // 自识别JSON格式并直接导入，无需手动选择
+            // 自识别 JSON 类型并直接导入，无需手动选择/确认
             importing = true
             context.toast(R.string.import_in_progress)
             scope.launch {
-                val result = withIO { doImport(json) }
+                val result = withIO { doAutoImport(json) }
                 importing = false
                 when (result) {
-                    ImportResult.EmptyOrUnrecognized -> {
+                    AutoImportResult.EmptyOrUnrecognized -> {
                         context.longToast(R.string.import_no_valid_config)
                     }
-                    is ImportResult.Truncated -> {
+                    is AutoImportResult.Truncated -> {
                         // JSON 解析失败：可能是大文件读取被截断，或源文件本身损坏
                         context.longToast(R.string.import_truncated_hint, result.detail)
                     }
-                    is ImportResult.Success -> {
-                        SystemTtsService.notifyUpdateConfig()
-                        context.longToast(R.string.config_import_success_msg, result.count)
+                    is AutoImportResult.Success -> {
+                        // 仅配置列表需要通知 TTS 服务刷新
+                        if (result.type == ImportType.LIST) {
+                            SystemTtsService.notifyUpdateConfig()
+                        }
+                        context.longToast("已导入 ${result.count} 项${result.typeName}")
                         onDismissRequest()
                     }
                 }
@@ -60,38 +73,117 @@ fun ListImportBottomSheet(onDismissRequest: () -> Unit) {
     )
 }
 
-/** 导入结果 */
-private sealed class ImportResult {
-    object EmptyOrUnrecognized : ImportResult()
-    data class Truncated(val detail: String) : ImportResult()
-    data class Success(val count: Int) : ImportResult()
+/** 自动导入结果 */
+private sealed class AutoImportResult {
+    object EmptyOrUnrecognized : AutoImportResult()
+    data class Truncated(val detail: String) : AutoImportResult()
+    data class Success(val count: Int, val type: ImportType, val typeName: String) : AutoImportResult()
 }
 
 /**
- * 实际导入逻辑：解析 → 校验完整性 → 写库。
- * 返回 [ImportResult] 以便 UI 区分"未识别"、"被截断"、"成功"。
+ * 自动识别 JSON 类型并直接导入，无需手动选择/确认。
+ * 支持：配置列表 / 插件 / 朗读规则 / 替换规则。
  */
-private fun doImport(json: String): ImportResult {
+private fun doAutoImport(json: String): AutoImportResult {
     val trimmed = json.trim()
-    if (trimmed.isEmpty()) return ImportResult.EmptyOrUnrecognized
+    if (trimmed.isEmpty()) return AutoImportResult.EmptyOrUnrecognized
+
+    val type = try {
+        ImportConfigFactory.detectType(trimmed)
+    } catch (e: Exception) {
+        return AutoImportResult.Truncated(e.message ?: e.toString())
+    } ?: return AutoImportResult.EmptyOrUnrecognized
+
+    return when (type) {
+        ImportType.LIST -> doImportList(json).let { result ->
+            when (result) {
+                ListImportResult.EmptyOrUnrecognized -> AutoImportResult.EmptyOrUnrecognized
+                is ListImportResult.Truncated -> AutoImportResult.Truncated(result.detail)
+                is ListImportResult.Success -> AutoImportResult.Success(result.count, type, "配置列表")
+            }
+        }
+        ImportType.PLUGIN -> doImportPlugin(json, type)
+        ImportType.SPEECH_RULE -> doImportSpeechRule(json, type)
+        ImportType.REPLACE_RULE -> doImportReplaceRule(json, type)
+    }
+}
+
+/** 插件：解析并直接写库，不弹确认对话框 */
+private fun doImportPlugin(json: String, type: ImportType): AutoImportResult {
+    val plugins = runCatching { parsePluginsJson(json) }.getOrDefault(emptyList<Plugin>())
+    if (plugins.isEmpty()) return AutoImportResult.EmptyOrUnrecognized
+    dbm.pluginDao.insert(*plugins.toTypedArray())
+    return AutoImportResult.Success(plugins.size, type, "插件")
+}
+
+/** 朗读规则：解析并直接写库，不弹确认对话框 */
+private fun doImportSpeechRule(json: String, type: ImportType): AutoImportResult {
+    val rules = runCatching {
+        AppConst.jsonBuilder.decodeFromString<List<SpeechRule>>(json)
+    }.getOrDefault(emptyList())
+    if (rules.isEmpty()) return AutoImportResult.EmptyOrUnrecognized
+    dbm.speechRuleDao.insert(*rules.toTypedArray())
+    return AutoImportResult.Success(rules.size, type, "朗读规则")
+}
+
+/** 替换规则：解析并直接写库，不弹确认对话框 */
+private fun doImportReplaceRule(json: String, type: ImportType): AutoImportResult {
+    val pairs = mutableListOf<Pair<ReplaceRuleGroup, ReplaceRule>>()
+    if (json.contains("\"group\"")) {
+        runCatching {
+            AppConst.jsonBuilder.decodeFromString<List<GroupWithReplaceRule>>(json.toJsonListString())
+        }.getOrDefault(emptyList()).forEach { gwt ->
+            val group = gwt.group
+            gwt.list.forEach { rule -> pairs.add(group to rule) }
+        }
+    } else {
+        // 单条/裸数组：生成一个新分组
+        val groupName = StringUtils.formattedDate()
+        val group = ReplaceRuleGroup(name = groupName)
+        runCatching {
+            AppConst.jsonBuilder.decodeFromString<List<ReplaceRule>>(json.toJsonListString())
+        }.getOrDefault(emptyList()).forEach { rule ->
+            pairs.add(group to rule.apply { groupId = group.id })
+        }
+    }
+    if (pairs.isEmpty()) return AutoImportResult.EmptyOrUnrecognized
+    pairs.forEach {
+        dbm.replaceRuleDao.insert(it.second)
+        dbm.replaceRuleDao.insertGroup(it.first)
+    }
+    dbm.replaceRuleDao.updateAllOrder()
+    return AutoImportResult.Success(pairs.size, type, "替换规则")
+}
+
+/** 配置列表导入结果 */
+private sealed class ListImportResult {
+    object EmptyOrUnrecognized : ListImportResult()
+    data class Truncated(val detail: String) : ListImportResult()
+    data class Success(val count: Int) : ListImportResult()
+}
+
+/**
+ * 配置列表导入逻辑：解析 → 校验完整性 → 写库。
+ */
+private fun doImportList(json: String): ListImportResult {
+    val trimmed = json.trim()
+    if (trimmed.isEmpty()) return ListImportResult.EmptyOrUnrecognized
 
     // 1. 粗校验：必须是 JSON 数组开头/结尾，否则很可能被截断
-    if (!trimmed.startsWith("[")) return ImportResult.EmptyOrUnrecognized
+    if (!trimmed.startsWith("[")) return ListImportResult.EmptyOrUnrecognized
     if (!trimmed.endsWith("]")) {
-        // 尾部缺失 ] —— 典型的截断特征（大文件读取到一半）
-        return ImportResult.Truncated("JSON 未以 ']' 结尾")
+        return ListImportResult.Truncated("JSON 未以 ']' 结尾")
     }
 
     // 2. 解析：捕获 JSON 异常并区分截断
     val list = try {
         getImportList(json, false)
     } catch (e: kotlinx.serialization.SerializationException) {
-        // 解析中途失败：可能是字段缺失/类型不匹配，也可能是大文件截断
-        return ImportResult.Truncated(e.message ?: e.toString())
+        return ListImportResult.Truncated(e.message ?: e.toString())
     } catch (e: Exception) {
-        return ImportResult.Truncated(e.message ?: e.toString())
+        return ListImportResult.Truncated(e.message ?: e.toString())
     }
-    if (list.isNullOrEmpty()) return ImportResult.EmptyOrUnrecognized
+    if (list.isNullOrEmpty()) return ListImportResult.EmptyOrUnrecognized
 
     // 3. 写库
     val baseId = System.currentTimeMillis()
@@ -118,7 +210,7 @@ private fun doImport(json: String): ImportResult {
             imported++
         }
     }
-    return ImportResult.Success(imported)
+    return ListImportResult.Success(imported)
 }
 
 private fun getImportList(

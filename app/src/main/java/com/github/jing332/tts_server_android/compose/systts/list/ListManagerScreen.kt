@@ -1252,7 +1252,7 @@ internal fun ListManagerScreen(
             onDismissRequest = { showMoveSubGroupsDialog = null },
             properties = androidx.compose.ui.window.DialogProperties(usePlatformDefaultWidth = false),
             modifier = Modifier.fillMaxWidth(0.92f),
-            title = { Text("移动子分组到其他一级分组 (${selectedPaths.size}/${subPaths.size})") },
+            title = { Text("移动到其他一级分组 (${selectedPaths.size}/${subPaths.size})") },
             text = {
                 if (subPaths.isEmpty()) {
                     Text("当前分组没有子分组")
@@ -1260,7 +1260,7 @@ internal fun ListManagerScreen(
                     Column(modifier = Modifier.fillMaxWidth()) {
                         // 说明文字（可滚动，避免内容多时被截断）
                         Text(
-                            text = "将选中的子分组整体转移到其他一级分组下，原分组下的子分组结构和配置项会一并移动过去。",
+                            text = "区域可上下滑动",
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                             modifier = Modifier

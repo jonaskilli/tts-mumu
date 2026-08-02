@@ -76,7 +76,7 @@ fun PluginImportBottomSheet(onDismissRequest: () -> Unit) {
  *   避免「输入串 + DOM + toString副本 + List<Plugin>」同时驻留内存导致峰值过高(3.78MB即闪退)。
  * - JRead格式: 仅在确认是JRead时才 parseToJsonElement, 且用 decodeFromJsonElement 而非 toString()+decodeFromString。
  */
-private fun parsePluginsJson(jsonStr: String): List<Plugin> {
+internal fun parsePluginsJson(jsonStr: String): List<Plugin> {
     val json = AppConst.jsonBuilder
     val trimmed = jsonStr.trim()
 
