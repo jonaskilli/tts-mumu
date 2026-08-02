@@ -247,9 +247,9 @@ fun Group(
                 )
             }
 
-            // 移动子分组：仅含子分组的一级分组显示，移动子分组到其他一级分组
+            // 移出子分组：仅含子分组的一级分组显示，移出子分组到其他一级分组
             if (hasSubGroups) {
-                DropdownMenuItem(text = { Text("移动子分组") },
+                DropdownMenuItem(text = { Text("移出子分组") },
                     onClick = {
                         dismiss()
                         onMoveSubGroups()

@@ -935,10 +935,12 @@ internal fun ListManagerScreen(
         )
     }
 
+    var showExtractSubGroup by remember { mutableStateOf<SystemTtsGroup?>(null) }
+
     // 长按菜单：移动启用配置到其他分组
     var showMoveEnabledDialog by remember { mutableStateOf<GroupWithSystemTts?>(null) }
 
-    // 第3项: 移动子分组到其他一级分组 (一级分组菜单"移动子分组" / 子分组菜单"移动到其他一级分组" 共用)
+    // 第3项: 移出子分组到其他一级分组 (一级分组菜单"移出子分组" / 子分组菜单"移出到其他一级分组" 共用)
     // Pair<源一级分组, 预选子分组路径(null=不预选)>
     var showMoveSubGroupsDialog by remember { mutableStateOf<Pair<SystemTtsGroup, String?>?>(null) }
     var showMoveSingleSubGroupDialog by remember { mutableStateOf<Pair<SystemTtsGroup, String>?>(null) }
@@ -1223,7 +1225,7 @@ internal fun ListManagerScreen(
         )
     }
 
-    // 第3项: 移动子分组对话框 —— 多选子分组(支持全选) + 选择目标一级分组
+    // 第3项: 移出子分组对话框 —— 多选子分组(支持全选) + 选择目标一级分组
     if (showMoveSubGroupsDialog != null) {
         val sourceGroup = showMoveSubGroupsDialog!!.first
         val preSelectPath = showMoveSubGroupsDialog!!.second
@@ -1245,7 +1247,7 @@ internal fun ListManagerScreen(
             onDismissRequest = { showMoveSubGroupsDialog = null },
             properties = androidx.compose.ui.window.DialogProperties(usePlatformDefaultWidth = false),
             modifier = Modifier.fillMaxWidth(0.92f),
-            title = { Text("移动到其他一级分组 (${selectedPaths.size}/${subPaths.size})") },
+            title = { Text("移出到其他一级分组 (${selectedPaths.size}/${subPaths.size})") },
             text = {
                 if (subPaths.isEmpty()) {
                     Text("当前分组没有子分组")
@@ -1365,7 +1367,7 @@ internal fun ListManagerScreen(
         )
     }
 
-    // 子分组"移动到其他一级分组" —— 直接选择目标分组, 无多选
+    // 子分组"移出到其他一级分组" —— 直接选择目标分组, 无多选
     if (showMoveSingleSubGroupDialog != null) {
         val sourceGroup = showMoveSingleSubGroupDialog!!.first
         val subPath = showMoveSingleSubGroupDialog!!.second
@@ -1374,7 +1376,7 @@ internal fun ListManagerScreen(
             onDismissRequest = { showMoveSingleSubGroupDialog = null },
             properties = androidx.compose.ui.window.DialogProperties(usePlatformDefaultWidth = false),
             modifier = Modifier.fillMaxWidth(0.92f),
-            title = { Text("移动子分组「$subPath」到其他一级分组") },
+            title = { Text("移出子分组「$subPath」到其他一级分组") },
             text = {
                 Column(modifier = Modifier
                     .fillMaxWidth()
@@ -1952,7 +1954,7 @@ internal fun ListManagerScreen(
                                     showMoveEnabledDialog = groupWithSystemTts
                                 },
                                 onMoveSubGroups = {
-                                    // 第3项: 一级分组"移动子分组", 进入多选移动子分组对话框(不预选)
+                                    // 第3项: 一级分组"移出子分组", 进入多选移出子分组对话框(不预选)
                                     showMoveSubGroupsDialog = g to null
                                 },
                                 onResortTagsByExisting = {

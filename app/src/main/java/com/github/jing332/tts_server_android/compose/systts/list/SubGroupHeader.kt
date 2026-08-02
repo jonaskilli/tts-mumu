@@ -262,7 +262,7 @@ fun SubGroupHeader(
                 )
 
                 DropdownMenuItem(
-                    text = { Text("移动到其他一级分组") },
+                    text = { Text("移出到其他一级分组") },
                     onClick = {
                         showOptions = false
                         onMoveToOtherGroup()
