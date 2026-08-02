@@ -33,6 +33,7 @@ fun ListImportBottomSheet(onDismissRequest: () -> Unit) {
     }
 
     ConfigImportBottomSheet(onDismissRequest = onDismissRequest,
+        autoImport = true,
         onImport = { json ->
             // 自识别JSON格式并直接导入，无需手动选择
             importing = true

@@ -83,6 +83,9 @@ fun ConfigImportBottomSheet(
     content: @Composable ColumnScope.() -> Unit = {},
     onDismissRequest: () -> Unit,
     onImport: (json: String) -> Unit,
+    // 为 true 时：选好文件/填好URL后无需再点「导入」按钮，直接触发导入。
+    // TTS 配置列表导入用 true（全自动），插件/替换规则等仍需手动确认(默认 false)。
+    autoImport: Boolean = false,
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -110,6 +113,18 @@ fun ConfigImportBottomSheet(
             ImportSource.CLIPBOARD -> withMain { ClipboardUtils.text.toString() } // CLIPBOARD
 
             else -> throw IllegalArgumentException("unknown source: $src")
+        }
+    }
+
+    // 统一的导入触发逻辑，文件选择回调和「导入」按钮共用
+    fun launchImport(src: Int, urlStr: String? = null, uri: Uri? = null) {
+        scope.launch {
+            runCatching {
+                val jsonStr = getConfig(src = src, url = urlStr, uri = uri)
+                onImport(jsonStr.toJsonListString())
+            }.onFailure {
+                context.displayErrorDialog(it)
+            }
         }
     }
 
@@ -176,11 +191,15 @@ fun ConfigImportBottomSheet(
                     if (LocalImportRemoteUrl.current.value.isNotBlank()) {
                         source = ImportSource.URL
                         url = LocalImportRemoteUrl.current.value
+                        val presetUrl = LocalImportRemoteUrl.current.value
                         LocalImportRemoteUrl.current.value = ""
+                        if (autoImport) launchImport(ImportSource.URL, urlStr = presetUrl)
                     } else if (LocalImportFilePath.current.value.isNotBlank()) {
                         source = ImportSource.FILE
                         path = LocalImportFilePath.current.value
+                        val presetPath = LocalImportFilePath.current.value
                         LocalImportFilePath.current.value = ""
+                        if (autoImport) launchImport(ImportSource.FILE, uri = Uri.parse(presetPath))
                     }
 
                     AnimatedVisibility(
@@ -200,6 +219,8 @@ fun ConfigImportBottomSheet(
                                     rememberLauncherForActivityResult(contract = AppActivityResultContracts.filePickerActivity()) {
                                         it.second?.let { uri ->
                                             path = uri.toString()
+                                            // autoImport 模式下选好文件直接导入，无需再点「导入」按钮
+                                            if (autoImport) launchImport(ImportSource.FILE, uri = uri)
                                         }
                                     }
 
@@ -240,15 +261,7 @@ fun ConfigImportBottomSheet(
                 TextButton(
                     modifier = Modifier.align(Alignment.CenterEnd),
                     onClick = {
-                        scope.launch {
-                            runCatching {
-                                val jsonStr =
-                                    getConfig(src = source, url = url, uri = Uri.parse(path))
-                                onImport(jsonStr.toJsonListString())
-                            }.onFailure {
-                                context.displayErrorDialog(it)
-                            }
-                        }
+                        launchImport(source, urlStr = url, uri = Uri.parse(path))
                     }) {
                     Row {
                         Icon(Icons.AutoMirrored.Default.Input, stringResource(R.string.import_config))
