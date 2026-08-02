@@ -176,23 +176,58 @@ fun ToolBoxScreen(sharedVM: SharedViewModel) {
                                 checked = isUiOnlyOn,
                                 onCheckedChange = { enabled ->
                                     val tts = currentTts
-                                    if (tts == null) {
-                                        // 没有可切换的配置项：提示去配置列表添加
-                                        context.toast("请先在系统TTS添加角色管理配置项")
-                                    } else {
-                                        val src = (tts.config as? TtsConfigurationDTO)
-                                            ?.source as? PluginTtsSource
-                                        if (src == null) {
-                                            context.toast("当前配置项非插件类型，无法切换")
-                                        } else {
-                                            val updated = tts.copy(
-                                                config = (tts.config as TtsConfigurationDTO).copy(
-                                                    source = src.copy(isUiOnly = enabled)
+                                    if (enabled) {
+                                        // ON：把角色管理 UI 挪到本栏
+                                        if (tts == null) {
+                                            // 没有配置项：自动创建一个 mingwuyan 插件的 uiOnly 配置项
+                                            // flow 回调后会自动更新 currentTts，UI 随之显示
+                                            val newTts = SystemTtsV2(
+                                                displayName = "角色管理",
+                                                config = TtsConfigurationDTO(
+                                                    source = PluginTtsSource(
+                                                        pluginId = "mingwuyan",
+                                                        isUiOnly = true
+                                                    )
                                                 )
                                             )
-                                            currentTts = updated
                                             scope.launch(Dispatchers.IO + NonCancellable) {
-                                                dbm.systemTtsV2.insert(updated)
+                                                dbm.systemTtsV2.insert(newTts)
+                                            }
+                                        } else {
+                                            // 已有配置项：直接开启 isUiOnly
+                                            val src = (tts.config as? TtsConfigurationDTO)
+                                                ?.source as? PluginTtsSource
+                                            if (src == null) {
+                                                context.toast("当前配置项非插件类型，无法切换")
+                                            } else {
+                                                val updated = tts.copy(
+                                                    config = (tts.config as TtsConfigurationDTO).copy(
+                                                        source = src.copy(isUiOnly = true)
+                                                    )
+                                                )
+                                                currentTts = updated
+                                                scope.launch(Dispatchers.IO + NonCancellable) {
+                                                    dbm.systemTtsV2.insert(updated)
+                                                }
+                                            }
+                                        }
+                                    } else {
+                                        // OFF：关闭 isUiOnly（保留配置项，下次开启可找回）
+                                        if (tts != null) {
+                                            val src = (tts.config as? TtsConfigurationDTO)
+                                                ?.source as? PluginTtsSource
+                                            if (src != null) {
+                                                val updated = tts.copy(
+                                                    config = (tts.config as TtsConfigurationDTO).copy(
+                                                        source = src.copy(isUiOnly = false)
+                                                    )
+                                                )
+                                                // 先清本地状态让 UI 立即切回空状态，
+                                                // 再写库持久化（flow 回调不会重建已清空的 currentTts）
+                                                currentTts = null
+                                                scope.launch(Dispatchers.IO + NonCancellable) {
+                                                    dbm.systemTtsV2.insert(updated)
+                                                }
                                             }
                                         }
                                     }
