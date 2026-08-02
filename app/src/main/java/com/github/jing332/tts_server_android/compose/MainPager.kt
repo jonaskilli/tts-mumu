@@ -142,10 +142,9 @@ fun AnimatedContentScope.MainPager(sharedVM: SharedViewModel) {
                         .padding(bottom = paddingValues.calculateBottomPadding())
                         .fillMaxSize(),
                     state = pagerState,
-                    // 禁止左右滑动手势，只通过点击底部导航图标切换（滑动切换卡顿严重）
-                    userScrollEnabled = false,
-                    // 保留相邻1页状态，避免切换时页面被销毁重建导致卡顿和状态丢失
-                    // （角色管理栏的插件UI重建、日志栏重新加载都会卡）
+                    // 恢复左右滑动手势
+                    userScrollEnabled = true,
+                    // 保留相邻1页状态，避免角色管理栏UI被销毁重建导致状态丢失
                     beyondViewportPageCount = 1,
                 ) { index ->
                     when (index) {
