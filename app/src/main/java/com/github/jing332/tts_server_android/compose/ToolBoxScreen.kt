@@ -98,10 +98,14 @@ fun ToolBoxScreen(sharedVM: SharedViewModel) {
     // 不随 flow 抖动重置，避免用户在 ToolBox 内切换开关时 UI 重建丢失插件UI
     var currentTts by remember { mutableStateOf<SystemTtsV2?>(null) }
     LaunchedEffect(uiOnlyTts?.id) {
-        // 仅当存在新的 uiOnly 配置且与当前不同时切换（不覆盖用户本地编辑如关闭开关）
-        if (uiOnlyTts != null && currentTts?.id != uiOnlyTts.id) {
+        if (uiOnlyTts == null) {
+            // 没有任何 uiOnly 配置项（被外部关闭或删除）：清空本地状态，UI 收起
+            currentTts = null
+        } else if (currentTts?.id != uiOnlyTts.id) {
+            // 切换到不同的 uiOnly 配置项
             currentTts = uiOnlyTts
         }
+        // 否则保持当前（同 id 不重置，避免覆盖用户本地编辑）
     }
     // 检测当前配置是否已被删除（在别处删除），若删除则清除本地状态
     LaunchedEffect(groups) {
@@ -164,8 +168,9 @@ fun ToolBoxScreen(sharedVM: SharedViewModel) {
 
     val scope = rememberCoroutineScope()
     // 顶部「仅界面模式」简易开关：与配置项编辑页内的开关功能一致，仅切换 isUiOnly 字段
-    // 开关目标 = 任意一个 mingwuyan 配置项；没有任何配置项时开关禁用
-    val switchTarget = anyMingwuyanTts
+    // 开关目标优先取已开启 isUiOnly 的配置项（与 UI 显示目标一致），
+    // 没有则取任意一个 mingwuyan 配置项；都没有时开关禁用
+    val switchTarget = uiOnlyTts ?: anyMingwuyanTts
     val isUiOnlyOn = switchTarget?.let { tts ->
         ((tts.config as? TtsConfigurationDTO)?.source as? PluginTtsSource)?.isUiOnly == true
     } ?: false
