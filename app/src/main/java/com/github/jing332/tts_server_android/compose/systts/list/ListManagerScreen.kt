@@ -935,8 +935,6 @@ internal fun ListManagerScreen(
         )
     }
 
-    var showExtractSubGroup by remember { mutableStateOf<SystemTtsGroup?>(null) }
-
     // 长按菜单：移动启用配置到其他分组
     var showMoveEnabledDialog by remember { mutableStateOf<GroupWithSystemTts?>(null) }
 
