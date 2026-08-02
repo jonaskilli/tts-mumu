@@ -62,9 +62,6 @@ import com.github.jing332.tts_server_android.ui.AppActivityResultContracts
 import com.github.jing332.tts_server_android.ui.ExoPlayerActivity
 import com.github.jing332.tts_server_android.ui.FilePickerActivity
 import com.github.jing332.tts_server_android.ui.view.AppDialogs.displayErrorDialog
-import com.google.accompanist.permissions.ExperimentalPermissionsApi
-import com.google.accompanist.permissions.isGranted
-import com.google.accompanist.permissions.rememberPermissionState
 import java.io.File
 
 class BgmConfigUI : IConfigUI() {
@@ -257,7 +254,6 @@ class BgmConfigUI : IConfigUI() {
         }
     }
 
-    @OptIn(ExperimentalPermissionsApi::class)
     @Composable
     private fun FilesAccessPermissionContent(modifier: Modifier = Modifier) {
         val context = LocalContext.current
@@ -281,6 +277,9 @@ class BgmConfigUI : IConfigUI() {
         }
 
         Column(modifier) {
+            // 存储访问统一由「允许管理所有文件」(MANAGE_EXTERNAL_STORAGE) 控制，
+            // 不再单独申请 READ_EXTERNAL_STORAGE 运行时权限(与问题2同类弹窗)。
+            // A11 以下无「管理所有文件」权限，内置选择器仍可由 FilePickerActivity 按需处理。
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) { // A11
                 var isGranted by remember { mutableStateOf(Environment.isExternalStorageManager()) }
                 val permissionCheckerObserver = remember {
@@ -304,13 +303,6 @@ class BgmConfigUI : IConfigUI() {
                     }
                 }
             }
-
-            val storagePermission =
-                rememberPermissionState(Manifest.permission.READ_EXTERNAL_STORAGE)
-            if (!storagePermission.status.isGranted)
-                warnButton(text = stringResource(R.string.grant_permission_storage_file)) {
-                    storagePermission.launchPermissionRequest()
-                }
         }
     }
 
