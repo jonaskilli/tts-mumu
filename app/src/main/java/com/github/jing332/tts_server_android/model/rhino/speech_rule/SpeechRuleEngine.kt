@@ -49,11 +49,7 @@ class SpeechRuleEngine(
         get() = engine.get(OBJ_JS) as NativeObject
 
     fun eval() {
-        val result = engine.execute(rule.code.toScriptSource())
-        // 如果脚本返回了有意义的值（非null/undefined），输出到日志帮助调试
-        if (result != null && result != org.mozilla.javascript.Undefined.instance) {
-            console.info("[脚本返回] ${result.toString().take(200)}")
-        }
+        engine.execute(rule.code.toScriptSource())
     }
 
     @Suppress("UNCHECKED_CAST")

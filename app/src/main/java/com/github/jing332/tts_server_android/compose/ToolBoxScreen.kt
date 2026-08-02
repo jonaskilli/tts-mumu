@@ -8,6 +8,8 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -172,8 +174,16 @@ fun ToolBoxScreen(sharedVM: SharedViewModel) {
                 title = { Text(stringResource(R.string.toolbox)) },
                 scrollBehavior = scrollBehavior,
                 actions = {
+                    // 运行朗读规则 JS 快捷键：选择规则后自动进入编辑器并运行
+                    IconButton(onClick = { showSpeechRulePicker = true }) {
+                        Icon(
+                            Icons.Default.PlayArrow,
+                            contentDescription = "运行朗读规则"
+                        )
+                    }
                     // 仅界面模式开关：仅角色管理插件(mingwuyan)安装后显示，无文字提示
                     if (isRoleManagementPlugin && plugin != null) {
+                        Spacer(Modifier.width(8.dp))
                         Switch(
                             checked = isUiOnlyOn,
                             // 仅当存在 mingwuyan 配置项且当前未开启 isUiOnly 时可点（只管 ON，不管 OFF）
@@ -195,13 +205,6 @@ fun ToolBoxScreen(sharedVM: SharedViewModel) {
                                     }
                                 }
                             }
-                        )
-                    }
-                    // 运行朗读规则 JS 快捷键：选择规则后自动进入编辑器并运行
-                    IconButton(onClick = { showSpeechRulePicker = true }) {
-                        Icon(
-                            Icons.Default.PlayArrow,
-                            contentDescription = "运行朗读规则"
                         )
                     }
                 }

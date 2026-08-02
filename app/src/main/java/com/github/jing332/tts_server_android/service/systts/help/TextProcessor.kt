@@ -10,8 +10,6 @@ import com.github.jing332.tts.error.TextProcessorError
 import com.github.jing332.tts.synthesizer.ITextProcessor
 import com.github.jing332.tts.synthesizer.TextSegment
 import com.github.jing332.tts.synthesizer.TtsConfiguration
-import com.github.jing332.common.LogEntry
-import com.github.jing332.common.LogLevel
 import com.github.jing332.script.runtime.console.Console
 import com.github.jing332.tts_server_android.conf.SystemTtsConfig
 import com.github.jing332.tts_server_android.model.rhino.speech_rule.SpeechRuleEngine
@@ -59,12 +57,6 @@ class TextProcessor : ITextProcessor {
             engine.console = Console(Console.LogSource.SPEECH_RULE)
             logger.debug { "After setting console: source=${engine.console.source}" }
             engine.eval()
-            // 测试朗读规则日志是否工作 - 使用引擎的console
-            engine.console.info("[测试] 朗读规则引擎初始化完成: ruleId=${speechRule.ruleId}")
-            // 额外的直接测试
-            Console.globalSpeechRuleLogListener?.let {
-                it(LogEntry(level=LogLevel.INFO, message="[直接测试] globalSpeechRuleLogListener可用", isSpeechRuleLog=true))
-            }
             this.configs =
                 configs.entries.map { it.value.copy(speechInfo = it.value.speechInfo.copy(configId = it.key)) }
             speechRules = this.configs.map { it.speechInfo }
