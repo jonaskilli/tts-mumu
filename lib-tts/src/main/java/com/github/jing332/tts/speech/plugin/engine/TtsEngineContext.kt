@@ -4,15 +4,19 @@ import android.content.Context
 import android.util.Log
 import androidx.annotation.Keep
 import com.github.jing332.database.dbm
+import com.github.jing332.database.entities.SpeechRule
 import com.github.jing332.database.entities.systts.TtsConfigurationDTO
 import com.github.jing332.database.entities.systts.source.PluginTtsSource
 import com.github.jing332.script.annotation.ScriptInterface
+import com.github.jing332.script.simple.SimpleScriptEngine
 import com.github.jing332.script.simple.ext.JsExtensions
+import com.github.jing332.script.source.StringScriptSource
 import com.github.jing332.tts.CachedEngineManager
 import com.github.jing332.tts.speech.EngineState
 import com.github.jing332.tts.synthesizer.SystemParams
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
+import org.json.JSONArray
 import java.io.File
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
@@ -127,6 +131,55 @@ data class TtsEngineContext(
         } catch (e: Exception) {
             Log.w(TAG, "getVoiceByTag failed: ${e.message}")
             null
+        }
+    }
+
+    /**
+     * 获取所有朗读规则列表（供 JS 插件选择并运行规则）。
+     *
+     * 返回 JSON 数组字符串，每项为 {"id": <数据库id>, "name": <规则名>, "ruleId": <规则内的id>}。
+     * JS 侧解析后弹出原生列表让用户选择，再调用 [runSpeechRule] 运行选中的规则。
+     *
+     * 注意：返回的是数据库主键 id（Long），用于 [runSpeechRule] 的入参；
+     * ruleId 是规则 js 内部的 id（String，如 "mingwuyan"），决定文件写入目录，仅作展示。
+     */
+    @ScriptInterface
+    fun getSpeechRuleList(): String {
+        val arr = JSONArray()
+        dbm.speechRuleDao.all.forEach { rule ->
+            val obj = org.json.JSONObject()
+            obj.put("id", rule.id)
+            obj.put("name", rule.name)
+            obj.put("ruleId", rule.ruleId)
+            arr.put(obj)
+        }
+        return arr.toString()
+    }
+
+    /**
+     * 同步运行指定的朗读规则（仅 eval 规则顶层代码，让规则的自动执行逻辑跑一遍，
+     * 从而更新发音人/标签/性格等本地文件）。与朗读规则编辑界面"运行键"的 eval 阶段等价。
+     *
+     * 朗读规则顶层代码通常会在 eval 时自动读取书籍/角色数据并写出 fayinren.json、
+     * characterRecords.json、fayinren_personality_summary.json 等文件——
+     * 只要规则的 ruleId 与当前插件的 engineId 相同，文件就写入同一目录，
+     * 当前插件随后即可读到更新后的数据。
+     *
+     * @param id 朗读规则数据库主键（[getSpeechRuleList] 返回的 id 字段）
+     * @return 成功返回 null；失败返回错误信息字符串
+     */
+    @ScriptInterface
+    fun runSpeechRule(id: Long): String? {
+        return try {
+            val rule = dbm.speechRuleDao.all.firstOrNull { it.id == id }
+                ?: return "未找到 id=$id 的朗读规则"
+            // 复刻 SpeechRuleEngine.eval()：用 ruleId 作为 engineId，保证文件写入目录与规则一致
+            val engine = SimpleScriptEngine(context, rule.ruleId)
+            engine.execute(StringScriptSource(rule.code, sourceName = rule.ruleId))
+            null
+        } catch (e: Throwable) {
+            Log.w(TAG, "runSpeechRule failed: ${e.message}")
+            e.message ?: e.toString()
         }
     }
 

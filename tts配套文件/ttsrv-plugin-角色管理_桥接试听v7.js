@@ -3668,6 +3668,73 @@ var EditorJS = {
         mergeLabel.setLayoutParams(labelParams);
         headerRowLayout.addView(mergeLabel);
 
+        // ⚙ 运行朗读规则按钮：点击后弹出朗读规则列表，选中后同步运行该规则，
+        // 规则顶层代码会自动更新 fayinren.json / characterRecords.json / 性格映射等本地文件，
+        // 跑完后自动刷新角色列表以读取最新数据。仅当 ttsrv 暴露了 getSpeechRuleList / runSpeechRule 时显示。
+        var runRuleBtn = new android.widget.TextView(ctx);
+        runRuleBtn.setText("⚙");
+        runRuleBtn.setTextSize(16);
+        runRuleBtn.setTextColor(android.graphics.Color.parseColor("#1976D2"));
+        runRuleBtn.setGravity(android.view.Gravity.CENTER);
+        runRuleBtn.setPadding(dipToPx(8), 0, dipToPx(8), 0);
+        var runRuleLp = new android.widget.LinearLayout.LayoutParams(
+            android.widget.LinearLayout.LayoutParams.WRAP_CONTENT,
+            dipToPx(34)
+        );
+        runRuleLp.setMargins(0, 0, dipToPx(4), 0);
+        runRuleBtn.setLayoutParams(runRuleLp);
+        // 能力探测：旧版 App 未注入这两个方法时隐藏按钮，避免点击报错
+        var hasRunRuleApi = (typeof ttsrv.getSpeechRuleList === "function"
+            && typeof ttsrv.runSpeechRule === "function");
+        runRuleBtn.setVisibility(hasRunRuleApi ? android.view.View.VISIBLE : android.view.View.GONE);
+        runRuleBtn.setOnClickListener(new android.view.View.OnClickListener({
+            onClick: function(v) {
+                try {
+                    var jsonStr = ttsrv.getSpeechRuleList();
+                    var list = JSON.parse(jsonStr);
+                    if (!list || list.length === 0) {
+                        Toast.makeText(ctx, "没有可用的朗读规则", Toast.LENGTH_SHORT).show();
+                        return;
+                    }
+                    var items = [];
+                    for (var i = 0; i < list.length; i++) {
+                        items.push(new Item(list[i].name, list[i].id));
+                    }
+                    var builder = new android.app.AlertDialog.Builder(ctx);
+                    builder.setTitle("选择要运行的朗读规则");
+                    builder.setItems(items, new android.content.DialogInterface.OnClickListener({
+                        onClick: function(dialog, which) {
+                            var ruleId = list[which].id;
+                            var ruleName = list[which].name;
+                            Toast.makeText(ctx, "正在运行：" + ruleName, Toast.LENGTH_SHORT).show();
+                            new java.lang.Thread(new java.lang.Runnable({
+                                run: function() {
+                                    var err = ttsrv.runSpeechRule(ruleId);
+                                    _pvHandler.post(new java.lang.Runnable({
+                                        run: function() {
+                                            if (err) {
+                                                Toast.makeText(ctx, "运行失败：" + err, Toast.LENGTH_LONG).show();
+                                            } else {
+                                                Toast.makeText(ctx, "运行完成，刷新角色列表", Toast.LENGTH_SHORT).show();
+                                                // 重读映射缓存 + 刷新列表
+                                                _initFayinrenMapCache(true);
+                                                refreshCharacterList();
+                                            }
+                                        }
+                                    }));
+                                }
+                            })).start();
+                        }
+                    }));
+                    builder.setNegativeButton("取消", null);
+                    builder.show();
+                } catch (e) {
+                    Toast.makeText(ctx, "运行规则异常：" + e.toString(), Toast.LENGTH_LONG).show();
+                }
+            }
+        }));
+        headerRowLayout.addView(runRuleBtn);
+
         // 搜索框 + 全选按钮（融为一体，全选键置于搜索框内右侧，旧版结构）
         var searchContainer = new android.widget.FrameLayout(ctx);
         var containerParams = new android.widget.LinearLayout.LayoutParams(0, dipToPx(34), 1);
