@@ -2205,7 +2205,9 @@ internal fun ListManagerScreen(
                                         // 根目录配置项(不属于任何子分组)且之前有子分组:插入分隔标题以区分
                                         if (fItem.displayLevel == 0 && !rootSectionHeaderInserted) {
                                             rootSectionHeaderInserted = true
-                                            item(key = "root_sep_${g.id}") {
+                                            // 使用 stickyHeader: 上滑浏览根目录配置项时,
+                                            // "根目录配置"标题粘在一级分组 stickyHeader 下方,与子分组头行为一致。
+                                            stickyHeader(key = "root_sep_${g.id}") {
                                                 Surface(
                                                     modifier = Modifier
                                                         .fillMaxWidth()
