@@ -286,7 +286,6 @@
     <string name="debug">调试</string>
     <string name="plugin_preview_ui">预览UI并设置</string>
     <string name="plugin_ui_only_mode">仅界面模式（隐藏语音参数）</string>
-    <string name="plugin_ui_only_mode_desc">仅界面</string>
     <string name="edit_plugin_tts">编辑插件TTS</string>
     <string name="toolbox">Characters</string>
     <string name="toolbox_empty">No character management plugin found.\n\nPlease import the plugin first.</string>
@@ -364,6 +363,7 @@
     <string name="file_picker_mode_system">系统文件选择器</string>
     <string name="file_picker_mode_builtin">内置文件选择器</string>
     <string name="file_picker_mode_prompt">弹出选择提示</string>
+    <string name="permission_denied">已拒绝存储权限，内置选择器无法使用，请改用系统选择器或到系统设置授权</string>
     <string name="no_retries">不重试</string>
     <string name="systts_no_custom_tag_config_warn">⚠️无标签配置，请添加配置或关闭多语音选项！</string>
     <string name="tip">提示</string>

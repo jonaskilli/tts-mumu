@@ -126,7 +126,7 @@ class FilePickerActivity : ComposeActivity() {
 
     }
 
-    // 修正：权限请求结果回调
+    // 修正：权限请求结果回调（仅 BUILTIN 内置选择器走此分支）
     override fun onRequestPermissionsResult(
         requestCode: Int,
         permissions: Array<out String>,
@@ -135,9 +135,19 @@ class FilePickerActivity : ComposeActivity() {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults)
         if (grantResults.isNotEmpty() && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
             doAction() // 获得权限后立即执行
+        } else {
+            // 用户拒绝存储权限：内置选择器无法工作，直接结束避免卡死
+            toast(R.string.permission_denied)
+            finish()
         }
     }
 
+    /**
+     * 检查存储读取权限；未授予则请求系统弹窗。
+     * 仅 BUILTIN 内置选择器调用，SYSTEM(SAF) 模式不需要存储权限。
+     * 注：MANAGE_EXTERNAL_STORAGE(允许管理所有文件) 与 READ_MEDIA_AUDIO/READ_EXTERNAL_STORAGE
+     * 是两套独立权限，前者授予不会自动授予后者，但 SAF 不依赖这些运行时权限。
+     */
     private fun checkPermission(permission: String): Boolean {
         val extPermission = ActivityCompat.checkSelfPermission(
             this, permission
@@ -165,13 +175,16 @@ class FilePickerActivity : ComposeActivity() {
 
         requestData = intent.getParcelableExtra(KEY_REQUEST_DATA)!!
 
+        // 存储权限仅在 BUILTIN(内置选择器) 模式下需要；SYSTEM(SAF) 与 CreateDocument 均不依赖。
+        // 这里只预计算权限名，实际请求延迟到确认走内置选择器时再触发，避免"横插一杠"弹窗。
         val readPermission = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             Manifest.permission.READ_MEDIA_AUDIO
         } else {
             Manifest.permission.READ_EXTERNAL_STORAGE
         }
 
-        val hasPermission = checkPermission(readPermission)
+        fun hasReadPermission(): Boolean =
+            ActivityCompat.checkSelfPermission(this, readPermission) == PackageManager.PERMISSION_GRANTED
 
         if (requestData is RequestSaveFile) {
             // 安装后已开放存储权限，保存文件不再提示权限请求
@@ -225,8 +238,15 @@ class FilePickerActivity : ComposeActivity() {
                         onClick = { index, _ ->
                             showPromptDialog = false
                             useSystem = index == 0
-                            // 第7项: 系统选择器不需要权限；内置选择器需要存储权限
-                            if (useSystem || hasPermission) doAction()
+                            // 第7项: 系统选择器(SAF)不需要存储权限直接执行；
+                            // 内置选择器需要存储权限，未授予则请求(由 onRequestPermissionsResult 接管)
+                            if (useSystem) {
+                                doAction()
+                            } else if (hasReadPermission()) {
+                                doAction()
+                            } else {
+                                checkPermission(readPermission)
+                            }
                         }
                     )
             }
@@ -245,7 +265,9 @@ class FilePickerActivity : ComposeActivity() {
 
             FilePickerMode.BUILTIN -> {
                 useSystem = false
-                if (hasPermission) doAction()
+                // 仅内置选择器依赖存储权限；未授予时请求，授予后由 onRequestPermissionsResult 触发 doAction
+                if (hasReadPermission()) doAction()
+                else checkPermission(readPermission)
             }
         }
     }

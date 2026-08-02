@@ -14,10 +14,8 @@ class PluginDescriptor(val context: Context, val systemTts: SystemTtsV2) : ItemD
     override val name: String = systemTts.displayName
     override val desc: String
         get() {
-            if (source.isUiOnly) {
-                return context.getString(R.string.plugin_ui_only_mode_desc)
-            }
-
+            // 列表配置项显示在「仅界面模式」开启前后保持一致；
+            // 仅界面模式的差异只在点击进入编辑页面时体现(见 PluginTtsUI.EditContentScreen)。
             val strFollow by lazy { context.getString(R.string.follow) }
 
             val rateStr =
