@@ -4,7 +4,6 @@ import android.content.Intent
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -169,38 +168,30 @@ fun ToolBoxScreen(sharedVM: SharedViewModel) {
                 title = { Text(stringResource(R.string.toolbox)) },
                 scrollBehavior = scrollBehavior,
                 actions = {
-                    // 仅界面模式开关：仅角色管理插件(mingwuyan)安装后显示
+                    // 仅界面模式开关：仅角色管理插件(mingwuyan)安装后显示，无文字提示
                     if (isRoleManagementPlugin && plugin != null) {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Text(
-                                stringResource(R.string.plugin_ui_only_mode),
-                                style = MaterialTheme.typography.labelMedium
-                            )
-                            Switch(
-                                checked = isUiOnlyOn,
-                                // 仅当存在 mingwuyan 配置项且当前未开启 isUiOnly 时可点（只管 ON，不管 OFF）
-                                enabled = switchTarget != null && !isUiOnlyOn,
-                                onCheckedChange = {
-                                    val tts = switchTarget ?: return@Switch
-                                    val src = (tts.config as? TtsConfigurationDTO)
-                                        ?.source as? PluginTtsSource
-                                    if (src == null) {
-                                        context.toast("当前配置项非插件类型，无法切换")
-                                    } else {
-                                        val updated = tts.copy(
-                                            config = (tts.config as TtsConfigurationDTO).copy(
-                                                source = src.copy(isUiOnly = true)
-                                            )
+                        Switch(
+                            checked = isUiOnlyOn,
+                            // 仅当存在 mingwuyan 配置项且当前未开启 isUiOnly 时可点（只管 ON，不管 OFF）
+                            enabled = switchTarget != null && !isUiOnlyOn,
+                            onCheckedChange = {
+                                val tts = switchTarget ?: return@Switch
+                                val src = (tts.config as? TtsConfigurationDTO)
+                                    ?.source as? PluginTtsSource
+                                if (src == null) {
+                                    context.toast("当前配置项非插件类型，无法切换")
+                                } else {
+                                    val updated = tts.copy(
+                                        config = (tts.config as TtsConfigurationDTO).copy(
+                                            source = src.copy(isUiOnly = true)
                                         )
-                                        scope.launch(Dispatchers.IO + NonCancellable) {
-                                            dbm.systemTtsV2.insert(updated)
-                                        }
+                                    )
+                                    scope.launch(Dispatchers.IO + NonCancellable) {
+                                        dbm.systemTtsV2.insert(updated)
                                     }
                                 }
-                            )
-                        }
+                            }
+                        )
                     }
                     // 运行朗读规则 JS 快捷键：选择规则后自动进入编辑器并运行
                     IconButton(onClick = { showSpeechRulePicker = true }) {
