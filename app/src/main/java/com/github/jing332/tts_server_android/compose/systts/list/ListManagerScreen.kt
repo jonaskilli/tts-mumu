@@ -1252,12 +1252,23 @@ internal fun ListManagerScreen(
             onDismissRequest = { showMoveSubGroupsDialog = null },
             properties = androidx.compose.ui.window.DialogProperties(usePlatformDefaultWidth = false),
             modifier = Modifier.fillMaxWidth(0.92f),
-            title = { Text("移动子分组 (${selectedPaths.size}/${subPaths.size})") },
+            title = { Text("移动子分组到其他一级分组 (${selectedPaths.size}/${subPaths.size})") },
             text = {
                 if (subPaths.isEmpty()) {
                     Text("当前分组没有子分组")
                 } else {
                     Column(modifier = Modifier.fillMaxWidth()) {
+                        // 说明文字（可滚动，避免内容多时被截断）
+                        Text(
+                            text = "将选中的子分组整体转移到其他一级分组下，原分组下的子分组结构和配置项会一并移动过去。",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(bottom = 8.dp)
+                                .heightIn(max = 60.dp)
+                                .verticalScroll(rememberScrollState())
+                        )
                         // 上区：子分组多选（固定高度，内部滚动，避免挤压目标分组区域）
                         Column(
                             modifier = Modifier
@@ -1370,12 +1381,23 @@ internal fun ListManagerScreen(
             onDismissRequest = { showMoveSingleSubGroupDialog = null },
             properties = androidx.compose.ui.window.DialogProperties(usePlatformDefaultWidth = false),
             modifier = Modifier.fillMaxWidth(0.92f),
-            title = { Text("移动子分组「$subPath」到") },
+            title = { Text("移动子分组「$subPath」到其他一级分组") },
             text = {
                 Column(modifier = Modifier
                     .fillMaxWidth()
                     .heightIn(max = 400.dp)
                     .verticalScroll(rememberScrollState())) {
+                    // 说明文字（可滚动）
+                    Text(
+                        text = "将子分组「$subPath」及其下所有配置项整体转移到下方选择的目标一级分组下。",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(bottom = 8.dp)
+                            .heightIn(max = 60.dp)
+                            .verticalScroll(rememberScrollState())
+                    )
                     otherGroups.forEach { targetGroup ->
                         TextButton(
                             onClick = {
