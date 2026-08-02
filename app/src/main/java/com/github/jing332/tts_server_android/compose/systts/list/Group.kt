@@ -52,7 +52,6 @@ fun Group(
     hasSubGroups: Boolean = false,
     hasTagKeyword: Boolean = false,
     onBatchAssignTags: () -> Unit = {},
-    onReleaseSubGroup: () -> Unit = {},
     onConvertToSubGroup: () -> Unit = {},
     onExtractSubGroup: () -> Unit = {},
     onMoveSubGroups: () -> Unit = {},
@@ -220,19 +219,6 @@ fun Group(
                     Icon(Icons.Default.AccountTree, null)
                 }
             )
-
-            // 释放全部子分组到根目录：仅含子分组的一级分组显示
-            if (hasSubGroups) {
-                DropdownMenuItem(text = { Text("释放全部子分组到根目录") },
-                    onClick = {
-                        dismiss()
-                        onReleaseSubGroup()
-                    },
-                    leadingIcon = {
-                        Icon(Icons.Default.AccountTree, null)
-                    }
-                )
-            }
 
             // 转为子分组：仅一级分组无子分组时显示
             if (!hasSubGroups) {
