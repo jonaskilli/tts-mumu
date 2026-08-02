@@ -189,8 +189,9 @@ fun ToolBoxScreen(sharedVM: SharedViewModel) {
                             )
                             Switch(
                                 checked = isUiOnlyOn,
-                                enabled = switchTarget != null,
-                                onCheckedChange = { enabled ->
+                                // 仅当存在 mingwuyan 配置项且当前未开启 isUiOnly 时可点（只管 ON，不管 OFF）
+                                enabled = switchTarget != null && !isUiOnlyOn,
+                                onCheckedChange = {
                                     val tts = switchTarget ?: return@Switch
                                     val src = (tts.config as? TtsConfigurationDTO)
                                         ?.source as? PluginTtsSource
@@ -199,11 +200,9 @@ fun ToolBoxScreen(sharedVM: SharedViewModel) {
                                     } else {
                                         val updated = tts.copy(
                                             config = (tts.config as TtsConfigurationDTO).copy(
-                                                source = src.copy(isUiOnly = enabled)
+                                                source = src.copy(isUiOnly = true)
                                             )
                                         )
-                                        // OFF 时先清本地状态让 UI 立即切回空状态
-                                        if (!enabled) currentTts = null
                                         scope.launch(Dispatchers.IO + NonCancellable) {
                                             dbm.systemTtsV2.insert(updated)
                                         }
