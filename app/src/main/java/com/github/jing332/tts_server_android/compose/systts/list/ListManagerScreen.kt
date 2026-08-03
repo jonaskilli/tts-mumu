@@ -2234,14 +2234,9 @@ internal fun ListManagerScreen(
                                             }
                                         }
 
-                                        // 子分组头展开时置顶：一级分组 stickyHeader 下方实现双置顶，
-                                        // 下滑浏览子分组内配置项时随时可见、可点击折叠；
-                                        // 折叠后改回普通 item，随列表正常滚动，避免折叠后仍钉在顶部。
-                                        if (expandedSubGroups.contains(fItem.node.fullPath)) {
-                                            stickyHeader(key = subKey) { headerContent() }
-                                        } else {
-                                            item(key = subKey) { headerContent() }
-                                        }
+                                        // 子分组头始终置顶：展开/折叠均用 stickyHeader，
+                                        // 折叠瞬间子分组头不跳走；下方下一个子分组头滚上来时自然顶替。
+                                        stickyHeader(key = subKey) { headerContent() }
                                     }
                                     is FlattenedCategoryItem.TtsItem -> {
                                         // 根目录配置项(不属于任何子分组)且之前有子分组:插入分隔标题以区分
