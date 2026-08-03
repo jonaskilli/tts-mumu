@@ -25,7 +25,6 @@ import androidx.compose.material.icons.filled.Code
 import androidx.compose.material.icons.filled.DeleteForever
 import androidx.compose.material.icons.filled.DeleteSweep
 import androidx.compose.material.icons.filled.EditNote
-import androidx.compose.material.icons.filled.ExpandCircleDown
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Output
 import androidx.compose.material.icons.filled.PlayArrow
@@ -485,7 +484,7 @@ internal fun Item(
                 Row {
                     var showOptions by remember { mutableStateOf(false) }
                     IconButton(onClick = onEdit) {
-                        Icon(Icons.Default.Code, "编辑代码")
+                        Icon(Icons.Default.Code, stringResource(id = R.string.edit_code_desc, name))
                     }
                     IconButton(onClick = { showOptions = true }) {
                         Icon(
