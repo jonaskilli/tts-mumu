@@ -1704,26 +1704,89 @@ internal fun ListManagerScreen(
 
     // 多选删除分组：删除前确认对话框
     var showDeleteSelectedDialog by remember { mutableStateOf(false) }
+    // 删除弹窗内选中的分组（独立于列表预选，打开弹窗时初始化）
+    var deleteSourcesSelected by remember { mutableStateOf<Set<Long>>(emptySet()) }
     if (showDeleteSelectedDialog) {
-        ConfigDeleteDialog(
+        val deleteTargets = models.filter { it.group.id in deleteSourcesSelected }
+        AlertDialog(
             onDismissRequest = { showDeleteSelectedDialog = false },
-            content = context.getString(R.string.delete_selected_groups_confirm, selectedGroupIds.size)
-        ) {
-            // 立即关闭确认弹窗 + 显示加载遮罩（多分组循环删除可能耗时）
-            showDeleteSelectedDialog = false
-            showTagOrganizeLoading = true
-            scope.launch {
-                withIO {
-                    models.filter { it.group.id in selectedGroupIds }.forEach { gwt ->
-                        dbm.systemTtsV2.delete(*gwt.list.toTypedArray())
-                        dbm.systemTtsV2.deleteGroup(gwt.group)
+            title = { Text("删除分组") },
+            text = {
+                Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
+                    if (models.isEmpty()) {
+                        Text("没有可删除的分组。")
+                    } else {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text("选择要删除的分组：")
+                            TextButton(onClick = {
+                                deleteSourcesSelected =
+                                    if (deleteSourcesSelected.size == models.size) emptySet()
+                                    else models.map { it.group.id }.toSet()
+                            }) {
+                                Text(if (deleteSourcesSelected.size == models.size) "取消全选" else "全选")
+                            }
+                        }
+                        models.forEach { gwt ->
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clickable {
+                                        deleteSourcesSelected = if (gwt.group.id in deleteSourcesSelected)
+                                            deleteSourcesSelected - gwt.group.id
+                                        else deleteSourcesSelected + gwt.group.id
+                                    }
+                            ) {
+                                Checkbox(
+                                    checked = gwt.group.id in deleteSourcesSelected,
+                                    onCheckedChange = {
+                                        deleteSourcesSelected = if (it) deleteSourcesSelected + gwt.group.id
+                                        else deleteSourcesSelected - gwt.group.id
+                                    }
+                                )
+                                Text(gwt.group.name)
+                            }
+                        }
                     }
                 }
-                selectedGroupIds = emptySet()
-                selectionMode = false
-                showTagOrganizeLoading = false
+            },
+            confirmButton = {
+                TextButton(
+                    enabled = deleteTargets.isNotEmpty(),
+                    onClick = {
+                        showDeleteSelectedDialog = false
+                        showTagOrganizeLoading = true
+                        scope.launch {
+                            withIO {
+                                deleteTargets.forEach { gwt ->
+                                    dbm.systemTtsV2.delete(*gwt.list.toTypedArray())
+                                    dbm.systemTtsV2.deleteGroup(gwt.group)
+                                }
+                            }
+                            deleteSourcesSelected = emptySet()
+                            selectedGroupIds = emptySet()
+                            selectionMode = false
+                            showTagOrganizeLoading = false
+                        }
+                    }
+                ) {
+                    Text(
+                        if (deleteTargets.isEmpty()) "删除" else "删除 (${deleteTargets.size})",
+                        color = if (deleteTargets.isNotEmpty()) MaterialTheme.colorScheme.error
+                        else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f)
+                    )
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showDeleteSelectedDialog = false }) {
+                    Text(stringResource(R.string.cancel))
+                }
             }
-        }
+        )
     }
 
     val listState = rememberLazyListState()
@@ -1854,18 +1917,12 @@ internal fun ListManagerScreen(
                             }
                         }
                         selectionMode -> {
-                            val allSelected = selectedGroupIds.size == models.size
-                            IconButton(onClick = {
-                                selectedGroupIds = if (allSelected) emptySet() else models.map { it.group.id }.toSet()
-                            }) {
-                                Icon(
-                                    if (allSelected) Icons.Default.Deselect else Icons.Default.SelectAll,
-                                    stringResource(id = if (allSelected) R.string.deselect_all else R.string.select_all)
-                                )
-                            }
                             IconButton(
                                 enabled = selectedGroupIds.isNotEmpty(),
-                                onClick = { showDeleteSelectedDialog = true }
+                                onClick = {
+                                    deleteSourcesSelected = selectedGroupIds
+                                    showDeleteSelectedDialog = true
+                                }
                             ) {
                                 Icon(
                                     Icons.Default.DeleteForever,
