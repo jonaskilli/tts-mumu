@@ -240,32 +240,6 @@ internal fun ListManagerScreen(
         }
     }
 
-    var showSubGroupAudioParams by remember { mutableStateOf<Pair<SystemTtsGroup, String>?>(null) }
-    if (showSubGroupAudioParams != null) {
-        val (group, path) = showSubGroupAudioParams!!
-        val subGroupMap = group.subGroupAudioParamsJson.let { jsonStr ->
-            if (jsonStr.isBlank() || jsonStr == "{}") emptyMap()
-            else SystemTtsV2.Converters.json.decodeFromString<Map<String, com.github.jing332.database.entities.systts.AudioParams>>(jsonStr)
-        }
-        val currentParams = subGroupMap[path] ?: com.github.jing332.database.entities.systts.AudioParams()
-        GroupAudioParamsDialog(
-            onDismissRequest = { showSubGroupAudioParams = null },
-            params = currentParams,
-            onConfirm = { params ->
-                // 立即关闭弹窗，避免操作期间“愣在那儿”
-                showSubGroupAudioParams = null
-                val newMap = subGroupMap.toMutableMap().apply { put(path, params) }
-                val newJson = SystemTtsV2.Converters.json.encodeToString(newMap)
-                scope.launch {
-                    withIO {
-                        dbm.systemTtsV2.updateGroup(group.copy(subGroupAudioParamsJson = newJson))
-                    }
-                    SystemTtsService.notifyUpdateConfig()
-                }
-            }
-        )
-    }
-
     var showSubGroupBatchTag by remember { mutableStateOf<List<SystemTtsV2>?>(null) }
     if (showSubGroupBatchTag != null) {
         BatchTagDialog(
@@ -1498,20 +1472,6 @@ internal fun ListManagerScreen(
         }
     }
 
-    var groupAudioParamsDialog by remember { mutableStateOf<SystemTtsGroup?>(null) }
-    if (groupAudioParamsDialog != null) {
-        GroupAudioParamsDialog(onDismissRequest = { groupAudioParamsDialog = null },
-            params = groupAudioParamsDialog!!.audioParams,
-            onConfirm = {
-                val groupToUpdate = groupAudioParamsDialog!!.copy(audioParams = it)
-                scope.launch {
-                    withIO { dbm.systemTtsV2.updateGroup(groupToUpdate) }
-                    SystemTtsService.notifyUpdateConfig()
-                }
-                groupAudioParamsDialog = null
-            })
-    }
-
     val listState = rememberLazyListState()
     LazyListIndexStateSaver(models = models, listState = listState)
 
@@ -1854,9 +1814,6 @@ internal fun ListManagerScreen(
                                         }
                                     }
                                 },
-                                onEditAudioParams = {
-                                    groupAudioParamsDialog = g
-                                },
                                 onExport = {
                                     showGroupExportSheet = listOf(groupWithSystemTts)
                                 },
@@ -2075,9 +2032,6 @@ internal fun ListManagerScreen(
                                                     },
                                                     onRename = {
                                                         showSubGroupRename = subItems to fItem.node.fullPath
-                                                    },
-                                                    onEditAudioParams = {
-                                                        showSubGroupAudioParams = g to fItem.node.fullPath
                                                     },
                                                     onSort = {
                                                         showSortDialog = subItems to groupWithSystemTts.list

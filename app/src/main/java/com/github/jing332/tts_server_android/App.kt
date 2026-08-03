@@ -9,10 +9,12 @@ import com.github.jing332.compose.widgets.AsyncCircleImageSettings
 import com.github.jing332.database.entities.systts.SystemTtsV2
 import com.github.jing332.deepseekproxy.ProxyService
 import com.github.jing332.tts_server_android.conf.SystemTtsForwarderConfig
+import com.github.jing332.tts_server_android.conf.SysTtsConfig
 import com.github.jing332.tts_server_android.constant.AppConst
 import com.github.jing332.tts_server_android.model.hanlp.HanlpManager
 import com.github.jing332.tts_server_android.service.forwarder.ForwarderServiceManager.switchSysTtsForwarder
 import com.github.jing332.tts_server_android.service.forwarder.system.SysTtsForwarderService
+import com.github.jing332.tts.loudness.SpeakerLoudnessManager
 import coil3.ImageLoader
 import coil3.SingletonImageLoader
 import coil3.annotation.DelicateCoilApi
@@ -70,6 +72,13 @@ class App : Application() {
 
         SystemTtsV2.Converters.json = AppConst.jsonBuilder
         AsyncCircleImageSettings.interceptor = AsyncImageInterceptor
+
+        // 初始化响度均衡管理器
+        SpeakerLoudnessManager.init(
+            context = this,
+            enabledProvider = { true },
+            maxGainProvider = { SystemTtsConfig.loudnessMaxGain.value }
+        )
 
         SingletonImageLoader.setUnsafe(
             ImageLoader

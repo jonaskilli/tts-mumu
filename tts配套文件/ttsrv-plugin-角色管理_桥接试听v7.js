@@ -3,7 +3,7 @@ var PluginJS = {
     'id': "mingwuyan",
     'author': "命無言",
     'iconUrl': 'https://img.picui.cn/free/2025/02/24/67bc5a1bac4cf.png',
-    'version': 20260725,
+    'version': 20260802,
   
     // 【核心修改：新增http开头文本的直接下载逻辑】
     'getAudio': function (text, locale, voice, speed, volume, pitch) {
@@ -2053,7 +2053,7 @@ var EditorJS = {
         bookBorder.setStroke(dipToPx(1), android.graphics.Color.parseColor("#E0E0E0"));
         bookBorder.setColor(android.graphics.Color.parseColor("#E3F2FD"));
         bookInputLayout.setBackground(bookBorder);
-        bookInputLayout.setPadding(dipToPx(10), dipToPx(8), dipToPx(8), dipToPx(8));
+        bookInputLayout.setPadding(dipToPx(10), dipToPx(12), dipToPx(8), dipToPx(12));
 
         // 书名标签
         var bookLabel = new android.widget.TextView(ctx);
@@ -2135,52 +2135,6 @@ var EditorJS = {
         }));
 
         bookSectionLayout.addView(bookInputLayout);
-
-        // 刷新按钮（书籍框右侧，文字分两行"刷\n新"，样式参考全选按钮，青绿色）
-        var refreshBtn = new android.widget.TextView(ctx);
-        refreshBtn.setText("刷\n新");
-        refreshBtn.setTextSize(14);
-        refreshBtn.setGravity(android.view.Gravity.CENTER);
-        var refreshBtnBg = new android.graphics.drawable.GradientDrawable();
-        refreshBtnBg.setShape(android.graphics.drawable.GradientDrawable.RECTANGLE);
-        refreshBtnBg.setCornerRadius(dipToPx(8));
-        refreshBtnBg.setColor(android.graphics.Color.parseColor("#E0F2F1"));
-        refreshBtnBg.setStroke(dipToPx(1), android.graphics.Color.parseColor("#00897B"));
-        refreshBtn.setBackground(refreshBtnBg);
-        refreshBtn.setTextColor(android.graphics.Color.parseColor("#00897B"));
-        refreshBtn.setPadding(dipToPx(14), dipToPx(8), dipToPx(14), dipToPx(8));
-        refreshBtn.setOnClickListener(new android.view.View.OnClickListener({
-            onClick: function(view) {
-                try { refreshCharacterData(); } catch (e) { Toast.makeText(ctx, "刷新失败: " + e.toString(), Toast.LENGTH_SHORT).show(); }
-            }
-        }));
-
-        // 将书籍框和刷新按钮放到同一行
-        bookSectionLayout.removeView(bookInputLayout);
-        var bookRowLayout = new android.widget.LinearLayout(ctx);
-        bookRowLayout.setOrientation(android.widget.LinearLayout.HORIZONTAL);
-        bookRowLayout.setGravity(android.view.Gravity.CENTER_VERTICAL);
-        var bookRowLp = new android.widget.LinearLayout.LayoutParams(
-            android.widget.LinearLayout.LayoutParams.MATCH_PARENT,
-            android.widget.LinearLayout.LayoutParams.WRAP_CONTENT
-        );
-        bookRowLayout.setLayoutParams(bookRowLp);
-        var bookInputLp2 = new android.widget.LinearLayout.LayoutParams(
-            0,
-            android.widget.LinearLayout.LayoutParams.WRAP_CONTENT,
-            1
-        );
-        bookInputLayout.setLayoutParams(bookInputLp2);
-        bookRowLayout.addView(bookInputLayout);
-        // 刷新按钮高度跟随书籍栏（MATCH_PARENT），使两者高度一致
-        var refreshBtnLp = new android.widget.LinearLayout.LayoutParams(
-            android.widget.LinearLayout.LayoutParams.WRAP_CONTENT,
-            android.widget.LinearLayout.LayoutParams.MATCH_PARENT
-        );
-        refreshBtnLp.setMargins(dipToPx(8), 0, 0, 0);
-        refreshBtn.setLayoutParams(refreshBtnLp);
-        bookRowLayout.addView(refreshBtn);
-        bookSectionLayout.addView(bookRowLayout);
 
 
         // ---------------------- 先定义字符串标准化函数（供后续复用） ----------------------
@@ -6667,8 +6621,8 @@ var EditorJS = {
         try {
             _initFayinrenMapCache(true);
             console.log("onVoiceChanged: personality缓存已强制刷新");
-            // 注意：refreshCharacterList 定义在 onLoadUI 作用域内，此处无法访问。
-            // App 层切换发音人后会自行刷新 UI，此处只需刷新缓存即可。
+            // 刷新角色列表，获取当前已启用配置项的实际发音人
+            try { refreshCharacterList(); } catch (eRef) { console.error("onVoiceChanged刷新列表失败: " + eRef.toString()); }
         } catch (e) {
             console.error("onVoiceChanged刷新缓存失败: " + e.toString());
         }

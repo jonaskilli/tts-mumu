@@ -55,7 +55,6 @@ fun SubGroupHeader(
     toggleableState: ToggleableState = ToggleableState.Off,
     onToggleableStateChange: (Boolean) -> Unit = {},
     onRename: () -> Unit = {},
-    onEditAudioParams: () -> Unit = {},
     onSort: () -> Unit = {},
     onBatchAssignTags: () -> Unit = {},
     hasTagKeyword: Boolean = false,
@@ -212,17 +211,6 @@ fun SubGroupHeader(
                     },
                     leadingIcon = {
                         Icon(Icons.Default.DriveFileRenameOutline, null)
-                    }
-                )
-
-                DropdownMenuItem(
-                    text = { Text("音频参数") },
-                    onClick = {
-                        showOptions = false
-                        onEditAudioParams()
-                    },
-                    leadingIcon = {
-                        Icon(Icons.Default.Speed, null)
                     }
                 )
 

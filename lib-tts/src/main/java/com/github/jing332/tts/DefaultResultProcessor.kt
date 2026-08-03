@@ -10,10 +10,12 @@ import androidx.media3.exoplayer.ExoPlaybackException
 import androidx.media3.exoplayer.audio.SilenceSkippingAudioProcessor
 import com.github.jing332.common.audio.AudioDecoder.Companion.readPcmChunk
 import com.github.jing332.common.audio.exo.ExoAudioDecoder
+import com.github.jing332.common.audio.exo.LoudnessAudioProcessor
 import com.github.jing332.common.utils.rootCause
 import com.github.jing332.tts.error.StreamProcessorError
 import com.github.jing332.tts.error.StreamProcessorError.AudioDecoding
 import com.github.jing332.tts.error.StreamProcessorError.HandleError
+import com.github.jing332.tts.loudness.SpeakerLoudnessManager
 import com.github.jing332.tts.synthesizer.IResultProcessor
 import com.github.jing332.tts.synthesizer.PcmAudioDataListener
 import com.github.jing332.tts.synthesizer.RequestPayload
@@ -89,6 +91,7 @@ internal class DefaultResultProcessor(
 
     private val sonicAudioProcessor by lazy { com.github.jing332.common.audio.exo.SonicAudioProcessor() }
     private val skipAudioProcessor by lazy { silenceSkippingAudioProcessor() }
+    private val loudnessAudioProcessor by lazy { LoudnessAudioProcessor() }
 
     /**
      * @throw [CancellationException]
@@ -108,9 +111,13 @@ internal class DefaultResultProcessor(
         try {
             val stream = getAudioStream(ins, request).onFailure { return Err(it) }.value
 
+            // 响度均衡：始终开启，计算当前发音人的增益
+            val loudnessInfo = SpeakerLoudnessManager.infoFor(config)
+
             val pipelines = listOf(
                 if (context.cfg.silenceSkipEnabled()) skipAudioProcessor else null,
-                sonicAudioProcessor
+                sonicAudioProcessor,
+                loudnessAudioProcessor
             ).filterNotNull()
             val processor = AudioProcessingPipeline(ImmutableList.copyOf(pipelines))
 
@@ -135,23 +142,50 @@ internal class DefaultResultProcessor(
                     }
                 }
 
+                loudnessAudioProcessor.setGain(loudnessInfo.gain)
+                logger.debug {
+                    "loudnessAudioProcessor: speaker=${loudnessInfo.speakerKey}, gain=${loudnessInfo.gain}, learned=${loudnessInfo.learned}"
+                }
+
                 processor.flush()
             }
 
 
+            // 响度学习：收集最终输出 PCM 用于分析
+            val needsLoudnessAnalysis = SpeakerLoudnessManager.needsAnalysis(config)
+            val loudnessPcmCollector = if (needsLoudnessAnalysis) {
+                java.io.ByteArrayOutputStream()
+            } else null
+
             fun handle(pcm: ByteBuffer?) {
                 if (pipelines.isEmpty()) {
-                    if (pcm != null) callback.receive(pcm)
+                    if (pcm != null) {
+                        if (loudnessPcmCollector != null) {
+                            val dup = pcm.duplicate()
+                            while (dup.hasRemaining()) loudnessPcmCollector.write(dup.get())
+                        }
+                        callback.receive(pcm)
+                    }
                     return
                 }
 
                 if (pcm == null) {
                     processor.queueEndOfStream()
-                    callback.receive(processor.output)
+                    val out = processor.output
+                    if (loudnessPcmCollector != null && out.hasRemaining()) {
+                        val dup = out.duplicate()
+                        while (dup.hasRemaining()) loudnessPcmCollector.write(dup.get())
+                    }
+                    callback.receive(out)
                 } else {
                     while (pcm.hasRemaining()) {
                         processor.queueInput(pcm)
-                        callback.receive(processor.output)
+                        val out = processor.output
+                        if (loudnessPcmCollector != null && out.hasRemaining()) {
+                            val dup = out.duplicate()
+                            while (dup.hasRemaining()) loudnessPcmCollector.write(dup.get())
+                        }
+                        callback.receive(out)
                     }
                 }
             }
@@ -168,6 +202,12 @@ internal class DefaultResultProcessor(
                     Err(StreamProcessorError.AudioSource(e.rootCause))
                 else
                     Err(StreamProcessorError.AudioDecoding(e))
+            }
+
+            // 异步分析最终输出 PCM 的响度
+            if (loudnessPcmCollector != null && loudnessPcmCollector.size() > 0) {
+                val pcmBytes = loudnessPcmCollector.toByteArray()
+                SpeakerLoudnessManager.analyzePcmAndRecord(pcmBytes, config)
             }
 
         } catch (e: CancellationException) {

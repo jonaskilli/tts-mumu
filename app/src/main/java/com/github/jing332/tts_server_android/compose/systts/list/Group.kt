@@ -45,7 +45,6 @@ fun Group(
     onToggleSelect: () -> Unit = {},
     onRename: (newName: String) -> Unit,
     onCopy: (newName: String) -> Unit = {},
-    onEditAudioParams: () -> Unit,
     onSort: () -> Unit,
     onEditContent: () -> Unit = {},
     onCreateSubGroup: () -> Unit = {},
@@ -111,9 +110,6 @@ fun Group(
                 CustomAccessibilityAction(context.getString(R.string.copy)) {
                     showCopyDialog = true;true
                 },
-                CustomAccessibilityAction(context.getString(R.string.audio_params)) {
-                    onEditAudioParams();true
-                },
                 CustomAccessibilityAction(context.getString(R.string.sort)) {
                     onSort();true
                 },
@@ -177,16 +173,6 @@ fun Group(
                 },
                 leadingIcon = {
                     Icon(Icons.Default.DriveFileRenameOutline, null)
-                }
-            )
-
-            DropdownMenuItem(text = { Text(stringResource(id = R.string.audio_params)) },
-                onClick = {
-                    dismiss()
-                    onEditAudioParams()
-                },
-                leadingIcon = {
-                    Icon(Icons.Default.Speed, null)
                 }
             )
 

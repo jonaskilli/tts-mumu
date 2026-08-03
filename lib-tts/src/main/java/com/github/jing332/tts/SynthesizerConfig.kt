@@ -23,4 +23,7 @@ data class SynthesizerConfig(
     var provider: ValueProvider<Int> = { 0 },
 
     var restartOnMaxRetryMode: ValueProvider<Int> = { 0 },
+
+    // 响度均衡：始终开启，无需用户配置
+    var loudnessMaxGain: ValueProvider<Float> = { 1.35f },
 )

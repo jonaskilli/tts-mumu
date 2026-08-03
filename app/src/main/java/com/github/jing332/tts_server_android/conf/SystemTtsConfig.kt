@@ -160,6 +160,14 @@ object SystemTtsConfig {
         initialValue = false
     )
 
+    // ========== 响度均衡配置 ==========
+
+    val loudnessMaxGain = mutableDataSaverStateOf(
+        dataSaverInterface = dataSaverPref,
+        key = "loudnessMaxGain",
+        initialValue = 1.35f
+    )
+
     // ========== 后台保活配置 ==========
 
     /** 启用进程保活服务 */

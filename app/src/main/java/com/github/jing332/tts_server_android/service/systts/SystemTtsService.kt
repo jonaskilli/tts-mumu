@@ -188,7 +188,8 @@ class SystemTtsService : TextToSpeechService(), IEventDispatcher {
                             volume = SysTtsConfig.audioParamsVolume,
                             pitch = SysTtsConfig.audioParamsPitch
                         )
-                    }
+                    },
+                    loudnessMaxGain = { SysTtsConfig.loudnessMaxGain }
                 )
                 textProcessor = mTextProcessor
             }

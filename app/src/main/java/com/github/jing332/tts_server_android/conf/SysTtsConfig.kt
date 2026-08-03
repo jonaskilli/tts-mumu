@@ -122,6 +122,14 @@ object SysTtsConfig {
             SystemTtsConfig.isSilenceSkipAudio.value = value
         }
 
+    // ========== 响度均衡配置 ==========
+
+    var loudnessMaxGain: Float
+        get() = SystemTtsConfig.loudnessMaxGain.value
+        set(value) {
+            SystemTtsConfig.loudnessMaxGain.value = value
+        }
+
     var isStreamPlayModeEnabled: Boolean
         get() = SystemTtsConfig.isStreamPlayModeEnabled.value
         set(value) {

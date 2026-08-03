@@ -31,6 +31,7 @@ import com.github.jing332.tts_server_android.compose.systts.replace.ReplaceManag
 import com.github.jing332.tts_server_android.compose.systts.speechrule.SpeechRuleManagerActivity
 import com.github.jing332.tts_server_android.conf.SystemTtsConfig
 import com.github.jing332.tts_server_android.service.systts.SystemTtsService
+import com.github.jing332.tts.loudness.SpeakerLoudnessManager
 
 @Composable
 internal fun MenuMoreOptions(
@@ -91,6 +92,16 @@ internal fun MenuMoreOptions(
             onClick = { showAudioParamsDialog = true },
             leadingIcon = {
                 Icon(Icons.Default.Speed, null)
+            }
+        )
+
+        DropdownMenuItem(
+            text = { Text("重置响度学习数据 (${SpeakerLoudnessManager.learnedSpeakerCount()})") },
+            onClick = {
+                SpeakerLoudnessManager.reset()
+            },
+            leadingIcon = {
+                Icon(Icons.Default.Audiotrack, null)
             }
         )
 
