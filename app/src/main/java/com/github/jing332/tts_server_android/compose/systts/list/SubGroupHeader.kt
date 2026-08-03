@@ -128,16 +128,6 @@ fun SubGroupHeader(
                 .weight(1f)
         )
 
-        if (itemCount >= 0) {
-            Text(
-                "($itemCount)",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier
-                    .padding(end = 4.dp)
-            )
-        }
-
         TriStateCheckbox(
             state = toggleableState,
             onClick = {

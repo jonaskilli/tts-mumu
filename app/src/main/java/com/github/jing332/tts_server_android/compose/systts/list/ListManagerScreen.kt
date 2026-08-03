@@ -69,11 +69,14 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.ViewConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalViewConfiguration
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.drake.net.utils.withIO
@@ -892,86 +895,103 @@ internal fun ListManagerScreen(
         val allConvertible = models.filter { it.list.none { it.categoryPath.isNotBlank() } }
         val convertibleSources = allConvertible.filter { it.group.id in convertSourcesSelected }
         val targetGroups = models.filter { it.group.id !in convertSourcesSelected }.map { it.group }
-        AlertDialog(
+        val screenHeight = LocalConfiguration.current.screenHeightDp.dp
+        Dialog(
             onDismissRequest = { showConvertToSubGroupMulti = false },
-            title = { Text("转为子分组") },
-            text = {
-                Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
-                    if (allConvertible.isEmpty()) {
-                        Text("没有可转换的分组（所有分组均含子分组）。")
-                    } else {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Text("选择要转换的分组：")
-                            TextButton(onClick = {
-                                convertSourcesSelected =
-                                    if (convertSourcesSelected.size == allConvertible.size) emptySet()
-                                    else allConvertible.map { it.group.id }.toSet()
-                            }) {
-                                Text(if (convertSourcesSelected.size == allConvertible.size) "取消全选" else "全选")
-                            }
-                        }
-                        allConvertible.forEach { gwt ->
+            properties = DialogProperties(usePlatformDefaultWidth = false)
+        ) {
+            Surface(
+                shape = MaterialTheme.shapes.large,
+                tonalElevation = 6.dp,
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp)
+            ) {
+                Column(Modifier.padding(20.dp)) {
+                    Text("转为子分组", style = MaterialTheme.typography.titleLarge)
+                    Spacer(Modifier.height(12.dp))
+                    Column(
+                        modifier = Modifier
+                            .heightIn(max = screenHeight * 0.7f)
+                            .verticalScroll(rememberScrollState())
+                    ) {
+                        if (allConvertible.isEmpty()) {
+                            Text("没有可转换的分组（所有分组均含子分组）。")
+                        } else {
                             Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .clickable {
-                                        convertSourcesSelected = if (gwt.group.id in convertSourcesSelected)
-                                            convertSourcesSelected - gwt.group.id
-                                        else convertSourcesSelected + gwt.group.id
-                                    }
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
                             ) {
-                                Checkbox(
-                                    checked = gwt.group.id in convertSourcesSelected,
-                                    onCheckedChange = {
-                                        convertSourcesSelected = if (it) convertSourcesSelected + gwt.group.id
-                                        else convertSourcesSelected - gwt.group.id
-                                    }
-                                )
-                                Text(gwt.group.name)
+                                Text("选择要转换的分组：")
+                                TextButton(onClick = {
+                                    convertSourcesSelected =
+                                        if (convertSourcesSelected.size == allConvertible.size) emptySet()
+                                        else allConvertible.map { it.group.id }.toSet()
+                                }) {
+                                    Text(if (convertSourcesSelected.size == allConvertible.size) "取消全选" else "全选")
+                                }
                             }
-                        }
-                        if (convertibleSources.isNotEmpty()) {
-                            HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
-                            Text("选择目标一级分组：", modifier = Modifier.padding(bottom = 8.dp))
-                            targetGroups.forEach { target ->
+                            allConvertible.forEach { gwt ->
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .clickable {
+                                            convertSourcesSelected = if (gwt.group.id in convertSourcesSelected)
+                                                convertSourcesSelected - gwt.group.id
+                                            else convertSourcesSelected + gwt.group.id
+                                        }
+                                ) {
+                                    Checkbox(
+                                        checked = gwt.group.id in convertSourcesSelected,
+                                        onCheckedChange = {
+                                            convertSourcesSelected = if (it) convertSourcesSelected + gwt.group.id
+                                            else convertSourcesSelected - gwt.group.id
+                                        }
+                                    )
+                                    Text(gwt.group.name)
+                                }
+                            }
+                            if (convertibleSources.isNotEmpty()) {
+                                HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
+                                Text("选择目标一级分组：", modifier = Modifier.padding(bottom = 8.dp))
+                                targetGroups.forEach { target ->
+                                    TextButton(
+                                        onClick = {
+                                            showConvertToSubGroupMulti = false
+                                            showTagOrganizeLoading = true
+                                            scope.launch {
+                                                performConvertToSubGroup(target, convertibleSources)
+                                                showTagOrganizeLoading = false
+                                                selectionMode = false
+                                                selectedGroupIds = emptySet()
+                                            }
+                                        },
+                                        modifier = Modifier.fillMaxWidth()
+                                    ) { Text(target.name) }
+                                }
+                                HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
                                 TextButton(
                                     onClick = {
-                                        showConvertToSubGroupMulti = false
-                                        showTagOrganizeLoading = true
-                                        scope.launch {
-                                            performConvertToSubGroup(target, convertibleSources)
-                                            showTagOrganizeLoading = false
-                                            selectionMode = false
-                                            selectedGroupIds = emptySet()
-                                        }
+                                        newGroupNameForConvertMulti = ""
+                                        showNewGroupForConvertMulti = true
                                     },
                                     modifier = Modifier.fillMaxWidth()
-                                ) { Text(target.name) }
+                                ) { Text("新建一级分组") }
                             }
-                            HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
-                            TextButton(
-                                onClick = {
-                                    newGroupNameForConvertMulti = ""
-                                    showNewGroupForConvertMulti = true
-                                },
-                                modifier = Modifier.fillMaxWidth()
-                            ) { Text("新建一级分组") }
+                        }
+                    }
+                    Spacer(Modifier.height(8.dp))
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.End
+                    ) {
+                        TextButton(onClick = { showConvertToSubGroupMulti = false }) {
+                            Text(stringResource(R.string.cancel))
                         }
                     }
                 }
-            },
-            confirmButton = {},
-            dismissButton = {
-                TextButton(onClick = { showConvertToSubGroupMulti = false }) {
-                    Text(stringResource(R.string.cancel))
-                }
             }
-        )
+        }
     }
 
     // 多选转为子分组：新建一级分组作为目标
@@ -1712,102 +1732,116 @@ internal fun ListManagerScreen(
         val deleteTargets = models.filter { it.group.id in deleteSourcesSelected }
         // 勾选变化时重置二次确认状态，避免残留
         LaunchedEffect(deleteSourcesSelected) { deleteConfirmArmed = false }
-        AlertDialog(
+        val screenHeight = LocalConfiguration.current.screenHeightDp.dp
+        Dialog(
             onDismissRequest = {
                 showDeleteSelectedDialog = false
                 deleteConfirmArmed = false
             },
-            title = { Text("删除分组") },
-            text = {
-                Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
-                    if (models.isEmpty()) {
-                        Text("没有可删除的分组。")
-                    } else {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Text("选择要删除的分组：")
-                            TextButton(onClick = {
-                                deleteSourcesSelected =
-                                    if (deleteSourcesSelected.size == models.size) emptySet()
-                                    else models.map { it.group.id }.toSet()
-                            }) {
-                                Text(if (deleteSourcesSelected.size == models.size) "取消全选" else "全选")
-                            }
-                        }
-                        models.forEach { gwt ->
+            properties = DialogProperties(usePlatformDefaultWidth = false)
+        ) {
+            Surface(
+                shape = MaterialTheme.shapes.large,
+                tonalElevation = 6.dp,
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp)
+            ) {
+                Column(Modifier.padding(20.dp)) {
+                    Text("删除分组", style = MaterialTheme.typography.titleLarge)
+                    Spacer(Modifier.height(12.dp))
+                    Column(
+                        modifier = Modifier
+                            .heightIn(max = screenHeight * 0.7f)
+                            .verticalScroll(rememberScrollState())
+                    ) {
+                        if (models.isEmpty()) {
+                            Text("没有可删除的分组。")
+                        } else {
                             Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .clickable {
-                                        deleteSourcesSelected = if (gwt.group.id in deleteSourcesSelected)
-                                            deleteSourcesSelected - gwt.group.id
-                                        else deleteSourcesSelected + gwt.group.id
-                                    }
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
                             ) {
-                                Checkbox(
-                                    checked = gwt.group.id in deleteSourcesSelected,
-                                    onCheckedChange = {
-                                        deleteSourcesSelected = if (it) deleteSourcesSelected + gwt.group.id
-                                        else deleteSourcesSelected - gwt.group.id
-                                    }
-                                )
-                                Text(gwt.group.name)
+                                Text("选择要删除的分组：")
+                                TextButton(onClick = {
+                                    deleteSourcesSelected =
+                                        if (deleteSourcesSelected.size == models.size) emptySet()
+                                        else models.map { it.group.id }.toSet()
+                                }) {
+                                    Text(if (deleteSourcesSelected.size == models.size) "取消全选" else "全选")
+                                }
+                            }
+                            models.forEach { gwt ->
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .clickable {
+                                            deleteSourcesSelected = if (gwt.group.id in deleteSourcesSelected)
+                                                deleteSourcesSelected - gwt.group.id
+                                            else deleteSourcesSelected + gwt.group.id
+                                        }
+                                ) {
+                                    Checkbox(
+                                        checked = gwt.group.id in deleteSourcesSelected,
+                                        onCheckedChange = {
+                                            deleteSourcesSelected = if (it) deleteSourcesSelected + gwt.group.id
+                                            else deleteSourcesSelected - gwt.group.id
+                                        }
+                                    )
+                                    Text(gwt.group.name)
+                                }
                             }
                         }
                     }
-                }
-            },
-            confirmButton = {
-                TextButton(
-                    enabled = deleteTargets.isNotEmpty(),
-                    onClick = {
-                        if (!deleteConfirmArmed) {
-                            // 首次点击：进入待确认态，不执行删除
-                            deleteConfirmArmed = true
-                        } else {
-                            // 二次点击：真正执行删除
+                    Spacer(Modifier.height(8.dp))
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.End)
+                    ) {
+                        TextButton(onClick = {
                             showDeleteSelectedDialog = false
                             deleteConfirmArmed = false
-                            showTagOrganizeLoading = true
-                            scope.launch {
-                                withIO {
-                                    deleteTargets.forEach { gwt ->
-                                        dbm.systemTtsV2.delete(*gwt.list.toTypedArray())
-                                        dbm.systemTtsV2.deleteGroup(gwt.group)
+                        }) {
+                            Text(stringResource(R.string.cancel))
+                        }
+                        TextButton(
+                            enabled = deleteTargets.isNotEmpty(),
+                            onClick = {
+                                if (!deleteConfirmArmed) {
+                                    deleteConfirmArmed = true
+                                } else {
+                                    showDeleteSelectedDialog = false
+                                    deleteConfirmArmed = false
+                                    showTagOrganizeLoading = true
+                                    scope.launch {
+                                        withIO {
+                                            deleteTargets.forEach { gwt ->
+                                                dbm.systemTtsV2.delete(*gwt.list.toTypedArray())
+                                                dbm.systemTtsV2.deleteGroup(gwt.group)
+                                            }
+                                        }
+                                        deleteSourcesSelected = emptySet()
+                                        selectedGroupIds = emptySet()
+                                        selectionMode = false
+                                        showTagOrganizeLoading = false
                                     }
                                 }
-                                deleteSourcesSelected = emptySet()
-                                selectedGroupIds = emptySet()
-                                selectionMode = false
-                                showTagOrganizeLoading = false
                             }
+                        ) {
+                            Text(
+                                when {
+                                    deleteTargets.isEmpty() -> "删除"
+                                    deleteConfirmArmed -> "确认删除 (${deleteTargets.size})"
+                                    else -> "删除 (${deleteTargets.size})"
+                                },
+                                color = if (deleteTargets.isNotEmpty()) MaterialTheme.colorScheme.error
+                                else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f)
+                            )
                         }
                     }
-                ) {
-                    Text(
-                        when {
-                            deleteTargets.isEmpty() -> "删除"
-                            deleteConfirmArmed -> "确认删除 (${deleteTargets.size})"
-                            else -> "删除 (${deleteTargets.size})"
-                        },
-                        color = if (deleteTargets.isNotEmpty()) MaterialTheme.colorScheme.error
-                        else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f)
-                    )
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = {
-                    showDeleteSelectedDialog = false
-                    deleteConfirmArmed = false
-                }) {
-                    Text(stringResource(R.string.cancel))
                 }
             }
-        )
+        }
     }
 
     val listState = rememberLazyListState()
