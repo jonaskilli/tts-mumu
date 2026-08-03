@@ -133,10 +133,11 @@ android {
         variant.outputs.configureEach { output ->
             //noinspection GrDeprecatedAPIUsage
             def abiName = output.getFilter(com.android.build.OutputFile.ABI)
+            def suffix = variant.flavorName == "dev" ? "_dev" : ""
             if (abiName == null)
-                output.outputFileName = "TTS-Server-v${variant.versionName}.apk"
+                output.outputFileName = "TTS-Server-v${variant.versionName}${suffix}.apk"
             else
-                output.outputFileName = "TTS-Server-v${variant.versionName}_${abiName}.apk"
+                output.outputFileName = "TTS-Server-v${variant.versionName}${suffix}_${abiName}.apk"
         }
     }
 

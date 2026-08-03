@@ -9,7 +9,9 @@ jobs:
   build:
     strategy:
       matrix:
-        product: [ { name: "App原版", value: app } ]
+        product:
+          - { name: "App原版", value: app }
+          - { name: "共存版", value: dev }
 
       fail-fast: false
     runs-on: ubuntu-latest
