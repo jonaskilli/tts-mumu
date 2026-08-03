@@ -1706,10 +1706,17 @@ internal fun ListManagerScreen(
     var showDeleteSelectedDialog by remember { mutableStateOf(false) }
     // 删除弹窗内选中的分组（独立于列表预选，打开弹窗时初始化）
     var deleteSourcesSelected by remember { mutableStateOf<Set<Long>>(emptySet()) }
+    // 二次确认：首次点「删除(N)」仅进入待确认态，再点「确认删除」才真正执行
+    var deleteConfirmArmed by remember { mutableStateOf(false) }
     if (showDeleteSelectedDialog) {
         val deleteTargets = models.filter { it.group.id in deleteSourcesSelected }
+        // 勾选变化时重置二次确认状态，避免残留
+        LaunchedEffect(deleteSourcesSelected) { deleteConfirmArmed = false }
         AlertDialog(
-            onDismissRequest = { showDeleteSelectedDialog = false },
+            onDismissRequest = {
+                showDeleteSelectedDialog = false
+                deleteConfirmArmed = false
+            },
             title = { Text("删除分组") },
             text = {
                 Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
@@ -1758,31 +1765,45 @@ internal fun ListManagerScreen(
                 TextButton(
                     enabled = deleteTargets.isNotEmpty(),
                     onClick = {
-                        showDeleteSelectedDialog = false
-                        showTagOrganizeLoading = true
-                        scope.launch {
-                            withIO {
-                                deleteTargets.forEach { gwt ->
-                                    dbm.systemTtsV2.delete(*gwt.list.toTypedArray())
-                                    dbm.systemTtsV2.deleteGroup(gwt.group)
+                        if (!deleteConfirmArmed) {
+                            // 首次点击：进入待确认态，不执行删除
+                            deleteConfirmArmed = true
+                        } else {
+                            // 二次点击：真正执行删除
+                            showDeleteSelectedDialog = false
+                            deleteConfirmArmed = false
+                            showTagOrganizeLoading = true
+                            scope.launch {
+                                withIO {
+                                    deleteTargets.forEach { gwt ->
+                                        dbm.systemTtsV2.delete(*gwt.list.toTypedArray())
+                                        dbm.systemTtsV2.deleteGroup(gwt.group)
+                                    }
                                 }
+                                deleteSourcesSelected = emptySet()
+                                selectedGroupIds = emptySet()
+                                selectionMode = false
+                                showTagOrganizeLoading = false
                             }
-                            deleteSourcesSelected = emptySet()
-                            selectedGroupIds = emptySet()
-                            selectionMode = false
-                            showTagOrganizeLoading = false
                         }
                     }
                 ) {
                     Text(
-                        if (deleteTargets.isEmpty()) "删除" else "删除 (${deleteTargets.size})",
+                        when {
+                            deleteTargets.isEmpty() -> "删除"
+                            deleteConfirmArmed -> "确认删除 (${deleteTargets.size})"
+                            else -> "删除 (${deleteTargets.size})"
+                        },
                         color = if (deleteTargets.isNotEmpty()) MaterialTheme.colorScheme.error
                         else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f)
                     )
                 }
             },
             dismissButton = {
-                TextButton(onClick = { showDeleteSelectedDialog = false }) {
+                TextButton(onClick = {
+                    showDeleteSelectedDialog = false
+                    deleteConfirmArmed = false
+                }) {
                     Text(stringResource(R.string.cancel))
                 }
             }
@@ -1918,7 +1939,6 @@ internal fun ListManagerScreen(
                         }
                         selectionMode -> {
                             IconButton(
-                                enabled = selectedGroupIds.isNotEmpty(),
                                 onClick = {
                                     deleteSourcesSelected = selectedGroupIds
                                     showDeleteSelectedDialog = true
@@ -1927,13 +1947,10 @@ internal fun ListManagerScreen(
                                 Icon(
                                     Icons.Default.DeleteForever,
                                     stringResource(id = R.string.delete),
-                                    tint = if (selectedGroupIds.isNotEmpty())
-                                        MaterialTheme.colorScheme.error
-                                    else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f)
+                                    tint = MaterialTheme.colorScheme.error
                                 )
                             }
                             IconButton(
-                                enabled = selectedGroupIds.isNotEmpty(),
                                 onClick = {
                                     convertSourcesSelected = selectedGroupIds
                                     showConvertToSubGroupMulti = true
@@ -1942,9 +1959,7 @@ internal fun ListManagerScreen(
                                 Icon(
                                     Icons.AutoMirrored.Filled.DriveFileMove,
                                     "转为子分组",
-                                    tint = if (selectedGroupIds.isNotEmpty())
-                                        MaterialTheme.colorScheme.onSurfaceVariant
-                                    else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f)
+                                    tint = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
                             }
                         }
