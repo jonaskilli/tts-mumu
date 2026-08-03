@@ -25,9 +25,9 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.AppShortcut
 import androidx.compose.material.icons.filled.CleaningServices
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Code
 import androidx.compose.material.icons.filled.DeleteForever
 import androidx.compose.material.icons.filled.DeleteSweep
-import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.EditNote
 import androidx.compose.material.icons.filled.ExpandCircleDown
 import androidx.compose.material.icons.filled.MoreVert
@@ -756,6 +756,9 @@ private fun Item(
                 if (!isSelectionMode) {
                 Row {
                     var showOptions by remember { mutableStateOf(false) }
+                    IconButton(onClick = onEdit) {
+                        Icon(Icons.Default.Code, "编辑代码")
+                    }
                     IconButton(onClick = { showOptions = true }) {
                         Icon(
                             Icons.Default.MoreVert,
@@ -764,18 +767,6 @@ private fun Item(
                         DropdownMenu(
                             expanded = showOptions,
                             onDismissRequest = { showOptions = false }) {
-
-                            // 第11项修复: 编辑/运行移入菜单,释放顶部空间给插件名
-                            DropdownMenuItem(
-                                text = { Text(stringResource(id = R.string.edit)) },
-                                onClick = {
-                                    showOptions = false
-                                    onEdit()
-                                },
-                                leadingIcon = {
-                                    Icon(Icons.Default.Edit, stringResource(R.string.edit))
-                                }
-                            )
 
                             // 编辑元数据（弹窗）：name/pluginId/author/version + 同步JS
                             if (onEditMetadata != null) {
