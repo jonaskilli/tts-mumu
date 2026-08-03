@@ -16,6 +16,8 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.Input
@@ -71,6 +73,7 @@ import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.github.jing332.common.utils.longToast
@@ -321,6 +324,144 @@ fun PluginManagerScreen(sharedVM: SharedViewModel, onFinishActivity: () -> Unit)
         )
     }
 
+    // 编辑元数据弹窗：name/pluginId/author/version + 同步JS + pluginId变更检测
+    var showEditMetadataDialog by remember { mutableStateOf<Plugin?>(null) }
+    // pluginId 变更后，提示一键更新引用旧 id 的配置项
+    var pendingPluginIdUpdate by remember { mutableStateOf<Triple<String, String, Int>?>(null) }
+    if (showEditMetadataDialog != null) {
+        val cur = showEditMetadataDialog!!
+        var editName by remember(cur.id) { mutableStateOf(cur.name) }
+        var editPluginId by remember(cur.id) { mutableStateOf(cur.pluginId) }
+        var editAuthor by remember(cur.id) { mutableStateOf(cur.author) }
+        var editVersion by remember(cur.id) { mutableStateOf(cur.version.toString()) }
+        AppDialog(
+            onDismissRequest = { showEditMetadataDialog = null },
+            title = { Text("编辑元数据") },
+            content = {
+                Column(Modifier.verticalScroll(rememberScrollState())) {
+                    OutlinedTextField(
+                        label = { Text("name") },
+                        value = editName,
+                        onValueChange = { editName = it },
+                        modifier = Modifier.fillMaxWidth(),
+                        singleLine = true
+                    )
+                    OutlinedTextField(
+                        label = { Text("pluginId (JS: id)") },
+                        value = editPluginId,
+                        onValueChange = { editPluginId = it },
+                        modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
+                        singleLine = true
+                    )
+                    OutlinedTextField(
+                        label = { Text("author") },
+                        value = editAuthor,
+                        onValueChange = { editAuthor = it },
+                        modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
+                        singleLine = true
+                    )
+                    OutlinedTextField(
+                        label = { Text("version") },
+                        value = editVersion,
+                        onValueChange = { editVersion = it.filter { c -> c.isDigit() } },
+                        modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
+                        singleLine = true
+                    )
+                }
+            },
+            buttons = {
+                TextButton(onClick = { showEditMetadataDialog = null }) {
+                    Text(stringResource(id = R.string.cancel))
+                }
+                TextButton(onClick = {
+                    val newVersion = editVersion.toIntOrNull() ?: cur.version
+                    // 同步更新 JS 代码里的元数据字面量，保证下次 eval 一致
+                    var newCode = cur.code
+                    newCode = JsMetadataSyncer.updateStringField(newCode, "name", editName)
+                    newCode = JsMetadataSyncer.updateStringField(newCode, "id", editPluginId)
+                    newCode = JsMetadataSyncer.updateStringField(newCode, "author", editAuthor)
+                    newCode = JsMetadataSyncer.updateIntField(newCode, "version", newVersion)
+                    dbm.pluginDao.update(
+                        cur.copy(
+                            name = editName,
+                            pluginId = editPluginId,
+                            author = editAuthor,
+                            version = newVersion,
+                            code = newCode
+                        )
+                    )
+                    showEditMetadataDialog = null
+
+                    // pluginId 变更后, 检测引用旧 id 的配置项并提示一键更新
+                    if (editPluginId != cur.pluginId) {
+                        val oldId = cur.pluginId
+                        val newId = editPluginId
+                        scope.launch {
+                            val count = withIO {
+                                dbm.systemTtsV2.getAllGroupWithTts()
+                                    .flatMap { it.list }
+                                    .count { tts ->
+                                        val config = tts.config
+                                        config is TtsConfigurationDTO &&
+                                            (config.source as? PluginTtsSource)?.pluginId == oldId
+                                    }
+                            }
+                            if (count > 0) {
+                                pendingPluginIdUpdate = Triple(oldId, newId, count)
+                            }
+                        }
+                    }
+                }) { Text(stringResource(id = R.string.save)) }
+            }
+        )
+    }
+
+    // 一键更新引用旧 pluginId 的配置项到新 id
+    if (pendingPluginIdUpdate != null) {
+        val (oldId, newId, count) = pendingPluginIdUpdate!!
+        AppDialog(
+            onDismissRequest = { pendingPluginIdUpdate = null },
+            title = { Text("插件 id 已变更") },
+            content = {
+                Text(
+                    "插件 pluginId 已由「$oldId」改为「$newId」。\n" +
+                        "检测到 $count 个配置项仍引用旧 id，是否一键更新为新 id？"
+                )
+            },
+            buttons = {
+                TextButton(onClick = { pendingPluginIdUpdate = null }) {
+                    Text("暂不")
+                }
+                TextButton(onClick = {
+                    val pending = pendingPluginIdUpdate!!
+                    pendingPluginIdUpdate = null
+                    scope.launch {
+                        withIO {
+                            dbm.systemTtsV2.getAllGroupWithTts()
+                                .flatMap { it.list }
+                                .forEach { tts ->
+                                    val config = tts.config
+                                    if (config is TtsConfigurationDTO) {
+                                        val src = config.source
+                                        if (src is PluginTtsSource && src.pluginId == pending.first) {
+                                            dbm.systemTtsV2.update(
+                                                tts.copy(
+                                                    config = config.copy(source = src.copy(pluginId = pending.second))
+                                                )
+                                            )
+                                        }
+                                    }
+                                }
+                        }
+                        SystemTtsService.notifyUpdateConfig()
+                    }
+                }) {
+                    Text("一键更新")
+                }
+            }
+        )
+    }
+
     val scrollBehavior = TopAppBarDefaults.pinnedScrollBehavior()
     // 第11项修复: list 原本声明在 content lambda 内，但 actions 也引用它，
     // 作用域不通会编译失败。提到 Scaffold 外层，actions 与 content 均可访问。
@@ -466,7 +607,7 @@ fun PluginManagerScreen(sharedVM: SharedViewModel, onFinishActivity: () -> Unit)
                 .reorderable(reorderState)
         ) {
             itemsIndexed(cache.list, key = { _, item -> item.id }) { _, item ->
-                val desc = remember { "${item.author} - v${item.version}" }
+                val desc = "${item.author} - v${item.version}"
                 ShadowedDraggableItem(reorderableState = reorderState, key = item.id) {
                     val isSelected = remember(item.id) {
                         derivedStateOf { item.id in selectedIds }
@@ -503,12 +644,8 @@ fun PluginManagerScreen(sharedVM: SharedViewModel, onFinishActivity: () -> Unit)
                         // 第11项: 内联展开编辑 + 运行键（跳编辑器并自动调试）
                         plugin = item,
                         onUpdatePlugin = { dbm.pluginDao.update(it) },
-                        onRun = {
-                            sharedVM.put(NavRoutes.PluginEdit.KEY_DATA, item)
-                            sharedVM.put("autoDebug", true)
-                            navController.navigate(NavRoutes.PluginEdit.id)
-                        },
-                        onSwitchPluginRefs = { showSwitchPluginRefsDialog = item }
+                        onSwitchPluginRefs = { showSwitchPluginRefsDialog = item },
+                        onEditMetadata = { showEditMetadataDialog = item }
                     )
                 }
             }
@@ -543,12 +680,12 @@ private fun Item(
     // 第11项: 列表项内联展开编辑元数据
     plugin: Plugin? = null,
     onUpdatePlugin: ((Plugin) -> Unit)? = null,
-    onRun: (() -> Unit)? = null,
     // 切换引用配置：把所有引用当前插件id的配置项批量改为目标插件id
     onSwitchPluginRefs: (() -> Unit)? = null,
+    // 编辑元数据（弹窗）：name/pluginId/author/version + 同步JS
+    onEditMetadata: (() -> Unit)? = null,
 ) {
     val context = LocalContext.current
-    var expanded by remember(plugin?.id) { mutableStateOf(false) }
     ElevatedCard(modifier = modifier
         .combinedClickable(
             onClick = { if (isSelectionMode) onToggleSelection() else if (hasDefVars) onSetVars() },
@@ -604,29 +741,20 @@ private fun Item(
                     Text(
                         text = name,
                         style = MaterialTheme.typography.titleMedium,
-                        textAlign = TextAlign.Center
+                        maxLines = 2,
+                        overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
                     )
                     Spacer(Modifier.height(4.dp))
                     Text(
                         text = desc,
                         style = MaterialTheme.typography.bodyMedium,
-                        textAlign = TextAlign.Center
+                        maxLines = 1,
+                        overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
                     )
                 }
 
                 if (!isSelectionMode) {
                 Row {
-                    // 第11项: 展开/收起内联编辑面板
-                    if (plugin != null && onUpdatePlugin != null) {
-                        IconButton(onClick = { expanded = !expanded }) {
-                            Icon(
-                                Icons.Default.ExpandCircleDown,
-                                if (expanded) "收起" else "展开编辑",
-                                modifier = Modifier.rotate(if (expanded) 0f else -90f)
-                            )
-                        }
-                    }
-
                     var showOptions by remember { mutableStateOf(false) }
                     IconButton(onClick = { showOptions = true }) {
                         Icon(
@@ -649,16 +777,16 @@ private fun Item(
                                 }
                             )
 
-                            // 第11项: 运行键（跳转代码编辑器并自动调试）
-                            if (onRun != null) {
+                            // 编辑元数据（弹窗）：name/pluginId/author/version + 同步JS
+                            if (onEditMetadata != null) {
                                 DropdownMenuItem(
-                                    text = { Text("运行") },
+                                    text = { Text("编辑元数据") },
                                     onClick = {
                                         showOptions = false
-                                        onRun()
+                                        onEditMetadata()
                                     },
                                     leadingIcon = {
-                                        Icon(Icons.Default.PlayArrow, "运行")
+                                        Icon(Icons.Default.EditNote, "编辑元数据")
                                     }
                                 )
                             }
@@ -749,158 +877,6 @@ private fun Item(
 
                 }
                 }
-            }
-
-            // 第11项: 内联展开编辑面板（name / pluginId / author / version + 同步JS）
-            // 状态声明放在 AnimatedVisibility 外层，避免在 content lambda 内声明导致 @Composable 上下文错误
-            // 第13项: remember key 去掉 expanded, 避免每次展开/收起都重置输入框导致动画期间重组卡顿
-            val p = plugin
-            var editName by remember(p?.id) { mutableStateOf(p?.name ?: "") }
-            var editPluginId by remember(p?.id) { mutableStateOf(p?.pluginId ?: "") }
-            var editAuthor by remember(p?.id) { mutableStateOf(p?.author ?: "") }
-            var editVersion by remember(p?.id) { mutableStateOf(p?.version?.toString() ?: "") }
-
-            // 第3项: 插件 pluginId 变更后, 若存在引用旧 id 的配置项, 弹窗提示一键更新为新 id
-            // Triple<旧 pluginId, 新 pluginId, 受影响配置项数量>
-            var pendingPluginIdUpdate by remember(p?.id) { mutableStateOf<Triple<String, String, Int>?>(null) }
-            val itemScope = rememberCoroutineScope()
-
-            androidx.compose.animation.AnimatedVisibility(
-                visible = expanded && !isSelectionMode && p != null,
-                enter = androidx.compose.animation.expandVertically() + androidx.compose.animation.fadeIn(),
-                exit = androidx.compose.animation.shrinkVertically() + androidx.compose.animation.fadeOut(),
-            ) {
-                Column(
-                    Modifier
-                        .fillMaxWidth()
-                        .padding(top = 8.dp)
-                ) {
-                    OutlinedTextField(
-                        label = { Text("name") },
-                        value = editName,
-                        onValueChange = { editName = it },
-                        modifier = Modifier.fillMaxWidth(),
-                        singleLine = true
-                    )
-                    OutlinedTextField(
-                        label = { Text("pluginId (JS: id)") },
-                        value = editPluginId,
-                        onValueChange = { editPluginId = it },
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(top = 4.dp),
-                        singleLine = true
-                    )
-                    OutlinedTextField(
-                        label = { Text("author") },
-                        value = editAuthor,
-                        onValueChange = { editAuthor = it },
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(top = 4.dp),
-                        singleLine = true
-                    )
-                    OutlinedTextField(
-                        label = { Text("version") },
-                        value = editVersion,
-                        onValueChange = { editVersion = it.filter { c -> c.isDigit() } },
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(top = 4.dp),
-                        singleLine = true
-                    )
-                    Spacer(Modifier.height(4.dp))
-                    TextButton(
-                        onClick = {
-                            val cur = p!!
-                            val newVersion = editVersion.toIntOrNull() ?: cur.version
-                            // 同步更新 JS 代码里的元数据字面量，保证下次 eval 一致
-                            var newCode = cur.code
-                            newCode = JsMetadataSyncer.updateStringField(newCode, "name", editName)
-                            newCode = JsMetadataSyncer.updateStringField(newCode, "id", editPluginId)
-                            newCode = JsMetadataSyncer.updateStringField(newCode, "author", editAuthor)
-                            newCode = JsMetadataSyncer.updateIntField(newCode, "version", newVersion)
-                            onUpdatePlugin?.invoke(
-                                cur.copy(
-                                    name = editName,
-                                    pluginId = editPluginId,
-                                    author = editAuthor,
-                                    version = newVersion,
-                                    code = newCode
-                                )
-                            )
-                            expanded = false
-
-                            // 第3项: pluginId 变更后, 检测引用旧 id 的配置项并提示一键更新
-                            if (editPluginId != cur.pluginId) {
-                                val oldId = cur.pluginId
-                                val newId = editPluginId
-                                itemScope.launch {
-                                    val count = withIO {
-                                        dbm.systemTtsV2.getAllGroupWithTts()
-                                            .flatMap { it.list }
-                                            .count { tts ->
-                                                val config = tts.config
-                                                config is TtsConfigurationDTO &&
-                                                    (config.source as? PluginTtsSource)?.pluginId == oldId
-                                            }
-                                    }
-                                    if (count > 0) {
-                                        pendingPluginIdUpdate = Triple(oldId, newId, count)
-                                    }
-                                }
-                            }
-                        },
-                        modifier = Modifier.align(Alignment.End)
-                    ) {
-                        Text(stringResource(id = R.string.save))
-                    }
-                }
-            }
-
-            // 第3项: 一键更新引用旧 pluginId 的配置项到新 id
-            pendingPluginIdUpdate?.let { (oldId, newId, count) ->
-                AppDialog(
-                    onDismissRequest = { pendingPluginIdUpdate = null },
-                    title = { Text("插件 id 已变更") },
-                    content = {
-                        Text(
-                            "插件 pluginId 已由「$oldId」改为「$newId」。\n" +
-                                "检测到 $count 个配置项仍引用旧 id，是否一键更新为新 id？"
-                        )
-                    },
-                    buttons = {
-                        TextButton(onClick = { pendingPluginIdUpdate = null }) {
-                            Text("暂不")
-                        }
-                        TextButton(onClick = {
-                            val pending = pendingPluginIdUpdate!!
-                            pendingPluginIdUpdate = null
-                            itemScope.launch {
-                                withIO {
-                                    dbm.systemTtsV2.getAllGroupWithTts()
-                                        .flatMap { it.list }
-                                        .forEach { tts ->
-                                            val config = tts.config
-                                            if (config is TtsConfigurationDTO) {
-                                                val src = config.source
-                                                if (src is PluginTtsSource && src.pluginId == pending.first) {
-                                                    dbm.systemTtsV2.update(
-                                                        tts.copy(
-                                                            config = config.copy(source = src.copy(pluginId = pending.second))
-                                                        )
-                                                    )
-                                                }
-                                            }
-                                        }
-                                }
-                                SystemTtsService.notifyUpdateConfig()
-                            }
-                        }) {
-                            Text("一键更新")
-                        }
-                    }
-                )
             }
 
             if (needSetVars && !isSelectionMode)

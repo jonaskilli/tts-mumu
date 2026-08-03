@@ -13,6 +13,8 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.Input
@@ -22,6 +24,7 @@ import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.DeleteForever
 import androidx.compose.material.icons.filled.DeleteSweep
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.EditNote
 import androidx.compose.material.icons.filled.ExpandCircleDown
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Output
@@ -142,6 +145,75 @@ fun SpeechRuleManagerScreen(sharedVM: SharedViewModel, finish: () -> Unit) {
             showDeleteDialog = null
         }
 
+    // 编辑元数据弹窗：name/ruleId/author/version + 同步JS
+    var showEditMetadataDialog by remember { mutableStateOf<SpeechRule?>(null) }
+    if (showEditMetadataDialog != null) {
+        val cur = showEditMetadataDialog!!
+        var editName by remember(cur.id) { mutableStateOf(cur.name) }
+        var editRuleId by remember(cur.id) { mutableStateOf(cur.ruleId) }
+        var editAuthor by remember(cur.id) { mutableStateOf(cur.author) }
+        var editVersion by remember(cur.id) { mutableStateOf(cur.version.toString()) }
+        AppDialog(
+            onDismissRequest = { showEditMetadataDialog = null },
+            title = { Text("编辑元数据") },
+            content = {
+                Column(Modifier.verticalScroll(rememberScrollState())) {
+                    OutlinedTextField(
+                        label = { Text("name") },
+                        value = editName,
+                        onValueChange = { editName = it },
+                        modifier = Modifier.fillMaxWidth(),
+                        singleLine = true
+                    )
+                    OutlinedTextField(
+                        label = { Text("ruleId (JS: id)") },
+                        value = editRuleId,
+                        onValueChange = { editRuleId = it },
+                        modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
+                        singleLine = true
+                    )
+                    OutlinedTextField(
+                        label = { Text("author") },
+                        value = editAuthor,
+                        onValueChange = { editAuthor = it },
+                        modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
+                        singleLine = true
+                    )
+                    OutlinedTextField(
+                        label = { Text("version") },
+                        value = editVersion,
+                        onValueChange = { editVersion = it.filter { c -> c.isDigit() } },
+                        modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
+                        singleLine = true
+                    )
+                }
+            },
+            buttons = {
+                TextButton(onClick = { showEditMetadataDialog = null }) {
+                    Text(stringResource(id = R.string.cancel))
+                }
+                TextButton(onClick = {
+                    val newVersion = editVersion.toIntOrNull() ?: cur.version
+                    // 同步更新 JS 代码里的元数据字面量，保证下次 eval 一致
+                    var newCode = cur.code
+                    newCode = JsMetadataSyncer.updateStringField(newCode, "name", editName)
+                    newCode = JsMetadataSyncer.updateStringField(newCode, "id", editRuleId)
+                    newCode = JsMetadataSyncer.updateStringField(newCode, "author", editAuthor)
+                    newCode = JsMetadataSyncer.updateIntField(newCode, "version", newVersion)
+                    dbm.speechRuleDao.update(
+                        cur.copy(
+                            name = editName,
+                            ruleId = editRuleId,
+                            author = editAuthor,
+                            version = newVersion,
+                            code = newCode
+                        )
+                    )
+                    showEditMetadataDialog = null
+                }) { Text(stringResource(id = R.string.save)) }
+            }
+        )
+    }
 
     val scrollBehavior = TopAppBarDefaults.pinnedScrollBehavior()
     // 第11项修复: list 原本声明在 content lambda 内，但 actions 也引用它，
@@ -342,11 +414,7 @@ fun SpeechRuleManagerScreen(sharedVM: SharedViewModel, finish: () -> Unit) {
                         // 第11项: 内联展开编辑 + 运行键（跳编辑器并自动调试）
                         rule = item,
                         onUpdateRule = { dbm.speechRuleDao.update(it) },
-                        onRun = {
-                            sharedVM.put(NavRoutes.SpeechRuleEdit.KEY_DATA, item)
-                            sharedVM.put("autoDebug", true)
-                            navController.navigate(NavRoutes.SpeechRuleEdit.id)
-                        }
+                        onEditMetadata = { showEditMetadataDialog = item }
                     )
                 }
             }
@@ -373,10 +441,10 @@ internal fun Item(
     // 第11项: 列表项内联展开编辑元数据
     rule: SpeechRule? = null,
     onUpdateRule: ((SpeechRule) -> Unit)? = null,
-    onRun: (() -> Unit)? = null,
+    // 编辑元数据（弹窗）：name/ruleId/author/version + 同步JS
+    onEditMetadata: (() -> Unit)? = null,
 ) {
     val context = LocalContext.current
-    var expanded by remember(rule?.id) { mutableStateOf(false) }
     ElevatedCard(
         modifier = modifier.combinedClickable(
             onClick = { if (isSelectionMode) onToggleSelection() else onClick() },
@@ -415,17 +483,6 @@ internal fun Item(
                 }
                 if (!isSelectionMode) {
                 Row {
-                    // 第11项: 展开/收起内联编辑面板
-                    if (rule != null && onUpdateRule != null) {
-                        IconButton(onClick = { expanded = !expanded }) {
-                            Icon(
-                                Icons.Default.ExpandCircleDown,
-                                if (expanded) "收起" else "展开编辑",
-                                modifier = Modifier.rotate(if (expanded) 0f else -90f)
-                            )
-                        }
-                    }
-
                     var showOptions by remember { mutableStateOf(false) }
                     IconButton(onClick = { showOptions = true }) {
                         Icon(
@@ -448,16 +505,16 @@ internal fun Item(
                                 }
                             )
 
-                            // 第11项: 运行键（跳转代码编辑器并运行）
-                            if (onRun != null) {
+                            // 编辑元数据（弹窗）：name/ruleId/author/version + 同步JS
+                            if (onEditMetadata != null) {
                                 DropdownMenuItem(
-                                    text = { Text("运行") },
+                                    text = { Text("编辑元数据") },
                                     onClick = {
                                         showOptions = false
-                                        onRun()
+                                        onEditMetadata()
                                     },
                                     leadingIcon = {
-                                        Icon(Icons.Default.PlayArrow, "运行")
+                                        Icon(Icons.Default.EditNote, "编辑元数据")
                                     }
                                 )
                             }
@@ -498,88 +555,6 @@ internal fun Item(
                     }
 
                 }
-                }
-            }
-
-            // 第11项: 内联展开编辑面板（name / ruleId / author / version + 同步JS）
-            // 状态声明放在 AnimatedVisibility 外层，避免在 content lambda 内声明导致 @Composable 上下文错误
-            // 第13项: remember key 去掉 expanded, 避免每次展开/收起都重置输入框导致动画期间重组卡顿
-            val r = rule
-            var editName by remember(r?.id) { mutableStateOf(r?.name ?: "") }
-            var editRuleId by remember(r?.id) { mutableStateOf(r?.ruleId ?: "") }
-            var editAuthor by remember(r?.id) { mutableStateOf(r?.author ?: "") }
-            var editVersion by remember(r?.id) { mutableStateOf(r?.version?.toString() ?: "") }
-
-            androidx.compose.animation.AnimatedVisibility(
-                visible = expanded && !isSelectionMode && r != null,
-                enter = androidx.compose.animation.expandVertically() + androidx.compose.animation.fadeIn(),
-                exit = androidx.compose.animation.shrinkVertically() + androidx.compose.animation.fadeOut(),
-            ) {
-                Column(
-                    Modifier
-                        .fillMaxWidth()
-                        .padding(top = 8.dp)
-                ) {
-                    OutlinedTextField(
-                        label = { Text("name") },
-                        value = editName,
-                        onValueChange = { editName = it },
-                        modifier = Modifier.fillMaxWidth(),
-                        singleLine = true
-                    )
-                    OutlinedTextField(
-                        label = { Text("ruleId (JS: id)") },
-                        value = editRuleId,
-                        onValueChange = { editRuleId = it },
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(top = 4.dp),
-                        singleLine = true
-                    )
-                    OutlinedTextField(
-                        label = { Text("author") },
-                        value = editAuthor,
-                        onValueChange = { editAuthor = it },
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(top = 4.dp),
-                        singleLine = true
-                    )
-                    OutlinedTextField(
-                        label = { Text("version") },
-                        value = editVersion,
-                        onValueChange = { editVersion = it.filter { c -> c.isDigit() } },
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(top = 4.dp),
-                        singleLine = true
-                    )
-                    Spacer(Modifier.height(4.dp))
-                    TextButton(
-                        onClick = {
-                            val cur = r!!
-                            val newVersion = editVersion.toIntOrNull() ?: cur.version
-                            // 同步更新 JS 代码里的元数据字面量，保证下次 eval 一致
-                            var newCode = cur.code
-                            newCode = JsMetadataSyncer.updateStringField(newCode, "name", editName)
-                            newCode = JsMetadataSyncer.updateStringField(newCode, "id", editRuleId)
-                            newCode = JsMetadataSyncer.updateStringField(newCode, "author", editAuthor)
-                            newCode = JsMetadataSyncer.updateIntField(newCode, "version", newVersion)
-                            onUpdateRule?.invoke(
-                                cur.copy(
-                                    name = editName,
-                                    ruleId = editRuleId,
-                                    author = editAuthor,
-                                    version = newVersion,
-                                    code = newCode
-                                )
-                            )
-                            expanded = false
-                        },
-                        modifier = Modifier.align(Alignment.End)
-                    ) {
-                        Text(stringResource(id = R.string.save))
-                    }
                 }
             }
         }
