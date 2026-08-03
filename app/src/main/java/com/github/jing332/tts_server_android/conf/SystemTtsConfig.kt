@@ -84,13 +84,13 @@ object SystemTtsConfig {
     val isWakeLockEnabled = mutableDataSaverStateOf(
         dataSaverInterface = dataSaverPref,
         key = "isWakeLockEnabled",
-        initialValue = true
+        initialValue = false
     )
 
     val isForegroundServiceEnabled = mutableDataSaverStateOf(
         dataSaverInterface = dataSaverPref,
         key = "isForegroundServiceEnabled",
-        initialValue = true
+        initialValue = false
     )
 
     val isReplaceEnabled = mutableDataSaverStateOf(
@@ -108,7 +108,7 @@ object SystemTtsConfig {
     val requestTimeout = mutableDataSaverStateOf(
         dataSaverInterface = dataSaverPref,
         key = "requestTimeout",
-        initialValue = 5000
+        initialValue = 60000
     )
 
     val maxRetryCount = mutableDataSaverStateOf(
@@ -127,7 +127,7 @@ object SystemTtsConfig {
     val standbyTriggeredRetryIndex = mutableDataSaverStateOf(
         dataSaverInterface = dataSaverPref,
         key = "standbyTriggeredRetryIndex",
-        initialValue = 1
+        initialValue = 3
     )
 
     val maxEmptyAudioRetryCount = mutableDataSaverStateOf(
@@ -145,7 +145,7 @@ object SystemTtsConfig {
     val isStreamPlayModeEnabled = mutableDataSaverStateOf(
         dataSaverInterface = dataSaverPref,
         key = "isStreamPlayModeEnabled",
-        initialValue = true
+        initialValue = false
     )
 
     val isExoDecoderEnabled = mutableDataSaverStateOf(
