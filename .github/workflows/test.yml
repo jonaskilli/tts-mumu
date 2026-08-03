@@ -1,4 +1,4 @@
-name: Build Test
+name: 编译验证
 
 on:
   push:
