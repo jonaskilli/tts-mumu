@@ -64,7 +64,6 @@ object AppConfig {
     val isEdgeDnsEnabled by lazy { mutableDataSaverStateOf(dataSaverPref, "isEdgeDnsEnabled", true) }
     val testSampleText by lazy { mutableDataSaverStateOf(dataSaverPref, "testSampleText", "单击右侧按钮即可测试并播放这段音频。如果一切正常，你应该能听到清晰的声音。") }
     val fragmentIndex by lazy { mutableDataSaverStateOf(dataSaverPref, "fragmentIndex", 0) }
-    val filePickerMode by lazy { mutableDataSaverStateOf(dataSaverPref, "filePickerMode", 1) }
     val spinnerMaxDropDownCount by lazy { mutableDataSaverStateOf(dataSaverPref, "spinnerMaxDropDownCount", 20) }
     val lastReadHelpDocumentVersion by lazy { mutableDataSaverStateOf(dataSaverPref, "lastReadHelpDocumentVersion", 0) }
     val webDavUrl by lazy { mutableDataSaverStateOf(dataSaverPref, "webDavUrl", "") }

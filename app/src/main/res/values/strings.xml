@@ -358,15 +358,10 @@
     <string name="retry_append_text">重试追加字符</string>
     <string name="retry_append_text_on">重试时在文本后追加：%s（第1次1个、第2次2个，以此类推）</string>
     <string name="retry_append_text_off">重试时不在文本后追加字符</string>
-    <string name="sys_doc_picker_error">打开系统文件选择器失败，自动使用内置选择器。</string>
+    <string name="sys_doc_picker_error">打开系统文件选择器失败。</string>
     <string name="add_file">添加文件</string>
     <string name="path_is_empty">路径为空</string>
-    <string name="file_picker_mode">文件选择器模式</string>
-    <string name="file_picker">文件选择器</string>
-    <string name="file_picker_mode_system">系统文件选择器</string>
-    <string name="file_picker_mode_builtin">内置文件选择器</string>
-    <string name="file_picker_mode_prompt">弹出选择提示</string>
-    <string name="permission_denied">已拒绝存储权限，内置选择器无法使用，请改用系统选择器或到系统设置授权</string>
+    <string name="file_picker_mode_system">从文件恢复</string>
     <string name="no_retries">不重试</string>
     <string name="systts_no_custom_tag_config_warn">⚠️无标签配置，请添加配置或关闭多语音选项！</string>
     <string name="tip">提示</string>

@@ -297,14 +297,10 @@
     <string name="speech_rule_script">规则脚本</string>
     <string name="empty_list">列表为空</string>
     <string name="max_retry_count">最大重试次数</string>
-    <string name="sys_doc_picker_error">打开系统文件选择器失败，自动使用内置选择器。</string>
+    <string name="sys_doc_picker_error">打开系统文件选择器失败。</string>
     <string name="add_file">添加文件</string>
     <string name="path_is_empty">路径为空</string>
-    <string name="file_picker_mode">文件选择器模式</string>
-    <string name="file_picker">文件选择器</string>
-    <string name="file_picker_mode_system">系统文件选择器</string>
-    <string name="file_picker_mode_builtin">内置文件选择器</string>
-    <string name="file_picker_mode_prompt">弹出选择提示</string>
+    <string name="file_picker_mode_system">从文件恢复</string>
     <string name="no_retries">不重试</string>
     <string name="systts_no_custom_tag_config_warn">⚠️无标签配置，请添加配置或关闭多语音选项！</string>
     <string name="tip">提示</string>

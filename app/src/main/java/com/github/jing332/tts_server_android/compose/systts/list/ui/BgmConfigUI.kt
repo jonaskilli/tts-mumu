@@ -279,7 +279,7 @@ class BgmConfigUI : IConfigUI() {
         Column(modifier) {
             // 存储访问统一由「允许管理所有文件」(MANAGE_EXTERNAL_STORAGE) 控制，
             // 不再单独申请 READ_EXTERNAL_STORAGE 运行时权限(与问题2同类弹窗)。
-            // A11 以下无「管理所有文件」权限，内置选择器仍可由 FilePickerActivity 按需处理。
+            // 文件选择统一走系统 SAF，FilePickerActivity 不再提供内置选择器分支。
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) { // A11
                 var isGranted by remember { mutableStateOf(Environment.isExternalStorageManager()) }
                 val permissionCheckerObserver = remember {

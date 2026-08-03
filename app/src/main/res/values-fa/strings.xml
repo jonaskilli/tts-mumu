@@ -313,14 +313,10 @@
     <string name="speech_rule_script">اسکریپت قانون</string>
     <string name="empty_list">لیست خالی است</string>
     <string name="max_retry_count">حداکثر تعداد تلاش مجدد</string>
-    <string name="sys_doc_picker_error">انتخابگر فایل سیستم باز نشد، به طور خودکار از انتخابگر داخلی استفاده می کند.</string>
+    <string name="sys_doc_picker_error">打开系统文件选择器失败。</string>
     <string name="add_file">فایل ها را اضافه کنید</string>
     <string name="path_is_empty">مسیر خالی است</string>
-    <string name="file_picker_mode">حالت انتخابگر فایل</string>
-    <string name="file_picker">انتخابگر فایل</string>
-    <string name="file_picker_mode_system">انتخابگر فایل سیستم</string>
-    <string name="file_picker_mode_builtin">انتخابگر فایل داخلی</string>
-    <string name="file_picker_mode_prompt">اعلان انتخاب پاپ آپ</string>
+    <string name="file_picker_mode_system">从文件恢复</string>
     <string name="no_retries">دوباره امتحان نکنید</string>
     <string name="systts_no_custom_tag_config_warn">⚠️بدون پیکربندی برچسب، لطفا تنظیمات را اضافه کنید یا گزینه چند صدایی را خاموش کنید!</string>
     <string name="tip">اشاره</string>

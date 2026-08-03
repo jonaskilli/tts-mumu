@@ -1,63 +1,31 @@
 package com.github.jing332.tts_server_android.ui
 
-import android.Manifest
-import android.app.Activity
 import android.content.Intent
-import android.content.pm.PackageManager
 import android.net.Uri
-import android.os.Build
 import android.os.Bundle
-import android.os.Environment
 import android.os.Parcelable
 import androidx.activity.compose.setContent
 import androidx.activity.result.ActivityResultLauncher
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.width
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.FileOpen
-import androidx.compose.material3.Icon
-import androidx.compose.material3.Text
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.setValue
-import androidx.compose.ui.Alignment
-import androidx.compose.ui.Modifier
-import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.unit.dp
-import androidx.core.app.ActivityCompat
 import androidx.core.net.toUri
 import androidx.lifecycle.lifecycleScope
-import com.drake.net.utils.withMain
-import com.github.jing332.common.utils.FileUtils
-import com.github.jing332.common.utils.FileUtils.mimeType
-import com.github.jing332.common.utils.getBinder
 import com.github.jing332.common.utils.grantReadWritePermission
+import com.github.jing332.common.utils.getBinder
 import com.github.jing332.common.utils.toast
-import com.github.jing332.compose.widgets.AppSelectionDialog
 import com.github.jing332.tts_server_android.R
 import com.github.jing332.tts_server_android.compose.ComposeActivity
 import com.github.jing332.tts_server_android.compose.theme.AppTheme
-import com.github.jing332.tts_server_android.conf.AppConfig
-import com.github.jing332.tts_server_android.constant.FilePickerMode
 import com.github.jing332.tts_server_android.help.ByteArrayBinder
 import com.github.jing332.tts_server_android.ui.view.AppDialogs.displayErrorDialog
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.parcelize.IgnoredOnParcel
 import kotlinx.parcelize.Parcelize
-import me.rosuh.filepicker.bean.FileItemBeanImpl
-import me.rosuh.filepicker.config.AbstractFileFilter
-import me.rosuh.filepicker.config.FilePickerManager
-import java.io.File
+import com.drake.net.utils.withMain
 
-
-@Suppress("DEPRECATION")
 class FilePickerActivity : ComposeActivity() {
     companion object {
         const val KEY_REQUEST_DATA = "KEY_REQUEST_DATA"
-        private const val REQUEST_CODE_SAVE_FILE = 123321
     }
 
     private lateinit var requestData: IRequestData
@@ -93,80 +61,6 @@ class FilePickerActivity : ComposeActivity() {
         finish()
     }
 
-    @Deprecated("Deprecated in Java")
-    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
-        when (requestCode) {
-            FilePickerManager.REQUEST_CODE -> {
-                if (resultCode == Activity.RESULT_OK) {
-                    val list = FilePickerManager.obtainData()
-                    resultAndFinish(list.getOrNull(0)?.let { File(it).toUri() })
-                }
-                finish()
-            }
-
-            REQUEST_CODE_SAVE_FILE -> {
-                if (resultCode == Activity.RESULT_OK) {
-                    val fileDir = FilePickerManager.obtainData().getOrNull(0)
-                    if (fileDir == null) {
-                        toast(R.string.path_is_empty)
-                    } else {
-                        val targetPath = "$fileDir/${reqSaveFile.fileName}"
-                        if (saveToFile(targetPath)) toast(R.string.save_success)
-                        else
-                            toast(getString(R.string.file_save_failed, ""))
-
-                    }
-                }
-                cleanupTempFile()
-                finish()
-            }
-
-            else -> super.onActivityResult(requestCode, resultCode, data)
-        }
-
-    }
-
-    // 修正：权限请求结果回调（仅 BUILTIN 内置选择器走此分支）
-    override fun onRequestPermissionsResult(
-        requestCode: Int,
-        permissions: Array<out String>,
-        grantResults: IntArray
-    ) {
-        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
-        if (grantResults.isNotEmpty() && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
-            doAction() // 获得权限后立即执行
-        } else {
-            // 用户拒绝存储权限：内置选择器无法工作，直接结束避免卡死
-            toast(R.string.permission_denied)
-            finish()
-        }
-    }
-
-    /**
-     * 检查存储读取权限；未授予则请求系统弹窗。
-     * 仅 BUILTIN 内置选择器调用，SYSTEM(SAF) 模式不需要存储权限。
-     * 注：MANAGE_EXTERNAL_STORAGE(允许管理所有文件) 与 READ_MEDIA_AUDIO/READ_EXTERNAL_STORAGE
-     * 是两套独立权限，前者授予不会自动授予后者，但 SAF 不依赖这些运行时权限。
-     */
-    private fun checkPermission(permission: String): Boolean {
-        val extPermission = ActivityCompat.checkSelfPermission(
-            this, permission
-        )
-        if (extPermission != PackageManager.PERMISSION_GRANTED) {
-            ActivityCompat.requestPermissions(
-                this, arrayOf(
-                    permission,
-                ), 1
-            )
-            return false
-        }
-
-        return true
-    }
-
-    private var useSystem = false
-
-    @Suppress("DEPRECATION")
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         val lp = window.attributes
@@ -175,19 +69,7 @@ class FilePickerActivity : ComposeActivity() {
 
         requestData = intent.getParcelableExtra(KEY_REQUEST_DATA)!!
 
-        // 存储权限仅在 BUILTIN(内置选择器) 模式下需要；SYSTEM(SAF) 与 CreateDocument 均不依赖。
-        // 这里只预计算权限名，实际请求延迟到确认走内置选择器时再触发，避免"横插一杠"弹窗。
-        val readPermission = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            Manifest.permission.READ_MEDIA_AUDIO
-        } else {
-            Manifest.permission.READ_EXTERNAL_STORAGE
-        }
-
-        fun hasReadPermission(): Boolean =
-            ActivityCompat.checkSelfPermission(this, readPermission) == PackageManager.PERMISSION_GRANTED
-
         if (requestData is RequestSaveFile) {
-            // 安装后已开放存储权限，保存文件不再提示权限请求
             docCreate =
                 registerForActivityResult(ActivityResultContracts.CreateDocument(reqSaveFile.fileMime)) { uri ->
                     if (uri == null) {
@@ -198,7 +80,7 @@ class FilePickerActivity : ComposeActivity() {
                     uri.grantReadWritePermission(contentResolver)
                     lifecycleScope.launch(Dispatchers.IO) {
                         kotlin.runCatching {
-                            // 第9项: 流式复制，避免一次性载入大文件到内存
+                            // 流式复制，避免一次性载入大文件到内存
                             saveToUri(uri)
                             toast(R.string.save_success)
                         }.onFailure {
@@ -213,69 +95,17 @@ class FilePickerActivity : ComposeActivity() {
                 }
         }
 
-        var showPromptDialog by mutableStateOf(false)
         setContent {
-            AppTheme {
-                if (showPromptDialog)
-                    AppSelectionDialog(
-                        onDismissRequest = {
-                            showPromptDialog = false
-                            finish()
-                        },
-                        title = {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Icon(Icons.Default.FileOpen, null)
-                                Spacer(modifier = Modifier.width(8.dp))
-                                Text(stringResource(id = R.string.file_picker))
-                            }
-                        },
-                        value = Unit,
-                        values = listOf(0, 1),
-                        entries = listOf(
-                            stringResource(id = R.string.file_picker_mode_system),
-                            stringResource(id = R.string.file_picker_mode_builtin)
-                        ),
-                        onClick = { index, _ ->
-                            showPromptDialog = false
-                            useSystem = index == 0
-                            // 第7项: 系统选择器(SAF)不需要存储权限直接执行；
-                            // 内置选择器需要存储权限，未授予则请求(由 onRequestPermissionsResult 接管)
-                            if (useSystem) {
-                                doAction()
-                            } else if (hasReadPermission()) {
-                                doAction()
-                            } else {
-                                checkPermission(readPermission)
-                            }
-                        }
-                    )
-            }
+            AppTheme { }
         }
 
-        when (AppConfig.filePickerMode.value) {
-            FilePickerMode.PROMPT -> {
-                showPromptDialog = true
-            }
-
-            FilePickerMode.SYSTEM -> {
-                useSystem = true
-                // 第7项: 系统选择器(SAF)不需要存储权限，直接执行
-                doAction()
-            }
-
-            FilePickerMode.BUILTIN -> {
-                useSystem = false
-                // 仅内置选择器依赖存储权限；未授予时请求，授予后由 onRequestPermissionsResult 触发 doAction
-                if (hasReadPermission()) doAction()
-                else checkPermission(readPermission)
-            }
-        }
+        doAction()
     }
 
     private fun doAction() {
         when (requestData) {
             is RequestSaveFile -> {
-                // 第9项: 优先使用临时文件 URI；向后兼容 ByteArrayBinder
+                // 优先使用临时文件 URI；向后兼容 ByteArrayBinder
                 if (reqSaveFile.fileUri == null) {
                     val binder = intent.getBinder()
                     if (binder is ByteArrayBinder) {
@@ -291,7 +121,7 @@ class FilePickerActivity : ComposeActivity() {
     }
 
     /**
-     * 第9项: 流式复制源数据到目标 URI。
+     * 流式复制源数据到目标 URI。
      * 优先从临时文件 URI 读取；向后兼容直接写 fileBytes。
      */
     private fun saveToUri(targetUri: Uri) {
@@ -312,27 +142,7 @@ class FilePickerActivity : ComposeActivity() {
     }
 
     /**
-     * 第9项: 流式复制源数据到目标文件路径（内置选择器分支用）。
-     */
-    private fun saveToFile(targetPath: String): Boolean {
-        return runCatching {
-            val srcUriStr = reqSaveFile.fileUri
-            if (srcUriStr != null) {
-                contentResolver.openInputStream(srcUriStr.toUri()).use { input ->
-                    java.io.FileOutputStream(targetPath).use { out ->
-                        input?.copyTo(out)
-                    }
-                }
-                true
-            } else {
-                val bytes = reqSaveFile.fileBytes
-                if (bytes != null) FileUtils.saveFile(targetPath, bytes) else false
-            }
-        }.getOrDefault(false)
-    }
-
-    /**
-     * 第9项: 清理本次导出产生的临时文件（FileProvider 不支持 delete()，按命名前缀清理）。
+     * 清理本次导出产生的临时文件（FileProvider 不支持 delete()，按命名前缀清理）。
      */
     private fun cleanupTempFile() {
         runCatching {
@@ -341,80 +151,32 @@ class FilePickerActivity : ComposeActivity() {
     }
 
     private fun saveFile() {
-        if (useSystem)
-            kotlin.runCatching {
-                docCreate.launch(reqSaveFile.fileName)
-            }.onFailure {
-                it.printStackTrace()
-                toast(R.string.sys_doc_picker_error)
-                useSystem = false
-                return saveFile()
-            }
-        else {
-            pickerDir(REQUEST_CODE_SAVE_FILE)
+        kotlin.runCatching {
+            docCreate.launch(reqSaveFile.fileName)
+        }.onFailure {
+            it.printStackTrace()
+            toast(R.string.sys_doc_picker_error)
+            finish()
         }
     }
 
     private fun selectFile() {
-        if (useSystem) {
-            kotlin.runCatching {
-                // 修正：修正 MIME 类型通配符，确保 zip 可见
-                val mimes = reqSelectFile.fileMimes.map { if (it == "*") "*/*" else it }
-                docSelector.launch(mimes.toTypedArray())
-            }.onFailure {
-                toast(R.string.sys_doc_picker_error)
-                useSystem = false
-                return selectFile()
-            }
-        } else {
-            FilePickerManager
-                .from(this)
-                .maxSelectable(1)
-                .showCheckBox(false)
-                .enableSingleChoice()
-                .setCustomRootPath(Environment.getExternalStorageDirectory().absolutePath) // 修正：设置起始路径
-                .filter(object : AbstractFileFilter() {
-                    override fun doFilter(listData: ArrayList<FileItemBeanImpl>): ArrayList<FileItemBeanImpl> {
-                        return ArrayList(listData.filter { item ->
-                            // 修正：确保文件夹始终可见
-                            val isWildcard = reqSelectFile.fileMimes.any { it == "*" || it == "*/*" }
-                            item.isDir || isWildcard || reqSelectFile.fileMimes.contains(File(item.filePath).mimeType)
-                        })
-                    }
-                })
-                .forResult(FilePickerManager.REQUEST_CODE)
+        kotlin.runCatching {
+            val mimes = reqSelectFile.fileMimes.map { if (it == "*") "*/*" else it }
+            docSelector.launch(mimes.toTypedArray())
+        }.onFailure {
+            toast(R.string.sys_doc_picker_error)
+            finish()
         }
     }
 
     private fun selectDir() {
-        if (useSystem) {
-            kotlin.runCatching {
-                docTreeSelector.launch(Uri.EMPTY)
-            }.onFailure {
-                toast(R.string.sys_doc_picker_error)
-                useSystem = false
-                return selectDir()
-            }
-        } else {
-            pickerDir()
+        kotlin.runCatching {
+            docTreeSelector.launch(Uri.EMPTY)
+        }.onFailure {
+            toast(R.string.sys_doc_picker_error)
+            finish()
         }
-    }
-
-    private fun pickerDir(requestCode: Int = FilePickerManager.REQUEST_CODE) {
-        FilePickerManager
-            .from(this)
-            .maxSelectable(1)
-            .setCustomRootPath(Environment.getExternalStorageDirectory().absolutePath) // 修正：设置起始路径
-            .filter(object : AbstractFileFilter() {
-                override fun doFilter(listData: ArrayList<FileItemBeanImpl>): ArrayList<FileItemBeanImpl> {
-                    return ArrayList(listData.filter { item ->
-                        item.isDir
-                    })
-                }
-            })
-            .enableSingleChoice()
-            .skipDirWhenSelect(false)
-            .forResult(requestCode)
     }
 
 
@@ -430,7 +192,7 @@ class FilePickerActivity : ComposeActivity() {
         @Suppress("ArrayInDataClass")
         var fileBytes: ByteArray? = null,
 
-        // 第9项: 大文件改用临时文件 URI 传递，绕开 Binder 1MB 限制（替代 fileBytes+ByteArrayBinder）
+        // 大文件改用临时文件 URI 传递，绕开 Binder 1MB 限制（替代 fileBytes+ByteArrayBinder）
         // 由 AppActivityResultContracts.createIntent 在写入临时文件后填充
         val fileUri: String? = null,
     ) : IRequestData

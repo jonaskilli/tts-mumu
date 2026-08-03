@@ -61,7 +61,6 @@ import com.github.jing332.tts_server_android.compose.theme.getAppTheme
 import com.github.jing332.tts_server_android.compose.theme.setAppTheme
 import com.github.jing332.tts_server_android.conf.AppConfig
 import com.github.jing332.tts_server_android.conf.SystemTtsForwarderConfig
-import com.github.jing332.tts_server_android.constant.FilePickerMode
 import androidx.core.content.ContextCompat.startActivity
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -299,49 +298,6 @@ fun SettingsScreen() {
                         )
                     }
                 }
-
-                var filePickerMode by remember { AppConfig.filePickerMode }
-                var expanded by remember { mutableStateOf(false) }
-                DropdownPreference(
-                    expanded = expanded,
-                    onExpandedChange = { expanded = it },
-                    icon = { Icon(Icons.Default.FileOpen, null) },
-                    title = { Text(stringResource(id = R.string.file_picker_mode)) },
-                    subTitle = {
-                        Text(
-                            when (filePickerMode) {
-                                FilePickerMode.PROMPT -> stringResource(id = R.string.file_picker_mode_prompt)
-                                FilePickerMode.BUILTIN -> stringResource(id = R.string.file_picker_mode_builtin)
-                                else -> stringResource(id = R.string.file_picker_mode_system)
-                            }
-                        )
-                    },
-                    actions = {
-                        DropdownMenuItem(
-                            text = { Text(stringResource(id = R.string.file_picker_mode_prompt)) },
-                            onClick = {
-                                expanded = false
-                                filePickerMode = FilePickerMode.PROMPT
-                            }
-                        )
-
-                        DropdownMenuItem(
-                            text = { Text(stringResource(id = R.string.file_picker_mode_builtin)) },
-                            onClick = {
-                                expanded = false
-                                filePickerMode = FilePickerMode.BUILTIN
-                            }
-                        )
-
-                        DropdownMenuItem(
-                            text = { Text(stringResource(id = R.string.file_picker_mode_system)) },
-                            onClick = {
-                                expanded = false
-                                filePickerMode = FilePickerMode.SYSTEM
-                            }
-                        )
-                    }
-                )
 
                 var autoCheck by remember { AppConfig.isAutoCheckUpdateEnabled }
                 SwitchPreference(

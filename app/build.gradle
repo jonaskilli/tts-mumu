@@ -223,8 +223,6 @@ dependencies {
 
     implementation(libs.bundles.media3)
 
-    implementation 'me.rosuh:AndroidFilePicker:1.0.1'
-
     implementation(libs.hanlp)
 
 
