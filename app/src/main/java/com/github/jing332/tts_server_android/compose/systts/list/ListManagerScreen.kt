@@ -126,8 +126,12 @@ import android.content.Intent
 import com.github.jing332.tts_server_android.toCode
 import com.github.jing332.tts_server_android.ui.view.AppDialogs.displayErrorDialog
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import java.util.concurrent.ConcurrentHashMap
 import kotlinx.serialization.encodeToString
 import org.burnoutcrew.reorderable.detectReorderAfterLongPress
 import org.burnoutcrew.reorderable.rememberReorderableLazyListState
@@ -569,27 +573,54 @@ internal fun ListManagerScreen(
      * 整理某大分组下全部子分组：每个子分组按其名称匹配关键词后重新编号。
      * 仅处理名称含关键词的子分组（无关键词的子分组跳过，避免误改）。
      * 优化：收集所有子分组的更新后一次性批量写入数据库，提升整理速度。
+     * 性能优化：按 ruleId 分组并行评估 JS（不同 ruleId 各自独立 engine，
+     * 可并行；同 ruleId 复用同一 engine 串行调用，Rhino 非线程安全）。
      */
     suspend fun reassignTagsForAllSubGroups(list: List<SystemTtsV2>) {
         val tree = buildSubCategoryTree(list)
         val flattened = flattenSubCategoryTree(tree)
-        val allUpdates = mutableListOf<SystemTtsV2>()
-        val ruleCache = mutableMapOf<String, SpeechRule?>()
-        val engineCache = mutableMapOf<String, SpeechRuleEngine>()
+        // 先收集所有待处理项 (item, newRule, fallbackTag)
+        data class PendingUpdate(val item: SystemTtsV2, val newRule: com.github.jing332.database.entities.systts.SpeechRuleInfo, val fallback: String)
+        val pending = mutableListOf<PendingUpdate>()
         flattened.filterIsInstance<FlattenedCategoryItem.SubGroupHeader>().forEach { header ->
-            val detected = detectTagKeyword(header.node.name)
-            if (detected != null) {
-                val subItems = header.node.items.filter { it.config is TtsConfigurationDTO }
-                    .sortedBy { it.order }
-                if (subItems.isEmpty()) return@forEach
-                subItems.forEachIndexed { idx, item ->
-                    val seq = if (detected.zeroPad) String.format("%02d", idx + 1) else (idx + 1).toString()
-                    val newTag = detected.prefix + seq
-                    val config = item.config as TtsConfigurationDTO
-                    val newRule = config.speechRule.copy(tag = newTag)
-                    computeTagNameOrFallback(context, newRule, newTag, ruleCache, engineCache)
-                    allUpdates.add(item.copy(config = config.copy(speechRule = newRule)))
+            val detected = detectTagKeyword(header.node.name) ?: return@forEach
+            val subItems = header.node.items.filter { it.config is TtsConfigurationDTO }
+                .sortedBy { it.order }
+            if (subItems.isEmpty()) return@forEach
+            subItems.forEachIndexed { idx, item ->
+                val seq = if (detected.zeroPad) String.format("%02d", idx + 1) else (idx + 1).toString()
+                val newTag = detected.prefix + seq
+                val config = item.config as TtsConfigurationDTO
+                val newRule = config.speechRule.copy(tag = newTag)
+                pending.add(PendingUpdate(item, newRule, newTag))
+            }
+        }
+        if (pending.isEmpty()) return
+
+        // ruleId 为空的项无需 JS 评估，直接赋 fallback；其余按 ruleId 分组并行
+        val ruleCache = ConcurrentHashMap<String, SpeechRule?>()
+        val (noRule, withRule) = pending.partition { it.newRule.tagRuleId.isBlank() }
+        val allUpdates = mutableListOf<SystemTtsV2>()
+        // 无规则项：tagName 直接回退 fallback，无 JS 可任意并行快速处理
+        noRule.forEach { u ->
+            u.newRule.tagName = u.fallback
+            val config = u.item.config as TtsConfigurationDTO
+            allUpdates.add(u.item.copy(config = config.copy(speechRule = u.newRule)))
+        }
+        // 有规则项：按 ruleId 分组，组间并行（各自独立 engine），组内串行（复用 engine）
+        coroutineScope {
+            withRule.groupBy { it.newRule.tagRuleId }.values.map { group ->
+                async(Dispatchers.IO) {
+                    // 每个协程独享一个 engineCache，避免跨协程共享 Rhino engine
+                    val localEngineCache = mutableMapOf<String, SpeechRuleEngine>()
+                    group.forEach { u ->
+                        computeTagNameOrFallback(context, u.newRule, u.fallback, ruleCache, localEngineCache)
+                    }
+                    group
                 }
+            }.awaitAll().flatten().forEach { u ->
+                val config = u.item.config as TtsConfigurationDTO
+                allUpdates.add(u.item.copy(config = config.copy(speechRule = u.newRule)))
             }
         }
         if (allUpdates.isNotEmpty()) {
