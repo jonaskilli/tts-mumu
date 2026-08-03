@@ -2,26 +2,6 @@
     "version": "0.2.0",
     "configurations": [
         {
-            "name": "构建安装并启动应用 (app debug)",
-            "type": "node-terminal",
-            "request": "launch",
-            "command": ".\\gradlew.bat installAppDebug & E:\\TTS\\AndroidSDK\\platform-tools\\adb.exe shell am start -n com.github.jing332.tts_server_android.debug/com.github.jing332.tts_server_android.compose.MainActivity",
-            "cwd": "${workspaceFolder}",
-            "env": {
-                "JAVA_HOME": "E:\\TTS\\jdk-21.0.12+8"
-            }
-        },
-        {
-            "name": "构建安装并启动应用 (dev 共存版 debug)",
-            "type": "node-terminal",
-            "request": "launch",
-            "command": ".\\gradlew.bat installDevDebug & E:\\TTS\\AndroidSDK\\platform-tools\\adb.exe shell am start -n com.github.jing332.tts_server_android.debug.dev/com.github.jing332.tts_server_android.compose.MainActivity",
-            "cwd": "${workspaceFolder}",
-            "env": {
-                "JAVA_HOME": "E:\\TTS\\jdk-21.0.12+8"
-            }
-        },
-        {
             "name": "查看 logcat 日志",
             "type": "node-terminal",
             "request": "launch",
