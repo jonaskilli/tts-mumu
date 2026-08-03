@@ -19,7 +19,9 @@ import com.github.jing332.database.entities.replace.GroupWithReplaceRule
 import com.github.jing332.database.entities.replace.ReplaceRule
 import com.github.jing332.database.entities.replace.ReplaceRuleGroup
 import com.github.jing332.database.entities.systts.GroupWithSystemTts
+import com.github.jing332.database.entities.systts.SystemTtsGroup
 import com.github.jing332.database.entities.systts.SystemTtsMigration
+import com.github.jing332.database.entities.systts.SystemTtsV2
 import com.github.jing332.database.entities.systts.v1.GroupWithV1TTS
 import com.github.jing332.tts_server_android.R
 import com.github.jing332.tts_server_android.compose.systts.ConfigImportBottomSheet
@@ -185,7 +187,7 @@ private fun doImportList(json: String): ListImportResult {
     }
     if (list.isNullOrEmpty()) return ListImportResult.EmptyOrUnrecognized
 
-    // 3. 写库
+    // 3. 写库：单事务批量插入，避免逐条 fsync
     val baseId = System.currentTimeMillis()
     var nextOrder = dbm.systemTtsV2.groupCount
     var groupSeq = 0
@@ -200,15 +202,21 @@ private fun doImportList(json: String): ListImportResult {
         }
     }
     var imported = 0
-    for (groupWithTts in list) {
-        val (group, ttsList) = groupWithTts
-        val (newGroupId, newOrder) = oldToNewGroupId[group.id]!!
-        dbm.systemTtsV2.insertGroup(group.copy(id = newGroupId, order = newOrder))
-        for (tts in ttsList) {
-            dbm.systemTtsV2.insert(tts.copy(id = baseId + 100000 + ttsSeq, groupId = newGroupId))
-            ttsSeq++
-            imported++
+    dbm.runInTransaction {
+        val groupsToInsert = mutableListOf<SystemTtsGroup>()
+        val ttsToInsert = mutableListOf<SystemTtsV2>()
+        for (groupWithTts in list) {
+            val (group, ttsList) = groupWithTts
+            val (newGroupId, newOrder) = oldToNewGroupId[group.id]!!
+            groupsToInsert.add(group.copy(id = newGroupId, order = newOrder))
+            for (tts in ttsList) {
+                ttsToInsert.add(tts.copy(id = baseId + 100000 + ttsSeq, groupId = newGroupId))
+                ttsSeq++
+                imported++
+            }
         }
+        dbm.systemTtsV2.insertGroup(*groupsToInsert.toTypedArray())
+        dbm.systemTtsV2.insert(*ttsToInsert.toTypedArray())
     }
     return ListImportResult.Success(imported)
 }

@@ -1,0 +1,70 @@
+{
+    "version": "2.0.0",
+    "tasks": [
+        {
+            "label": "构建并安装到真机 (app debug)",
+            "type": "shell",
+            "command": ".\\gradlew.bat installAppDebug",
+            "options": {
+                "cwd": "${workspaceFolder}",
+                "env": {
+                    "JAVA_HOME": "D:\\JDK"
+                }
+            },
+            "group": { "kind": "build", "isDefault": true },
+            "problemMatcher": []
+        },
+        {
+            "label": "构建并安装到真机 (dev 共存版 debug)",
+            "type": "shell",
+            "command": ".\\gradlew.bat installDevDebug",
+            "options": {
+                "cwd": "${workspaceFolder}",
+                "env": {
+                    "JAVA_HOME": "D:\\JDK"
+                }
+            },
+            "group": "build",
+            "problemMatcher": []
+        },
+        {
+            "label": "只构建 APK (app debug)",
+            "type": "shell",
+            "command": ".\\gradlew.bat assembleAppDebug",
+            "options": {
+                "cwd": "${workspaceFolder}",
+                "env": {
+                    "JAVA_HOME": "D:\\JDK"
+                }
+            },
+            "group": "build",
+            "problemMatcher": []
+        },
+        {
+            "label": "编译检查 (同 CI)",
+            "type": "shell",
+            "command": ".\\gradlew.bat compileAppDebugKotlin --build-cache --warning-mode all",
+            "options": {
+                "cwd": "${workspaceFolder}",
+                "env": {
+                    "JAVA_HOME": "D:\\JDK"
+                }
+            },
+            "group": "build",
+            "problemMatcher": []
+        },
+        {
+            "label": "查看已连接设备 (adb devices)",
+            "type": "shell",
+            "command": "E:\\TTS\\AndroidSDK\\platform-tools\\adb.exe devices",
+            "problemMatcher": []
+        },
+        {
+            "label": "查看应用日志 (adb logcat)",
+            "type": "shell",
+            "command": "E:\\TTS\\AndroidSDK\\platform-tools\\adb.exe logcat -s TTS_SERVER:V AndroidRuntime:E *:F",
+            "isBackground": true,
+            "problemMatcher": []
+        }
+    ]
+}

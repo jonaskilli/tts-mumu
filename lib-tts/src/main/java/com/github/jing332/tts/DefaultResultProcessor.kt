@@ -162,7 +162,7 @@ internal class DefaultResultProcessor(
                     if (pcm != null) {
                         if (loudnessPcmCollector != null) {
                             val dup = pcm.duplicate()
-                            while (dup.hasRemaining()) loudnessPcmCollector.write(dup.get())
+                            while (dup.hasRemaining()) loudnessPcmCollector.write(dup.get().toInt())
                         }
                         callback.receive(pcm)
                     }
@@ -174,7 +174,7 @@ internal class DefaultResultProcessor(
                     val out = processor.output
                     if (loudnessPcmCollector != null && out.hasRemaining()) {
                         val dup = out.duplicate()
-                        while (dup.hasRemaining()) loudnessPcmCollector.write(dup.get())
+                        while (dup.hasRemaining()) loudnessPcmCollector.write(dup.get().toInt())
                     }
                     callback.receive(out)
                 } else {
@@ -183,7 +183,7 @@ internal class DefaultResultProcessor(
                         val out = processor.output
                         if (loudnessPcmCollector != null && out.hasRemaining()) {
                             val dup = out.duplicate()
-                            while (dup.hasRemaining()) loudnessPcmCollector.write(dup.get())
+                            while (dup.hasRemaining()) loudnessPcmCollector.write(dup.get().toInt())
                         }
                         callback.receive(out)
                     }

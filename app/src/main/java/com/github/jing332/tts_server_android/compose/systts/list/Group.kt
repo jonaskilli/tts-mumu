@@ -7,6 +7,7 @@ import androidx.compose.material.icons.automirrored.filled.DriveFileMove
 import androidx.compose.material.icons.filled.DriveFileRenameOutline
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.AccountTree
+import androidx.compose.material.icons.automirrored.filled.ExitToApp
 import androidx.compose.material.icons.automirrored.filled.Label
 import androidx.compose.material.icons.filled.Speed
 import androidx.compose.material3.DropdownMenuItem
@@ -52,6 +53,7 @@ fun Group(
     hasTagKeyword: Boolean = false,
     onBatchAssignTags: () -> Unit = {},
     onConvertToSubGroup: () -> Unit = {},
+    onConvertSubGroupsToTopLevel: () -> Unit = {},
     onExtractSubGroup: () -> Unit = {},
     onMoveSubGroups: () -> Unit = {},
     onDeleteEnabled: () -> Unit = {},
@@ -138,6 +140,7 @@ fun Group(
         isSelected = isSelected,
         onToggleSelect = onToggleSelect,
         itemCount = itemCount,
+        hasSubGroups = hasSubGroups,
         extraActions = { dismiss ->
             DropdownMenuItem(text = { Text("删除启用的配置") },
                 onClick = {
@@ -228,6 +231,19 @@ fun Group(
                     },
                     leadingIcon = {
                         Icon(Icons.AutoMirrored.Filled.DriveFileMove, null)
+                    }
+                )
+            }
+
+            // 转为一级分组：仅含子分组的一级分组显示，多选子分组各自转为独立一级分组
+            if (hasSubGroups) {
+                DropdownMenuItem(text = { Text("转为一级分组") },
+                    onClick = {
+                        dismiss()
+                        onConvertSubGroupsToTopLevel()
+                    },
+                    leadingIcon = {
+                        Icon(Icons.AutoMirrored.Filled.ExitToApp, null)
                     }
                 )
             }

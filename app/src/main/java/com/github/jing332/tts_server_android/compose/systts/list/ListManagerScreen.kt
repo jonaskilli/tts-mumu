@@ -60,6 +60,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.withFrameNanos
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.state.ToggleableState
 import androidx.compose.runtime.setValue
@@ -651,6 +652,46 @@ internal fun ListManagerScreen(
         SystemTtsService.notifyUpdateConfig()
     }
 
+    /**
+     * 第4项: 把源一级分组中选中的子分组各自转为独立的一级分组。
+     * - 每个子分组新建一级分组(名称为子分组名), 配置项移入且 categoryPath 清空
+     * - 子分组音频参数从源分组 subGroupAudioParamsJson 迁出到新分组 audioParams
+     */
+    suspend fun convertSubGroupsToTopLevel(
+        sourceGroup: SystemTtsGroup,
+        items: List<SystemTtsV2>,
+        paths: Set<String>,
+    ) {
+        if (paths.isEmpty()) return
+        val subMap = sourceGroup.subGroupAudioParamsJson.let { jsonStr ->
+            if (jsonStr.isBlank() || jsonStr == "{}") emptyMap()
+            else SystemTtsV2.Converters.json.decodeFromString<Map<String, AudioParams>>(jsonStr)
+        }.toMutableMap()
+        val updates = mutableListOf<SystemTtsV2>()
+        paths.forEach { path ->
+            val audioParamsForNewGroup = subMap.remove(path) ?: AudioParams()
+            val groupName = path.substringAfterLast('/')
+            val newGroup = SystemTtsGroup(
+                id = System.currentTimeMillis(),
+                name = groupName,
+                audioParams = audioParamsForNewGroup
+            )
+            dbm.systemTtsV2.insertGroup(newGroup)
+            items.filter { it.categoryPath == path }.forEach { item ->
+                updates.add(item.copy(groupId = newGroup.id, categoryPath = ""))
+            }
+        }
+        if (updates.isNotEmpty()) {
+            dbm.systemTtsV2.update(*updates.toTypedArray())
+        }
+        // 从源分组移除已转出的子分组参数（仅当确有变更时写入，避免无谓更新）
+        val newSubJson = SystemTtsV2.Converters.json.encodeToString(subMap)
+        if (newSubJson != sourceGroup.subGroupAudioParamsJson) {
+            dbm.systemTtsV2.updateGroup(sourceGroup.copy(subGroupAudioParamsJson = newSubJson))
+        }
+        SystemTtsService.notifyUpdateConfig()
+    }
+
     var hasShownTip by rememberSaveable { mutableStateOf(false) }
 
     var showCreateSubGroup by remember { mutableStateOf<Long?>(null) }
@@ -870,6 +911,9 @@ internal fun ListManagerScreen(
     // Pair<源一级分组, 预选子分组路径(null=不预选)>
     var showMoveSubGroupsDialog by remember { mutableStateOf<Pair<SystemTtsGroup, String?>?>(null) }
     var showMoveSingleSubGroupDialog by remember { mutableStateOf<Pair<SystemTtsGroup, String>?>(null) }
+
+    // 第4项: 含子分组的一级分组菜单"转为一级分组"——多选子分组, 各自转为独立一级分组
+    var showConvertSubGroupsToTopLevel by remember { mutableStateOf<SystemTtsGroup?>(null) }
 
     // 长按菜单：重新分配标签（输入前缀，从01开始）
     var showReassignTagDialog by remember { mutableStateOf<GroupWithSystemTts?>(null) }
@@ -1357,6 +1401,119 @@ internal fun ListManagerScreen(
         )
     }
 
+    // 第4项: 含子分组的一级分组菜单"转为一级分组"——多选子分组, 各自转为独立一级分组
+    if (showConvertSubGroupsToTopLevel != null) {
+        val sourceGroup = showConvertSubGroupsToTopLevel!!
+        val sourceGwt = models.find { it.group.id == sourceGroup.id }
+        val subPaths = remember(sourceGwt) {
+            sourceGwt?.list
+                ?.map { it.categoryPath }
+                ?.filter { it.isNotBlank() }
+                ?.distinct()
+                ?.sorted()
+                ?: emptyList()
+        }
+        var selectedPaths by remember(sourceGroup.id) { mutableStateOf<Set<String>>(emptySet()) }
+        val allSelected = subPaths.isNotEmpty() && selectedPaths.size == subPaths.size
+
+        AlertDialog(
+            onDismissRequest = { showConvertSubGroupsToTopLevel = null },
+            properties = androidx.compose.ui.window.DialogProperties(usePlatformDefaultWidth = false),
+            modifier = Modifier.fillMaxWidth(0.92f),
+            title = { Text("转为一级分组") },
+            text = {
+                Column(modifier = Modifier.fillMaxWidth()) {
+                    Text(
+                        text = "勾选子分组，每个选中的子分组将转为独立的一级分组（含其配置项与音频参数）",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(bottom = 8.dp)
+                            .heightIn(max = 60.dp)
+                            .verticalScroll(rememberScrollState())
+                    )
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .heightIn(max = 300.dp)
+                            .verticalScroll(rememberScrollState())
+                    ) {
+                        // 全选 / 取消全选
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable {
+                                    selectedPaths = if (allSelected) emptySet() else subPaths.toSet()
+                                }
+                                .padding(vertical = 4.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            TriStateCheckbox(
+                                state = if (allSelected) ToggleableState.On
+                                else if (selectedPaths.isEmpty()) ToggleableState.Off
+                                else ToggleableState.Indeterminate,
+                                onClick = {
+                                    selectedPaths = if (allSelected) emptySet() else subPaths.toSet()
+                                }
+                            )
+                            Text("全选", modifier = Modifier.padding(start = 8.dp))
+                        }
+                        HorizontalDivider()
+
+                        subPaths.forEach { path ->
+                            val checked = path in selectedPaths
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clickable {
+                                        selectedPaths = if (checked) selectedPaths - path
+                                        else selectedPaths + path
+                                    }
+                                    .padding(vertical = 2.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Checkbox(
+                                    checked = checked,
+                                    onCheckedChange = {
+                                        selectedPaths = if (it) selectedPaths + path
+                                        else selectedPaths - path
+                                    }
+                                )
+                                Text(path, modifier = Modifier.padding(start = 8.dp))
+                            }
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(
+                    enabled = selectedPaths.isNotEmpty(),
+                    onClick = {
+                        // 立即关闭弹窗 + 显示加载遮罩
+                        showConvertSubGroupsToTopLevel = null
+                        showTagOrganizeLoading = true
+                        scope.launch {
+                            withIO {
+                                convertSubGroupsToTopLevel(
+                                    sourceGroup = sourceGroup,
+                                    items = sourceGwt?.list ?: emptyList(),
+                                    paths = selectedPaths
+                                )
+                            }
+                            showTagOrganizeLoading = false
+                        }
+                    }
+                ) { Text("转为一级分组") }
+            },
+            dismissButton = {
+                TextButton(onClick = { showConvertSubGroupsToTopLevel = null }) {
+                    Text(stringResource(R.string.cancel))
+                }
+            }
+        )
+    }
+
     var showTagClearDialog by remember { mutableStateOf<SystemTtsV2?>(null) }
     if (showTagClearDialog != null) {
         val systts = showTagClearDialog!!
@@ -1776,15 +1933,17 @@ internal fun ListManagerScreen(
                                 },
                                 onClick = {
                                     val wasExpanded = g.isExpanded
+                                    vm.toggleGroupExpanded(g)
                                     if (!wasExpanded) {
                                         scope.launch {
+                                            // 等待重组完成后再用新布局索引滚动，避免并发导致跳位
+                                            withFrameNanos { }
                                             val headerIndex = listState.layoutInfo.visibleItemsInfo.find { it.key == key }?.index
                                             if (headerIndex != null) {
                                                 listState.animateScrollToItem(headerIndex)
                                             }
                                         }
                                     }
-                                    vm.toggleGroupExpanded(g)
                                 },
                                 onDelete = {
                                     scope.launch {
@@ -1863,6 +2022,10 @@ internal fun ListManagerScreen(
                                     // 第3项: 一级分组"移动子分组", 进入多选移动子分组对话框(不预选)
                                     showMoveSubGroupsDialog = g to null
                                 },
+                                onConvertSubGroupsToTopLevel = {
+                                    // 第4项: 一级分组"转为一级分组", 多选子分组转为独立一级分组
+                                    showConvertSubGroupsToTopLevel = g
+                                },
                                 onResortTagsByExisting = {
                                     showTagOrganizeLoading = true
                                     scope.launch {
@@ -1925,7 +2088,9 @@ internal fun ListManagerScreen(
 
                         if (!hasSubGroups) {
                             // 无子分组时保持原有扁平渲染（支持拖拽排序）
-                            if (groupWithSystemTts.list.isEmpty()) {
+                            // LazyListScope 内不能调用 remember；按 order 直接排序（仅在重组时执行一次）
+                            val sortedList = groupWithSystemTts.list.sortedBy { it.order }
+                            if (sortedList.isEmpty()) {
                                 // 空的一级分组也作为正常分组处理：展开时显示占位提示，明确其为可用状态
                                 item(key = "empty_${g.id}") {
                                     Text(
@@ -1938,7 +2103,7 @@ internal fun ListManagerScreen(
                                     )
                                 }
                             }
-                            itemsIndexed(groupWithSystemTts.list.sortedBy { it.order },
+                            itemsIndexed(sortedList,
                                 key = { _, v -> "${g.id}_${v.id}" }) { _, item ->
                                 ShadowedDraggableItem(
                                     reorderableState = reorderState,
@@ -2100,9 +2265,14 @@ internal fun ListManagerScreen(
                                             }
                                         }
 
-                                        // 子分组头不置顶：仅一级分组名 sticky 置顶，子分组随列表滚动。
-                                        // 避免一级+子分组双置顶导致视觉混乱。
-                                        item(key = subKey) { headerContent() }
+                                        // 子分组头展开时置顶：一级分组 stickyHeader 下方实现双置顶，
+                                        // 下滑浏览子分组内配置项时随时可见、可点击折叠；
+                                        // 折叠后改回普通 item，随列表正常滚动，避免折叠后仍钉在顶部。
+                                        if (expandedSubGroups.contains(fItem.node.fullPath)) {
+                                            stickyHeader(key = subKey) { headerContent() }
+                                        } else {
+                                            item(key = subKey) { headerContent() }
+                                        }
                                     }
                                     is FlattenedCategoryItem.TtsItem -> {
                                         // 根目录配置项(不属于任何子分组)且之前有子分组:插入分隔标题以区分

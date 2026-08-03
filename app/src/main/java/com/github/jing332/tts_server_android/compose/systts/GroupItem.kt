@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.AccountTree
 import androidx.compose.material.icons.filled.DeleteForever
 import androidx.compose.material.icons.filled.ExpandCircleDown
 import androidx.compose.material.icons.filled.MoreVert
@@ -68,6 +69,8 @@ fun GroupItem(
     isSelected: Boolean = false,
     onToggleSelect: () -> Unit = {},
     itemCount: Int = -1,
+    // 是否含子分组：用于视觉区分含子分组/不含子分组的一级分组
+    hasSubGroups: Boolean = false,
     actions: @Composable ColumnScope.(() -> Unit) -> Unit,
     extraActions: (@Composable ColumnScope.(() -> Unit) -> Unit)? = null,
     // 多选模式下点击分组名/行是否切换选中：true=点击行选中(系统TTS默认), false=仅右侧方框选中, 点击名/行展开(替换规则)
@@ -150,6 +153,18 @@ fun GroupItem(
                 .align(Alignment.CenterVertically)
                 .weight(1f)
         )
+        // 含子分组的一级分组：标题旁显示子分组图标作为视觉区分
+        if (hasSubGroups) {
+            Icon(
+                imageVector = Icons.Default.AccountTree,
+                contentDescription = "含子分组",
+                modifier = Modifier
+                    .align(Alignment.CenterVertically)
+                    .size(18.dp)
+                    .padding(end = 4.dp),
+                tint = MaterialTheme.colorScheme.primary
+            )
+        }
         if (itemCount >= 0) {
             Text(
                 "($itemCount)",

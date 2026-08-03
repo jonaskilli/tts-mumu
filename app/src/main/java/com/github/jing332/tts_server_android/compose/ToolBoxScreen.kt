@@ -46,13 +46,18 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.drake.net.utils.withIO
 import com.github.jing332.common.utils.toast
+import com.github.jing332.compose.widgets.LoadingDialog
 import com.github.jing332.database.dbm
 import com.github.jing332.database.entities.systts.SystemTtsV2
 import com.github.jing332.database.entities.systts.TtsConfigurationDTO
 import com.github.jing332.database.entities.systts.source.PluginTtsSource
 import com.github.jing332.tts_server_android.R
 import com.github.jing332.tts_server_android.compose.nav.NavTopAppBar
+import com.github.jing332.tts_server_android.conf.SpeechRuleConfig
+import com.github.jing332.tts_server_android.constant.SpeechTarget
+import com.github.jing332.tts_server_android.model.rhino.speech_rule.SpeechRuleEngine
 import com.github.jing332.tts_server_android.compose.systts.list.ui.PluginTtsUI
 import com.github.jing332.tts_server_android.compose.systts.speechrule.SpeechRuleManagerActivity
 import kotlinx.coroutines.Dispatchers
@@ -63,9 +68,16 @@ import kotlinx.coroutines.launch
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ToolBoxScreen(sharedVM: SharedViewModel) {
-    // 角色管理插件：按 pluginId 查找
-    val plugin = remember { dbm.pluginDao.getByPluginId("mingwuyan") }
+    // 角色管理插件：优先按固定 id 查找；兼容插件换 pluginId 后按名称回退
+    val plugin = remember {
+        dbm.pluginDao.getByPluginId("mingwuyan")
+            ?: dbm.pluginDao.getAllWithoutCode().firstOrNull {
+                it.name.contains("角色管理") || it.pluginId.contains("mingwuyan")
+            }
+    }
     val isRoleManagementPlugin = plugin != null
+    // 插件当前实际 id（兼容换 id 后配置项已一键更新的场景）
+    val rolePluginId = remember(plugin) { plugin?.pluginId ?: "mingwuyan" }
 
     val flow = remember { dbm.systemTtsV2.flowAllGroupWithTts().conflate() }
     val groups by flow.collectAsStateWithLifecycle(emptyList())
@@ -73,13 +85,15 @@ fun ToolBoxScreen(sharedVM: SharedViewModel) {
     // 查找角色管理插件(mingwuyan)配置项：本栏专为外置角色管理 UI 而设，全局只应有一个。
     // 优先取已开启 isUiOnly 的；没有则取任意一个（用于顶栏开关目标）。
     // 用 minByOrNull(id) 保证 flow 重发时不漂移。
-    val mingwuyanTts = remember(groups, isRoleManagementPlugin) {
+    val mingwuyanTts = remember(groups, isRoleManagementPlugin, rolePluginId) {
         if (!isRoleManagementPlugin) null
         else groups.flatMap { it.list }
             .filter { tts ->
                 val config = tts.config
                 config is TtsConfigurationDTO &&
-                    (config.source as? PluginTtsSource)?.pluginId == "mingwuyan"
+                    ((config.source as? PluginTtsSource)?.pluginId == rolePluginId ||
+                        // 兼容尚未一键更新、仍引用旧 id 的配置项
+                        (config.source as? PluginTtsSource)?.pluginId == "mingwuyan")
             }
             .minByOrNull { it.id }
     }
@@ -88,7 +102,7 @@ fun ToolBoxScreen(sharedVM: SharedViewModel) {
     }
 
     // 本地编辑状态：仅在 uiOnly 配置项出现/消失/切换 id 时更新，
-    // 不随 flow 抖动重置，避免用户在 ToolBox 内编辑时 UI 重建丢失插件 UI
+    // 不随 flow 抖动重置，避免用户在角色管理栏内编辑时 UI 重建丢失插件 UI
     var currentTts by remember { mutableStateOf<SystemTtsV2?>(null) }
     LaunchedEffect(uiOnlyTts?.id) {
         if (uiOnlyTts == null) {
@@ -255,6 +269,41 @@ fun ToolBoxScreen(sharedVM: SharedViewModel) {
                     }
                 }
 
+                // 自动刷新：启用配置项签名变化（增删/改名/改标签/换分组）时，
+                // 后台自动运行朗读规则重新生成角色/性格文件，确保打开角色列表时与前台配置一致。
+                // 首次进入也执行一次（lastSig 初始为 null），保证文件始终为最新状态。
+                val enabledSig = remember(groups) {
+                    groups.flatMap { it.list }
+                        .filter { it.isEnabled }
+                        .map { it.id to (it.config as? TtsConfigurationDTO)?.speechRule?.tagName to it.order }
+                        .hashCode()
+                }
+                var lastSig by remember { mutableStateOf<Int?>(null) }
+                // 角色文件就绪前先显示加载遮罩，避免插件 UI 先读到旧文件再重建闪烁
+                var roleFilesReady by remember { mutableStateOf(false) }
+                LaunchedEffect(enabledSig, activeTts.id) {
+                    if (lastSig != enabledSig) {
+                        lastSig = enabledSig
+                        roleFilesReady = false
+                        withIO {
+                            runCatching {
+                                val rule = dbm.speechRuleDao.getByRuleIdAll("mingwuyan")
+                                if (rule != null) {
+                                    val engine = SpeechRuleEngine(context, rule)
+                                    engine.eval()
+                                    val rules = dbm.systemTtsV2.getEnabledListForSort(SpeechTarget.TAG).map {
+                                        (it.config as TtsConfigurationDTO).speechRule.apply { configId = it.id }
+                                    }
+                                    engine.handleText(SpeechRuleConfig.textParam.value, rules)
+                                }
+                            }
+                        }
+                        roleFilesReady = true
+                    } else {
+                        roleFilesReady = true
+                    }
+                }
+
                 // 运行朗读规则后回到本页（ON_RESUME）时重建插件 UI，刷新角色列表标签
                 // 跳过首次 ON_RESUME（首次进入由 LaunchedEffect 初始加载，避免重复 load）
                 var reloadKey by remember { mutableIntStateOf(0) }
@@ -274,20 +323,24 @@ fun ToolBoxScreen(sharedVM: SharedViewModel) {
                     onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
                 }
 
-                val ui = remember { PluginTtsUI() }
-                ui.EditContentScreen(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(paddingValues)
-                        .verticalScroll(rememberScrollState()),
-                    systts = systts,
-                    onSysttsChange = { systts = it },
-                    showBasicInfo = false,
-                    plugin = plugin,
-                    showPluginSelector = false,
-                    showUiOnlySwitch = false,
-                    reloadKey = reloadKey,
-                )
+                if (roleFilesReady) {
+                    val ui = remember { PluginTtsUI() }
+                    ui.EditContentScreen(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .padding(paddingValues)
+                            .verticalScroll(rememberScrollState()),
+                        systts = systts,
+                        onSysttsChange = { systts = it },
+                        showBasicInfo = false,
+                        plugin = plugin,
+                        showPluginSelector = false,
+                        showUiOnlySwitch = false,
+                        reloadKey = reloadKey,
+                    )
+                } else {
+                    LoadingDialog(onDismissRequest = {})
+                }
             }
             else -> {
                 // 插件已安装但未开启仅界面模式

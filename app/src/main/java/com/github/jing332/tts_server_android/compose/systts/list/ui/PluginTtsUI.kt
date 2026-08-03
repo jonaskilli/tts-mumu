@@ -320,6 +320,11 @@ class PluginTtsUI : IConfigUI() {
             }
 
         Column(modifier) {
+            // 仅界面模式开关仅对角色管理类插件显示：兼容插件换 pluginId 后按名称回退识别
+            val isRoleManagementPlugin = remember(tts.pluginId) {
+                tts.pluginId == "mingwuyan" ||
+                    dbm.pluginDao.getByPluginId(tts.pluginId)?.name?.contains("角色管理") == true
+            }
             Column(
                 Modifier
                     .fillMaxWidth()
@@ -332,8 +337,8 @@ class PluginTtsUI : IConfigUI() {
                         onSystemTtsChange = onSysttsChange
                     )
 
-                // 仅界面模式开关：仅角色管理插件(mingwuyan)可开启，开启后工具箱显示此配置项编辑页
-                if (showUiOnlySwitch && tts.pluginId == "mingwuyan") {
+                // 仅界面模式开关：仅角色管理插件(mingwuyan)可开启，开启后角色管理栏显示此配置项编辑页
+                if (showUiOnlySwitch && isRoleManagementPlugin) {
                     Row(
                         Modifier
                             .fillMaxWidth()

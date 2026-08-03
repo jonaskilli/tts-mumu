@@ -75,6 +75,8 @@ import com.github.jing332.compose.widgets.AppDialog
 import com.github.jing332.compose.widgets.ShadowedDraggableItem
 import com.github.jing332.database.dbm
 import com.github.jing332.database.entities.plugin.Plugin
+import com.github.jing332.database.entities.systts.TtsConfigurationDTO
+import com.github.jing332.database.entities.systts.source.PluginTtsSource
 import com.github.jing332.script.JsMetadataSyncer
 import com.github.jing332.tts_server_android.R
 import com.github.jing332.tts_server_android.compose.AppDefaultProperties
@@ -619,6 +621,11 @@ private fun Item(
             var editAuthor by remember(p?.id) { mutableStateOf(p?.author ?: "") }
             var editVersion by remember(p?.id) { mutableStateOf(p?.version?.toString() ?: "") }
 
+            // 第3项: 插件 pluginId 变更后, 若存在引用旧 id 的配置项, 弹窗提示一键更新为新 id
+            // Triple<旧 pluginId, 新 pluginId, 受影响配置项数量>
+            var pendingPluginIdUpdate by remember(p?.id) { mutableStateOf<Triple<String, String, Int>?>(null) }
+            val itemScope = rememberCoroutineScope()
+
             androidx.compose.animation.AnimatedVisibility(
                 visible = expanded && !isSelectionMode && p != null,
                 enter = androidx.compose.animation.expandVertically() + androidx.compose.animation.fadeIn(),
@@ -684,12 +691,77 @@ private fun Item(
                                 )
                             )
                             expanded = false
+
+                            // 第3项: pluginId 变更后, 检测引用旧 id 的配置项并提示一键更新
+                            if (editPluginId != cur.pluginId) {
+                                val oldId = cur.pluginId
+                                val newId = editPluginId
+                                itemScope.launch {
+                                    val count = withIO {
+                                        dbm.systemTtsV2.getAllGroupWithTts()
+                                            .flatMap { it.list }
+                                            .count { tts ->
+                                                val config = tts.config
+                                                config is TtsConfigurationDTO &&
+                                                    (config.source as? PluginTtsSource)?.pluginId == oldId
+                                            }
+                                    }
+                                    if (count > 0) {
+                                        pendingPluginIdUpdate = Triple(oldId, newId, count)
+                                    }
+                                }
+                            }
                         },
                         modifier = Modifier.align(Alignment.End)
                     ) {
                         Text(stringResource(id = R.string.save))
                     }
                 }
+            }
+
+            // 第3项: 一键更新引用旧 pluginId 的配置项到新 id
+            pendingPluginIdUpdate?.let { (oldId, newId, count) ->
+                AppDialog(
+                    onDismissRequest = { pendingPluginIdUpdate = null },
+                    title = { Text("插件 id 已变更") },
+                    content = {
+                        Text(
+                            "插件 pluginId 已由「$oldId」改为「$newId」。\n" +
+                                "检测到 $count 个配置项仍引用旧 id，是否一键更新为新 id？"
+                        )
+                    },
+                    buttons = {
+                        TextButton(onClick = { pendingPluginIdUpdate = null }) {
+                            Text("暂不")
+                        }
+                        TextButton(onClick = {
+                            val pending = pendingPluginIdUpdate!!
+                            pendingPluginIdUpdate = null
+                            itemScope.launch {
+                                withIO {
+                                    dbm.systemTtsV2.getAllGroupWithTts()
+                                        .flatMap { it.list }
+                                        .forEach { tts ->
+                                            val config = tts.config
+                                            if (config is TtsConfigurationDTO) {
+                                                val src = config.source
+                                                if (src is PluginTtsSource && src.pluginId == pending.first) {
+                                                    dbm.systemTtsV2.update(
+                                                        tts.copy(
+                                                            config = config.copy(source = src.copy(pluginId = pending.second))
+                                                        )
+                                                    )
+                                                }
+                                            }
+                                        }
+                                }
+                                SystemTtsService.notifyUpdateConfig()
+                            }
+                        }) {
+                            Text("一键更新")
+                        }
+                    }
+                )
             }
 
             if (needSetVars && !isSelectionMode)
