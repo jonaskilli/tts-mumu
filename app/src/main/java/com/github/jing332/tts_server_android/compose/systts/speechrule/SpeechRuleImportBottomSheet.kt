@@ -32,7 +32,6 @@ fun SpeechRuleImportBottomSheet(onDismissRequest: () -> Unit) {
         onImport = { json ->
             // 自动识别 JSON 类型并直接导入，无需手动选择/确认
             importing = true
-            context.toast(R.string.import_in_progress)
             scope.launch {
                 val result = withIO { doAutoImport(json) }
                 importing = false
@@ -44,7 +43,7 @@ fun SpeechRuleImportBottomSheet(onDismissRequest: () -> Unit) {
                         context.longToast(R.string.import_truncated_hint, result.detail)
                     }
                     is AutoImportResult.Success -> {
-                        context.longToast("已导入 ${result.count} 项${result.typeName}")
+                        context.toast("已导入 ${result.count} 项${result.typeName}")
                         onDismissRequest()
                     }
                 }

@@ -49,7 +49,6 @@ fun ListImportBottomSheet(onDismissRequest: () -> Unit) {
         onImport = { json ->
             // 自识别 JSON 类型并直接导入，无需手动选择/确认
             importing = true
-            context.toast(R.string.import_in_progress)
             scope.launch {
                 val result = withIO { doAutoImport(json) }
                 importing = false
@@ -66,7 +65,7 @@ fun ListImportBottomSheet(onDismissRequest: () -> Unit) {
                         if (result.type == ImportType.LIST) {
                             SystemTtsService.notifyUpdateConfig()
                         }
-                        context.longToast("已导入 ${result.count} 项${result.typeName}")
+                        context.toast("已导入 ${result.count} 项${result.typeName}")
                         onDismissRequest()
                     }
                 }
