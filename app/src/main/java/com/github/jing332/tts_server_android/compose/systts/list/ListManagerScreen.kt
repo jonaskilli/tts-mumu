@@ -87,7 +87,6 @@ import com.github.jing332.compose.widgets.LazyListIndexStateSaver
 import com.github.jing332.compose.widgets.ShadowedDraggableItem
 import com.github.jing332.compose.widgets.TextFieldDialog
 import com.github.jing332.database.dbm
-import com.github.jing332.database.entities.AbstractListGroup
 import com.github.jing332.database.entities.systts.BgmConfiguration
 import com.github.jing332.database.entities.systts.GroupWithSystemTts
 import com.github.jing332.database.entities.systts.AudioParams
@@ -108,7 +107,6 @@ import com.github.jing332.tts_server_android.compose.nav.NavRoutes
 import com.github.jing332.tts_server_android.compose.nav.NavTopAppBar
 import com.github.jing332.tts_server_android.compose.systts.AuditionDialog
 import com.github.jing332.tts_server_android.compose.systts.ConfigDeleteDialog
-import com.github.jing332.tts_server_android.compose.systts.ConfigExportBottomSheet
 import com.github.jing332.tts_server_android.compose.systts.list.ui.ItemDescriptorFactory
 import com.github.jing332.tts_server_android.compose.systts.list.ui.widgets.QuickEditBottomSheet
 import com.github.jing332.tts_server_android.compose.systts.list.ui.widgets.TagDataClearConfirmDialog
@@ -1659,34 +1657,6 @@ internal fun ListManagerScreen(
         ListExportBottomSheet(onDismissRequest = { showGroupExportSheet = null }, list = list)
     }
 
-    var showExportSheet by remember { mutableStateOf<List<SystemTtsV2>?>(null) }
-    if (showExportSheet != null) {
-        // 第9项: 序列化移到 IO 线程, 避免大列表导出时主线程卡顿。
-        val exportList = showExportSheet!!
-        var jStr by remember(exportList) { mutableStateOf<String?>(null) }
-        LaunchedEffect(exportList) {
-            jStr = withContext(Dispatchers.IO) {
-                AppConst.jsonBuilder.encodeToString(exportList)
-            }
-        }
-        val s = jStr
-        if (s == null) {
-            // 加载状态放进 ModalBottomSheet 内, 避免全屏灰色遮罩
-            ModalBottomSheet(onDismissRequest = { showExportSheet = null }) {
-                Box(
-                    Modifier
-                        .fillMaxWidth()
-                        .height(120.dp)
-                        .wrapContentSize(Alignment.Center)
-                ) {
-                    CircularProgressIndicator()
-                }
-            }
-        } else {
-            ConfigExportBottomSheet(json = s) { showExportSheet = null }
-        }
-    }
-
     var addPluginDialog by remember { mutableStateOf(false) }
     if (addPluginDialog) {
         PluginSelectionDialog(onDismissRequest = { addPluginDialog = false }) {
@@ -2145,8 +2115,8 @@ internal fun ListManagerScreen(
                                                 context.toast(R.string.not_support_audition)
                                         },
                                         onExport = {
-                                            showExportSheet =
-                                                listOf(item.copy(groupId = AbstractListGroup.DEFAULT_GROUP_ID))
+                                            showGroupExportSheet =
+                                                listOf(GroupWithSystemTts(g, listOf(item)))
                                         },
                                         onMoveToSubGroup = {
                                             showMoveToSubGroup = item
@@ -2247,9 +2217,8 @@ internal fun ListManagerScreen(
                                                         }
                                                     },
                                                     onExport = {
-                                                        showExportSheet = subItems.map {
-                                                            it.copy(groupId = AbstractListGroup.DEFAULT_GROUP_ID)
-                                                        }
+                                                        showGroupExportSheet =
+                                                            listOf(GroupWithSystemTts(g, subItems))
                                                     },
                                                     onExtractToGroup = {
                                                         showSubGroupExtractToGroup = g to fItem.node.fullPath
@@ -2341,8 +2310,8 @@ internal fun ListManagerScreen(
                                                     },
                                                     isInSubGroup = fItem.displayLevel > 0,
                                                     onExport = {
-                                                        showExportSheet =
-                                                            listOf(item.copy(groupId = AbstractListGroup.DEFAULT_GROUP_ID))
+                                                        showGroupExportSheet =
+                                                            listOf(GroupWithSystemTts(g, listOf(item)))
                                                     },
                                                     onMoveToSubGroup = {
                                                         showMoveToSubGroup = item
