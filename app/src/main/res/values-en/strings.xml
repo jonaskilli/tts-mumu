@@ -235,6 +235,9 @@
     <string name="systts_log_replace_failed">Failed to execute replace: %1$s</string>
     <string name="systts_standby_triggered_retry_index">Standby Settings</string>
     <string name="systts_standby_triggered_retry_index_summary">Standby configuration fires on how many retries? Defaults to 3, i.e. the alternate configuration is used on the 3rd retry.</string>
+    <string name="systts_global_standby_tts">Global Standby Voice</string>
+    <string name="systts_global_standby_tts_summary">Configs without a same-tag standby will fall back to this voice when the standby condition is met. Configs with a same-tag standby are not affected.</string>
+    <string name="systts_global_standby_tts_none">Not set</string>
     <string name="systts_ms_webm_warn_msg">After testing, the actual traffic consumption of webm…-24kbps… is more than three times its audio size, so it is not recommended!</string>
     <string name="search_filter">Filter search</string>
     <string name="follow_system">Follow system</string>

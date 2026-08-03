@@ -25,6 +25,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.util.fastRoundToInt
 import com.github.jing332.compose.widgets.TextFieldDialog
+import com.github.jing332.database.dbm
 import com.github.jing332.tts_server_android.R
 import com.github.jing332.tts_server_android.conf.AppConfig
 import com.github.jing332.tts_server_android.conf.SystemTtsConfig
@@ -170,6 +171,36 @@ internal fun ColumnScope.SysttsSettingsScreen(modifier: Modifier = Modifier) {
         steps = 9,
         icon = { Icon(Icons.Default.Repeat, null) },
         label = standbyTriggeredIndexValue
+    )
+
+    var globalStandbyId by remember { SystemTtsConfig.standbyGlobalTtsId }
+    var globalStandbyMenuExpanded by remember { mutableStateOf(false) }
+    val enabledTtsList = remember { dbm.systemTtsV2.allEnabled }
+    val globalStandbyDisplayName = enabledTtsList.find { it.id == globalStandbyId }?.displayName
+    DropdownPreference(
+        expanded = globalStandbyMenuExpanded,
+        onExpandedChange = { globalStandbyMenuExpanded = it },
+        icon = { Icon(Icons.Default.Headset, null) },
+        title = { Text(stringResource(id = R.string.systts_global_standby_tts)) },
+        subTitle = { Text(globalStandbyDisplayName ?: stringResource(id = R.string.systts_global_standby_tts_none)) },
+        actions = {
+            DropdownMenuItem(
+                text = { Text(stringResource(id = R.string.systts_global_standby_tts_none)) },
+                onClick = {
+                    globalStandbyMenuExpanded = false
+                    globalStandbyId = 0L
+                }
+            )
+            enabledTtsList.forEach { tts ->
+                DropdownMenuItem(
+                    text = { Text(tts.displayName) },
+                    onClick = {
+                        globalStandbyMenuExpanded = false
+                        globalStandbyId = tts.id
+                    }
+                )
+            }
+        }
     )
 
 

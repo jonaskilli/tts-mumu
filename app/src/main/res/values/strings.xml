@@ -270,6 +270,9 @@
     <string name="systts_log_replace_failed">执行替换失败：%1$s</string>
     <string name="systts_standby_triggered_retry_index">备用配置使用条件</string>
     <string name="systts_standby_triggered_retry_index_summary">备用配置在第几次重试时触发？默认为3，即备用配置在第3次重试时使用。</string>
+    <string name="systts_global_standby_tts">全局备用发音人</string>
+    <string name="systts_global_standby_tts_summary">未单独设置同标签备用的配置，在达到备用条件时使用此发音人兜底。已设同标签备用的配置不受影响。</string>
+    <string name="systts_global_standby_tts_none">未设置</string>
     <string name="systts_ms_webm_warn_msg">⚠️经测试，音频格式 webm..-24kbps-.. 的实际所耗流量是其音频大小的三倍有余，不推荐使用！</string>
     <string name="search_filter">搜索过滤</string>
     <string name="follow_system">跟随系统</string>

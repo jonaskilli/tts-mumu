@@ -238,6 +238,9 @@
     <string name="systts_log_replace_failed">جایگزینی انجام نشد: %1$s</string>
     <string name="systts_standby_triggered_retry_index">شرایط استفاده از پیکربندی جایگزین</string>
     <string name="systts_standby_triggered_retry_index_summary">در چند بار تلاش مجدد، پیکربندی پشتیبان فعال می شود؟ پیش‌فرض 3 است، به این معنی که در تلاش مجدد سوم، از پیکربندی پشتیبان استفاده می‌شود.</string>
+    <string name="systts_global_standby_tts">صدای پشتیبان جهانی</string>
+    <string name="systts_global_standby_tts_summary">پیکربندی‌هایی بدون پشتیبان هم‌برچسب، در صورت تحقق شرایط پشتیبان، به این صدا بازمی‌گردند. پیکربندی‌های دارای پشتیبان هم‌برچسب تحت تأثیر قرار نمی‌گیرند.</string>
+    <string name="systts_global_standby_tts_none">تنظیم نشده</string>
     <string name="systts_ms_webm_warn_msg">⚠️پس از تست، ترافیک واقعی مصرف شده توسط فرمت صوتی webm..-24kbps-.. بیش از سه برابر حجم صداست توصیه نمی شود!</string>
     <string name="search_filter">فیلتر جستجو</string>
     <string name="follow_system">سیستم را دنبال کنید</string>

@@ -59,6 +59,15 @@ internal class TtsRepository(
                     val config = it.config as TtsConfigurationDTO
                     config.toVO().copy(tag = it)
                 }
+
+        // 全局备用发音人：未单独设置同标签备用的配置在重试阈值时用它兜底
+        val globalStandbyId = context.cfg.globalStandbyId()
+        val globalStandby = if (globalStandbyId > 0) {
+            dbm.systemTtsV2.get(globalStandbyId)?.let { systts ->
+                (systts.config as? TtsConfigurationDTO)?.let { cfg -> cfg.toVO().copy(tag = systts) }
+            }
+        } else null
+
         for (group in groupWithTts) {
             val gp = group.group.audioParams
             val subGroupMap: Map<String, AudioParams> = group.group.subGroupAudioParamsJson.let { jsonStr ->
@@ -74,6 +83,9 @@ internal class TtsRepository(
                             it.speechInfo.tagRuleId == c.speechRule.tagRuleId &&
                             it.speechInfo.tagName == c.speechRule.tagName
                 }
+                // 同标签备用优先；未设同标签备用时用全局备用兜底（全局备用自身不再注入备用，避免自引用）
+                val effectiveStandby = standby
+                    ?: if (globalStandby != null && tts.id != globalStandbyId) globalStandby else null
 
                 // 获取插件级音频参数（新增）
                 val pluginParams = (c.source as? com.github.jing332.database.entities.systts.source.PluginTtsSource)?.let {
@@ -99,7 +111,7 @@ internal class TtsRepository(
                     ),
                     audioFormat = c.audioFormat,
                     source = c.source,
-                    standbyConfig = standby,
+                    standbyConfig = effectiveStandby,
                     tag = tts
                 )
             }

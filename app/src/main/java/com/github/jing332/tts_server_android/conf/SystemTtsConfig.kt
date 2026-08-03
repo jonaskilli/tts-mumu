@@ -130,6 +130,13 @@ object SystemTtsConfig {
         initialValue = 3
     )
 
+    /** 全局备用发音人配置ID（0=未设置）；用于未单独设置同标签备用的配置在重试阈值时兜底 */
+    val standbyGlobalTtsId = mutableDataSaverStateOf(
+        dataSaverInterface = dataSaverPref,
+        key = "standbyGlobalTtsId",
+        initialValue = 0L
+    )
+
     val maxEmptyAudioRetryCount = mutableDataSaverStateOf(
         dataSaverInterface = dataSaverPref,
         key = "maxEmptyAudioRetryCount",
