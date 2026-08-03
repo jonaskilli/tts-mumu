@@ -860,73 +860,108 @@ internal fun ListManagerScreen(
 
     // 多选转为子分组：批量把选中的（不含子分组的）分组降级为目标分组的子分组
     var showConvertToSubGroupMulti by remember { mutableStateOf(false) }
+    // 弹窗内选中的源分组（独立于列表预选的 selectedGroupIds，打开弹窗时初始化）
+    var convertSourcesSelected by remember { mutableStateOf<Set<Long>>(emptySet()) }
+    var showNewGroupForConvertMulti by remember { mutableStateOf(false) }
+    var newGroupNameForConvertMulti by remember { mutableStateOf("") }
+    // 执行转换：把 srcs 中的分组作为 targetGroup 的子分组
+    suspend fun performConvertToSubGroup(
+        targetGroup: SystemTtsGroup,
+        srcs: List<GroupWithSystemTts>,
+    ) {
+        withIO {
+            val dstSubMap = targetGroup.subGroupAudioParamsJson.let { jsonStr ->
+                if (jsonStr.isBlank() || jsonStr == "{}") emptyMap()
+                else SystemTtsV2.Converters.json.decodeFromString<Map<String, AudioParams>>(jsonStr)
+            }.toMutableMap()
+            srcs.forEach { src -> dstSubMap[src.group.name] = src.group.audioParams }
+            dbm.systemTtsV2.updateGroup(
+                targetGroup.copy(subGroupAudioParamsJson = SystemTtsV2.Converters.json.encodeToString(dstSubMap))
+            )
+            val allMoveItems = srcs.flatMap { src ->
+                src.list.map { it.copy(groupId = targetGroup.id, categoryPath = src.group.name) }
+            }
+            if (allMoveItems.isNotEmpty()) {
+                dbm.systemTtsV2.update(*allMoveItems.toTypedArray())
+            }
+            srcs.forEach { src -> dbm.systemTtsV2.deleteGroup(src.group) }
+        }
+    }
     if (showConvertToSubGroupMulti) {
-        val selectedGroups = models.filter { it.group.id in selectedGroupIds }
-        val withSubGroups = selectedGroups.filter { it.list.any { it.categoryPath.isNotBlank() } }
-        val convertible = selectedGroups.filter { it.list.none { it.categoryPath.isNotBlank() } }
-        val otherGroups = models.filter { it.group.id !in selectedGroupIds }.map { it.group }
+        // 所有不含子分组的一级分组（可作为源）
+        val allConvertible = models.filter { it.list.none { it.categoryPath.isNotBlank() } }
+        val convertibleSources = allConvertible.filter { it.group.id in convertSourcesSelected }
+        val targetGroups = models.filter { it.group.id !in convertSourcesSelected }.map { it.group }
         AlertDialog(
             onDismissRequest = { showConvertToSubGroupMulti = false },
             title = { Text("转为子分组") },
             text = {
-                Column {
-                    if (convertible.isEmpty()) {
-                        Text("所选分组均包含子分组，无法转换。")
+                Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
+                    if (allConvertible.isEmpty()) {
+                        Text("没有可转换的分组（所有分组均含子分组）。")
                     } else {
-                        Text("选择目标一级分组，将作为其子分组：", modifier = Modifier.padding(bottom = 8.dp))
-                        otherGroups.forEach { otherGroup ->
-                            TextButton(
-                                onClick = {
-                                    // 立即关闭弹窗 + 显示加载遮罩
-                                    showConvertToSubGroupMulti = false
-                                    showTagOrganizeLoading = true
-                                    scope.launch {
-                                        withIO {
-                                            // 1. 一次性合并所有源分组的音频参数到目标分组（只 update 一次目标分组）
-                                            val dstSubMap = otherGroup.subGroupAudioParamsJson.let { jsonStr ->
-                                                if (jsonStr.isBlank() || jsonStr == "{}") emptyMap()
-                                                else SystemTtsV2.Converters.json.decodeFromString<Map<String, AudioParams>>(jsonStr)
-                                            }.toMutableMap()
-                                            convertible.forEach { src ->
-                                                dstSubMap[src.group.name] = src.group.audioParams
-                                            }
-                                            dbm.systemTtsV2.updateGroup(
-                                                otherGroup.copy(
-                                                    subGroupAudioParamsJson = SystemTtsV2.Converters.json.encodeToString(dstSubMap)
-                                                )
-                                            )
-                                            // 2. 一次性批量更新所有配置项（合并所有源分组的配置）
-                                            val allMoveItems = convertible.flatMap { src ->
-                                                src.list.map {
-                                                    it.copy(groupId = otherGroup.id, categoryPath = src.group.name)
-                                                }
-                                            }
-                                            if (allMoveItems.isNotEmpty()) {
-                                                dbm.systemTtsV2.update(*allMoveItems.toTypedArray())
-                                            }
-                                            // 3. 逐个删除源分组（delete 较快，无法批量）
-                                            convertible.forEach { src ->
-                                                dbm.systemTtsV2.deleteGroup(src.group)
-                                            }
-                                        }
-                                        showTagOrganizeLoading = false
-                                        selectionMode = false
-                                        selectedGroupIds = emptySet()
-                                    }
-                                },
-                                modifier = Modifier.fillMaxWidth()
-                            ) {
-                                Text(otherGroup.name)
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text("选择要转换的分组：")
+                            TextButton(onClick = {
+                                convertSourcesSelected =
+                                    if (convertSourcesSelected.size == allConvertible.size) emptySet()
+                                    else allConvertible.map { it.group.id }.toSet()
+                            }) {
+                                Text(if (convertSourcesSelected.size == allConvertible.size) "取消全选" else "全选")
                             }
                         }
-                        HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
-                        TextButton(
-                            onClick = {
-                                newGroupNameForConvertMulti = ""
-                                showNewGroupForConvertMulti = true
-                            },
-                            modifier = Modifier.fillMaxWidth()
-                        ) { Text("新建一级分组") }
+                        allConvertible.forEach { gwt ->
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clickable {
+                                        convertSourcesSelected = if (gwt.group.id in convertSourcesSelected)
+                                            convertSourcesSelected - gwt.group.id
+                                        else convertSourcesSelected + gwt.group.id
+                                    }
+                            ) {
+                                Checkbox(
+                                    checked = gwt.group.id in convertSourcesSelected,
+                                    onCheckedChange = {
+                                        convertSourcesSelected = if (it) convertSourcesSelected + gwt.group.id
+                                        else convertSourcesSelected - gwt.group.id
+                                    }
+                                )
+                                Text(gwt.group.name)
+                            }
+                        }
+                        if (convertibleSources.isNotEmpty()) {
+                            HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
+                            Text("选择目标一级分组：", modifier = Modifier.padding(bottom = 8.dp))
+                            targetGroups.forEach { target ->
+                                TextButton(
+                                    onClick = {
+                                        showConvertToSubGroupMulti = false
+                                        showTagOrganizeLoading = true
+                                        scope.launch {
+                                            performConvertToSubGroup(target, convertibleSources)
+                                            showTagOrganizeLoading = false
+                                            selectionMode = false
+                                            selectedGroupIds = emptySet()
+                                        }
+                                    },
+                                    modifier = Modifier.fillMaxWidth()
+                                ) { Text(target.name) }
+                            }
+                            HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
+                            TextButton(
+                                onClick = {
+                                    newGroupNameForConvertMulti = ""
+                                    showNewGroupForConvertMulti = true
+                                },
+                                modifier = Modifier.fillMaxWidth()
+                            ) { Text("新建一级分组") }
+                        }
                     }
                 }
             },
@@ -940,8 +975,6 @@ internal fun ListManagerScreen(
     }
 
     // 多选转为子分组：新建一级分组作为目标
-    var showNewGroupForConvertMulti by remember { mutableStateOf(false) }
-    var newGroupNameForConvertMulti by remember { mutableStateOf("") }
     if (showNewGroupForConvertMulti) {
         TextFieldDialog(
             title = "新建一级分组并移动",
@@ -949,35 +982,16 @@ internal fun ListManagerScreen(
             onTextChange = { newGroupNameForConvertMulti = it },
             onDismissRequest = { showNewGroupForConvertMulti = false }
         ) {
-            val convertibleGroups = models.filter { it.group.id in selectedGroupIds }
+            val convertibleGroups = models
+                .filter { it.group.id in convertSourcesSelected }
                 .filter { it.list.none { it.categoryPath.isNotBlank() } }
             scope.launch {
                 showNewGroupForConvertMulti = false
                 showConvertToSubGroupMulti = false
                 showTagOrganizeLoading = true
-                withIO {
-                    val newGroup = SystemTtsGroup(id = System.currentTimeMillis(), name = newGroupNameForConvertMulti)
-                    dbm.systemTtsV2.insertGroup(newGroup)
-                    // 合并源分组音频参数到新分组
-                    val dstSubMap = mutableMapOf<String, AudioParams>()
-                    convertibleGroups.forEach { src ->
-                        dstSubMap[src.group.name] = src.group.audioParams
-                    }
-                    dbm.systemTtsV2.updateGroup(
-                        newGroup.copy(subGroupAudioParamsJson = SystemTtsV2.Converters.json.encodeToString(dstSubMap))
-                    )
-                    // 批量更新配置项
-                    val allMoveItems = convertibleGroups.flatMap { src ->
-                        src.list.map { it.copy(groupId = newGroup.id, categoryPath = src.group.name) }
-                    }
-                    if (allMoveItems.isNotEmpty()) {
-                        dbm.systemTtsV2.update(*allMoveItems.toTypedArray())
-                    }
-                    // 删除源分组
-                    convertibleGroups.forEach { src ->
-                        dbm.systemTtsV2.deleteGroup(src.group)
-                    }
-                }
+                val newGroup = SystemTtsGroup(id = System.currentTimeMillis(), name = newGroupNameForConvertMulti)
+                withIO { dbm.systemTtsV2.insertGroup(newGroup) }
+                performConvertToSubGroup(newGroup, convertibleGroups)
                 showTagOrganizeLoading = false
                 selectionMode = false
                 selectedGroupIds = emptySet()
@@ -1863,7 +1877,10 @@ internal fun ListManagerScreen(
                             }
                             IconButton(
                                 enabled = selectedGroupIds.isNotEmpty(),
-                                onClick = { showConvertToSubGroupMulti = true }
+                                onClick = {
+                                    convertSourcesSelected = selectedGroupIds
+                                    showConvertToSubGroupMulti = true
+                                }
                             ) {
                                 Icon(
                                     Icons.AutoMirrored.Filled.DriveFileMove,
