@@ -1,6 +1,11 @@
 package com.github.jing332.tts_server_android.compose.settings
 
 import androidx.compose.foundation.layout.ColumnScope
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AccessTime
 import androidx.compose.material.icons.filled.Groups
@@ -8,14 +13,18 @@ import androidx.compose.material.icons.filled.Headset
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.NotificationsNone
 import androidx.compose.material.icons.filled.Repeat
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.SelectAll
 import androidx.compose.material.icons.filled.StackedLineChart
 import androidx.compose.material.icons.filled.Tag
 import androidx.compose.material.icons.filled.TextFields
 import androidx.compose.material.icons.filled.Waves
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -23,6 +32,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.unit.dp
 import androidx.compose.ui.util.fastRoundToInt
 import com.github.jing332.compose.widgets.TextFieldDialog
 import com.github.jing332.database.dbm
@@ -174,34 +184,74 @@ internal fun ColumnScope.SysttsSettingsScreen(modifier: Modifier = Modifier) {
     )
 
     var globalStandbyId by remember { SystemTtsConfig.standbyGlobalTtsId }
-    var globalStandbyMenuExpanded by remember { mutableStateOf(false) }
+    var showGlobalStandbyDialog by remember { mutableStateOf(false) }
     val enabledTtsList = remember { dbm.systemTtsV2.allEnabled }
     val globalStandbyDisplayName = enabledTtsList.find { it.id == globalStandbyId }?.displayName
-    DropdownPreference(
-        expanded = globalStandbyMenuExpanded,
-        onExpandedChange = { globalStandbyMenuExpanded = it },
+    BasePreferenceWidget(
+        onClick = { showGlobalStandbyDialog = true },
         icon = { Icon(Icons.Default.Headset, null) },
         title = { Text(stringResource(id = R.string.systts_global_standby_tts)) },
-        subTitle = { Text(globalStandbyDisplayName ?: stringResource(id = R.string.systts_global_standby_tts_none)) },
-        actions = {
-            DropdownMenuItem(
-                text = { Text(stringResource(id = R.string.systts_global_standby_tts_none)) },
-                onClick = {
-                    globalStandbyMenuExpanded = false
-                    globalStandbyId = 0L
-                }
+        subTitle = {
+            Text(
+                globalStandbyDisplayName ?: stringResource(id = R.string.systts_global_standby_tts_none)
             )
-            enabledTtsList.forEach { tts ->
-                DropdownMenuItem(
-                    text = { Text(tts.displayName) },
-                    onClick = {
-                        globalStandbyMenuExpanded = false
-                        globalStandbyId = tts.id
-                    }
-                )
-            }
         }
     )
+
+    if (showGlobalStandbyDialog) {
+        var query by remember { mutableStateOf("") }
+        val filtered = remember(query, enabledTtsList) {
+            val q = query.trim()
+            if (q.isEmpty()) enabledTtsList
+            else enabledTtsList.filter { it.displayName.contains(q, ignoreCase = true) }
+        }
+        AlertDialog(
+            onDismissRequest = { showGlobalStandbyDialog = false },
+            title = { Text(stringResource(id = R.string.systts_global_standby_tts)) },
+            text = {
+                androidx.compose.foundation.layout.Column {
+                    OutlinedTextField(
+                        value = query,
+                        onValueChange = { query = it },
+                        modifier = Modifier.fillMaxWidth(),
+                        singleLine = true,
+                        leadingIcon = { Icon(Icons.Default.Search, null) },
+                        placeholder = { Text(stringResource(id = R.string.search_filter)) }
+                    )
+                    LazyColumn(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .heightIn(max = 360.dp)
+                            .padding(top = 8.dp)
+                    ) {
+                        item {
+                            DropdownMenuItem(
+                                text = { Text(stringResource(id = R.string.systts_global_standby_tts_none)) },
+                                onClick = {
+                                    globalStandbyId = 0L
+                                    showGlobalStandbyDialog = false
+                                }
+                            )
+                        }
+                        items(filtered, key = { it.id }) { tts ->
+                            DropdownMenuItem(
+                                text = { Text(tts.displayName) },
+                                onClick = {
+                                    globalStandbyId = tts.id
+                                    showGlobalStandbyDialog = false
+                                }
+                            )
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { showGlobalStandbyDialog = false }) {
+                    Text(stringResource(id = R.string.close))
+                }
+            }
+        )
+    }
 
 
     var requestTimeout by remember { SystemTtsConfig.requestTimeout }
