@@ -168,7 +168,12 @@ abstract class AbstractMixSynthesizer() : Synthesizer {
         suspend fun retry() {
             CachedEngineManager.removeEngine(config.source)
             delay(context.cfg.retryDelay())
-            return if (config.standbyConfig != null && context.cfg.toggleTry() > retries) {
+            val toggleTryValue = context.cfg.toggleTry()
+            logger.debug {
+                "retry: retries=$retries, toggleTry=$toggleTryValue, maxRetries=$maxRetries, hasStandby=${config.standbyConfig != null}"
+            }
+            return if (config.standbyConfig != null && toggleTryValue <= retries + 1) {
+                logger.info { "standby triggered: toggleTry=$toggleTryValue, retries=$retries" }
                 event(NormalEvent.StandbyTts(request.copy(config = config.standbyConfig)))
                 requestAndProcess(channel, params, config.standbyConfig, 0, maxRetries)
             } else {

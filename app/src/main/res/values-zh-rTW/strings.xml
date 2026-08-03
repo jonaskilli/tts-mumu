@@ -223,7 +223,7 @@
     <string name="decode">解碼</string>
     <string name="systts_log_replace_failed">執行替換失敗：%1$s</string>
     <string name="systts_standby_triggered_retry_index">備用配置使用條件</string>
-    <string name="systts_standby_triggered_retry_index_summary">備用配置在第幾次重試時觸發？ 預設為1，即備用配置在首次失敗重試時使用。</string>
+    <string name="systts_standby_triggered_retry_index_summary">備用配置在第幾次重試時觸發？ 預設為3，即備用配置在第3次重試時使用。</string>
     <string name="systts_ms_webm_warn_msg">⚠️ 經測試，音訊格式webm..- 24kbps-.. 的實際所耗流量是其它音訊大小的三倍多，不推薦使用！</string>
     <string name="search_filter">搜索過濾</string>
     <string name="follow_system">跟隨系統</string>
