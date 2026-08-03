@@ -919,6 +919,14 @@ internal fun ListManagerScreen(
                                 Text(otherGroup.name)
                             }
                         }
+                        HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
+                        TextButton(
+                            onClick = {
+                                newGroupNameForConvertMulti = ""
+                                showNewGroupForConvertMulti = true
+                            },
+                            modifier = Modifier.fillMaxWidth()
+                        ) { Text("新建一级分组") }
                     }
                 }
             },
@@ -929,6 +937,52 @@ internal fun ListManagerScreen(
                 }
             }
         )
+    }
+
+    // 多选转为子分组：新建一级分组作为目标
+    var showNewGroupForConvertMulti by remember { mutableStateOf(false) }
+    var newGroupNameForConvertMulti by remember { mutableStateOf("") }
+    if (showNewGroupForConvertMulti) {
+        TextFieldDialog(
+            title = "新建一级分组并移动",
+            text = newGroupNameForConvertMulti,
+            onTextChange = { newGroupNameForConvertMulti = it },
+            onDismissRequest = { showNewGroupForConvertMulti = false }
+        ) {
+            val convertibleGroups = models.filter { it.group.id in selectedGroupIds }
+                .filter { it.list.none { it.categoryPath.isNotBlank() } }
+            scope.launch {
+                showNewGroupForConvertMulti = false
+                showConvertToSubGroupMulti = false
+                showTagOrganizeLoading = true
+                withIO {
+                    val newGroup = SystemTtsGroup(id = System.currentTimeMillis(), name = newGroupNameForConvertMulti)
+                    dbm.systemTtsV2.insertGroup(newGroup)
+                    // 合并源分组音频参数到新分组
+                    val dstSubMap = mutableMapOf<String, AudioParams>()
+                    convertibleGroups.forEach { src ->
+                        dstSubMap[src.group.name] = src.group.audioParams
+                    }
+                    dbm.systemTtsV2.updateGroup(
+                        newGroup.copy(subGroupAudioParamsJson = SystemTtsV2.Converters.json.encodeToString(dstSubMap))
+                    )
+                    // 批量更新配置项
+                    val allMoveItems = convertibleGroups.flatMap { src ->
+                        src.list.map { it.copy(groupId = newGroup.id, categoryPath = src.group.name) }
+                    }
+                    if (allMoveItems.isNotEmpty()) {
+                        dbm.systemTtsV2.update(*allMoveItems.toTypedArray())
+                    }
+                    // 删除源分组
+                    convertibleGroups.forEach { src ->
+                        dbm.systemTtsV2.deleteGroup(src.group)
+                    }
+                }
+                showTagOrganizeLoading = false
+                selectionMode = false
+                selectedGroupIds = emptySet()
+            }
+        }
     }
 
     var showExtractSubGroup by remember { mutableStateOf<SystemTtsGroup?>(null) }
@@ -1818,12 +1872,6 @@ internal fun ListManagerScreen(
                                         MaterialTheme.colorScheme.onSurfaceVariant
                                     else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f)
                                 )
-                            }
-                            IconButton(onClick = {
-                                selectionMode = false
-                                selectedGroupIds = emptySet()
-                            }) {
-                                Icon(Icons.Default.Close, stringResource(id = R.string.cancel))
                             }
                         }
                         else -> {
