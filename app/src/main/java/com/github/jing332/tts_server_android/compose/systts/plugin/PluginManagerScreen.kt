@@ -3,6 +3,7 @@ package com.github.jing332.tts_server_android.compose.systts.plugin
 import android.content.Intent
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -13,6 +14,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -30,6 +32,7 @@ import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Output
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.SelectAll
+import androidx.compose.material.icons.filled.SwapHoriz
 import androidx.compose.material.icons.filled.VolumeUp
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.DropdownMenu
@@ -55,6 +58,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalContext
@@ -197,6 +201,124 @@ fun PluginManagerScreen(sharedVM: SharedViewModel, onFinishActivity: () -> Unit)
     fun onEdit(plugin: Plugin = Plugin()) {
         sharedVM.put(NavRoutes.PluginEdit.KEY_DATA, plugin)
         navController.navigate(NavRoutes.PluginEdit.id)
+    }
+
+    // 切换引用配置：选择目标插件，把所有引用源插件id的配置项批量改为目标插件id
+    var showSwitchPluginRefsDialog by remember { mutableStateOf<Plugin?>(null) }
+    // 二次确认：选好目标插件后，在此确认是否执行批量切换
+    var pendingSwitch by remember { mutableStateOf<Pair<Plugin, Plugin>?>(null) }
+    if (showSwitchPluginRefsDialog != null) {
+        val sourcePlugin = showSwitchPluginRefsDialog!!
+        // 用全部插件(不止已启用)，排除源插件本身
+        val candidates = remember(sourcePlugin.id) {
+            dbm.pluginDao.all.filter { it.pluginId != sourcePlugin.pluginId }
+        }
+        AppDialog(
+            onDismissRequest = { showSwitchPluginRefsDialog = null },
+            title = { Text("切换引用配置到其他插件") },
+            content = {
+                Column {
+                    Text(
+                        "将所有引用「${sourcePlugin.name}（${sourcePlugin.pluginId}」的配置项改为使用下方所选插件：",
+                        style = MaterialTheme.typography.bodyMedium
+                    )
+                    Spacer(Modifier.height(8.dp))
+                    if (candidates.isEmpty()) {
+                        Text(
+                            "没有其他可切换的插件",
+                            style = MaterialTheme.typography.titleMedium,
+                            color = MaterialTheme.colorScheme.error,
+                            modifier = Modifier.fillMaxWidth().padding(8.dp),
+                            textAlign = TextAlign.Center
+                        )
+                    } else {
+                        LazyColumn(modifier = Modifier.fillMaxWidth()) {
+                            items(candidates, { it.id }) { target ->
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .clip(MaterialTheme.shapes.small)
+                                        .clickable {
+                                            pendingSwitch = sourcePlugin to target
+                                            showSwitchPluginRefsDialog = null
+                                        }
+                                        .padding(vertical = 4.dp)
+                                ) {
+                                    PluginImage(model = target.iconUrl, name = target.name)
+                                    Column(Modifier.padding(horizontal = 8.dp)) {
+                                        Text(
+                                            target.name,
+                                            style = MaterialTheme.typography.titleMedium
+                                        )
+                                        Text(
+                                            target.pluginId,
+                                            style = MaterialTheme.typography.bodySmall
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            buttons = {
+                TextButton(onClick = { showSwitchPluginRefsDialog = null }) {
+                    Text(stringResource(id = R.string.cancel))
+                }
+            }
+        )
+    }
+
+    // 二次确认 + 执行批量切换
+    if (pendingSwitch != null) {
+        val (sourcePlugin, target) = pendingSwitch!!
+        AppDialog(
+            onDismissRequest = { pendingSwitch = null },
+            title = { Text("确认切换") },
+            content = {
+                Text(
+                    "将把所有引用插件「${sourcePlugin.name}」的配置项改为使用「${target.name}」。\n" +
+                        "源插件本身不会被修改或删除。"
+                )
+            },
+            buttons = {
+                TextButton(onClick = { pendingSwitch = null }) {
+                    Text(stringResource(id = R.string.cancel))
+                }
+                TextButton(onClick = {
+                    val srcId = sourcePlugin.pluginId
+                    val newId = target.pluginId
+                    pendingSwitch = null
+                    if (srcId.isEmpty()) return@TextButton
+                    scope.launch {
+                        var count = 0
+                        withIO {
+                            dbm.systemTtsV2.getAllGroupWithTts()
+                                .flatMap { it.list }
+                                .forEach { tts ->
+                                    val config = tts.config
+                                    if (config is TtsConfigurationDTO) {
+                                        val src = config.source
+                                        if (src is PluginTtsSource && src.pluginId == srcId) {
+                                            dbm.systemTtsV2.update(
+                                                tts.copy(
+                                                    config = config.copy(
+                                                        source = src.copy(pluginId = newId)
+                                                    )
+                                                )
+                                            )
+                                            count++
+                                        }
+                                    }
+                                }
+                        }
+                        SystemTtsService.notifyUpdateConfig()
+                        context.longToast("已切换 $count 项配置到「${target.name}」")
+                    }
+                }) { Text(stringResource(id = R.string.confirm)) }
+            }
+        )
     }
 
     val scrollBehavior = TopAppBarDefaults.pinnedScrollBehavior()
@@ -385,7 +507,8 @@ fun PluginManagerScreen(sharedVM: SharedViewModel, onFinishActivity: () -> Unit)
                             sharedVM.put(NavRoutes.PluginEdit.KEY_DATA, item)
                             sharedVM.put("autoDebug", true)
                             navController.navigate(NavRoutes.PluginEdit.id)
-                        }
+                        },
+                        onSwitchPluginRefs = { showSwitchPluginRefsDialog = item }
                     )
                 }
             }
@@ -421,6 +544,8 @@ private fun Item(
     plugin: Plugin? = null,
     onUpdatePlugin: ((Plugin) -> Unit)? = null,
     onRun: (() -> Unit)? = null,
+    // 切换引用配置：把所有引用当前插件id的配置项批量改为目标插件id
+    onSwitchPluginRefs: (() -> Unit)? = null,
 ) {
     val context = LocalContext.current
     var expanded by remember(plugin?.id) { mutableStateOf(false) }
@@ -574,6 +699,20 @@ private fun Item(
                             )
 
                             HorizontalDivider()
+
+                            // 切换引用配置：把所有引用当前插件id的配置项改为目标插件id
+                            if (onSwitchPluginRefs != null) {
+                                DropdownMenuItem(
+                                    text = { Text("切换引用配置") },
+                                    onClick = {
+                                        showOptions = false
+                                        onSwitchPluginRefs()
+                                    },
+                                    leadingIcon = {
+                                        Icon(Icons.Default.SwapHoriz, "切换引用配置")
+                                    }
+                                )
+                            }
 
                             DropdownMenuItem(
                                 text = { Text(stringResource(R.string.clear_cache)) },
