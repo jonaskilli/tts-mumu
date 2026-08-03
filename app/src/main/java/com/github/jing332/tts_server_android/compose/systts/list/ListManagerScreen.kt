@@ -2060,19 +2060,6 @@ internal fun ListManagerScreen(
                             // 无子分组时保持原有扁平渲染（支持拖拽排序）
                             // LazyListScope 内不能调用 remember；按 order 直接排序（仅在重组时执行一次）
                             val sortedList = groupWithSystemTts.list.sortedBy { it.order }
-                            if (sortedList.isEmpty()) {
-                                // 空的一级分组也作为正常分组处理：展开时显示占位提示，明确其为可用状态
-                                item(key = "empty_${g.id}") {
-                                    Text(
-                                        text = stringResource(R.string.group_empty_hint),
-                                        style = MaterialTheme.typography.bodySmall,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .padding(horizontal = 16.dp, vertical = 12.dp)
-                                    )
-                                }
-                            }
                             itemsIndexed(sortedList,
                                 key = { _, v -> "${g.id}_${v.id}" }) { _, item ->
                                 ShadowedDraggableItem(
