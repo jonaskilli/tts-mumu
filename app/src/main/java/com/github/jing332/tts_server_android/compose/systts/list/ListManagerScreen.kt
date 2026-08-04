@@ -2348,9 +2348,17 @@ internal fun ListManagerScreen(
                                                     onClick = {
                                                         val wasExpanded = expandedSubGroups.contains(fItem.node.fullPath)
                                                         if (wasExpanded) {
-                                                            // 直接折叠：子分组头已是普通 item（非 stickyHeader），
-                                                            // 折叠时其下方 item 移除，LazyColumn 会自动保持上方内容位置稳定。
+                                                            // 折叠：先更新状态，等一帧重组完成后把本子分组头滚到顶部。
+                                                            // stickyHeader 只在触及顶部边缘时吸附，折叠瞬间子分组头若在中部，
+                                                            // 不主动滚动会留在原位，不符合「折叠后仍在顶部」的预期。
                                                             expandedSubGroups = expandedSubGroups - fItem.node.fullPath
+                                                            scope.launch {
+                                                                withFrameNanos { }
+                                                                val headerIndex = listState.layoutInfo.visibleItemsInfo.find { it.key == subKey }?.index
+                                                                if (headerIndex != null) {
+                                                                    listState.animateScrollToItem(headerIndex)
+                                                                }
+                                                            }
                                                         } else {
                                                             expandedSubGroups = expandedSubGroups + fItem.node.fullPath
                                                         }
