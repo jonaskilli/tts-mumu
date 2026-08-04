@@ -22,6 +22,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.conflate
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.burnoutcrew.reorderable.ItemPosition
@@ -41,21 +42,25 @@ class ListManagerViewModel : ViewModel() {
     private val _list = MutableStateFlow<List<GroupWithSystemTts>>(emptyList())
     val list: StateFlow<List<GroupWithSystemTts>> get() = _list
 
-    // 缓存插件名称
+    // 缓存插件名称：响应式订阅插件表，插件新增/改名/pluginId变更/切换引用后自动刷新
     private val pluginNameCache = MutableStateFlow<Map<String, String>>(emptyMap())
 
     init {
         viewModelScope.launch(Dispatchers.IO) {
-            // 加载插件名称缓存
-            val plugins = dbm.pluginDao.getAllWithoutCode()
-            pluginNameCache.value = plugins.associate { it.pluginId to it.name }
-            
             dbm.systemTtsV2.updateAllOrder()
-            
+
+            // 插件名映射 Flow：插件表任何变化都会重新生成 pluginId→name 映射
+            val pluginNameFlow = dbm.pluginDao.flowAllWithoutCode()
+                .map { plugins -> plugins.associate { it.pluginId to it.name } }
+
             dbm.systemTtsV2.flowAllGroupWithTts().conflate()
                 .combine(_keyword) { list, key -> Pair(list, key) }
                 .combine(_searchType) { pair, type -> Triple(pair.first, pair.second, type) }
-                .collect { (list, key, searchType) ->
+                .combine(pluginNameFlow) { triple, nameMap ->
+                    Quad(triple.first, triple.second, triple.third, nameMap)
+                }
+                .collect { (list, key, searchType, nameMap) ->
+                    pluginNameCache.value = nameMap
                     val result = if (key.isBlank()) {
                         list
                     } else {
@@ -66,6 +71,14 @@ class ListManagerViewModel : ViewModel() {
                 }
         }
     }
+
+    /** 四元组，用于 combine 后承载搜索输入 */
+    private data class Quad(
+        val list: List<GroupWithSystemTts>,
+        val key: String,
+        val searchType: SearchType,
+        val pluginNames: Map<String, String>
+    )
 
     private fun filterList(
         list: List<GroupWithSystemTts>,
