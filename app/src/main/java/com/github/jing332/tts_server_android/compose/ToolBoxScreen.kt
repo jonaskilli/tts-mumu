@@ -1,11 +1,9 @@
 package com.github.jing332.tts_server_android.compose
 
-import android.content.Intent
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.Spacer
@@ -14,16 +12,12 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AccountCircle
-import androidx.compose.material.icons.filled.PlayArrow
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
@@ -59,7 +53,6 @@ import com.github.jing332.tts_server_android.conf.SpeechRuleConfig
 import com.github.jing332.tts_server_android.constant.SpeechTarget
 import com.github.jing332.tts_server_android.model.rhino.speech_rule.SpeechRuleEngine
 import com.github.jing332.tts_server_android.compose.systts.list.ui.PluginTtsUI
-import com.github.jing332.tts_server_android.compose.systts.speechrule.SpeechRuleManagerActivity
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.flow.conflate
@@ -80,7 +73,11 @@ fun ToolBoxScreen(sharedVM: SharedViewModel) {
     val rolePluginId = remember(plugin) { plugin?.pluginId ?: "mingwuyan" }
 
     val flow = remember { dbm.systemTtsV2.flowAllGroupWithTts().conflate() }
-    val groups by flow.collectAsStateWithLifecycle(emptyList())
+    // 同步预取一次作为初始值，避免 flow 首帧空列表导致顶栏「仅界面模式」开关
+    // 先显示为关、数据到达后再跳变为开的视觉闪烁。
+    val groups by flow.collectAsStateWithLifecycle(
+        initialValue = remember { dbm.systemTtsV2.getAllGroupWithTts() }
+    )
 
     // 查找角色管理插件(mingwuyan)配置项：本栏专为外置角色管理 UI 而设，全局只应有一个。
     // 优先取已开启 isUiOnly 的；没有则取任意一个（用于顶栏开关目标）。
@@ -123,56 +120,6 @@ fun ToolBoxScreen(sharedVM: SharedViewModel) {
     }
 
     val context = LocalContext.current
-    // 朗读规则列表（轻量查询，不含 code，避免 Cursor 窗口溢出）
-    var showSpeechRulePicker by remember { mutableStateOf(false) }
-    val speechRules = remember { dbm.speechRuleDao.getAllWithoutCode() }
-    if (showSpeechRulePicker) {
-        AlertDialog(
-            onDismissRequest = { showSpeechRulePicker = false },
-            title = { Text("选择朗读规则运行") },
-            text = {
-                if (speechRules.isEmpty()) {
-                    Text("暂无朗读规则")
-                } else {
-                    Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
-                        speechRules.forEach { rule ->
-                            TextButton(
-                                onClick = {
-                                    showSpeechRulePicker = false
-                                    context.startActivity(
-                                        Intent(context, SpeechRuleManagerActivity::class.java).apply {
-                                            putExtra("ruleDbId", rule.id)
-                                            putExtra("autoDebug", true)
-                                        }
-                                    )
-                                },
-                                modifier = Modifier.fillMaxWidth()
-                            ) {
-                                Column(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    horizontalAlignment = Alignment.Start
-                                ) {
-                                    Text(rule.name.ifBlank { rule.ruleId })
-                                    Text(
-                                        "${rule.author.ifBlank { "未知" }} - v${rule.version}",
-                                        style = MaterialTheme.typography.bodySmall,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                                    )
-                                }
-                            }
-                        }
-                    }
-                }
-            },
-            confirmButton = {},
-            dismissButton = {
-                TextButton(onClick = { showSpeechRulePicker = false }) {
-                    Text(stringResource(R.string.cancel))
-                }
-            }
-        )
-    }
-
     val scope = rememberCoroutineScope()
     // 顶部「仅界面模式」开关目标 = 角色管理配置项；没有时开关禁用（不自动创建）
     val switchTarget = mingwuyanTts
@@ -188,13 +135,6 @@ fun ToolBoxScreen(sharedVM: SharedViewModel) {
                 title = { Text(stringResource(R.string.toolbox)) },
                 scrollBehavior = scrollBehavior,
                 actions = {
-                    // 运行朗读规则 JS 快捷键：选择规则后自动进入编辑器并运行
-                    IconButton(onClick = { showSpeechRulePicker = true }) {
-                        Icon(
-                            Icons.Default.PlayArrow,
-                            contentDescription = "运行朗读规则"
-                        )
-                    }
                     // 仅界面模式开关：仅角色管理插件(mingwuyan)安装后显示，无文字提示
                     if (isRoleManagementPlugin && plugin != null) {
                         Spacer(Modifier.width(8.dp))
