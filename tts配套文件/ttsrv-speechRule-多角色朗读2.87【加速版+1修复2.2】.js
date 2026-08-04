@@ -3313,23 +3313,76 @@ var SpeechRuleJS = {
       var isArray = function(arr) {
           return Object.prototype.toString.call(arr) === '[object Array]';
       };
-      
-      
-  
-      
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-      
-      
+
+      // ========== 动态扩展角色表（方案2）==========
+      // 问题：BATCH_ROLES 硬编码数量(如女青年100)，但用户配置项可能有女青年101~400，
+      //       导致 detectAvailableVoices 遍历 GENSHIN_CHARACTERS 时漏掉这些 tag。
+      // 方案：扫描 tagsData 的 key（即配置项 tag），对形如「前缀+序号」的 tag，
+      //       若序号超过 GENSHIN_CHARACTERS 现有最大序号，按需补齐 GENSHIN_CHARACTERS 和 tags。
+      // 依据：BATCH_ROLES 配置提供合法前缀及性别/年龄，仅扩展已知前缀，避免误伤自定义 tag。
+      try {
+          // 1. 统计每个 BATCH_ROLES 前缀在 GENSHIN_CHARACTERS 中的现有最大序号
+          var batchPrefixMaxSeq = {}; // 前缀 -> 现有最大序号
+          var batchPrefixInfo = {};   // 前缀 -> {gender, age, voicePre}
+          for (var bi = 0; bi < BATCH_ROLES.length; bi++) {
+              var bItem = BATCH_ROLES[bi];
+              var bType = bItem[0], bGender = bItem[1], bAge = bItem[2], bVoicePre = bItem[3];
+              // 前缀取 bType 的最后一段（如"女/女青年"->"女青年"），与 voice 前缀一致
+              var bPrefix = bType.substring(bType.lastIndexOf('/') + 1);
+              batchPrefixInfo[bPrefix] = { gender: bGender, age: bAge, voicePre: bVoicePre };
+              batchPrefixMaxSeq[bPrefix] = 0;
+          }
+          for (var gName in GENSHIN_CHARACTERS) {
+              if (GENSHIN_CHARACTERS.hasOwnProperty(gName)) {
+                  var gVoice = GENSHIN_CHARACTERS[gName].voice.toString();
+                  // voice 形如 "女青年01"，匹配前缀+序号
+                  var gMatch = gVoice.match(/^([\u4E00-\u9FA5]+?)(\d+)$/);
+                  if (gMatch && batchPrefixMaxSeq.hasOwnProperty(gMatch[1])) {
+                      var gSeq = parseInt(gMatch[2], 10);
+                      if (gSeq > batchPrefixMaxSeq[gMatch[1]]) {
+                          batchPrefixMaxSeq[gMatch[1]] = gSeq;
+                      }
+                  }
+              }
+          }
+          // 2. 扫描 tagsData 的 key，找出每个前缀需要扩展到的最大序号
+          var neededMaxSeq = {}; // 前缀 -> 需要的最大序号
+          for (var tdKey in tagsData) {
+              if (tagsData.hasOwnProperty(tdKey)) {
+                  var tdMatch = tdKey.match(/^([\u4E00-\u9FA5]+?)(\d+)$/);
+                  if (tdMatch && batchPrefixInfo.hasOwnProperty(tdMatch[1])) {
+                      var tdSeq = parseInt(tdMatch[2], 10);
+                      var tdPrefix = tdMatch[1];
+                      if (!neededMaxSeq[tdPrefix] || tdSeq > neededMaxSeq[tdPrefix]) {
+                          neededMaxSeq[tdPrefix] = tdSeq;
+                      }
+                  }
+              }
+          }
+          // 3. 按需补齐 GENSHIN_CHARACTERS 和 SpeechRuleJS.tags
+          for (var extPrefix in neededMaxSeq) {
+              if (neededMaxSeq.hasOwnProperty(extPrefix)) {
+                  var extInfo = batchPrefixInfo[extPrefix];
+                  var curMax = batchPrefixMaxSeq[extPrefix];
+                  var needMax = neededMaxSeq[extPrefix];
+                  if (needMax > curMax) {
+                      for (var ni = curMax + 1; ni <= needMax; ni++) {
+                          var nSeq = padZero(ni, 2);
+                          var nName = '【' + extPrefix + nSeq + '】';
+                          var nVoice = extInfo.voicePre + nSeq;
+                          GENSHIN_CHARACTERS[nName] = { gender: extInfo.gender, age: extInfo.age, voice: nVoice };
+                          SpeechRuleJS.tags[nVoice] = nName;
+                      }
+                      // 更新现有最大序号，避免同一次 handleText 内重复扩展
+                      batchPrefixMaxSeq[extPrefix] = needMax;
+                  }
+              }
+          }
+      } catch (extErr) {
+          console.error("动态扩展角色表异常: " + extErr.message);
+      }
+      // ========== 动态扩展结束 ==========
+
       text2 = text.replace(/[(]([\u4E00-\u9Fa5]{1,5})音效[)]/g, "");
       // ========== 组1：音效前置2 ==========
 
