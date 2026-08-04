@@ -2,6 +2,7 @@ package com.github.jing332.database.entities.systts
 
 import android.os.Parcelable
 import androidx.room.Ignore
+import androidx.room.Ignore
 import androidx.room.TypeConverter
 import androidx.room.TypeConverters
 import com.github.jing332.database.constants.SpeechTarget
