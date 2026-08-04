@@ -125,7 +125,7 @@ fun SpeechRuleManagerScreen(sharedVM: SharedViewModel, finish: () -> Unit) {
 
     var showImportSheet by remember { mutableStateOf(false) }
     if (showImportSheet)
-        SpeechRuleImportBottomSheet { showImportSheet = false }
+        SpeechRuleImportBottomSheet(onDismissRequest = { showImportSheet = false })
 
     var showExportSheet by remember { mutableStateOf<List<SpeechRule>?>(null) }
     if (showExportSheet != null)
