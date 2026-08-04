@@ -1,6 +1,7 @@
 package com.github.jing332.database.entities.systts
 
 import android.os.Parcelable
+import androidx.room.Ignore
 import androidx.room.TypeConverter
 import androidx.room.TypeConverters
 import com.github.jing332.database.constants.SpeechTarget
@@ -34,10 +35,12 @@ data class SpeechRuleInfo(
     // 方案B：底层英文 voice（TTS 引擎真实发音人标识，如 zh-CN-XiaoxiaoNeural）
     // 运行时由 app 从 SystemTtsV2.ttsConfig.source.voice 填充，不进 DB 序列化
     @Transient
+    @Ignore
     var voice: String = "",
 
     // 方案B：发音人显示名（如"晓晓"），运行时由 app 从 SystemTtsV2.displayName 填充
     @Transient
+    @Ignore
     var displayName: String = "",
 ) : Parcelable {
     val mutableTagData: MutableMap<String, String>
