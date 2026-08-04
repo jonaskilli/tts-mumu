@@ -892,9 +892,10 @@ internal fun ListManagerScreen(
         }
     }
     if (showConvertToSubGroupMulti) {
-        // 所有不含子分组的一级分组（可作为源）
-        val allConvertible = models.filter { it.list.none { it.categoryPath.isNotBlank() } }
-        val convertibleSources = allConvertible.filter { it.group.id in convertSourcesSelected }
+        // 已选的分组中不含子分组的可作为源（多选进入时已预选，无需再选）
+        val convertibleSources = models.filter {
+            it.group.id in convertSourcesSelected && it.list.none { it.categoryPath.isNotBlank() }
+        }
         val targetGroups = models.filter { it.group.id !in convertSourcesSelected }.map { it.group }
         val screenHeight = LocalConfiguration.current.screenHeightDp.dp
         Dialog(
@@ -914,71 +915,38 @@ internal fun ListManagerScreen(
                             .heightIn(max = screenHeight * 0.7f)
                             .verticalScroll(rememberScrollState())
                     ) {
-                        if (allConvertible.isEmpty()) {
-                            Text("没有可转换的分组（所有分组均含子分组）。")
+                        if (convertibleSources.isEmpty()) {
+                            Text("没有可转换的分组（所选分组均含子分组）。")
                         } else {
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Text("选择要转换的分组：")
-                                TextButton(onClick = {
-                                    convertSourcesSelected =
-                                        if (convertSourcesSelected.size == allConvertible.size) emptySet()
-                                        else allConvertible.map { it.group.id }.toSet()
-                                }) {
-                                    Text(if (convertSourcesSelected.size == allConvertible.size) "取消全选" else "全选")
-                                }
+                            Text("将以下分组转为子分组：", modifier = Modifier.padding(bottom = 8.dp))
+                            convertibleSources.forEach { gwt ->
+                                Text("  • ${gwt.group.name}", style = MaterialTheme.typography.bodyMedium)
                             }
-                            allConvertible.forEach { gwt ->
-                                Row(
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .clickable {
-                                            convertSourcesSelected = if (gwt.group.id in convertSourcesSelected)
-                                                convertSourcesSelected - gwt.group.id
-                                            else convertSourcesSelected + gwt.group.id
-                                        }
-                                ) {
-                                    Checkbox(
-                                        checked = gwt.group.id in convertSourcesSelected,
-                                        onCheckedChange = {
-                                            convertSourcesSelected = if (it) convertSourcesSelected + gwt.group.id
-                                            else convertSourcesSelected - gwt.group.id
-                                        }
-                                    )
-                                    Text(gwt.group.name)
-                                }
-                            }
-                            if (convertibleSources.isNotEmpty()) {
-                                HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
-                                Text("选择目标一级分组：", modifier = Modifier.padding(bottom = 8.dp))
-                                targetGroups.forEach { target ->
-                                    TextButton(
-                                        onClick = {
-                                            showConvertToSubGroupMulti = false
-                                            showTagOrganizeLoading = true
-                                            scope.launch {
-                                                performConvertToSubGroup(target, convertibleSources)
-                                                showTagOrganizeLoading = false
-                                                selectionMode = false
-                                                selectedGroupIds = emptySet()
-                                            }
-                                        },
-                                        modifier = Modifier.fillMaxWidth()
-                                    ) { Text(target.name) }
-                                }
-                                HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
+                            HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
+                            Text("选择目标一级分组：", modifier = Modifier.padding(bottom = 8.dp))
+                            targetGroups.forEach { target ->
                                 TextButton(
                                     onClick = {
-                                        newGroupNameForConvertMulti = ""
-                                        showNewGroupForConvertMulti = true
+                                        showConvertToSubGroupMulti = false
+                                        showTagOrganizeLoading = true
+                                        scope.launch {
+                                            performConvertToSubGroup(target, convertibleSources)
+                                            showTagOrganizeLoading = false
+                                            selectionMode = false
+                                            selectedGroupIds = emptySet()
+                                        }
                                     },
                                     modifier = Modifier.fillMaxWidth()
-                                ) { Text("新建一级分组") }
+                                ) { Text(target.name) }
                             }
+                            HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
+                            TextButton(
+                                onClick = {
+                                    newGroupNameForConvertMulti = ""
+                                    showNewGroupForConvertMulti = true
+                                },
+                                modifier = Modifier.fillMaxWidth()
+                            ) { Text("新建一级分组") }
                         }
                     }
                     Spacer(Modifier.height(8.dp))
@@ -2018,7 +1986,7 @@ internal fun ListManagerScreen(
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(horizontal = 8.dp, vertical = 4.dp),
+                            .padding(horizontal = 8.dp, vertical = 8.dp),
                         horizontalArrangement = Arrangement.SpaceEvenly,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
@@ -2028,9 +1996,10 @@ internal fun ListManagerScreen(
                             Column(horizontalAlignment = Alignment.CenterHorizontally) {
                                 Icon(
                                     if (allSelected) Icons.Default.CheckBox else Icons.Default.CheckBoxOutlineBlank,
-                                    contentDescription = "全选"
+                                    contentDescription = "全选",
+                                    modifier = Modifier.size(28.dp)
                                 )
-                                Text("全选", style = MaterialTheme.typography.labelSmall)
+                                Text("全选", style = MaterialTheme.typography.labelMedium)
                             }
                         }
                         TextButton(onClick = {
@@ -2043,11 +2012,12 @@ internal fun ListManagerScreen(
                                 Icon(
                                     Icons.Default.DeleteForever,
                                     contentDescription = stringResource(id = R.string.delete),
-                                    tint = MaterialTheme.colorScheme.error
+                                    tint = MaterialTheme.colorScheme.error,
+                                    modifier = Modifier.size(28.dp)
                                 )
                                 Text(
                                     stringResource(id = R.string.delete),
-                                    style = MaterialTheme.typography.labelSmall,
+                                    style = MaterialTheme.typography.labelMedium,
                                     color = MaterialTheme.colorScheme.error
                                 )
                             }
@@ -2060,9 +2030,10 @@ internal fun ListManagerScreen(
                                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
                                     Icon(
                                         Icons.AutoMirrored.Filled.DriveFileMove,
-                                        contentDescription = "转为子分组"
+                                        contentDescription = "转为子分组",
+                                        modifier = Modifier.size(28.dp)
                                     )
-                                    Text("转为子分组", style = MaterialTheme.typography.labelSmall)
+                                    Text("转为子分组", style = MaterialTheme.typography.labelMedium)
                                 }
                             }
                         }
@@ -2399,21 +2370,11 @@ internal fun ListManagerScreen(
                                                         vm.updateSubGroupEnable(g.id, subItems, enabled)
                                                     },
                                                     onClick = {
-                                                        val wasExpanded = expandedSubGroups.contains(fItem.node.fullPath)
-                                                        if (wasExpanded) {
-                                                            // 折叠：先更新状态，等一帧重组完成后把本子分组头滚到顶部。
-                                                            // stickyHeader 只在触及顶部边缘时吸附，折叠瞬间子分组头若在中部，
-                                                            // 不主动滚动会留在原位，不符合「折叠后仍在顶部」的预期。
-                                                            expandedSubGroups = expandedSubGroups - fItem.node.fullPath
-                                                            scope.launch {
-                                                                withFrameNanos { }
-                                                                val headerIndex = listState.layoutInfo.visibleItemsInfo.find { it.key == subKey }?.index
-                                                                if (headerIndex != null) {
-                                                                    listState.animateScrollToItem(headerIndex)
-                                                                }
-                                                            }
+                                                        val fullPath = fItem.node.fullPath
+                                                        if (expandedSubGroups.contains(fullPath)) {
+                                                            expandedSubGroups = expandedSubGroups - fullPath
                                                         } else {
-                                                            expandedSubGroups = expandedSubGroups + fItem.node.fullPath
+                                                            expandedSubGroups = expandedSubGroups + fullPath
                                                         }
                                                     },
                                                     onRename = {
@@ -2485,9 +2446,7 @@ internal fun ListManagerScreen(
                                             }
                                         }
 
-                                        // 子分组头始终置顶：展开/折叠均用 stickyHeader，
-                                        // 折叠瞬间子分组头不跳走；下方下一个子分组头滚上来时自然顶替。
-                                        stickyHeader(key = subKey) { headerContent() }
+                                        item(key = subKey) { headerContent() }
                                     }
                                     is FlattenedCategoryItem.TtsItem -> {
                                         // 根目录配置项(不属于任何子分组)且之前有子分组:插入分隔标题以区分

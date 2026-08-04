@@ -13,6 +13,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AccountCircle
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
@@ -44,7 +45,6 @@ import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.drake.net.utils.withIO
 import com.github.jing332.common.utils.toast
-import com.github.jing332.compose.widgets.LoadingDialog
 import com.github.jing332.database.dbm
 import com.github.jing332.database.entities.systts.SystemTtsV2
 import com.github.jing332.database.entities.systts.TtsConfigurationDTO
@@ -248,15 +248,24 @@ fun ToolBoxScreen(sharedVM: SharedViewModel, pagerState: PagerState) {
                                     val rules = dbm.systemTtsV2.getEnabledListForSort(SpeechTarget.TAG).map {
                                         (it.config as TtsConfigurationDTO).speechRule.apply { configId = it.id }
                                     }
-                                    // 标签扩容：配置列表里某前缀最大序号超过朗读规则 tags 基础数量时，
-                                    // 补齐 tags 到最大序号，让超出基础范围的标签生效
-                                    expandSpeechRuleTagsIfNeeded(rule, rules)
+                                    // 标签扩容：扫描所有配置项（不限启用），补齐超出基础数量的标签
+                                    expandSpeechRuleTagsIfNeeded(rule, effectiveGroups.flatMap { it.list })
                                     engine.handleText(SpeechRuleConfig.textParam.value, rules)
                                 }
                             }
                         }
                         roleFilesReady = true
                     } else {
+                        // 签名匹配时仍检查标签扩容：用户可能只是切换到已有大量标签的分组，
+                        // 签名没变但朗读规则 tags 可能还没扩容到足够数量
+                        withIO {
+                            runCatching {
+                                val rule = dbm.speechRuleDao.getByRuleIdAll("mingwuyan")
+                                if (rule != null) {
+                                    expandSpeechRuleTagsIfNeeded(rule, effectiveGroups.flatMap { it.list })
+                                }
+                            }
+                        }
                         roleFilesReady = true
                     }
                 }
@@ -280,7 +289,7 @@ fun ToolBoxScreen(sharedVM: SharedViewModel, pagerState: PagerState) {
                     onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
                 }
 
-                if (roleFilesReady) {
+                if (roleFilesReady && isPageVisible.value) {
                     val ui = remember { PluginTtsUI() }
                     ui.EditContentScreen(
                         modifier = Modifier
@@ -295,8 +304,13 @@ fun ToolBoxScreen(sharedVM: SharedViewModel, pagerState: PagerState) {
                         showUiOnlySwitch = false,
                         reloadKey = reloadKey,
                     )
-                } else {
-                    LoadingDialog(onDismissRequest = {})
+                } else if (!roleFilesReady) {
+                    Box(
+                        Modifier.fillMaxSize().padding(paddingValues),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        CircularProgressIndicator()
+                    }
                 }
             }
             else -> {
@@ -334,16 +348,18 @@ fun ToolBoxScreen(sharedVM: SharedViewModel, pagerState: PagerState) {
 /**
  * 标签扩容：扫描配置列表里所有 tag，按前缀分组找最大序号，
  * 若超过朗读规则 tags 里的基础数量，补齐缺失标签到 tags 并写回数据库。
+ * 数据源用所有配置项（不限启用），确保未启用的标签也能触发扩容。
  */
 private fun expandSpeechRuleTagsIfNeeded(
     rule: SpeechRule,
-    rules: List<com.github.jing332.database.entities.systts.SpeechRuleInfo>,
+    allTtsList: List<SystemTtsV2>,
 ) {
     val tagRegex = Regex("^(.+?)(\\d+)$")
-    // 配置列表里每个前缀的最大序号
+    // 配置列表里每个前缀的最大序号（扫描所有配置项，不限启用状态）
     val configMaxSeq = mutableMapOf<String, Int>()
-    rules.forEach { info ->
-        val match = tagRegex.matchEntire(info.tag) ?: return@forEach
+    allTtsList.forEach { tts ->
+        val tag = (tts.config as? TtsConfigurationDTO)?.speechRule?.tag ?: return@forEach
+        val match = tagRegex.matchEntire(tag) ?: return@forEach
         val prefix = match.groupValues[1]
         val seq = match.groupValues[2].toIntOrNull() ?: return@forEach
         configMaxSeq[prefix] = maxOf(configMaxSeq[prefix] ?: 0, seq)
