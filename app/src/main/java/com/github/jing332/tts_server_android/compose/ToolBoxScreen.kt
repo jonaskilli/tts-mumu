@@ -19,6 +19,8 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBarDefaults
+import androidx.compose.foundation.pager.PagerState
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -47,6 +49,7 @@ import com.github.jing332.database.dbm
 import com.github.jing332.database.entities.systts.SystemTtsV2
 import com.github.jing332.database.entities.systts.TtsConfigurationDTO
 import com.github.jing332.database.entities.systts.source.PluginTtsSource
+import com.github.jing332.database.entities.SpeechRule
 import com.github.jing332.tts_server_android.R
 import com.github.jing332.tts_server_android.compose.nav.NavTopAppBar
 import com.github.jing332.tts_server_android.conf.SpeechRuleConfig
@@ -60,7 +63,7 @@ import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun ToolBoxScreen(sharedVM: SharedViewModel) {
+fun ToolBoxScreen(sharedVM: SharedViewModel, pagerState: PagerState) {
     // 角色管理插件：优先按固定 id 查找；兼容插件换 pluginId 后按名称回退
     val plugin = remember {
         dbm.pluginDao.getByPluginId("mingwuyan")
@@ -72,19 +75,28 @@ fun ToolBoxScreen(sharedVM: SharedViewModel) {
     // 插件当前实际 id（兼容换 id 后配置项已一键更新的场景）
     val rolePluginId = remember(plugin) { plugin?.pluginId ?: "mingwuyan" }
 
+    // 仅在当前页时收集 Flow，避免后台页数据变化触发重组导致滑动卡顿
+    val isPageVisible = remember { derivedStateOf { pagerState.currentPage == PagerDestination.Tool.index } }
     val flow = remember { dbm.systemTtsV2.flowAllGroupWithTts().conflate() }
     // 同步预取一次作为初始值，避免 flow 首帧空列表导致顶栏「仅界面模式」开关
     // 先显示为关、数据到达后再跳变为开的视觉闪烁。
+    var cachedGroups by remember { mutableStateOf(dbm.systemTtsV2.getAllGroupWithTts()) }
     val groups by flow.collectAsStateWithLifecycle(
-        initialValue = remember { dbm.systemTtsV2.getAllGroupWithTts() }
+        initialValue = cachedGroups
     )
+    // 页面不可见时冻结 groups，避免后台重组
+    val effectiveGroups = if (isPageVisible.value) groups else cachedGroups
+    // 页面可见时更新缓存
+    LaunchedEffect(groups, isPageVisible.value) {
+        if (isPageVisible.value) cachedGroups = groups
+    }
 
     // 查找角色管理插件(mingwuyan)配置项：本栏专为外置角色管理 UI 而设，全局只应有一个。
     // 优先取已开启 isUiOnly 的；没有则取任意一个（用于顶栏开关目标）。
     // 用 minByOrNull(id) 保证 flow 重发时不漂移。
-    val mingwuyanTts = remember(groups, isRoleManagementPlugin, rolePluginId) {
+    val mingwuyanTts = remember(effectiveGroups, isRoleManagementPlugin, rolePluginId) {
         if (!isRoleManagementPlugin) null
-        else groups.flatMap { it.list }
+        else effectiveGroups.flatMap { it.list }
             .filter { tts ->
                 val config = tts.config
                 config is TtsConfigurationDTO &&
@@ -112,9 +124,9 @@ fun ToolBoxScreen(sharedVM: SharedViewModel) {
         // 否则保持当前（同 id 不重置，避免覆盖用户本地编辑）
     }
     // 检测当前配置是否已被删除（在别处删除），若删除则清除本地状态
-    LaunchedEffect(groups) {
+    LaunchedEffect(effectiveGroups) {
         val currentId = currentTts?.id
-        if (currentId != null && groups.flatMap { it.list }.none { it.id == currentId }) {
+        if (currentId != null && effectiveGroups.flatMap { it.list }.none { it.id == currentId }) {
             currentTts = null
         }
     }
@@ -211,8 +223,8 @@ fun ToolBoxScreen(sharedVM: SharedViewModel) {
 
                 // 自动刷新：启用配置项签名变化（增删/改名/改标签/换分组）时，
                 // 后台自动运行朗读规则重新生成角色/性格文件，确保打开角色列表时与前台配置一致。
-                val enabledSig = remember(groups) {
-                    groups.flatMap { it.list }
+                val enabledSig = remember(effectiveGroups) {
+                    effectiveGroups.flatMap { it.list }
                         .filter { it.isEnabled }
                         .map { it.id to (it.config as? TtsConfigurationDTO)?.speechRule?.tagName to it.order }
                         .hashCode()
@@ -236,6 +248,9 @@ fun ToolBoxScreen(sharedVM: SharedViewModel) {
                                     val rules = dbm.systemTtsV2.getEnabledListForSort(SpeechTarget.TAG).map {
                                         (it.config as TtsConfigurationDTO).speechRule.apply { configId = it.id }
                                     }
+                                    // 标签扩容：配置列表里某前缀最大序号超过朗读规则 tags 基础数量时，
+                                    // 补齐 tags 到最大序号，让超出基础范围的标签生效
+                                    expandSpeechRuleTagsIfNeeded(rule, rules)
                                     engine.handleText(SpeechRuleConfig.textParam.value, rules)
                                 }
                             }
@@ -313,5 +328,64 @@ fun ToolBoxScreen(sharedVM: SharedViewModel) {
                 }
             }
         }
+    }
+}
+
+/**
+ * 标签扩容：扫描配置列表里所有 tag，按前缀分组找最大序号，
+ * 若超过朗读规则 tags 里的基础数量，补齐缺失标签到 tags 并写回数据库。
+ */
+private fun expandSpeechRuleTagsIfNeeded(
+    rule: SpeechRule,
+    rules: List<com.github.jing332.database.entities.systts.SpeechRuleInfo>,
+) {
+    val tagRegex = Regex("^(.+?)(\\d+)$")
+    // 配置列表里每个前缀的最大序号
+    val configMaxSeq = mutableMapOf<String, Int>()
+    rules.forEach { info ->
+        val match = tagRegex.matchEntire(info.tag) ?: return@forEach
+        val prefix = match.groupValues[1]
+        val seq = match.groupValues[2].toIntOrNull() ?: return@forEach
+        configMaxSeq[prefix] = maxOf(configMaxSeq[prefix] ?: 0, seq)
+    }
+    if (configMaxSeq.isEmpty()) return
+
+    // 朗读规则 tags 里每个前缀的现有最大序号
+    val ruleMaxSeq = mutableMapOf<String, Int>()
+    rule.tags.keys.forEach { key ->
+        val match = tagRegex.matchEntire(key) ?: return@forEach
+        val prefix = match.groupValues[1]
+        val seq = match.groupValues[2].toIntOrNull() ?: return@forEach
+        ruleMaxSeq[prefix] = maxOf(ruleMaxSeq[prefix] ?: 0, seq)
+    }
+
+    var changed = false
+    val newTags = rule.tags.toMutableMap()
+    configMaxSeq.forEach { (prefix, needMax) ->
+        val curMax = ruleMaxSeq[prefix] ?: 0
+        if (needMax > curMax) {
+            // 取现有 tag 的 value 格式作为模板，如 "【女/女青年01】" → "【女/女青年%02d】"
+            val sampleKey = rule.tags.keys.firstOrNull { it.startsWith(prefix) }
+            val sampleValue = sampleKey?.let { rule.tags[it] } ?: ""
+            for (i in (curMax + 1)..needMax) {
+                val seqStr = String.format("%02d", i)
+                val newKey = prefix + seqStr
+                if (!newTags.containsKey(newKey)) {
+                    // 按模板生成显示名：替换序号部分
+                    val newValue = if (sampleValue.isNotEmpty()) {
+                        sampleValue.replace(Regex("\\d+"), seqStr)
+                    } else {
+                        newKey
+                    }
+                    newTags[newKey] = newValue
+                    changed = true
+                }
+            }
+        }
+    }
+
+    if (changed) {
+        rule.tags = newTags
+        dbm.speechRuleDao.update(rule)
     }
 }

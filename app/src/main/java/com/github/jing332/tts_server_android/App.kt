@@ -108,8 +108,8 @@ class App : Application() {
     @SuppressLint("UnspecifiedImmutableFlag")
     fun restart() {
         val intent = packageManager.getLaunchIntentForPackage(packageName)!!
-        intent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP)
+        intent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_NEW_TASK)
         startActivity(intent)
-        Process.killProcess(Process.myPid())
+        Runtime.getRuntime().exit(0)
     }
 }

@@ -49,6 +49,7 @@ import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TriStateCheckbox
 import androidx.compose.material.icons.filled.CheckBox
+import androidx.compose.material.icons.filled.CheckBoxOutlineBlank
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBarDefaults
@@ -1973,29 +1974,11 @@ internal fun ListManagerScreen(
                             }
                         }
                         selectionMode -> {
-                            IconButton(
-                                onClick = {
-                                    deleteSourcesSelected = selectedGroupIds
-                                    showDeleteSelectedDialog = true
-                                }
-                            ) {
-                                Icon(
-                                    Icons.Default.DeleteForever,
-                                    stringResource(id = R.string.delete),
-                                    tint = MaterialTheme.colorScheme.error
-                                )
-                            }
-                            IconButton(
-                                onClick = {
-                                    convertSourcesSelected = selectedGroupIds
-                                    showConvertToSubGroupMulti = true
-                                }
-                            ) {
-                                Icon(
-                                    Icons.AutoMirrored.Filled.DriveFileMove,
-                                    "转为子分组",
-                                    tint = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
+                            IconButton(onClick = {
+                                selectionMode = false
+                                selectedGroupIds = emptySet()
+                            }) {
+                                Icon(Icons.Default.Close, stringResource(id = R.string.close))
                             }
                         }
                         else -> {
@@ -2020,8 +2003,78 @@ internal fun ListManagerScreen(
                     }
                 })
         },
+        bottomBar = {
+            if (selectionMode) {
+                // 多选模式底部操作栏：全选 + 删除 + 转为子分组（条件显示）
+                val selectedGroups = models.filter { it.group.id in selectedGroupIds }
+                val allSelected = selectedGroupIds.size == models.size
+                val canConvertToSubGroup = selectedGroups.isNotEmpty() &&
+                    selectedGroups.none { it.list.any { tts -> tts.categoryPath.isNotBlank() } }
+                Surface(
+                    modifier = Modifier.fillMaxWidth(),
+                    tonalElevation = 3.dp,
+                    color = MaterialTheme.colorScheme.surfaceContainer
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 8.dp, vertical = 4.dp),
+                        horizontalArrangement = Arrangement.SpaceEvenly,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        TextButton(onClick = {
+                            selectedGroupIds = if (allSelected) emptySet() else models.map { it.group.id }.toSet()
+                        }) {
+                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                Icon(
+                                    if (allSelected) Icons.Default.CheckBox else Icons.Default.CheckBoxOutlineBlank,
+                                    contentDescription = "全选"
+                                )
+                                Text("全选", style = MaterialTheme.typography.labelSmall)
+                            }
+                        }
+                        TextButton(onClick = {
+                            if (selectedGroupIds.isNotEmpty()) {
+                                deleteSourcesSelected = selectedGroupIds
+                                showDeleteSelectedDialog = true
+                            }
+                        }) {
+                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                Icon(
+                                    Icons.Default.DeleteForever,
+                                    contentDescription = stringResource(id = R.string.delete),
+                                    tint = MaterialTheme.colorScheme.error
+                                )
+                                Text(
+                                    stringResource(id = R.string.delete),
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.error
+                                )
+                            }
+                        }
+                        if (canConvertToSubGroup) {
+                            TextButton(onClick = {
+                                convertSourcesSelected = selectedGroupIds
+                                showConvertToSubGroupMulti = true
+                            }) {
+                                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                    Icon(
+                                        Icons.AutoMirrored.Filled.DriveFileMove,
+                                        contentDescription = "转为子分组"
+                                    )
+                                    Text("转为子分组", style = MaterialTheme.typography.labelSmall)
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
     ) { paddingValues ->
-    Box(Modifier.fillMaxSize().padding(top = paddingValues.calculateTopPadding())) {
+    Box(Modifier.fillMaxSize().padding(
+        top = paddingValues.calculateTopPadding(),
+        bottom = paddingValues.calculateBottomPadding()
+    )) {
         ControlBottomBarVisibility(listState, LocalBottomBarBehavior.current)
         // 缩短长按超时时间(默认约500ms→300ms)，使拖拽排序和长按菜单响应更快
         val defaultViewConfig = LocalViewConfiguration.current
@@ -2094,9 +2147,9 @@ internal fun ListManagerScreen(
                             groupWithSystemTts.list.filter { it.isEnabled }.size.sizeToToggleableState(
                                 groupWithSystemTts.list.size
                             )
-                        
+
                         ShadowedDraggableItem(reorderableState = reorderState, key = key) {
-                            Group(modifier = groupDragModifier,
+                            Group(modifier = groupDragModifier.fillMaxWidth(),
                                 name = g.name,
                                 group = g,
                                 isExpanded = g.isExpanded,

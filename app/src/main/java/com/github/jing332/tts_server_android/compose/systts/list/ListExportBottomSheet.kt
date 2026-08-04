@@ -49,10 +49,26 @@ fun ListExportBottomSheet(onDismissRequest: () -> Unit, list: List<GroupWithSyst
             }
         }
     } else {
+        val fileName = when {
+            list.size == 1 && list[0].list.size == 1 -> {
+                val cfgName = list[0].list[0].displayName
+                "ttsrv-list-${cfgName}.json"
+            }
+            list.size == 1 -> {
+                val groupName = list[0].group.name
+                val count = list[0].list.size
+                "ttsrv-list-${groupName}-${count}项.json"
+            }
+            else -> {
+                val groupCount = list.size
+                val totalCount = list.sumOf { it.list.size }
+                "ttsrv-list-${groupCount}个分组-${totalCount}项.json"
+            }
+        }
         ConfigExportBottomSheet(
             json = jStr,
             onDismissRequest = onDismissRequest,
-            fileName = "ttsrv-list.json"
+            fileName = fileName
         )
     }
 }

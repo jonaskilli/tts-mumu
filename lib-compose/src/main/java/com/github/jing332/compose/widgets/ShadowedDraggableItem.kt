@@ -5,6 +5,7 @@ import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.lazy.LazyItemScope
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
@@ -42,6 +43,7 @@ fun LazyItemScope.ShadowedDraggableItem(
             animateDpAsState(if (isDragging) 24.dp else 0.dp, label = "", animationSpec = tweenSpec)
         Box(
             modifier = Modifier
+                .fillMaxWidth()
                 .shadow(
                     elevation.value,
                     MaterialTheme.shapes.small,

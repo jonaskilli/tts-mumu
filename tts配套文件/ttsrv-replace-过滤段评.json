@@ -1,0 +1,67 @@
+[
+  {
+    "group": {
+      "id": 1785859000001,
+      "name": "过滤段评",
+      "order": 0,
+      "onExecution": 0
+    },
+    "list": [
+      {
+        "id": 1785859000011,
+        "groupId": 1785859000001,
+        "name": "过滤img标签（含段评图片）",
+        "isEnabled": true,
+        "isRegex": true,
+        "pattern": "(?is)<img\\b[^>]*>",
+        "replacement": "",
+        "order": 0,
+        "sampleText": "正文甲。<img src=\"data:image/svg+xml;base64,...\">正文乙。"
+      },
+      {
+        "id": 1785859000012,
+        "groupId": 1785859000001,
+        "name": "过滤comment标签",
+        "isEnabled": true,
+        "isRegex": true,
+        "pattern": "(?is)<!--.*?-->",
+        "replacement": "",
+        "order": 1,
+        "sampleText": "正文甲。<!-- 段评内容 -->正文乙。"
+      },
+      {
+        "id": 1785859000013,
+        "groupId": 1785859000001,
+        "name": "过滤裸Base64图片数据",
+        "isEnabled": true,
+        "isRegex": true,
+        "pattern": "(?i)data:image/[^\\s<>\"']+",
+        "replacement": "",
+        "order": 2,
+        "sampleText": "正文甲。data:image/svg+xml;base64,PHN2ZyB4bWxucz0i 正文乙。"
+      },
+      {
+        "id": 1785859000014,
+        "groupId": 1785859000001,
+        "name": "过滤裸图片URL",
+        "isEnabled": true,
+        "isRegex": true,
+        "pattern": "(?i)\\bhttps?://[^\\s<>\"']+\\.(?:avif|bmp|gif|jpe?g|png|svg|webp)",
+        "replacement": "",
+        "order": 3,
+        "sampleText": "正文甲。https://example.com/image.png 正文乙。"
+      },
+      {
+        "id": 1785859000015,
+        "groupId": 1785859000001,
+        "name": "过滤其他媒体标签",
+        "isEnabled": true,
+        "isRegex": true,
+        "pattern": "(?is)<(?:svg|picture|source|video|audio|canvas|iframe)\\b[^>]*>",
+        "replacement": "",
+        "order": 4,
+        "sampleText": "正文甲。<svg>...</svg>正文乙。"
+      }
+    ]
+  }
+]

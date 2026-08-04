@@ -149,7 +149,7 @@ fun AnimatedContentScope.MainPager(sharedVM: SharedViewModel) {
                 ) { index ->
                     when (index) {
                         PagerDestination.SystemTts.index -> ListManagerScreen(sharedVM)
-                        PagerDestination.Tool.index -> ToolBoxScreen(sharedVM)
+                        PagerDestination.Tool.index -> ToolBoxScreen(sharedVM, pagerState)
                         PagerDestination.SystemTtsLog.index -> TtsLogScreen()
                         PagerDestination.HunyuanTaiji.index -> HunyuanTaijiScreen()
                         PagerDestination.Settings.index -> SettingsScreen()

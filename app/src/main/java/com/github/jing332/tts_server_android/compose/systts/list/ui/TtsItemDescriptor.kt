@@ -10,7 +10,7 @@ abstract class TtsItemDescriptor<T : TextToSpeechSource>(config: IConfiguration)
     val source: T = this.config.source as T
 
     override val tagName: String
-        get() = config.speechRule.tagName
+        get() = formatTagName(config.speechRule.tagName)
 
     override val standby: Boolean
         get() = config.speechRule.isStandby
