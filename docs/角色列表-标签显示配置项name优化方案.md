@@ -2,7 +2,7 @@
 
 > 目标：让角色列表的发音人标签显示当前绑定 voice 的 displayName（如"晓晓"），voice 切换后标签跟着变；用底层英文 voice 作唯一校验键，删除 voice 后能⚠。
 > 关联文档：`docs/角色列表-标签性格机制与自动刷新.md`
-> 状态：**方案 A 已实施**（2026-08-04，显示 tag），C 待定（显示真实 voice/displayName）
+> 状态：**方案 B-1 已实施**（2026-08-04，底层 voice 进入链路，标签显示 displayName，⚠ 恢复）；方案 A 已废弃；C 待定（app 侧 computeTagName 统一）
 
 ---
 
@@ -147,11 +147,11 @@ JS handleText(text, tagsData)
 
 ## 三、推荐路线
 
-1. **第一步（方案 A，已实施）**：插件 JS 显示 tag，⚠ 暂时消失。快速验证观感。
-2. **第二步（方案 B）**：让底层 voice 进入链路，标签显示 displayName，⚠ 根除且跟随 voice 切换。需轻改 app 传 voice。
+1. ~~第一步（方案 A，已废弃）~~：插件 JS 显示 tag，⚠ 暂时消失。已被方案 B-1 取代，不再使用。
+2. **第二步（方案 B-1，已实施）**：让底层 voice 进入链路，标签显示 displayName，⚠ 根除且跟随 voice 切换。详见第六章实施记录。
 3. **第三步（方案 C，可选）**：app 侧 computeTagName 统一用 displayName，全链路一致。
 
-方案 B 是关键转折点——它让 voice 真正参与角色管理。C 是锦上添花。
+方案 B-1 是关键转折点——它让 voice 真正参与角色管理。C 是锦上添花。
 
 ---
 
@@ -193,119 +193,163 @@ JS handleText(text, tagsData)
 
 ---
 
-## 六、方案 B 详细实施清单（关键转折点）
+## 六、方案 B-1 实施记录（已完成，2026-08-04）
 
-> 方案 B 让底层 voice 进入链路，是解决「标签不跟随 voice 切换」「删除 voice 不⚠」的核心。
-> **执行顺序**：按步骤编号依次，每步验证后再进下一步。
-> **环境限制**：Kotlin 改动无法本地编译（Java 25 致 Gradle 失败），需推 GitHub Actions 用 JDK 17 构建；JS 需真机导入测试。
+> 方案 B-1 = 方案 B 的完整实施。核心：让底层英文 voice 进入 JS 链路，record.voice 统一存底层 voice，标签显示 displayName，删除 voice 后⚠。
+> **环境限制**：Kotlin 改动无法本地编译（Java 25 + 无 Android SDK），已通过静态代码审查核验（3文件全通过，8处构造调用+23处copy()调用兼容）；JS 需真机导入测试。
 
-### 步骤 0：准备
+### 6.1 设计原则（三层语义）
 
-- [ ] 0.1 新建 JS 副本：`ttsrv-speechRule-..._方案B已改.js`、`ttsrv-plugin-..._方案B已改.js`（不覆盖现有文件）
-- [ ] 0.2 确认 `SystemTtsV2.config` 能取到底层 voice（如微软 TTS 的 voiceName）
-- [ ] 0.3 备份真机 `fayinren.json`、`fayinren_personality_summary.json`、`characterRecords.json`
+| 标识 | 用途 | 例子 |
+|---|---|---|
+| **voiceTag**（朗读规则分类键） | `isVoiceAvailable` 入参、序号排序 `info.voice.match(/\d+$/)`、duihua 候选池、GENSHIN 反查 | `女青年01` |
+| **底层voice**（TTS引擎真实标识） | `usedVoiceMap`/`voiceUsageMap`/`usedVoices` 的 key、`candidates[].voice`、所有 `return`、`record.voice`、`fayinren.json` 元素 | `zh-CN-XiaoxiaoNeural` |
+| **displayName** | 桥接插件内存 record.voice、fayinrenList 元素、角色列表标签显示 | `晓晓` |
 
-### 步骤 1：app 侧 — handleText 传 voice（轻改）
+转换关系：`底层voice = this.voiceTagToVoice[voiceTag] || voiceTag`（兜底用 voiceTag 自身）。
 
-**文件**：[SpeechRuleEngine.kt](file:///workspace/app/src/main/java/com/github/jing332/tts_server_android/model/rhino/speech_rule/SpeechRuleEngine.kt#L90)
+### 6.2 app 侧改动（3 文件）
 
-**改动**：构造 tagsDataMap 时，给每个 tagData 项加 `_voice` 和 `_displayName`：
+**① [SpeechRuleInfo.kt](file:///workspace/lib-database/src/main/java/com/github/jing332/database/entities/systts/SpeechRuleInfo.kt)**
+新增两个 `@Transient` 字段（不进 DB/JSON 序列化，运行时由 init 填充）：
 ```kotlin
-info.tagData.forEach {
-    tagsDataMap[info.tag]!![it.key]!!.add(
-        mapOf(
-            "id" to info.configId.toString(),
-            "value" to it.value
-        )
-    )
-}
-// 新增：把配置项的底层 voice 和 displayName 也带入
-// 需从 SystemTtsV2.config 取 voice，displayName 直接用 SystemTtsV2.displayName
+@Transient var voice: String = "",
+@Transient var displayName: String = "",
 ```
-具体取 voice 的方式需确认 TtsConfigurationDTO 结构（微软 TTS 在 source.voice）。
+- import `kotlinx.serialization.Transient`（非 androidx.room.Transient）
+- 与既有 `HttpTTS.kt` 同模式（只 `@Transient` 不 `@IgnoredOnParcel`），跨 Parcel 保留旧值但每次 init 覆盖，无害
 
-**风险**：tagsDataMap 结构变化，需确认 JS 侧遍历 tagData 时不会因新增 `_voice`/`_displayName` key 出错（JS 遍历的是 tagData 的 key，`_voice` 前缀加下划线避免和正常 key 冲突）
+**② [TextProcessor.kt#L61-L75](file:///workspace/app/src/main/java/com/github/jing332/tts_server_android/service/systts/help/TextProcessor.kt#L61-L75)**
+init() 中填充 voice/displayName：
+```kotlin
+val systts = cfg.tag as? SystemTtsV2
+cfg.copy(
+    speechInfo = cfg.speechInfo.copy(
+        configId = entry.key,
+        voice = cfg.source.voice,           // TextToSpeechSource.abstract val
+        displayName = systts?.displayName ?: "" // SystemTtsV2.displayName
+    )
+)
+```
+- `cfg.tag` 由 `TtsRepository.getAllTts()` 通过 `.copy(tag = systts)` 设置为 `SystemTtsV2` 实例
 
-**验证**：GitHub Actions 构建，真机运行朗读，检查 JS 能否拿到 `_voice`
+**③ [SpeechRuleEngine.kt](file:///workspace/app/src/main/java/com/github/jing332/tts_server_android/model/rhino/speech_rule/SpeechRuleEngine.kt)**
+handleText 中把 voice/displayName 传入 JS 的 `tagsDataMap`，特殊 key `_voice`/`_displayName`：
+```kotlin
+if (info.voice.isNotEmpty()) {
+    tagsDataMap[info.tag]!!["_voice"]!!.add(mapOf("id" to info.configId.toString(), "value" to info.voice))
+}
+if (info.displayName.isNotEmpty()) {
+    tagsDataMap[info.tag]!!["_displayName"]!!.add(mapOf("id" to info.configId.toString(), "value" to info.displayName))
+}
+```
 
-**回滚**：还原 SpeechRuleEngine.kt
+### 6.3 朗读规则 JS 改动（[ttsrv-speechRule..._方案B已改.js](file:///workspace/tts配套文件/ttsrv-speechRule-多角色朗读2.87【加速版+1修复2.2】_方案B已改.js)）
 
-### 步骤 2：朗读规则 JS — availableVoices / assignVoice 改用 voice
+**① detectAvailableVoices（[L1050-L1094](file:///workspace/tts配套文件/ttsrv-speechRule-多角色朗读2.87【加速版+1修复2.2】_方案B已改.js#L1050-L1094)）**
+- `availableVoices` 的 key 改为底层 voice（从 `tagsData[voiceTag]._voice[0].value` 取，取不到回退 voiceTag）
+- 新增 `voiceTagToVoice` / `voiceTagToDisplayName` 映射表
 
-**文件**：`ttsrv-speechRule-..._方案B已改.js`
+**② isVoiceAvailable（[L1096-L1100](file:///workspace/tts配套文件/ttsrv-speechRule-多角色朗读2.87【加速版+1修复2.2】_方案B已改.js#L1096-L1100)）**
+入参仍是 voiceTag，内部转底层 voice 后查 `availableVoices`
 
-**改动点**：
-- `detectAvailableVoices`（[1050行](file:///workspace/tts配套文件/ttsrv-speechRule-多角色朗读2.87【加速版+1修复2.2】_原版未改动态扩展.js#L1050)）：availableVoices 的 key 从 tag 改为底层 voice（从 tagData._voice 取）
-- `assignVoice`（[1079-1089行](file:///workspace/tts配套文件/ttsrv-speechRule-多角色朗读2.87【加速版+1修复2.2】_原版未改动态扩展.js#L1079)）：内部仍用 tag 做 GENSHIN/duihua 匹配，返回前把 tag 转成底层 voice
-- `record.voice =` 赋值（1982/1997/2014/2922行）：存底层 voice
+**③ assignVoice 内部 6 处（[L1121-L1290](file:///workspace/tts配套文件/ttsrv-speechRule-多角色朗读2.87【加速版+1修复2.2】_方案B已改.js#L1121-L1290)）**
+统一用底层 voice 做去重 key 和返回值，voiceTag 仅用于 `isVoiceAvailable` 校验和序号排序：
+- duihua 分支：`uv = voiceTagToVoice[voiceTag]||voiceTag`，去重/返回用 uv
+- 核心候选：`candidates.push({voice: uv})`
+- sameTypeAvailableMap：key 用底层 voice（与 record.voice 一致）
+- allSameTypeVoices / allSameGenderVoices：voice 用底层，seq 仍用 voiceTag 数字后缀
+- 年龄降级：同核心候选
 
-**风险**：
-- assignVoice 内部 `isVoiceAvailable` 查询用 voice（改后 key 一致）
-- duihua 动态标签（duihuaA/duihuaB）的底层 voice 来源：需从 tagData._voice 取，但 duihua 是按性别动态分配的，可能多个配置项映射到同一 duihua 标签——需确认取哪个 voice
-- `usedVoiceMap` 去重改用 voice（底层 voice 唯一，比 tag 更准确）
+**④ GENSHIN 反查（[L2044-L2053](file:///workspace/tts配套文件/ttsrv-speechRule-多角色朗读2.87【加速版+1修复2.2】_方案B已改.js#L2044-L2053)）**
+record.voice 已是底层 voice，需把 GENSHIN 的 voiceTag 转底层后再比：
+```js
+var uv = (cm && cm.voiceTagToVoice && cm.voiceTagToVoice[GENSHIN_CHARACTERS[key].voice]) || GENSHIN_CHARACTERS[key].voice;
+if (uv === targetMainRecord.voice) { ... }
+```
 
-**验证**：真机运行，检查 characterRecords.json 的 voice 字段是否为底层 voice（如 zh-CN-XiaoxiaoNeural）
+**⑤ 映射文件生成（[L4733-L4737](file:///workspace/tts配套文件/ttsrv-speechRule-多角色朗读2.87【加速版+1修复2.2】_方案B已改.js#L4733-L4737) 和 [L4775-L4779](file:///workspace/tts配套文件/ttsrv-speechRule-多角色朗读2.87【加速版+1修复2.2】_方案B已改.js#L4775-L4779)）**
+`fayinren_personality_summary.json` 从 `[voiceTag, voiceTag+personality]` 改为 `[底层voice, displayName]`，duihua 分支和硬编分支同步改。
 
-**回滚**：还原 JS + 恢复备份
+### 6.4 桥接插件改动（[ttsrv-plugin..._方案B已改.js](file:///workspace/tts配套文件/ttsrv-plugin-角色管理_桥接试听v7_方案B已改.js)）
 
-### 步骤 3：朗读规则 JS — fayinren.json / personality_summary 改存 voice
+**核心机制：双层闭环（无需改 replaceFayinrenName）**
+- 内存 `characterRecords`：voice 存 **displayName**（读取时 `replaceFayinrenName` 转换）
+- 存盘 `characterRecords.json`：voice 存 **底层voice**（保存时 `reverseReplaceFayinrenName` 反向转换）
+- `fayinrenList`：元素经 `replaceFayinrenName`，存 **displayName**
 
-**文件**：`ttsrv-speechRule-..._方案B已改.js`
+**① isVoiceTagValid（[L1525-L1531](file:///workspace/tts配套文件/ttsrv-plugin-角色管理_桥接试听v7_方案B已改.js#L1525-L1531)）**
+校验 record.voice(displayName) 是否在 fayinrenList(displayName集合) 中，不在则无效：
+```js
+function isVoiceTagValid(voice) {
+    if (!voice) return false;
+    for (var i = 0; i < fayinrenList.length; i++) {
+        if (fayinrenList[i] === voice) return true;
+    }
+    return false;
+}
+```
 
-**改动点**：
-- `fayinren.json` 生成（[4478-4505行](file:///workspace/tts配套文件/ttsrv-speechRule-多角色朗读2.87【加速版+1修复2.2】_原版未改动态扩展.js#L4478)）：数组元素从 tag 改为底层 voice
-- `fayinren_personality_summary.json`（[4682行](file:///workspace/tts配套文件/ttsrv-speechRule-多角色朗读2.87【加速版+1修复2.2】_原版未改动态扩展.js#L4682)）：从 `[[tag, personality], ...]` 改为 `[[voice, displayName], ...]`
+**② generateVoiceTag（[L1535-L1557](file:///workspace/tts配套文件/ttsrv-plugin-角色管理_桥接试听v7_方案B已改.js#L1535-L1557)）**
+直接显示 character.voice（已是 displayName），无效时追加红色 ⚠：
+```js
+if (!isValid) {
+    ssb.append(" ⚠");
+    ssb.setSpan(new ForegroundColorSpan(CLR_WARN), ...);
+}
+```
 
-**风险**：格式变化，旧插件 JS 读新格式会错——必须同步步骤 4
+**③ getVoiceByTag 闭环（app 侧 [TtsEngineContext.kt#L118](file:///workspace/lib-tts/src/main/java/com/github/jing332/tts/speech/plugin/engine/TtsEngineContext.kt#L118)）**
+桥接 `buildList`/`refreshVoiceTagsOnly` 调 `ttsrv.getVoiceByTag(charName)` 获取实时生效的发音人，app 返回 `match.displayName`——恰好是 displayName，与内存 record.voice 语义一致，闭环自洽。
 
-**验证**：真机检查两个 json 文件内容
+### 6.5 自检发现的衍生问题（已评估，按需处理）
 
-**回滚**：还原 JS + 恢复备份
+| 问题 | 位置 | 严重性 | 处理 |
+|---|---|---|---|
+| assignVoice 返回 null 时 record.voice 赋值 `"duihuaA"/"duihuaB"/"duihua"` | [L2032](file:///workspace/tts配套文件/ttsrv-speechRule-多角色朗读2.87【加速版+1修复2.2】_方案B已改.js#L2032) | 低 | **保留**。这是「fallback到对话标签」语义非发音人；触发条件极端（同性别全无可用发音人）；后续 `availableVoices[record.voice]` 判定无效会触发重分配，属期望行为 |
+| duihua roleValue（如"青年20"）混入 availableVoices/fayinren.json | [L4522](file:///workspace/tts配套文件/ttsrv-speechRule-多角色朗读2.87【加速版+1修复2.2】_方案B已改.js#L4522)、[L4601](file:///workspace/tts配套文件/ttsrv-speechRule-多角色朗读2.87【加速版+1修复2.2】_方案B已改.js#L4601) | 低 | **保留**。duihua 动态标签无底层voice映射，roleValue 即其标识；assignVoice 的 duihua 分支 `uv=voiceTagToVoice[voiceTag]\|\|voiceTag` 让返回值与 key 一致（都是 roleValue），自洽；桥接 replaceFayinrenName 查不到 roleValue 原样显示，合理 |
+| 朗读规则JS内部命令显示英文voice | [L5208](file:///workspace/tts配套文件/ttsrv-speechRule-多角色朗读2.87【加速版+1修复2.2】_方案B已改.js#L5208)（qjs统计）、[L5238](file:///workspace/tts配套文件/ttsrv-speechRule-多角色朗读2.87【加速版+1修复2.2】_方案B已改.js#L5238)（setFixedVoice）、printAvailableVoices | 中 | **暂不处理**。属朗读规则JS内部命令（非角色列表标签），不在本次核心目标范围；用户已确认暂不需要 |
+| 桥接「系统TTS重新分配」逻辑依赖 `displayName.match(/^(.+?)\d/)` 分类 | [L4665](file:///workspace/tts配套文件/ttsrv-plugin-角色管理_桥接试听v7_方案B已改.js#L4665) | 中 | **暂不处理**。方案B下 displayName 是"晓晓"非"女青年01"，正则失效；但这是「未开转发器+系统TTS重分配」边缘场景，需单独适配 |
 
-### 步骤 4：插件 JS — generateVoiceTag 显示 displayName，isVoiceTagValid 查 voice
+### 6.6 验证清单（真机/模拟器）
 
-**文件**：`ttsrv-plugin-..._方案B已改.js`
+- [ ] Kotlin 编译通过（推 GitHub Actions 用 JDK 17 构建）
+- [ ] 多角色朗读正常，characterRecords.json 的 voice 字段为底层 voice
+- [ ] 角色列表标签显示 displayName（如"晓晓"）
+- [ ] 切换某 tag 绑定的 voice 后，标签同步更新
+- [ ] 删除某 voice 后，对应角色标签显示 ⚠
+- [ ] 发音人去重正常（同一底层 voice 不被重复分配）
+- [ ] fayinren.json 存底层 voice 数组
+- [ ] fayinren_personality_summary.json 存 `[底层voice, displayName]` 二维数组
 
-**改动点**：
-- `replaceFayinrenName`（[57行](file:///workspace/tts配套文件/ttsrv-plugin-角色管理_桥接试听v7_方案A已改.js#L57)）：数据源已是 personality_summary，内容改为 `[voice, displayName]` 后，函数自动变为 voice→displayName（无需改函数体，只要缓存内容变了）
-- `isVoiceTagValid`（[1524行](file:///workspace/tts配套文件/ttsrv-plugin-角色管理_桥接试听v7_方案A已改.js#L1524)）：恢复查询 fayinrenList（现在存 voice，record.voice 也是 voice，能命中；删除 voice 后查不到→⚠）
-- `generateVoiceTag`（[1532行](file:///workspace/tts配套文件/ttsrv-plugin-角色管理_桥接试听v7_方案A已改.js#L1532)）：显示 `replaceFayinrenName(record.voice)`（voice→displayName，显示"晓晓"），恢复⚠提示（voice 查不到时）
+### 6.7 分发说明
 
-**风险**：
-- fayinrenList 首次为空时 isVoiceTagValid 不能误⚠（保留「空列表不拦截」逻辑）
-- duihua 的底层 voice 必须在步骤3写入 fayinren.json，否则误⚠
-
-**验证**：真机进角色管理栏，标签显示"晓晓"；切换某 tag 绑定的 voice 后标签变；删除一个 voice 后该角色⚠
-
-**回滚**：还原插件 JS
-
-### 步骤 5：JS 分发
-
+- app 侧改动（SpeechRuleInfo/TextProcessor/SpeechRuleEngine）打包进新 APK
 - 分发 `_方案B已改.js` 两个文件给用户导入
-- app 侧改动（步骤1）打包进新 APK
 - **强调**：app + 朗读规则JS + 插件JS 必须同步更新，旧版任一不匹配都会出错
 
 ---
 
-## 七、方案 B 风险矩阵与决策点
+## 七、方案 B 风险矩阵与决策点（实施后复盘）
 
-| 风险 | 影响 | 缓解 |
+| 风险 | 影响 | 实施后状态 |
 |---|---|---|
-| app 取底层 voice 的方式因 TTS 引擎而异 | 微软/Edge/本地 TTS 的 voice 字段位置不同 | 在 SpeechRuleEngine 里统一抽取（参考响度均衡的 `source.voice` 用法） |
-| duihua 动态标签的 voice 来源不明 | assignVoice 转 voice 时找不到对应 | 确认 duihua 分配时是否已有配置项上下文，取其 voice |
-| fayinren.json 格式不向后兼容 | 旧插件读新格式出错 | 强制三件套同步更新，发版说明强调 |
-| replaceFayinrenName 缓存未刷新 | 标签显示旧 personality | 确认缓存随 personality_summary 文件变化刷新 |
-| assignVoice 内部 tag↔voice 映射建立 | 转换失败导致分配异常 | 内部维护 tag→voice 映射表（来自 tagData._voice） |
+| app 取底层 voice 的方式因 TTS 引擎而异 | 微软/Edge/本地 TTS 的 voice 字段位置不同 | **已解决**。`TextToSpeechSource.voice` 是 abstract val，子类 LocalTtsSource/PluginTtsSource 均 override，统一通过 `cfg.source.voice` 抽取 |
+| duihua 动态标签的 voice 来源不明 | assignVoice 转 voice 时找不到对应 | **已解决（自洽混合）**。duihua 动态标签无底层voice映射，roleValue 即其标识；assignVoice 的 duihua 分支 `uv=voiceTagToVoice[voiceTag]\|\|voiceTag` 让返回值与 availableVoices key 一致 |
+| fayinren.json 格式不向后兼容 | 旧插件读新格式出错 | **已缓解**。强制三件套同步更新，发版说明强调（见 6.7） |
+| replaceFayinrenName 缓存未刷新 | 标签显示旧 personality | **已解决**。双层闭环设计，`_initFayinrenMapCache(true)` 强制刷新 |
+| assignVoice 内部 tag↔voice 映射建立 | 转换失败导致分配异常 | **已解决**。`voiceTagToVoice` 映射表在 detectAvailableVoices 建立，兜底 `voiceTag` 保证不报错 |
 
-### 待决策点（动手前必须确认）
+### 决策点结论（已确认）
 
-1. **底层 voice 的统一抽取方式**：微软 TTS 在 `source.voice`，其他 TTS 引擎呢？需在 app 侧统一封装一个 `getVoice()` 方法
-2. **duihua 动态标签的 voice**：duihuaA/duihuaB 按性别分配，它们的底层 voice 取哪个配置项的？还是用首个匹配项？
-3. **personality 字段 UI 去留**：方案 B 下 personality 不再参与显示，配置项编辑页是否隐藏该输入框？（建议隐藏，DB 保留）
+1. **底层 voice 的统一抽取方式**：✅ 用 `TextToSpeechSource.voice`（abstract val），无需额外封装
+2. **duihua 动态标签的 voice**：✅ duihua 标签用 roleValue 自身作标识，不强行转底层 voice（见 6.5 衍生问题2）
+3. **personality 字段 UI 去留**：✅ 朗读规则JS的 tag 分类功能保留（用户无需感知 tag 序号，仅内部用于分配和去重）；personality 字段 UI 隐藏属方案 C 范围，待定
 
-### 方案 C（可选，方案 B 之上）
+### 方案 C（可选，方案 B-1 之上）
 
-方案 B 完成后，若要进一步统一 app 侧 computeTagName 显示 displayName：
+方案 B-1 完成后，若要进一步统一 app 侧 computeTagName 显示 displayName：
 - `computeTagName` 不再调 JS getTagName 拼 personality，直接返回配置项 displayName
 - 调用点排查：[ListManagerScreen.kt](file:///workspace/app/src/main/java/com/github/jing332/tts_server_android/compose/systts/list/ListManagerScreen.kt)、[BatchTagDialog.kt](file:///workspace/app/src/main/java/com/github/jing332/tts_server_android/compose/systts/list/BatchTagDialog.kt) 等
-- 方案 C 是锦上添花，方案 B 已解决核心痛点
+- 隐藏配置项编辑页的 personality 字段 UI（DB 字段保留兼容旧数据）
+- 方案 C 是锦上添花，方案 B-1 已解决核心痛点
