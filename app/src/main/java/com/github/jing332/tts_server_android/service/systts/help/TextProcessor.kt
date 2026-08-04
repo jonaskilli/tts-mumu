@@ -5,6 +5,7 @@ import com.github.jing332.common.utils.StringUtils
 import com.github.jing332.database.constants.ReplaceExecution
 import com.github.jing332.database.dbm
 import com.github.jing332.database.entities.systts.SpeechRuleInfo
+import com.github.jing332.database.entities.systts.SystemTtsV2
 import com.github.jing332.tts.ConfigType
 import com.github.jing332.tts.error.TextProcessorError
 import com.github.jing332.tts.synthesizer.ITextProcessor
@@ -58,7 +59,19 @@ class TextProcessor : ITextProcessor {
             logger.debug { "After setting console: source=${engine.console.source}" }
             engine.eval()
             this.configs =
-                configs.entries.map { it.value.copy(speechInfo = it.value.speechInfo.copy(configId = it.key)) }
+                configs.entries.map { entry ->
+                    val cfg = entry.value
+                    // 方案B：从 SystemTtsV2(即 cfg.tag) 取 displayName，从 source 取底层 voice
+                    // 填入 SpeechRuleInfo，供 handleText 传给 JS 做发音人同步与校验
+                    val systts = cfg.tag as? SystemTtsV2
+                    cfg.copy(
+                        speechInfo = cfg.speechInfo.copy(
+                            configId = entry.key,
+                            voice = cfg.source.voice,
+                            displayName = systts?.displayName ?: ""
+                        )
+                    )
+                }
             speechRules = this.configs.map { it.speechInfo }
         } else {
             this.configs = configs.values.toList()

@@ -7,6 +7,7 @@ import com.github.jing332.database.constants.SpeechTarget
 import com.github.jing332.database.entities.MapConverters
 import kotlinx.parcelize.Parcelize
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.Transient
 
 @Parcelize
 @Serializable
@@ -28,7 +29,16 @@ data class SpeechRuleInfo(
     var tagData: Map<String, String> = mutableMapOf(),
 
     // 用于标识tts配置的唯一性，由脚本处理后将 tag 与 id 返回给程序以找到朗读
-    var configId: Long = 0L
+    var configId: Long = 0L,
+
+    // 方案B：底层英文 voice（TTS 引擎真实发音人标识，如 zh-CN-XiaoxiaoNeural）
+    // 运行时由 app 从 SystemTtsV2.ttsConfig.source.voice 填充，不进 DB 序列化
+    @Transient
+    var voice: String = "",
+
+    // 方案B：发音人显示名（如"晓晓"），运行时由 app 从 SystemTtsV2.displayName 填充
+    @Transient
+    var displayName: String = "",
 ) : Parcelable {
     val mutableTagData: MutableMap<String, String>
         get() = tagData as MutableMap<String, String>

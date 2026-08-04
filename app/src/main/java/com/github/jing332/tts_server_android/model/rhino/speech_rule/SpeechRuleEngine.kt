@@ -100,6 +100,31 @@ class SpeechRuleEngine(
                     )
                 )
             }
+
+            // 方案B：把底层 voice 和 displayName 也带入 tagsData
+            // key 加下划线前缀避免和正常 tagData 冲突，JS 侧通过 tagsData[tag]._voice 取值
+            if (info.voice.isNotEmpty()) {
+                val voiceKey = "_voice"
+                if (tagsDataMap[info.tag]!![voiceKey] == null)
+                    tagsDataMap[info.tag]!![voiceKey] = mutableListOf()
+                tagsDataMap[info.tag]!![voiceKey]!!.add(
+                    mapOf(
+                        "id" to info.configId.toString(),
+                        "value" to info.voice
+                    )
+                )
+            }
+            if (info.displayName.isNotEmpty()) {
+                val nameKey = "_displayName"
+                if (tagsDataMap[info.tag]!![nameKey] == null)
+                    tagsDataMap[info.tag]!![nameKey] = mutableListOf()
+                tagsDataMap[info.tag]!![nameKey]!!.add(
+                    mapOf(
+                        "id" to info.configId.toString(),
+                        "value" to info.displayName
+                    )
+                )
+            }
         }
         return handleText(text, tagsDataMap)
     }
