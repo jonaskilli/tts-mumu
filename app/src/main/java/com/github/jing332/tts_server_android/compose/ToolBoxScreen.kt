@@ -211,19 +211,21 @@ fun ToolBoxScreen(sharedVM: SharedViewModel) {
 
                 // 自动刷新：启用配置项签名变化（增删/改名/改标签/换分组）时，
                 // 后台自动运行朗读规则重新生成角色/性格文件，确保打开角色列表时与前台配置一致。
-                // 首次进入也执行一次（lastSig 初始为 null），保证文件始终为最新状态。
                 val enabledSig = remember(groups) {
                     groups.flatMap { it.list }
                         .filter { it.isEnabled }
                         .map { it.id to (it.config as? TtsConfigurationDTO)?.speechRule?.tagName to it.order }
                         .hashCode()
                 }
-                var lastSig by remember { mutableStateOf<Int?>(null) }
-                // 角色文件就绪前先显示加载遮罩，避免插件 UI 先读到旧文件再重建闪烁
-                var roleFilesReady by remember { mutableStateOf(false) }
+                // lastSig 持久化到 SharedPreferences：签名与上次一致时跳过耗时的
+                // JS eval + handleText，直接复用磁盘已生成的角色文件，避免每次进入都卡在加载遮罩。
+                var lastSig by remember { mutableStateOf(SpeechRuleConfig.lastRoleSig.value) }
+                // 签名匹配则初始即就绪，不显示加载遮罩；不匹配则需重新生成文件，先显示遮罩。
+                var roleFilesReady by remember { mutableStateOf(lastSig == enabledSig) }
                 LaunchedEffect(enabledSig, activeTts.id) {
                     if (lastSig != enabledSig) {
                         lastSig = enabledSig
+                        SpeechRuleConfig.lastRoleSig.value = enabledSig
                         roleFilesReady = false
                         withIO {
                             runCatching {
