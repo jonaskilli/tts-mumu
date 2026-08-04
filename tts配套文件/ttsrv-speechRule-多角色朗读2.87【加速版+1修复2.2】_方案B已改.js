@@ -1120,13 +1120,15 @@ CharacterManager.prototype.assignVoice = function (gender, age) {
       // 遍历动态标签，找可用的发音人
       for (var i = 0; i < duihuaCandidates.length; i++) {
           var voiceTag = duihuaCandidates[i];
-          var isUsed = usedVoiceMap.hasOwnProperty(voiceTag) || mainRoleVoiceBlacklist.hasOwnProperty(voiceTag);
+          // 方案B-1：去重/返回统一用底层voice，voiceTag仅用于isVoiceAvailable校验
+          var uv = (this.voiceTagToVoice && this.voiceTagToVoice[voiceTag]) || voiceTag;
+          var isUsed = usedVoiceMap.hasOwnProperty(uv) || mainRoleVoiceBlacklist.hasOwnProperty(uv);
           var isAvailable = this.isVoiceAvailable(voiceTag);
           // 找到未使用、可用的动态标签，直接优先分配
           if (!isUsed && isAvailable) {
-              this.voiceUsageMap[voiceTag] = (this.voiceUsageMap[voiceTag] || 0) + 1;
-              this.usedVoices[voiceTag] = true;
-              return voiceTag;
+              this.voiceUsageMap[uv] = (this.voiceUsageMap[uv] || 0) + 1;
+              this.usedVoices[uv] = true;
+              return uv;
           }
       }
   }
@@ -1157,10 +1159,12 @@ CharacterManager.prototype.assignVoice = function (gender, age) {
       if (GENSHIN_CHARACTERS.hasOwnProperty(name)) {
           var info = GENSHIN_CHARACTERS[name];
           if (info.gender === gender && info.age === age) {
-              var isUsed = usedVoiceMap.hasOwnProperty(info.voice) || mainRoleVoiceBlacklist.hasOwnProperty(info.voice);
+              // 方案B-1：去重/候选voice用底层voice
+              var uv = (this.voiceTagToVoice && this.voiceTagToVoice[info.voice]) || info.voice;
+              var isUsed = usedVoiceMap.hasOwnProperty(uv) || mainRoleVoiceBlacklist.hasOwnProperty(uv);
               var isAvailable = this.isVoiceAvailable(info.voice);
               if (!isUsed && isAvailable) {
-                  candidates.push({ name: name, voice: info.voice, matchLevel: 0 });
+                  candidates.push({ name: name, voice: uv, matchLevel: 0 });
               }
           }
       }
@@ -1175,7 +1179,9 @@ CharacterManager.prototype.assignVoice = function (gender, age) {
           if (GENSHIN_CHARACTERS.hasOwnProperty(name)) {
               var info = GENSHIN_CHARACTERS[name];
               if (info.gender === gender && info.age === age && this.isVoiceAvailable(info.voice)) {
-                  sameTypeAvailableMap[info.voice] = true;
+                  // 方案B-1：map key用底层voice，与record.voice(底层)一致
+                  var uv = (this.voiceTagToVoice && this.voiceTagToVoice[info.voice]) || info.voice;
+                  sameTypeAvailableMap[uv] = true;
               }
           }
       }
@@ -1209,8 +1215,9 @@ CharacterManager.prototype.assignVoice = function (gender, age) {
               if (info.gender === gender && info.age === age && this.isVoiceAvailable(info.voice)) {
                   var numMatch = info.voice.match(/\d+$/);
                   var seqNum = numMatch ? parseInt(numMatch[0], 10) : 0;
+                  // 方案B-1：voice用底层，seq仍用voiceTag数字后缀排序
                   allSameTypeVoices.push({
-                      voice: info.voice,
+                      voice: (this.voiceTagToVoice && this.voiceTagToVoice[info.voice]) || info.voice,
                       seq: seqNum
                   });
               }
@@ -1235,12 +1242,14 @@ CharacterManager.prototype.assignVoice = function (gender, age) {
               if (GENSHIN_CHARACTERS.hasOwnProperty(name)) {
                   var info = GENSHIN_CHARACTERS[name];
                   if (info.gender === gender && info.age === similarAge) {
-                      var isUsed = usedVoiceMap.hasOwnProperty(info.voice) || mainRoleVoiceBlacklist.hasOwnProperty(info.voice);
+                      // 方案B-1：去重/候选voice用底层voice
+                      var uv = (this.voiceTagToVoice && this.voiceTagToVoice[info.voice]) || info.voice;
+                      var isUsed = usedVoiceMap.hasOwnProperty(uv) || mainRoleVoiceBlacklist.hasOwnProperty(uv);
                       var isAvailable = this.isVoiceAvailable(info.voice);
                       if (!isUsed && isAvailable) {
                           candidates.push({
                               name: name,
-                              voice: info.voice,
+                              voice: uv,
                               matchLevel: i + 1
                           });
                       }
@@ -1260,8 +1269,9 @@ CharacterManager.prototype.assignVoice = function (gender, age) {
               if (info.gender === gender && this.isVoiceAvailable(info.voice)) {
                   var numMatch = info.voice.match(/\d+$/);
                   var seqNum = numMatch ? parseInt(numMatch[0], 10) : 0;
+                  // 方案B-1：voice用底层，seq仍用voiceTag数字后缀排序
                   allSameGenderVoices.push({
-                      voice: info.voice,
+                      voice: (this.voiceTagToVoice && this.voiceTagToVoice[info.voice]) || info.voice,
                       seq: seqNum
                   });
               }
@@ -2033,7 +2043,10 @@ CharacterManager.prototype.processCharacter = function (fullText, characterId, a
       } else {
         var voiceInfo = null;
         for (var key in GENSHIN_CHARACTERS) {
-          if (GENSHIN_CHARACTERS[key].voice === targetMainRecord.voice) {
+          // 方案B-1：record.voice已是底层voice，需把GENSHIN的voiceTag转底层后再比
+          var cm = this.characterManager;
+          var uv = (cm && cm.voiceTagToVoice && cm.voiceTagToVoice[GENSHIN_CHARACTERS[key].voice]) || GENSHIN_CHARACTERS[key].voice;
+          if (uv === targetMainRecord.voice) {
             voiceInfo = GENSHIN_CHARACTERS[key];
             break;
           }
@@ -4718,8 +4731,10 @@ text = text.replace(/(^|[^a-zA-Z\u4e00-\u9fa5])(嗝|嗝儿)(?![a-zA-Z\u4e00-\u9f
                                   }
           
                                   if (isvalid) {
-                                          // 格式：[role标签, role标签+独立性格值]
-                                          personalityArray.push([roleTag, roleTag + rolePersonality]);
+                                          // 方案B-1：storeVal=底层voice，displayVal=displayName
+                                          var storeVal = (characterManager.voiceTagToVoice && characterManager.voiceTagToVoice[roleTag]) || roleTag;
+                                          var displayVal = (characterManager.voiceTagToDisplayName && characterManager.voiceTagToDisplayName[roleTag]) || roleTag;
+                                          personalityArray.push([storeVal, displayVal]);
                                           successCount++;
                                   } else {
                                   }
@@ -4758,7 +4773,10 @@ text = text.replace(/(^|[^a-zA-Z\u4e00-\u9fa5])(嗝|嗝儿)(?![a-zA-Z\u4e00-\u9f
           
           
                           if (isvalid) {
-                                  personalityArray.push([fayinrenTag, fayinrenTag + personality]);
+                                  // 方案B-1：storeVal=底层voice，displayVal=displayName
+                                  var storeVal = (characterManager.voiceTagToVoice && characterManager.voiceTagToVoice[fayinrenTag]) || fayinrenTag;
+                                  var displayVal = (characterManager.voiceTagToDisplayName && characterManager.voiceTagToDisplayName[fayinrenTag]) || fayinrenTag;
+                                  personalityArray.push([storeVal, displayVal]);
                                   successCount++;
                           } else {
                           }

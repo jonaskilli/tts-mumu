@@ -1519,27 +1519,39 @@ var EditorJS = {
             return ssb;
         }
 
-        // 判断发音人是否有效：方案A下标签直接显示配置项 name/voice，不再拆 tag+persona，
-        // 校验放宽为「voice 非空即有效」。保留函数供旧调用点兼容，不再查 fayinrenList。
+        // 方案B：characterRecords 读入时 voice 已被 replaceFayinrenName 转为 displayName，
+        // fayinrenList 同样存 displayName。故校验 = 内存 voice(displayName) 是否在 fayinrenList 中，
+        // 不在则说明该角色绑定的底层 voice 已被删除，显示 ⚠。
         function isVoiceTagValid(voice) {
             if (!voice) return false;
-            return true;
+            for (var i = 0; i < fayinrenList.length; i++) {
+                if (fayinrenList[i] === voice) return true;
+            }
+            return false;
         }
 
-        // 生成发音人标签部分（方案A）：整段显示 character.voice（即配置项 name/tagName），
-        // 不再拆「分类标签+性格」两段上色，统一单色蓝。调用点已用 record.voice 守卫，
-        // voice 为空时返回 null 由调用方处理，故不再有 ⚠ 路径。
+        // 生成发音人标签部分（方案B）：直接显示 character.voice（已是 displayName），
+        // 无效（对应底层 voice 已删除）时追加 ⚠ 标记（红色）。
         function generateVoiceTag(character) {
             if (!character || !character.voice) return null;
 
             var voiceText = String(character.voice);
+            var isValid = isVoiceTagValid(voiceText);
+
             var ssb = new android.text.SpannableStringBuilder();
             var CLR_TAG = android.graphics.Color.parseColor("#1976D2");
+            var CLR_WARN = android.graphics.Color.parseColor("#D32F2F");
             var SPAN = android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE;
 
             var tagStart = ssb.length();
             ssb.append(voiceText);
             ssb.setSpan(new android.text.style.ForegroundColorSpan(CLR_TAG), tagStart, ssb.length(), SPAN);
+
+            if (!isValid) {
+                var warnStart = ssb.length();
+                ssb.append(" ⚠");
+                ssb.setSpan(new android.text.style.ForegroundColorSpan(CLR_WARN), warnStart, ssb.length(), SPAN);
+            }
 
             return ssb;
         }
