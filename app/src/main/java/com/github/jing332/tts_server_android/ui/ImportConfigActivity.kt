@@ -65,7 +65,8 @@ class ImportConfigActivity : ComposeActivity() {
                                 longToast(R.string.import_config_type_unknown_msg)
                                 finish()
                             }
-                        }
+                        },
+                        showSuccessDialog = true,
                     )
                 }
 

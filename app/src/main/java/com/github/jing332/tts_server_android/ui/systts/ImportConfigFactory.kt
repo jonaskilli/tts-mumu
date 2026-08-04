@@ -26,22 +26,26 @@ enum class ImportType(val id: String, @StringRes val strResId: Int) {
 }
 
 object ImportConfigFactory {
-    fun getBottomSheet(type: String, onBadFormat: () -> Unit): @Composable (() -> Unit) -> Unit {
+    fun getBottomSheet(
+        type: String,
+        onBadFormat: () -> Unit,
+        showSuccessDialog: Boolean = false,
+    ): @Composable (() -> Unit) -> Unit {
         return when (ImportType.values().find { it.id == type }) {
             ImportType.LIST -> {
-                { ListImportBottomSheet(it) }
+                { ListImportBottomSheet(it, showSuccessDialog) }
             }
 
             ImportType.PLUGIN -> {
-                { PluginImportBottomSheet(it) }
+                { PluginImportBottomSheet(it, showSuccessDialog) }
             }
 
             ImportType.REPLACE_RULE -> {
-                { ReplaceRuleImportBottomSheet(it) }
+                { ReplaceRuleImportBottomSheet(it, showSuccessDialog) }
             }
 
             ImportType.SPEECH_RULE -> {
-                { SpeechRuleImportBottomSheet(it) }
+                { SpeechRuleImportBottomSheet(it, showSuccessDialog) }
             }
 
             else -> {

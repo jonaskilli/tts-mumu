@@ -1,5 +1,8 @@
 package com.github.jing332.tts_server_android.compose.systts.list
 
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -7,6 +10,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import com.github.jing332.common.utils.StringUtils
 import com.github.jing332.common.utils.longToast
 import com.github.jing332.common.utils.toast
@@ -34,7 +38,7 @@ import com.drake.net.utils.withIO
 import kotlinx.coroutines.launch
 
 @Composable
-fun ListImportBottomSheet(onDismissRequest: () -> Unit) {
+fun ListImportBottomSheet(onDismissRequest: () -> Unit, showSuccessDialog: Boolean = false) {
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
 
@@ -42,6 +46,22 @@ fun ListImportBottomSheet(onDismissRequest: () -> Unit) {
     var importing by remember { mutableStateOf(false) }
     if (importing) {
         LoadingDialog(onDismissRequest = { /* 不可取消，等待导入完成 */ })
+    }
+
+    // 外部文件打开导入（ImportConfigActivity）时，Activity 会立即 finish，
+    // Toast 会被 Activity 销毁流程压制导致滞后几秒才显示。
+    // 改用 AlertDialog 模态提示，立即渲染，用户确认后再 finish。
+    var successMsg by remember { mutableStateOf<String?>(null) }
+    successMsg?.let { msg ->
+        AlertDialog(
+            onDismissRequest = { successMsg = null; onDismissRequest() },
+            confirmButton = {
+                TextButton(onClick = { successMsg = null; onDismissRequest() }) {
+                    Text(stringResource(id = R.string.ok))
+                }
+            },
+            text = { Text(msg) }
+        )
     }
 
     ConfigImportBottomSheet(onDismissRequest = onDismissRequest,
@@ -65,8 +85,12 @@ fun ListImportBottomSheet(onDismissRequest: () -> Unit) {
                         if (result.type == ImportType.LIST) {
                             SystemTtsService.notifyUpdateConfig()
                         }
-                        context.toast("已导入 ${result.count} 项${result.typeName}")
-                        onDismissRequest()
+                        if (showSuccessDialog) {
+                            successMsg = "已导入 ${result.count} 项${result.typeName}"
+                        } else {
+                            context.toast("已导入 ${result.count} 项${result.typeName}")
+                            onDismissRequest()
+                        }
                     }
                 }
             }

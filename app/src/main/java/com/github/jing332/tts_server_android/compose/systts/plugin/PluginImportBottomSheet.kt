@@ -1,5 +1,8 @@
 package com.github.jing332.tts_server_android.compose.systts.plugin
 
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -7,6 +10,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import com.github.jing332.common.utils.longToast
 import com.github.jing332.common.utils.toast
 import com.github.jing332.common.utils.toJsonListString
@@ -30,13 +34,26 @@ import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 
 @Composable
-fun PluginImportBottomSheet(onDismissRequest: () -> Unit) {
+fun PluginImportBottomSheet(onDismissRequest: () -> Unit, showSuccessDialog: Boolean = false) {
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
 
     var importing by remember { mutableStateOf(false) }
     if (importing) {
         LoadingDialog(onDismissRequest = { /* 不可取消，等待导入完成 */ })
+    }
+
+    var successMsg by remember { mutableStateOf<String?>(null) }
+    successMsg?.let { msg ->
+        AlertDialog(
+            onDismissRequest = { successMsg = null; onDismissRequest() },
+            confirmButton = {
+                TextButton(onClick = { successMsg = null; onDismissRequest() }) {
+                    Text(stringResource(id = R.string.ok))
+                }
+            },
+            text = { Text(msg) }
+        )
     }
 
     ConfigImportBottomSheet(onDismissRequest = onDismissRequest,
@@ -55,8 +72,12 @@ fun PluginImportBottomSheet(onDismissRequest: () -> Unit) {
                         context.longToast(R.string.import_truncated_hint, result.detail)
                     }
                     is AutoImportResult.Success -> {
-                        context.toast("已导入 ${result.count} 项${result.typeName}")
-                        onDismissRequest()
+                        if (showSuccessDialog) {
+                            successMsg = "已导入 ${result.count} 项${result.typeName}"
+                        } else {
+                            context.toast("已导入 ${result.count} 项${result.typeName}")
+                            onDismissRequest()
+                        }
                     }
                 }
             }
