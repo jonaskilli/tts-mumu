@@ -1532,6 +1532,7 @@ internal fun ListManagerScreen(
         }
         var selectedPaths by remember(sourceGroup.id) { mutableStateOf<Set<String>>(emptySet()) }
         val allSelected = subPaths.isNotEmpty() && selectedPaths.size == subPaths.size
+        val screenHeight = LocalConfiguration.current.screenHeightDp.dp
 
         AlertDialog(
             onDismissRequest = { showConvertSubGroupsToTopLevel = null },
@@ -1541,7 +1542,7 @@ internal fun ListManagerScreen(
             text = {
                 Column(modifier = Modifier.fillMaxWidth()) {
                     Text(
-                        text = "勾选子分组，每个选中的子分组将转为独立的一级分组（含其配置项与音频参数）",
+                        text = "勾选子分组，每个选中的子分组将转为独立的一级分组",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier
@@ -1553,7 +1554,7 @@ internal fun ListManagerScreen(
                     Column(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .heightIn(max = 300.dp)
+                            .heightIn(max = screenHeight * 0.7f)
                             .verticalScroll(rememberScrollState())
                     ) {
                         // 全选 / 取消全选
