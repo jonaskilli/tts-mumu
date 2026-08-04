@@ -165,6 +165,17 @@ fun GroupItem(
                 tint = MaterialTheme.colorScheme.primary
             )
         }
+        // 分组内配置项数量
+        if (itemCount >= 0) {
+            Text(
+                "($itemCount)",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier
+                    .align(Alignment.CenterVertically)
+                    .padding(end = 4.dp)
+            )
+        }
         Row {
             if (inSelectionMode) {
                 Checkbox(
