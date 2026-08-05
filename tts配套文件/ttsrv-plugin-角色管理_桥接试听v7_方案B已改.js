@@ -4860,7 +4860,7 @@ var EditorJS = {
             }
         }
 
-        // 删除配置项 + 从 fayinren.json 删 tag + 同前缀随机重分配
+        // 删除配置项 + 从 fayinren.json 删 tag + 调用朗读规则重分配
         function doDeleteVoiceAndReassign(tag, onChange) {
             try {
                 // 1. 找出所有绑该 tag 的角色
@@ -4872,18 +4872,7 @@ var EditorJS = {
                     }
                 }
 
-                // 2. 找同前缀的候选 tag（从 fayinren.json）
-                refreshFayinrenList();
-                var prefix = extractVoicePrefix(tag);
-                var candidates = [];
-                for (var j = 0; j < fayinrenList.length; j++) {
-                    var t = fayinrenList[j];
-                    if (t !== tag && extractVoicePrefix(t) === prefix) {
-                        candidates.push(t);
-                    }
-                }
-
-                // 3. 确认弹窗
+                // 2. 确认弹窗
                 var msg = "确认删除发音人配置项【" + tag + "】？\n\n";
                 msg += "显示名：" + (function() {
                     try { var n = ttsrv.getVoiceByTag(tag); return n || "(无)"; } catch (e) { return "(无)"; }
@@ -4894,7 +4883,7 @@ var EditorJS = {
                     if (affectedChars.length > 5) names += " 等";
                     msg += names + "\n";
                 }
-                msg += "\n同前缀候选（" + candidates.length + " 个）：" + (candidates.length > 0 ? "将随机分配" : "无，角色将标记⚠");
+                msg += "\n删除后将调用朗读规则，按原逻辑从现存配置项中重新分配受影响角色。";
 
                 new android.app.AlertDialog.Builder(ctx)
                     .setTitle("删除确认")
@@ -4904,7 +4893,7 @@ var EditorJS = {
                             // 子线程执行删除+重分配，避免卡顿
                             new java.lang.Thread(new java.lang.Runnable({
                                 run: function() {
-                                    var results = doDeleteVoiceInternal(tag, affectedChars, candidates);
+                                    var results = doDeleteVoiceInternal(tag, affectedChars);
                                     new android.os.Handler(android.os.Looper.getMainLooper()).post(new java.lang.Runnable({
                                         run: function() {
                                             Toast.makeText(ctx, results, Toast.LENGTH_LONG).show();
@@ -4927,7 +4916,8 @@ var EditorJS = {
         }
 
         // 删除的内部实现（在子线程跑），返回结果文案
-        function doDeleteVoiceInternal(tag, affectedChars, candidates) {
+        // 流程：删配置项 → 从 fayinren.json 删 tag → 调用朗读规则重分配受影响角色
+        function doDeleteVoiceInternal(tag, affectedChars) {
             var log = [];
             // 1. 删配置项
             try {
@@ -4941,7 +4931,7 @@ var EditorJS = {
                 return "删配置项异常：" + e.toString();
             }
 
-            // 2. 从 fayinren.json 删 tag
+            // 2. 从 fayinren.json 删 tag（避免规则重生该配置项）
             try {
                 var raw = ttsrv.readTxtFile("fayinren.json");
                 if (raw && raw.trim() !== "") {
@@ -4959,59 +4949,87 @@ var EditorJS = {
                 log.push("更新fayinren.json失败：" + e.toString());
             }
 
-            // 3. 同前缀随机重分配受影响角色
+            // 3. 受影响角色：清空 voice，让朗读规则重新分配
             if (affectedChars.length === 0) {
                 log.push("无角色受影响");
                 return log.join("\n");
             }
 
-            if (candidates.length === 0) {
-                log.push("无同前缀候选，" + affectedChars.length + "个角色标签将变⚠");
-                return log.join("\n");
-            }
-
-            // 随机选一个候选 tag（所有受影响角色都用同一个，保持一致性）
-            // 避免选中已无效的候选：遍历 candidates 找第一个 getVoiceByTag 能查到的
-            var chosenTag = null;
-            for (var k = 0; k < candidates.length; k++) {
-                try {
-                    var liveName = ttsrv.getVoiceByTag(candidates[k]);
-                    if (liveName) { chosenTag = candidates[k]; break; }
-                } catch (e) {}
-            }
-            if (!chosenTag) {
-                // 全都查不到，随机挑一个字符串
-                chosenTag = candidates[Math.floor(Math.random() * candidates.length)];
-            }
-
-            var reassigned = 0;
+            // 先清空受影响角色的 voice，规则运行时会按原逻辑重新分配
+            var cleared = 0;
             for (var j = 0; j < affectedChars.length; j++) {
                 var idx = affectedChars[j].index;
                 if (characterRecords[idx]) {
-                    characterRecords[idx].voice = chosenTag;
-                    reassigned++;
+                    characterRecords[idx].voice = "";
+                    cleared++;
                 }
             }
-            log.push("已将" + reassigned + "个角色重分配为：" + chosenTag);
+            log.push("已清空" + cleared + "个角色的发音人，准备重分配");
 
-            // 4. 保存角色数据
+            // 4. 保存（规则运行前先持久化清空状态，避免规则读不到）
             try {
                 saveCharacterData();
                 createGengxinFile();
-                log.push("角色数据已保存");
             } catch (e) {
-                log.push("保存角色数据失败：" + e.toString());
+                log.push("保存清空状态失败：" + e.toString());
+            }
+
+            // 5. 调用朗读规则重分配
+            try {
+                var ruleErr = runMatchingSpeechRule();
+                if (ruleErr) {
+                    log.push("朗读规则运行失败：" + ruleErr);
+                    log.push("受影响角色标签将变⚠，请手动换发音人");
+                } else {
+                    log.push("朗读规则已运行，角色已重新分配");
+                    // 规则运行后会更新 characterRecords.json，重新加载
+                    try {
+                        var newJson = ttsrv.readTxtFile("characterRecords.json");
+                        if (newJson && newJson.trim() !== "") {
+                            var newRecords = JSON.parse(newJson);
+                            if (Array.isArray(newRecords)) {
+                                characterRecords = newRecords;
+                                log.push("角色数据已重新加载");
+                            }
+                        }
+                    } catch (e) {
+                        log.push("重新加载角色数据失败：" + e.toString());
+                    }
+                }
+            } catch (e) {
+                log.push("调用朗读规则异常：" + e.toString());
             }
 
             return log.join("\n");
         }
 
-        // 提取 voice tag 的前缀（去掉末尾数字），如 "女青年01" → "女青年"
-        function extractVoicePrefix(tag) {
-            var s = String(tag || "").trim();
-            var match = s.match(/^(.+?)(\d+)$/);
-            if (match) return match[1];
-            return s;
+        // 查找并运行与当前插件配套的朗读规则（ruleId == engineId）
+        // 成功返回 null，失败返回错误字符串
+        function runMatchingSpeechRule() {
+            try {
+                var listJson = ttsrv.getSpeechRuleList();
+                if (!listJson) return "获取朗读规则列表失败";
+                var list = JSON.parse(listJson);
+                if (!Array.isArray(list) || list.length === 0) {
+                    return "未找到任何朗读规则";
+                }
+                // 优先找 ruleId == 当前插件 engineId 的规则
+                var engineId = String(ttsrv.tts.data.engineId || "");
+                var targetRule = null;
+                for (var i = 0; i < list.length; i++) {
+                    if (String(list[i].ruleId) === engineId) {
+                        targetRule = list[i];
+                        break;
+                    }
+                }
+                // 找不到精确匹配，用第一个
+                if (!targetRule) targetRule = list[0];
+                if (!targetRule || !targetRule.ruleId) return "未找到有效的朗读规则";
+
+                return ttsrv.runSpeechRule(String(targetRule.ruleId));
+            } catch (e) {
+                return "运行朗读规则异常：" + e.toString();
+            }
         }
 
         function previewVoiceByName(tag, btn) {
