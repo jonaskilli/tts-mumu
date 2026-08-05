@@ -3113,11 +3113,10 @@ var SpeechRuleJS = {
                   genshinPersonality = (tagData.personality + "").trim();
               }
           }
-          var personality = genshinPersonality !== "" && genshinPersonality !== "无" ? genshinPersonality : "";
-          var personalityWhole = personality ? ("" + personality) : "";
-  
-          var rsTag = basePart + personalityWhole;
-          //console.log("GENSHIN生效！tag=", tag, "性格=", genshinPersonality, "生成tagName=", rsTag);
+          // 性格不再拼入 tagName（移到角色级 persona 字段）
+          // fayinren_personality_summary.json 仍记录 [tag, tag+personality] 供角色管理读取
+          var rsTag = basePart;
+          //console.log("GENSHIN生效！tag=", tag, "生成tagName=", rsTag);
           return rsTag;
       }
   
@@ -3158,15 +3157,13 @@ var SpeechRuleJS = {
               }
           }
           var personality = duihuaPersonality !== "" && duihuaPersonality !== "无" ? duihuaPersonality : "";
-          var separator = "";
-          var personalityPrefix = "|";
-          var personalitySuffix = "";
-          var personalityWhole = personality ? (separator + personalityPrefix + personality + personalitySuffix) : "";
+          // 性格不再拼入 tagName（移到角色级 persona 字段）
+          var personalityWhole = ""; // 保留变量但置空，避免后续引用出错
   
           // 最终拼接（括号不变）
           var rsTag = rolePart + personalityWhole + genderAgeWhole;
   
-          //console.log("duihua生效！性格=", duihuaPersonality, "生成tagName=", rsTag);
+          //console.log("duihua生效！生成tagName=", rsTag);
           return rsTag;
       }
   
