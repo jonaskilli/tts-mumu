@@ -4585,7 +4585,6 @@ var EditorJS = {
         // === 试听功能 ===
         var _pvMediaPlayer = null;
         var _pvCurrentBtn = null;
-        var _pvVoicesCache = null;
         var _pvHandler = null;
         try { _pvHandler = new android.os.Handler(android.os.Looper.getMainLooper()); } catch (eHp) {}
 
@@ -4624,36 +4623,6 @@ var EditorJS = {
                 }));
                 mp.prepareAsync();
             } catch (e) { _pvStop(); Toast.makeText(ctx, "播放失败", Toast.LENGTH_SHORT).show(); }
-        }
-
-        function _fetchVoicesList(port) {
-            var urls = [
-                "http://127.0.0.1:" + port + "/api/voices",
-                "http://127.0.0.1:" + port + "/api/voices?engine=" + encodeURIComponent("com.github.jing332.tts_server_android")
-            ];
-            for (var ui = 0; ui < urls.length; ui++) {
-                try {
-                    var bodyStr = null;
-                    try { var vr = ttsrv.httpGet(urls[ui], {}); if (vr && vr.code() === 200 && vr.body()) bodyStr = vr.body().string(); } catch (e2) { bodyStr = null; }
-                    if (!bodyStr) { try { bodyStr = ttsrv.httpGetString(urls[ui]); } catch (e1) { bodyStr = null; } }
-                    if (!bodyStr) continue;
-                    var list = JSON.parse(bodyStr);
-                    if (!list || !list.length) continue;
-                    var voices = [];
-                    for (var i = 0; i < list.length; i++) {
-                        var fullName = String(list[i].name || "");
-                        var lastIdx = fullName.lastIndexOf("_");
-                        var dispName = lastIdx > 0 ? fullName.substring(0, lastIdx) : fullName;
-                        var eng = String(list[i].engine || "com.github.jing332.tts_server_android");
-                        voices.push({ name: fullName, displayName: dispName, engine: eng });
-                    }
-                    if (voices.length > 0) {
-                        console.log("获取发音人成功(URL" + ui + "): " + voices.length + " 个");
-                        return voices;
-                    }
-                } catch (e) { console.error("获取发音人失败(URL" + ui + "): " + e.toString()); }
-            }
-            return null;
         }
 
         function previewVoiceByName(tag, btn) {
