@@ -66,8 +66,11 @@ data class TtsEngineContext(
         if (trimmedTag.isEmpty()) return null
 
         // 1. 查找匹配的配置项（仅限当前插件管理的）
-        val allEnabled = dbm.systemTtsV2.allEnabled
-        val match = findConfigByTag(allEnabled, trimmedTag) ?: return null
+        // 用 all 而非 allEnabled：切换前台分组时后台分组 isEnabled=0 会被 allEnabled 排除，
+        // 导致后台分组配置项无法试听。角色列表管理界面应能试听所有配置项，
+        // isEnabled 只用于朗读流程控制（前台分组才朗读），不该限制试听。
+        val candidates = dbm.systemTtsV2.all
+        val match = findConfigByTag(candidates, trimmedTag) ?: return null
 
         val ttsConfig = match.config as TtsConfigurationDTO
         val source = ttsConfig.source
@@ -106,10 +109,10 @@ data class TtsEngineContext(
     }
 
     /**
-     * 通过标签(tag)或角色名(personality)查找当前已启用的TTS配置项的发音人显示名。
+     * 通过标签(tag)或角色名(personality)查找TTS配置项的发音人显示名（不限启用状态）。
      *
      * 用于切换分组后实时获取实际生效的发音人名称，替代静态存储的 record.voice。
-     * 匹配逻辑与 getAudioByTag 一致，仅查找 tagRuleId == engineId 且已启用的配置项。
+     * 匹配逻辑与 getAudioByTag 一致，仅查找 tagRuleId == engineId 的配置项（不限启用状态）。
      *
      * @param tag 标签名(如"男主1")或角色名(如"冷酷霸总")或发音人名
      * @return 配置项的 displayName，未匹配返回 null
@@ -120,8 +123,13 @@ data class TtsEngineContext(
             val trimmedTag = tag.trim()
             if (trimmedTag.isEmpty()) return null
 
-            val allEnabled = dbm.systemTtsV2.allEnabled
-            val match = findConfigByTag(allEnabled, trimmedTag) ?: return null
+            // 查询池用 all（所有配置项）而非 allEnabled：
+            // 切换前台分组时，后台分组配置项 isEnabled=0 会被 allEnabled 排除，
+            // 导致 getVoiceByTag 查不到 displayName → 角色列表标 ⚠。
+            // getVoiceByTag 只查 displayName 不合成音频，与启用状态无关，
+            // 配置项存在就该能查到。
+            val candidates = dbm.systemTtsV2.all
+            val match = findConfigByTag(candidates, trimmedTag) ?: return null
 
             // getVoiceByTag 仅查询 displayName，不调用引擎获取音频，无需死锁保护
             // （getAudioByTag 才需要跳过当前插件自身避免死锁）
@@ -182,26 +190,27 @@ data class TtsEngineContext(
     }
 
     /**
-     * 查找匹配 tag 的已启用配置项（五级匹配，与 getAudioByTag 共用）
+     * 查找匹配 tag 的配置项（五级匹配，与 getAudioByTag 共用）
+     * 查询池由调用方决定（getVoiceByTag/getAudioByTag 传 all，其它场景可传 allEnabled）
      */
     private fun findConfigByTag(
-        allEnabled: List<com.github.jing332.database.entities.systts.SystemTtsV2>,
+        candidates: List<com.github.jing332.database.entities.systts.SystemTtsV2>,
         trimmedTag: String
     ): com.github.jing332.database.entities.systts.SystemTtsV2? {
-        return allEnabled.firstOrNull {
+        return candidates.firstOrNull {
             val config = it.config as? TtsConfigurationDTO ?: return@firstOrNull false
             config.speechRule.tagRuleId == engineId && config.speechRule.tag == trimmedTag
-        } ?: allEnabled.firstOrNull {
+        } ?: candidates.firstOrNull {
             val config = it.config as? TtsConfigurationDTO ?: return@firstOrNull false
             config.speechRule.tagRuleId == engineId &&
                     config.speechRule.tagData["personality"]?.trim() == trimmedTag
-        } ?: allEnabled.firstOrNull {
+        } ?: candidates.firstOrNull {
             val config = it.config as? TtsConfigurationDTO ?: return@firstOrNull false
             config.speechRule.tagRuleId == engineId && config.source.voice == trimmedTag
-        } ?: allEnabled.firstOrNull {
+        } ?: candidates.firstOrNull {
             val config = it.config as? TtsConfigurationDTO ?: return@firstOrNull false
             config.speechRule.tagRuleId == engineId && it.displayName == trimmedTag
-        } ?: allEnabled.firstOrNull {
+        } ?: candidates.firstOrNull {
             val config = it.config as? TtsConfigurationDTO ?: return@firstOrNull false
             config.speechRule.tagRuleId == engineId && config.speechRule.tagName.contains(trimmedTag)
         }
