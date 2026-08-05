@@ -51,7 +51,7 @@ fun SpeechRuleExportBottomSheet(onDismissRequest: () -> Unit, list: List<SpeechR
         ConfigExportBottomSheet(
             onDismissRequest = onDismissRequest,
             json = jStr,
-            fileName = if (list.size == 1) "ttsrv-speechRule-${list[0].name}.json" else "ttsrv-speechRules.json"
+            fileName = if (list.size == 1) "ttsrv-speechRule-${list[0].name}.json" else "ttsrv-speechRules-${list.size}项.json"
         )
     }
 }

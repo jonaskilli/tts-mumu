@@ -146,7 +146,7 @@ fun PluginManagerScreen(sharedVM: SharedViewModel, onFinishActivity: () -> Unit)
     if (showExportConfig != null) {
         val pluginList = showExportConfig!!
         PluginExportBottomSheet(
-            fileName = if (pluginList.size == 1) "ttsrv-plugin-${pluginList[0].name}.json" else "ttsrv-plugins.json",
+            fileName = if (pluginList.size == 1) "ttsrv-plugin-${pluginList[0].name}.json" else "ttsrv-plugins-${pluginList.size}项.json",
             onDismissRequest = { showExportConfig = null }) { isExportVars ->
             // 修复: 导出用 prettyPrint, 每个配置项独立一行可读
             if (isExportVars) {

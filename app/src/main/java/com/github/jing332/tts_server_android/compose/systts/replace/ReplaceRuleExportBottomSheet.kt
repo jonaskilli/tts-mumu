@@ -48,10 +48,26 @@ fun ReplaceRuleExportBottomSheet(onDismissRequest: () -> Unit, list: List<GroupW
             }
         }
     } else {
+        val fileName = when {
+            list.size == 1 && list[0].list.size == 1 -> {
+                val ruleName = list[0].list[0].name
+                "ttsrv-replace-${ruleName}.json"
+            }
+            list.size == 1 -> {
+                val groupName = list[0].group.name
+                val count = list[0].list.size
+                "ttsrv-replace-${groupName}-${count}项.json"
+            }
+            else -> {
+                val groupCount = list.size
+                val totalCount = list.sumOf { it.list.size }
+                "ttsrv-replace-${groupCount}个分组-${totalCount}项.json"
+            }
+        }
         ConfigExportBottomSheet(
             json = jStr,
             onDismissRequest = onDismissRequest,
-            fileName = "ttsrv-replaces.json"
+            fileName = fileName
         )
     }
 }
