@@ -2992,13 +2992,6 @@ var SpeechRuleJS = {
                   hint: "选择角色的性别和年龄阶段",
                   items: '{男/少年: "男/少年",男/男青年: "男/男青年",男/男中年: "男/男中年",男/男老年: "男/男老年",男/男孩: "男/男孩",女/女童: "女/女童",女/少女: "女/少女",女/女青年: "女/女青年",女/女中年: "女/女中年",女/女老年: "女/女老年",男/主角: "男/主角",女/主角: "女/主角"}',
                   default: '男/青年'
-               },
-               // 整合性别+年龄为单选择框，格式：男/青年
-              personality: {
-                  label: "角色性格", // 独立标签名
-                  hint: "选择角色的性格特质（独立配置，不影响其他选项）", // 独立提示语
-          //        items: personalityItemsConfig, 
-          //        default: moren // 独立默认值
                }
 
           },
@@ -3034,34 +3027,9 @@ var SpeechRuleJS = {
               }
           };
       }
-      
-      // 新增：为 GENSHIN_CHARACTERS 所有标签添加【独立性格选择框】（无冲突+无未定义错误）
-      for (var name in GENSHIN_CHARACTERS) {
-          if (GENSHIN_CHARACTERS.hasOwnProperty(name)) {
-              var voiceTag = GENSHIN_CHARACTERS[name].voice.toString();
-              // 直接内嵌性格配置（无需外部变量，彻底避免ReferenceError）
-              var personalityConfig = {
-                  label: "角色性格", // 独立标签名
-                  hint: "选择角色的性格特质（独立配置，不影响其他选项）", // 独立提示语
-          //        items: personalityItemsConfig, 
-         //         default: moren // 独立默认值
-              };
-              
-              // 1. 若标签已存在（如括号1、男主1），在原有配置上新增性格选项
-              if (tagsData[voiceTag]) {
-                  tagsData[voiceTag].personality = personalityConfig; // 字段名：personality（与genderAge无冲突）
-              } 
-              // 2. 若标签不存在，新建配置（仅含性格选择框）
-              else {
-                  tagsData[voiceTag] = {
-                      personality: personalityConfig
-                  };
-              }
-          }
-      }
-      
+
       return tagsData;
-      
+
   })(),
 
 
@@ -3095,78 +3063,36 @@ var SpeechRuleJS = {
       }
   
       if (genshinTagKey !== "") {
-          var basePart = genshinTagKey;
-          var genshinPersonality = "";
-          if (tagData && tagData.personality) {
-              if (Object.prototype.toString.call(tagData.personality) === '[object Array]') {
-                  var flatGenshinP = forceFlattenArray(tagData.personality);
-                  for (var g = 0; g < flatGenshinP.length; g++) {
-                      var pItem = flatGenshinP[g];
-                      genshinPersonality = typeof pItem === 'object' && pItem !== null 
-                          ? (pItem.value || "").trim() 
-                          : (pItem + "").trim();
-                      if (genshinPersonality) {
-                          break;
-                      }
-                  }
-              } else {
-                  genshinPersonality = (tagData.personality + "").trim();
-              }
-          }
-          // 性格不再拼入 tagName（移到角色级 persona 字段）
-          // fayinren_personality_summary.json 仍记录 [tag, tag+personality] 供角色管理读取
-          var rsTag = basePart;
+          var rsTag = genshinTagKey;
           //console.log("GENSHIN生效！tag=", tag, "生成tagName=", rsTag);
           return rsTag;
       }
-  
+
       // 2. duihua标签处理（括号完全匹配，复用GENSHIN逻辑）
       else if ("duihua" == tag) {
           // 角色名部分（括号不变）
-          var roleContent = tagData && tagData.role && tagData.role.trim() !== "" 
-              ? tagData.role.trim() 
+          var roleContent = tagData && tagData.role && tagData.role.trim() !== ""
+              ? tagData.role.trim()
               : "";
           var rolePrefix = "";
           var roleSuffix = "";
-          var rolePart = roleContent.length > 15 
-              ? (rolePrefix + roleContent.substring(0, 15) + ".." + roleSuffix) 
+          var rolePart = roleContent.length > 15
+              ? (rolePrefix + roleContent.substring(0, 15) + ".." + roleSuffix)
               : (rolePrefix + roleContent + roleSuffix);
-  
+
           // 性别年龄部分（括号不变）
           var genderAgeContent = tagData && tagData.genderAge ? tagData.genderAge : "";
           var genderAgePrefix = "（";
           var genderAgeSuffix = "）";
           var genderAgeWhole = genderAgeContent ? (genderAgePrefix + genderAgeContent + genderAgeSuffix) : "";
-  
-          // 性格部分（括号完全匹配）
-          var duihuaPersonality = "";
-          if (tagData && tagData.personality) {
-              if (Object.prototype.toString.call(tagData.personality) === '[object Array]') {
-                  var flatDuihuaP = forceFlattenArray(tagData.personality);
-                  for (var d = 0; d < flatDuihuaP.length; d++) {
-                      var pItem = flatDuihuaP[d];
-                      duihuaPersonality = typeof pItem === 'object' && pItem !== null 
-                          ? (pItem.value || "").trim() 
-                          : (pItem + "").trim();
-                      if (duihuaPersonality) {
-                          break;
-                      }
-                  }
-              } else {
-                  duihuaPersonality = (tagData.personality + "").trim();
-              }
-          }
-          var personality = duihuaPersonality !== "" && duihuaPersonality !== "无" ? duihuaPersonality : "";
-          // 性格不再拼入 tagName（移到角色级 persona 字段）
-          // fayinren_personality_summary.json 仍记录 [tag, tag+personality] 供角色管理读取
 
-          // 最终拼接（括号不变，去掉 personalityWhole）
+          // 最终拼接
           var rsTag = rolePart + genderAgeWhole;
-  
+
           //console.log("duihua生效！生成tagName=", rsTag);
           return rsTag;
       }
-  
+
       // 3. 其他标签（括号不变）
       else {
           return this.tags[tag] || "旁白";
@@ -4610,202 +4536,7 @@ text = text.replace(/(^|[^a-zA-Z\u4e00-\u9fa5])(嗝|嗝儿)(?![a-zA-Z\u4e00-\u9f
               //console.log("【发音人保存异常】" + saveError.message);
           }
       }
-      
-      
-      
-                // ===================== 发音人 personality 全自动提取工具（有效数据过滤+二维数组）=====================
-          (function extractFayinrenPersonalityAuto() {
-                  var logPrefix = "[发音人Personality提取]";
-          
-                  // 步骤0：复用原代码中的工具函数（适配duihua的role解析）
-                  var forceFlattenArray = function(arr) {
-                          var result = [];
-                          for (var i = 0; i < arr.length; i++) {
-                                  var item = arr[i];
-                                  if (Object.prototype.toString.call(item) === '[object Array]') {
-                                          result = result.concat(forceFlattenArray(item));
-                                  } else {
-                                          result.push(item);
-                                  }
-                          }
-                          return result;
-                  };
-                  var isArray = function(arr) {
-                          return Object.prototype.toString.call(arr) === '[object Array]';
-                  };
-          
-                  // 步骤1：自动读取fayinren.json纯数组标签（不变）
-                  var extractAllTagsFromFayinren = function() {
-                          var tags = [];
-                          try {
-                                  var fileContent = ttsrv.readTxtFile("fayinren.json");
-                                  if (!fileContent || fileContent === "[]") {
-                                          return tags;
-                                  }
-                                  var parsedData = JSON.parse(fileContent);
-                                  if (Object.prototype.toString.call(parsedData) === "[object Array]") {
-                                          var tagSet = {};
-                                          for (var i = 0; i < parsedData.length; i++) {
-                                                  var tag = String(parsedData[i] || "").trim();
-                                                  if (tag && !tagSet[tag]) {
-                                                          tagSet[tag] = true;
-                                                          tags.push(tag);
-                                                  }
-                                          }
-                                  }
-                          } catch (e) {
-                          }
-                          return tags;
-                  };
-          
-                  // 步骤2：100% 复用本地音效 extractByRegex 逻辑（不变）
-                  var extractByRegex = function(configStr) {
-                          // 方案B兼容：转换后 personality 是 JS 数组 [{id:"1", value:"晓晓"}]
-                          if (Object.prototype.toString.call(configStr) === '[object Array]') {
-                                  for (var ei = 0; ei < configStr.length; ei++) {
-                                          var eItem = configStr[ei];
-                                          if (eItem && eItem.value) return String(eItem.value).trim();
-                                          if (eItem && typeof eItem.get === 'function') {
-                                                  var ev = eItem.get("value");
-                                                  if (ev) return String(ev).trim();
-                                          }
-                                  }
-                                  return "";
-                          }
-                          if (typeof configStr !== "string") {
-                                  configStr = String(configStr || "");
-                          }
-                          // 兼容 Java Map 字符串表示：value=xxx}
-                          var regex = /value=([^}]+)/i;
-                          var match = configStr.match(regex);
-                          var personality = "";
-                          if (match && match[1]) {
-                                  personality = match[1].trim();
-                          }
-                          return personality;
-                  };
-          
-                  // 步骤3：有效数据过滤 + 二维数组汇总
-                  var allTags = extractAllTagsFromFayinren();
-                  var globalTagsData = tagsData || {};
-                  var personalityArray = []; // 二维数组存储有效数据
-                  var successCount = 0;
-          
-                  // ===================== 核心修复：每个role独立匹配对应性格 =====================
-                  var duihuaConfig = globalTagsData.duihua || {};
-                  
-                  // 1. 解析duihua的role数组（动态角色标识，如“男青年20”“女童20”）
-                  var duihuaRoles = [];
-                  if (duihuaConfig.role) {
-                          duihuaRoles = forceFlattenArray(duihuaConfig.role);
-                          duihuaRoles = forceFlattenArray(duihuaRoles);
-                          if (!isArray(duihuaRoles)) duihuaRoles = [duihuaRoles];
-                          // 提取每个role的value（发音人标识）
-                          duihuaRoles = duihuaRoles.map(function(roleItem) {
-                                  var value = "";
-                                  if (typeof roleItem === 'object' && roleItem !== null) {
-                                          value = roleItem.value !== undefined ? (roleItem.value + "").trim() : "";
-                                          if (value === "" && typeof roleItem.get === 'function') {
-                                                  var tempVal = roleItem.get("value");
-                                                  value = tempVal ? (tempVal + "").trim() : "";
-                                          }
-                                  }
-                                  return value;
-                          }).filter(function(v) { return v !== ""; });
-                  }
-          
-                  // 2. 解析duihua的personality数组（与role按索引一一对应）
-                  var duihuaPersonalities = [];
-                  if (duihuaConfig.personality) {
-                          // 性格数组也需要扁平化（和role数组处理逻辑一致）
-                          duihuaPersonalities = forceFlattenArray(duihuaConfig.personality);
-                          duihuaPersonalities = forceFlattenArray(duihuaPersonalities);
-                          if (!isArray(duihuaPersonalities)) duihuaPersonalities = [duihuaPersonalities];
-                          // 提取每个personality的value（性格值）
-                          duihuaPersonalities = duihuaPersonalities.map(function(personalityItem) {
-                                  var value = "";
-                                  if (typeof personalityItem === 'object' && personalityItem !== null) {
-                                          value = personalityItem.value !== undefined ? (personalityItem.value + "").trim() : "";
-                                          if (value === "" && typeof personalityItem.get === 'function') {
-                                                  var tempVal = personalityItem.get("value");
-                                                  value = tempVal ? (tempVal + "").trim() : "";
-                                          }
-                                  }
-                                  return value;
-                          });
-                  }
-          
-                  // 3. 按索引配对：role[i] ↔ personality[i]（核心逻辑）
-                  if (duihuaRoles.length > 0 && duihuaPersonalities.length > 0) {
-                          for (var r = 0; r < duihuaRoles.length; r++) {
-                                  var roleTag = duihuaRoles[r];
-                                  // 按相同索引取性格（若性格数组长度不足，默认空）
-                                  var rolePersonality = duihuaPersonalities[r] || "";
-                                  
-                                  // 独立有效性验证（每个role的性格单独判断）
-                                  var isvalid = false;
-                                  if (rolePersonality && rolePersonality !== "无") {
-                                          isvalid = true;
-                                  }
-          
-                                  if (isvalid) {
-                                          // 格式：[role标签, role标签+独立性格值]
-                                          personalityArray.push([roleTag, roleTag + rolePersonality]);
-                                          successCount++;
-                                  } else {
-                                  }
-                          }
-                  } else if (duihuaRoles.length === 0) {
-                  } else if (duihuaPersonalities.length === 0) {
-                  }
-                  // =============================================================================
-          
-                  if (allTags.length === 0 && successCount === 0) {
-                          return;
-                  }
-          
-                  // 复用本地音效for循环批量处理其他硬编标签（不变）
-                  for (var i = 0; i < allTags.length; i++) {
-                          var fayinrenTag = allTags[i];
-                          if (fayinrenTag === "duihua") continue; // 跳过duihua标签本身
-                          var tagConfig = globalTagsData[fayinrenTag] || {};
-                          var personality = "";
 
-                          if (tagConfig.personality) {
-                                  personality = extractByRegex(tagConfig.personality);
-                          } else if (tagConfig.xingge) {
-                                  personality = extractByRegex(tagConfig.xingge);
-                          }
-
-                          var invalidReason = "";
-                          if (!personality) {
-                                  invalidReason = "personality为空或未配置";
-                          } else if (personality === "无") {
-                                  invalidReason = "personality为'无'";
-                          } else {
-                                  isvalid = true;
-                          }
-
-
-                          if (isvalid) {
-                                  personalityArray.push([fayinrenTag, fayinrenTag + personality]);
-                                  successCount++;
-                          } else {
-                          }
-                  }
-          
-                  // 保存有效数据（不变）
-                  if (successCount > 0) {
-                          var jsonContent = JSON.stringify(personalityArray, null, 2);
-                          var fileName = "fayinren_personality_summary.json";
-                          ttsrv.writeTxtFile(fileName, jsonContent);
-          
-                  } else {
-                  }
-          
-          })();
-          
-      
       // 二次检查gengxin.json更新
       try {
           var jsonFileExists = false;
