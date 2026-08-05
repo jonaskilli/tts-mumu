@@ -1053,10 +1053,19 @@ CharacterManager.prototype.detectAvailableVoices = function(tagsData) {
   // 同时建立 voiceTag→displayName 映射，供 fayinren_personality_summary 用
   this.voiceTagToVoice = {};
   this.voiceTagToDisplayName = {};
-  // Rhino 兼容：Java Map 不能用 [] 和 hasOwnProperty，用 get() 替代
+  // 方案B 反向映射：底层voice→voiceTag / 底层voice→displayName
+  // 供 fayinren_personality_summary 提取用（fayinren.json 存底层voice，需反查 voiceTag 才能取 tagsData 里的 personality）
+  this.voiceToVoiceTag = {};
+  this.voiceToDisplayName = {};
+  // Rhino 兼容：handleText 开头已把 Java LinkedHashMap 转成纯 JS 对象，
+  // 此处需同时兼容 Java Map（.get）和纯 JS 对象（hasOwnProperty + []）
   var getMapVal = function(map, key) {
       if (!map) return null;
-      try { return map.get(key); } catch(e) { return null; }
+      try {
+          if (typeof map.get === 'function') return map.get(key);
+          if (Object.prototype.hasOwnProperty.call(map, key)) return map[key];
+          return null;
+      } catch(e) { return null; }
   };
   var hasProp = function(obj, key) {
       return Object.prototype.hasOwnProperty.call(obj, key);
@@ -1083,6 +1092,8 @@ CharacterManager.prototype.detectAvailableVoices = function(tagsData) {
               if (!underlyingVoice) underlyingVoice = voiceTag;
               this.voiceTagToVoice[voiceTag] = underlyingVoice;
               this.availableVoices[underlyingVoice] = true;
+              // 反向映射
+              this.voiceToVoiceTag[underlyingVoice] = voiceTag;
 
               // displayName 同理
               var nameList = getMapVal(tagEntry, "_displayName");
@@ -1099,6 +1110,8 @@ CharacterManager.prototype.detectAvailableVoices = function(tagsData) {
               }
               if (!displayName) displayName = voiceTag;
               this.voiceTagToDisplayName[voiceTag] = displayName;
+              // 反向映射
+              this.voiceToDisplayName[underlyingVoice] = displayName;
           }
       }
   }
@@ -3403,6 +3416,12 @@ var SpeechRuleJS = {
           }
       }
   
+      // 方案B兜底：确保 this.characterManager 指向已 loadRecords 的全局 characterManager
+      // 否则更新文件不存在时 this.characterManager 为 undefined，后续 detectAvailableVoices 报 TypeError
+      if (!this.characterManager) {
+          this.characterManager = characterManager;
+      }
+  
        // 新增：ES5 兼容的数组扁平化函数（解决 forceFlattenArray 未定义问题）
       var forceFlattenArray = function(arr) {
           var result = [];
@@ -4489,6 +4508,25 @@ text = text.replace(/(^|[^a-zA-Z\u4e00-\u9fa5])(嗝|嗝儿)(?![a-zA-Z\u4e00-\u9f
       // 检测可用发音人（含localSound1~100）
       this.characterManager.detectAvailableVoices(tagsData);
 
+      // 方案B数据迁移：将旧 characterRecords 中的 voiceTag 转成底层 voice
+      // 旧版 voice 存的是 voiceTag（如"女青年01"），新版需存底层 voice（如"zh-CN-XiaoxiaoNeural"）
+      try {
+          var migratedCount = 0;
+          for (var mi = 0; mi < this.characterManager.characterRecords.length; mi++) {
+              var rec = this.characterManager.characterRecords[mi];
+              if (rec.voice && this.characterManager.voiceTagToVoice[rec.voice]) {
+                  rec.voice = this.characterManager.voiceTagToVoice[rec.voice];
+                  migratedCount++;
+              }
+          }
+          if (migratedCount > 0) {
+              console.log("[数据迁移] " + migratedCount + " 条角色记录的 voice 从 voiceTag 迁移到底层 voice");
+              this.characterManager.saveRecords();
+          }
+      } catch (migrateErr) {
+          console.error("[数据迁移] 失败: " + migrateErr.message);
+      }
+
 
    // 新增：在handleText中实时读取duihua配置（ES5强制解嵌套，8个缩进）
 
@@ -4716,10 +4754,22 @@ text = text.replace(/(^|[^a-zA-Z\u4e00-\u9fa5])(嗝|嗝儿)(?![a-zA-Z\u4e00-\u9f
           
                   // 步骤2：100% 复用本地音效 extractByRegex 逻辑（不变）
                   var extractByRegex = function(configStr) {
+                          // 方案B兼容：转换后 personality 是 JS 数组 [{id:"1", value:"晓晓"}]
+                          if (Object.prototype.toString.call(configStr) === '[object Array]') {
+                                  for (var ei = 0; ei < configStr.length; ei++) {
+                                          var eItem = configStr[ei];
+                                          if (eItem && eItem.value) return String(eItem.value).trim();
+                                          if (eItem && typeof eItem.get === 'function') {
+                                                  var ev = eItem.get("value");
+                                                  if (ev) return String(ev).trim();
+                                          }
+                                  }
+                                  return "";
+                          }
                           if (typeof configStr !== "string") {
                                   configStr = String(configStr || "");
                           }
-                          // 仅调试日志简化，提取逻辑不变
+                          // 兼容 Java Map 字符串表示：value=xxx}
                           var regex = /value=([^}]+)/i;
                           var match = configStr.match(regex);
                           var personality = "";
@@ -4810,34 +4860,35 @@ text = text.replace(/(^|[^a-zA-Z\u4e00-\u9fa5])(嗝|嗝儿)(?![a-zA-Z\u4e00-\u9f
                           return;
                   }
           
-                  // 复用本地音效for循环批量处理其他硬编标签（不变）
+                  // 复用本地音效for循环批量处理其他硬编标签
                   for (var i = 0; i < allTags.length; i++) {
-                          var fayinrenTag = allTags[i];
+                          var fayinrenTag = allTags[i]; // 方案B：fayinren.json 存底层voice
                           if (fayinrenTag === "duihua") continue; // 跳过duihua标签本身
-                          var tagConfig = globalTagsData[fayinrenTag] || {};
+                          // 方案B：fayinrenTag 是底层voice，需反查 voiceTag 才能从 tagsData 取 personality
+                          var revVoiceTag = (characterManager.voiceToVoiceTag && characterManager.voiceToVoiceTag[fayinrenTag]) || fayinrenTag;
+                          var tagConfig = globalTagsData[revVoiceTag] || {};
                           var personality = "";
-          
+
                           if (tagConfig.personality) {
                                   personality = extractByRegex(tagConfig.personality);
                           } else if (tagConfig.xingge) {
                                   personality = extractByRegex(tagConfig.xingge);
                           }
-          
+
+                          // 方案B：有 displayName 映射即为有效（displayName 来自配置项，不依赖 tagsData.personality）
+                          var revDisplayName = (characterManager.voiceToDisplayName && characterManager.voiceToDisplayName[fayinrenTag]) || "";
                           var isvalid = false;
-                          var invalidReason = "";
-                          if (!personality) {
-                                  invalidReason = "personality为空或未配置";
-                          } else if (personality === "无") {
-                                  invalidReason = "personality为'无'";
-                          } else {
+                          if (personality && personality !== "无") {
                                   isvalid = true;
+                          } else if (revDisplayName) {
+                                  isvalid = true; // 有 displayName 映射，即使无 personality 也有效
                           }
-          
-          
+
+
                           if (isvalid) {
-                                  // 方案B-1：storeVal=底层voice，displayVal=displayName
-                                  var storeVal = (characterManager.voiceTagToVoice && characterManager.voiceTagToVoice[fayinrenTag]) || fayinrenTag;
-                                  var displayVal = (characterManager.voiceTagToDisplayName && characterManager.voiceTagToDisplayName[fayinrenTag]) || fayinrenTag;
+                                  // 方案B-1：storeVal=底层voice(fayinrenTag本身)，displayVal=displayName
+                                  var storeVal = fayinrenTag;
+                                  var displayVal = revDisplayName || fayinrenTag;
                                   personalityArray.push([storeVal, displayVal]);
                                   successCount++;
                           } else {

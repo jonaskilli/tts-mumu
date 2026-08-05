@@ -1520,12 +1520,13 @@ var EditorJS = {
         }
 
         // 方案B-实时映射：通过 app 接口实时查询配置项是否仍存在。
-        // character.voice 存的是底层 voice（如 zh-CN-XiaoxiaoNeural），
-        // getVoiceByTag 用 findConfigByTag 五级匹配（第3级匹配 source.voice），查到说明配置项仍启用。
+        // character.voice 存的是 displayName（loadRecords 时经 replaceFayinrenName 转换），
+        // fayinrenList 元素也经 replaceFayinrenName 转换为 displayName。
+        // getVoiceByTag 用 findConfigByTag 五级匹配（第4级匹配 displayName），查到说明配置项仍启用。
         function isVoiceTagValid(voice) {
             if (!voice) return false;
             try {
-                // 先查 fayinrenList（从文件加载的可用发音人列表，存底层voice）
+                // 先查 fayinrenList（从文件加载的可用发音人列表，元素为 displayName）
                 for (var i = 0; i < fayinrenList.length; i++) {
                     if (fayinrenList[i] === voice) return true;
                 }
@@ -1540,7 +1541,8 @@ var EditorJS = {
         }
 
         // 生成发音人标签（方案B-实时映射）：
-        // character.voice 是底层 voice，通过 getVoiceByTag 实时获取 displayName 显示。
+        // character.voice 是 displayName（loadRecords 时经 replaceFayinrenName 转换），
+        // 通过 getVoiceByTag 实时获取 displayName 显示。
         // 查不到（配置项已删除）时显示 voice 本身 + ⚠。
         function generateVoiceTag(character) {
             if (!character || !character.voice) return null;
@@ -5073,33 +5075,6 @@ var EditorJS = {
                 onClick: function(dialog, which) {
                     dialog.dismiss();
                     showVoiceSearchDialog(callback);
-                }
-            }));
-
-            // === [新增] 系统TTS按钮 ===
-            builder.setPositiveButton("系统TTS", new android.content.DialogInterface.OnClickListener({
-                onClick: function(dialog, which) {
-                    dialog.dismiss();
-                    Toast.makeText(ctx, "正在从系统TTS获取发音人列表…", Toast.LENGTH_SHORT).show();
-                    new java.lang.Thread(new java.lang.Runnable({
-                        run: function () {
-                            try {
-                                var port = 3211;
-                                var voices = _fetchVoicesList(port);
-                                if (!voices || voices.length === 0) { _pvHandler.post(new java.lang.Runnable({ run: function () { Toast.makeText(ctx, "获取失败，请确认转发服务已启动(端口3211)", Toast.LENGTH_LONG).show(); } })); return; }
-                                var voicesData = voices;
-                                voicesData = _sortVoicesByCategory(voicesData);
-                                _pvVoicesCache = voicesData;
-                                var sysVoices = [];
-                                for (var sv = 0; sv < voicesData.length; sv++) { sysVoices.push(voicesData[sv].displayName); }
-                                // 不覆盖fayinren.json和映射文件，仅临时显示系统TTS发音人列表
-                                _pvHandler.post(new java.lang.Runnable({ run: function () {
-                                    Toast.makeText(ctx, "获取到 " + sysVoices.length + " 个发音人（已排序）", Toast.LENGTH_SHORT).show();
-                                    showFilteredVoiceDialog(sysVoices, callback);
-                                } }));
-                            } catch (e) { _pvHandler.post(new java.lang.Runnable({ run: function () { Toast.makeText(ctx, "获取异常: " + e.toString(), Toast.LENGTH_SHORT).show(); } })); }
-                        }
-                    })).start();
                 }
             }));
 
