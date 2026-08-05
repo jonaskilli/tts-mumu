@@ -4304,8 +4304,7 @@ var EditorJS = {
             }
             optionConfigs.push({ text: "删除角色", color: "#E53935", icon: "", action: "delete" });
             optionConfigs.push({ text: "设为主角", color: "#F57F17", icon: "", action: "set_main" });
-            optionConfigs.push({ text: "批量重新分配发音人", color: "#7B1FA2", icon: "", action: "batch_reassign" });
-            
+
             // 构建自定义列表布局
             var container = new android.widget.LinearLayout(ctx);
             container.setOrientation(android.widget.LinearLayout.VERTICAL);
@@ -4580,124 +4579,7 @@ var EditorJS = {
                 case "set_main":
                     setAsMainCharacter();
                     break;
-                case "batch_reassign":
-                    batchReassignVoices();
-                    break;
             }
-        }
-
-        // === [新增] 发音人列表排序 + 批量重新分配 + 试听功能 ===
-        function _sortVoicesByCategory(voices) {
-            return voices.sort(function (a, b) {
-                var na = a.displayName || a.name || "";
-                var nb = b.displayName || b.name || "";
-                var reA = na.match(/^(.+?)(\d+)/);
-                var reB = nb.match(/^(.+?)(\d+)/);
-                if (reA && reB) {
-                    if (reA[1] !== reB[1]) return reA[1] < reB[1] ? -1 : 1;
-                    return parseInt(reA[2]) - parseInt(reB[2]);
-                }
-                if (reA) return -1;
-                if (reB) return 1;
-                return na < nb ? -1 : 1;
-            });
-        }
-
-        function batchReassignVoices() {
-            try {
-                var builder = new android.app.AlertDialog.Builder(ctx);
-                builder.setTitle("批量重新分配发音人");
-                builder.setMessage("将从系统TTS获取当前发音人列表，\n为所有角色重新分配发音人。\n\n规则：\n1.优先匹配同名\n2.按类别随机选\n3.全列表随机选\n\n确定继续？");
-                builder.setPositiveButton("确定", new android.content.DialogInterface.OnClickListener({
-                    onClick: function (dialog, which) {
-                        dialog.dismiss();
-                        Toast.makeText(ctx, "正在获取系统TTS发音人列表…", Toast.LENGTH_SHORT).show();
-                        new java.lang.Thread(new java.lang.Runnable({
-                            run: function () {
-                                try {
-                                    var port = 3211;
-                                    var voices = _fetchVoicesList(port);
-                                    if (!voices || voices.length === 0) {
-                                    // 转发器未启动，使用fayinren.json列表 + 系统TTS试听
-                                    if (fayinrenList && fayinrenList.length > 0) {
-                                        _pvVoicesCache = null;
-                                        _pvHandler.post(new java.lang.Runnable({ run: function () {
-                                            Toast.makeText(ctx, "未开转发器，已切换为系统TTS试听模式(" + fayinrenList.length + "个发音人)", Toast.LENGTH_LONG).show();
-                                            showFilteredVoiceDialog(fayinrenList, callback);
-                                        } }));
-                                        return;
-                                    }
-                                    _pvHandler.post(new java.lang.Runnable({ run: function () { Toast.makeText(ctx, "获取失败，请确认转发服务已启动(端口3211)", Toast.LENGTH_LONG).show(); } }));
-                                    return;
-                                }
-                                    voices = _sortVoicesByCategory(voices);
-                                    var categoryMap = {};
-                                    for (var ci = 0; ci < voices.length; ci++) {
-                                        var catMatch = voices[ci].displayName.match(/^(.+?)\d/);
-                                        var cat = catMatch ? catMatch[1] : "其他";
-                                        if (!categoryMap[cat]) categoryMap[cat] = [];
-                                        categoryMap[cat].push(voices[ci]);
-                                    }
-                                    var changedCount = 0, unchangedCount = 0;
-                                    for (var ri = 0; ri < characterRecords.length; ri++) {
-                                        var char = characterRecords[ri];
-                                        if (!char.voice) continue;
-                                        var oldVoice = String(char.voice);
-                                        var oldParts = splitVoiceDisplay(oldVoice);
-                                        var oldTag = oldParts.tag || oldVoice;
-                                        var oldCatMatch = oldTag.match(/^(.+?)\d+/);
-                                        var oldCat = oldCatMatch ? oldCatMatch[1] : oldTag;
-                                        var origName = "";
-                                        try { origName = reverseReplaceFayinrenName(oldVoice); } catch (eRev) {}
-                                        if (!origName) origName = oldVoice;
-                                        var matched = null;
-                                        for (var mi = 0; mi < voices.length; mi++) {
-                                            if (voices[mi].displayName === oldVoice || voices[mi].displayName === origName) { matched = voices[mi]; break; }
-                                        }
-                                        if (!matched) {
-                                            var catVoices = categoryMap[oldCat];
-                                            if (catVoices && catVoices.length > 0) { matched = catVoices[Math.floor(Math.random() * catVoices.length)]; }
-                                        }
-                                        if (!matched && origName !== oldVoice) {
-                                            var origParts = splitVoiceDisplay(origName);
-                                            var origCatMatch = (origParts.tag || "").match(/^(.+?)\d+/);
-                                            if (origCatMatch) {
-                                                var origCatVoices = categoryMap[origCatMatch[1]];
-                                                if (origCatVoices && origCatVoices.length > 0) { matched = origCatVoices[Math.floor(Math.random() * origCatVoices.length)]; }
-                                            }
-                                        }
-                                        if (!matched && voices.length > 0) { matched = voices[Math.floor(Math.random() * voices.length)]; }
-                                        if (matched) {
-                                            if (matched.displayName !== oldVoice) { char.voice = matched.displayName; changedCount++; }
-                                            else { unchangedCount++; }
-                                        }
-                                    }
-                                    var newFayinrenList = [];
-                                    for (var fi = 0; fi < voices.length; fi++) { newFayinrenList.push(voices[fi].displayName); }
-                                    try {
-                                        ttsrv.writeTxtFile("fayinren.json", JSON.stringify(newFayinrenList));
-                                        fayinrenList = newFayinrenList;
-                                        var newMap = [];
-                                        for (var mi2 = 0; mi2 < newFayinrenList.length; mi2++) { newMap.push([newFayinrenList[mi2], newFayinrenList[mi2]]); }
-                                        ttsrv.writeTxtFile("fayinren_personality_summary.json", JSON.stringify(newMap));
-                                        _initFayinrenMapCache(true);
-                                    } catch (eWrite) {}
-                                    var fc = changedCount, fu = unchangedCount, ft = voices.length;
-                                    _pvHandler.post(new java.lang.Runnable({ run: function () {
-                                        Toast.makeText(ctx, "重新分配完成！变更" + fc + "个，保留" + fu + "个，共" + ft + "个发音人", Toast.LENGTH_LONG).show();
-                                        buildList();
-                                    } }));
-                                } catch (e) {
-                                    var em = e.toString();
-                                    _pvHandler.post(new java.lang.Runnable({ run: function () { Toast.makeText(ctx, "异常: " + em, Toast.LENGTH_LONG).show(); } }));
-                                }
-                            }
-                        })).start();
-                    }
-                }));
-                builder.setNegativeButton("取消", null);
-                builder.show();
-            } catch (e) { Toast.makeText(ctx, "打开失败: " + e.toString(), Toast.LENGTH_SHORT).show(); }
         }
 
         // === 试听功能 ===
