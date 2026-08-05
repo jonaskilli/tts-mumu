@@ -1607,8 +1607,8 @@ var EditorJS = {
         function shortenDisplayName(name) {
             if (!name) return "";
             var s = String(name).trim();
-            // 1) 去 [xxx] 注释（含中英文方括号）
-            s = s.replace(/\s*[\[【].*?[\]】]\s*/g, "").trim();
+            // 1) 去括号内的注释/来源（半角[]、全角【】、全角［］、半角/全角圆括号）
+            s = s.replace(/\s*[(\[{【［（].*?[)\]}】］）]\s*/g, "").trim();
             if (s === "") return "";
 
             // 2) 有 · • ：取发音人名（中间段）
