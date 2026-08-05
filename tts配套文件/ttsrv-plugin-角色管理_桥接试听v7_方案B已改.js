@@ -1523,31 +1523,22 @@ var EditorJS = {
             return ssb;
         }
 
-        // 方案B-实时映射：通过 app 接口实时查询配置项是否仍存在。
-        // character.voice 存的是 displayName（loadRecords 时经 replaceFayinrenName 转换），
-        // fayinrenList 元素也经 replaceFayinrenName 转换为 displayName。
-        // getVoiceByTag 用 findConfigByTag 五级匹配（第4级匹配 displayName），查到说明配置项仍启用。
+        // 方案B-实时映射：通过 app 接口实时查询配置项是否在当前前台分组启用。
+        // character.voice 存的是底层voice（稳定标识），
+        // getVoiceByTag(底层voice) 查当前分组，查到说明启用，查不到说明该voice不在当前分组→⚠。
         function isVoiceTagValid(voice) {
             if (!voice) return false;
             try {
-                // 先查 fayinrenList（从文件加载的可用发音人列表，元素为 displayName）
-                for (var i = 0; i < fayinrenList.length; i++) {
-                    if (fayinrenList[i] === voice) return true;
-                }
-                // 文件列表没查到时，实时查 app 配置项（voice 可能刚切换，文件还没更新）
-                var liveName = ttsrv.getVoiceByTag(voice);
-                if (liveName) return true;
-                return false;
+                return ttsrv.getVoiceByTag(voice) !== null;
             } catch (e) {
-                // 接口异常时回退到文件列表校验
                 return false;
             }
         }
 
         // 生成发音人标签（方案B-实时映射）：
-        // character.voice 是 displayName（loadRecords 时经 replaceFayinrenName 转换），
-        // 通过 getVoiceByTag 实时获取 displayName 显示。
-        // 查不到（配置项已删除）时显示 voice 本身 + ⚠。
+        // character.voice 存底层voice（稳定标识），
+        // 通过 getVoiceByTag(底层voice) 实时查询当前前台分组对应的 displayName 显示。
+        // 查不到（该底层voice不在当前分组）时显示映射名 + ⚠。
         function generateVoiceTag(character) {
             if (!character || !character.voice) return null;
 
@@ -1555,39 +1546,24 @@ var EditorJS = {
             var displayText = underlyingVoice;
             var isValid = false;
 
-            // === 诊断日志（定位标签不显示displayName问题）===
-            try {
-                console.log("[DIAG] underlyingVoice=" + underlyingVoice + " | fayinrenList.len=" + (fayinrenList?fayinrenList.length:0) + " | mapCache.len=" + (_fayinrenMapCache?Object.keys(_fayinrenMapCache).length:0));
-                var summaryRaw = "";
-                try { summaryRaw = ttsrv.readTxtFile("fayinren_personality_summary.json") || ""; } catch(eR) {}
-                console.log("[DIAG] summary.json前200字符=" + summaryRaw.substring(0, 200));
-                var mappedCheck = replaceFayinrenName(underlyingVoice);
-                console.log("[DIAG] replaceFayinrenName('" + underlyingVoice + "')='" + mappedCheck + "' | changed=" + (mappedCheck !== underlyingVoice));
-            } catch(eDiag) { console.log("[DIAG] 诊断异常: " + eDiag); }
-
-            // 实时查询配置项的 displayName
+            // 实时查询当前前台分组该底层voice对应的 displayName
             try {
                 var liveName = ttsrv.getVoiceByTag(underlyingVoice);
-                console.log("[DIAG] getVoiceByTag('" + underlyingVoice + "')=" + (liveName===null?"null":("'" + liveName + "'")));
                 if (liveName) {
                     displayText = liveName;
                     isValid = true;
                 } else {
-                    // getVoiceByTag 返回 null（配置项不在前台分组/已删除等），
-                    // 回退到文件映射 fayinren_personality_summary.json 转换底层voice→displayName
+                    // 当前分组未启用该底层voice，回退到文件映射显示（仍标⚠）
                     var mapped = replaceFayinrenName(underlyingVoice);
                     if (mapped && mapped !== underlyingVoice) {
                         displayText = mapped;
                     }
-                    isValid = isVoiceTagValid(underlyingVoice);
+                    isValid = false;
                 }
             } catch (e) {
-                console.log("[DIAG] getVoiceByTag异常: " + e);
-                // 查询失败时回退到文件映射
                 displayText = replaceFayinrenName(underlyingVoice);
-                isValid = isVoiceTagValid(underlyingVoice);
+                isValid = false;
             }
-            console.log("[DIAG] 最终 displayText='" + displayText + "' isValid=" + isValid);
 
             var ssb = new android.text.SpannableStringBuilder();
             var CLR_TAG = android.graphics.Color.parseColor("#1976D2");
@@ -4124,24 +4100,18 @@ var EditorJS = {
 
                 for (var i = 0; i < filteredIndices.length; i++) {
                     var record = characterRecords[filteredIndices[i]];
-                    if (record && record.voice) {
-                        var storeVal = reverseReplaceFayinrenName(record.voice);
-                        record.voice = replaceFayinrenName(storeVal);
+                    if (!record) continue;
+
+                    // === record.voice 始终保持底层voice（稳定标识）===
+                    // 历史数据可能被旧逻辑覆盖成displayName，这里反转为底层voice
+                    if (record.voice) {
+                        var underlying = reverseReplaceFayinrenName(record.voice);
+                        if (underlying && underlying !== record.voice) {
+                            record.voice = underlying;
+                        }
                     }
-                    // 查询当前已启用配置项的实际发音人，更新显示
-                    if (record) {
-                        var charName = safeGetName(record);
-                        try {
-                            var liveVoice = ttsrv.getVoiceByTag(charName);
-                            if (liveVoice) {
-                                // 用 fayinren 映射转为显示名
-                                var displayVoice = replaceFayinrenName(liveVoice);
-                                if (displayVoice && displayVoice !== record.voice) {
-                                    record.voice = displayVoice;
-                                }
-                            }
-                        } catch (eGv) { console.log("getVoiceByTag(" + charName + ")失败: " + eGv.toString()); }
-                    }
+                    // 显示和校验由 generateVoiceTag/isVoiceTagValid 通过 getVoiceByTag(底层voice)
+                    // 实时查询当前前台分组，无需在此覆盖 record.voice
                     var displayText = generateDisplayText(record);
                     var row = createListRow(displayText, i, record);
                     rowViews.push(row);
@@ -4171,20 +4141,16 @@ var EditorJS = {
             _initFayinrenMapCache(true);
             for (var i = 0; i < filteredIndices.length && i < rowViews.length; i++) {
                 var record = characterRecords[filteredIndices[i]];
-                if (record) {
-                    // 查询当前已启用配置项的实际发音人
-                    var charName = safeGetName(record);
-                    try {
-                        var liveVoice = ttsrv.getVoiceByTag(charName);
-                        if (liveVoice) {
-                            var displayVoice = replaceFayinrenName(liveVoice);
-                            if (displayVoice) record.voice = displayVoice;
-                        }
-                    } catch (eGv) {}
+                if (!record) continue;
+
+                    // record.voice 保持底层voice
                     if (record.voice) {
-                        var storeVal = reverseReplaceFayinrenName(record.voice);
-                        record.voice = replaceFayinrenName(storeVal);
+                        var underlying = reverseReplaceFayinrenName(record.voice);
+                        if (underlying && underlying !== record.voice) {
+                            record.voice = underlying;
+                        }
                     }
+
                     var existingRow = rowViews[i];
                     if (existingRow) {
                         var voiceView = existingRow.findViewWithTag("voiceTag");
@@ -4195,7 +4161,6 @@ var EditorJS = {
                             }
                         }
                     }
-                }
             }
         }
 
