@@ -1569,15 +1569,15 @@ var EditorJS = {
                 ssb.setSpan(new android.text.style.ForegroundColorSpan(CLR_WARN), warnStart, ssb.length(), SPAN);
             }
 
-            // 追加发音人标记图标（喜欢❤/不喜欢✖/路人○），作为选声音参考
+            // 追加发音人标记图标（喜欢❤️/路人🚶/坏人👎），作为选声音参考
             try {
                 var mk = getVoiceMark(voiceTag);
-                if (mk === "like" || mk === "dislike" || mk === "neutral") {
+                if (mk === "like" || mk === "neutral" || mk === "bad") {
                     ssb.append(" ");
                     var markStart = ssb.length();
-                    ssb.append(mk === "like" ? "❤" : (mk === "dislike" ? "✖" : "○"));
+                    ssb.append(mk === "like" ? "❤️" : (mk === "bad" ? "👎" : "🚶"));
                     var markColor = mk === "like" ? "#43A047"
-                                  : (mk === "dislike" ? "#E53935" : "#9E9E9E");
+                                  : (mk === "bad" ? "#E53935" : "#9E9E9E");
                     ssb.setSpan(new android.text.style.ForegroundColorSpan(android.graphics.Color.parseColor(markColor)), markStart, ssb.length(), SPAN);
                 }
             } catch (e) {}
@@ -4759,11 +4759,10 @@ var EditorJS = {
                 container.addView(infoView);
 
                 var options = [
-                    { text: "👍 喜欢", color: "#43A047", action: "mark_like" },
+                    { text: "❤️ 喜欢", color: "#43A047", action: "mark_like" },
                     { text: "🚶 路人", color: "#9E9E9E", action: "mark_neutral" },
-                    { text: "👑 主角", color: "#FB8C00", action: "mark_protagonist" },
-                    { text: "🎯 特殊", color: "#7B1FA2", action: "mark_special" },
-                    { text: "删除（不喜欢）", color: "#E53935", action: "delete" }
+                    { text: "👎 坏人", color: "#E53935", action: "mark_bad" },
+                    { text: "✖ 不喜欢，删除", color: "#E53935", action: "delete" }
                 ];
 
                 for (var i = 0; i < options.length; i++) {
@@ -4821,9 +4820,9 @@ var EditorJS = {
                                                 Toast.makeText(ctx, "已标记为 喜欢", Toast.LENGTH_SHORT).show();
                                                 if (onChange) try { onChange(); } catch (e) {}
                                                 refreshCharacterList();
-                                            } else if (actionKey === "mark_dislike") {
-                                                setVoiceMark(tag, "dislike");
-                                                Toast.makeText(ctx, "已标记为 不喜欢", Toast.LENGTH_SHORT).show();
+                                            } else if (actionKey === "mark_bad") {
+                                                setVoiceMark(tag, "bad");
+                                                Toast.makeText(ctx, "已标记为 坏人", Toast.LENGTH_SHORT).show();
                                                 if (onChange) try { onChange(); } catch (e) {}
                                                 refreshCharacterList();
                                             } else if (actionKey === "mark_neutral") {
@@ -4891,9 +4890,9 @@ var EditorJS = {
 
         function getVoiceMarkLabel(tag) {
             var m = getVoiceMark(tag);
-            if (m === "like") return "❤ 喜欢";
-            if (m === "dislike") return "✖ 不喜欢";
-            if (m === "neutral") return "○ 路人";
+            if (m === "like") return "❤️ 喜欢";
+            if (m === "bad") return "👎 坏人";
+            if (m === "neutral") return "🚶 路人";
             return "未标记";
         }
 
@@ -5267,14 +5266,14 @@ var EditorJS = {
                     vtext.setLayoutParams(vtextParams);
                     vrow.addView(vtext);
 
-                    // === 标记图标（喜欢/不喜欢/路人），作为选声音参考 ===
+                    // === 标记图标（喜欢❤️/路人🚶/坏人👎），作为选声音参考 ===
                     var _vmark = getVoiceMark(vopt.value);
-                    if (_vmark === "like" || _vmark === "dislike" || _vmark === "neutral") {
+                    if (_vmark === "like" || _vmark === "neutral" || _vmark === "bad") {
                         var markView = new android.widget.TextView(ctx);
-                        markView.setText(_vmark === "like" ? "❤" : (_vmark === "dislike" ? "✖" : "○"));
+                        markView.setText(_vmark === "like" ? "❤️" : (_vmark === "bad" ? "👎" : "🚶"));
                         markView.setTextSize(14);
                         var _markColor = _vmark === "like" ? "#43A047"
-                                       : (_vmark === "dislike" ? "#E53935" : "#9E9E9E");
+                                       : (_vmark === "bad" ? "#E53935" : "#9E9E9E");
                         markView.setTextColor(android.graphics.Color.parseColor(_markColor));
                         markView.setSingleLine(true);
                         markView.setGravity(android.view.Gravity.CENTER);
