@@ -67,16 +67,6 @@ function replaceFayinrenName(name) {
     return originalName;
 }
 
-// 是否显示性格（标签栏 personality 紫色补充显示开关）
-// 存储于 ttsrv.tts.data.showPersona，默认开启("1")
-function isPersonaVisible() {
-    try {
-        if (!ttsrv.tts || !ttsrv.tts.data) return true;
-        var raw = String(ttsrv.tts.data.showPersona || "").trim();
-        return raw !== "0"; // 默认开启，仅 "0" 视为关闭
-    } catch (e) { return true; }
-}
-
 // 反向映射：显示值→存储值（使用缓存，O(1)查找）
 function reverseReplaceFayinrenName(displayName) {
     var originalName = displayName || '';
@@ -178,15 +168,6 @@ var EditorJS = {
             console.log("自动备份（备份到角色数据）已执行");
         } else {
             console.log("自动备份关闭，不执行");
-        }
-
-        // 读取"显示性格标签"开关（默认开启，向后兼容）
-        var showPersonaState = "1";
-        try {
-            var rawPersona = String(ttsrv.tts.data.showPersonaEnable || "").trim();
-            showPersonaState = (rawPersona === "0") ? "0" : "1"; // 仅显式"0"才关闭
-        } catch (e) {
-            showPersonaState = "1";
         }
 
         
@@ -1558,7 +1539,6 @@ var EditorJS = {
 
             var voiceTag = String(character.voice);
             var displayText = voiceTag;
-            var persona = "";
             var isValid = false;
 
             // 用 tag 查当前前台分组的发音人 displayName
@@ -1574,39 +1554,14 @@ var EditorJS = {
                 isValid = false;
             }
 
-            // 性格(persona)显示：受 isPersonaVisible() 开关控制
-            // 优先级1：角色级 persona（用户在角色列表里直接填的，就近编辑）
-            // 优先级2：fallback 到 fayinren_personality_summary.json（朗读规则配置项里填的旧数据）
-            if (isPersonaVisible()) {
-                var roleLevelPersona = String(character.persona || "").trim();
-                if (roleLevelPersona) {
-                    persona = roleLevelPersona;
-                } else {
-                    try {
-                        var tagPlusPersona = replaceFayinrenName(voiceTag);
-                        if (tagPlusPersona && tagPlusPersona.length > voiceTag.length) {
-                            persona = tagPlusPersona.substring(voiceTag.length);
-                        }
-                    } catch (e) {}
-                }
-            }
-
             var ssb = new android.text.SpannableStringBuilder();
             var CLR_TAG = android.graphics.Color.parseColor("#1976D2");
-            var CLR_PERSONA = android.graphics.Color.parseColor("#7B1FA2");
             var CLR_WARN = android.graphics.Color.parseColor("#D32F2F");
             var SPAN = android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE;
 
             var tagStart = ssb.length();
             ssb.append(displayText);
             ssb.setSpan(new android.text.style.ForegroundColorSpan(CLR_TAG), tagStart, ssb.length(), SPAN);
-
-            // personality 紫色追加（非空时）
-            if (persona) {
-                var personaStart = ssb.length();
-                ssb.append(persona);
-                ssb.setSpan(new android.text.style.ForegroundColorSpan(CLR_PERSONA), personaStart, ssb.length(), SPAN);
-            }
 
             if (!isValid) {
                 var warnStart = ssb.length();
@@ -1861,8 +1816,7 @@ var EditorJS = {
                       gender: char.gender,
                       age: char.age,
                       usageCount: char.usageCount,
-                      genderAgeHistory: char.genderAgeHistory, // 保留可能存在的其他字段
-                      persona: char.persona || "" // 角色级性格（角色列表就近编辑）
+                      genderAgeHistory: char.genderAgeHistory // 保留可能存在的其他字段
                     });
                 }
           // ↑ 新增结束
@@ -2149,30 +2103,6 @@ var EditorJS = {
         var backupRestoreButton = createRoundedButton("💾  备份恢复", "#3F51B5");
         backupRestoreButton.getLayoutParams().setMargins(dipToPx(8), 0, 0, 0);
         topButtonsLayout.addView(backupRestoreButton);
-
-        // 显示性格开关按钮（切换标签栏 personality 紫色补充显示）
-        var personaToggleBtn = createRoundedButton("🎨  性格显示", "#7B1FA2");
-        personaToggleBtn.getLayoutParams().setMargins(dipToPx(8), 0, 0, 0);
-        topButtonsLayout.addView(personaToggleBtn);
-        function refreshPersonaBtnText() {
-            personaToggleBtn.setText(isPersonaVisible() ? "🎨  性格显示" : "🎨  性格隐藏");
-        }
-        refreshPersonaBtnText();
-        personaToggleBtn.setOnClickListener(new android.view.View.OnClickListener({
-            onClick: function(view) {
-                try {
-                    if (!ttsrv.tts || typeof ttsrv.tts !== "object") ttsrv.tts = {};
-                    if (!ttsrv.tts.data || typeof ttsrv.tts.data !== "object") ttsrv.tts.data = {};
-                    var newState = isPersonaVisible() ? "0" : "1";
-                    ttsrv.tts.data.showPersona = newState;
-                    refreshPersonaBtnText();
-                    refreshCharacterList();
-                    Toast.makeText(ctx, newState === "1" ? "性格显示已开启" : "性格显示已关闭", Toast.LENGTH_SHORT).show();
-                } catch (e) {
-                    Toast.makeText(ctx, "切换失败: " + e.toString(), Toast.LENGTH_SHORT).show();
-                }
-            }
-        }));
 
         // 书籍栏区域（层级1：当前书籍上下文）
         var bookSectionLayout = new android.widget.LinearLayout(ctx);
@@ -4404,10 +4334,9 @@ var EditorJS = {
                 optionConfigs.push({ text: "释放/删除【已合并角色】", color: "#FB8C00", icon: "", action: "release" });
             }
             
-            // 始终显示的操作（修改角色名/编辑性格仅在单角色时显示，多角色时无意义）
+            // 始终显示的操作（修改角色名仅在单角色时显示，多角色时无意义）
             if (markedIndices.length < 2) {
                 optionConfigs.push({ text: "修改角色名", color: "#00838F", icon: "", action: "edit_name" });
-                optionConfigs.push({ text: "编辑性格", color: "#7B1FA2", icon: "", action: "edit_persona" });
             }
             optionConfigs.push({ text: "删除角色", color: "#E53935", icon: "", action: "delete" });
             optionConfigs.push({ text: "设为主角", color: "#F57F17", icon: "", action: "set_main" });
@@ -4679,9 +4608,6 @@ var EditorJS = {
                     break;
                 case "edit_name":
                     doEditCharacterOperation(position);
-                    break;
-                case "edit_persona":
-                    doEditPersonaOperation(position);
                     break;
                 case "delete":
                     doDeleteCharacterOperation();
