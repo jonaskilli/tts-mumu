@@ -4033,6 +4033,29 @@ var EditorJS = {
                     }
                 }));
                 row.addView(charPvBtn);
+
+                // 发音人管理按钮（⋮）：试听后觉得难听可当场删除/改名
+                var charMgBtn = new android.widget.TextView(ctx);
+                charMgBtn.setText("⋮");
+                charMgBtn.setTextSize(18);
+                charMgBtn.setTextColor(android.graphics.Color.parseColor("#757575"));
+                charMgBtn.setSingleLine(true);
+                charMgBtn.setGravity(android.view.Gravity.CENTER);
+                charMgBtn.setPadding(dipToPx(6), dipToPx(8), dipToPx(4), dipToPx(8));
+                var charMgLp = new android.widget.LinearLayout.LayoutParams(
+                    android.widget.LinearLayout.LayoutParams.WRAP_CONTENT,
+                    android.widget.LinearLayout.LayoutParams.WRAP_CONTENT
+                );
+                charMgLp.setMargins(dipToPx(2), 0, 0, 0);
+                charMgBtn.setLayoutParams(charMgLp);
+                var _charMgTag = record.voice;
+                charMgBtn.setOnClickListener(new android.view.View.OnClickListener({
+                    onClick: function(v) {
+                        try { showVoiceManageDialog(_charMgTag, null); }
+                        catch (e) { Toast.makeText(ctx, "管理弹窗异常: " + e.toString(), Toast.LENGTH_SHORT).show(); }
+                    }
+                }));
+                row.addView(charMgBtn);
             }
 
             // 右侧圆形选中指示器已移除（选中状态通过背景色体现）
@@ -4661,6 +4684,336 @@ var EditorJS = {
             } catch (e) { _pvStop(); Toast.makeText(ctx, "播放失败", Toast.LENGTH_SHORT).show(); }
         }
 
+        // ===== 发音人管理弹窗（删除/改名） =====
+        // 入口：角色行试听按钮旁的 ⋮ 按钮，或换发音人弹窗里试听旁的 ⋮
+        // 删除流程：删配置项 → 从 fayinren.json 删 tag → 同前缀随机重分配受影响角色 → 刷新
+        // 改名流程：改配置项 displayName → 刷新
+        function showVoiceManageDialog(voiceTag, onChange) {
+            try {
+                if (!voiceTag) {
+                    Toast.makeText(ctx, "无发音人可管理", Toast.LENGTH_SHORT).show();
+                    return;
+                }
+                var tag = String(voiceTag);
+
+                // 先查当前 displayName 供显示
+                var currentName = tag;
+                try {
+                    var liveName = ttsrv.getVoiceByTag(tag);
+                    if (liveName) currentName = liveName;
+                } catch (e) {}
+
+                var builder = new android.app.AlertDialog.Builder(ctx);
+                var container = new android.widget.LinearLayout(ctx);
+                container.setOrientation(android.widget.LinearLayout.VERTICAL);
+                container.setPadding(dipToPx(16), dipToPx(12), dipToPx(16), dipToPx(32));
+                container.addView(createDialogTitle("管理发音人"));
+
+                // 当前发音人信息
+                var infoView = new android.widget.TextView(ctx);
+                infoView.setText("标签：" + tag + "\n显示名：" + currentName);
+                infoView.setTextSize(13);
+                infoView.setTextColor(android.graphics.Color.parseColor("#757575"));
+                var infoLp = new android.widget.LinearLayout.LayoutParams(
+                    android.widget.LinearLayout.LayoutParams.MATCH_PARENT,
+                    android.widget.LinearLayout.LayoutParams.WRAP_CONTENT
+                );
+                infoLp.setMargins(0, 0, 0, dipToPx(12));
+                infoView.setLayoutParams(infoLp);
+                container.addView(infoView);
+
+                var options = [
+                    { text: "改显示名", color: "#1976D2", action: "rename" },
+                    { text: "删除并重分配", color: "#E53935", action: "delete" }
+                ];
+
+                for (var i = 0; i < options.length; i++) {
+                    (function(cfg) {
+                        var row = new android.widget.LinearLayout(ctx);
+                        row.setOrientation(android.widget.LinearLayout.HORIZONTAL);
+                        row.setGravity(android.view.Gravity.CENTER_VERTICAL);
+                        var rowParams = new android.widget.LinearLayout.LayoutParams(
+                            android.widget.LinearLayout.LayoutParams.MATCH_PARENT,
+                            android.widget.LinearLayout.LayoutParams.WRAP_CONTENT
+                        );
+                        rowParams.setMargins(0, dipToPx(4), 0, dipToPx(4));
+                        row.setLayoutParams(rowParams);
+
+                        var bg = new android.graphics.drawable.GradientDrawable();
+                        bg.setShape(android.graphics.drawable.GradientDrawable.RECTANGLE);
+                        bg.setCornerRadius(dipToPx(10));
+                        bg.setColor(android.graphics.Color.parseColor("#FFFFFF"));
+                        bg.setStroke(dipToPx(1), android.graphics.Color.parseColor("#10000000"));
+                        row.setBackground(bg);
+                        row.setPadding(dipToPx(14), dipToPx(12), dipToPx(14), dipToPx(12));
+                        row.setClickable(true);
+
+                        var dot = new android.view.View(ctx);
+                        var dotParams = new android.widget.LinearLayout.LayoutParams(dipToPx(7), dipToPx(7));
+                        dotParams.setMargins(0, 0, dipToPx(8), 0);
+                        dot.setLayoutParams(dotParams);
+                        var dotBg = new android.graphics.drawable.GradientDrawable();
+                        dotBg.setShape(android.graphics.drawable.GradientDrawable.OVAL);
+                        dotBg.setColor(android.graphics.Color.parseColor(cfg.color));
+                        dot.setBackground(dotBg);
+                        row.addView(dot);
+
+                        var textView = new android.widget.TextView(ctx);
+                        textView.setText(cfg.text);
+                        textView.setTextSize(15);
+                        textView.setTextColor(android.graphics.Color.parseColor("#333333"));
+                        var textParams = new android.widget.LinearLayout.LayoutParams(
+                            0, android.widget.LinearLayout.LayoutParams.WRAP_CONTENT, 1
+                        );
+                        textView.setLayoutParams(textParams);
+                        row.addView(textView);
+
+                        row.setOnClickListener(new android.view.View.OnClickListener({
+                            onClick: function(v) {
+                                voiceManageDlg.dismiss();
+                                var actionKey = cfg.action;
+                                new android.os.Handler(android.os.Looper.getMainLooper()).post(new java.lang.Runnable({
+                                    run: function() {
+                                        try {
+                                            if (actionKey === "rename") {
+                                                doRenameVoice(tag, onChange);
+                                            } else if (actionKey === "delete") {
+                                                doDeleteVoiceAndReassign(tag, onChange);
+                                            }
+                                        } catch (e) {
+                                            Toast.makeText(ctx, "操作异常: " + e.toString(), Toast.LENGTH_SHORT).show();
+                                        }
+                                    }
+                                }));
+                            }
+                        }));
+
+                        container.addView(row);
+                    })(options[i]);
+                }
+
+                builder.setView(container);
+                var voiceManageDlg = builder.create();
+                voiceManageDlg.show();
+                applyDialogRoundCorner(voiceManageDlg);
+            } catch (e) {
+                Toast.makeText(ctx, "弹窗异常: " + e.toString(), Toast.LENGTH_SHORT).show();
+            }
+        }
+
+        // 改显示名
+        function doRenameVoice(tag, onChange) {
+            try {
+                var currentName = tag;
+                try {
+                    var liveName = ttsrv.getVoiceByTag(tag);
+                    if (liveName) currentName = liveName;
+                } catch (e) {}
+
+                var builder = new android.app.AlertDialog.Builder(ctx);
+                var container = new android.widget.LinearLayout(ctx);
+                container.setOrientation(android.widget.LinearLayout.VERTICAL);
+                container.setPadding(dipToPx(20), dipToPx(12), dipToPx(20), dipToPx(16));
+                container.addView(createDialogTitle("修改显示名"));
+                container.addView(createDialogLabel("新显示名（留空则使用标签名）"));
+
+                var nameInput = createStyledEditText(null, true);
+                nameInput.setText(currentName);
+                nameInput.setSelection(currentName.length);
+                container.addView(nameInput);
+
+                builder.setView(container);
+                builder.setPositiveButton("保存", new android.content.DialogInterface.OnClickListener({
+                    onClick: function(dialog, which) {
+                        var newName = nameInput.getText() ? nameInput.getText().toString().trim() : "";
+                        if (!newName) {
+                            Toast.makeText(ctx, "名称不能为空", Toast.LENGTH_SHORT).show();
+                            return;
+                        }
+                        // 子线程调用避免卡顿
+                        new java.lang.Thread(new java.lang.Runnable({
+                            run: function() {
+                                var err = ttsrv.updateConfigDisplayName(tag, newName);
+                                new android.os.Handler(android.os.Looper.getMainLooper()).post(new java.lang.Runnable({
+                                    run: function() {
+                                        if (err) {
+                                            Toast.makeText(ctx, "改名失败: " + err, Toast.LENGTH_SHORT).show();
+                                        } else {
+                                            Toast.makeText(ctx, "已改为：" + newName, Toast.LENGTH_SHORT).show();
+                                            if (onChange) try { onChange(); } catch (e) {}
+                                            refreshCharacterList();
+                                        }
+                                    }
+                                }));
+                            }
+                        })).start();
+                        dialog.dismiss();
+                    }
+                }));
+                builder.setNegativeButton("取消", new android.content.DialogInterface.OnClickListener({
+                    onClick: function(dialog, which) { dialog.cancel(); }
+                }));
+                var dlg = builder.show();
+                applyDialogRoundCorner(dlg);
+            } catch (e) {
+                Toast.makeText(ctx, "改名弹窗异常: " + e.toString(), Toast.LENGTH_SHORT).show();
+            }
+        }
+
+        // 删除配置项 + 从 fayinren.json 删 tag + 同前缀随机重分配
+        function doDeleteVoiceAndReassign(tag, onChange) {
+            try {
+                // 1. 找出所有绑该 tag 的角色
+                var affectedChars = [];
+                for (var i = 0; i < characterRecords.length; i++) {
+                    var r = characterRecords[i];
+                    if (r && r.voice === tag) {
+                        affectedChars.push({ index: i, name: safeGetName(r) });
+                    }
+                }
+
+                // 2. 找同前缀的候选 tag（从 fayinren.json）
+                refreshFayinrenList();
+                var prefix = extractVoicePrefix(tag);
+                var candidates = [];
+                for (var j = 0; j < fayinrenList.length; j++) {
+                    var t = fayinrenList[j];
+                    if (t !== tag && extractVoicePrefix(t) === prefix) {
+                        candidates.push(t);
+                    }
+                }
+
+                // 3. 确认弹窗
+                var msg = "确认删除发音人配置项【" + tag + "】？\n\n";
+                msg += "显示名：" + (function() {
+                    try { var n = ttsrv.getVoiceByTag(tag); return n || "(无)"; } catch (e) { return "(无)"; }
+                })() + "\n\n";
+                msg += "受影响角色：" + affectedChars.length + " 个\n";
+                if (affectedChars.length > 0) {
+                    var names = affectedChars.slice(0, 5).map(function(c) { return c.name; }).join("、");
+                    if (affectedChars.length > 5) names += " 等";
+                    msg += names + "\n";
+                }
+                msg += "\n同前缀候选（" + candidates.length + " 个）：" + (candidates.length > 0 ? "将随机分配" : "无，角色将标记⚠");
+
+                new android.app.AlertDialog.Builder(ctx)
+                    .setTitle("删除确认")
+                    .setMessage(msg)
+                    .setPositiveButton("确认删除", new android.content.DialogInterface.OnClickListener({
+                        onClick: function(dialog, which) {
+                            // 子线程执行删除+重分配，避免卡顿
+                            new java.lang.Thread(new java.lang.Runnable({
+                                run: function() {
+                                    var results = doDeleteVoiceInternal(tag, affectedChars, candidates);
+                                    new android.os.Handler(android.os.Looper.getMainLooper()).post(new java.lang.Runnable({
+                                        run: function() {
+                                            Toast.makeText(ctx, results, Toast.LENGTH_LONG).show();
+                                            if (onChange) try { onChange(); } catch (e) {}
+                                            refreshCharacterList();
+                                        }
+                                    }));
+                                }
+                            })).start();
+                            dialog.dismiss();
+                        }
+                    }))
+                    .setNegativeButton("取消", new android.content.DialogInterface.OnClickListener({
+                        onClick: function(dialog, which) { dialog.cancel(); }
+                    }))
+                    .show();
+            } catch (e) {
+                Toast.makeText(ctx, "删除弹窗异常: " + e.toString(), Toast.LENGTH_SHORT).show();
+            }
+        }
+
+        // 删除的内部实现（在子线程跑），返回结果文案
+        function doDeleteVoiceInternal(tag, affectedChars, candidates) {
+            var log = [];
+            // 1. 删配置项
+            try {
+                var err = ttsrv.deleteConfigByTag(tag);
+                if (err) {
+                    log.push("删配置项失败：" + err);
+                    return log.join("\n");
+                }
+                log.push("已删配置项：" + tag);
+            } catch (e) {
+                return "删配置项异常：" + e.toString();
+            }
+
+            // 2. 从 fayinren.json 删 tag
+            try {
+                var raw = ttsrv.readTxtFile("fayinren.json");
+                if (raw && raw.trim() !== "") {
+                    var arr = JSON.parse(raw);
+                    if (Array.isArray(arr)) {
+                        var newArr = [];
+                        for (var i = 0; i < arr.length; i++) {
+                            if (arr[i] !== tag) newArr.push(arr[i]);
+                        }
+                        ttsrv.writeTxtFile("fayinren.json", JSON.stringify(newArr, null, 2));
+                        log.push("已从fayinren.json移除：" + tag + "（剩余" + newArr.length + "条）");
+                    }
+                }
+            } catch (e) {
+                log.push("更新fayinren.json失败：" + e.toString());
+            }
+
+            // 3. 同前缀随机重分配受影响角色
+            if (affectedChars.length === 0) {
+                log.push("无角色受影响");
+                return log.join("\n");
+            }
+
+            if (candidates.length === 0) {
+                log.push("无同前缀候选，" + affectedChars.length + "个角色标签将变⚠");
+                return log.join("\n");
+            }
+
+            // 随机选一个候选 tag（所有受影响角色都用同一个，保持一致性）
+            // 避免选中已无效的候选：遍历 candidates 找第一个 getVoiceByTag 能查到的
+            var chosenTag = null;
+            for (var k = 0; k < candidates.length; k++) {
+                try {
+                    var liveName = ttsrv.getVoiceByTag(candidates[k]);
+                    if (liveName) { chosenTag = candidates[k]; break; }
+                } catch (e) {}
+            }
+            if (!chosenTag) {
+                // 全都查不到，随机挑一个字符串
+                chosenTag = candidates[Math.floor(Math.random() * candidates.length)];
+            }
+
+            var reassigned = 0;
+            for (var j = 0; j < affectedChars.length; j++) {
+                var idx = affectedChars[j].index;
+                if (characterRecords[idx]) {
+                    characterRecords[idx].voice = chosenTag;
+                    reassigned++;
+                }
+            }
+            log.push("已将" + reassigned + "个角色重分配为：" + chosenTag);
+
+            // 4. 保存角色数据
+            try {
+                saveCharacterData();
+                createGengxinFile();
+                log.push("角色数据已保存");
+            } catch (e) {
+                log.push("保存角色数据失败：" + e.toString());
+            }
+
+            return log.join("\n");
+        }
+
+        // 提取 voice tag 的前缀（去掉末尾数字），如 "女青年01" → "女青年"
+        function extractVoicePrefix(tag) {
+            var s = String(tag || "").trim();
+            var match = s.match(/^(.+?)(\d+)$/);
+            if (match) return match[1];
+            return s;
+        }
+
         function previewVoiceByName(tag, btn) {
             try {
                 if (_pvCurrentBtn === btn && _pvMediaPlayer !== null) {
@@ -4799,6 +5152,34 @@ var EditorJS = {
                         }
                     }));
                     vrow.addView(pvBtn);
+
+                    // === 发音人管理按钮（⋮）：试听后觉得难听可当场删除/改名 ===
+                    var mgBtn = new android.widget.TextView(ctx);
+                    mgBtn.setText("⋮");
+                    mgBtn.setTextSize(18);
+                    mgBtn.setTextColor(android.graphics.Color.parseColor("#757575"));
+                    mgBtn.setSingleLine(true);
+                    mgBtn.setGravity(android.view.Gravity.CENTER);
+                    mgBtn.setPadding(dipToPx(6), dipToPx(8), dipToPx(4), dipToPx(8));
+                    var mgBtnLp = new android.widget.LinearLayout.LayoutParams(
+                        android.widget.LinearLayout.LayoutParams.WRAP_CONTENT,
+                        android.widget.LinearLayout.LayoutParams.WRAP_CONTENT
+                    );
+                    mgBtnLp.setMargins(dipToPx(2), 0, 0, 0);
+                    mgBtn.setLayoutParams(mgBtnLp);
+                    var _mgVoiceTag = vopt.value;
+                    var _mgDialog = voiceDialog;
+                    mgBtn.setOnClickListener(new android.view.View.OnClickListener({
+                        onClick: function(v) {
+                            try {
+                                // 管理弹窗关闭后，本弹窗的列表可能已过期（如删除后），关闭本弹窗
+                                showVoiceManageDialog(_mgVoiceTag, function() {
+                                    try { _mgDialog.dismiss(); } catch (e) {}
+                                });
+                            } catch (e) { Toast.makeText(ctx, "管理弹窗异常: " + e.toString(), Toast.LENGTH_SHORT).show(); }
+                        }
+                    }));
+                    vrow.addView(mgBtn);
 
                     vrow.setOnClickListener(new android.view.View.OnClickListener({
                         onClick: function(view) {

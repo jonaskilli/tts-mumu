@@ -208,6 +208,64 @@ data class TtsEngineContext(
     }
 
     /**
+     * 删除匹配 tag 的已启用配置项。
+     *
+     * 用于用户在角色管理里试听后觉得质量不达标，当场删除该发音人配置项。
+     * 仅删除 tagRuleId == 当前插件ID 的配置项，避免误删其他规则管理的配置项。
+     *
+     * @param tag 标签名(如"女青年01")
+     * @return 成功返回 null；失败返回错误信息字符串；未匹配返回 "未找到配置项"
+     */
+    @ScriptInterface
+    fun deleteConfigByTag(tag: String): String? {
+        return try {
+            val trimmedTag = tag.trim()
+            if (trimmedTag.isEmpty()) return "tag为空"
+
+            val allEnabled = dbm.systemTtsV2.allEnabled
+            val match = findConfigByTag(allEnabled, trimmedTag) ?: return "未找到配置项"
+
+            dbm.systemTtsV2.delete(match)
+            // 清理引擎缓存，避免下次合成时拿到已删除的引擎
+            CachedEngineManager.removeEngine((match.config as TtsConfigurationDTO).source)
+            null
+        } catch (e: Exception) {
+            Log.w(TAG, "deleteConfigByTag failed: ${e.message}")
+            e.message ?: e.toString()
+        }
+    }
+
+    /**
+     * 修改匹配 tag 的已启用配置项的 displayName。
+     *
+     * 用于用户在角色管理里修改发音人显示名（如把"晓晓"改成"晓晓-温柔版"）。
+     * 仅修改 tagRuleId == 当前插件ID 的配置项。
+     *
+     * @param tag 标签名(如"女青年01")
+     * @param newName 新的显示名
+     * @return 成功返回 null；失败返回错误信息字符串；未匹配返回 "未找到配置项"
+     */
+    @ScriptInterface
+    fun updateConfigDisplayName(tag: String, newName: String): String? {
+        return try {
+            val trimmedTag = tag.trim()
+            if (trimmedTag.isEmpty()) return "tag为空"
+            val trimmedName = newName.trim()
+            if (trimmedName.isEmpty()) return "新名称为空"
+
+            val allEnabled = dbm.systemTtsV2.allEnabled
+            val match = findConfigByTag(allEnabled, trimmedTag) ?: return "未找到配置项"
+
+            match.displayName = trimmedName
+            dbm.systemTtsV2.update(match)
+            null
+        } catch (e: Exception) {
+            Log.w(TAG, "updateConfigDisplayName failed: ${e.message}")
+            e.message ?: e.toString()
+        }
+    }
+
+    /**
      * 将原始PCM数据包装为WAV格式（16bit单声道）
      */
     private fun wrapPcmInWav(pcmData: ByteArray, sampleRate: Int): ByteArray {
