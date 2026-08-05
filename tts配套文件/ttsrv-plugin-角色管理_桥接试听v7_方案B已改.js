@@ -1545,7 +1545,7 @@ var EditorJS = {
             try {
                 var liveName = ttsrv.getVoiceByTag(voiceTag);
                 if (liveName) {
-                    displayText = liveName;
+                    displayText = shortenDisplayName(liveName);
                     isValid = true;
                 } else {
                     isValid = false;
@@ -1594,10 +1594,11 @@ var EditorJS = {
         }
 
         // 缩减过长的 displayName：
+        // 结构通常为：前缀·发音人名-后缀（后缀为声优本名/游戏来源）
         // 1) 去掉 [xxx] 注释
-        // 2) 超过 MAX 字数时，按 ·•-| 分隔符取最后一段（通常是声优名/游戏名等关键身份）
-        // 3) 仍超 MAX 字数则截断为前 (MAX-1) 字 + …
-        // 不超过 MAX 字数则原样返回
+        // 2) 不超过 MAX 字数则原样返回
+        // 3) 超长时：先按 - 切取第一段（去后缀），再按 · • 切取最后段（去前缀）
+        // 4) 仍超长则截断为前 (MAX-1) 字 + …
         var DISPLAY_NAME_MAX = 8;
         function shortenDisplayName(name) {
             if (!name) return "";
@@ -1605,16 +1606,19 @@ var EditorJS = {
             // 1) 去 [xxx] 注释（含中英文方括号）
             s = s.replace(/\s*[\[【].*?[\]】]\s*/g, "").trim();
             if (s.length <= DISPLAY_NAME_MAX) return s;
-            // 2) 按分隔符切，取最后一段
-            var parts = s.split(/[·•\-—|｜/／]/);
+            // 3) 先按 - 切取第一段（去掉 -声优名/游戏来源）
+            var dashParts = s.split(/[\-—]/);
+            var main = dashParts[0].trim();
+            // 再按 · • 切取最后段（去掉前缀）
+            var dotParts = main.split(/[·•]/);
             var last = "";
-            for (var i = parts.length - 1; i >= 0; i--) {
-                var p = parts[i].trim();
+            for (var i = dotParts.length - 1; i >= 0; i--) {
+                var p = dotParts[i].trim();
                 if (p) { last = p; break; }
             }
-            if (last && last.length <= DISPLAY_NAME_MAX) return last;
-            if (!last) last = s;
-            // 3) 仍超长则截断
+            if (!last) last = main;
+            if (last.length <= DISPLAY_NAME_MAX) return last;
+            // 4) 仍超长则截断
             return last.substring(0, DISPLAY_NAME_MAX - 1) + "…";
         }
   
@@ -4888,7 +4892,7 @@ var EditorJS = {
                             var displayName = tag;
                             try {
                                 var liveName = ttsrv.getVoiceByTag(tag);
-                                if (liveName) displayName = liveName;
+                                if (liveName) displayName = shortenDisplayName(liveName);
                             } catch (e) {}
                             items.push({ name: displayName, value: tag });
                         }
