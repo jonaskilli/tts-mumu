@@ -4670,12 +4670,8 @@ var EditorJS = {
         // 通用发音人筛选弹窗（美化版：自定义卡片列表）
         function showFilteredVoiceDialog(voiceList, callback) {
             var builder = new android.app.AlertDialog.Builder(ctx);
-            // 发音人列表（移除"跟随目标角色"——它仅对合并场景有意义，
-            // 在更换单角色发音人时无用且会把 voice 写成无效标记值）
-            var voiceOptions = [];
-            for (var i = 0; i < voiceList.length; i++) {
-                voiceOptions.push(new Item(voiceList[i], voiceList[i]));
-            }
+            // voiceList 为 {name, value} 对象数组：name 用于显示(displayName)，value 用于回调(tag)
+            var voiceOptions = voiceList;
 
             // 声明弹窗引用（供点击回调中dismiss使用）
             var voiceDialog;
@@ -4762,7 +4758,7 @@ var EditorJS = {
                         android.widget.LinearLayout.LayoutParams.WRAP_CONTENT
                     );
                     pvBtn.setLayoutParams(pvBtnLp);
-                    var _pvVoiceName = vopt.name;
+                    var _pvVoiceName = vopt.value;
                     pvBtn.setOnClickListener(new android.view.View.OnClickListener({
                         onClick: function(v) {
                             try { previewVoiceByName(_pvVoiceName, pvBtn); }
@@ -4828,7 +4824,7 @@ var EditorJS = {
         // 通用筛选逻辑（每次调用前刷新发音人列表）
         function filterAndShowVoiceList(keyword, callback) {
             refreshFayinrenList();
-            // fayinrenList 保持 tag 原值（如"女青年01"），直接用于筛选和显示
+            // fayinrenList 保持 tag 原值（如"女青年01"），先用 tag 筛选出子集
             var fullVoiceList = fayinrenList.length > 0 ? fayinrenList.slice() : ["默认发音人"];
             fullVoiceList = fullVoiceList.sort(function (a, b) {
                 var reA = String(a).match(/^(.+?)(\d+)/);
@@ -4852,10 +4848,45 @@ var EditorJS = {
 
             if (filteredList.length === 0) {
                 Toast.makeText(ctx, "未找到包含「" + keyword + "」的发音人", Toast.LENGTH_SHORT).show();
-                showFilteredVoiceDialog(fullVoiceList, callback);
-            } else {
-                showFilteredVoiceDialog(filteredList, callback);
+                filteredList = fullVoiceList;
             }
+
+            // 子线程对筛选子集查 getVoiceByTag 获取 displayName，避免主线程卡顿
+            var loadingDialog = new android.app.ProgressDialog(ctx);
+            loadingDialog.setMessage("加载发音人中…");
+            loadingDialog.setCancelable(false);
+            loadingDialog.show();
+            var mainHandler = new android.os.Handler(android.os.Looper.getMainLooper());
+
+            new java.lang.Thread(new java.lang.Runnable({
+                run: function () {
+                    try {
+                        var items = [];
+                        for (var i = 0; i < filteredList.length; i++) {
+                            var tag = filteredList[i];
+                            var displayName = tag;
+                            try {
+                                var liveName = ttsrv.getVoiceByTag(tag);
+                                if (liveName) displayName = liveName;
+                            } catch (e) {}
+                            items.push({ name: displayName, value: tag });
+                        }
+                        mainHandler.post(new java.lang.Runnable({
+                            run: function () {
+                                try { loadingDialog.dismiss(); } catch (e) {}
+                                showFilteredVoiceDialog(items, callback);
+                            }
+                        }));
+                    } catch (e) {
+                        mainHandler.post(new java.lang.Runnable({
+                            run: function () {
+                                try { loadingDialog.dismiss(); } catch (e2) {}
+                                Toast.makeText(ctx, "加载发音人失败: " + e.toString(), Toast.LENGTH_SHORT).show();
+                            }
+                        }));
+                    }
+                }
+            })).start();
         }
         
         // 保留原有辅助函数
