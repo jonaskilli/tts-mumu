@@ -4,6 +4,11 @@ on:
   # 测试阶段: 去掉 push 自动触发, 避免与 test.yml 重复打包。
   # 只保留手动触发, 需要发正式 Release 时再在 Actions 页面手动运行。
   workflow_dispatch:
+    inputs:
+      build_dev:
+        description: "同时构建 dev 共存版 (默认只构建 app)"
+        type: boolean
+        default: false
 
 jobs:
   build:
@@ -11,10 +16,11 @@ jobs:
       matrix:
         product:
           - { name: "App原版", value: app }
-          - { name: "共存版", value: dev }
+          - { name: "共存版", value: dev, skip: ${{ github.event.inputs.build_dev != 'true' }} }
 
       fail-fast: false
     runs-on: ubuntu-latest
+    if: ${{ matrix.product.skip != 'true' }}
     permissions:
       contents: write
     env:
