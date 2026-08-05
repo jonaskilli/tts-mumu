@@ -1519,24 +1519,48 @@ var EditorJS = {
             return ssb;
         }
 
-        // 方案B：characterRecords 读入时 voice 已被 replaceFayinrenName 转为 displayName，
-        // fayinrenList 同样存 displayName。故校验 = 内存 voice(displayName) 是否在 fayinrenList 中，
-        // 不在则说明该角色绑定的底层 voice 已被删除，显示 ⚠。
+        // 方案B-实时映射：通过 app 接口实时查询配置项是否仍存在。
+        // character.voice 存的是底层 voice（如 zh-CN-XiaoxiaoNeural），
+        // getVoiceByTag 用 findConfigByTag 五级匹配（第3级匹配 source.voice），查到说明配置项仍启用。
         function isVoiceTagValid(voice) {
             if (!voice) return false;
-            for (var i = 0; i < fayinrenList.length; i++) {
-                if (fayinrenList[i] === voice) return true;
+            try {
+                // 先查 fayinrenList（从文件加载的可用发音人列表，存底层voice）
+                for (var i = 0; i < fayinrenList.length; i++) {
+                    if (fayinrenList[i] === voice) return true;
+                }
+                // 文件列表没查到时，实时查 app 配置项（voice 可能刚切换，文件还没更新）
+                var liveName = ttsrv.getVoiceByTag(voice);
+                if (liveName) return true;
+                return false;
+            } catch (e) {
+                // 接口异常时回退到文件列表校验
+                return false;
             }
-            return false;
         }
 
-        // 生成发音人标签部分（方案B）：直接显示 character.voice（已是 displayName），
-        // 无效（对应底层 voice 已删除）时追加 ⚠ 标记（红色）。
+        // 生成发音人标签（方案B-实时映射）：
+        // character.voice 是底层 voice，通过 getVoiceByTag 实时获取 displayName 显示。
+        // 查不到（配置项已删除）时显示 voice 本身 + ⚠。
         function generateVoiceTag(character) {
             if (!character || !character.voice) return null;
 
-            var voiceText = String(character.voice);
-            var isValid = isVoiceTagValid(voiceText);
+            var underlyingVoice = String(character.voice);
+            var displayText = underlyingVoice;
+            var isValid = false;
+
+            // 实时查询配置项的 displayName
+            try {
+                var liveName = ttsrv.getVoiceByTag(underlyingVoice);
+                if (liveName) {
+                    displayText = liveName;
+                    isValid = true;
+                }
+            } catch (e) {
+                // 查询失败时回退到文件映射
+                displayText = replaceFayinrenName(underlyingVoice);
+                isValid = isVoiceTagValid(underlyingVoice);
+            }
 
             var ssb = new android.text.SpannableStringBuilder();
             var CLR_TAG = android.graphics.Color.parseColor("#1976D2");
@@ -1544,7 +1568,7 @@ var EditorJS = {
             var SPAN = android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE;
 
             var tagStart = ssb.length();
-            ssb.append(voiceText);
+            ssb.append(displayText);
             ssb.setSpan(new android.text.style.ForegroundColorSpan(CLR_TAG), tagStart, ssb.length(), SPAN);
 
             if (!isValid) {

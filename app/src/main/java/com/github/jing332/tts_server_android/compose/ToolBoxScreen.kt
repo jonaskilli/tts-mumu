@@ -245,8 +245,13 @@ fun ToolBoxScreen(sharedVM: SharedViewModel, pagerState: PagerState) {
                                 if (rule != null) {
                                     val engine = SpeechRuleEngine(context, rule)
                                     engine.eval()
-                                    val rules = dbm.systemTtsV2.getEnabledListForSort(SpeechTarget.TAG).map {
-                                        (it.config as TtsConfigurationDTO).speechRule.apply { configId = it.id }
+                                    val rules = dbm.systemTtsV2.getEnabledListForSort(SpeechTarget.TAG).map { systts ->
+                                        val cfg = systts.config as TtsConfigurationDTO
+                                        cfg.speechRule.apply {
+                                            configId = systts.id
+                                            voice = cfg.source.voice
+                                            displayName = systts.displayName
+                                        }
                                     }
                                     // 标签扩容：扫描所有配置项（不限启用），补齐超出基础数量的标签
                                     expandSpeechRuleTagsIfNeeded(rule, effectiveGroups.flatMap { it.list })

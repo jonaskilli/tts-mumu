@@ -143,9 +143,12 @@ class TextProcessor : ITextProcessor {
                         val configFromId =
                             sameTagList.find { it.speechInfo.configId == txtWithTag.id }
 
-                        // Exact match ID > random match in tag > random match in all
+                        // Exact match ID > random match in tag > match by voice(方案B) > random match in all
                         val config = configFromId
                             ?: sameTagList.randomOrNull(random)
+                            ?: configs.filter {
+                                !it.speechInfo.isStandby && it.speechInfo.voice == txtWithTag.tag
+                            }.randomOrNull(random)
                             ?: configs.randomOrNull(random)
                             ?: return Err(
                                 TextProcessorError.MissingConfig(
