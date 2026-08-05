@@ -1594,22 +1594,29 @@ var EditorJS = {
         }
 
         // 缩减过长的 displayName：
-        // 结构通常为：前缀·发音人名-后缀（后缀为声优本名/游戏来源）
-        // 1) 去掉 [xxx] 注释
-        // 2) 不超过 MAX 字数则原样返回
-        // 3) 超长时：先按 - 切取第一段（去后缀），再按 · • 切取最后段（去前缀）
-        // 4) 仍超长则截断为前 (MAX-1) 字 + …
+        // 常见结构：
+        //   发音人名 描述          (如 "爽快思思 女|青年|直率") → 保留发音人名
+        //   前缀·发音人名-后缀     (如 "鹿·奴奴-唐小喜")       → 去-后缀，按·取后段
+        //   名字 [注释]            (如 "玛薇卡 [上新优化]")     → 去[]注释
+        // 1) 去 [xxx] 注释
+        // 2) 去空格后的描述部分（保留空格前）
+        // 3) 不超过 MAX 字数则原样返回
+        // 4) 超长：按 - 取前段，再按 · • 取后段
+        // 5) 仍超长则截断为前 (MAX-1) 字 + …
         var DISPLAY_NAME_MAX = 8;
         function shortenDisplayName(name) {
             if (!name) return "";
             var s = String(name).trim();
             // 1) 去 [xxx] 注释（含中英文方括号）
             s = s.replace(/\s*[\[【].*?[\]】]\s*/g, "").trim();
+            // 2) 去空格后的描述部分（保留空格前的发音人名）
+            var spaceIdx = s.indexOf(" ");
+            if (spaceIdx > 0) s = s.substring(0, spaceIdx).trim();
             if (s.length <= DISPLAY_NAME_MAX) return s;
-            // 3) 先按 - 切取第一段（去掉 -声优名/游戏来源）
+            // 4) 超长：按 - 取前段（去声优本名/游戏来源后缀）
             var dashParts = s.split(/[\-—]/);
             var main = dashParts[0].trim();
-            // 再按 · • 切取最后段（去掉前缀）
+            // 再按 · • 取后段（去前缀）
             var dotParts = main.split(/[·•]/);
             var last = "";
             for (var i = dotParts.length - 1; i >= 0; i--) {
@@ -1618,7 +1625,7 @@ var EditorJS = {
             }
             if (!last) last = main;
             if (last.length <= DISPLAY_NAME_MAX) return last;
-            // 4) 仍超长则截断
+            // 5) 仍超长则截断
             return last.substring(0, DISPLAY_NAME_MAX - 1) + "…";
         }
   
@@ -4754,18 +4761,8 @@ var EditorJS = {
                     vrow.addView(vdot);
 
                     var vtext = new android.widget.TextView(ctx);
-                    // 发音人名含性格（如"女青年01晓伊"），给性格部分加轻量颜色（不浓重）
-                    var vParts = splitVoiceDisplay(vopt.name);
-                    if (vParts.persona) {
-                        var vSsb = new android.text.SpannableStringBuilder();
-                        vSsb.append(vParts.tag);
-                        var vPersonaStart = vSsb.length();
-                        vSsb.append(vParts.persona);
-                        vSsb.setSpan(new android.text.style.ForegroundColorSpan(android.graphics.Color.parseColor("#7B1FA2")), vPersonaStart, vSsb.length(), android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
-                        vtext.setText(vSsb);
-                    } else {
-                        vtext.setText(vopt.name);
-                    }
+                    // vopt.name 已在构建 items 时经过 shortenDisplayName 缩减，直接显示
+                    vtext.setText(vopt.name);
                     vtext.setTextSize(15);
                     vtext.setTextColor(android.graphics.Color.parseColor("#333333"));
                     var vtextParams = new android.widget.LinearLayout.LayoutParams(
