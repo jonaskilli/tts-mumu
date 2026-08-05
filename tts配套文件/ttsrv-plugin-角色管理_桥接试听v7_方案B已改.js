@@ -4804,76 +4804,19 @@ var EditorJS = {
                                     _pvHandler.post(new java.lang.Runnable({ run: function () { _pvPlay(fileUri, playLabel, btn); } }));
                                     return;
                                 }
-                                console.log("getAudioByTag未匹配到配置项，回退到本地服务器");
-                            } catch (eAppTts) { console.log("getAudioByTag异常，回退: " + eAppTts.toString()); }
-                            var port = 3211;
-                            var voices = _pvVoicesCache;
-                            if (!voices) {
-                                voices = _fetchVoicesList(port);
-                                if (!voices || voices.length === 0) {
-                                    _pvHandler.post(new java.lang.Runnable({ run: function () {
-                                        _pvStop();
-                                        Toast.makeText(ctx, "试听失败：未匹配到配置项，且本地服务器未启动", Toast.LENGTH_LONG).show();
-                                    } }));
-                                    return;
-                                }
-                                _pvVoicesCache = voices;
-                            }
-                            var target = String(voiceDisplayName || "").trim();
-                            var origName = "";
-                            try { origName = reverseReplaceFayinrenName(target); } catch (eRev) {}
-                            // 用 splitVoiceDisplay 提取人名部分（如"男青年03丹恒" → persona="丹恒"）
-                            var targetParts = splitVoiceDisplay(target);
-                            var targetPersona = targetParts.persona || "";
-                            var origParts = null;
-                            try { origParts = splitVoiceDisplay(origName); } catch (eSp) {}
-                            var origPersona = (origParts && origParts.persona) || "";
-
-                            var matched = null;
-                            // 1. 精确匹配完整名
-                            for (var ci = 0; ci < voices.length; ci++) {
-                                if (voices[ci].displayName === target || voices[ci].displayName === origName) { matched = voices[ci]; break; }
-                            }
-                            // 2. 用人名部分匹配（如"丹恒"匹配"男青年03丹恒"或"丹恒"）
-                            if (!matched && targetPersona) {
-                                for (var ci2 = 0; ci2 < voices.length; ci2++) {
-                                    var dn = voices[ci2].displayName;
-                                    var dnParts = splitVoiceDisplay(dn);
-                                    var dnPersona = dnParts.persona || dn;
-                                    if (dnPersona === targetPersona || dnPersona === origPersona) { matched = voices[ci2]; break; }
-                                }
-                            }
-                            // 3. 模糊包含匹配
-                            if (!matched) {
-                                for (var ci3 = 0; ci3 < voices.length; ci3++) {
-                                    var dn2 = voices[ci3].displayName;
-                                    if (dn2.indexOf(target) >= 0 || target.indexOf(dn2) >= 0 ||
-                                        (origName && (dn2.indexOf(origName) >= 0 || origName.indexOf(dn2) >= 0)) ||
-                                        (targetPersona && dn2.indexOf(targetPersona) >= 0) ||
-                                        (origPersona && dn2.indexOf(origPersona) >= 0)) { matched = voices[ci3]; break; }
-                                }
-                            }
-                            // 4. 去分隔符后匹配
-                            if (!matched && voices.length > 0) {
-                                var t2 = target.replace(/[·\-\s_]/g, "");
-                                for (var ci4 = 0; ci4 < voices.length; ci4++) {
-                                    var dn3 = voices[ci4].displayName.replace(/[·\-\s_]/g, "");
-                                    if (dn3.indexOf(t2) >= 0 || t2.indexOf(dn3) >= 0) { matched = voices[ci4]; break; }
-                                }
-                            }
-                            if (!matched) {
-                                // 调试：显示前5个发音人名帮助排查
-                                var debugNames = [];
-                                for (var di = 0; di < Math.min(5, voices.length); di++) { debugNames.push(voices[di].displayName); }
-                                var dbgMsg = "未找到匹配：" + target + "（列表前5：" + debugNames.join(", ") + "）";
-                                _pvHandler.post(new java.lang.Runnable({ run: function () { _pvStop(); Toast.makeText(ctx, dbgMsg, Toast.LENGTH_LONG).show(); } }));
+                                // 桥接试听未匹配到配置项，直接提示（不使用本地服务器兜底）
+                                _pvHandler.post(new java.lang.Runnable({ run: function () {
+                                    _pvStop();
+                                    Toast.makeText(ctx, "未匹配到配置项：" + tag, Toast.LENGTH_LONG).show();
+                                } }));
+                                return;
+                            } catch (eAppTts) {
+                                _pvHandler.post(new java.lang.Runnable({ run: function () {
+                                    _pvStop();
+                                    Toast.makeText(ctx, "试听异常：" + eAppTts.toString(), Toast.LENGTH_SHORT).show();
+                                } }));
                                 return;
                             }
-                            var text = "你好，这是试听语音。";
-                            var useEngine = matched.engine || "com.github.jing332.tts_server_android";
-                            var ttsurl = "http://127.0.0.1:" + port + "/api/tts?text=" + encodeURIComponent(text) + "&engine=" + encodeURIComponent(useEngine) + "&voice=" + encodeURIComponent(matched.name) + "&speed=50&pitch=100";
-                            var mLabel = matched.displayName;
-                            _pvHandler.post(new java.lang.Runnable({ run: function () { _pvPlay(ttsurl, mLabel, btn); } }));
                         } catch (e) { _pvHandler.post(new java.lang.Runnable({ run: function () { _pvStop(); Toast.makeText(ctx, "试听异常：" + e.toString(), Toast.LENGTH_SHORT).show(); } })); }
                     }
                 })).start();
