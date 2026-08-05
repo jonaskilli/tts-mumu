@@ -1539,6 +1539,7 @@ var EditorJS = {
 
             var voiceTag = String(character.voice);
             var displayText = voiceTag;
+            var persona = "";
             var isValid = false;
 
             // 用 tag 查当前前台分组的发音人 displayName
@@ -1554,14 +1555,31 @@ var EditorJS = {
                 isValid = false;
             }
 
+            // 从 fayinren_personality_summary.json 取 personality（用户在朗读规则配置项里填的）
+            // replaceFayinrenName(tag) 返回 "tag+personality"，截取 tag 之后的部分
+            try {
+                var tagPlusPersona = replaceFayinrenName(voiceTag);
+                if (tagPlusPersona && tagPlusPersona.length > voiceTag.length) {
+                    persona = tagPlusPersona.substring(voiceTag.length);
+                }
+            } catch (e) {}
+
             var ssb = new android.text.SpannableStringBuilder();
             var CLR_TAG = android.graphics.Color.parseColor("#1976D2");
+            var CLR_PERSONA = android.graphics.Color.parseColor("#7B1FA2");
             var CLR_WARN = android.graphics.Color.parseColor("#D32F2F");
             var SPAN = android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE;
 
             var tagStart = ssb.length();
             ssb.append(displayText);
             ssb.setSpan(new android.text.style.ForegroundColorSpan(CLR_TAG), tagStart, ssb.length(), SPAN);
+
+            // personality 紫色追加（非空时）
+            if (persona) {
+                var personaStart = ssb.length();
+                ssb.append(persona);
+                ssb.setSpan(new android.text.style.ForegroundColorSpan(CLR_PERSONA), personaStart, ssb.length(), SPAN);
+            }
 
             if (!isValid) {
                 var warnStart = ssb.length();
