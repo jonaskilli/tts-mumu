@@ -1536,32 +1536,26 @@ var EditorJS = {
         }
 
         // 生成发音人标签（方案B-实时映射）：
-        // character.voice 存底层voice（稳定标识），
-        // 通过 getVoiceByTag(底层voice) 实时查询当前前台分组对应的 displayName 显示。
-        // 查不到（该底层voice不在当前分组）时显示映射名 + ⚠。
+        // 优先用角色名查 getVoiceByTag，匹配配置项的 personality/displayName，
+        // 返回当前前台分组该角色绑定的发音人名（如"晓晓"），切分组后自动跟随。
+        // 查不到（角色名在当前分组无配置项）时显示 record.voice + ⚠。
         function generateVoiceTag(character) {
             if (!character || !character.voice) return null;
 
-            var underlyingVoice = String(character.voice);
-            var displayText = underlyingVoice;
+            var charName = safeGetName(character);
+            var displayText = String(character.voice); // 默认用 record.voice（displayName）
             var isValid = false;
 
-            // 实时查询当前前台分组该底层voice对应的 displayName
+            // 优先用角色名查当前前台分组的发音人
             try {
-                var liveName = ttsrv.getVoiceByTag(underlyingVoice);
+                var liveName = ttsrv.getVoiceByTag(charName);
                 if (liveName) {
                     displayText = liveName;
                     isValid = true;
                 } else {
-                    // 当前分组未启用该底层voice，回退到文件映射显示（仍标⚠）
-                    var mapped = replaceFayinrenName(underlyingVoice);
-                    if (mapped && mapped !== underlyingVoice) {
-                        displayText = mapped;
-                    }
                     isValid = false;
                 }
             } catch (e) {
-                displayText = replaceFayinrenName(underlyingVoice);
                 isValid = false;
             }
 
@@ -4005,16 +3999,18 @@ var EditorJS = {
                 charPvBtn.setSingleLine(true);
                 charPvBtn.setGravity(android.view.Gravity.CENTER);
                 charPvBtn.setPadding(dipToPx(10), dipToPx(8), dipToPx(2), dipToPx(8));
+                // 试听优先用角色名查当前分组（与标签显示一致），record.voice 作为 fallback
+                var _charPvName = safeGetName(record);
+                var _charPvVoice = record.voice;
                 var charPvLp = new android.widget.LinearLayout.LayoutParams(
                     android.widget.LinearLayout.LayoutParams.WRAP_CONTENT,
                     android.widget.LinearLayout.LayoutParams.WRAP_CONTENT
                 );
                 charPvLp.setMargins(dipToPx(6), 0, 0, 0);
                 charPvBtn.setLayoutParams(charPvLp);
-                var _charPvVoice = record.voice;
                 charPvBtn.setOnClickListener(new android.view.View.OnClickListener({
                     onClick: function(v) {
-                        try { previewVoiceByName(_charPvVoice, charPvBtn); }
+                        try { previewVoiceByName(_charPvName, _charPvVoice, charPvBtn); }
                         catch (e) { Toast.makeText(ctx, "试听异常: " + e.toString(), Toast.LENGTH_SHORT).show(); }
                     }
                 }));
@@ -4102,16 +4098,12 @@ var EditorJS = {
                     var record = characterRecords[filteredIndices[i]];
                     if (!record) continue;
 
-                    // === record.voice 始终保持底层voice（稳定标识）===
-                    // 历史数据可能被旧逻辑覆盖成displayName，这里反转为底层voice
+                    // record.voice 规整化为 displayName（稳定，不随分组变化，用于存盘和圆点颜色判断）
                     if (record.voice) {
-                        var underlying = reverseReplaceFayinrenName(record.voice);
-                        if (underlying && underlying !== record.voice) {
-                            record.voice = underlying;
-                        }
+                        var storeVal = reverseReplaceFayinrenName(record.voice);
+                        record.voice = replaceFayinrenName(storeVal);
                     }
-                    // 显示和校验由 generateVoiceTag/isVoiceTagValid 通过 getVoiceByTag(底层voice)
-                    // 实时查询当前前台分组，无需在此覆盖 record.voice
+                    // 标签显示和试听由 generateVoiceTag/previewVoiceByName 通过角色名实时查当前分组
                     var displayText = generateDisplayText(record);
                     var row = createListRow(displayText, i, record);
                     rowViews.push(row);
@@ -4143,12 +4135,10 @@ var EditorJS = {
                 var record = characterRecords[filteredIndices[i]];
                 if (!record) continue;
 
-                    // record.voice 保持底层voice
+                    // record.voice 规整化为 displayName
                     if (record.voice) {
-                        var underlying = reverseReplaceFayinrenName(record.voice);
-                        if (underlying && underlying !== record.voice) {
-                            record.voice = underlying;
-                        }
+                        var storeVal = reverseReplaceFayinrenName(record.voice);
+                        record.voice = replaceFayinrenName(storeVal);
                     }
 
                     var existingRow = rowViews[i];
@@ -4819,7 +4809,7 @@ var EditorJS = {
             return null;
         }
 
-        function previewVoiceByName(voiceDisplayName, btn) {
+        function previewVoiceByName(charName, voiceDisplayName, btn) {
             try {
                 if (_pvCurrentBtn === btn && _pvMediaPlayer !== null) {
                     // 用户点击正在播放的按钮，停止播放
@@ -4836,7 +4826,10 @@ var EditorJS = {
                                 var previewText = "你好，这是试听语音。";
                                 var storageName = "";
                                 try { storageName = reverseReplaceFayinrenName(voiceDisplayName); } catch (eRev) {}
-                                var tagCandidates = [voiceDisplayName];
+                                // 优先用角色名查当前分组（与标签显示一致），再回退到 voice/displayName/底层voice
+                                var tagCandidates = [];
+                                if (charName) tagCandidates.push(charName);
+                                tagCandidates.push(voiceDisplayName);
                                 if (storageName && storageName !== voiceDisplayName) tagCandidates.push(storageName);
                                 var audioPath = null;
                                 for (var ti = 0; ti < tagCandidates.length; ti++) {
@@ -5025,7 +5018,7 @@ var EditorJS = {
                     var _pvVoiceName = vopt.name;
                     pvBtn.setOnClickListener(new android.view.View.OnClickListener({
                         onClick: function(v) {
-                            try { previewVoiceByName(_pvVoiceName, pvBtn); }
+                            try { previewVoiceByName(null, _pvVoiceName, pvBtn); }
                             catch (e) { Toast.makeText(ctx, "试听异常: " + e.toString(), Toast.LENGTH_SHORT).show(); }
                         }
                     }));
