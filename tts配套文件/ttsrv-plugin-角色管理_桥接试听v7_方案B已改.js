@@ -1557,6 +1557,14 @@ var EditorJS = {
                 if (liveName) {
                     displayText = liveName;
                     isValid = true;
+                } else {
+                    // getVoiceByTag 返回 null（配置项不在前台分组/已删除等），
+                    // 回退到文件映射 fayinren_personality_summary.json 转换底层voice→displayName
+                    var mapped = replaceFayinrenName(underlyingVoice);
+                    if (mapped && mapped !== underlyingVoice) {
+                        displayText = mapped;
+                    }
+                    isValid = isVoiceTagValid(underlyingVoice);
                 }
             } catch (e) {
                 // 查询失败时回退到文件映射
