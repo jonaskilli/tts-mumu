@@ -187,10 +187,7 @@ var EditorJS = {
                 var fayinrenJson = ttsrv.readTxtFile("fayinren.json");
                 if (fayinrenJson) {
                     fayinrenList = JSON.parse(fayinrenJson);
-                    // 执行正向映射（存储值→显示值）
-                    for (var i = 0; i < fayinrenList.length; i++) {
-                        fayinrenList[i] = replaceFayinrenName(fayinrenList[i]);
-                    }
+                    // 方案B：fayinrenList 保持 tag 原值（如"女青年01"），不做 replaceFayinrenName 转换
                     // 按类别+序号排序
                     fayinrenList.sort(function (a, b) {
                         var reA = String(a).match(/^(.+?)(\d+)/);
@@ -4132,11 +4129,7 @@ var EditorJS = {
                 var record = characterRecords[charIndex];
                 if (!record) return;
 
-                // 重新映射 voice
-                if (record.voice) {
-                    var storeVal = reverseReplaceFayinrenName(record.voice);
-                    record.voice = replaceFayinrenName(storeVal);
-                }
+                // record.voice 保持 tag 原值，不做转换
 
                 var existingRow = rowViews[rowPos];
                 if (!existingRow) return;
@@ -4835,22 +4828,9 @@ var EditorJS = {
         // 通用筛选逻辑（每次调用前刷新发音人列表）
         function filterAndShowVoiceList(keyword, callback) {
             refreshFayinrenList();
-            // 方案B：fayinrenList 存底层 voice，选择弹窗需要显示 displayName
+            // fayinrenList 保持 tag 原值（如"女青年01"），直接用于筛选和显示
             var fullVoiceList = fayinrenList.length > 0 ? fayinrenList.slice() : ["默认发音人"];
-            // 构建显示用列表：底层voice→displayName，同时保留底层voice供回调
-            var displayList = [];
-            var voiceToDisplay = {};
-            for (var vi = 0; vi < fullVoiceList.length; vi++) {
-                var v = fullVoiceList[vi];
-                var displayName = v;
-                try {
-                    var liveName = ttsrv.getVoiceByTag(v);
-                    if (liveName) displayName = liveName;
-                } catch(e) {}
-                voiceToDisplay[displayName] = v;
-                displayList.push(displayName);
-            }
-            displayList = displayList.sort(function (a, b) {
+            fullVoiceList = fullVoiceList.sort(function (a, b) {
                 var reA = String(a).match(/^(.+?)(\d+)/);
                 var reB = String(b).match(/^(.+?)(\d+)/);
                 if (reA && reB) {
@@ -4861,27 +4841,20 @@ var EditorJS = {
                 if (reB) return 1;
                 return String(a) < String(b) ? -1 : 1;
             });
-            var filteredList = displayList;
-        
+            var filteredList = fullVoiceList;
+
             if (keyword !== "") {
                 var lowerKeyword = keyword.toLowerCase();
-                filteredList = displayList.filter(function(voice) {
-                    return voice.toLowerCase().indexOf(lowerKeyword) !== -1;
+                filteredList = fullVoiceList.filter(function(voice) {
+                    return String(voice).toLowerCase().indexOf(lowerKeyword) !== -1;
                 });
             }
-        
+
             if (filteredList.length === 0) {
                 Toast.makeText(ctx, "未找到包含「" + keyword + "」的发音人", Toast.LENGTH_SHORT).show();
-                // 弹窗中选中后，把 displayName 转回底层 voice 传给回调
-                showFilteredVoiceDialog(displayList, function(selectedDisplay) {
-                    var selectedVoice = voiceToDisplay[selectedDisplay] || selectedDisplay;
-                    callback(selectedVoice);
-                });
+                showFilteredVoiceDialog(fullVoiceList, callback);
             } else {
-                showFilteredVoiceDialog(filteredList, function(selectedDisplay) {
-                    var selectedVoice = voiceToDisplay[selectedDisplay] || selectedDisplay;
-                    callback(selectedVoice);
-                });
+                showFilteredVoiceDialog(filteredList, callback);
             }
         }
         
