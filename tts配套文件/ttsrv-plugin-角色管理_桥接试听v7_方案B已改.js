@@ -169,7 +169,16 @@ var EditorJS = {
         } else {
             console.log("自动备份关闭，不执行");
         }
-  
+
+        // 读取"显示性格标签"开关（默认开启，向后兼容）
+        var showPersonaState = "1";
+        try {
+            var rawPersona = String(ttsrv.tts.data.showPersonaEnable || "").trim();
+            showPersonaState = (rawPersona === "0") ? "0" : "1"; // 仅显式"0"才关闭
+        } catch (e) {
+            showPersonaState = "1";
+        }
+
         
         // ↑ 修正结束 ↑
   
