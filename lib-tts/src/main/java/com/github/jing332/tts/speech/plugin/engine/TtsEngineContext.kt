@@ -123,10 +123,8 @@ data class TtsEngineContext(
             val allEnabled = dbm.systemTtsV2.allEnabled
             val match = findConfigByTag(allEnabled, trimmedTag) ?: return null
 
-            val config = match.config as TtsConfigurationDTO
-            val source = config.source
-            if (source is PluginTtsSource && source.pluginId == engineId) return null
-
+            // getVoiceByTag 仅查询 displayName，不调用引擎获取音频，无需死锁保护
+            // （getAudioByTag 才需要跳过当前插件自身避免死锁）
             match.displayName
         } catch (e: Exception) {
             Log.w(TAG, "getVoiceByTag failed: ${e.message}")
