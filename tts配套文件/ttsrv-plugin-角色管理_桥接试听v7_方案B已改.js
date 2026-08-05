@@ -67,6 +67,16 @@ function replaceFayinrenName(name) {
     return originalName;
 }
 
+// 是否显示性格（标签栏 personality 紫色补充显示开关）
+// 存储于 ttsrv.tts.data.showPersona，默认开启("1")
+function isPersonaVisible() {
+    try {
+        if (!ttsrv.tts || !ttsrv.tts.data) return true;
+        var raw = String(ttsrv.tts.data.showPersona || "").trim();
+        return raw !== "0"; // 默认开启，仅 "0" 视为关闭
+    } catch (e) { return true; }
+}
+
 // 反向映射：显示值→存储值（使用缓存，O(1)查找）
 function reverseReplaceFayinrenName(displayName) {
     var originalName = displayName || '';
@@ -1566,12 +1576,15 @@ var EditorJS = {
 
             // 从 fayinren_personality_summary.json 取 personality（用户在朗读规则配置项里填的）
             // replaceFayinrenName(tag) 返回 "tag+personality"，截取 tag 之后的部分
-            try {
-                var tagPlusPersona = replaceFayinrenName(voiceTag);
-                if (tagPlusPersona && tagPlusPersona.length > voiceTag.length) {
-                    persona = tagPlusPersona.substring(voiceTag.length);
-                }
-            } catch (e) {}
+            // 受 isPersonaVisible() 开关控制
+            if (isPersonaVisible()) {
+                try {
+                    var tagPlusPersona = replaceFayinrenName(voiceTag);
+                    if (tagPlusPersona && tagPlusPersona.length > voiceTag.length) {
+                        persona = tagPlusPersona.substring(voiceTag.length);
+                    }
+                } catch (e) {}
+            }
 
             var ssb = new android.text.SpannableStringBuilder();
             var CLR_TAG = android.graphics.Color.parseColor("#1976D2");
@@ -2130,6 +2143,30 @@ var EditorJS = {
         var backupRestoreButton = createRoundedButton("💾  备份恢复", "#3F51B5");
         backupRestoreButton.getLayoutParams().setMargins(dipToPx(8), 0, 0, 0);
         topButtonsLayout.addView(backupRestoreButton);
+
+        // 显示性格开关按钮（切换标签栏 personality 紫色补充显示）
+        var personaToggleBtn = createRoundedButton("🎨  性格显示", "#7B1FA2");
+        personaToggleBtn.getLayoutParams().setMargins(dipToPx(8), 0, 0, 0);
+        topButtonsLayout.addView(personaToggleBtn);
+        function refreshPersonaBtnText() {
+            personaToggleBtn.setText(isPersonaVisible() ? "🎨  性格显示" : "🎨  性格隐藏");
+        }
+        refreshPersonaBtnText();
+        personaToggleBtn.setOnClickListener(new android.view.View.OnClickListener({
+            onClick: function(view) {
+                try {
+                    if (!ttsrv.tts || typeof ttsrv.tts !== "object") ttsrv.tts = {};
+                    if (!ttsrv.tts.data || typeof ttsrv.tts.data !== "object") ttsrv.tts.data = {};
+                    var newState = isPersonaVisible() ? "0" : "1";
+                    ttsrv.tts.data.showPersona = newState;
+                    refreshPersonaBtnText();
+                    refreshCharacterList();
+                    Toast.makeText(ctx, newState === "1" ? "性格显示已开启" : "性格显示已关闭", Toast.LENGTH_SHORT).show();
+                } catch (e) {
+                    Toast.makeText(ctx, "切换失败: " + e.toString(), Toast.LENGTH_SHORT).show();
+                }
+            }
+        }));
 
         // 书籍栏区域（层级1：当前书籍上下文）
         var bookSectionLayout = new android.widget.LinearLayout(ctx);
