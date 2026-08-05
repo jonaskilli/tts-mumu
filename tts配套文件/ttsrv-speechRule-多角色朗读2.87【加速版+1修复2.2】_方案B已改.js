@@ -1049,78 +1049,19 @@ CharacterManager.prototype.moveRecordToTop = function(characterName) {
 
 CharacterManager.prototype.detectAvailableVoices = function(tagsData) {
   this.availableVoices = {};
-  // 方案B：voiceTag→底层voice 映射表，供 assignVoice 转换用
-  // 同时建立 voiceTag→displayName 映射，供 fayinren_personality_summary 用
-  this.voiceTagToVoice = {};
-  this.voiceTagToDisplayName = {};
-  // 方案B 反向映射：底层voice→voiceTag / 底层voice→displayName
-  // 供 fayinren_personality_summary 提取用（fayinren.json 存底层voice，需反查 voiceTag 才能取 tagsData 里的 personality）
-  this.voiceToVoiceTag = {};
-  this.voiceToDisplayName = {};
-  // Rhino 兼容：handleText 开头已把 Java LinkedHashMap 转成纯 JS 对象，
-  // 此处需同时兼容 Java Map（.get）和纯 JS 对象（hasOwnProperty + []）
-  var getMapVal = function(map, key) {
-      if (!map) return null;
-      try {
-          if (typeof map.get === 'function') return map.get(key);
-          if (Object.prototype.hasOwnProperty.call(map, key)) return map[key];
-          return null;
-      } catch(e) { return null; }
-  };
-  var hasProp = function(obj, key) {
-      return Object.prototype.hasOwnProperty.call(obj, key);
-  };
   for (var name in GENSHIN_CHARACTERS) {
-      if (hasProp(GENSHIN_CHARACTERS, name)) {
+      if (GENSHIN_CHARACTERS.hasOwnProperty(name)) {
           var info = GENSHIN_CHARACTERS[name];
           var voiceTag = info.voice;
-          if (tagsData && getMapVal(tagsData, voiceTag)) {
-              var tagEntry = getMapVal(tagsData, voiceTag);
-              // 方案B：从 tagEntry.get("_voice") 取底层英文 voice
-              var voiceList = getMapVal(tagEntry, "_voice");
-              var underlyingVoice = "";
-              if (voiceList && voiceList.length > 0) {
-                  for (var vi = 0; vi < voiceList.length; vi++) {
-                      var vItem = voiceList[vi];
-                      var vVal = (typeof vItem.get === 'function') ? vItem.get("value") : vItem.value;
-                      if (vVal) {
-                          underlyingVoice = vVal;
-                          break;
-                      }
-                  }
-              }
-              if (!underlyingVoice) underlyingVoice = voiceTag;
-              this.voiceTagToVoice[voiceTag] = underlyingVoice;
-              this.availableVoices[underlyingVoice] = true;
-              // 反向映射
-              this.voiceToVoiceTag[underlyingVoice] = voiceTag;
-
-              // displayName 同理
-              var nameList = getMapVal(tagEntry, "_displayName");
-              var displayName = "";
-              if (nameList && nameList.length > 0) {
-                  for (var ni = 0; ni < nameList.length; ni++) {
-                      var nItem = nameList[ni];
-                      var nVal = (typeof nItem.get === 'function') ? nItem.get("value") : nItem.value;
-                      if (nVal) {
-                          displayName = nVal;
-                          break;
-                      }
-                  }
-              }
-              if (!displayName) displayName = voiceTag;
-              this.voiceTagToDisplayName[voiceTag] = displayName;
-              // 反向映射
-              this.voiceToDisplayName[underlyingVoice] = displayName;
+          if (tagsData && tagsData[voiceTag]) {
+              this.availableVoices[voiceTag] = true;
           }
       }
   }
 };
 
-CharacterManager.prototype.isVoiceAvailable = function(voiceTag) {
-  // 方案B：传入的是 voiceTag（如"女青年01"），转成底层 voice 后查 availableVoices
-  var underlyingVoice = (this.voiceTagToVoice && this.voiceTagToVoice[voiceTag]) || voiceTag;
-  return this.availableVoices.hasOwnProperty(underlyingVoice);
+CharacterManager.prototype.isVoiceAvailable = function(tag) {
+  return this.availableVoices.hasOwnProperty(tag);
 };
 
 CharacterManager.prototype.assignVoice = function (gender, age) {
@@ -1144,15 +1085,13 @@ CharacterManager.prototype.assignVoice = function (gender, age) {
       // 遍历动态标签，找可用的发音人
       for (var i = 0; i < duihuaCandidates.length; i++) {
           var voiceTag = duihuaCandidates[i];
-          // 方案B-1：去重/返回统一用底层voice，voiceTag仅用于isVoiceAvailable校验
-          var uv = (this.voiceTagToVoice && this.voiceTagToVoice[voiceTag]) || voiceTag;
-          var isUsed = usedVoiceMap.hasOwnProperty(uv) || mainRoleVoiceBlacklist.hasOwnProperty(uv);
+          var isUsed = usedVoiceMap.hasOwnProperty(voiceTag) || mainRoleVoiceBlacklist.hasOwnProperty(voiceTag);
           var isAvailable = this.isVoiceAvailable(voiceTag);
           // 找到未使用、可用的动态标签，直接优先分配
           if (!isUsed && isAvailable) {
-              this.voiceUsageMap[uv] = (this.voiceUsageMap[uv] || 0) + 1;
-              this.usedVoices[uv] = true;
-              return uv;
+              this.voiceUsageMap[voiceTag] = (this.voiceUsageMap[voiceTag] || 0) + 1;
+              this.usedVoices[voiceTag] = true;
+              return voiceTag;
           }
       }
   }
@@ -1183,12 +1122,10 @@ CharacterManager.prototype.assignVoice = function (gender, age) {
       if (GENSHIN_CHARACTERS.hasOwnProperty(name)) {
           var info = GENSHIN_CHARACTERS[name];
           if (info.gender === gender && info.age === age) {
-              // 方案B-1：去重/候选voice用底层voice
-              var uv = (this.voiceTagToVoice && this.voiceTagToVoice[info.voice]) || info.voice;
-              var isUsed = usedVoiceMap.hasOwnProperty(uv) || mainRoleVoiceBlacklist.hasOwnProperty(uv);
+              var isUsed = usedVoiceMap.hasOwnProperty(info.voice) || mainRoleVoiceBlacklist.hasOwnProperty(info.voice);
               var isAvailable = this.isVoiceAvailable(info.voice);
               if (!isUsed && isAvailable) {
-                  candidates.push({ name: name, voice: uv, matchLevel: 0 });
+                  candidates.push({ name: name, voice: info.voice, matchLevel: 0 });
               }
           }
       }
@@ -1203,9 +1140,7 @@ CharacterManager.prototype.assignVoice = function (gender, age) {
           if (GENSHIN_CHARACTERS.hasOwnProperty(name)) {
               var info = GENSHIN_CHARACTERS[name];
               if (info.gender === gender && info.age === age && this.isVoiceAvailable(info.voice)) {
-                  // 方案B-1：map key用底层voice，与record.voice(底层)一致
-                  var uv = (this.voiceTagToVoice && this.voiceTagToVoice[info.voice]) || info.voice;
-                  sameTypeAvailableMap[uv] = true;
+                  sameTypeAvailableMap[info.voice] = true;
               }
           }
       }
@@ -1239,9 +1174,8 @@ CharacterManager.prototype.assignVoice = function (gender, age) {
               if (info.gender === gender && info.age === age && this.isVoiceAvailable(info.voice)) {
                   var numMatch = info.voice.match(/\d+$/);
                   var seqNum = numMatch ? parseInt(numMatch[0], 10) : 0;
-                  // 方案B-1：voice用底层，seq仍用voiceTag数字后缀排序
                   allSameTypeVoices.push({
-                      voice: (this.voiceTagToVoice && this.voiceTagToVoice[info.voice]) || info.voice,
+                      voice: info.voice,
                       seq: seqNum
                   });
               }
@@ -1266,14 +1200,12 @@ CharacterManager.prototype.assignVoice = function (gender, age) {
               if (GENSHIN_CHARACTERS.hasOwnProperty(name)) {
                   var info = GENSHIN_CHARACTERS[name];
                   if (info.gender === gender && info.age === similarAge) {
-                      // 方案B-1：去重/候选voice用底层voice
-                      var uv = (this.voiceTagToVoice && this.voiceTagToVoice[info.voice]) || info.voice;
-                      var isUsed = usedVoiceMap.hasOwnProperty(uv) || mainRoleVoiceBlacklist.hasOwnProperty(uv);
+                      var isUsed = usedVoiceMap.hasOwnProperty(info.voice) || mainRoleVoiceBlacklist.hasOwnProperty(info.voice);
                       var isAvailable = this.isVoiceAvailable(info.voice);
                       if (!isUsed && isAvailable) {
                           candidates.push({
                               name: name,
-                              voice: uv,
+                              voice: info.voice,
                               matchLevel: i + 1
                           });
                       }
@@ -1293,9 +1225,8 @@ CharacterManager.prototype.assignVoice = function (gender, age) {
               if (info.gender === gender && this.isVoiceAvailable(info.voice)) {
                   var numMatch = info.voice.match(/\d+$/);
                   var seqNum = numMatch ? parseInt(numMatch[0], 10) : 0;
-                  // 方案B-1：voice用底层，seq仍用voiceTag数字后缀排序
                   allSameGenderVoices.push({
-                      voice: (this.voiceTagToVoice && this.voiceTagToVoice[info.voice]) || info.voice,
+                      voice: info.voice,
                       seq: seqNum
                   });
               }
@@ -2067,10 +1998,7 @@ CharacterManager.prototype.processCharacter = function (fullText, characterId, a
       } else {
         var voiceInfo = null;
         for (var key in GENSHIN_CHARACTERS) {
-          // 方案B-1：record.voice已是底层voice，需把GENSHIN的voiceTag转底层后再比
-          var cm = this.characterManager;
-          var uv = (cm && cm.voiceTagToVoice && cm.voiceTagToVoice[GENSHIN_CHARACTERS[key].voice]) || GENSHIN_CHARACTERS[key].voice;
-          if (uv === targetMainRecord.voice) {
+          if (GENSHIN_CHARACTERS[key].voice === targetMainRecord.voice) {
             voiceInfo = GENSHIN_CHARACTERS[key];
             break;
           }
@@ -4508,25 +4436,6 @@ text = text.replace(/(^|[^a-zA-Z\u4e00-\u9fa5])(嗝|嗝儿)(?![a-zA-Z\u4e00-\u9f
       // 检测可用发音人（含localSound1~100）
       this.characterManager.detectAvailableVoices(tagsData);
 
-      // 方案B数据迁移：将旧 characterRecords 中的 voiceTag 转成底层 voice
-      // 旧版 voice 存的是 voiceTag（如"女青年01"），新版需存底层 voice（如"zh-CN-XiaoxiaoNeural"）
-      try {
-          var migratedCount = 0;
-          for (var mi = 0; mi < this.characterManager.characterRecords.length; mi++) {
-              var rec = this.characterManager.characterRecords[mi];
-              if (rec.voice && this.characterManager.voiceTagToVoice[rec.voice]) {
-                  rec.voice = this.characterManager.voiceTagToVoice[rec.voice];
-                  migratedCount++;
-              }
-          }
-          if (migratedCount > 0) {
-              console.log("[数据迁移] " + migratedCount + " 条角色记录的 voice 从 voiceTag 迁移到底层 voice");
-              this.characterManager.saveRecords();
-          }
-      } catch (migrateErr) {
-          console.error("[数据迁移] 失败: " + migrateErr.message);
-      }
-
 
    // 新增：在handleText中实时读取duihua配置（ES5强制解嵌套，8个缩进）
 
@@ -4843,10 +4752,8 @@ text = text.replace(/(^|[^a-zA-Z\u4e00-\u9fa5])(嗝|嗝儿)(?![a-zA-Z\u4e00-\u9f
                                   }
           
                                   if (isvalid) {
-                                          // 方案B-1：storeVal=底层voice，displayVal=displayName
-                                          var storeVal = (characterManager.voiceTagToVoice && characterManager.voiceTagToVoice[roleTag]) || roleTag;
-                                          var displayVal = (characterManager.voiceTagToDisplayName && characterManager.voiceTagToDisplayName[roleTag]) || roleTag;
-                                          personalityArray.push([storeVal, displayVal]);
+                                          // 格式：[role标签, role标签+独立性格值]
+                                          personalityArray.push([roleTag, roleTag + rolePersonality]);
                                           successCount++;
                                   } else {
                                   }
@@ -4860,13 +4767,11 @@ text = text.replace(/(^|[^a-zA-Z\u4e00-\u9fa5])(嗝|嗝儿)(?![a-zA-Z\u4e00-\u9f
                           return;
                   }
           
-                  // 复用本地音效for循环批量处理其他硬编标签
+                  // 复用本地音效for循环批量处理其他硬编标签（不变）
                   for (var i = 0; i < allTags.length; i++) {
-                          var fayinrenTag = allTags[i]; // 方案B：fayinren.json 存底层voice
+                          var fayinrenTag = allTags[i];
                           if (fayinrenTag === "duihua") continue; // 跳过duihua标签本身
-                          // 方案B：fayinrenTag 是底层voice，需反查 voiceTag 才能从 tagsData 取 personality
-                          var revVoiceTag = (characterManager.voiceToVoiceTag && characterManager.voiceToVoiceTag[fayinrenTag]) || fayinrenTag;
-                          var tagConfig = globalTagsData[revVoiceTag] || {};
+                          var tagConfig = globalTagsData[fayinrenTag] || {};
                           var personality = "";
 
                           if (tagConfig.personality) {
@@ -4875,21 +4780,18 @@ text = text.replace(/(^|[^a-zA-Z\u4e00-\u9fa5])(嗝|嗝儿)(?![a-zA-Z\u4e00-\u9f
                                   personality = extractByRegex(tagConfig.xingge);
                           }
 
-                          // 方案B：有 displayName 映射即为有效（displayName 来自配置项，不依赖 tagsData.personality）
-                          var revDisplayName = (characterManager.voiceToDisplayName && characterManager.voiceToDisplayName[fayinrenTag]) || "";
-                          var isvalid = false;
-                          if (personality && personality !== "无") {
+                          var invalidReason = "";
+                          if (!personality) {
+                                  invalidReason = "personality为空或未配置";
+                          } else if (personality === "无") {
+                                  invalidReason = "personality为'无'";
+                          } else {
                                   isvalid = true;
-                          } else if (revDisplayName) {
-                                  isvalid = true; // 有 displayName 映射，即使无 personality 也有效
                           }
 
 
                           if (isvalid) {
-                                  // 方案B-1：storeVal=底层voice(fayinrenTag本身)，displayVal=displayName
-                                  var storeVal = fayinrenTag;
-                                  var displayVal = revDisplayName || fayinrenTag;
-                                  personalityArray.push([storeVal, displayVal]);
+                                  personalityArray.push([fayinrenTag, fayinrenTag + personality]);
                                   successCount++;
                           } else {
                           }

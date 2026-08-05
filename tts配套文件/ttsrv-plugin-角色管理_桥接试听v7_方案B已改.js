@@ -1402,11 +1402,8 @@ var EditorJS = {
                     console.log("角色数据文件为空或无角色，使用空列表");
                 } else {
                     characterRecords = JSON.parse(data) || [];
-                    // ↓ 纯ES5写法：替换箭头函数为forEach普通函数
-                    characterRecords.forEach(function(char) {
-                      char.voice = replaceFayinrenName(char.voice || "");
-                    });
-                    // ↑ 新增结束
+                    // record.voice 保持 tag 原值（如"女青年01"），不做 replaceFayinrenName 转换
+                    // 标签显示由 generateVoiceTag 通过 getVoiceByTag(tag) 实时查询当前分组
                 }
             } catch (e) {
                 console.log("读取角色数据失败: " + e.toString());
@@ -1535,20 +1532,21 @@ var EditorJS = {
             }
         }
 
-        // 生成发音人标签（方案B-实时映射）：
-        // 优先用角色名查 getVoiceByTag，匹配配置项的 personality/displayName，
-        // 返回当前前台分组该角色绑定的发音人名（如"晓晓"），切分组后自动跟随。
-        // 查不到（角色名在当前分组无配置项）时显示 record.voice + ⚠。
+        // 生成发音人标签：
+        // record.voice 存的是 tag（如"女青年01"），稳定不随分组变化。
+        // 用 tag 查 getVoiceByTag（L1匹配 tag==入参），返回当前前台分组该tag绑的配置项displayName（发音人名）。
+        // 切分组后重新查 → 自动跟随新分组的发音人名。
+        // 查不到（该tag在当前分组无配置项）时显示 tag + ⚠。
         function generateVoiceTag(character) {
             if (!character || !character.voice) return null;
 
-            var charName = safeGetName(character);
-            var displayText = String(character.voice); // 默认用 record.voice（displayName）
+            var voiceTag = String(character.voice);
+            var displayText = voiceTag;
             var isValid = false;
 
-            // 优先用角色名查当前前台分组的发音人
+            // 用 tag 查当前前台分组的发音人 displayName
             try {
-                var liveName = ttsrv.getVoiceByTag(charName);
+                var liveName = ttsrv.getVoiceByTag(voiceTag);
                 if (liveName) {
                     displayText = liveName;
                     isValid = true;
@@ -1770,11 +1768,11 @@ var EditorJS = {
                 var saveRecords = [];
                 for (var i = 0; i < characterRecords.length; i++) {
                     var char = characterRecords[i];
-              // 手动复制所有属性，修改voice字段（ES5无解构，避免影响原对象）
+              // 手动复制所有属性，voice 直接存 tag（与内存一致）
                     saveRecords.push({
                       name: char.name,
                       aliases: char.aliases,
-                      voice: reverseReplaceFayinrenName(char.voice || ""),
+                      voice: char.voice || "",
                       gender: char.gender,
                       age: char.age,
                       usageCount: char.usageCount,
@@ -1815,15 +1813,15 @@ var EditorJS = {
         
           function createGengxinFile() {
             try {
-              // 与 saveCharacterData 保持一致：执行反向映射（显示名 → 存储名）
+              // 与 saveCharacterData 保持一致：voice 直接存 tag
               var saveRecords = [];
               for (var i = 0; i < characterRecords.length; i++) {
                 var char = characterRecords[i];
-                // 手动复制属性 + 反向映射 voice 字段
+                // 手动复制属性，voice 直接存 tag
                 saveRecords.push({
                   name: char.name,
                   aliases: char.aliases,
-                  voice: reverseReplaceFayinrenName(char.voice || ""), // 关键：添加反向映射
+                  voice: char.voice || "",
                   gender: char.gender,
                   age: char.age,
                   usageCount: char.usageCount,
@@ -2202,15 +2200,8 @@ var EditorJS = {
                 if (characterData && characterData.trim() !== "") {
                     var parsedData = JSON.parse(characterData);
                     characterRecords = parsedData || [];
-  
-  
-  
-                                // ↓ 纯ES5写法：替换箭头函数为forEach普通函数
-                    characterRecords.forEach(function(char) {
-                        char.voice = replaceFayinrenName(char.voice || "");
-                    });
-            // ↑ 新增结束
-  
+                    // record.voice 保持 tag 原值，不做转换
+
   
   
   
@@ -2658,7 +2649,7 @@ var EditorJS = {
                                     bookData = rawData;
                                 }
                             } catch (eRead) {
-                                // 内存数据已正向映射，需反向映射后再写入文件
+                                // voice 直接存 tag（与内存一致）
                                 var saveRecords = [];
                                 for (var si = 0; si < characterRecords.length; si++) {
                                     var char = characterRecords[si];
@@ -2666,7 +2657,7 @@ var EditorJS = {
                                         saveRecords.push({
                                             name: char.name || "",
                                             aliases: char.aliases || "",
-                                            voice: reverseReplaceFayinrenName(char.voice || ""),
+                                            voice: char.voice || "",
                                             gender: char.gender || "",
                                             age: char.age || "",
                                             usageCount: char.usageCount || 0,
@@ -2751,12 +2742,7 @@ var EditorJS = {
                             var parsedData = JSON.parse(bookData);
                             characterRecords = parsedData || [];
                             console.log("成功解析书籍数据，角色数量: " + characterRecords.length);
-                            for (var i = 0; i < characterRecords.length; i++) {
-                                var char = characterRecords[i];
-                                if (char) {
-                                    char.voice = replaceFayinrenName(char.voice || "");
-                                }
-                            }
+                            // record.voice 保持 tag 原值，不做转换
                             ttsrv.writeTxtFile("characterRecords.json", bookData);
                             console.log("已更新characterRecords.json");
                             createGengxinFile();
@@ -2946,11 +2932,7 @@ var EditorJS = {
                             ttsrv.writeTxtFile("characterRecords.json", defaultData);
                             ttsrv.writeTxtFile("gengxin.json", defaultData);
                             characterRecords = JSON.parse(defaultData) || [];
-                            for (var di = 0; di < characterRecords.length; di++) {
-                                if (characterRecords[di]) {
-                                    characterRecords[di].voice = replaceFayinrenName(characterRecords[di].voice || "");
-                                }
-                            }
+                            // record.voice 保持 tag 原值，不做转换
                             console.log("内存数据已更新为默认数据，角色数量: " + characterRecords.length);
                         } else {
                             var emptyData = "[]";
@@ -3447,11 +3429,8 @@ var EditorJS = {
                                         // 核心修改：恢复characterRecords.json时，同步保存到gengxin.json
                                         if (fileName === "characterRecords.json") {
                                                 ttsrv.writeTxtFile("gengxin.json", allFilesData[fileName]);
-                                                // ↓ 修复：恢复后执行正向映射（替换原错误代码）
+                                                // record.voice 保持 tag 原值，不做转换
                                                 characterRecords = JSON.parse(allFilesData[fileName]) || [];
-                                                characterRecords.forEach(function(char) {
-                                                    char.voice = replaceFayinrenName(char.voice || "");
-                                                });
   
   
                                                 console.log("已同步保存characterRecords.json内容到gengxin.json");
@@ -3999,9 +3978,8 @@ var EditorJS = {
                 charPvBtn.setSingleLine(true);
                 charPvBtn.setGravity(android.view.Gravity.CENTER);
                 charPvBtn.setPadding(dipToPx(10), dipToPx(8), dipToPx(2), dipToPx(8));
-                // 试听优先用角色名查当前分组（与标签显示一致），record.voice 作为 fallback
-                var _charPvName = safeGetName(record);
-                var _charPvVoice = record.voice;
+                // record.voice 是 tag，试听直接用 tag 查当前分组的配置项
+                var _charPvTag = record.voice;
                 var charPvLp = new android.widget.LinearLayout.LayoutParams(
                     android.widget.LinearLayout.LayoutParams.WRAP_CONTENT,
                     android.widget.LinearLayout.LayoutParams.WRAP_CONTENT
@@ -4010,7 +3988,7 @@ var EditorJS = {
                 charPvBtn.setLayoutParams(charPvLp);
                 charPvBtn.setOnClickListener(new android.view.View.OnClickListener({
                     onClick: function(v) {
-                        try { previewVoiceByName(_charPvName, _charPvVoice, charPvBtn); }
+                        try { previewVoiceByName(_charPvTag, charPvBtn); }
                         catch (e) { Toast.makeText(ctx, "试听异常: " + e.toString(), Toast.LENGTH_SHORT).show(); }
                     }
                 }));
@@ -4097,13 +4075,7 @@ var EditorJS = {
                 for (var i = 0; i < filteredIndices.length; i++) {
                     var record = characterRecords[filteredIndices[i]];
                     if (!record) continue;
-
-                    // record.voice 规整化为 displayName（稳定，不随分组变化，用于存盘和圆点颜色判断）
-                    if (record.voice) {
-                        var storeVal = reverseReplaceFayinrenName(record.voice);
-                        record.voice = replaceFayinrenName(storeVal);
-                    }
-                    // 标签显示和试听由 generateVoiceTag/previewVoiceByName 通过角色名实时查当前分组
+                    // record.voice 保持 tag 原值，标签显示由 generateVoiceTag 通过 getVoiceByTag(tag) 实时查
                     var displayText = generateDisplayText(record);
                     var row = createListRow(displayText, i, record);
                     rowViews.push(row);
@@ -4134,13 +4106,6 @@ var EditorJS = {
             for (var i = 0; i < filteredIndices.length && i < rowViews.length; i++) {
                 var record = characterRecords[filteredIndices[i]];
                 if (!record) continue;
-
-                    // record.voice 规整化为 displayName
-                    if (record.voice) {
-                        var storeVal = reverseReplaceFayinrenName(record.voice);
-                        record.voice = replaceFayinrenName(storeVal);
-                    }
-
                     var existingRow = rowViews[i];
                     if (existingRow) {
                         var voiceView = existingRow.findViewWithTag("voiceTag");
@@ -4809,7 +4774,7 @@ var EditorJS = {
             return null;
         }
 
-        function previewVoiceByName(charName, voiceDisplayName, btn) {
+        function previewVoiceByName(tag, btn) {
             try {
                 if (_pvCurrentBtn === btn && _pvMediaPlayer !== null) {
                     // 用户点击正在播放的按钮，停止播放
@@ -4824,13 +4789,8 @@ var EditorJS = {
                             // 优先尝试通过 app TTS 配置项试听（ttsrv.getAudioByTag）
                             try {
                                 var previewText = "你好，这是试听语音。";
-                                var storageName = "";
-                                try { storageName = reverseReplaceFayinrenName(voiceDisplayName); } catch (eRev) {}
-                                // 优先用角色名查当前分组（与标签显示一致），再回退到 voice/displayName/底层voice
-                                var tagCandidates = [];
-                                if (charName) tagCandidates.push(charName);
-                                tagCandidates.push(voiceDisplayName);
-                                if (storageName && storageName !== voiceDisplayName) tagCandidates.push(storageName);
+                                // tag 直接查当前分组（与标签显示一致）
+                                var tagCandidates = [tag];
                                 var audioPath = null;
                                 for (var ti = 0; ti < tagCandidates.length; ti++) {
                                     try {
@@ -4840,7 +4800,7 @@ var EditorJS = {
                                 }
                                 if (audioPath) {
                                     var fileUri = "file://" + audioPath;
-                                    var playLabel = voiceDisplayName;
+                                    var playLabel = tag;
                                     _pvHandler.post(new java.lang.Runnable({ run: function () { _pvPlay(fileUri, playLabel, btn); } }));
                                     return;
                                 }
@@ -5018,7 +4978,7 @@ var EditorJS = {
                     var _pvVoiceName = vopt.name;
                     pvBtn.setOnClickListener(new android.view.View.OnClickListener({
                         onClick: function(v) {
-                            try { previewVoiceByName(null, _pvVoiceName, pvBtn); }
+                            try { previewVoiceByName(_pvVoiceName, pvBtn); }
                             catch (e) { Toast.makeText(ctx, "试听异常: " + e.toString(), Toast.LENGTH_SHORT).show(); }
                         }
                     }));
