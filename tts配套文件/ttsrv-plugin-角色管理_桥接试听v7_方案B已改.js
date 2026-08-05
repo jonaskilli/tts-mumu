@@ -3898,6 +3898,9 @@ var EditorJS = {
             var nameContainer = new android.widget.LinearLayout(ctx);
             nameContainer.setOrientation(android.widget.LinearLayout.VERTICAL);
             nameContainer.setGravity(android.view.Gravity.LEFT | android.view.Gravity.CENTER_VERTICAL);
+            // WRAP_CONTENT + 最小宽度：角色名短时占最小宽度（发音人标签起点对齐），
+            // 角色名长时自动撑开（标签跟随，不压缩角色名、不强制换行）
+            nameContainer.setMinimumWidth(dipToPx(100));
             var ncLp = new android.widget.LinearLayout.LayoutParams(
                 android.widget.LinearLayout.LayoutParams.WRAP_CONTENT,
                 android.widget.LinearLayout.LayoutParams.WRAP_CONTENT
