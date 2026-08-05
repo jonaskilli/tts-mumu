@@ -3984,7 +3984,7 @@ var EditorJS = {
                     voiceView.setText(voiceTag);
                     voiceView.setTextSize(13);
                     voiceView.setSingleLine(true);
-                    voiceView.setGravity(android.view.Gravity.CENTER);
+                    voiceView.setGravity(android.view.Gravity.LEFT | android.view.Gravity.CENTER_VERTICAL);
                     voiceView.setPadding(dipToPx(10), dipToPx(5), dipToPx(10), dipToPx(5));
                     // 浅蓝灰圆角小框背景
                     var voiceBg = new android.graphics.drawable.GradientDrawable();
@@ -4561,7 +4561,7 @@ var EditorJS = {
                                         fVoiceView.setText(fVoiceTag);
                                         fVoiceView.setTextSize(13);
                                         fVoiceView.setSingleLine(true);
-                                        fVoiceView.setGravity(android.view.Gravity.CENTER);
+                                        fVoiceView.setGravity(android.view.Gravity.LEFT | android.view.Gravity.CENTER_VERTICAL);
                                         fVoiceView.setPadding(dipToPx(10), dipToPx(5), dipToPx(10), dipToPx(5));
                                         var fVoiceBg = new android.graphics.drawable.GradientDrawable();
                                         fVoiceBg.setShape(android.graphics.drawable.GradientDrawable.RECTANGLE);
