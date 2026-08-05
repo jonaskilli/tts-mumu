@@ -3158,10 +3158,10 @@ var SpeechRuleJS = {
           }
           var personality = duihuaPersonality !== "" && duihuaPersonality !== "无" ? duihuaPersonality : "";
           // 性格不再拼入 tagName（移到角色级 persona 字段）
-          var personalityWhole = ""; // 保留变量但置空，避免后续引用出错
-  
-          // 最终拼接（括号不变）
-          var rsTag = rolePart + personalityWhole + genderAgeWhole;
+          // fayinren_personality_summary.json 仍记录 [tag, tag+personality] 供角色管理读取
+
+          // 最终拼接（括号不变，去掉 personalityWhole）
+          var rsTag = rolePart + genderAgeWhole;
   
           //console.log("duihua生效！生成tagName=", rsTag);
           return rsTag;

@@ -1574,16 +1574,21 @@ var EditorJS = {
                 isValid = false;
             }
 
-            // 从 fayinren_personality_summary.json 取 personality（用户在朗读规则配置项里填的）
-            // replaceFayinrenName(tag) 返回 "tag+personality"，截取 tag 之后的部分
-            // 受 isPersonaVisible() 开关控制
+            // 性格(persona)显示：受 isPersonaVisible() 开关控制
+            // 优先级1：角色级 persona（用户在角色列表里直接填的，就近编辑）
+            // 优先级2：fallback 到 fayinren_personality_summary.json（朗读规则配置项里填的旧数据）
             if (isPersonaVisible()) {
-                try {
-                    var tagPlusPersona = replaceFayinrenName(voiceTag);
-                    if (tagPlusPersona && tagPlusPersona.length > voiceTag.length) {
-                        persona = tagPlusPersona.substring(voiceTag.length);
-                    }
-                } catch (e) {}
+                var roleLevelPersona = String(character.persona || "").trim();
+                if (roleLevelPersona) {
+                    persona = roleLevelPersona;
+                } else {
+                    try {
+                        var tagPlusPersona = replaceFayinrenName(voiceTag);
+                        if (tagPlusPersona && tagPlusPersona.length > voiceTag.length) {
+                            persona = tagPlusPersona.substring(voiceTag.length);
+                        }
+                    } catch (e) {}
+                }
             }
 
             var ssb = new android.text.SpannableStringBuilder();
@@ -1856,7 +1861,8 @@ var EditorJS = {
                       gender: char.gender,
                       age: char.age,
                       usageCount: char.usageCount,
-                      genderAgeHistory: char.genderAgeHistory // 保留可能存在的其他字段
+                      genderAgeHistory: char.genderAgeHistory, // 保留可能存在的其他字段
+                      persona: char.persona || "" // 角色级性格（角色列表就近编辑）
                     });
                 }
           // ↑ 新增结束
@@ -4398,9 +4404,10 @@ var EditorJS = {
                 optionConfigs.push({ text: "释放/删除【已合并角色】", color: "#FB8C00", icon: "", action: "release" });
             }
             
-            // 始终显示的操作（修改角色名仅在单角色时显示，多角色时无意义）
+            // 始终显示的操作（修改角色名/编辑性格仅在单角色时显示，多角色时无意义）
             if (markedIndices.length < 2) {
                 optionConfigs.push({ text: "修改角色名", color: "#00838F", icon: "", action: "edit_name" });
+                optionConfigs.push({ text: "编辑性格", color: "#7B1FA2", icon: "", action: "edit_persona" });
             }
             optionConfigs.push({ text: "删除角色", color: "#E53935", icon: "", action: "delete" });
             optionConfigs.push({ text: "设为主角", color: "#F57F17", icon: "", action: "set_main" });
@@ -4672,6 +4679,9 @@ var EditorJS = {
                     break;
                 case "edit_name":
                     doEditCharacterOperation(position);
+                    break;
+                case "edit_persona":
+                    doEditPersonaOperation(position);
                     break;
                 case "delete":
                     doDeleteCharacterOperation();
