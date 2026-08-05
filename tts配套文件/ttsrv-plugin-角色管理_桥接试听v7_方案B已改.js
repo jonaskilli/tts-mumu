@@ -26,6 +26,10 @@ var PRESET_KEYWORDS_ROW6 = ["女主", "男主"];
 var _fayinrenMapCache = null;        // 正向映射：存储值 → 显示值
 var _fayinrenReverseMapCache = null; // 反向映射：显示值 → 存储值
 
+// 持有 onLoadUI 内部 refreshCharacterList 的引用，供 onVoiceChanged 等模块级回调跨作用域调用
+// （refreshCharacterList 定义在 onLoadUI 闭包内，模块级方法无法直接访问）
+var _refreshCharacterListFn = null;
+
 function _initFayinrenMapCache(forceRefresh) {
     if (!forceRefresh && _fayinrenMapCache !== null) return; // 已初始化则跳过（除非强制刷新）
     _fayinrenMapCache = {};
@@ -6407,7 +6411,11 @@ var EditorJS = {
                 Toast.makeText(ctx, "列表刷新异常: " + e.toString(), Toast.LENGTH_SHORT).show();
             }
         }
-        
+
+        // 将 refreshCharacterList 暴露给模块级回调（onVoiceChanged 等），
+        // 因其定义在 onLoadUI 闭包内，模块级方法无法直接访问。
+        _refreshCharacterListFn = refreshCharacterList;
+
         // 更新列表外观（标记/选中状态可视化）
         
                 function createRoundedDrawable(color, strokeColor) {
@@ -6675,7 +6683,13 @@ var EditorJS = {
             _initFayinrenMapCache(true);
             console.log("onVoiceChanged: personality缓存已强制刷新");
             // 刷新角色列表，获取当前已启用配置项的实际发音人
-            try { refreshCharacterList(); } catch (eRef) { console.error("onVoiceChanged刷新列表失败: " + eRef.toString()); }
+            try {
+                if (_refreshCharacterListFn) {
+                    _refreshCharacterListFn();
+                } else {
+                    console.warn("onVoiceChanged: refreshCharacterList 尚未初始化（onLoadUI 未执行）");
+                }
+            } catch (eRef) { console.error("onVoiceChanged刷新列表失败: " + eRef.toString()); }
         } catch (e) {
             console.error("onVoiceChanged刷新缓存失败: " + e.toString());
         }
