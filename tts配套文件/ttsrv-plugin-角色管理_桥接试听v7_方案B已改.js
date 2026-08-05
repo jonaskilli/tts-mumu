@@ -1593,40 +1593,47 @@ var EditorJS = {
             return { tag: voiceText, persona: "" };
         }
 
-        // 缩减过长的 displayName：
-        // 常见结构：
-        //   发音人名 描述          (如 "爽快思思 女|青年|直率") → 保留发音人名
-        //   前缀·发音人名-后缀     (如 "鹿·奴奴-唐小喜")       → 去-后缀，按·取后段
-        //   名字 [注释]            (如 "玛薇卡 [上新优化]")     → 去[]注释
+        // 缩减 displayName，保留发音人名：
+        // 结构：前缀(分类) · 发音人名 - 后缀(声优本名/游戏来源/空)
+        //   如 "鹿·霓商" → "霓商"，"鹿·华月-马海燕" → "华月"，"游音·莱恩哈特-明日方舟" → "莱恩哈特"
+        // 其他结构：
+        //   发音人名 描述   (如 "爽快思思 女|青年|直率") → 保留空格前的发音人名
+        //   名字 [注释]     (如 "玛薇卡 [上新优化]")     → 去[]注释
+        // 规则：
         // 1) 去 [xxx] 注释
-        // 2) 去空格后的描述部分（保留空格前）
-        // 3) 不超过 MAX 字数则原样返回
-        // 4) 超长：按 - 取前段，再按 · • 取后段
-        // 5) 仍超长则截断为前 (MAX-1) 字 + …
+        // 2) 有 · • ：先按 - 取前段(去后缀)，再按 · • 取最后段(去前缀)，得到发音人名
+        // 3) 无 · • ：去空格后的描述部分(保留空格前)，超过 MAX 字则截断
         var DISPLAY_NAME_MAX = 8;
         function shortenDisplayName(name) {
             if (!name) return "";
             var s = String(name).trim();
             // 1) 去 [xxx] 注释（含中英文方括号）
             s = s.replace(/\s*[\[【].*?[\]】]\s*/g, "").trim();
-            // 2) 去空格后的描述部分（保留空格前的发音人名）
+            if (s === "") return "";
+
+            // 2) 有 · • ：取发音人名（中间段）
+            if (/[·•]/.test(s)) {
+                // 先按 - 取前段（去声优本名/游戏来源后缀）
+                var dashParts = s.split(/[\-—]/);
+                var main = dashParts[0].trim();
+                // 再按 · • 取最后段（去前缀分类）
+                var dotParts = main.split(/[·•]/);
+                var last = "";
+                for (var i = dotParts.length - 1; i >= 0; i--) {
+                    var p = dotParts[i].trim();
+                    if (p) { last = p; break; }
+                }
+                if (last) {
+                    if (last.length <= DISPLAY_NAME_MAX) return last;
+                    return last.substring(0, DISPLAY_NAME_MAX - 1) + "…";
+                }
+            }
+
+            // 3) 无 · • ：去空格后的描述部分（保留空格前）
             var spaceIdx = s.indexOf(" ");
             if (spaceIdx > 0) s = s.substring(0, spaceIdx).trim();
             if (s.length <= DISPLAY_NAME_MAX) return s;
-            // 4) 超长：按 - 取前段（去声优本名/游戏来源后缀）
-            var dashParts = s.split(/[\-—]/);
-            var main = dashParts[0].trim();
-            // 再按 · • 取后段（去前缀）
-            var dotParts = main.split(/[·•]/);
-            var last = "";
-            for (var i = dotParts.length - 1; i >= 0; i--) {
-                var p = dotParts[i].trim();
-                if (p) { last = p; break; }
-            }
-            if (!last) last = main;
-            if (last.length <= DISPLAY_NAME_MAX) return last;
-            // 5) 仍超长则截断
-            return last.substring(0, DISPLAY_NAME_MAX - 1) + "…";
+            return s.substring(0, DISPLAY_NAME_MAX - 1) + "…";
         }
   
         
