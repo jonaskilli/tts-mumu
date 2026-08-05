@@ -1569,6 +1569,19 @@ var EditorJS = {
                 ssb.setSpan(new android.text.style.ForegroundColorSpan(CLR_WARN), warnStart, ssb.length(), SPAN);
             }
 
+            // 追加发音人标记图标（喜欢❤/不喜欢✖/路人○），作为选声音参考
+            try {
+                var mk = getVoiceMark(voiceTag);
+                if (mk === "like" || mk === "dislike" || mk === "neutral") {
+                    ssb.append(" ");
+                    var markStart = ssb.length();
+                    ssb.append(mk === "like" ? "❤" : (mk === "dislike" ? "✖" : "○"));
+                    var markColor = mk === "like" ? "#43A047"
+                                  : (mk === "dislike" ? "#E53935" : "#9E9E9E");
+                    ssb.setSpan(new android.text.style.ForegroundColorSpan(android.graphics.Color.parseColor(markColor)), markStart, ssb.length(), SPAN);
+                }
+            } catch (e) {}
+
             return ssb;
         }
 
@@ -4034,7 +4047,30 @@ var EditorJS = {
                 }));
                 row.addView(charPvBtn);
 
-                // 发音人管理按钮（⋮）：试听后觉得难听可当场删除/改名
+                // 改显示名按钮（✎）：独立入口，改配置项 displayName
+                var charRnBtn = new android.widget.TextView(ctx);
+                charRnBtn.setText("✎");
+                charRnBtn.setTextSize(16);
+                charRnBtn.setTextColor(android.graphics.Color.parseColor("#1976D2"));
+                charRnBtn.setSingleLine(true);
+                charRnBtn.setGravity(android.view.Gravity.CENTER);
+                charRnBtn.setPadding(dipToPx(6), dipToPx(8), dipToPx(2), dipToPx(8));
+                var charRnLp = new android.widget.LinearLayout.LayoutParams(
+                    android.widget.LinearLayout.LayoutParams.WRAP_CONTENT,
+                    android.widget.LinearLayout.LayoutParams.WRAP_CONTENT
+                );
+                charRnLp.setMargins(dipToPx(2), 0, 0, 0);
+                charRnBtn.setLayoutParams(charRnLp);
+                var _charRnTag = record.voice;
+                charRnBtn.setOnClickListener(new android.view.View.OnClickListener({
+                    onClick: function(v) {
+                        try { doRenameVoice(_charRnTag, null); }
+                        catch (e) { Toast.makeText(ctx, "改名弹窗异常: " + e.toString(), Toast.LENGTH_SHORT).show(); }
+                    }
+                }));
+                row.addView(charRnBtn);
+
+                // 发音人管理按钮（⋮）：删除/标记（喜欢·不喜欢·路人）
                 var charMgBtn = new android.widget.TextView(ctx);
                 charMgBtn.setText("⋮");
                 charMgBtn.setTextSize(18);
@@ -4684,10 +4720,10 @@ var EditorJS = {
             } catch (e) { _pvStop(); Toast.makeText(ctx, "播放失败", Toast.LENGTH_SHORT).show(); }
         }
 
-        // ===== 发音人管理弹窗（删除/改名） =====
+        // ===== 发音人管理弹窗（删除/标记） =====
         // 入口：角色行试听按钮旁的 ⋮ 按钮，或换发音人弹窗里试听旁的 ⋮
-        // 删除流程：删配置项 → 从 fayinren.json 删 tag → 同前缀随机重分配受影响角色 → 刷新
-        // 改名流程：改配置项 displayName → 刷新
+        // 删除流程：删配置项 → 从 fayinren.json 删 tag → 调用朗读规则重分配受影响角色 → 刷新
+        // 标记流程：写 voice_marks.json → 刷新
         function showVoiceManageDialog(voiceTag, onChange) {
             try {
                 if (!voiceTag) {
@@ -4711,7 +4747,7 @@ var EditorJS = {
 
                 // 当前发音人信息
                 var infoView = new android.widget.TextView(ctx);
-                infoView.setText("标签：" + tag + "\n显示名：" + currentName);
+                infoView.setText("标签：" + tag + "\n显示名：" + currentName + "\n标记：" + getVoiceMarkLabel(tag));
                 infoView.setTextSize(13);
                 infoView.setTextColor(android.graphics.Color.parseColor("#757575"));
                 var infoLp = new android.widget.LinearLayout.LayoutParams(
@@ -4723,7 +4759,9 @@ var EditorJS = {
                 container.addView(infoView);
 
                 var options = [
-                    { text: "改显示名", color: "#1976D2", action: "rename" },
+                    { text: "❤ 喜欢", color: "#43A047", action: "mark_like" },
+                    { text: "✖ 不喜欢", color: "#E53935", action: "mark_dislike" },
+                    { text: "○ 路人", color: "#757575", action: "mark_neutral" },
                     { text: "删除并重分配", color: "#E53935", action: "delete" }
                 ];
 
@@ -4775,10 +4813,23 @@ var EditorJS = {
                                 new android.os.Handler(android.os.Looper.getMainLooper()).post(new java.lang.Runnable({
                                     run: function() {
                                         try {
-                                            if (actionKey === "rename") {
-                                                doRenameVoice(tag, onChange);
-                                            } else if (actionKey === "delete") {
+                                            if (actionKey === "delete") {
                                                 doDeleteVoiceAndReassign(tag, onChange);
+                                            } else if (actionKey === "mark_like") {
+                                                setVoiceMark(tag, "like");
+                                                Toast.makeText(ctx, "已标记为 喜欢", Toast.LENGTH_SHORT).show();
+                                                if (onChange) try { onChange(); } catch (e) {}
+                                                refreshCharacterList();
+                                            } else if (actionKey === "mark_dislike") {
+                                                setVoiceMark(tag, "dislike");
+                                                Toast.makeText(ctx, "已标记为 不喜欢", Toast.LENGTH_SHORT).show();
+                                                if (onChange) try { onChange(); } catch (e) {}
+                                                refreshCharacterList();
+                                            } else if (actionKey === "mark_neutral") {
+                                                setVoiceMark(tag, "neutral");
+                                                Toast.makeText(ctx, "已标记为 路人", Toast.LENGTH_SHORT).show();
+                                                if (onChange) try { onChange(); } catch (e) {}
+                                                refreshCharacterList();
                                             }
                                         } catch (e) {
                                             Toast.makeText(ctx, "操作异常: " + e.toString(), Toast.LENGTH_SHORT).show();
@@ -4798,6 +4849,72 @@ var EditorJS = {
                 applyDialogRoundCorner(voiceManageDlg);
             } catch (e) {
                 Toast.makeText(ctx, "弹窗异常: " + e.toString(), Toast.LENGTH_SHORT).show();
+            }
+        }
+
+        // ===== 发音人标记管理（voice_marks.json） =====
+        // 结构：{ "女青年01": "like", "女青年02": "dislike", ... }
+        // 值：like / dislike / neutral
+        var _voiceMarksCache = null; // null=未加载
+
+        function loadVoiceMarks() {
+            if (_voiceMarksCache !== null) return _voiceMarksCache;
+            try {
+                var raw = ttsrv.readTxtFile("voice_marks.json");
+                if (raw && raw.trim() !== "") {
+                    var obj = JSON.parse(raw);
+                    if (obj && typeof obj === "object") {
+                        _voiceMarksCache = obj;
+                        return _voiceMarksCache;
+                    }
+                }
+            } catch (e) {}
+            _voiceMarksCache = {};
+            return _voiceMarksCache;
+        }
+
+        function saveVoiceMarks() {
+            try {
+                ttsrv.writeTxtFile("voice_marks.json", JSON.stringify(_voiceMarksCache || {}, null, 2));
+            } catch (e) {
+                console.error("保存 voice_marks.json 失败: " + e.toString());
+            }
+        }
+
+        function getVoiceMark(tag) {
+            try {
+                var marks = loadVoiceMarks();
+                return marks[String(tag)] || "";
+            } catch (e) { return ""; }
+        }
+
+        function getVoiceMarkLabel(tag) {
+            var m = getVoiceMark(tag);
+            if (m === "like") return "❤ 喜欢";
+            if (m === "dislike") return "✖ 不喜欢";
+            if (m === "neutral") return "○ 路人";
+            return "未标记";
+        }
+
+        function setVoiceMark(tag, mark) {
+            try {
+                var marks = loadVoiceMarks();
+                if (mark) {
+                    marks[String(tag)] = mark;
+                } else {
+                    delete marks[String(tag)];
+                }
+                saveVoiceMarks();
+                // 同步更新发音人列表的缓存标记
+                try {
+                    for (var i = 0; i < fayinrenList.length; i++) {
+                        if (fayinrenList[i] && fayinrenList[i].tag === tag) {
+                            fayinrenList[i].mark = mark;
+                        }
+                    }
+                } catch (e) {}
+            } catch (e) {
+                Toast.makeText(ctx, "标记失败: " + e.toString(), Toast.LENGTH_SHORT).show();
             }
         }
 
@@ -5148,6 +5265,21 @@ var EditorJS = {
                     );
                     vtext.setLayoutParams(vtextParams);
                     vrow.addView(vtext);
+
+                    // === 标记图标（喜欢/不喜欢/路人），作为选声音参考 ===
+                    var _vmark = getVoiceMark(vopt.value);
+                    if (_vmark === "like" || _vmark === "dislike" || _vmark === "neutral") {
+                        var markView = new android.widget.TextView(ctx);
+                        markView.setText(_vmark === "like" ? "❤" : (_vmark === "dislike" ? "✖" : "○"));
+                        markView.setTextSize(14);
+                        var _markColor = _vmark === "like" ? "#43A047"
+                                       : (_vmark === "dislike" ? "#E53935" : "#9E9E9E");
+                        markView.setTextColor(android.graphics.Color.parseColor(_markColor));
+                        markView.setSingleLine(true);
+                        markView.setGravity(android.view.Gravity.CENTER);
+                        markView.setPadding(dipToPx(6), 0, dipToPx(4), 0);
+                        vrow.addView(markView);
+                    }
 
                     // === [新增] 试听按钮 ===
                     var pvBtn = new android.widget.TextView(ctx);
