@@ -83,11 +83,15 @@ jobs:
           path: ${{env.outputs_dir}}/apk/${{ env.product }}/release/*${{ env.ver_name }}.apk
 
 
-      - uses: softprops/action-gh-release@v0.1.15
+      - uses: softprops/action-gh-release@v2
         with:
           name: ${{ env.ver_name }}
           tag_name: ${{ env.ver_name }}
-          body_path: ${{ github.workspace }}/CHANGELOG.md
+          # 让 tag 落到实际构建的 commit，避免老版本默认指向仓库默认分支
+          target_commitish: ${{ github.sha }}
+          # 由 GitHub 根据上次 tag 到本次的提交自动生成变更日志，
+          # 不再依赖手写 CHANGELOG.md（之前因忘更新导致多个发布正文完全一样）
+          generate_release_notes: true
           draft: false
           prerelease: false
           files: ${{env.outputs_dir}}/apk/${{ env.product }}/release/*.apk
