@@ -4852,10 +4852,6 @@ var EditorJS = {
             }
 
             // 子线程对筛选子集查 getVoiceByTag 获取 displayName，避免主线程卡顿
-            var loadingDialog = new android.app.ProgressDialog(ctx);
-            loadingDialog.setMessage("加载发音人中…");
-            loadingDialog.setCancelable(false);
-            loadingDialog.show();
             var mainHandler = new android.os.Handler(android.os.Looper.getMainLooper());
 
             new java.lang.Thread(new java.lang.Runnable({
@@ -4873,14 +4869,13 @@ var EditorJS = {
                         }
                         mainHandler.post(new java.lang.Runnable({
                             run: function () {
-                                try { loadingDialog.dismiss(); } catch (e) {}
-                                showFilteredVoiceDialog(items, callback);
+                                try { showFilteredVoiceDialog(items, callback); }
+                                catch (e) { Toast.makeText(ctx, "加载发音人失败: " + e.toString(), Toast.LENGTH_SHORT).show(); }
                             }
                         }));
                     } catch (e) {
                         mainHandler.post(new java.lang.Runnable({
                             run: function () {
-                                try { loadingDialog.dismiss(); } catch (e2) {}
                                 Toast.makeText(ctx, "加载发音人失败: " + e.toString(), Toast.LENGTH_SHORT).show();
                             }
                         }));
