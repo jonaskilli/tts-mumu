@@ -1551,9 +1551,20 @@ var EditorJS = {
             var displayText = underlyingVoice;
             var isValid = false;
 
+            // === 诊断日志（定位标签不显示displayName问题）===
+            try {
+                console.log("[DIAG] underlyingVoice=" + underlyingVoice + " | fayinrenList.len=" + (fayinrenList?fayinrenList.length:0) + " | mapCache.len=" + (_fayinrenMapCache?Object.keys(_fayinrenMapCache).length:0));
+                var summaryRaw = "";
+                try { summaryRaw = ttsrv.readTxtFile("fayinren_personality_summary.json") || ""; } catch(eR) {}
+                console.log("[DIAG] summary.json前200字符=" + summaryRaw.substring(0, 200));
+                var mappedCheck = replaceFayinrenName(underlyingVoice);
+                console.log("[DIAG] replaceFayinrenName('" + underlyingVoice + "')='" + mappedCheck + "' | changed=" + (mappedCheck !== underlyingVoice));
+            } catch(eDiag) { console.log("[DIAG] 诊断异常: " + eDiag); }
+
             // 实时查询配置项的 displayName
             try {
                 var liveName = ttsrv.getVoiceByTag(underlyingVoice);
+                console.log("[DIAG] getVoiceByTag('" + underlyingVoice + "')=" + (liveName===null?"null":("'" + liveName + "'")));
                 if (liveName) {
                     displayText = liveName;
                     isValid = true;
@@ -1567,10 +1578,12 @@ var EditorJS = {
                     isValid = isVoiceTagValid(underlyingVoice);
                 }
             } catch (e) {
+                console.log("[DIAG] getVoiceByTag异常: " + e);
                 // 查询失败时回退到文件映射
                 displayText = replaceFayinrenName(underlyingVoice);
                 isValid = isVoiceTagValid(underlyingVoice);
             }
+            console.log("[DIAG] 最终 displayText='" + displayText + "' isValid=" + isValid);
 
             var ssb = new android.text.SpannableStringBuilder();
             var CLR_TAG = android.graphics.Color.parseColor("#1976D2");
