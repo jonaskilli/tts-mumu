@@ -1592,6 +1592,31 @@ var EditorJS = {
             // 无法拆分时整体作为tag
             return { tag: voiceText, persona: "" };
         }
+
+        // 缩减过长的 displayName：
+        // 1) 去掉 [xxx] 注释
+        // 2) 超过 MAX 字数时，按 ·•-| 分隔符取最后一段（通常是声优名/游戏名等关键身份）
+        // 3) 仍超 MAX 字数则截断为前 (MAX-1) 字 + …
+        // 不超过 MAX 字数则原样返回
+        var DISPLAY_NAME_MAX = 8;
+        function shortenDisplayName(name) {
+            if (!name) return "";
+            var s = String(name).trim();
+            // 1) 去 [xxx] 注释（含中英文方括号）
+            s = s.replace(/\s*[\[【].*?[\]】]\s*/g, "").trim();
+            if (s.length <= DISPLAY_NAME_MAX) return s;
+            // 2) 按分隔符切，取最后一段
+            var parts = s.split(/[·•\-—|｜/／]/);
+            var last = "";
+            for (var i = parts.length - 1; i >= 0; i--) {
+                var p = parts[i].trim();
+                if (p) { last = p; break; }
+            }
+            if (last && last.length <= DISPLAY_NAME_MAX) return last;
+            if (!last) last = s;
+            // 3) 仍超长则截断
+            return last.substring(0, DISPLAY_NAME_MAX - 1) + "…";
+        }
   
         
         function initializeFileSystem() {
