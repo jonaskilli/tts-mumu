@@ -14,18 +14,16 @@ jobs:
   build:
     strategy:
       matrix:
-        product:
-          - { name: "App原版", value: app }
-          - { name: "共存版", value: dev, skip: "${{ github.event.inputs.build_dev != 'true' }}" }
+        # 动态生成: build_dev=true 时为 ["app","dev"], 否则只 ["app"]
+        product: ${{ fromJSON(format('["app"{0}]', github.event.inputs.build_dev == 'true' && ',"dev"' || '')) }}
 
       fail-fast: false
     runs-on: ubuntu-latest
-    if: ${{ matrix.product.skip != 'true' }}
     permissions:
       contents: write
     env:
-      product: ${{ matrix.product.value }}
-      product_name: ${{matrix.product.value}}
+      product: ${{ matrix.product }}
+      product_name: ${{ matrix.product }}
       outputs_dir: "${{ github.workspace }}/app/build/outputs"
       ver_name: ""
 
