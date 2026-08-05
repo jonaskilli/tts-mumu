@@ -3899,9 +3899,8 @@ var EditorJS = {
             nameContainer.setOrientation(android.widget.LinearLayout.VERTICAL);
             nameContainer.setGravity(android.view.Gravity.LEFT | android.view.Gravity.CENTER_VERTICAL);
             var ncLp = new android.widget.LinearLayout.LayoutParams(
-                0,
                 android.widget.LinearLayout.LayoutParams.WRAP_CONTENT,
-                1
+                android.widget.LinearLayout.LayoutParams.WRAP_CONTENT
             );
             nameContainer.setLayoutParams(ncLp);
             row.addView(nameContainer);
