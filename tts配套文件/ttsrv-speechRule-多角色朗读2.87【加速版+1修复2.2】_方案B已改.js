@@ -1053,35 +1053,46 @@ CharacterManager.prototype.detectAvailableVoices = function(tagsData) {
   // 同时建立 voiceTag→displayName 映射，供 fayinren_personality_summary 用
   this.voiceTagToVoice = {};
   this.voiceTagToDisplayName = {};
+  // Rhino 兼容：Java Map 不能用 [] 和 hasOwnProperty，用 get() 替代
+  var getMapVal = function(map, key) {
+      if (!map) return null;
+      try { return map.get(key); } catch(e) { return null; }
+  };
+  var hasProp = function(obj, key) {
+      return Object.prototype.hasOwnProperty.call(obj, key);
+  };
   for (var name in GENSHIN_CHARACTERS) {
-      if (GENSHIN_CHARACTERS.hasOwnProperty(name)) {
+      if (hasProp(GENSHIN_CHARACTERS, name)) {
           var info = GENSHIN_CHARACTERS[name];
           var voiceTag = info.voice;
-          if (tagsData && tagsData[voiceTag]) {
-              // 方案B：从 tagsData[voiceTag]._voice 取底层英文 voice
-              // 一个 voiceTag 可能绑多个配置项，取第一个非空 voice
-              var voiceList = tagsData[voiceTag]._voice;
+          if (tagsData && getMapVal(tagsData, voiceTag)) {
+              var tagEntry = getMapVal(tagsData, voiceTag);
+              // 方案B：从 tagEntry.get("_voice") 取底层英文 voice
+              var voiceList = getMapVal(tagEntry, "_voice");
               var underlyingVoice = "";
               if (voiceList && voiceList.length > 0) {
                   for (var vi = 0; vi < voiceList.length; vi++) {
-                      if (voiceList[vi].value) {
-                          underlyingVoice = voiceList[vi].value;
+                      var vItem = voiceList[vi];
+                      var vVal = (typeof vItem.get === 'function') ? vItem.get("value") : vItem.value;
+                      if (vVal) {
+                          underlyingVoice = vVal;
                           break;
                       }
                   }
               }
-              // 取不到底层 voice 时回退用 voiceTag，保证不报错
               if (!underlyingVoice) underlyingVoice = voiceTag;
               this.voiceTagToVoice[voiceTag] = underlyingVoice;
               this.availableVoices[underlyingVoice] = true;
 
               // displayName 同理
-              var nameList = tagsData[voiceTag]._displayName;
+              var nameList = getMapVal(tagEntry, "_displayName");
               var displayName = "";
               if (nameList && nameList.length > 0) {
                   for (var ni = 0; ni < nameList.length; ni++) {
-                      if (nameList[ni].value) {
-                          displayName = nameList[ni].value;
+                      var nItem = nameList[ni];
+                      var nVal = (typeof nItem.get === 'function') ? nItem.get("value") : nItem.value;
+                      if (nVal) {
+                          displayName = nVal;
                           break;
                       }
                   }
@@ -3340,6 +3351,57 @@ var SpeechRuleJS = {
   
   handleText: function(text, tagsData) {
   
+      // Rhino 兼容：把 Java LinkedHashMap 转成纯 JS 对象，避免 [] 和 hasOwnProperty 报错
+      var _origTagsData = tagsData;
+      if (tagsData && typeof tagsData.get === 'function' && !Object.prototype.hasOwnProperty.call(tagsData, 'duihua')) {
+          var _converted = {};
+          try {
+              var _entrySet = tagsData.entrySet();
+              var _iter = _entrySet.iterator();
+              while (_iter.hasNext()) {
+                  var _entry = _iter.next();
+                  var _key = String(_entry.getKey());
+                  var _val = _entry.getValue();
+                  // 递归转换内层 Map
+                  if (_val && typeof _val.get === 'function' && !_val.length) {
+                      var _inner = {};
+                      var _innerIter = _val.entrySet().iterator();
+                      while (_innerIter.hasNext()) {
+                          var _innerEntry = _innerIter.next();
+                          var _innerKey = String(_innerEntry.getKey());
+                          var _innerVal = _innerEntry.getValue();
+                          // List 转数组
+                          if (_innerVal && typeof _innerVal.size === 'function' && !_innerVal.length) {
+                              var _arr = [];
+                              for (var _ai = 0; _ai < _innerVal.size(); _ai++) {
+                                  var _aItem = _innerVal.get(_ai);
+                                  if (_aItem && typeof _aItem.get === 'function' && !_aItem.length) {
+                                      var _aObj = {};
+                                      var _aIter = _aItem.entrySet().iterator();
+                                      while (_aIter.hasNext()) {
+                                          var _aEntry = _aIter.next();
+                                          _aObj[String(_aEntry.getKey())] = String(_aEntry.getValue());
+                                      }
+                                      _arr.push(_aObj);
+                                  } else {
+                                      _arr.push(_aItem);
+                                  }
+                              }
+                              _inner[_innerKey] = _arr;
+                          } else {
+                              _inner[_innerKey] = _innerVal;
+                          }
+                      }
+                      _converted[_key] = _inner;
+                  } else {
+                      _converted[_key] = _val;
+                  }
+              }
+              tagsData = _converted;
+          } catch(convErr) {
+              console.error("tagsData转换异常: " + convErr.message);
+          }
+      }
   
        // 新增：ES5 兼容的数组扁平化函数（解决 forceFlattenArray 未定义问题）
       var forceFlattenArray = function(arr) {
@@ -3396,7 +3458,7 @@ var SpeechRuleJS = {
           // 2. 扫描 tagsData 的 key，找出每个前缀需要扩展到的最大序号
           var neededMaxSeq = {}; // 前缀 -> 需要的最大序号
           for (var tdKey in tagsData) {
-              if (tagsData.hasOwnProperty(tdKey)) {
+              if (Object.prototype.hasOwnProperty.call(tagsData, tdKey) || typeof tagsData.get === 'function') {
                   var tdMatch = tdKey.match(/^([\u4E00-\u9FA5]+?)(\d+)$/);
                   if (tdMatch && batchPrefixInfo.hasOwnProperty(tdMatch[1])) {
                       var tdSeq = parseInt(tdMatch[2], 10);
