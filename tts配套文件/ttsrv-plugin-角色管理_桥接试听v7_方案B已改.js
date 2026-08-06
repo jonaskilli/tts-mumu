@@ -4773,6 +4773,7 @@ var EditorJS = {
                     btn.setBackground(bg);
                 }
 
+                var _markBtns = []; // JS侧记录所有标记按钮及其mark值，避免在Java对象上挂自定义属性
                 for (var mi = 0; mi < markOptions.length; mi++) {
                     (function(mcfg) {
                         var markBtn = new android.widget.TextView(ctx);
@@ -4792,6 +4793,8 @@ var EditorJS = {
 
                         var isSel = (currentMark === mcfg.mark);
                         applyMarkBtnStyle(markBtn, mcfg.mark, isSel);
+                        var _entry = { btn: markBtn, mark: mcfg.mark };
+                        _markBtns.push(_entry);
 
                         markBtn.setOnClickListener(new android.view.View.OnClickListener({
                             onClick: function(v) {
@@ -4807,11 +4810,11 @@ var EditorJS = {
                                         currentMark = mcfg.mark;
                                         setVoiceMark(tag, mcfg.mark);
                                         applyMarkBtnStyle(markBtn, mcfg.mark, true);
-                                        // 更新其他按钮为未选中
-                                        for (var k = 0; k < markRow.getChildCount(); k++) {
-                                            var otherBtn = markRow.getChildAt(k);
-                                            if (otherBtn !== markBtn && otherBtn._markVal) {
-                                                applyMarkBtnStyle(otherBtn, otherBtn._markVal, false);
+                                        // 更新其他按钮为未选中（用JS侧映射，不读Java对象属性）
+                                        for (var k = 0; k < _markBtns.length; k++) {
+                                            var oe = _markBtns[k];
+                                            if (oe.btn !== markBtn) {
+                                                applyMarkBtnStyle(oe.btn, oe.mark, false);
                                             }
                                         }
                                         Toast.makeText(ctx, "已标记", Toast.LENGTH_SHORT).show();
@@ -4829,7 +4832,6 @@ var EditorJS = {
                                 }
                             }
                         }));
-                        markBtn._markVal = mcfg.mark;
                         markRow.addView(markBtn);
                     })(markOptions[mi]);
                 }
@@ -5340,6 +5342,7 @@ var EditorJS = {
                         }
                         btn.setBackground(bg);
                     }
+                    var _mkBtns2 = []; // JS侧记录所有标记按钮及其mark值，避免在Java对象上挂自定义属性
                     for (var mi2 = 0; mi2 < markChoices2.length; mi2++) {
                         (function(mcfg) {
                             var mkBtn = new android.widget.TextView(ctx);
@@ -5355,6 +5358,8 @@ var EditorJS = {
                             mkLp.setMargins(dipToPx(2), 0, dipToPx(2), 0);
                             mkBtn.setLayoutParams(mkLp);
                             applyMarkStyle2(mkBtn, mcfg, (_curMark2 === mcfg.mark));
+                            var _entry2 = { btn: mkBtn, mark: mcfg.mark, color: mcfg.color };
+                            _mkBtns2.push(_entry2);
                             mkBtn.setOnClickListener(new android.view.View.OnClickListener({
                                 onClick: function(v) {
                                     try {
@@ -5363,22 +5368,17 @@ var EditorJS = {
                                         } else {
                                             setVoiceMark(_markTag2, mcfg.mark);
                                         }
-                                        // 局部刷新当前行 emoji 点亮状态
+                                        // 局部刷新当前行 emoji 点亮状态（用JS侧映射，不读Java对象属性）
                                         var newMark = getVoiceMark(_markTag2);
-                                        for (var k = 0; k < vrow.getChildCount(); k++) {
-                                            var ch = vrow.getChildAt(k);
-                                            if (ch && ch._markVal) {
-                                                applyMarkStyle2(ch, { mark: ch._markVal,
-                                                    color: ch._markVal === "like" ? "#43A047"
-                                                         : (ch._markVal === "bad" ? "#E53935" : "#9E9E9E") },
-                                                    (newMark === ch._markVal));
-                                            }
+                                        for (var k = 0; k < _mkBtns2.length; k++) {
+                                            var oe2 = _mkBtns2[k];
+                                            applyMarkStyle2(oe2.btn, { mark: oe2.mark, color: oe2.color },
+                                                (newMark === oe2.mark));
                                         }
                                         Toast.makeText(ctx, newMark ? "已标记" : "已取消标记", Toast.LENGTH_SHORT).show();
                                     } catch (e) { Toast.makeText(ctx, "标记异常: " + e.toString(), Toast.LENGTH_SHORT).show(); }
                                 }
                             }));
-                            mkBtn._markVal = mcfg.mark;
                             vrow.addView(mkBtn);
                         })(markChoices2[mi2]);
                     }
