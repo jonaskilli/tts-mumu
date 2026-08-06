@@ -4779,11 +4779,15 @@ var EditorJS = {
                     bg.setShape(android.graphics.drawable.GradientDrawable.RECTANGLE);
                     bg.setCornerRadius(dipToPx(20));
                     if (isSelected) {
-                        bg.setColor(android.graphics.Color.parseColor("#E3F2FD"));
-                        bg.setStroke(dipToPx(2), android.graphics.Color.parseColor("#1976D2"));
+                        // 选中：透明底 + 彩色描边（点亮）
+                        bg.setColor(android.graphics.Color.parseColor("#00000000"));
+                        var markColor = mark === "like" ? "#43A047"
+                                      : (mark === "bad" ? "#E53935" : "#9E9E9E");
+                        bg.setStroke(dipToPx(2), android.graphics.Color.parseColor(markColor));
                     } else {
-                        bg.setColor(android.graphics.Color.parseColor("#F5F5F5"));
-                        bg.setStroke(dipToPx(1), android.graphics.Color.parseColor("#E0E0E0"));
+                        // 未选中：透明底 + 灰色细描边（暗态）
+                        bg.setColor(android.graphics.Color.parseColor("#00000000"));
+                        bg.setStroke(dipToPx(1), android.graphics.Color.parseColor("#BDBDBD"));
                     }
                     btn.setBackground(bg);
                 }
