@@ -5305,16 +5305,68 @@ var EditorJS = {
                     vtext.setLayoutParams(vtextParams);
                     vrow.addView(vtext);
 
-                    // === 标记图标（喜欢❤️/路人🚶/坏人😈），emoji 自带颜色，作为选声音参考 ===
-                    var _vmark = getVoiceMark(vopt.value);
-                    if (_vmark === "like" || _vmark === "neutral" || _vmark === "bad") {
-                        var markView = new android.widget.TextView(ctx);
-                        markView.setText(_vmark === "like" ? "❤️" : (_vmark === "bad" ? "😈" : "🚶"));
-                        markView.setTextSize(14);
-                        markView.setSingleLine(true);
-                        markView.setGravity(android.view.Gravity.CENTER);
-                        markView.setPadding(dipToPx(6), 0, dipToPx(4), 0);
-                        vrow.addView(markView);
+                    // === 标记 emoji（❤️喜欢/🚶路人/😈坏人）：点亮式 toggle，可当场标记 ===
+                    // 与角色行一致：点亮=彩色描边圈，未点亮=灰色细描边圈
+                    var _markTag2 = vopt.value;
+                    var _curMark2 = getVoiceMark(_markTag2);
+                    var markChoices2 = [
+                        { emoji: "❤️", mark: "like", color: "#43A047" },
+                        { emoji: "🚶", mark: "neutral", color: "#9E9E9E" },
+                        { emoji: "😈", mark: "bad", color: "#E53935" }
+                    ];
+                    function applyMarkStyle2(btn, mcfg, isOn) {
+                        var bg = new android.graphics.drawable.GradientDrawable();
+                        bg.setShape(android.graphics.drawable.GradientDrawable.RECTANGLE);
+                        bg.setCornerRadius(dipToPx(16));
+                        bg.setColor(android.graphics.Color.parseColor("#00000000"));
+                        if (isOn) {
+                            bg.setStroke(dipToPx(2), android.graphics.Color.parseColor(mcfg.color));
+                        } else {
+                            bg.setStroke(dipToPx(1), android.graphics.Color.parseColor("#BDBDBD"));
+                        }
+                        btn.setBackground(bg);
+                    }
+                    for (var mi2 = 0; mi2 < markChoices2.length; mi2++) {
+                        (function(mcfg) {
+                            var mkBtn = new android.widget.TextView(ctx);
+                            mkBtn.setText(mcfg.emoji);
+                            mkBtn.setTextSize(13);
+                            mkBtn.setSingleLine(true);
+                            mkBtn.setGravity(android.view.Gravity.CENTER);
+                            mkBtn.setPadding(dipToPx(5), dipToPx(4), dipToPx(5), dipToPx(4));
+                            var mkLp = new android.widget.LinearLayout.LayoutParams(
+                                android.widget.LinearLayout.LayoutParams.WRAP_CONTENT,
+                                android.widget.LinearLayout.LayoutParams.WRAP_CONTENT
+                            );
+                            mkLp.setMargins(dipToPx(2), 0, dipToPx(2), 0);
+                            mkBtn.setLayoutParams(mkLp);
+                            applyMarkStyle2(mkBtn, mcfg, (_curMark2 === mcfg.mark));
+                            mkBtn.setOnClickListener(new android.view.View.OnClickListener({
+                                onClick: function(v) {
+                                    try {
+                                        if (getVoiceMark(_markTag2) === mcfg.mark) {
+                                            setVoiceMark(_markTag2, "");
+                                        } else {
+                                            setVoiceMark(_markTag2, mcfg.mark);
+                                        }
+                                        // 局部刷新当前行 emoji 点亮状态
+                                        var newMark = getVoiceMark(_markTag2);
+                                        for (var k = 0; k < vrow.getChildCount(); k++) {
+                                            var ch = vrow.getChildAt(k);
+                                            if (ch && ch._markVal) {
+                                                applyMarkStyle2(ch, { mark: ch._markVal,
+                                                    color: ch._markVal === "like" ? "#43A047"
+                                                         : (ch._markVal === "bad" ? "#E53935" : "#9E9E9E") },
+                                                    (newMark === ch._markVal));
+                                            }
+                                        }
+                                        Toast.makeText(ctx, newMark ? "已标记" : "已取消标记", Toast.LENGTH_SHORT).show();
+                                    } catch (e) { Toast.makeText(ctx, "标记异常: " + e.toString(), Toast.LENGTH_SHORT).show(); }
+                                }
+                            }));
+                            mkBtn._markVal = mcfg.mark;
+                            vrow.addView(mkBtn);
+                        })(markChoices2[mi2]);
                     }
 
                     // === [新增] 试听按钮 ===
