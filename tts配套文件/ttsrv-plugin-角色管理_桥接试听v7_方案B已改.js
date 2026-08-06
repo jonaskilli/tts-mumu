@@ -4011,7 +4011,11 @@ var EditorJS = {
                     var voiceIndex = filteredIndices[position];
                     voiceView.setOnClickListener(new android.view.View.OnClickListener({
                         onClick: function(v) {
-                            showVoiceSelectionDialogForFixByIndex(voiceIndex);
+                            try {
+                                showVoiceSelectionDialogForFixByIndex(voiceIndex);
+                            } catch (e) {
+                                Toast.makeText(ctx, "更换发音人异常: " + e.toString(), Toast.LENGTH_LONG).show();
+                            }
                         }
                     }));
                     row.addView(voiceView);
@@ -4704,10 +4708,10 @@ var EditorJS = {
                 var tag = String(voiceTag);
 
                 // 先查当前 displayName 供显示
-                var currentName = tag;
+                var currentName = String(tag);
                 try {
                     var liveName = ttsrv.getVoiceByTag(tag);
-                    if (liveName) currentName = liveName;
+                    if (liveName) currentName = String(liveName);
                 } catch (e) {}
 
                 var builder = new android.app.AlertDialog.Builder(ctx);
@@ -4883,7 +4887,10 @@ var EditorJS = {
                 }));
                 container.addView(deleteBtn);
 
-                builder.setView(container);
+                // 用 ScrollView 包裹，防止内容超出屏幕底部看不全
+                var mgScrollView = new android.widget.ScrollView(ctx);
+                mgScrollView.addView(container);
+                builder.setView(mgScrollView);
                 voiceManageDlg = builder.create();
                 voiceManageDlg.show();
                 applyDialogRoundCorner(voiceManageDlg);
