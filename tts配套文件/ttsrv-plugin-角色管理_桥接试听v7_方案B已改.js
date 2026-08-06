@@ -4016,131 +4016,52 @@ var EditorJS = {
                     }));
                     row.addView(voiceView);
 
-                    // 标记 emoji 按钮（❤️喜欢/🚶路人/😈坏人）：点亮式 toggle，紧贴发音人标签
-                    // 点亮 = 彩色描边圈；未点亮 = 灰色细描边圈
-                    var _markTag = record.voice;
-                    var _curMark = getVoiceMark(_markTag);
-                    var markChoices = [
-                        { emoji: "❤️", mark: "like", color: "#43A047" },
-                        { emoji: "🚶", mark: "neutral", color: "#9E9E9E" },
-                        { emoji: "😈", mark: "bad", color: "#E53935" }
-                    ];
-                    function applyMarkStyle(btn, mcfg, isOn) {
-                        var bg = new android.graphics.drawable.GradientDrawable();
-                        bg.setShape(android.graphics.drawable.GradientDrawable.RECTANGLE);
-                        bg.setCornerRadius(dipToPx(16));
-                        bg.setColor(android.graphics.Color.parseColor("#00000000"));
-                        if (isOn) {
-                            bg.setStroke(dipToPx(2), android.graphics.Color.parseColor(mcfg.color));
-                        } else {
-                            bg.setStroke(dipToPx(1), android.graphics.Color.parseColor("#BDBDBD"));
+                    // ▶ 试听按钮（紧贴发音人标签后）
+                    var _pvTag = record.voice;
+                    var charPvBtn = new android.widget.TextView(ctx);
+                    charPvBtn.setText("▶");
+                    charPvBtn.setTextSize(16);
+                    charPvBtn.setTextColor(android.graphics.Color.parseColor("#1976D2"));
+                    charPvBtn.setSingleLine(true);
+                    charPvBtn.setGravity(android.view.Gravity.CENTER);
+                    charPvBtn.setPadding(dipToPx(8), dipToPx(8), dipToPx(4), dipToPx(8));
+                    var charPvLp = new android.widget.LinearLayout.LayoutParams(
+                        android.widget.LinearLayout.LayoutParams.WRAP_CONTENT,
+                        android.widget.LinearLayout.LayoutParams.WRAP_CONTENT
+                    );
+                    charPvLp.setMargins(dipToPx(6), 0, dipToPx(4), 0);
+                    charPvBtn.setLayoutParams(charPvLp);
+                    charPvBtn.setOnClickListener(new android.view.View.OnClickListener({
+                        onClick: function(v) {
+                            try { previewVoiceByName(_pvTag, charPvBtn); }
+                            catch (e) { Toast.makeText(ctx, "试听异常: " + e.toString(), Toast.LENGTH_SHORT).show(); }
                         }
-                        btn.setBackground(bg);
-                    }
-                    for (var mi = 0; mi < markChoices.length; mi++) {
-                        (function(mcfg) {
-                            var mkBtn = new android.widget.TextView(ctx);
-                            mkBtn.setText(mcfg.emoji);
-                            mkBtn.setTextSize(13);
-                            mkBtn.setSingleLine(true);
-                            mkBtn.setGravity(android.view.Gravity.CENTER);
-                            mkBtn.setPadding(dipToPx(6), dipToPx(4), dipToPx(6), dipToPx(4));
-                            var mkLp = new android.widget.LinearLayout.LayoutParams(
-                                android.widget.LinearLayout.LayoutParams.WRAP_CONTENT,
-                                android.widget.LinearLayout.LayoutParams.WRAP_CONTENT
-                            );
-                            mkLp.setMargins(dipToPx(2), 0, dipToPx(2), 0);
-                            mkBtn.setLayoutParams(mkLp);
-                            applyMarkStyle(mkBtn, mcfg, (_curMark === mcfg.mark));
-                            mkBtn.setOnClickListener(new android.view.View.OnClickListener({
-                                onClick: function(v) {
-                                    try {
-                                        if (getVoiceMark(_markTag) === mcfg.mark) {
-                                            setVoiceMark(_markTag, "");
-                                        } else {
-                                            setVoiceMark(_markTag, mcfg.mark);
-                                        }
-                                        refreshCharacterList();
-                                    } catch (e) { Toast.makeText(ctx, "标记异常: " + e.toString(), Toast.LENGTH_SHORT).show(); }
-                                }
-                            }));
-                            row.addView(mkBtn);
-                        })(markChoices[mi]);
-                    }
+                    }));
+                    row.addView(charPvBtn);
 
+                    // ⋮ 三点菜单（行末）：改名 / 删除并重分配 / 标记（点亮emoji）
+                    var _mgTag = record.voice;
+                    var charMgBtn = new android.widget.TextView(ctx);
+                    charMgBtn.setText("⋮");
+                    charMgBtn.setTextSize(18);
+                    charMgBtn.setTextColor(android.graphics.Color.parseColor("#757575"));
+                    charMgBtn.setSingleLine(true);
+                    charMgBtn.setGravity(android.view.Gravity.CENTER);
+                    charMgBtn.setPadding(dipToPx(10), dipToPx(8), dipToPx(10), dipToPx(8));
+                    var charMgLp = new android.widget.LinearLayout.LayoutParams(
+                        android.widget.LinearLayout.LayoutParams.WRAP_CONTENT,
+                        android.widget.LinearLayout.LayoutParams.WRAP_CONTENT
+                    );
+                    charMgLp.setMargins(dipToPx(8), 0, dipToPx(2), 0);
+                    charMgBtn.setLayoutParams(charMgLp);
+                    charMgBtn.setOnClickListener(new android.view.View.OnClickListener({
+                        onClick: function(v) {
+                            try { showVoiceManageDialog(_mgTag, null); }
+                            catch (e) { Toast.makeText(ctx, "弹窗异常: " + e.toString(), Toast.LENGTH_SHORT).show(); }
+                        }
+                    }));
+                    row.addView(charMgBtn);
                 }
-            }
-
-            // 试听按钮（角色有发音人时显示）
-            if (record && record.voice) {
-                var charPvBtn = new android.widget.TextView(ctx);
-                charPvBtn.setText("▶");
-                charPvBtn.setTextSize(16);
-                charPvBtn.setTextColor(android.graphics.Color.parseColor("#1976D2"));
-                charPvBtn.setSingleLine(true);
-                charPvBtn.setGravity(android.view.Gravity.CENTER);
-                charPvBtn.setPadding(dipToPx(12), dipToPx(8), dipToPx(6), dipToPx(8));
-                // record.voice 是 tag，试听直接用 tag 查当前分组的配置项
-                var _charPvTag = record.voice;
-                var charPvLp = new android.widget.LinearLayout.LayoutParams(
-                    android.widget.LinearLayout.LayoutParams.WRAP_CONTENT,
-                    android.widget.LinearLayout.LayoutParams.WRAP_CONTENT
-                );
-                charPvLp.setMargins(dipToPx(8), 0, dipToPx(4), 0);
-                charPvBtn.setLayoutParams(charPvLp);
-                charPvBtn.setOnClickListener(new android.view.View.OnClickListener({
-                    onClick: function(v) {
-                        try { previewVoiceByName(_charPvTag, charPvBtn); }
-                        catch (e) { Toast.makeText(ctx, "试听异常: " + e.toString(), Toast.LENGTH_SHORT).show(); }
-                    }
-                }));
-                row.addView(charPvBtn);
-
-                // 改显示名按钮（✎）：独立入口，改配置项 displayName
-                var charRnBtn = new android.widget.TextView(ctx);
-                charRnBtn.setText("✎");
-                charRnBtn.setTextSize(16);
-                charRnBtn.setTextColor(android.graphics.Color.parseColor("#1976D2"));
-                charRnBtn.setSingleLine(true);
-                charRnBtn.setGravity(android.view.Gravity.CENTER);
-                charRnBtn.setPadding(dipToPx(8), dipToPx(8), dipToPx(6), dipToPx(8));
-                var charRnLp = new android.widget.LinearLayout.LayoutParams(
-                    android.widget.LinearLayout.LayoutParams.WRAP_CONTENT,
-                    android.widget.LinearLayout.LayoutParams.WRAP_CONTENT
-                );
-                charRnLp.setMargins(dipToPx(4), 0, dipToPx(4), 0);
-                charRnBtn.setLayoutParams(charRnLp);
-                var _charRnTag = record.voice;
-                charRnBtn.setOnClickListener(new android.view.View.OnClickListener({
-                    onClick: function(v) {
-                        try { doRenameVoice(_charRnTag, null); }
-                        catch (e) { Toast.makeText(ctx, "改名弹窗异常: " + e.toString(), Toast.LENGTH_SHORT).show(); }
-                    }
-                }));
-                row.addView(charRnBtn);
-
-                // ✖ 删除按钮（行末）：删除该发音人配置并自动重分配受影响角色
-                var delVoiceBtn = new android.widget.TextView(ctx);
-                delVoiceBtn.setText("✖");
-                delVoiceBtn.setTextSize(14);
-                delVoiceBtn.setTextColor(android.graphics.Color.parseColor("#E53935"));
-                delVoiceBtn.setSingleLine(true);
-                delVoiceBtn.setGravity(android.view.Gravity.CENTER);
-                delVoiceBtn.setPadding(dipToPx(6), dipToPx(8), dipToPx(6), dipToPx(8));
-                var delVLp = new android.widget.LinearLayout.LayoutParams(
-                    android.widget.LinearLayout.LayoutParams.WRAP_CONTENT,
-                    android.widget.LinearLayout.LayoutParams.WRAP_CONTENT
-                );
-                delVLp.setMargins(dipToPx(10), 0, dipToPx(2), 0); // 加大左边距，与试听/改名隔开
-                delVoiceBtn.setLayoutParams(delVLp);
-                var _delTag = record.voice;
-                delVoiceBtn.setOnClickListener(new android.view.View.OnClickListener({
-                    onClick: function(v) {
-                        try { doDeleteVoiceAndReassign(_delTag, null); }
-                        catch (e) { Toast.makeText(ctx, "删除异常: " + e.toString(), Toast.LENGTH_SHORT).show(); }
-                    }
-                }));
-                row.addView(delVoiceBtn);
             }
 
             // 右侧圆形选中指示器已移除（选中状态通过背景色体现）
@@ -4902,6 +4823,36 @@ var EditorJS = {
                     })(markOptions[mi]);
                 }
                 container.addView(markRow);
+
+                // 改名按钮（单独一行）
+                var renameBtn = new android.widget.TextView(ctx);
+                renameBtn.setText("✎ 改显示名");
+                renameBtn.setTextSize(15);
+                renameBtn.setTextColor(android.graphics.Color.parseColor("#1976D2"));
+                renameBtn.setSingleLine(true);
+                renameBtn.setGravity(android.view.Gravity.CENTER);
+                var rnBg = new android.graphics.drawable.GradientDrawable();
+                rnBg.setShape(android.graphics.drawable.GradientDrawable.RECTANGLE);
+                rnBg.setCornerRadius(dipToPx(10));
+                rnBg.setColor(android.graphics.Color.parseColor("#E3F2FD"));
+                rnBg.setStroke(dipToPx(1), android.graphics.Color.parseColor("#BBDEFB"));
+                renameBtn.setBackground(rnBg);
+                renameBtn.setPadding(dipToPx(14), dipToPx(12), dipToPx(14), dipToPx(12));
+                renameBtn.setClickable(true);
+                renameBtn.setOnClickListener(new android.view.View.OnClickListener({
+                    onClick: function(v) {
+                        try {
+                            voiceManageDlg.dismiss();
+                            new android.os.Handler(android.os.Looper.getMainLooper()).post(new java.lang.Runnable({
+                                run: function() {
+                                    try { doRenameVoice(tag, onChange); }
+                                    catch (e) { Toast.makeText(ctx, "改名异常: " + e.toString(), Toast.LENGTH_SHORT).show(); }
+                                }
+                            }));
+                        } catch (e) { Toast.makeText(ctx, "操作异常: " + e.toString(), Toast.LENGTH_SHORT).show(); }
+                    }
+                }));
+                container.addView(renameBtn);
 
                 // 删除按钮（单独一行，与标签分隔）
                 var deleteBtn = new android.widget.TextView(ctx);
