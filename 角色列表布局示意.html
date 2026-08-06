@@ -1,0 +1,304 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>角色列表布局示意</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", sans-serif;
+    background: #f5f5f5;
+    padding: 16px;
+    color: #333;
+  }
+  h2 { font-size: 16px; margin: 16px 0 8px; color: #1976D2; }
+  .panel {
+    background: #fff;
+    border-radius: 12px;
+    padding: 12px;
+    margin-bottom: 20px;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.08);
+  }
+  .panel-title {
+    font-size: 13px;
+    color: #757575;
+    margin-bottom: 10px;
+    padding-bottom: 6px;
+    border-bottom: 1px solid #eee;
+  }
+
+  /* 角色行 - 单行布局(现状) */
+  .char-row-single {
+    display: flex;
+    align-items: center;
+    padding: 12px 14px;
+    background: #fff;
+    border-radius: 10px;
+    border: 1px solid #10000000;
+    margin-bottom: 6px;
+    min-height: 52px;
+  }
+  .char-row-single .name-area {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
+  }
+  .dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
+  .dot.male { background: #1976D2; }
+  .dot.female { background: #E91E63; }
+  .dot.gray { background: #9E9E9E; }
+  .char-name {
+    font-size: 16px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .crown { font-size: 14px; }
+  .fav { color: #FF9800; font-weight: bold; }
+
+  /* 发音人标签 */
+  .voice-tag {
+    font-size: 13px;
+    background: #E3F2FD;
+    padding: 5px 10px;
+    border-radius: 8px;
+    white-space: nowrap;
+    flex-shrink: 0;
+    margin-left: 10px;
+  }
+  .voice-tag.long {
+    font-size: 12px;
+  }
+  .btn {
+    font-size: 16px;
+    color: #1976D2;
+    padding: 0 4px;
+    flex-shrink: 0;
+    cursor: pointer;
+  }
+  .btn.menu { color: #757575; font-size: 18px; padding: 0 8px; }
+
+  /* emoji 标记(点亮式) */
+  .mark-emoji {
+    font-size: 13px;
+    padding: 4px 5px;
+    border-radius: 16px;
+    border: 1px solid #BDBDBD;
+    flex-shrink: 0;
+    margin: 0 2px;
+  }
+  .mark-emoji.on-like { border: 2px solid #43A047; }
+  .mark-emoji.on-bad { border: 2px solid #E53935; }
+  .mark-emoji.on-neutral { border: 2px solid #9E9E9E; }
+
+  /* 角色行 - 两行布局 */
+  .char-row-two {
+    padding: 10px 14px;
+    background: #fff;
+    border-radius: 10px;
+    border: 1px solid #10000000;
+    margin-bottom: 6px;
+  }
+  .row-line1 {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 6px;
+  }
+  .row-line1 .char-name {
+    flex: 1;
+    min-width: 0;
+  }
+  .row-line2 {
+    display: flex;
+    align-items: center;
+    padding-left: 15px; /* 缩进对齐圆点后 */
+    gap: 6px;
+    flex-wrap: wrap;
+  }
+  .row-line2 .voice-tag { margin-left: 0; }
+
+  .label-tag {
+    display: inline-block;
+    font-size: 11px;
+    color: #fff;
+    background: #FF7043;
+    padding: 1px 6px;
+    border-radius: 4px;
+    margin-left: 6px;
+  }
+  .note {
+    font-size: 12px;
+    color: #9E9E9E;
+    margin-top: 8px;
+    line-height: 1.5;
+  }
+  .case-label {
+    font-size: 11px;
+    color: #9E9E9E;
+    margin-bottom: 4px;
+    margin-top: 10px;
+  }
+</style>
+</head>
+<body>
+
+<h2>方案对比：displayName 完整显示</h2>
+
+<!-- 方案A: 单行(现状, displayName被缩短) -->
+<div class="panel">
+  <div class="panel-title">方案A：单行布局（现状）— displayName 被 shortenDisplayName 缩短</div>
+
+  <div class="case-label">短名字 + 有发音人</div>
+  <div class="char-row-single">
+    <div class="name-area">
+      <span class="dot female"></span>
+      <span class="char-name">霓商</span>
+    </div>
+    <span class="voice-tag">霓商</span>
+    <span class="btn">▶</span>
+    <span class="btn menu">⋮</span>
+  </div>
+
+  <div class="case-label">长名字 + 有发音人（被缩短）</div>
+  <div class="char-row-single">
+    <div class="name-area">
+      <span class="dot male"></span>
+      <span class="char-name">莱恩哈特</span>
+    </div>
+    <span class="voice-tag">莱恩哈特</span>
+    <span class="btn">▶</span>
+    <span class="btn menu">⋮</span>
+  </div>
+
+  <p class="note">问题：原始名"鹿·霓商-马海燕"被缩成"霓商"，丢失了前缀分类和声优信息</p>
+</div>
+
+<!-- 方案B: 单行 + 完整displayName -->
+<div class="panel">
+  <div class="panel-title">方案B：单行布局 — displayName 完整显示（不缩短）</div>
+
+  <div class="case-label">短名字 + 有发音人</div>
+  <div class="char-row-single">
+    <div class="name-area">
+      <span class="dot female"></span>
+      <span class="char-name">鹿·霓商-马海燕</span>
+    </div>
+    <span class="voice-tag long">鹿·霓商-马海燕</span>
+    <span class="btn">▶</span>
+    <span class="btn menu">⋮</span>
+  </div>
+
+  <div class="case-label">超长名字 + 有发音人（挤压缩短）</div>
+  <div class="char-row-single">
+    <div class="name-area">
+      <span class="dot male"></span>
+      <span class="char-name">游音·莱恩哈特-明日方舟</span>
+    </div>
+    <span class="voice-tag long">游音·莱恩…</span>
+    <span class="btn">▶</span>
+    <span class="btn menu">⋮</span>
+  </div>
+
+  <p class="note">问题：长名字时发音人标签被挤压，按钮区拥挤；名字和标签重复显示</p>
+</div>
+
+<!-- 方案C: 两行布局(推荐) -->
+<div class="panel">
+  <div class="panel-title">方案C：两行布局（推荐）— 第一行完整名字，第二行发音人操作区</div>
+
+  <div class="case-label">短名字 + 有发音人</div>
+  <div class="char-row-two">
+    <div class="row-line1">
+      <span class="dot female"></span>
+      <span class="char-name">霓商</span>
+    </div>
+    <div class="row-line2">
+      <span class="voice-tag">鹿·霓商-马海燕</span>
+      <span class="mark-emoji on-like">❤️</span>
+      <span class="mark-emoji">🚶</span>
+      <span class="mark-emoji">😈</span>
+      <span class="btn">▶</span>
+      <span class="btn menu">⋮</span>
+    </div>
+  </div>
+
+  <div class="case-label">长名字 + 有发音人（名字超长省略号）</div>
+  <div class="char-row-two">
+    <div class="row-line1">
+      <span class="dot male"></span>
+      <span class="char-name">游音·莱恩哈特-明日方舟</span>
+    </div>
+    <div class="row-line2">
+      <span class="voice-tag">游音·莱恩哈特-明日方舟</span>
+      <span class="mark-emoji">❤️</span>
+      <span class="mark-emoji on-neutral">🚶</span>
+      <span class="mark-emoji">😈</span>
+      <span class="btn">▶</span>
+      <span class="btn menu">⋮</span>
+    </div>
+  </div>
+
+  <div class="case-label">主角 + 收藏（第一行带标记）</div>
+  <div class="char-row-two">
+    <div class="row-line1">
+      <span class="dot male"></span>
+      <span class="char-name"><span class="fav">【</span>旅行者<span class="fav">】</span> <span class="crown">👑</span></span>
+    </div>
+    <div class="row-line2">
+      <span class="voice-tag">爽快思思</span>
+      <span class="mark-emoji on-like">❤️</span>
+      <span class="mark-emoji">🚶</span>
+      <span class="mark-emoji">😈</span>
+      <span class="btn">▶</span>
+      <span class="btn menu">⋮</span>
+    </div>
+  </div>
+
+  <div class="case-label">无发音人（只第一行，不空旷）</div>
+  <div class="char-row-two">
+    <div class="row-line1">
+      <span class="dot gray"></span>
+      <span class="char-name">路人甲</span>
+    </div>
+  </div>
+
+  <p class="note">
+    优点：<br>
+    ① 完整 displayName 放第二行发音人标签，不丢失信息<br>
+    ② 短名字不突兀，因为下面有发音人操作行撑着<br>
+    ③ emoji 标记(点亮式)收回第二行，和试听/菜单一起，第一行更干净<br>
+    ④ 长名字超长时省略号，不影响第二行按钮<br>
+    ⑤ 无发音人时只有一行，自然不空
+  </p>
+</div>
+
+<!-- 方案D: 两行 + 名字和标签都完整 -->
+<div class="panel">
+  <div class="panel-title">方案D：两行布局 — 第一行角色名，第二行完整发音人信息（含emoji+按钮）</div>
+
+  <div class="case-label">长名字 + 已标记喜欢</div>
+  <div class="char-row-two">
+    <div class="row-line1">
+      <span class="dot male"></span>
+      <span class="char-name">钟离</span>
+      <span class="label-tag">主角</span>
+    </div>
+    <div class="row-line2">
+      <span class="voice-tag">游音·钟离-原神</span>
+      <span class="mark-emoji on-like">❤️</span>
+      <span class="mark-emoji">🚶</span>
+      <span class="mark-emoji">😈</span>
+      <span class="btn">▶</span>
+      <span class="btn menu">⋮</span>
+    </div>
+  </div>
+
+  <p class="note">与方案C区别：第一行只放角色名(短)，完整displayName放第二行标签。角色名和发音人名分离，最清晰</p>
+</div>
+
+</body>
+</html>
