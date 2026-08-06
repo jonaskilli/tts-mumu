@@ -1569,13 +1569,13 @@ var EditorJS = {
                 ssb.setSpan(new android.text.style.ForegroundColorSpan(CLR_WARN), warnStart, ssb.length(), SPAN);
             }
 
-            // 追加发音人标记图标（喜欢❤️/路人🚶/坏人👎），作为选声音参考
+            // 追加发音人标记图标（喜欢❤️/路人🚶/坏人😈），作为选声音参考
             try {
                 var mk = getVoiceMark(voiceTag);
                 if (mk === "like" || mk === "neutral" || mk === "bad") {
                     ssb.append(" ");
                     var markStart = ssb.length();
-                    ssb.append(mk === "like" ? "❤️" : (mk === "bad" ? "👎" : "🚶"));
+                    ssb.append(mk === "like" ? "❤️" : (mk === "bad" ? "😈" : "🚶"));
                     var markColor = mk === "like" ? "#43A047"
                                   : (mk === "bad" ? "#E53935" : "#9E9E9E");
                     ssb.setSpan(new android.text.style.ForegroundColorSpan(android.graphics.Color.parseColor(markColor)), markStart, ssb.length(), SPAN);
@@ -4761,7 +4761,7 @@ var EditorJS = {
                 var options = [
                     { text: "❤️ 喜欢", color: "#43A047", action: "mark_like" },
                     { text: "🚶 路人", color: "#9E9E9E", action: "mark_neutral" },
-                    { text: "👎 坏人", color: "#E53935", action: "mark_bad" },
+                    { text: "😈 坏人", color: "#E53935", action: "mark_bad" },
                     { text: "✖ 不喜欢，删除", color: "#E53935", action: "delete" }
                 ];
 
@@ -4891,7 +4891,7 @@ var EditorJS = {
         function getVoiceMarkLabel(tag) {
             var m = getVoiceMark(tag);
             if (m === "like") return "❤️ 喜欢";
-            if (m === "bad") return "👎 坏人";
+            if (m === "bad") return "😈 坏人";
             if (m === "neutral") return "🚶 路人";
             return "未标记";
         }
@@ -5266,11 +5266,11 @@ var EditorJS = {
                     vtext.setLayoutParams(vtextParams);
                     vrow.addView(vtext);
 
-                    // === 标记图标（喜欢❤️/路人🚶/坏人👎），作为选声音参考 ===
+                    // === 标记图标（喜欢❤️/路人🚶/坏人😈），作为选声音参考 ===
                     var _vmark = getVoiceMark(vopt.value);
                     if (_vmark === "like" || _vmark === "neutral" || _vmark === "bad") {
                         var markView = new android.widget.TextView(ctx);
-                        markView.setText(_vmark === "like" ? "❤️" : (_vmark === "bad" ? "👎" : "🚶"));
+                        markView.setText(_vmark === "like" ? "❤️" : (_vmark === "bad" ? "😈" : "🚶"));
                         markView.setTextSize(14);
                         var _markColor = _vmark === "like" ? "#43A047"
                                        : (_vmark === "bad" ? "#E53935" : "#9E9E9E");
