@@ -4856,7 +4856,7 @@ var EditorJS = {
 
                 // 删除按钮（单独一行，与标签分隔）
                 var deleteBtn = new android.widget.TextView(ctx);
-                deleteBtn.setText("✖ 不喜欢，删除");
+                deleteBtn.setText("✖ 删除并重分配");
                 deleteBtn.setTextSize(15);
                 deleteBtn.setTextColor(android.graphics.Color.parseColor("#E53935"));
                 deleteBtn.setSingleLine(true);
