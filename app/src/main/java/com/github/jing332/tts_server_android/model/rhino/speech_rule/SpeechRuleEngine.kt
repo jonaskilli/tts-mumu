@@ -46,7 +46,8 @@ class SpeechRuleEngine(
 
 
     private val objJS
-        get() = engine.get(OBJ_JS) as NativeObject
+        get() = engine.get(OBJ_JS) as? NativeObject
+            ?: throw NullPointerException("朗读规则未定义 SpeechRuleJS 对象，请检查JS代码顶部是否有 var SpeechRuleJS = {...}")
 
     fun eval() {
         engine.execute(rule.code.toScriptSource())
