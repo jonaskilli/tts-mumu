@@ -4695,6 +4695,7 @@ var EditorJS = {
         // 删除流程：删配置项 → 从 fayinren.json 删 tag → 调用朗读规则重分配受影响角色 → 刷新
         // 标记流程：写 voice_marks.json → 刷新
         function showVoiceManageDialog(voiceTag, onChange) {
+            var voiceManageDlg = null; // 提前声明，避免 onClick 闭包引用未赋值变量
             try {
                 if (!voiceTag) {
                     Toast.makeText(ctx, "无发音人可管理", Toast.LENGTH_SHORT).show();
@@ -4883,7 +4884,7 @@ var EditorJS = {
                 container.addView(deleteBtn);
 
                 builder.setView(container);
-                var voiceManageDlg = builder.create();
+                voiceManageDlg = builder.create();
                 voiceManageDlg.show();
                 applyDialogRoundCorner(voiceManageDlg);
             } catch (e) {
@@ -5516,19 +5517,19 @@ var EditorJS = {
                             try {
                                 var liveName = ttsrv.getVoiceByTag(tag);
                                 if (liveName) displayName = shortenDisplayName(liveName);
-                            } catch (e) {}
+                            } catch (e) { console.log("getVoiceByTag失败 tag=" + tag + ": " + e.toString()); }
                             items.push({ name: displayName, value: tag });
                         }
                         mainHandler.post(new java.lang.Runnable({
                             run: function () {
                                 try { showFilteredVoiceDialog(items, callback); }
-                                catch (e) { Toast.makeText(ctx, "加载发音人失败: " + e.toString(), Toast.LENGTH_SHORT).show(); }
+                                catch (e) { Toast.makeText(ctx, "加载发音人失败: " + e.toString() + " (showFilteredVoiceDialog)", Toast.LENGTH_LONG).show(); }
                             }
                         }));
                     } catch (e) {
                         mainHandler.post(new java.lang.Runnable({
                             run: function () {
-                                Toast.makeText(ctx, "加载发音人失败: " + e.toString(), Toast.LENGTH_SHORT).show();
+                                Toast.makeText(ctx, "加载发音人失败: " + e.toString() + " (子线程)", Toast.LENGTH_LONG).show();
                             }
                         }));
                     }
