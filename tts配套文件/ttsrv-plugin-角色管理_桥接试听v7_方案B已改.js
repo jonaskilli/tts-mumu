@@ -6742,6 +6742,19 @@ var EditorJS = {
         // keyword 为字符串时（含空串）：按关键词重新过滤（来自搜索框输入）
         // keyword 为 undefined 时（操作后刷新）：保持当前搜索结果集不变，仅更新显示文本
         function refreshCharacterList(keyword) {
+            // 线程保护：非主线程调用时，切回主线程执行，避免 CalledFromWrongThreadException
+            try {
+                if (android.os.Looper.myLooper() !== android.os.Looper.getMainLooper()) {
+                    var _kw = keyword;
+                    new android.os.Handler(android.os.Looper.getMainLooper()).post(new java.lang.Runnable({
+                        run: function() {
+                            try { refreshCharacterList(_kw); }
+                            catch (e) { _logErr("refreshCharacterList主线程重入", e, false); }
+                        }
+                    }));
+                    return;
+                }
+            } catch (eThread) { /* 线程检查失败则继续往下走 */ }
             try {
                 // 未传 keyword（操作后刷新）时，沿用当前搜索词，保持搜索结果不跳回全部；
                 // 显式传入（含搜索框清空传""）则记住为当前搜索词
@@ -7082,16 +7095,23 @@ var EditorJS = {
         try {
             _initFayinrenMapCache(true);
             console.log("onVoiceChanged: personality缓存已强制刷新");
-            // 刷新角色列表，获取当前已启用配置项的实际发音人
+            // 注意：onVoiceChanged 由 tts-server 在协程后台线程触发，
+            // 刷新角色列表会操作UI（mergeListView等），必须切回主线程，否则抛
+            // CalledFromWrongThreadException / Can't toast on a thread without Looper
             try {
                 if (_refreshCharacterListFn) {
-                    _refreshCharacterListFn();
+                    new android.os.Handler(android.os.Looper.getMainLooper()).post(new java.lang.Runnable({
+                        run: function() {
+                            try { _refreshCharacterListFn(); }
+                            catch (e) { _logErr("onVoiceChanged主线程刷新列表", e, false); }
+                        }
+                    }));
                 } else {
                     console.warn("onVoiceChanged: refreshCharacterList 尚未初始化（onLoadUI 未执行）");
                 }
-            } catch (eRef) { console.error("onVoiceChanged刷新列表失败: " + eRef.toString()); }
+            } catch (eRef) { _logErr("onVoiceChanged刷新列表失败", eRef, false); }
         } catch (e) {
-            console.error("onVoiceChanged刷新缓存失败: " + e.toString());
+            _logErr("onVoiceChanged刷新缓存失败", e, false);
         }
     }
   }
