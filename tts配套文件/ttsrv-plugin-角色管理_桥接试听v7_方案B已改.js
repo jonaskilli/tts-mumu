@@ -4014,7 +4014,7 @@ var EditorJS = {
                             try {
                                 showVoiceSelectionDialogForFixByIndex(voiceIndex);
                             } catch (e) {
-                                Toast.makeText(ctx, "更换发音人异常: " + e.toString(), Toast.LENGTH_LONG).show();
+                                _logErr("更换发音人异常-标签点击", e, true);
                             }
                         }
                     }));
@@ -4061,7 +4061,7 @@ var EditorJS = {
                     charMgBtn.setOnClickListener(new android.view.View.OnClickListener({
                         onClick: function(v) {
                             try { showVoiceManageDialog(_mgTag, null); }
-                            catch (e) { Toast.makeText(ctx, "弹窗异常: " + e.toString(), Toast.LENGTH_SHORT).show(); }
+                            catch (e) { _logErr("角色行⋮弹窗异常", e, true); }
                         }
                     }));
                     row.addView(charMgBtn);
@@ -4712,7 +4712,7 @@ var EditorJS = {
                 try {
                     var liveName = ttsrv.getVoiceByTag(tag);
                     if (liveName) currentName = String(liveName);
-                } catch (e) {}
+                } catch (e) { _logErr("getVoiceByTag-displayName", e, false); }
 
                 var builder = new android.app.AlertDialog.Builder(ctx);
                 var container = new android.widget.LinearLayout(ctx);
@@ -4723,7 +4723,7 @@ var EditorJS = {
                 // 当前发音人信息
                 var infoView = new android.widget.TextView(ctx);
                 var _markLabel = "未标记";
-                try { _markLabel = String(getVoiceMarkLabel(tag)); } catch (e) {}
+                try { _markLabel = String(getVoiceMarkLabel(tag)); } catch (e) { _logErr("getVoiceMarkLabel", e, false); }
                 infoView.setText(String("标签：" + tag + "\n显示名：" + currentName + "\n标记：" + _markLabel));
                 infoView.setTextSize(13);
                 infoView.setTextColor(android.graphics.Color.parseColor("#757575"));
@@ -4903,7 +4903,7 @@ var EditorJS = {
                 voiceManageDlg.show();
                 applyDialogRoundCorner(voiceManageDlg);
             } catch (e) {
-                Toast.makeText(ctx, "弹窗异常: " + e.toString(), Toast.LENGTH_SHORT).show();
+                _logErr("showVoiceManageDialog最外层弹窗异常", e, true);
             }
         }
 
@@ -5376,7 +5376,7 @@ var EditorJS = {
                                                 (newMark === oe2.mark));
                                         }
                                         Toast.makeText(ctx, newMark ? "已标记" : "已取消标记", Toast.LENGTH_SHORT).show();
-                                    } catch (e) { Toast.makeText(ctx, "标记异常: " + e.toString(), Toast.LENGTH_SHORT).show(); }
+                                    } catch (e) { _logErr("标记异常-showVoiceManageDialog", e, true); }
                                 }
                             }));
                             vrow.addView(mkBtn);
@@ -5428,7 +5428,7 @@ var EditorJS = {
                                 showVoiceManageDialog(_mgVoiceTag, function() {
                                     try { _mgDialog.dismiss(); } catch (e) {}
                                 });
-                            } catch (e) { Toast.makeText(ctx, "管理弹窗异常: " + e.toString(), Toast.LENGTH_SHORT).show(); }
+                            } catch (e) { _logErr("管理弹窗异常-showFilteredVoiceDialog", e, true); }
                         }
                     }));
                     vrow.addView(mgBtn);
@@ -5536,13 +5536,13 @@ var EditorJS = {
                         mainHandler.post(new java.lang.Runnable({
                             run: function () {
                                 try { showFilteredVoiceDialog(items, callback); }
-                                catch (e) { Toast.makeText(ctx, "加载发音人失败: " + e.toString() + " (showFilteredVoiceDialog)", Toast.LENGTH_LONG).show(); }
+                                catch (e) { _logErr("加载发音人失败-showFilteredVoiceDialog", e, true); }
                             }
                         }));
                     } catch (e) {
                         mainHandler.post(new java.lang.Runnable({
                             run: function () {
-                                Toast.makeText(ctx, "加载发音人失败: " + e.toString() + " (子线程)", Toast.LENGTH_LONG).show();
+                                _logErr("加载发音人失败-子线程", e, true);
                             }
                         }));
                     }
@@ -5554,7 +5554,26 @@ var EditorJS = {
         function dipToPx(dip) {
             return Math.round(dip * ctx.getResources().getDisplayMetrics().density);
         }
-        
+
+        // ===== 错误日志落盘工具（调试用，便于排查弹窗/标记/搜索类异常）=====
+        // 用法：_logErr("位置标签", e) 或 _logErr("位置标签", e, true) 同时弹Toast
+        var _ERR_LOG_FILE = "ttsrv_plugin_error.log";
+        function _logErr(tag, e, showToast) {
+            try {
+                var ts = new java.text.SimpleDateFormat("MM-dd HH:mm:ss.SSS", java.util.Locale.US).format(new java.util.Date());
+                var msg = "[" + ts + "] [" + tag + "] " + (e && e.toString ? e.toString() : String(e)) + "\n";
+                console.error(msg);
+                try {
+                    var old = "";
+                    try { old = ttsrv.readTxtFile(_ERR_LOG_FILE) || ""; } catch (e2) {}
+                    ttsrv.writeTxtFile(_ERR_LOG_FILE, old + msg);
+                } catch (e3) {}
+                if (showToast) {
+                    try { Toast.makeText(ctx, "[" + tag + "] " + (e && e.toString ? e.toString() : String(e)), Toast.LENGTH_LONG).show(); } catch (e4) {}
+                }
+            } catch (e5) {}
+        }
+
         // 合并时弹出关键词选择弹窗
         function showVoiceSelectionDialogForMerge() {
             showKeywordSelectionDialog(function(selectedVoice) {
@@ -5994,7 +6013,7 @@ var EditorJS = {
                 longPressedIndex = charIndex;
                 showVoiceSelectionDialogForFix();
             } catch (e) {
-                Toast.makeText(ctx, "更换发音人入口异常: " + e.toString(), Toast.LENGTH_LONG).show();
+                _logErr("更换发音人入口异常-showVoiceSelectionDialogForFixByIndex", e, true);
             }
         }
 
