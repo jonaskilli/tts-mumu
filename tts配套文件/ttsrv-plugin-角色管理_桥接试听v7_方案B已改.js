@@ -26,6 +26,10 @@ var PRESET_KEYWORDS_ROW6 = ["女主", "男主"];
 var _fayinrenMapCache = null;        // 正向映射：存储值 → 显示值
 var _fayinrenReverseMapCache = null; // 反向映射：显示值 → 存储值
 
+// 持有 onLoadUI 内部 refreshCharacterList 的引用，供 onVoiceChanged 等模块级回调跨作用域调用
+// （refreshCharacterList 定义在 onLoadUI 闭包内，模块级方法无法直接访问）
+var _refreshCharacterListFn = null;
+
 function _initFayinrenMapCache(forceRefresh) {
     if (!forceRefresh && _fayinrenMapCache !== null) return; // 已初始化则跳过（除非强制刷新）
     _fayinrenMapCache = {};
@@ -165,7 +169,7 @@ var EditorJS = {
         } else {
             console.log("自动备份关闭，不执行");
         }
-  
+
         
         // ↑ 修正结束 ↑
   
@@ -183,10 +187,7 @@ var EditorJS = {
                 var fayinrenJson = ttsrv.readTxtFile("fayinren.json");
                 if (fayinrenJson) {
                     fayinrenList = JSON.parse(fayinrenJson);
-                    // 执行正向映射（存储值→显示值）
-                    for (var i = 0; i < fayinrenList.length; i++) {
-                        fayinrenList[i] = replaceFayinrenName(fayinrenList[i]);
-                    }
+                    // 方案B：fayinrenList 保持 tag 原值（如"女青年01"），不做 replaceFayinrenName 转换
                     // 按类别+序号排序
                     fayinrenList.sort(function (a, b) {
                         var reA = String(a).match(/^(.+?)(\d+)/);
@@ -1398,11 +1399,8 @@ var EditorJS = {
                     console.log("角色数据文件为空或无角色，使用空列表");
                 } else {
                     characterRecords = JSON.parse(data) || [];
-                    // ↓ 纯ES5写法：替换箭头函数为forEach普通函数
-                    characterRecords.forEach(function(char) {
-                      char.voice = replaceFayinrenName(char.voice || "");
-                    });
-                    // ↑ 新增结束
+                    // record.voice 保持 tag 原值（如"女青年01"），不做 replaceFayinrenName 转换
+                    // 标签显示由 generateVoiceTag 通过 getVoiceByTag(tag) 实时查询当前分组
                 }
             } catch (e) {
                 console.log("读取角色数据失败: " + e.toString());
@@ -1519,49 +1517,41 @@ var EditorJS = {
             return ssb;
         }
 
-        // 方案B-实时映射：通过 app 接口实时查询配置项是否仍存在。
-        // character.voice 存的是 displayName（loadRecords 时经 replaceFayinrenName 转换），
-        // fayinrenList 元素也经 replaceFayinrenName 转换为 displayName。
-        // getVoiceByTag 用 findConfigByTag 五级匹配（第4级匹配 displayName），查到说明配置项仍启用。
+        // 方案B-实时映射：通过 app 接口实时查询配置项是否在当前前台分组启用。
+        // character.voice 存的是底层voice（稳定标识），
+        // getVoiceByTag(底层voice) 查当前分组，查到说明启用，查不到说明该voice不在当前分组→⚠。
         function isVoiceTagValid(voice) {
             if (!voice) return false;
             try {
-                // 先查 fayinrenList（从文件加载的可用发音人列表，元素为 displayName）
-                for (var i = 0; i < fayinrenList.length; i++) {
-                    if (fayinrenList[i] === voice) return true;
-                }
-                // 文件列表没查到时，实时查 app 配置项（voice 可能刚切换，文件还没更新）
-                var liveName = ttsrv.getVoiceByTag(voice);
-                if (liveName) return true;
-                return false;
+                return ttsrv.getVoiceByTag(voice) !== null;
             } catch (e) {
-                // 接口异常时回退到文件列表校验
                 return false;
             }
         }
 
-        // 生成发音人标签（方案B-实时映射）：
-        // character.voice 是 displayName（loadRecords 时经 replaceFayinrenName 转换），
-        // 通过 getVoiceByTag 实时获取 displayName 显示。
-        // 查不到（配置项已删除）时显示 voice 本身 + ⚠。
+        // 生成发音人标签：
+        // record.voice 存的是 tag（如"女青年01"），稳定不随分组变化。
+        // 用 tag 查 getVoiceByTag（L1匹配 tag==入参），返回当前前台分组该tag绑的配置项displayName（发音人名）。
+        // 切分组后重新查 → 自动跟随新分组的发音人名。
+        // 查不到（该tag在当前分组无配置项）时显示 tag + ⚠。
         function generateVoiceTag(character) {
             if (!character || !character.voice) return null;
 
-            var underlyingVoice = String(character.voice);
-            var displayText = underlyingVoice;
+            var voiceTag = String(character.voice);
+            var displayText = voiceTag;
             var isValid = false;
 
-            // 实时查询配置项的 displayName
+            // 用 tag 查当前前台分组的发音人 displayName
             try {
-                var liveName = ttsrv.getVoiceByTag(underlyingVoice);
+                var liveName = ttsrv.getVoiceByTag(voiceTag);
                 if (liveName) {
-                    displayText = liveName;
+                    displayText = shortenDisplayName(liveName);
                     isValid = true;
+                } else {
+                    isValid = false;
                 }
             } catch (e) {
-                // 查询失败时回退到文件映射
-                displayText = replaceFayinrenName(underlyingVoice);
-                isValid = isVoiceTagValid(underlyingVoice);
+                isValid = false;
             }
 
             var ssb = new android.text.SpannableStringBuilder();
@@ -1578,6 +1568,15 @@ var EditorJS = {
                 ssb.append(" ⚠");
                 ssb.setSpan(new android.text.style.ForegroundColorSpan(CLR_WARN), warnStart, ssb.length(), SPAN);
             }
+
+            // 追加发音人标记图标（喜欢❤️/路人🚶/坏人😈），emoji 自带颜色，无需额外设色
+            try {
+                var mk = getVoiceMark(voiceTag);
+                if (mk === "like" || mk === "neutral" || mk === "bad") {
+                    ssb.append(" ");
+                    ssb.append(mk === "like" ? "❤️" : (mk === "bad" ? "😈" : "🚶"));
+                }
+            } catch (e) {}
 
             return ssb;
         }
@@ -1601,6 +1600,49 @@ var EditorJS = {
             }
             // 无法拆分时整体作为tag
             return { tag: voiceText, persona: "" };
+        }
+
+        // 缩减 displayName，保留发音人名：
+        // 结构：前缀(分类) · 发音人名 - 后缀(声优本名/游戏来源/空)
+        //   如 "鹿·霓商" → "霓商"，"鹿·华月-马海燕" → "华月"，"游音·莱恩哈特-明日方舟" → "莱恩哈特"
+        // 其他结构：
+        //   发音人名 描述   (如 "爽快思思 女|青年|直率") → 保留空格前的发音人名
+        //   名字 [注释]     (如 "玛薇卡 [上新优化]")     → 去[]注释
+        // 规则：
+        // 1) 去 [xxx] 注释
+        // 2) 有 · • ：先按 - 取前段(去后缀)，再按 · • 取最后段(去前缀)，得到发音人名
+        // 3) 无 · • ：去空格后的描述部分(保留空格前)，超过 MAX 字则截断
+        var DISPLAY_NAME_MAX = 8;
+        function shortenDisplayName(name) {
+            if (!name) return "";
+            var s = String(name).trim();
+            // 1) 去括号内的注释/来源（半角[]、全角【】、全角［］、半角/全角圆括号）
+            s = s.replace(/\s*[(\[{【［（].*?[)\]}】］）]\s*/g, "").trim();
+            if (s === "") return "";
+
+            // 2) 有 · • ：取发音人名（中间段）
+            if (/[·•]/.test(s)) {
+                // 先按 - 取前段（去声优本名/游戏来源后缀）
+                var dashParts = s.split(/[\-—]/);
+                var main = dashParts[0].trim();
+                // 再按 · • 取最后段（去前缀分类）
+                var dotParts = main.split(/[·•]/);
+                var last = "";
+                for (var i = dotParts.length - 1; i >= 0; i--) {
+                    var p = dotParts[i].trim();
+                    if (p) { last = p; break; }
+                }
+                if (last) {
+                    if (last.length <= DISPLAY_NAME_MAX) return last;
+                    return last.substring(0, DISPLAY_NAME_MAX - 1) + "…";
+                }
+            }
+
+            // 3) 无 · • ：去空格后的描述部分（保留空格前）
+            var spaceIdx = s.indexOf(" ");
+            if (spaceIdx > 0) s = s.substring(0, spaceIdx).trim();
+            if (s.length <= DISPLAY_NAME_MAX) return s;
+            return s.substring(0, DISPLAY_NAME_MAX - 1) + "…";
         }
   
         
@@ -1775,11 +1817,11 @@ var EditorJS = {
                 var saveRecords = [];
                 for (var i = 0; i < characterRecords.length; i++) {
                     var char = characterRecords[i];
-              // 手动复制所有属性，修改voice字段（ES5无解构，避免影响原对象）
+              // 手动复制所有属性，voice 直接存 tag（与内存一致）
                     saveRecords.push({
                       name: char.name,
                       aliases: char.aliases,
-                      voice: reverseReplaceFayinrenName(char.voice || ""),
+                      voice: char.voice || "",
                       gender: char.gender,
                       age: char.age,
                       usageCount: char.usageCount,
@@ -1820,15 +1862,15 @@ var EditorJS = {
         
           function createGengxinFile() {
             try {
-              // 与 saveCharacterData 保持一致：执行反向映射（显示名 → 存储名）
+              // 与 saveCharacterData 保持一致：voice 直接存 tag
               var saveRecords = [];
               for (var i = 0; i < characterRecords.length; i++) {
                 var char = characterRecords[i];
-                // 手动复制属性 + 反向映射 voice 字段
+                // 手动复制属性，voice 直接存 tag
                 saveRecords.push({
                   name: char.name,
                   aliases: char.aliases,
-                  voice: reverseReplaceFayinrenName(char.voice || ""), // 关键：添加反向映射
+                  voice: char.voice || "",
                   gender: char.gender,
                   age: char.age,
                   usageCount: char.usageCount,
@@ -2207,15 +2249,8 @@ var EditorJS = {
                 if (characterData && characterData.trim() !== "") {
                     var parsedData = JSON.parse(characterData);
                     characterRecords = parsedData || [];
-  
-  
-  
-                                // ↓ 纯ES5写法：替换箭头函数为forEach普通函数
-                    characterRecords.forEach(function(char) {
-                        char.voice = replaceFayinrenName(char.voice || "");
-                    });
-            // ↑ 新增结束
-  
+                    // record.voice 保持 tag 原值，不做转换
+
   
   
   
@@ -2663,7 +2698,7 @@ var EditorJS = {
                                     bookData = rawData;
                                 }
                             } catch (eRead) {
-                                // 内存数据已正向映射，需反向映射后再写入文件
+                                // voice 直接存 tag（与内存一致）
                                 var saveRecords = [];
                                 for (var si = 0; si < characterRecords.length; si++) {
                                     var char = characterRecords[si];
@@ -2671,7 +2706,7 @@ var EditorJS = {
                                         saveRecords.push({
                                             name: char.name || "",
                                             aliases: char.aliases || "",
-                                            voice: reverseReplaceFayinrenName(char.voice || ""),
+                                            voice: char.voice || "",
                                             gender: char.gender || "",
                                             age: char.age || "",
                                             usageCount: char.usageCount || 0,
@@ -2756,12 +2791,7 @@ var EditorJS = {
                             var parsedData = JSON.parse(bookData);
                             characterRecords = parsedData || [];
                             console.log("成功解析书籍数据，角色数量: " + characterRecords.length);
-                            for (var i = 0; i < characterRecords.length; i++) {
-                                var char = characterRecords[i];
-                                if (char) {
-                                    char.voice = replaceFayinrenName(char.voice || "");
-                                }
-                            }
+                            // record.voice 保持 tag 原值，不做转换
                             ttsrv.writeTxtFile("characterRecords.json", bookData);
                             console.log("已更新characterRecords.json");
                             createGengxinFile();
@@ -2951,11 +2981,7 @@ var EditorJS = {
                             ttsrv.writeTxtFile("characterRecords.json", defaultData);
                             ttsrv.writeTxtFile("gengxin.json", defaultData);
                             characterRecords = JSON.parse(defaultData) || [];
-                            for (var di = 0; di < characterRecords.length; di++) {
-                                if (characterRecords[di]) {
-                                    characterRecords[di].voice = replaceFayinrenName(characterRecords[di].voice || "");
-                                }
-                            }
+                            // record.voice 保持 tag 原值，不做转换
                             console.log("内存数据已更新为默认数据，角色数量: " + characterRecords.length);
                         } else {
                             var emptyData = "[]";
@@ -3452,11 +3478,8 @@ var EditorJS = {
                                         // 核心修改：恢复characterRecords.json时，同步保存到gengxin.json
                                         if (fileName === "characterRecords.json") {
                                                 ttsrv.writeTxtFile("gengxin.json", allFilesData[fileName]);
-                                                // ↓ 修复：恢复后执行正向映射（替换原错误代码）
+                                                // record.voice 保持 tag 原值，不做转换
                                                 characterRecords = JSON.parse(allFilesData[fileName]) || [];
-                                                characterRecords.forEach(function(char) {
-                                                    char.voice = replaceFayinrenName(char.voice || "");
-                                                });
   
   
                                                 console.log("已同步保存characterRecords.json内容到gengxin.json");
@@ -3984,7 +4007,7 @@ var EditorJS = {
                     );
                     voiceLp.setMargins(dipToPx(10), 0, 0, 0);
                     voiceView.setLayoutParams(voiceLp);
-                    // 点击发音人标签 = 更换发音人功能
+                    // 点击发音人标签 = 更换发音人（原行为保留）
                     var voiceIndex = filteredIndices[position];
                     voiceView.setOnClickListener(new android.view.View.OnClickListener({
                         onClick: function(v) {
@@ -3992,32 +4015,53 @@ var EditorJS = {
                         }
                     }));
                     row.addView(voiceView);
-                }
-            }
 
-            // 试听按钮（角色有发音人时显示）
-            if (record && record.voice) {
-                var charPvBtn = new android.widget.TextView(ctx);
-                charPvBtn.setText("▶");
-                charPvBtn.setTextSize(16);
-                charPvBtn.setTextColor(android.graphics.Color.parseColor("#1976D2"));
-                charPvBtn.setSingleLine(true);
-                charPvBtn.setGravity(android.view.Gravity.CENTER);
-                charPvBtn.setPadding(dipToPx(10), dipToPx(8), dipToPx(2), dipToPx(8));
-                var charPvLp = new android.widget.LinearLayout.LayoutParams(
-                    android.widget.LinearLayout.LayoutParams.WRAP_CONTENT,
-                    android.widget.LinearLayout.LayoutParams.WRAP_CONTENT
-                );
-                charPvLp.setMargins(dipToPx(6), 0, 0, 0);
-                charPvBtn.setLayoutParams(charPvLp);
-                var _charPvVoice = record.voice;
-                charPvBtn.setOnClickListener(new android.view.View.OnClickListener({
-                    onClick: function(v) {
-                        try { previewVoiceByName(_charPvVoice, charPvBtn); }
-                        catch (e) { Toast.makeText(ctx, "试听异常: " + e.toString(), Toast.LENGTH_SHORT).show(); }
-                    }
-                }));
-                row.addView(charPvBtn);
+                    // ▶ 试听按钮（紧贴发音人标签后）
+                    var _pvTag = record.voice;
+                    var charPvBtn = new android.widget.TextView(ctx);
+                    charPvBtn.setText("▶");
+                    charPvBtn.setTextSize(16);
+                    charPvBtn.setTextColor(android.graphics.Color.parseColor("#1976D2"));
+                    charPvBtn.setSingleLine(true);
+                    charPvBtn.setGravity(android.view.Gravity.CENTER);
+                    charPvBtn.setPadding(dipToPx(8), dipToPx(8), dipToPx(4), dipToPx(8));
+                    var charPvLp = new android.widget.LinearLayout.LayoutParams(
+                        android.widget.LinearLayout.LayoutParams.WRAP_CONTENT,
+                        android.widget.LinearLayout.LayoutParams.WRAP_CONTENT
+                    );
+                    charPvLp.setMargins(dipToPx(6), 0, dipToPx(4), 0);
+                    charPvBtn.setLayoutParams(charPvLp);
+                    charPvBtn.setOnClickListener(new android.view.View.OnClickListener({
+                        onClick: function(v) {
+                            try { previewVoiceByName(_pvTag, charPvBtn); }
+                            catch (e) { Toast.makeText(ctx, "试听异常: " + e.toString(), Toast.LENGTH_SHORT).show(); }
+                        }
+                    }));
+                    row.addView(charPvBtn);
+
+                    // ⋮ 三点菜单（行末）：改名 / 删除并重分配 / 标记（点亮emoji）
+                    var _mgTag = record.voice;
+                    var charMgBtn = new android.widget.TextView(ctx);
+                    charMgBtn.setText("⋮");
+                    charMgBtn.setTextSize(18);
+                    charMgBtn.setTextColor(android.graphics.Color.parseColor("#757575"));
+                    charMgBtn.setSingleLine(true);
+                    charMgBtn.setGravity(android.view.Gravity.CENTER);
+                    charMgBtn.setPadding(dipToPx(10), dipToPx(8), dipToPx(10), dipToPx(8));
+                    var charMgLp = new android.widget.LinearLayout.LayoutParams(
+                        android.widget.LinearLayout.LayoutParams.WRAP_CONTENT,
+                        android.widget.LinearLayout.LayoutParams.WRAP_CONTENT
+                    );
+                    charMgLp.setMargins(dipToPx(8), 0, dipToPx(2), 0);
+                    charMgBtn.setLayoutParams(charMgLp);
+                    charMgBtn.setOnClickListener(new android.view.View.OnClickListener({
+                        onClick: function(v) {
+                            try { showVoiceManageDialog(_mgTag, null); }
+                            catch (e) { Toast.makeText(ctx, "弹窗异常: " + e.toString(), Toast.LENGTH_SHORT).show(); }
+                        }
+                    }));
+                    row.addView(charMgBtn);
+                }
             }
 
             // 右侧圆形选中指示器已移除（选中状态通过背景色体现）
@@ -4099,24 +4143,8 @@ var EditorJS = {
 
                 for (var i = 0; i < filteredIndices.length; i++) {
                     var record = characterRecords[filteredIndices[i]];
-                    if (record && record.voice) {
-                        var storeVal = reverseReplaceFayinrenName(record.voice);
-                        record.voice = replaceFayinrenName(storeVal);
-                    }
-                    // 查询当前已启用配置项的实际发音人，更新显示
-                    if (record) {
-                        var charName = safeGetName(record);
-                        try {
-                            var liveVoice = ttsrv.getVoiceByTag(charName);
-                            if (liveVoice) {
-                                // 用 fayinren 映射转为显示名
-                                var displayVoice = replaceFayinrenName(liveVoice);
-                                if (displayVoice && displayVoice !== record.voice) {
-                                    record.voice = displayVoice;
-                                }
-                            }
-                        } catch (eGv) { console.log("getVoiceByTag(" + charName + ")失败: " + eGv.toString()); }
-                    }
+                    if (!record) continue;
+                    // record.voice 保持 tag 原值，标签显示由 generateVoiceTag 通过 getVoiceByTag(tag) 实时查
                     var displayText = generateDisplayText(record);
                     var row = createListRow(displayText, i, record);
                     rowViews.push(row);
@@ -4146,20 +4174,7 @@ var EditorJS = {
             _initFayinrenMapCache(true);
             for (var i = 0; i < filteredIndices.length && i < rowViews.length; i++) {
                 var record = characterRecords[filteredIndices[i]];
-                if (record) {
-                    // 查询当前已启用配置项的实际发音人
-                    var charName = safeGetName(record);
-                    try {
-                        var liveVoice = ttsrv.getVoiceByTag(charName);
-                        if (liveVoice) {
-                            var displayVoice = replaceFayinrenName(liveVoice);
-                            if (displayVoice) record.voice = displayVoice;
-                        }
-                    } catch (eGv) {}
-                    if (record.voice) {
-                        var storeVal = reverseReplaceFayinrenName(record.voice);
-                        record.voice = replaceFayinrenName(storeVal);
-                    }
+                if (!record) continue;
                     var existingRow = rowViews[i];
                     if (existingRow) {
                         var voiceView = existingRow.findViewWithTag("voiceTag");
@@ -4170,7 +4185,6 @@ var EditorJS = {
                             }
                         }
                     }
-                }
             }
         }
 
@@ -4187,11 +4201,7 @@ var EditorJS = {
                 var record = characterRecords[charIndex];
                 if (!record) return;
 
-                // 重新映射 voice
-                if (record.voice) {
-                    var storeVal = reverseReplaceFayinrenName(record.voice);
-                    record.voice = replaceFayinrenName(storeVal);
-                }
+                // record.voice 保持 tag 原值，不做转换
 
                 var existingRow = rowViews[rowPos];
                 if (!existingRow) return;
@@ -4359,8 +4369,7 @@ var EditorJS = {
             }
             optionConfigs.push({ text: "删除角色", color: "#E53935", icon: "", action: "delete" });
             optionConfigs.push({ text: "设为主角", color: "#F57F17", icon: "", action: "set_main" });
-            optionConfigs.push({ text: "批量重新分配发音人", color: "#7B1FA2", icon: "", action: "batch_reassign" });
-            
+
             // 构建自定义列表布局
             var container = new android.widget.LinearLayout(ctx);
             container.setOrientation(android.widget.LinearLayout.VERTICAL);
@@ -4635,130 +4644,12 @@ var EditorJS = {
                 case "set_main":
                     setAsMainCharacter();
                     break;
-                case "batch_reassign":
-                    batchReassignVoices();
-                    break;
             }
-        }
-
-        // === [新增] 发音人列表排序 + 批量重新分配 + 试听功能 ===
-        function _sortVoicesByCategory(voices) {
-            return voices.sort(function (a, b) {
-                var na = a.displayName || a.name || "";
-                var nb = b.displayName || b.name || "";
-                var reA = na.match(/^(.+?)(\d+)/);
-                var reB = nb.match(/^(.+?)(\d+)/);
-                if (reA && reB) {
-                    if (reA[1] !== reB[1]) return reA[1] < reB[1] ? -1 : 1;
-                    return parseInt(reA[2]) - parseInt(reB[2]);
-                }
-                if (reA) return -1;
-                if (reB) return 1;
-                return na < nb ? -1 : 1;
-            });
-        }
-
-        function batchReassignVoices() {
-            try {
-                var builder = new android.app.AlertDialog.Builder(ctx);
-                builder.setTitle("批量重新分配发音人");
-                builder.setMessage("将从系统TTS获取当前发音人列表，\n为所有角色重新分配发音人。\n\n规则：\n1.优先匹配同名\n2.按类别随机选\n3.全列表随机选\n\n确定继续？");
-                builder.setPositiveButton("确定", new android.content.DialogInterface.OnClickListener({
-                    onClick: function (dialog, which) {
-                        dialog.dismiss();
-                        Toast.makeText(ctx, "正在获取系统TTS发音人列表…", Toast.LENGTH_SHORT).show();
-                        new java.lang.Thread(new java.lang.Runnable({
-                            run: function () {
-                                try {
-                                    var port = 3211;
-                                    var voices = _fetchVoicesList(port);
-                                    if (!voices || voices.length === 0) {
-                                    // 转发器未启动，使用fayinren.json列表 + 系统TTS试听
-                                    if (fayinrenList && fayinrenList.length > 0) {
-                                        _pvVoicesCache = null;
-                                        _pvHandler.post(new java.lang.Runnable({ run: function () {
-                                            Toast.makeText(ctx, "未开转发器，已切换为系统TTS试听模式(" + fayinrenList.length + "个发音人)", Toast.LENGTH_LONG).show();
-                                            showFilteredVoiceDialog(fayinrenList, callback);
-                                        } }));
-                                        return;
-                                    }
-                                    _pvHandler.post(new java.lang.Runnable({ run: function () { Toast.makeText(ctx, "获取失败，请确认转发服务已启动(端口3211)", Toast.LENGTH_LONG).show(); } }));
-                                    return;
-                                }
-                                    voices = _sortVoicesByCategory(voices);
-                                    var categoryMap = {};
-                                    for (var ci = 0; ci < voices.length; ci++) {
-                                        var catMatch = voices[ci].displayName.match(/^(.+?)\d/);
-                                        var cat = catMatch ? catMatch[1] : "其他";
-                                        if (!categoryMap[cat]) categoryMap[cat] = [];
-                                        categoryMap[cat].push(voices[ci]);
-                                    }
-                                    var changedCount = 0, unchangedCount = 0;
-                                    for (var ri = 0; ri < characterRecords.length; ri++) {
-                                        var char = characterRecords[ri];
-                                        if (!char.voice) continue;
-                                        var oldVoice = String(char.voice);
-                                        var oldParts = splitVoiceDisplay(oldVoice);
-                                        var oldTag = oldParts.tag || oldVoice;
-                                        var oldCatMatch = oldTag.match(/^(.+?)\d+/);
-                                        var oldCat = oldCatMatch ? oldCatMatch[1] : oldTag;
-                                        var origName = "";
-                                        try { origName = reverseReplaceFayinrenName(oldVoice); } catch (eRev) {}
-                                        if (!origName) origName = oldVoice;
-                                        var matched = null;
-                                        for (var mi = 0; mi < voices.length; mi++) {
-                                            if (voices[mi].displayName === oldVoice || voices[mi].displayName === origName) { matched = voices[mi]; break; }
-                                        }
-                                        if (!matched) {
-                                            var catVoices = categoryMap[oldCat];
-                                            if (catVoices && catVoices.length > 0) { matched = catVoices[Math.floor(Math.random() * catVoices.length)]; }
-                                        }
-                                        if (!matched && origName !== oldVoice) {
-                                            var origParts = splitVoiceDisplay(origName);
-                                            var origCatMatch = (origParts.tag || "").match(/^(.+?)\d+/);
-                                            if (origCatMatch) {
-                                                var origCatVoices = categoryMap[origCatMatch[1]];
-                                                if (origCatVoices && origCatVoices.length > 0) { matched = origCatVoices[Math.floor(Math.random() * origCatVoices.length)]; }
-                                            }
-                                        }
-                                        if (!matched && voices.length > 0) { matched = voices[Math.floor(Math.random() * voices.length)]; }
-                                        if (matched) {
-                                            if (matched.displayName !== oldVoice) { char.voice = matched.displayName; changedCount++; }
-                                            else { unchangedCount++; }
-                                        }
-                                    }
-                                    var newFayinrenList = [];
-                                    for (var fi = 0; fi < voices.length; fi++) { newFayinrenList.push(voices[fi].displayName); }
-                                    try {
-                                        ttsrv.writeTxtFile("fayinren.json", JSON.stringify(newFayinrenList));
-                                        fayinrenList = newFayinrenList;
-                                        var newMap = [];
-                                        for (var mi2 = 0; mi2 < newFayinrenList.length; mi2++) { newMap.push([newFayinrenList[mi2], newFayinrenList[mi2]]); }
-                                        ttsrv.writeTxtFile("fayinren_personality_summary.json", JSON.stringify(newMap));
-                                        _initFayinrenMapCache(true);
-                                    } catch (eWrite) {}
-                                    var fc = changedCount, fu = unchangedCount, ft = voices.length;
-                                    _pvHandler.post(new java.lang.Runnable({ run: function () {
-                                        Toast.makeText(ctx, "重新分配完成！变更" + fc + "个，保留" + fu + "个，共" + ft + "个发音人", Toast.LENGTH_LONG).show();
-                                        buildList();
-                                    } }));
-                                } catch (e) {
-                                    var em = e.toString();
-                                    _pvHandler.post(new java.lang.Runnable({ run: function () { Toast.makeText(ctx, "异常: " + em, Toast.LENGTH_LONG).show(); } }));
-                                }
-                            }
-                        })).start();
-                    }
-                }));
-                builder.setNegativeButton("取消", null);
-                builder.show();
-            } catch (e) { Toast.makeText(ctx, "打开失败: " + e.toString(), Toast.LENGTH_SHORT).show(); }
         }
 
         // === 试听功能 ===
         var _pvMediaPlayer = null;
         var _pvCurrentBtn = null;
-        var _pvVoicesCache = null;
         var _pvHandler = null;
         try { _pvHandler = new android.os.Handler(android.os.Looper.getMainLooper()); } catch (eHp) {}
 
@@ -4799,37 +4690,505 @@ var EditorJS = {
             } catch (e) { _pvStop(); Toast.makeText(ctx, "播放失败", Toast.LENGTH_SHORT).show(); }
         }
 
-        function _fetchVoicesList(port) {
-            var urls = [
-                "http://127.0.0.1:" + port + "/api/voices",
-                "http://127.0.0.1:" + port + "/api/voices?engine=" + encodeURIComponent("com.github.jing332.tts_server_android")
-            ];
-            for (var ui = 0; ui < urls.length; ui++) {
+        // ===== 发音人管理弹窗（删除/标记） =====
+        // 入口：角色行试听按钮旁的 ⋮ 按钮，或换发音人弹窗里试听旁的 ⋮
+        // 删除流程：删配置项 → 从 fayinren.json 删 tag → 调用朗读规则重分配受影响角色 → 刷新
+        // 标记流程：写 voice_marks.json → 刷新
+        function showVoiceManageDialog(voiceTag, onChange) {
+            try {
+                if (!voiceTag) {
+                    Toast.makeText(ctx, "无发音人可管理", Toast.LENGTH_SHORT).show();
+                    return;
+                }
+                var tag = String(voiceTag);
+
+                // 先查当前 displayName 供显示
+                var currentName = tag;
                 try {
-                    var bodyStr = null;
-                    try { var vr = ttsrv.httpGet(urls[ui], {}); if (vr && vr.code() === 200 && vr.body()) bodyStr = vr.body().string(); } catch (e2) { bodyStr = null; }
-                    if (!bodyStr) { try { bodyStr = ttsrv.httpGetString(urls[ui]); } catch (e1) { bodyStr = null; } }
-                    if (!bodyStr) continue;
-                    var list = JSON.parse(bodyStr);
-                    if (!list || !list.length) continue;
-                    var voices = [];
-                    for (var i = 0; i < list.length; i++) {
-                        var fullName = String(list[i].name || "");
-                        var lastIdx = fullName.lastIndexOf("_");
-                        var dispName = lastIdx > 0 ? fullName.substring(0, lastIdx) : fullName;
-                        var eng = String(list[i].engine || "com.github.jing332.tts_server_android");
-                        voices.push({ name: fullName, displayName: dispName, engine: eng });
+                    var liveName = ttsrv.getVoiceByTag(tag);
+                    if (liveName) currentName = liveName;
+                } catch (e) {}
+
+                var builder = new android.app.AlertDialog.Builder(ctx);
+                var container = new android.widget.LinearLayout(ctx);
+                container.setOrientation(android.widget.LinearLayout.VERTICAL);
+                container.setPadding(dipToPx(16), dipToPx(12), dipToPx(16), dipToPx(32));
+                container.addView(createDialogTitle("管理发音人"));
+
+                // 当前发音人信息
+                var infoView = new android.widget.TextView(ctx);
+                infoView.setText("标签：" + tag + "\n显示名：" + currentName + "\n标记：" + getVoiceMarkLabel(tag));
+                infoView.setTextSize(13);
+                infoView.setTextColor(android.graphics.Color.parseColor("#757575"));
+                var infoLp = new android.widget.LinearLayout.LayoutParams(
+                    android.widget.LinearLayout.LayoutParams.MATCH_PARENT,
+                    android.widget.LinearLayout.LayoutParams.WRAP_CONTENT
+                );
+                infoLp.setMargins(0, 0, 0, dipToPx(12));
+                infoView.setLayoutParams(infoLp);
+                container.addView(infoView);
+
+                // 标签选项（toggle：点已选中则取消，点未选中则选中）
+                // 标记互斥：一个发音人只能有一个标签
+                var currentMark = getVoiceMark(tag);
+                var markOptions = [
+                    { text: "❤️ 喜欢", mark: "like" },
+                    { text: "🚶 路人", mark: "neutral" },
+                    { text: "😈 坏人", mark: "bad" }
+                ];
+
+                // 标签行容器：横向排列，加大间隔防误点
+                var markRow = new android.widget.LinearLayout(ctx);
+                markRow.setOrientation(android.widget.LinearLayout.HORIZONTAL);
+                markRow.setGravity(android.view.Gravity.CENTER_VERTICAL);
+                var markRowLp = new android.widget.LinearLayout.LayoutParams(
+                    android.widget.LinearLayout.LayoutParams.MATCH_PARENT,
+                    android.widget.LinearLayout.LayoutParams.WRAP_CONTENT
+                );
+                markRowLp.setMargins(0, dipToPx(4), 0, dipToPx(12));
+                markRow.setLayoutParams(markRowLp);
+
+                function applyMarkBtnStyle(btn, mark, isSelected) {
+                    var bg = new android.graphics.drawable.GradientDrawable();
+                    bg.setShape(android.graphics.drawable.GradientDrawable.RECTANGLE);
+                    bg.setCornerRadius(dipToPx(20));
+                    if (isSelected) {
+                        // 选中：透明底 + 彩色描边（点亮）
+                        bg.setColor(android.graphics.Color.parseColor("#00000000"));
+                        var markColor = mark === "like" ? "#43A047"
+                                      : (mark === "bad" ? "#E53935" : "#9E9E9E");
+                        bg.setStroke(dipToPx(2), android.graphics.Color.parseColor(markColor));
+                    } else {
+                        // 未选中：透明底 + 灰色细描边（暗态）
+                        bg.setColor(android.graphics.Color.parseColor("#00000000"));
+                        bg.setStroke(dipToPx(1), android.graphics.Color.parseColor("#BDBDBD"));
                     }
-                    if (voices.length > 0) {
-                        console.log("获取发音人成功(URL" + ui + "): " + voices.length + " 个");
-                        return voices;
+                    btn.setBackground(bg);
+                }
+
+                for (var mi = 0; mi < markOptions.length; mi++) {
+                    (function(mcfg) {
+                        var markBtn = new android.widget.TextView(ctx);
+                        markBtn.setText(mcfg.text);
+                        markBtn.setTextSize(14);
+                        markBtn.setSingleLine(true);
+                        markBtn.setGravity(android.view.Gravity.CENTER);
+                        markBtn.setPadding(dipToPx(16), dipToPx(10), dipToPx(16), dipToPx(10));
+                        // 每个按钮左右加间隔，防误点
+                        var btnLp = new android.widget.LinearLayout.LayoutParams(
+                            android.widget.LinearLayout.LayoutParams.WRAP_CONTENT,
+                            android.widget.LinearLayout.LayoutParams.WRAP_CONTENT
+                        );
+                        btnLp.setMargins(dipToPx(6), 0, dipToPx(6), 0);
+                        markBtn.setLayoutParams(btnLp);
+                        markBtn.setClickable(true);
+
+                        var isSel = (currentMark === mcfg.mark);
+                        applyMarkBtnStyle(markBtn, mcfg.mark, isSel);
+
+                        markBtn.setOnClickListener(new android.view.View.OnClickListener({
+                            onClick: function(v) {
+                                try {
+                                    if (currentMark === mcfg.mark) {
+                                        // 已选中 → 取消
+                                        setVoiceMark(tag, "");
+                                        currentMark = "";
+                                        applyMarkBtnStyle(markBtn, mcfg.mark, false);
+                                        Toast.makeText(ctx, "已取消标记", Toast.LENGTH_SHORT).show();
+                                    } else {
+                                        // 切换到新标记
+                                        currentMark = mcfg.mark;
+                                        setVoiceMark(tag, mcfg.mark);
+                                        applyMarkBtnStyle(markBtn, mcfg.mark, true);
+                                        // 更新其他按钮为未选中
+                                        for (var k = 0; k < markRow.getChildCount(); k++) {
+                                            var otherBtn = markRow.getChildAt(k);
+                                            if (otherBtn !== markBtn && otherBtn._markVal) {
+                                                applyMarkBtnStyle(otherBtn, otherBtn._markVal, false);
+                                            }
+                                        }
+                                        Toast.makeText(ctx, "已标记", Toast.LENGTH_SHORT).show();
+                                    }
+                                    // 更新顶部信息行的标记显示
+                                    try { infoView.setText("标签：" + tag + "\n显示名：" + currentName + "\n标记：" + getVoiceMarkLabel(tag)); } catch (e2) {}
+                                    if (onChange) try { onChange(); } catch (e) {}
+                                    refreshCharacterList();
+                                } catch (e) {
+                                    Toast.makeText(ctx, "标记异常: " + e.toString(), Toast.LENGTH_SHORT).show();
+                                }
+                            }
+                        }));
+                        markBtn._markVal = mcfg.mark;
+                        markRow.addView(markBtn);
+                    })(markOptions[mi]);
+                }
+                container.addView(markRow);
+
+                // 改名按钮（单独一行）
+                var renameBtn = new android.widget.TextView(ctx);
+                renameBtn.setText("✎ 改显示名");
+                renameBtn.setTextSize(15);
+                renameBtn.setTextColor(android.graphics.Color.parseColor("#1976D2"));
+                renameBtn.setSingleLine(true);
+                renameBtn.setGravity(android.view.Gravity.CENTER);
+                var rnBg = new android.graphics.drawable.GradientDrawable();
+                rnBg.setShape(android.graphics.drawable.GradientDrawable.RECTANGLE);
+                rnBg.setCornerRadius(dipToPx(10));
+                rnBg.setColor(android.graphics.Color.parseColor("#E3F2FD"));
+                rnBg.setStroke(dipToPx(1), android.graphics.Color.parseColor("#BBDEFB"));
+                renameBtn.setBackground(rnBg);
+                renameBtn.setPadding(dipToPx(14), dipToPx(12), dipToPx(14), dipToPx(12));
+                renameBtn.setClickable(true);
+                renameBtn.setOnClickListener(new android.view.View.OnClickListener({
+                    onClick: function(v) {
+                        try {
+                            voiceManageDlg.dismiss();
+                            new android.os.Handler(android.os.Looper.getMainLooper()).post(new java.lang.Runnable({
+                                run: function() {
+                                    try { doRenameVoice(tag, onChange); }
+                                    catch (e) { Toast.makeText(ctx, "改名异常: " + e.toString(), Toast.LENGTH_SHORT).show(); }
+                                }
+                            }));
+                        } catch (e) { Toast.makeText(ctx, "操作异常: " + e.toString(), Toast.LENGTH_SHORT).show(); }
                     }
-                } catch (e) { console.error("获取发音人失败(URL" + ui + "): " + e.toString()); }
+                }));
+                container.addView(renameBtn);
+
+                // 删除按钮（单独一行，与标签分隔）
+                var deleteBtn = new android.widget.TextView(ctx);
+                deleteBtn.setText("✖ 删除并重分配");
+                deleteBtn.setTextSize(15);
+                deleteBtn.setTextColor(android.graphics.Color.parseColor("#E53935"));
+                deleteBtn.setSingleLine(true);
+                deleteBtn.setGravity(android.view.Gravity.CENTER);
+                var delBg = new android.graphics.drawable.GradientDrawable();
+                delBg.setShape(android.graphics.drawable.GradientDrawable.RECTANGLE);
+                delBg.setCornerRadius(dipToPx(10));
+                delBg.setColor(android.graphics.Color.parseColor("#FFEBEE"));
+                delBg.setStroke(dipToPx(1), android.graphics.Color.parseColor("#FFCDD2"));
+                deleteBtn.setBackground(delBg);
+                deleteBtn.setPadding(dipToPx(14), dipToPx(12), dipToPx(14), dipToPx(12));
+                deleteBtn.setClickable(true);
+                deleteBtn.setOnClickListener(new android.view.View.OnClickListener({
+                    onClick: function(v) {
+                        voiceManageDlg.dismiss();
+                        new android.os.Handler(android.os.Looper.getMainLooper()).post(new java.lang.Runnable({
+                            run: function() {
+                                try { doDeleteVoiceAndReassign(tag, onChange); }
+                                catch (e) { Toast.makeText(ctx, "操作异常: " + e.toString(), Toast.LENGTH_SHORT).show(); }
+                            }
+                        }));
+                    }
+                }));
+                container.addView(deleteBtn);
+
+                builder.setView(container);
+                var voiceManageDlg = builder.create();
+                voiceManageDlg.show();
+                applyDialogRoundCorner(voiceManageDlg);
+            } catch (e) {
+                Toast.makeText(ctx, "弹窗异常: " + e.toString(), Toast.LENGTH_SHORT).show();
             }
-            return null;
         }
 
-        function previewVoiceByName(voiceDisplayName, btn) {
+        // ===== 发音人标记管理（voice_marks.json） =====
+        // 结构：{ "女青年01": "like", "女青年02": "dislike", ... }
+        // 值：like / dislike / neutral
+        var _voiceMarksCache = null; // null=未加载
+
+        function loadVoiceMarks() {
+            if (_voiceMarksCache !== null) return _voiceMarksCache;
+            try {
+                var raw = ttsrv.readTxtFile("voice_marks.json");
+                if (raw && raw.trim() !== "") {
+                    var obj = JSON.parse(raw);
+                    if (obj && typeof obj === "object") {
+                        _voiceMarksCache = obj;
+                        return _voiceMarksCache;
+                    }
+                }
+            } catch (e) {}
+            _voiceMarksCache = {};
+            return _voiceMarksCache;
+        }
+
+        function saveVoiceMarks() {
+            try {
+                ttsrv.writeTxtFile("voice_marks.json", JSON.stringify(_voiceMarksCache || {}, null, 2));
+            } catch (e) {
+                console.error("保存 voice_marks.json 失败: " + e.toString());
+            }
+        }
+
+        function getVoiceMark(tag) {
+            try {
+                var marks = loadVoiceMarks();
+                return marks[String(tag)] || "";
+            } catch (e) { return ""; }
+        }
+
+        function getVoiceMarkLabel(tag) {
+            var m = getVoiceMark(tag);
+            if (m === "like") return "❤️ 喜欢";
+            if (m === "bad") return "😈 坏人";
+            if (m === "neutral") return "🚶 路人";
+            return "未标记";
+        }
+
+        function setVoiceMark(tag, mark) {
+            try {
+                var marks = loadVoiceMarks();
+                if (mark) {
+                    marks[String(tag)] = mark;
+                } else {
+                    delete marks[String(tag)];
+                }
+                saveVoiceMarks();
+                // 同步更新发音人列表的缓存标记
+                try {
+                    for (var i = 0; i < fayinrenList.length; i++) {
+                        if (fayinrenList[i] && fayinrenList[i].tag === tag) {
+                            fayinrenList[i].mark = mark;
+                        }
+                    }
+                } catch (e) {}
+            } catch (e) {
+                Toast.makeText(ctx, "标记失败: " + e.toString(), Toast.LENGTH_SHORT).show();
+            }
+        }
+
+        // 改显示名
+        function doRenameVoice(tag, onChange) {
+            try {
+                var currentName = tag;
+                try {
+                    var liveName = ttsrv.getVoiceByTag(tag);
+                    if (liveName) currentName = liveName;
+                } catch (e) {}
+
+                var builder = new android.app.AlertDialog.Builder(ctx);
+                var container = new android.widget.LinearLayout(ctx);
+                container.setOrientation(android.widget.LinearLayout.VERTICAL);
+                container.setPadding(dipToPx(20), dipToPx(12), dipToPx(20), dipToPx(16));
+                container.addView(createDialogTitle("修改显示名"));
+                container.addView(createDialogLabel("新显示名（留空则使用标签名）"));
+
+                var nameInput = createStyledEditText(null, true);
+                nameInput.setText(currentName);
+                nameInput.setSelection(currentName.length);
+                container.addView(nameInput);
+
+                builder.setView(container);
+                builder.setPositiveButton("保存", new android.content.DialogInterface.OnClickListener({
+                    onClick: function(dialog, which) {
+                        var newName = nameInput.getText() ? nameInput.getText().toString().trim() : "";
+                        if (!newName) {
+                            Toast.makeText(ctx, "名称不能为空", Toast.LENGTH_SHORT).show();
+                            return;
+                        }
+                        // 子线程调用避免卡顿
+                        new java.lang.Thread(new java.lang.Runnable({
+                            run: function() {
+                                var err = ttsrv.updateConfigDisplayName(tag, newName);
+                                new android.os.Handler(android.os.Looper.getMainLooper()).post(new java.lang.Runnable({
+                                    run: function() {
+                                        if (err) {
+                                            Toast.makeText(ctx, "改名失败: " + err, Toast.LENGTH_SHORT).show();
+                                        } else {
+                                            Toast.makeText(ctx, "已改为：" + newName, Toast.LENGTH_SHORT).show();
+                                            if (onChange) try { onChange(); } catch (e) {}
+                                            refreshCharacterList();
+                                        }
+                                    }
+                                }));
+                            }
+                        })).start();
+                        dialog.dismiss();
+                    }
+                }));
+                builder.setNegativeButton("取消", new android.content.DialogInterface.OnClickListener({
+                    onClick: function(dialog, which) { dialog.cancel(); }
+                }));
+                var dlg = builder.show();
+                applyDialogRoundCorner(dlg);
+            } catch (e) {
+                Toast.makeText(ctx, "改名弹窗异常: " + e.toString(), Toast.LENGTH_SHORT).show();
+            }
+        }
+
+        // 删除配置项 + 从 fayinren.json 删 tag + 调用朗读规则重分配
+        function doDeleteVoiceAndReassign(tag, onChange) {
+            try {
+                // 1. 找出所有绑该 tag 的角色
+                var affectedChars = [];
+                for (var i = 0; i < characterRecords.length; i++) {
+                    var r = characterRecords[i];
+                    if (r && r.voice === tag) {
+                        affectedChars.push({ index: i, name: safeGetName(r) });
+                    }
+                }
+
+                // 2. 确认弹窗
+                var msg = "确认删除发音人配置项【" + tag + "】？\n\n";
+                msg += "显示名：" + (function() {
+                    try { var n = ttsrv.getVoiceByTag(tag); return n || "(无)"; } catch (e) { return "(无)"; }
+                })() + "\n\n";
+                msg += "受影响角色：" + affectedChars.length + " 个\n";
+                if (affectedChars.length > 0) {
+                    var names = affectedChars.slice(0, 5).map(function(c) { return c.name; }).join("、");
+                    if (affectedChars.length > 5) names += " 等";
+                    msg += names + "\n";
+                }
+                msg += "\n删除后将调用朗读规则，按原逻辑从现存配置项中重新分配受影响角色。";
+
+                new android.app.AlertDialog.Builder(ctx)
+                    .setTitle("删除确认")
+                    .setMessage(msg)
+                    .setPositiveButton("确认删除", new android.content.DialogInterface.OnClickListener({
+                        onClick: function(dialog, which) {
+                            // 子线程执行删除+重分配，避免卡顿
+                            new java.lang.Thread(new java.lang.Runnable({
+                                run: function() {
+                                    var results = doDeleteVoiceInternal(tag, affectedChars);
+                                    new android.os.Handler(android.os.Looper.getMainLooper()).post(new java.lang.Runnable({
+                                        run: function() {
+                                            Toast.makeText(ctx, results, Toast.LENGTH_LONG).show();
+                                            if (onChange) try { onChange(); } catch (e) {}
+                                            refreshCharacterList();
+                                        }
+                                    }));
+                                }
+                            })).start();
+                            dialog.dismiss();
+                        }
+                    }))
+                    .setNegativeButton("取消", new android.content.DialogInterface.OnClickListener({
+                        onClick: function(dialog, which) { dialog.cancel(); }
+                    }))
+                    .show();
+            } catch (e) {
+                Toast.makeText(ctx, "删除弹窗异常: " + e.toString(), Toast.LENGTH_SHORT).show();
+            }
+        }
+
+        // 删除的内部实现（在子线程跑），返回结果文案
+        // 流程：删配置项 → 从 fayinren.json 删 tag → 调用朗读规则重分配受影响角色
+        function doDeleteVoiceInternal(tag, affectedChars) {
+            var log = [];
+            // 1. 删配置项
+            try {
+                var err = ttsrv.deleteConfigByTag(tag);
+                if (err) {
+                    log.push("删配置项失败：" + err);
+                    return log.join("\n");
+                }
+                log.push("已删配置项：" + tag);
+            } catch (e) {
+                return "删配置项异常：" + e.toString();
+            }
+
+            // 2. 从 fayinren.json 删 tag（避免规则重生该配置项）
+            try {
+                var raw = ttsrv.readTxtFile("fayinren.json");
+                if (raw && raw.trim() !== "") {
+                    var arr = JSON.parse(raw);
+                    if (Array.isArray(arr)) {
+                        var newArr = [];
+                        for (var i = 0; i < arr.length; i++) {
+                            if (arr[i] !== tag) newArr.push(arr[i]);
+                        }
+                        ttsrv.writeTxtFile("fayinren.json", JSON.stringify(newArr, null, 2));
+                        log.push("已从fayinren.json移除：" + tag + "（剩余" + newArr.length + "条）");
+                    }
+                }
+            } catch (e) {
+                log.push("更新fayinren.json失败：" + e.toString());
+            }
+
+            // 3. 受影响角色：清空 voice，让朗读规则重新分配
+            if (affectedChars.length === 0) {
+                log.push("无角色受影响");
+                return log.join("\n");
+            }
+
+            // 先清空受影响角色的 voice，规则运行时会按原逻辑重新分配
+            var cleared = 0;
+            for (var j = 0; j < affectedChars.length; j++) {
+                var idx = affectedChars[j].index;
+                if (characterRecords[idx]) {
+                    characterRecords[idx].voice = "";
+                    cleared++;
+                }
+            }
+            log.push("已清空" + cleared + "个角色的发音人，准备重分配");
+
+            // 4. 保存（规则运行前先持久化清空状态，避免规则读不到）
+            try {
+                saveCharacterData();
+                createGengxinFile();
+            } catch (e) {
+                log.push("保存清空状态失败：" + e.toString());
+            }
+
+            // 5. 调用朗读规则重分配
+            try {
+                var ruleErr = runMatchingSpeechRule();
+                if (ruleErr) {
+                    log.push("朗读规则运行失败：" + ruleErr);
+                    log.push("受影响角色标签将变⚠，请手动换发音人");
+                } else {
+                    log.push("朗读规则已运行，角色已重新分配");
+                    // 规则运行后会更新 characterRecords.json，重新加载
+                    try {
+                        var newJson = ttsrv.readTxtFile("characterRecords.json");
+                        if (newJson && newJson.trim() !== "") {
+                            var newRecords = JSON.parse(newJson);
+                            if (Array.isArray(newRecords)) {
+                                characterRecords = newRecords;
+                                log.push("角色数据已重新加载");
+                            }
+                        }
+                    } catch (e) {
+                        log.push("重新加载角色数据失败：" + e.toString());
+                    }
+                }
+            } catch (e) {
+                log.push("调用朗读规则异常：" + e.toString());
+            }
+
+            return log.join("\n");
+        }
+
+        // 查找并运行与当前插件配套的朗读规则（ruleId == engineId）
+        // 成功返回 null，失败返回错误字符串
+        function runMatchingSpeechRule() {
+            try {
+                var listJson = ttsrv.getSpeechRuleList();
+                if (!listJson) return "获取朗读规则列表失败";
+                var list = JSON.parse(listJson);
+                if (!Array.isArray(list) || list.length === 0) {
+                    return "未找到任何朗读规则";
+                }
+                // 优先找 ruleId == 当前插件 engineId 的规则
+                var engineId = String(ttsrv.tts.data.engineId || "");
+                var targetRule = null;
+                for (var i = 0; i < list.length; i++) {
+                    if (String(list[i].ruleId) === engineId) {
+                        targetRule = list[i];
+                        break;
+                    }
+                }
+                // 找不到精确匹配，用第一个
+                if (!targetRule) targetRule = list[0];
+                if (!targetRule || !targetRule.ruleId) return "未找到有效的朗读规则";
+
+                return ttsrv.runSpeechRule(String(targetRule.ruleId));
+            } catch (e) {
+                return "运行朗读规则异常：" + e.toString();
+            }
+        }
+
+        function previewVoiceByName(tag, btn) {
             try {
                 if (_pvCurrentBtn === btn && _pvMediaPlayer !== null) {
                     // 用户点击正在播放的按钮，停止播放
@@ -4844,10 +5203,8 @@ var EditorJS = {
                             // 优先尝试通过 app TTS 配置项试听（ttsrv.getAudioByTag）
                             try {
                                 var previewText = "你好，这是试听语音。";
-                                var storageName = "";
-                                try { storageName = reverseReplaceFayinrenName(voiceDisplayName); } catch (eRev) {}
-                                var tagCandidates = [voiceDisplayName];
-                                if (storageName && storageName !== voiceDisplayName) tagCandidates.push(storageName);
+                                // tag 直接查当前分组（与标签显示一致）
+                                var tagCandidates = [tag];
                                 var audioPath = null;
                                 for (var ti = 0; ti < tagCandidates.length; ti++) {
                                     try {
@@ -4857,80 +5214,23 @@ var EditorJS = {
                                 }
                                 if (audioPath) {
                                     var fileUri = "file://" + audioPath;
-                                    var playLabel = voiceDisplayName;
+                                    var playLabel = tag;
                                     _pvHandler.post(new java.lang.Runnable({ run: function () { _pvPlay(fileUri, playLabel, btn); } }));
                                     return;
                                 }
-                                console.log("getAudioByTag未匹配到配置项，回退到本地服务器");
-                            } catch (eAppTts) { console.log("getAudioByTag异常，回退: " + eAppTts.toString()); }
-                            var port = 3211;
-                            var voices = _pvVoicesCache;
-                            if (!voices) {
-                                voices = _fetchVoicesList(port);
-                                if (!voices || voices.length === 0) {
-                                    _pvHandler.post(new java.lang.Runnable({ run: function () {
-                                        _pvStop();
-                                        Toast.makeText(ctx, "试听失败：未匹配到配置项，且本地服务器未启动", Toast.LENGTH_LONG).show();
-                                    } }));
-                                    return;
-                                }
-                                _pvVoicesCache = voices;
-                            }
-                            var target = String(voiceDisplayName || "").trim();
-                            var origName = "";
-                            try { origName = reverseReplaceFayinrenName(target); } catch (eRev) {}
-                            // 用 splitVoiceDisplay 提取人名部分（如"男青年03丹恒" → persona="丹恒"）
-                            var targetParts = splitVoiceDisplay(target);
-                            var targetPersona = targetParts.persona || "";
-                            var origParts = null;
-                            try { origParts = splitVoiceDisplay(origName); } catch (eSp) {}
-                            var origPersona = (origParts && origParts.persona) || "";
-
-                            var matched = null;
-                            // 1. 精确匹配完整名
-                            for (var ci = 0; ci < voices.length; ci++) {
-                                if (voices[ci].displayName === target || voices[ci].displayName === origName) { matched = voices[ci]; break; }
-                            }
-                            // 2. 用人名部分匹配（如"丹恒"匹配"男青年03丹恒"或"丹恒"）
-                            if (!matched && targetPersona) {
-                                for (var ci2 = 0; ci2 < voices.length; ci2++) {
-                                    var dn = voices[ci2].displayName;
-                                    var dnParts = splitVoiceDisplay(dn);
-                                    var dnPersona = dnParts.persona || dn;
-                                    if (dnPersona === targetPersona || dnPersona === origPersona) { matched = voices[ci2]; break; }
-                                }
-                            }
-                            // 3. 模糊包含匹配
-                            if (!matched) {
-                                for (var ci3 = 0; ci3 < voices.length; ci3++) {
-                                    var dn2 = voices[ci3].displayName;
-                                    if (dn2.indexOf(target) >= 0 || target.indexOf(dn2) >= 0 ||
-                                        (origName && (dn2.indexOf(origName) >= 0 || origName.indexOf(dn2) >= 0)) ||
-                                        (targetPersona && dn2.indexOf(targetPersona) >= 0) ||
-                                        (origPersona && dn2.indexOf(origPersona) >= 0)) { matched = voices[ci3]; break; }
-                                }
-                            }
-                            // 4. 去分隔符后匹配
-                            if (!matched && voices.length > 0) {
-                                var t2 = target.replace(/[·\-\s_]/g, "");
-                                for (var ci4 = 0; ci4 < voices.length; ci4++) {
-                                    var dn3 = voices[ci4].displayName.replace(/[·\-\s_]/g, "");
-                                    if (dn3.indexOf(t2) >= 0 || t2.indexOf(dn3) >= 0) { matched = voices[ci4]; break; }
-                                }
-                            }
-                            if (!matched) {
-                                // 调试：显示前5个发音人名帮助排查
-                                var debugNames = [];
-                                for (var di = 0; di < Math.min(5, voices.length); di++) { debugNames.push(voices[di].displayName); }
-                                var dbgMsg = "未找到匹配：" + target + "（列表前5：" + debugNames.join(", ") + "）";
-                                _pvHandler.post(new java.lang.Runnable({ run: function () { _pvStop(); Toast.makeText(ctx, dbgMsg, Toast.LENGTH_LONG).show(); } }));
+                                // 桥接试听未匹配到配置项，直接提示（不使用本地服务器兜底）
+                                _pvHandler.post(new java.lang.Runnable({ run: function () {
+                                    _pvStop();
+                                    Toast.makeText(ctx, "未匹配到配置项：" + tag, Toast.LENGTH_LONG).show();
+                                } }));
+                                return;
+                            } catch (eAppTts) {
+                                _pvHandler.post(new java.lang.Runnable({ run: function () {
+                                    _pvStop();
+                                    Toast.makeText(ctx, "试听异常：" + eAppTts.toString(), Toast.LENGTH_SHORT).show();
+                                } }));
                                 return;
                             }
-                            var text = "你好，这是试听语音。";
-                            var useEngine = matched.engine || "com.github.jing332.tts_server_android";
-                            var ttsurl = "http://127.0.0.1:" + port + "/api/tts?text=" + encodeURIComponent(text) + "&engine=" + encodeURIComponent(useEngine) + "&voice=" + encodeURIComponent(matched.name) + "&speed=50&pitch=100";
-                            var mLabel = matched.displayName;
-                            _pvHandler.post(new java.lang.Runnable({ run: function () { _pvPlay(ttsurl, mLabel, btn); } }));
                         } catch (e) { _pvHandler.post(new java.lang.Runnable({ run: function () { _pvStop(); Toast.makeText(ctx, "试听异常：" + e.toString(), Toast.LENGTH_SHORT).show(); } })); }
                     }
                 })).start();
@@ -4940,12 +5240,8 @@ var EditorJS = {
         // 通用发音人筛选弹窗（美化版：自定义卡片列表）
         function showFilteredVoiceDialog(voiceList, callback) {
             var builder = new android.app.AlertDialog.Builder(ctx);
-            // 发音人列表（移除"跟随目标角色"——它仅对合并场景有意义，
-            // 在更换单角色发音人时无用且会把 voice 写成无效标记值）
-            var voiceOptions = [];
-            for (var i = 0; i < voiceList.length; i++) {
-                voiceOptions.push(new Item(voiceList[i], voiceList[i]));
-            }
+            // voiceList 为 {name, value} 对象数组：name 用于显示(displayName)，value 用于回调(tag)
+            var voiceOptions = voiceList;
 
             // 声明弹窗引用（供点击回调中dismiss使用）
             var voiceDialog;
@@ -4999,18 +5295,8 @@ var EditorJS = {
                     vrow.addView(vdot);
 
                     var vtext = new android.widget.TextView(ctx);
-                    // 发音人名含性格（如"女青年01晓伊"），给性格部分加轻量颜色（不浓重）
-                    var vParts = splitVoiceDisplay(vopt.name);
-                    if (vParts.persona) {
-                        var vSsb = new android.text.SpannableStringBuilder();
-                        vSsb.append(vParts.tag);
-                        var vPersonaStart = vSsb.length();
-                        vSsb.append(vParts.persona);
-                        vSsb.setSpan(new android.text.style.ForegroundColorSpan(android.graphics.Color.parseColor("#7B1FA2")), vPersonaStart, vSsb.length(), android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
-                        vtext.setText(vSsb);
-                    } else {
-                        vtext.setText(vopt.name);
-                    }
+                    // vopt.name 已在构建 items 时经过 shortenDisplayName 缩减，直接显示
+                    vtext.setText(vopt.name);
                     vtext.setTextSize(15);
                     vtext.setTextColor(android.graphics.Color.parseColor("#333333"));
                     var vtextParams = new android.widget.LinearLayout.LayoutParams(
@@ -5018,6 +5304,70 @@ var EditorJS = {
                     );
                     vtext.setLayoutParams(vtextParams);
                     vrow.addView(vtext);
+
+                    // === 标记 emoji（❤️喜欢/🚶路人/😈坏人）：点亮式 toggle，可当场标记 ===
+                    // 与角色行一致：点亮=彩色描边圈，未点亮=灰色细描边圈
+                    var _markTag2 = vopt.value;
+                    var _curMark2 = getVoiceMark(_markTag2);
+                    var markChoices2 = [
+                        { emoji: "❤️", mark: "like", color: "#43A047" },
+                        { emoji: "🚶", mark: "neutral", color: "#9E9E9E" },
+                        { emoji: "😈", mark: "bad", color: "#E53935" }
+                    ];
+                    function applyMarkStyle2(btn, mcfg, isOn) {
+                        var bg = new android.graphics.drawable.GradientDrawable();
+                        bg.setShape(android.graphics.drawable.GradientDrawable.RECTANGLE);
+                        bg.setCornerRadius(dipToPx(16));
+                        bg.setColor(android.graphics.Color.parseColor("#00000000"));
+                        if (isOn) {
+                            bg.setStroke(dipToPx(2), android.graphics.Color.parseColor(mcfg.color));
+                        } else {
+                            bg.setStroke(dipToPx(1), android.graphics.Color.parseColor("#BDBDBD"));
+                        }
+                        btn.setBackground(bg);
+                    }
+                    for (var mi2 = 0; mi2 < markChoices2.length; mi2++) {
+                        (function(mcfg) {
+                            var mkBtn = new android.widget.TextView(ctx);
+                            mkBtn.setText(mcfg.emoji);
+                            mkBtn.setTextSize(13);
+                            mkBtn.setSingleLine(true);
+                            mkBtn.setGravity(android.view.Gravity.CENTER);
+                            mkBtn.setPadding(dipToPx(5), dipToPx(4), dipToPx(5), dipToPx(4));
+                            var mkLp = new android.widget.LinearLayout.LayoutParams(
+                                android.widget.LinearLayout.LayoutParams.WRAP_CONTENT,
+                                android.widget.LinearLayout.LayoutParams.WRAP_CONTENT
+                            );
+                            mkLp.setMargins(dipToPx(2), 0, dipToPx(2), 0);
+                            mkBtn.setLayoutParams(mkLp);
+                            applyMarkStyle2(mkBtn, mcfg, (_curMark2 === mcfg.mark));
+                            mkBtn.setOnClickListener(new android.view.View.OnClickListener({
+                                onClick: function(v) {
+                                    try {
+                                        if (getVoiceMark(_markTag2) === mcfg.mark) {
+                                            setVoiceMark(_markTag2, "");
+                                        } else {
+                                            setVoiceMark(_markTag2, mcfg.mark);
+                                        }
+                                        // 局部刷新当前行 emoji 点亮状态
+                                        var newMark = getVoiceMark(_markTag2);
+                                        for (var k = 0; k < vrow.getChildCount(); k++) {
+                                            var ch = vrow.getChildAt(k);
+                                            if (ch && ch._markVal) {
+                                                applyMarkStyle2(ch, { mark: ch._markVal,
+                                                    color: ch._markVal === "like" ? "#43A047"
+                                                         : (ch._markVal === "bad" ? "#E53935" : "#9E9E9E") },
+                                                    (newMark === ch._markVal));
+                                            }
+                                        }
+                                        Toast.makeText(ctx, newMark ? "已标记" : "已取消标记", Toast.LENGTH_SHORT).show();
+                                    } catch (e) { Toast.makeText(ctx, "标记异常: " + e.toString(), Toast.LENGTH_SHORT).show(); }
+                                }
+                            }));
+                            mkBtn._markVal = mcfg.mark;
+                            vrow.addView(mkBtn);
+                        })(markChoices2[mi2]);
+                    }
 
                     // === [新增] 试听按钮 ===
                     var pvBtn = new android.widget.TextView(ctx);
@@ -5032,7 +5382,7 @@ var EditorJS = {
                         android.widget.LinearLayout.LayoutParams.WRAP_CONTENT
                     );
                     pvBtn.setLayoutParams(pvBtnLp);
-                    var _pvVoiceName = vopt.name;
+                    var _pvVoiceName = vopt.value;
                     pvBtn.setOnClickListener(new android.view.View.OnClickListener({
                         onClick: function(v) {
                             try { previewVoiceByName(_pvVoiceName, pvBtn); }
@@ -5040,6 +5390,34 @@ var EditorJS = {
                         }
                     }));
                     vrow.addView(pvBtn);
+
+                    // === 发音人管理按钮（⋮）：试听后觉得难听可当场删除/改名 ===
+                    var mgBtn = new android.widget.TextView(ctx);
+                    mgBtn.setText("⋮");
+                    mgBtn.setTextSize(18);
+                    mgBtn.setTextColor(android.graphics.Color.parseColor("#757575"));
+                    mgBtn.setSingleLine(true);
+                    mgBtn.setGravity(android.view.Gravity.CENTER);
+                    mgBtn.setPadding(dipToPx(6), dipToPx(8), dipToPx(4), dipToPx(8));
+                    var mgBtnLp = new android.widget.LinearLayout.LayoutParams(
+                        android.widget.LinearLayout.LayoutParams.WRAP_CONTENT,
+                        android.widget.LinearLayout.LayoutParams.WRAP_CONTENT
+                    );
+                    mgBtnLp.setMargins(dipToPx(2), 0, 0, 0);
+                    mgBtn.setLayoutParams(mgBtnLp);
+                    var _mgVoiceTag = vopt.value;
+                    var _mgDialog = voiceDialog;
+                    mgBtn.setOnClickListener(new android.view.View.OnClickListener({
+                        onClick: function(v) {
+                            try {
+                                // 管理弹窗关闭后，本弹窗的列表可能已过期（如删除后），关闭本弹窗
+                                showVoiceManageDialog(_mgVoiceTag, function() {
+                                    try { _mgDialog.dismiss(); } catch (e) {}
+                                });
+                            } catch (e) { Toast.makeText(ctx, "管理弹窗异常: " + e.toString(), Toast.LENGTH_SHORT).show(); }
+                        }
+                    }));
+                    vrow.addView(mgBtn);
 
                     vrow.setOnClickListener(new android.view.View.OnClickListener({
                         onClick: function(view) {
@@ -5098,22 +5476,9 @@ var EditorJS = {
         // 通用筛选逻辑（每次调用前刷新发音人列表）
         function filterAndShowVoiceList(keyword, callback) {
             refreshFayinrenList();
-            // 方案B：fayinrenList 存底层 voice，选择弹窗需要显示 displayName
+            // fayinrenList 保持 tag 原值（如"女青年01"），先用 tag 筛选出子集
             var fullVoiceList = fayinrenList.length > 0 ? fayinrenList.slice() : ["默认发音人"];
-            // 构建显示用列表：底层voice→displayName，同时保留底层voice供回调
-            var displayList = [];
-            var voiceToDisplay = {};
-            for (var vi = 0; vi < fullVoiceList.length; vi++) {
-                var v = fullVoiceList[vi];
-                var displayName = v;
-                try {
-                    var liveName = ttsrv.getVoiceByTag(v);
-                    if (liveName) displayName = liveName;
-                } catch(e) {}
-                voiceToDisplay[displayName] = v;
-                displayList.push(displayName);
-            }
-            displayList = displayList.sort(function (a, b) {
+            fullVoiceList = fullVoiceList.sort(function (a, b) {
                 var reA = String(a).match(/^(.+?)(\d+)/);
                 var reB = String(b).match(/^(.+?)(\d+)/);
                 if (reA && reB) {
@@ -5124,28 +5489,51 @@ var EditorJS = {
                 if (reB) return 1;
                 return String(a) < String(b) ? -1 : 1;
             });
-            var filteredList = displayList;
-        
+            var filteredList = fullVoiceList;
+
             if (keyword !== "") {
                 var lowerKeyword = keyword.toLowerCase();
-                filteredList = displayList.filter(function(voice) {
-                    return voice.toLowerCase().indexOf(lowerKeyword) !== -1;
+                filteredList = fullVoiceList.filter(function(voice) {
+                    return String(voice).toLowerCase().indexOf(lowerKeyword) !== -1;
                 });
             }
-        
+
             if (filteredList.length === 0) {
                 Toast.makeText(ctx, "未找到包含「" + keyword + "」的发音人", Toast.LENGTH_SHORT).show();
-                // 弹窗中选中后，把 displayName 转回底层 voice 传给回调
-                showFilteredVoiceDialog(displayList, function(selectedDisplay) {
-                    var selectedVoice = voiceToDisplay[selectedDisplay] || selectedDisplay;
-                    callback(selectedVoice);
-                });
-            } else {
-                showFilteredVoiceDialog(filteredList, function(selectedDisplay) {
-                    var selectedVoice = voiceToDisplay[selectedDisplay] || selectedDisplay;
-                    callback(selectedVoice);
-                });
+                filteredList = fullVoiceList;
             }
+
+            // 子线程对筛选子集查 getVoiceByTag 获取 displayName，避免主线程卡顿
+            var mainHandler = new android.os.Handler(android.os.Looper.getMainLooper());
+
+            new java.lang.Thread(new java.lang.Runnable({
+                run: function () {
+                    try {
+                        var items = [];
+                        for (var i = 0; i < filteredList.length; i++) {
+                            var tag = filteredList[i];
+                            var displayName = tag;
+                            try {
+                                var liveName = ttsrv.getVoiceByTag(tag);
+                                if (liveName) displayName = shortenDisplayName(liveName);
+                            } catch (e) {}
+                            items.push({ name: displayName, value: tag });
+                        }
+                        mainHandler.post(new java.lang.Runnable({
+                            run: function () {
+                                try { showFilteredVoiceDialog(items, callback); }
+                                catch (e) { Toast.makeText(ctx, "加载发音人失败: " + e.toString(), Toast.LENGTH_SHORT).show(); }
+                            }
+                        }));
+                    } catch (e) {
+                        mainHandler.post(new java.lang.Runnable({
+                            run: function () {
+                                Toast.makeText(ctx, "加载发音人失败: " + e.toString(), Toast.LENGTH_SHORT).show();
+                            }
+                        }));
+                    }
+                }
+            })).start();
         }
         
         // 保留原有辅助函数
@@ -6386,7 +6774,11 @@ var EditorJS = {
                 Toast.makeText(ctx, "列表刷新异常: " + e.toString(), Toast.LENGTH_SHORT).show();
             }
         }
-        
+
+        // 将 refreshCharacterList 暴露给模块级回调（onVoiceChanged 等），
+        // 因其定义在 onLoadUI 闭包内，模块级方法无法直接访问。
+        _refreshCharacterListFn = refreshCharacterList;
+
         // 更新列表外观（标记/选中状态可视化）
         
                 function createRoundedDrawable(color, strokeColor) {
@@ -6654,7 +7046,13 @@ var EditorJS = {
             _initFayinrenMapCache(true);
             console.log("onVoiceChanged: personality缓存已强制刷新");
             // 刷新角色列表，获取当前已启用配置项的实际发音人
-            try { refreshCharacterList(); } catch (eRef) { console.error("onVoiceChanged刷新列表失败: " + eRef.toString()); }
+            try {
+                if (_refreshCharacterListFn) {
+                    _refreshCharacterListFn();
+                } else {
+                    console.warn("onVoiceChanged: refreshCharacterList 尚未初始化（onLoadUI 未执行）");
+                }
+            } catch (eRef) { console.error("onVoiceChanged刷新列表失败: " + eRef.toString()); }
         } catch (e) {
             console.error("onVoiceChanged刷新缓存失败: " + e.toString());
         }

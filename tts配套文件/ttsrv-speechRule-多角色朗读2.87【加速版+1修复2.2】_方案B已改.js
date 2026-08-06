@@ -1049,78 +1049,19 @@ CharacterManager.prototype.moveRecordToTop = function(characterName) {
 
 CharacterManager.prototype.detectAvailableVoices = function(tagsData) {
   this.availableVoices = {};
-  // 方案B：voiceTag→底层voice 映射表，供 assignVoice 转换用
-  // 同时建立 voiceTag→displayName 映射，供 fayinren_personality_summary 用
-  this.voiceTagToVoice = {};
-  this.voiceTagToDisplayName = {};
-  // 方案B 反向映射：底层voice→voiceTag / 底层voice→displayName
-  // 供 fayinren_personality_summary 提取用（fayinren.json 存底层voice，需反查 voiceTag 才能取 tagsData 里的 personality）
-  this.voiceToVoiceTag = {};
-  this.voiceToDisplayName = {};
-  // Rhino 兼容：handleText 开头已把 Java LinkedHashMap 转成纯 JS 对象，
-  // 此处需同时兼容 Java Map（.get）和纯 JS 对象（hasOwnProperty + []）
-  var getMapVal = function(map, key) {
-      if (!map) return null;
-      try {
-          if (typeof map.get === 'function') return map.get(key);
-          if (Object.prototype.hasOwnProperty.call(map, key)) return map[key];
-          return null;
-      } catch(e) { return null; }
-  };
-  var hasProp = function(obj, key) {
-      return Object.prototype.hasOwnProperty.call(obj, key);
-  };
   for (var name in GENSHIN_CHARACTERS) {
-      if (hasProp(GENSHIN_CHARACTERS, name)) {
+      if (GENSHIN_CHARACTERS.hasOwnProperty(name)) {
           var info = GENSHIN_CHARACTERS[name];
           var voiceTag = info.voice;
-          if (tagsData && getMapVal(tagsData, voiceTag)) {
-              var tagEntry = getMapVal(tagsData, voiceTag);
-              // 方案B：从 tagEntry.get("_voice") 取底层英文 voice
-              var voiceList = getMapVal(tagEntry, "_voice");
-              var underlyingVoice = "";
-              if (voiceList && voiceList.length > 0) {
-                  for (var vi = 0; vi < voiceList.length; vi++) {
-                      var vItem = voiceList[vi];
-                      var vVal = (typeof vItem.get === 'function') ? vItem.get("value") : vItem.value;
-                      if (vVal) {
-                          underlyingVoice = vVal;
-                          break;
-                      }
-                  }
-              }
-              if (!underlyingVoice) underlyingVoice = voiceTag;
-              this.voiceTagToVoice[voiceTag] = underlyingVoice;
-              this.availableVoices[underlyingVoice] = true;
-              // 反向映射
-              this.voiceToVoiceTag[underlyingVoice] = voiceTag;
-
-              // displayName 同理
-              var nameList = getMapVal(tagEntry, "_displayName");
-              var displayName = "";
-              if (nameList && nameList.length > 0) {
-                  for (var ni = 0; ni < nameList.length; ni++) {
-                      var nItem = nameList[ni];
-                      var nVal = (typeof nItem.get === 'function') ? nItem.get("value") : nItem.value;
-                      if (nVal) {
-                          displayName = nVal;
-                          break;
-                      }
-                  }
-              }
-              if (!displayName) displayName = voiceTag;
-              this.voiceTagToDisplayName[voiceTag] = displayName;
-              // 反向映射
-              this.voiceToDisplayName[underlyingVoice] = displayName;
+          if (tagsData && tagsData[voiceTag]) {
+              this.availableVoices[voiceTag] = true;
           }
       }
   }
 };
 
-CharacterManager.prototype.isVoiceAvailable = function(voiceTag) {
-  // 方案B：传入的是 voiceTag（如"女青年01"），转成底层 voice 后查 availableVoices
-  var underlyingVoice = (this.voiceTagToVoice && this.voiceTagToVoice[voiceTag]) || voiceTag;
-  return this.availableVoices.hasOwnProperty(underlyingVoice);
+CharacterManager.prototype.isVoiceAvailable = function(tag) {
+  return this.availableVoices.hasOwnProperty(tag);
 };
 
 CharacterManager.prototype.assignVoice = function (gender, age) {
@@ -1144,15 +1085,13 @@ CharacterManager.prototype.assignVoice = function (gender, age) {
       // 遍历动态标签，找可用的发音人
       for (var i = 0; i < duihuaCandidates.length; i++) {
           var voiceTag = duihuaCandidates[i];
-          // 方案B-1：去重/返回统一用底层voice，voiceTag仅用于isVoiceAvailable校验
-          var uv = (this.voiceTagToVoice && this.voiceTagToVoice[voiceTag]) || voiceTag;
-          var isUsed = usedVoiceMap.hasOwnProperty(uv) || mainRoleVoiceBlacklist.hasOwnProperty(uv);
+          var isUsed = usedVoiceMap.hasOwnProperty(voiceTag) || mainRoleVoiceBlacklist.hasOwnProperty(voiceTag);
           var isAvailable = this.isVoiceAvailable(voiceTag);
           // 找到未使用、可用的动态标签，直接优先分配
           if (!isUsed && isAvailable) {
-              this.voiceUsageMap[uv] = (this.voiceUsageMap[uv] || 0) + 1;
-              this.usedVoices[uv] = true;
-              return uv;
+              this.voiceUsageMap[voiceTag] = (this.voiceUsageMap[voiceTag] || 0) + 1;
+              this.usedVoices[voiceTag] = true;
+              return voiceTag;
           }
       }
   }
@@ -1183,12 +1122,10 @@ CharacterManager.prototype.assignVoice = function (gender, age) {
       if (GENSHIN_CHARACTERS.hasOwnProperty(name)) {
           var info = GENSHIN_CHARACTERS[name];
           if (info.gender === gender && info.age === age) {
-              // 方案B-1：去重/候选voice用底层voice
-              var uv = (this.voiceTagToVoice && this.voiceTagToVoice[info.voice]) || info.voice;
-              var isUsed = usedVoiceMap.hasOwnProperty(uv) || mainRoleVoiceBlacklist.hasOwnProperty(uv);
+              var isUsed = usedVoiceMap.hasOwnProperty(info.voice) || mainRoleVoiceBlacklist.hasOwnProperty(info.voice);
               var isAvailable = this.isVoiceAvailable(info.voice);
               if (!isUsed && isAvailable) {
-                  candidates.push({ name: name, voice: uv, matchLevel: 0 });
+                  candidates.push({ name: name, voice: info.voice, matchLevel: 0 });
               }
           }
       }
@@ -1203,9 +1140,7 @@ CharacterManager.prototype.assignVoice = function (gender, age) {
           if (GENSHIN_CHARACTERS.hasOwnProperty(name)) {
               var info = GENSHIN_CHARACTERS[name];
               if (info.gender === gender && info.age === age && this.isVoiceAvailable(info.voice)) {
-                  // 方案B-1：map key用底层voice，与record.voice(底层)一致
-                  var uv = (this.voiceTagToVoice && this.voiceTagToVoice[info.voice]) || info.voice;
-                  sameTypeAvailableMap[uv] = true;
+                  sameTypeAvailableMap[info.voice] = true;
               }
           }
       }
@@ -1239,9 +1174,8 @@ CharacterManager.prototype.assignVoice = function (gender, age) {
               if (info.gender === gender && info.age === age && this.isVoiceAvailable(info.voice)) {
                   var numMatch = info.voice.match(/\d+$/);
                   var seqNum = numMatch ? parseInt(numMatch[0], 10) : 0;
-                  // 方案B-1：voice用底层，seq仍用voiceTag数字后缀排序
                   allSameTypeVoices.push({
-                      voice: (this.voiceTagToVoice && this.voiceTagToVoice[info.voice]) || info.voice,
+                      voice: info.voice,
                       seq: seqNum
                   });
               }
@@ -1266,14 +1200,12 @@ CharacterManager.prototype.assignVoice = function (gender, age) {
               if (GENSHIN_CHARACTERS.hasOwnProperty(name)) {
                   var info = GENSHIN_CHARACTERS[name];
                   if (info.gender === gender && info.age === similarAge) {
-                      // 方案B-1：去重/候选voice用底层voice
-                      var uv = (this.voiceTagToVoice && this.voiceTagToVoice[info.voice]) || info.voice;
-                      var isUsed = usedVoiceMap.hasOwnProperty(uv) || mainRoleVoiceBlacklist.hasOwnProperty(uv);
+                      var isUsed = usedVoiceMap.hasOwnProperty(info.voice) || mainRoleVoiceBlacklist.hasOwnProperty(info.voice);
                       var isAvailable = this.isVoiceAvailable(info.voice);
                       if (!isUsed && isAvailable) {
                           candidates.push({
                               name: name,
-                              voice: uv,
+                              voice: info.voice,
                               matchLevel: i + 1
                           });
                       }
@@ -1293,9 +1225,8 @@ CharacterManager.prototype.assignVoice = function (gender, age) {
               if (info.gender === gender && this.isVoiceAvailable(info.voice)) {
                   var numMatch = info.voice.match(/\d+$/);
                   var seqNum = numMatch ? parseInt(numMatch[0], 10) : 0;
-                  // 方案B-1：voice用底层，seq仍用voiceTag数字后缀排序
                   allSameGenderVoices.push({
-                      voice: (this.voiceTagToVoice && this.voiceTagToVoice[info.voice]) || info.voice,
+                      voice: info.voice,
                       seq: seqNum
                   });
               }
@@ -2067,10 +1998,7 @@ CharacterManager.prototype.processCharacter = function (fullText, characterId, a
       } else {
         var voiceInfo = null;
         for (var key in GENSHIN_CHARACTERS) {
-          // 方案B-1：record.voice已是底层voice，需把GENSHIN的voiceTag转底层后再比
-          var cm = this.characterManager;
-          var uv = (cm && cm.voiceTagToVoice && cm.voiceTagToVoice[GENSHIN_CHARACTERS[key].voice]) || GENSHIN_CHARACTERS[key].voice;
-          if (uv === targetMainRecord.voice) {
+          if (GENSHIN_CHARACTERS[key].voice === targetMainRecord.voice) {
             voiceInfo = GENSHIN_CHARACTERS[key];
             break;
           }
@@ -3064,13 +2992,6 @@ var SpeechRuleJS = {
                   hint: "选择角色的性别和年龄阶段",
                   items: '{男/少年: "男/少年",男/男青年: "男/男青年",男/男中年: "男/男中年",男/男老年: "男/男老年",男/男孩: "男/男孩",女/女童: "女/女童",女/少女: "女/少女",女/女青年: "女/女青年",女/女中年: "女/女中年",女/女老年: "女/女老年",男/主角: "男/主角",女/主角: "女/主角"}',
                   default: '男/青年'
-               },
-               // 整合性别+年龄为单选择框，格式：男/青年
-              personality: {
-                  label: "角色性格", // 独立标签名
-                  hint: "选择角色的性格特质（独立配置，不影响其他选项）", // 独立提示语
-          //        items: personalityItemsConfig, 
-          //        default: moren // 独立默认值
                }
 
           },
@@ -3106,34 +3027,9 @@ var SpeechRuleJS = {
               }
           };
       }
-      
-      // 新增：为 GENSHIN_CHARACTERS 所有标签添加【独立性格选择框】（无冲突+无未定义错误）
-      for (var name in GENSHIN_CHARACTERS) {
-          if (GENSHIN_CHARACTERS.hasOwnProperty(name)) {
-              var voiceTag = GENSHIN_CHARACTERS[name].voice.toString();
-              // 直接内嵌性格配置（无需外部变量，彻底避免ReferenceError）
-              var personalityConfig = {
-                  label: "角色性格", // 独立标签名
-                  hint: "选择角色的性格特质（独立配置，不影响其他选项）", // 独立提示语
-          //        items: personalityItemsConfig, 
-         //         default: moren // 独立默认值
-              };
-              
-              // 1. 若标签已存在（如括号1、男主1），在原有配置上新增性格选项
-              if (tagsData[voiceTag]) {
-                  tagsData[voiceTag].personality = personalityConfig; // 字段名：personality（与genderAge无冲突）
-              } 
-              // 2. 若标签不存在，新建配置（仅含性格选择框）
-              else {
-                  tagsData[voiceTag] = {
-                      personality: personalityConfig
-                  };
-              }
-          }
-      }
-      
+
       return tagsData;
-      
+
   })(),
 
 
@@ -3167,81 +3063,36 @@ var SpeechRuleJS = {
       }
   
       if (genshinTagKey !== "") {
-          var basePart = genshinTagKey;
-          var genshinPersonality = "";
-          if (tagData && tagData.personality) {
-              if (Object.prototype.toString.call(tagData.personality) === '[object Array]') {
-                  var flatGenshinP = forceFlattenArray(tagData.personality);
-                  for (var g = 0; g < flatGenshinP.length; g++) {
-                      var pItem = flatGenshinP[g];
-                      genshinPersonality = typeof pItem === 'object' && pItem !== null 
-                          ? (pItem.value || "").trim() 
-                          : (pItem + "").trim();
-                      if (genshinPersonality) {
-                          break;
-                      }
-                  }
-              } else {
-                  genshinPersonality = (tagData.personality + "").trim();
-              }
-          }
-          var personality = genshinPersonality !== "" && genshinPersonality !== "无" ? genshinPersonality : "";
-          var personalityWhole = personality ? ("" + personality) : "";
-  
-          var rsTag = basePart + personalityWhole;
-          //console.log("GENSHIN生效！tag=", tag, "性格=", genshinPersonality, "生成tagName=", rsTag);
+          var rsTag = genshinTagKey;
+          //console.log("GENSHIN生效！tag=", tag, "生成tagName=", rsTag);
           return rsTag;
       }
-  
+
       // 2. duihua标签处理（括号完全匹配，复用GENSHIN逻辑）
       else if ("duihua" == tag) {
           // 角色名部分（括号不变）
-          var roleContent = tagData && tagData.role && tagData.role.trim() !== "" 
-              ? tagData.role.trim() 
+          var roleContent = tagData && tagData.role && tagData.role.trim() !== ""
+              ? tagData.role.trim()
               : "";
           var rolePrefix = "";
           var roleSuffix = "";
-          var rolePart = roleContent.length > 15 
-              ? (rolePrefix + roleContent.substring(0, 15) + ".." + roleSuffix) 
+          var rolePart = roleContent.length > 15
+              ? (rolePrefix + roleContent.substring(0, 15) + ".." + roleSuffix)
               : (rolePrefix + roleContent + roleSuffix);
-  
+
           // 性别年龄部分（括号不变）
           var genderAgeContent = tagData && tagData.genderAge ? tagData.genderAge : "";
           var genderAgePrefix = "（";
           var genderAgeSuffix = "）";
           var genderAgeWhole = genderAgeContent ? (genderAgePrefix + genderAgeContent + genderAgeSuffix) : "";
-  
-          // 性格部分（括号完全匹配）
-          var duihuaPersonality = "";
-          if (tagData && tagData.personality) {
-              if (Object.prototype.toString.call(tagData.personality) === '[object Array]') {
-                  var flatDuihuaP = forceFlattenArray(tagData.personality);
-                  for (var d = 0; d < flatDuihuaP.length; d++) {
-                      var pItem = flatDuihuaP[d];
-                      duihuaPersonality = typeof pItem === 'object' && pItem !== null 
-                          ? (pItem.value || "").trim() 
-                          : (pItem + "").trim();
-                      if (duihuaPersonality) {
-                          break;
-                      }
-                  }
-              } else {
-                  duihuaPersonality = (tagData.personality + "").trim();
-              }
-          }
-          var personality = duihuaPersonality !== "" && duihuaPersonality !== "无" ? duihuaPersonality : "";
-          var separator = "";
-          var personalityPrefix = "|";
-          var personalitySuffix = "";
-          var personalityWhole = personality ? (separator + personalityPrefix + personality + personalitySuffix) : "";
-  
-          // 最终拼接（括号不变）
-          var rsTag = rolePart + personalityWhole + genderAgeWhole;
-  
-          //console.log("duihua生效！性格=", duihuaPersonality, "生成tagName=", rsTag);
+
+          // 最终拼接
+          var rsTag = rolePart + genderAgeWhole;
+
+          //console.log("duihua生效！生成tagName=", rsTag);
           return rsTag;
       }
-  
+
       // 3. 其他标签（括号不变）
       else {
           return this.tags[tag] || "旁白";
@@ -4508,25 +4359,6 @@ text = text.replace(/(^|[^a-zA-Z\u4e00-\u9fa5])(嗝|嗝儿)(?![a-zA-Z\u4e00-\u9f
       // 检测可用发音人（含localSound1~100）
       this.characterManager.detectAvailableVoices(tagsData);
 
-      // 方案B数据迁移：将旧 characterRecords 中的 voiceTag 转成底层 voice
-      // 旧版 voice 存的是 voiceTag（如"女青年01"），新版需存底层 voice（如"zh-CN-XiaoxiaoNeural"）
-      try {
-          var migratedCount = 0;
-          for (var mi = 0; mi < this.characterManager.characterRecords.length; mi++) {
-              var rec = this.characterManager.characterRecords[mi];
-              if (rec.voice && this.characterManager.voiceTagToVoice[rec.voice]) {
-                  rec.voice = this.characterManager.voiceTagToVoice[rec.voice];
-                  migratedCount++;
-              }
-          }
-          if (migratedCount > 0) {
-              console.log("[数据迁移] " + migratedCount + " 条角色记录的 voice 从 voiceTag 迁移到底层 voice");
-              this.characterManager.saveRecords();
-          }
-      } catch (migrateErr) {
-          console.error("[数据迁移] 失败: " + migrateErr.message);
-      }
-
 
    // 新增：在handleText中实时读取duihua配置（ES5强制解嵌套，8个缩进）
 
@@ -4704,209 +4536,7 @@ text = text.replace(/(^|[^a-zA-Z\u4e00-\u9fa5])(嗝|嗝儿)(?![a-zA-Z\u4e00-\u9f
               //console.log("【发音人保存异常】" + saveError.message);
           }
       }
-      
-      
-      
-                // ===================== 发音人 personality 全自动提取工具（有效数据过滤+二维数组）=====================
-          (function extractFayinrenPersonalityAuto() {
-                  var logPrefix = "[发音人Personality提取]";
-          
-                  // 步骤0：复用原代码中的工具函数（适配duihua的role解析）
-                  var forceFlattenArray = function(arr) {
-                          var result = [];
-                          for (var i = 0; i < arr.length; i++) {
-                                  var item = arr[i];
-                                  if (Object.prototype.toString.call(item) === '[object Array]') {
-                                          result = result.concat(forceFlattenArray(item));
-                                  } else {
-                                          result.push(item);
-                                  }
-                          }
-                          return result;
-                  };
-                  var isArray = function(arr) {
-                          return Object.prototype.toString.call(arr) === '[object Array]';
-                  };
-          
-                  // 步骤1：自动读取fayinren.json纯数组标签（不变）
-                  var extractAllTagsFromFayinren = function() {
-                          var tags = [];
-                          try {
-                                  var fileContent = ttsrv.readTxtFile("fayinren.json");
-                                  if (!fileContent || fileContent === "[]") {
-                                          return tags;
-                                  }
-                                  var parsedData = JSON.parse(fileContent);
-                                  if (Object.prototype.toString.call(parsedData) === "[object Array]") {
-                                          var tagSet = {};
-                                          for (var i = 0; i < parsedData.length; i++) {
-                                                  var tag = String(parsedData[i] || "").trim();
-                                                  if (tag && !tagSet[tag]) {
-                                                          tagSet[tag] = true;
-                                                          tags.push(tag);
-                                                  }
-                                          }
-                                  }
-                          } catch (e) {
-                          }
-                          return tags;
-                  };
-          
-                  // 步骤2：100% 复用本地音效 extractByRegex 逻辑（不变）
-                  var extractByRegex = function(configStr) {
-                          // 方案B兼容：转换后 personality 是 JS 数组 [{id:"1", value:"晓晓"}]
-                          if (Object.prototype.toString.call(configStr) === '[object Array]') {
-                                  for (var ei = 0; ei < configStr.length; ei++) {
-                                          var eItem = configStr[ei];
-                                          if (eItem && eItem.value) return String(eItem.value).trim();
-                                          if (eItem && typeof eItem.get === 'function') {
-                                                  var ev = eItem.get("value");
-                                                  if (ev) return String(ev).trim();
-                                          }
-                                  }
-                                  return "";
-                          }
-                          if (typeof configStr !== "string") {
-                                  configStr = String(configStr || "");
-                          }
-                          // 兼容 Java Map 字符串表示：value=xxx}
-                          var regex = /value=([^}]+)/i;
-                          var match = configStr.match(regex);
-                          var personality = "";
-                          if (match && match[1]) {
-                                  personality = match[1].trim();
-                          }
-                          return personality;
-                  };
-          
-                  // 步骤3：有效数据过滤 + 二维数组汇总
-                  var allTags = extractAllTagsFromFayinren();
-                  var globalTagsData = tagsData || {};
-                  var personalityArray = []; // 二维数组存储有效数据
-                  var successCount = 0;
-          
-                  // ===================== 核心修复：每个role独立匹配对应性格 =====================
-                  var duihuaConfig = globalTagsData.duihua || {};
-                  
-                  // 1. 解析duihua的role数组（动态角色标识，如“男青年20”“女童20”）
-                  var duihuaRoles = [];
-                  if (duihuaConfig.role) {
-                          duihuaRoles = forceFlattenArray(duihuaConfig.role);
-                          duihuaRoles = forceFlattenArray(duihuaRoles);
-                          if (!isArray(duihuaRoles)) duihuaRoles = [duihuaRoles];
-                          // 提取每个role的value（发音人标识）
-                          duihuaRoles = duihuaRoles.map(function(roleItem) {
-                                  var value = "";
-                                  if (typeof roleItem === 'object' && roleItem !== null) {
-                                          value = roleItem.value !== undefined ? (roleItem.value + "").trim() : "";
-                                          if (value === "" && typeof roleItem.get === 'function') {
-                                                  var tempVal = roleItem.get("value");
-                                                  value = tempVal ? (tempVal + "").trim() : "";
-                                          }
-                                  }
-                                  return value;
-                          }).filter(function(v) { return v !== ""; });
-                  }
-          
-                  // 2. 解析duihua的personality数组（与role按索引一一对应）
-                  var duihuaPersonalities = [];
-                  if (duihuaConfig.personality) {
-                          // 性格数组也需要扁平化（和role数组处理逻辑一致）
-                          duihuaPersonalities = forceFlattenArray(duihuaConfig.personality);
-                          duihuaPersonalities = forceFlattenArray(duihuaPersonalities);
-                          if (!isArray(duihuaPersonalities)) duihuaPersonalities = [duihuaPersonalities];
-                          // 提取每个personality的value（性格值）
-                          duihuaPersonalities = duihuaPersonalities.map(function(personalityItem) {
-                                  var value = "";
-                                  if (typeof personalityItem === 'object' && personalityItem !== null) {
-                                          value = personalityItem.value !== undefined ? (personalityItem.value + "").trim() : "";
-                                          if (value === "" && typeof personalityItem.get === 'function') {
-                                                  var tempVal = personalityItem.get("value");
-                                                  value = tempVal ? (tempVal + "").trim() : "";
-                                          }
-                                  }
-                                  return value;
-                          });
-                  }
-          
-                  // 3. 按索引配对：role[i] ↔ personality[i]（核心逻辑）
-                  if (duihuaRoles.length > 0 && duihuaPersonalities.length > 0) {
-                          for (var r = 0; r < duihuaRoles.length; r++) {
-                                  var roleTag = duihuaRoles[r];
-                                  // 按相同索引取性格（若性格数组长度不足，默认空）
-                                  var rolePersonality = duihuaPersonalities[r] || "";
-                                  
-                                  // 独立有效性验证（每个role的性格单独判断）
-                                  var isvalid = false;
-                                  if (rolePersonality && rolePersonality !== "无") {
-                                          isvalid = true;
-                                  }
-          
-                                  if (isvalid) {
-                                          // 方案B-1：storeVal=底层voice，displayVal=displayName
-                                          var storeVal = (characterManager.voiceTagToVoice && characterManager.voiceTagToVoice[roleTag]) || roleTag;
-                                          var displayVal = (characterManager.voiceTagToDisplayName && characterManager.voiceTagToDisplayName[roleTag]) || roleTag;
-                                          personalityArray.push([storeVal, displayVal]);
-                                          successCount++;
-                                  } else {
-                                  }
-                          }
-                  } else if (duihuaRoles.length === 0) {
-                  } else if (duihuaPersonalities.length === 0) {
-                  }
-                  // =============================================================================
-          
-                  if (allTags.length === 0 && successCount === 0) {
-                          return;
-                  }
-          
-                  // 复用本地音效for循环批量处理其他硬编标签
-                  for (var i = 0; i < allTags.length; i++) {
-                          var fayinrenTag = allTags[i]; // 方案B：fayinren.json 存底层voice
-                          if (fayinrenTag === "duihua") continue; // 跳过duihua标签本身
-                          // 方案B：fayinrenTag 是底层voice，需反查 voiceTag 才能从 tagsData 取 personality
-                          var revVoiceTag = (characterManager.voiceToVoiceTag && characterManager.voiceToVoiceTag[fayinrenTag]) || fayinrenTag;
-                          var tagConfig = globalTagsData[revVoiceTag] || {};
-                          var personality = "";
 
-                          if (tagConfig.personality) {
-                                  personality = extractByRegex(tagConfig.personality);
-                          } else if (tagConfig.xingge) {
-                                  personality = extractByRegex(tagConfig.xingge);
-                          }
-
-                          // 方案B：有 displayName 映射即为有效（displayName 来自配置项，不依赖 tagsData.personality）
-                          var revDisplayName = (characterManager.voiceToDisplayName && characterManager.voiceToDisplayName[fayinrenTag]) || "";
-                          var isvalid = false;
-                          if (personality && personality !== "无") {
-                                  isvalid = true;
-                          } else if (revDisplayName) {
-                                  isvalid = true; // 有 displayName 映射，即使无 personality 也有效
-                          }
-
-
-                          if (isvalid) {
-                                  // 方案B-1：storeVal=底层voice(fayinrenTag本身)，displayVal=displayName
-                                  var storeVal = fayinrenTag;
-                                  var displayVal = revDisplayName || fayinrenTag;
-                                  personalityArray.push([storeVal, displayVal]);
-                                  successCount++;
-                          } else {
-                          }
-                  }
-          
-                  // 保存有效数据（不变）
-                  if (successCount > 0) {
-                          var jsonContent = JSON.stringify(personalityArray, null, 2);
-                          var fileName = "fayinren_personality_summary.json";
-                          ttsrv.writeTxtFile(fileName, jsonContent);
-          
-                  } else {
-                  }
-          
-          })();
-          
-      
       // 二次检查gengxin.json更新
       try {
           var jsonFileExists = false;

@@ -4,21 +4,26 @@ on:
   # 测试阶段: 去掉 push 自动触发, 避免与 test.yml 重复打包。
   # 只保留手动触发, 需要发正式 Release 时再在 Actions 页面手动运行。
   workflow_dispatch:
+    inputs:
+      build_dev:
+        description: "同时构建 dev 共存版 (默认只构建 app)"
+        type: boolean
+        default: false
 
 jobs:
   build:
     strategy:
       matrix:
-        product:
-          - { name: "App原版", value: app }
+        # 动态生成: build_dev=true 时为 ["app","dev"], 否则只 ["app"]
+        product: ${{ fromJSON(format('["app"{0}]', github.event.inputs.build_dev == 'true' && ',"dev"' || '')) }}
 
       fail-fast: false
     runs-on: ubuntu-latest
     permissions:
       contents: write
     env:
-      product: ${{ matrix.product.value }}
-      product_name: ${{matrix.product.value}}
+      product: ${{ matrix.product }}
+      product_name: ${{ matrix.product }}
       outputs_dir: "${{ github.workspace }}/app/build/outputs"
       ver_name: ""
 
@@ -83,11 +88,15 @@ jobs:
           path: ${{env.outputs_dir}}/apk/${{ env.product }}/release/*${{ env.ver_name }}.apk
 
 
-      - uses: softprops/action-gh-release@v0.1.15
+      - uses: softprops/action-gh-release@v2
         with:
           name: ${{ env.ver_name }}
           tag_name: ${{ env.ver_name }}
-          body_path: ${{ github.workspace }}/CHANGELOG.md
+          # 让 tag 落到实际构建的 commit，避免老版本默认指向仓库默认分支
+          target_commitish: ${{ github.sha }}
+          # 由 GitHub 根据上次 tag 到本次的提交自动生成变更日志，
+          # 不再依赖手写 CHANGELOG.md（之前因忘更新导致多个发布正文完全一样）
+          generate_release_notes: true
           draft: false
           prerelease: false
           files: ${{env.outputs_dir}}/apk/${{ env.product }}/release/*.apk
