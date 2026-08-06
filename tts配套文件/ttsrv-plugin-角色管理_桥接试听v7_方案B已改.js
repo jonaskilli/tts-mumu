@@ -1569,16 +1569,12 @@ var EditorJS = {
                 ssb.setSpan(new android.text.style.ForegroundColorSpan(CLR_WARN), warnStart, ssb.length(), SPAN);
             }
 
-            // 追加发音人标记图标（喜欢❤️/路人🚶/坏人😈），作为选声音参考
+            // 追加发音人标记图标（喜欢❤️/路人🚶/坏人😈），emoji 自带颜色，无需额外设色
             try {
                 var mk = getVoiceMark(voiceTag);
                 if (mk === "like" || mk === "neutral" || mk === "bad") {
                     ssb.append(" ");
-                    var markStart = ssb.length();
                     ssb.append(mk === "like" ? "❤️" : (mk === "bad" ? "😈" : "🚶"));
-                    var markColor = mk === "like" ? "#43A047"
-                                  : (mk === "bad" ? "#E53935" : "#9E9E9E");
-                    ssb.setSpan(new android.text.style.ForegroundColorSpan(android.graphics.Color.parseColor(markColor)), markStart, ssb.length(), SPAN);
                 }
             } catch (e) {}
 
@@ -5266,15 +5262,12 @@ var EditorJS = {
                     vtext.setLayoutParams(vtextParams);
                     vrow.addView(vtext);
 
-                    // === 标记图标（喜欢❤️/路人🚶/坏人😈），作为选声音参考 ===
+                    // === 标记图标（喜欢❤️/路人🚶/坏人😈），emoji 自带颜色，作为选声音参考 ===
                     var _vmark = getVoiceMark(vopt.value);
                     if (_vmark === "like" || _vmark === "neutral" || _vmark === "bad") {
                         var markView = new android.widget.TextView(ctx);
                         markView.setText(_vmark === "like" ? "❤️" : (_vmark === "bad" ? "😈" : "🚶"));
                         markView.setTextSize(14);
-                        var _markColor = _vmark === "like" ? "#43A047"
-                                       : (_vmark === "bad" ? "#E53935" : "#9E9E9E");
-                        markView.setTextColor(android.graphics.Color.parseColor(_markColor));
                         markView.setSingleLine(true);
                         markView.setGravity(android.view.Gravity.CENTER);
                         markView.setPadding(dipToPx(6), 0, dipToPx(4), 0);
