@@ -4026,14 +4026,14 @@ var EditorJS = {
                 charPvBtn.setTextColor(android.graphics.Color.parseColor("#1976D2"));
                 charPvBtn.setSingleLine(true);
                 charPvBtn.setGravity(android.view.Gravity.CENTER);
-                charPvBtn.setPadding(dipToPx(10), dipToPx(8), dipToPx(2), dipToPx(8));
+                charPvBtn.setPadding(dipToPx(12), dipToPx(8), dipToPx(6), dipToPx(8));
                 // record.voice 是 tag，试听直接用 tag 查当前分组的配置项
                 var _charPvTag = record.voice;
                 var charPvLp = new android.widget.LinearLayout.LayoutParams(
                     android.widget.LinearLayout.LayoutParams.WRAP_CONTENT,
                     android.widget.LinearLayout.LayoutParams.WRAP_CONTENT
                 );
-                charPvLp.setMargins(dipToPx(6), 0, 0, 0);
+                charPvLp.setMargins(dipToPx(8), 0, dipToPx(4), 0);
                 charPvBtn.setLayoutParams(charPvLp);
                 charPvBtn.setOnClickListener(new android.view.View.OnClickListener({
                     onClick: function(v) {
@@ -4050,12 +4050,12 @@ var EditorJS = {
                 charRnBtn.setTextColor(android.graphics.Color.parseColor("#1976D2"));
                 charRnBtn.setSingleLine(true);
                 charRnBtn.setGravity(android.view.Gravity.CENTER);
-                charRnBtn.setPadding(dipToPx(6), dipToPx(8), dipToPx(2), dipToPx(8));
+                charRnBtn.setPadding(dipToPx(8), dipToPx(8), dipToPx(6), dipToPx(8));
                 var charRnLp = new android.widget.LinearLayout.LayoutParams(
                     android.widget.LinearLayout.LayoutParams.WRAP_CONTENT,
                     android.widget.LinearLayout.LayoutParams.WRAP_CONTENT
                 );
-                charRnLp.setMargins(dipToPx(2), 0, 0, 0);
+                charRnLp.setMargins(dipToPx(4), 0, dipToPx(4), 0);
                 charRnBtn.setLayoutParams(charRnLp);
                 var _charRnTag = record.voice;
                 charRnBtn.setOnClickListener(new android.view.View.OnClickListener({
@@ -4073,12 +4073,12 @@ var EditorJS = {
                 charMgBtn.setTextColor(android.graphics.Color.parseColor("#757575"));
                 charMgBtn.setSingleLine(true);
                 charMgBtn.setGravity(android.view.Gravity.CENTER);
-                charMgBtn.setPadding(dipToPx(6), dipToPx(8), dipToPx(4), dipToPx(8));
+                charMgBtn.setPadding(dipToPx(8), dipToPx(8), dipToPx(8), dipToPx(8));
                 var charMgLp = new android.widget.LinearLayout.LayoutParams(
                     android.widget.LinearLayout.LayoutParams.WRAP_CONTENT,
                     android.widget.LinearLayout.LayoutParams.WRAP_CONTENT
                 );
-                charMgLp.setMargins(dipToPx(2), 0, 0, 0);
+                charMgLp.setMargins(dipToPx(4), 0, dipToPx(4), 0);
                 charMgBtn.setLayoutParams(charMgLp);
                 var _charMgTag = record.voice;
                 charMgBtn.setOnClickListener(new android.view.View.OnClickListener({
@@ -4754,90 +4754,125 @@ var EditorJS = {
                 infoView.setLayoutParams(infoLp);
                 container.addView(infoView);
 
-                var options = [
-                    { text: "❤️ 喜欢", color: "#43A047", action: "mark_like" },
-                    { text: "🚶 路人", color: "#9E9E9E", action: "mark_neutral" },
-                    { text: "😈 坏人", color: "#E53935", action: "mark_bad" },
-                    { text: "✖ 不喜欢，删除", color: "#E53935", action: "delete" }
+                // 标签选项（toggle：点已选中则取消，点未选中则选中）
+                // 标记互斥：一个发音人只能有一个标签
+                var currentMark = getVoiceMark(tag);
+                var markOptions = [
+                    { text: "❤️ 喜欢", mark: "like" },
+                    { text: "🚶 路人", mark: "neutral" },
+                    { text: "😈 坏人", mark: "bad" }
                 ];
 
-                for (var i = 0; i < options.length; i++) {
-                    (function(cfg) {
-                        var row = new android.widget.LinearLayout(ctx);
-                        row.setOrientation(android.widget.LinearLayout.HORIZONTAL);
-                        row.setGravity(android.view.Gravity.CENTER_VERTICAL);
-                        var rowParams = new android.widget.LinearLayout.LayoutParams(
-                            android.widget.LinearLayout.LayoutParams.MATCH_PARENT,
+                // 标签行容器：横向排列，加大间隔防误点
+                var markRow = new android.widget.LinearLayout(ctx);
+                markRow.setOrientation(android.widget.LinearLayout.HORIZONTAL);
+                markRow.setGravity(android.view.Gravity.CENTER_VERTICAL);
+                var markRowLp = new android.widget.LinearLayout.LayoutParams(
+                    android.widget.LinearLayout.LayoutParams.MATCH_PARENT,
+                    android.widget.LinearLayout.LayoutParams.WRAP_CONTENT
+                );
+                markRowLp.setMargins(0, dipToPx(4), 0, dipToPx(12));
+                markRow.setLayoutParams(markRowLp);
+
+                function applyMarkBtnStyle(btn, mark, isSelected) {
+                    var bg = new android.graphics.drawable.GradientDrawable();
+                    bg.setShape(android.graphics.drawable.GradientDrawable.RECTANGLE);
+                    bg.setCornerRadius(dipToPx(20));
+                    if (isSelected) {
+                        bg.setColor(android.graphics.Color.parseColor("#E3F2FD"));
+                        bg.setStroke(dipToPx(2), android.graphics.Color.parseColor("#1976D2"));
+                    } else {
+                        bg.setColor(android.graphics.Color.parseColor("#F5F5F5"));
+                        bg.setStroke(dipToPx(1), android.graphics.Color.parseColor("#E0E0E0"));
+                    }
+                    btn.setBackground(bg);
+                }
+
+                for (var mi = 0; mi < markOptions.length; mi++) {
+                    (function(mcfg) {
+                        var markBtn = new android.widget.TextView(ctx);
+                        markBtn.setText(mcfg.text);
+                        markBtn.setTextSize(14);
+                        markBtn.setSingleLine(true);
+                        markBtn.setGravity(android.view.Gravity.CENTER);
+                        markBtn.setPadding(dipToPx(16), dipToPx(10), dipToPx(16), dipToPx(10));
+                        // 每个按钮左右加间隔，防误点
+                        var btnLp = new android.widget.LinearLayout.LayoutParams(
+                            android.widget.LinearLayout.LayoutParams.WRAP_CONTENT,
                             android.widget.LinearLayout.LayoutParams.WRAP_CONTENT
                         );
-                        rowParams.setMargins(0, dipToPx(4), 0, dipToPx(4));
-                        row.setLayoutParams(rowParams);
+                        btnLp.setMargins(dipToPx(6), 0, dipToPx(6), 0);
+                        markBtn.setLayoutParams(btnLp);
+                        markBtn.setClickable(true);
 
-                        var bg = new android.graphics.drawable.GradientDrawable();
-                        bg.setShape(android.graphics.drawable.GradientDrawable.RECTANGLE);
-                        bg.setCornerRadius(dipToPx(10));
-                        bg.setColor(android.graphics.Color.parseColor("#FFFFFF"));
-                        bg.setStroke(dipToPx(1), android.graphics.Color.parseColor("#10000000"));
-                        row.setBackground(bg);
-                        row.setPadding(dipToPx(14), dipToPx(12), dipToPx(14), dipToPx(12));
-                        row.setClickable(true);
+                        var isSel = (currentMark === mcfg.mark);
+                        applyMarkBtnStyle(markBtn, mcfg.mark, isSel);
 
-                        var dot = new android.view.View(ctx);
-                        var dotParams = new android.widget.LinearLayout.LayoutParams(dipToPx(7), dipToPx(7));
-                        dotParams.setMargins(0, 0, dipToPx(8), 0);
-                        dot.setLayoutParams(dotParams);
-                        var dotBg = new android.graphics.drawable.GradientDrawable();
-                        dotBg.setShape(android.graphics.drawable.GradientDrawable.OVAL);
-                        dotBg.setColor(android.graphics.Color.parseColor(cfg.color));
-                        dot.setBackground(dotBg);
-                        row.addView(dot);
-
-                        var textView = new android.widget.TextView(ctx);
-                        textView.setText(cfg.text);
-                        textView.setTextSize(15);
-                        textView.setTextColor(android.graphics.Color.parseColor("#333333"));
-                        var textParams = new android.widget.LinearLayout.LayoutParams(
-                            0, android.widget.LinearLayout.LayoutParams.WRAP_CONTENT, 1
-                        );
-                        textView.setLayoutParams(textParams);
-                        row.addView(textView);
-
-                        row.setOnClickListener(new android.view.View.OnClickListener({
+                        markBtn.setOnClickListener(new android.view.View.OnClickListener({
                             onClick: function(v) {
-                                voiceManageDlg.dismiss();
-                                var actionKey = cfg.action;
-                                new android.os.Handler(android.os.Looper.getMainLooper()).post(new java.lang.Runnable({
-                                    run: function() {
-                                        try {
-                                            if (actionKey === "delete") {
-                                                doDeleteVoiceAndReassign(tag, onChange);
-                                            } else if (actionKey === "mark_like") {
-                                                setVoiceMark(tag, "like");
-                                                Toast.makeText(ctx, "已标记为 喜欢", Toast.LENGTH_SHORT).show();
-                                                if (onChange) try { onChange(); } catch (e) {}
-                                                refreshCharacterList();
-                                            } else if (actionKey === "mark_bad") {
-                                                setVoiceMark(tag, "bad");
-                                                Toast.makeText(ctx, "已标记为 坏人", Toast.LENGTH_SHORT).show();
-                                                if (onChange) try { onChange(); } catch (e) {}
-                                                refreshCharacterList();
-                                            } else if (actionKey === "mark_neutral") {
-                                                setVoiceMark(tag, "neutral");
-                                                Toast.makeText(ctx, "已标记为 路人", Toast.LENGTH_SHORT).show();
-                                                if (onChange) try { onChange(); } catch (e) {}
-                                                refreshCharacterList();
+                                try {
+                                    if (currentMark === mcfg.mark) {
+                                        // 已选中 → 取消
+                                        setVoiceMark(tag, "");
+                                        currentMark = "";
+                                        applyMarkBtnStyle(markBtn, mcfg.mark, false);
+                                        Toast.makeText(ctx, "已取消标记", Toast.LENGTH_SHORT).show();
+                                    } else {
+                                        // 切换到新标记
+                                        currentMark = mcfg.mark;
+                                        setVoiceMark(tag, mcfg.mark);
+                                        applyMarkBtnStyle(markBtn, mcfg.mark, true);
+                                        // 更新其他按钮为未选中
+                                        for (var k = 0; k < markRow.getChildCount(); k++) {
+                                            var otherBtn = markRow.getChildAt(k);
+                                            if (otherBtn !== markBtn && otherBtn._markVal) {
+                                                applyMarkBtnStyle(otherBtn, otherBtn._markVal, false);
                                             }
-                                        } catch (e) {
-                                            Toast.makeText(ctx, "操作异常: " + e.toString(), Toast.LENGTH_SHORT).show();
                                         }
+                                        Toast.makeText(ctx, "已标记", Toast.LENGTH_SHORT).show();
                                     }
-                                }));
+                                    // 更新顶部信息行的标记显示
+                                    try { infoView.setText("标签：" + tag + "\n显示名：" + currentName + "\n标记：" + getVoiceMarkLabel(tag)); } catch (e2) {}
+                                    if (onChange) try { onChange(); } catch (e) {}
+                                    refreshCharacterList();
+                                } catch (e) {
+                                    Toast.makeText(ctx, "标记异常: " + e.toString(), Toast.LENGTH_SHORT).show();
+                                }
                             }
                         }));
-
-                        container.addView(row);
-                    })(options[i]);
+                        markBtn._markVal = mcfg.mark;
+                        markRow.addView(markBtn);
+                    })(markOptions[mi]);
                 }
+                container.addView(markRow);
+
+                // 删除按钮（单独一行，与标签分隔）
+                var deleteBtn = new android.widget.TextView(ctx);
+                deleteBtn.setText("✖ 不喜欢，删除");
+                deleteBtn.setTextSize(15);
+                deleteBtn.setTextColor(android.graphics.Color.parseColor("#E53935"));
+                deleteBtn.setSingleLine(true);
+                deleteBtn.setGravity(android.view.Gravity.CENTER);
+                var delBg = new android.graphics.drawable.GradientDrawable();
+                delBg.setShape(android.graphics.drawable.GradientDrawable.RECTANGLE);
+                delBg.setCornerRadius(dipToPx(10));
+                delBg.setColor(android.graphics.Color.parseColor("#FFEBEE"));
+                delBg.setStroke(dipToPx(1), android.graphics.Color.parseColor("#FFCDD2"));
+                deleteBtn.setBackground(delBg);
+                deleteBtn.setPadding(dipToPx(14), dipToPx(12), dipToPx(14), dipToPx(12));
+                deleteBtn.setClickable(true);
+                deleteBtn.setOnClickListener(new android.view.View.OnClickListener({
+                    onClick: function(v) {
+                        voiceManageDlg.dismiss();
+                        new android.os.Handler(android.os.Looper.getMainLooper()).post(new java.lang.Runnable({
+                            run: function() {
+                                try { doDeleteVoiceAndReassign(tag, onChange); }
+                                catch (e) { Toast.makeText(ctx, "操作异常: " + e.toString(), Toast.LENGTH_SHORT).show(); }
+                            }
+                        }));
+                    }
+                }));
+                container.addView(deleteBtn);
 
                 builder.setView(container);
                 var voiceManageDlg = builder.create();
