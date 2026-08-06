@@ -4722,7 +4722,9 @@ var EditorJS = {
 
                 // 当前发音人信息
                 var infoView = new android.widget.TextView(ctx);
-                infoView.setText("标签：" + tag + "\n显示名：" + currentName + "\n标记：" + getVoiceMarkLabel(tag));
+                var _markLabel = "未标记";
+                try { _markLabel = String(getVoiceMarkLabel(tag)); } catch (e) {}
+                infoView.setText(String("标签：" + tag + "\n显示名：" + currentName + "\n标记：" + _markLabel));
                 infoView.setTextSize(13);
                 infoView.setTextColor(android.graphics.Color.parseColor("#757575"));
                 var infoLp = new android.widget.LinearLayout.LayoutParams(
@@ -4815,7 +4817,11 @@ var EditorJS = {
                                         Toast.makeText(ctx, "已标记", Toast.LENGTH_SHORT).show();
                                     }
                                     // 更新顶部信息行的标记显示
-                                    try { infoView.setText("标签：" + tag + "\n显示名：" + currentName + "\n标记：" + getVoiceMarkLabel(tag)); } catch (e2) {}
+                                    try {
+                                        var _ml2 = "未标记";
+                                        try { _ml2 = String(getVoiceMarkLabel(tag)); } catch (e3) {}
+                                        infoView.setText(String("标签：" + tag + "\n显示名：" + currentName + "\n标记：" + _ml2));
+                                    } catch (e2) {}
                                     if (onChange) try { onChange(); } catch (e) {}
                                     refreshCharacterList();
                                 } catch (e) {
@@ -5980,12 +5986,16 @@ var EditorJS = {
 
         // 点击发音人标签触发更换发音人（按角色索引）
         function showVoiceSelectionDialogForFixByIndex(charIndex) {
-            if (charIndex < 0 || !characterRecords[charIndex]) {
-                Toast.makeText(ctx, "角色无效", Toast.LENGTH_SHORT).show();
-                return;
+            try {
+                if (charIndex < 0 || !characterRecords[charIndex]) {
+                    Toast.makeText(ctx, "角色无效", Toast.LENGTH_SHORT).show();
+                    return;
+                }
+                longPressedIndex = charIndex;
+                showVoiceSelectionDialogForFix();
+            } catch (e) {
+                Toast.makeText(ctx, "更换发音人入口异常: " + e.toString(), Toast.LENGTH_LONG).show();
             }
-            longPressedIndex = charIndex;
-            showVoiceSelectionDialogForFix();
         }
 
         // 更换发音人时直接弹出搜索弹窗
