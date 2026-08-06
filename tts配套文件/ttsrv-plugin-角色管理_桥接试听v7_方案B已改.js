@@ -4007,11 +4007,29 @@ var EditorJS = {
                     );
                     voiceLp.setMargins(dipToPx(10), 0, 0, 0);
                     voiceView.setLayoutParams(voiceLp);
-                    // 点击发音人标签 = 更换发音人功能
+                    // 点击发音人标签 = 弹出菜单：更换发音人 / 管理发音人（标记·删除）
+                    // 管理按钮已并入此入口，不再单独放 ⋮
                     var voiceIndex = filteredIndices[position];
+                    var _vvTag = record.voice;
                     voiceView.setOnClickListener(new android.view.View.OnClickListener({
                         onClick: function(v) {
-                            showVoiceSelectionDialogForFixByIndex(voiceIndex);
+                            try {
+                                var items = ["🔄 更换发音人", "⚙️ 管理（标记·删除）"];
+                                var builder = new android.app.AlertDialog.Builder(ctx);
+                                builder.setTitle("发音人：" + voiceTag);
+                                builder.setItems(items, new android.content.DialogInterface.OnClickListener({
+                                    onClick: function(dialog, which) {
+                                        try {
+                                            if (which === 0) {
+                                                showVoiceSelectionDialogForFixByIndex(voiceIndex);
+                                            } else if (which === 1) {
+                                                showVoiceManageDialog(_vvTag, null);
+                                            }
+                                        } catch (e) { Toast.makeText(ctx, "操作异常: " + e.toString(), Toast.LENGTH_SHORT).show(); }
+                                    }
+                                }));
+                                builder.show();
+                            } catch (e) { Toast.makeText(ctx, "弹窗异常: " + e.toString(), Toast.LENGTH_SHORT).show(); }
                         }
                     }));
                     row.addView(voiceView);
@@ -4066,28 +4084,7 @@ var EditorJS = {
                 }));
                 row.addView(charRnBtn);
 
-                // 发音人管理按钮（⋮）：删除/标记（喜欢·不喜欢·路人）
-                var charMgBtn = new android.widget.TextView(ctx);
-                charMgBtn.setText("⋮");
-                charMgBtn.setTextSize(18);
-                charMgBtn.setTextColor(android.graphics.Color.parseColor("#757575"));
-                charMgBtn.setSingleLine(true);
-                charMgBtn.setGravity(android.view.Gravity.CENTER);
-                charMgBtn.setPadding(dipToPx(8), dipToPx(8), dipToPx(8), dipToPx(8));
-                var charMgLp = new android.widget.LinearLayout.LayoutParams(
-                    android.widget.LinearLayout.LayoutParams.WRAP_CONTENT,
-                    android.widget.LinearLayout.LayoutParams.WRAP_CONTENT
-                );
-                charMgLp.setMargins(dipToPx(4), 0, dipToPx(4), 0);
-                charMgBtn.setLayoutParams(charMgLp);
-                var _charMgTag = record.voice;
-                charMgBtn.setOnClickListener(new android.view.View.OnClickListener({
-                    onClick: function(v) {
-                        try { showVoiceManageDialog(_charMgTag, null); }
-                        catch (e) { Toast.makeText(ctx, "管理弹窗异常: " + e.toString(), Toast.LENGTH_SHORT).show(); }
-                    }
-                }));
-                row.addView(charMgBtn);
+                // ⋮ 管理按钮已移除：标记/删除功能并入发音人标签点击菜单
             }
 
             // 右侧圆形选中指示器已移除（选中状态通过背景色体现）
