@@ -1058,6 +1058,26 @@ CharacterManager.prototype.detectAvailableVoices = function(tagsData) {
           }
       }
   }
+  // 自动清理失效发音人：发音人配置项已删除时，清空角色 voice，让后续 assignVoice 重新分配
+  // 覆盖场景：删除发音人后、切书后第一次朗读时，都会通过这里自动修复失效发音人
+  try {
+      var _invalidFound = false;
+      for (var i = 0; i < this.characterRecords.length; i++) {
+          var _rec = this.characterRecords[i];
+          if (_rec && _rec.voice && _rec.voice !== "" && !this.availableVoices[_rec.voice]) {
+              _rec.voice = "";
+              _rec.gender = null;
+              _rec.age = null;
+              _invalidFound = true;
+          }
+      }
+      if (_invalidFound) {
+          this.saveRecords();
+          console.log("detectAvailableVoices: 已清理失效发音人并保存");
+      }
+  } catch (_cleanErr) {
+      console.error("清理失效发音人异常: " + _cleanErr.toString());
+  }
 };
 
 CharacterManager.prototype.isVoiceAvailable = function(tag) {

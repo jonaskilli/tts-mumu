@@ -1545,7 +1545,7 @@ var EditorJS = {
             try {
                 var liveName = ttsrv.getVoiceByTag(voiceTag);
                 if (liveName) {
-                    displayText = shortenDisplayName(liveName);
+                    displayText = liveName;
                     isValid = true;
                 } else {
                     isValid = false;
@@ -1600,49 +1600,6 @@ var EditorJS = {
             }
             // 无法拆分时整体作为tag
             return { tag: voiceText, persona: "" };
-        }
-
-        // 缩减 displayName，保留发音人名：
-        // 结构：前缀(分类) · 发音人名 - 后缀(声优本名/游戏来源/空)
-        //   如 "鹿·霓商" → "霓商"，"鹿·华月-马海燕" → "华月"，"游音·莱恩哈特-明日方舟" → "莱恩哈特"
-        // 其他结构：
-        //   发音人名 描述   (如 "爽快思思 女|青年|直率") → 保留空格前的发音人名
-        //   名字 [注释]     (如 "玛薇卡 [上新优化]")     → 去[]注释
-        // 规则：
-        // 1) 去 [xxx] 注释
-        // 2) 有 · • ：先按 - 取前段(去后缀)，再按 · • 取最后段(去前缀)，得到发音人名
-        // 3) 无 · • ：去空格后的描述部分(保留空格前)，超过 MAX 字则截断
-        var DISPLAY_NAME_MAX = 8;
-        function shortenDisplayName(name) {
-            if (!name) return "";
-            var s = String(name).trim();
-            // 1) 去括号内的注释/来源（半角[]、全角【】、全角［］、半角/全角圆括号）
-            s = s.replace(/\s*[(\[{【［（].*?[)\]}】］）]\s*/g, "").trim();
-            if (s === "") return "";
-
-            // 2) 有 · • ：取发音人名（中间段）
-            if (/[·•]/.test(s)) {
-                // 先按 - 取前段（去声优本名/游戏来源后缀）
-                var dashParts = s.split(/[\-—]/);
-                var main = dashParts[0].trim();
-                // 再按 · • 取最后段（去前缀分类）
-                var dotParts = main.split(/[·•]/);
-                var last = "";
-                for (var i = dotParts.length - 1; i >= 0; i--) {
-                    var p = dotParts[i].trim();
-                    if (p) { last = p; break; }
-                }
-                if (last) {
-                    if (last.length <= DISPLAY_NAME_MAX) return last;
-                    return last.substring(0, DISPLAY_NAME_MAX - 1) + "…";
-                }
-            }
-
-            // 3) 无 · • ：去空格后的描述部分（保留空格前）
-            var spaceIdx = s.indexOf(" ");
-            if (spaceIdx > 0) s = s.substring(0, spaceIdx).trim();
-            if (s.length <= DISPLAY_NAME_MAX) return s;
-            return s.substring(0, DISPLAY_NAME_MAX - 1) + "…";
         }
   
         
@@ -3984,18 +3941,53 @@ var EditorJS = {
                 nameContainer.addView(nameLine);
             }
 
-            // 发音人标签部分：独立TextView，小圆角背景框，可点击更换发音人
+            // 发音人标签部分：左右分开布局
+            // 左=nameContainer（角色名），右=actionCol（操作区2行：上行标签+试听，下行已点亮emoji+⋮+✖）
             if (record && record.voice) {
                 var voiceTag = generateVoiceTag(record);
                 if (voiceTag) {
+                    // 操作区容器（纵向）：上行=标签+试听，下行=已点亮emoji+⋮+✖
+                    var actionCol = new android.widget.LinearLayout(ctx);
+                    actionCol.setOrientation(android.widget.LinearLayout.VERTICAL);
+                    actionCol.setGravity(android.view.Gravity.RIGHT | android.view.Gravity.CENTER_VERTICAL);
+                    var acLp = new android.widget.LinearLayout.LayoutParams(
+                        android.widget.LinearLayout.LayoutParams.WRAP_CONTENT,
+                        android.widget.LinearLayout.LayoutParams.WRAP_CONTENT
+                    );
+                    acLp.setMargins(dipToPx(10), 0, 0, 0);
+                    actionCol.setLayoutParams(acLp);
+
+                    // 上行：标签 + 试听
+                    var actionRow1 = new android.widget.LinearLayout(ctx);
+                    actionRow1.setOrientation(android.widget.LinearLayout.HORIZONTAL);
+                    actionRow1.setGravity(android.view.Gravity.CENTER_VERTICAL);
+                    var ar1Lp = new android.widget.LinearLayout.LayoutParams(
+                        android.widget.LinearLayout.LayoutParams.WRAP_CONTENT,
+                        android.widget.LinearLayout.LayoutParams.WRAP_CONTENT
+                    );
+                    ar1Lp.gravity = android.view.Gravity.RIGHT | android.view.Gravity.CENTER_VERTICAL;
+                    actionRow1.setLayoutParams(ar1Lp);
+
+                    // 下行：已点亮emoji + ⋮ + ✖
+                    var actionRow2 = new android.widget.LinearLayout(ctx);
+                    actionRow2.setOrientation(android.widget.LinearLayout.HORIZONTAL);
+                    actionRow2.setGravity(android.view.Gravity.CENTER_VERTICAL);
+                    var ar2Lp = new android.widget.LinearLayout.LayoutParams(
+                        android.widget.LinearLayout.LayoutParams.WRAP_CONTENT,
+                        android.widget.LinearLayout.LayoutParams.WRAP_CONTENT
+                    );
+                    ar2Lp.gravity = android.view.Gravity.RIGHT | android.view.Gravity.CENTER_VERTICAL;
+                    actionRow2.setLayoutParams(ar2Lp);
+
                     var voiceView = new android.widget.TextView(ctx);
                     voiceView.setTag("voiceTag");
                     voiceView.setText(voiceTag);
                     voiceView.setTextSize(13);
                     voiceView.setSingleLine(true);
+                    voiceView.setEllipsize(android.text.TextUtils.TruncateAt.END);
+                    voiceView.setMaxWidth(dipToPx(180));
                     voiceView.setGravity(android.view.Gravity.CENTER);
                     voiceView.setPadding(dipToPx(10), dipToPx(5), dipToPx(10), dipToPx(5));
-                    // 浅蓝灰圆角小框背景
                     var voiceBg = new android.graphics.drawable.GradientDrawable();
                     voiceBg.setShape(android.graphics.drawable.GradientDrawable.RECTANGLE);
                     voiceBg.setCornerRadius(dipToPx(8));
@@ -4005,9 +3997,8 @@ var EditorJS = {
                         android.widget.LinearLayout.LayoutParams.WRAP_CONTENT,
                         android.widget.LinearLayout.LayoutParams.WRAP_CONTENT
                     );
-                    voiceLp.setMargins(dipToPx(10), 0, 0, 0);
+                    voiceLp.setMargins(0, 0, 0, 0);
                     voiceView.setLayoutParams(voiceLp);
-                    // 点击发音人标签 = 更换发音人（原行为保留）
                     var voiceIndex = filteredIndices[position];
                     voiceView.setOnClickListener(new android.view.View.OnClickListener({
                         onClick: function(v) {
@@ -4018,9 +4009,81 @@ var EditorJS = {
                             }
                         }
                     }));
-                    row.addView(voiceView);
+                    actionRow1.addView(voiceView);
 
-                    // ▶ 试听按钮（紧贴发音人标签后）
+                    var _charMarkTag = record.voice;
+                    var _charCurMark = getVoiceMark(_charMarkTag);
+                    var _charMarkEmojiMap = { like: "❤️", neutral: "🚶", bad: "😈" };
+
+                    if (_charCurMark && _charMarkEmojiMap[_charCurMark]) {
+                        var _litEmoji = new android.widget.TextView(ctx);
+                        _litEmoji.setText(_charMarkEmojiMap[_charCurMark]);
+                        _litEmoji.setTextSize(16);
+                        _litEmoji.setSingleLine(true);
+                        _litEmoji.setGravity(android.view.Gravity.CENTER);
+                        _litEmoji.setPadding(dipToPx(4), dipToPx(8), dipToPx(4), dipToPx(8));
+                        var _litLp = new android.widget.LinearLayout.LayoutParams(
+                            android.widget.LinearLayout.LayoutParams.WRAP_CONTENT,
+                            android.widget.LinearLayout.LayoutParams.WRAP_CONTENT
+                        );
+                        _litLp.setMargins(dipToPx(0), 0, dipToPx(4), 0);
+                        _litEmoji.setLayoutParams(_litLp);
+                        _litEmoji.setOnClickListener(new android.view.View.OnClickListener({
+                            onClick: function(v) {
+                                try {
+                                    setVoiceMark(_charMarkTag, "");
+                                    refreshCharacterList();
+                                    Toast.makeText(ctx, "已取消标记", Toast.LENGTH_SHORT).show();
+                                } catch (e) { _logErr("角色行取消标记异常", e, true); }
+                            }
+                        }));
+                        actionRow2.addView(_litEmoji);
+                    }
+
+                    var _mgTag = record.voice;
+                    var charMgBtn = new android.widget.TextView(ctx);
+                    charMgBtn.setText("⋮");
+                    charMgBtn.setTextSize(18);
+                    charMgBtn.setTextColor(android.graphics.Color.parseColor("#757575"));
+                    charMgBtn.setSingleLine(true);
+                    charMgBtn.setGravity(android.view.Gravity.CENTER);
+                    charMgBtn.setPadding(dipToPx(8), dipToPx(8), dipToPx(8), dipToPx(8));
+                    var charMgLp = new android.widget.LinearLayout.LayoutParams(
+                        android.widget.LinearLayout.LayoutParams.WRAP_CONTENT,
+                        android.widget.LinearLayout.LayoutParams.WRAP_CONTENT
+                    );
+                    charMgLp.setMargins(dipToPx(2), 0, 0, 0);
+                    charMgBtn.setLayoutParams(charMgLp);
+                    charMgBtn.setOnClickListener(new android.view.View.OnClickListener({
+                        onClick: function(v) {
+                            try { showVoiceManageDialog(_mgTag, null); }
+                            catch (e) { _logErr("角色行⋮弹窗异常", e, true); }
+                        }
+                    }));
+                    actionRow2.addView(charMgBtn);
+
+                    var _delCharTag = record.voice;
+                    var _delCharBtn = new android.widget.TextView(ctx);
+                    _delCharBtn.setText("✖");
+                    _delCharBtn.setTextSize(16);
+                    _delCharBtn.setTextColor(android.graphics.Color.parseColor("#E53935"));
+                    _delCharBtn.setSingleLine(true);
+                    _delCharBtn.setGravity(android.view.Gravity.CENTER);
+                    _delCharBtn.setPadding(dipToPx(6), dipToPx(8), dipToPx(6), dipToPx(8));
+                    var _delCharLp = new android.widget.LinearLayout.LayoutParams(
+                        android.widget.LinearLayout.LayoutParams.WRAP_CONTENT,
+                        android.widget.LinearLayout.LayoutParams.WRAP_CONTENT
+                    );
+                    _delCharLp.setMargins(dipToPx(2), 0, 0, 0);
+                    _delCharBtn.setLayoutParams(_delCharLp);
+                    _delCharBtn.setOnClickListener(new android.view.View.OnClickListener({
+                        onClick: function(v) {
+                            try { doDeleteVoiceAndReassign(_delCharTag, function() { refreshCharacterList(); }); }
+                            catch (e) { _logErr("角色行删除发音人异常", e, true); }
+                        }
+                    }));
+                    actionRow2.addView(_delCharBtn);
+
                     var _pvTag = record.voice;
                     var charPvBtn = new android.widget.TextView(ctx);
                     charPvBtn.setText("▶");
@@ -4033,7 +4096,7 @@ var EditorJS = {
                         android.widget.LinearLayout.LayoutParams.WRAP_CONTENT,
                         android.widget.LinearLayout.LayoutParams.WRAP_CONTENT
                     );
-                    charPvLp.setMargins(dipToPx(6), 0, dipToPx(4), 0);
+                    charPvLp.setMargins(dipToPx(4), 0, 0, 0);
                     charPvBtn.setLayoutParams(charPvLp);
                     charPvBtn.setOnClickListener(new android.view.View.OnClickListener({
                         onClick: function(v) {
@@ -4041,30 +4104,11 @@ var EditorJS = {
                             catch (e) { Toast.makeText(ctx, "试听异常: " + e.toString(), Toast.LENGTH_SHORT).show(); }
                         }
                     }));
-                    row.addView(charPvBtn);
+                    actionRow1.addView(charPvBtn);
 
-                    // ⋮ 三点菜单（行末）：改名 / 删除并重分配 / 标记（点亮emoji）
-                    var _mgTag = record.voice;
-                    var charMgBtn = new android.widget.TextView(ctx);
-                    charMgBtn.setText("⋮");
-                    charMgBtn.setTextSize(18);
-                    charMgBtn.setTextColor(android.graphics.Color.parseColor("#757575"));
-                    charMgBtn.setSingleLine(true);
-                    charMgBtn.setGravity(android.view.Gravity.CENTER);
-                    charMgBtn.setPadding(dipToPx(10), dipToPx(8), dipToPx(10), dipToPx(8));
-                    var charMgLp = new android.widget.LinearLayout.LayoutParams(
-                        android.widget.LinearLayout.LayoutParams.WRAP_CONTENT,
-                        android.widget.LinearLayout.LayoutParams.WRAP_CONTENT
-                    );
-                    charMgLp.setMargins(dipToPx(8), 0, dipToPx(2), 0);
-                    charMgBtn.setLayoutParams(charMgLp);
-                    charMgBtn.setOnClickListener(new android.view.View.OnClickListener({
-                        onClick: function(v) {
-                            try { showVoiceManageDialog(_mgTag, null); }
-                            catch (e) { _logErr("角色行⋮弹窗异常", e, true); }
-                        }
-                    }));
-                    row.addView(charMgBtn);
+                    actionCol.addView(actionRow1);
+                    actionCol.addView(actionRow2);
+                    row.addView(actionCol);
                 }
             }
 
@@ -4759,16 +4803,13 @@ var EditorJS = {
                     var bg = new android.graphics.drawable.GradientDrawable();
                     bg.setShape(android.graphics.drawable.GradientDrawable.RECTANGLE);
                     bg.setCornerRadius(dipToPx(20));
+                    bg.setColor(android.graphics.Color.parseColor("#00000000"));
                     if (isSelected) {
-                        // 选中：透明底 + 彩色描边（点亮）
-                        bg.setColor(android.graphics.Color.parseColor("#00000000"));
-                        var markColor = mark === "like" ? "#43A047"
-                                      : (mark === "bad" ? "#E53935" : "#9E9E9E");
-                        bg.setStroke(dipToPx(2), android.graphics.Color.parseColor(markColor));
+                        // 点亮：灰色粗描边2dp，emoji原色
+                        bg.setStroke(dipToPx(2), android.graphics.Color.parseColor("#9E9E9E"));
                     } else {
-                        // 未选中：透明底 + 灰色细描边（暗态）
-                        bg.setColor(android.graphics.Color.parseColor("#00000000"));
-                        bg.setStroke(dipToPx(1), android.graphics.Color.parseColor("#BDBDBD"));
+                        // 不亮：灰色细描边1dp，emoji原色
+                        bg.setStroke(dipToPx(1), android.graphics.Color.parseColor("#E0E0E0"));
                     }
                     btn.setBackground(bg);
                 }
@@ -4778,7 +4819,7 @@ var EditorJS = {
                     (function(mcfg) {
                         var markBtn = new android.widget.TextView(ctx);
                         markBtn.setText(mcfg.text);
-                        markBtn.setTextSize(14);
+                        markBtn.setTextSize(16);
                         markBtn.setSingleLine(true);
                         markBtn.setGravity(android.view.Gravity.CENTER);
                         markBtn.setPadding(dipToPx(16), dipToPx(10), dipToPx(16), dipToPx(10));
@@ -4825,6 +4866,8 @@ var EditorJS = {
                                         try { _ml2 = String(getVoiceMarkLabel(tag)); } catch (e3) {}
                                         infoView.setText(String("标签：" + tag + "\n显示名：" + currentName + "\n标记：" + _ml2));
                                     } catch (e2) {}
+                                    // 标记后关闭弹窗：避免嵌套弹窗（如搜索弹窗→⋮弹窗）挡住底层刷新
+                                    try { voiceManageDlg.dismiss(); } catch (ed) {}
                                     if (onChange) try { onChange(); } catch (e) {}
                                     refreshCharacterList();
                                 } catch (e) {
@@ -4836,36 +4879,6 @@ var EditorJS = {
                     })(markOptions[mi]);
                 }
                 container.addView(markRow);
-
-                // 改名按钮（单独一行）
-                var renameBtn = new android.widget.TextView(ctx);
-                renameBtn.setText("✎ 改显示名");
-                renameBtn.setTextSize(15);
-                renameBtn.setTextColor(android.graphics.Color.parseColor("#1976D2"));
-                renameBtn.setSingleLine(true);
-                renameBtn.setGravity(android.view.Gravity.CENTER);
-                var rnBg = new android.graphics.drawable.GradientDrawable();
-                rnBg.setShape(android.graphics.drawable.GradientDrawable.RECTANGLE);
-                rnBg.setCornerRadius(dipToPx(10));
-                rnBg.setColor(android.graphics.Color.parseColor("#E3F2FD"));
-                rnBg.setStroke(dipToPx(1), android.graphics.Color.parseColor("#BBDEFB"));
-                renameBtn.setBackground(rnBg);
-                renameBtn.setPadding(dipToPx(14), dipToPx(12), dipToPx(14), dipToPx(12));
-                renameBtn.setClickable(true);
-                renameBtn.setOnClickListener(new android.view.View.OnClickListener({
-                    onClick: function(v) {
-                        try {
-                            voiceManageDlg.dismiss();
-                            new android.os.Handler(android.os.Looper.getMainLooper()).post(new java.lang.Runnable({
-                                run: function() {
-                                    try { doRenameVoice(tag, onChange); }
-                                    catch (e) { Toast.makeText(ctx, "改名异常: " + e.toString(), Toast.LENGTH_SHORT).show(); }
-                                }
-                            }));
-                        } catch (e) { Toast.makeText(ctx, "操作异常: " + e.toString(), Toast.LENGTH_SHORT).show(); }
-                    }
-                }));
-                container.addView(renameBtn);
 
                 // 删除按钮（单独一行，与标签分隔）
                 var deleteBtn = new android.widget.TextView(ctx);
@@ -4960,112 +4973,43 @@ var EditorJS = {
                     delete marks[String(tag)];
                 }
                 saveVoiceMarks();
-                // 同步更新发音人列表的缓存标记
-                try {
-                    for (var i = 0; i < fayinrenList.length; i++) {
-                        if (fayinrenList[i] && fayinrenList[i].tag === tag) {
-                            fayinrenList[i].mark = mark;
-                        }
-                    }
-                } catch (e) {}
+                // 注：标记独立存储在 voice_marks.json，fayinrenList 是字符串数组（无 .tag/.mark 属性），
+                // 读取时通过 getVoiceMark(tag) 实时查询，无需在此同步缓存。
             } catch (e) {
                 Toast.makeText(ctx, "标记失败: " + e.toString(), Toast.LENGTH_SHORT).show();
             }
         }
 
-        // 改显示名
-        function doRenameVoice(tag, onChange) {
-            try {
-                var currentName = tag;
-                try {
-                    var liveName = ttsrv.getVoiceByTag(tag);
-                    if (liveName) currentName = liveName;
-                } catch (e) {}
-
-                var builder = new android.app.AlertDialog.Builder(ctx);
-                var container = new android.widget.LinearLayout(ctx);
-                container.setOrientation(android.widget.LinearLayout.VERTICAL);
-                container.setPadding(dipToPx(20), dipToPx(12), dipToPx(20), dipToPx(16));
-                container.addView(createDialogTitle("修改显示名"));
-                container.addView(createDialogLabel("新显示名（留空则使用标签名）"));
-
-                var nameInput = createStyledEditText(null, true);
-                nameInput.setText(currentName);
-                nameInput.setSelection(currentName.length);
-                container.addView(nameInput);
-
-                builder.setView(container);
-                builder.setPositiveButton("保存", new android.content.DialogInterface.OnClickListener({
-                    onClick: function(dialog, which) {
-                        var newName = nameInput.getText() ? nameInput.getText().toString().trim() : "";
-                        if (!newName) {
-                            Toast.makeText(ctx, "名称不能为空", Toast.LENGTH_SHORT).show();
-                            return;
-                        }
-                        // 子线程调用避免卡顿
-                        new java.lang.Thread(new java.lang.Runnable({
-                            run: function() {
-                                var err = ttsrv.updateConfigDisplayName(tag, newName);
-                                new android.os.Handler(android.os.Looper.getMainLooper()).post(new java.lang.Runnable({
-                                    run: function() {
-                                        if (err) {
-                                            Toast.makeText(ctx, "改名失败: " + err, Toast.LENGTH_SHORT).show();
-                                        } else {
-                                            Toast.makeText(ctx, "已改为：" + newName, Toast.LENGTH_SHORT).show();
-                                            if (onChange) try { onChange(); } catch (e) {}
-                                            refreshCharacterList();
-                                        }
-                                    }
-                                }));
-                            }
-                        })).start();
-                        dialog.dismiss();
-                    }
-                }));
-                builder.setNegativeButton("取消", new android.content.DialogInterface.OnClickListener({
-                    onClick: function(dialog, which) { dialog.cancel(); }
-                }));
-                var dlg = builder.show();
-                applyDialogRoundCorner(dlg);
-            } catch (e) {
-                Toast.makeText(ctx, "改名弹窗异常: " + e.toString(), Toast.LENGTH_SHORT).show();
-            }
-        }
-
-        // 删除配置项 + 从 fayinren.json 删 tag + 调用朗读规则重分配
+        // 删除配置项 + 从 fayinren.json 删 tag
+        // 注：不需要手动清空角色 voice 或调用朗读规则
+        //     朗读规则在 detectAvailableVoices 时会自动清理失效发音人并重分配（当前书 + 其他书都覆盖）
         function doDeleteVoiceAndReassign(tag, onChange) {
             try {
-                // 1. 找出所有绑该 tag 的角色
-                var affectedChars = [];
+                // 判断是否被占用（只判断有无，不统计数量）
+                var isUsed = false;
                 for (var i = 0; i < characterRecords.length; i++) {
-                    var r = characterRecords[i];
-                    if (r && r.voice === tag) {
-                        affectedChars.push({ index: i, name: safeGetName(r) });
-                    }
+                    if (characterRecords[i] && characterRecords[i].voice === tag) { isUsed = true; break; }
                 }
 
-                // 2. 确认弹窗
-                var msg = "确认删除发音人配置项【" + tag + "】？\n\n";
-                msg += "显示名：" + (function() {
-                    try { var n = ttsrv.getVoiceByTag(tag); return n || "(无)"; } catch (e) { return "(无)"; }
-                })() + "\n\n";
-                msg += "受影响角色：" + affectedChars.length + " 个\n";
-                if (affectedChars.length > 0) {
-                    var names = affectedChars.slice(0, 5).map(function(c) { return c.name; }).join("、");
-                    if (affectedChars.length > 5) names += " 等";
-                    msg += names + "\n";
+                // 确认弹窗（极简：只说是否被分配，不提数量、不提其他书）
+                var displayName = "(无)";
+                try { var n = ttsrv.getVoiceByTag(tag); if (n) displayName = n; } catch (e) {}
+                var msg = "确认删除发音人【" + tag + " - " + displayName + "】？\n\n";
+                if (isUsed) {
+                    msg += "该发音人已被分配，删除后相关角色将被重新分配，不影响朗读。";
+                } else {
+                    msg += "该发音人未被分配，可删除。";
                 }
-                msg += "\n删除后将调用朗读规则，按原逻辑从现存配置项中重新分配受影响角色。";
 
                 new android.app.AlertDialog.Builder(ctx)
                     .setTitle("删除确认")
                     .setMessage(msg)
                     .setPositiveButton("确认删除", new android.content.DialogInterface.OnClickListener({
                         onClick: function(dialog, which) {
-                            // 子线程执行删除+重分配，避免卡顿
+                            // 子线程执行删除，避免卡顿
                             new java.lang.Thread(new java.lang.Runnable({
                                 run: function() {
-                                    var results = doDeleteVoiceInternal(tag, affectedChars);
+                                    var results = doDeleteVoiceInternal(tag);
                                     new android.os.Handler(android.os.Looper.getMainLooper()).post(new java.lang.Runnable({
                                         run: function() {
                                             Toast.makeText(ctx, results, Toast.LENGTH_LONG).show();
@@ -5088,8 +5032,9 @@ var EditorJS = {
         }
 
         // 删除的内部实现（在子线程跑），返回结果文案
-        // 流程：删配置项 → 从 fayinren.json 删 tag → 调用朗读规则重分配受影响角色
-        function doDeleteVoiceInternal(tag, affectedChars) {
+        // 流程：删配置项 → 从 fayinren.json 删 tag
+        // 不清空角色 voice、不调规则——交给朗读规则在下次朗读时自动处理
+        function doDeleteVoiceInternal(tag) {
             var log = [];
             // 1. 删配置项
             try {
@@ -5121,87 +5066,8 @@ var EditorJS = {
                 log.push("更新fayinren.json失败：" + e.toString());
             }
 
-            // 3. 受影响角色：清空 voice，让朗读规则重新分配
-            if (affectedChars.length === 0) {
-                log.push("无角色受影响");
-                return log.join("\n");
-            }
-
-            // 先清空受影响角色的 voice，规则运行时会按原逻辑重新分配
-            var cleared = 0;
-            for (var j = 0; j < affectedChars.length; j++) {
-                var idx = affectedChars[j].index;
-                if (characterRecords[idx]) {
-                    characterRecords[idx].voice = "";
-                    cleared++;
-                }
-            }
-            log.push("已清空" + cleared + "个角色的发音人，准备重分配");
-
-            // 4. 保存（规则运行前先持久化清空状态，避免规则读不到）
-            try {
-                saveCharacterData();
-                createGengxinFile();
-            } catch (e) {
-                log.push("保存清空状态失败：" + e.toString());
-            }
-
-            // 5. 调用朗读规则重分配
-            try {
-                var ruleErr = runMatchingSpeechRule();
-                if (ruleErr) {
-                    log.push("朗读规则运行失败：" + ruleErr);
-                    log.push("受影响角色标签将变⚠，请手动换发音人");
-                } else {
-                    log.push("朗读规则已运行，角色已重新分配");
-                    // 规则运行后会更新 characterRecords.json，重新加载
-                    try {
-                        var newJson = ttsrv.readTxtFile("characterRecords.json");
-                        if (newJson && newJson.trim() !== "") {
-                            var newRecords = JSON.parse(newJson);
-                            if (Array.isArray(newRecords)) {
-                                characterRecords = newRecords;
-                                log.push("角色数据已重新加载");
-                            }
-                        }
-                    } catch (e) {
-                        log.push("重新加载角色数据失败：" + e.toString());
-                    }
-                }
-            } catch (e) {
-                log.push("调用朗读规则异常：" + e.toString());
-            }
-
+            log.push("下次朗读时规则会自动为受影响角色重分配");
             return log.join("\n");
-        }
-
-        // 查找并运行与当前插件配套的朗读规则（ruleId == engineId）
-        // 成功返回 null，失败返回错误字符串
-        function runMatchingSpeechRule() {
-            try {
-                var listJson = ttsrv.getSpeechRuleList();
-                if (!listJson) return "获取朗读规则列表失败";
-                var list = JSON.parse(listJson);
-                if (!Array.isArray(list) || list.length === 0) {
-                    return "未找到任何朗读规则";
-                }
-                // 优先找 ruleId == 当前插件 engineId 的规则
-                var engineId = String(ttsrv.tts.data.engineId || "");
-                var targetRule = null;
-                for (var i = 0; i < list.length; i++) {
-                    if (String(list[i].ruleId) === engineId) {
-                        targetRule = list[i];
-                        break;
-                    }
-                }
-                // 找不到精确匹配，用第一个
-                if (!targetRule) targetRule = list[0];
-                if (!targetRule || !targetRule.ruleId) return "未找到有效的朗读规则";
-
-                return ttsrv.runSpeechRule(String(targetRule.ruleId));
-            } catch (e) {
-                return "运行朗读规则异常：" + e.toString();
-            }
         }
 
         function previewVoiceByName(tag, btn) {
@@ -5254,13 +5120,25 @@ var EditorJS = {
         }
 
         // 通用发音人筛选弹窗（美化版：自定义卡片列表）
-        function showFilteredVoiceDialog(voiceList, callback) {
+        // 检查某个发音人tag是否已被角色绑定，返回绑定的角色数量
+        function getVoiceAssignedCount(tag) {
+            var count = 0;
+            for (var i = 0; i < characterRecords.length; i++) {
+                if (characterRecords[i] && characterRecords[i].voice === tag) count++;
+            }
+            return count;
+        }
+
+        function showFilteredVoiceDialog(voiceList, callback, _filterKeyword) {
             var builder = new android.app.AlertDialog.Builder(ctx);
             // voiceList 为 {name, value} 对象数组：name 用于显示(displayName)，value 用于回调(tag)
             var voiceOptions = voiceList;
 
             // 声明弹窗引用（供点击回调中dismiss使用）
             var voiceDialog;
+
+            // 记录当前搜索关键词，删除后刷新列表沿用
+            var _currentKeyword = _filterKeyword || "";
 
             // 自定义卡片列表容器
             var voiceContainer = new android.widget.LinearLayout(ctx);
@@ -5274,8 +5152,9 @@ var EditorJS = {
 
             for (var vi = 0; vi < voiceOptions.length; vi++) {
                 (function(vopt, vidx) {
+                    // vrow 纵向：上行=名+操作组，下行（可选）=已点亮emoji+已分配
                     var vrow = new android.widget.LinearLayout(ctx);
-                    vrow.setOrientation(android.widget.LinearLayout.HORIZONTAL);
+                    vrow.setOrientation(android.widget.LinearLayout.VERTICAL);
                     vrow.setGravity(android.view.Gravity.CENTER_VERTICAL);
                     var vparams = new android.widget.LinearLayout.LayoutParams(
                         android.widget.LinearLayout.LayoutParams.MATCH_PARENT,
@@ -5293,13 +5172,17 @@ var EditorJS = {
                     vrow.setPadding(dipToPx(14), dipToPx(12), dipToPx(14), dipToPx(12));
                     vrow.setClickable(true);
 
+                    // 上行：圆点 + 名（换行）+ ⋮ + ✖ + ▶
+                    var vRow1 = new android.widget.LinearLayout(ctx);
+                    vRow1.setOrientation(android.widget.LinearLayout.HORIZONTAL);
+                    vRow1.setGravity(android.view.Gravity.CENTER_VERTICAL);
+
                     var vdot = new android.view.View(ctx);
                     var vdotParams = new android.widget.LinearLayout.LayoutParams(dipToPx(7), dipToPx(7));
                     vdotParams.setMargins(0, 0, dipToPx(8), 0);
                     vdot.setLayoutParams(vdotParams);
                     var vdotBg = new android.graphics.drawable.GradientDrawable();
                     vdotBg.setShape(android.graphics.drawable.GradientDrawable.OVAL);
-                    // 确保与上一行颜色不同
                     var colorIdx = vidx % dotColors.length;
                     if (colorIdx === prevColorIdx) {
                         colorIdx = (colorIdx + 1) % dotColors.length;
@@ -5308,89 +5191,85 @@ var EditorJS = {
                     var dotColor = dotColors[colorIdx];
                     vdotBg.setColor(android.graphics.Color.parseColor(dotColor));
                     vdot.setBackground(vdotBg);
-                    vrow.addView(vdot);
+                    vRow1.addView(vdot);
 
                     var vtext = new android.widget.TextView(ctx);
-                    // vopt.name 已在构建 items 时经过 shortenDisplayName 缩减，直接显示
                     vtext.setText(vopt.name);
                     vtext.setTextSize(15);
                     vtext.setTextColor(android.graphics.Color.parseColor("#333333"));
+                    vtext.setMaxLines(2);
+                    vtext.setEllipsize(android.text.TextUtils.TruncateAt.END);
                     var vtextParams = new android.widget.LinearLayout.LayoutParams(
                         0, android.widget.LinearLayout.LayoutParams.WRAP_CONTENT, 1
                     );
                     vtext.setLayoutParams(vtextParams);
-                    vrow.addView(vtext);
+                    vRow1.addView(vtext);
 
-                    // === 标记 emoji（❤️喜欢/🚶路人/😈坏人）：点亮式 toggle，可当场标记 ===
-                    // 与角色行一致：点亮=彩色描边圈，未点亮=灰色细描边圈
                     var _markTag2 = vopt.value;
                     var _curMark2 = getVoiceMark(_markTag2);
-                    var markChoices2 = [
-                        { emoji: "❤️", mark: "like", color: "#43A047" },
-                        { emoji: "🚶", mark: "neutral", color: "#9E9E9E" },
-                        { emoji: "😈", mark: "bad", color: "#E53935" }
-                    ];
-                    function applyMarkStyle2(btn, mcfg, isOn) {
-                        var bg = new android.graphics.drawable.GradientDrawable();
-                        bg.setShape(android.graphics.drawable.GradientDrawable.RECTANGLE);
-                        bg.setCornerRadius(dipToPx(16));
-                        bg.setColor(android.graphics.Color.parseColor("#00000000"));
-                        if (isOn) {
-                            bg.setStroke(dipToPx(2), android.graphics.Color.parseColor(mcfg.color));
-                        } else {
-                            bg.setStroke(dipToPx(1), android.graphics.Color.parseColor("#BDBDBD"));
-                        }
-                        btn.setBackground(bg);
-                    }
-                    var _mkBtns2 = []; // JS侧记录所有标记按钮及其mark值，避免在Java对象上挂自定义属性
-                    for (var mi2 = 0; mi2 < markChoices2.length; mi2++) {
-                        (function(mcfg) {
-                            var mkBtn = new android.widget.TextView(ctx);
-                            mkBtn.setText(mcfg.emoji);
-                            mkBtn.setTextSize(13);
-                            mkBtn.setSingleLine(true);
-                            mkBtn.setGravity(android.view.Gravity.CENTER);
-                            mkBtn.setPadding(dipToPx(5), dipToPx(4), dipToPx(5), dipToPx(4));
-                            var mkLp = new android.widget.LinearLayout.LayoutParams(
-                                android.widget.LinearLayout.LayoutParams.WRAP_CONTENT,
-                                android.widget.LinearLayout.LayoutParams.WRAP_CONTENT
-                            );
-                            mkLp.setMargins(dipToPx(2), 0, dipToPx(2), 0);
-                            mkBtn.setLayoutParams(mkLp);
-                            applyMarkStyle2(mkBtn, mcfg, (_curMark2 === mcfg.mark));
-                            var _entry2 = { btn: mkBtn, mark: mcfg.mark, color: mcfg.color };
-                            _mkBtns2.push(_entry2);
-                            mkBtn.setOnClickListener(new android.view.View.OnClickListener({
-                                onClick: function(v) {
-                                    try {
-                                        if (getVoiceMark(_markTag2) === mcfg.mark) {
-                                            setVoiceMark(_markTag2, "");
-                                        } else {
-                                            setVoiceMark(_markTag2, mcfg.mark);
-                                        }
-                                        // 局部刷新当前行 emoji 点亮状态（用JS侧映射，不读Java对象属性）
-                                        var newMark = getVoiceMark(_markTag2);
-                                        for (var k = 0; k < _mkBtns2.length; k++) {
-                                            var oe2 = _mkBtns2[k];
-                                            applyMarkStyle2(oe2.btn, { mark: oe2.mark, color: oe2.color },
-                                                (newMark === oe2.mark));
-                                        }
-                                        Toast.makeText(ctx, newMark ? "已标记" : "已取消标记", Toast.LENGTH_SHORT).show();
-                                    } catch (e) { _logErr("标记异常-showVoiceManageDialog", e, true); }
-                                }
-                            }));
-                            vrow.addView(mkBtn);
-                        })(markChoices2[mi2]);
-                    }
+                    var _vMarkEmojiMap = { like: "❤️", neutral: "🚶", bad: "😈" };
+                    var _assignedCount = getVoiceAssignedCount(vopt.value);
+                    var _hasEmoji = (_curMark2 && _vMarkEmojiMap[_curMark2]);
+                    var _hasAssigned = (_assignedCount > 0);
 
-                    // === [新增] 试听按钮 ===
+                    var _vMgTag = vopt.value;
+                    var vMgBtn = new android.widget.TextView(ctx);
+                    vMgBtn.setText("⋮");
+                    vMgBtn.setTextSize(18);
+                    vMgBtn.setTextColor(android.graphics.Color.parseColor("#757575"));
+                    vMgBtn.setSingleLine(true);
+                    vMgBtn.setGravity(android.view.Gravity.CENTER);
+                    vMgBtn.setPadding(dipToPx(8), dipToPx(8), dipToPx(8), dipToPx(8));
+                    var vMgLp = new android.widget.LinearLayout.LayoutParams(
+                        android.widget.LinearLayout.LayoutParams.WRAP_CONTENT,
+                        android.widget.LinearLayout.LayoutParams.WRAP_CONTENT
+                    );
+                    vMgBtn.setLayoutParams(vMgLp);
+                    vMgBtn.setOnClickListener(new android.view.View.OnClickListener({
+                        onClick: function(v) {
+                            try {
+                                showVoiceManageDialog(_vMgTag, function() {
+                                    try { filterAndShowVoiceList(_currentKeyword, callback); } catch (e) {}
+                                });
+                            } catch (e) { _logErr("搜索弹窗⋮弹窗异常", e, true); }
+                        }
+                    }));
+                    vRow1.addView(vMgBtn);
+
+                    var delVoiceBtn = new android.widget.TextView(ctx);
+                    delVoiceBtn.setText("✖");
+                    delVoiceBtn.setTextSize(16);
+                    delVoiceBtn.setTextColor(android.graphics.Color.parseColor("#E53935"));
+                    delVoiceBtn.setSingleLine(true);
+                    delVoiceBtn.setGravity(android.view.Gravity.CENTER);
+                    delVoiceBtn.setPadding(dipToPx(6), dipToPx(8), dipToPx(6), dipToPx(8));
+                    var delVoiceLp2 = new android.widget.LinearLayout.LayoutParams(
+                        android.widget.LinearLayout.LayoutParams.WRAP_CONTENT,
+                        android.widget.LinearLayout.LayoutParams.WRAP_CONTENT
+                    );
+                    delVoiceBtn.setLayoutParams(delVoiceLp2);
+                    var _delVoiceTag = vopt.value;
+                    var _delCallback = callback;
+                    delVoiceBtn.setOnClickListener(new android.view.View.OnClickListener({
+                        onClick: function(v) {
+                            try {
+                                doDeleteVoiceAndReassign(_delVoiceTag, function() {
+                                    try { filterAndShowVoiceList(_currentKeyword, _delCallback); } catch (e) {}
+                                });
+                            } catch (e) {
+                                _logErr("搜索弹窗删除发音人异常", e, true);
+                            }
+                        }
+                    }));
+                    vRow1.addView(delVoiceBtn);
+
                     var pvBtn = new android.widget.TextView(ctx);
                     pvBtn.setText("▶");
                     pvBtn.setTextSize(16);
                     pvBtn.setTextColor(android.graphics.Color.parseColor("#1976D2"));
                     pvBtn.setSingleLine(true);
                     pvBtn.setGravity(android.view.Gravity.CENTER);
-                    pvBtn.setPadding(dipToPx(12), dipToPx(8), dipToPx(4), dipToPx(8));
+                    pvBtn.setPadding(dipToPx(8), dipToPx(8), dipToPx(4), dipToPx(8));
                     var pvBtnLp = new android.widget.LinearLayout.LayoutParams(
                         android.widget.LinearLayout.LayoutParams.WRAP_CONTENT,
                         android.widget.LinearLayout.LayoutParams.WRAP_CONTENT
@@ -5403,35 +5282,65 @@ var EditorJS = {
                             catch (e) { Toast.makeText(ctx, "试听异常: " + e.toString(), Toast.LENGTH_SHORT).show(); }
                         }
                     }));
-                    vrow.addView(pvBtn);
+                    vRow1.addView(pvBtn);
 
-                    // === 发音人管理按钮（⋮）：试听后觉得难听可当场删除/改名 ===
-                    var mgBtn = new android.widget.TextView(ctx);
-                    mgBtn.setText("⋮");
-                    mgBtn.setTextSize(18);
-                    mgBtn.setTextColor(android.graphics.Color.parseColor("#757575"));
-                    mgBtn.setSingleLine(true);
-                    mgBtn.setGravity(android.view.Gravity.CENTER);
-                    mgBtn.setPadding(dipToPx(6), dipToPx(8), dipToPx(4), dipToPx(8));
-                    var mgBtnLp = new android.widget.LinearLayout.LayoutParams(
-                        android.widget.LinearLayout.LayoutParams.WRAP_CONTENT,
-                        android.widget.LinearLayout.LayoutParams.WRAP_CONTENT
-                    );
-                    mgBtnLp.setMargins(dipToPx(2), 0, 0, 0);
-                    mgBtn.setLayoutParams(mgBtnLp);
-                    var _mgVoiceTag = vopt.value;
-                    var _mgDialog = voiceDialog;
-                    mgBtn.setOnClickListener(new android.view.View.OnClickListener({
-                        onClick: function(v) {
-                            try {
-                                // 管理弹窗关闭后，本弹窗的列表可能已过期（如删除后），关闭本弹窗
-                                showVoiceManageDialog(_mgVoiceTag, function() {
-                                    try { _mgDialog.dismiss(); } catch (e) {}
-                                });
-                            } catch (e) { _logErr("管理弹窗异常-showFilteredVoiceDialog", e, true); }
+                    vrow.addView(vRow1);
+
+                    // 下行（可选）：已点亮emoji + 已分配标签（任一存在才显示）
+                    if (_hasEmoji || _hasAssigned) {
+                        var vRow2 = new android.widget.LinearLayout(ctx);
+                        vRow2.setOrientation(android.widget.LinearLayout.HORIZONTAL);
+                        vRow2.setGravity(android.view.Gravity.CENTER_VERTICAL);
+                        var vRow2Lp = new android.widget.LinearLayout.LayoutParams(
+                            android.widget.LinearLayout.LayoutParams.WRAP_CONTENT,
+                            android.widget.LinearLayout.LayoutParams.WRAP_CONTENT
+                        );
+                        vRow2Lp.setMargins(dipToPx(15), dipToPx(4), 0, 0);
+                        vRow2.setLayoutParams(vRow2Lp);
+
+                        if (_hasEmoji) {
+                            var _litVE = new android.widget.TextView(ctx);
+                            _litVE.setText(_vMarkEmojiMap[_curMark2]);
+                            _litVE.setTextSize(16);
+                            _litVE.setSingleLine(true);
+                            _litVE.setGravity(android.view.Gravity.CENTER);
+                            _litVE.setPadding(dipToPx(2), dipToPx(4), dipToPx(2), dipToPx(4));
+                            _litVE.setOnClickListener(new android.view.View.OnClickListener({
+                                onClick: function(v) {
+                                    try {
+                                        setVoiceMark(_markTag2, "");
+                                        try { filterAndShowVoiceList(_currentKeyword, callback); } catch (e) {}
+                                        Toast.makeText(ctx, "已取消标记", Toast.LENGTH_SHORT).show();
+                                    } catch (e) { _logErr("搜索弹窗取消标记异常", e, true); }
+                                }
+                            }));
+                            vRow2.addView(_litVE);
                         }
-                    }));
-                    vrow.addView(mgBtn);
+
+                        if (_hasAssigned) {
+                            var assignedTag = new android.widget.TextView(ctx);
+                            assignedTag.setText("已分配" + _assignedCount);
+                            assignedTag.setTextSize(10);
+                            assignedTag.setTextColor(android.graphics.Color.parseColor("#1976D2"));
+                            assignedTag.setSingleLine(true);
+                            assignedTag.setGravity(android.view.Gravity.CENTER);
+                            assignedTag.setPadding(dipToPx(6), dipToPx(2), dipToPx(6), dipToPx(2));
+                            var assignedBg = new android.graphics.drawable.GradientDrawable();
+                            assignedBg.setShape(android.graphics.drawable.GradientDrawable.RECTANGLE);
+                            assignedBg.setCornerRadius(dipToPx(8));
+                            assignedBg.setColor(android.graphics.Color.parseColor("#E3F2FD"));
+                            assignedTag.setBackground(assignedBg);
+                            var assignedLp = new android.widget.LinearLayout.LayoutParams(
+                                android.widget.LinearLayout.LayoutParams.WRAP_CONTENT,
+                                android.widget.LinearLayout.LayoutParams.WRAP_CONTENT
+                            );
+                            assignedLp.setMargins(dipToPx(4), 0, 0, 0);
+                            assignedTag.setLayoutParams(assignedLp);
+                            vRow2.addView(assignedTag);
+                        }
+
+                        vrow.addView(vRow2);
+                    }
 
                     vrow.setOnClickListener(new android.view.View.OnClickListener({
                         onClick: function(view) {
@@ -5529,13 +5438,13 @@ var EditorJS = {
                             var displayName = tag;
                             try {
                                 var liveName = ttsrv.getVoiceByTag(tag);
-                                if (liveName) displayName = shortenDisplayName(liveName);
+                                if (liveName) displayName = liveName;
                             } catch (e) { console.log("getVoiceByTag失败 tag=" + tag + ": " + e.toString()); }
                             items.push({ name: displayName, value: tag });
                         }
                         mainHandler.post(new java.lang.Runnable({
                             run: function () {
-                                try { showFilteredVoiceDialog(items, callback); }
+                                try { showFilteredVoiceDialog(items, callback, keyword); }
                                 catch (e) { _logErr("加载发音人失败-showFilteredVoiceDialog", e, true); }
                             }
                         }));
