@@ -1529,20 +1529,11 @@ var EditorJS = {
             }
         }
 
-        // 判定是否为"中文前缀+数字序号"格式的普通发音人 tag（如"女青年01""男主1"）。
-        // 这类 tag 直接用 tag 本身显示，避免显示 app 端带性格后缀的 displayName。
-        // 特殊 tag（narration/括号1/localSound1/duihua 等）不命中，仍走 getVoiceByTag 取显示名。
-        var _PLAIN_VOICE_TAG_RE = /^([\u4E00-\u9FA5]+?)(\d+)$/;
-        function isPlainVoiceTag(tag) {
-            if (!tag) return false;
-            return _PLAIN_VOICE_TAG_RE.test(String(tag));
-        }
-
         // 生成发音人标签：
         // record.voice 存的是 tag（如"女青年01"），稳定不随分组变化。
-        // - 普通 tag（前缀+序号）：显示文本恒定用 tag 本身，避免 app 端配置项 displayName 带性格等后缀。
-        // - 特殊 tag（narration/括号1 等）：仍用 getVoiceByTag 返回的 displayName（如"旁白"）。
-        // getVoiceByTag 同时用于判断该 tag 在当前前台分组是否有效，查不到显示 ⚠。
+        // 用 tag 查 getVoiceByTag（返回当前前台分组该tag绑的配置项displayName/tagname）。
+        // 切分组后重新查 -> 自动跟随新分组的发音人名。
+        // 查不到（该tag在当前分组无配置项）时显示 tag + ⚠。
         function generateVoiceTag(character) {
             if (!character || !character.voice) return null;
 
@@ -1550,12 +1541,14 @@ var EditorJS = {
             var displayText = voiceTag;
             var isValid = false;
 
+            // 用 tag 查当前前台分组的发音人 displayName
             try {
                 var liveName = ttsrv.getVoiceByTag(voiceTag);
-                isValid = (liveName !== null);
-                // 仅特殊 tag 用 app 端 displayName；普通"前缀+序号"tag 保持 tag 本身
-                if (liveName && !isPlainVoiceTag(voiceTag)) {
-                    displayText = String(liveName);
+                if (liveName) {
+                    displayText = liveName;
+                    isValid = true;
+                } else {
+                    isValid = false;
                 }
             } catch (e) {
                 isValid = false;
@@ -4744,11 +4737,10 @@ var EditorJS = {
                 var tag = String(voiceTag);
 
                 // 先查当前 displayName 供显示
-                // 普通"前缀+序号"tag 直接用 tag 本身，避免 app 端带性格后缀；特殊 tag 用 getVoiceByTag
                 var currentName = String(tag);
                 try {
                     var liveName = ttsrv.getVoiceByTag(tag);
-                    if (liveName && !isPlainVoiceTag(tag)) currentName = String(liveName);
+                    if (liveName) currentName = String(liveName);
                 } catch (e) { _logErr("getVoiceByTag-displayName", e, false); }
 
                 var builder = new android.app.AlertDialog.Builder(ctx);
@@ -4962,9 +4954,8 @@ var EditorJS = {
                 }
 
                 // 确认弹窗（极简：只说是否被分配，不提数量、不提其他书）
-                // 普通"前缀+序号"tag 直接用 tag 本身，避免 app 端带性格后缀；特殊 tag 用 getVoiceByTag
                 var displayName = "(无)";
-                try { var n = ttsrv.getVoiceByTag(tag); if (n && !isPlainVoiceTag(tag)) displayName = n; } catch (e) {}
+                try { var n = ttsrv.getVoiceByTag(tag); if (n) displayName = n; } catch (e) {}
                 var msg = "确认删除发音人【" + tag + " - " + displayName + "】？\n\n";
                 if (isUsed) {
                     msg += "该发音人已被分配，删除后相关角色将被重新分配，不影响朗读。";
@@ -5382,10 +5373,7 @@ var EditorJS = {
                             var displayName = tag;
                             try {
                                 var liveName = ttsrv.getVoiceByTag(tag);
-                                // 仅特殊 tag 用 app 端 displayName；普通"前缀+序号"tag 保持 tag 本身
-                                if (liveName && !isPlainVoiceTag(tag)) {
-                                    displayName = String(liveName);
-                                }
+                                if (liveName) displayName = liveName;
                             } catch (e) { console.log("getVoiceByTag失败 tag=" + tag + ": " + e.toString()); }
                             items.push({ name: displayName, value: tag });
                         }
