@@ -1560,7 +1560,7 @@ var EditorJS = {
             var SPAN = android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE;
 
             var tagStart = ssb.length();
-            ssb.append(displayText);
+            ssb.append(truncateVoiceName(displayText));
             ssb.setSpan(new android.text.style.ForegroundColorSpan(CLR_TAG), tagStart, ssb.length(), SPAN);
 
             if (!isValid) {
@@ -1600,6 +1600,14 @@ var EditorJS = {
             }
             // 无法拆分时整体作为tag
             return { tag: voiceText, persona: "" };
+        }
+
+        var VOICE_DISPLAY_MAX = 6;
+        function truncateVoiceName(name) {
+            if (!name) return "";
+            var s = String(name);
+            if (s.length <= VOICE_DISPLAY_MAX) return s;
+            return s.substring(0, VOICE_DISPLAY_MAX) + "…";
         }
   
         
@@ -3942,11 +3950,32 @@ var EditorJS = {
             }
 
             // 发音人标签部分：左右分开布局
-            // 左=nameContainer（角色名），右=actionCol（操作区2行：上行标签+试听，下行已点亮emoji+⋮+✖）
+            // 左=nameContainer（角色名），中=⋮菜单（紧跟角色名），右=actionCol（上行标签+试听，下行已点亮emoji）
             if (record && record.voice) {
                 var voiceTag = generateVoiceTag(record);
                 if (voiceTag) {
-                    // 操作区容器（纵向）：上行=标签+试听，下行=已点亮emoji+⋮+✖
+                    var _mgTag = record.voice;
+                    var charMgBtn = new android.widget.TextView(ctx);
+                    charMgBtn.setText("⋮");
+                    charMgBtn.setTextSize(18);
+                    charMgBtn.setTextColor(android.graphics.Color.parseColor("#757575"));
+                    charMgBtn.setSingleLine(true);
+                    charMgBtn.setGravity(android.view.Gravity.CENTER);
+                    charMgBtn.setPadding(dipToPx(6), dipToPx(8), dipToPx(6), dipToPx(8));
+                    var charMgLp = new android.widget.LinearLayout.LayoutParams(
+                        android.widget.LinearLayout.LayoutParams.WRAP_CONTENT,
+                        android.widget.LinearLayout.LayoutParams.WRAP_CONTENT
+                    );
+                    charMgLp.setMargins(dipToPx(6), 0, dipToPx(6), 0);
+                    charMgBtn.setLayoutParams(charMgLp);
+                    charMgBtn.setOnClickListener(new android.view.View.OnClickListener({
+                        onClick: function(v) {
+                            try { showVoiceManageDialog(_mgTag, null); }
+                            catch (e) { _logErr("角色行⋮弹窗异常", e, true); }
+                        }
+                    }));
+                    row.addView(charMgBtn);
+
                     var actionCol = new android.widget.LinearLayout(ctx);
                     actionCol.setOrientation(android.widget.LinearLayout.VERTICAL);
                     actionCol.setGravity(android.view.Gravity.RIGHT | android.view.Gravity.CENTER_VERTICAL);
@@ -4040,50 +4069,6 @@ var EditorJS = {
                         actionRow2.addView(_litEmoji);
                     }
 
-                    var _mgTag = record.voice;
-                    var charMgBtn = new android.widget.TextView(ctx);
-                    charMgBtn.setText("⋮");
-                    charMgBtn.setTextSize(18);
-                    charMgBtn.setTextColor(android.graphics.Color.parseColor("#757575"));
-                    charMgBtn.setSingleLine(true);
-                    charMgBtn.setGravity(android.view.Gravity.CENTER);
-                    charMgBtn.setPadding(dipToPx(8), dipToPx(8), dipToPx(8), dipToPx(8));
-                    var charMgLp = new android.widget.LinearLayout.LayoutParams(
-                        android.widget.LinearLayout.LayoutParams.WRAP_CONTENT,
-                        android.widget.LinearLayout.LayoutParams.WRAP_CONTENT
-                    );
-                    charMgLp.setMargins(dipToPx(2), 0, 0, 0);
-                    charMgBtn.setLayoutParams(charMgLp);
-                    charMgBtn.setOnClickListener(new android.view.View.OnClickListener({
-                        onClick: function(v) {
-                            try { showVoiceManageDialog(_mgTag, null); }
-                            catch (e) { _logErr("角色行⋮弹窗异常", e, true); }
-                        }
-                    }));
-                    actionRow2.addView(charMgBtn);
-
-                    var _delCharTag = record.voice;
-                    var _delCharBtn = new android.widget.TextView(ctx);
-                    _delCharBtn.setText("✖");
-                    _delCharBtn.setTextSize(16);
-                    _delCharBtn.setTextColor(android.graphics.Color.parseColor("#E53935"));
-                    _delCharBtn.setSingleLine(true);
-                    _delCharBtn.setGravity(android.view.Gravity.CENTER);
-                    _delCharBtn.setPadding(dipToPx(6), dipToPx(8), dipToPx(6), dipToPx(8));
-                    var _delCharLp = new android.widget.LinearLayout.LayoutParams(
-                        android.widget.LinearLayout.LayoutParams.WRAP_CONTENT,
-                        android.widget.LinearLayout.LayoutParams.WRAP_CONTENT
-                    );
-                    _delCharLp.setMargins(dipToPx(2), 0, 0, 0);
-                    _delCharBtn.setLayoutParams(_delCharLp);
-                    _delCharBtn.setOnClickListener(new android.view.View.OnClickListener({
-                        onClick: function(v) {
-                            try { doDeleteVoiceAndReassign(_delCharTag, function() { refreshCharacterList(); }); }
-                            catch (e) { _logErr("角色行删除发音人异常", e, true); }
-                        }
-                    }));
-                    actionRow2.addView(_delCharBtn);
-
                     var _pvTag = record.voice;
                     var charPvBtn = new android.widget.TextView(ctx);
                     charPvBtn.setText("▶");
@@ -4107,7 +4092,9 @@ var EditorJS = {
                     actionRow1.addView(charPvBtn);
 
                     actionCol.addView(actionRow1);
-                    actionCol.addView(actionRow2);
+                    if (actionRow2.getChildCount() > 0) {
+                        actionCol.addView(actionRow2);
+                    }
                     row.addView(actionCol);
                 }
             }
@@ -4779,13 +4766,12 @@ var EditorJS = {
                 infoView.setLayoutParams(infoLp);
                 container.addView(infoView);
 
-                // 标签选项（toggle：点已选中则取消，点未选中则选中）
-                // 标记互斥：一个发音人只能有一个标签
                 var currentMark = getVoiceMark(tag);
                 var markOptions = [
-                    { text: "❤️ 喜欢", mark: "like" },
-                    { text: "🚶 路人", mark: "neutral" },
-                    { text: "😈 坏人", mark: "bad" }
+                    { text: "❤️", mark: "like" },
+                    { text: "🚶", mark: "neutral" },
+                    { text: "😈", mark: "bad" },
+                    { text: "✖", mark: "__delete__" }
                 ];
 
                 // 标签行容器：横向排列，加大间隔防误点
@@ -4803,13 +4789,16 @@ var EditorJS = {
                     var bg = new android.graphics.drawable.GradientDrawable();
                     bg.setShape(android.graphics.drawable.GradientDrawable.RECTANGLE);
                     bg.setCornerRadius(dipToPx(20));
-                    bg.setColor(android.graphics.Color.parseColor("#00000000"));
-                    if (isSelected) {
-                        // 点亮：灰色粗描边2dp，emoji原色
-                        bg.setStroke(dipToPx(2), android.graphics.Color.parseColor("#9E9E9E"));
+                    if (mark === "__delete__") {
+                        bg.setColor(android.graphics.Color.parseColor("#FFEBEE"));
+                        bg.setStroke(dipToPx(1), android.graphics.Color.parseColor("#FFCDD2"));
                     } else {
-                        // 不亮：灰色细描边1dp，emoji原色
-                        bg.setStroke(dipToPx(1), android.graphics.Color.parseColor("#E0E0E0"));
+                        bg.setColor(android.graphics.Color.parseColor("#00000000"));
+                        if (isSelected) {
+                            bg.setStroke(dipToPx(2), android.graphics.Color.parseColor("#9E9E9E"));
+                        } else {
+                            bg.setStroke(dipToPx(1), android.graphics.Color.parseColor("#E0E0E0"));
+                        }
                     }
                     btn.setBackground(bg);
                 }
@@ -4823,7 +4812,9 @@ var EditorJS = {
                         markBtn.setSingleLine(true);
                         markBtn.setGravity(android.view.Gravity.CENTER);
                         markBtn.setPadding(dipToPx(16), dipToPx(10), dipToPx(16), dipToPx(10));
-                        // 每个按钮左右加间隔，防误点
+                        if (mcfg.mark === "__delete__") {
+                            markBtn.setTextColor(android.graphics.Color.parseColor("#E53935"));
+                        }
                         var btnLp = new android.widget.LinearLayout.LayoutParams(
                             android.widget.LinearLayout.LayoutParams.WRAP_CONTENT,
                             android.widget.LinearLayout.LayoutParams.WRAP_CONTENT
@@ -4840,18 +4831,25 @@ var EditorJS = {
                         markBtn.setOnClickListener(new android.view.View.OnClickListener({
                             onClick: function(v) {
                                 try {
+                                    if (mcfg.mark === "__delete__") {
+                                        try { voiceManageDlg.dismiss(); } catch (ed) {}
+                                        new android.os.Handler(android.os.Looper.getMainLooper()).post(new java.lang.Runnable({
+                                            run: function() {
+                                                try { doDeleteVoiceAndReassign(tag, onChange); }
+                                                catch (e) { Toast.makeText(ctx, "操作异常: " + e.toString(), Toast.LENGTH_SHORT).show(); }
+                                            }
+                                        }));
+                                        return;
+                                    }
                                     if (currentMark === mcfg.mark) {
-                                        // 已选中 → 取消
                                         setVoiceMark(tag, "");
                                         currentMark = "";
                                         applyMarkBtnStyle(markBtn, mcfg.mark, false);
                                         Toast.makeText(ctx, "已取消标记", Toast.LENGTH_SHORT).show();
                                     } else {
-                                        // 切换到新标记
                                         currentMark = mcfg.mark;
                                         setVoiceMark(tag, mcfg.mark);
                                         applyMarkBtnStyle(markBtn, mcfg.mark, true);
-                                        // 更新其他按钮为未选中（用JS侧映射，不读Java对象属性）
                                         for (var k = 0; k < _markBtns.length; k++) {
                                             var oe = _markBtns[k];
                                             if (oe.btn !== markBtn) {
@@ -4860,13 +4858,11 @@ var EditorJS = {
                                         }
                                         Toast.makeText(ctx, "已标记", Toast.LENGTH_SHORT).show();
                                     }
-                                    // 更新顶部信息行的标记显示
                                     try {
                                         var _ml2 = "未标记";
                                         try { _ml2 = String(getVoiceMarkLabel(tag)); } catch (e3) {}
                                         infoView.setText(String("标签：" + tag + "\n显示名：" + currentName + "\n标记：" + _ml2));
                                     } catch (e2) {}
-                                    // 标记后关闭弹窗：避免嵌套弹窗（如搜索弹窗→⋮弹窗）挡住底层刷新
                                     try { voiceManageDlg.dismiss(); } catch (ed) {}
                                     if (onChange) try { onChange(); } catch (e) {}
                                     refreshCharacterList();
@@ -4879,34 +4875,6 @@ var EditorJS = {
                     })(markOptions[mi]);
                 }
                 container.addView(markRow);
-
-                // 删除按钮（单独一行，与标签分隔）
-                var deleteBtn = new android.widget.TextView(ctx);
-                deleteBtn.setText("✖ 删除并重分配");
-                deleteBtn.setTextSize(15);
-                deleteBtn.setTextColor(android.graphics.Color.parseColor("#E53935"));
-                deleteBtn.setSingleLine(true);
-                deleteBtn.setGravity(android.view.Gravity.CENTER);
-                var delBg = new android.graphics.drawable.GradientDrawable();
-                delBg.setShape(android.graphics.drawable.GradientDrawable.RECTANGLE);
-                delBg.setCornerRadius(dipToPx(10));
-                delBg.setColor(android.graphics.Color.parseColor("#FFEBEE"));
-                delBg.setStroke(dipToPx(1), android.graphics.Color.parseColor("#FFCDD2"));
-                deleteBtn.setBackground(delBg);
-                deleteBtn.setPadding(dipToPx(14), dipToPx(12), dipToPx(14), dipToPx(12));
-                deleteBtn.setClickable(true);
-                deleteBtn.setOnClickListener(new android.view.View.OnClickListener({
-                    onClick: function(v) {
-                        voiceManageDlg.dismiss();
-                        new android.os.Handler(android.os.Looper.getMainLooper()).post(new java.lang.Runnable({
-                            run: function() {
-                                try { doDeleteVoiceAndReassign(tag, onChange); }
-                                catch (e) { Toast.makeText(ctx, "操作异常: " + e.toString(), Toast.LENGTH_SHORT).show(); }
-                            }
-                        }));
-                    }
-                }));
-                container.addView(deleteBtn);
 
                 // 用 ScrollView 包裹，防止内容超出屏幕底部看不全
                 var mgScrollView = new android.widget.ScrollView(ctx);
@@ -5194,15 +5162,34 @@ var EditorJS = {
                     vRow1.addView(vdot);
 
                     var vtext = new android.widget.TextView(ctx);
-                    vtext.setText(vopt.name);
+                    vtext.setText(truncateVoiceName(vopt.name));
                     vtext.setTextSize(15);
                     vtext.setTextColor(android.graphics.Color.parseColor("#333333"));
-                    vtext.setMaxLines(2);
+                    vtext.setMaxLines(1);
                     vtext.setEllipsize(android.text.TextUtils.TruncateAt.END);
                     var vtextParams = new android.widget.LinearLayout.LayoutParams(
                         0, android.widget.LinearLayout.LayoutParams.WRAP_CONTENT, 1
                     );
                     vtext.setLayoutParams(vtextParams);
+                    vtext.setClickable(true);
+                    vtext.setOnClickListener(new android.view.View.OnClickListener({
+                        onClick: function(view) {
+                            var selectedVoice = vopt.value;
+                            var selectedName = vopt.name;
+                            console.log("新发音人已更改为: " + selectedName);
+                            voiceDialog.dismiss();
+                            new android.os.Handler(android.os.Looper.getMainLooper()).post(new java.lang.Runnable({
+                                run: function() {
+                                    try {
+                                        callback(selectedVoice);
+                                    } catch (e) {
+                                        console.error("发音人选择回调执行失败: " + e.toString());
+                                    }
+                                    Toast.makeText(ctx, "新发音人已设置为: " + selectedName, Toast.LENGTH_SHORT).show();
+                                }
+                            }));
+                        }
+                    }));
                     vRow1.addView(vtext);
 
                     var _markTag2 = vopt.value;
@@ -5235,33 +5222,6 @@ var EditorJS = {
                         }
                     }));
                     vRow1.addView(vMgBtn);
-
-                    var delVoiceBtn = new android.widget.TextView(ctx);
-                    delVoiceBtn.setText("✖");
-                    delVoiceBtn.setTextSize(16);
-                    delVoiceBtn.setTextColor(android.graphics.Color.parseColor("#E53935"));
-                    delVoiceBtn.setSingleLine(true);
-                    delVoiceBtn.setGravity(android.view.Gravity.CENTER);
-                    delVoiceBtn.setPadding(dipToPx(6), dipToPx(8), dipToPx(6), dipToPx(8));
-                    var delVoiceLp2 = new android.widget.LinearLayout.LayoutParams(
-                        android.widget.LinearLayout.LayoutParams.WRAP_CONTENT,
-                        android.widget.LinearLayout.LayoutParams.WRAP_CONTENT
-                    );
-                    delVoiceBtn.setLayoutParams(delVoiceLp2);
-                    var _delVoiceTag = vopt.value;
-                    var _delCallback = callback;
-                    delVoiceBtn.setOnClickListener(new android.view.View.OnClickListener({
-                        onClick: function(v) {
-                            try {
-                                doDeleteVoiceAndReassign(_delVoiceTag, function() {
-                                    try { filterAndShowVoiceList(_currentKeyword, _delCallback); } catch (e) {}
-                                });
-                            } catch (e) {
-                                _logErr("搜索弹窗删除发音人异常", e, true);
-                            }
-                        }
-                    }));
-                    vRow1.addView(delVoiceBtn);
 
                     var pvBtn = new android.widget.TextView(ctx);
                     pvBtn.setText("▶");
@@ -5309,6 +5269,7 @@ var EditorJS = {
                                 onClick: function(v) {
                                     try {
                                         setVoiceMark(_markTag2, "");
+                                        try { voiceDialog.dismiss(); } catch (ed) {}
                                         try { filterAndShowVoiceList(_currentKeyword, callback); } catch (e) {}
                                         Toast.makeText(ctx, "已取消标记", Toast.LENGTH_SHORT).show();
                                     } catch (e) { _logErr("搜索弹窗取消标记异常", e, true); }
@@ -5341,26 +5302,6 @@ var EditorJS = {
 
                         vrow.addView(vRow2);
                     }
-
-                    vrow.setOnClickListener(new android.view.View.OnClickListener({
-                        onClick: function(view) {
-                            var selectedVoice = vopt.value;
-                            var selectedName = vopt.name;
-                            console.log("新发音人已更改为: " + selectedName);
-                            voiceDialog.dismiss();
-                            // 延迟执行回调，避免在dialog回调中操作其他dialog导致闪退
-                            new android.os.Handler(android.os.Looper.getMainLooper()).post(new java.lang.Runnable({
-                                run: function() {
-                                    try {
-                                        callback(selectedVoice);
-                                    } catch (e) {
-                                        console.error("发音人选择回调执行失败: " + e.toString());
-                                    }
-                                    Toast.makeText(ctx, "新发音人已设置为: " + selectedName, Toast.LENGTH_SHORT).show();
-                                }
-                            }));
-                        }
-                    }));
 
                     voiceContainer.addView(vrow);
                 })(voiceOptions[vi], vi);
