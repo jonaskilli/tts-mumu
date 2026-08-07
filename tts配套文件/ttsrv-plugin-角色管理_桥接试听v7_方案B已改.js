@@ -4050,12 +4050,12 @@ var EditorJS = {
                         _litEmoji.setTextSize(16);
                         _litEmoji.setSingleLine(true);
                         _litEmoji.setGravity(android.view.Gravity.CENTER);
-                        _litEmoji.setPadding(dipToPx(4), dipToPx(8), dipToPx(4), dipToPx(8));
+                        _litEmoji.setPadding(dipToPx(6), dipToPx(8), dipToPx(6), dipToPx(8));
                         var _litLp = new android.widget.LinearLayout.LayoutParams(
                             android.widget.LinearLayout.LayoutParams.WRAP_CONTENT,
                             android.widget.LinearLayout.LayoutParams.WRAP_CONTENT
                         );
-                        _litLp.setMargins(dipToPx(0), 0, dipToPx(4), 0);
+                        _litLp.setMargins(dipToPx(0), 0, dipToPx(10), 0);
                         _litEmoji.setLayoutParams(_litLp);
                         _litEmoji.setOnClickListener(new android.view.View.OnClickListener({
                             onClick: function(v) {
@@ -4076,12 +4076,12 @@ var EditorJS = {
                     charPvBtn.setTextColor(android.graphics.Color.parseColor("#1976D2"));
                     charPvBtn.setSingleLine(true);
                     charPvBtn.setGravity(android.view.Gravity.CENTER);
-                    charPvBtn.setPadding(dipToPx(8), dipToPx(8), dipToPx(4), dipToPx(8));
+                    charPvBtn.setPadding(dipToPx(10), dipToPx(8), dipToPx(10), dipToPx(8));
                     var charPvLp = new android.widget.LinearLayout.LayoutParams(
                         android.widget.LinearLayout.LayoutParams.WRAP_CONTENT,
                         android.widget.LinearLayout.LayoutParams.WRAP_CONTENT
                     );
-                    charPvLp.setMargins(dipToPx(4), 0, 0, 0);
+                    charPvLp.setMargins(dipToPx(0), 0, dipToPx(0), 0);
                     charPvBtn.setLayoutParams(charPvLp);
                     charPvBtn.setOnClickListener(new android.view.View.OnClickListener({
                         onClick: function(v) {
@@ -4089,12 +4089,10 @@ var EditorJS = {
                             catch (e) { Toast.makeText(ctx, "试听异常: " + e.toString(), Toast.LENGTH_SHORT).show(); }
                         }
                     }));
-                    actionRow1.addView(charPvBtn);
+                    actionRow2.addView(charPvBtn);
 
                     actionCol.addView(actionRow1);
-                    if (actionRow2.getChildCount() > 0) {
-                        actionCol.addView(actionRow2);
-                    }
+                    actionCol.addView(actionRow2);
                     row.addView(actionCol);
                 }
             }
@@ -5258,6 +5256,28 @@ var EditorJS = {
                         vRow2Lp.setMargins(dipToPx(15), dipToPx(4), 0, 0);
                         vRow2.setLayoutParams(vRow2Lp);
 
+                        if (_hasAssigned) {
+                            var assignedTag = new android.widget.TextView(ctx);
+                            assignedTag.setText("已分配");
+                            assignedTag.setTextSize(10);
+                            assignedTag.setTextColor(android.graphics.Color.parseColor("#1976D2"));
+                            assignedTag.setSingleLine(true);
+                            assignedTag.setGravity(android.view.Gravity.CENTER);
+                            assignedTag.setPadding(dipToPx(6), dipToPx(2), dipToPx(6), dipToPx(2));
+                            var assignedBg = new android.graphics.drawable.GradientDrawable();
+                            assignedBg.setShape(android.graphics.drawable.GradientDrawable.RECTANGLE);
+                            assignedBg.setCornerRadius(dipToPx(8));
+                            assignedBg.setColor(android.graphics.Color.parseColor("#E3F2FD"));
+                            assignedTag.setBackground(assignedBg);
+                            var assignedLp = new android.widget.LinearLayout.LayoutParams(
+                                android.widget.LinearLayout.LayoutParams.WRAP_CONTENT,
+                                android.widget.LinearLayout.LayoutParams.WRAP_CONTENT
+                            );
+                            assignedLp.setMargins(0, 0, dipToPx(6), 0);
+                            assignedTag.setLayoutParams(assignedLp);
+                            vRow2.addView(assignedTag);
+                        }
+
                         if (_hasEmoji) {
                             var _litVE = new android.widget.TextView(ctx);
                             _litVE.setText(_vMarkEmojiMap[_curMark2]);
@@ -5276,28 +5296,6 @@ var EditorJS = {
                                 }
                             }));
                             vRow2.addView(_litVE);
-                        }
-
-                        if (_hasAssigned) {
-                            var assignedTag = new android.widget.TextView(ctx);
-                            assignedTag.setText("已分配" + _assignedCount);
-                            assignedTag.setTextSize(10);
-                            assignedTag.setTextColor(android.graphics.Color.parseColor("#1976D2"));
-                            assignedTag.setSingleLine(true);
-                            assignedTag.setGravity(android.view.Gravity.CENTER);
-                            assignedTag.setPadding(dipToPx(6), dipToPx(2), dipToPx(6), dipToPx(2));
-                            var assignedBg = new android.graphics.drawable.GradientDrawable();
-                            assignedBg.setShape(android.graphics.drawable.GradientDrawable.RECTANGLE);
-                            assignedBg.setCornerRadius(dipToPx(8));
-                            assignedBg.setColor(android.graphics.Color.parseColor("#E3F2FD"));
-                            assignedTag.setBackground(assignedBg);
-                            var assignedLp = new android.widget.LinearLayout.LayoutParams(
-                                android.widget.LinearLayout.LayoutParams.WRAP_CONTENT,
-                                android.widget.LinearLayout.LayoutParams.WRAP_CONTENT
-                            );
-                            assignedLp.setMargins(dipToPx(4), 0, 0, 0);
-                            assignedTag.setLayoutParams(assignedLp);
-                            vRow2.addView(assignedTag);
                         }
 
                         vrow.addView(vRow2);
