@@ -4831,12 +4831,8 @@ var EditorJS = {
                                 try {
                                     if (mcfg.mark === "__delete__") {
                                         try { voiceManageDlg.dismiss(); } catch (ed) {}
-                                        new android.os.Handler(android.os.Looper.getMainLooper()).post(new java.lang.Runnable({
-                                            run: function() {
-                                                try { doDeleteVoiceAndReassign(tag, onChange); }
-                                                catch (e) { Toast.makeText(ctx, "操作异常: " + e.toString(), Toast.LENGTH_SHORT).show(); }
-                                            }
-                                        }));
+                                        try { doDeleteVoiceAndReassign(tag, onChange); }
+                                        catch (e) { Toast.makeText(ctx, "操作异常: " + e.toString(), Toast.LENGTH_SHORT).show(); }
                                         return;
                                     }
                                     if (currentMark === mcfg.mark) {
