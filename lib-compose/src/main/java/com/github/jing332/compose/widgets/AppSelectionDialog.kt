@@ -54,7 +54,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import com.github.jing332.compose.ComposeExtensions.clickableRipple
 import com.github.jing332.compose.R
@@ -81,10 +80,10 @@ fun AppSelectionDialog(
             )
         Text(
             entry,
-            style = MaterialTheme.typography.titleMedium,
+            style = MaterialTheme.typography.bodyLarge,
             modifier = Modifier
                 .weight(1f)
-                .padding(8.dp),
+                .padding(horizontal = 16.dp, vertical = 12.dp),
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
             fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
@@ -193,11 +192,15 @@ fun AppSelectionDialog(
                     }
                 }
 
-                val isEmpty by remember {
-                    derivedStateOf { state.layoutInfo.viewportSize == IntSize.Zero }
+                // 用过滤后的条目数判断空，避免依赖 viewport 布局时机导致"空列表"红字闪现
+                val visibleCount by remember {
+                    derivedStateOf {
+                        if (!searchEnabled || searchText.isBlank()) entries.size
+                        else entries.count { it.contains(searchText, ignoreCase = true) }
+                    }
                 }
 
-                if (searchText.isNotBlank() && isEmpty)
+                if (searchText.isNotBlank() && visibleCount == 0)
                     Text(
                         modifier = Modifier
                             .padding(horizontal = 8.dp, vertical = 4.dp)
@@ -205,9 +208,8 @@ fun AppSelectionDialog(
                             .align(Alignment.CenterHorizontally),
                         text = stringResource(id = R.string.empty_list),
                         textAlign = TextAlign.Center,
-                        color = MaterialTheme.colorScheme.error,
-                        fontWeight = FontWeight.Bold,
-                        style = MaterialTheme.typography.titleMedium
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        style = MaterialTheme.typography.bodyMedium
                     )
 
 
