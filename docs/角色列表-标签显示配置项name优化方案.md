@@ -59,9 +59,9 @@ JS handleText(text, tagsData)
 
 插件 JS 已有 voice↔displayName 双向映射，但数据源是 `fayinren_personality_summary.json`，存的是 `[tag, personality]` 而非 `[voice, displayName]`：
 
-- [replaceFayinrenName(tag)](file:///workspace/tts配套文件/ttsrv-plugin-角色管理_桥接试听v7_方案A已改.js#L57) → 返回 personality（如"晓晓"）
-- [reverseReplaceFayinrenName(displayName)](file:///workspace/tts配套文件/ttsrv-plugin-角色管理_桥接试听v7_方案A已改.js#L67) → 返回 tag
-- 缓存来自 [fayinren_personality_summary.json](file:///workspace/tts配套文件/ttsrv-speechRule-多角色朗读2.87【加速版+1修复2.2】_原版未改动态扩展.js#L4510)，二维数组 `[[tag, personality], ...]`
+- replaceFayinrenName(tag)（角色管理插件JS第57行） → 返回 personality（如"晓晓"）
+- reverseReplaceFayinrenName(displayName)（角色管理插件JS第67行） → 返回 tag
+- 缓存来自 fayinren_personality_summary.json（朗读规则JS第4510行），二维数组 `[[tag, personality], ...]`
 
 这套机制若改数据源为 `[voice, displayName]`，即可复用。
 
@@ -72,8 +72,8 @@ JS handleText(text, tagsData)
 | app | [TagNameUtils.kt](file:///workspace/app/src/main/java/com/github/jing332/tts_server_android/compose/systts/list/TagNameUtils.kt) | computeTagName（当前算 tagName，不含 voice） |
 | app | [SpeechRuleEngine.kt](file:///workspace/app/src/main/java/com/github/jing332/tts_server_android/model/rhino/speech_rule/SpeechRuleEngine.kt) | handleText 传 tagsData（**当前不传 voice**） |
 | app | [SystemTtsV2.kt](file:///workspace/lib-database/src/main/java/com/github/jing332/database/entities/systts/SystemTtsV2.kt) | 配置项实体（displayName + config，voice 在 config 内） |
-| 朗读规则 JS | [ttsrv-speechRule...js](file:///workspace/tts配套文件/ttsrv-speechRule-多角色朗读2.87【加速版+1修复2.2】_动态扩展已改.js) | handleText / detectAvailableVoices / assignVoice / fayinren.json 生成 |
-| 插件 JS | [ttsrv-plugin...js](file:///workspace/tts配套文件/ttsrv-plugin-角色管理_桥接试听v7_方案A已改.js) | generateVoiceTag / isVoiceTagValid / replaceFayinrenName |
+| 朗读规则 JS | 朗读规则JS | handleText / detectAvailableVoices / assignVoice / fayinren.json 生成 |
+| 插件 JS | 角色管理插件JS | generateVoiceTag / isVoiceTagValid / replaceFayinrenName |
 
 ---
 
@@ -81,7 +81,7 @@ JS handleText(text, tagsData)
 
 ### 方案 A：仅改插件 JS（最小改动，先立显示）
 
-**改哪**：只动 `ttsrv-plugin-角色管理_桥接试听v7.js` 的两个函数。
+**改哪**：只动角色管理插件JS的两个函数。
 
 - `generateVoiceTag(character)`：不再调 `splitVoiceDisplay` 拆分，整段显示 `character.voice`；不再拼接 tag+persona 两色，统一单色（或保留蓝色）。
 - `isVoiceTagValid(tag)`：放宽校验——`fayinrenList` 为空时通过；非空时只要 `voice` 非空即视为有效，不强制匹配 fayinrenList。
@@ -161,7 +161,7 @@ JS handleText(text, tagsData)
 
 1. **app 如何把 voice 传给 JS**：当前 `SpeechRuleEngine.handleText` 只传 tag+tagData。需在 tagData 里加 `_voice` 和 `_displayName`，还是单独加参数？（建议加 tagData 字段，JS 改动最小）
 2. **duihua 动态标签的 voice 来源**：duihuaA/duihuaB/duihua 是按性别动态分配的，它们的底层 voice 怎么定？是否用首个匹配的配置项 voice？还是固定映射？
-3. **GENSHIN 特殊分支**：[1982行](file:///workspace/tts配套文件/ttsrv-speechRule-多角色朗读2.87【加速版+1修复2.2】_原版未改动态扩展.js#L1982) 按性别分配 duihuaA/duihuaB，voice 落值需单独处理，不能一刀切
+3. **GENSHIN 特殊分支**：朗读规则JS第1982行 按性别分配 duihuaA/duihuaB，voice 落值需单独处理，不能一刀切
 4. **fayinren.json 格式兼容**：格式从 tag 数组改为 voice 数组后，旧插件 JS 读会出错——必须 app + 朗读规则JS + 插件JS 三者同步更新
 5. **personality 字段去留**：方案 C 下 computeTagName 不再读 personality，配置项编辑页 UI 是否还显示该输入框？（建议隐藏，DB 字段保留兼容旧数据）
 
@@ -169,7 +169,7 @@ JS handleText(text, tagsData)
 
 ## 五、关键代码位置索引
 
-### 插件 JS（`ttsrv-plugin-角色管理_桥接试听v7_方案A已改.js`）
+### 插件 JS（角色管理插件JS）
 - `isVoiceTagValid` —— 1524-1527 行（方案A已放宽为非空即有效）
 - `generateVoiceTag` —— 1532-1545 行（方案A已改为显示 voice 原值）
 - `replaceFayinrenName` —— 57 行（tag→personality，需改为 voice→displayName）
@@ -177,7 +177,7 @@ JS handleText(text, tagsData)
 - `_fayinrenMapCache` 初始化 —— 约 70-90 行
 - `fayinrenList` 加载 —— 176-202 行
 
-### 朗读规则 JS（`ttsrv-speechRule-..._动态扩展已改.js`）
+### 朗读规则 JS（朗读规则JS）
 - `handleText` —— 入口，接收 tagsData
 - `detectAvailableVoices` —— 1050 行（availableVoices key=tag，需改 voice）
 - `assignVoice` —— 1079-1089 行（返回 tag，需改返回 voice）
@@ -246,16 +246,16 @@ if (info.displayName.isNotEmpty()) {
 }
 ```
 
-### 6.3 朗读规则 JS 改动（[ttsrv-speechRule..._方案B已改.js](file:///workspace/tts配套文件/ttsrv-speechRule-多角色朗读2.87【加速版+1修复2.2】_方案B已改.js)）
+### 6.3 朗读规则 JS 改动（朗读规则JS）
 
-**① detectAvailableVoices（[L1050-L1094](file:///workspace/tts配套文件/ttsrv-speechRule-多角色朗读2.87【加速版+1修复2.2】_方案B已改.js#L1050-L1094)）**
+**① detectAvailableVoices（朗读规则JS第1050-1094行）**
 - `availableVoices` 的 key 改为底层 voice（从 `tagsData[voiceTag]._voice[0].value` 取，取不到回退 voiceTag）
 - 新增 `voiceTagToVoice` / `voiceTagToDisplayName` 映射表
 
-**② isVoiceAvailable（[L1096-L1100](file:///workspace/tts配套文件/ttsrv-speechRule-多角色朗读2.87【加速版+1修复2.2】_方案B已改.js#L1096-L1100)）**
+**② isVoiceAvailable（朗读规则JS第1096-1100行）**
 入参仍是 voiceTag，内部转底层 voice 后查 `availableVoices`
 
-**③ assignVoice 内部 6 处（[L1121-L1290](file:///workspace/tts配套文件/ttsrv-speechRule-多角色朗读2.87【加速版+1修复2.2】_方案B已改.js#L1121-L1290)）**
+**③ assignVoice 内部 6 处（朗读规则JS第1121-1290行）**
 统一用底层 voice 做去重 key 和返回值，voiceTag 仅用于 `isVoiceAvailable` 校验和序号排序：
 - duihua 分支：`uv = voiceTagToVoice[voiceTag]||voiceTag`，去重/返回用 uv
 - 核心候选：`candidates.push({voice: uv})`
@@ -263,24 +263,24 @@ if (info.displayName.isNotEmpty()) {
 - allSameTypeVoices / allSameGenderVoices：voice 用底层，seq 仍用 voiceTag 数字后缀
 - 年龄降级：同核心候选
 
-**④ GENSHIN 反查（[L2044-L2053](file:///workspace/tts配套文件/ttsrv-speechRule-多角色朗读2.87【加速版+1修复2.2】_方案B已改.js#L2044-L2053)）**
+**④ GENSHIN 反查（朗读规则JS第2044-2053行）**
 record.voice 已是底层 voice，需把 GENSHIN 的 voiceTag 转底层后再比：
 ```js
 var uv = (cm && cm.voiceTagToVoice && cm.voiceTagToVoice[GENSHIN_CHARACTERS[key].voice]) || GENSHIN_CHARACTERS[key].voice;
 if (uv === targetMainRecord.voice) { ... }
 ```
 
-**⑤ 映射文件生成（[L4733-L4737](file:///workspace/tts配套文件/ttsrv-speechRule-多角色朗读2.87【加速版+1修复2.2】_方案B已改.js#L4733-L4737) 和 [L4775-L4779](file:///workspace/tts配套文件/ttsrv-speechRule-多角色朗读2.87【加速版+1修复2.2】_方案B已改.js#L4775-L4779)）**
+**⑤ 映射文件生成（朗读规则JS第4733-4737行 和 朗读规则JS第4775-4779行）**
 `fayinren_personality_summary.json` 从 `[voiceTag, voiceTag+personality]` 改为 `[底层voice, displayName]`，duihua 分支和硬编分支同步改。
 
-### 6.4 桥接插件改动（[ttsrv-plugin..._方案B已改.js](file:///workspace/tts配套文件/ttsrv-plugin-角色管理_桥接试听v7_方案B已改.js)）
+### 6.4 桥接插件改动（角色管理插件JS）
 
 **核心机制：双层闭环（无需改 replaceFayinrenName）**
 - 内存 `characterRecords`：voice 存 **displayName**（读取时 `replaceFayinrenName` 转换）
 - 存盘 `characterRecords.json`：voice 存 **底层voice**（保存时 `reverseReplaceFayinrenName` 反向转换）
 - `fayinrenList`：元素经 `replaceFayinrenName`，存 **displayName**
 
-**① isVoiceTagValid（[L1525-L1531](file:///workspace/tts配套文件/ttsrv-plugin-角色管理_桥接试听v7_方案B已改.js#L1525-L1531)）**
+**① isVoiceTagValid（角色管理插件JS第1525-1531行）**
 校验 record.voice(displayName) 是否在 fayinrenList(displayName集合) 中，不在则无效：
 ```js
 function isVoiceTagValid(voice) {
@@ -292,7 +292,7 @@ function isVoiceTagValid(voice) {
 }
 ```
 
-**② generateVoiceTag（[L1535-L1557](file:///workspace/tts配套文件/ttsrv-plugin-角色管理_桥接试听v7_方案B已改.js#L1535-L1557)）**
+**② generateVoiceTag（角色管理插件JS第1535-1557行）**
 直接显示 character.voice（已是 displayName），无效时追加红色 ⚠：
 ```js
 if (!isValid) {
@@ -309,9 +309,9 @@ if (!isValid) {
 | 问题 | 位置 | 严重性 | 处理 |
 |---|---|---|---|
 | ~~assignVoice 返回 null~~ → **已改为兜底分配** | ~~L2032~~（行号已偏移） | 低 | **已更新（2026-08-08）**。assignVoice 不再返回 null，改为按性别直接返回 `duihuaA`/`duihuaB`/`duihua` 兜底 tag 并输出 `[SpeechRule] 【兜底分配】` 日志。详见 `docs/兜底体系架构.md` |
-| duihua roleValue（如"青年20"）混入 availableVoices/fayinren.json | [L4522](file:///workspace/tts配套文件/ttsrv-speechRule-多角色朗读2.87【加速版+1修复2.2】_方案B已改.js#L4522)、[L4601](file:///workspace/tts配套文件/ttsrv-speechRule-多角色朗读2.87【加速版+1修复2.2】_方案B已改.js#L4601) | 低 | **保留**。duihua 动态标签无底层voice映射，roleValue 即其标识；assignVoice 的 duihua 分支 `uv=voiceTagToVoice[voiceTag]\|\|voiceTag` 让返回值与 key 一致（都是 roleValue），自洽；桥接 replaceFayinrenName 查不到 roleValue 原样显示，合理 |
-| 朗读规则JS内部命令显示英文voice | [L5208](file:///workspace/tts配套文件/ttsrv-speechRule-多角色朗读2.87【加速版+1修复2.2】_方案B已改.js#L5208)（qjs统计）、[L5238](file:///workspace/tts配套文件/ttsrv-speechRule-多角色朗读2.87【加速版+1修复2.2】_方案B已改.js#L5238)（setFixedVoice）、printAvailableVoices | 中 | **暂不处理**。属朗读规则JS内部命令（非角色列表标签），不在本次核心目标范围；用户已确认暂不需要 |
-| 桥接「系统TTS重新分配」逻辑依赖 `displayName.match(/^(.+?)\d/)` 分类 | [L4665](file:///workspace/tts配套文件/ttsrv-plugin-角色管理_桥接试听v7_方案B已改.js#L4665) | 中 | **暂不处理**。方案B下 displayName 是"晓晓"非"女青年01"，正则失效；但这是「未开转发器+系统TTS重分配」边缘场景，需单独适配 |
+| duihua roleValue（如"青年20"）混入 availableVoices/fayinren.json | 朗读规则JS第4522行、朗读规则JS第4601行 | 低 | **保留**。duihua 动态标签无底层voice映射，roleValue 即其标识；assignVoice 的 duihua 分支 `uv=voiceTagToVoice[voiceTag]\|\|voiceTag` 让返回值与 key 一致（都是 roleValue），自洽；桥接 replaceFayinrenName 查不到 roleValue 原样显示，合理 |
+| 朗读规则JS内部命令显示英文voice | 朗读规则JS第5208行（qjs统计）、朗读规则JS第5238行（setFixedVoice）、printAvailableVoices | 中 | **暂不处理**。属朗读规则JS内部命令（非角色列表标签），不在本次核心目标范围；用户已确认暂不需要 |
+| 桥接「系统TTS重新分配」逻辑依赖 `displayName.match(/^(.+?)\d/)` 分类 | 角色管理插件JS第4665行 | 中 | **暂不处理**。方案B下 displayName 是"晓晓"非"女青年01"，正则失效；但这是「未开转发器+系统TTS重分配」边缘场景，需单独适配 |
 
 ### 6.6 验证清单（真机/模拟器）
 
@@ -327,7 +327,7 @@ if (!isValid) {
 ### 6.7 分发说明
 
 - app 侧改动（SpeechRuleInfo/TextProcessor/SpeechRuleEngine）打包进新 APK
-- 分发 `_方案B已改.js` 两个文件给用户导入
+- 分发 tts配套文件/ 目录下的两个 JS 文件给用户导入
 - **强调**：app + 朗读规则JS + 插件JS 必须同步更新，旧版任一不匹配都会出错
 
 ---

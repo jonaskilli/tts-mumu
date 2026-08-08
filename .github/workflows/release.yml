@@ -6,9 +6,9 @@ on:
   workflow_dispatch:
     inputs:
       build_dev:
-        description: "同时构建 dev 共存版 (默认只构建 app)"
+        description: "同时构建 dev 共存版 (默认同时构建 app 和 dev)"
         type: boolean
-        default: false
+        default: true
 
 jobs:
   build:
@@ -23,7 +23,6 @@ jobs:
       contents: write
     env:
       product: ${{ matrix.product }}
-      product_name: ${{ matrix.product }}
       outputs_dir: "${{ github.workspace }}/app/build/outputs"
       ver_name: ""
 
@@ -75,6 +74,9 @@ jobs:
         run: |
           echo "ver_name=$(grep -m 1 'versionName' ${{ env.outputs_dir }}/apk/${{ env.product }}/release/output-metadata.json | cut -d\" -f4)" >> $GITHUB_ENV
 
+      - name: Save version name
+        run: echo "${{ env.ver_name }}" > ver_name_${{ env.product }}.txt
+
       - name: Upload Mappings to Artifact
         uses: actions/upload-artifact@v4
         with:
@@ -85,20 +87,34 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: "TTS-Server_${{ env.product }}_${{ env.ver_name }}"
-          path: ${{env.outputs_dir}}/apk/${{ env.product }}/release/*${{ env.ver_name }}.apk
+          path: |
+            ${{env.outputs_dir}}/apk/${{ env.product }}/release/*.apk
+            ver_name_${{ env.product }}.txt
 
+  release:
+    needs: [build]
+    if: always()
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Get version from app build
+        run: |
+          VER=$(cat artifacts/TTS-Server_app_*/ver_name_app.txt)
+          echo "ver_name=$VER" >> $GITHUB_ENV
 
       - uses: softprops/action-gh-release@v2
         with:
           name: ${{ env.ver_name }}
           tag_name: ${{ env.ver_name }}
-          # 让 tag 落到实际构建的 commit，避免老版本默认指向仓库默认分支
           target_commitish: ${{ github.sha }}
-          # 由 GitHub 根据上次 tag 到本次的提交自动生成变更日志，
-          # 不再依赖手写 CHANGELOG.md（之前因忘更新导致多个发布正文完全一样）
           generate_release_notes: true
           draft: false
           prerelease: false
-          files: ${{env.outputs_dir}}/apk/${{ env.product }}/release/*.apk
+          files: artifacts/**/*.apk
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
