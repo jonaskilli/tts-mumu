@@ -55,6 +55,7 @@ import com.github.jing332.tts_server_android.compose.nav.NavTopAppBar
 import com.github.jing332.tts_server_android.conf.SpeechRuleConfig
 import com.github.jing332.tts_server_android.constant.SpeechTarget
 import com.github.jing332.tts_server_android.model.rhino.speech_rule.SpeechRuleEngine
+import com.github.jing332.tts_server_android.compose.systts.list.expandSpeechRuleTagsIfNeeded
 import com.github.jing332.tts_server_android.compose.systts.list.ui.PluginTtsUI
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.NonCancellable
@@ -351,62 +352,6 @@ fun ToolBoxScreen(sharedVM: SharedViewModel, pagerState: PagerState) {
 }
 
 /**
- * 标签扩容：扫描配置列表里所有 tag，按前缀分组找最大序号，
- * 若超过朗读规则 tags 里的基础数量，补齐缺失标签到 tags 并写回数据库。
- * 数据源用所有配置项（不限启用），确保未启用的标签也能触发扩容。
+ * 标签扩容函数已移至 [com.github.jing332.tts_server_android.compose.systts.list.expandSpeechRuleTagsIfNeeded]，
+ * 供工具箱页与标签切换/批量标签弹窗共用。
  */
-private fun expandSpeechRuleTagsIfNeeded(
-    rule: SpeechRule,
-    allTtsList: List<SystemTtsV2>,
-) {
-    val tagRegex = Regex("^(.+?)(\\d+)$")
-    // 配置列表里每个前缀的最大序号（扫描所有配置项，不限启用状态）
-    val configMaxSeq = mutableMapOf<String, Int>()
-    allTtsList.forEach { tts ->
-        val tag = (tts.config as? TtsConfigurationDTO)?.speechRule?.tag ?: return@forEach
-        val match = tagRegex.matchEntire(tag) ?: return@forEach
-        val prefix = match.groupValues[1]
-        val seq = match.groupValues[2].toIntOrNull() ?: return@forEach
-        configMaxSeq[prefix] = maxOf(configMaxSeq[prefix] ?: 0, seq)
-    }
-    if (configMaxSeq.isEmpty()) return
-
-    // 朗读规则 tags 里每个前缀的现有最大序号
-    val ruleMaxSeq = mutableMapOf<String, Int>()
-    rule.tags.keys.forEach { key ->
-        val match = tagRegex.matchEntire(key) ?: return@forEach
-        val prefix = match.groupValues[1]
-        val seq = match.groupValues[2].toIntOrNull() ?: return@forEach
-        ruleMaxSeq[prefix] = maxOf(ruleMaxSeq[prefix] ?: 0, seq)
-    }
-
-    var changed = false
-    val newTags = rule.tags.toMutableMap()
-    configMaxSeq.forEach { (prefix, needMax) ->
-        val curMax = ruleMaxSeq[prefix] ?: 0
-        if (needMax > curMax) {
-            // 取现有 tag 的 value 格式作为模板，如 "【女/女青年01】" → "【女/女青年%02d】"
-            val sampleKey = rule.tags.keys.firstOrNull { it.startsWith(prefix) }
-            val sampleValue = sampleKey?.let { rule.tags[it] } ?: ""
-            for (i in (curMax + 1)..needMax) {
-                val seqStr = String.format("%02d", i)
-                val newKey = prefix + seqStr
-                if (!newTags.containsKey(newKey)) {
-                    // 按模板生成显示名：替换序号部分
-                    val newValue = if (sampleValue.isNotEmpty()) {
-                        sampleValue.replace(Regex("\\d+"), seqStr)
-                    } else {
-                        newKey
-                    }
-                    newTags[newKey] = newValue
-                    changed = true
-                }
-            }
-        }
-    }
-
-    if (changed) {
-        rule.tags = newTags
-        dbm.speechRuleDao.update(rule)
-    }
-}

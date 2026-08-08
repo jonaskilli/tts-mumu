@@ -109,3 +109,62 @@ suspend fun migrateTagNamesIfNeed(context: Context, force: Boolean = false) {
         Log.d(TAG_MIGRATE, "tagName 迁移完成: 更新 ${updated.size} 项" + if (force) "(强制)" else "")
     }
 }
+
+/**
+ * 标签扩容：扫描配置列表里所有 tag，按前缀分组找最大序号，
+ * 若超过朗读规则 tags 里的基础数量，补齐缺失标签到 tags 并写回数据库。
+ * 数据源用所有配置项（不限启用），确保未启用的标签也能触发扩容。
+ *
+ * 供工具箱页、标签切换弹窗、批量标签弹窗共用，确保点标签时列表覆盖全部序号。
+ */
+internal fun expandSpeechRuleTagsIfNeeded(
+    rule: SpeechRule,
+    allTtsList: List<SystemTtsV2>,
+) {
+    val tagRegex = Regex("^(.+?)(\\d+)$")
+    val configMaxSeq = mutableMapOf<String, Int>()
+    allTtsList.forEach { tts ->
+        val tag = (tts.config as? TtsConfigurationDTO)?.speechRule?.tag ?: return@forEach
+        val match = tagRegex.matchEntire(tag) ?: return@forEach
+        val prefix = match.groupValues[1]
+        val seq = match.groupValues[2].toIntOrNull() ?: return@forEach
+        configMaxSeq[prefix] = maxOf(configMaxSeq[prefix] ?: 0, seq)
+    }
+    if (configMaxSeq.isEmpty()) return
+
+    val ruleMaxSeq = mutableMapOf<String, Int>()
+    rule.tags.keys.forEach { key ->
+        val match = tagRegex.matchEntire(key) ?: return@forEach
+        val prefix = match.groupValues[1]
+        val seq = match.groupValues[2].toIntOrNull() ?: return@forEach
+        ruleMaxSeq[prefix] = maxOf(ruleMaxSeq[prefix] ?: 0, seq)
+    }
+
+    var changed = false
+    val newTags = rule.tags.toMutableMap()
+    configMaxSeq.forEach { (prefix, needMax) ->
+        val curMax = ruleMaxSeq[prefix] ?: 0
+        if (needMax > curMax) {
+            val sampleKey = rule.tags.keys.firstOrNull { it.startsWith(prefix) }
+            val sampleValue = sampleKey?.let { rule.tags[it] } ?: ""
+            for (i in (curMax + 1)..needMax) {
+                val seqStr = String.format("%02d", i)
+                val newKey = prefix + seqStr
+                if (!newTags.containsKey(newKey)) {
+                    val newValue = if (sampleValue.isNotEmpty()) {
+                        sampleValue.replace(Regex("\\d+"), seqStr)
+                    } else {
+                        newKey
+                    }
+                    newTags[newKey] = newValue
+                    changed = true
+                }
+            }
+        }
+    }
+
+    if (changed) {
+        rule.tags = newTags
+        dbm.speechRuleDao.update(rule)
+    }
+}

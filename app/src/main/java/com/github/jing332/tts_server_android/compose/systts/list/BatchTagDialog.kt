@@ -63,7 +63,14 @@ fun BatchTagDialog(
     var ruleLoaded by remember { mutableStateOf(false) }
     LaunchedEffect(commonTagRuleId) {
         ruleLoaded = false
-        speechRule = commonTagRuleId?.let { withContext(Dispatchers.IO) { dbm.speechRuleDao.getByRuleId(it) } }
+        val rule = commonTagRuleId?.let { withContext(Dispatchers.IO) { dbm.speechRuleDao.getByRuleId(it) } }
+        if (rule != null) {
+            // 标签扩容：按配置列表里实际用到的最大序号补齐 tags，确保批量标签列表覆盖全部序号
+            withContext(Dispatchers.IO) {
+                runCatching { expandSpeechRuleTagsIfNeeded(rule, dbm.systemTtsV2.all) }
+            }
+        }
+        speechRule = rule
         val keys = speechRule?.tags?.keys?.toList()
         if (!keys.isNullOrEmpty() && (selectedTagKey.isBlank() || !keys.contains(selectedTagKey))) {
             selectedTagKey = keys.first()

@@ -67,7 +67,16 @@ fun TagSwitchDialog(
     LaunchedEffect(tagRuleId) {
         loaded = false
         if (tagRuleId.isNotBlank()) {
-            speechRule = withContext(Dispatchers.IO) { dbm.speechRuleDao.getByRuleId(tagRuleId) }
+            val rule = withContext(Dispatchers.IO) { dbm.speechRuleDao.getByRuleId(tagRuleId) }
+            if (rule != null) {
+                // 标签扩容：按配置列表里实际用到的最大序号补齐 tags，确保点标签时列表覆盖全部序号
+                withContext(Dispatchers.IO) {
+                    runCatching {
+                        expandSpeechRuleTagsIfNeeded(rule, dbm.systemTtsV2.all)
+                    }
+                }
+            }
+            speechRule = rule
         }
         loaded = true
     }
