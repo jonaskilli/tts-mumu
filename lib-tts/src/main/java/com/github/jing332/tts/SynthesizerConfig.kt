@@ -11,8 +11,6 @@ data class SynthesizerConfig(
     var maxRetryTimes: ValueProvider<Int> = { 1 },
     var retryAppendText: ValueProvider<String> = { " " },
     var toggleTry: ValueProvider<Int> = { 1 },
-    /** 全局备用发音人配置ID（0=未设置）；未单独设置同标签备用的配置在重试阈值时用它兜底 */
-    var globalStandbyId: ValueProvider<Long> = { 0 },
     var retryDelay: ValueProvider<Long> = { 1000 },
     var streamPlayEnabled: ValueProvider<Boolean> = { true },
     var silenceSkipEnabled: ValueProvider<Boolean> = { false },

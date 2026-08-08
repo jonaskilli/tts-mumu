@@ -110,12 +110,6 @@ object SysTtsConfig {
             SystemTtsConfig.standbyTriggeredRetryIndex.value = value
         }
 
-    var standbyGlobalTtsId: Long
-        get() = SystemTtsConfig.standbyGlobalTtsId.value
-        set(value) {
-            SystemTtsConfig.standbyGlobalTtsId.value = value
-        }
-
     var maxEmptyAudioRetryCount: Int
         get() = SystemTtsConfig.maxEmptyAudioRetryCount.value
         set(value) {

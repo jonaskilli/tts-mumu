@@ -178,7 +178,6 @@ class SystemTtsService : TextToSpeechService(), IEventDispatcher {
                     maxRetryTimes = { SysTtsConfig.maxRetryCount },
                     retryAppendText = { SysTtsConfig.retryAppendText },
                     toggleTry = { SysTtsConfig.standbyTriggeredRetryIndex },
-                    globalStandbyId = { SysTtsConfig.standbyGlobalTtsId },
                     streamPlayEnabled = { SysTtsConfig.isStreamPlayModeEnabled },
                     silenceSkipEnabled = { SysTtsConfig.isSkipSilentAudio },
                     bgmShuffleEnabled = { SysTtsConfig.isBgmShuffleEnabled },

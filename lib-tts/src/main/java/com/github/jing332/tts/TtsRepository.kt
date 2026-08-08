@@ -60,14 +60,6 @@ internal class TtsRepository(
                     config.toVO().copy(tag = it)
                 }
 
-        // 全局备用发音人：未单独设置同标签备用的配置在重试阈值时用它兜底
-        val globalStandbyId = context.cfg.globalStandbyId()
-        val globalStandby = if (globalStandbyId > 0) {
-            dbm.systemTtsV2.get(globalStandbyId)?.let { systts ->
-                (systts.config as? TtsConfigurationDTO)?.let { cfg -> cfg.toVO().copy(tag = systts) }
-            }
-        } else null
-
         // 性别兜底配置池：duihuaA(男)/duihuaB(女)/duihua(中性)三个标签的配置，不依赖 isStandby 标记
         // 发音人获取失败时，按原tag性别回退到这里，无需用户额外标记为备用
         val genderFallbackConfigs =
@@ -112,10 +104,14 @@ internal class TtsRepository(
                                 it.speechInfo.tag == genderTag
                     }
                 }
-                // 同标签备用 > 性别兜底 > 全局备用（全局备用自身不再注入备用，避免自引用）
-                val effectiveStandby = standby
-                    ?: genderStandby
-                    ?: if (globalStandby != null && tts.id != globalStandbyId) globalStandby else null
+                // 同标签备用 > 性别兜底；兜底发音人(duihua/duihuaA/duihuaB)不挂任何备用，失败直接报错
+                val isFallbackTag = c.speechRule.tag in listOf("duihua", "duihuaA", "duihuaB")
+                val effectiveStandby = when {
+                    isFallbackTag -> null
+                    standby != null -> standby
+                    genderStandby != null -> genderStandby
+                    else -> null
+                }
 
                 // 获取插件级音频参数（新增）
                 val pluginParams = (c.source as? com.github.jing332.database.entities.systts.source.PluginTtsSource)?.let {
