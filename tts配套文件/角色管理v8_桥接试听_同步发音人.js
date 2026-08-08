@@ -1,9 +1,9 @@
 var PluginJS = {
-    'name': "角色管理_桥接试听v7",
+    'name': "角色管理v8_桥接试听_同步发音人",
     'id': "mingwuyan",
     'author': "命無言",
     'iconUrl': 'https://img.picui.cn/free/2025/02/24/67bc5a1bac4cf.png',
-    'version': 20260802,
+    'version': 20260808,
   
     // 【核心修改：新增http开头文本的直接下载逻辑】
     'getAudio': function (text, locale, voice, speed, volume, pitch) {

@@ -2960,10 +2960,10 @@ characterManager.loadRecords();
 
 // -------------------------- SpeechRuleJS核心对象（整合＜＞本地音效） --------------------------
 var SpeechRuleJS = {
-  name: "多角色朗读2.87【加速版+1修复2.2】",
+  name: "多角色朗读2.87【加速版+1修复2.2】同步显示名",
   id: "mingwuyan",
   author: "命無言",
-  version: 62,
+  version: 20260808,
   zdfp: 1,
   
   tags: (function() {
