@@ -1977,7 +1977,8 @@ CharacterManager.prototype.processCharacter = function (fullText, characterId, a
     if (record) targetMainRecord = record;
   }
   if (newCharacterName === "未知") {
-    return { text: cleanText, tag: "duihua" };
+    // 判断不出角色名时，按已识别的性别走兜底：男→duihuaA，女→duihuaB，性别未知→duihua
+    return { text: cleanText, tag: analysis.gender === "男" ? "duihuaA" : analysis.gender === "女" ? "duihuaB" : "duihua" };
   }
   if (!targetMainRecord) {
     var voice = this.assignVoice(analysis.gender, analysis.age);
@@ -2849,7 +2850,8 @@ function matchDialogFromCache(currentDialogText) {
 
 
 CharacterManager.prototype.analyzeCharacterFallback = function(fullText, characterId) {
-  return { name: "未知", gender: Math.random() > 0.5 ? "男" : "女", age: Math.random() > 0.5 ? "青年" : "中年" };
+  // 密钥失效/分析失败时的降级兜底：性别留空，由调用方走中性 duihua，避免随机男女声误导
+  return { name: "未知", gender: "", age: "" };
 };
 
 

@@ -68,6 +68,19 @@ internal class TtsRepository(
             }
         } else null
 
+        // 性别兜底配置池：duihuaA(男)/duihuaB(女)/duihua(中性)三个标签的配置，不依赖 isStandby 标记
+        // 发音人获取失败时，按原tag性别回退到这里，无需用户额外标记为备用
+        val genderFallbackConfigs =
+            groupWithTts.flatMap { it.list }
+                .filter {
+                    it.isEnabled && (it.config as? TtsConfigurationDTO)?.speechRule?.tag in
+                        listOf("duihuaA", "duihuaB", "duihua")
+                }
+                .map {
+                    val config = it.config as TtsConfigurationDTO
+                    config.toVO().copy(tag = it)
+                }
+
         for (group in groupWithTts) {
             val gp = group.group.audioParams
             val subGroupMap: Map<String, AudioParams> = group.group.subGroupAudioParamsJson.let { jsonStr ->
@@ -83,8 +96,25 @@ internal class TtsRepository(
                             it.speechInfo.tagRuleId == c.speechRule.tagRuleId &&
                             it.speechInfo.tagName == c.speechRule.tagName
                 }
-                // 同标签备用优先；未设同标签备用时用全局备用兜底（全局备用自身不再注入备用，避免自引用）
+                // 性别兜底：发音人获取失败时，按原tag的性别特征回退到 duihuaA(男)/duihuaB(女)/duihua(中性)
+                // 兜底标签自身跳过此层，避免自引用；直接用三个标签的配置，无需 isStandby 标记
+                val genderStandby = run {
+                    val origTag = c.speechRule.tag
+                    if (origTag == "duihuaA" || origTag == "duihuaB" || origTag == "duihua") return@run null
+                    val genderTag = when {
+                        origTag.startsWith("男") || origTag.startsWith("少年") || origTag.startsWith("特殊男") -> "duihuaA"
+                        origTag.startsWith("女") || origTag.startsWith("少女") || origTag.startsWith("特殊女") -> "duihuaB"
+                        else -> "duihua"
+                    }
+                    genderFallbackConfigs.find {
+                        it.speechInfo.target == c.speechRule.target &&
+                                it.speechInfo.tagRuleId == c.speechRule.tagRuleId &&
+                                it.speechInfo.tag == genderTag
+                    }
+                }
+                // 同标签备用 > 性别兜底 > 全局备用（全局备用自身不再注入备用，避免自引用）
                 val effectiveStandby = standby
+                    ?: genderStandby
                     ?: if (globalStandby != null && tts.id != globalStandbyId) globalStandby else null
 
                 // 获取插件级音频参数（新增）
