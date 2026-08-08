@@ -3876,32 +3876,11 @@ var EditorJS = {
                 nameContainer.addView(nameLine);
             }
 
-            // 发音人标签部分：左右分开布局
-            // 左=nameContainer（角色名），中=⋮菜单（紧跟角色名），右=actionCol（上行标签+试听，下行已点亮emoji）
+            // 发音人标签部分：左=nameContainer（角色名），右=actionCol（上行标签6字，下行 点亮emoji+⋮菜单+试听，右看齐）
             if (record && record.voice) {
                 var voiceTag = generateVoiceTag(record);
                 if (voiceTag) {
                     var _mgTag = record.voice;
-                    var charMgBtn = new android.widget.TextView(ctx);
-                    charMgBtn.setText("⋮");
-                    charMgBtn.setTextSize(18);
-                    charMgBtn.setTextColor(android.graphics.Color.parseColor("#757575"));
-                    charMgBtn.setSingleLine(true);
-                    charMgBtn.setGravity(android.view.Gravity.CENTER);
-                    charMgBtn.setPadding(dipToPx(6), dipToPx(8), dipToPx(6), dipToPx(8));
-                    var charMgLp = new android.widget.LinearLayout.LayoutParams(
-                        android.widget.LinearLayout.LayoutParams.WRAP_CONTENT,
-                        android.widget.LinearLayout.LayoutParams.WRAP_CONTENT
-                    );
-                    charMgLp.setMargins(dipToPx(6), 0, dipToPx(6), 0);
-                    charMgBtn.setLayoutParams(charMgLp);
-                    charMgBtn.setOnClickListener(new android.view.View.OnClickListener({
-                        onClick: function(v) {
-                            try { showVoiceManageDialog(_mgTag, null); }
-                            catch (e) { _logErr("角色行⋮弹窗异常", e, true); }
-                        }
-                    }));
-                    row.addView(charMgBtn);
 
                     var actionCol = new android.widget.LinearLayout(ctx);
                     actionCol.setOrientation(android.widget.LinearLayout.VERTICAL);
@@ -3913,7 +3892,7 @@ var EditorJS = {
                     acLp.setMargins(dipToPx(10), 0, 0, 0);
                     actionCol.setLayoutParams(acLp);
 
-                    // 上行：标签 + 试听
+                    // 上行：发音人标签（6字）
                     var actionRow1 = new android.widget.LinearLayout(ctx);
                     actionRow1.setOrientation(android.widget.LinearLayout.HORIZONTAL);
                     actionRow1.setGravity(android.view.Gravity.CENTER_VERTICAL);
@@ -3924,7 +3903,7 @@ var EditorJS = {
                     ar1Lp.gravity = android.view.Gravity.RIGHT | android.view.Gravity.CENTER_VERTICAL;
                     actionRow1.setLayoutParams(ar1Lp);
 
-                    // 下行：已点亮emoji + ⋮ + ✖
+                    // 下行：点亮emoji + ⋮菜单 + 试听（右看齐）
                     var actionRow2 = new android.widget.LinearLayout(ctx);
                     actionRow2.setOrientation(android.widget.LinearLayout.HORIZONTAL);
                     actionRow2.setGravity(android.view.Gravity.CENTER_VERTICAL);
@@ -3982,7 +3961,7 @@ var EditorJS = {
                             android.widget.LinearLayout.LayoutParams.WRAP_CONTENT,
                             android.widget.LinearLayout.LayoutParams.WRAP_CONTENT
                         );
-                        _litLp.setMargins(dipToPx(0), 0, dipToPx(10), 0);
+                        _litLp.setMargins(dipToPx(0), 0, dipToPx(4), 0);
                         _litEmoji.setLayoutParams(_litLp);
                         _litEmoji.setOnClickListener(new android.view.View.OnClickListener({
                             onClick: function(v) {
@@ -3995,6 +3974,27 @@ var EditorJS = {
                         }));
                         actionRow2.addView(_litEmoji);
                     }
+
+                    var charMgBtn = new android.widget.TextView(ctx);
+                    charMgBtn.setText("⋮");
+                    charMgBtn.setTextSize(18);
+                    charMgBtn.setTextColor(android.graphics.Color.parseColor("#757575"));
+                    charMgBtn.setSingleLine(true);
+                    charMgBtn.setGravity(android.view.Gravity.CENTER);
+                    charMgBtn.setPadding(dipToPx(6), dipToPx(8), dipToPx(6), dipToPx(8));
+                    var charMgLp = new android.widget.LinearLayout.LayoutParams(
+                        android.widget.LinearLayout.LayoutParams.WRAP_CONTENT,
+                        android.widget.LinearLayout.LayoutParams.WRAP_CONTENT
+                    );
+                    charMgLp.setMargins(dipToPx(2), 0, dipToPx(2), 0);
+                    charMgBtn.setLayoutParams(charMgLp);
+                    charMgBtn.setOnClickListener(new android.view.View.OnClickListener({
+                        onClick: function(v) {
+                            try { showVoiceManageDialog(_mgTag, null); }
+                            catch (e) { _logErr("角色行⋮弹窗异常", e, true); }
+                        }
+                    }));
+                    actionRow2.addView(charMgBtn);
 
                     var _pvTag = record.voice;
                     var charPvBtn = new android.widget.TextView(ctx);

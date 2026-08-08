@@ -60,12 +60,15 @@ fun BatchTagDialog(
 
     // 获取可用标签列表
     var speechRule by remember { mutableStateOf<SpeechRule?>(null) }
+    var ruleLoaded by remember { mutableStateOf(false) }
     LaunchedEffect(commonTagRuleId) {
-        speechRule = commonTagRuleId?.let { dbm.speechRuleDao.getByRuleId(it) }
+        ruleLoaded = false
+        speechRule = commonTagRuleId?.let { withContext(Dispatchers.IO) { dbm.speechRuleDao.getByRuleId(it) } }
         val keys = speechRule?.tags?.keys?.toList()
         if (!keys.isNullOrEmpty() && (selectedTagKey.isBlank() || !keys.contains(selectedTagKey))) {
             selectedTagKey = keys.first()
         }
+        ruleLoaded = true
     }
 
     val tagKeys = remember(speechRule) { speechRule?.tags?.keys?.toList() ?: emptyList() }
@@ -177,6 +180,14 @@ fun BatchTagDialog(
                         color = MaterialTheme.colorScheme.error,
                         modifier = Modifier.align(Alignment.CenterHorizontally)
                     )
+                } else if (!ruleLoaded) {
+                    // 规则加载中：不显示"无标签"红字，避免闪现
+                    com.github.jing332.compose.widgets.LoadingContent(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 8.dp),
+                        isLoading = true
+                    ) {}
                 } else if (tagKeys.isEmpty()) {
                     Text(
                         text = stringResource(R.string.no_tags_in_rule),
