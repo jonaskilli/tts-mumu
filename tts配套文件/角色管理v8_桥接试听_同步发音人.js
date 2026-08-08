@@ -1473,6 +1473,65 @@ var EditorJS = {
             }
         }
 
+        // === 批量预查缓存：避免列表渲染时逐个同步查 app（跨进程DB往返，N个角色=N次慢） ===
+        // key=tag(底层voice)，value={name:displayName或null}。null 表示已查过但当前分组未启用。
+        var _voiceNameCache = {};
+        var _voiceNameCacheTagSig = ""; // 上次预查的 tag 集合签名，避免重复查相同集合
+
+        // 批量预查一组 tag 的 displayName，结果填入 _voiceNameCache。
+        // records: 角色记录数组（取 .voice 作为 tag）
+        function prefetchVoiceNames(records) {
+            try {
+                var tags = [];
+                var seen = {};
+                for (var i = 0; i < records.length; i++) {
+                    var v = records[i] && records[i].voice;
+                    if (v && !seen[v]) { seen[v] = true; tags.push(String(v)); }
+                }
+                if (tags.length === 0) return;
+                // 集合签名：相同集合不重复查
+                var sig = tags.slice().sort().join("\u0001");
+                if (sig === _voiceNameCacheTagSig) return;
+                _voiceNameCacheTagSig = sig;
+
+                var map = null;
+                try {
+                    var json = ttsrv.getVoiceNamesByTags(JSON.stringify(tags));
+                    if (json) map = JSON.parse(json);
+                } catch (e2) { map = null; }
+                if (!map || typeof map !== "object") map = {};
+
+                // 重置缓存并填充：map 里有的用 displayName，没有的标记 null（失效→⚠）
+                _voiceNameCache = {};
+                for (var k = 0; k < tags.length; k++) {
+                    var t = tags[k];
+                    if (Object.prototype.hasOwnProperty.call(map, t)) {
+                        _voiceNameCache[t] = { name: map[t], valid: true };
+                    } else {
+                        _voiceNameCache[t] = { name: null, valid: false };
+                    }
+                }
+            } catch (e) {
+                console.log("prefetchVoiceNames 异常: " + e.toString());
+            }
+        }
+
+        // 取单个 tag 的预查结果；未预查时回退到单次实时查询（兼容零散调用）
+        function getCachedVoiceName(tag) {
+            if (!tag) return null;
+            var key = String(tag);
+            if (Object.prototype.hasOwnProperty.call(_voiceNameCache, key)) {
+                var e = _voiceNameCache[key];
+                return e.valid ? e.name : null;
+            }
+            // 未预查：单次查并缓存
+            try {
+                var live = ttsrv.getVoiceByTag(tag);
+                _voiceNameCache[key] = { name: live, valid: !!live };
+                return live;
+            } catch (e3) { return null; }
+        }
+
         // 生成发音人标签：
         // record.voice 存的是 tag（如"女青年01"），稳定不随分组变化。
         // 用 tag 查 getVoiceByTag（返回当前前台分组该tag绑的配置项displayName/tagname）。
@@ -1485,9 +1544,9 @@ var EditorJS = {
             var displayText = voiceTag;
             var isValid = false;
 
-            // 用 tag 查当前前台分组的发音人 displayName
+            // 用 tag 查当前前台分组的发音人 displayName（优先走批量预查缓存，无则单次回退查询）
             try {
-                var liveName = ttsrv.getVoiceByTag(voiceTag);
+                var liveName = getCachedVoiceName(voiceTag);
                 if (liveName) {
                     displayText = liveName;
                     isValid = true;
@@ -3939,12 +3998,15 @@ var EditorJS = {
                     actionRow1.addView(voiceView);
 
                     var _charMarkTag = record.voice;
-                    var _charCurMark = getVoiceMark(_charMarkTag);
+                    var _charCurMarks = getVoiceMark(_charMarkTag); // 数组，支持多选
                     var _charMarkEmojiMap = { like: "❤️", neutral: "🚶\uFE0F", bad: "😈\uFE0F" };
 
-                    if (_charCurMark && _charMarkEmojiMap[_charCurMark]) {
+                    // 遍历已点亮的标记，每个生成一个 emoji（多选时显示多个）
+                    for (var _mi = 0; _mi < _charCurMarks.length; _mi++) {
+                        var _oneMark = _charCurMarks[_mi];
+                        if (!_charMarkEmojiMap[_oneMark]) continue;
                         var _litEmoji = new android.widget.TextView(ctx);
-                        _litEmoji.setText(_charMarkEmojiMap[_charCurMark]);
+                        _litEmoji.setText(_charMarkEmojiMap[_oneMark]);
                         _litEmoji.setTextSize(16);
                         _litEmoji.setSingleLine(true);
                         _litEmoji.setGravity(android.view.Gravity.CENTER);
@@ -3955,15 +4017,22 @@ var EditorJS = {
                         );
                         _litLp.setMargins(dipToPx(0), 0, dipToPx(4), 0);
                         _litEmoji.setLayoutParams(_litLp);
-                        _litEmoji.setOnClickListener(new android.view.View.OnClickListener({
-                            onClick: function(v) {
-                                try {
-                                    setVoiceMark(_charMarkTag, "");
-                                    refreshCharacterList();
-                                    Toast.makeText(ctx, "已取消标记", Toast.LENGTH_SHORT).show();
-                                } catch (e) { _logErr("角色行取消标记异常", e, true); }
-                            }
-                        }));
+                        // 闭包捕获当前 mark，点击取消该单个标记
+                        (function(_cancelMark) {
+                            _litEmoji.setOnClickListener(new android.view.View.OnClickListener({
+                                onClick: function(v) {
+                                    try {
+                                        setVoiceMark(_charMarkTag, _cancelMark);
+                                        // 局部移除被点击的 emoji，不重建整表（避免 refreshCharacterList 卡顿）
+                                        try {
+                                            var parent = (v.getParent && v.getParent()) || actionRow2;
+                                            parent.removeView(v);
+                                        } catch (eRm) {}
+                                        Toast.makeText(ctx, "已取消标记", Toast.LENGTH_SHORT).show();
+                                    } catch (e) { _logErr("角色行取消标记异常", e, true); }
+                                }
+                            }));
+                        })(_oneMark);
                         actionRow2.addView(_litEmoji);
                     }
 
@@ -4018,8 +4087,9 @@ var EditorJS = {
 
             // 右侧圆形选中指示器已移除（选中状态通过背景色体现）
 
-            // 单击：切换标记
-            row.setOnClickListener(new android.view.View.OnClickListener({
+            // 单击切换标记：仅角色名区域触发，避免误触右侧标签/emoji/⋮/试听时也选中角色
+            nameContainer.setClickable(true);
+            nameContainer.setOnClickListener(new android.view.View.OnClickListener({
                 onClick: function(v) {
                     try {
                         handleItemClick(position);
@@ -4031,12 +4101,13 @@ var EditorJS = {
 
             // 长按：通过 OnTouchListener 检测长按（Rhino 兼容）
             // 加移动阈值：手指轻微抖动不取消长按
+            // 限制在角色名区域，避免长按右侧标签/emoji/⋮/试听时误触操作菜单
             var longPressHandler = new android.os.Handler(android.os.Looper.getMainLooper());
             var longPressRunnable = null;
             var touchStartX = 0;
             var touchStartY = 0;
             var TOUCH_SLOP = dipToPx(12); // 允许的移动阈值（约12dp）
-            row.setOnTouchListener(new android.view.View.OnTouchListener({
+            nameContainer.setOnTouchListener(new android.view.View.OnTouchListener({
                 onTouch: function(v, event) {
                     var action = event.getActionMasked();
                     if (action === android.view.MotionEvent.ACTION_DOWN) {
@@ -4085,6 +4156,14 @@ var EditorJS = {
                 mergeListView.setVisibility(android.view.View.INVISIBLE);
             }
             try {
+                // 批量预查所有可见角色的发音人 displayName（一次 app 调用替代逐行查询，加速列表渲染）
+                var _prefetchRecords = [];
+                for (var pi = 0; pi < filteredIndices.length; pi++) {
+                    var pr = characterRecords[filteredIndices[pi]];
+                    if (pr) _prefetchRecords.push(pr);
+                }
+                prefetchVoiceNames(_prefetchRecords);
+
                 // 始终重建全部行（操作后/切书/搜索都需要重建）
                 mergeListView.removeAllViews();
                 rowViews = [];
@@ -4093,7 +4172,7 @@ var EditorJS = {
                 for (var i = 0; i < filteredIndices.length; i++) {
                     var record = characterRecords[filteredIndices[i]];
                     if (!record) continue;
-                    // record.voice 保持 tag 原值，标签显示由 generateVoiceTag 通过 getVoiceByTag(tag) 实时查
+                    // record.voice 保持 tag 原值，标签显示由 generateVoiceTag 通过缓存/单次查询实时取
                     var displayText = generateDisplayText(record);
                     var row = createListRow(displayText, i, record);
                     rowViews.push(row);
@@ -4679,11 +4758,11 @@ var EditorJS = {
                 infoView.setLayoutParams(infoLp);
                 container.addView(infoView);
 
-                var currentMark = getVoiceMark(tag);
+                var currentMarks = getVoiceMark(tag); // 数组，支持多选
                 var markOptions = [
                     { text: "❤️", mark: "like" },
-                    { text: "🚶", mark: "neutral" },
-                    { text: "😈", mark: "bad" },
+                    { text: "🚶\uFE0F", mark: "neutral" },
+                    { text: "😈\uFE0F", mark: "bad" },
                     { text: "✖", mark: "__delete__" }
                 ];
 
@@ -4736,7 +4815,10 @@ var EditorJS = {
                         markBtn.setLayoutParams(btnLp);
                         markBtn.setClickable(true);
 
-                        var isSel = (currentMark === mcfg.mark);
+                        var isSel = false;
+                        for (var _si = 0; _si < currentMarks.length; _si++) {
+                            if (currentMarks[_si] === mcfg.mark) { isSel = true; break; }
+                        }
                         applyMarkBtnStyle(markBtn, mcfg.mark, isSel);
                         var _entry = { btn: markBtn, mark: mcfg.mark };
                         _markBtns.push(_entry);
@@ -4750,29 +4832,25 @@ var EditorJS = {
                                         catch (e) { Toast.makeText(ctx, "操作异常: " + e.toString(), Toast.LENGTH_SHORT).show(); }
                                         return;
                                     }
-                                    if (currentMark === mcfg.mark) {
-                                        setVoiceMark(tag, "");
-                                        currentMark = "";
-                                        applyMarkBtnStyle(markBtn, mcfg.mark, false);
-                                        Toast.makeText(ctx, "已取消标记", Toast.LENGTH_SHORT).show();
-                                    } else {
-                                        currentMark = mcfg.mark;
-                                        setVoiceMark(tag, mcfg.mark);
-                                        applyMarkBtnStyle(markBtn, mcfg.mark, true);
-                                        for (var k = 0; k < _markBtns.length; k++) {
-                                            var oe = _markBtns[k];
-                                            if (oe.btn !== markBtn) {
-                                                applyMarkBtnStyle(oe.btn, oe.mark, false);
-                                            }
+                                    // 多选 toggle：setVoiceMark 已自带"已点亮→取消 / 未点亮→添加"
+                                    setVoiceMark(tag, mcfg.mark);
+                                    currentMarks = getVoiceMark(tag);
+                                    // 刷新所有标记按钮的选中态（多选，不互斥）
+                                    for (var k = 0; k < _markBtns.length; k++) {
+                                        var oe = _markBtns[k];
+                                        if (oe.mark === "__delete__") continue;
+                                        var nowSel = false;
+                                        for (var _si2 = 0; _si2 < currentMarks.length; _si2++) {
+                                            if (currentMarks[_si2] === oe.mark) { nowSel = true; break; }
                                         }
-                                        Toast.makeText(ctx, "已标记", Toast.LENGTH_SHORT).show();
+                                        applyMarkBtnStyle(oe.btn, oe.mark, nowSel);
                                     }
+                                    Toast.makeText(ctx, isSel ? "已取消标记" : "已标记", Toast.LENGTH_SHORT).show();
                                     try {
                                         var _ml2 = "未标记";
                                         try { _ml2 = String(getVoiceMarkLabel(tag)); } catch (e3) {}
                                         infoView.setText(String("标签：" + tag + "\n显示名：" + currentName + "\n标记：" + _ml2));
                                     } catch (e2) {}
-                                    try { voiceManageDlg.dismiss(); } catch (ed) {}
                                     if (onChange) try { onChange(); } catch (e) {}
                                     refreshCharacterList();
                                 } catch (e) {
@@ -4798,8 +4876,9 @@ var EditorJS = {
         }
 
         // ===== 发音人标记管理（voice_marks.json） =====
-        // 结构：{ "女青年01": "like", "女青年02": "dislike", ... }
-        // 值：like / dislike / neutral
+        // 结构：{ "女青年01": ["like","neutral"], ... }（数组，支持多选）
+        // 旧格式 string（如 "like"）在 loadVoiceMarks 时自动转成 ["like"]
+        // 值：like / neutral / bad，可任意组合
         var _voiceMarksCache = null; // null=未加载
 
         function loadVoiceMarks() {
@@ -4809,6 +4888,17 @@ var EditorJS = {
                 if (raw && raw.trim() !== "") {
                     var obj = JSON.parse(raw);
                     if (obj && typeof obj === "object") {
+                        // 兼容旧格式：string 值转成单元素数组
+                        for (var k in obj) {
+                            if (Object.prototype.hasOwnProperty.call(obj, k)) {
+                                var v = obj[k];
+                                if (typeof v === "string") {
+                                    obj[k] = v ? [v] : [];
+                                } else if (!Array.isArray(v)) {
+                                    obj[k] = [];
+                                }
+                            }
+                        }
                         _voiceMarksCache = obj;
                         return _voiceMarksCache;
                     }
@@ -4826,28 +4916,59 @@ var EditorJS = {
             }
         }
 
+        // 返回某 tag 已点亮的标记数组（如 ["like","neutral"]），无则空数组
         function getVoiceMark(tag) {
             try {
                 var marks = loadVoiceMarks();
-                return marks[String(tag)] || "";
-            } catch (e) { return ""; }
+                var v = marks[String(tag)];
+                return Array.isArray(v) ? v.slice() : [];
+            } catch (e) { return []; }
+        }
+
+        // 判断 tag 是否已点亮某 mark
+        function hasVoiceMark(tag, mark) {
+            var arr = getVoiceMark(tag);
+            for (var i = 0; i < arr.length; i++) {
+                if (arr[i] === mark) return true;
+            }
+            return false;
         }
 
         function getVoiceMarkLabel(tag) {
-            var m = getVoiceMark(tag);
-            if (m === "like") return "❤️ 喜欢";
-            if (m === "bad") return "😈 坏人";
-            if (m === "neutral") return "🚶 路人";
-            return "未标记";
+            var arr = getVoiceMark(tag);
+            if (arr.length === 0) return "未标记";
+            var map = { like: "❤️ 喜欢", neutral: "🚶 路人", bad: "😈 坏人" };
+            var parts = [];
+            for (var i = 0; i < arr.length; i++) {
+                if (map[arr[i]]) parts.push(map[arr[i]]);
+            }
+            return parts.length > 0 ? parts.join(" ") : "未标记";
         }
 
+        // 设置标记：mark 非空时 toggle（已点亮则取消，未点亮则添加），mark 为空则清空全部
         function setVoiceMark(tag, mark) {
             try {
                 var marks = loadVoiceMarks();
-                if (mark) {
-                    marks[String(tag)] = mark;
+                var key = String(tag);
+                if (!mark) {
+                    // 清空全部
+                    delete marks[key];
                 } else {
-                    delete marks[String(tag)];
+                    var arr = Array.isArray(marks[key]) ? marks[key].slice() : [];
+                    var idx = -1;
+                    for (var i = 0; i < arr.length; i++) {
+                        if (arr[i] === mark) { idx = i; break; }
+                    }
+                    if (idx >= 0) {
+                        arr.splice(idx, 1); // 已点亮→取消
+                    } else {
+                        arr.push(mark); // 未点亮→添加
+                    }
+                    if (arr.length > 0) {
+                        marks[key] = arr;
+                    } else {
+                        delete marks[key];
+                    }
                 }
                 saveVoiceMarks();
                 // 注：标记独立存储在 voice_marks.json，fayinrenList 是字符串数组（无 .tag/.mark 属性），
@@ -5102,10 +5223,10 @@ var EditorJS = {
                     vRow1.addView(vtext);
 
                     var _markTag2 = vopt.value;
-                    var _curMark2 = getVoiceMark(_markTag2);
-                    var _vMarkEmojiMap = { like: "❤️", neutral: "🚶", bad: "😈" };
+                    var _curMarks2 = getVoiceMark(_markTag2); // 数组，支持多选
+                    var _vMarkEmojiMap = { like: "❤️", neutral: "🚶\uFE0F", bad: "😈\uFE0F" };
                     var _assignedCount = getVoiceAssignedCount(vopt.value);
-                    var _hasEmoji = (_curMark2 && _vMarkEmojiMap[_curMark2]);
+                    var _hasEmoji = (_curMarks2.length > 0);
                     var _hasAssigned = (_assignedCount > 0);
 
                     var _vMgTag = vopt.value;
@@ -5190,23 +5311,34 @@ var EditorJS = {
                         }
 
                         if (_hasEmoji) {
-                            var _litVE = new android.widget.TextView(ctx);
-                            _litVE.setText(_vMarkEmojiMap[_curMark2]);
-                            _litVE.setTextSize(16);
-                            _litVE.setSingleLine(true);
-                            _litVE.setGravity(android.view.Gravity.CENTER);
-                            _litVE.setPadding(dipToPx(2), dipToPx(4), dipToPx(2), dipToPx(4));
-                            _litVE.setOnClickListener(new android.view.View.OnClickListener({
-                                onClick: function(v) {
-                                    try {
-                                        setVoiceMark(_markTag2, "");
-                                        try { voiceDialog.dismiss(); } catch (ed) {}
-                                        try { filterAndShowVoiceList(_currentKeyword, callback); } catch (e) {}
-                                        Toast.makeText(ctx, "已取消标记", Toast.LENGTH_SHORT).show();
-                                    } catch (e) { _logErr("搜索弹窗取消标记异常", e, true); }
-                                }
-                            }));
-                            vRow2.addView(_litVE);
+                            // 遍历已点亮的标记，每个生成一个 emoji（多选时显示多个）
+                            for (var _vi = 0; _vi < _curMarks2.length; _vi++) {
+                                var _oneM2 = _curMarks2[_vi];
+                                if (!_vMarkEmojiMap[_oneM2]) continue;
+                                var _litVE = new android.widget.TextView(ctx);
+                                _litVE.setText(_vMarkEmojiMap[_oneM2]);
+                                _litVE.setTextSize(16);
+                                _litVE.setSingleLine(true);
+                                _litVE.setGravity(android.view.Gravity.CENTER);
+                                _litVE.setPadding(dipToPx(2), dipToPx(4), dipToPx(2), dipToPx(4));
+                                // 闭包捕获当前 mark，点击取消该单个标记
+                                (function(_cancelM2) {
+                                    _litVE.setOnClickListener(new android.view.View.OnClickListener({
+                                        onClick: function(v) {
+                                            try {
+                                                setVoiceMark(_markTag2, _cancelM2);
+                                                // 局部移除被点击的 emoji，不重建整个弹窗（避免批量重查+重建卡顿）
+                                                try {
+                                                    var parent = (v.getParent && v.getParent()) || vRow2;
+                                                    parent.removeView(v);
+                                                } catch (eRm2) {}
+                                                Toast.makeText(ctx, "已取消标记", Toast.LENGTH_SHORT).show();
+                                            } catch (e) { _logErr("搜索弹窗取消标记异常", e, true); }
+                                        }
+                                    }));
+                                })(_oneM2);
+                                vRow2.addView(_litVE);
+                            }
                         }
 
                         vrow.addView(vRow2);
@@ -5276,20 +5408,29 @@ var EditorJS = {
                 filteredList = fullVoiceList;
             }
 
-            // 子线程对筛选子集查 getVoiceByTag 获取 displayName，避免主线程卡顿
+            // 子线程批量查 displayName（一次 app 调用替代逐个 getVoiceByTag，避免主线程卡顿）
             var mainHandler = new android.os.Handler(android.os.Looper.getMainLooper());
 
             new java.lang.Thread(new java.lang.Runnable({
                 run: function () {
                     try {
+                        // 一次批量查询所有 tag 的 displayName
+                        var nameMap = {};
+                        try {
+                            var json = ttsrv.getVoiceNamesByTags(JSON.stringify(filteredList));
+                            if (json) {
+                                var parsed = JSON.parse(json);
+                                if (parsed && typeof parsed === "object") nameMap = parsed;
+                            }
+                        } catch (eMap) { console.log("getVoiceNamesByTags失败: " + eMap.toString()); }
+
                         var items = [];
                         for (var i = 0; i < filteredList.length; i++) {
                             var tag = filteredList[i];
                             var displayName = tag;
-                            try {
-                                var liveName = ttsrv.getVoiceByTag(tag);
-                                if (liveName) displayName = liveName;
-                            } catch (e) { console.log("getVoiceByTag失败 tag=" + tag + ": " + e.toString()); }
+                            if (Object.prototype.hasOwnProperty.call(nameMap, tag) && nameMap[tag]) {
+                                displayName = nameMap[tag];
+                            }
                             items.push({ name: displayName, value: tag });
                         }
                         mainHandler.post(new java.lang.Runnable({
@@ -6515,6 +6656,8 @@ var EditorJS = {
                 }
             } catch (eThread) { /* 线程检查失败则继续往下走 */ }
             try {
+                // 强制下次 buildList 重新批量预查（分组切换/操作后 displayName 可能变化）
+                _voiceNameCacheTagSig = "";
                 // 未传 keyword（操作后刷新）时，沿用当前搜索词，保持搜索结果不跳回全部；
                 // 显式传入（含搜索框清空传""）则记住为当前搜索词
                 if (keyword === undefined) {

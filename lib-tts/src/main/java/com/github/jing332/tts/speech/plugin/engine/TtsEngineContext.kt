@@ -133,6 +133,41 @@ data class TtsEngineContext(
     }
 
     /**
+     * 批量查询多个 tag 对应的发音人显示名。
+     *
+     * 一次 DB 查询（allEnabled）即可解析全部 tag，避免 JS 侧逐个调用 getVoiceByTag
+     * 造成 N 次跨进程 DB 往返（角色管理列表/筛选弹窗打开慢的根因）。
+     *
+     * @param tagsJson JSON 数组字符串，如 ["女青年01","男青年02"]
+     * @return JSON 对象字符串，key=原始tag，value=displayName（未匹配的 tag 不含在此对象中），
+     *         如 {"女青年01":"晓晓"}；异常返回 "{}"
+     */
+    @ScriptInterface
+    fun getVoiceNamesByTags(tagsJson: String): String {
+        return try {
+            val arr = JSONArray(tagsJson)
+            val tags = ArrayList<String>(arr.length())
+            for (i in 0 until arr.length()) {
+                val t = arr.optString(i).trim()
+                if (t.isNotEmpty()) tags.add(t)
+            }
+            if (tags.isEmpty()) return "{}"
+
+            // 一次 DB 查询拿到全部已启用配置项
+            val allEnabled = dbm.systemTtsV2.allEnabled
+            val result = org.json.JSONObject()
+            for (tag in tags) {
+                val match = findConfigByTag(allEnabled, tag)
+                if (match != null) result.put(tag, match.displayName)
+            }
+            result.toString()
+        } catch (e: Exception) {
+            Log.w(TAG, "getVoiceNamesByTags failed: ${e.message}")
+            "{}"
+        }
+    }
+
+    /**
      * 获取所有朗读规则列表（供 JS 插件选择并运行规则）。
      *
      * 返回 JSON 数组字符串，每项为 {"name": <规则名>, "ruleId": <规则内的id>}。
