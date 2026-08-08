@@ -50,11 +50,6 @@ private fun extractPrefix(name: String): String {
     return m?.groupValues?.get(1) ?: name
 }
 
-private fun extractSuffixNum(name: String): Int? {
-    val m = Regex("(\\d+)$").find(name)
-    return m?.value?.toIntOrNull()
-}
-
 @Composable
 fun TagSwitchDialog(
     item: SystemTtsV2,
@@ -83,14 +78,12 @@ fun TagSwitchDialog(
     }
 
     val groups = remember(allTags) {
+        // 直接用 tags 的原始迭代顺序（JS 定义顺序），groupBy 返回 LinkedHashMap 保留首次出现顺序。
+        // 同 prefix 的项在 JS 中按 1..100 连续生成，天然有序，无需额外排序。
         allTags.groupBy { extractPrefix(it.tagName) }
             .map { (prefix, items) ->
-                TagGroup(
-                    prefix = prefix,
-                    items = items.sortedBy { extractSuffixNum(it.tagName) ?: 0 }
-                )
+                TagGroup(prefix = prefix, items = items)
             }
-            .sortedBy { it.prefix }
     }
 
     val currentPrefix = remember(allTags, currentTag) {
