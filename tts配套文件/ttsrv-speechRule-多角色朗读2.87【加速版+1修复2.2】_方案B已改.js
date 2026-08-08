@@ -2975,10 +2975,7 @@ var SpeechRuleJS = {
           "括号2": "在线音效",
           "括号1": "【】括号发音人",
           "括号3": "「」括号发音人",
-          "括号4": "『』括号发音人",
-          localSound1: "本地音效1",
-          localSound2: "本地音效2",
-          localSound3: "本地音效3"
+          "括号4": "『』括号发音人"
       };
       
               // 加入GENSHIN_CHARACTERS发音人标签
@@ -2990,8 +2987,8 @@ var SpeechRuleJS = {
       }
       
       
-      // 新增：循环添加localSound4~localSound100（与前3个一致）
-      for (var i = 4; i <= 990; i++) {
+      // 循环添加localSound1~localSound100
+      for (var i = 1; i <= 100; i++) {
           var tagKey = ("localSound" + i).toString(); // 规避：tagKey转原始String
           var tagName = ("本地音效" + i).toString(); // 规避：tagName转原始String
           tags[tagKey] = tagName;
@@ -3024,30 +3021,11 @@ var SpeechRuleJS = {
                   default: '男/青年'
                }
 
-          },
-          // 本地音效1~3：完全保留原代码（一字未改）
-          localSound1: {
-              audioName: {
-                  label: "音频名称（本地音效1）",
-                  hint: 统一Hint
-              }
-          },
-          localSound2: {
-              audioName: {
-                  label: "音频名称（本地音效2）",
-                  hint: 统一Hint
-              }
-          },
-          localSound3: {
-              audioName: {
-                  label: "音频名称（本地音效3）",
-                  hint: 统一Hint
-              }
           }
       };
 
-      // 循环添加localSound4~localSound990：完全保留原代码
-      for (var i = 4; i <= 990; i++) {
+      // 循环添加localSound1~localSound100
+      for (var i = 1; i <= 100; i++) {
           var tagKey = ("localSound" + i).toString();
           var label = ("音频名称（本地音效" + i + "）").toString();
           tagsData[tagKey] = {
@@ -3636,9 +3614,9 @@ text = text.replace(/(^|[^a-zA-Z\u4e00-\u9fa5])(嗝|嗝儿)(?![a-zA-Z\u4e00-\u9f
       // ========== 本地音效双匹配逻辑（只换匹配内容，不碰标签壳） ==========
       var localSoundOnoMap = {}; 
       var localSoundRegexMap = {}; 
-      // 新增：生成1~100完整本地音效标签数组（含97个新增标签）
+      // 生成1~100完整本地音效标签数组
       var allLocalSoundTags = [];
-      for (var i = 1; i <= 990; i++) {
+      for (var i = 1; i <= 100; i++) {
           allLocalSoundTags.push("localSound" + i);
       }
 
@@ -4665,11 +4643,10 @@ text = text.replace(/(^|[^a-zA-Z\u4e00-\u9fa5])(嗝|嗝儿)(?![a-zA-Z\u4e00-\u9f
           }
       }
       
-      // 生成100个本地音效标签数组（含localSound1~100）
+      // 生成本地音效标签数组（localSound1~100）
       var allLocalSoundTags = (function() {
-          var tagsArr = ["localSound1", "localSound2", "localSound3"];
-          // 新增：添加localSound4~100（97个）
-          for (var num = 4; num <= 990; num++) {
+          var tagsArr = [];
+          for (var num = 1; num <= 100; num++) {
               tagsArr.push(("localSound" + num).toString()); // 兼容：转原始String
           }
           return tagsArr;
@@ -5038,10 +5015,10 @@ try {
   characterManager = new CharacterManager();
 }
 
-// 注册100个本地音效标签（确保选择后显示输入框）
+// 注册本地音效标签（确保选择后显示输入框）
 (function() {
   if (typeof SpeechRuleJS !== 'undefined' && typeof SpeechRuleJS.tags === 'object') {
-      for (var num = 4; num <= 990; num++) {
+      for (var num = 1; num <= 100; num++) {
           var tagKey = ("localSound" + num).toString();
           var tagName = ("本地音效" + num).toString();
           SpeechRuleJS.tags[tagKey] = tagName;
