@@ -337,34 +337,6 @@ class PluginTtsUI : IConfigUI() {
                         onSystemTtsChange = onSysttsChange
                     )
 
-                // 仅界面模式开关：仅角色管理插件(mingwuyan)可开启，开启后角色管理栏显示此配置项编辑页
-                if (showUiOnlySwitch && isRoleManagementPlugin) {
-                    Row(
-                        Modifier
-                            .fillMaxWidth()
-                            .padding(top = 8.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text(
-                            stringResource(R.string.plugin_ui_only_mode),
-                            modifier = Modifier.weight(1f),
-                            style = MaterialTheme.typography.bodyMedium
-                        )
-                        Switch(
-                            checked = isUiOnly,
-                            onCheckedChange = { enabled ->
-                                onSysttsChange(
-                                    systts.copy(
-                                        config = (systts.config as TtsConfigurationDTO).copy(
-                                            source = tts.copy(isUiOnly = enabled)
-                                        )
-                                    )
-                                )
-                            }
-                        )
-                    }
-                }
-
                 if (!isUiOnly) {
                     AuditionTextField(
                         modifier = Modifier
@@ -606,6 +578,34 @@ class PluginTtsUI : IConfigUI() {
                             }
                         )
                         }
+                        }
+
+                        // 仅界面模式开关：放在语音参数之后、插件自定义UI之前
+                        if (showUiOnlySwitch && isRoleManagementPlugin) {
+                            Row(
+                                Modifier
+                                    .fillMaxWidth()
+                                    .padding(top = 8.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(
+                                    stringResource(R.string.plugin_ui_only_mode),
+                                    modifier = Modifier.weight(1f),
+                                    style = MaterialTheme.typography.bodyMedium
+                                )
+                                Switch(
+                                    checked = isUiOnly,
+                                    onCheckedChange = { enabled ->
+                                        onSysttsChange(
+                                            systts.copy(
+                                                config = (systts.config as TtsConfigurationDTO).copy(
+                                                    source = tts.copy(isUiOnly = enabled)
+                                                )
+                                            )
+                                        )
+                                    }
+                                )
+                            }
                         }
 
                         // 插件自定义 UI 始终展示，即使界面模式(isUiOnly)下也可见
