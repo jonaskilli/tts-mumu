@@ -1,7 +1,6 @@
 package com.github.jing332.tts_server_android.compose.systts.list
 
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -202,8 +201,7 @@ fun TagSwitchDialog(
                                                 }
                                             }
                                             .padding(horizontal = 16.dp, vertical = 12.dp),
-                                        verticalAlignment = Alignment.CenterVertically,
-                                        horizontalArrangement = Arrangement.Center
+                                        verticalAlignment = Alignment.CenterVertically
                                     ) {
                                         Text(
                                             text = if (group.items.size > 1)
@@ -217,10 +215,11 @@ fun TagSwitchDialog(
                                                 MaterialTheme.colorScheme.onSurface,
                                             maxLines = 1,
                                             overflow = TextOverflow.Ellipsis,
+                                            modifier = Modifier.weight(1f)
                                         )
                                         if (isCurrent) {
                                             Text(
-                                                "  · 当前",
+                                                "当前",
                                                 style = MaterialTheme.typography.labelSmall,
                                                 color = MaterialTheme.colorScheme.primary,
                                                 fontWeight = FontWeight.Bold,
@@ -242,8 +241,7 @@ fun TagSwitchDialog(
                                             .fillMaxWidth()
                                             .clickable { handleSelect(tagItem) }
                                             .padding(horizontal = 16.dp, vertical = 12.dp),
-                                        verticalAlignment = Alignment.CenterVertically,
-                                        horizontalArrangement = Arrangement.Center
+                                        verticalAlignment = Alignment.CenterVertically
                                     ) {
                                         Text(
                                             text = tagItem.tagName,
@@ -255,10 +253,11 @@ fun TagSwitchDialog(
                                                 MaterialTheme.colorScheme.onSurface,
                                             maxLines = 1,
                                             overflow = TextOverflow.Ellipsis,
+                                            modifier = Modifier.weight(1f)
                                         )
                                         if (isCurrent) {
                                             Text(
-                                                "  · 当前",
+                                                "当前",
                                                 style = MaterialTheme.typography.labelSmall,
                                                 color = MaterialTheme.colorScheme.primary,
                                                 fontWeight = FontWeight.Bold,
