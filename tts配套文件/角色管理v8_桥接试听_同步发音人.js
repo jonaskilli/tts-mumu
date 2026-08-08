@@ -26,6 +26,10 @@ var PRESET_KEYWORDS_ROW6 = ["女主", "男主"];
 // （refreshCharacterList 定义在 onLoadUI 闭包内，模块级方法无法直接访问）
 var _refreshCharacterListFn = null;
 
+// 当前打开的发音人筛选/关键词弹窗引用，开新弹窗前先 dismiss 旧的，确保任意时刻只有一个弹窗
+// （避免多次操作后弹窗叠加，返回键要点好多次才能回到角色管理）
+var _currentVoiceDialog = null;
+
 var EditorJS = {
     'getAudioSampleRate': function (locale, voice) {
         return 44100;
@@ -3855,7 +3859,10 @@ var EditorJS = {
                 android.widget.LinearLayout.LayoutParams.WRAP_CONTENT,
                 1
             );
+            // 增大点击区域最小高度，避免角色名短时难以点中
+            ncLp.setMargins(0, 0, dipToPx(8), 0);
             nameContainer.setLayoutParams(ncLp);
+            nameContainer.setMinimumHeight(dipToPx(44));
             row.addView(nameContainer);
 
             // 计算名字列表（主名 + 去重别名）
@@ -3888,6 +3895,7 @@ var EditorJS = {
                 var nameLine = new android.widget.LinearLayout(ctx);
                 nameLine.setOrientation(android.widget.LinearLayout.HORIZONTAL);
                 nameLine.setGravity(android.view.Gravity.CENTER_VERTICAL);
+                nameLine.setClickable(false); // 子布局不消费点击，让事件冒泡到 nameContainer
 
                 // 4dp 实心圆点（与切换书籍菜单 accentDot 同款，继续缩小）
                 var dotView = new android.view.View(ctx);
@@ -3913,6 +3921,7 @@ var EditorJS = {
                 nameText.setTextSize(16);
                 nameText.setTextColor(getAdaptiveTextColor());
                 nameText.setTag("nameText");
+                nameText.setClickable(false); // 文字不消费点击，让事件冒泡到 nameContainer
                 nameText.setGravity(android.view.Gravity.LEFT | android.view.Gravity.CENTER_VERTICAL);
                 if (ni > 0) {
                     var ntLp = new android.widget.LinearLayout.LayoutParams(
@@ -4055,7 +4064,7 @@ var EditorJS = {
                             catch (e) { _logErr("角色行⋮弹窗异常", e, true); }
                         }
                     }));
-                    actionRow2.addView(charMgBtn);
+                    actionRow1.addView(charMgBtn);
 
                     var _pvTag = record.voice;
                     var charPvBtn = new android.widget.TextView(ctx);
@@ -4077,10 +4086,13 @@ var EditorJS = {
                             catch (e) { Toast.makeText(ctx, "试听异常: " + e.toString(), Toast.LENGTH_SHORT).show(); }
                         }
                     }));
-                    actionRow2.addView(charPvBtn);
+                    actionRow1.addView(charPvBtn);
 
                     actionCol.addView(actionRow1);
-                    actionCol.addView(actionRow2);
+                    // 第二行只放点亮的 emoji，无 emoji 则不显示第二行
+                    if (actionRow2.getChildCount() > 0) {
+                        actionCol.addView(actionRow2);
+                    }
                     row.addView(actionCol);
                 }
             }
@@ -4851,6 +4863,8 @@ var EditorJS = {
                                         try { _ml2 = String(getVoiceMarkLabel(tag)); } catch (e3) {}
                                         infoView.setText(String("标签：" + tag + "\n显示名：" + currentName + "\n标记：" + _ml2));
                                     } catch (e2) {}
+                                    // 先 dismiss 管理弹窗，再触发 onChange（筛选弹窗会开新的），避免两个弹窗叠加
+                                    try { voiceManageDlg.dismiss(); } catch (eD) {}
                                     if (onChange) try { onChange(); } catch (e) {}
                                     refreshCharacterList();
                                 } catch (e) {
@@ -4868,6 +4882,9 @@ var EditorJS = {
                 mgScrollView.addView(container);
                 builder.setView(mgScrollView);
                 voiceManageDlg = builder.create();
+                // 开新弹窗前先 dismiss 旧的筛选弹窗，避免管理弹窗和筛选弹窗叠加（返回要点多次）
+                try { if (_currentVoiceDialog != null && _currentVoiceDialog.isShowing()) _currentVoiceDialog.dismiss(); } catch (eOld) {}
+                _currentVoiceDialog = voiceManageDlg;
                 voiceManageDlg.show();
                 applyDialogRoundCorner(voiceManageDlg);
             } catch (e) {
@@ -5168,7 +5185,7 @@ var EditorJS = {
                     vbg.setStroke(dipToPx(1), android.graphics.Color.parseColor("#10000000"));
                     vrow.setBackground(vbg);
                     vrow.setPadding(dipToPx(14), dipToPx(12), dipToPx(14), dipToPx(12));
-                    vrow.setClickable(true);
+                    vrow.setClickable(false); // 整行不消费点击，只有发音人名区域才触发切换
 
                     // 上行：圆点 + 名（换行）+ ⋮ + ✖ + ▶
                     var vRow1 = new android.widget.LinearLayout(ctx);
@@ -5197,10 +5214,14 @@ var EditorJS = {
                     vtext.setTextColor(android.graphics.Color.parseColor("#333333"));
                     vtext.setMaxLines(1);
                     vtext.setEllipsize(android.text.TextUtils.TruncateAt.END);
+                    // 宽度 WRAP_CONTENT 不撑满，只有点发音人名本身才触发切换，避免误触
                     var vtextParams = new android.widget.LinearLayout.LayoutParams(
-                        0, android.widget.LinearLayout.LayoutParams.WRAP_CONTENT, 1
+                        android.widget.LinearLayout.LayoutParams.WRAP_CONTENT,
+                        android.widget.LinearLayout.LayoutParams.WRAP_CONTENT
                     );
+                    vtextParams.setMargins(0, 0, dipToPx(12), 0);
                     vtext.setLayoutParams(vtextParams);
+                    vtext.setMinimumWidth(dipToPx(80)); // 名字短时保证足够点击区域
                     vtext.setClickable(true);
                     vtext.setOnClickListener(new android.view.View.OnClickListener({
                         onClick: function(view) {
@@ -5369,6 +5390,9 @@ var EditorJS = {
             }));
 
             voiceDialog = builder.create();
+            // 开新弹窗前先 dismiss 旧的，确保任意时刻只有一个弹窗（返回键一次即回角色管理）
+            try { if (_currentVoiceDialog != null && _currentVoiceDialog.isShowing()) _currentVoiceDialog.dismiss(); } catch (eOld) {}
+            _currentVoiceDialog = voiceDialog;
             voiceDialog.show();
             applyDialogRoundCorner(voiceDialog);
         }
@@ -5766,6 +5790,9 @@ var EditorJS = {
             }));
 
             keywordDialog = builder.create();
+            // 开新弹窗前先 dismiss 旧的，确保任意时刻只有一个弹窗
+            try { if (_currentVoiceDialog != null && _currentVoiceDialog.isShowing()) _currentVoiceDialog.dismiss(); } catch (eOld) {}
+            _currentVoiceDialog = keywordDialog;
             keywordDialog.show();
             applyDialogRoundCorner(keywordDialog);
         }
@@ -6065,6 +6092,9 @@ var EditorJS = {
             fixBuilder.setView(fixContainer);
             
             var fixChoiceDialog = fixBuilder.create();
+            // 开新弹窗前先 dismiss 旧的，确保任意时刻只有一个弹窗
+            try { if (_currentVoiceDialog != null && _currentVoiceDialog.isShowing()) _currentVoiceDialog.dismiss(); } catch (eOld) {}
+            _currentVoiceDialog = fixChoiceDialog;
             fixChoiceDialog.show();
             applyDialogRoundCorner(fixChoiceDialog);
         }
@@ -6641,6 +6671,7 @@ var EditorJS = {
         // 刷新角色列表（更新UI显示）
         // keyword 为字符串时（含空串）：按关键词重新过滤（来自搜索框输入）
         // keyword 为 undefined 时（操作后刷新）：保持当前搜索结果集不变，仅更新显示文本
+        var _refreshInProgress = false; // 防重入标志：避免删除配置项后直接调用+onVoiceChanged并发重建
         function refreshCharacterList(keyword) {
             // 线程保护：非主线程调用时，切回主线程执行，避免 CalledFromWrongThreadException
             try {
@@ -6655,6 +6686,12 @@ var EditorJS = {
                     return;
                 }
             } catch (eThread) { /* 线程检查失败则继续往下走 */ }
+            // 防重入：已在刷新中则跳过（删除配置项会触发 直接调用 + onVoiceChanged 两次刷新，只需一次）
+            if (_refreshInProgress) {
+                console.log("refreshCharacterList: 已在刷新中，跳过本次重复调用");
+                return;
+            }
+            _refreshInProgress = true;
             try {
                 // 强制下次 buildList 重新批量预查（分组切换/操作后 displayName 可能变化）
                 _voiceNameCacheTagSig = "";
@@ -6724,6 +6761,8 @@ var EditorJS = {
             } catch (e) {
                 console.error("refreshCharacterList 异常: " + e.toString());
                 Toast.makeText(ctx, "列表刷新异常: " + e.toString(), Toast.LENGTH_SHORT).show();
+            } finally {
+                _refreshInProgress = false;
             }
         }
 
