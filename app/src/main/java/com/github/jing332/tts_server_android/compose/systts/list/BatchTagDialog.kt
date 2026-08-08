@@ -219,7 +219,7 @@ fun BatchTagDialog(
                                 ruleData.target = com.github.jing332.tts_server_android.constant.SpeechTarget.TAG
                                 ruleData.tag = tagKey
                                 ruleData.tagRuleId = commonTagRuleId ?: ""
-                                // 用与「一键分配/重排」一致的 computeTagName（含性格追加与 ⚠ 回退），
+                                // 用与「一键分配/重排」一致的 computeTagName（含 ⚠ 回退），
                                 // 保证批量分配标签的显示名与朗读规则一致。
                                 ruleData.tagName = computeTagName(context, speechRule, ruleData, tagKey)
                                 dbm.systemTtsV2.update(

@@ -77,7 +77,7 @@ fun SpeechRuleEditScreen(
     val config by rememberUpdatedState(newValue = systts.config as TtsConfigurationDTO)
     val speechRule by rememberUpdatedState(newValue = speechRules.find { it.ruleId == config.speechRule.tagRuleId })
 
-    // 第4项: 标签/personality实时刷新 - 修改tag或tagData后立即重算tagName
+    // 第4项: 标签实时刷新 - 修改tag或tagData后立即重算tagName
     LaunchedEffect(config.speechRule.tag, config.speechRule.tagData, config.speechRule.tagRuleId) {
         if (speechRule != null) {
             var tagName = ""

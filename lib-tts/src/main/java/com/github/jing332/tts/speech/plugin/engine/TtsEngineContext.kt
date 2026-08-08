@@ -38,12 +38,12 @@ data class TtsEngineContext(
     }
 
     /**
-     * 通过标签(tag)或角色名(personality)查找绑定的TTS配置项，合成试听音频并写入临时文件。
+     * 通过标签(tag)查找绑定的TTS配置项，合成试听音频并写入临时文件。
      *
-     * 匹配顺序：speechRule.tag → tagData["personality"] → source.voice → displayName → tagName
+     * 匹配顺序：speechRule.tag → source.voice → displayName → tagName
      * 仅查找 tagRuleId == 当前插件ID 的配置项，跳过当前插件自身的配置项（避免死锁）。
      *
-     * @param tag 标签名(如"男主1")或角色名(如"冷酷霸总")或发音人名
+     * @param tag 标签名(如"男主1")或发音人名
      * @param text 试听文本
      * @return 临时音频文件路径，失败返回null
      */
@@ -106,12 +106,12 @@ data class TtsEngineContext(
     }
 
     /**
-     * 通过标签(tag)或角色名(personality)查找当前已启用的TTS配置项的发音人显示名。
+     * 通过标签(tag)查找当前已启用的TTS配置项的发音人显示名。
      *
      * 用于切换分组后实时获取实际生效的发音人名称，替代静态存储的 record.voice。
      * 匹配逻辑与 getAudioByTag 一致，仅查找 tagRuleId == engineId 且已启用的配置项。
      *
-     * @param tag 标签名(如"男主1")或角色名(如"冷酷霸总")或发音人名
+     * @param tag 标签名(如"男主1")或发音人名
      * @return 配置项的 displayName，未匹配返回 null
      */
     @ScriptInterface
@@ -156,10 +156,10 @@ data class TtsEngineContext(
 
     /**
      * 同步运行指定的朗读规则（仅 eval 规则顶层代码，让规则的自动执行逻辑跑一遍，
-     * 从而更新发音人/标签/性格等本地文件）。与朗读规则编辑界面"运行键"的 eval 阶段等价。
+     * 从而更新发音人/标签等本地文件）。与朗读规则编辑界面"运行键"的 eval 阶段等价。
      *
      * 朗读规则顶层代码通常会在 eval 时自动读取书籍/角色数据并写出 fayinren.json、
-     * characterRecords.json、fayinren_personality_summary.json 等文件——
+     * characterRecords.json 等文件——
      * 只要规则的 ruleId 与当前插件的 engineId 相同，文件就写入同一目录，
      * 当前插件随后即可读到更新后的数据。
      *
@@ -182,7 +182,7 @@ data class TtsEngineContext(
     }
 
     /**
-     * 查找匹配 tag 的已启用配置项（五级匹配，与 getAudioByTag 共用）
+     * 查找匹配 tag 的已启用配置项（四级匹配，与 getAudioByTag 共用）
      */
     private fun findConfigByTag(
         allEnabled: List<com.github.jing332.database.entities.systts.SystemTtsV2>,
@@ -191,10 +191,6 @@ data class TtsEngineContext(
         return allEnabled.firstOrNull {
             val config = it.config as? TtsConfigurationDTO ?: return@firstOrNull false
             config.speechRule.tagRuleId == engineId && config.speechRule.tag == trimmedTag
-        } ?: allEnabled.firstOrNull {
-            val config = it.config as? TtsConfigurationDTO ?: return@firstOrNull false
-            config.speechRule.tagRuleId == engineId &&
-                    config.speechRule.tagData["personality"]?.trim() == trimmedTag
         } ?: allEnabled.firstOrNull {
             val config = it.config as? TtsConfigurationDTO ?: return@firstOrNull false
             config.speechRule.tagRuleId == engineId && config.source.voice == trimmedTag

@@ -222,7 +222,7 @@ fun ToolBoxScreen(sharedVM: SharedViewModel, pagerState: PagerState) {
                 }
 
                 // 自动刷新：启用配置项签名变化（增删/改名/改标签/换分组）时，
-                // 后台自动运行朗读规则重新生成角色/性格文件，确保打开角色列表时与前台配置一致。
+                // 后台自动运行朗读规则重新生成角色文件，确保打开角色列表时与前台配置一致。
                 val enabledSig = remember(effectiveGroups) {
                     effectiveGroups.flatMap { it.list }
                         .filter { it.isEnabled }

@@ -9,8 +9,7 @@ import com.github.jing332.tts_server_android.model.rhino.speech_rule.SpeechRuleE
 /**
  * 统一计算 tagName（供「一键分配/重排」与「批量分配标签」对话框共用）：
  * 1. 规则能算出名字则用（与朗读规则编辑器一致）；
- * 2. 算不出时回退到规则自身的 tags 映射(带 ⚠ 提示)；
- * 3. 若配置了角色性格(personality)且名字中未含，则追加到末尾。
+ * 2. 算不出时回退到规则自身的 tags 映射(带 ⚠ 提示)。
  * 必须在 IO 线程调用。
  *
  * 第12项性能优化: 传入 engineCache 后, 同一 ruleId 的 JS 引擎只编译执行一次,
@@ -45,14 +44,5 @@ suspend fun computeTagName(
         } else {
             fallback
         }
-    // 规则里设置的角色性格(personality)：未设置则不带；
-    // 已设置且规则未自行拼入(如批量角色 else 分支)时，追加到显示名后面，
-    // 使整理后的显示名与规则配置一致，例如【女/女青年01】花。
-    // (GENSHIN/duihua 分支已在名字中拼入性格，contains 判定避免重复。)
-    val personality = ruleData.tagData["personality"].orEmpty().trim()
-    return if (personality.isNotEmpty() && !base.contains(personality)) {
-        base + personality
-    } else {
-        base
-    }
+    return base
 }
