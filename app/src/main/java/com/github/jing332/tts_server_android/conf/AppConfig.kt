@@ -71,4 +71,7 @@ object AppConfig {
     val webDavPass by lazy { mutableDataSaverStateOf(dataSaverPref, "webDavPass", "") }
     val webDavPath by lazy { mutableDataSaverStateOf(dataSaverPref, "webDavPath", "/TTS备份") }
     val expandedSubGroups by lazy { mutableDataSaverStateOf(dataSaverPref, "expandedSubGroups", emptySet<String>()) }
+
+    // tagName 一次性迁移标记：首次进入列表时用 getTagName 重算所有 tagName 并清理废弃 personality 字段
+    val tagNameMigrated by lazy { mutableDataSaverStateOf(dataSaverPref, "tagNameMigrated", false) }
 }
