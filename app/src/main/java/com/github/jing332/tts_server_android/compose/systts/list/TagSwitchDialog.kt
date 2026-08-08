@@ -4,18 +4,16 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.window.DialogProperties
+import com.github.jing332.compose.widgets.AppDialog
 import com.github.jing332.database.dbm
 import com.github.jing332.database.entities.SpeechRule
 import com.github.jing332.database.entities.systts.SystemTtsV2
@@ -38,12 +36,11 @@ private fun extractPrefix(name: String): String {
     return m?.groupValues?.get(1) ?: name
 }
 
-private fun extractSuffixNum(name: String): String? {
+private fun extractSuffixNum(name: String): Int? {
     val m = Regex("(\\d+)$").find(name)
-    return m?.value
+    return m?.value?.toIntOrNull()
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun TagSwitchDialog(
     item: SystemTtsV2,
@@ -74,7 +71,7 @@ fun TagSwitchDialog(
             .map { (prefix, items) ->
                 TagGroup(
                     prefix = prefix,
-                    items = items.sortedWith(compareBy({ extractSuffixNum(it.tagName)?.toIntOrNull() ?: 0 }, { it.tagName }))
+                    items = items.sortedBy { extractSuffixNum(it.tagName) ?: 0 }
                 )
             }
             .sortedBy { it.prefix }
@@ -107,22 +104,18 @@ fun TagSwitchDialog(
         }
     }
 
-    AlertDialog(
+    AppDialog(
         onDismissRequest = onDismissRequest,
-        properties = DialogProperties(usePlatformDefaultWidth = false),
-        modifier = Modifier.fillMaxWidth(0.8f),
-        shape = RoundedCornerShape(16.dp),
         title = {
             Text(
                 text = if (selectedGroup == null) "切换标签" else selectedGroup!!.prefix,
-                style = MaterialTheme.typography.titleLarge
             )
         },
-        text = {
+        content = {
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .heightIn(max = 480.dp)
+                    .heightIn(max = 420.dp)
             ) {
                 if (tagRuleId.isBlank()) {
                     Text(
@@ -147,36 +140,94 @@ fun TagSwitchDialog(
                         ) {
                             items(groups, key = { it.prefix }) { group ->
                                 val isCurrent = group.prefix == currentPrefix
-                                TagRow(
-                                    text = group.prefix,
-                                    subtext = if (group.items.size > 1) "${group.items.size}项" else group.items.firstOrNull()?.tagName,
-                                    isCurrent = isCurrent,
-                                    onClick = {
-                                        if (group.items.size == 1) {
-                                            handleSelect(group.items.first())
-                                        } else {
-                                            selectedGroup = group
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .clickable {
+                                            if (group.items.size == 1) {
+                                                handleSelect(group.items.first())
+                                            } else {
+                                                selectedGroup = group
+                                            }
+                                        }
+                                        .padding(horizontal = 4.dp, vertical = 6.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        Text(
+                                            text = group.prefix,
+                                            style = MaterialTheme.typography.bodyMedium,
+                                            fontWeight = if (isCurrent) FontWeight.Bold else FontWeight.Normal,
+                                            color = if (isCurrent)
+                                                MaterialTheme.colorScheme.primary
+                                            else
+                                                MaterialTheme.colorScheme.onSurface,
+                                            maxLines = 1,
+                                            overflow = TextOverflow.Ellipsis,
+                                        )
+                                        if (group.items.size > 1) {
+                                            Text(
+                                                text = "${group.items.size}项",
+                                                style = MaterialTheme.typography.bodySmall,
+                                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                            )
                                         }
                                     }
-                                )
+                                    if (isCurrent) {
+                                        Text(
+                                            text = "当前",
+                                            style = MaterialTheme.typography.labelSmall,
+                                            color = MaterialTheme.colorScheme.primary,
+                                            fontWeight = FontWeight.Bold,
+                                        )
+                                    }
+                                }
                             }
                         }
                     } else {
-                        if (targetGroup.items.size == 1) {
-                            handleSelect(targetGroup.items.first())
-                        } else {
-                            LazyColumn(
-                                modifier = Modifier.weight(1f),
-                                verticalArrangement = Arrangement.spacedBy(2.dp)
-                            ) {
-                                items(targetGroup.items, key = { it.tag }) { tagItem ->
-                                    val isCurrent = tagItem.tag == currentTag
-                                    TagRow(
-                                        text = tagItem.tagName,
-                                        subtext = if (tagItem.tagName != tagItem.tag) tagItem.tag else null,
-                                        isCurrent = isCurrent,
-                                        onClick = { handleSelect(tagItem) }
-                                    )
+                        LazyColumn(
+                            modifier = Modifier.weight(1f),
+                            verticalArrangement = Arrangement.spacedBy(2.dp)
+                        ) {
+                            items(targetGroup.items, key = { it.tag }) { tagItem ->
+                                val isCurrent = tagItem.tag == currentTag
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .clickable { handleSelect(tagItem) }
+                                        .padding(horizontal = 4.dp, vertical = 6.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        Text(
+                                            text = tagItem.tagName,
+                                            style = MaterialTheme.typography.bodyMedium,
+                                            fontWeight = if (isCurrent) FontWeight.Bold else FontWeight.Normal,
+                                            color = if (isCurrent)
+                                                MaterialTheme.colorScheme.primary
+                                            else
+                                                MaterialTheme.colorScheme.onSurface,
+                                            maxLines = 1,
+                                            overflow = TextOverflow.Ellipsis,
+                                        )
+                                        if (tagItem.tagName != tagItem.tag) {
+                                            Text(
+                                                text = tagItem.tag,
+                                                style = MaterialTheme.typography.bodySmall,
+                                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                                maxLines = 1,
+                                                overflow = TextOverflow.Ellipsis,
+                                            )
+                                        }
+                                    }
+                                    if (isCurrent) {
+                                        Text(
+                                            text = "当前",
+                                            style = MaterialTheme.typography.labelSmall,
+                                            color = MaterialTheme.colorScheme.primary,
+                                            fontWeight = FontWeight.Bold,
+                                        )
+                                    }
                                 }
                             }
                         }
@@ -184,7 +235,7 @@ fun TagSwitchDialog(
                 }
             }
         },
-        confirmButton = {
+        buttons = {
             if (selectedGroup != null) {
                 TextButton(onClick = { selectedGroup = null }) {
                     Text("返回")
@@ -196,63 +247,4 @@ fun TagSwitchDialog(
             }
         }
     )
-}
-
-@Composable
-private fun TagRow(
-    text: String,
-    subtext: String?,
-    isCurrent: Boolean,
-    onClick: () -> Unit,
-) {
-    Surface(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(10.dp))
-            .clickable(onClick = onClick),
-        shape = RoundedCornerShape(10.dp),
-        color = if (isCurrent)
-            MaterialTheme.colorScheme.primaryContainer
-        else
-            MaterialTheme.colorScheme.surface,
-        tonalElevation = if (isCurrent) 2.dp else 0.dp,
-    ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 14.dp, vertical = 12.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = text,
-                    style = MaterialTheme.typography.bodyLarge,
-                    fontWeight = FontWeight.Bold,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                    color = if (isCurrent)
-                        MaterialTheme.colorScheme.onPrimaryContainer
-                    else
-                        MaterialTheme.colorScheme.onSurface,
-                )
-                if (subtext != null) {
-                    Text(
-                        text = subtext,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                    )
-                }
-            }
-            if (isCurrent) {
-                Text(
-                    text = "当前",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.primary,
-                    fontWeight = FontWeight.Bold,
-                )
-            }
-        }
-    }
 }
