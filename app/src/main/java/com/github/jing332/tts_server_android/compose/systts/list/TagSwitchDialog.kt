@@ -1,6 +1,7 @@
 package com.github.jing332.tts_server_android.compose.systts.list
 
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -148,7 +149,7 @@ fun TagSwitchDialog(
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .heightIn(max = 420.dp)
+                    .heightIn(max = 600.dp)
             ) {
                 when {
                     // 加载中：显示 Loading，避免空列表时闪现"无可用标签"红字
@@ -201,10 +202,13 @@ fun TagSwitchDialog(
                                                 }
                                             }
                                             .padding(horizontal = 16.dp, vertical = 12.dp),
-                                        verticalAlignment = Alignment.CenterVertically
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.Center
                                     ) {
                                         Text(
-                                            text = group.prefix,
+                                            text = if (group.items.size > 1)
+                                                "${group.prefix}（${group.items.size}项）"
+                                            else group.prefix,
                                             style = MaterialTheme.typography.bodyLarge,
                                             fontWeight = if (isCurrent) FontWeight.Bold else FontWeight.Normal,
                                             color = if (isCurrent)
@@ -213,18 +217,10 @@ fun TagSwitchDialog(
                                                 MaterialTheme.colorScheme.onSurface,
                                             maxLines = 1,
                                             overflow = TextOverflow.Ellipsis,
-                                            modifier = Modifier.weight(1f)
                                         )
-                                        if (group.items.size > 1) {
-                                            Text(
-                                                "${group.items.size}项",
-                                                style = MaterialTheme.typography.bodySmall,
-                                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                            )
-                                        }
                                         if (isCurrent) {
                                             Text(
-                                                "当前",
+                                                "  · 当前",
                                                 style = MaterialTheme.typography.labelSmall,
                                                 color = MaterialTheme.colorScheme.primary,
                                                 fontWeight = FontWeight.Bold,
@@ -246,7 +242,8 @@ fun TagSwitchDialog(
                                             .fillMaxWidth()
                                             .clickable { handleSelect(tagItem) }
                                             .padding(horizontal = 16.dp, vertical = 12.dp),
-                                        verticalAlignment = Alignment.CenterVertically
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.Center
                                     ) {
                                         Text(
                                             text = tagItem.tagName,
@@ -258,11 +255,10 @@ fun TagSwitchDialog(
                                                 MaterialTheme.colorScheme.onSurface,
                                             maxLines = 1,
                                             overflow = TextOverflow.Ellipsis,
-                                            modifier = Modifier.weight(1f)
                                         )
                                         if (isCurrent) {
                                             Text(
-                                                "当前",
+                                                "  · 当前",
                                                 style = MaterialTheme.typography.labelSmall,
                                                 color = MaterialTheme.colorScheme.primary,
                                                 fontWeight = FontWeight.Bold,

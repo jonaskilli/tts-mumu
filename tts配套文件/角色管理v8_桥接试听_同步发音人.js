@@ -1513,15 +1513,7 @@ var EditorJS = {
                 ssb.setSpan(new android.text.style.ForegroundColorSpan(CLR_WARN), warnStart, ssb.length(), SPAN);
             }
 
-            // 追加发音人标记图标（喜欢❤️/路人🚶/坏人😈），emoji 自带颜色，无需额外设色
-            try {
-                var mk = getVoiceMark(voiceTag);
-                if (mk === "like" || mk === "neutral" || mk === "bad") {
-                    ssb.append(" ");
-                    ssb.append(mk === "like" ? "❤️" : (mk === "bad" ? "😈" : "🚶"));
-                }
-            } catch (e) {}
-
+            // 点亮的标记 emoji（❤️/🚶/😈）只在第二行单独显示，标签内不再重复追加
             return ssb;
         }
 
@@ -1546,7 +1538,7 @@ var EditorJS = {
             return { tag: voiceText, persona: "" };
         }
 
-        var VOICE_DISPLAY_MAX = 6;
+        var VOICE_DISPLAY_MAX = 8;
         function truncateVoiceName(name) {
             if (!name) return "";
             var s = String(name);
@@ -3948,7 +3940,7 @@ var EditorJS = {
 
                     var _charMarkTag = record.voice;
                     var _charCurMark = getVoiceMark(_charMarkTag);
-                    var _charMarkEmojiMap = { like: "❤️", neutral: "🚶", bad: "😈" };
+                    var _charMarkEmojiMap = { like: "❤️", neutral: "🚶\uFE0F", bad: "😈\uFE0F" };
 
                     if (_charCurMark && _charMarkEmojiMap[_charCurMark]) {
                         var _litEmoji = new android.widget.TextView(ctx);
