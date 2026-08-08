@@ -54,10 +54,17 @@ fun GroupTreePickerDialog(
     onDismissRequest: () -> Unit,
     onConfirm: (groupId: Long, categoryPath: String) -> Unit,
 ) {
-    val groups = remember { dbm.systemTtsV2.allGroup }
-    // 每个大分组下已有的子分组路径
+    // 分组列表与主界面一致：按 order 排序
+    val groups = remember { dbm.systemTtsV2.allGroup.sortedBy { it.order } }
+    // 子分组顺序与主界面一致：按该子分组内首个配置项的 order 排序（拖动整块子分组时的实际顺序）
     val subPathsByGroup = remember(groups) {
-        groups.associate { it.id to dbm.systemTtsV2.getCategoryPathsByGroup(it.id) }
+        groups.associate { group ->
+            group.id to dbm.systemTtsV2.getByGroup(group.id)
+                .filter { it.categoryPath.isNotBlank() }
+                .sortedBy { it.order }
+                .map { it.categoryPath }
+                .distinct()
+        }
     }
 
     var selectedGroupId by remember { mutableStateOf(currentGroupId) }
