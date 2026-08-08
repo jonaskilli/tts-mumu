@@ -22,60 +22,9 @@ var PRESET_KEYWORDS_ROW4 = ["女老年", "男老年"];
 var PRESET_KEYWORDS_ROW5 = ["女童", "男童"];
 var PRESET_KEYWORDS_ROW6 = ["女主", "男主"];
 
-// === 映射缓存（全局，启动时一次性加载，避免每次调用都读文件+解析） ===
-var _fayinrenMapCache = null;        // 正向映射：存储值 → 显示值
-var _fayinrenReverseMapCache = null; // 反向映射：显示值 → 存储值
-
 // 持有 onLoadUI 内部 refreshCharacterList 的引用，供 onVoiceChanged 等模块级回调跨作用域调用
 // （refreshCharacterList 定义在 onLoadUI 闭包内，模块级方法无法直接访问）
 var _refreshCharacterListFn = null;
-
-function _initFayinrenMapCache(forceRefresh) {
-    if (!forceRefresh && _fayinrenMapCache !== null) return; // 已初始化则跳过（除非强制刷新）
-    _fayinrenMapCache = {};
-    _fayinrenReverseMapCache = {};
-    try {
-        var jsonContent = ttsrv.readTxtFile("fayinren_personality_summary.json");
-        if (jsonContent && jsonContent.trim() !== "") {
-            var mapData = JSON.parse(jsonContent);
-            if (Array.isArray(mapData) && (mapData.length === 0 || Array.isArray(mapData[0]))) {
-                for (var i = 0; i < mapData.length; i++) {
-                    var storeVal = mapData[i][0] || '';
-                    var displayVal = mapData[i][1] || '';
-                    if (storeVal) _fayinrenMapCache[storeVal] = displayVal;
-                    if (displayVal) _fayinrenReverseMapCache[displayVal] = storeVal;
-                }
-                console.log("fayinren映射缓存已加载，共 " + mapData.length + " 条");
-            } else {
-                console.error("fayinren_personality_summary.json格式错误：需为二维数组");
-            }
-        } else {
-            console.warn("fayinren_personality_summary.json文件为空");
-        }
-    } catch (e) {
-        console.error("读取fayinren_personality_summary.json失败：" + e.toString());
-    }
-}
-
-// 正向映射：存储值→显示值（使用缓存，O(1)查找）
-function replaceFayinrenName(name) {
-    var originalName = name || '';
-    if (_fayinrenMapCache === null) _initFayinrenMapCache();
-    if (_fayinrenMapCache.hasOwnProperty(originalName)) {
-        return _fayinrenMapCache[originalName];
-    }
-    return originalName;
-}
-
-// 反向映射：显示值→存储值（使用缓存，O(1)查找）
-function reverseReplaceFayinrenName(displayName) {
-    var originalName = displayName || '';
-    if (_fayinrenReverseMapCache === null) _initFayinrenMapCache();
-    if (_fayinrenReverseMapCache.hasOwnProperty(originalName)) {
-        return _fayinrenReverseMapCache[originalName];
-    }
-    return originalName;
-}
 
 var EditorJS = {
     'getAudioSampleRate': function (locale, voice) {
@@ -107,7 +56,6 @@ var EditorJS = {
   
     'onLoadUI': function (ctx, linearLayout) {
         initializeFileSystem();
-        _initFayinrenMapCache(); // 预加载映射缓存（修复1600+发音人卡死问题）
         
         
         
@@ -180,14 +128,11 @@ var EditorJS = {
         var fayinrenList = [];
         // 重新读取发音人列表（每次需要时从文件刷新）
         function refreshFayinrenList() {
-            // 强制刷新personality映射缓存，确保显示最新的性格信息
-            _initFayinrenMapCache(true);
             fayinrenList = [];
             try {
                 var fayinrenJson = ttsrv.readTxtFile("fayinren.json");
                 if (fayinrenJson) {
                     fayinrenList = JSON.parse(fayinrenJson);
-                    // 方案B：fayinrenList 保持 tag 原值（如"女青年01"），不做 replaceFayinrenName 转换
                     // 按类别+序号排序
                     fayinrenList.sort(function (a, b) {
                         var reA = String(a).match(/^(.+?)(\d+)/);
@@ -1399,8 +1344,7 @@ var EditorJS = {
                     console.log("角色数据文件为空或无角色，使用空列表");
                 } else {
                     characterRecords = JSON.parse(data) || [];
-                    // record.voice 保持 tag 原值（如"女青年01"），不做 replaceFayinrenName 转换
-                    // 标签显示由 generateVoiceTag 通过 getVoiceByTag(tag) 实时查询当前分组
+                    // record.voice 存的是 tag（如"女青年01"），标签显示由 generateVoiceTag 通过 getVoiceByTag(tag) 实时查询当前分组
                 }
             } catch (e) {
                 console.log("读取角色数据失败: " + e.toString());
@@ -2198,23 +2142,10 @@ var EditorJS = {
             try {
                 console.log("开始刷新角色列表数据");
                 
-                // 强制清空映射缓存再重新加载（确保读到最新的性格映射文件）
-                _fayinrenMapCache = null;
-                _fayinrenReverseMapCache = null;
-                _initFayinrenMapCache(true);
-                
-                // 记录映射表状态，供提示用
-                var mapCount = 0;
-                if (_fayinrenMapCache) {
-                    for (var mk in _fayinrenMapCache) { mapCount++; }
-                }
-                console.log("性格映射条目数: " + mapCount);
-                
                 var characterData = ttsrv.readTxtFile("characterRecords.json");
                 if (characterData && characterData.trim() !== "") {
                     var parsedData = JSON.parse(characterData);
                     characterRecords = parsedData || [];
-                    // record.voice 保持 tag 原值，不做转换
 
   
   
@@ -4160,9 +4091,6 @@ var EditorJS = {
 
         // 根据 filteredIndices 重建全部行
         function buildList() {
-            // 刷新personality映射缓存，确保角色列表显示最新的性格信息
-            _initFayinrenMapCache(true);
-
             // 重建前设为不可见，避免 removeAllViews 后标签消失再重现的闪烁
             var wasVisible = (mergeListView.getVisibility() === android.view.View.VISIBLE);
             if (wasVisible) {
@@ -4202,9 +4130,8 @@ var EditorJS = {
             }
         }
 
-        // 仅刷新性格标签（刷新按钮专用）：不重建行，只更新发音人标签文本
+        // 仅刷新发音人标签（刷新按钮专用）：不重建行，只更新发音人标签文本
         function refreshVoiceTagsOnly() {
-            _initFayinrenMapCache(true);
             for (var i = 0; i < filteredIndices.length && i < rowViews.length; i++) {
                 var record = characterRecords[filteredIndices[i]];
                 if (!record) continue;
@@ -6934,11 +6861,10 @@ var EditorJS = {
     
     },
   
-    // 发音人切换回调：前台切换发音人列表后，强制刷新personality缓存
+    // 发音人切换回调：前台切换发音人列表后，刷新角色列表
     'onVoiceChanged': function (locale, voice) {
         try {
-            _initFayinrenMapCache(true);
-            console.log("onVoiceChanged: personality缓存已强制刷新");
+            console.log("onVoiceChanged: 触发刷新角色列表");
             // 注意：onVoiceChanged 由 tts-server 在协程后台线程触发，
             // 刷新角色列表会操作UI（mergeListView等），必须切回主线程，否则抛
             // CalledFromWrongThreadException / Can't toast on a thread without Looper

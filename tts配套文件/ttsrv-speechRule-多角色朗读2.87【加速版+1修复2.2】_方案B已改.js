@@ -100,11 +100,10 @@ var GENSHIN_CHARACTERS = (function () {
       var cfg = MAIN_ROLES_CONFIG[idx];
       var displayPrefix = cfg[0], gender = cfg[1], age = cfg[2], voicePrefix = cfg[3], count = cfg[4];
       for (var i = 1; i <= count; i++) {
-          // 显示名
-          var seqDisplay = padZero(i, 2);
           // voice标签
           var seqVoice = (voicePrefix === '男主') ? i.toString() : padZero(i, 2);
-          var name = '【' + displayPrefix + seqDisplay + '】';
+          // key 直接用 tag（如"女青年01"），不再用【前缀+序号】格式
+          var name = voicePrefix + seqVoice;
           chars[name] = { gender: gender, age: age, voice: voicePrefix + seqVoice };
       }
   }
@@ -114,7 +113,8 @@ var GENSHIN_CHARACTERS = (function () {
       var type = item[0], gender = item[1], age = item[2], voicePre = item[3], count = item[4];
       for (var i = 1; i <= count; i++) {
           var seq = padZero(i, 2);
-          var name = '【' + type + seq + '】';
+          // key 直接用 tag（如"女青年01"），不再用【前缀+序号】格式
+          var name = voicePre + seq;
           chars[name] = { gender: gender, age: age, voice: voicePre + seq };
       }
   });
@@ -3368,10 +3368,10 @@ var SpeechRuleJS = {
                   if (needMax > curMax) {
                       for (var ni = curMax + 1; ni <= needMax; ni++) {
                           var nSeq = padZero(ni, 2);
-                          var nName = '【' + extPrefix + nSeq + '】';
                           var nVoice = extInfo.voicePre + nSeq;
-                          GENSHIN_CHARACTERS[nName] = { gender: extInfo.gender, age: extInfo.age, voice: nVoice };
-                          SpeechRuleJS.tags[nVoice] = nName;
+                          // key 直接用 tag，不再用【前缀+序号】格式
+                          GENSHIN_CHARACTERS[nVoice] = { gender: extInfo.gender, age: extInfo.age, voice: nVoice };
+                          SpeechRuleJS.tags[nVoice] = nVoice;
                       }
                       // 更新现有最大序号，避免同一次 handleText 内重复扩展
                       batchPrefixMaxSeq[extPrefix] = needMax;
