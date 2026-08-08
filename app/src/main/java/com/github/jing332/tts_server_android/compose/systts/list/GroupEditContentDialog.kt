@@ -273,7 +273,7 @@ private fun ConfigItem(
             val extraInfo = when (searchType) {
                 GroupSearchType.TAG -> {
                     if (ttsConfig != null && ttsConfig.speechRule.tagName.isNotEmpty()) {
-                        "${stringResource(R.string.tag)}: ${com.github.jing332.tts_server_android.compose.systts.list.ui.ItemDescriptor.formatTagName(ttsConfig.speechRule.tagName)}"
+                        "${stringResource(R.string.tag)}: ${ttsConfig.speechRule.tagName}"
                     } else null
                 }
                 GroupSearchType.PLUGIN -> {

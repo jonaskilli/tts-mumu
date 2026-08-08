@@ -6,7 +6,6 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.github.jing332.database.dbm
 import com.github.jing332.database.entities.AbstractListGroup.Companion.DEFAULT_GROUP_ID
-import com.github.jing332.database.entities.SpeechRule
 import com.github.jing332.database.entities.systts.AudioParams
 import com.github.jing332.database.entities.systts.GroupWithSystemTts
 import com.github.jing332.database.entities.systts.SystemTtsV2
@@ -15,9 +14,7 @@ import com.github.jing332.database.entities.systts.source.LocalTtsSource
 import com.github.jing332.database.entities.systts.source.PluginTtsSource
 import com.github.jing332.database.entities.systts.SystemTtsGroup
 import com.github.jing332.tts_server_android.R
-import com.github.jing332.tts_server_android.conf.AppConfig
 import com.github.jing332.tts_server_android.conf.SystemTtsConfig
-import com.github.jing332.tts_server_android.model.rhino.speech_rule.SpeechRuleEngine
 import com.github.jing332.tts_server_android.service.systts.SystemTtsService
 import kotlinx.serialization.encodeToString
 import kotlinx.coroutines.Dispatchers
@@ -513,61 +510,6 @@ class ListManagerViewModel : ViewModel() {
         }
 
         // tagName 一次性迁移：重算所有 tagName 并清理废弃的 personality 字段
-        if (!AppConfig.tagNameMigrated.value) {
-            migrateTagNames(context)
-        }
-    }
-
-    /**
-     * 一次性迁移：用 getTagName 重算所有配置项的 tagName，并从 tagData 中删除废弃的 personality 字段。
-     * 迁移完成后置位 AppConfig.tagNameMigrated，后续不再执行。
-     * 新增/修改的配置项通过编辑界面(SpeechRuleEditScreen)的 LaunchedEffect 实时重算 tagName。
-     */
-    private suspend fun migrateTagNames(context: Context) {
-        val updated = mutableListOf<SystemTtsV2>()
-        runCatching {
-            val ruleCache = mutableMapOf<String, SpeechRule?>()
-            val engineCache = mutableMapOf<String, SpeechRuleEngine>()
-
-            for (systts in dbm.systemTtsV2.all) {
-                val config = systts.config as? TtsConfigurationDTO ?: continue
-                val ruleData = config.speechRule
-                val ruleId = ruleData.tagRuleId
-                if (ruleId.isBlank()) continue
-
-                val speechRule = ruleCache.getOrPut(ruleId) {
-                    runCatching { dbm.speechRuleDao.getByRuleId(ruleId) }.getOrNull()
-                } ?: continue
-
-                // 复用已编译引擎重算 tagName（同 ruleId 只 eval 一次）
-                val newTagName = runCatching {
-                    val engine = engineCache.getOrPut(ruleId) {
-                        SpeechRuleEngine(context, speechRule).also { it.eval() }
-                    }
-                    engine.getTagName(ruleData.tag, ruleData.tagData)
-                }.getOrNull().orEmpty()
-
-                // 清理 tagData 中的废弃 personality 字段
-                val newTagData = ruleData.tagData.filterKeys { it != "personality" }
-                val tagDataChanged = newTagData.size != ruleData.tagData.size
-                val tagNameChanged = newTagName.isNotBlank() && newTagName != ruleData.tagName
-
-                if (tagNameChanged || tagDataChanged) {
-                    val finalTagName = if (newTagName.isBlank()) ruleData.tagName else newTagName
-                    val newRule = ruleData.copy(tagName = finalTagName, tagData = newTagData)
-                    updated.add(systts.copy(config = config.copy(speechRule = newRule)))
-                }
-            }
-        }.onFailure {
-            Log.e(TAG, "tagName 迁移失败", it)
-        }
-
-        // 无论成功失败都置位，避免每次进入列表都重试
-        AppConfig.tagNameMigrated.value = true
-
-        if (updated.isNotEmpty()) {
-            dbm.systemTtsV2.update(*updated.toTypedArray())
-            Log.d(TAG, "tagName 迁移完成: 更新 ${updated.size} 项")
-        }
+        migrateTagNamesIfNeed(context)
     }
 }

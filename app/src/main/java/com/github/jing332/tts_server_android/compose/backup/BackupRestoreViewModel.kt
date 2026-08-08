@@ -10,6 +10,7 @@ import com.github.jing332.database.entities.SpeechRule
 import com.github.jing332.database.entities.plugin.Plugin
 import com.github.jing332.database.entities.replace.GroupWithReplaceRule
 import com.github.jing332.database.entities.systts.GroupWithSystemTts
+import com.github.jing332.tts_server_android.compose.systts.list.migrateTagNamesIfNeed
 import com.github.jing332.tts_server_android.conf.AppConfig
 import com.github.jing332.tts_server_android.constant.AppConst
 import org.json.JSONObject
@@ -69,6 +70,13 @@ class BackupRestoreViewModel(application: Application) : AndroidViewModel(applic
                     if (file.isFile) importFromJsonFile(file)
                 }
             }
+        }
+
+        // 恢复的数据可能含旧格式 tagName，重置标记
+        AppConfig.tagNameMigrated.value = false
+        if (!isRestart) {
+            // 不重启时立即迁移；重启时下次进列表自动迁移
+            withIO { migrateTagNamesIfNeed(getApplication(), force = true) }
         }
 
         return isRestart

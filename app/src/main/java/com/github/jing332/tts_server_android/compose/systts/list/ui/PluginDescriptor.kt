@@ -41,6 +41,6 @@ class PluginDescriptor(val context: Context, val systemTts: SystemTtsV2) : ItemD
         dbm.pluginDao.getEnabledName(source.pluginId)
             ?: context.getString(R.string.not_found_plugin, source.pluginId)
     }
-    override val tagName: String = formatTagName(cfg.speechRule.tagName)
+    override val tagName: String = cfg.speechRule.tagName
     override val standby: Boolean = cfg.speechRule.isStandby
 }

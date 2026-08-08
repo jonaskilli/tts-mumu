@@ -81,8 +81,9 @@ fun ListImportBottomSheet(onDismissRequest: () -> Unit, showSuccessDialog: Boole
                         context.longToast(R.string.import_truncated_hint, result.detail)
                     }
                     is AutoImportResult.Success -> {
-                        // 仅配置列表需要通知 TTS 服务刷新
+                        // 仅配置列表需要通知 TTS 服务刷新，并强制重算 tagName（防止导入旧格式）
                         if (result.type == ImportType.LIST) {
+                            withIO { migrateTagNamesIfNeed(context, force = true) }
                             SystemTtsService.notifyUpdateConfig()
                         }
                         if (showSuccessDialog) {
