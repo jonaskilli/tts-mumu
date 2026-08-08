@@ -2154,14 +2154,10 @@ var EditorJS = {
   
                     console.log("重新读取角色数据成功，记录数: " + characterRecords.length);
                     
-                    // 刷新按钮：角色列表不变，只更新性格标签（不重建行，不闪烁）
+                    // 刷新按钮：角色列表不变，只更新发音人标签（不重建行，不闪烁）
                     refreshVoiceTagsOnly();
                     
-                    if (mapCount > 0) {
-                        Toast.makeText(ctx, "角色列表已刷新（性格映射" + mapCount + "条）", Toast.LENGTH_SHORT).show();
-                    } else {
-                        Toast.makeText(ctx, "角色列表已刷新（性格映射为空，性格可能不显示）", Toast.LENGTH_LONG).show();
-                    }
+                    Toast.makeText(ctx, "角色列表已刷新", Toast.LENGTH_SHORT).show();
                 } else {
                     console.log("characterRecords.json文件为空");
                     characterRecords = [];
