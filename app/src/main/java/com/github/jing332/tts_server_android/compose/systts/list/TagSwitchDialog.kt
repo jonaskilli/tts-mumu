@@ -142,7 +142,7 @@ fun TagSwitchDialog(
         onDismissRequest = onDismissRequest,
         title = {
             Text(
-                text = if (selectedGroup == null) "切换标签" else selectedGroup!!.prefix,
+                text = if (selectedGroup == null) "选择标签分类" else "选择标签序号",
             )
         },
         content = {
