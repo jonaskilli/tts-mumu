@@ -1,6 +1,7 @@
 package com.github.jing332.tts_server_android.compose.systts.list
 
 import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -84,6 +85,7 @@ internal fun Item(
     onAudition: () -> Unit,
     onExport: () -> Unit,
     onMoveToSubGroup: () -> Unit = {},
+    onSwitchTag: () -> Unit = {},
     isInSubGroup: Boolean = false,
 ) {
     val view = LocalView.current
@@ -224,7 +226,8 @@ internal fun Item(
                             top.linkTo(nameRef.top)
                             end.linkTo(parent.end)
                         }
-                        .padding(end = 4.dp),
+                        .padding(end = 4.dp)
+                        .clickable { onSwitchTag() },
                     tag = limitedTagName,
                 )
 

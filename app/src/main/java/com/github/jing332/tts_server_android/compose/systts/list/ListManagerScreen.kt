@@ -1865,6 +1865,13 @@ internal fun ListManagerScreen(
         showAuditionDialog = null
     }
 
+    var showTagSwitch by remember { mutableStateOf<SystemTtsV2?>(null) }
+    if (showTagSwitch != null) {
+        TagSwitchDialog(item = showTagSwitch!!) {
+            showTagSwitch = null
+        }
+    }
+
     var showRestartDialog by remember { mutableStateOf(false) }
     if (showRestartDialog) {
         AlertDialog(
@@ -2334,6 +2341,9 @@ internal fun ListManagerScreen(
                                         },
                                         onMoveToSubGroup = {
                                             showMoveToSubGroup = item
+                                        },
+                                        onSwitchTag = {
+                                            showTagSwitch = item
                                         }
                                     )
                                 }
@@ -2520,6 +2530,9 @@ internal fun ListManagerScreen(
                                                     },
                                                     onMoveToSubGroup = {
                                                         showMoveToSubGroup = item
+                                                    },
+                                                    onSwitchTag = {
+                                                        showTagSwitch = item
                                                     }
                                                 )
                                             }
