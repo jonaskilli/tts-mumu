@@ -20,7 +20,12 @@ sealed interface NormalEvent : Event {
     ) : NormalEvent
 
     data class DirectPlay(val request: RequestPayload) : NormalEvent
-    data class StandbyTts(val request: RequestPayload) : NormalEvent
+    data class StandbyTts(
+        val request: RequestPayload,
+        val fromTag: String = "",
+        val toTag: String = "",
+        val reason: String = "retry",
+    ) : NormalEvent
     data object RequestCountEnded : NormalEvent
 
     data class BgmCurrentPlaying(val source: BgmSource) : NormalEvent

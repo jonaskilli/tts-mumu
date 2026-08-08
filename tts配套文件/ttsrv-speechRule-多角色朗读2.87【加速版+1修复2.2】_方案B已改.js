@@ -601,12 +601,12 @@ function voteNameAnalyzeResult(successResults, dialogTextMap) {
       }
     }
 
-    // 无有效结果兜底
+    // 无有效结果兜底：性别留空，由调用方走中性 duihua，避免随机男女声误导
     if (seqAllResults.length === 0) {
       finalResult[currentSeq] = {
         name: "未知",
-        gender: Math.random() > 0.5 ? "男" : "女",
-        age: Math.random() > 0.5 ? "青年" : "中年"
+        gender: "",
+        age: ""
       };
       continue;
     }
@@ -1978,12 +1978,16 @@ CharacterManager.prototype.processCharacter = function (fullText, characterId, a
   }
   if (newCharacterName === "未知") {
     // 判断不出角色名时，按已识别的性别走兜底：男→duihuaA，女→duihuaB，性别未知→duihua
-    return { text: cleanText, tag: analysis.gender === "男" ? "duihuaA" : analysis.gender === "女" ? "duihuaB" : "duihua" };
+    var fallbackTag = analysis.gender === "男" ? "duihuaA" : analysis.gender === "女" ? "duihuaB" : "duihua";
+    console.log("【兜底分配】角色无法识别(性别:" + (analysis.gender || "未知") + ")→" + fallbackTag + " | 文本:" + cleanText.substring(0, 20));
+    return { text: cleanText, tag: fallbackTag };
   }
   if (!targetMainRecord) {
     var voice = this.assignVoice(analysis.gender, analysis.age);
     if (!voice) {
-      return { text: cleanText, tag: analysis.gender === "男" ? "duihuaA" : analysis.gender === "女" ? "duihuaB" : "duihua" };
+      var fbTag1 = analysis.gender === "男" ? "duihuaA" : analysis.gender === "女" ? "duihuaB" : "duihua";
+      console.log("【兜底分配】无可用发音人(角色:" + newCharacterName + ",性别:" + (analysis.gender || "未知") + ")→" + fbTag1);
+      return { text: cleanText, tag: fbTag1 };
     }
     targetMainRecord = {
       name: newCharacterName,
@@ -2005,7 +2009,9 @@ CharacterManager.prototype.processCharacter = function (fullText, characterId, a
         targetMainRecord.age = analysis.age;
         this.saveRecords();
       } else {
-        targetMainRecord.voice = analysis.gender === "男" ? "duihuaA" : analysis.gender === "女" ? "duihuaB" : "duihua";
+        var fbTag2 = analysis.gender === "男" ? "duihuaA" : analysis.gender === "女" ? "duihuaB" : "duihua";
+        console.log("【兜底分配】发音人失效且无可用(角色:" + newCharacterName + ",性别:" + (analysis.gender || "未知") + ")→" + fbTag2);
+        targetMainRecord.voice = fbTag2;
       }
     }
     if (targetMainRecord.usageCount === 100) {
@@ -2034,7 +2040,9 @@ CharacterManager.prototype.processCharacter = function (fullText, characterId, a
     if (!targetMainRecord.voice || targetMainRecord.voice === "") {
       targetMainRecord.voice = this.assignVoice(analysis.gender, analysis.age);
       if (!voice) {
-        return { text: cleanText, tag: analysis.gender === "男" ? "duihuaA" : analysis.gender === "女" ? "duihuaB" : "duihua" };
+        var fbTag3 = analysis.gender === "男" ? "duihuaA" : analysis.gender === "女" ? "duihuaB" : "duihua";
+        console.log("【兜底分配】角色voice为空且无可用(角色:" + newCharacterName + ",性别:" + (analysis.gender || "未知") + ")→" + fbTag3);
+        return { text: cleanText, tag: fbTag3 };
       }
       targetMainRecord.gender = analysis.gender;
       targetMainRecord.age = analysis.age;

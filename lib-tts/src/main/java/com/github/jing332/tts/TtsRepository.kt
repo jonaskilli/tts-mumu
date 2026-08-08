@@ -102,8 +102,8 @@ internal class TtsRepository(
                     val origTag = c.speechRule.tag
                     if (origTag == "duihuaA" || origTag == "duihuaB" || origTag == "duihua") return@run null
                     val genderTag = when {
-                        origTag.startsWith("男") || origTag.startsWith("少年") || origTag.startsWith("特殊男") -> "duihuaA"
-                        origTag.startsWith("女") || origTag.startsWith("少女") || origTag.startsWith("特殊女") -> "duihuaB"
+                        origTag.startsWith("男") || origTag.startsWith("少年") || origTag == "特殊男" -> "duihuaA"
+                        origTag.startsWith("女") || origTag.startsWith("少女") || origTag == "特殊女" -> "duihuaB"
                         else -> "duihua"
                     }
                     genderFallbackConfigs.find {

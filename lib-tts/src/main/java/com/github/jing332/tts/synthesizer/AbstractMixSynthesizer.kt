@@ -173,8 +173,15 @@ abstract class AbstractMixSynthesizer() : Synthesizer {
                 "retry: retries=$retries, toggleTry=$toggleTryValue, maxRetries=$maxRetries, hasStandby=${config.standbyConfig != null}"
             }
             return if (config.standbyConfig != null && toggleTryValue <= retries + 1) {
-                logger.info { "standby triggered: toggleTry=$toggleTryValue, retries=$retries" }
-                event(NormalEvent.StandbyTts(request.copy(config = config.standbyConfig)))
+                val fromTag = config.speechInfo.tag
+                val toTag = config.standbyConfig?.speechInfo?.tag ?: ""
+                logger.info { "standby triggered: toggleTry=$toggleTryValue, retries=$retries, fromTag=$fromTag, toTag=$toTag" }
+                event(NormalEvent.StandbyTts(
+                    request.copy(config = config.standbyConfig),
+                    fromTag = fromTag,
+                    toTag = toTag,
+                    reason = "retry",
+                ))
                 requestAndProcess(channel, params, config.standbyConfig, 0, maxRetries)
             } else {
                 val next = retries + 1
@@ -193,6 +200,17 @@ abstract class AbstractMixSynthesizer() : Synthesizer {
 
         if (retries > maxRetries) {
             event(NormalEvent.RequestCountEnded)
+            // 功能标签兜底也失败时直接报错（narration除外，narration仍走静音兜底）
+            val curTag = config.speechInfo.tag
+            val isFunctionalFallback = curTag in listOf(
+                "duihua", "duihuaA", "duihuaB",
+                "括号1", "括号2", "括号3", "括号4",
+            ) || curTag.startsWith("localSound")
+            if (isFunctionalFallback && curTag != "narration") {
+                logger.error { "功能标签兜底失败，直接报错: tag=$curTag, text=${params.text.take(20)}" }
+                event(ErrorEvent.Request(request, IllegalStateException("功能标签($curTag)兜底发音人重试失败")))
+                return
+            }
             when (context.cfg.restartOnMaxRetryMode()) {
                 1 -> { // 不生成空音频直接重启
                     logger.warn { "max retries exceeded, restarting app directly..." }

@@ -704,11 +704,13 @@ class SystemTtsService : TextToSpeechService(), IEventDispatcher {
                     )
                 )
 
-            is NormalEvent.StandbyTts -> logI(
-                getString(
-                    R.string.use_standby_tts, e.request.text()
-                )
-            )
+            is NormalEvent.StandbyTts -> {
+                if (e.fromTag.isNotEmpty() || e.toTag.isNotEmpty()) {
+                    logI(getString(R.string.use_standby_tts_with_tag, e.fromTag, e.toTag))
+                } else {
+                    logI(getString(R.string.use_standby_tts, e.request.text()))
+                }
+            }
 
             NormalEvent.RequestCountEnded -> logW(getString(R.string.reach_retry_limit))
             is NormalEvent.BgmCurrentPlaying -> {
@@ -721,7 +723,15 @@ class SystemTtsService : TextToSpeechService(), IEventDispatcher {
     private fun errorEvent(e: ErrorEvent) {
         when (e) {
             is ErrorEvent.TextProcessor -> handleTextProcessorError(e.error)
-            is ErrorEvent.Request -> logE(R.string.systts_log_failed, e.cause)
+            is ErrorEvent.Request -> {
+                val msg = e.cause?.message ?: ""
+                if (msg.startsWith("功能标签(")) {
+                    val tag = msg.substringAfter("功能标签(").substringBefore(")")
+                    logE(getString(R.string.functional_fallback_failed, tag))
+                } else {
+                    logE(R.string.systts_log_failed, e.cause)
+                }
+            }
             is ErrorEvent.RequestTimeout -> logW("超时：${SysTtsConfig.requestTimeout / 1000}秒")
             ErrorEvent.ConfigEmpty -> {
                 logE(R.string.config_empty_error)
