@@ -200,16 +200,14 @@ abstract class AbstractMixSynthesizer() : Synthesizer {
 
         if (retries > maxRetries) {
             event(NormalEvent.RequestCountEnded)
-            // 功能标签兜底也失败时直接报错（narration除外，narration仍走静音兜底）
+            // 兜底发音人(duihua/duihuaA/duihuaB)或音效(localSound)失败时记录错误日志
+            // 括号1-4、narration 不在此列；记录日志后仍按用户配置的 restartOnMaxRetryMode 处理
             val curTag = config.speechInfo.tag
-            val isFunctionalFallback = curTag in listOf(
-                "duihua", "duihuaA", "duihuaB",
-                "括号1", "括号2", "括号3", "括号4",
-            ) || curTag.startsWith("localSound")
-            if (isFunctionalFallback && curTag != "narration") {
-                logger.error { "功能标签兜底失败，直接报错: tag=$curTag, text=${params.text.take(20)}" }
+            val isFallbackOrSound = curTag in listOf("duihua", "duihuaA", "duihuaB")
+                || curTag.startsWith("localSound")
+            if (isFallbackOrSound) {
+                logger.error { "兜底/音效标签失败: tag=$curTag, text=${params.text.take(20)}" }
                 event(ErrorEvent.Request(request, IllegalStateException("功能标签($curTag)兜底发音人重试失败")))
-                return
             }
             when (context.cfg.restartOnMaxRetryMode()) {
                 1 -> { // 不生成空音频直接重启

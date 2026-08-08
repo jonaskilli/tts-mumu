@@ -2,7 +2,9 @@
 
 > 目标：让角色列表的发音人标签显示当前绑定 voice 的 displayName（如"晓晓"），voice 切换后标签跟着变；用底层英文 voice 作唯一校验键，删除 voice 后能⚠。
 > 关联文档：`docs/角色列表-标签性格机制与自动刷新.md`
-> 状态：**方案 B-1 已实施**（2026-08-04，底层 voice 进入链路，标签显示 displayName，⚠ 恢复）；方案 A 已废弃；C 待定（app 侧 computeTagName 统一）
+> 状态：**方案 B-1 已实施**（2026-08-04，底层 voice 进入链路，标签显示 displayName，⚠ 恢复）；方案 A 已废弃（文件已删除）；C 待定（app 侧 computeTagName 统一）
+>
+> **2026-08-08 更新**：兜底体系改造（详见 `docs/兜底体系架构.md`）。assignVoice 不再返回 null，改为按性别直接返回 `duihuaA`/`duihuaB`/`duihua` 兜底 tag，并输出日志。因新增日志和兜底逻辑，本文档中引用的 JS 行号可能已偏移，请以实际代码为准。
 
 ---
 
@@ -306,7 +308,7 @@ if (!isValid) {
 
 | 问题 | 位置 | 严重性 | 处理 |
 |---|---|---|---|
-| assignVoice 返回 null 时 record.voice 赋值 `"duihuaA"/"duihuaB"/"duihua"` | [L2032](file:///workspace/tts配套文件/ttsrv-speechRule-多角色朗读2.87【加速版+1修复2.2】_方案B已改.js#L2032) | 低 | **保留**。这是「fallback到对话标签」语义非发音人；触发条件极端（同性别全无可用发音人）；后续 `availableVoices[record.voice]` 判定无效会触发重分配，属期望行为 |
+| ~~assignVoice 返回 null~~ → **已改为兜底分配** | ~~L2032~~（行号已偏移） | 低 | **已更新（2026-08-08）**。assignVoice 不再返回 null，改为按性别直接返回 `duihuaA`/`duihuaB`/`duihua` 兜底 tag 并输出 `[SpeechRule] 【兜底分配】` 日志。详见 `docs/兜底体系架构.md` |
 | duihua roleValue（如"青年20"）混入 availableVoices/fayinren.json | [L4522](file:///workspace/tts配套文件/ttsrv-speechRule-多角色朗读2.87【加速版+1修复2.2】_方案B已改.js#L4522)、[L4601](file:///workspace/tts配套文件/ttsrv-speechRule-多角色朗读2.87【加速版+1修复2.2】_方案B已改.js#L4601) | 低 | **保留**。duihua 动态标签无底层voice映射，roleValue 即其标识；assignVoice 的 duihua 分支 `uv=voiceTagToVoice[voiceTag]\|\|voiceTag` 让返回值与 key 一致（都是 roleValue），自洽；桥接 replaceFayinrenName 查不到 roleValue 原样显示，合理 |
 | 朗读规则JS内部命令显示英文voice | [L5208](file:///workspace/tts配套文件/ttsrv-speechRule-多角色朗读2.87【加速版+1修复2.2】_方案B已改.js#L5208)（qjs统计）、[L5238](file:///workspace/tts配套文件/ttsrv-speechRule-多角色朗读2.87【加速版+1修复2.2】_方案B已改.js#L5238)（setFixedVoice）、printAvailableVoices | 中 | **暂不处理**。属朗读规则JS内部命令（非角色列表标签），不在本次核心目标范围；用户已确认暂不需要 |
 | 桥接「系统TTS重新分配」逻辑依赖 `displayName.match(/^(.+?)\d/)` 分类 | [L4665](file:///workspace/tts配套文件/ttsrv-plugin-角色管理_桥接试听v7_方案B已改.js#L4665) | 中 | **暂不处理**。方案B下 displayName 是"晓晓"非"女青年01"，正则失效；但这是「未开转发器+系统TTS重分配」边缘场景，需单独适配 |

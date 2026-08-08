@@ -1519,28 +1519,51 @@ var EditorJS = {
             return ssb;
         }
 
-        // 判断发音人是否有效：方案A下标签直接显示配置项 name/voice，不再拆 tag+persona，
-        // 校验放宽为「voice 非空即有效」。保留函数供旧调用点兼容，不再查 fayinrenList。
-        function isVoiceTagValid(voice) {
-            if (!voice) return false;
-            return true;
+        // 判断发音人分类标签是否仍存在（fayinrenList 为 onLoadUI 时读取的有效发音人列表）
+        function isVoiceTagValid(tag) {
+            if (!tag) return false;
+            if (!fayinrenList || fayinrenList.length === 0) return true; // 列表未加载时不拦截
+            for (var vi = 0; vi < fayinrenList.length; vi++) {
+                var item = String(fayinrenList[vi] || "");
+                if (item === tag || item.indexOf(tag) === 0 || tag.indexOf(item) === 0) return true;
+            }
+            return false;
         }
 
-        // 生成发音人标签部分（方案A）：整段显示 character.voice（即配置项 name/tagName），
-        // 不再拆「分类标签+性格」两段上色，统一单色蓝。调用点已用 record.voice 守卫，
-        // voice 为空时返回 null 由调用方处理，故不再有 ⚠ 路径。
+        // 生成发音人标签部分（SpannableStringBuilder，分类标签+性格用颜色区分）
         function generateVoiceTag(character) {
             if (!character || !character.voice) return null;
-
-            var voiceText = String(character.voice);
+            
+            var voiceParts = splitVoiceDisplay(character.voice);
             var ssb = new android.text.SpannableStringBuilder();
             var CLR_TAG = android.graphics.Color.parseColor("#1976D2");
+            var CLR_PERSONA = android.graphics.Color.parseColor("#7B1FA2");
+            var CLR_WARN = android.graphics.Color.parseColor("#E53935"); // 发音人已删除的警告色
             var SPAN = android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE;
-
+            
+            // 发音人分类标签是否仍存在（删除发音人后 fayinren.json 不再包含）
+            var tagExists = isVoiceTagValid(voiceParts.tag);
+            
+            // 前缀：标签不存在时加感叹号提醒
+            if (!tagExists) {
+                var warnStart = ssb.length();
+                ssb.append("⚠");
+                ssb.setSpan(new android.text.style.ForegroundColorSpan(CLR_WARN), warnStart, ssb.length(), SPAN);
+                ssb.append(" ");
+            }
+            
+            // 分类标签（女青年01）
             var tagStart = ssb.length();
-            ssb.append(voiceText);
+            ssb.append(voiceParts.tag);
             ssb.setSpan(new android.text.style.ForegroundColorSpan(CLR_TAG), tagStart, ssb.length(), SPAN);
-
+            
+            // 性格（晓伊）—— 仅当发音人标签仍存在时显示，删除后性格随之消失
+            if (tagExists && voiceParts.persona) {
+                var personaStart = ssb.length();
+                ssb.append(voiceParts.persona);
+                ssb.setSpan(new android.text.style.ForegroundColorSpan(CLR_PERSONA), personaStart, ssb.length(), SPAN);
+            }
+            
             return ssb;
         }
 
