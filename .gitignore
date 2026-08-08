@@ -49,3 +49,6 @@ _probe.log
 _bgtest.log
 newapk/
 .计划_待改项.md
+
+# TRAE 本地配置（含 token，禁止提交）
+.trae/
