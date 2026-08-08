@@ -7,7 +7,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -40,6 +40,21 @@ import kotlinx.coroutines.withContext
 
 private data class TagItem(val tag: String, val tagName: String)
 
+private data class TagGroup(
+    val prefix: String,
+    val items: List<TagItem>,
+)
+
+private fun extractPrefix(name: String): String {
+    val m = Regex("^(.+?)(\\d+)$").find(name)
+    return m?.groupValues?.get(1) ?: name
+}
+
+private fun extractSuffixNum(name: String): Int? {
+    val m = Regex("(\\d+)$").find(name)
+    return m?.value?.toIntOrNull()
+}
+
 @Composable
 fun TagSwitchDialog(
     item: SystemTtsV2,
@@ -67,12 +82,39 @@ fun TagSwitchDialog(
         tags.entries.map { (key, value) -> TagItem(key, value) }
     }
 
-    val listState = rememberLazyListState()
-    LaunchedEffect(allTags, currentTag) {
-        if (allTags.isNotEmpty()) {
-            val idx = allTags.indexOfFirst { it.tag == currentTag }
-            // 无标签时定位第一个；有标签时定位到当前项所在位置
-            listState.scrollToItem(if (idx >= 0) idx else 0)
+    val groups = remember(allTags) {
+        allTags.groupBy { extractPrefix(it.tagName) }
+            .map { (prefix, items) ->
+                TagGroup(
+                    prefix = prefix,
+                    items = items.sortedBy { extractSuffixNum(it.tagName) ?: 0 }
+                )
+            }
+            .sortedBy { it.prefix }
+    }
+
+    val currentPrefix = remember(allTags, currentTag) {
+        allTags.find { it.tag == currentTag }?.let { extractPrefix(it.tagName) }
+    }
+
+    var selectedGroup by remember { mutableStateOf<TagGroup?>(null) }
+
+    // 第一层：自动滚动到当前所在的大分类
+    val groupListState = rememberLazyListState()
+    LaunchedEffect(groups, currentPrefix, selectedGroup) {
+        if (selectedGroup == null && groups.isNotEmpty()) {
+            val idx = groups.indexOfFirst { it.prefix == currentPrefix }
+            groupListState.scrollToItem(if (idx >= 0) idx else 0)
+        }
+    }
+
+    // 第二层：自动滚动到当前所在的具体标签
+    val itemListState = rememberLazyListState()
+    LaunchedEffect(selectedGroup, currentTag) {
+        val g = selectedGroup
+        if (g != null && g.items.isNotEmpty()) {
+            val idx = g.items.indexOfFirst { it.tag == currentTag }
+            itemListState.scrollToItem(if (idx >= 0) idx else 0)
         }
     }
 
@@ -97,7 +139,11 @@ fun TagSwitchDialog(
 
     AppDialog(
         onDismissRequest = onDismissRequest,
-        title = { Text("切换标签") },
+        title = {
+            Text(
+                text = if (selectedGroup == null) "切换标签" else selectedGroup!!.prefix,
+            )
+        },
         content = {
             Column(
                 modifier = Modifier
@@ -135,38 +181,93 @@ fun TagSwitchDialog(
                         )
                     }
                     else -> {
-                        LazyColumn(
-                            state = listState,
-                            modifier = Modifier.fillMaxWidth()
-                        ) {
-                            itemsIndexed(allTags, key = { _, t -> t.tag }) { _, tagItem ->
-                                val isCurrent = tagItem.tag == currentTag
-                                Row(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .clickable { handleSelect(tagItem) }
-                                        .padding(horizontal = 16.dp, vertical = 12.dp),
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    Text(
-                                        text = tagItem.tagName,
-                                        style = MaterialTheme.typography.bodyLarge,
-                                        fontWeight = if (isCurrent) FontWeight.Bold else FontWeight.Normal,
-                                        color = if (isCurrent)
-                                            MaterialTheme.colorScheme.primary
-                                        else
-                                            MaterialTheme.colorScheme.onSurface,
-                                        maxLines = 1,
-                                        overflow = TextOverflow.Ellipsis,
-                                        modifier = Modifier.weight(1f)
-                                    )
-                                    if (isCurrent) {
+                        val targetGroup = selectedGroup
+                        if (targetGroup == null) {
+                            // 第一层：大分类列表，自动定位到当前分类
+                            LazyColumn(
+                                state = groupListState,
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                items(groups, key = { it.prefix }) { group ->
+                                    val isCurrent = group.prefix == currentPrefix
+                                    Row(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .clickable {
+                                                if (group.items.size == 1) {
+                                                    handleSelect(group.items.first())
+                                                } else {
+                                                    selectedGroup = group
+                                                }
+                                            }
+                                            .padding(horizontal = 16.dp, vertical = 12.dp),
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
                                         Text(
-                                            "当前",
-                                            style = MaterialTheme.typography.labelSmall,
-                                            color = MaterialTheme.colorScheme.primary,
-                                            fontWeight = FontWeight.Bold,
+                                            text = group.prefix,
+                                            style = MaterialTheme.typography.bodyLarge,
+                                            fontWeight = if (isCurrent) FontWeight.Bold else FontWeight.Normal,
+                                            color = if (isCurrent)
+                                                MaterialTheme.colorScheme.primary
+                                            else
+                                                MaterialTheme.colorScheme.onSurface,
+                                            maxLines = 1,
+                                            overflow = TextOverflow.Ellipsis,
+                                            modifier = Modifier.weight(1f)
                                         )
+                                        if (group.items.size > 1) {
+                                            Text(
+                                                "${group.items.size}项",
+                                                style = MaterialTheme.typography.bodySmall,
+                                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                            )
+                                        }
+                                        if (isCurrent) {
+                                            Text(
+                                                "当前",
+                                                style = MaterialTheme.typography.labelSmall,
+                                                color = MaterialTheme.colorScheme.primary,
+                                                fontWeight = FontWeight.Bold,
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+                        } else {
+                            // 第二层：具体标签列表，自动定位到当前标签
+                            LazyColumn(
+                                state = itemListState,
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                items(targetGroup.items, key = { it.tag }) { tagItem ->
+                                    val isCurrent = tagItem.tag == currentTag
+                                    Row(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .clickable { handleSelect(tagItem) }
+                                            .padding(horizontal = 16.dp, vertical = 12.dp),
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Text(
+                                            text = tagItem.tagName,
+                                            style = MaterialTheme.typography.bodyLarge,
+                                            fontWeight = if (isCurrent) FontWeight.Bold else FontWeight.Normal,
+                                            color = if (isCurrent)
+                                                MaterialTheme.colorScheme.primary
+                                            else
+                                                MaterialTheme.colorScheme.onSurface,
+                                            maxLines = 1,
+                                            overflow = TextOverflow.Ellipsis,
+                                            modifier = Modifier.weight(1f)
+                                        )
+                                        if (isCurrent) {
+                                            Text(
+                                                "当前",
+                                                style = MaterialTheme.typography.labelSmall,
+                                                color = MaterialTheme.colorScheme.primary,
+                                                fontWeight = FontWeight.Bold,
+                                            )
+                                        }
                                     }
                                 }
                             }
@@ -176,8 +277,14 @@ fun TagSwitchDialog(
             }
         },
         buttons = {
-            TextButton(onClick = onDismissRequest) {
-                Text(stringResource(R.string.cancel))
+            if (selectedGroup != null) {
+                TextButton(onClick = { selectedGroup = null }) {
+                    Text("返回")
+                }
+            } else {
+                TextButton(onClick = onDismissRequest) {
+                    Text(stringResource(R.string.cancel))
+                }
             }
         }
     )
