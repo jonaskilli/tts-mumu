@@ -455,7 +455,12 @@ internal fun ReplaceRuleManagerScreen(
                                         SystemTtsService.notifyUpdateConfig(isOnlyReplacer = true)
                                 },
                                 onMoveTop = { vm.moveTop(rule) },
-                                onMoveBottom = { vm.moveBottom(rule) }
+                                onMoveBottom = { vm.moveBottom(rule) },
+                                onExport = {
+                                    showExportSheet = listOf(
+                                        GroupWithReplaceRule(groupWithRules.group, listOf(rule))
+                                    )
+                                }
                             )
                         }
                     }

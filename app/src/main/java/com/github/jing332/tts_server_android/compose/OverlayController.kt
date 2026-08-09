@@ -30,11 +30,9 @@ fun rememberOverlayController(): OverlayController {
 }
 
 // 自定义 Saver
+// 注意：restore 时强制 visible=false。遮罩是瞬态 UI 状态，不应跨 Activity 重建/进程恢复保留，
+// 否则一旦因重组异常卡在 true，会持续白屏且只能重启 App。
 private val OverlayControllerSaver = Saver<OverlayController, Boolean>(
-    save = { it.visible },
-    restore = { savedVisibility ->
-        OverlayController().apply {
-            visible = savedVisibility
-        }
-    }
+    save = { false },
+    restore = { OverlayController() }
 )

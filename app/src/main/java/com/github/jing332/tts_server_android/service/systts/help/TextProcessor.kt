@@ -131,7 +131,7 @@ class TextProcessor : ITextProcessor {
         try {
 
             if (presetConfig != null) {
-                splitAndAdd(text, presetConfig)
+                splitAndAdd(replacedText, presetConfig)
             } else if (isMultiVoice) {
                 val fragments = engine.handleText(replacedText, speechRules)
 

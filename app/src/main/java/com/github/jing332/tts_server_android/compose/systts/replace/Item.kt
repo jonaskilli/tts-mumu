@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.DeleteForever
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.IosShare
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.VerticalAlignBottom
 import androidx.compose.material.icons.filled.VerticalAlignTop
@@ -50,6 +51,7 @@ internal fun Item(
     onDelete: () -> Unit,
     onMoveTop: () -> Unit,
     onMoveBottom: () -> Unit,
+    onExport: () -> Unit = {},
     isEnabled: Boolean,
     onCheckedChange: (Boolean) -> Unit,
     // 第3项: 多选删除支持(与朗读规则/插件一致)
@@ -159,6 +161,20 @@ internal fun Item(
                                 },
                                 onClick = {
                                     onMoveBottom()
+                                    isMoreOptionsVisible = false
+                                }
+                            )
+
+                            DropdownMenuItem(
+                                text = { Text(stringResource(R.string.export_config)) },
+                                leadingIcon = {
+                                    Icon(
+                                        imageVector = Icons.Filled.IosShare,
+                                        contentDescription = null,
+                                    )
+                                },
+                                onClick = {
+                                    onExport()
                                     isMoreOptionsVisible = false
                                 }
                             )

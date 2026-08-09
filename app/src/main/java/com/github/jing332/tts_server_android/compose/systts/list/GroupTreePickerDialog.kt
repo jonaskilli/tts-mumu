@@ -123,21 +123,23 @@ fun GroupTreePickerDialog(
                     val isGroupRootSelected = selectedGroupId == group.id &&
                         !isCreatingNew && selectedCategoryPath.isBlank()
 
-                    // 大分组标题行: 可选根目录时点击选中并展开; 不可选根目录(含子分组)时点击仅展开/收起
+                    // 大分组标题行: 含子分组时点击行=展开/收起(与点图标一致);
+                    // 无子分组时点击行=选中根目录并展开
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .selectable(
-                                selected = isGroupRootSelected,
-                                enabled = canSelectRoot,
-                                onClick = {
+                            .clickable {
+                                if (canSelectRoot) {
                                     selectedGroupId = group.id
                                     selectedCategoryPath = ""
                                     isCreatingNew = false
                                     newSubGroupName = ""
                                     expandedGroups = setOf(group.id)
+                                } else {
+                                    expandedGroups = if (isExpanded) expandedGroups - group.id
+                                    else setOf(group.id)
                                 }
-                            )
+                            }
                             .padding(vertical = 4.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {

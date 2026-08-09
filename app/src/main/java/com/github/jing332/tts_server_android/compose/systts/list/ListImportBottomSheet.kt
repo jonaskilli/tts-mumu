@@ -34,6 +34,7 @@ import com.github.jing332.tts_server_android.constant.AppConst
 import com.github.jing332.tts_server_android.service.systts.SystemTtsService
 import com.github.jing332.tts_server_android.ui.systts.ImportConfigFactory
 import com.github.jing332.tts_server_android.ui.systts.ImportType
+import com.github.jing332.tts_server_android.ui.view.AppDialogs.displayErrorDialog
 import com.drake.net.utils.withIO
 import kotlinx.coroutines.launch
 
@@ -77,8 +78,11 @@ fun ListImportBottomSheet(onDismissRequest: () -> Unit, showSuccessDialog: Boole
                         context.longToast(R.string.import_no_valid_config)
                     }
                     is AutoImportResult.Truncated -> {
-                        // JSON 解析失败：可能是大文件读取被截断，或源文件本身损坏
-                        context.longToast(R.string.import_truncated_hint, result.detail)
+                        // JSON 解析失败：用错误对话框展示完整信息，支持滚动和复制
+                        context.displayErrorDialog(
+                            Exception(result.detail),
+                            title = context.getString(R.string.import_failed)
+                        )
                     }
                     is AutoImportResult.Success -> {
                         // 仅配置列表需要通知 TTS 服务刷新，并强制重算 tagName（防止导入旧格式）
@@ -136,18 +140,28 @@ internal fun doAutoImport(json: String): AutoImportResult {
 
 /** 插件：解析并直接写库，不弹确认对话框 */
 private fun doImportPlugin(json: String, type: ImportType): AutoImportResult {
-    val plugins = runCatching { parsePluginsJson(json) }.getOrDefault(emptyList<Plugin>())
-    if (plugins.isEmpty()) return AutoImportResult.EmptyOrUnrecognized
+    var parseError: String? = null
+    val plugins = runCatching {
+        parsePluginsJson(json)
+    }.onFailure { e ->
+        parseError = "${e::class.java.simpleName}: ${e.message}"
+        android.util.Log.e("PluginImport", "parse plugins failed", e)
+    }.getOrDefault(emptyList<Plugin>())
+    if (plugins.isEmpty()) return AutoImportResult.Truncated(parseError ?: "未识别到有效配置")
     dbm.pluginDao.insert(*plugins.toTypedArray())
     return AutoImportResult.Success(plugins.size, type, "插件")
 }
 
 /** 朗读规则：解析并直接写库，不弹确认对话框 */
 private fun doImportSpeechRule(json: String, type: ImportType): AutoImportResult {
+    var parseError: String? = null
     val rules = runCatching {
         AppConst.jsonBuilder.decodeFromString<List<SpeechRule>>(json)
+    }.onFailure { e ->
+        parseError = "${e::class.java.simpleName}: ${e.message}"
+        android.util.Log.e("SpeechRuleImport", "decode SpeechRule failed", e)
     }.getOrDefault(emptyList())
-    if (rules.isEmpty()) return AutoImportResult.EmptyOrUnrecognized
+    if (rules.isEmpty()) return AutoImportResult.Truncated(parseError ?: "未识别到有效配置")
     dbm.speechRuleDao.insert(*rules.toTypedArray())
     return AutoImportResult.Success(rules.size, type, "朗读规则")
 }
@@ -155,9 +169,16 @@ private fun doImportSpeechRule(json: String, type: ImportType): AutoImportResult
 /** 替换规则：解析并直接写库，不弹确认对话框 */
 private fun doImportReplaceRule(json: String, type: ImportType): AutoImportResult {
     val pairs = mutableListOf<Pair<ReplaceRuleGroup, ReplaceRule>>()
-    if (json.contains("\"group\"")) {
+    var parseError: String? = null
+    // detectType 已用 parseToJsonElement 验证过 JSON 合法性，这里直接用原始 json，
+    // 不再调 toJsonListString()（它可能给已合法的 [...] 再补 ]，导致 ]] 报错）
+    val safeJson = json.trim()
+    if (safeJson.contains("\"group\"")) {
         runCatching {
-            AppConst.jsonBuilder.decodeFromString<List<GroupWithReplaceRule>>(json.toJsonListString())
+            AppConst.jsonBuilder.decodeFromString<List<GroupWithReplaceRule>>(safeJson)
+        }.onFailure { e ->
+            parseError = "${e::class.java.simpleName}: ${e.message}"
+            android.util.Log.e("ReplaceRuleImport", "decode GroupWithReplaceRule failed", e)
         }.getOrDefault(emptyList()).forEach { gwt ->
             val group = gwt.group
             gwt.list.forEach { rule -> pairs.add(group to rule) }
@@ -167,12 +188,15 @@ private fun doImportReplaceRule(json: String, type: ImportType): AutoImportResul
         val groupName = StringUtils.formattedDate()
         val group = ReplaceRuleGroup(name = groupName)
         runCatching {
-            AppConst.jsonBuilder.decodeFromString<List<ReplaceRule>>(json.toJsonListString())
+            AppConst.jsonBuilder.decodeFromString<List<ReplaceRule>>(safeJson)
+        }.onFailure { e ->
+            parseError = "${e::class.java.simpleName}: ${e.message}"
+            android.util.Log.e("ReplaceRuleImport", "decode ReplaceRule failed", e)
         }.getOrDefault(emptyList()).forEach { rule ->
             pairs.add(group to rule.apply { groupId = group.id })
         }
     }
-    if (pairs.isEmpty()) return AutoImportResult.EmptyOrUnrecognized
+    if (pairs.isEmpty()) return AutoImportResult.Truncated(parseError ?: "未识别到有效配置")
     pairs.forEach {
         dbm.replaceRuleDao.insert(it.second)
         dbm.replaceRuleDao.insertGroup(it.first)

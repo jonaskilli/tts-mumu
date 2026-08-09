@@ -39,14 +39,13 @@ fun TtsTopAppBar(
                 Icon(Icons.Default.Save, stringResource(id = R.string.save))
             }
 
-            var showOptions by remember { mutableStateOf(false) }
-            if (moreOptions != null)
-                IconButton(onClick = {
-
-                }) {
+            if (moreOptions != null) {
+                var showOptions by remember { mutableStateOf(false) }
+                IconButton(onClick = { showOptions = true }) {
                     Icon(Icons.Default.MoreVert, stringResource(id = R.string.more_options))
-                    moreOptions { showOptions = false }
                 }
+                moreOptions { showOptions = false }
+            }
         }
     )
 }

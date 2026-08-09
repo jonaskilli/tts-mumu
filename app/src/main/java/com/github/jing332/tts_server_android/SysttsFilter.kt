@@ -28,12 +28,18 @@ class SysttsFilter : Filter<ILoggingEvent>() {
             "PluginLoginActivity",
             "JsBridgeInputStream"
         )
+
+        // 系统 TTS 内部模块的 logger 名称（非插件，归入系统日志，默认显示在日志栏）
+        private val SYSTTS_INTERNAL_LOGGER_NAMES = listOf(
+            "SpeakerLoudnessManager"
+        )
     }
 
     override fun decide(event: ILoggingEvent): FilterReply {
         val isPluginLog = PLUGIN_LOGGER_NAMES.any { event.loggerName.contains(it) }
-        
-        return if (event.loggerName == SystemTtsService.TAG || isPluginLog) {
+        val isSysttsInternal = SYSTTS_INTERNAL_LOGGER_NAMES.any { event.loggerName.contains(it) }
+
+        return if (event.loggerName == SystemTtsService.TAG || isPluginLog || isSysttsInternal) {
             SysttsLogger.log(
                 LogEntry(
                     level = event.level.toString().toLogLevel(),

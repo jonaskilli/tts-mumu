@@ -330,6 +330,11 @@
     <string name="shuffle">随机播放</string>
     <string name="bgm_settings">背景音乐设置</string>
     <string name="bgm_settings_tip">提示：右上角加号添加背景音乐。</string>
+    <string name="loudness_balance">响度均衡</string>
+    <string name="loudness_balance_summary">自动学习各发音人响度并拉平，让不同发音人听起来音量一致</string>
+    <string name="loudness_reset">重置响度学习数据</string>
+    <string name="loudness_reset_summary">已学习 %1$d 个发音人，点击清空全部重新学习</string>
+    <string name="loudness_reset_confirm">将清空 %1$d 个发音人的响度学习数据，下次播放会重新开始学习。确定继续吗？</string>
     <string name="bgm">背景音乐</string>
     <string name="exo_player_title">媒体播放器</string>
     <string name="remote_sync_service">远程同步</string>

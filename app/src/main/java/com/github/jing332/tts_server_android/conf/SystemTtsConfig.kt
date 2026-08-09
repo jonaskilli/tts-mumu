@@ -162,6 +162,13 @@ object SystemTtsConfig {
 
     // ========== 响度均衡配置 ==========
 
+    /** 响度均衡总开关，默认开启 */
+    val isLoudnessEnabled = mutableDataSaverStateOf(
+        dataSaverInterface = dataSaverPref,
+        key = "isLoudnessEnabled",
+        initialValue = true
+    )
+
     val loudnessMaxGain = mutableDataSaverStateOf(
         dataSaverInterface = dataSaverPref,
         key = "loudnessMaxGain",

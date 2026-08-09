@@ -77,7 +77,7 @@ class App : Application() {
         // 初始化响度均衡管理器
         SpeakerLoudnessManager.init(
             context = this,
-            enabledProvider = { true },
+            enabledProvider = { SystemTtsConfig.isLoudnessEnabled.value },
             maxGainProvider = { SystemTtsConfig.loudnessMaxGain.value }
         )
 

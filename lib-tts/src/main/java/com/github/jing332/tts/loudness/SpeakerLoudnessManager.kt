@@ -1,7 +1,6 @@
 package com.github.jing332.tts.loudness
 
 import android.content.Context
-import android.content.SharedPreferences
 import android.media.MediaCodec
 import android.media.MediaExtractor
 import android.media.MediaFormat
@@ -12,6 +11,9 @@ import io.github.oshai.kotlinlogging.KotlinLogging
 import org.json.JSONObject
 import java.io.File
 import java.nio.ByteBuffer
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 import kotlin.math.log10
 import kotlin.math.max
 import kotlin.math.pow
@@ -29,7 +31,8 @@ import kotlin.math.sqrt
  *   这样手动调节变化时，新数据会自然覆盖旧数据
  * - 置信度机制：学习次数少时补偿幅度打折扣，避免过度补偿
  *
- * 使用前需在 Application 中调用 [init] 传入 SharedPreferences。
+ * 数据存储：单一文件 Download/chajian/loudness_stats.json（用户可见、可直接查看），
+ * 不再使用 SharedPreferences。文件内字段为中文易读格式。
  */
 object SpeakerLoudnessManager {
     private val logger = KotlinLogging.logger("SpeakerLoudnessManager")
@@ -44,16 +47,24 @@ object SpeakerLoudnessManager {
     private const val MIN_MEDIAN_SPEAKERS = 2
     private const val MAX_ATTENUATION_DB = 9f
 
-    private const val PREF_KEY = "speakerLoudnessStats"
+    /**
+     * 学习数据文件：/storage/emulated/0/Download/chajian/loudness_stats.json
+     * 路径与项目其它模块一致（朗读规则 JS 的 getFile()、插件缓存 PluginManager.CACHE_BASE_DIR
+     * 均写到 /storage/emulated/0/Download/chajian）。这是唯一存储，用户可直接查看。
+     */
+    private const val FILE_BASE_DIR = "/storage/emulated/0/Download"
+    private const val FILE_DIR_NAME = "chajian"
+    private const val FILE_NAME = "loudness_stats.json"
 
     private val lock = Any()
-    private var cachedRaw = ""
     private var cachedStats: MutableMap<String, LoudnessStat> = linkedMapOf()
+    private var fileLoaded = false
     private val analyzingKeys = mutableSetOf<String>()
-    private var sp: SharedPreferences? = null
 
     private var enabledProvider: () -> Boolean = { false }
     private var maxGainProvider: () -> Float = { 1.35f }
+
+    private val timeFormat = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault())
 
     data class LoudnessInfo(
         val speakerKey: String,
@@ -61,6 +72,10 @@ object SpeakerLoudnessManager {
         val learned: Boolean
     )
 
+    /**
+     * 内部统计：保留 dB 等数值用于增益计算。
+     * [displayName] 为用户可见发音人名，写文件时作为顶层 key 展示。
+     */
     private data class LoudnessStat(
         val count: Int,
         val activeRmsDb: Float,
@@ -68,6 +83,7 @@ object SpeakerLoudnessManager {
         val peak: Float,
         val voicedRatio: Float,
         val updatedAt: Long,
+        val displayName: String = "",
     )
 
     private data class AudioAnalysis(
@@ -88,18 +104,19 @@ object SpeakerLoudnessManager {
 
     /**
      * 初始化，需在 Application 中调用。
-     * @param context Android Context
+     * @param context Android Context（保留以备将来按 context 解析存储路径）
      * @param enabledProvider 响度均衡是否启用的 provider
      * @param maxGainProvider 最大增益 provider（如 1.35f 表示 135%）
      */
+    @Suppress("UNUSED_PARAMETER")
     fun init(
         context: Context,
         enabledProvider: () -> Boolean,
         maxGainProvider: () -> Float
     ) {
-        this.sp = context.getSharedPreferences("tts_loudness", Context.MODE_PRIVATE)
         this.enabledProvider = enabledProvider
         this.maxGainProvider = maxGainProvider
+        loadFromFileLocked()
     }
 
     /**
@@ -146,9 +163,11 @@ object SpeakerLoudnessManager {
 
     fun reset() {
         synchronized(lock) {
-            cachedRaw = ""
+            val count = cachedStats.size
             cachedStats = linkedMapOf()
-            sp?.edit()?.putString(PREF_KEY, "")?.apply()
+            fileLoaded = true
+            deleteFileLocked()
+            logger.info { "响度学习：已重置（清空 $count 个发音人数据）" }
         }
     }
 
@@ -193,6 +212,8 @@ object SpeakerLoudnessManager {
                 } else {
                     ((old.voicedRatio * oldWeight) + analysis.voicedRatio) / (oldWeight + 1)
                 }
+                val newDisplayName = config?.speechInfo?.displayName?.takeIf { it.isNotBlank() }
+                    ?: old?.displayName ?: ""
                 map[key] = LoudnessStat(
                     count = newCount,
                     activeRmsDb = activeRmsDb,
@@ -200,6 +221,7 @@ object SpeakerLoudnessManager {
                     peak = peak.coerceIn(0f, 1f),
                     voicedRatio = voicedRatio.coerceIn(0f, 1f),
                     updatedAt = System.currentTimeMillis(),
+                    displayName = newDisplayName,
                 )
                 cachedStats = map.entries
                     .sortedByDescending { it.value.updatedAt }
@@ -207,6 +229,7 @@ object SpeakerLoudnessManager {
                     .associate { it.key to it.value }
                     .toMutableMap()
                 persistLocked()
+                logLearned(key, map[key]!!)
             }
         } finally {
             synchronized(lock) { analyzingKeys.remove(key) }
@@ -242,6 +265,8 @@ object SpeakerLoudnessManager {
                 else ((old.fullRmsDb * oldWeight) + rmsToDb(fullRms)) / (oldWeight + 1)
                 val peak = if (old == null) result.peak
                 else ((old.peak * oldWeight) + result.peak) / (oldWeight + 1)
+                val newDisplayName = config?.speechInfo?.displayName?.takeIf { it.isNotBlank() }
+                    ?: old?.displayName ?: ""
                 map[key] = LoudnessStat(
                     count = newCount,
                     activeRmsDb = activeRmsDb,
@@ -249,6 +274,7 @@ object SpeakerLoudnessManager {
                     peak = peak.coerceIn(0f, 1f),
                     voicedRatio = voicedRatio.coerceIn(0f, 1f),
                     updatedAt = System.currentTimeMillis(),
+                    displayName = newDisplayName,
                 )
                 cachedStats = map.entries
                     .sortedByDescending { it.value.updatedAt }
@@ -256,6 +282,7 @@ object SpeakerLoudnessManager {
                     .associate { it.key to it.value }
                     .toMutableMap()
                 persistLocked()
+                logLearned(key, map[key]!!)
             }
         } finally {
             synchronized(lock) { analyzingKeys.remove(key) }
@@ -287,15 +314,35 @@ object SpeakerLoudnessManager {
     }
 
     private fun stats(): MutableMap<String, LoudnessStat> {
-        val raw = sp?.getString(PREF_KEY, "") ?: ""
         synchronized(lock) {
-            if (raw == cachedRaw) return cachedStats
-            cachedRaw = raw
-            cachedStats = parse(raw)
+            if (!fileLoaded) loadFromFileLocked()
             return cachedStats
         }
     }
 
+    /**
+     * 从 Download/chajian/loudness_stats.json 读取数据到内存缓存。
+     * 文件不存在或解析失败时回退为空数据，不影响播放。
+     */
+    private fun loadFromFileLocked() {
+        fileLoaded = true
+        runCatching {
+            val file = File(File(FILE_BASE_DIR, FILE_DIR_NAME), FILE_NAME)
+            if (!file.exists()) {
+                cachedStats = linkedMapOf()
+                return@runCatching
+            }
+            val raw = file.readText()
+            cachedStats = parse(raw)
+        }.onFailure {
+            logger.warn(it) { "loudness load from file failed" }
+            cachedStats = linkedMapOf()
+        }
+    }
+
+    /**
+     * 解析文件 JSON。同时兼容中文易读格式与旧版英文 key 格式。
+     */
     private fun parse(raw: String): MutableMap<String, LoudnessStat> {
         if (raw.isBlank()) return linkedMapOf()
         return runCatching {
@@ -303,6 +350,32 @@ object SpeakerLoudnessManager {
             val result = linkedMapOf<String, LoudnessStat>()
             root.keys().forEach { key ->
                 val obj = root.optJSONObject(key) ?: return@forEach
+
+                // 中文易读格式（新）
+                val displayNameCn = obj.optString("发音人", "")
+                if (displayNameCn.isNotEmpty()) {
+                    val count = obj.optInt("学习次数", 0)
+                    val loudnessStr = obj.optString("平均响度", "")
+                    val activeRmsDb = parseDb(loudnessStr)
+                    val peakStr = obj.optString("峰值音量", "")
+                    val peak = parsePercent(peakStr)
+                    val ratioStr = obj.optString("语音占比", "")
+                    val voicedRatio = parsePercent(ratioStr)
+                    val timeStr = obj.optString("最后更新", "")
+                    val updatedAt = parseTime(timeStr)
+                    val fullRmsDb = activeRmsDb
+                    // 内存 map 必须用 speakerKey 作 key（与 infoFor/needsAnalysis 查找一致），
+                    // 文件顶层是展示用的 displayKey，真正的 speakerKey 存在 _内部key 字段
+                    val internalKey = obj.optString("_内部key", "").ifBlank { key }
+                    if (count > 0 && activeRmsDb.isFinite()) {
+                        result[internalKey] = LoudnessStat(
+                            count, activeRmsDb, fullRmsDb, peak, voicedRatio, updatedAt, displayNameCn
+                        )
+                    }
+                    return@forEach
+                }
+
+                // 旧版英文格式（兼容升级）
                 val count = obj.optInt("count", 0)
                 val legacyRms = obj.optDouble("rms", 0.0).toFloat()
                 val activeRms = obj.optDouble("activeRms", legacyRms.toDouble()).toFloat()
@@ -312,30 +385,105 @@ object SpeakerLoudnessManager {
                 val peak = obj.optDouble("peak", 0.0).toFloat()
                 val voicedRatio = obj.optDouble("voicedRatio", 1.0).toFloat()
                 val updatedAt = obj.optLong("updatedAt", 0L)
+                val displayName = obj.optString("displayName", "")
                 if (count > 0 && activeRmsDb.isFinite() && fullRmsDb.isFinite()) {
-                    result[key] = LoudnessStat(count, activeRmsDb, fullRmsDb, peak, voicedRatio, updatedAt)
+                    result[key] = LoudnessStat(count, activeRmsDb, fullRmsDb, peak, voicedRatio, updatedAt, displayName)
                 }
             }
             result
         }.getOrDefault(linkedMapOf())
     }
 
+    /**
+     * 把内存数据以中文易读格式写入 Download/chajian/loudness_stats.json。
+     * 这是唯一存储，整体覆盖写入；失败仅记录日志，不影响播放（内存缓存仍有效）。
+     */
     private fun persistLocked() {
-        val root = JSONObject()
-        cachedStats.forEach { (key, stat) ->
-            root.put(key, JSONObject().apply {
-                put("count", stat.count)
-                put("activeRms", dbToRms(stat.activeRmsDb))
-                put("fullRms", dbToRms(stat.fullRmsDb))
-                put("activeRmsDb", stat.activeRmsDb)
-                put("fullRmsDb", stat.fullRmsDb)
-                put("peak", stat.peak)
-                put("voicedRatio", stat.voicedRatio)
-                put("updatedAt", stat.updatedAt)
-            })
+        runCatching {
+            val dir = File(FILE_BASE_DIR, FILE_DIR_NAME)
+            if (!dir.exists()) dir.mkdirs()
+            val file = File(dir, FILE_NAME)
+            if (cachedStats.isEmpty()) {
+                if (file.exists()) file.delete()
+                return@runCatching
+            }
+            val root = JSONObject()
+            cachedStats.forEach { (key, stat) ->
+                val displayKey = buildDisplayKey(stat.displayName, key)
+                root.put(displayKey, JSONObject().apply {
+                    put("发音人", stat.displayName.ifBlank { extractVoice(key) })
+                    put("学习次数", stat.count)
+                    put("平均响度", "%.1f dB".format(stat.activeRmsDb))
+                    put("峰值音量", "%.0f%%".format(stat.peak * 100))
+                    put("语音占比", "%.0f%%".format(stat.voicedRatio * 100))
+                    put("最后更新", timeFormat.format(Date(stat.updatedAt)))
+                    // 内部 key，用于重启后重建 speakerKey 与 LoudnessStat 的映射
+                    put("_内部key", key)
+                })
+            }
+            file.writeText(root.toString(2))
+        }.onFailure { logger.warn(it) { "loudness persist to file failed" } }
+    }
+
+    /**
+     * 学习一段后打日志，便于在日志栏查看。
+     * 含：发音人名、voice、本次响度、学习次数、是否学满。
+     */
+    private fun logLearned(key: String, stat: LoudnessStat) {
+        val name = stat.displayName.ifBlank { extractVoice(key) }
+        val full = if (stat.count >= MAX_LEARNED_SAMPLES_PER_SPEAKER) "（已学满）" else ""
+        logger.info {
+            "响度学习：$name | 响度 ${"%.1f".format(stat.activeRmsDb)} dB | " +
+                "第 ${stat.count}/$MAX_LEARNED_SAMPLES_PER_SPEAKER 段$full"
         }
-        cachedRaw = root.toString()
-        sp?.edit()?.putString(PREF_KEY, cachedRaw)?.apply()
+    }
+
+    private fun deleteFileLocked() {
+        runCatching {
+            val file = File(File(FILE_BASE_DIR, FILE_DIR_NAME), FILE_NAME)
+            if (file.exists()) file.delete()
+        }.onFailure { logger.warn(it) { "loudness delete file failed" } }
+    }
+
+    /**
+     * 顶层展示 key：优先用 displayName，为避免重名带上 voice 后缀。
+     * 例："晓晓 (zh-CN-XiaoxiaoNeural)"
+     */
+    private fun buildDisplayKey(displayName: String, speakerKey: String): String {
+        val voice = extractVoice(speakerKey)
+        return if (displayName.isBlank()) {
+            voice.ifBlank { speakerKey }
+        } else if (voice.isBlank()) {
+            displayName
+        } else {
+            "$displayName ($voice)"
+        }
+    }
+
+    /**
+     * 从 speakerKey 中提取 voice 部分（最后一段 | 之后）。
+     * 例："plugin|com.xxx|zh-CN-XiaoxiaoNeural" → "zh-CN-XiaoxiaoNeural"
+     */
+    private fun extractVoice(speakerKey: String): String {
+        val idx = speakerKey.lastIndexOf('|')
+        return if (idx >= 0 && idx < speakerKey.length - 1) speakerKey.substring(idx + 1) else ""
+    }
+
+    private fun parseDb(s: String): Float {
+        if (s.isBlank()) return Float.NaN
+        val num = s.replace("dB", "", ignoreCase = true).trim()
+        return num.toFloatOrNull() ?: Float.NaN
+    }
+
+    private fun parsePercent(s: String): Float {
+        if (s.isBlank()) return 0f
+        val num = s.replace("%", "", ignoreCase = true).trim()
+        return (num.toFloatOrNull() ?: 0f) / 100f
+    }
+
+    private fun parseTime(s: String): Long {
+        if (s.isBlank()) return 0L
+        return runCatching { timeFormat.parse(s)?.time ?: 0L }.getOrDefault(0L)
     }
 
     private fun analyze(file: File): AudioAnalysis? {
@@ -468,7 +616,6 @@ object SpeakerLoudnessManager {
     }
 
     private fun rmsToDb(rms: Float): Float = 20f * log10(rms.coerceAtLeast(MIN_RMS))
-    private fun dbToRms(db: Float): Float = 10f.pow(db / 20f).coerceIn(0f, 1f)
     private fun dbToGain(db: Float): Float = 10f.pow(db / 20f)
     private fun dbForGain(gain: Float): Float = 20f * log10(gain.coerceAtLeast(0.01f))
 }

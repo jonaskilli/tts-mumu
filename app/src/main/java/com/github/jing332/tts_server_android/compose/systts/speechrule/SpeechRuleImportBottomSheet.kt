@@ -18,6 +18,7 @@ import com.github.jing332.tts_server_android.R
 import com.github.jing332.tts_server_android.compose.systts.ConfigImportBottomSheet
 import com.github.jing332.tts_server_android.compose.systts.list.AutoImportResult
 import com.github.jing332.tts_server_android.compose.systts.list.doAutoImport
+import com.github.jing332.tts_server_android.ui.view.AppDialogs.displayErrorDialog
 import com.drake.net.utils.withIO
 import kotlinx.coroutines.launch
 
@@ -57,7 +58,10 @@ fun SpeechRuleImportBottomSheet(onDismissRequest: () -> Unit, showSuccessDialog:
                         context.longToast(R.string.import_no_valid_config)
                     }
                     is AutoImportResult.Truncated -> {
-                        context.longToast(R.string.import_truncated_hint, result.detail)
+                        context.displayErrorDialog(
+                            Exception(result.detail),
+                            title = context.getString(R.string.import_failed)
+                        )
                     }
                     is AutoImportResult.Success -> {
                         if (showSuccessDialog) {

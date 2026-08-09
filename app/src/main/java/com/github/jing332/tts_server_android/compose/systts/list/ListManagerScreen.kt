@@ -1968,12 +1968,12 @@ internal fun ListManagerScreen(
                             }
                             IconButton(onClick = { showOptions = true }) {
                                 Icon(Icons.Default.MoreVert, stringResource(id = R.string.more_options))
-                                MenuMoreOptions(
-                                    expanded = showOptions,
-                                    onDismissRequest = { showOptions = false },
-                                    onExportAll = { showGroupExportSheet = models }
-                                )
                             }
+                            MenuMoreOptions(
+                                expanded = showOptions,
+                                onDismissRequest = { showOptions = false },
+                                onExportAll = { showGroupExportSheet = models }
+                            )
                         }
                     }
                 })

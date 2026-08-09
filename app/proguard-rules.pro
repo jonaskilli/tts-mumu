@@ -39,15 +39,14 @@
     public static ** inflate(...);
 }
 
--assumenosideeffects class android.util.Log {
-#    public static *** e(...);
-    public static *** d(...);
-    public static *** i(...);
-    public static *** v(...);
-#    public static *** w(...);
-    public static *** wtf(...);
-    public static *** println(...);
-}
+# Release 版保留所有级别的 android.util.Log 调用，便于线上问题排查
+#-assumenosideeffects class android.util.Log {
+#    public static *** d(...);
+#    public static *** i(...);
+#    public static *** v(...);
+#    public static *** wtf(...);
+#    public static *** println(...);
+#}
 #-assumenosideeffects class java.io.PrintStream {
 #    public *** println(...);
 #    public *** print(...);

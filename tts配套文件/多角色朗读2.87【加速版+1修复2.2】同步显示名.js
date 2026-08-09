@@ -1058,25 +1058,39 @@ CharacterManager.prototype.detectAvailableVoices = function(tagsData) {
           }
       }
   }
-  // 自动清理失效发音人：发音人配置项已删除时，清空角色 voice，让后续 assignVoice 重新分配
-  // 覆盖场景：删除发音人后、切书后第一次朗读时，都会通过这里自动修复失效发音人
+  // 标签扩容兜底：GENSHIN_CHARACTERS 仅含初始序号(如女青年01~100)，
+  // 配置项可能有序号超出范围的 tag(如女青年517)，GENSHIN 遍历不到。
+  // 扫描 tagsData 中「已知前缀+序号」格式的 key，若 GENSHIN 有该前缀但无此序号，
+  // 视为扩容标签加入 availableVoices，避免被误判为失效而清空 record.voice。
+  if (tagsData) {
+      var _extPrefixes = {};
+      for (var _ek in GENSHIN_CHARACTERS) {
+          if (GENSHIN_CHARACTERS.hasOwnProperty(_ek)) {
+              var _evp = GENSHIN_CHARACTERS[_ek].voice.toString().replace(/\d+$/, '');
+              if (_evp) _extPrefixes[_evp] = true;
+          }
+      }
+      for (var _tdKey in tagsData) {
+          if (!Object.prototype.hasOwnProperty.call(tagsData, _tdKey)) continue;
+          if (this.availableVoices[_tdKey]) continue; // 已存在，跳过
+          var _em = _tdKey.match(/^(.+?)(\d+)$/);
+          if (_em && _extPrefixes[_em[1]]) {
+              this.availableVoices[_tdKey] = true;
+          }
+      }
+  }
+  // 失效发音人保留策略：配置项已删除时，detectAvailableVoices 不清空 record.voice，
+  // 保留旧 tag 用于角色列表显示 ⚠（未朗读前的过渡态）；
+  // 朗读到该角色时由 processCharacter 的 isVoiceInvalid 分支重新分配一个有效的并写回 record.voice
   try {
-      var _invalidFound = false;
       for (var i = 0; i < this.characterRecords.length; i++) {
           var _rec = this.characterRecords[i];
           if (_rec && _rec.voice && _rec.voice !== "" && !this.availableVoices[_rec.voice]) {
-              _rec.voice = "";
-              _rec.gender = null;
-              _rec.age = null;
-              _invalidFound = true;
+              console.log("detectAvailableVoices: 发音人已失效(保留显示): " + _rec.voice);
           }
       }
-      if (_invalidFound) {
-          this.saveRecords();
-          console.log("detectAvailableVoices: 已清理失效发音人并保存");
-      }
   } catch (_cleanErr) {
-      console.error("清理失效发音人异常: " + _cleanErr.toString());
+      console.error("失效发音人检测异常: " + _cleanErr.toString());
   }
 };
 
@@ -2002,6 +2016,9 @@ CharacterManager.prototype.processCharacter = function (fullText, characterId, a
   } else {
     var isVoiceInvalid = !targetMainRecord.voice || targetMainRecord.voice === "" || !this.availableVoices[targetMainRecord.voice];
     if (isVoiceInvalid) {
+      // voice 失效（配置项删除）或为空时：重新分配一个有效的发音人并写回 record.voice
+      // 删除配置项后到下次朗读前：record.voice 保留旧 tag → 显示"tag ⚠"（未分配前的过渡态）
+      // 朗读发生时：assignVoice 同类别派一个有效的 → 写回 record.voice → 显示恢复
       var newVoice = this.assignVoice(analysis.gender, analysis.age);
       if (newVoice) {
         targetMainRecord.voice = newVoice;
@@ -2039,7 +2056,7 @@ CharacterManager.prototype.processCharacter = function (fullText, characterId, a
     }
     if (!targetMainRecord.voice || targetMainRecord.voice === "") {
       targetMainRecord.voice = this.assignVoice(analysis.gender, analysis.age);
-      if (!voice) {
+      if (!targetMainRecord.voice) {
         var fbTag3 = analysis.gender === "男" ? "duihuaA" : analysis.gender === "女" ? "duihuaB" : "duihua";
         console.log("【兜底分配】角色voice为空且无可用(角色:" + newCharacterName + ",性别:" + (analysis.gender || "未知") + ")→" + fbTag3);
         return { text: cleanText, tag: fbTag3 };
@@ -3076,8 +3093,26 @@ var SpeechRuleJS = {
           return rsTag;
       }
 
+      // 标签扩容兜底：GENSHIN_CHARACTERS 仅含初始序号(如女青年01~100)，
+      // 配置项可能有序号超出范围的 tag(如女青年517)，GENSHIN 循环匹配不到。
+      // 检查 tag 是否符合已知发音人前缀+序号模式，若是则视为扩容标签，tagName = tag。
+      // （与 handleText 中动态扩容 SpeechRuleJS.tags[nVoice]=nVoice 的逻辑一致）
+      if (GENSHIN_CHARACTERS && tag) {
+          var _voicePrefixes = {};
+          for (var _pk in GENSHIN_CHARACTERS) {
+              if (Object.prototype.hasOwnProperty.call(GENSHIN_CHARACTERS, _pk)) {
+                  var _vpre = GENSHIN_CHARACTERS[_pk].voice.toString().replace(/\d+$/, '');
+                  if (_vpre) _voicePrefixes[_vpre] = true;
+              }
+          }
+          var _pm = tag.match(/^(.+?)(\d+)$/);
+          if (_pm && _voicePrefixes[_pm[1]]) {
+              return tag;
+          }
+      }
+
       // 2. duihua标签处理（括号完全匹配，复用GENSHIN逻辑）
-      else if ("duihua" == tag) {
+      if ("duihua" == tag) {
           // 角色名部分（括号不变）
           var roleContent = tagData && tagData.role && tagData.role.trim() !== ""
               ? tagData.role.trim()

@@ -8,6 +8,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AccessTime
+import androidx.compose.material.icons.filled.Audiotrack
 import androidx.compose.material.icons.filled.Groups
 import androidx.compose.material.icons.filled.Headset
 import androidx.compose.material.icons.filled.Lock
@@ -27,6 +28,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -38,12 +40,50 @@ import com.github.jing332.compose.widgets.TextFieldDialog
 import com.github.jing332.tts_server_android.R
 import com.github.jing332.tts_server_android.conf.AppConfig
 import com.github.jing332.tts_server_android.conf.SystemTtsConfig
+import com.github.jing332.tts.loudness.SpeakerLoudnessManager
 
 @Composable
 internal fun ColumnScope.SysttsSettingsScreen(modifier: Modifier = Modifier) {
     DividerPreference {
         Text(stringResource(id = R.string.system_tts))
     }
+
+    var loudnessEnabled by remember { SystemTtsConfig.isLoudnessEnabled }
+    SwitchPreference(
+        title = { Text(stringResource(R.string.loudness_balance)) },
+        subTitle = { Text(stringResource(R.string.loudness_balance_summary)) },
+        checked = loudnessEnabled,
+        onCheckedChange = { loudnessEnabled = it },
+        icon = { Icon(Icons.Default.Audiotrack, null) }
+    )
+
+    var learnedCount by remember { mutableIntStateOf(SpeakerLoudnessManager.learnedSpeakerCount()) }
+    var showResetLoudnessDialog by remember { mutableStateOf(false) }
+    if (showResetLoudnessDialog) {
+        AlertDialog(
+            onDismissRequest = { showResetLoudnessDialog = false },
+            title = { Text(stringResource(R.string.loudness_reset)) },
+            text = { Text(stringResource(R.string.loudness_reset_confirm, learnedCount)) },
+            confirmButton = {
+                TextButton(onClick = {
+                    SpeakerLoudnessManager.reset()
+                    learnedCount = 0
+                    showResetLoudnessDialog = false
+                }) { Text(stringResource(R.string.confirm)) }
+            },
+            dismissButton = {
+                TextButton(onClick = { showResetLoudnessDialog = false }) {
+                    Text(stringResource(R.string.cancel))
+                }
+            }
+        )
+    }
+    BasePreferenceWidget(
+        onClick = { showResetLoudnessDialog = true },
+        icon = { Icon(Icons.Default.Audiotrack, null) },
+        title = { Text(stringResource(R.string.loudness_reset)) },
+        subTitle = { Text(stringResource(R.string.loudness_reset_summary, learnedCount)) }
+    )
 
     var silenceAudio by remember { SystemTtsConfig.isSilenceSkipAudio }
     SwitchPreference(

@@ -3937,10 +3937,15 @@ var EditorJS = {
             }
 
             // 发音人标签部分：左=nameContainer（角色名），右=actionCol（上行标签6字，下行 点亮emoji+⋮菜单+试听，右看齐）
+            // record.voice 存在即渲染右侧：删除配置项后保留 tag + ⚠，朗读规则按 tag 继续分配不耽误朗读
             if (record && record.voice) {
                 var voiceTag = generateVoiceTag(record);
-                if (voiceTag) {
-                    var _mgTag = record.voice;
+                // 兜底：generateVoiceTag 异常返回 null 时，用 voice + ⚠ 保持右侧显示（保留 tag 分类）
+                if (!voiceTag) {
+                    voiceTag = new android.text.SpannableStringBuilder();
+                    voiceTag.append(String(record.voice) + " \u26A0");
+                }
+                var _mgTag = record.voice;
 
                     var actionCol = new android.widget.LinearLayout(ctx);
                     actionCol.setOrientation(android.widget.LinearLayout.VERTICAL);
@@ -3962,17 +3967,6 @@ var EditorJS = {
                     );
                     ar1Lp.gravity = android.view.Gravity.RIGHT | android.view.Gravity.CENTER_VERTICAL;
                     actionRow1.setLayoutParams(ar1Lp);
-
-                    // 下行：点亮emoji + ⋮菜单 + 试听（右看齐）
-                    var actionRow2 = new android.widget.LinearLayout(ctx);
-                    actionRow2.setOrientation(android.widget.LinearLayout.HORIZONTAL);
-                    actionRow2.setGravity(android.view.Gravity.CENTER_VERTICAL);
-                    var ar2Lp = new android.widget.LinearLayout.LayoutParams(
-                        android.widget.LinearLayout.LayoutParams.WRAP_CONTENT,
-                        android.widget.LinearLayout.LayoutParams.WRAP_CONTENT
-                    );
-                    ar2Lp.gravity = android.view.Gravity.RIGHT | android.view.Gravity.CENTER_VERTICAL;
-                    actionRow2.setLayoutParams(ar2Lp);
 
                     var voiceView = new android.widget.TextView(ctx);
                     voiceView.setTag("voiceTag");
@@ -4005,45 +3999,6 @@ var EditorJS = {
                         }
                     }));
                     actionRow1.addView(voiceView);
-
-                    var _charMarkTag = record.voice;
-                    var _charCurMarks = getVoiceMark(_charMarkTag); // 数组，支持多选
-                    var _charMarkEmojiMap = { like: "❤️", neutral: "🚶\uFE0F", bad: "😈\uFE0F" };
-
-                    // 遍历已点亮的标记，每个生成一个 emoji（多选时显示多个）
-                    for (var _mi = 0; _mi < _charCurMarks.length; _mi++) {
-                        var _oneMark = _charCurMarks[_mi];
-                        if (!_charMarkEmojiMap[_oneMark]) continue;
-                        var _litEmoji = new android.widget.TextView(ctx);
-                        _litEmoji.setText(_charMarkEmojiMap[_oneMark]);
-                        _litEmoji.setTextSize(16);
-                        _litEmoji.setSingleLine(true);
-                        _litEmoji.setGravity(android.view.Gravity.CENTER);
-                        _litEmoji.setPadding(dipToPx(6), dipToPx(8), dipToPx(6), dipToPx(8));
-                        var _litLp = new android.widget.LinearLayout.LayoutParams(
-                            android.widget.LinearLayout.LayoutParams.WRAP_CONTENT,
-                            android.widget.LinearLayout.LayoutParams.WRAP_CONTENT
-                        );
-                        _litLp.setMargins(dipToPx(0), 0, dipToPx(4), 0);
-                        _litEmoji.setLayoutParams(_litLp);
-                        // 闭包捕获当前 mark，点击取消该单个标记
-                        (function(_cancelMark) {
-                            _litEmoji.setOnClickListener(new android.view.View.OnClickListener({
-                                onClick: function(v) {
-                                    try {
-                                        setVoiceMark(_charMarkTag, _cancelMark);
-                                        // 局部移除被点击的 emoji，不重建整表（避免 refreshCharacterList 卡顿）
-                                        try {
-                                            var parent = (v.getParent && v.getParent()) || actionRow2;
-                                            parent.removeView(v);
-                                        } catch (eRm) {}
-                                        Toast.makeText(ctx, "已取消标记", Toast.LENGTH_SHORT).show();
-                                    } catch (e) { _logErr("角色行取消标记异常", e, true); }
-                                }
-                            }));
-                        })(_oneMark);
-                        actionRow2.addView(_litEmoji);
-                    }
 
                     var charMgBtn = new android.widget.TextView(ctx);
                     charMgBtn.setText("⋮");
@@ -4089,12 +4044,7 @@ var EditorJS = {
                     actionRow1.addView(charPvBtn);
 
                     actionCol.addView(actionRow1);
-                    // 第二行只放点亮的 emoji，无 emoji 则不显示第二行
-                    if (actionRow2.getChildCount() > 0) {
-                        actionCol.addView(actionRow2);
-                    }
                     row.addView(actionCol);
-                }
             }
 
             // 右侧圆形选中指示器已移除（选中状态通过背景色体现）
@@ -5214,14 +5164,14 @@ var EditorJS = {
                     vtext.setTextColor(android.graphics.Color.parseColor("#333333"));
                     vtext.setMaxLines(1);
                     vtext.setEllipsize(android.text.TextUtils.TruncateAt.END);
-                    // 宽度 WRAP_CONTENT 不撑满，只有点发音人名本身才触发切换，避免误触
+                    // weight=1 撑满剩余空间，⋮菜单和▶试听推到行末；名字短也有足够点击区域
                     var vtextParams = new android.widget.LinearLayout.LayoutParams(
+                        0,
                         android.widget.LinearLayout.LayoutParams.WRAP_CONTENT,
-                        android.widget.LinearLayout.LayoutParams.WRAP_CONTENT
+                        1
                     );
                     vtextParams.setMargins(0, 0, dipToPx(12), 0);
                     vtext.setLayoutParams(vtextParams);
-                    vtext.setMinimumWidth(dipToPx(80)); // 名字短时保证足够点击区域
                     vtext.setClickable(true);
                     vtext.setOnClickListener(new android.view.View.OnClickListener({
                         onClick: function(view) {
