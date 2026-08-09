@@ -59,8 +59,8 @@ object StringUtils {
  */
 fun String.toJsonListString(): String {
     var s = this.trim().removeSuffix(",")
-    if (!startsWith("[")) s = "[$s"
-    if (!endsWith("]")) s += "]"
+    if (!s.startsWith("[")) s = "[$s"
+    if (!s.endsWith("]")) s += "]"
     return s
 }
 
