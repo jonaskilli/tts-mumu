@@ -4,7 +4,7 @@ import androidx.compose.ui.graphics.Color
 import com.github.jing332.tts_server_android.R
 
 enum class AppTheme(val id: String, val stringResId: Int = -1, val color: Color) {
-    DEFAULT("", R.string.theme_default, green_seed),
+    DEFAULT("", R.string.theme_default, bean_green_seed),
     DYNAMIC_COLOR("dynamicColor", R.string.dynamic_color, Color.Unspecified),
     GREEN("green", R.string.green, green_seed),
     RED("red", R.string.red, red_seed),
