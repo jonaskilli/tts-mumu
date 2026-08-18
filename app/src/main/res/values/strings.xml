@@ -402,7 +402,6 @@
     <string name="backup_keys">密钥（含在配置列表中）</string>
     <string name="backup_loudness">响度学习数据</string>
     <string name="backup_webdav">WebDAV 设置</string>
-    <string name="select_all">全选</string>
     <string name="invalid_scheme_msg">无效的Scheme: %1$s</string>
     <string name="invalid_url_msg">无效的URL：%1$s</string>
     <string name="invalid_path_msg">无效的Path：%1$s</string>
