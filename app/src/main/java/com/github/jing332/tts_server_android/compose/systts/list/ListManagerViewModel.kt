@@ -95,7 +95,8 @@ class ListManagerViewModel : ViewModel() {
         return list.sumOf { groupWithTts ->
             groupWithTts.list.count { item ->
                 val config = item.config as? TtsConfigurationDTO
-                config?.source is PluginTtsSource && config.source.pluginId !in enabledIds
+                val src = config?.source
+                src is PluginTtsSource && src.pluginId !in enabledIds
             }
         }
     }
@@ -186,7 +187,8 @@ class ListManagerViewModel : ViewModel() {
                 list.mapNotNull { groupWithTts ->
                     val filteredItems = groupWithTts.list.filter { item ->
                         val config = item.config as? TtsConfigurationDTO
-                        config?.source is PluginTtsSource && config.source.pluginId !in enabledIds
+                        val src = config?.source
+                        src is PluginTtsSource && src.pluginId !in enabledIds
                     }
                     if (filteredItems.isNotEmpty()) {
                         groupWithTts.copy(
@@ -215,7 +217,8 @@ class ListManagerViewModel : ViewModel() {
         val allItems = dbm.systemTtsV2.getAllGroupWithTts().flatMap { it.list }
         val invalidItems = allItems.filter { item ->
             val config = item.config as? TtsConfigurationDTO
-            config?.source is PluginTtsSource && config.source.pluginId !in enabledIds
+            val src = config?.source
+            src is PluginTtsSource && src.pluginId !in enabledIds
         }
         invalidItems.forEach { item ->
             val config = item.config as TtsConfigurationDTO
