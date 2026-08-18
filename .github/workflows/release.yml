@@ -82,6 +82,8 @@ jobs:
         with:
           name: mappings_${{ env.product }}_${{ env.ver_name }}
           path: ${{ env.outputs_dir }}/mapping/*/*.txt
+          # 短保留兜底: artifact 仅作 job 间中转, 发布完即删, 防止占满存储配额
+          retention-days: 1
 
       - name: Upload APK To Artifact
         uses: actions/upload-artifact@v4
@@ -90,6 +92,7 @@ jobs:
           path: |
             ${{env.outputs_dir}}/apk/${{ env.product }}/release/*.apk
             ver_name_${{ env.product }}.txt
+          retention-days: 1
 
   release:
     needs: [build]
@@ -97,6 +100,7 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
+      actions: write  # 删除 artifact 需要
     steps:
       - uses: actions/download-artifact@v4
         with:
@@ -118,3 +122,23 @@ jobs:
           files: artifacts/**/*.apk
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Delete artifacts to free storage
+        # APK 已发布到 Release(不占 Actions 存储配额), artifact 仅是中转, 发布完立即删除
+        if: success()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const artifacts = await github.rest.actions.listWorkflowRunArtifacts({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              run_id: context.runId
+            });
+            for (const a of artifacts.data.artifacts) {
+              await github.rest.actions.deleteArtifact({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                artifact_id: a.id
+              });
+              core.info(`已删除 artifact: ${a.name}`);
+            }
