@@ -40,15 +40,6 @@ fun BgmSettingsDialog(onDismissRequest: () -> Unit) {
                     Text(stringResource(id = R.string.shuffle))
                 }
 
-                var volume by remember { SystemTtsConfig.bgmVolume }
-                val volumeStr = stringResource(id = R.string.label_speech_volume, (volume * 1000f).toInt().toString())
-                IntSlider(
-                    label = volumeStr,
-                    value = volume * 1000f,
-                    onValueChange = { volume = it / 1000f },
-                    valueRange = 1f..1000f
-                )
-
                 Text(
                     stringResource(id = R.string.bgm_settings_tip),
                     modifier = Modifier.padding(4.dp)

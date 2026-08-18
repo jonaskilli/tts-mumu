@@ -12,7 +12,10 @@ sealed class Type(val nameStrId: Int) {
                 SpeechRule,
                 ReplaceRule,
                 Plugin,
-                PluginVars
+                PluginVars,
+                Keys,
+                Loudness,
+                WebDav
             )
         }
     }
@@ -25,4 +28,13 @@ sealed class Type(val nameStrId: Int) {
     abstract class IPlugin(val id: Int, val includeVars: Boolean) : Type(id)
     object Plugin : IPlugin(R.string.plugin, false)
     object PluginVars : IPlugin(R.string.plugin_vars, true)
+
+    /** 密钥：控制配置列表导出时是否保留 keyListJson，不勾则脱敏 */
+    data object Keys : Type(R.string.backup_keys)
+
+    /** 响度学习数据：备份/恢复 loudness_stats.json */
+    data object Loudness : Type(R.string.backup_loudness)
+
+    /** WebDAV 设置：不勾则从 app.xml 中移除 webDav 相关字段 */
+    data object WebDav : Type(R.string.backup_webdav)
 }

@@ -329,7 +329,7 @@
     <string name="go_to_settings">前往设置</string>
     <string name="shuffle">随机播放</string>
     <string name="bgm_settings">背景音乐设置</string>
-    <string name="bgm_settings_tip">提示：右上角加号添加背景音乐。</string>
+    <string name="bgm_settings_tip">提示：右下角加号添加背景音乐。</string>
     <string name="loudness_balance">响度均衡</string>
     <string name="loudness_balance_summary">自动学习各发音人响度并拉平，让不同发音人听起来音量一致</string>
     <string name="loudness_reset">重置响度学习数据</string>
@@ -393,8 +393,16 @@
     <string name="plugin_audio_params_saved">音频参数已保存</string>
     <string name="config_list">配置列表</string>
     <string name="plugin">插件</string>
+    <string name="invalid_items">失效项</string>
+    <string name="batch_select_plugin">批量选择插件</string>
+    <string name="batch_fix_confirm">将把 %1$d 个失效配置项的插件替换为「%2$s」，是否继续？</string>
+    <string name="no_invalid_items">没有失效配置项</string>
     <string name="replace_rule">替换规则</string>
     <string name="speech_rule">朗读规则</string>
+    <string name="backup_keys">密钥（含在配置列表中）</string>
+    <string name="backup_loudness">响度学习数据</string>
+    <string name="backup_webdav">WebDAV 设置</string>
+    <string name="select_all">全选</string>
     <string name="invalid_scheme_msg">无效的Scheme: %1$s</string>
     <string name="invalid_url_msg">无效的URL：%1$s</string>
     <string name="invalid_path_msg">无效的Path：%1$s</string>
@@ -450,6 +458,7 @@
     <string name="purple">紫色</string>
     <string name="brown">棕色</string>
     <string name="gray">灰色</string>
+    <string name="emerald">薄翠绿</string>
     <string name="desc_expand_group">展开分组：%1$s</string>
     <string name="desc_collapse_group">折叠分组：%1$s</string>
     <string name="label_speech_rate">语速：%1$s</string>

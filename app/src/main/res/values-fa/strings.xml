@@ -287,7 +287,7 @@
     <string name="go_to_settings">به تنظیمات بروید</string>
     <string name="shuffle">پخش مختلط</string>
     <string name="bgm_settings">تنظیمات موسیقی پس زمینه</string>
-    <string name="bgm_settings_tip">نکته: موسیقی پس‌زمینه را با علامت مثبت در گوشه سمت راست بالا اضافه کنید.</string>
+    <string name="bgm_settings_tip">نکته: موسیقی پس‌زمینه را با علامت مثبت در گوشه سمت راست پایین اضافه کنید.</string>
     <string name="bgm">موسیقی پس زمینه</string>
     <string name="exo_player_title">دستگاه پخش رسانه ای</string>
     <string name="remote_sync_service">همگام سازی از راه دور</string>

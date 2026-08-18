@@ -15,4 +15,5 @@ enum class AppTheme(val id: String, val stringResId: Int = -1, val color: Color)
     PURPLE("purple", R.string.purple, purple_seed),
     BROWN("brown", R.string.brown, brown_seed),
     GRAY("gray", R.string.gray, gray_seed),
+    EMERALD("emerald", R.string.emerald, emerald_seed),
 }

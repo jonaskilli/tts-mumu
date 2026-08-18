@@ -27,6 +27,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.AutoFixHigh
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.DeleteForever
 import androidx.compose.material.icons.filled.Deselect
@@ -91,6 +92,7 @@ import com.github.jing332.compose.widgets.LazyListIndexStateSaver
 import com.github.jing332.compose.widgets.ShadowedDraggableItem
 import com.github.jing332.compose.widgets.TextFieldDialog
 import com.github.jing332.database.dbm
+import com.github.jing332.database.entities.plugin.Plugin
 import com.github.jing332.database.entities.systts.BgmConfiguration
 import com.github.jing332.database.entities.systts.GroupWithSystemTts
 import com.github.jing332.database.entities.systts.AudioParams
@@ -182,8 +184,13 @@ internal fun ListManagerScreen(
     val models by vm.list.collectAsStateWithLifecycle()
     val searchKeyword by vm.keyword.collectAsStateWithLifecycle()
     val searchType by vm.searchType.collectAsStateWithLifecycle()
-    
+    val invalidCount by vm.invalidCount.collectAsStateWithLifecycle()
+
     var isSearchMode by rememberSaveable { mutableStateOf(false) }
+
+    // 批量修复失效配置项
+    var showBatchPluginPicker by remember { mutableStateOf(false) }
+    var pendingPlugin by remember { mutableStateOf<Plugin?>(null) }
 
     // 多选删除分组：选择模式与已选分组ID集合
     var selectionMode by remember { mutableStateOf(false) }
@@ -1860,6 +1867,40 @@ internal fun ListManagerScreen(
         }
     }
 
+    // 批量修复失效配置项：选择插件 → 确认 → 批量替换 pluginId
+    if (showBatchPluginPicker) {
+        PluginSelectionDialog(
+            onDismissRequest = { showBatchPluginPicker = false }
+        ) { plugin ->
+            showBatchPluginPicker = false
+            pendingPlugin = plugin
+        }
+    }
+    if (pendingPlugin != null) {
+        val plugin = pendingPlugin!!
+        AlertDialog(
+            onDismissRequest = { pendingPlugin = null },
+            title = { Text(stringResource(id = R.string.batch_select_plugin)) },
+            text = {
+                Text(stringResource(id = R.string.batch_fix_confirm, invalidCount, plugin.name))
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    val pluginId = plugin.pluginId
+                    pendingPlugin = null
+                    vm.batchFixInvalidItems(pluginId)
+                }) {
+                    Text(stringResource(id = R.string.confirm))
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { pendingPlugin = null }) {
+                    Text(stringResource(id = R.string.cancel))
+                }
+            }
+        )
+    }
+
     var showAuditionDialog by remember { mutableStateOf<SystemTtsV2?>(null) }
     if (showAuditionDialog != null) AuditionDialog(systts = showAuditionDialog!!) {
         showAuditionDialog = null
@@ -1941,9 +1982,16 @@ internal fun ListManagerScreen(
                 },                 actions = {
                     when {
                         isSearchMode -> {
+                            if (searchType == SearchType.INVALID && invalidCount > 0) {
+                                IconButton(onClick = { showBatchPluginPicker = true }) {
+                                    Icon(Icons.Default.AutoFixHigh, stringResource(id = R.string.batch_select_plugin))
+                                }
+                            }
                             IconButton(onClick = {
                                 isSearchMode = false
                                 vm.setSearchKeyword("")
+                                if (searchType == SearchType.INVALID)
+                                    vm.setSearchType(SearchType.NAME)
                             }) {
                                 Icon(Icons.Default.Close, stringResource(id = R.string.close))
                             }

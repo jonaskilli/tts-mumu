@@ -17,7 +17,6 @@ data class SynthesizerConfig(
     var audioParams: ValueProvider<AudioParams> = { AudioParams(1f, 1f, 1f) },
 
     var bgmShuffleEnabled: ValueProvider<Boolean> = { false },
-    var bgmVolume: ValueProvider<Float> = { 1f },
     var bgmEnabled: ValueProvider<Boolean> = { true },
 
     var provider: ValueProvider<Int> = { 0 },

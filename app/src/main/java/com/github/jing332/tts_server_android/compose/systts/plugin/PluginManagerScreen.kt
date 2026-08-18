@@ -46,6 +46,9 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarDuration
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
@@ -105,6 +108,7 @@ import org.burnoutcrew.reorderable.reorderable
 fun PluginManagerScreen(sharedVM: SharedViewModel, onFinishActivity: () -> Unit) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
+    val snackbarHostState = remember { SnackbarHostState() }
 
     // 多选删除
     var selectionMode by remember { mutableStateOf(false) }
@@ -146,7 +150,7 @@ fun PluginManagerScreen(sharedVM: SharedViewModel, onFinishActivity: () -> Unit)
     if (showExportConfig != null) {
         val pluginList = showExportConfig!!
         PluginExportBottomSheet(
-            fileName = if (pluginList.size == 1) "ttsrv-plugin-${pluginList[0].name}.json" else "ttsrv-plugins-${pluginList.size}项.json",
+            fileName = if (pluginList.size == 1) "插件-${pluginList[0].name}.json" else "插件-${pluginList.size}项.json",
             onDismissRequest = { showExportConfig = null }) { isExportVars ->
             // 修复: 导出用 prettyPrint, 每个配置项独立一行可读
             if (isExportVars) {
@@ -316,7 +320,11 @@ fun PluginManagerScreen(sharedVM: SharedViewModel, onFinishActivity: () -> Unit)
                                 }
                         }
                         SystemTtsService.notifyUpdateConfig()
-                        context.longToast("已切换 $count 项配置到「${target.name}」")
+                        val msg = if (count == 0)
+                            "没有找到引用「${sourcePlugin.name}」的配置项，无需切换"
+                        else
+                            "已切换 $count 项配置到「${target.name}」"
+                        snackbarHostState.showSnackbar(msg, duration = SnackbarDuration.Long)
                     }
                 }) { Text(stringResource(id = R.string.confirm)) }
             }
@@ -468,6 +476,7 @@ fun PluginManagerScreen(sharedVM: SharedViewModel, onFinishActivity: () -> Unit)
     val list by flowAll.collectAsStateWithLifecycle(emptyList())
 
     Scaffold(contentWindowInsets = WindowInsets(0),
+        snackbarHost = { SnackbarHost(snackbarHostState) },
         modifier = Modifier
             .fillMaxSize()
             .nestedScroll(scrollBehavior.nestedScrollConnection),

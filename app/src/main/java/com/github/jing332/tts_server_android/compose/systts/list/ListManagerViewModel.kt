@@ -44,31 +44,59 @@ class ListManagerViewModel : ViewModel() {
 
     // 缓存插件名称：响应式订阅插件表，插件新增/改名/pluginId变更/切换引用后自动刷新
     private val pluginNameCache = MutableStateFlow<Map<String, String>>(emptyMap())
+    // 已启用插件的 pluginId 集合，用于判断配置项是否失效
+    private val _enabledPluginIds = MutableStateFlow<Set<String>>(emptySet())
+    val enabledPluginIds: StateFlow<Set<String>> get() = _enabledPluginIds
+    // 失效配置项数量
+    private val _invalidCount = MutableStateFlow(0)
+    val invalidCount: StateFlow<Int> get() = _invalidCount
 
     init {
         viewModelScope.launch(Dispatchers.IO) {
             dbm.systemTtsV2.updateAllOrder()
 
-            // 插件名映射 Flow：插件表任何变化都会重新生成 pluginId→name 映射
-            val pluginNameFlow = dbm.pluginDao.flowAllWithoutCode()
-                .map { plugins -> plugins.associate { it.pluginId to it.name } }
+            // 插件信息 Flow：插件表任何变化都会重新生成 pluginId→name 映射 + 已启用id集合
+            val pluginInfoFlow = dbm.pluginDao.flowAllWithoutCode()
+                .map { plugins ->
+                    Pair(
+                        plugins.associate { it.pluginId to it.name },
+                        plugins.filter { it.isEnabled }.map { p -> p.pluginId }.toSet()
+                    )
+                }
 
             dbm.systemTtsV2.flowAllGroupWithTts().conflate()
                 .combine(_keyword) { list, key -> Pair(list, key) }
                 .combine(_searchType) { pair, type -> Triple(pair.first, pair.second, type) }
-                .combine(pluginNameFlow) { triple, nameMap ->
-                    Quad(triple.first, triple.second, triple.third, nameMap)
+                .combine(pluginInfoFlow) { triple, (nameMap, enabledIds) ->
+                    Quad(triple.first, triple.second, triple.third, nameMap, enabledIds)
                 }
-                .collect { (list, key, searchType, nameMap) ->
+                .collect { (list, key, searchType, nameMap, enabledIds) ->
                     pluginNameCache.value = nameMap
-                    val result = if (key.isBlank()) {
+                    _enabledPluginIds.value = enabledIds
+                    // 计算失效项数量
+                    _invalidCount.value = countInvalidItems(list, enabledIds)
+                    // 失效项筛选不依赖关键词，即使关键词为空也要过滤
+                    val result = if (key.isBlank() && searchType != SearchType.INVALID) {
                         list
                     } else {
-                        filterList(list, key, searchType)
+                        filterList(list, key, searchType, enabledIds)
                     }
                     Log.d(TAG, "update list: ${result.size}")
                     _list.value = result
                 }
+        }
+    }
+
+    /** 统计失效配置项数量 */
+    private fun countInvalidItems(
+        list: List<GroupWithSystemTts>,
+        enabledIds: Set<String>,
+    ): Int {
+        return list.sumOf { groupWithTts ->
+            groupWithTts.list.count { item ->
+                val config = item.config as? TtsConfigurationDTO
+                config?.source is PluginTtsSource && config.source.pluginId !in enabledIds
+            }
         }
     }
 
@@ -77,13 +105,15 @@ class ListManagerViewModel : ViewModel() {
         val list: List<GroupWithSystemTts>,
         val key: String,
         val searchType: SearchType,
-        val pluginNames: Map<String, String>
+        val pluginNames: Map<String, String>,
+        val enabledPluginIds: Set<String>,
     )
 
     private fun filterList(
         list: List<GroupWithSystemTts>,
         key: String,
-        searchType: SearchType
+        searchType: SearchType,
+        enabledIds: Set<String> = emptySet(),
     ): List<GroupWithSystemTts> {
         return when (searchType) {
             SearchType.NAME -> {
@@ -151,6 +181,21 @@ class ListManagerViewModel : ViewModel() {
                     it.copy(group = it.group.copy(isExpanded = true))
                 }
             }
+            SearchType.INVALID -> {
+                // 失效项：插件已删除或被禁用的配置项，不依赖关键词
+                list.mapNotNull { groupWithTts ->
+                    val filteredItems = groupWithTts.list.filter { item ->
+                        val config = item.config as? TtsConfigurationDTO
+                        config?.source is PluginTtsSource && config.source.pluginId !in enabledIds
+                    }
+                    if (filteredItems.isNotEmpty()) {
+                        groupWithTts.copy(
+                            list = filteredItems,
+                            group = groupWithTts.group.copy(isExpanded = true)
+                        )
+                    } else null
+                }
+            }
         }
     }
 
@@ -160,6 +205,25 @@ class ListManagerViewModel : ViewModel() {
 
     fun setSearchType(type: SearchType) {
         _searchType.value = type
+    }
+
+    /**
+     * 批量修复失效配置项：将所有引用了已删除/已禁用插件的配置项的 pluginId 替换为新插件
+     */
+    fun batchFixInvalidItems(newPluginId: String) = viewModelScope.launch(Dispatchers.IO) {
+        val enabledIds = _enabledPluginIds.value
+        val allItems = dbm.systemTtsV2.getAllGroupWithTts().flatMap { it.list }
+        val invalidItems = allItems.filter { item ->
+            val config = item.config as? TtsConfigurationDTO
+            config?.source is PluginTtsSource && config.source.pluginId !in enabledIds
+        }
+        invalidItems.forEach { item ->
+            val config = item.config as TtsConfigurationDTO
+            val source = config.source as PluginTtsSource
+            val newSource = source.copy(pluginId = newPluginId)
+            val newConfig = config.copy(source = newSource)
+            dbm.systemTtsV2.update(item.copy(config = newConfig))
+        }
     }
 
     fun updateTtsEnabled(

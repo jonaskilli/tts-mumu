@@ -29,23 +29,22 @@ object ImportConfigFactory {
     fun getBottomSheet(
         type: String,
         onBadFormat: () -> Unit,
-        showSuccessDialog: Boolean = false,
     ): @Composable (() -> Unit) -> Unit {
         return when (ImportType.values().find { it.id == type }) {
             ImportType.LIST -> {
-                { ListImportBottomSheet(it, showSuccessDialog) }
+                { ListImportBottomSheet(it) }
             }
 
             ImportType.PLUGIN -> {
-                { PluginImportBottomSheet(it, showSuccessDialog) }
+                { PluginImportBottomSheet(it) }
             }
 
             ImportType.REPLACE_RULE -> {
-                { ReplaceRuleImportBottomSheet(it, showSuccessDialog) }
+                { ReplaceRuleImportBottomSheet(it) }
             }
 
             ImportType.SPEECH_RULE -> {
-                { SpeechRuleImportBottomSheet(it, showSuccessDialog) }
+                { SpeechRuleImportBottomSheet(it) }
             }
 
             else -> {

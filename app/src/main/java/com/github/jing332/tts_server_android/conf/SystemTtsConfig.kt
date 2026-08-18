@@ -51,12 +51,6 @@ object SystemTtsConfig {
         initialValue = 1f
     )
 
-    val bgmVolume = mutableDataSaverStateOf(
-        dataSaverInterface = dataSaverPref,
-        key = "bgmVolume",
-        initialValue = 1f
-    )
-
     val isBgmShuffleEnabled = mutableDataSaverStateOf(
         dataSaverInterface = dataSaverPref,
         key = "isBgmShuffleEnabled",

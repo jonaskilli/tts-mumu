@@ -183,7 +183,7 @@ internal fun PluginEditorScreen(
         },
         onUpdate = { codeEditor = it },
         onSaveFile = {
-            "ttsrv-plugin-${vm.plugin.name}.js" to codeEditor!!.text.toString().toByteArray()
+            "插件-${vm.plugin.name}.js" to codeEditor!!.text.toString().toByteArray()
         },
         foldStateKey = "plugin_${plugin.id}",
         onLongClickMoreLabel = stringResource(id = R.string.plugin_preview_ui),

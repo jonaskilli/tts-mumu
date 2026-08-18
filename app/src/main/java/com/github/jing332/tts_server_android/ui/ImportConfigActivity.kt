@@ -66,7 +66,6 @@ class ImportConfigActivity : ComposeActivity() {
                                 finish()
                             }
                         },
-                        showSuccessDialog = true,
                     )
                 }
 

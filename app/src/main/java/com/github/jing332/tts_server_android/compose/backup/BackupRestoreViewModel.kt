@@ -10,6 +10,8 @@ import com.github.jing332.database.entities.SpeechRule
 import com.github.jing332.database.entities.plugin.Plugin
 import com.github.jing332.database.entities.replace.GroupWithReplaceRule
 import com.github.jing332.database.entities.systts.GroupWithSystemTts
+import com.github.jing332.database.entities.systts.TtsConfigurationDTO
+import com.github.jing332.database.entities.systts.source.PluginTtsSource
 import com.github.jing332.tts_server_android.compose.systts.list.migrateTagNamesIfNeed
 import com.github.jing332.tts_server_android.conf.AppConfig
 import com.github.jing332.tts_server_android.constant.AppConst
@@ -63,11 +65,20 @@ class BackupRestoreViewModel(application: Application) : AndroidViewModel(applic
                 isRestart = true
             }
 
-            // *.json
+            // *.json — 选择性清库：只清备份里有的表，没备份的表原样保留
             val files = outFileDir.listFiles()
             if (files != null) {
                 for (file in files) {
-                    if (file.isFile) importFromJsonFile(file)
+                    if (file.isFile) {
+                        // loudness_stats.json 单独处理：复制到 chajian 目录
+                        if (file.name == "loudness_stats.json") {
+                            val target = File(loudnessStatsPath)
+                            target.parentFile?.mkdirs()
+                            file.copyTo(target, overwrite = true)
+                        } else {
+                            importFromJsonFile(file)
+                        }
+                    }
                 }
             }
         }
@@ -106,8 +117,28 @@ class BackupRestoreViewModel(application: Application) : AndroidViewModel(applic
 
         val types = _types.toMutableList()
         if (types.contains(Type.PluginVars)) types.remove(Type.Plugin)
+
+        // Keys 不产生独立文件，只控制 List 导出时是否保留 keyListJson
+        val includeKeys = types.remove(Type.Keys)
+        // Loudness 产生独立文件，单独处理
+        val includeLoudness = types.remove(Type.Loudness)
+        // WebDav 不产生独立文件，只控制 Preference 导出时是否保留 webDav 字段
+        val includeWebDav = types.remove(Type.WebDav)
+
         types.forEach {
-            createConfigFile(it)
+            createConfigFile(it, includeKeys)
+        }
+
+        // WebDav 脱敏：从备份的 app.xml 中移除 webDav 相关字段
+        if (!includeWebDav && types.contains(Type.Preference)) {
+            stripWebDavFromPrefs()
+        }
+
+        if (includeLoudness) {
+            val loudnessFile = File(loudnessStatsPath)
+            if (loudnessFile.exists()) {
+                loudnessFile.copyTo(File(tmpZipPath + File.separator + "loudness_stats.json"), overwrite = true)
+            }
         }
 
         val zipFile = File(tmpZipFile)
@@ -129,7 +160,7 @@ class BackupRestoreViewModel(application: Application) : AndroidViewModel(applic
         backupRestorePath + File.separator + "backup.zip"
     }
 
-    private fun createConfigFile(type: Type) {
+    private fun createConfigFile(type: Type, includeKeys: Boolean) {
         when (type) {
             is Type.Preference -> {
                 val folder = internalDataFile.absolutePath + File.separator + "shared_prefs"
@@ -142,7 +173,9 @@ class BackupRestoreViewModel(application: Application) : AndroidViewModel(applic
             }
 
             is Type.List -> {
-                encodeJsonAndCopyToTmpZipPath(dbm.systemTtsV2.getAllGroupWithTts(), "list")
+                val groups = dbm.systemTtsV2.getAllGroupWithTts()
+                val exported = if (includeKeys) groups else stripKeyListJson(groups)
+                encodeJsonAndCopyToTmpZipPath(exported, "list")
             }
 
             is Type.SpeechRule -> {
@@ -166,12 +199,53 @@ class BackupRestoreViewModel(application: Application) : AndroidViewModel(applic
                     }, "plugins")
                 }
             }
+
+            // Keys 和 Loudness 在 backup() 中单独处理，不经过 createConfigFile
+            else -> {}
         }
     }
 
     private inline fun <reified T> encodeJsonAndCopyToTmpZipPath(v: T, name: String) {
         val s = AppConst.jsonBuilder.encodeToString(v)
         File(tmpZipPath + File.separator + name + ".json").writeText(s)
+    }
+
+    /** 响度学习数据文件路径 */
+    private val loudnessStatsPath: String by lazy {
+        "/storage/emulated/0/Download/chajian/loudness_stats.json"
+    }
+
+    /**
+     * 脱敏：从配置列表中移除角色管理插件的 keyListJson（密钥数据）
+     */
+    private fun stripKeyListJson(groups: List<GroupWithSystemTts>): List<GroupWithSystemTts> {
+        return groups.map { group ->
+            group.copy(list = group.list.map { tts ->
+                val config = tts.config
+                if (config is TtsConfigurationDTO && config.source is PluginTtsSource) {
+                    val source = config.source
+                    if (source.data.containsKey("keyListJson")) {
+                        val strippedData = source.data.toMutableMap()
+                        strippedData.remove("keyListJson")
+                        tts.copy(config = config.copy(source = source.copy(data = strippedData)))
+                    } else tts
+                } else tts
+            })
+        }
+    }
+
+    /**
+     * 脱敏：从备份的 shared_prefs/app.xml 中移除 webDav 相关字段
+     */
+    private fun stripWebDavFromPrefs() {
+        val appXml = File(tmpZipPath + File.separator + "shared_prefs" + File.separator + "app.xml")
+        if (!appXml.exists()) return
+        val webDavKeys = listOf("webDavUrl", "webDavUser", "webDavPass", "webDavPath")
+        val content = appXml.readText()
+        val stripped = content.lines().filter { line ->
+            webDavKeys.none { key -> line.contains("name=\"$key\"") }
+        }.joinToString("\n")
+        appXml.writeText(stripped)
     }
 
     // ================== WebDAV 逻辑修复 ==================

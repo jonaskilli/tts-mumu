@@ -72,6 +72,12 @@ interface SystemTtsV2Dao {
     @Query("DELETE from system_tts_v2 WHERE groupId = :groupId")
     fun deleteTtsByGroup(groupId: Long)
 
+    @Query("DELETE FROM system_tts_v2")
+    fun deleteAllTts()
+
+    @Query("DELETE FROM SystemTtsGroup")
+    fun deleteAllGroups()
+
     @Query("SELECT DISTINCT categoryPath FROM system_tts_v2 WHERE groupId = :groupId AND categoryPath != '' ORDER BY categoryPath ASC")
     fun getCategoryPathsByGroup(groupId: Long): List<String>
 

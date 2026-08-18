@@ -128,7 +128,7 @@ internal fun SpeechRuleEditScreen(
         },
         onUpdate = { codeEditor = it },
         onSaveFile = {
-            "ttsrv-speechRule-${vm.speechRule.name}.js" to codeEditor!!.text.toString()
+            "朗读规则-${vm.speechRule.name}.js" to codeEditor!!.text.toString()
                 .toByteArray()
         },
         foldStateKey = "speechRule_${rule.id}"

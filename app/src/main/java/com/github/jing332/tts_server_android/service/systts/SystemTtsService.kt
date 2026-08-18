@@ -181,7 +181,6 @@ class SystemTtsService : TextToSpeechService(), IEventDispatcher {
                     streamPlayEnabled = { SysTtsConfig.isStreamPlayModeEnabled },
                     silenceSkipEnabled = { SysTtsConfig.isSkipSilentAudio },
                     bgmShuffleEnabled = { SysTtsConfig.isBgmShuffleEnabled },
-                    bgmVolume = { SysTtsConfig.bgmVolume },
                     restartOnMaxRetryMode = { SysTtsConfig.restartOnMaxRetryMode },
                     audioParams = {
                         AudioParams(

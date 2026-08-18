@@ -26,9 +26,11 @@ open class PluginTtsProvider(
     override var state: EngineState = EngineState.Uninitialized()
 
     override suspend fun getStream(params: SystemParams, source: PluginTtsSource): InputStream {
-        val speed = if (source.speed == 0f) params.speed else source.speed
-        val volume = if (source.volume == 0f) params.volume else source.volume
-        val pitch = if (source.pitch == 0f) params.pitch else source.pitch
+        // 相乘叠加：source 级 × 配置项级(含全局/分组等叠加值)
+        // source=0f(FOLLOW) 时只用叠加值；source 非 0 时相乘，让两处调整都生效
+        val speed = if (source.speed == 0f) params.speed else source.speed * params.speed
+        val volume = if (source.volume == 0f) params.volume else source.volume * params.volume
+        val pitch = if (source.pitch == 0f) params.pitch else source.pitch * params.pitch
 
         // source.data mapping to ttsrv.tts.data for javascript
         mEngine?.source = source

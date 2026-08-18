@@ -53,6 +53,9 @@ interface SpeechRuleDao {
     @Query("SELECT * FROM speech_rules WHERE ruleId = :ruleId LIMIT 1")
     fun getByRuleIdAll(ruleId: String): SpeechRule?
 
+    @Query("DELETE FROM speech_rules")
+    fun deleteAll()
+
 //    @Query("SELECT * FROM speech_rules WHERE ruleId = :ruleId")
 //    fun getByRuleId(ruleId: String): SpeechRule?
 

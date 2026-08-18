@@ -43,12 +43,6 @@ object SysTtsConfig {
             SystemTtsConfig.audioParamsVolume.value = value
         }
 
-    var bgmVolume: Float
-        get() = SystemTtsConfig.bgmVolume.value
-        set(value) {
-            SystemTtsConfig.bgmVolume.value = value
-        }
-
     var isBgmShuffleEnabled: Boolean
         get() = SystemTtsConfig.isBgmShuffleEnabled.value
         set(value) {

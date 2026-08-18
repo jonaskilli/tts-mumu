@@ -146,7 +146,6 @@ object SpeakerLoudnessManager {
             1f
         }
         val gain = learnedGain.coerceIn(minGain, maxGain)
-        logger.debug { "loudness infoFor: key=$key, gain=$gain, learned=${stat != null}" }
         return LoudnessInfo(key, gain, stat != null)
     }
 
@@ -167,7 +166,6 @@ object SpeakerLoudnessManager {
             cachedStats = linkedMapOf()
             fileLoaded = true
             deleteFileLocked()
-            logger.info { "响度学习：已重置（清空 $count 个发音人数据）" }
         }
     }
 
@@ -229,7 +227,6 @@ object SpeakerLoudnessManager {
                     .associate { it.key to it.value }
                     .toMutableMap()
                 persistLocked()
-                logLearned(key, map[key]!!)
             }
         } finally {
             synchronized(lock) { analyzingKeys.remove(key) }
@@ -282,7 +279,6 @@ object SpeakerLoudnessManager {
                     .associate { it.key to it.value }
                     .toMutableMap()
                 persistLocked()
-                logLearned(key, map[key]!!)
             }
         } finally {
             synchronized(lock) { analyzingKeys.remove(key) }
@@ -423,19 +419,6 @@ object SpeakerLoudnessManager {
             }
             file.writeText(root.toString(2))
         }.onFailure { logger.warn(it) { "loudness persist to file failed" } }
-    }
-
-    /**
-     * 学习一段后打日志，便于在日志栏查看。
-     * 含：发音人名、voice、本次响度、学习次数、是否学满。
-     */
-    private fun logLearned(key: String, stat: LoudnessStat) {
-        val name = stat.displayName.ifBlank { extractVoice(key) }
-        val full = if (stat.count >= MAX_LEARNED_SAMPLES_PER_SPEAKER) "（已学满）" else ""
-        logger.info {
-            "响度学习：$name | 响度 ${"%.1f".format(stat.activeRmsDb)} dB | " +
-                "第 ${stat.count}/$MAX_LEARNED_SAMPLES_PER_SPEAKER 段$full"
-        }
     }
 
     private fun deleteFileLocked() {

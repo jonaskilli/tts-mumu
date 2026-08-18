@@ -205,7 +205,9 @@ class KeepAliveService : Service() {
             addAction(Intent.ACTION_SCREEN_ON)
             addAction(Intent.ACTION_SCREEN_OFF)
         }
-        registerReceiver(screenStateReceiver, filter)
+        ContextCompat.registerReceiver(
+            this, screenStateReceiver, filter, ContextCompat.RECEIVER_NOT_EXPORTED
+        )
     }
 
     /**

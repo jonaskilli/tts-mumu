@@ -106,7 +106,9 @@ class PixelKeepAliveService : Service() {
             addAction(Intent.ACTION_SCREEN_ON)
             addAction(Intent.ACTION_SCREEN_OFF)
         }
-        registerReceiver(screenStateReceiver, filter)
+        androidx.core.content.ContextCompat.registerReceiver(
+            this, screenStateReceiver, filter, androidx.core.content.ContextCompat.RECEIVER_NOT_EXPORTED
+        )
 
         // 屏幕当前是关闭状态时立即显示
         val powerManager = getSystemService(Context.POWER_SERVICE) as PowerManager

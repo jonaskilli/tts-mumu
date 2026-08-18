@@ -11,8 +11,6 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
-import com.github.jing332.common.utils.longToast
-import com.github.jing332.common.utils.toast
 import com.github.jing332.compose.widgets.LoadingDialog
 import com.github.jing332.tts_server_android.R
 import com.github.jing332.tts_server_android.compose.systts.ConfigImportBottomSheet
@@ -23,7 +21,7 @@ import com.drake.net.utils.withIO
 import kotlinx.coroutines.launch
 
 @Composable
-fun SpeechRuleImportBottomSheet(onDismissRequest: () -> Unit, showSuccessDialog: Boolean = false) {
+fun SpeechRuleImportBottomSheet(onDismissRequest: () -> Unit) {
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
 
@@ -33,7 +31,9 @@ fun SpeechRuleImportBottomSheet(onDismissRequest: () -> Unit, showSuccessDialog:
     }
 
     var successMsg by remember { mutableStateOf<String?>(null) }
-    successMsg?.let { msg ->
+    // 结果以模态对话框展示，此时不再渲染 BottomSheet，
+    // 避免 AlertDialog 叠在 ModalBottomSheet 上偶发被遮挡（用户看不到"已导入"提示）
+    if (successMsg != null) {
         AlertDialog(
             onDismissRequest = { successMsg = null; onDismissRequest() },
             confirmButton = {
@@ -41,11 +41,12 @@ fun SpeechRuleImportBottomSheet(onDismissRequest: () -> Unit, showSuccessDialog:
                     Text(stringResource(id = R.string.ok))
                 }
             },
-            text = { Text(msg) }
+            text = { Text(successMsg!!) }
         )
+        return
     }
 
-    ConfigImportBottomSheet(onDismissRequest = onDismissRequest,
+    ConfigImportBottomSheet(onDismissRequest = { if (!importing) onDismissRequest() },
         autoImport = true,
         onImport = { json ->
             // 自动识别 JSON 类型并直接导入，无需手动选择/确认
@@ -55,7 +56,7 @@ fun SpeechRuleImportBottomSheet(onDismissRequest: () -> Unit, showSuccessDialog:
                 importing = false
                 when (result) {
                     AutoImportResult.EmptyOrUnrecognized -> {
-                        context.longToast(R.string.import_no_valid_config)
+                        successMsg = context.getString(R.string.import_no_valid_config)
                     }
                     is AutoImportResult.Truncated -> {
                         context.displayErrorDialog(
@@ -64,12 +65,7 @@ fun SpeechRuleImportBottomSheet(onDismissRequest: () -> Unit, showSuccessDialog:
                         )
                     }
                     is AutoImportResult.Success -> {
-                        if (showSuccessDialog) {
-                            successMsg = "已导入 ${result.count} 项${result.typeName}"
-                        } else {
-                            context.toast("已导入 ${result.count} 项${result.typeName}")
-                            onDismissRequest()
-                        }
+                        successMsg = "已导入 ${result.count} 项${result.typeName}"
                     }
                 }
             }

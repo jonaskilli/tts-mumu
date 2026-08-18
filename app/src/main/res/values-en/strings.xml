@@ -286,7 +286,7 @@
     <string name="go_to_settings">Go settings</string>
     <string name="shuffle">Shuffle</string>
     <string name="bgm_settings">BGM Settings</string>
-    <string name="bgm_settings_tip">Click the plus sign at the top right corner of the homepage to add background music</string>
+    <string name="bgm_settings_tip">Click the plus sign at the bottom right corner of the homepage to add background music</string>
     <string name="bgm">BGM</string>
     <string name="exo_player_title">Media Player</string>
     <string name="remote_sync_service">Remote Sync Service</string>
@@ -339,8 +339,16 @@
     <string name="plugin_set_vars">Set Variables</string>
     <string name="config_list">Config list</string>
     <string name="plugin">Plugin</string>
+    <string name="invalid_items">Invalid</string>
+    <string name="batch_select_plugin">Batch Select Plugin</string>
+    <string name="batch_fix_confirm">Replace plugin for %1$d invalid config item(s) with \"%2$s\"?</string>
+    <string name="no_invalid_items">No invalid config items</string>
     <string name="replace_rule">Replace Rule</string>
     <string name="speech_rule">Speech Rule</string>
+    <string name="backup_keys">Keys (in config list)</string>
+    <string name="backup_loudness">Loudness learning data</string>
+    <string name="backup_webdav">WebDAV settings</string>
+    <string name="select_all">Select All</string>
     <string name="invalid_scheme_msg">Invalid Scheme: %1$s</string>
     <string name="invalid_url_msg">Invalid URL：%1$s</string>
     <string name="invalid_path_msg">Invalid Path：%1$s</string>
@@ -392,6 +400,7 @@
     <string name="purple">Purple</string>
     <string name="brown">Brown</string>
     <string name="gray">Gray</string>
+    <string name="emerald">Emerald</string>
     <string name="desc_expand_group">Expand Group: %1$s</string>
     <string name="desc_collapse_group">Collapse Group: %1$s</string>
     <string name="label_speech_rate">Speed: %1$s</string>

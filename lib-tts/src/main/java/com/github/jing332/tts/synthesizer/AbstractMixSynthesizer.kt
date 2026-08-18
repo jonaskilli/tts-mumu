@@ -7,6 +7,7 @@ import com.github.jing332.common.utils.toByteArray
 import com.github.jing332.database.entities.systts.source.PluginTtsSource
 import com.github.jing332.tts.CachedEngineManager
 import com.github.jing332.tts.SynthesizerContext
+import com.github.jing332.tts.speech.EngineState
 import com.github.jing332.tts.error.RequesterError
 import com.github.jing332.tts.error.SynthesisError
 import com.github.jing332.tts.error.TextProcessorError
@@ -22,8 +23,11 @@ import com.github.michaelbull.result.onSuccess
 import io.github.oshai.kotlinlogging.KLogger
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineName
+import kotlinx.coroutines.Deferred
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.async
 import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.channels.SendChannel
@@ -39,7 +43,7 @@ import java.io.InputStream
 
 abstract class AbstractMixSynthesizer() : Synthesizer {
     companion object {
-        const val PROCUDE_CAPACITY: Int = 256
+        const val PROCUDE_CAPACITY: Int = 32
 
         /**
          * 生成静音 PCM 音频数据（不含 WAV 头）
@@ -163,6 +167,7 @@ abstract class AbstractMixSynthesizer() : Synthesizer {
         config: TtsConfiguration,
         retries: Int = 0,
         maxRetries: Int = context.cfg.maxRetryTimes(),
+        prefetchedStream: InputStream? = null,
     ) {
         val request = RequestPayload(params, config)
         suspend fun retry() {
@@ -216,13 +221,13 @@ abstract class AbstractMixSynthesizer() : Synthesizer {
                 }
                 2 -> { // 生成空音频后重启
                     val silentAudio = createSilentPcmAudio(maxSampleRate, durationMs = 100)
-                    channel.trySend(ChannelPayload.Bytes(silentAudio))
+                    channel.trySendBlocking(ChannelPayload.Bytes(silentAudio))
                     logger.warn { "max retries exceeded, restarting app after empty audio..." }
                     Runtime.getRuntime().exit(0)
                 }
                 else -> { // 0 = 关闭，生成空音频但不重启
                     val silentAudio = createSilentPcmAudio(maxSampleRate, durationMs = 100)
-                    channel.trySend(ChannelPayload.Bytes(silentAudio))
+                    channel.trySendBlocking(ChannelPayload.Bytes(silentAudio))
                 }
             }
             return
@@ -231,8 +236,8 @@ abstract class AbstractMixSynthesizer() : Synthesizer {
         logger.debug { "start request: $retries, ${params}, ${config}" }
         event(NormalEvent.Request(request, retries))
 
-        val stream =
-            requestInternal(request, playCallback = {
+        // 优先使用预取的流，避免重复请求；重试时 prefetchedStream=null 走正常请求路径
+        val stream = prefetchedStream ?: requestInternal(request, playCallback = {
                 logger.debug { "send direct play callback..." }
                 channel.send(ChannelPayload.DirectPlayCallback(request, it))
             })
@@ -250,7 +255,7 @@ abstract class AbstractMixSynthesizer() : Synthesizer {
                     ins = stream,
                     request = request,
                     targetSampleRate = maxSampleRate,
-                    callback = { pcm -> channel.trySend(ChannelPayload.Bytes(pcm.toByteArray())) }
+                    callback = { pcm -> channel.trySendBlocking(ChannelPayload.Bytes(pcm.toByteArray())) }
                 )
             }
         } catch (e: TimeoutCancellationException) {
@@ -279,14 +284,37 @@ abstract class AbstractMixSynthesizer() : Synthesizer {
             produce<ChannelPayload>(CoroutineName("Synthesis producer"), PROCUDE_CAPACITY) {
                 textProcess(params, presetConfigId)
                     .onSuccess { list ->
-                        for (segment in list) {
-                            requestAndProcess(
-                                channel,
-                                params.copy(text = segment.text),
-                                segment.tts
-                            )
-                        }
+                        // 预取：段N处理流时并发请求段N+1，消除段间网络等待
+                        var prefetchJob: Deferred<InputStream?>? = null
 
+                        for ((index, segment) in list.withIndex()) {
+                            val segParams = params.copy(text = segment.text)
+
+                            // 等待预取结果（首段为null，走正常请求路径）
+                            val prefetched = prefetchJob?.await()
+                            prefetchJob = null
+
+                            if (prefetched != null) {
+                                // 预取成功，直接用预取的流处理
+                                requestAndProcess(channel, segParams, segment.tts, prefetchedStream = prefetched)
+                            } else {
+                                // 无预取（首段/预取失败），正常请求
+                                requestAndProcess(channel, segParams, segment.tts)
+                            }
+
+                            // 启动下一段的预取请求（与当前段的处理并行执行）
+                            if (index + 1 < list.size) {
+                                val nextSeg = list[index + 1]
+                                val nextRequest = RequestPayload(params.copy(text = nextSeg.text), nextSeg.tts)
+                                prefetchJob = async(Dispatchers.IO) {
+                                    runCatching {
+                                        requestInternal(nextRequest, playCallback = {
+                                            channel.send(ChannelPayload.DirectPlayCallback(nextRequest, it))
+                                        })
+                                    }.getOrNull()
+                                }
+                            }
+                        }
                     }
                     .onFailure {
                         channel.send(ChannelPayload.Error(it))
@@ -375,6 +403,19 @@ abstract class AbstractMixSynthesizer() : Synthesizer {
         if (mConfigs.isEmpty()) {
             event(ErrorEvent.ConfigEmpty)
             return@withLock
+        }
+
+        // 引擎预热：提前初始化所有引擎，避免首请求时同步初始化延迟
+        mConfigs.values.map { it.source }.distinctBy { it.getKey() }.forEach { source ->
+            try {
+                CachedEngineManager.getEngine(context.androidContext, source)?.let { engine ->
+                    if (engine.state != EngineState.Initialized) {
+                        engine.onInit()
+                    }
+                }
+            } catch (e: Exception) {
+                logger.warn { "引擎预热失败: ${source.getKey()}, ${e.message}" }
+            }
         }
 
         textProcessor.init(context.androidContext, mConfigs).onFailure {

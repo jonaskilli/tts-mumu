@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -60,6 +61,26 @@ internal fun BackupDialog(
         title = { Text(stringResource(id = R.string.backup)) },
         content = {
             LazyColumn(Modifier.fillMaxWidth()) {
+                // 全选（主控开关）
+                item {
+                    val allChecked = Type.typeList.all { checkedList.contains(it) }
+                    TextCheckBox(
+                        modifier = Modifier.fillMaxWidth(),
+                        text = { Text(stringResource(id = R.string.select_all)) },
+                        checked = allChecked,
+                        onCheckedChange = { check ->
+                            if (check) {
+                                checkedList.clear()
+                                checkedList.addAll(Type.typeList)
+                            } else {
+                                checkedList.clear()
+                            }
+                        },
+                        horizontalArrangement = Arrangement.Start
+                    )
+                    HorizontalDivider()
+                }
+
                 items(Type.typeList) {
                     TextCheckBox(
                         modifier = Modifier.fillMaxWidth(),
@@ -70,16 +91,31 @@ internal fun BackupDialog(
                                 if (it == Type.PluginVars) {
                                     checkedList.contains(Type.Plugin) || checkedList.add(Type.Plugin)
                                 }
+                                // Keys 依赖 List：勾选 Keys 时自动勾选 List
+                                if (it == Type.Keys) {
+                                    checkedList.contains(Type.List) || checkedList.add(Type.List)
+                                }
+                                // WebDav 依赖 Preference：勾选 WebDav 时自动勾选 Preference
+                                if (it == Type.WebDav) {
+                                    checkedList.contains(Type.Preference) || checkedList.add(Type.Preference)
+                                }
                                 checkedList.add(it)
                             } else {
                                 if (it == Type.Plugin) checkedList.remove(Type.PluginVars)
+                                // 取消 List 时自动取消 Keys
+                                if (it == Type.List) checkedList.remove(Type.Keys)
+                                // 取消 Preference 时自动取消 WebDav
+                                if (it == Type.Preference) checkedList.remove(Type.WebDav)
                                 checkedList.remove(it)
                             }
                         },
                         horizontalArrangement = Arrangement.Start // 👈 统一对齐
                     )
                 }
-                
+
+                // 分割线：分隔"备份内容"与"保存动作"
+                item { HorizontalDivider() }
+
                 item {
                     val configFirst = stringResource(R.string.config_webdav_first)
                     TextCheckBox(

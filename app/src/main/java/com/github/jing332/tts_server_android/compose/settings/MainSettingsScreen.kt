@@ -247,7 +247,8 @@ fun SettingsScreen() {
                         }
                     },
                     icon = { Icon(Icons.Default.Input, null) },
-                    title = { Text("导入TTS转发器引擎到阅读") }
+                    title = { Text("一键导入") },
+                    subTitle = { Text("将TTS转发器引擎导入至阅读") }
                 )
 
                 BasePreferenceWidget(

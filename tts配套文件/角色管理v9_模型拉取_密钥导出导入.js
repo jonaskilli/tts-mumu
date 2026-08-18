@@ -3992,18 +3992,20 @@ var EditorJS = {
         function backupAllFilesToData() {
                 try {
                         if (!ttsrv.tts.data || typeof ttsrv.tts.data !== "object") ttsrv.tts.data = {};
-                        // 1. 初始化核心文件集合
+                        // 1. 初始化核心文件集合（gengxin.json/miyue_backup.txt/characterRecords_backup.json 是运行时自动同步的副本，不需备份）
                         var allFilesData = {
                                 "characterRecords.json": "", "liebiao.json": "",
-                                "miyue.txt": "", "gengxin.json": "", "cunfang.txt": ""
+                                "miyue.txt": "", "cunfang.txt": "",
+                                "fayinren.json": "", "voice_marks.json": "",
+                                "key_list.json": "", "custom_keywords.json": ""
                         };
   
-                        // 2. 处理核心文件（含 characterRecords.json 过滤）
+                        // 2. 处理核心文件（含角色数据文件过滤 genderAgeHistory）
                         for (var fileName in allFilesData) {
                                 try {
                                         var fileContent = ttsrv.readTxtFile(fileName) || "";
                                         // 角色数据文件：过滤 genderAgeHistory + 紧凑JSON
-                                        if (fileName === "characterRecords.json") {
+                                        if (fileName === "characterRecords.json" || fileName === "characterRecords_backup.json") {
                                                 if (fileContent.trim() !== "") {
                                                         var characterList = JSON.parse(fileContent);
                                                         var filteredList = [];

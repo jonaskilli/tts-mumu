@@ -84,6 +84,12 @@ interface ReplaceRuleDao {
     @Query("DELETE from ReplaceRule WHERE groupId = :groupId")
     fun deleteAllByGroup(groupId: Long)
 
+    @Query("DELETE FROM replaceRule")
+    fun deleteAllRules()
+
+    @Query("DELETE FROM replaceRuleGroup")
+    fun deleteAllGroups()
+
     @Update
     fun update(vararg data: ReplaceRule)
 

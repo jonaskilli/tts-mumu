@@ -114,10 +114,18 @@ internal class DefaultResultProcessor(
             // 响度均衡：始终开启，计算当前发音人的增益
             val loudnessInfo = SpeakerLoudnessManager.infoFor(config)
 
+            // 计算实际生效的音频参数，判断是否需要 Sonic 和 Loudness 处理
+            val effectiveSpeed = if (config.audioParams.speed <= 0f) 1f else config.audioParams.speed
+            val effectiveVolume = if (config.audioParams.volume <= 0f) 1f else config.audioParams.volume
+            val effectivePitch = if (config.audioParams.pitch <= 0f) 1f else config.audioParams.pitch
+            val needsResample = config.audioFormat.sampleRate != targetSampleRate
+            val needsSonic = effectiveSpeed != 1f || effectiveVolume != 1f || effectivePitch != 1f || needsResample
+            val needsLoudness = loudnessInfo.gain != 1f
+
             val pipelines = listOf(
                 if (context.cfg.silenceSkipEnabled()) skipAudioProcessor else null,
-                sonicAudioProcessor,
-                loudnessAudioProcessor
+                if (needsSonic) sonicAudioProcessor else null,
+                if (needsLoudness) loudnessAudioProcessor else null,
             ).filterNotNull()
             val processor = AudioProcessingPipeline(ImmutableList.copyOf(pipelines))
 
@@ -130,21 +138,17 @@ internal class DefaultResultProcessor(
                     )
                 )
 
-                sonicAudioProcessor.apply {
-                    speed = if (config.audioParams.speed <= 0f) 1f else config.audioParams.speed
-                    volume =
-                        if (config.audioParams.volume <= 0f) 1f else config.audioParams.volume
-                    pitch = if (config.audioParams.pitch <= 0f) 1f else config.audioParams.pitch
-                    rate = config.audioFormat.sampleRate.toFloat() / targetSampleRate.toFloat()
-
-                    logger.debug {
-                        "sonicAudioProcessor: speed=${speed}, volume=${volume}, pitch=${pitch}, rate=${rate}"
+                if (needsSonic) {
+                    sonicAudioProcessor.apply {
+                        speed = effectiveSpeed
+                        volume = effectiveVolume
+                        pitch = effectivePitch
+                        rate = config.audioFormat.sampleRate.toFloat() / targetSampleRate.toFloat()
                     }
                 }
 
-                loudnessAudioProcessor.setGain(loudnessInfo.gain)
-                logger.debug {
-                    "loudnessAudioProcessor: speaker=${loudnessInfo.speakerKey}, gain=${loudnessInfo.gain}, learned=${loudnessInfo.learned}"
+                if (needsLoudness) {
+                    loudnessAudioProcessor.setGain(loudnessInfo.gain)
                 }
 
                 processor.flush()
