@@ -222,12 +222,12 @@ class BackupRestoreViewModel(application: Application) : AndroidViewModel(applic
         return groups.map { group ->
             group.copy(list = group.list.map { tts ->
                 val config = tts.config
-                if (config is TtsConfigurationDTO && config.source is PluginTtsSource) {
-                    val source = config.source
-                    if (source.data.containsKey("keyListJson")) {
-                        val strippedData = source.data.toMutableMap()
+                if (config is TtsConfigurationDTO) {
+                    val src = config.source
+                    if (src is PluginTtsSource && src.data.containsKey("keyListJson")) {
+                        val strippedData = src.data.toMutableMap()
                         strippedData.remove("keyListJson")
-                        tts.copy(config = config.copy(source = source.copy(data = strippedData)))
+                        tts.copy(config = config.copy(source = src.copy(data = strippedData)))
                     } else tts
                 } else tts
             })
