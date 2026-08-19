@@ -350,10 +350,10 @@
     <string name="switch_to_other_plugin">Switch to other plugin</string>
     <string name="invalid_items_warning">View invalid config items</string>
     <string name="plugin_handles_params_title">Params handled by plugin</string>
-    <string name="plugin_handles_params_desc">When checked, the app will not apply this param locally during playback (it is already sent to and handled by the plugin, e.g. server-side speed change), preventing double application. Audition is unaffected.</string>
-    <string name="plugin_handles_speed">Speed handled by plugin</string>
-    <string name="plugin_handles_volume">Volume handled by plugin</string>
-    <string name="plugin_handles_pitch">Pitch handled by plugin</string>
+    <string name="plugin_handles_params_desc">When checked, the app won\'t apply this param locally—handled by the plugin to avoid double effect. Audition unaffected.</string>
+    <string name="plugin_handles_speed">Speed</string>
+    <string name="plugin_handles_volume">Volume</string>
+    <string name="plugin_handles_pitch">Pitch</string>
     <string name="replace_rule">Replace Rule</string>
     <string name="speech_rule">Speech Rule</string>
     <string name="backup_loudness">Loudness learning data</string>

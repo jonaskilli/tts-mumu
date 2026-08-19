@@ -42,14 +42,13 @@ fun ListImportBottomSheet(onDismissRequest: () -> Unit) {
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
 
-    // 导入进行中遮罩：避免大文件解析/写入期间界面无反馈，用户以为"没有直接导入"
+    // 导入进行中遮罩：避免解析/写入期间界面无反馈，用户以为"没有直接导入"
     var importing by remember { mutableStateOf(false) }
-    // 延迟显示遮罩：快速导入（<300ms）直接跳过弹窗，避免一闪而过的冗余提示
-    var showImportLoading by remember { mutableStateOf(false) }
     // 导入进度：null 表示不确定（解析中），非 null 表示“已导入/总数”比例
     var importProgress by remember { mutableStateOf<Float?>(null) }
     var importProgressText by remember { mutableStateOf<String?>(null) }
-    if (showImportLoading) {
+    // 导入进行中：仅显示遮罩，不渲染底部面板，三个弹窗严格互斥，避免叠加
+    if (importing) {
         LoadingDialog(
             onDismissRequest = { /* 不可取消，等待导入完成 */ },
             progress = importProgress,
@@ -76,35 +75,29 @@ fun ListImportBottomSheet(onDismissRequest: () -> Unit) {
         return
     }
 
-    ConfigImportBottomSheet(onDismissRequest = { if (!importing) onDismissRequest() },
-        autoImport = true,
+    if (!importing) {
+        ConfigImportBottomSheet(onDismissRequest = onDismissRequest,
+            autoImport = true,
         onImport = { json ->
             // 自识别 JSON 类型并直接导入，无需手动选择/确认
             importing = true
-            showImportLoading = false
             importProgress = null
             importProgressText = context.getString(R.string.importing_parsing)
-            // 延迟显示遮罩：仅当导入耗时超过阈值（快速导入直接跳过，避免冗余提示）
-            val showJob = scope.launch {
-                delay(300)
-                if (importing) {
-                    showImportLoading = true
-                }
-            }
             scope.launch {
                 val result = withIO {
-                    doAutoImport(json) { done, total ->
-                        // 解析阶段 total 为 0，仅显示文字；插入阶段更新进度条
-                        if (total > 0) {
-                            importProgress = done.toFloat() / total
-                            importProgressText =
-                                context.getString(R.string.importing_progress, done, total)
+                    doAutoImport(
+                        json,
+                        onProgress = { done, total ->
+                            // 解析阶段 total 为 0，仅显示文字；插入阶段更新进度条
+                            if (total > 0) {
+                                importProgress = done.toFloat() / total
+                                importProgressText =
+                                    context.getString(R.string.importing_progress, done, total)
+                            }
                         }
-                    }
+                    )
                 }
                 importing = false
-                showJob.cancel() // 快速导入已完成，取消延迟显示
-                showImportLoading = false
                 importProgress = null
                 importProgressText = null
                 when (result) {
@@ -298,8 +291,8 @@ private fun doImportList(
                 ttsToInsert.add(tts.copy(id = baseId + 100000 + ttsSeq, groupId = newGroupId))
                 ttsSeq++
                 imported++
-                // 每 50 项回报一次进度，使进度条可刷新
-                if (imported % 50 == 0) {
+                // 每 10 项回报一次进度，使进度条更跟手
+                if (imported % 10 == 0) {
                     onProgress(imported, total)
                 }
             }

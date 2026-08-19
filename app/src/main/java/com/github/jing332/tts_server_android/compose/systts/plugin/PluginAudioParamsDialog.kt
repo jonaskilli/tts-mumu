@@ -49,7 +49,7 @@ fun PluginAudioParamsDialog(
         onDismissRequest = onDismissRequest,
         title = { Text(stringResource(id = R.string.plugin_audio_params)) },
         text = {
-            Column(modifier = Modifier.fillMaxWidth().verticalScroll(rememberScrollState())) {
+            Column(modifier = Modifier.fillMaxWidth()) {
                 // 语速
                 FloatSlider(
                     label = "语速",
@@ -59,15 +59,6 @@ fun PluginAudioParamsDialog(
                     step = 0.05f,
                     valueFormatter = { "%.2f".format(it) }
                 )
-                HandlesParamRow(
-                    label = stringResource(id = R.string.plugin_handles_speed),
-                    desc = stringResource(id = R.string.plugin_handles_params_desc),
-                    checked = handlesSpeed,
-                    onCheckedChange = { handlesSpeed = it }
-                )
-
-                Spacer(modifier = Modifier.height(8.dp))
-
                 // 音量
                 FloatSlider(
                     label = "音量",
@@ -77,15 +68,6 @@ fun PluginAudioParamsDialog(
                     step = 0.05f,
                     valueFormatter = { "%.2f".format(it) }
                 )
-                HandlesParamRow(
-                    label = stringResource(id = R.string.plugin_handles_volume),
-                    desc = stringResource(id = R.string.plugin_handles_params_desc),
-                    checked = handlesVolume,
-                    onCheckedChange = { handlesVolume = it }
-                )
-
-                Spacer(modifier = Modifier.height(8.dp))
-
                 // 音调
                 FloatSlider(
                     label = "音高",
@@ -95,12 +77,41 @@ fun PluginAudioParamsDialog(
                     step = 0.05f,
                     valueFormatter = { "%.2f".format(it) }
                 )
-                HandlesParamRow(
-                    label = stringResource(id = R.string.plugin_handles_pitch),
-                    desc = stringResource(id = R.string.plugin_handles_params_desc),
-                    checked = handlesPitch,
-                    onCheckedChange = { handlesPitch = it }
+
+                HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
+
+                // 勾选项区：一个标题 + 一段总说明 + 三个复选框，不逐项重复
+                Text(
+                    stringResource(id = R.string.plugin_handles_params_title),
+                    style = MaterialTheme.typography.labelMedium,
+                    modifier = Modifier.padding(bottom = 2.dp)
                 )
+                Text(
+                    stringResource(id = R.string.plugin_handles_params_desc),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(bottom = 6.dp)
+                )
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceEvenly
+                ) {
+                    HandlesParamCheckbox(
+                        label = stringResource(id = R.string.plugin_handles_speed),
+                        checked = handlesSpeed,
+                        onCheckedChange = { handlesSpeed = it }
+                    )
+                    HandlesParamCheckbox(
+                        label = stringResource(id = R.string.plugin_handles_volume),
+                        checked = handlesVolume,
+                        onCheckedChange = { handlesVolume = it }
+                    )
+                    HandlesParamCheckbox(
+                        label = stringResource(id = R.string.plugin_handles_pitch),
+                        checked = handlesPitch,
+                        onCheckedChange = { handlesPitch = it }
+                    )
+                }
             }
         },
         confirmButton = {
@@ -131,29 +142,21 @@ fun PluginAudioParamsDialog(
 }
 
 @Composable
-private fun HandlesParamRow(
+private fun HandlesParamCheckbox(
     label: String,
-    desc: String,
     checked: Boolean,
     onCheckedChange: (Boolean) -> Unit
 ) {
-    Column(modifier = Modifier.fillMaxWidth().padding(top = 2.dp, bottom = 4.dp)) {
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-            modifier = Modifier.fillMaxWidth()
-        ) {
-            Checkbox(checked = checked, onCheckedChange = onCheckedChange)
-            Text(
-                label,
-                style = MaterialTheme.typography.bodyMedium,
-                modifier = Modifier.padding(start = 4.dp)
-            )
-        }
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = Modifier.padding(vertical = 4.dp)
+    ) {
+        Checkbox(checked = checked, onCheckedChange = onCheckedChange)
         Text(
-            desc,
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.padding(start = 8.dp, end = 8.dp)
+            label,
+            style = MaterialTheme.typography.bodyMedium,
+            maxLines = 1,
+            modifier = Modifier.padding(start = 2.dp)
         )
     }
 }
