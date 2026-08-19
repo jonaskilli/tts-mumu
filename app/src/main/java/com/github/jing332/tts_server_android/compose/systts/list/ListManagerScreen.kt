@@ -99,6 +99,7 @@ import com.github.jing332.compose.widgets.LazyListIndexStateSaver
 import com.github.jing332.compose.widgets.ShadowedDraggableItem
 import com.github.jing332.compose.widgets.TextFieldDialog
 import com.github.jing332.database.dbm
+import com.github.jing332.database.entities.AbstractListGroup.Companion.DEFAULT_GROUP_ID
 import com.github.jing332.database.entities.plugin.Plugin
 import com.github.jing332.database.entities.systts.BgmConfiguration
 import com.github.jing332.database.entities.systts.GroupWithSystemTts
@@ -1876,6 +1877,9 @@ internal fun ListManagerScreen(
         PluginSelectionDialog(onDismissRequest = { addPluginDialog = false }) {
             navigateToEdit(
                 SystemTtsV2(
+                    // 新建配置项必须落在真实存在的分组上：groupId=0 没有对应分组，
+                    // 保存后主列表（按分组 Relation 查询）将看不到该项，表现为"保存丢失"
+                    groupId = DEFAULT_GROUP_ID,
                     config = TtsConfigurationDTO(
                         source = PluginTtsSource(
                             pluginId = it.pluginId,
@@ -2780,11 +2784,12 @@ internal fun ListManagerScreen(
                     .padding(12.dp),
                 visible = true,
                 addBgm = {
-                    navigateToEdit(SystemTtsV2(config = BgmConfiguration()))
+                    navigateToEdit(SystemTtsV2(groupId = DEFAULT_GROUP_ID, config = BgmConfiguration()))
                 },
                 addLocal = {
                     navigateToEdit(
                         SystemTtsV2(
+                            groupId = DEFAULT_GROUP_ID,
                             config = TtsConfigurationDTO(
                                 source = LocalTtsSource(locale = AppConst.localeCode)
                             )

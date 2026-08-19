@@ -45,6 +45,7 @@ import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import com.github.jing332.common.utils.toast
 import com.github.jing332.database.dbm
+import com.github.jing332.database.entities.AbstractListGroup.Companion.DEFAULT_GROUP_ID
 import com.github.jing332.database.entities.systts.SystemTtsV2
 import com.github.jing332.tts_server_android.R
 import com.github.jing332.tts_server_android.ShortCuts
@@ -194,7 +195,16 @@ private fun MainScreen(finish: () -> Unit) {
                     onSave = {
                         navController.popBackStack()
                         scope.launch {
-                            withIO { dbm.systemTtsV2.insert(stateSystemTts) }
+                            withIO {
+                                // 分组兜底：groupId 无效（0 或分组已删除）时归位到默认分组，
+                                // 否则插入项挂在不存在的分组下，主列表按分组查询永远不可见
+                                val toSave = stateSystemTts.let { tts ->
+                                    if (dbm.systemTtsV2.getGroup(tts.groupId) == null)
+                                        tts.copy(groupId = DEFAULT_GROUP_ID)
+                                    else tts
+                                }
+                                dbm.systemTtsV2.insert(toSave)
+                            }
                             if (stateSystemTts.isEnabled) SystemTtsService.notifyUpdateConfig()
                         }
                     },

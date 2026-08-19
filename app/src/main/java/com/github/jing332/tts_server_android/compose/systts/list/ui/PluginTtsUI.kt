@@ -196,6 +196,7 @@ class PluginTtsUI : IConfigUI() {
             vm.loadPluginList()
         }
 
+
         SaveActionHandler {
             if (tts.isUiOnly) {
                 // 仅界面模式：无需读取采样率/解码信息，直接保存
@@ -241,9 +242,15 @@ class PluginTtsUI : IConfigUI() {
             }
         }
 
+        // 批量保存中：显示带进度的加载弹窗。保存会对每个声音合成音频解析采样率，
+        // 耗时可达数十秒，无反馈时容易被误认为"点了保存没反应/没保存成功"
         var showLoadingDialog by remember { mutableStateOf(false) }
+        var savingProgressText by remember { mutableStateOf("") }
         if (showLoadingDialog)
-            LoadingDialog(onDismissRequest = { showLoadingDialog = false })
+            LoadingDialog(
+                onDismissRequest = { },
+                text = savingProgressText.takeIf { it.isNotBlank() }
+            )
 
         // 声音选择框中多选的发音人ID集合（用于批量保存到配置列表）
         var selectedVoiceIds by remember { mutableStateOf<Set<Any>>(emptySet()) }
@@ -488,6 +495,10 @@ class PluginTtsUI : IConfigUI() {
                                 voiceCategoryMap = if (category == null) {
                                     voiceCategoryMap - voiceId
                                 } else {
+                                    // 与试听弹窗分配分类行为一致：分配了分类即视为待保存项，
+                                    // 否则长按分好类后保存按钮仍禁用、或保存时漏掉该项
+                                    if (voiceId !in selectedVoiceIds)
+                                        selectedVoiceIds = selectedVoiceIds + voiceId
                                     voiceCategoryMap + (voiceId to category)
                                 }
                             },
@@ -503,20 +514,32 @@ class PluginTtsUI : IConfigUI() {
                             },
                             extraButtons = {
                                 TextButton(
-                                    enabled = selectedVoiceIds.isNotEmpty(),
+                                    enabled = selectedVoiceIds.isNotEmpty() && !showLoadingDialog,
                                     onClick = {
                                         val selectedVoices = vm.voices.filter { it.id in selectedVoiceIds }
-                                        if (selectedVoices.isEmpty()) return@TextButton
+                                        if (selectedVoices.isEmpty()) {
+                                            // 勾选项不在当前声音列表（切换语言/插件后列表已刷新）：
+                                            // 显式提示而非静默返回，避免"点了保存没反应"
+                                            context.toast("所选声音不在当前列表中，可能已切换语言或插件，请重新选择")
+                                            return@TextButton
+                                        }
+                                        // 主线程先捕获状态快照，IO 协程内不再读取 Compose 状态
+                                        val categoryMapSnapshot = voiceCategoryMap
+                                        val sampleRateCacheSnapshot = voiceSampleRateCache
+                                        val systtsSnapshot = systts
+                                        val ttsSnapshot = tts
+                                        showLoadingDialog = true
+                                        savingProgressText = ""
                                         scope.launch(Dispatchers.IO) {
                                             runCatching {
-                                            val config = systts.config as TtsConfigurationDTO
+                                            val config = systtsSnapshot.config as TtsConfigurationDTO
                                             val ruleData = config.speechRule.copy()
 
                                             // 目标分组兜底：从插件预览等入口进入时配置项未落库（groupId=0），
                                             // 直接插入会进入不存在的分组导致主界面不可见。
                                             // 此时按插件名新建（或复用同名）分组承载，并在结果提示中告知分组名。
                                             val existingGroup =
-                                                if (systts.groupId != 0L) dbm.systemTtsV2.getGroup(systts.groupId) else null
+                                                if (systtsSnapshot.groupId != 0L) dbm.systemTtsV2.getGroup(systtsSnapshot.groupId) else null
                                             val targetGroupId: Long
                                             val targetGroupName: String
                                             if (existingGroup != null) {
@@ -524,7 +547,7 @@ class PluginTtsUI : IConfigUI() {
                                                 targetGroupName = existingGroup.name
                                             } else {
                                                 val pluginName = plugin?.name
-                                                    ?: dbm.pluginDao.getByPluginId(tts.pluginId)?.name
+                                                    ?: dbm.pluginDao.getByPluginId(ttsSnapshot.pluginId)?.name
                                                     ?: "插件分组"
                                                 val sameName = dbm.systemTtsV2.allGroup()
                                                     .firstOrNull { it.group.name == pluginName }
@@ -534,7 +557,9 @@ class PluginTtsUI : IConfigUI() {
                                                 } else {
                                                     val group = SystemTtsGroup(
                                                         name = pluginName,
-                                                        order = dbm.systemTtsV2.groupCount
+                                                        order = dbm.systemTtsV2.groupCount,
+                                                        // 新建分组默认展开：保存完成后立即可见，避免找不到保存项
+                                                        isExpanded = true
                                                     )
                                                     dbm.systemTtsV2.insertGroup(group)
                                                     targetGroupId = group.id
@@ -569,11 +594,24 @@ class PluginTtsUI : IConfigUI() {
                                             // 避免原「untaggedIdx+分类数之和」组合可能撞车（REPLACE 会静默覆盖）
                                             val baseId = System.currentTimeMillis()
                                             var idSeq = 0
+                                            // 排序追加起点：目标分组内现有最大 order + 1。
+                                            // 新项若全部继承模板项的 order，与已有项互相冲突导致列表顺序混乱
+                                            val baseOrder = (dbm.systemTtsV2.getByGroup(targetGroupId)
+                                                .maxOfOrNull { it.order } ?: -1) + 1
+                                            var orderSeq = 0
 
-                                            selectedVoices.forEach { voice ->
-                                                val category = voiceCategoryMap[voice.id]
+                                            selectedVoices.forEachIndexed { voiceIdx, voice ->
+                                                // 进度反馈：每个声音可能触发一次合成来解析采样率，
+                                                // N 个声音耗时可达数十秒，必须让用户看到正在处理
+                                                withContext(Dispatchers.Main) {
+                                                    savingProgressText =
+                                                        "正在保存 ${voiceIdx + 1}/${selectedVoices.size}：${voice.name}"
+                                                }
+                                                val category = categoryMapSnapshot[voice.id]
                                                 val newRuleData = config.speechRule.copy()
-                                                var categoryPath = ""
+                                                // 未分配分类时保留用户在分组树中已选的子分组路径，
+                                                // 不再被强制置空导致保存位置丢失
+                                                var categoryPath = systtsSnapshot.categoryPath
 
                                                 if (category != null) {
                                                     // —— 分配了分类：标签依据朗读规则生成 ——
@@ -587,8 +625,15 @@ class PluginTtsUI : IConfigUI() {
                                                     categoryCountMap[category] = seq
                                                     // 优先由朗读规则自定义生成（每套规则可有不同逻辑），
                                                     // 未实现 getCategoryTag 或返回空时回退「分类名+两位序号」
-                                                    val tagLabel = ruleEngine?.getCategoryTag(category, seq)
-                                                        ?: (category + String.format("%02d", seq))
+                                                    // 「旁白」为单一角色分类，不带序号
+                                                    val tagLabel = if (category == "旁白") {
+                                                        category
+                                                    } else {
+                                                        ruleEngine?.getCategoryTag(category, seq)
+                                                            ?: (category + String.format(
+                                                                java.util.Locale.US, "%02d", seq
+                                                            ))
+                                                    }
                                                     newRuleData.target = SpeechTarget.TAG
                                                     newRuleData.tag = tagLabel
                                                     // 标签名同样优先走规则的 getTagName（各规则自己的取名逻辑），
@@ -623,21 +668,21 @@ class PluginTtsUI : IConfigUI() {
                                                 // 1. 试听时从真实音频解析并缓存的采样率（零额外开销）；
                                                 // 2. 插件 JS 实现的 getAudioSampleRate（快且准）；
                                                 // 3. 实际合成一次并从音频字节解出采样率（避免落入 16000 默认值）。
-                                                val voiceSampleRate = voiceSampleRateCache[voice.id]
+                                                val voiceSampleRate = sampleRateCacheSnapshot[voice.id]
                                                     ?: runCatching {
-                                                        vm.engine.getSampleRate(tts.locale, voice.id)
+                                                        vm.engine.getSampleRate(ttsSnapshot.locale, voice.id)
                                                     }.getOrNull()?.takeIf { it > 0 } ?: resolveSampleRateBySynth(
                                                     provider = vm.service(),
                                                     config = config,
                                                     voiceId = voice.id,
-                                                    tts = tts
+                                                    tts = ttsSnapshot
                                                 )
                                                 val voiceNeedDecode = runCatching {
-                                                    vm.engine.isNeedDecode(tts.locale, voice.id)
+                                                    vm.engine.isNeedDecode(ttsSnapshot.locale, voice.id)
                                                 }.getOrNull() ?: config.audioFormat.isNeedDecode
 
                                                 val newConfig = config.copy(
-                                                    source = tts.copy(voice = voice.id),
+                                                    source = ttsSnapshot.copy(voice = voice.id),
                                                     speechRule = newRuleData,
                                                     audioFormat = BasicAudioFormat(
                                                         sampleRate = voiceSampleRate,
@@ -645,9 +690,10 @@ class PluginTtsUI : IConfigUI() {
                                                     )
                                                 )
                                                 dbm.systemTtsV2.insert(
-                                                    systts.copy(
+                                                    systtsSnapshot.copy(
                                                         id = baseId + idSeq++,
                                                         groupId = targetGroupId,
+                                                        order = baseOrder + orderSeq++,
                                                         displayName = voice.name,
                                                         categoryPath = categoryPath,
                                                         config = newConfig
@@ -655,7 +701,7 @@ class PluginTtsUI : IConfigUI() {
                                                 )
                                             }
                                             withContext(Dispatchers.Main) {
-                                                if (systts.isEnabled) SystemTtsService.notifyUpdateConfig()
+                                                if (systtsSnapshot.isEnabled) SystemTtsService.notifyUpdateConfig()
                                                 // 提示带目标分组名：让用户明确知道保存在哪，
                                                 // 避免新建分组后找不到保存项
                                                 context.toast(
@@ -671,6 +717,11 @@ class PluginTtsUI : IConfigUI() {
                                                 withContext(Dispatchers.Main) {
                                                     context.toast("保存失败：${e.message}")
                                                 }
+                                            }
+                                            // 无论成败都关闭进度弹窗：置于 runCatching 之外，异常路径也能关闭
+                                            withContext(Dispatchers.Main) {
+                                                showLoadingDialog = false
+                                                savingProgressText = ""
                                             }
                                         }
                                     }

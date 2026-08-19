@@ -9,4 +9,6 @@
     <string name="desc_seekbar_add">Increase Seekbar</string>
     <string name="loading">Loading</string>
     <string name="start">Start</string>
+    <string name="wait_for_category">Wait for category</string>
+    <string name="auto_next">Auto next</string>
 </resources>

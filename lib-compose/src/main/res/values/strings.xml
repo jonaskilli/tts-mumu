@@ -9,5 +9,7 @@
     <string name="desc_seekbar_add">滑动条增加</string>
     <string name="loading">加载中</string>
     <string name="start">启动</string>
+    <string name="wait_for_category">等待分类</string>
+    <string name="auto_next">自动下一个</string>
 </resources>
 

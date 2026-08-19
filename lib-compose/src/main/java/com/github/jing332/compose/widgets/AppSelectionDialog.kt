@@ -127,28 +127,15 @@ fun AppSelectionDialog(
     }
     AppDialog(
         title = {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                title()
-                Spacer(Modifier.width(4.dp))
-                if (onWaitCategorySwitchChange != null) {
-                    Switch(
-                        checked = waitCategorySwitch,
-                        onCheckedChange = onWaitCategorySwitchChange
-                    )
-                }
-                IconButton(onClick = {
-                    showSearch = !showSearch
-
-                }) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Box(Modifier.weight(1f)) { title() }
+                IconButton(onClick = { showSearch = !showSearch }) {
                     Icon(
                         Icons.Default.Search,
                         stringResource(R.string.search),
-                    )
-                }
-                if (onAutoNextSwitchChange != null) {
-                    Switch(
-                        checked = autoNextSwitch,
-                        onCheckedChange = onAutoNextSwitchChange
                     )
                 }
             }
@@ -161,6 +148,40 @@ fun AppSelectionDialog(
                     state.scrollToItem(index)
             }
             Column(modifier = Modifier.fillMaxWidth()) {
+                // 开关行：等待分类 / 自动下一个，带文字标签，置于列表上方避免与标题挤在一起
+                if (onWaitCategorySwitchChange != null || onAutoNextSwitchChange != null) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 4.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        onWaitCategorySwitchChange?.let { onChange ->
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Switch(checked = waitCategorySwitch, onCheckedChange = onChange)
+                                Text(
+                                    stringResource(R.string.wait_for_category),
+                                    style = MaterialTheme.typography.labelMedium,
+                                    modifier = Modifier.padding(start = 4.dp)
+                                )
+                            }
+                        }
+                        if (onWaitCategorySwitchChange != null && onAutoNextSwitchChange != null) {
+                            Spacer(Modifier.width(16.dp))
+                        }
+                        onAutoNextSwitchChange?.let { onChange ->
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Switch(checked = autoNextSwitch, onCheckedChange = onChange)
+                                Text(
+                                    stringResource(R.string.auto_next),
+                                    style = MaterialTheme.typography.labelMedium,
+                                    modifier = Modifier.padding(start = 4.dp)
+                                )
+                            }
+                        }
+                    }
+                }
+
                 var searchText by rememberSaveable { mutableStateOf("") }
 
                 if (searchEnabled) {
@@ -377,10 +398,11 @@ fun AppSelectionDialog(
  * 声音列表长按分类菜单（AppSelectionDialog）共用，避免两处硬编码不同步。
  */
 object VoiceCategories {
-    /** 全部分类（按性别年龄排列） */
+    /** 全部分类（按性别年龄排列，后四项为朗读规则 2.87 中新增的主角/特殊分类） */
     val ALL: List<String> = listOf(
         "女童", "少女", "女青年", "女中年", "女老年",
-        "男童", "少年", "男青年", "男中年", "男老年"
+        "男童", "少年", "男青年", "男中年", "男老年",
+        "男主", "女主", "特殊男", "特殊女", "旁白"
     )
 
     /** 分类弹窗的分行布局（每行一组，宽度受限时也排得下） */
@@ -388,6 +410,9 @@ object VoiceCategories {
         listOf("女童", "少女"),
         listOf("女青年", "女中年", "女老年"),
         listOf("男童", "少年"),
-        listOf("男青年", "男中年", "男老年")
+        listOf("男青年", "男中年", "男老年"),
+        listOf("男主", "女主"),
+        listOf("特殊男", "特殊女"),
+        listOf("旁白")
     )
 }

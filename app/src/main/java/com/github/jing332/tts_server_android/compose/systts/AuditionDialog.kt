@@ -12,7 +12,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.NavigateBefore
 import androidx.compose.material.icons.automirrored.filled.NavigateNext
-import androidx.compose.material3.AssistChip
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -186,10 +186,12 @@ fun AuditionDialog(
                             )
                         }
                     }
-                    // 已分配分类：回看上一个声音时知道是否分过类；重选分类即覆盖改派
+                    // 已分配的分类回显：回看上一个声音时知道是否已设置过
                     if (!assignedCategory.isNullOrBlank()) {
                         Text(
-                            "已分类：$assignedCategory",
+                            buildString {
+                                append("分类：$assignedCategory")
+                            },
                             style = MaterialTheme.typography.labelMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                             modifier = Modifier.padding(bottom = 6.dp)
@@ -197,12 +199,15 @@ fun AuditionDialog(
                     }
                 }
 
-                SelectionContainer {
-                    Text(
-                        error.ifEmpty { text },
-                        color = if (error.isEmpty()) Color.Unspecified else MaterialTheme.colorScheme.error,
-                        style = MaterialTheme.typography.bodySmall
-                    )
+                // 仅失败时显示错误；正常试听不显示测试文本（文本本身仍用于合成）
+                if (error.isNotEmpty()) {
+                    SelectionContainer {
+                        Text(
+                            error,
+                            color = MaterialTheme.colorScheme.error,
+                            style = MaterialTheme.typography.bodySmall
+                        )
+                    }
                 }
 
                 if (error.isEmpty())
@@ -217,31 +222,27 @@ fun AuditionDialog(
                         }
                     }
 
+                // —— 分配分类：按性别年龄归类，保存时依据朗读规则生成标签 ——
                 if (onCategoryAssigned != null && voiceId != null && error.isEmpty()) {
-                    val categoryRows = remember { com.github.jing332.compose.widgets.VoiceCategories.ROWS }
                     Text(
                         stringResource(id = R.string.assign_category_hint),
                         style = MaterialTheme.typography.labelMedium,
-                        modifier = Modifier.padding(top = 8.dp)
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(top = 12.dp)
                     )
-                    Column(
+                    FlowRow(
                         modifier = Modifier
                             .fillMaxWidth()
                             .padding(top = 4.dp),
-                        verticalArrangement = Arrangement.spacedBy(4.dp)
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                        verticalArrangement = Arrangement.spacedBy(2.dp)
                     ) {
-                        categoryRows.forEach { rowCategories ->
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.spacedBy(4.dp)
-                            ) {
-                                rowCategories.forEach { category ->
-                                    AssistChip(
-                                        onClick = { onCategoryAssigned.invoke(voiceId, category) },
-                                        label = { Text(category) }
-                                    )
-                                }
-                            }
+                        com.github.jing332.compose.widgets.VoiceCategories.ALL.forEach { category ->
+                            FilterChip(
+                                selected = category == assignedCategory,
+                                onClick = { onCategoryAssigned.invoke(voiceId, category) },
+                                label = { Text(category) }
+                            )
                         }
                     }
                 }
