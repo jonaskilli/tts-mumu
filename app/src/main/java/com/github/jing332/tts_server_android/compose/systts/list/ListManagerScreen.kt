@@ -2217,7 +2217,7 @@ internal fun ListManagerScreen(
                         }) {
                             Column(horizontalAlignment = Alignment.CenterHorizontally) {
                                 Icon(
-                                    Icons.Default.FileUpload,
+                                    Icons.Default.Output,
                                     contentDescription = "导出",
                                     modifier = Modifier.size(28.dp)
                                 )

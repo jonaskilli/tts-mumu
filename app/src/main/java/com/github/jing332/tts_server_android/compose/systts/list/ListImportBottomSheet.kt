@@ -4,9 +4,7 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.setValue
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.platform.LocalContext
@@ -44,13 +42,13 @@ fun ListImportBottomSheet(onDismissRequest: () -> Unit) {
     // Toast 会被 Activity 销毁流程压制导致滞后几秒才显示。
     // 结果以模态对话框展示，由 ConfigImportBottomSheet 在导入结束后统一弹出，
     // 用户确认后再 onDismissRequest，避免 AlertDialog 叠在 ModalBottomSheet 上被遮挡。
-    var successMsg by remember { mutableStateOf<String?>(null) }
-    if (successMsg != null) {
-        val msg = successMsg
+    var successMsg = remember { mutableStateOf<String?>(null) }
+    if (successMsg.value != null) {
+        val msg = successMsg.value
         AlertDialog(
-            onDismissRequest = { successMsg = null; onDismissRequest() },
+            onDismissRequest = { successMsg.value = null; onDismissRequest() },
             confirmButton = {
-                TextButton(onClick = { successMsg = null; onDismissRequest() }) {
+                TextButton(onClick = { successMsg.value = null; onDismissRequest() }) {
                     Text(stringResource(id = R.string.ok))
                 }
             },
@@ -64,7 +62,7 @@ fun ListImportBottomSheet(onDismissRequest: () -> Unit) {
     ConfigImportBottomSheet(
         onDismissRequest = onDismissRequest,
         autoImport = true,
-        onResult = { msg -> if (msg != null) successMsg = msg },
+        onResult = { msg -> if (msg != null) successMsg.value = msg },
         onImport = { json ->
             // 自识别 JSON 类型并直接导入，无需手动选择/确认
             scope.launch {
@@ -76,7 +74,7 @@ fun ListImportBottomSheet(onDismissRequest: () -> Unit) {
                 }
                 when (result) {
                     AutoImportResult.EmptyOrUnrecognized -> {
-                        successMsg = context.getString(R.string.import_no_valid_config)
+                        successMsg.value = context.getString(R.string.import_no_valid_config)
                     }
                     is AutoImportResult.Truncated -> {
                         // JSON 解析失败：用错误对话框展示完整信息，支持滚动和复制
@@ -91,7 +89,7 @@ fun ListImportBottomSheet(onDismissRequest: () -> Unit) {
                             withIO { migrateTagNamesIfNeed(context, force = true) }
                             SystemTtsService.notifyUpdateConfig()
                         }
-                        successMsg = "已导入 ${result.count} 项${result.typeName}"
+                        successMsg.value = "已导入 ${result.count} 项${result.typeName}"
                     }
                 }
             }
