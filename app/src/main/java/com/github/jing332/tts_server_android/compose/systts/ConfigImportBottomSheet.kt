@@ -34,6 +34,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.minimumInteractiveComponentSize
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
@@ -84,6 +85,9 @@ fun ConfigImportBottomSheet(
     content: @Composable ColumnScope.() -> Unit = {},
     onDismissRequest: () -> Unit,
     onImport: (json: String) -> Unit,
+    // 导入结果回调：null 表示进行中；非 null 为结果文案（成功/失败）。
+    // 由调用方决定如何展示（如 AlertDialog），实现单一结果出口。
+    onResult: (String?) -> Unit = {},
     // 为 true 时：选好文件/填好URL后无需再点「导入」按钮，直接触发导入。
     // TTS 配置列表导入用 true（全自动），插件/替换规则等仍需手动确认(默认 false)。
     autoImport: Boolean = false,
@@ -117,33 +121,54 @@ fun ConfigImportBottomSheet(
         }
     }
 
-    // 读取文件/网络阶段的 loading 遮罩：从触发导入到 onImport 被调用前，
-    // 避免大文件读取期间界面无反馈，用户以为"没反应"。
-    var isLoading by remember { mutableStateOf(false) }
-    if (isLoading) {
-        LoadingDialog(onDismissRequest = {})
+    // 单一连续导入状态机：
+    // null=未开始/已结束；非 null=当前阶段文案（读取中→解析中→导入中）。
+    // 整个导入过程只渲染一个 LoadingDialog，不再叠加多个弹窗。
+    var importPhase by remember { mutableStateOf<String?>(null) }
+    if (importPhase != null) {
+        LoadingDialog(onDismissRequest = {}, text = importPhase)
     }
 
-    // 统一的导入触发逻辑，文件选择回调和「导入」按钮共用
+    // 统一的导入触发逻辑，文件选择回调和「导入」按钮共用。
+    // 读取与解析/写库同处一个状态机，仅在阶段切换时更新文案，体现动态过程。
     fun launchImport(src: Int, urlStr: String? = null, uri: Uri? = null) {
-        isLoading = true
         scope.launch {
-            runCatching {
-                val jsonStr = getConfig(src = src, url = urlStr, uri = uri)
-                // 大字符串预处理放到 IO 线程，避免阻塞主线程
-                val processed = withContext(Dispatchers.IO) { jsonStr.toJsonListString() }
-                isLoading = false
-                onImport(processed)
-            }.onFailure {
-                isLoading = false
-                context.displayErrorDialog(it)
+            importPhase = context.getString(R.string.importing_reading)
+            val jsonStr = runCatching { getConfig(src = src, url = urlStr, uri = uri) }.getOrNull()
+            if (jsonStr == null) {
+                val err = runCatching { getConfig(src = src, url = urlStr, uri = uri) }
+                    .exceptionOrNull() ?: Exception(context.getString(R.string.import_failed))
+                importPhase = null
+                onResult(null)
+                context.displayErrorDialog(err)
+                return@launch
             }
+            // 读取完成，进入解析/写库阶段
+            importPhase = context.getString(R.string.importing)
+            val processed = withContext(Dispatchers.IO) { jsonStr.toJsonListString() }
+            importPhase = null
+            onImport(processed)
         }
     }
 
     var source by remember { mutableIntStateOf(0) }
     var path by remember { mutableStateOf("") }
     var url by remember { mutableStateOf("") }
+
+    // 外部自动导入且已带预设（文件/URL）时，跳过底部面板，直接进入状态机。
+    // 用 LaunchedEffect 确保只触发一次，避免 recompose 重复启动。
+    val presetUrl = LocalImportRemoteUrl.current.value
+    val presetPath = LocalImportFilePath.current.value
+    val hasPreset = autoImport && (presetUrl.isNotBlank() || presetPath.isNotBlank())
+    if (hasPreset) {
+        LocalImportRemoteUrl.current.value = ""
+        LocalImportFilePath.current.value = ""
+        androidx.compose.runtime.LaunchedEffect(Unit) {
+            if (presetUrl.isNotBlank()) launchImport(ImportSource.URL, urlStr = presetUrl)
+            else launchImport(ImportSource.FILE, uri = Uri.parse(presetPath))
+        }
+        return
+    }
 
     ModalBottomSheet(onDismissRequest = onDismissRequest) {
         Column(
@@ -199,20 +224,6 @@ fun ConfigImportBottomSheet(
                                 Text(stringResource(item.first), maxLines = 1)
                             }
                         }
-                    }
-
-                    if (LocalImportRemoteUrl.current.value.isNotBlank()) {
-                        source = ImportSource.URL
-                        url = LocalImportRemoteUrl.current.value
-                        val presetUrl = LocalImportRemoteUrl.current.value
-                        LocalImportRemoteUrl.current.value = ""
-                        if (autoImport) launchImport(ImportSource.URL, urlStr = presetUrl)
-                    } else if (LocalImportFilePath.current.value.isNotBlank()) {
-                        source = ImportSource.FILE
-                        path = LocalImportFilePath.current.value
-                        val presetPath = LocalImportFilePath.current.value
-                        LocalImportFilePath.current.value = ""
-                        if (autoImport) launchImport(ImportSource.FILE, uri = Uri.parse(presetPath))
                     }
 
                     AnimatedVisibility(

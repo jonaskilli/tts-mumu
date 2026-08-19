@@ -4,15 +4,11 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.res.stringResource
 import com.github.jing332.common.utils.toJsonListString
-import com.github.jing332.compose.widgets.LoadingDialog
 import com.github.jing332.database.entities.plugin.Plugin
 import com.github.jing332.tts_server_android.R
 import com.github.jing332.tts_server_android.compose.systts.ConfigImportBottomSheet
@@ -37,14 +33,9 @@ fun PluginImportBottomSheet(onDismissRequest: () -> Unit) {
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
 
-    var importing by remember { mutableStateOf(false) }
-    if (importing) {
-        LoadingDialog(onDismissRequest = { /* 不可取消，等待导入完成 */ })
-    }
-
+    // 结果以模态对话框展示，导入过程的连续状态机由 ConfigImportBottomSheet 承载，
+    // 用户确认后再 onDismissRequest，避免 AlertDialog 叠在 ModalBottomSheet 上被遮挡。
     var successMsg by remember { mutableStateOf<String?>(null) }
-    // 结果以模态对话框展示，此时不再渲染 BottomSheet，
-    // 避免 AlertDialog 叠在 ModalBottomSheet 上偶发被遮挡（用户看不到"已导入"提示）
     if (successMsg != null) {
         AlertDialog(
             onDismissRequest = { successMsg = null; onDismissRequest() },
@@ -58,14 +49,13 @@ fun PluginImportBottomSheet(onDismissRequest: () -> Unit) {
         return
     }
 
-    ConfigImportBottomSheet(onDismissRequest = { if (!importing) onDismissRequest() },
+    ConfigImportBottomSheet(onDismissRequest = onDismissRequest,
         autoImport = true,
+        onResult = { msg -> if (msg != null) successMsg = msg },
         onImport = { json ->
             // 自动识别 JSON 类型并直接导入，无需手动选择/确认
-            importing = true
             scope.launch {
                 val result = withIO { doAutoImport(json) }
-                importing = false
                 when (result) {
                     AutoImportResult.EmptyOrUnrecognized -> {
                         successMsg = context.getString(R.string.import_no_valid_config)
