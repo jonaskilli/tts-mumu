@@ -520,6 +520,14 @@ class PluginTtsUI : IConfigUI() {
                                                 tagKeys.indexOf(ruleData.tag).coerceAtLeast(0)
                                             else 0
 
+                                            // 循环外仅 eval 一次规则引擎并复用：
+                                            // 每个声音重复 eval 整个 JS（数千行）开销过大
+                                            val ruleEngine = speechRule?.let { sr ->
+                                                runCatching {
+                                                    SpeechRuleEngine(context, sr).apply { eval() }
+                                                }.getOrNull()
+                                            }
+
                                             // 各分类下已有数量（用于序号起点，避免重号）
                                             val categoryCountMap = mutableMapOf<String, Int>()
                                             // 未分配分类的序号计数
@@ -531,7 +539,7 @@ class PluginTtsUI : IConfigUI() {
                                                 var categoryPath = ""
 
                                                 if (category != null) {
-                                                    // —— 分配了分类：新逻辑 ——
+                                                    // —— 分配了分类：标签依据朗读规则生成 ——
                                                     val count = categoryCountMap.getOrDefault(category, 0)
                                                     // 查询该子分组下已有数量作为起点
                                                     val existing = if (count == 0) {
@@ -540,10 +548,17 @@ class PluginTtsUI : IConfigUI() {
                                                     } else count
                                                     val seq = existing + 1
                                                     categoryCountMap[category] = seq
-                                                    val tagLabel = category + String.format("%02d", seq)
+                                                    // 优先由朗读规则自定义生成（每套规则可有不同逻辑），
+                                                    // 未实现 getCategoryTag 或返回空时回退「分类名+两位序号」
+                                                    val tagLabel = ruleEngine?.getCategoryTag(category, seq)
+                                                        ?: (category + String.format("%02d", seq))
                                                     newRuleData.target = SpeechTarget.TAG
                                                     newRuleData.tag = tagLabel
-                                                    newRuleData.tagName = tagLabel
+                                                    // 标签名同样优先走规则的 getTagName（各规则自己的取名逻辑），
+                                                    // 取不到再用 tag 本身
+                                                    newRuleData.tagName = runCatching {
+                                                        ruleEngine?.getTagName(tagLabel, newRuleData.tagData)
+                                                    }.getOrNull()?.takeIf { it.isNotBlank() } ?: tagLabel
                                                     newRuleData.tagRuleId = ruleData.tagRuleId
                                                     categoryPath = category
                                                 } else if (tagKeys.isNotEmpty()) {
@@ -555,10 +570,14 @@ class PluginTtsUI : IConfigUI() {
                                                         newRuleData.tag = tagKey
                                                         newRuleData.tagRuleId = ruleData.tagRuleId
                                                         runCatching {
-                                                            speechRule?.let { sr ->
+                                                            ruleEngine?.let { re ->
                                                                 newRuleData.tagName =
-                                                                    SpeechRuleEngine.getTagName(context, sr, newRuleData)
+                                                                    re.getTagName(tagKey, newRuleData.tagData)
                                                             }
+                                                        }.onFailure {
+                                                            // 与 SpeechRuleEngine.getTagName 伴生方法行为一致：
+                                                            // JS 未实现 getTagName 时回退 tags 内的显示名
+                                                            newRuleData.tagName = speechRule?.tags?.get(tagKey) ?: ""
                                                         }
                                                     }
                                                 }

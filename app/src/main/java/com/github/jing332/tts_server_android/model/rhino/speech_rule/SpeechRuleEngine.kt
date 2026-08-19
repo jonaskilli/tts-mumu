@@ -22,6 +22,7 @@ class SpeechRuleEngine(
         const val FUNC_GET_TAG_NAME = "getTagName"
         const val FUNC_HANDLE_TEXT = "handleText"
         const val FUNC_SPLIT_TEXT = "splitText"
+        const val FUNC_GET_CATEGORY_TAG = "getCategoryTag"
 
         fun getTagName(context: Context, speechRule: SpeechRule, info: SpeechRuleInfo): String {
             val engine = SpeechRuleEngine(context, speechRule)
@@ -79,6 +80,17 @@ class SpeechRuleEngine(
 
     fun getTagName(tag: String, tagMap: Map<String, String>): String {
         return engine.invokeMethod(objJS, FUNC_GET_TAG_NAME, tag, tagMap).toString()
+    }
+
+    /**
+     * 可选的 JS 钩子：试听分类保存时，由朗读规则自定义「分类下第 [seq] 个声音」应使用的 tag。
+     * 每套规则可实现自己的逻辑（如映射到已有角色 tag、拼接不同格式的序号等）。
+     * JS 未实现该方法时返回 null，调用方回退默认「分类名+两位序号」。
+     */
+    fun getCategoryTag(category: String, seq: Int): String? {
+        return runCatching {
+            engine.invokeMethod(objJS, FUNC_GET_CATEGORY_TAG, category, seq)?.toString()
+        }.getOrNull()?.takeIf { it.isNotBlank() }
     }
 
     data class TagData(val id: String, val value: String)
