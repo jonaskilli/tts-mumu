@@ -410,6 +410,7 @@
     <string name="switch_to_other_plugin">切换插件</string>
     <string name="invalid_items_warning">查看失效配置项</string>
     <string name="expand">展开</string>
+    <string name="collapse">收起</string>
     <string name="replace_rule">替换规则</string>
     <string name="speech_rule">朗读规则</string>
     <string name="backup_loudness">响度学习数据</string>
