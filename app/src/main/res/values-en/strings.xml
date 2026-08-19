@@ -347,7 +347,8 @@
     <string name="no_invalid_items">No invalid config items</string>
     <string name="invalid_items_detail_title">Invalid config items (%1$d)</string>
     <string name="invalid_items_count">%1$d item(s)</string>
-    <string name="switch_to_other_plugin">Switch to other plugin</string>
+    <string name="invalid_items_count_bracket">(%1$d)</string>
+    <string name="switch_to_other_plugin">Switch plugin</string>
     <string name="invalid_items_warning">View invalid config items</string>
     <string name="plugin_handles_params_title">Params handled by plugin</string>
     <string name="plugin_handles_params_desc">When checked, the app won\'t apply this param locally—handled by the plugin to avoid double effect. Audition unaffected.</string>

@@ -74,6 +74,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.rotate
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.ViewConfiguration
@@ -1905,16 +1907,47 @@ internal fun ListManagerScreen(
                                 .padding(vertical = 4.dp)
                         ) {
                             Row(
-                                modifier = Modifier.fillMaxWidth(),
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clickable {
+                                        expandedSources = if (expanded)
+                                            expandedSources - sourceId
+                                        else
+                                            expandedSources + sourceId
+                                    },
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
+                                Icon(
+                                    imageVector = Icons.Default.ExpandCircleDown,
+                                    contentDescription = if (expanded)
+                                        stringResource(id = R.string.collapse)
+                                    else stringResource(id = R.string.expand),
+                                    modifier = Modifier
+                                        .padding(end = 8.dp)
+                                        .graphicsLayer {
+                                            rotationZ = if (expanded) 180f else 0f
+                                        },
+                                    tint = MaterialTheme.colorScheme.primary
+                                )
                                 Column(modifier = Modifier.weight(1f)) {
-                                    Text(displayName, style = MaterialTheme.typography.bodyLarge)
-                                    Text(
-                                        stringResource(id = R.string.invalid_items_count, count),
-                                        style = MaterialTheme.typography.bodyMedium,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                                    )
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Text(
+                                            displayName,
+                                            style = MaterialTheme.typography.bodyLarge,
+                                            maxLines = 1,
+                                            overflow = TextOverflow.Ellipsis,
+                                            modifier = Modifier.weight(1f, fill = false)
+                                        )
+                                        Spacer(modifier = Modifier.width(6.dp))
+                                        Text(
+                                            stringResource(
+                                                id = R.string.invalid_items_count_bracket,
+                                                count
+                                            ),
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
+                                    }
                                 }
                                 TextButton(onClick = {
                                     showInvalidDetail = false
@@ -1924,28 +1957,31 @@ internal fun ListManagerScreen(
                                 }) {
                                     Text(stringResource(id = R.string.switch_to_other_plugin))
                                 }
-                                IconButton(onClick = {
-                                    expandedSources = if (expanded)
-                                        expandedSources - sourceId
-                                    else
-                                        expandedSources + sourceId
-                                }) {
-                                    Icon(
-                                        imageVector = if (expanded)
-                                            Icons.Default.ExpandLess else Icons.Default.ExpandMore,
-                                        contentDescription = stringResource(id = R.string.expand)
-                                    )
-                                }
                             }
                             // 展开后列出该来源下具体失效配置项名称
                             if (expanded) {
-                                items.forEach { itemName ->
-                                    Text(
-                                        text = "• $itemName",
-                                        style = MaterialTheme.typography.bodyMedium,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                        modifier = Modifier.padding(start = 16.dp, top = 2.dp)
-                                    )
+                                Spacer(modifier = Modifier.height(8.dp))
+                                Surface(
+                                    color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+                                    shape = MaterialTheme.shapes.small,
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(start = 28.dp, end = 4.dp)
+                                ) {
+                                    Column(modifier = Modifier.padding(vertical = 6.dp, horizontal = 10.dp)) {
+                                        items.forEach { itemName ->
+                                            Text(
+                                                text = itemName,
+                                                style = MaterialTheme.typography.bodyMedium,
+                                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                                maxLines = 1,
+                                                overflow = TextOverflow.Ellipsis,
+                                                modifier = Modifier
+                                                    .fillMaxWidth()
+                                                    .padding(vertical = 4.dp)
+                                            )
+                                        }
+                                    }
                                 }
                             }
                         }

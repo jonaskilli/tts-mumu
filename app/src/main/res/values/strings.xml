@@ -406,7 +406,8 @@
     <string name="no_invalid_items">没有失效配置项</string>
     <string name="invalid_items_detail_title">失效配置项（%1$d 项）</string>
     <string name="invalid_items_count">%1$d 项</string>
-    <string name="switch_to_other_plugin">切换为其他插件</string>
+    <string name="invalid_items_count_bracket">（%1$d 项）</string>
+    <string name="switch_to_other_plugin">切换插件</string>
     <string name="invalid_items_warning">查看失效配置项</string>
     <string name="expand">展开</string>
     <string name="replace_rule">替换规则</string>
