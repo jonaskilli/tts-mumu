@@ -38,7 +38,7 @@ fun PluginImportBottomSheet(onDismissRequest: () -> Unit) {
     // 用户确认后再 onDismissRequest，避免 AlertDialog 叠在 ModalBottomSheet 上被遮挡。
     var successMsg = remember { mutableStateOf<String?>(null) }
     if (successMsg.value != null) {
-        val msg = successMsg.value
+        val msgText = successMsg.value
         AlertDialog(
             onDismissRequest = { successMsg.value = null; onDismissRequest() },
             confirmButton = {
@@ -46,7 +46,7 @@ fun PluginImportBottomSheet(onDismissRequest: () -> Unit) {
                     Text(stringResource(id = R.string.ok))
                 }
             },
-            text = { Text(msg) }
+            text = { Text(msgText) }
         )
         return
     }
