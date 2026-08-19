@@ -266,7 +266,6 @@
     <string name="config_import_success_msg">A total of %1d configurations were imported</string>
     <string name="import_in_progress">Recognizing and importing…</string>
     <string name="import_no_valid_config">No valid configuration recognized</string>
-    <string name="importing_reading">Reading file…</string>
     <string name="importing">Importing…</string>
     <string name="importing_parsing">Parsing config items… please wait</string>
     <string name="importing_progress">Imported %1$d / %2$d items</string>

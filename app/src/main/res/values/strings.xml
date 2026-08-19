@@ -309,7 +309,6 @@
     <string name="config_import_success_msg">共导入 %1$d 条配置</string>
     <string name="import_in_progress">正在识别并导入…</string>
     <string name="import_no_valid_config">未识别到有效配置</string>
-    <string name="importing_reading">正在读取文件…</string>
     <string name="importing">正在导入…</string>
     <string name="importing_parsing">正在解析配置项…请稍候</string>
     <string name="importing_progress">已导入 %1$d / %2$d 项</string>

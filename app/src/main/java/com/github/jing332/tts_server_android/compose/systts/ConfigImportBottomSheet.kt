@@ -121,19 +121,18 @@ fun ConfigImportBottomSheet(
         }
     }
 
-    // 单一连续导入状态机：
-    // null=未开始/已结束；非 null=当前阶段文案（读取中→解析中→导入中）。
-    // 整个导入过程只渲染一个 LoadingDialog，不再叠加多个弹窗。
+    // 单一导入遮罩：null=未开始/已结束；非 null=遮罩文案。
+    // 导入整体很快，只用一个「正在导入…」遮罩体现过程，不做多阶段切换。
     var importPhase by remember { mutableStateOf<String?>(null) }
     if (importPhase != null) {
         LoadingDialog(onDismissRequest = {}, text = importPhase)
     }
 
     // 统一的导入触发逻辑，文件选择回调和「导入」按钮共用。
-    // 读取与解析/写库同处一个状态机，仅在阶段切换时更新文案，体现动态过程。
+    // 读取与解析/写库都在同一个遮罩下完成，完成后由 onResult 弹出结果。
     fun launchImport(src: Int, urlStr: String? = null, uri: Uri? = null) {
         scope.launch {
-            importPhase = context.getString(R.string.importing_reading)
+            importPhase = context.getString(R.string.importing)
             val jsonStr = runCatching { getConfig(src = src, url = urlStr, uri = uri) }.getOrNull()
             if (jsonStr == null) {
                 val err = runCatching { getConfig(src = src, url = urlStr, uri = uri) }
@@ -143,8 +142,6 @@ fun ConfigImportBottomSheet(
                 context.displayErrorDialog(err)
                 return@launch
             }
-            // 读取完成，进入解析/写库阶段
-            importPhase = context.getString(R.string.importing)
             val processed = withContext(Dispatchers.IO) { jsonStr.toJsonListString() }
             importPhase = null
             onImport(processed)
