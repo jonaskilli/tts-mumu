@@ -1,4 +1,4 @@
-<resources xmlns:tools="http://schemas.android.com/tools">
+那导入快没有成功提示吗？<resources xmlns:tools="http://schemas.android.com/tools">
     <string name="app_name">TTS Server</string>
     <string name="hunyuan_taiji">混元太极</string>
     <string name="app_name_dev">D·TTS Server</string>
@@ -309,6 +309,8 @@
     <string name="config_import_success_msg">共导入 %1$d 条配置</string>
     <string name="import_in_progress">正在识别并导入…</string>
     <string name="import_no_valid_config">未识别到有效配置</string>
+    <string name="importing_parsing">正在解析配置项…请稍候</string>
+    <string name="importing_progress">已导入 %1$d / %2$d 项</string>
     <string name="import_truncated_hint">导入失败，JSON 可能被截断：%1$s\n\n若为大配置列表，请先关闭系统TTS服务再导入。</string>
     <string name="file_save_failed">文件保存失败：%1$s</string>
     <string name="save_success">保存成功</string>
@@ -403,6 +405,10 @@
     <string name="batch_fix_select_source">选择失效来源</string>
     <string name="batch_fix_confirm">将把 %1$d 个失效配置项的插件替换为「%2$s」，是否继续？</string>
     <string name="no_invalid_items">没有失效配置项</string>
+    <string name="invalid_items_detail_title">失效配置项（%1$d 项）</string>
+    <string name="invalid_items_count">%1$d 项</string>
+    <string name="switch_to_other_plugin">切换为其他插件</string>
+    <string name="invalid_items_warning">查看失效配置项</string>
     <string name="replace_rule">替换规则</string>
     <string name="speech_rule">朗读规则</string>
     <string name="backup_loudness">响度学习数据</string>

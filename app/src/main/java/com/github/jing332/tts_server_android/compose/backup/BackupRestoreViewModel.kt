@@ -196,6 +196,11 @@ class BackupRestoreViewModel(application: Application) : AndroidViewModel(applic
     private fun createConfigFile(type: Type) {
         when (type) {
             is Type.Preference -> {
+                // 强制落盘关键 UI 偏好：DataSaver 仅在值变更时写盘，
+                // 若用户使用的是默认值（或改动后改回默认），app.xml 中可能不存在对应节点，
+                // 导致备份包缺失这些键，恢复到新设备时被默认值覆盖而“丢失”。
+                // 这里备份前先把当前真实值 commit 落盘，确保备份包始终包含它们。
+                persistAppConfigForBackup()
                 val folder = internalDataFile.absolutePath + File.separator + "shared_prefs"
                 val target = File(tmpZipPath + File.separator + "shared_prefs")
                 target.mkdirs()
@@ -240,6 +245,27 @@ class BackupRestoreViewModel(application: Application) : AndroidViewModel(applic
     private inline fun <reified T> encodeJsonAndCopyToTmpZipPath(v: T, name: String) {
         val s = AppConst.jsonBuilder.encodeToString(v)
         File(tmpZipPath + File.separator + name + ".json").writeText(s)
+    }
+
+    /**
+     * 备份前把 AppConfig 的关键 UI 偏好强制 commit 落盘到 app.xml。
+     * 这些字段（交换试听/编辑按钮、主界面试听文本等）若处于默认值，
+     * DataSaver 可能不会在文件中写出对应节点，导致备份缺失、恢复后被覆盖。
+     * 用原生 SharedPreferences.edit().commit() 直接写入当前真实值，确保备份包包含它们。
+     */
+    private fun persistAppConfigForBackup() {
+        val ctx = getApplication<Application>()
+        val prefs = ctx.getSharedPreferences("app", 0)
+        prefs.edit().apply {
+            putBoolean("isSwapListenAndEditButton", AppConfig.isSwapListenAndEditButton.value)
+            putString("testSampleText", AppConfig.testSampleText.value)
+            putBoolean("isAutoCheckUpdateEnabled", AppConfig.isAutoCheckUpdateEnabled.value)
+            putBoolean("isExcludeFromRecent", AppConfig.isExcludeFromRecent.value)
+            putBoolean("isEdgeDnsEnabled", AppConfig.isEdgeDnsEnabled.value)
+            putInt("limitTagLength", AppConfig.limitTagLength.value)
+            putInt("limitNameLength", AppConfig.limitNameLength.value)
+            putInt("spinnerMaxDropDownCount", AppConfig.spinnerMaxDropDownCount.value)
+        }.commit()
     }
 
     /** 响度学习数据文件路径 */

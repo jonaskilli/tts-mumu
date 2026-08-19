@@ -195,6 +195,43 @@ class SystemTtsService : TextToSpeechService(), IEventDispatcher {
             }
 
             mTtsManager!!.init()
+
+            // 🚀 预热插件引擎：避免服务冷启动后首次播放才现场 eval 大体积插件 JS 导致等待
+            preloadPluginEngines()
+        }
+    }
+
+    /**
+     * 预热所有已启用配置中用到的插件引擎，使其在 TtsPluginEngineManager 缓存中就绪，
+     * 从而点击播放时无需再现场解析插件 JS。
+     */
+    private fun preloadPluginEngines() {
+        mScope.launch(Dispatchers.IO) {
+            runCatching {
+                // 预热转发器"转发器引擎"项所用的静态单例，避免开转发器首播才现场初始化
+                com.github.jing332.tts.MixSynthesizer.global.init()
+                logger.debug { "preloaded MixSynthesizer.global" }
+
+                dbm.systemTtsV2.getAllGroupWithTts()
+                    .flatMap { it.list }
+                    .filter { it.isEnabled }
+                    .mapNotNull { (it.config as? TtsConfigurationDTO)?.source }
+                    .filterIsInstance<com.github.jing332.database.entities.systts.source.PluginTtsSource>()
+                    .map { it.pluginId }
+                    .distinct()
+                    .forEach { pluginId ->
+                        runCatching {
+                            dbm.pluginDao.getByPluginId(pluginId)?.let { plugin ->
+                                com.github.jing332.tts.speech.plugin.TtsPluginEngineManager.get(appCtx, plugin)
+                                logger.debug { "preloaded plugin engine: $pluginId" }
+                            }
+                        }.onFailure {
+                            logger.warn { "preload plugin engine failed: $pluginId, ${it.message}" }
+                        }
+                    }
+            }.onFailure {
+                logger.warn { "preload plugin engines failed: ${it.message}" }
+            }
         }
     }
 

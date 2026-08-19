@@ -191,8 +191,7 @@ internal fun ListManagerScreen(
 
     var isSearchMode by rememberSaveable { mutableStateOf(false) }
 
-    // 批量修复失效配置项：多来源时先选失效来源，再选目标插件
-    var showBatchPluginPicker by remember { mutableStateOf(false) }
+    // 失效配置项修复相关状态
     var pendingPlugin by remember { mutableStateOf<Plugin?>(null) }
     // 当前正在修复的失效来源插件id；null=全部（单来源场景）
     var fixSourcePluginId by remember { mutableStateOf<String?>(null) }
@@ -1874,48 +1873,55 @@ internal fun ListManagerScreen(
         }
     }
 
-    // 批量修复失效配置项：多来源时先选失效来源，单来源直接选目标插件
-    if (showBatchPluginPicker) {
-        if (invalidSourceCounts.size <= 1) {
-            // 单来源（或0来源）：直接修复全部失效项
-            PluginSelectionDialog(
-                onDismissRequest = {
-                    showBatchPluginPicker = false
-                    fixSourcePluginId = null
-                }
-            ) { plugin ->
-                showBatchPluginPicker = false
-                pendingPlugin = plugin
-            }
-        } else {
-            // 失效来源选择列表：每个来源（插件名+项数）一行，点击进入目标插件选择
-            AlertDialog(
-                onDismissRequest = {
-                    showBatchPluginPicker = false
-                },
-                title = { Text(stringResource(id = R.string.batch_fix_select_source)) },
-                text = {
-                    LazyColumn {
-                        items(invalidSourceCounts.entries.toList()) { (sourceId, count) ->
-                            val displayName = pluginNameCache[sourceId] ?: sourceId
-                            ListItem(
-                                headlineContent = { Text(displayName) },
-                                supportingContent = { Text("$count 项") },
-                                modifier = Modifier.clickable {
-                                    fixSourcePluginId = sourceId
-                                    showBatchPluginPicker = false
-                                    // 标记进入目标插件选择，由下方 pendingSourceForPicker 分支渲染
-                                    pendingSourceForPicker = sourceId
-                                }
-                            )
+    // 失效详情对话框：由顶栏警告按钮触发，列出各失效来源并提供“切换为其他插件”
+    var showInvalidDetail by remember { mutableStateOf(false) }
+    if (showInvalidDetail && invalidSourceCounts.isNotEmpty()) {
+        AlertDialog(
+            onDismissRequest = { showInvalidDetail = false },
+            title = {
+                Text(
+                    stringResource(id = R.string.invalid_items_detail_title, invalidCount)
+                )
+            },
+            text = {
+                // 不设置任何容器色，使用 AlertDialog 默认背景，避免列表项与外层色差
+                LazyColumn {
+                    items(invalidSourceCounts.entries.toList()) { (sourceId, count) ->
+                        val displayName = pluginNameCache[sourceId] ?: sourceId
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 4.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(displayName, style = MaterialTheme.typography.bodyLarge)
+                                Text(
+                                    stringResource(id = R.string.invalid_items_count, count),
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                            TextButton(onClick = {
+                                showInvalidDetail = false
+                                // 进入目标插件选择，由下方 pendingSourceForPicker 分支渲染
+                                fixSourcePluginId = sourceId
+                                pendingSourceForPicker = sourceId
+                            }) {
+                                Text(stringResource(id = R.string.switch_to_other_plugin))
+                            }
                         }
                     }
-                },
-                confirmButton = {}
-            )
-        }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { showInvalidDetail = false }) {
+                    Text(stringResource(id = R.string.close))
+                }
+            }
+        )
     }
-    // 目标插件选择（由来源列表点击触发）
+    // 目标插件选择（由失效详情中点击“切换为其他插件”触发）
     if (pendingSourceForPicker != null) {
         val sourceId = pendingSourceForPicker!!
         PluginSelectionDialog(
@@ -2043,11 +2049,6 @@ internal fun ListManagerScreen(
                 },                 actions = {
                     when {
                         isSearchMode -> {
-                            if (searchType == SearchType.INVALID && invalidCount > 0) {
-                                IconButton(onClick = { showBatchPluginPicker = true }) {
-                                    Icon(Icons.Default.AutoFixHigh, stringResource(id = R.string.batch_select_plugin))
-                                }
-                            }
                             IconButton(onClick = {
                                 isSearchMode = false
                                 vm.setSearchKeyword("")
@@ -2066,6 +2067,15 @@ internal fun ListManagerScreen(
                             }
                         }
                         else -> {
+                            if (invalidCount > 0) {
+                                IconButton(onClick = { showInvalidDetail = true }) {
+                                    Icon(
+                                        Icons.Default.Warning,
+                                        stringResource(id = R.string.invalid_items_warning),
+                                        tint = MaterialTheme.colorScheme.error
+                                    )
+                                }
+                            }
                             IconButton(onClick = { selectionMode = true }) {
                                 Icon(Icons.Default.CheckBox, "多选")
                             }

@@ -59,6 +59,12 @@ fun PluginAudioParamsDialog(
                     step = 0.05f,
                     valueFormatter = { "%.2f".format(it) }
                 )
+                HandlesParamRow(
+                    label = stringResource(id = R.string.plugin_handles_speed),
+                    desc = stringResource(id = R.string.plugin_handles_params_desc),
+                    checked = handlesSpeed,
+                    onCheckedChange = { handlesSpeed = it }
+                )
 
                 Spacer(modifier = Modifier.height(8.dp))
 
@@ -70,6 +76,12 @@ fun PluginAudioParamsDialog(
                     valueRange = 0.1f..3f,
                     step = 0.05f,
                     valueFormatter = { "%.2f".format(it) }
+                )
+                HandlesParamRow(
+                    label = stringResource(id = R.string.plugin_handles_volume),
+                    desc = stringResource(id = R.string.plugin_handles_params_desc),
+                    checked = handlesVolume,
+                    onCheckedChange = { handlesVolume = it }
                 )
 
                 Spacer(modifier = Modifier.height(8.dp))
@@ -83,32 +95,9 @@ fun PluginAudioParamsDialog(
                     step = 0.05f,
                     valueFormatter = { "%.2f".format(it) }
                 )
-
-                Spacer(modifier = Modifier.height(12.dp))
-
-                Text(
-                    stringResource(id = R.string.plugin_handles_params_title),
-                    style = MaterialTheme.typography.titleSmall
-                )
-                Text(
-                    stringResource(id = R.string.plugin_handles_params_desc),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-                Spacer(modifier = Modifier.height(4.dp))
-
-                HandlesParamRow(
-                    label = stringResource(id = R.string.plugin_handles_speed),
-                    checked = handlesSpeed,
-                    onCheckedChange = { handlesSpeed = it }
-                )
-                HandlesParamRow(
-                    label = stringResource(id = R.string.plugin_handles_volume),
-                    checked = handlesVolume,
-                    onCheckedChange = { handlesVolume = it }
-                )
                 HandlesParamRow(
                     label = stringResource(id = R.string.plugin_handles_pitch),
+                    desc = stringResource(id = R.string.plugin_handles_params_desc),
                     checked = handlesPitch,
                     onCheckedChange = { handlesPitch = it }
                 )
@@ -142,16 +131,29 @@ fun PluginAudioParamsDialog(
 }
 
 @Composable
-private fun HandlesParamRow(label: String, checked: Boolean, onCheckedChange: (Boolean) -> Unit) {
-    Row(
-        verticalAlignment = Alignment.CenterVertically,
-        modifier = Modifier.fillMaxWidth()
-    ) {
-        Checkbox(checked = checked, onCheckedChange = onCheckedChange)
+private fun HandlesParamRow(
+    label: String,
+    desc: String,
+    checked: Boolean,
+    onCheckedChange: (Boolean) -> Unit
+) {
+    Column(modifier = Modifier.fillMaxWidth().padding(top = 2.dp, bottom = 4.dp)) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Checkbox(checked = checked, onCheckedChange = onCheckedChange)
+            Text(
+                label,
+                style = MaterialTheme.typography.bodyMedium,
+                modifier = Modifier.padding(start = 4.dp)
+            )
+        }
         Text(
-            label,
-            style = MaterialTheme.typography.bodyMedium,
-            modifier = Modifier.padding(start = 4.dp)
+            desc,
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.padding(start = 8.dp, end = 8.dp)
         )
     }
 }

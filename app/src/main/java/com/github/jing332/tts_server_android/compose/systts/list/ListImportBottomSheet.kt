@@ -34,7 +34,9 @@ import com.github.jing332.tts_server_android.ui.systts.ImportConfigFactory
 import com.github.jing332.tts_server_android.ui.systts.ImportType
 import com.github.jing332.tts_server_android.ui.view.AppDialogs.displayErrorDialog
 import com.drake.net.utils.withIO
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.yield
 
 @Composable
 fun ListImportBottomSheet(onDismissRequest: () -> Unit) {
@@ -43,8 +45,17 @@ fun ListImportBottomSheet(onDismissRequest: () -> Unit) {
 
     // 导入进行中遮罩：避免大文件解析/写入期间界面无反馈，用户以为"没有直接导入"
     var importing by remember { mutableStateOf(false) }
-    if (importing) {
-        LoadingDialog(onDismissRequest = { /* 不可取消，等待导入完成 */ })
+    // 延迟显示遮罩：快速导入（<300ms）直接跳过弹窗，避免一闪而过的冗余提示
+    var showImportLoading by remember { mutableStateOf(false) }
+    // 导入进度：null 表示不确定（解析中），非 null 表示“已导入/总数”比例
+    var importProgress by remember { mutableStateOf<Float?>(null) }
+    var importProgressText by remember { mutableStateOf<String?>(null) }
+    if (showImportLoading) {
+        LoadingDialog(
+            onDismissRequest = { /* 不可取消，等待导入完成 */ },
+            progress = importProgress,
+            text = importProgressText
+        )
     }
 
     // 外部文件打开导入（ImportConfigActivity）时，Activity 会立即 finish，
@@ -71,9 +82,32 @@ fun ListImportBottomSheet(onDismissRequest: () -> Unit) {
         onImport = { json ->
             // 自识别 JSON 类型并直接导入，无需手动选择/确认
             importing = true
+            showImportLoading = false
+            importProgress = null
+            importProgressText = context.getString(R.string.importing_parsing)
+            // 延迟显示遮罩：仅当导入耗时超过阈值（快速导入直接跳过，避免冗余提示）
+            val showJob = scope.launch {
+                delay(300)
+                if (importing) {
+                    showImportLoading = true
+                }
+            }
             scope.launch {
-                val result = withIO { doAutoImport(json) }
+                val result = withIO {
+                    doAutoImport(json) { done, total ->
+                        // 解析阶段 total 为 0，仅显示文字；插入阶段更新进度条
+                        if (total > 0) {
+                            importProgress = done.toFloat() / total
+                            importProgressText =
+                                context.getString(R.string.importing_progress, done, total)
+                        }
+                    }
+                }
                 importing = false
+                showJob.cancel() // 快速导入已完成，取消延迟显示
+                showImportLoading = false
+                importProgress = null
+                importProgressText = null
                 when (result) {
                     AutoImportResult.EmptyOrUnrecognized -> {
                         successMsg = context.getString(R.string.import_no_valid_config)
@@ -110,7 +144,10 @@ internal sealed class AutoImportResult {
  * 自动识别 JSON 类型并直接导入，无需手动选择/确认。
  * 支持：配置列表 / 插件 / 朗读规则 / 替换规则。
  */
-internal fun doAutoImport(json: String): AutoImportResult {
+internal fun doAutoImport(
+    json: String,
+    onProgress: (done: Int, total: Int) -> Unit = { _, _ -> }
+): AutoImportResult {
     val trimmed = json.trim()
     if (trimmed.isEmpty()) return AutoImportResult.EmptyOrUnrecognized
 
@@ -121,7 +158,7 @@ internal fun doAutoImport(json: String): AutoImportResult {
     } ?: return AutoImportResult.EmptyOrUnrecognized
 
     return when (type) {
-        ImportType.LIST -> doImportList(json).let { result ->
+        ImportType.LIST -> doImportList(json, onProgress).let { result ->
             when (result) {
                 ListImportResult.EmptyOrUnrecognized -> AutoImportResult.EmptyOrUnrecognized
                 is ListImportResult.Truncated -> AutoImportResult.Truncated(result.detail)
@@ -211,7 +248,10 @@ private sealed class ListImportResult {
 /**
  * 配置列表导入逻辑：解析 → 校验完整性 → 写库。
  */
-private fun doImportList(json: String): ListImportResult {
+private fun doImportList(
+    json: String,
+    onProgress: (done: Int, total: Int) -> Unit = { _, _ -> }
+): ListImportResult {
     val trimmed = json.trim()
     if (trimmed.isEmpty()) return ListImportResult.EmptyOrUnrecognized
 
@@ -231,7 +271,7 @@ private fun doImportList(json: String): ListImportResult {
     }
     if (list.isNullOrEmpty()) return ListImportResult.EmptyOrUnrecognized
 
-    // 3. 写库：单事务批量插入，避免逐条 fsync
+    // 3. 写库：单事务批量插入，避免逐条 fsync；按批次更新进度反馈
     val baseId = System.currentTimeMillis()
     var nextOrder = dbm.systemTtsV2.groupCount
     var groupSeq = 0
@@ -245,6 +285,8 @@ private fun doImportList(json: String): ListImportResult {
             nextOrder++
         }
     }
+    // 总项数（用于进度分母）
+    val total = list.sumOf { it.list.size }
     var imported = 0
     dbm.runInTransaction {
         val groupsToInsert = mutableListOf<SystemTtsGroup>()
@@ -257,11 +299,17 @@ private fun doImportList(json: String): ListImportResult {
                 ttsToInsert.add(tts.copy(id = baseId + 100000 + ttsSeq, groupId = newGroupId))
                 ttsSeq++
                 imported++
+                // 每 50 项回报一次进度，并让出线程使进度条可刷新
+                if (imported % 50 == 0) {
+                    onProgress(imported, total)
+                    kotlinx.coroutines.yield()
+                }
             }
         }
         dbm.systemTtsV2.insertGroup(*groupsToInsert.toTypedArray())
         dbm.systemTtsV2.insert(*ttsToInsert.toTypedArray())
     }
+    onProgress(imported, total)
     return ListImportResult.Success(imported)
 }
 

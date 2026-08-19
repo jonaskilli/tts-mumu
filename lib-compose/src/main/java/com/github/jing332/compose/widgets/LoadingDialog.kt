@@ -7,12 +7,15 @@ import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.wrapContentWidth
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -68,7 +71,14 @@ fun ProgressIndicatorLoading(progressIndicatorSize: Dp, progressIndicatorColor: 
 }
 
 @Composable
-fun LoadingDialog(onDismissRequest: () -> Unit, dismissOnBackPress: Boolean = false) {
+fun LoadingDialog(
+    onDismissRequest: () -> Unit,
+    dismissOnBackPress: Boolean = false,
+    // 可选进度：0f~1f。为 null 时显示不确定（转圈）；非 null 时显示线性进度条
+    progress: Float? = null,
+    // 可选文字：为 null 时显示默认“加载中”
+    text: String? = null
+) {
     Dialog(
         onDismissRequest = onDismissRequest,
         properties = DialogProperties(dismissOnBackPress = dismissOnBackPress)
@@ -78,17 +88,26 @@ fun LoadingDialog(onDismissRequest: () -> Unit, dismissOnBackPress: Boolean = fa
             shape = MaterialTheme.shapes.medium,
         ) {
             Column(modifier = Modifier.padding(horizontal = 48.dp, vertical = 12.dp).wrapContentWidth()) {
-                ProgressIndicatorLoading(
-                    progressIndicatorSize = 64.dp,
-                    progressIndicatorColor = MaterialTheme.colorScheme.primary
-                )
-                Spacer(
-                    modifier = Modifier
-                        .height(16.dp)
-                )
+                if (progress == null) {
+                    ProgressIndicatorLoading(
+                        progressIndicatorSize = 64.dp,
+                        progressIndicatorColor = MaterialTheme.colorScheme.primary
+                    )
+                }
+                Spacer(modifier = Modifier.height(16.dp))
                 Text(
-                    text = "加载中",
+                    text = text ?: "加载中",
+                    style = MaterialTheme.typography.bodyMedium
                 )
+                if (progress != null) {
+                    Spacer(modifier = Modifier.height(12.dp))
+                    LinearProgressIndicator(
+                        progress = { progress.coerceIn(0f, 1f) },
+                        modifier = Modifier
+                            .width(220.dp)
+                            .fillMaxWidth(),
+                    )
+                }
             }
         }
     }
