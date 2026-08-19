@@ -38,9 +38,22 @@ class BackupRestoreViewModel(application: Application) : AndroidViewModel(applic
         application.filesDir!!.parentFile!!
     }
 
-    // 应用配置 SharedPreferences（app.xml），用于恢复时保护新增配置键
-    private val appPrefs by lazy {
-        application.getSharedPreferences("app", 0)
+    /**
+     * 快照应用全部 SharedPreferences（prefs文件名 → 键值对）。
+     * 枚举 shared_prefs 目录下的 xml 文件加载，涵盖 app/systts/server 等全部配置文件，
+     * 无需手工维护键清单——未来新增设置自动纳入保护。
+     */
+    private fun snapshotAllPrefs(): Map<String, Map<String, Any>> {
+        val snapshot = HashMap<String, Map<String, Any>>()
+        val prefsDir = File(internalDataFile, "shared_prefs")
+        val files = prefsDir.listFiles { f -> f.isFile && f.name.endsWith(".xml") }
+            ?: return snapshot
+        files.forEach { file ->
+            val name = file.name.removeSuffix(".xml")
+            val all = application.getSharedPreferences(name, 0).all
+            if (all.isNotEmpty()) snapshot[name] = all
+        }
+        return snapshot
     }
 
     // ... /cache/backupRestore/restore
@@ -65,21 +78,16 @@ class BackupRestoreViewModel(application: Application) : AndroidViewModel(applic
             // shared_prefs
             val restorePrefsFile = File(restorePrefsPath)
             if (restorePrefsFile.exists()) {
-                // 恢复前记录当前的关键配置值：旧备份里没有这些新版本新增的键，
-                // 覆盖后重启会回到默认值，恢复完成后回填到备份XML中
-                val preserved = HashMap<String, Any>()
-                PROTECTED_BOOL_KEYS.forEach { key ->
-                    (appPrefs.all[key] as? Boolean)?.let { preserved[key] = it }
-                }
-                PROTECTED_STRING_KEYS.forEach { key ->
-                    (appPrefs.all[key] as? String)?.let { preserved[key] = it }
-                }
+                // 恢复前快照全部 SharedPreferences：备份 XML 会整体覆盖同名文件，
+                // 备份里缺失的键（旧版本备份、剥离WebDAV等场景）恢复后会丢设置，
+                // 恢复完成后统一回填缺失键
+                val prefsSnapshot = snapshotAllPrefs()
 
                 FileUtils.copyFolder(restorePrefsFile, internalDataFile)
                 restorePrefsFile.deleteRecursively()
 
-                if (preserved.isNotEmpty()) {
-                    backfillProtectedKeys(preserved)
+                if (prefsSnapshot.isNotEmpty()) {
+                    backfillMissingPrefsKeys(prefsSnapshot)
                 }
                 isRestart = true
             }
@@ -264,18 +272,6 @@ class BackupRestoreViewModel(application: Application) : AndroidViewModel(applic
             "bookListData",
             "currentBookName",
         )
-
-        /** 恢复旧备份时需保护的布尔型配置键（新版本新增，旧备份中不存在） */
-        private val PROTECTED_BOOL_KEYS = listOf(
-            "isSwapListenAndEditButton",
-            "isExcludeFromRecent",
-            "isAutoCheckUpdateEnabled",
-        )
-
-        /** 恢复旧备份时需保护的字符串型配置键 */
-        private val PROTECTED_STRING_KEYS = listOf(
-            "testSampleText",
-        )
     }
 
     /**
@@ -293,29 +289,41 @@ class BackupRestoreViewModel(application: Application) : AndroidViewModel(applic
     }
 
     /**
-     * 回填保护键到恢复后的 app.xml：
-     * 旧备份中没有这些新版本新增的键（如交换按钮开关、试听文本），
-     * 不回填的话恢复重启后会回到默认值。直接注入到 </map> 前。
+     * 回填缺失键到恢复后的 shared_prefs：
+     * 对快照中每个 prefs 文件，检查恢复后的 XML 里缺失的键并注入。
+     * 只补缺失，不覆盖备份值——备份里明确存的值代表备份时点的选择，应尊重。
      * 注：不能用 SharedPreferences.edit() 回填——同进程实例持有覆盖前的内存快照，
      * apply() 会把整个旧快照写回磁盘破坏恢复结果。
      */
-    private fun backfillProtectedKeys(preserved: Map<String, Any>) {
-        val appXml = File(internalDataFile, "shared_prefs${File.separator}app.xml")
-        if (!appXml.exists()) return
-        val content = appXml.readText()
-        val sb = StringBuilder()
-        preserved.forEach { (key, value) ->
-            if (!content.contains("name=\"$key\"")) {
-                when (value) {
-                    is Boolean -> sb.append("\n    <boolean name=\"").append(key)
-                        .append("\" value=\"").append(value).append("\" />")
-                    is String -> sb.append("\n    <string name=\"").append(key)
-                        .append("\">").append(escapeXmlText(value)).append("</string>")
+    private fun backfillMissingPrefsKeys(snapshot: Map<String, Map<String, Any>>) {
+        snapshot.forEach { (prefsName, entries) ->
+            if (entries.isEmpty()) return@forEach
+            val xml = File(internalDataFile, "shared_prefs${File.separator}$prefsName.xml")
+            if (!xml.exists()) return@forEach
+            val content = xml.readText()
+            val sb = StringBuilder()
+            entries.forEach { (key, value) ->
+                if (!content.contains("name=\"$key\"")) {
+                    when (value) {
+                        is Boolean -> sb.append("\n    <boolean name=\"").append(key)
+                            .append("\" value=\"").append(value).append("\" />")
+                        is String -> sb.append("\n    <string name=\"").append(key)
+                            .append("\">").append(escapeXmlText(value)).append("</string>")
+                        is Int -> sb.append("\n    <int name=\"").append(key)
+                            .append("\" value=\"").append(value).append("\" />")
+                        is Long -> sb.append("\n    <long name=\"").append(key)
+                            .append("\" value=\"").append(value).append("\" />")
+                        is Float -> sb.append("\n    <float name=\"").append(key)
+                            .append("\" value=\"").append(value).append("\" />")
+                        // Set<String> 在 SP XML 中以 <stringset> 序列化，无法用简单文本注入还原，
+                        // 跳过（这类键很少且多为展示状态，丢了大不了重新展开一次）
+                        is Set<*> -> {}
+                    }
                 }
             }
-        }
-        if (sb.isNotEmpty()) {
-            appXml.writeText(content.replace("</map>", sb.toString() + "\n</map>"))
+            if (sb.isNotEmpty()) {
+                xml.writeText(content.replace("</map>", sb.toString() + "\n</map>"))
+            }
         }
     }
 
