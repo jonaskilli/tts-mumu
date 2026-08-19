@@ -399,7 +399,6 @@
     <string name="no_invalid_items">没有失效配置项</string>
     <string name="replace_rule">替换规则</string>
     <string name="speech_rule">朗读规则</string>
-    <string name="backup_keys">密钥（含在配置列表中）</string>
     <string name="backup_loudness">响度学习数据</string>
     <string name="backup_webdav">WebDAV 设置</string>
     <string name="invalid_scheme_msg">无效的Scheme: %1$s</string>
@@ -457,7 +456,6 @@
     <string name="purple">紫色</string>
     <string name="brown">棕色</string>
     <string name="gray">灰色</string>
-    <string name="emerald">薄翠绿</string>
     <string name="desc_expand_group">展开分组：%1$s</string>
     <string name="desc_collapse_group">折叠分组：%1$s</string>
     <string name="label_speech_rate">语速：%1$s</string>

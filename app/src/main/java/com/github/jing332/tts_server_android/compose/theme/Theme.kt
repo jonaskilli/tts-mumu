@@ -35,7 +35,6 @@ fun appTheme(
         AppTheme.PURPLE -> purpleTheme(darkTheme)
         AppTheme.BROWN -> brownTheme(darkTheme)
         AppTheme.GRAY -> grayTheme(darkTheme)
-        AppTheme.EMERALD -> emeraldTheme(darkTheme)
     }
 
 //全局主题状态

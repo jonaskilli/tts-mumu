@@ -91,10 +91,6 @@ internal fun BackupDialog(
                                 if (it == Type.PluginVars) {
                                     checkedList.contains(Type.Plugin) || checkedList.add(Type.Plugin)
                                 }
-                                // Keys 依赖 List：勾选 Keys 时自动勾选 List
-                                if (it == Type.Keys) {
-                                    checkedList.contains(Type.List) || checkedList.add(Type.List)
-                                }
                                 // WebDav 依赖 Preference：勾选 WebDav 时自动勾选 Preference
                                 if (it == Type.WebDav) {
                                     checkedList.contains(Type.Preference) || checkedList.add(Type.Preference)
@@ -102,8 +98,6 @@ internal fun BackupDialog(
                                 checkedList.add(it)
                             } else {
                                 if (it == Type.Plugin) checkedList.remove(Type.PluginVars)
-                                // 取消 List 时自动取消 Keys
-                                if (it == Type.List) checkedList.remove(Type.Keys)
                                 // 取消 Preference 时自动取消 WebDav
                                 if (it == Type.Preference) checkedList.remove(Type.WebDav)
                                 checkedList.remove(it)

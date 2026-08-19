@@ -36,6 +36,7 @@ import androidx.compose.material.icons.filled.SelectAll
 import androidx.compose.material.icons.filled.SwapHoriz
 import androidx.compose.material.icons.filled.VolumeUp
 import androidx.compose.material3.Checkbox
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ElevatedCard
@@ -213,6 +214,8 @@ fun PluginManagerScreen(sharedVM: SharedViewModel, onFinishActivity: () -> Unit)
     var showSwitchPluginRefsDialog by remember { mutableStateOf<Plugin?>(null) }
     // 二次确认：选好目标插件后，在此确认是否执行批量切换
     var pendingSwitch by remember { mutableStateOf<Pair<Plugin, Plugin>?>(null) }
+    // 切换进度：null=未在切换，Pair(已处理, 总数)=切换中
+    var switchProgress by remember { mutableStateOf<Pair<Int, Int>?>(null) }
     if (showSwitchPluginRefsDialog != null) {
         val sourcePlugin = showSwitchPluginRefsDialog!!
         // 用全部插件(不止已启用)，排除源插件本身
@@ -300,24 +303,27 @@ fun PluginManagerScreen(sharedVM: SharedViewModel, onFinishActivity: () -> Unit)
                     scope.launch {
                         var count = 0
                         withIO {
-                            dbm.systemTtsV2.getAllGroupWithTts()
+                            // 先收集需要切换的配置项，单事务批量更新：
+                            // 逐条 update 每条一个事务且各触发一次列表Flow重发射，N项=卡顿N次
+                            val toUpdate = dbm.systemTtsV2.getAllGroupWithTts()
                                 .flatMap { it.list }
-                                .forEach { tts ->
+                                .mapNotNull { tts ->
                                     val config = tts.config
                                     if (config is TtsConfigurationDTO) {
                                         val src = config.source
-                                        if (src is PluginTtsSource && src.pluginId == srcId) {
-                                            dbm.systemTtsV2.update(
-                                                tts.copy(
-                                                    config = config.copy(
-                                                        source = src.copy(pluginId = newId)
-                                                    )
-                                                )
-                                            )
-                                            count++
-                                        }
-                                    }
+                                        if (src is PluginTtsSource && src.pluginId == srcId)
+                                            tts.copy(config = config.copy(source = src.copy(pluginId = newId)))
+                                        else null
+                                    } else null
                                 }
+                            switchProgress = 0 to toUpdate.size
+                            if (toUpdate.isNotEmpty()) {
+                                dbm.runInTransaction {
+                                    dbm.systemTtsV2.update(*toUpdate.toTypedArray())
+                                }
+                                count = toUpdate.size
+                            }
+                            switchProgress = null
                         }
                         SystemTtsService.notifyUpdateConfig()
                         val msg = if (count == 0)
@@ -328,6 +334,26 @@ fun PluginManagerScreen(sharedVM: SharedViewModel, onFinishActivity: () -> Unit)
                     }
                 }) { Text(stringResource(id = R.string.confirm)) }
             }
+        )
+    }
+
+    // 切换进度对话框：数据库事务在后台执行，UI 立即反馈，避免误以为没成功
+    if (switchProgress != null) {
+        val (done, total) = switchProgress!!
+        AppDialog(
+            onDismissRequest = {},
+            title = { Text("正在切换引用配置…") },
+            content = {
+                Column(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    CircularProgressIndicator()
+                    Spacer(Modifier.height(12.dp))
+                    Text("共 $total 项，正在批量更新…")
+                }
+            },
+            buttons = {}
         )
     }
 
@@ -444,21 +470,23 @@ fun PluginManagerScreen(sharedVM: SharedViewModel, onFinishActivity: () -> Unit)
                     pendingPluginIdUpdate = null
                     scope.launch {
                         withIO {
-                            dbm.systemTtsV2.getAllGroupWithTts()
+                            // 单事务批量更新，理由同切换引用配置
+                            val toUpdate = dbm.systemTtsV2.getAllGroupWithTts()
                                 .flatMap { it.list }
-                                .forEach { tts ->
+                                .mapNotNull { tts ->
                                     val config = tts.config
                                     if (config is TtsConfigurationDTO) {
                                         val src = config.source
-                                        if (src is PluginTtsSource && src.pluginId == pending.first) {
-                                            dbm.systemTtsV2.update(
-                                                tts.copy(
-                                                    config = config.copy(source = src.copy(pluginId = pending.second))
-                                                )
-                                            )
-                                        }
-                                    }
+                                        if (src is PluginTtsSource && src.pluginId == pending.first)
+                                            tts.copy(config = config.copy(source = src.copy(pluginId = pending.second)))
+                                        else null
+                                    } else null
                                 }
+                            if (toUpdate.isNotEmpty()) {
+                                dbm.runInTransaction {
+                                    dbm.systemTtsV2.update(*toUpdate.toTypedArray())
+                                }
+                            }
                         }
                         SystemTtsService.notifyUpdateConfig()
                     }

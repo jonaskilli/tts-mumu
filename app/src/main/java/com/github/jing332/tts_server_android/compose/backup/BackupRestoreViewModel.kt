@@ -38,6 +38,11 @@ class BackupRestoreViewModel(application: Application) : AndroidViewModel(applic
         application.filesDir!!.parentFile!!
     }
 
+    // 应用配置 SharedPreferences（app.xml），用于恢复时保护新增配置键
+    private val appPrefs by lazy {
+        application.getSharedPreferences("app", 0)
+    }
+
     // ... /cache/backupRestore/restore
     private val restorePath by lazy {
         backupRestorePath + File.separator + "restore"
@@ -60,8 +65,22 @@ class BackupRestoreViewModel(application: Application) : AndroidViewModel(applic
             // shared_prefs
             val restorePrefsFile = File(restorePrefsPath)
             if (restorePrefsFile.exists()) {
+                // 恢复前记录当前的关键配置值：旧备份里没有这些新版本新增的键，
+                // 覆盖后重启会回到默认值，恢复完成后回填到备份XML中
+                val preserved = HashMap<String, Any>()
+                PROTECTED_BOOL_KEYS.forEach { key ->
+                    (appPrefs.all[key] as? Boolean)?.let { preserved[key] = it }
+                }
+                PROTECTED_STRING_KEYS.forEach { key ->
+                    (appPrefs.all[key] as? String)?.let { preserved[key] = it }
+                }
+
                 FileUtils.copyFolder(restorePrefsFile, internalDataFile)
                 restorePrefsFile.deleteRecursively()
+
+                if (preserved.isNotEmpty()) {
+                    backfillProtectedKeys(preserved)
+                }
                 isRestart = true
             }
 
@@ -118,15 +137,14 @@ class BackupRestoreViewModel(application: Application) : AndroidViewModel(applic
         val types = _types.toMutableList()
         if (types.contains(Type.PluginVars)) types.remove(Type.Plugin)
 
-        // Keys 不产生独立文件，只控制 List 导出时是否保留 keyListJson
-        val includeKeys = types.remove(Type.Keys)
+        // 配置列表始终脱敏：角色管理插件的 data 部分包含密钥/书单等隐私数据，永不导出
         // Loudness 产生独立文件，单独处理
         val includeLoudness = types.remove(Type.Loudness)
         // WebDav 不产生独立文件，只控制 Preference 导出时是否保留 webDav 字段
         val includeWebDav = types.remove(Type.WebDav)
 
         types.forEach {
-            createConfigFile(it, includeKeys)
+            createConfigFile(it)
         }
 
         // WebDav 脱敏：从备份的 app.xml 中移除 webDav 相关字段
@@ -160,7 +178,7 @@ class BackupRestoreViewModel(application: Application) : AndroidViewModel(applic
         backupRestorePath + File.separator + "backup.zip"
     }
 
-    private fun createConfigFile(type: Type, includeKeys: Boolean) {
+    private fun createConfigFile(type: Type) {
         when (type) {
             is Type.Preference -> {
                 val folder = internalDataFile.absolutePath + File.separator + "shared_prefs"
@@ -174,8 +192,7 @@ class BackupRestoreViewModel(application: Application) : AndroidViewModel(applic
 
             is Type.List -> {
                 val groups = dbm.systemTtsV2.getAllGroupWithTts()
-                val exported = if (includeKeys) groups else stripKeyListJson(groups)
-                encodeJsonAndCopyToTmpZipPath(exported, "list")
+                encodeJsonAndCopyToTmpZipPath(stripPluginPrivacyData(groups), "list")
             }
 
             is Type.SpeechRule -> {
@@ -216,22 +233,49 @@ class BackupRestoreViewModel(application: Application) : AndroidViewModel(applic
     }
 
     /**
-     * 脱敏：从配置列表中移除角色管理插件的 keyListJson（密钥数据）
+     * 脱敏：移除角色管理插件(mingwuyan)配置项 data 部分的隐私数据
+     * （密钥keyListJson/currentKeyName、书单bookListData/currentBookName、
+     * backupTest备份快照等），备份永不导出
      */
-    private fun stripKeyListJson(groups: List<GroupWithSystemTts>): List<GroupWithSystemTts> {
+    private fun stripPluginPrivacyData(groups: List<GroupWithSystemTts>): List<GroupWithSystemTts> {
         return groups.map { group ->
             group.copy(list = group.list.map { tts ->
                 val config = tts.config
                 if (config is TtsConfigurationDTO) {
                     val src = config.source
-                    if (src is PluginTtsSource && src.data.containsKey("keyListJson")) {
+                    if (src is PluginTtsSource && src.pluginId == "mingwuyan" && src.data.isNotEmpty()) {
                         val strippedData = src.data.toMutableMap()
-                        strippedData.remove("keyListJson")
+                        PRIVACY_DATA_KEYS.forEach(strippedData::remove)
                         tts.copy(config = config.copy(source = src.copy(data = strippedData)))
                     } else tts
                 } else tts
             })
         }
+    }
+
+    companion object {
+        /** 角色管理插件 data 中需要剔除的隐私字段 */
+        private val PRIVACY_DATA_KEYS = listOf(
+            "officialEmotionStyle",
+            "previewForceScale",
+            "backupTest",
+            "currentKeyName",
+            "keyListJson",
+            "bookListData",
+            "currentBookName",
+        )
+
+        /** 恢复旧备份时需保护的布尔型配置键（新版本新增，旧备份中不存在） */
+        private val PROTECTED_BOOL_KEYS = listOf(
+            "isSwapListenAndEditButton",
+            "isExcludeFromRecent",
+            "isAutoCheckUpdateEnabled",
+        )
+
+        /** 恢复旧备份时需保护的字符串型配置键 */
+        private val PROTECTED_STRING_KEYS = listOf(
+            "testSampleText",
+        )
     }
 
     /**
@@ -247,6 +291,36 @@ class BackupRestoreViewModel(application: Application) : AndroidViewModel(applic
         }.joinToString("\n")
         appXml.writeText(stripped)
     }
+
+    /**
+     * 回填保护键到恢复后的 app.xml：
+     * 旧备份中没有这些新版本新增的键（如交换按钮开关、试听文本），
+     * 不回填的话恢复重启后会回到默认值。直接注入到 </map> 前。
+     * 注：不能用 SharedPreferences.edit() 回填——同进程实例持有覆盖前的内存快照，
+     * apply() 会把整个旧快照写回磁盘破坏恢复结果。
+     */
+    private fun backfillProtectedKeys(preserved: Map<String, Any>) {
+        val appXml = File(internalDataFile, "shared_prefs${File.separator}app.xml")
+        if (!appXml.exists()) return
+        val content = appXml.readText()
+        val sb = StringBuilder()
+        preserved.forEach { (key, value) ->
+            if (!content.contains("name=\"$key\"")) {
+                when (value) {
+                    is Boolean -> sb.append("\n    <boolean name=\"").append(key)
+                        .append("\" value=\"").append(value).append("\" />")
+                    is String -> sb.append("\n    <string name=\"").append(key)
+                        .append("\">").append(escapeXmlText(value)).append("</string>")
+                }
+            }
+        }
+        if (sb.isNotEmpty()) {
+            appXml.writeText(content.replace("</map>", sb.toString() + "\n</map>"))
+        }
+    }
+
+    private fun escapeXmlText(s: String): String =
+        s.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
 
     // ================== WebDAV 逻辑修复 ==================
 

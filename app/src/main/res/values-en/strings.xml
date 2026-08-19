@@ -345,7 +345,6 @@
     <string name="no_invalid_items">No invalid config items</string>
     <string name="replace_rule">Replace Rule</string>
     <string name="speech_rule">Speech Rule</string>
-    <string name="backup_keys">Keys (in config list)</string>
     <string name="backup_loudness">Loudness learning data</string>
     <string name="backup_webdav">WebDAV settings</string>
     <string name="select_all">Select All</string>
@@ -400,7 +399,6 @@
     <string name="purple">Purple</string>
     <string name="brown">Brown</string>
     <string name="gray">Gray</string>
-    <string name="emerald">Emerald</string>
     <string name="desc_expand_group">Expand Group: %1$s</string>
     <string name="desc_collapse_group">Collapse Group: %1$s</string>
     <string name="label_speech_rate">Speed: %1$s</string>

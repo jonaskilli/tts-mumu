@@ -215,17 +215,18 @@ class ListManagerViewModel : ViewModel() {
     fun batchFixInvalidItems(newPluginId: String) = viewModelScope.launch(Dispatchers.IO) {
         val enabledIds = _enabledPluginIds.value
         val allItems = dbm.systemTtsV2.getAllGroupWithTts().flatMap { it.list }
-        val invalidItems = allItems.filter { item ->
-            val config = item.config as? TtsConfigurationDTO
-            val src = config?.source
-            src is PluginTtsSource && src.pluginId !in enabledIds
+        // 单事务批量更新：逐条 update 每条一个事务且各触发一次列表Flow重发射，N项=N次列表重算导致卡顿
+        val toUpdate = allItems.mapNotNull { item ->
+            val config = item.config as? TtsConfigurationDTO ?: return@mapNotNull null
+            val src = config.source
+            if (src is PluginTtsSource && src.pluginId !in enabledIds) {
+                item.copy(config = config.copy(source = src.copy(pluginId = newPluginId)))
+            } else null
         }
-        invalidItems.forEach { item ->
-            val config = item.config as TtsConfigurationDTO
-            val source = config.source as PluginTtsSource
-            val newSource = source.copy(pluginId = newPluginId)
-            val newConfig = config.copy(source = newSource)
-            dbm.systemTtsV2.update(item.copy(config = newConfig))
+        if (toUpdate.isNotEmpty()) {
+            dbm.runInTransaction {
+                dbm.systemTtsV2.update(*toUpdate.toTypedArray())
+            }
         }
     }
 
