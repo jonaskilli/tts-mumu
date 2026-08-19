@@ -43,13 +43,19 @@ class ListManagerViewModel : ViewModel() {
     val list: StateFlow<List<GroupWithSystemTts>> get() = _list
 
     // 缓存插件名称：响应式订阅插件表，插件新增/改名/pluginId变更/切换引用后自动刷新
-    private val pluginNameCache = MutableStateFlow<Map<String, String>>(emptyMap())
+    // 插件名缓存（pluginId → 展示名），供列表与批量修复来源选择使用
+    private val _pluginNameCache = MutableStateFlow<Map<String, String>>(emptyMap())
+    val pluginNameCache: StateFlow<Map<String, String>> get() = _pluginNameCache
     // 已启用插件的 pluginId 集合，用于判断配置项是否失效
     private val _enabledPluginIds = MutableStateFlow<Set<String>>(emptySet())
     val enabledPluginIds: StateFlow<Set<String>> get() = _enabledPluginIds
     // 失效配置项数量
     private val _invalidCount = MutableStateFlow(0)
     val invalidCount: StateFlow<Int> get() = _invalidCount
+
+    // 失效配置项按源插件分组：pluginId → 数量，用于批量修复时逐源选择目标插件
+    private val _invalidSourceCounts = MutableStateFlow<Map<String, Int>>(emptyMap())
+    val invalidSourceCounts: StateFlow<Map<String, Int>> get() = _invalidSourceCounts
 
     init {
         viewModelScope.launch(Dispatchers.IO) {
@@ -71,10 +77,22 @@ class ListManagerViewModel : ViewModel() {
                     Quad(triple.first, triple.second, triple.third, nameMap, enabledIds)
                 }
                 .collect { (list, key, searchType, nameMap, enabledIds) ->
-                    pluginNameCache.value = nameMap
+                    _pluginNameCache.value = nameMap
                     _enabledPluginIds.value = enabledIds
-                    // 计算失效项数量
-                    _invalidCount.value = countInvalidItems(list, enabledIds)
+                    // 计算失效项数量与按源插件的分组统计
+                    val srcCounts = mutableMapOf<String, Int>()
+                    var invalid = 0
+                    list.forEach { groupWithTts ->
+                        groupWithTts.list.forEach { item ->
+                            val src = (item.config as? TtsConfigurationDTO)?.source
+                            if (src is PluginTtsSource && src.pluginId !in enabledIds) {
+                                invalid++
+                                srcCounts[src.pluginId] = (srcCounts[src.pluginId] ?: 0) + 1
+                            }
+                        }
+                    }
+                    _invalidCount.value = invalid
+                    _invalidSourceCounts.value = srcCounts
                     // 失效项筛选不依赖关键词，即使关键词为空也要过滤
                     val result = if (key.isBlank() && searchType != SearchType.INVALID) {
                         list
@@ -84,20 +102,6 @@ class ListManagerViewModel : ViewModel() {
                     Log.d(TAG, "update list: ${result.size}")
                     _list.value = result
                 }
-        }
-    }
-
-    /** 统计失效配置项数量 */
-    private fun countInvalidItems(
-        list: List<GroupWithSystemTts>,
-        enabledIds: Set<String>,
-    ): Int {
-        return list.sumOf { groupWithTts ->
-            groupWithTts.list.count { item ->
-                val config = item.config as? TtsConfigurationDTO
-                val src = config?.source
-                src is PluginTtsSource && src.pluginId !in enabledIds
-            }
         }
     }
 
@@ -156,7 +160,7 @@ class ListManagerViewModel : ViewModel() {
                         if (ttsConfig != null) {
                             when (val source = ttsConfig.source) {
                                 is PluginTtsSource -> {
-                                    val pluginName = pluginNameCache.value[source.pluginId] ?: source.pluginId
+                                    val pluginName = _pluginNameCache.value[source.pluginId] ?: source.pluginId
                                     source.pluginId.contains(key, ignoreCase = true) ||
                                     pluginName.contains(key, ignoreCase = true)
                                 }
@@ -210,25 +214,30 @@ class ListManagerViewModel : ViewModel() {
     }
 
     /**
-     * 批量修复失效配置项：将所有引用了已删除/已禁用插件的配置项的 pluginId 替换为新插件
+     * 批量修复失效配置项
+     * @param newPluginId 目标插件id
+     * @param sourcePluginId 源插件id；null=修复全部失效项（单来源场景），指定=只修复引用该插件的项
      */
-    fun batchFixInvalidItems(newPluginId: String) = viewModelScope.launch(Dispatchers.IO) {
-        val enabledIds = _enabledPluginIds.value
-        val allItems = dbm.systemTtsV2.getAllGroupWithTts().flatMap { it.list }
-        // 单事务批量更新：逐条 update 每条一个事务且各触发一次列表Flow重发射，N项=N次列表重算导致卡顿
-        val toUpdate = allItems.mapNotNull { item ->
-            val config = item.config as? TtsConfigurationDTO ?: return@mapNotNull null
-            val src = config.source
-            if (src is PluginTtsSource && src.pluginId !in enabledIds) {
-                item.copy(config = config.copy(source = src.copy(pluginId = newPluginId)))
-            } else null
-        }
-        if (toUpdate.isNotEmpty()) {
-            dbm.runInTransaction {
-                dbm.systemTtsV2.update(*toUpdate.toTypedArray())
+    fun batchFixInvalidItems(newPluginId: String, sourcePluginId: String? = null) =
+        viewModelScope.launch(Dispatchers.IO) {
+            val enabledIds = _enabledPluginIds.value
+            val allItems = dbm.systemTtsV2.getAllGroupWithTts().flatMap { it.list }
+            // 单事务批量更新：逐条 update 每条一个事务且各触发一次列表Flow重发射，N项=N次列表重算导致卡顿
+            val toUpdate = allItems.mapNotNull { item ->
+                val config = item.config as? TtsConfigurationDTO ?: return@mapNotNull null
+                val src = config.source
+                val isInvalid = src is PluginTtsSource && src.pluginId !in enabledIds
+                val matchSource = sourcePluginId == null || (src as? PluginTtsSource)?.pluginId == sourcePluginId
+                if (isInvalid && matchSource) {
+                    item.copy(config = config.copy(source = src.copy(pluginId = newPluginId)))
+                } else null
+            }
+            if (toUpdate.isNotEmpty()) {
+                dbm.runInTransaction {
+                    dbm.systemTtsV2.update(*toUpdate.toTypedArray())
+                }
             }
         }
-    }
 
     fun updateTtsEnabled(
         item: SystemTtsV2,

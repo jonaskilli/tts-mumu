@@ -395,6 +395,7 @@
     <string name="plugin">插件</string>
     <string name="invalid_items">失效项</string>
     <string name="batch_select_plugin">批量选择插件</string>
+    <string name="batch_fix_select_source">选择失效来源</string>
     <string name="batch_fix_confirm">将把 %1$d 个失效配置项的插件替换为「%2$s」，是否继续？</string>
     <string name="no_invalid_items">没有失效配置项</string>
     <string name="replace_rule">替换规则</string>

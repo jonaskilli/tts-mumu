@@ -44,6 +44,7 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.ListItem
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.ModalBottomSheet
@@ -185,12 +186,18 @@ internal fun ListManagerScreen(
     val searchKeyword by vm.keyword.collectAsStateWithLifecycle()
     val searchType by vm.searchType.collectAsStateWithLifecycle()
     val invalidCount by vm.invalidCount.collectAsStateWithLifecycle()
+    val invalidSourceCounts by vm.invalidSourceCounts.collectAsStateWithLifecycle()
+    val pluginNameCache by vm.pluginNameCache.collectAsStateWithLifecycle()
 
     var isSearchMode by rememberSaveable { mutableStateOf(false) }
 
-    // 批量修复失效配置项
+    // 批量修复失效配置项：多来源时先选失效来源，再选目标插件
     var showBatchPluginPicker by remember { mutableStateOf(false) }
     var pendingPlugin by remember { mutableStateOf<Plugin?>(null) }
+    // 当前正在修复的失效来源插件id；null=全部（单来源场景）
+    var fixSourcePluginId by remember { mutableStateOf<String?>(null) }
+    // 来源列表中点击某来源后，弹出目标插件选择器
+    var pendingSourceForPicker by remember { mutableStateOf<String?>(null) }
 
     // 多选删除分组：选择模式与已选分组ID集合
     var selectionMode by remember { mutableStateOf(false) }
@@ -1867,34 +1874,87 @@ internal fun ListManagerScreen(
         }
     }
 
-    // 批量修复失效配置项：选择插件 → 确认 → 批量替换 pluginId
+    // 批量修复失效配置项：多来源时先选失效来源，单来源直接选目标插件
     if (showBatchPluginPicker) {
+        if (invalidSourceCounts.size <= 1) {
+            // 单来源（或0来源）：直接修复全部失效项
+            PluginSelectionDialog(
+                onDismissRequest = {
+                    showBatchPluginPicker = false
+                    fixSourcePluginId = null
+                }
+            ) { plugin ->
+                showBatchPluginPicker = false
+                pendingPlugin = plugin
+            }
+        } else {
+            // 失效来源选择列表：每个来源（插件名+项数）一行，点击进入目标插件选择
+            AlertDialog(
+                onDismissRequest = {
+                    showBatchPluginPicker = false
+                },
+                title = { Text(stringResource(id = R.string.batch_fix_select_source)) },
+                text = {
+                    LazyColumn {
+                        items(invalidSourceCounts.entries.toList()) { (sourceId, count) ->
+                                            val displayName = pluginNameCache[sourceId] ?: sourceId
+                                            ListItem(
+                            headlineContent = { Text(displayName) },
+                            supportingContent = { Text("$count 项") },
+                            modifier = Modifier.clickable {
+                                fixSourcePluginId = sourceId
+                                showBatchPluginPicker = false
+                                // 标记进入目标插件选择，由下方 pendingSourceForPicker 分支渲染
+                                pendingSourceForPicker = sourceId
+                            }
+                        )
+                    }
+                },
+                confirmButton = {}
+            )
+        }
+    }
+    // 目标插件选择（由来源列表点击触发）
+    if (pendingSourceForPicker != null) {
+        val sourceId = pendingSourceForPicker!!
         PluginSelectionDialog(
-            onDismissRequest = { showBatchPluginPicker = false }
+            onDismissRequest = {
+                pendingSourceForPicker = null
+                fixSourcePluginId = null
+            }
         ) { plugin ->
-            showBatchPluginPicker = false
+            pendingSourceForPicker = null
             pendingPlugin = plugin
         }
     }
     if (pendingPlugin != null) {
         val plugin = pendingPlugin!!
+        // 确认文案：指定来源时显示该来源的项数，否则显示总失效数
+        val fixCount = fixSourcePluginId?.let { invalidSourceCounts[it] } ?: invalidCount
         AlertDialog(
-            onDismissRequest = { pendingPlugin = null },
+            onDismissRequest = {
+                pendingPlugin = null
+                fixSourcePluginId = null
+            },
             title = { Text(stringResource(id = R.string.batch_select_plugin)) },
             text = {
-                Text(stringResource(id = R.string.batch_fix_confirm, invalidCount, plugin.name))
+                Text(stringResource(id = R.string.batch_fix_confirm, fixCount, plugin.name))
             },
             confirmButton = {
                 TextButton(onClick = {
                     val pluginId = plugin.pluginId
+                    val sourceId = fixSourcePluginId
                     pendingPlugin = null
-                    vm.batchFixInvalidItems(pluginId)
+                    vm.batchFixInvalidItems(pluginId, sourceId)
                 }) {
                     Text(stringResource(id = R.string.confirm))
                 }
             },
             dismissButton = {
-                TextButton(onClick = { pendingPlugin = null }) {
+                TextButton(onClick = {
+                    pendingPlugin = null
+                    fixSourcePluginId = null
+                }) {
                     Text(stringResource(id = R.string.cancel))
                 }
             }
