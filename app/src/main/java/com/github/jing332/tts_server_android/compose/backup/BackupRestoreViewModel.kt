@@ -42,16 +42,23 @@ class BackupRestoreViewModel(application: Application) : AndroidViewModel(applic
      * 快照应用全部 SharedPreferences（prefs文件名 → 键值对）。
      * 枚举 shared_prefs 目录下的 xml 文件加载，涵盖 app/systts/server 等全部配置文件，
      * 无需手工维护键清单——未来新增设置自动纳入保护。
+     * 注：只收集可文本回填的基础类型（Boolean/String/Int/Long/Float），
+     * Set<String> 以 <stringset> 序列化无法简单注入，跳过。
      */
     private fun snapshotAllPrefs(): Map<String, Map<String, Any>> {
         val snapshot = HashMap<String, Map<String, Any>>()
         val prefsDir = File(internalDataFile, "shared_prefs")
         val files = prefsDir.listFiles { f -> f.isFile && f.name.endsWith(".xml") }
             ?: return snapshot
+        val app = getApplication<Application>()
         files.forEach { file ->
-            val name = file.name.removeSuffix(".xml")
-            val all = application.getSharedPreferences(name, 0).all
-            if (all.isNotEmpty()) snapshot[name] = all
+            val raw = app.getSharedPreferences(file.name.removeSuffix(".xml"), 0).all
+            val typed = HashMap<String, Any>()
+            raw.forEach { (k, v) ->
+                if (v is Boolean || v is String || v is Int || v is Long || v is Float)
+                    typed[k] = v
+            }
+            if (typed.isNotEmpty()) snapshot[file.name.removeSuffix(".xml")] = typed
         }
         return snapshot
     }
@@ -315,9 +322,6 @@ class BackupRestoreViewModel(application: Application) : AndroidViewModel(applic
                             .append("\" value=\"").append(value).append("\" />")
                         is Float -> sb.append("\n    <float name=\"").append(key)
                             .append("\" value=\"").append(value).append("\" />")
-                        // Set<String> 在 SP XML 中以 <stringset> 序列化，无法用简单文本注入还原，
-                        // 跳过（这类键很少且多为展示状态，丢了大不了重新展开一次）
-                        is Set<*> -> {}
                     }
                 }
             }
