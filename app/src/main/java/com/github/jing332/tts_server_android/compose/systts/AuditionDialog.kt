@@ -147,6 +147,16 @@ fun AuditionDialog(
         title = { Text(stringResource(id = R.string.audition)) },
         content = {
             Column(Modifier.verticalScroll(rememberScrollState())) {
+                // 当前试听的声音名：分类时明确知道在给哪个发音人分配
+                if (systts.displayName.isNotBlank()) {
+                    Text(
+                        systts.displayName,
+                        color = MaterialTheme.colorScheme.primary,
+                        style = MaterialTheme.typography.titleMedium,
+                        modifier = Modifier.padding(bottom = 6.dp)
+                    )
+                }
+
                 SelectionContainer {
                     Text(
                         error.ifEmpty { text },
