@@ -400,7 +400,6 @@
     <string name="plugin_handles_pitch">音调已由插件处理</string>
     <string name="config_list">配置列表</string>
     <string name="plugin">插件</string>
-    <string name="invalid_items">失效项</string>
     <string name="batch_select_plugin">批量选择插件</string>
     <string name="batch_fix_select_source">选择失效来源</string>
     <string name="batch_fix_confirm">将把 %1$d 个失效配置项的插件替换为「%2$s」，是否继续？</string>
@@ -409,6 +408,7 @@
     <string name="invalid_items_count">%1$d 项</string>
     <string name="switch_to_other_plugin">切换为其他插件</string>
     <string name="invalid_items_warning">查看失效配置项</string>
+    <string name="expand">展开</string>
     <string name="replace_rule">替换规则</string>
     <string name="speech_rule">朗读规则</string>
     <string name="backup_loudness">响度学习数据</string>

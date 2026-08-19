@@ -44,7 +44,6 @@ enum class SearchType(@StringRes val strId: Int) {
     TAG(R.string.tag),
     PLUGIN(R.string.plugin),
     GROUP(R.string.group),
-    INVALID(R.string.invalid_items),
 }
 
 // 编辑分组对话框使用的搜索类型（不包含 GROUP）

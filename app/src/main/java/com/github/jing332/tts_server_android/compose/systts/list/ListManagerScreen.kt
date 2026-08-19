@@ -31,6 +31,8 @@ import androidx.compose.material.icons.filled.AutoFixHigh
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.DeleteForever
 import androidx.compose.material.icons.filled.Deselect
+import androidx.compose.material.icons.filled.ExpandLess
+import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.ExpandCircleDown
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Refresh
@@ -188,6 +190,7 @@ internal fun ListManagerScreen(
     val searchType by vm.searchType.collectAsStateWithLifecycle()
     val invalidCount by vm.invalidCount.collectAsStateWithLifecycle()
     val invalidSourceCounts by vm.invalidSourceCounts.collectAsStateWithLifecycle()
+    val invalidSourceItems by vm.invalidSourceItems.collectAsStateWithLifecycle()
     val pluginNameCache by vm.pluginNameCache.collectAsStateWithLifecycle()
 
     var isSearchMode by rememberSaveable { mutableStateOf(false) }
@@ -1876,9 +1879,14 @@ internal fun ListManagerScreen(
 
     // 失效详情对话框：由顶栏警告按钮触发，列出各失效来源并提供“切换为其他插件”
     var showInvalidDetail by remember { mutableStateOf(false) }
+    // 弹窗内逐源展开状态：记录已展开的来源 pluginId
+    var expandedSources by remember { mutableStateOf<Set<String>>(emptySet()) }
     if (showInvalidDetail && invalidSourceCounts.isNotEmpty()) {
         AlertDialog(
-            onDismissRequest = { showInvalidDetail = false },
+            onDismissRequest = {
+                showInvalidDetail = false
+                expandedSources = emptySet()
+            },
             title = {
                 Text(
                     stringResource(id = R.string.invalid_items_detail_title, invalidCount)
@@ -1889,34 +1897,66 @@ internal fun ListManagerScreen(
                 LazyColumn {
                     items(invalidSourceCounts.entries.toList()) { (sourceId, count) ->
                         val displayName = pluginNameCache[sourceId] ?: sourceId
-                        Row(
+                        val items = invalidSourceItems[sourceId].orEmpty()
+                        val expanded = sourceId in expandedSources
+                        Column(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .padding(vertical = 4.dp),
-                            verticalAlignment = Alignment.CenterVertically
+                                .padding(vertical = 4.dp)
                         ) {
-                            Column(modifier = Modifier.weight(1f)) {
-                                Text(displayName, style = MaterialTheme.typography.bodyLarge)
-                                Text(
-                                    stringResource(id = R.string.invalid_items_count, count),
-                                    style = MaterialTheme.typography.bodyMedium,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(displayName, style = MaterialTheme.typography.bodyLarge)
+                                    Text(
+                                        stringResource(id = R.string.invalid_items_count, count),
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
+                                TextButton(onClick = {
+                                    showInvalidDetail = false
+                                    // 进入目标插件选择，由下方 pendingSourceForPicker 分支渲染
+                                    fixSourcePluginId = sourceId
+                                    pendingSourceForPicker = sourceId
+                                }) {
+                                    Text(stringResource(id = R.string.switch_to_other_plugin))
+                                }
+                                IconButton(onClick = {
+                                    expandedSources = if (expanded)
+                                        expandedSources - sourceId
+                                    else
+                                        expandedSources + sourceId
+                                }) {
+                                    Icon(
+                                        imageVector = if (expanded)
+                                            Icons.Default.ExpandLess else Icons.Default.ExpandMore,
+                                        contentDescription = stringResource(id = R.string.expand)
+                                    )
+                                }
                             }
-                            TextButton(onClick = {
-                                showInvalidDetail = false
-                                // 进入目标插件选择，由下方 pendingSourceForPicker 分支渲染
-                                fixSourcePluginId = sourceId
-                                pendingSourceForPicker = sourceId
-                            }) {
-                                Text(stringResource(id = R.string.switch_to_other_plugin))
+                            // 展开后列出该来源下具体失效配置项名称
+                            if (expanded) {
+                                items.forEach { itemName ->
+                                    Text(
+                                        text = "• $itemName",
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        modifier = Modifier.padding(start = 16.dp, top = 2.dp)
+                                    )
+                                }
                             }
                         }
                     }
                 }
             },
             confirmButton = {
-                TextButton(onClick = { showInvalidDetail = false }) {
+                TextButton(onClick = {
+                    showInvalidDetail = false
+                    expandedSources = emptySet()
+                }) {
                     Text(stringResource(id = R.string.close))
                 }
             }
@@ -2053,8 +2093,6 @@ internal fun ListManagerScreen(
                             IconButton(onClick = {
                                 isSearchMode = false
                                 vm.setSearchKeyword("")
-                                if (searchType == SearchType.INVALID)
-                                    vm.setSearchType(SearchType.NAME)
                             }) {
                                 Icon(Icons.Default.Close, stringResource(id = R.string.close))
                             }

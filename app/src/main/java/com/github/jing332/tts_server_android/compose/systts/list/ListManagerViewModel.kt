@@ -57,6 +57,10 @@ class ListManagerViewModel : ViewModel() {
     private val _invalidSourceCounts = MutableStateFlow<Map<String, Int>>(emptyMap())
     val invalidSourceCounts: StateFlow<Map<String, Int>> get() = _invalidSourceCounts
 
+    // 失效配置项按源插件分组：pluginId → 失效配置项名称列表，用于详情弹窗逐源展开
+    private val _invalidSourceItems = MutableStateFlow<Map<String, List<String>>>(emptyMap())
+    val invalidSourceItems: StateFlow<Map<String, List<String>>> get() = _invalidSourceItems
+
     init {
         viewModelScope.launch(Dispatchers.IO) {
             dbm.systemTtsV2.updateAllOrder()
@@ -81,6 +85,7 @@ class ListManagerViewModel : ViewModel() {
                     _enabledPluginIds.value = enabledIds
                     // 计算失效项数量与按源插件的分组统计
                     val srcCounts = mutableMapOf<String, Int>()
+                    val srcItems = mutableMapOf<String, MutableList<String>>()
                     var invalid = 0
                     list.forEach { groupWithTts ->
                         groupWithTts.list.forEach { item ->
@@ -88,13 +93,16 @@ class ListManagerViewModel : ViewModel() {
                             if (src is PluginTtsSource && src.pluginId !in enabledIds) {
                                 invalid++
                                 srcCounts[src.pluginId] = (srcCounts[src.pluginId] ?: 0) + 1
+                                srcItems.getOrPut(src.pluginId) { mutableListOf() }
+                                    .add(item.displayName.ifBlank { item.name })
                             }
                         }
                     }
                     _invalidCount.value = invalid
                     _invalidSourceCounts.value = srcCounts
-                    // 失效项筛选不依赖关键词，即使关键词为空也要过滤
-                    val result = if (key.isBlank() && searchType != SearchType.INVALID) {
+                    _invalidSourceItems.value = srcItems
+                    // 关键词为空时直接返回全量列表，否则按类型过滤
+                    val result = if (key.isBlank()) {
                         list
                     } else {
                         filterList(list, key, searchType, enabledIds)
@@ -184,22 +192,6 @@ class ListManagerViewModel : ViewModel() {
                     it.group.name.contains(key, ignoreCase = true)
                 }.map {
                     it.copy(group = it.group.copy(isExpanded = true))
-                }
-            }
-            SearchType.INVALID -> {
-                // 失效项：插件已删除或被禁用的配置项，不依赖关键词
-                list.mapNotNull { groupWithTts ->
-                    val filteredItems = groupWithTts.list.filter { item ->
-                        val config = item.config as? TtsConfigurationDTO
-                        val src = config?.source
-                        src is PluginTtsSource && src.pluginId !in enabledIds
-                    }
-                    if (filteredItems.isNotEmpty()) {
-                        groupWithTts.copy(
-                            list = filteredItems,
-                            group = groupWithTts.group.copy(isExpanded = true)
-                        )
-                    } else null
                 }
             }
         }

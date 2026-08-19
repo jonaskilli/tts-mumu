@@ -341,7 +341,6 @@
     <string name="plugin_set_vars">Set Variables</string>
     <string name="config_list">Config list</string>
     <string name="plugin">Plugin</string>
-    <string name="invalid_items">Invalid</string>
     <string name="batch_select_plugin">Batch Select Plugin</string>
     <string name="batch_fix_select_source">Select Invalid Source</string>
     <string name="batch_fix_confirm">Replace plugin for %1$d invalid config item(s) with \"%2$s\"?</string>
