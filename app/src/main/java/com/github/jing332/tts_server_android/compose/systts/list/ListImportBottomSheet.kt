@@ -6,7 +6,6 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import com.github.jing332.common.utils.StringUtils
@@ -31,11 +30,9 @@ import com.github.jing332.tts_server_android.ui.systts.ImportConfigFactory
 import com.github.jing332.tts_server_android.ui.systts.ImportType
 import com.github.jing332.tts_server_android.ui.view.AppDialogs.displayErrorDialog
 import com.drake.net.utils.withIO
-import kotlinx.coroutines.launch
 
 @Composable
 fun ListImportBottomSheet(onDismissRequest: () -> Unit) {
-    val scope = rememberCoroutineScope()
     val context = LocalContext.current
 
     // 外部文件打开导入（ImportConfigActivity）时，Activity 会立即 finish，
@@ -66,32 +63,31 @@ fun ListImportBottomSheet(onDismissRequest: () -> Unit) {
         onResult = { msg -> if (msg != null) successMsg.value = msg },
         onImport = { json ->
             // 自识别 JSON 类型并直接导入，无需手动选择/确认
-            scope.launch {
-                val result = withIO {
-                    doAutoImport(
-                        json,
-                        onProgress = { _, _ -> } // 进度已合并进 ConfigImportBottomSheet 的连续状态机
+            // （suspend lambda：在 ConfigImportBottomSheet 遮罩内执行，勿再自起协程）
+            val result = withIO {
+                doAutoImport(
+                    json,
+                    onProgress = { _, _ -> } // 进度已合并进 ConfigImportBottomSheet 的连续状态机
+                )
+            }
+            when (result) {
+                AutoImportResult.EmptyOrUnrecognized -> {
+                    successMsg.value = context.getString(R.string.import_no_valid_config)
+                }
+                is AutoImportResult.Truncated -> {
+                    // JSON 解析失败：用错误对话框展示完整信息，支持滚动和复制
+                    context.displayErrorDialog(
+                        Exception(result.detail),
+                        title = context.getString(R.string.import_failed)
                     )
                 }
-                when (result) {
-                    AutoImportResult.EmptyOrUnrecognized -> {
-                        successMsg.value = context.getString(R.string.import_no_valid_config)
+                is AutoImportResult.Success -> {
+                    // 仅配置列表需要通知 TTS 服务刷新，并强制重算 tagName（防止导入旧格式）
+                    if (result.type == ImportType.LIST) {
+                        withIO { migrateTagNamesIfNeed(context, force = true) }
+                        SystemTtsService.notifyUpdateConfig()
                     }
-                    is AutoImportResult.Truncated -> {
-                        // JSON 解析失败：用错误对话框展示完整信息，支持滚动和复制
-                        context.displayErrorDialog(
-                            Exception(result.detail),
-                            title = context.getString(R.string.import_failed)
-                        )
-                    }
-                    is AutoImportResult.Success -> {
-                        // 仅配置列表需要通知 TTS 服务刷新，并强制重算 tagName（防止导入旧格式）
-                        if (result.type == ImportType.LIST) {
-                            withIO { migrateTagNamesIfNeed(context, force = true) }
-                            SystemTtsService.notifyUpdateConfig()
-                        }
-                        successMsg.value = "已导入 ${result.count} 项${result.typeName}"
-                    }
+                    successMsg.value = "已导入 ${result.count} 项${result.typeName}"
                 }
             }
         }

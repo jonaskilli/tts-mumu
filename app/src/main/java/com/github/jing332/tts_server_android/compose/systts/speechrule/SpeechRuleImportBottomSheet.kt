@@ -6,7 +6,6 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import com.github.jing332.tts_server_android.R
@@ -15,11 +14,9 @@ import com.github.jing332.tts_server_android.compose.systts.list.AutoImportResul
 import com.github.jing332.tts_server_android.compose.systts.list.doAutoImport
 import com.github.jing332.tts_server_android.ui.view.AppDialogs.displayErrorDialog
 import com.drake.net.utils.withIO
-import kotlinx.coroutines.launch
 
 @Composable
 fun SpeechRuleImportBottomSheet(onDismissRequest: () -> Unit) {
-    val scope = rememberCoroutineScope()
     val context = LocalContext.current
 
     // 结果以模态对话框展示，导入过程的连续状态机由 ConfigImportBottomSheet 承载，
@@ -45,21 +42,20 @@ fun SpeechRuleImportBottomSheet(onDismissRequest: () -> Unit) {
         onResult = { msg -> if (msg != null) successMsg.value = msg },
         onImport = { json ->
             // 自动识别 JSON 类型并直接导入，无需手动选择/确认
-            scope.launch {
-                val result = withIO { doAutoImport(json) }
-                when (result) {
-                    AutoImportResult.EmptyOrUnrecognized -> {
-                        successMsg.value = context.getString(R.string.import_no_valid_config)
-                    }
-                    is AutoImportResult.Truncated -> {
-                        context.displayErrorDialog(
-                            Exception(result.detail),
-                            title = context.getString(R.string.import_failed)
-                        )
-                    }
-                    is AutoImportResult.Success -> {
-                        successMsg.value = "已导入 ${result.count} 项${result.typeName}"
-                    }
+            // （suspend lambda：在 ConfigImportBottomSheet 遮罩内执行，勿再自起协程）
+            val result = withIO { doAutoImport(json) }
+            when (result) {
+                AutoImportResult.EmptyOrUnrecognized -> {
+                    successMsg.value = context.getString(R.string.import_no_valid_config)
+                }
+                is AutoImportResult.Truncated -> {
+                    context.displayErrorDialog(
+                        Exception(result.detail),
+                        title = context.getString(R.string.import_failed)
+                    )
+                }
+                is AutoImportResult.Success -> {
+                    successMsg.value = "已导入 ${result.count} 项${result.typeName}"
                 }
             }
         }

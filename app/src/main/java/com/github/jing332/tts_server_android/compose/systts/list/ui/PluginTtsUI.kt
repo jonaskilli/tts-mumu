@@ -45,6 +45,7 @@ import com.github.jing332.database.dbm
 import com.github.jing332.database.entities.SpeechRule
 import com.github.jing332.database.entities.plugin.Plugin
 import com.github.jing332.database.entities.systts.BasicAudioFormat
+import com.github.jing332.database.entities.systts.SystemTtsGroup
 import com.github.jing332.database.entities.systts.SystemTtsV2
 import com.github.jing332.database.entities.systts.TtsConfigurationDTO
 import com.github.jing332.database.entities.systts.source.PluginTtsSource
@@ -507,8 +508,40 @@ class PluginTtsUI : IConfigUI() {
                                         val selectedVoices = vm.voices.filter { it.id in selectedVoiceIds }
                                         if (selectedVoices.isEmpty()) return@TextButton
                                         scope.launch(Dispatchers.IO) {
+                                            runCatching {
                                             val config = systts.config as TtsConfigurationDTO
                                             val ruleData = config.speechRule.copy()
+
+                                            // 目标分组兜底：从插件预览等入口进入时配置项未落库（groupId=0），
+                                            // 直接插入会进入不存在的分组导致主界面不可见。
+                                            // 此时按插件名新建（或复用同名）分组承载，并在结果提示中告知分组名。
+                                            val existingGroup =
+                                                if (systts.groupId != 0L) dbm.systemTtsV2.getGroup(systts.groupId) else null
+                                            val targetGroupId: Long
+                                            val targetGroupName: String
+                                            if (existingGroup != null) {
+                                                targetGroupId = existingGroup.id
+                                                targetGroupName = existingGroup.name
+                                            } else {
+                                                val pluginName = plugin?.name
+                                                    ?: dbm.pluginDao.getByPluginId(tts.pluginId)?.name
+                                                    ?: "插件分组"
+                                                val sameName = dbm.systemTtsV2.allGroup()
+                                                    .firstOrNull { it.group.name == pluginName }
+                                                if (sameName != null) {
+                                                    targetGroupId = sameName.group.id
+                                                    targetGroupName = sameName.group.name
+                                                } else {
+                                                    val group = SystemTtsGroup(
+                                                        name = pluginName,
+                                                        order = dbm.systemTtsV2.groupCount
+                                                    )
+                                                    dbm.systemTtsV2.insertGroup(group)
+                                                    targetGroupId = group.id
+                                                    targetGroupName = group.name
+                                                }
+                                            }
+
                                             // 获取当前标签规则及有序标签列表
                                             val speechRule: SpeechRule? =
                                                 if (ruleData.tagRuleId.isNotBlank())
@@ -532,6 +565,10 @@ class PluginTtsUI : IConfigUI() {
                                             val categoryCountMap = mutableMapOf<String, Int>()
                                             // 未分配分类的序号计数
                                             var untaggedIdx = 0
+                                            // 批次内自增序号：与时间戳基值组合保证 ID 唯一，
+                                            // 避免原「untaggedIdx+分类数之和」组合可能撞车（REPLACE 会静默覆盖）
+                                            val baseId = System.currentTimeMillis()
+                                            var idSeq = 0
 
                                             selectedVoices.forEach { voice ->
                                                 val category = voiceCategoryMap[voice.id]
@@ -543,7 +580,7 @@ class PluginTtsUI : IConfigUI() {
                                                     val count = categoryCountMap.getOrDefault(category, 0)
                                                     // 查询该子分组下已有数量作为起点
                                                     val existing = if (count == 0) {
-                                                        dbm.systemTtsV2.getByGroup(systts.groupId)
+                                                        dbm.systemTtsV2.getByGroup(targetGroupId)
                                                             .count { it.categoryPath == category }
                                                     } else count
                                                     val seq = existing + 1
@@ -609,7 +646,8 @@ class PluginTtsUI : IConfigUI() {
                                                 )
                                                 dbm.systemTtsV2.insert(
                                                     systts.copy(
-                                                        id = System.currentTimeMillis() + untaggedIdx + categoryCountMap.values.sum(),
+                                                        id = baseId + idSeq++,
+                                                        groupId = targetGroupId,
                                                         displayName = voice.name,
                                                         categoryPath = categoryPath,
                                                         config = newConfig
@@ -618,11 +656,21 @@ class PluginTtsUI : IConfigUI() {
                                             }
                                             withContext(Dispatchers.Main) {
                                                 if (systts.isEnabled) SystemTtsService.notifyUpdateConfig()
+                                                // 提示带目标分组名：让用户明确知道保存在哪，
+                                                // 避免新建分组后找不到保存项
                                                 context.toast(
-                                                    context.getString(R.string.save_success) + " (${selectedVoices.size})"
+                                                    context.getString(R.string.save_success) +
+                                                        " (${selectedVoices.size}) → $targetGroupName"
                                                 )
                                                 selectedVoiceIds = emptySet()
                                                 voiceCategoryMap = emptyMap()
+                                            }
+                                            }.onFailure { e ->
+                                                // 保存过程任何异常（DB 写入、分组创建等）都显式提示，
+                                                // 不再静默失败让用户误以为已保存
+                                                withContext(Dispatchers.Main) {
+                                                    context.toast("保存失败：${e.message}")
+                                                }
                                             }
                                         }
                                     }

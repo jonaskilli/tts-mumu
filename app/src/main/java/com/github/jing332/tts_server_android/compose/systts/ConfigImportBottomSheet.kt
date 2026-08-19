@@ -84,7 +84,8 @@ val LocalImportFilePath = compositionLocalOf { mutableStateOf("") }
 fun ConfigImportBottomSheet(
     content: @Composable ColumnScope.() -> Unit = {},
     onDismissRequest: () -> Unit,
-    onImport: (json: String) -> Unit,
+    // suspend：写库等全部完成后才返回，遮罩覆盖「读取→解析→写库」全程
+    onImport: suspend (json: String) -> Unit,
     // 导入结果回调：null 表示进行中；非 null 为结果文案（成功/失败）。
     // 由调用方决定如何展示（如 AlertDialog），实现单一结果出口。
     onResult: (String?) -> Unit = {},
@@ -143,8 +144,10 @@ fun ConfigImportBottomSheet(
                 return@launch
             }
             val processed = withContext(Dispatchers.IO) { jsonStr.toJsonListString() }
-            importPhase = null
+            // 写库（onImport 为 suspend）在遮罩内完成后才关闭，
+            // 避免最耗时的插入阶段无反馈、用户以为卡住
             onImport(processed)
+            importPhase = null
         }
     }
 
