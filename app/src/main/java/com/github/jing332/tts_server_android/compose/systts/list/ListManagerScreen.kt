@@ -1897,17 +1897,18 @@ internal fun ListManagerScreen(
                 text = {
                     LazyColumn {
                         items(invalidSourceCounts.entries.toList()) { (sourceId, count) ->
-                                            val displayName = pluginNameCache[sourceId] ?: sourceId
-                                            ListItem(
-                            headlineContent = { Text(displayName) },
-                            supportingContent = { Text("$count 项") },
-                            modifier = Modifier.clickable {
-                                fixSourcePluginId = sourceId
-                                showBatchPluginPicker = false
-                                // 标记进入目标插件选择，由下方 pendingSourceForPicker 分支渲染
-                                pendingSourceForPicker = sourceId
-                            }
-                        )
+                            val displayName = pluginNameCache[sourceId] ?: sourceId
+                            ListItem(
+                                headlineContent = { Text(displayName) },
+                                supportingContent = { Text("$count 项") },
+                                modifier = Modifier.clickable {
+                                    fixSourcePluginId = sourceId
+                                    showBatchPluginPicker = false
+                                    // 标记进入目标插件选择，由下方 pendingSourceForPicker 分支渲染
+                                    pendingSourceForPicker = sourceId
+                                }
+                            )
+                        }
                     }
                 },
                 confirmButton = {}
