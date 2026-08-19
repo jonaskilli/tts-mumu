@@ -1863,6 +1863,13 @@ internal fun ListManagerScreen(
         ListExportBottomSheet(onDismissRequest = { showGroupExportSheet = null }, list = list)
     }
 
+    // 多选模式下导出选中的分组
+    var showExportSelected by remember { mutableStateOf(false) }
+    if (showExportSelected) {
+        val list = models.filter { it.group.id in selectedGroupIds }
+        ListExportBottomSheet(onDismissRequest = { showExportSelected = false }, list = list)
+    }
+
     var addPluginDialog by remember { mutableStateOf(false) }
     if (addPluginDialog) {
         PluginSelectionDialog(onDismissRequest = { addPluginDialog = false }) {
@@ -2201,6 +2208,20 @@ internal fun ListManagerScreen(
                                     modifier = Modifier.size(28.dp)
                                 )
                                 Text("全选", style = MaterialTheme.typography.labelMedium)
+                            }
+                        }
+                        TextButton(onClick = {
+                            if (selectedGroupIds.isNotEmpty()) {
+                                showExportSelected = true
+                            }
+                        }) {
+                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                Icon(
+                                    Icons.Default.FileUpload,
+                                    contentDescription = "导出",
+                                    modifier = Modifier.size(28.dp)
+                                )
+                                Text("导出", style = MaterialTheme.typography.labelMedium)
                             }
                         }
                         TextButton(onClick = {
