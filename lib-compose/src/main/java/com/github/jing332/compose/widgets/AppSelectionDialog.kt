@@ -264,7 +264,7 @@ fun AppSelectionDialog(
                                         // 已分配分类：显示分类名标签，点击可重新选择
                                         var showCategoryMenu by remember { mutableStateOf(false) }
                                         val allCategories = remember {
-                                            listOf("默认", "女童", "少女", "女青年", "女中年", "女老年", "男童", "少年", "男青年", "男中年", "男老年")
+                                            listOf("默认") + VoiceCategories.ALL
                                         }
                                         Box {
                                             Surface(
@@ -309,7 +309,7 @@ fun AppSelectionDialog(
                                         // 未分配分类：显示多选圆点，长按可弹出分类选择
                                         var showCategoryMenu by remember { mutableStateOf(false) }
                                         val allCategories = remember {
-                                            listOf("默认", "女童", "少女", "女青年", "女中年", "女老年", "男童", "少年", "男青年", "男中年", "男老年")
+                                            listOf("默认") + VoiceCategories.ALL
                                         }
                                         Box {
                                             Box(
@@ -369,5 +369,25 @@ fun AppSelectionDialog(
             }
         },
         buttons = buttons, onDismissRequest = onDismissRequest,
+    )
+}
+
+/**
+ * 发音人分类的公共常量：试听分类弹窗（AuditionDialog）与
+ * 声音列表长按分类菜单（AppSelectionDialog）共用，避免两处硬编码不同步。
+ */
+object VoiceCategories {
+    /** 全部分类（按性别年龄排列） */
+    val ALL: List<String> = listOf(
+        "女童", "少女", "女青年", "女中年", "女老年",
+        "男童", "少年", "男青年", "男中年", "男老年"
+    )
+
+    /** 分类弹窗的分行布局（每行一组，宽度受限时也排得下） */
+    val ROWS: List<List<String>> = listOf(
+        listOf("女童", "少女"),
+        listOf("女青年", "女中年", "女老年"),
+        listOf("男童", "少年"),
+        listOf("男青年", "男中年", "男老年")
     )
 }

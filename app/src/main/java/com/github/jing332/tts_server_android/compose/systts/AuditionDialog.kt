@@ -21,9 +21,11 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
@@ -72,11 +74,19 @@ fun AuditionDialog(
     onCategoryAssigned: ((voiceId: Any, categoryName: String) -> Unit)? = null,
     onPrev: (() -> Unit)? = null,
     onNext: (() -> Unit)? = null,
+    // 当前声音已分配的分类（回看时显示，重选分类即覆盖改派）
+    assignedCategory: String? = null,
+    // 进度序号，如 "12/50"
+    progressText: String? = null,
+    // 试听时从真实音频解析出采样率后回调，供批量保存缓存复用（避免保存时重复合成）
+    onSampleRateResolved: ((voiceId: Any?, sampleRate: Int) -> Unit)? = null,
     onDismissRequest: () -> Unit,
 ) {
     val context = LocalContext.current
     var error by remember { mutableStateOf("") }
     var info by remember { mutableStateOf("") }
+    // 重播计数：点「重播」时自增触发 LaunchedEffect 重启（失败时兼作重试）
+    var retryKey by remember { mutableIntStateOf(0) }
     val audioPlayer = remember { AudioPlayer(context) }
 
     DisposableEffect(systts) {
@@ -85,7 +95,9 @@ fun AuditionDialog(
         }
     }
 
-    LaunchedEffect(systts) {
+    LaunchedEffect(systts, retryKey) {
+        error = ""
+        info = ""
         launch(Dispatchers.IO) {
             try {
                 val e = engine ?: CachedEngineManager.getEngine(appCtx, config.source)
@@ -117,6 +129,10 @@ fun AuditionDialog(
                     val audio = stream.readBytes()
                     val rateAndMime =
                         com.github.jing332.common.audio.AudioDecoder.getSampleRateAndMime(audio)
+                    // 真实采样率回传：批量保存时缓存复用，无需再合成一次
+                    if (rateAndMime.first > 0) {
+                        onSampleRateResolved?.invoke(voiceId, rateAndMime.first)
+                    }
                     withMain {
                         info = context.getString(
                             R.string.systts_test_success_info, audio.size.toLong().sizeToReadable(),
@@ -149,12 +165,36 @@ fun AuditionDialog(
             Column(Modifier.verticalScroll(rememberScrollState())) {
                 // 当前试听的声音名：分类时明确知道在给哪个发音人分配
                 if (systts.displayName.isNotBlank()) {
-                    Text(
-                        systts.displayName,
-                        color = MaterialTheme.colorScheme.primary,
-                        style = MaterialTheme.typography.titleMedium,
-                        modifier = Modifier.padding(bottom = 6.dp)
-                    )
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(bottom = if (assignedCategory.isNullOrBlank()) 6.dp else 2.dp)
+                    ) {
+                        Text(
+                            systts.displayName,
+                            color = MaterialTheme.colorScheme.primary,
+                            style = MaterialTheme.typography.titleMedium,
+                            modifier = Modifier.weight(1f)
+                        )
+                        // 进度序号：批量试听分类时知道进行到第几个
+                        if (!progressText.isNullOrBlank()) {
+                            Text(
+                                progressText,
+                                style = MaterialTheme.typography.labelMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
+                    // 已分配分类：回看上一个声音时知道是否分过类；重选分类即覆盖改派
+                    if (!assignedCategory.isNullOrBlank()) {
+                        Text(
+                            "已分类：$assignedCategory",
+                            style = MaterialTheme.typography.labelMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.padding(bottom = 6.dp)
+                        )
+                    }
                 }
 
                 SelectionContainer {
@@ -178,14 +218,7 @@ fun AuditionDialog(
                     }
 
                 if (onCategoryAssigned != null && voiceId != null && error.isEmpty()) {
-                    val categoryRows = remember {
-                        listOf(
-                            listOf("女童", "少女"),
-                            listOf("女青年", "女中年", "女老年"),
-                            listOf("男童", "少年"),
-                            listOf("男青年", "男中年", "男老年")
-                        )
-                    }
+                    val categoryRows = remember { com.github.jing332.compose.widgets.VoiceCategories.ROWS }
                     Text(
                         stringResource(id = R.string.assign_category_hint),
                         style = MaterialTheme.typography.labelMedium,
@@ -216,6 +249,10 @@ fun AuditionDialog(
             }
         },
         buttons = {
+            // 重播：没听清可再听一遍；失败时兼作重试（error 清空后分类按钮恢复显示）
+            TextButton(onClick = { error = ""; info = ""; retryKey++ }) {
+                Text("重播")
+            }
             if (onPrev != null) {
                 TextButton(onClick = onPrev, enabled = hasPrev) {
                     Icon(Icons.AutoMirrored.Filled.NavigateBefore, contentDescription = "上一个")

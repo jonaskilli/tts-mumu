@@ -252,6 +252,8 @@ class PluginTtsUI : IConfigUI() {
         var auditionVoiceId by remember { mutableStateOf<Any?>(null) }
         // 发音人 → 分类名（分配了分类的发音人保存时走新逻辑）
         var voiceCategoryMap by remember { mutableStateOf<Map<Any, String>>(emptyMap()) }
+        // 发音人 → 真实采样率（试听时从音频解析缓存，批量保存直接复用，无需再合成）
+        var voiceSampleRateCache by remember { mutableStateOf<Map<Any, Int>>(emptyMap()) }
         // 开关1：试听弹窗等待分类（播放完毕不自动关闭）
         var waitCategorySwitch by remember { mutableStateOf(false) }
         // 开关2：点分类后自动试听下一个
@@ -319,6 +321,12 @@ class PluginTtsUI : IConfigUI() {
                             startAuditionForVoice(vm.voices[nextIndex])
                         }
                     }
+                },
+                assignedCategory = voiceCategoryMap[auditionVoiceId],
+                progressText = if (currentVoiceIndex >= 0 && vm.voices.size > 1)
+                    "${currentVoiceIndex + 1}/${vm.voices.size}" else null,
+                onSampleRateResolved = { vid, rate ->
+                    if (vid != null) voiceSampleRateCache = voiceSampleRateCache + (vid to rate)
                 }
             ) {
                 auditionSystts = null
@@ -556,11 +564,13 @@ class PluginTtsUI : IConfigUI() {
                                                 }
 
                                                 // 解析该声音的真实采样率与是否需要解码：
-                                                // 优先取插件 JS 实现的 getAudioSampleRate（快且准）；
-                                                // 未实现/返回 null 时，实际合成一次并从音频字节解出采样率（避免落入 16000 默认值）。
-                                                val voiceSampleRate = runCatching {
-                                                    vm.engine.getSampleRate(tts.locale, voice.id)
-                                                }.getOrNull()?.takeIf { it > 0 } ?: resolveSampleRateBySynth(
+                                                // 1. 试听时从真实音频解析并缓存的采样率（零额外开销）；
+                                                // 2. 插件 JS 实现的 getAudioSampleRate（快且准）；
+                                                // 3. 实际合成一次并从音频字节解出采样率（避免落入 16000 默认值）。
+                                                val voiceSampleRate = voiceSampleRateCache[voice.id]
+                                                    ?: runCatching {
+                                                        vm.engine.getSampleRate(tts.locale, voice.id)
+                                                    }.getOrNull()?.takeIf { it > 0 } ?: resolveSampleRateBySynth(
                                                     provider = vm.service(),
                                                     config = config,
                                                     voiceId = voice.id,
