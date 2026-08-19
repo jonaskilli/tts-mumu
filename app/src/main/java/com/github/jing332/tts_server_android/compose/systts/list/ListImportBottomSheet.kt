@@ -36,7 +36,6 @@ import com.github.jing332.tts_server_android.ui.view.AppDialogs.displayErrorDial
 import com.drake.net.utils.withIO
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.yield
 
 @Composable
 fun ListImportBottomSheet(onDismissRequest: () -> Unit) {
@@ -299,10 +298,9 @@ private fun doImportList(
                 ttsToInsert.add(tts.copy(id = baseId + 100000 + ttsSeq, groupId = newGroupId))
                 ttsSeq++
                 imported++
-                // 每 50 项回报一次进度，并让出线程使进度条可刷新
+                // 每 50 项回报一次进度，使进度条可刷新
                 if (imported % 50 == 0) {
                     onProgress(imported, total)
-                    kotlinx.coroutines.yield()
                 }
             }
         }
