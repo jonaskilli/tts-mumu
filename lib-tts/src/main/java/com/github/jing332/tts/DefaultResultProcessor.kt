@@ -115,9 +115,11 @@ internal class DefaultResultProcessor(
             val loudnessInfo = SpeakerLoudnessManager.infoFor(config)
 
             // 计算实际生效的音频参数，判断是否需要 Sonic 和 Loudness 处理
-            val effectiveSpeed = if (config.audioParams.speed <= 0f) 1f else config.audioParams.speed
-            val effectiveVolume = if (config.audioParams.volume <= 0f) 1f else config.audioParams.volume
-            val effectivePitch = if (config.audioParams.pitch <= 0f) 1f else config.audioParams.pitch
+            // pluginHandlesXxx=true 表示插件JS已自行处理该项(如发给服务端变速)，
+            // 本机 Sonic 不再叠加，避免朗读双重生效
+            val effectiveSpeed = if (config.pluginHandlesSpeed || config.audioParams.speed <= 0f) 1f else config.audioParams.speed
+            val effectiveVolume = if (config.pluginHandlesVolume || config.audioParams.volume <= 0f) 1f else config.audioParams.volume
+            val effectivePitch = if (config.pluginHandlesPitch || config.audioParams.pitch <= 0f) 1f else config.audioParams.pitch
             val needsResample = config.audioFormat.sampleRate != targetSampleRate
             val needsSonic = effectiveSpeed != 1f || effectiveVolume != 1f || effectivePitch != 1f || needsResample
             val needsLoudness = loudnessInfo.gain != 1f

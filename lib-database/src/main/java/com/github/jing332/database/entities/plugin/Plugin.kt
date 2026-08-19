@@ -49,6 +49,17 @@ data class Plugin(
     // 插件级音频参数（全局调节该插件下所有发音人）
     @ColumnInfo(defaultValue = "{}")
     var audioParams: AudioParams = AudioParams(),
+
+    // 插件JS已自行处理该参数（如把语速发给服务端变速），
+    // 朗读时本机 Sonic 不再叠加该项，避免双重生效
+    @ColumnInfo(defaultValue = "0")
+    var pluginHandlesSpeed: Boolean = false,
+
+    @ColumnInfo(defaultValue = "0")
+    var pluginHandlesVolume: Boolean = false,
+
+    @ColumnInfo(defaultValue = "0")
+    var pluginHandlesPitch: Boolean = false,
 ) : Parcelable {
     val mutableUserVars: MutableMap<String, String>
         get() = userVars as MutableMap<String, String>

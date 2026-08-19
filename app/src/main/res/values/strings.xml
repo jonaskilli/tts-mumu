@@ -391,6 +391,11 @@
     <string name="plugin_audio_params">音频参数</string>
     <string name="plugin_audio_params_desc">统一调节该插件下所有发音人的语速、音量、音调。最终参数 = 插件参数 × 单独参数 × 分组参数 × 全局参数</string>
     <string name="plugin_audio_params_saved">音频参数已保存</string>
+    <string name="plugin_handles_params_title">参数由插件处理</string>
+    <string name="plugin_handles_params_desc">勾选后朗读时本机不再叠加该项参数（参数已随请求发给插件处理，如服务端变速），避免双重生效导致语速/音量变化过大。试听不受影响。</string>
+    <string name="plugin_handles_speed">语速已由插件处理</string>
+    <string name="plugin_handles_volume">音量已由插件处理</string>
+    <string name="plugin_handles_pitch">音调已由插件处理</string>
     <string name="config_list">配置列表</string>
     <string name="plugin">插件</string>
     <string name="invalid_items">失效项</string>

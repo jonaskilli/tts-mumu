@@ -13,6 +13,12 @@ data class TtsConfiguration(
     val source: TextToSpeechSource,
     val tag: Any? = null,
 
+    // 插件JS已自行处理该项参数时为 true（来自插件表设置），
+    // 朗读时 Sonic 不再叠加该项，避免双重生效
+    val pluginHandlesSpeed: Boolean = false,
+    val pluginHandlesVolume: Boolean = false,
+    val pluginHandlesPitch: Boolean = false,
+
     val standbyConfig: TtsConfiguration? = null,
 ) {
     fun shouldDecode(): Boolean {

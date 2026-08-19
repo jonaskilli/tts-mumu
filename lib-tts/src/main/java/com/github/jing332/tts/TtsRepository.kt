@@ -48,6 +48,18 @@ internal class TtsRepository(
     }
 
 
+    // 带插件处理标志的 toVO：备用/兜底配置构造时同步插件表的 pluginHandlesXxx
+    private fun TtsConfigurationDTO.toVOWithPluginFlags(): TtsConfiguration {
+        val pluginRecord = (source as? com.github.jing332.database.entities.systts.source.PluginTtsSource)?.let {
+            dbm.pluginDao.getByPluginId(it.pluginId)
+        }
+        return toVO().copy(
+            pluginHandlesSpeed = pluginRecord?.pluginHandlesSpeed == true,
+            pluginHandlesVolume = pluginRecord?.pluginHandlesVolume == true,
+            pluginHandlesPitch = pluginRecord?.pluginHandlesPitch == true
+        )
+    }
+
     override fun getAllTts(): Map<Long, TtsConfiguration> {
         val tp = context.cfg.audioParams()
         val groupWithTts = dbm.systemTtsV2.getAllGroupWithTts()
@@ -57,7 +69,7 @@ internal class TtsRepository(
                 .filter { it.isEnabled && (it.config as? TtsConfigurationDTO)?.speechRule?.isStandby == true }
                 .map {
                     val config = it.config as TtsConfigurationDTO
-                    config.toVO().copy(tag = it)
+                    config.toVOWithPluginFlags().copy(tag = it)
                 }
 
         // 性别兜底配置池：duihuaA(男)/duihuaB(女)/duihua(中性)三个标签的配置，不依赖 isStandby 标记
@@ -70,7 +82,7 @@ internal class TtsRepository(
                 }
                 .map {
                     val config = it.config as TtsConfigurationDTO
-                    config.toVO().copy(tag = it)
+                    config.toVOWithPluginFlags().copy(tag = it)
                 }
 
         for (group in groupWithTts) {
@@ -114,10 +126,10 @@ internal class TtsRepository(
                 }
 
                 // 获取插件级音频参数（新增）
-                val pluginParams = (c.source as? com.github.jing332.database.entities.systts.source.PluginTtsSource)?.let {
-                    dbm.pluginDao.getByPluginId(it.pluginId)?.audioParams
-                        ?: AudioParams()
-                } ?: AudioParams()
+                val pluginRecord = (c.source as? com.github.jing332.database.entities.systts.source.PluginTtsSource)?.let {
+                    dbm.pluginDao.getByPluginId(it.pluginId)
+                }
+                val pluginParams = pluginRecord?.audioParams ?: AudioParams()
 
                 // 子分组参数
                 val subGroupParams = subGroupMap[tts.categoryPath] ?: AudioParams()
@@ -137,6 +149,9 @@ internal class TtsRepository(
                     ),
                     audioFormat = c.audioFormat,
                     source = c.source,
+                    pluginHandlesSpeed = pluginRecord?.pluginHandlesSpeed == true,
+                    pluginHandlesVolume = pluginRecord?.pluginHandlesVolume == true,
+                    pluginHandlesPitch = pluginRecord?.pluginHandlesPitch == true,
                     standbyConfig = effectiveStandby,
                     tag = tts
                 )

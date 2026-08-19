@@ -25,9 +25,9 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.AppShortcut
 import androidx.compose.material.icons.filled.CleaningServices
 import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.Code
 import androidx.compose.material.icons.filled.DeleteForever
 import androidx.compose.material.icons.filled.DeleteSweep
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.EditNote
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Output
@@ -194,9 +194,19 @@ fun PluginManagerScreen(sharedVM: SharedViewModel, onFinishActivity: () -> Unit)
         val plugin = showAudioParamsDialog!!
         PluginAudioParamsDialog(
             initialParams = plugin.audioParams,
+            initialHandlesSpeed = plugin.pluginHandlesSpeed,
+            initialHandlesVolume = plugin.pluginHandlesVolume,
+            initialHandlesPitch = plugin.pluginHandlesPitch,
             onDismissRequest = { showAudioParamsDialog = null },
-            onConfirm = { newParams ->
-                dbm.pluginDao.update(plugin.copy(audioParams = newParams))
+            onConfirm = { newParams, handlesSpeed, handlesVolume, handlesPitch ->
+                dbm.pluginDao.update(
+                    plugin.copy(
+                        audioParams = newParams,
+                        pluginHandlesSpeed = handlesSpeed,
+                        pluginHandlesVolume = handlesVolume,
+                        pluginHandlesPitch = handlesPitch
+                    )
+                )
                 // 通知服务更新配置，使插件音频参数立即生效
                 SystemTtsService.notifyUpdateConfig()
                 showAudioParamsDialog = null
@@ -793,7 +803,7 @@ private fun Item(
                 Row {
                     var showOptions by remember { mutableStateOf(false) }
                     IconButton(onClick = onEdit) {
-                        Icon(Icons.Default.Code, stringResource(id = R.string.edit_code_desc, name))
+                        Icon(Icons.Default.Edit, stringResource(id = R.string.edit_code_desc, name))
                     }
                     IconButton(onClick = { showOptions = true }) {
                         Icon(

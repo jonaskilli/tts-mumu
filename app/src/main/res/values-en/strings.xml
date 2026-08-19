@@ -344,6 +344,11 @@
     <string name="batch_fix_select_source">Select Invalid Source</string>
     <string name="batch_fix_confirm">Replace plugin for %1$d invalid config item(s) with \"%2$s\"?</string>
     <string name="no_invalid_items">No invalid config items</string>
+    <string name="plugin_handles_params_title">Params handled by plugin</string>
+    <string name="plugin_handles_params_desc">When checked, the app will not apply this param locally during playback (it is already sent to and handled by the plugin, e.g. server-side speed change), preventing double application. Audition is unaffected.</string>
+    <string name="plugin_handles_speed">Speed handled by plugin</string>
+    <string name="plugin_handles_volume">Volume handled by plugin</string>
+    <string name="plugin_handles_pitch">Pitch handled by plugin</string>
     <string name="replace_rule">Replace Rule</string>
     <string name="speech_rule">Speech Rule</string>
     <string name="backup_loudness">Loudness learning data</string>
