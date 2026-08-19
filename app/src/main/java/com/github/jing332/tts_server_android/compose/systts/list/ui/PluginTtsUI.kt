@@ -34,6 +34,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.drake.net.utils.withIO
+import com.github.jing332.common.audio.AudioDecoder
 import com.github.jing332.common.utils.toScale
 import com.github.jing332.common.utils.toast
 import com.github.jing332.compose.widgets.AppSpinner
@@ -47,7 +48,12 @@ import com.github.jing332.database.entities.systts.BasicAudioFormat
 import com.github.jing332.database.entities.systts.SystemTtsV2
 import com.github.jing332.database.entities.systts.TtsConfigurationDTO
 import com.github.jing332.database.entities.systts.source.PluginTtsSource
+import com.github.jing332.database.entities.systts.source.TextToSpeechSource
+import com.github.jing332.tts.speech.TextToSpeechProvider
+import com.github.jing332.tts.synthesizer.SystemParams
 import com.github.jing332.tts_server_android.R
+import com.github.jing332.tts_server_android.conf.AppConfig
+import com.github.jing332.tts_server_android.conf.SysTtsConfig
 import com.github.jing332.tts_server_android.compose.systts.AuditionDialog
 import com.github.jing332.tts_server_android.compose.systts.list.ui.widgets.AuditionTextField
 import com.github.jing332.tts_server_android.compose.systts.list.ui.widgets.BasicInfoEditScreen
@@ -549,9 +555,29 @@ class PluginTtsUI : IConfigUI() {
                                                     }
                                                 }
 
+                                                // 解析该声音的真实采样率与是否需要解码：
+                                                // 优先取插件 JS 实现的 getAudioSampleRate（快且准）；
+                                                // 未实现/返回 null 时，实际合成一次并从音频字节解出采样率（避免落入 16000 默认值）。
+                                                val voiceSampleRate = runCatching {
+                                                    vm.engine.getSampleRate(tts.locale, voice.id)
+                                                }.getOrNull() ?: resolveSampleRateBySynth(
+                                                    engine = vm.service(),
+                                                    config = config,
+                                                    voiceId = voice.id,
+                                                    tts = tts,
+                                                    context = context
+                                                )
+                                                val voiceNeedDecode = runCatching {
+                                                    vm.engine.isNeedDecode(tts.locale, voice.id)
+                                                }.getOrNull() ?: config.audioFormat.isNeedDecode
+
                                                 val newConfig = config.copy(
                                                     source = tts.copy(voice = voice.id),
-                                                    speechRule = newRuleData
+                                                    speechRule = newRuleData,
+                                                    audioFormat = BasicAudioFormat(
+                                                        sampleRate = voiceSampleRate,
+                                                        isNeedDecode = voiceNeedDecode
+                                                    )
                                                 )
                                                 dbm.systemTtsV2.insert(
                                                     systts.copy(
@@ -631,5 +657,35 @@ class PluginTtsUI : IConfigUI() {
                 )
             }
         }
+    }
+}
+
+/**
+ * 批量分组保存时，若插件 JS 未实现 getAudioSampleRate，则实际合成一次，
+ * 从返回音频字节解析真实采样率，避免落入 16000 默认值。
+ */
+private suspend fun resolveSampleRateBySynth(
+    provider: TextToSpeechProvider<TextToSpeechSource>,
+    config: TtsConfigurationDTO,
+    tts: PluginTtsSource,
+    voiceId: Any,
+): Int {
+    return try {
+        val stream = provider.getStream(
+            SystemParams(
+                text = AppConfig.testSampleText.value,
+                speed = config.audioParams.speed,
+                volume = config.audioParams.volume,
+                pitch = config.audioParams.pitch,
+                requestTimeout = SysTtsConfig.requestTimeout.toLong()
+            ),
+            tts.copy(voice = voiceId)
+        )
+        val audio = stream.readBytes()
+        val rate = AudioDecoder.getSampleRateAndMime(audio).first
+        if (rate <= 0) config.audioFormat.sampleRate else rate
+    } catch (e: Exception) {
+        // 合成失败时退回原配置值，保留用户已有采样率
+        config.audioFormat.sampleRate
     }
 }
