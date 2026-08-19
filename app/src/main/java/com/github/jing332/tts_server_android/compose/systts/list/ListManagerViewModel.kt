@@ -94,7 +94,7 @@ class ListManagerViewModel : ViewModel() {
                                 invalid++
                                 srcCounts[src.pluginId] = (srcCounts[src.pluginId] ?: 0) + 1
                                 srcItems.getOrPut(src.pluginId) { mutableListOf() }
-                                    .add(item.displayName.ifBlank { item.name })
+                                    .add(item.displayName.ifBlank { "(#${item.id})" })
                             }
                         }
                     }
