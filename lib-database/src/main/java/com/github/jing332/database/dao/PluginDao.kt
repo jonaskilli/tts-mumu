@@ -24,20 +24,20 @@ interface PluginDao {
      * 轻量Flow查询：code返回空字符串，避免大code导致Cursor窗口溢出闪退
      * 用于插件管理列表等不需要code的场景
      */
-    @Query("SELECT id, isEnabled, version, name, pluginId, author, iconUrl, '' AS code, defVars, userVars, `order`, audioParams FROM plugin ORDER BY `order` ASC")
+    @Query("SELECT id, isEnabled, version, name, pluginId, author, iconUrl, '' AS code, defVars, userVars, `order`, audioParams, pluginHandlesSpeed, pluginHandlesVolume, pluginHandlesPitch FROM plugin ORDER BY `order` ASC")
     fun flowAllWithoutCode(): Flow<List<Plugin>>
 
     /**
      * 轻量查询：code返回空字符串，避免加载2MB+大code导致Cursor窗口溢出
      * 用于列表展示等不需要code的场景
      */
-    @Query("SELECT id, isEnabled, version, name, pluginId, author, iconUrl, '' AS code, defVars, userVars, `order`, audioParams FROM plugin ORDER BY `order` ASC")
+    @Query("SELECT id, isEnabled, version, name, pluginId, author, iconUrl, '' AS code, defVars, userVars, `order`, audioParams, pluginHandlesSpeed, pluginHandlesVolume, pluginHandlesPitch FROM plugin ORDER BY `order` ASC")
     fun getAllWithoutCode(): List<Plugin>
 
     /**
      * 轻量查询：code返回空字符串，仅返回已启用的插件，避免大code导致Cursor窗口溢出
      */
-    @Query("SELECT id, isEnabled, version, name, pluginId, author, iconUrl, '' AS code, defVars, userVars, `order`, audioParams FROM plugin WHERE isEnabled = '1' ORDER BY `order` ASC")
+    @Query("SELECT id, isEnabled, version, name, pluginId, author, iconUrl, '' AS code, defVars, userVars, `order`, audioParams, pluginHandlesSpeed, pluginHandlesVolume, pluginHandlesPitch FROM plugin WHERE isEnabled = '1' ORDER BY `order` ASC")
     fun getAllEnabledWithoutCode(): List<Plugin>
 
     @get:Query("SELECT count(*) FROM plugin")
