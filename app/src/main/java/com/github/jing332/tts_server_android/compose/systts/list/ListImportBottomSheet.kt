@@ -43,8 +43,9 @@ fun ListImportBottomSheet(onDismissRequest: () -> Unit) {
     // 结果以模态对话框展示，由 ConfigImportBottomSheet 在导入结束后统一弹出，
     // 用户确认后再 onDismissRequest，避免 AlertDialog 叠在 ModalBottomSheet 上被遮挡。
     var successMsg = remember { mutableStateOf<String?>(null) }
-    if (successMsg.value != null) {
-        val msgText = successMsg.value
+    // 先取局部 val 再判空：局部 val 支持 smart cast，MutableState.value 属性不支持
+    val msgText = successMsg.value
+    if (msgText != null) {
         AlertDialog(
             onDismissRequest = { successMsg.value = null; onDismissRequest() },
             confirmButton = {

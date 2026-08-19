@@ -560,12 +560,11 @@ class PluginTtsUI : IConfigUI() {
                                                 // 未实现/返回 null 时，实际合成一次并从音频字节解出采样率（避免落入 16000 默认值）。
                                                 val voiceSampleRate = runCatching {
                                                     vm.engine.getSampleRate(tts.locale, voice.id)
-                                                }.getOrNull() ?: resolveSampleRateBySynth(
-                                                    engine = vm.service(),
+                                                }.getOrNull()?.takeIf { it > 0 } ?: resolveSampleRateBySynth(
+                                                    provider = vm.service(),
                                                     config = config,
                                                     voiceId = voice.id,
-                                                    tts = tts,
-                                                    context = context
+                                                    tts = tts
                                                 )
                                                 val voiceNeedDecode = runCatching {
                                                     vm.engine.isNeedDecode(tts.locale, voice.id)
@@ -668,7 +667,7 @@ private suspend fun resolveSampleRateBySynth(
     provider: TextToSpeechProvider<TextToSpeechSource>,
     config: TtsConfigurationDTO,
     tts: PluginTtsSource,
-    voiceId: Any,
+    voiceId: String,
 ): Int {
     return try {
         val stream = provider.getStream(
