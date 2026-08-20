@@ -2,7 +2,6 @@ package com.github.jing332.tts_server_android.compose.systts
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -31,6 +30,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.drake.net.utils.withMain
 import com.github.jing332.common.audio.AudioPlayer
 import com.github.jing332.common.utils.messageChain
@@ -71,7 +71,7 @@ fun AuditionDialog(
     autoDismiss: Boolean = true,
     hasPrev: Boolean = false,
     hasNext: Boolean = false,
-    onCategoryAssigned: ((voiceId: Any, categoryName: String) -> Unit)? = null,
+    onCategoryAssigned: ((voiceId: Any, categoryName: String?) -> Unit)? = null,
     onPrev: (() -> Unit)? = null,
     onNext: (() -> Unit)? = null,
     // 当前声音已分配的分类（回看时显示，重选分类即覆盖改派）
@@ -221,7 +221,7 @@ fun AuditionDialog(
                         }
                     }
 
-                // —— 分配分类：按性别年龄归类，保存时依据朗读规则生成标签 ——
+                // —— 分配分类：女性列 / 男性列 / 主角特殊旁白列 三列竖向排开，点击已选中的标签即取消（传 null） ——
                 if (onCategoryAssigned != null && voiceId != null && error.isEmpty()) {
                     Text(
                         stringResource(id = R.string.assign_category_hint),
@@ -229,19 +229,34 @@ fun AuditionDialog(
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.padding(top = 12.dp)
                     )
-                    FlowRow(
+                    // 三列布局：女性组、男性组、主角特殊旁白组，每列内部竖向堆叠标签，互不混排
+                    Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(top = 4.dp),
-                        horizontalArrangement = Arrangement.spacedBy(6.dp),
-                        verticalArrangement = Arrangement.spacedBy(2.dp)
+                            .padding(top = 8.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.Top
                     ) {
-                        com.github.jing332.compose.widgets.VoiceCategories.ALL.forEach { category ->
-                            FilterChip(
-                                selected = category == assignedCategory,
-                                onClick = { onCategoryAssigned.invoke(voiceId, category) },
-                                label = { Text(category) }
-                            )
+                        com.github.jing332.compose.widgets.VoiceCategories.COLUMNS.forEach { column ->
+                            Column(
+                                verticalArrangement = Arrangement.spacedBy(6.dp),
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                modifier = Modifier.weight(1f)
+                            ) {
+                                column.forEach { category ->
+                                    FilterChip(
+                                        selected = category == assignedCategory,
+                                        // 再次点击已选中的分类 = 取消分配（传 null）
+                                        onClick = {
+                                            onCategoryAssigned.invoke(
+                                                voiceId,
+                                                if (category == assignedCategory) null else category
+                                            )
+                                        },
+                                        label = { Text(category, fontSize = 12.sp) }
+                                    )
+                                }
+                            }
                         }
                     }
                 }
@@ -265,7 +280,6 @@ fun AuditionDialog(
                     Icon(Icons.AutoMirrored.Filled.NavigateNext, contentDescription = "下一个")
                 }
             }
-            TextButton(onClick = onDismissRequest) { Text(stringResource(id = R.string.cancel)) }
         }
     )
 

@@ -298,14 +298,19 @@ class PluginTtsUI : IConfigUI() {
                 hasPrev = currentVoiceIndex > 0,
                 hasNext = currentVoiceIndex >= 0 && currentVoiceIndex < vm.voices.size - 1,
                 onCategoryAssigned = { voiceId, category ->
-                    voiceCategoryMap = voiceCategoryMap + (voiceId to category)
-                    if (voiceId !in selectedVoiceIds) {
+                    // category == null 表示取消分配（归为默认），与列表长按分类「取消」语义一致
+                    voiceCategoryMap = if (category == null) {
+                        voiceCategoryMap - voiceId
+                    } else {
+                        voiceCategoryMap + (voiceId to category)
+                    }
+                    if (category != null && voiceId !in selectedVoiceIds) {
                         selectedVoiceIds = selectedVoiceIds + voiceId
                     }
-                    // 原地切换到下一个：直接更新试听对象，不销毁弹窗，避免闪断；
-                    // systts 变化会触发 LaunchedEffect 自动重播、DisposableEffect 先停旧音频
+                    // 原地切换到下一个：仅真正分配分类时才自动跳下一个，
+                    // 取消分配（category == null）不触发跳转，避免误触后直接跳过
                     val nextIndex = currentVoiceIndex + 1
-                    if (autoNextSwitch && nextIndex in vm.voices.indices) {
+                    if (category != null && autoNextSwitch && nextIndex in vm.voices.indices) {
                         startAuditionForVoice(vm.voices[nextIndex])
                     }
                 },
