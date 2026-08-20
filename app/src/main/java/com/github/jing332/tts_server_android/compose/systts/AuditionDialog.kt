@@ -95,6 +95,16 @@ fun AuditionDialog(
         }
     }
 
+    // 弹窗出现即后台预热引擎，缩短首次播放出声延迟（静默，不输出日志）
+    LaunchedEffect(systts) {
+        launch(Dispatchers.IO) {
+            runCatching {
+                val e = engine ?: CachedEngineManager.getEngine(appCtx, config.source) ?: return@runCatching
+                if (e.state is EngineState.Uninitialized) e.onInit()
+            }
+        }
+    }
+
     LaunchedEffect(systts, retryKey) {
         error = ""
         info = ""
