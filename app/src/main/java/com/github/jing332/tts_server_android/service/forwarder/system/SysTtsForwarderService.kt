@@ -78,17 +78,15 @@ class SysTtsForwarderService(
                 val speed = (params.speed + 100) / 100f
                 val pitch = params.pitch / 100f
 
-                // 转发器引擎(APP包名): 使用本APP的TTS系统(MixSynthesizer)合成
-                if (params.engine == forwarderEngineName) {
-                    return synthesizeWithAppTts(params.text, speed, pitch)
-                }
-
-                // 其他引擎: 使用Android系统TTS
+                // 转发器引擎(APP包名)回退到系统默认TTS引擎合成(本地、快速), 与 voices() 一致
+                val engineForInit =
+                    if (params.engine == forwarderEngineName) "" else params.engine
+                // 使用Android系统TTS
                 return withContext(NonCancellable) {
                     withTimeoutOrNull(130000L) {
-                        Log.d(TAG, "android tts init: ${params.engine}")
-                        sendLog(com.github.jing332.common.LogLevel.DEBUG, "初始化引擎: ${params.engine}")
-                        androidTts.init(params.engine)
+                        Log.d(TAG, "android tts init: $engineForInit")
+                        sendLog(com.github.jing332.common.LogLevel.DEBUG, "初始化引擎: $engineForInit")
+                        androidTts.init(engineForInit)
 
                         Log.d(TAG, "android tts get file...")
                         sendLog(com.github.jing332.common.LogLevel.DEBUG, "获取音频文件...")
@@ -184,85 +182,5 @@ class SysTtsForwarderService(
         return default
     }
 
-    // 转发器引擎: 通过APP自身的TTS系统(MixSynthesizer)合成, PCM收集后封装WAV
-    private suspend fun synthesizeWithAppTts(text: String, speed: Float, pitch: Float): File? =
-        withContext(NonCancellable) {
-            withTimeoutOrNull(130000L) {
-                sendLog(com.github.jing332.common.LogLevel.DEBUG, "使用本APP TTS引擎合成")
-                Log.d(TAG, "synthesize with MixSynthesizer")
-
-                val synthesizer = com.github.jing332.tts.MixSynthesizer.global
-                synthesizer.init()
-
-                var sampleRate = 24000
-                val audioBuffer = java.io.ByteArrayOutputStream()
-
-                val result = synthesizer.synthesize(
-                    params = com.github.jing332.tts.synthesizer.SystemParams(
-                        text = text,
-                        speed = speed,
-                        pitch = pitch,
-                        requestTimeout = 120000L
-                    ),
-                    forceConfigId = null,
-                    callback = object : com.github.jing332.tts.synthesizer.SynthesisCallback {
-                        override fun onSynthesizeStart(sr: Int) {
-                            sampleRate = sr
-                        }
-
-                        override fun onSynthesizeAvailable(audio: ByteArray) {
-                            audioBuffer.write(audio)
-                        }
-                    }
-                )
-
-                result.onFailure {
-                    Log.e(TAG, "APP TTS合成失败: $it")
-                    sendLog(com.github.jing332.common.LogLevel.ERROR, "APP TTS合成失败: $it")
-                    return@withTimeoutOrNull null
-                }
-
-                if (audioBuffer.size() == 0) {
-                    sendLog(com.github.jing332.common.LogLevel.ERROR, "APP TTS合成失败: 无音频输出")
-                    return@withTimeoutOrNull null
-                }
-
-                // PCM -> WAV
-                val pcmData = audioBuffer.toByteArray()
-                val wavFile = File.createTempFile("forwarder_", ".wav", cacheDir)
-                writeWavFile(wavFile, pcmData, sampleRate)
-                sendLog(com.github.jing332.common.LogLevel.INFO, "APP TTS合成成功: ${wavFile.length()} bytes")
-                wavFile
-            }
-        }
-
-    private fun writeWavFile(file: File, pcmData: ByteArray, sampleRate: Int) {
-        val dataLength = pcmData.size
-        java.io.DataOutputStream(java.io.FileOutputStream(file)).use { out ->
-            out.writeBytes("RIFF")
-            out.write(intToLE(dataLength + 36))
-            out.writeBytes("WAVE")
-            out.writeBytes("fmt ")
-            out.write(intToLE(16))
-            out.write(shortToLE(1))
-            out.write(shortToLE(1))
-            out.write(intToLE(sampleRate))
-            out.write(intToLE(sampleRate * 2))
-            out.write(shortToLE(2))
-            out.write(shortToLE(16))
-            out.writeBytes("data")
-            out.write(intToLE(dataLength))
-            out.write(pcmData)
-        }
-    }
-
-    private fun intToLE(v: Int) = byteArrayOf(
-        (v and 0xFF).toByte(), (v shr 8 and 0xFF).toByte(),
-        (v shr 16 and 0xFF).toByte(), (v shr 24 and 0xFF).toByte()
-    )
-
-    private fun shortToLE(v: Int) = byteArrayOf(
-        (v and 0xFF).toByte(), (v shr 8 and 0xFF).toByte()
-    )
-
+    // 转发器引擎: 回退到系统默认TTS引擎合成(本地、快速)
 }
