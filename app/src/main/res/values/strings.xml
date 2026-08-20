@@ -309,6 +309,8 @@
     <string name="config_import_success_msg">共导入 %1$d 条配置</string>
     <string name="import_in_progress">正在识别并导入…</string>
     <string name="import_no_valid_config">未识别到有效配置</string>
+    <string name="import_no_valid_config_reason_empty">内容为空，请检查文件是否为空或剪贴板是否为空。</string>
+    <string name="import_no_valid_config_reason_unknown">无法判断配置类型：未匹配到配置列表 / 插件 / 朗读规则 / 替换规则的特征字段。请确认导入内容格式正确，或前往对应管理界面手动导入。</string>
     <string name="importing">正在导入…</string>
     <string name="importing_parsing">正在解析配置项…请稍候</string>
     <string name="importing_progress">已导入 %1$d / %2$d 项</string>

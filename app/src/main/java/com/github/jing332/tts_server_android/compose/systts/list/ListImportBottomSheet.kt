@@ -4,12 +4,16 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import com.github.jing332.common.utils.StringUtils
 import com.github.jing332.common.utils.toJsonListString
+import com.github.jing332.compose.widgets.LoadingDialog
 import com.github.jing332.database.dbm
 import com.github.jing332.database.entities.SpeechRule
 import com.github.jing332.database.entities.plugin.Plugin
@@ -30,15 +34,24 @@ import com.github.jing332.tts_server_android.ui.systts.ImportConfigFactory
 import com.github.jing332.tts_server_android.ui.systts.ImportType
 import com.github.jing332.tts_server_android.ui.view.AppDialogs.displayErrorDialog
 import com.drake.net.utils.withIO
+import kotlinx.coroutines.CoroutineScope
 
 @Composable
 fun ListImportBottomSheet(onDismissRequest: () -> Unit) {
     val context = LocalContext.current
+    // 导入协程作用域：独立于 BottomSheet 生命周期，关闭面板后导入仍继续
+    val importScope = rememberCoroutineScope()
+
+    // 导入进行中遮罩（全屏，在 BottomSheet 关闭后由本 composable 承载，自然置于最上层）
+    var isImporting by remember { mutableStateOf(false) }
+    if (isImporting) {
+        LoadingDialog(onDismissRequest = {}, text = context.getString(R.string.importing))
+    }
 
     // 外部文件打开导入（ImportConfigActivity）时，Activity 会立即 finish，
     // Toast 会被 Activity 销毁流程压制导致滞后几秒才显示。
-    // 结果以模态对话框展示，由 ConfigImportBottomSheet 在导入结束后统一弹出，
-    // 用户确认后再 onDismissRequest，避免 AlertDialog 叠在 ModalBottomSheet 上被遮挡。
+    // 结果以模态对话框展示，导入完成后统一弹出，用户确认后再 onDismissRequest，
+    // 避免 AlertDialog 叠在 ModalBottomSheet 上被遮挡。
     var successMsg = remember { mutableStateOf<String?>(null) }
     // 先取局部 val 再判空：局部 val 支持 smart cast，MutableState.value 属性不支持
     val msgText = successMsg.value
@@ -55,24 +68,34 @@ fun ListImportBottomSheet(onDismissRequest: () -> Unit) {
         return
     }
 
-    // 导入过程（读取→解析→写库）的连续状态机由 ConfigImportBottomSheet 承载，
-    // 这里仅负责异步写库与结果回传，结果通过 onResult 抛回给 ConfigImportBottomSheet 弹出。
+    // 导入过程（读取→解析→写库）由本 composable 承载全屏遮罩，
+    // 这里仅负责异步写库与结果回传，结果通过 onResult 抛回。
     ConfigImportBottomSheet(
         onDismissRequest = onDismissRequest,
         autoImport = true,
-        onResult = { msg -> if (msg != null) successMsg.value = msg },
+        importScope = importScope,
+        // 开始导入：立即关闭 BottomSheet + 显示全屏遮罩，避免遮罩被面板挡住、也无需保留面板
+        onImportStart = { isImporting = true; onDismissRequest() },
+        onResult = {
+            isImporting = false
+            if (it != null) successMsg.value = it
+        },
         onImport = { json ->
             // 自识别 JSON 类型并直接导入，无需手动选择/确认
-            // （suspend lambda：在 ConfigImportBottomSheet 遮罩内执行，勿再自起协程）
+            // （suspend lambda：在 importScope 内执行，勿再自起协程）
             val result = withIO {
                 doAutoImport(
                     json,
-                    onProgress = { _, _ -> } // 进度已合并进 ConfigImportBottomSheet 的连续状态机
+                    onProgress = { _, _ -> }
                 )
             }
             when (result) {
-                AutoImportResult.EmptyOrUnrecognized -> {
-                    successMsg.value = context.getString(R.string.import_no_valid_config)
+                is AutoImportResult.EmptyOrUnrecognized -> {
+                    // 识别不出类型：与解析失败一致，用错误对话框展示原因（可滚动/复制）
+                    context.displayErrorDialog(
+                        Exception(result.reason),
+                        title = context.getString(R.string.import_no_valid_config)
+                    )
                 }
                 is AutoImportResult.Truncated -> {
                     // JSON 解析失败：用错误对话框展示完整信息，支持滚动和复制
@@ -96,7 +119,8 @@ fun ListImportBottomSheet(onDismissRequest: () -> Unit) {
 
 /** 自动导入结果 */
 internal sealed class AutoImportResult {
-    object EmptyOrUnrecognized : AutoImportResult()
+    // reason：识别不出类型时的可读原因（如「无法判断配置类型…」），用于向用户展示而非只给一句空话
+    data class EmptyOrUnrecognized(val reason: String) : AutoImportResult()
     data class Truncated(val detail: String) : AutoImportResult()
     data class Success(val count: Int, val type: ImportType, val typeName: String) : AutoImportResult()
 }
@@ -107,21 +131,28 @@ internal sealed class AutoImportResult {
  */
 internal fun doAutoImport(
     json: String,
+    context: Context,
     onProgress: (done: Int, total: Int) -> Unit = { _, _ -> }
 ): AutoImportResult {
     val trimmed = json.trim()
-    if (trimmed.isEmpty()) return AutoImportResult.EmptyOrUnrecognized
+    if (trimmed.isEmpty()) return AutoImportResult.EmptyOrUnrecognized(
+        context.getString(R.string.import_no_valid_config_reason_empty)
+    )
 
     val type = try {
         ImportConfigFactory.detectType(trimmed)
     } catch (e: Exception) {
         return AutoImportResult.Truncated(e.message ?: e.toString())
-    } ?: return AutoImportResult.EmptyOrUnrecognized
+    } ?: return AutoImportResult.EmptyOrUnrecognized(
+        context.getString(R.string.import_no_valid_config_reason_unknown)
+    )
 
     return when (type) {
         ImportType.LIST -> doImportList(json, onProgress).let { result ->
             when (result) {
-                ListImportResult.EmptyOrUnrecognized -> AutoImportResult.EmptyOrUnrecognized
+                is ListImportResult.EmptyOrUnrecognized -> AutoImportResult.EmptyOrUnrecognized(
+                    context.getString(R.string.import_no_valid_config_reason_unknown)
+                )
                 is ListImportResult.Truncated -> AutoImportResult.Truncated(result.detail)
                 is ListImportResult.Success -> AutoImportResult.Success(result.count, type, "配置列表")
             }

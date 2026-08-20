@@ -128,10 +128,13 @@ fun AppSelectionDialog(
     AppDialog(
         title = {
             Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
             ) {
-                Box(Modifier.weight(1f)) { title() }
+                Box(Modifier.weight(1f, fill = false)) { title() }
                 IconButton(onClick = { showSearch = !showSearch }) {
                     Icon(
                         Icons.Default.Search,
@@ -154,7 +157,8 @@ fun AppSelectionDialog(
                         modifier = Modifier
                             .fillMaxWidth()
                             .padding(vertical = 4.dp),
-                        verticalAlignment = Alignment.CenterVertically
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.Center
                     ) {
                         onWaitCategorySwitchChange?.let { onChange ->
                             Row(verticalAlignment = Alignment.CenterVertically) {

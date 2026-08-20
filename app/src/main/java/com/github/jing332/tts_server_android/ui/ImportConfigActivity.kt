@@ -12,7 +12,6 @@ import androidx.compose.ui.res.stringResource
 import com.drake.net.utils.fileName
 import com.github.jing332.common.utils.FileUtils.readAllText
 import com.github.jing332.common.utils.longToast
-import com.github.jing332.compose.widgets.AppSelectionDialog
 import com.github.jing332.tts_server_android.R
 import com.github.jing332.tts_server_android.compose.ComposeActivity
 import com.github.jing332.tts_server_android.compose.systts.LocalImportFilePath
@@ -20,15 +19,12 @@ import com.github.jing332.tts_server_android.compose.systts.LocalImportRemoteUrl
 import com.github.jing332.tts_server_android.compose.theme.AppTheme
 import com.github.jing332.tts_server_android.ui.systts.ImportConfigFactory
 import com.github.jing332.tts_server_android.ui.systts.ImportConfigFactory.gotoEditorFromJS
-import com.github.jing332.tts_server_android.ui.systts.ImportType
 
 
 class ImportConfigActivity : ComposeActivity() {
     companion object {
         const val TAG = "ImportConfigActivity"
     }
-
-    private var showFileTypeSelectDialog = mutableStateOf("")
 
     private var type = mutableStateOf("")
     private var url = mutableStateOf("")
@@ -39,24 +35,6 @@ class ImportConfigActivity : ComposeActivity() {
 
         setContent {
             AppTheme {
-                if (showFileTypeSelectDialog.value.isNotEmpty()) {
-                    AppSelectionDialog(
-                        onDismissRequest = { showFileTypeSelectDialog.value = "" },
-                        title = {
-                            Text(stringResource(id = R.string.import_file_as))
-                        },
-                        value = Any(),
-                        values = ImportType.values().toList(),
-                        entries = ImportType.values().map { stringResource(id = it.strResId) },
-                        onClick = { v, _ ->
-                            type.value = (v as ImportType).id
-                            path.value = showFileTypeSelectDialog.value
-
-                            showFileTypeSelectDialog.value = ""
-                        }
-                    )
-                }
-
                 val sheet = remember(type.value) {
                     ImportConfigFactory.getBottomSheet(
                         type = type.value,
@@ -129,18 +107,9 @@ class ImportConfigActivity : ComposeActivity() {
                     if (!gotoEditorFromJS(txt)) longToast(R.string.js_file_type_not_recognized)
 
             } else {
-                val uri = intent.data!!
-                val txt = runCatching { uri.readAllText(this) }.getOrNull()
-                val detected = txt?.let { ImportConfigFactory.detectType(it) }
-                if (detected != null) {
-                    // 自动识别成功，跳过手动选择，直接打开对应导入页
-                    type.value = detected.id
-                    path.value = uri.toString()
-                    longToast(getString(R.string.import_auto_detected, getString(detected.strResId)))
-                } else {
-                    // 识别不出则回退到手动选择
-                    showFileTypeSelectDialog.value = uri.toString()
-                }
+                // 非 JS 文件：直接交给统一的自动导入流程（doAutoImport）识别和导入，
+                // 不在此重复识别，识别不出时也由统一流程给出原因提示，与内部导入一致。
+                path.value = intent.data!!.toString()
             }
 
             intent.data = null

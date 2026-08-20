@@ -210,7 +210,6 @@ class SystemTtsService : TextToSpeechService(), IEventDispatcher {
             runCatching {
                 // 预热转发器"转发器引擎"项所用的静态单例，避免开转发器首播才现场初始化
                 com.github.jing332.tts.MixSynthesizer.global.init()
-                logger.debug { "preloaded MixSynthesizer.global" }
 
                 dbm.systemTtsV2.getAllGroupWithTts()
                     .flatMap { it.list }
@@ -223,7 +222,6 @@ class SystemTtsService : TextToSpeechService(), IEventDispatcher {
                         runCatching {
                             dbm.pluginDao.getByPluginId(pluginId)?.let { plugin ->
                                 com.github.jing332.tts.speech.plugin.TtsPluginEngineManager.get(appCtx, plugin)
-                                logger.debug { "preloaded plugin engine: $pluginId" }
                             }
                         }.onFailure {
                             logger.warn { "preload plugin engine failed: $pluginId, ${it.message}" }

@@ -43,6 +43,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import kotlinx.coroutines.CoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -58,7 +59,6 @@ import com.github.jing332.common.utils.FileUtils.readAllText
 import com.github.jing332.common.utils.longToast
 import com.github.jing332.common.utils.toJsonListString
 import com.github.jing332.compose.widgets.AppDialog
-import com.github.jing332.compose.widgets.LoadingDialog
 import com.github.jing332.tts_server_android.R
 import com.github.jing332.tts_server_android.ui.AppActivityResultContracts
 import com.github.jing332.tts_server_android.ui.FilePickerActivity
@@ -92,6 +92,12 @@ fun ConfigImportBottomSheet(
     // 为 true 时：选好文件/填好URL后无需再点「导入」按钮，直接触发导入。
     // TTS 配置列表导入用 true（全自动），插件/替换规则等仍需手动确认(默认 false)。
     autoImport: Boolean = false,
+    // 导入开始回调：launchImport 真正开始前触发（在「读取」动作之前）。
+    // 调用方据此关闭 BottomSheet 并展示全屏「导入中」遮罩——避免遮罩被面板挡住。
+    onImportStart: () -> Unit = {},
+    // 承载导入协程的 scope。需由调用方传入（而非内部 scope），
+    // 否则 onImportStart 关闭 BottomSheet 后本组合销毁、协程被取消，导入中断。
+    importScope: CoroutineScope? = null,
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -122,32 +128,27 @@ fun ConfigImportBottomSheet(
         }
     }
 
-    // 单一导入遮罩：null=未开始/已结束；非 null=遮罩文案。
-    // 导入整体很快，只用一个「正在导入…」遮罩体现过程，不做多阶段切换。
-    var importPhase by remember { mutableStateOf<String?>(null) }
-    if (importPhase != null) {
-        LoadingDialog(onDismissRequest = {}, text = importPhase)
-    }
-
     // 统一的导入触发逻辑，文件选择回调和「导入」按钮共用。
-    // 读取与解析/写库都在同一个遮罩下完成，完成后由 onResult 弹出结果。
+    // 注意：导入过程中的「导入中」遮罩由调用方承载（见 onImportStart），
+    // 因为 BottomSheet 关闭后本组合会因 composition 销毁而丢失内部状态，
+    // 且普通 Dialog 遮罩会被 Material3 BottomSheet 的高层级挡住。
     fun launchImport(src: Int, urlStr: String? = null, uri: Uri? = null) {
-        scope.launch {
-            importPhase = context.getString(R.string.importing)
+        onImportStart()
+        (importScope ?: scope).launch {
             val jsonStr = runCatching { getConfig(src = src, url = urlStr, uri = uri) }.getOrNull()
             if (jsonStr == null) {
                 val err = runCatching { getConfig(src = src, url = urlStr, uri = uri) }
                     .exceptionOrNull() ?: Exception(context.getString(R.string.import_failed))
-                importPhase = null
                 onResult(null)
                 context.displayErrorDialog(err)
                 return@launch
             }
             val processed = withContext(Dispatchers.IO) { jsonStr.toJsonListString() }
-            // 写库（onImport 为 suspend）在遮罩内完成后才关闭，
+            // 写库（onImport 为 suspend）完成后交由调用方关闭遮罩并弹结果，
             // 避免最耗时的插入阶段无反馈、用户以为卡住
             onImport(processed)
-            importPhase = null
+            // 导入结束（无论成败，结果已在 onImport 内部处理）通知调用方关闭遮罩
+            onResult(null)
         }
     }
 
