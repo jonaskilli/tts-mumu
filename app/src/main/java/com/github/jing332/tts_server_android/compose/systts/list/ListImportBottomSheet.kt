@@ -43,24 +43,29 @@ fun ListImportBottomSheet(onDismissRequest: () -> Unit) {
     // 导入协程作用域：独立于 BottomSheet 生命周期，关闭面板后导入仍继续
     val importScope = rememberCoroutineScope()
 
-    // 导入进行中遮罩（全屏，在 BottomSheet 关闭后由本 composable 承载，自然置于最上层）
+    // 面板可见性：导入开始后置 false 仅收起 ModalBottomSheet，本 composable 保持挂载，
+    // 使 importScope / 全屏遮罩 / 结果弹窗存活，避免协程被取消导致导入静默失败。
+    var sheetVisible by remember { mutableStateOf(true) }
+    // 导入进行中遮罩（全屏，面板收起后由本 composable 承载，自然置于最上层）
     var isImporting by remember { mutableStateOf(false) }
-    if (isImporting) {
-        LoadingDialog(onDismissRequest = {}, text = context.getString(R.string.importing))
-    }
-
-    // 外部文件打开导入（ImportConfigActivity）时，Activity 会立即 finish，
-    // Toast 会被 Activity 销毁流程压制导致滞后几秒才显示。
-    // 结果以模态对话框展示，导入完成后统一弹出，用户确认后再 onDismissRequest，
-    // 避免 AlertDialog 叠在 ModalBottomSheet 上被遮挡。
+    // 导入结果文案（成功/失败原因），非 null 时弹出模态对话框
     var successMsg = remember { mutableStateOf<String?>(null) }
+
     // 先取局部 val 再判空：局部 val 支持 smart cast，MutableState.value 属性不支持
     val msgText = successMsg.value
     if (msgText != null) {
         AlertDialog(
-            onDismissRequest = { successMsg.value = null; onDismissRequest() },
+            onDismissRequest = {
+                successMsg.value = null
+                sheetVisible = false
+                onDismissRequest()
+            },
             confirmButton = {
-                TextButton(onClick = { successMsg.value = null; onDismissRequest() }) {
+                TextButton(onClick = {
+                    successMsg.value = null
+                    sheetVisible = false
+                    onDismissRequest()
+                }) {
                     Text(stringResource(id = R.string.ok))
                 }
             },
@@ -69,54 +74,69 @@ fun ListImportBottomSheet(onDismissRequest: () -> Unit) {
         return
     }
 
-    // 导入过程（读取→解析→写库）由本 composable 承载全屏遮罩，
-    // 这里仅负责异步写库与结果回传，结果通过 onResult 抛回。
-    ConfigImportBottomSheet(
-        onDismissRequest = onDismissRequest,
-        autoImport = true,
-        importScope = importScope,
-        // 开始导入：立即关闭 BottomSheet + 显示全屏遮罩，避免遮罩被面板挡住、也无需保留面板
-        onImportStart = { isImporting = true; onDismissRequest() },
-        onResult = {
-            isImporting = false
-            if (it != null) successMsg.value = it
-        },
-        onImport = { json ->
-            // 自识别 JSON 类型并直接导入，无需手动选择/确认
-            // （suspend lambda：在 importScope 内执行，勿再自起协程）
-            val result = withIO {
-                doAutoImport(
-                    json,
-                    context = context,
-                    onProgress = { _, _ -> }
-                )
-            }
-            when (result) {
-                is AutoImportResult.EmptyOrUnrecognized -> {
-                    // 识别不出类型：与解析失败一致，用错误对话框展示原因（可滚动/复制）
-                    context.displayErrorDialog(
-                        Exception(result.reason),
-                        title = context.getString(R.string.import_no_valid_config)
+    if (isImporting) {
+        LoadingDialog(onDismissRequest = {}, text = context.getString(R.string.importing))
+    }
+
+    if (sheetVisible) {
+        // 导入过程（读取→解析→写库）由本 composable 承载全屏遮罩，
+        // 这里仅负责异步写库与结果回传，结果通过 onResult 抛回。
+        ConfigImportBottomSheet(
+            onDismissRequest = { sheetVisible = false },
+            autoImport = true,
+            importScope = importScope,
+            sheetVisible = sheetVisible,
+            // 开始导入：仅收起面板 + 显示全屏遮罩（不卸载本 composable），
+            // 否则 importScope 随组合销毁被取消，导入静默失败。
+            onImportStart = { isImporting = true; sheetVisible = false },
+            onResult = {
+                isImporting = false
+                if (it != null) {
+                    successMsg.value = it
+                } else {
+                    // 无结果文案 = 读取/识别/解析失败（错误对话框已另行弹出）：
+                    // 重新弹出面板供换源重试，避免「面板不可见但组合仍挂载」
+                    // 导致导入入口卡死（内部导入）或页面空白（外部导入）
+                    sheetVisible = true
+                }
+            },
+            onImport = { json ->
+                // 自识别 JSON 类型并直接导入，无需手动选择/确认
+                // （suspend lambda：在 importScope 内执行，勿再自起协程）
+                val result = withIO {
+                    doAutoImport(
+                        json,
+                        context = context,
+                        onProgress = { _, _ -> }
                     )
                 }
-                is AutoImportResult.Truncated -> {
-                    // JSON 解析失败：用错误对话框展示完整信息，支持滚动和复制
-                    context.displayErrorDialog(
-                        Exception(result.detail),
-                        title = context.getString(R.string.import_failed)
-                    )
-                }
-                is AutoImportResult.Success -> {
-                    // 仅配置列表需要通知 TTS 服务刷新，并强制重算 tagName（防止导入旧格式）
-                    if (result.type == ImportType.LIST) {
-                        withIO { migrateTagNamesIfNeed(context, force = true) }
-                        SystemTtsService.notifyUpdateConfig()
+                when (result) {
+                    is AutoImportResult.EmptyOrUnrecognized -> {
+                        // 识别不出类型：与解析失败一致，用错误对话框展示原因（可滚动/复制）
+                        context.displayErrorDialog(
+                            Exception(result.reason),
+                            title = context.getString(R.string.import_no_valid_config)
+                        )
                     }
-                    successMsg.value = "已导入 ${result.count} 项${result.typeName}"
+                    is AutoImportResult.Truncated -> {
+                        // JSON 解析失败：用错误对话框展示完整信息，支持滚动和复制
+                        context.displayErrorDialog(
+                            Exception(result.detail),
+                            title = context.getString(R.string.import_failed)
+                        )
+                    }
+                    is AutoImportResult.Success -> {
+                        // 仅配置列表需要通知 TTS 服务刷新，并强制重算 tagName（防止导入旧格式）
+                        if (result.type == ImportType.LIST) {
+                            withIO { migrateTagNamesIfNeed(context, force = true) }
+                            SystemTtsService.notifyUpdateConfig()
+                        }
+                        successMsg.value = "已导入 ${result.count} 项${result.typeName}"
+                    }
                 }
             }
-        }
-    )
+        )
+    }
 }
 
 /** 自动导入结果 */
@@ -141,16 +161,36 @@ internal fun doAutoImport(
         context.getString(R.string.import_no_valid_config_reason_empty)
     )
 
-    val type = try {
-        ImportConfigFactory.detectType(trimmed)
+    // 截断检测（必须在补括号之前、针对原始内容）：
+    // 数组开头但（去掉尾逗号后）未以 ']' 结尾 → 大概率被截断，直接报错。
+    // 不能先 toJsonListString() 补 ']' 再解析：那会把截断内容"修"成合法 JSON，静默导入部分数据
+    if (trimmed.startsWith("[") && !trimmed.removeSuffix(",").endsWith("]")) {
+        return AutoImportResult.Truncated(
+            context.getString(R.string.import_truncated_hint, "JSON 未以 ']' 结尾，内容可能被截断")
+        )
+    }
+
+    // 先按原始内容识别；识别不出再按遗留格式（逗号分隔对象/缺外层括号）包裹后重试
+    var effective = trimmed
+    var type: ImportType? = null
+    try {
+        type = ImportConfigFactory.detectType(trimmed)
+        if (type == null) {
+            effective = trimmed.toJsonListString()
+            type = ImportConfigFactory.detectType(effective)
+        }
     } catch (e: Exception) {
         return AutoImportResult.Truncated(e.message ?: e.toString())
-    } ?: return AutoImportResult.EmptyOrUnrecognized(
-        context.getString(R.string.import_no_valid_config_reason_unknown)
-    )
+    }
+
+    if (type == null) {
+        return AutoImportResult.EmptyOrUnrecognized(
+            context.getString(R.string.import_no_valid_config_reason_unknown)
+        )
+    }
 
     return when (type) {
-        ImportType.LIST -> doImportList(json, onProgress).let { result ->
+        ImportType.LIST -> doImportList(effective, onProgress).let { result ->
             when (result) {
                 is ListImportResult.EmptyOrUnrecognized -> AutoImportResult.EmptyOrUnrecognized(
                     context.getString(R.string.import_no_valid_config_reason_unknown)
@@ -159,9 +199,9 @@ internal fun doAutoImport(
                 is ListImportResult.Success -> AutoImportResult.Success(result.count, type, "配置列表")
             }
         }
-        ImportType.PLUGIN -> doImportPlugin(json, type)
-        ImportType.SPEECH_RULE -> doImportSpeechRule(json, type)
-        ImportType.REPLACE_RULE -> doImportReplaceRule(json, type)
+        ImportType.PLUGIN -> doImportPlugin(effective, type)
+        ImportType.SPEECH_RULE -> doImportSpeechRule(effective, type)
+        ImportType.REPLACE_RULE -> doImportReplaceRule(effective, type)
     }
 }
 
@@ -183,7 +223,8 @@ private fun doImportPlugin(json: String, type: ImportType): AutoImportResult {
 private fun doImportSpeechRule(json: String, type: ImportType): AutoImportResult {
     var parseError: String? = null
     val rules = runCatching {
-        AppConst.jsonBuilder.decodeFromString<List<SpeechRule>>(json)
+        // 单对象/裸数组统一包裹成数组（对合法数组幂等）
+        AppConst.jsonBuilder.decodeFromString<List<SpeechRule>>(json.trim().toJsonListString())
     }.onFailure { e ->
         parseError = "${e::class.java.simpleName}: ${e.message}"
         android.util.Log.e("SpeechRuleImport", "decode SpeechRule failed", e)
@@ -197,9 +238,9 @@ private fun doImportSpeechRule(json: String, type: ImportType): AutoImportResult
 private fun doImportReplaceRule(json: String, type: ImportType): AutoImportResult {
     val pairs = mutableListOf<Pair<ReplaceRuleGroup, ReplaceRule>>()
     var parseError: String? = null
-    // detectType 已用 parseToJsonElement 验证过 JSON 合法性，这里直接用原始 json，
-    // 不再调 toJsonListString()（它可能给已合法的 [...] 再补 ]，导致 ]] 报错）
-    val safeJson = json.trim()
+    // detectType 已验证 JSON 合法性；此处按需补外层括号（单对象→数组）。
+    // toJsonListString 对已是合法数组的串是幂等的（先判断头尾再补，不会产生 "]]"）
+    val safeJson = json.trim().toJsonListString()
     if (safeJson.contains("\"group\"")) {
         runCatching {
             AppConst.jsonBuilder.decodeFromString<List<GroupWithReplaceRule>>(safeJson)
@@ -249,15 +290,18 @@ private fun doImportList(
     val trimmed = json.trim()
     if (trimmed.isEmpty()) return ListImportResult.EmptyOrUnrecognized
 
-    // 1. 粗校验：必须是 JSON 数组开头/结尾，否则很可能被截断
-    if (!trimmed.startsWith("[")) return ListImportResult.EmptyOrUnrecognized
-    if (!trimmed.endsWith("]")) {
-        return ListImportResult.Truncated("JSON 未以 ']' 结尾")
+    // 1. 粗校验（对原始内容、补括号之前）：数组缺 ']' 很可能被截断；
+    //    单对象 '{"group":...}' 形式允许，下面包裹后按数组解析
+    if (trimmed.startsWith("[")) {
+        if (!trimmed.removeSuffix(",").endsWith("]"))
+            return ListImportResult.Truncated("JSON 未以 ']' 结尾，内容可能被截断")
+    } else if (!trimmed.startsWith("{")) {
+        return ListImportResult.EmptyOrUnrecognized
     }
 
-    // 2. 解析：捕获 JSON 异常并区分截断
+    // 2. 解析：单对象/遗留格式统一包裹成数组（对合法数组幂等），捕获 JSON 异常并区分截断
     val list = try {
-        getImportList(json, false)
+        getImportList(trimmed.toJsonListString(), false)
     } catch (e: kotlinx.serialization.SerializationException) {
         return ListImportResult.Truncated(e.message ?: e.toString())
     } catch (e: Exception) {

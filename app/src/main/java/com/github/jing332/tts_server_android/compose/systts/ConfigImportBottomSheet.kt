@@ -57,7 +57,6 @@ import com.drake.net.utils.withMain
 import com.github.jing332.common.utils.ClipboardUtils
 import com.github.jing332.common.utils.FileUtils.readAllText
 import com.github.jing332.common.utils.longToast
-import com.github.jing332.common.utils.toJsonListString
 import com.github.jing332.compose.widgets.AppDialog
 import com.github.jing332.tts_server_android.R
 import com.github.jing332.tts_server_android.ui.AppActivityResultContracts
@@ -98,6 +97,9 @@ fun ConfigImportBottomSheet(
     // 承载导入协程的 scope。需由调用方传入（而非内部 scope），
     // 否则 onImportStart 关闭 BottomSheet 后本组合销毁、协程被取消，导入中断。
     importScope: CoroutineScope? = null,
+    // 底部面板是否可见。导入开始（onImportStart）后由调用方置为 false 仅收起面板，
+    // 但本组合保持挂载，使 importScope / 全屏遮罩 / 结果弹窗得以存活，导入不被取消。
+    sheetVisible: Boolean = true,
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -135,18 +137,19 @@ fun ConfigImportBottomSheet(
     fun launchImport(src: Int, urlStr: String? = null, uri: Uri? = null) {
         onImportStart()
         (importScope ?: scope).launch {
-            val jsonStr = runCatching { getConfig(src = src, url = urlStr, uri = uri) }.getOrNull()
+            // 只读取一次：失败时复用同一次的结果取异常，避免重复网络请求/文件读取
+            val result = runCatching { getConfig(src = src, url = urlStr, uri = uri) }
+            val jsonStr = result.getOrNull()
             if (jsonStr == null) {
-                val err = runCatching { getConfig(src = src, url = urlStr, uri = uri) }
-                    .exceptionOrNull() ?: Exception(context.getString(R.string.import_failed))
+                val err = result.exceptionOrNull()
+                    ?: Exception(context.getString(R.string.import_failed))
                 onResult(null)
                 context.displayErrorDialog(err)
                 return@launch
             }
-            val processed = withContext(Dispatchers.IO) { jsonStr.toJsonListString() }
-            // 写库（onImport 为 suspend）完成后交由调用方关闭遮罩并弹结果，
-            // 避免最耗时的插入阶段无反馈、用户以为卡住
-            onImport(processed)
+            // 直接传原始内容：截断检测与遗留格式兼容统一由 doAutoImport 处理。
+            // 此前先 toJsonListString() 补括号会把截断的 JSON "修"成合法 JSON，静默导入部分数据
+            onImport(jsonStr)
             // 导入结束（无论成败，结果已在 onImport 内部处理）通知调用方关闭遮罩
             onResult(null)
         }
@@ -171,7 +174,7 @@ fun ConfigImportBottomSheet(
         return
     }
 
-    ModalBottomSheet(onDismissRequest = onDismissRequest) {
+    if (sheetVisible) ModalBottomSheet(onDismissRequest = onDismissRequest) {
         Column(
             Modifier
                 .padding(horizontal = 8.dp)
@@ -295,6 +298,7 @@ fun ConfigImportBottomSheet(
                 }
             }
         }
+    }
     }
 }
 

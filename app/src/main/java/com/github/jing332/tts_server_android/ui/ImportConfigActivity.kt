@@ -19,6 +19,7 @@ import com.github.jing332.tts_server_android.compose.systts.LocalImportRemoteUrl
 import com.github.jing332.tts_server_android.compose.theme.AppTheme
 import com.github.jing332.tts_server_android.ui.systts.ImportConfigFactory
 import com.github.jing332.tts_server_android.ui.systts.ImportConfigFactory.gotoEditorFromJS
+import com.github.jing332.tts_server_android.ui.systts.ImportType
 
 
 class ImportConfigActivity : ComposeActivity() {
@@ -39,10 +40,13 @@ class ImportConfigActivity : ComposeActivity() {
                     ImportConfigFactory.getBottomSheet(
                         type = type.value,
                         onBadFormat = {
+                            // type 非空：ttsrv 链接携带了未知类型，提示
                             if (type.value.isNotEmpty()) {
                                 longToast(R.string.import_config_type_unknown_msg)
-                                finish()
                             }
+                            // 无论哪种情况（无效 scheme/空 URL/未知类型）本页都无内容可展示，
+                            // 直接关闭，避免残留空白页
+                            finish()
                         },
                     )
                 }
@@ -101,15 +105,21 @@ class ImportConfigActivity : ComposeActivity() {
         if (intent?.data != null) {
             if (intent.data?.fileName()?.endsWith("js", true) == true) {
                 val txt = intent.data?.readAllText(this)
-                if (txt.isNullOrBlank()) {
+                if (txt.isNullOrBlank() || !gotoEditorFromJS(txt)) {
                     longToast(R.string.js_file_type_not_recognized)
-                } else
-                    if (!gotoEditorFromJS(txt)) longToast(R.string.js_file_type_not_recognized)
-
+                }
+                // JS 已交给编辑器（或提示无法识别），本页无内容可展示，直接关闭，
+                // 避免从编辑器返回后残留空白页
+                finish()
             } else {
                 // 非 JS 文件：直接交给统一的自动导入流程（doAutoImport）识别和导入，
                 // 不在此重复识别，识别不出时也由统一流程给出原因提示，与内部导入一致。
+                // 注意：type 必须置为 LIST，底部面板由 type 决定——
+                // ListImportBottomSheet(autoImport=true) 才会消费 LocalImportFilePath
+                // 预设路径并自动识别真实类型（列表/插件/替换规则/朗读规则）；
+                // 若不设置，getBottomSheet("") 返回 bad-format 占位，页面空白且不导入。
                 path.value = intent.data!!.toString()
+                type.value = ImportType.LIST.id
             }
 
             intent.data = null

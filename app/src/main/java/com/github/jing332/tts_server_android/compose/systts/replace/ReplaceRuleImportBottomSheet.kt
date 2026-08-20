@@ -26,21 +26,29 @@ fun ReplaceRuleImportBottomSheet(onDismissRequest: () -> Unit) {
     // 导入协程作用域：独立于 BottomSheet 生命周期，关闭面板后导入仍继续
     val importScope = rememberCoroutineScope()
 
-    // 导入进行中遮罩（全屏，在 BottomSheet 关闭后由本 composable 承载，自然置于最上层）
+    // 面板可见性：导入开始后置 false 仅收起 ModalBottomSheet，本 composable 保持挂载，
+    // 使 importScope / 全屏遮罩 / 结果弹窗存活，避免协程被取消导致导入静默失败。
+    var sheetVisible by remember { mutableStateOf(true) }
+    // 导入进行中遮罩（全屏，面板收起后由本 composable 承载，自然置于最上层）
     var isImporting by remember { mutableStateOf(false) }
-    if (isImporting) {
-        LoadingDialog(onDismissRequest = {}, text = context.getString(R.string.importing))
-    }
-
-    // 结果以模态对话框展示，导入完成后展示，避免叠在 ModalBottomSheet 上被遮挡。
+    // 导入结果文案（成功/失败原因），非 null 时弹出模态对话框
     var successMsg = remember { mutableStateOf<String?>(null) }
+
     // 先取局部 val 再判空：局部 val 支持 smart cast，MutableState.value 属性不支持
     val msgText = successMsg.value
     if (msgText != null) {
         AlertDialog(
-            onDismissRequest = { successMsg.value = null; onDismissRequest() },
+            onDismissRequest = {
+                successMsg.value = null
+                sheetVisible = false
+                onDismissRequest()
+            },
             confirmButton = {
-                TextButton(onClick = { successMsg.value = null; onDismissRequest() }) {
+                TextButton(onClick = {
+                    successMsg.value = null
+                    sheetVisible = false
+                    onDismissRequest()
+                }) {
                     Text(stringResource(id = R.string.ok))
                 }
             },
@@ -49,36 +57,50 @@ fun ReplaceRuleImportBottomSheet(onDismissRequest: () -> Unit) {
         return
     }
 
-    ConfigImportBottomSheet(onDismissRequest = onDismissRequest,
-        autoImport = true,
-        importScope = importScope,
-        // 开始导入：立即关闭 BottomSheet + 显示全屏遮罩，避免遮罩被面板挡住、也无需保留面板
-        onImportStart = { isImporting = true; onDismissRequest() },
-        onResult = {
-            isImporting = false
-            if (it != null) successMsg.value = it
-        },
-        onImport = { json ->
-            // 自动识别 JSON 类型并直接导入，无需手动选择/确认
-            // （suspend lambda：在 importScope 内执行，勿再自起协程）
-            val result = withIO { doAutoImport(json, context = context) }
-            when (result) {
-                is AutoImportResult.EmptyOrUnrecognized -> {
-                    context.displayErrorDialog(
-                        Exception(result.reason),
-                        title = context.getString(R.string.import_no_valid_config)
-                    )
+    if (isImporting) {
+        LoadingDialog(onDismissRequest = {}, text = context.getString(R.string.importing))
+    }
+
+    if (sheetVisible) {
+        ConfigImportBottomSheet(onDismissRequest = { sheetVisible = false },
+            autoImport = true,
+            importScope = importScope,
+            sheetVisible = sheetVisible,
+            // 开始导入：仅收起面板 + 显示全屏遮罩（不卸载本 composable），
+            // 否则 importScope 随组合销毁被取消，导入静默失败。
+            onImportStart = { isImporting = true; sheetVisible = false },
+            onResult = {
+                isImporting = false
+                if (it != null) {
+                    successMsg.value = it
+                } else {
+                    // 无结果文案 = 读取/识别/解析失败（错误对话框已另行弹出）：
+                    // 重新弹出面板供换源重试，避免「面板不可见但组合仍挂载」导致导入入口卡死
+                    sheetVisible = true
                 }
-                is AutoImportResult.Truncated -> {
-                    context.displayErrorDialog(
-                        Exception(result.detail),
-                        title = context.getString(R.string.import_failed)
-                    )
-                }
-                is AutoImportResult.Success -> {
-                    successMsg.value = "已导入 ${result.count} 项${result.typeName}"
+            },
+            onImport = { json ->
+                // 自动识别 JSON 类型并直接导入，无需手动选择/确认
+                // （suspend lambda：在 importScope 内执行，勿再自起协程）
+                val result = withIO { doAutoImport(json, context = context) }
+                when (result) {
+                    is AutoImportResult.EmptyOrUnrecognized -> {
+                        context.displayErrorDialog(
+                            Exception(result.reason),
+                            title = context.getString(R.string.import_no_valid_config)
+                        )
+                    }
+                    is AutoImportResult.Truncated -> {
+                        context.displayErrorDialog(
+                            Exception(result.detail),
+                            title = context.getString(R.string.import_failed)
+                        )
+                    }
+                    is AutoImportResult.Success -> {
+                        successMsg.value = "已导入 ${result.count} 项${result.typeName}"
+                    }
                 }
             }
-        }
-    )
+        )
+    }
 }
