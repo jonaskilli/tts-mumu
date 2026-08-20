@@ -1,5 +1,6 @@
 package com.github.jing332.tts_server_android.compose.systts.list
 
+import android.content.Context
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -86,6 +87,7 @@ fun ListImportBottomSheet(onDismissRequest: () -> Unit) {
             val result = withIO {
                 doAutoImport(
                     json,
+                    context = context,
                     onProgress = { _, _ -> }
                 )
             }

@@ -294,7 +294,7 @@ class PluginTtsUI : IConfigUI() {
                 voiceId = auditionVoiceId,
                 // 带分类回调（批量试听分类场景）时，播放完成不自动关闭弹窗，
                 // 否则用户来不及选分类、且当前声音高亮/分类选择被打断
-                autoDismiss = !waitCategorySwitch && onCategoryAssigned == null,
+                autoDismiss = !waitCategorySwitch,
                 hasPrev = currentVoiceIndex > 0,
                 hasNext = currentVoiceIndex >= 0 && currentVoiceIndex < vm.voices.size - 1,
                 onCategoryAssigned = { voiceId, category ->
