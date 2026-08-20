@@ -136,7 +136,7 @@ class SysTtsForwarderService(
 
         // 服务启动即预热系统 TTS 引擎，避免首次转发请求现场初始化导致延迟
         scope.launch(Dispatchers.IO) {
-            runCatching { androidTts.init(TextToSpeech.Engine.DEFAULT_ENGINE) }
+            runCatching { androidTts.init(null) }
         }
     }
 
