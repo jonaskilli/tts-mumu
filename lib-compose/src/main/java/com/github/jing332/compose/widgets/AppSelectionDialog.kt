@@ -111,21 +111,12 @@ fun AppSelectionDialog(
     onAutoNextSwitchChange: ((Boolean) -> Unit)? = null,
 ) {
 
-    var showSearch by remember { mutableStateOf(false) }
+    // 搜索框固定在顶部常显，无需点击图标再展开
     // 当前高亮的条目值（点击试听或多选按钮时设置，单选式：点另一个即转移）
     var highlightedValue by remember { mutableStateOf<Any?>(null) }
 
     val focusRequester = remember { FocusRequester() }
-    val keyboardController = LocalSoftwareKeyboardController.current
 
-    LaunchedEffect(showSearch) {
-        if (showSearch) {
-            runCatching {
-                focusRequester.requestFocus()
-                keyboardController?.show()
-            }
-        }
-    }
     AppDialog(
         title = {
             Row(
@@ -136,12 +127,6 @@ fun AppSelectionDialog(
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
                 Box(Modifier.weight(1f, fill = false)) { title() }
-                IconButton(onClick = { showSearch = !showSearch }) {
-                    Icon(
-                        Icons.Default.Search,
-                        stringResource(R.string.search),
-                    )
-                }
             }
         },
         content = {
@@ -194,21 +179,20 @@ fun AppSelectionDialog(
 
                     var text by rememberSaveable { mutableStateOf("") }
 
-                    AnimatedVisibility(
-                        showSearch,
-                        modifier = Modifier.align(Alignment.CenterHorizontally),
-                    ) {
-                        DenseOutlinedField(
-                            modifier = Modifier.focusRequester(focusRequester),
-                            value = text, onValueChange = { text = it },
-                            label = { Text(stringResource(id = R.string.search) + " ${values.size}") },
-                            maxLines = 1,
-                            keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
-                            keyboardActions = KeyboardActions(
-                                onDone = { keyboardController?.hide() }
-                            )
+                    // 搜索框固定在顶部常显，无需点击搜索图标再展开
+                    DenseOutlinedField(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 8.dp)
+                            .focusRequester(focusRequester),
+                        value = text, onValueChange = { text = it },
+                        label = { Text(stringResource(id = R.string.search) + " ${values.size}") },
+                        maxLines = 1,
+                        keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
+                        keyboardActions = KeyboardActions(
+                            onDone = { keyboardController?.hide() }
                         )
-                    }
+                    )
 
                     LaunchedEffect(Unit) {
                         while (coroutineContext.isActive) {
@@ -257,11 +241,8 @@ fun AppSelectionDialog(
                             val current = values[i]
                             val isSelected = onValueSame(value, current)
                             val isHighlighted = highlightedValue != null && onValueSame(highlightedValue!!, current)
-                            val rowBg = when {
-                                isHighlighted -> MaterialTheme.colorScheme.tertiaryContainer
-                                isSelected -> MaterialTheme.colorScheme.primaryContainer
-                                else -> Color.Unspecified
-                            }
+                            // 不再用绿色(高亮)/蓝色(选中)背景着色，颜色保持默认
+                            val rowBg = Color.Unspecified
                             Row(
                                 Modifier
                                     .fillMaxWidth()
