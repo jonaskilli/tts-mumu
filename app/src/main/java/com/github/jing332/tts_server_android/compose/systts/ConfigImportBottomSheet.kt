@@ -299,7 +299,6 @@ fun ConfigImportBottomSheet(
             }
         }
     }
-    }
 }
 
 data class ConfigModel(
