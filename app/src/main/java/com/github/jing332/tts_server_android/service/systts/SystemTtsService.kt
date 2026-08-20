@@ -166,9 +166,14 @@ class SystemTtsService : TextToSpeechService(), IEventDispatcher {
         initManager()
     }
 
+    private var mReady = CompletableDeferred<Unit>()
+
     fun initManager() {
         logger.debug { "initialize or load configruation" }
+        mReady = CompletableDeferred()
         mScope.launch {
+            // 🚀 核心初始化同步完成（建好合成器并 init），避免首次播放被 awaitReady 阻塞，
+            // 恢复 hunyuan 分支级别的即点即播速度。
             mTtsManager = mTtsManager ?: MixSynthesizer.global.apply {
                 context.androidContext = appCtx
                 context.event = this@SystemTtsService
@@ -195,10 +200,21 @@ class SystemTtsService : TextToSpeechService(), IEventDispatcher {
             }
 
             mTtsManager!!.init()
+            mReady.complete(Unit)
 
-            // 🚀 预热插件引擎：避免服务冷启动后首次播放才现场 eval 大体积插件 JS 导致等待
+            // 🚀 预热插件引擎（异步、不阻塞首播）：避免首次播放才现场 eval 大体积插件 JS
             preloadPluginEngines()
         }
+    }
+
+    /**
+     * 等待引擎初始化完成；仅在 mTtsManager 仍为 null（异常兜底）时触发，正常路径不再阻塞首播。
+     */
+    private suspend fun awaitReady() {
+        if (mTtsManager == null) {
+            withContext(Dispatchers.IO) { initManager() }
+        }
+        mReady.await()
     }
 
     /**
@@ -208,9 +224,6 @@ class SystemTtsService : TextToSpeechService(), IEventDispatcher {
     private fun preloadPluginEngines() {
         mScope.launch(Dispatchers.IO) {
             runCatching {
-                // 预热转发器"转发器引擎"项所用的静态单例，避免开转发器首播才现场初始化
-                com.github.jing332.tts.MixSynthesizer.global.init()
-
                 dbm.systemTtsV2.getAllGroupWithTts()
                     .flatMap { it.list }
                     .filter { it.isEnabled }
@@ -401,6 +414,8 @@ class SystemTtsService : TextToSpeechService(), IEventDispatcher {
             synthesizerJob = mScope.launch(exceptionHandler) {
                 var isAudioOutputted = false
                 try {
+                    // 确保引擎初始化完成后再合成，避免首次播放等待异步预热
+                    awaitReady()
                     // 🛠️ 增加 350 秒总保护（>请求超时上限300秒，给朗读规则处理与重试留足余量）
                     withTimeoutOrNull(350000L) {
                         mTtsManager?.synthesize(

@@ -19,6 +19,7 @@ import com.github.jing332.tts_server_android.help.LocalTtsEngineHelper
 import com.github.jing332.tts_server_android.service.forwarder.AbsForwarderService
 import com.github.jing332.tts_server_android.service.systts.SystemTtsService
 import com.github.michaelbull.result.onFailure
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
@@ -132,6 +133,11 @@ class SysTtsForwarderService(
                 notifiClosed()
             }
         )
+
+        // 服务启动即预热系统 TTS 引擎，避免首次转发请求现场初始化导致延迟
+        scope.launch(Dispatchers.IO) {
+            runCatching { androidTts.init(TextToSpeech.Engine.DEFAULT_ENGINE) }
+        }
     }
 
     override fun closeServer() {
