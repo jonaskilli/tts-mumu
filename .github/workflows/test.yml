@@ -6,6 +6,7 @@ on:
     paths:
       - 'lib-tts/**'
       - 'lib-common/**'
+      - 'lib-compose/**'
       - 'lib-database/**'
       - 'app/src/**'
       - 'app/build.gradle'
