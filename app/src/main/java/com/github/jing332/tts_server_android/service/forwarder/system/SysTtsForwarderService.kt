@@ -20,6 +20,7 @@ import com.github.jing332.tts_server_android.service.forwarder.AbsForwarderServi
 import com.github.jing332.tts_server_android.service.systts.SystemTtsService
 import com.github.michaelbull.result.onFailure
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
@@ -136,7 +137,7 @@ class SysTtsForwarderService(
 
         // 服务启动即预热系统 TTS 引擎，避免首次转发请求现场初始化导致延迟
         scope.launch(Dispatchers.IO) {
-            runCatching { androidTts.init(null) }
+            runCatching { androidTts.init("") }
         }
     }
 
