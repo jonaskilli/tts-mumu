@@ -272,6 +272,7 @@
     <string name="import_truncated_hint">Import failed, JSON may be truncated: %1$s\n\nFor large config lists, turn off system TTS service before importing.</string>
     <string name="file_save_failed">File save failed：%1$s</string>
     <string name="save_success">Save successfully</string>
+    <string name="save_to_list">Saved %1$d to voice list</string>
     <string name="failed_timed_out">Timed out：%1$dms</string>
     <string name="builtin_player_settings_tip_msg">When the built-in player is enabled, use the settings here to override the global.</string>
     <string name="systts_standby_help_msg">As a backup, when a request fails, it will be read aloud using this configuration according to [VoiceOver All Dialog]. \nThat is, standby can be configured separately depending on the read aloud target. Note: The standby configuration does not have the automatic retry function, and the reading will be skipped directly after the first failure, so it is recommended to use the local TTS type as a backup.</string>

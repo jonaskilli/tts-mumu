@@ -173,7 +173,6 @@ fun AuditionDialog(
                     ) {
                         Text(
                             systts.displayName,
-                            color = MaterialTheme.colorScheme.primary,
                             style = MaterialTheme.typography.titleMedium,
                             modifier = Modifier.weight(1f)
                         )

@@ -182,6 +182,9 @@ class PluginTtsUI : IConfigUI() {
         showUiOnlySwitch: Boolean = true,
         // 插件 UI 重建触发器：变化时强制重新 onLoadUI（用于运行规则后刷新角色列表）
         reloadKey: Any? = null,
+        // 批量保存成功后的回调：用于关闭当前界面（如预览 Activity finish），
+        // 不传则停留原地（如工具箱页，保存后列表就在本页）
+        onSaved: (() -> Unit)? = null,
     ) {
         var displayName by remember { mutableStateOf("") }
 
@@ -289,7 +292,9 @@ class PluginTtsUI : IConfigUI() {
                 systts = auditionSystts!!,
                 engine = if (plugin == null) null else vm.service(),
                 voiceId = auditionVoiceId,
-                autoDismiss = !waitCategorySwitch,
+                // 带分类回调（批量试听分类场景）时，播放完成不自动关闭弹窗，
+                // 否则用户来不及选分类、且当前声音高亮/分类选择被打断
+                autoDismiss = !waitCategorySwitch && onCategoryAssigned == null,
                 hasPrev = currentVoiceIndex > 0,
                 hasNext = currentVoiceIndex >= 0 && currentVoiceIndex < vm.voices.size - 1,
                 onCategoryAssigned = { voiceId, category ->
@@ -297,37 +302,23 @@ class PluginTtsUI : IConfigUI() {
                     if (voiceId !in selectedVoiceIds) {
                         selectedVoiceIds = selectedVoiceIds + voiceId
                     }
+                    // 原地切换到下一个：直接更新试听对象，不销毁弹窗，避免闪断；
+                    // systts 变化会触发 LaunchedEffect 自动重播、DisposableEffect 先停旧音频
                     val nextIndex = currentVoiceIndex + 1
-                    // 脱离弹窗协程：先关闭当前弹窗，延迟一帧后再打开下一个，确保旧 composition 完全 dispose
-                    scope.launch(Dispatchers.Main) {
-                        auditionSystts = null
-                        auditionVoiceId = null
-                        if (autoNextSwitch && nextIndex in vm.voices.indices) {
-                            kotlinx.coroutines.delay(50)
-                            startAuditionForVoice(vm.voices[nextIndex])
-                        }
+                    if (autoNextSwitch && nextIndex in vm.voices.indices) {
+                        startAuditionForVoice(vm.voices[nextIndex])
                     }
                 },
                 onPrev = {
                     val prevIndex = currentVoiceIndex - 1
                     if (prevIndex >= 0) {
-                        scope.launch(Dispatchers.Main) {
-                            auditionSystts = null
-                            auditionVoiceId = null
-                            kotlinx.coroutines.delay(50)
-                            startAuditionForVoice(vm.voices[prevIndex])
-                        }
+                        startAuditionForVoice(vm.voices[prevIndex])
                     }
                 },
                 onNext = {
                     val nextIndex = currentVoiceIndex + 1
                     if (nextIndex < vm.voices.size) {
-                        scope.launch(Dispatchers.Main) {
-                            auditionSystts = null
-                            auditionVoiceId = null
-                            kotlinx.coroutines.delay(50)
-                            startAuditionForVoice(vm.voices[nextIndex])
-                        }
+                        startAuditionForVoice(vm.voices[nextIndex])
                     }
                 },
                 assignedCategory = voiceCategoryMap[auditionVoiceId],
@@ -702,14 +693,17 @@ class PluginTtsUI : IConfigUI() {
                                             }
                                             withContext(Dispatchers.Main) {
                                                 if (systtsSnapshot.isEnabled) SystemTtsService.notifyUpdateConfig()
-                                                // 提示带目标分组名：让用户明确知道保存在哪，
-                                                // 避免新建分组后找不到保存项
+                                                // 明确提示保存数量与位置（语音列表/分组），
+                                                // 保存成功后直接关闭当前界面，避免停留在编辑页还要手动关闭
                                                 context.toast(
-                                                    context.getString(R.string.save_success) +
-                                                        " (${selectedVoices.size}) → $targetGroupName"
+                                                    context.getString(
+                                                        R.string.save_to_list,
+                                                        selectedVoices.size
+                                                    ) + " → $targetGroupName"
                                                 )
                                                 selectedVoiceIds = emptySet()
                                                 voiceCategoryMap = emptyMap()
+                                                onSaved?.invoke()
                                             }
                                             }.onFailure { e ->
                                                 // 保存过程任何异常（DB 写入、分组创建等）都显式提示，

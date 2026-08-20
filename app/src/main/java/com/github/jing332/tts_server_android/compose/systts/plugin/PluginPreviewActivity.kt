@@ -158,6 +158,7 @@ class PluginPreviewActivity : ComposeActivity() {
                 showBasicInfo = false,
                 plugin = plugin,
                 showPluginSelector = false,
+                onSaved = { finish() },
             )
         }
     }
