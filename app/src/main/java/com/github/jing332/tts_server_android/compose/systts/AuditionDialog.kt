@@ -37,11 +37,14 @@ import com.github.jing332.common.utils.messageChain
 import com.github.jing332.common.utils.sizeToReadable
 import com.github.jing332.compose.widgets.AppDialog
 import com.github.jing332.compose.widgets.LoadingContent
+import com.github.jing332.database.dbm
 import com.github.jing332.database.entities.systts.AudioParams
 import com.github.jing332.database.entities.systts.SystemTtsV2
 import com.github.jing332.database.entities.systts.TtsConfigurationDTO
+import com.github.jing332.database.entities.systts.source.PluginTtsSource
 import com.github.jing332.database.entities.systts.source.TextToSpeechSource
 import com.github.jing332.tts.CachedEngineManager
+import com.github.jing332.tts.loudness.SpeakerLoudnessManager
 import com.github.jing332.tts.stackedAudioParamsFor
 import com.github.jing332.tts.speech.EngineState
 import com.github.jing332.tts.speech.TextToSpeechProvider
@@ -170,10 +173,23 @@ fun AuditionDialog(
                         ) + if (paramsInfo.isNotEmpty()) "\n$paramsInfo" else ""
                     }
 
+                    // 与朗读路径一致的本地参数应用：插件表标记「插件自行处理」的项
+                    // 服务端已生效、本地不再叠加，其余项在播放器本地应用；
+                    // 音量并入响度均衡增益(朗读路径恒开响度均衡)
+                    val pluginRecord = (config.source as? PluginTtsSource)?.let {
+                        dbm.pluginDao.getByPluginId(it.pluginId)
+                    }
+                    val ap = config.audioParams
+                    val effSpeed = if (pluginRecord?.pluginHandlesSpeed == true || ap.speed <= 0f) 1f else ap.speed
+                    val effVolume = if (pluginRecord?.pluginHandlesVolume == true || ap.volume <= 0f) 1f else ap.volume
+                    val effPitch = if (pluginRecord?.pluginHandlesPitch == true || ap.pitch <= 0f) 1f else ap.pitch
+                    val loudnessGain = SpeakerLoudnessManager.infoFor(config).gain
+                    val localVolume = (effVolume * loudnessGain).coerceIn(0f, 1f)
+
                     if (config.shouldDecode())
-                        audioPlayer.play(audio)
+                        audioPlayer.play(audio, effSpeed, localVolume, effPitch)
                     else
-                        audioPlayer.play(audio, config.audioFormat.sampleRate)
+                        audioPlayer.play(audio, config.audioFormat.sampleRate, effSpeed, localVolume, effPitch)
                 }
                 withContext(Dispatchers.Main) {
                     if (autoDismiss) onDismissRequest()
