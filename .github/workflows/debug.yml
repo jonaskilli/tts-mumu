@@ -3,23 +3,11 @@ name: Build Debug
 on:
   # 手动触发，需要 debug 包时在 Actions 页面运行
   workflow_dispatch:
-    inputs:
-      build_dev:
-        description: "同时构建 dev 共存版 (默认同时构建 app 和 dev)"
-        type: boolean
-        default: true
 
 jobs:
   build:
-    strategy:
-      matrix:
-        # 动态生成: build_dev=true 时为 ["app","dev"], 否则只 ["app"]
-        product: ${{ fromJSON(format('["app"{0}]', github.event.inputs.build_dev == 'true' && ',"dev"' || '')) }}
-
-      fail-fast: false
     runs-on: ubuntu-latest
     env:
-      product: ${{ matrix.product }}
       outputs_dir: "${{ github.workspace }}/app/build/outputs"
       ver_name: ""
 
@@ -39,20 +27,20 @@ jobs:
       - name: Build with Gradle
         run: |
           chmod +x gradlew
-          ./gradlew assemble${{ env.product }}debug --build-cache --parallel --daemon --warning-mode all
+          ./gradlew assembleAppdebug --build-cache --parallel --daemon --warning-mode all
 
       - name: Init environment variable
         run: |
-          echo "ver_name=$(grep -m 1 'versionName' ${{ env.outputs_dir }}/apk/${{ env.product }}/debug/output-metadata.json | cut -d\" -f4)" >> $GITHUB_ENV
+          echo "ver_name=$(grep -m 1 'versionName' ${{ env.outputs_dir }}/apk/app/debug/output-metadata.json | cut -d\" -f4)" >> $GITHUB_ENV
 
       - name: Save version name
-        run: echo "${{ env.ver_name }}" > ver_name_${{ env.product }}.txt
+        run: echo "${{ env.ver_name }}" > ver_name_app.txt
 
       - name: Upload APK To Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: "TTS-Server-Debug_${{ env.product }}_${{ env.ver_name }}"
+          name: "TTS-Server-Debug_${{ env.ver_name }}"
           path: |
-            ${{env.outputs_dir}}/apk/${{ env.product }}/debug/*.apk
-            ver_name_${{ env.product }}.txt
+            ${{env.outputs_dir}}/apk/app/debug/*.apk
+            ver_name_app.txt
           retention-days: 7
