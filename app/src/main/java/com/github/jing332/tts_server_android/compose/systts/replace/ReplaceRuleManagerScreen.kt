@@ -275,6 +275,17 @@ internal fun ReplaceRuleManagerScreen(
                         }) {
                             Icon(Icons.Default.SelectAll, stringResource(id = R.string.select_all))
                         }
+                        // 多选导出：把选中的分组(含其下所有规则)交给导出底栏
+                        IconButton(
+                            enabled = selectedGroupIds.isNotEmpty(),
+                            onClick = {
+                                showExportSheet = models.filter { it.group.id in selectedGroupIds }
+                                selectionMode = false
+                                selectedGroupIds = emptySet()
+                            }
+                        ) {
+                            Icon(Icons.Default.Output, stringResource(id = R.string.export_config))
+                        }
                         // 删除选中的分组
                         IconButton(
                             enabled = selectedGroupIds.isNotEmpty(),

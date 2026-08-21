@@ -553,6 +553,17 @@ fun PluginManagerScreen(sharedVM: SharedViewModel, onFinishActivity: () -> Unit)
                         }) {
                             Icon(Icons.Default.SelectAll, stringResource(id = R.string.select_all))
                         }
+                        // 多选导出：把选中的插件(按列表顺序)交给导出底栏
+                        IconButton(
+                            enabled = selectedIds.isNotEmpty(),
+                            onClick = {
+                                showExportConfig = list.filter { it.id in selectedIds }
+                                selectionMode = false
+                                selectedIds = emptySet()
+                            }
+                        ) {
+                            Icon(Icons.Default.Output, stringResource(id = R.string.export_config))
+                        }
                         IconButton(
                             enabled = selectedIds.isNotEmpty(),
                             onClick = { showMultiDeleteDialog = true }
