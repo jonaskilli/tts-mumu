@@ -154,6 +154,13 @@ object SystemTtsConfig {
         initialValue = false
     )
 
+    /** 段间停顿毫秒数，0=关闭；插入的是直写播放通道的静音PCM，固定墙钟时长，不受语速影响 */
+    val segmentPauseMs = mutableDataSaverStateOf(
+        dataSaverInterface = dataSaverPref,
+        key = "segmentPauseMs",
+        initialValue = 0
+    )
+
     // ========== 响度均衡配置 ==========
 
     /** 响度均衡总开关，默认开启 */

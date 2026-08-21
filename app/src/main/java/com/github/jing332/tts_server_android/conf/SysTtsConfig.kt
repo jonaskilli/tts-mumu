@@ -116,6 +116,12 @@ object SysTtsConfig {
             SystemTtsConfig.isSilenceSkipAudio.value = value
         }
 
+    var segmentPauseMs: Int
+        get() = SystemTtsConfig.segmentPauseMs.value
+        set(value) {
+            SystemTtsConfig.segmentPauseMs.value = value
+        }
+
     // ========== 响度均衡配置 ==========
 
     var loudnessMaxGain: Float

@@ -23,6 +23,9 @@ data class SynthesizerConfig(
 
     var restartOnMaxRetryMode: ValueProvider<Int> = { 0 },
 
+    // 段间停顿毫秒数，0=关闭；合成器在两段之间插入等时长静音PCM（直写通道，不受变速/静音跳过影响）
+    var segmentPauseMs: ValueProvider<Int> = { 0 },
+
     // 响度均衡：始终开启，无需用户配置
     var loudnessMaxGain: ValueProvider<Float> = { 1.35f },
 )

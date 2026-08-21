@@ -316,6 +316,17 @@ abstract class AbstractMixSynthesizer() : Synthesizer {
                                     }.getOrNull()
                                 }
                             }
+
+                            // 段间停顿：在两段之间插入固定时长静音PCM
+                            // 直写通道，不经过Sonic变速/静音跳过管线，停顿=设置的固定墙钟时长
+                            val pauseMs = context.cfg.segmentPauseMs()
+                            if (pauseMs > 0 && index + 1 < list.size) {
+                                channel.trySendBlocking(
+                                    ChannelPayload.Bytes(
+                                        createSilentPcmAudio(maxSampleRate, durationMs = pauseMs)
+                                    )
+                                )
+                            }
                         }
                     }
                     .onFailure {

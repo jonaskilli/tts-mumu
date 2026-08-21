@@ -96,6 +96,20 @@ internal fun ColumnScope.SysttsSettingsScreen(modifier: Modifier = Modifier) {
         icon = { Icon(Icons.Default.StackedLineChart, null) }
     )
 
+    var segmentPause by remember { SystemTtsConfig.segmentPauseMs }
+    val segmentPauseLabel =
+        if (segmentPause == 0) stringResource(id = R.string.disabled) else "${segmentPause}ms"
+    SliderPreference(
+        title = { Text(stringResource(id = R.string.segment_pause)) },
+        subTitle = { Text(stringResource(id = R.string.segment_pause_summary)) },
+        value = segmentPause.toFloat(),
+        onValueChange = { segmentPause = it.fastRoundToInt() },
+        valueRange = 0f..1000f,
+        steps = 19,
+        icon = { Icon(Icons.Default.AccessTime, null) },
+        label = segmentPauseLabel,
+    )
+
     var streamPlay by remember { SystemTtsConfig.isStreamPlayModeEnabled }
     SwitchPreference(
         title = { Text(stringResource(id = R.string.stream_audio_mode)) },
