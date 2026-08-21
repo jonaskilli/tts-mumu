@@ -142,6 +142,14 @@ fun LogScreen(
                             (log.message.contains(searchQuery, ignoreCase = true) ||
                                     log.time.contains(searchQuery, ignoreCase = true))
 
+                    // 分隔线画在每组开头的主行上方：遇新的主行(非子行)且非首条时先画线再渲染，
+                    // 这样上一组的“获取成功”与下一组“请求音频”分界，而同一组的请求+成功之间不画线，紧贴成对
+                    if (index > 0 && !isChild)
+                        HorizontalDivider(
+                            modifier = Modifier.padding(horizontal = 4.dp),
+                            color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f)
+                        )
+
                     Column(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -175,13 +183,6 @@ fun LogScreen(
                             lineHeight = style.lineHeight * 0.75f,
                         )
                     }
-                    // 分隔线只在主行分组之间画：遇到新的主行(非子行)且不是首条时，在其上方画线；
-                    // 同组的请求+成功紧贴不分，视觉上作为一对儿
-                    if (index > 0 && !isChild)
-                        HorizontalDivider(
-                            modifier = Modifier.padding(horizontal = 4.dp),
-                            color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f)
-                        )
                 }
                 item {
                     Spacer(Modifier.navigationBarsPadding())
