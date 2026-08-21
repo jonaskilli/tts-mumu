@@ -24,6 +24,8 @@ import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.DeleteOutline
 import androidx.compose.material.icons.filled.FilterList
 import androidx.compose.material.icons.filled.FolderOpen
+import androidx.compose.material.icons.filled.KeyboardArrowDown
+import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.DockedSearchBar
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -45,6 +47,7 @@ import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -60,6 +63,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.compose.runtime.CompositionLocalProvider
 import com.github.jing332.common.LogLevel
 import com.github.jing332.tts_server_android.R
+import kotlinx.coroutines.launch
 import java.io.File
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -68,22 +72,55 @@ internal fun TtsLogScreen(vm: TtsLogViewModel = viewModel()) {
     val context = LocalContext.current
     var isSearchActive by rememberSaveable { mutableStateOf(false) }
     var searchQuery by remember { mutableStateOf("") }
+    // 只看匹配：开启后按搜索词过滤列表，关闭则完整列表+高亮定位
+    var filterMatches by rememberSaveable { mutableStateOf(false) }
     val listState = rememberLazyListState()
+    val scope = rememberCoroutineScope()
 
-    // 用 derivedStateOf 缓存过滤结果，避免 HorizontalPager 滑动时每次重组都重算 filteredLogs（O(n)）
-    val filteredLogs by remember(vm) { derivedStateOf { vm.filteredLogs } }
+    fun LogEntry.matchesQuery(q: String): Boolean =
+        message.contains(q, ignoreCase = true) || time.contains(q, ignoreCase = true)
 
-    // 搜索=定位而非过滤：跳到最近一条匹配项，高亮由 LogScreen 渲染，
-    // 列表保持完整，上下滑动即可查看前后文
-    LaunchedEffect(searchQuery) {
+    // 基础列表 = 等级/插件筛选结果；开「只看匹配」时再按搜索词过滤
+    val displayLogs by remember(vm) {
+        derivedStateOf {
+            val q = searchQuery.trim()
+            if (filterMatches && q.isNotEmpty())
+                vm.filteredLogs.filter { it.matchesQuery(q) }
+            else
+                vm.filteredLogs
+        }
+    }
+
+    // 匹配统计(控制行展示用)
+    val matchCount by remember(vm) {
+        derivedStateOf {
+            val q = searchQuery.trim()
+            if (q.isEmpty()) 0
+            else displayLogs.count { it.matchesQuery(q) }
+        }
+    }
+
+    // 搜索词变化/开关过滤 → 跳到最近一条匹配(高亮由 LogScreen 渲染)
+    LaunchedEffect(searchQuery, filterMatches) {
         val q = searchQuery.trim()
         if (q.isNotEmpty()) {
-            val idx = filteredLogs.indexOfLast {
-                it.message.contains(q, ignoreCase = true) ||
-                        it.time.contains(q, ignoreCase = true)
-            }
+            val idx = displayLogs.indexOfLast { it.matchesQuery(q) }
             if (idx >= 0) listState.animateScrollToItem(idx)
         }
+    }
+
+    // 上一处/下一处：以当前可视位置为锚点跳转，到头自动绕回
+    fun jumpToMatch(forward: Boolean) {
+        val q = searchQuery.trim()
+        if (q.isEmpty()) return
+        val matches = displayLogs.indices.filter { displayLogs[it].matchesQuery(q) }
+        if (matches.isEmpty()) return
+        val anchor = listState.firstVisibleItemIndex
+        val target = if (forward)
+            matches.firstOrNull { it > anchor } ?: matches.first()
+        else
+            matches.lastOrNull { it < anchor } ?: matches.last()
+        scope.launch { listState.animateScrollToItem(target) }
     }
 
     val scrollBehavior = TopAppBarDefaults.pinnedScrollBehavior()
@@ -194,6 +231,42 @@ internal fun TtsLogScreen(vm: TtsLogViewModel = viewModel()) {
                     }
                 )
                 
+                // 搜索控制行：匹配数 + 上一处/下一处跳转 + 只看匹配开关
+                AnimatedVisibility(
+                    visible = isSearchActive && searchQuery.isNotBlank(),
+                    enter = fadeIn(),
+                    exit = fadeOut()
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp, vertical = 2.dp),
+                        horizontalArrangement = Arrangement.spacedBy(2.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = "${matchCount} 处匹配",
+                            style = MaterialTheme.typography.labelMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        IconButton(onClick = { jumpToMatch(false) }) {
+                            Icon(Icons.Default.KeyboardArrowUp, "上一处")
+                        }
+                        IconButton(onClick = { jumpToMatch(true) }) {
+                            Icon(Icons.Default.KeyboardArrowDown, "下一处")
+                        }
+                        Spacer(Modifier.weight(1f))
+                        FilterChip(
+                            selected = filterMatches,
+                            onClick = { filterMatches = !filterMatches },
+                            label = { Text("只看匹配") },
+                            colors = FilterChipDefaults.filterChipColors(
+                                selectedContainerColor = MaterialTheme.colorScheme.secondaryContainer
+                            )
+                        )
+                    }
+                }
+
                 // 筛选标签显示
                 AnimatedVisibility(
                     visible = vm.selectedLevels.isNotEmpty(),
@@ -248,7 +321,7 @@ internal fun TtsLogScreen(vm: TtsLogViewModel = viewModel()) {
             modifier = Modifier
                 .fillMaxSize()
                 .padding(top = paddingValues.calculateTopPadding()),
-            list = filteredLogs,
+            list = displayLogs,
             listState = listState,
             // 搜索定位期间不自动滚底，避免与跳转互相拉扯
             autoScrollToBottom = vm.autoScrollToBottom.value && searchQuery.isEmpty(),
