@@ -178,9 +178,9 @@ fun LogScreen(
                         }
                         Text(
                             text = spanned,
-                            // 获取成功(SUCCESS)作为组内低调结论，与 meta 同用次级灰；其余级别按等级色
+                            // 获取成功(SUCCESS)作为组内低调结论，与次级信息同用石板灰；其余级别按等级色
                             color = if (log.level == LogLevel.SUCCESS)
-                                MaterialTheme.colorScheme.onSurfaceVariant
+                                metaColor
                             else Color(log.level.toArgb(isDarkTheme = darkTheme)),
                             style = style,
                             lineHeight = style.lineHeight * 0.75f,
