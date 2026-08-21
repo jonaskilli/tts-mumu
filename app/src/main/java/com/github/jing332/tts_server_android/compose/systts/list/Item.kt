@@ -119,7 +119,7 @@ internal fun Item(
                         CustomAccessibilityAction(context.getString(R.string.export_config)) { onExport(); true }
                     )
                 }
-                .padding(vertical = 4.dp)
+                .padding(vertical = 6.dp)
         ) {
             val (
                 checkRef,
@@ -184,7 +184,6 @@ internal fun Item(
                 style = MaterialTheme.typography.titleMedium,
                 maxLines = 1,
                 textAlign = TextAlign.Start,
-                fontWeight = FontWeight.Bold,
                 overflow = TextOverflow.Clip,
                 modifier = Modifier
                     .constrainAs(nameRef) {
@@ -206,12 +205,12 @@ internal fun Item(
             ) {
                 HtmlText(
                     text = desc,
-                    style = MaterialTheme.typography.bodyMedium.copy(color = MaterialTheme.colorScheme.onBackground),
+                    style = MaterialTheme.typography.bodyMedium.copy(color = MaterialTheme.colorScheme.onSurfaceVariant),
                 )
 
                 HtmlText(
                     text = params,
-                    style = MaterialTheme.typography.bodySmall.copy(color = MaterialTheme.colorScheme.onBackground),
+                    style = MaterialTheme.typography.bodySmall.copy(color = MaterialTheme.colorScheme.onSurfaceVariant),
                 )
             }
 
@@ -362,13 +361,13 @@ internal fun Item(
 
 @Composable
 private fun TagScreen(modifier: Modifier = Modifier, tag: String) {
-    OutlinedCard(shape = MaterialTheme.shapes.extraSmall, modifier = modifier) {
+    OutlinedCard(shape = MaterialTheme.shapes.small, modifier = modifier) {
         Text(
             text = tag,
             style = MaterialTheme.typography.bodyMedium,
-            fontWeight = FontWeight.Bold,
+            fontWeight = FontWeight.Medium,
             color = MaterialTheme.colorScheme.secondary,
-            modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp),
+            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
             overflow = TextOverflow.Clip,
             textAlign = TextAlign.Center,
             maxLines = 1,
