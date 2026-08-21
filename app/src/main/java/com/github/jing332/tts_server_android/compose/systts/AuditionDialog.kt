@@ -157,10 +157,17 @@ fun AuditionDialog(
                         onSampleRateResolved?.invoke(voiceId, rateAndMime.first)
                     }
                     withMain {
+                        // 与日志一致的最终倍率展示(仅≠1的项)：试听时明确知道当前生效的叠加参数
+                        val p = config.audioParams
+                        val paramsInfo = buildList {
+                            if (kotlin.math.abs(p.speed - 1f) > 0.005f) add("语速%.2fx".format(p.speed))
+                            if (kotlin.math.abs(p.volume - 1f) > 0.005f) add("音量%.2fx".format(p.volume))
+                            if (kotlin.math.abs(p.pitch - 1f) > 0.005f) add("音调%.2fx".format(p.pitch))
+                        }.joinToString(" ")
                         info = context.getString(
                             R.string.systts_test_success_info, audio.size.toLong().sizeToReadable(),
                             rateAndMime.first, rateAndMime.second
-                        )
+                        ) + if (paramsInfo.isNotEmpty()) "\n$paramsInfo" else ""
                     }
 
                     if (config.shouldDecode())
