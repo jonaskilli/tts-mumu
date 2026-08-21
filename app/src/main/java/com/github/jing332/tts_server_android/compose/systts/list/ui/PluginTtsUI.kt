@@ -761,10 +761,13 @@ class PluginTtsUI : IConfigUI() {
                         }
 
                         // 插件自定义 UI 始终展示，即使界面模式(isUiOnly)下也可见
+                        // 加载期间不做高度动画：插件JS逐个addView会让animateContentSize
+                        // 一直表演"从上往下撑开"(观感像黑影掉下来)；加载完成后的零星
+                        // 尺寸变化(增删角色行)才保留平滑动画
                         AndroidView(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .animateContentSize(),
+                                .then(if (vm.isLoading) Modifier else Modifier.animateContentSize()),
                             factory = { customViewLayout }
                         )
                         }
