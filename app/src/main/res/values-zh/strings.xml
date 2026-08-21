@@ -519,6 +519,7 @@
     <string name="select_all">全选</string>
     <string name="deselect_all">取消全选</string>
     <string name="select_delete">多选删除</string>
+    <string name="multi_select">多选</string>
     <!-- 后台保活 -->
     <string name="keep_alive_service">后台保活服务</string>
     <string name="keep_alive_service_desc">防止应用被系统杀死（墓碑冻结）</string>

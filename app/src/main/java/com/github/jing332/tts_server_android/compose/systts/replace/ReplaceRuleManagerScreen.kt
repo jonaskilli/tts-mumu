@@ -20,9 +20,9 @@ import androidx.compose.material.icons.automirrored.filled.PlaylistAdd
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.AddCard
 import androidx.compose.material.icons.filled.AppShortcut
+import androidx.compose.material.icons.filled.Checklist
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.DeleteForever
-import androidx.compose.material.icons.filled.DeleteSweep
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Output
 import androidx.compose.material.icons.filled.SelectAll
@@ -300,9 +300,9 @@ internal fun ReplaceRuleManagerScreen(
                             )
                         }
                     } else {
-                        // 多选删除入口
+                        // 多选入口(导出/删除都在多选模式里),用清单图标而非删除图标
                         IconButton(onClick = { selectionMode = true }) {
-                            Icon(Icons.Default.DeleteSweep, stringResource(id = R.string.select_delete))
+                            Icon(Icons.Default.Checklist, stringResource(id = R.string.multi_select))
                         }
                         var showOptions by remember { mutableStateOf(false) }
                         IconButton(onClick = { showOptions = true }) {

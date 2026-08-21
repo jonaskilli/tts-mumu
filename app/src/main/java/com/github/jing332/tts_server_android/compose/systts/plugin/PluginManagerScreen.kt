@@ -23,10 +23,10 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.Input
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.AppShortcut
+import androidx.compose.material.icons.filled.Checklist
 import androidx.compose.material.icons.filled.CleaningServices
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.DeleteForever
-import androidx.compose.material.icons.filled.DeleteSweep
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.EditNote
 import androidx.compose.material.icons.filled.MoreVert
@@ -583,11 +583,11 @@ fun PluginManagerScreen(sharedVM: SharedViewModel, onFinishActivity: () -> Unit)
                         Icon(Icons.Default.Add, stringResource(id = R.string.add_config))
                     }
 
-                    // 第10项: 顶部整理图标(批量多选删除),不再藏在更多菜单里
+                    // 多选入口(导出/删除都在多选模式里),用清单图标而非删除图标
                     IconButton(onClick = { selectionMode = true }) {
                         Icon(
-                            Icons.Default.DeleteSweep,
-                            stringResource(id = R.string.select_delete)
+                            Icons.Default.Checklist,
+                            stringResource(id = R.string.multi_select)
                         )
                     }
 
