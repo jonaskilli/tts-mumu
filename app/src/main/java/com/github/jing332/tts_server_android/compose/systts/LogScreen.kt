@@ -183,7 +183,7 @@ fun LogScreen(
                                 metaColor
                             else Color(log.level.toArgb(isDarkTheme = darkTheme)),
                             style = style,
-                            lineHeight = style.lineHeight * 0.75f,
+                            lineHeight = style.lineHeight,
                         )
                     }
                 }
