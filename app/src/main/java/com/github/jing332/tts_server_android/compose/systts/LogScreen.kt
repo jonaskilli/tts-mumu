@@ -127,10 +127,8 @@ fun LogScreen(
         SelectionContainer {
             LazyColumn(Modifier.fillMaxSize(), state = listState) {
                 itemsIndexed(list, key = { index, _ -> index }) { index, log ->
-                    val isChild = log.indent > 0
                     // 次级色需在 Composable 作用域读取，供 remember 内 remapMetaColor 使用
                     val metaColor = MaterialTheme.colorScheme.onSurfaceVariant
-                    // 子行从属于上一主行：左侧轻微缩进标识从属关系，字号保持正常
                     val style = MaterialTheme.typography.bodyMedium
                     val spanned = remember(log.message, darkTheme, metaColor) {
                         HtmlCompat.fromHtml(log.message, HtmlCompat.FROM_HTML_MODE_COMPACT)
@@ -144,9 +142,8 @@ fun LogScreen(
                             (log.message.contains(searchQuery, ignoreCase = true) ||
                                     log.time.contains(searchQuery, ignoreCase = true))
 
-                    // 分隔线画在每组开头的主行上方：遇新的主行(非子行)且非首条时先画线再渲染，
-                    // 这样上一组的“获取成功”与下一组“请求音频”分界，而同一组的请求+成功之间不画线，紧贴成对
-                    if (index > 0 && !isChild)
+                    // 每条日志之间画分隔线
+                    if (index > 0)
                         HorizontalDivider(
                             modifier = Modifier.padding(horizontal = 4.dp),
                             color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f)
@@ -164,9 +161,9 @@ fun LogScreen(
                                 else Modifier
                             )
                             .padding(
-                                start = if (isChild) 8.dp else 4.dp,
+                                start = 4.dp,
                                 end = 4.dp,
-                                top = if (isChild) 0.dp else 3.5.dp,
+                                top = 3.5.dp,
                                 bottom = 3.5.dp
                             )
                     ) {
