@@ -24,7 +24,6 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.KeyboardDoubleArrowDown
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FloatingActionButton
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -103,9 +102,10 @@ fun LogScreen(
                             .toAnnotatedString()
                     }
 
-                    Column(modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp)) {
+                    Column(modifier = Modifier.padding(horizontal = 4.dp, vertical = 3.5.dp)) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
-                            Text(text = log.time, style = MaterialTheme.typography.bodySmall)
+                            // 去掉日期部分只留 时:分:秒.毫秒，同日内日期无信息量且挤宽度
+                            Text(text = log.time.takeLast(12), style = MaterialTheme.typography.bodySmall)
                             Text(
                                 text = "\t${log.level.toLogLevelChar()}",
                                 style = MaterialTheme.typography.bodySmall
@@ -117,8 +117,7 @@ fun LogScreen(
                             style = style,
                             lineHeight = style.lineHeight * 0.75f,
                         )
-                        if (index < list.size - 1)
-                            HorizontalDivider(thickness = 0.3.dp)
+                        // 条目间不画分隔线：时间行本身是块头标记，留白分块即可
                     }
                 }
                 item {
