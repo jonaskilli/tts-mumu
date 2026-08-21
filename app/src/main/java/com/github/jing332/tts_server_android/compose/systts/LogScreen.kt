@@ -130,9 +130,8 @@ fun LogScreen(
                     val isChild = log.indent > 0
                     // 次级色需在 Composable 作用域读取，供 remember 内 remapMetaColor 使用
                     val metaColor = MaterialTheme.colorScheme.onSurfaceVariant
-                    // 子行从属于上一主行：左侧缩进、字号略小，作为“请求→获取结果”这类成对的从属行
-                    val style = if (isChild) MaterialTheme.typography.bodySmall
-                        else MaterialTheme.typography.bodyMedium
+                    // 子行从属于上一主行：左侧轻微缩进标识从属关系，字号保持正常
+                    val style = MaterialTheme.typography.bodyMedium
                     val spanned = remember(log.message, darkTheme, metaColor) {
                         HtmlCompat.fromHtml(log.message, HtmlCompat.FROM_HTML_MODE_COMPACT)
                             .toAnnotatedString()
@@ -165,7 +164,7 @@ fun LogScreen(
                                 else Modifier
                             )
                             .padding(
-                                start = if (isChild) 16.dp else 4.dp,
+                                start = if (isChild) 8.dp else 4.dp,
                                 end = 4.dp,
                                 top = if (isChild) 0.dp else 3.5.dp,
                                 bottom = 3.5.dp
