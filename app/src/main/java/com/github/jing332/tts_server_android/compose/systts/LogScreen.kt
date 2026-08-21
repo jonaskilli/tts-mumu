@@ -27,6 +27,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.KeyboardDoubleArrowDown
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FloatingActionButton
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -101,7 +102,7 @@ fun LogScreen(
         val darkTheme = isSystemInDarkTheme()
         SelectionContainer {
             LazyColumn(Modifier.fillMaxSize(), state = listState) {
-                itemsIndexed(list, key = { index, _ -> index }) { _, log ->
+                itemsIndexed(list, key = { index, _ -> index }) { index, log ->
                     val style = MaterialTheme.typography.bodyMedium
                     val spanned = remember {
                         HtmlCompat.fromHtml(log.message, HtmlCompat.FROM_HTML_MODE_COMPACT)
@@ -140,8 +141,13 @@ fun LogScreen(
                             style = style,
                             lineHeight = style.lineHeight * 0.75f,
                         )
-                        // 条目间不画分隔线：时间行本身是块头标记，留白分块即可
                     }
+                    // 条目间画浅色分隔线，收进带色板上、减弱水平线噪声
+                    if (index != list.lastIndex)
+                        HorizontalDivider(
+                            modifier = Modifier.padding(horizontal = 4.dp),
+                            color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f)
+                        )
                 }
                 item {
                     Spacer(Modifier.navigationBarsPadding())
