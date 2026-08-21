@@ -11,9 +11,24 @@ class AudioPlayer(context: Context) {
         pcmAudioPlayer.play(inputStream, sampleRate)
     }
 
-    // speed/volume/pitch：本地应用的音频参数(试听对齐朗读效果)，默认1f行为不变
-    fun play(bytes: ByteArray, sampleRate: Int, speed: Float = 1f, volume: Float = 1f, pitch: Float = 1f) {
-        pcmAudioPlayer.play(bytes, sampleRate, speed, volume, pitch)
+    /**
+     * 播放裸 PCM(单声道16bit)。带音频参数时包 WAV 头经 Exo 播放
+     * (Exo 原生支持 speed/volume/pitch，与朗读管线一致)；
+     * 参数全为默认值时直通 AudioTrack，行为与原实现相同。
+     */
+    suspend fun play(
+        bytes: ByteArray,
+        sampleRate: Int,
+        speed: Float = 1f,
+        volume: Float = 1f,
+        pitch: Float = 1f,
+    ) {
+        if (speed == 1f && volume == 1f && pitch == 1f) {
+            pcmAudioPlayer.play(bytes, sampleRate)
+            return
+        }
+        val wav = AudioUtils.createWavHeader(sampleRate, 1, 16, bytes.size) + bytes
+        exoAudioPlayer.play(wav, speed, volume, pitch)
     }
 
     suspend fun play(inputStream: InputStream) {

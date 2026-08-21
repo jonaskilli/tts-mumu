@@ -4,8 +4,6 @@ import android.media.AudioFormat
 import android.media.AudioManager
 import android.media.AudioTrack
 import android.media.AudioTrack.PLAYSTATE_PLAYING
-import android.media.PlaybackParameters
-import android.os.Build
 import android.util.Log
 import com.github.jing332.common.audio.AudioDecoder.Companion.readPcmChunk
 import java.io.InputStream
@@ -50,13 +48,7 @@ class PcmAudioPlayer {
     }
 
     @Synchronized
-    fun play(
-        audioData: ByteArray,
-        sampleRate: Int = currentSampleRate,
-        speed: Float = 1f,
-        volume: Float = 1f,
-        pitch: Float = 1f,
-    ) {
+    fun play(audioData: ByteArray, sampleRate: Int = currentSampleRate) {
         if (currentSampleRate == sampleRate) {
             audioTrack = audioTrack ?: createAudioTrack(sampleRate)
         } else {
@@ -67,17 +59,6 @@ class PcmAudioPlayer {
         }
 
         if (audioTrack!!.playState != PLAYSTATE_PLAYING) audioTrack!!.play()
-
-        // 与朗读路径 Sonic 等效的本地参数应用(试听对齐实听)；
-        // setPlaybackParameters 需 API 23，低版本忽略(仅音量仍生效)
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && (speed != 1f || pitch != 1f)) {
-            runCatching {
-                audioTrack!!.playbackParameters = PlaybackParameters(speed, pitch)
-            }
-        }
-        if (volume != 1f) {
-            runCatching { audioTrack!!.setVolume(volume.coerceIn(0f, 1f)) }
-        }
 
         audioTrack!!.write(audioData, 0, audioData.size)
         println("play done..")
