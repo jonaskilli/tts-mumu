@@ -732,11 +732,15 @@ class SystemTtsService : TextToSpeechService(), IEventDispatcher {
         }.joinToString(" ")
 
         // 声音配置信息/语速音量/备用等为次级信息，用哨兵色标记，
-        // 渲染时(LogScreen)按主题重映射为次级色，避免与正文一起全是绿色而看不清
+        // 渲染时(LogScreen)按主题重映射为次级色，避免与正文一起全是绿色而看不清；
+        // 语速音量音调单独一行，与“配置名/语音/标签”一行分开更易读
         return if (tag is SystemTtsV2) {
-            val meta = tag.displayName + ", ${config.source.voice}, ${config.speechInfo.tagName}" +
-                    (if (paramsInfo.isNotEmpty()) ", $paramsInfo" else "") +
-                    standbyInfo
+            val meta = buildString {
+                append(tag.displayName).append(", ").append(config.source.voice)
+                    .append(", ").append(config.speechInfo.tagName)
+                if (paramsInfo.isNotEmpty()) append("<br>").append(paramsInfo)
+                append(standbyInfo) // 自带前导 <br>
+            }
             "<font color=\"" + META_INFO_COLOR + "\">" + meta + "</font>"
         } else ""
     }
