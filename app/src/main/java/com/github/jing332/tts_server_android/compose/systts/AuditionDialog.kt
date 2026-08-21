@@ -307,16 +307,25 @@ fun AuditionDialog(
             }
         },
         buttons = {
-            if (onPrev != null) {
-                TextButton(onClick = onPrev, enabled = hasPrev) {
-                    Icon(Icons.AutoMirrored.Filled.NavigateBefore, contentDescription = "上一个")
-                    Text("上一个")
-                }
-            }
-            if (onNext != null) {
-                TextButton(onClick = onNext, enabled = hasNext) {
-                    Text("下一个")
-                    Icon(Icons.AutoMirrored.Filled.NavigateNext, contentDescription = "下一个")
+            if (onPrev != null || onNext != null) {
+                // 仅剩切换按钮：居中排布，删除重播后不再挤在右下角
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.Center,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    if (onPrev != null) {
+                        TextButton(onClick = onPrev, enabled = hasPrev) {
+                            Icon(Icons.AutoMirrored.Filled.NavigateBefore, contentDescription = "上一个")
+                            Text("上一个")
+                        }
+                    }
+                    if (onNext != null) {
+                        TextButton(onClick = onNext, enabled = hasNext) {
+                            Text("下一个")
+                            Icon(Icons.AutoMirrored.Filled.NavigateNext, contentDescription = "下一个")
+                        }
+                    }
                 }
             }
         }
