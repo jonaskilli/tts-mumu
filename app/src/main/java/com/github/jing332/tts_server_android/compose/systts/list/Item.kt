@@ -362,13 +362,14 @@ internal fun Item(
 
 @Composable
 private fun TagScreen(modifier: Modifier = Modifier, tag: String) {
-    OutlinedCard(shape = MaterialTheme.shapes.extraSmall, modifier = modifier) {
+    // small(8dp)对齐M3 chip默认圆角；Medium字重与旁边Bold的显示名拉开层级
+    OutlinedCard(shape = MaterialTheme.shapes.small, modifier = modifier) {
         Text(
             text = tag,
             style = MaterialTheme.typography.bodyMedium,
-            fontWeight = FontWeight.Bold,
+            fontWeight = FontWeight.Medium,
             color = MaterialTheme.colorScheme.secondary,
-            modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp),
+            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
             overflow = TextOverflow.Clip,
             textAlign = TextAlign.Center,
             maxLines = 1,
