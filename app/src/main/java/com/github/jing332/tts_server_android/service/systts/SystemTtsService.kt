@@ -790,19 +790,14 @@ class SystemTtsService : TextToSpeechService(), IEventDispatcher {
                 if (e.retries > 0)
                     logW(getString(R.string.systts_log_start_retry, e.retries))
                 else
+                    // "请求音频:"前缀与声音配置/语速等次级信息同色，加粗正文走级别色，形成"前缀+元数据"vs"正文"层次
                     logI(
-                        getString(
-                            R.string.systts_log_request_audio,
-                            e.request.text()
-                        )
+                        "<font color=\"" + META_INFO_COLOR + "\">请求音频：</font>" + e.request.text()
                     )
 
 
             is NormalEvent.DirectPlay -> logI(
-                getString(
-                    R.string.systts_log_direct_play,
-                    e.request.text()
-                )
+                "<font color=\"" + META_INFO_COLOR + "\">直接播放：</font>" + e.request.text()
             )
 
             is NormalEvent.ReadAllFromStream -> {

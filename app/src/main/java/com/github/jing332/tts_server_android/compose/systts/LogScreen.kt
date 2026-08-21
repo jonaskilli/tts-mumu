@@ -127,8 +127,8 @@ fun LogScreen(
         SelectionContainer {
             LazyColumn(Modifier.fillMaxSize(), state = listState) {
                 itemsIndexed(list, key = { index, _ -> index }) { index, log ->
-                    // 次级绿按主题取色：浅色用深绿(Green 800)沉得稳，深色用浅绿(Green 100)显眼但不刺
-                    val metaColor = if (darkTheme) Color(0xFFC8E6C9) else Color(0xFF2E7D32)
+                    // 次级色用 Teal 青绿：与正文纯绿同系但有色相差异，避免"深绿配浅绿"的浊感
+                    val metaColor = if (darkTheme) Color(0xFF80CBC4) else Color(0xFF00897B)
                     val style = MaterialTheme.typography.bodyMedium
                     val spanned = remember(log.message, darkTheme, metaColor) {
                         HtmlCompat.fromHtml(log.message, HtmlCompat.FROM_HTML_MODE_COMPACT)
