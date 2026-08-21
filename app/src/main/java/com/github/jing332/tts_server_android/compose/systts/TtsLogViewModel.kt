@@ -41,8 +41,7 @@ class TtsLogViewModel : ViewModel() {
     }
 
     val logs = mutableStateListOf<LogEntry>()
-    val searchQuery = mutableStateOf("")
-    
+
     // 日志级别筛选（存储选中的日志级别 Int 值）
     val selectedLevels = mutableStateListOf<Int>()
     val showFilterDialog = mutableStateOf(false)
@@ -59,21 +58,15 @@ class TtsLogViewModel : ViewModel() {
     val filteredLogs: List<LogEntry>
         get() {
             var filtered = logs.toList()
-            
+
             // 按日志级别筛选
             if (selectedLevels.isNotEmpty()) {
                 filtered = filtered.filter { it.level in selectedLevels }
             }
-            
-            // 按搜索词筛选
-            val query = searchQuery.value.trim()
-            if (query.isNotEmpty()) {
-                filtered = filtered.filter { log ->
-                    log.message.contains(query, ignoreCase = true) ||
-                    log.time.contains(query, ignoreCase = true)
-                }
-            }
-            
+
+            // 注：搜索词不做过滤——搜索是定位(跳转+高亮)，由 TtsLogScreen/LogScreen 处理，
+            // 保留完整列表便于查看匹配项的前后文
+
             // 调试模式：控制是否显示插件日志
             if (!showPluginLogs.value) {
                 filtered = filtered.filter { !it.isPluginLog }

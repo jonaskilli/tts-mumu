@@ -102,6 +102,7 @@ internal class DefaultResultProcessor(
         request: RequestPayload,
         targetSampleRate: Int,
         callback: PcmAudioDataListener,
+        requestCostMs: Long,
     ): Result<Unit, StreamProcessorError> {
         val config = request.config
         logger.debug {
@@ -109,7 +110,7 @@ internal class DefaultResultProcessor(
         }
 
         try {
-            val stream = getAudioStream(ins, request).onFailure { return Err(it) }.value
+            val stream = getAudioStream(ins, request, requestCostMs).onFailure { return Err(it) }.value
 
             // 响度均衡：始终开启，计算当前发音人的增益
             val loudnessInfo = SpeakerLoudnessManager.infoFor(config)
@@ -228,6 +229,7 @@ internal class DefaultResultProcessor(
     private suspend fun getAudioStream(
         ins: InputStream,
         request: RequestPayload,
+        requestCostMs: Long = 0,
     ): Result<InputStream, StreamProcessorError> = if (context.cfg.streamPlayEnabled()) {
         context.event?.dispatch(NormalEvent.HandleStream(request))
         Ok(ins)
@@ -236,7 +238,11 @@ internal class DefaultResultProcessor(
             ins.use {
                 val bytes: ByteArray
                 val cost = measureTimeMillis { bytes = it.readBytes() }
-                context.event?.dispatch(NormalEvent.ReadAllFromStream(request, bytes.size, cost))
+                // 请求段(插件内部下载) + 读流段(body下载) 相加：
+                // ByteArray型插件前段为主、流式插件后段为主，两种形态都得到完整真实耗时
+                context.event?.dispatch(
+                    NormalEvent.ReadAllFromStream(request, bytes.size, requestCostMs + cost)
+                )
 
                 Ok(ByteArrayInputStream(bytes))
             }

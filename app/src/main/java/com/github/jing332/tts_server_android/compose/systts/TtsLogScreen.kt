@@ -17,6 +17,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Clear
@@ -39,6 +40,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -66,12 +68,23 @@ internal fun TtsLogScreen(vm: TtsLogViewModel = viewModel()) {
     val context = LocalContext.current
     var isSearchActive by rememberSaveable { mutableStateOf(false) }
     var searchQuery by remember { mutableStateOf("") }
-    
-    // 同步搜索词到 ViewModel
-    vm.searchQuery.value = searchQuery
+    val listState = rememberLazyListState()
 
     // 用 derivedStateOf 缓存过滤结果，避免 HorizontalPager 滑动时每次重组都重算 filteredLogs（O(n)）
     val filteredLogs by remember(vm) { derivedStateOf { vm.filteredLogs } }
+
+    // 搜索=定位而非过滤：跳到最近一条匹配项，高亮由 LogScreen 渲染，
+    // 列表保持完整，上下滑动即可查看前后文
+    LaunchedEffect(searchQuery) {
+        val q = searchQuery.trim()
+        if (q.isNotEmpty()) {
+            val idx = filteredLogs.indexOfLast {
+                it.message.contains(q, ignoreCase = true) ||
+                        it.time.contains(q, ignoreCase = true)
+            }
+            if (idx >= 0) listState.animateScrollToItem(idx)
+        }
+    }
 
     val scrollBehavior = TopAppBarDefaults.pinnedScrollBehavior()
     Scaffold(
@@ -236,7 +249,10 @@ internal fun TtsLogScreen(vm: TtsLogViewModel = viewModel()) {
                 .fillMaxSize()
                 .padding(top = paddingValues.calculateTopPadding()),
             list = filteredLogs,
-            autoScrollToBottom = vm.autoScrollToBottom.value
+            listState = listState,
+            // 搜索定位期间不自动滚底，避免与跳转互相拉扯
+            autoScrollToBottom = vm.autoScrollToBottom.value && searchQuery.isEmpty(),
+            searchQuery = searchQuery
         )
     }
 

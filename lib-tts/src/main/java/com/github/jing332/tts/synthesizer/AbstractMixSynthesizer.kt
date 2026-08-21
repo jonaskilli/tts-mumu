@@ -1,6 +1,7 @@
 package com.github.jing332.tts.synthesizer
 
 import androidx.annotation.MainThread
+import android.os.SystemClock
 import com.drake.net.utils.withMain
 import com.github.jing332.common.utils.StringUtils
 import com.github.jing332.common.utils.toByteArray
@@ -69,6 +70,9 @@ abstract class AbstractMixSynthesizer() : Synthesizer {
 
     private val logger: KLogger
         get() = context.logger
+
+    // 预取结果：流 + 请求段耗时(用于获取成功日志的耗时合计)
+    private data class PrefetchResult(val stream: InputStream?, val costMs: Long)
 
 
     abstract val context: SynthesizerContext
@@ -170,6 +174,7 @@ abstract class AbstractMixSynthesizer() : Synthesizer {
         retries: Int = 0,
         maxRetries: Int = context.cfg.maxRetryTimes(),
         prefetchedStream: InputStream? = null,
+        prefetchedCostMs: Long = 0,
     ) {
         val request = RequestPayload(params, config)
         suspend fun retry() {
@@ -239,10 +244,17 @@ abstract class AbstractMixSynthesizer() : Synthesizer {
         event(NormalEvent.Request(request, retries))
 
         // 优先使用预取的流，避免重复请求；重试时 prefetchedStream=null 走正常请求路径
+        // 请求段耗时单独计量：ByteArray型插件(豆包/千问)的下载发生在 requestInternal 内部，
+        // 流式插件的下载发生在后续读流阶段，两段相加才是完整的真实耗时(获取成功日志)
+        val reqStart = SystemClock.elapsedRealtime()
         val stream = prefetchedStream ?: requestInternal(request, playCallback = {
                 logger.debug { "send direct play callback..." }
                 channel.send(ChannelPayload.DirectPlayCallback(request, it))
             })
+        val requestCostMs = if (prefetchedStream != null)
+            prefetchedCostMs
+        else
+            SystemClock.elapsedRealtime() - reqStart
 
         if (stream == null) return retry() // request failed
         else if (stream is EmptyInputStream) return // direct play
@@ -257,7 +269,8 @@ abstract class AbstractMixSynthesizer() : Synthesizer {
                     ins = stream,
                     request = request,
                     targetSampleRate = maxSampleRate,
-                    callback = { pcm -> channel.trySendBlocking(ChannelPayload.Bytes(pcm.toByteArray())) }
+                    callback = { pcm -> channel.trySendBlocking(ChannelPayload.Bytes(pcm.toByteArray())) },
+                    requestCostMs = requestCostMs,
                 )
             }
         } catch (e: TimeoutCancellationException) {
@@ -287,7 +300,7 @@ abstract class AbstractMixSynthesizer() : Synthesizer {
                 textProcess(params, presetConfigId)
                     .onSuccess { list ->
                         // 预取：段N处理流时并发请求段N+1，消除段间网络等待
-                        var prefetchJob: Deferred<InputStream?>? = null
+                        var prefetchJob: Deferred<PrefetchResult>? = null
 
                         for ((index, segment) in list.withIndex()) {
                             val segParams = params.copy(text = segment.text)
@@ -296,9 +309,13 @@ abstract class AbstractMixSynthesizer() : Synthesizer {
                             val prefetched = prefetchJob?.await()
                             prefetchJob = null
 
-                            if (prefetched != null) {
+                            if (prefetched?.stream != null) {
                                 // 预取成功，直接用预取的流处理
-                                requestAndProcess(channel, segParams, segment.tts, prefetchedStream = prefetched)
+                                requestAndProcess(
+                                    channel, segParams, segment.tts,
+                                    prefetchedStream = prefetched.stream,
+                                    prefetchedCostMs = prefetched.costMs
+                                )
                             } else {
                                 // 无预取（首段/预取失败），正常请求
                                 requestAndProcess(channel, segParams, segment.tts)
@@ -309,11 +326,13 @@ abstract class AbstractMixSynthesizer() : Synthesizer {
                                 val nextSeg = list[index + 1]
                                 val nextRequest = RequestPayload(params.copy(text = nextSeg.text), nextSeg.tts)
                                 prefetchJob = async(Dispatchers.IO) {
-                                    runCatching {
+                                    val start = SystemClock.elapsedRealtime()
+                                    val s = runCatching {
                                         requestInternal(nextRequest, playCallback = {
                                             channel.send(ChannelPayload.DirectPlayCallback(nextRequest, it))
                                         })
                                     }.getOrNull()
+                                    PrefetchResult(s, SystemClock.elapsedRealtime() - start)
                                 }
                             }
 

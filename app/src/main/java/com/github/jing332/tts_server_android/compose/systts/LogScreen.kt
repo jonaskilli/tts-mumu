@@ -6,12 +6,14 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.shrinkOut
 import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.background
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
@@ -19,6 +21,7 @@ import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.KeyboardDoubleArrowDown
@@ -57,6 +60,8 @@ fun LogScreen(
     list: List<LogEntry>,
     listState: LazyListState = rememberLazyListState(),
     autoScrollToBottom: Boolean = false,
+    // 非空时命中项加背景高亮(定位用，不过滤列表)
+    searchQuery: String = "",
 ) {
     ControlBottomBarVisibility(listState, LocalBottomBarBehavior.current)
     val scope = rememberCoroutineScope()
@@ -95,17 +100,34 @@ fun LogScreen(
         val darkTheme = isSystemInDarkTheme()
         SelectionContainer {
             LazyColumn(Modifier.fillMaxSize(), state = listState) {
-                itemsIndexed(list, key = { index, _ -> index }) { index, log ->
+                itemsIndexed(list, key = { index, _ -> index }) { _, log ->
                     val style = MaterialTheme.typography.bodyMedium
                     val spanned = remember {
                         HtmlCompat.fromHtml(log.message, HtmlCompat.FROM_HTML_MODE_COMPACT)
                             .toAnnotatedString()
                     }
 
-                    Column(modifier = Modifier.padding(horizontal = 4.dp, vertical = 3.5.dp)) {
+                    // 搜索命中项加背景高亮；搜索是定位不是过滤，列表保持完整可上下翻看前后文
+                    val isMatch = searchQuery.isNotEmpty() &&
+                            (log.message.contains(searchQuery, ignoreCase = true) ||
+                                    log.time.contains(searchQuery, ignoreCase = true))
+
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .then(
+                                if (isMatch) Modifier
+                                    .clip(RoundedCornerShape(6.dp))
+                                    .background(
+                                        MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.5f)
+                                    )
+                                else Modifier
+                            )
+                            .padding(horizontal = 4.dp, vertical = 3.5.dp)
+                    ) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
-                            // 去掉日期部分只留 时:分:秒.毫秒，同日内日期无信息量且挤宽度
-                            Text(text = log.time.takeLast(12), style = MaterialTheme.typography.bodySmall)
+                            // 完整时间戳(年月日+时分秒+毫秒)，等级字母跟在时间后
+                            Text(text = log.time, style = MaterialTheme.typography.bodySmall)
                             Text(
                                 text = "\t${log.level.toLogLevelChar()}",
                                 style = MaterialTheme.typography.bodySmall
