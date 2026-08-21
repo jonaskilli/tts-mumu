@@ -20,7 +20,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -101,8 +100,6 @@ fun AuditionDialog(
     val context = LocalContext.current
     var error by remember { mutableStateOf("") }
     var info by remember { mutableStateOf("") }
-    // 重播计数：点「重播」时自增触发 LaunchedEffect 重启（失败时兼作重试）
-    var retryKey by remember { mutableIntStateOf(0) }
     val audioPlayer = remember { AudioPlayer(context) }
 
     DisposableEffect(systts) {
@@ -121,7 +118,7 @@ fun AuditionDialog(
         }
     }
 
-    LaunchedEffect(systts, retryKey) {
+    LaunchedEffect(systts) {
         error = ""
         info = ""
         launch(Dispatchers.IO) {
@@ -310,10 +307,6 @@ fun AuditionDialog(
             }
         },
         buttons = {
-            // 重播：没听清可再听一遍；失败时兼作重试（error 清空后分类按钮恢复显示）
-            TextButton(onClick = { error = ""; info = ""; retryKey++ }) {
-                Text("重播")
-            }
             if (onPrev != null) {
                 TextButton(onClick = onPrev, enabled = hasPrev) {
                     Icon(Icons.AutoMirrored.Filled.NavigateBefore, contentDescription = "上一个")
