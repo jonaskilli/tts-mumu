@@ -43,7 +43,9 @@ import java.io.InputStream
 
 abstract class AbstractMixSynthesizer() : Synthesizer {
     companion object {
-        const val PROCUDE_CAPACITY: Int = 32
+        // 32→128：缓冲按块计，128块×2048B≈256KB，24kHz下约5.5秒音频，
+        // 高倍速听书（1-3x）时盖插件网络等待，消除段间接缝；停止时通道直接丢弃，不影响停止响应
+        const val PROCUDE_CAPACITY: Int = 128
 
         /**
          * 生成静音 PCM 音频数据（不含 WAV 头）

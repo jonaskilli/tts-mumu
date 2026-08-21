@@ -161,7 +161,8 @@ class SystemTtsService : TextToSpeechService(), IEventDispatcher {
                 "tts-server:wake_lock"
             )
 
-        mWakeLock?.acquire(60 * 20 * 100)
+        // 时长与 reNewWakeLock 保持一致：20分钟（原来少乘10倍只有2分钟，播放到2分钟即过期）
+        mWakeLock?.acquire(60 * 20 * 1000)
         mWifiLock.acquire()
 
 
