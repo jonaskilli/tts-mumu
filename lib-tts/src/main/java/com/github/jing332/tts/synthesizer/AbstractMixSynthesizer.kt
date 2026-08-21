@@ -317,10 +317,14 @@ abstract class AbstractMixSynthesizer() : Synthesizer {
                                 }
                             }
 
-                            // 段间停顿：在两段之间插入固定时长静音PCM
+                            // 段间停顿：每段音频之后插入固定时长静音PCM(含批次最后一段)
                             // 直写通道，不经过Sonic变速/静音跳过管线，停顿=设置的固定墙钟时长
+                            // 末段也插：阅读App常按句投喂、纯旁白段整段一个角色，批内往往只有
+                            // 1段，仅在批内多段间插入会永远不触发；段尾停顿充当批间气口，
+                            // 下一批到达时本批被强制收尾(onStop破窗)，停顿自然截断不叠加
                             val pauseMs = context.cfg.segmentPauseMs()
-                            if (pauseMs > 0 && index + 1 < list.size) {
+                            if (pauseMs > 0) {
+                                logger.info { "segment pause: insert ${pauseMs}ms after segment ${index + 1}/${list.size}" }
                                 channel.trySendBlocking(
                                     ChannelPayload.Bytes(
                                         createSilentPcmAudio(maxSampleRate, durationMs = pauseMs)
