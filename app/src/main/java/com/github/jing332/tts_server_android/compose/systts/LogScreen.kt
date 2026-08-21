@@ -178,9 +178,10 @@ fun LogScreen(
                         }
                         Text(
                             text = spanned,
-                            // 获取成功(SUCCESS)作为组内低调结论，与次级信息同用石板灰；其余级别按等级色
+                            // 获取成功(SUCCESS)结果用 Indigo 靛蓝加粗：与请求音频(绿)形成"请求=绿/结果=蓝"对应
+                            // "获取成功:"前缀仍由哨兵色走石板灰普通，大小·耗时走靛蓝加粗
                             color = if (log.level == LogLevel.SUCCESS)
-                                metaColor
+                                if (darkTheme) Color(0xFF7986CB) else Color(0xFF3F51B5)
                             else Color(log.level.toArgb(isDarkTheme = darkTheme)),
                             style = style,
                             lineHeight = style.lineHeight * 0.75f,
