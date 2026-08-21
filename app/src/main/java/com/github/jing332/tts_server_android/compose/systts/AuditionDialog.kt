@@ -37,10 +37,12 @@ import com.github.jing332.common.utils.messageChain
 import com.github.jing332.common.utils.sizeToReadable
 import com.github.jing332.compose.widgets.AppDialog
 import com.github.jing332.compose.widgets.LoadingContent
+import com.github.jing332.database.entities.systts.AudioParams
 import com.github.jing332.database.entities.systts.SystemTtsV2
 import com.github.jing332.database.entities.systts.TtsConfigurationDTO
 import com.github.jing332.database.entities.systts.source.TextToSpeechSource
 import com.github.jing332.tts.CachedEngineManager
+import com.github.jing332.tts.stackedAudioParamsFor
 import com.github.jing332.tts.speech.EngineState
 import com.github.jing332.tts.speech.TextToSpeechProvider
 import com.github.jing332.tts.synthesizer.SystemParams
@@ -65,7 +67,18 @@ fun AuditionDialog(
     systts: SystemTtsV2,
     text: String = AppConfig.testSampleText.value,
 
-    config: TtsConfiguration = (systts.config as TtsConfigurationDTO).toVO(),
+    // 与实际朗读同源：五层叠加(插件×配置×子分组×分组×全局)后的参数，
+    // 试听听到的即为真实播放效果，全局/分组/插件级修改即时体现
+    config: TtsConfiguration = (systts.config as TtsConfigurationDTO).toVO().copy(
+        audioParams = stackedAudioParamsFor(
+            systts,
+            AudioParams(
+                speed = SysTtsConfig.audioParamsSpeed,
+                volume = SysTtsConfig.audioParamsVolume,
+                pitch = SysTtsConfig.audioParamsPitch
+            )
+        )
+    ),
     engine: TextToSpeechProvider<TextToSpeechSource>? = null,
     voiceId: Any? = null,
     autoDismiss: Boolean = true,
