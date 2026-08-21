@@ -3,6 +3,7 @@ package com.github.jing332.tts
 import com.github.jing332.database.dbm
 import com.github.jing332.database.entities.systts.AudioParams
 import com.github.jing332.database.entities.systts.BgmConfiguration
+import com.github.jing332.database.entities.systts.GroupWithSystemTts
 import com.github.jing332.database.entities.systts.SystemTtsV2
 import com.github.jing332.database.entities.systts.TtsConfigurationDTO
 import com.github.jing332.tts.synthesizer.ITtsRepository
@@ -117,11 +118,19 @@ internal class TtsRepository(
                     }
                 }
                 // 同标签备用 > 性别兜底；兜底发音人(duihua/duihuaA/duihuaB)不挂任何备用，失败直接报错
+                // 备用/兜底与主配置走同一套五层叠加(插件×配置×子分组×分组×全局)，
+                // 否则全局/分组/插件级的音频参数修改对回落播放不生效
+                val standbyStacked = standby?.copy(
+                    audioParams = stackAudioParamsFor(standby.tag, groupWithTts, tp)
+                )
+                val genderStandbyStacked = genderStandby?.copy(
+                    audioParams = stackAudioParamsFor(genderStandby.tag, groupWithTts, tp)
+                )
                 val isFallbackTag = c.speechRule.tag in listOf("duihua", "duihuaA", "duihuaB")
                 val effectiveStandby = when {
                     isFallbackTag -> null
-                    standby != null -> standby
-                    genderStandby != null -> genderStandby
+                    standbyStacked != null -> standbyStacked
+                    genderStandbyStacked != null -> genderStandbyStacked
                     else -> null
                 }
 
@@ -164,5 +173,37 @@ internal class TtsRepository(
 
     override fun getAllBgm(): List<BgmConfiguration> {
         return dbm.systemTtsV2.allEnabled.map { it.config }.filterIsInstance<BgmConfiguration>()
+    }
+
+    // 备用/兜底配置的音频参数叠加：按其所属分组/子分组/插件级参数，
+    // 与主配置一致地做 插件×配置×子分组×分组×全局 五层乘法。
+    // 此前备用仅带配置自身值，全局/分组/插件级修改对回落播放不生效
+    private fun stackAudioParamsFor(
+        tts: Any?,
+        groupWithTts: List<GroupWithSystemTts>,
+        tp: AudioParams,
+    ): AudioParams {
+        val entity = tts as? SystemTtsV2 ?: return AudioParams()
+        val c = entity.config as? TtsConfigurationDTO ?: return AudioParams()
+
+        val group = groupWithTts.find { g -> g.list.any { it.id == entity.id } }?.group
+        val gp = group?.audioParams ?: AudioParams()
+        val subGroupMap: Map<String, AudioParams> = group?.subGroupAudioParamsJson?.let { jsonStr ->
+            if (jsonStr.isBlank() || jsonStr == "{}") emptyMap()
+            else SystemTtsV2.Converters.json.decodeFromString(jsonStr)
+        } ?: emptyMap()
+        val sub = subGroupMap[entity.categoryPath] ?: AudioParams()
+
+        val pluginRecord = (c.source as? com.github.jing332.database.entities.systts.source.PluginTtsSource)?.let {
+            dbm.pluginDao.getByPluginId(it.pluginId)
+        }
+        val pp = pluginRecord?.audioParams ?: AudioParams()
+        val cp = c.audioParams
+
+        return AudioParams(
+            speed = calculateParam(pp.speed, cp.speed, sub.speed, gp.speed, tp.speed),
+            volume = calculateParam(pp.volume, cp.volume, sub.volume, gp.volume, tp.volume),
+            pitch = calculateParam(pp.pitch, cp.pitch, sub.pitch, gp.pitch, tp.pitch),
+        )
     }
 }
