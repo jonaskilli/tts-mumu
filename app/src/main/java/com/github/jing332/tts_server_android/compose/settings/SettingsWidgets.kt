@@ -198,6 +198,8 @@ internal fun SliderPreference(
     onValueChange: (Float) -> Unit,
     valueRange: ClosedFloatingPointRange<Float> = 0f..1f,
     steps: Int = 0,
+    buttonSteps: Float = 1f,
+    buttonLongSteps: Float = 2f,
     label: String,
 ) {
     var show by rememberSaveable { mutableStateOf(false) }
@@ -217,8 +219,8 @@ internal fun SliderPreference(
                     onValueChange = onValueChange,
                     valueRange = valueRange,
                     steps = steps,
-                    buttonSteps = 1f,
-                    buttonLongSteps = 2f,
+                    buttonSteps = buttonSteps,
+                    buttonLongSteps = buttonLongSteps,
                     text = label
                 )
             }

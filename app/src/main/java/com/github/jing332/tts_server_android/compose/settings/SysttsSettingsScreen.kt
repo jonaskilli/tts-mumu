@@ -103,9 +103,12 @@ internal fun ColumnScope.SysttsSettingsScreen(modifier: Modifier = Modifier) {
         title = { Text(stringResource(id = R.string.segment_pause)) },
         subTitle = { Text(stringResource(id = R.string.segment_pause_summary)) },
         value = segmentPause.toFloat(),
-        onValueChange = { segmentPause = it.fastRoundToInt() },
+        // LabelSlider 内部 Slider 是连续的(steps仅用于无障碍)，50ms步进靠这里吸附实现
+        onValueChange = { segmentPause = (it / 50f).fastRoundToInt() * 50 },
         valueRange = 0f..1000f,
         steps = 19,
+        buttonSteps = 50f,
+        buttonLongSteps = 100f,
         icon = { Icon(Icons.Default.AccessTime, null) },
         label = segmentPauseLabel,
     )
