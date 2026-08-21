@@ -50,6 +50,7 @@ import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.core.text.HtmlCompat
 import com.github.jing332.common.LogEntry
+import com.github.jing332.common.LogLevel
 import com.github.jing332.common.toArgb
 import com.github.jing332.common.toLogLevelChar
 import com.github.jing332.compose.ComposeExtensions.toAnnotatedString
@@ -178,7 +179,10 @@ fun LogScreen(
                         }
                         Text(
                             text = spanned,
-                            color = Color(log.level.toArgb(isDarkTheme = darkTheme)),
+                            // 获取成功(SUCCESS)作为组内低调结论，与 meta 同用次级灰；其余级别按等级色
+                            color = if (log.level == LogLevel.SUCCESS)
+                                MaterialTheme.colorScheme.onSurfaceVariant
+                            else Color(log.level.toArgb(isDarkTheme = darkTheme)),
                             style = style,
                             lineHeight = style.lineHeight * 0.75f,
                         )
