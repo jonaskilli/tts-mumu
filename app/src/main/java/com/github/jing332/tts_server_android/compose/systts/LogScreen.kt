@@ -127,9 +127,9 @@ fun LogScreen(
         SelectionContainer {
             LazyColumn(Modifier.fillMaxSize(), state = listState) {
                 itemsIndexed(list, key = { index, _ -> index }) { index, log ->
-                    // 次级色用 Blue Grey 蓝灰：介于纯灰(太平淡)和 Teal(太抢)之间，
-                    // 微弱蓝青色相给层次感，低饱和度不抢级别色戏
-                    val metaColor = if (darkTheme) Color(0xFFB0BEC5) else Color(0xFF546E7A)
+                    // 次级色用石板灰 Blue Grey 800/200：深冷沉稳，与正文绿同属冷调不冲突，
+                    // 饱和度低不抢级别色戏，对比度强不低调
+                    val metaColor = if (darkTheme) Color(0xFFB0BEC5) else Color(0xFF37474F)
                     val style = MaterialTheme.typography.bodyMedium
                     val spanned = remember(log.message, darkTheme, metaColor) {
                         HtmlCompat.fromHtml(log.message, HtmlCompat.FROM_HTML_MODE_COMPACT)
