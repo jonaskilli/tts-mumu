@@ -171,7 +171,7 @@
     <string name="server_log_service_running">服務已在運行中，監聽地址：%1$s</string>
     <string name="server_log_tips">1.按一下啟動按鈕\n2. 打開網頁並選擇配置\n3. 最後生成連結導入到＂閱讀＂程式 \n ⚠️ 朗讀時服務需常駐後台運行！ \n ⚠️ 本功能與系統TTS互相獨立，互不干涉！</string>
     <string name="systts_log_request_audio">請求音訊：%1$s</string>
-    <string name="systts_log_success">獲取成功，大小：%1$s，耗時：%2$s</string>
+    <string name="systts_log_success">獲取成功：大小 %1$s · 耗時 %2$s</string>
     <string name="systts_log_failed">獲取失敗：%1$s</string>
     <string name="systts_log_audio_empty">音訊為空：%1$s</string>
     <string name="systts_log_decode_failed">解碼失敗：%1$s</string>

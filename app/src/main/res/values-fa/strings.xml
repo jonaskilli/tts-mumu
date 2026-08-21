@@ -181,7 +181,7 @@
 ⚠️هنگام خواندن با صدای بلند، سرویس باید در پس زمینه اجرا شود!
 ⚠️این تابع و سیستم TTS مستقل از هم هستند و هیچ تداخلی با هم ندارند!</string>
     <string name="systts_log_request_audio">درخواست صدا: %1$s</string>
-    <string name="systts_log_success">با موفقیت به دست آمد، اندازه: %1$s، زمان صرف شده: %2$s</string>
+    <string name="systts_log_success">با موفقیت دریافت شد: اندازه %1$s، زمان %2$s</string>
     <string name="systts_log_failed">دریافت نشد: %1$s</string>
     <string name="systts_log_audio_empty">صدا خالی است: %1$s</string>
     <string name="systts_log_decode_failed">رمزگشایی انجام نشد: %1$s</string>

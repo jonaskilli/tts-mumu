@@ -712,6 +712,48 @@ class SystemTtsService : TextToSpeechService(), IEventDispatcher {
 
     private fun RequestPayload.text(): String = textOnly() + "<br>" + configInfo()
 
+    // 失败原因归因：把异常类型/HTTP状态码翻译成用户可读文本，
+    // 沿cause链查找——插件异常常被Rhino/桥接层包装，真实类型在底层
+    private fun friendlyCause(t: Throwable?): String {
+        if (t == null) return getString(R.string.systts_log_cause_unknown)
+
+        val messages = StringBuilder()
+        var cur: Throwable? = t
+        while (cur != null) {
+            when (cur) {
+                is java.net.SocketTimeoutException ->
+                    return getString(R.string.systts_log_cause_timeout)
+                is java.net.UnknownHostException ->
+                    return getString(R.string.systts_log_cause_no_network)
+                is java.net.ConnectException, is javax.net.ssl.SSLException ->
+                    return getString(R.string.systts_log_cause_connect)
+                is java.io.FileNotFoundException ->
+                    return getString(R.string.systts_log_cause_not_found)
+                is org.json.JSONException ->
+                    return getString(R.string.systts_log_cause_parse)
+            }
+            cur.message?.let { messages.append(it).append(' ') }
+            cur = cur.cause
+        }
+
+        val msg = messages.toString()
+        return when {
+            Regex("(?i)timed?\\s?out").containsMatchIn(msg) ->
+                getString(R.string.systts_log_cause_timeout)
+            Regex("(?<![0-9])(401|403)(?![0-9])").containsMatchIn(msg) ->
+                getString(R.string.systts_log_cause_auth)
+            Regex("(?<![0-9])429(?![0-9])").containsMatchIn(msg) ->
+                getString(R.string.systts_log_cause_rate_limit)
+            Regex("(?<![0-9])404(?![0-9])").containsMatchIn(msg) ->
+                getString(R.string.systts_log_cause_not_found)
+            Regex("(?<![0-9])5[0-9]{2}(?![0-9])").containsMatchIn(msg) ->
+                getString(R.string.systts_log_cause_server)
+            Regex("(?i)json|unexpected token").containsMatchIn(msg) ->
+                getString(R.string.systts_log_cause_parse)
+            else -> t.javaClass.simpleName
+        }
+    }
+
     private fun normalEvent(e: NormalEvent) {
         when (e) {
             is NormalEvent.Request ->
@@ -735,15 +777,12 @@ class SystemTtsService : TextToSpeechService(), IEventDispatcher {
 
             is NormalEvent.ReadAllFromStream -> {
                 if (e.size > 0) {
-                    val summary = getString(
-                        R.string.systts_log_success,
-                        e.size.sizeToReadable(),
-                        "${e.costTime}ms"
-                    )
                     logS(
-                        getString(R.string.systts_log_success_label) +
-                        e.request.textOnly() +
-                        "<br><small>$summary</small><br>" + e.request.configInfo()
+                        getString(
+                            R.string.systts_log_success,
+                            e.size.sizeToReadable(),
+                            "${e.costTime}ms"
+                        )
                     )
                 }
             }
@@ -781,7 +820,8 @@ class SystemTtsService : TextToSpeechService(), IEventDispatcher {
                     val tag = msg.substringAfter("功能标签(").substringBefore(")")
                     logE(getString(R.string.functional_fallback_failed, tag))
                 } else {
-                    logE(R.string.systts_log_failed, e.cause)
+                    // 只显示归因文本，异常原文与堆栈仍进logcat便于排查
+                    logE(getString(R.string.systts_log_failed, friendlyCause(e.cause)), e.cause)
                 }
             }
             is ErrorEvent.RequestTimeout -> logW("超时：${SysTtsConfig.requestTimeout / 1000}秒")

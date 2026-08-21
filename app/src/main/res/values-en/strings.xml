@@ -181,7 +181,7 @@
         \n3. Finally, generate a link and import it to the Legado APP
         \n\n⚠️Note: The service needs to run in the background permanently when reading aloud!</string>
     <string name="systts_log_request_audio">Request audio: %1$s</string>
-    <string name="systts_log_success">Success, size: %1$s, time: %2$s</string>
+    <string name="systts_log_success">Success: size %1$s, took %2$s</string>
     <string name="systts_log_failed">Failed: %1$s</string>
     <string name="systts_log_audio_empty">Audio is empty: %1$s</string>
     <string name="systts_log_decode_failed">Decode failed: %1$s</string>
