@@ -178,10 +178,9 @@ fun LogScreen(
                         }
                         Text(
                             text = spanned,
-                            // 获取成功(SUCCESS)结果用 Indigo 靛蓝加粗：与请求音频(绿)形成"请求=绿/结果=蓝"对应
-                            // "获取成功:"前缀仍由哨兵色走石板灰普通，大小·耗时走靛蓝加粗
+                            // 获取成功(SUCCESS)与次级信息同用石板灰；"大小·耗时"在 SystemTtsService 内已加 <b> 加粗
                             color = if (log.level == LogLevel.SUCCESS)
-                                if (darkTheme) Color(0xFF7986CB) else Color(0xFF3F51B5)
+                                metaColor
                             else Color(log.level.toArgb(isDarkTheme = darkTheme)),
                             style = style,
                             lineHeight = style.lineHeight * 0.75f,
