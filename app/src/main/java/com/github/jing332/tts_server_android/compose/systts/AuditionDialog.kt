@@ -312,10 +312,10 @@ fun AuditionDialog(
         },
         buttons = {
             if (onPrev != null || onNext != null) {
-                // 分类/批量试听：切换按钮居中，删除重播后不再挤在右下角
+                // 分类/批量试听：切换按钮居中并拉开间距，删除重播后不再挤在一起
                 Row(
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.Center,
+                    horizontalArrangement = Arrangement.spacedBy(48.dp, Alignment.CenterHorizontally),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     if (onPrev != null) {
