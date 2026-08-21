@@ -59,11 +59,11 @@ import com.github.jing332.tts_server_android.R
 import com.github.jing332.tts_server_android.compose.LocalBottomBarBehavior
 import kotlinx.coroutines.launch
 
-// SystemTtsService 拼接次级信息所用哨兵色，此处按主题重映射为次级色
+// SystemTtsService 拼接次级信息所用哨兵色，此处按主题重映射为次级绿
 private val MetaColorSentinel = Color(0xFFFF00FF)
 
-// 把命中哨兵色的段落整体换成主题次级色，让“请求音频”正文(绿)与
-// 声音配置/语速/备用等次级信息(次色调)层次分明
+// 把命中哨兵色的段落整体换成次级绿，让"请求音频"正文(纯绿)与
+// 声音配置/语速/备用等次级信息(深/浅绿)层次分明但不抢眼
 private fun AnnotatedString.remapMetaColor(metaColor: Color): AnnotatedString {
     if (spanStyles.none { it.item.color == MetaColorSentinel }) return this
     return buildAnnotatedString {
@@ -127,13 +127,13 @@ fun LogScreen(
         SelectionContainer {
             LazyColumn(Modifier.fillMaxSize(), state = listState) {
                 itemsIndexed(list, key = { index, _ -> index }) { index, log ->
-                    // 次级色需在 Composable 作用域读取，供 remember 内 remapMetaColor 使用
-                    val metaColor = MaterialTheme.colorScheme.onSurfaceVariant
+                    // 次级绿按主题取色：浅色用深绿(Green 800)沉得稳，深色用浅绿(Green 100)显眼但不刺
+                    val metaColor = if (darkTheme) Color(0xFFC8E6C9) else Color(0xFF2E7D32)
                     val style = MaterialTheme.typography.bodyMedium
                     val spanned = remember(log.message, darkTheme, metaColor) {
                         HtmlCompat.fromHtml(log.message, HtmlCompat.FROM_HTML_MODE_COMPACT)
                             .toAnnotatedString()
-                            // 次级信息行(声音配置/语速/备用)按主题渲染为次级色
+                            // 次级信息行(声音配置/语速/备用)按主题渲染为次级绿
                             .remapMetaColor(metaColor)
                     }
 
