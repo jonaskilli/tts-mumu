@@ -308,7 +308,7 @@ fun AuditionDialog(
         },
         buttons = {
             if (onPrev != null || onNext != null) {
-                // 仅剩切换按钮：居中排布，删除重播后不再挤在右下角
+                // 分类/批量试听：切换按钮居中，删除重播后不再挤在右下角
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.Center,
@@ -326,6 +326,11 @@ fun AuditionDialog(
                             Icon(Icons.AutoMirrored.Filled.NavigateNext, contentDescription = "下一个")
                         }
                     }
+                }
+            } else {
+                // 单条配置项试听：删除重播后底部不再空白，提供关闭按钮
+                TextButton(onClick = onDismissRequest) {
+                    Text(stringResource(id = R.string.close))
                 }
             }
         }
