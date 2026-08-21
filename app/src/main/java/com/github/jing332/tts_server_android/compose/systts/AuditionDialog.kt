@@ -2,6 +2,7 @@ package com.github.jing332.tts_server_android.compose.systts
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -202,7 +203,10 @@ fun AuditionDialog(
         }
     }
 
-    AppDialog(onDismissRequest = onDismissRequest,
+    AppDialog(
+        onDismissRequest = onDismissRequest,
+        // 删除重播键后底部显窄：加大左侧内容缩进与底部留白（仅试听弹窗，不影响全局 AppDialog）
+        dialogContentPadding = PaddingValues(start = 20.dp, top = 12.dp, end = 12.dp, bottom = 24.dp),
         title = { Text(stringResource(id = R.string.audition)) },
         content = {
             Column(Modifier.verticalScroll(rememberScrollState())) {
