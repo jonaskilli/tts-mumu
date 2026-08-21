@@ -716,11 +716,6 @@ class SystemTtsService : TextToSpeechService(), IEventDispatcher {
 
     private fun RequestPayload.configInfo(): String {
         val tag = config.tag
-        val standbyTag = config.standbyConfig?.tag
-        // 备用行(带前导换行)
-        val standbyInfo = if (standbyTag is SystemTtsV2) {
-            "<br>${getString(R.string.systts_standby)} " + standbyTag.displayName
-        } else ""
 
         // 五层叠加(插件×配置×子分组×分组×全局)后的最终音频参数，
         // 仅显示≠1的项，全部为1时不占位；如 语速2.00x 音量0.80x
@@ -731,15 +726,15 @@ class SystemTtsService : TextToSpeechService(), IEventDispatcher {
             if (kotlin.math.abs(p.pitch - 1f) > 0.005f) add("音调%.2fx".format(p.pitch))
         }.joinToString(" ")
 
-        // 声音配置信息/语速音量/备用等为次级信息，用哨兵色标记，
+        // 声音配置信息/语速音量等为次级信息，用哨兵色标记，
         // 渲染时(LogScreen)按主题重映射为次级色，避免与正文一起全是绿色而看不清；
-        // 语速音量音调单独一行，与“配置名/语音/标签”一行分开更易读
+        // 语速音量音调单独一行，与“配置名/语音/标签”一行分开更易读。
+        // 备用配置不在此显示：真正切备用时由“使用备用TTS：xxx”日志提示，避免每次请求重复刷屏
         return if (tag is SystemTtsV2) {
             val meta = buildString {
                 append(tag.displayName).append(", ").append(config.source.voice)
                     .append(", ").append(config.speechInfo.tagName)
                 if (paramsInfo.isNotEmpty()) append("<br>").append(paramsInfo)
-                append(standbyInfo) // 自带前导 <br>
             }
             "<font color=\"" + META_INFO_COLOR + "\">" + meta + "</font>"
         } else ""
