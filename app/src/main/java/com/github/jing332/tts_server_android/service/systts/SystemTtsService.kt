@@ -705,8 +705,20 @@ class SystemTtsService : TextToSpeechService(), IEventDispatcher {
         val standbyInfo = if (standbyTag is SystemTtsV2) {
             "<br>${getString(R.string.systts_standby)} " + standbyTag.displayName
         } else ""
+
+        // 五层叠加(插件×配置×子分组×分组×全局)后的最终音频参数，
+        // 仅显示≠1的项，全部为1时不占位；如 语速2.00x 音量0.80x
+        val p = config.audioParams
+        val paramsInfo = buildList {
+            if (kotlin.math.abs(p.speed - 1f) > 0.005f) add("语速%.2fx".format(p.speed))
+            if (kotlin.math.abs(p.volume - 1f) > 0.005f) add("音量%.2fx".format(p.volume))
+            if (kotlin.math.abs(p.pitch - 1f) > 0.005f) add("音调%.2fx".format(p.pitch))
+        }.joinToString(" ")
+
         return if (tag is SystemTtsV2) {
-            tag.displayName + ", ${config.source.voice}, ${config.speechInfo.tagName}" + standbyInfo.toHtmlSmall()
+            tag.displayName + ", ${config.source.voice}, ${config.speechInfo.tagName}" +
+                    (if (paramsInfo.isNotEmpty()) ", $paramsInfo" else "") +
+                    standbyInfo.toHtmlSmall()
         } else ""
     }
 
