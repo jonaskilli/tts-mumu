@@ -664,13 +664,14 @@ class SystemTtsService : TextToSpeechService(), IEventDispatcher {
         logger.error(msg)
     }
 
-    private fun logS(msg: String) {
+    private fun logS(msg: String, indent: Int = 0) {
         val time = LocalDateTimeUtil.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss.SSS"))
         SysttsLogger.log(
             LogEntry(
                 level = LogLevel.SUCCESS,
                 time = time,
-                message = msg
+                message = msg,
+                indent = indent
             )
         )
         // 持久化到日志文件，保证重启后仍可在日志界面读取显示
@@ -680,6 +681,19 @@ class SystemTtsService : TextToSpeechService(), IEventDispatcher {
                 FileWriter(logFile, true).use { it.append("$time | SUCCESS | $msg\n") }
             }
         }.onFailure { Log.e(TAG, "logS write file: ", it) }
+    }
+
+    // 子行日志：缩进归属到上一主行之下(如“加载音频流”挂在“请求音频”下)，不写持久化文件
+    private fun logChild(level: Int, msg: String) {
+        val time = LocalDateTimeUtil.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss.SSS"))
+        SysttsLogger.log(
+            LogEntry(
+                level = level,
+                time = time,
+                message = msg,
+                indent = 1
+            )
+        )
     }
 
     @Throws(Resources.NotFoundException::class)
@@ -794,13 +808,15 @@ class SystemTtsService : TextToSpeechService(), IEventDispatcher {
                             R.string.systts_log_success,
                             e.size.sizeToReadable(),
                             "${e.costTime}ms"
-                        )
+                        ),
+                        indent = 1
                     )
                 }
             }
 
             is NormalEvent.HandleStream ->
-                logI(
+                logChild(
+                    LogLevel.INFO,
                     getString(
                         R.string.loading_audio_stream,
                         e.request.text.limitLength(10)

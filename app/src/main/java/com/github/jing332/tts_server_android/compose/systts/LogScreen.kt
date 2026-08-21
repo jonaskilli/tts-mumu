@@ -103,7 +103,10 @@ fun LogScreen(
         SelectionContainer {
             LazyColumn(Modifier.fillMaxSize(), state = listState) {
                 itemsIndexed(list, key = { index, _ -> index }) { index, log ->
-                    val style = MaterialTheme.typography.bodyMedium
+                    val isChild = log.indent > 0
+                    // 子行从属于上一主行：左侧缩进、字号略小，作为“请求→获取结果”这类成对的从属行
+                    val style = if (isChild) MaterialTheme.typography.bodySmall
+                        else MaterialTheme.typography.bodyMedium
                     val spanned = remember {
                         HtmlCompat.fromHtml(log.message, HtmlCompat.FROM_HTML_MODE_COMPACT)
                             .toAnnotatedString()
@@ -125,7 +128,12 @@ fun LogScreen(
                                     )
                                 else Modifier
                             )
-                            .padding(horizontal = 4.dp, vertical = 3.5.dp)
+                            .padding(
+                                start = if (isChild) 16.dp else 4.dp,
+                                end = 4.dp,
+                                top = if (isChild) 0.dp else 3.5.dp,
+                                bottom = 3.5.dp
+                            )
                     ) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             // 完整时间戳(年月日+时分秒+毫秒)，等级字母跟在时间后
@@ -142,8 +150,9 @@ fun LogScreen(
                             lineHeight = style.lineHeight * 0.75f,
                         )
                     }
-                    // 条目间画浅色分隔线，收进带色板上、减弱水平线噪声
-                    if (index != list.lastIndex)
+                    // 分隔线只在主行分组之间画：遇到新的主行(非子行)且不是首条时，在其上方画线；
+                    // 同组的请求+成功紧贴不分，视觉上作为一对儿
+                    if (index > 0 && !isChild)
                         HorizontalDivider(
                             modifier = Modifier.padding(horizontal = 4.dp),
                             color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f)
