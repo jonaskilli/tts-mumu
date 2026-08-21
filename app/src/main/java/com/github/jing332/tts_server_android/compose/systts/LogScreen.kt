@@ -45,6 +45,9 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
 import androidx.core.text.HtmlCompat
 import com.github.jing332.common.LogEntry
 import com.github.jing332.common.toArgb
@@ -54,6 +57,26 @@ import com.github.jing332.compose.widgets.ControlBottomBarVisibility
 import com.github.jing332.tts_server_android.R
 import com.github.jing332.tts_server_android.compose.LocalBottomBarBehavior
 import kotlinx.coroutines.launch
+
+// SystemTtsService 拼接次级信息所用哨兵色，此处按主题重映射为次级色
+private val MetaColorSentinel = Color(0xFFFF00FF)
+
+// 把命中哨兵色的段落整体换成主题次级色，让“请求音频”正文(绿)与
+// 声音配置/语速/备用等次级信息(次色调)层次分明
+private fun AnnotatedString.remapMetaColor(metaColor: Color): AnnotatedString {
+    if (spanStyles.none { it.item.color == MetaColorSentinel }) return this
+    return buildAnnotatedString {
+        append(this@remapMetaColor.text)
+        spanStyles.forEach { r ->
+            addStyle(
+                if (r.item.color == MetaColorSentinel) r.item.copy(color = metaColor)
+                else r.item,
+                r.start,
+                r.end
+            )
+        }
+    }
+}
 
 @OptIn(ExperimentalFoundationApi::class, ExperimentalMaterial3Api::class)
 @Composable
@@ -107,9 +130,11 @@ fun LogScreen(
                     // 子行从属于上一主行：左侧缩进、字号略小，作为“请求→获取结果”这类成对的从属行
                     val style = if (isChild) MaterialTheme.typography.bodySmall
                         else MaterialTheme.typography.bodyMedium
-                    val spanned = remember {
+                    val spanned = remember(log.message, darkTheme) {
                         HtmlCompat.fromHtml(log.message, HtmlCompat.FROM_HTML_MODE_COMPACT)
                             .toAnnotatedString()
+                            // 次级信息行(声音配置/语速/备用)按主题渲染为次级色
+                            .remapMetaColor(MaterialTheme.colorScheme.onSurfaceVariant)
                     }
 
                     // 搜索命中项加背景高亮；搜索是定位不是过滤，列表保持完整可上下翻看前后文

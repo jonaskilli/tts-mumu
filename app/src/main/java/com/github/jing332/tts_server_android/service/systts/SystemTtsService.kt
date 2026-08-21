@@ -33,7 +33,6 @@ import com.github.jing332.common.utils.runOnUI
 import com.github.jing332.common.utils.sizeToReadable
 import com.github.jing332.common.utils.startForegroundCompat
 import com.github.jing332.common.utils.toHtmlBold
-import com.github.jing332.common.utils.toHtmlSmall
 import com.github.jing332.common.LogEntry
 import com.github.jing332.common.LogLevel
 import cn.hutool.core.date.LocalDateTimeUtil
@@ -93,6 +92,8 @@ import kotlin.system.exitProcess
 class SystemTtsService : TextToSpeechService(), IEventDispatcher {
     companion object {
         const val TAG = "SystemTtsService"
+        // 日志消息中次级信息(声音配置/语速音量/备用)的哨兵色；渲染时在 LogScreen 按主题重映射为次级色
+        private const val META_INFO_COLOR = "#FF00FF"
         private val logger = KotlinLogging.logger(TAG)
         private val logFileLock = Any()
 
@@ -716,6 +717,7 @@ class SystemTtsService : TextToSpeechService(), IEventDispatcher {
     private fun RequestPayload.configInfo(): String {
         val tag = config.tag
         val standbyTag = config.standbyConfig?.tag
+        // 备用行(带前导换行)
         val standbyInfo = if (standbyTag is SystemTtsV2) {
             "<br>${getString(R.string.systts_standby)} " + standbyTag.displayName
         } else ""
@@ -729,10 +731,13 @@ class SystemTtsService : TextToSpeechService(), IEventDispatcher {
             if (kotlin.math.abs(p.pitch - 1f) > 0.005f) add("音调%.2fx".format(p.pitch))
         }.joinToString(" ")
 
+        // 声音配置信息/语速音量/备用等为次级信息，用哨兵色标记，
+        // 渲染时(LogScreen)按主题重映射为次级色，避免与正文一起全是绿色而看不清
         return if (tag is SystemTtsV2) {
-            tag.displayName + ", ${config.source.voice}, ${config.speechInfo.tagName}" +
+            val meta = tag.displayName + ", ${config.source.voice}, ${config.speechInfo.tagName}" +
                     (if (paramsInfo.isNotEmpty()) ", $paramsInfo" else "") +
-                    standbyInfo.toHtmlSmall()
+                    standbyInfo
+            "<font color=\"" + META_INFO_COLOR + "\">" + meta + "</font>"
         } else ""
     }
 
