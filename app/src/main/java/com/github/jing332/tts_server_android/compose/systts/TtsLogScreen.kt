@@ -64,6 +64,7 @@ import androidx.compose.runtime.CompositionLocalProvider
 import com.github.jing332.common.LogEntry
 import com.github.jing332.common.LogLevel
 import com.github.jing332.tts_server_android.R
+import com.github.jing332.tts_server_android.compose.ui.LogLevelColors
 import kotlinx.coroutines.launch
 import java.io.File
 
@@ -300,7 +301,8 @@ internal fun TtsLogScreen(vm: TtsLogViewModel = viewModel()) {
                                         )
                                     },
                                     colors = FilterChipDefaults.filterChipColors(
-                                        selectedContainerColor = getLevelColor(level)
+                                        selectedContainerColor = getLevelColor(level),
+                                        selectedLabelColor = LogLevelColors.palette(level).onContainer
                                     )
                                 )
                             }
@@ -360,11 +362,6 @@ private fun getLevelName(level: Int): String {
 
 @Composable
 private fun getLevelColor(level: Int): Color {
-    return when (level) {
-        LogLevel.ERROR -> MaterialTheme.colorScheme.errorContainer
-        LogLevel.WARN -> Color(0xFFFFF3E0)
-        LogLevel.INFO -> MaterialTheme.colorScheme.secondaryContainer
-        LogLevel.DEBUG -> MaterialTheme.colorScheme.primaryContainer
-        else -> MaterialTheme.colorScheme.surfaceVariant
-    }
+    // 统一走 LogLevelColors 令牌，保证明暗主题下容器底色都合适
+    return LogLevelColors.palette(level).container
 }

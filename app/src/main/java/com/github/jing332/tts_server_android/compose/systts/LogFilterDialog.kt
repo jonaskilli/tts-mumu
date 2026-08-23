@@ -26,6 +26,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.github.jing332.common.LogLevel
 import com.github.jing332.tts_server_android.R
+import com.github.jing332.tts_server_android.compose.ui.LogLevelColors
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
@@ -72,7 +73,8 @@ fun LogFilterDialog(
                             onClick = { onLevelToggle(level) },
                             label = { Text(name) },
                             colors = FilterChipDefaults.filterChipColors(
-                                selectedContainerColor = getLevelContainerColor(level)
+                                selectedContainerColor = getLevelContainerColor(level),
+                                selectedLabelColor = LogLevelColors.palette(level).onContainer
                             )
                         )
                     }
@@ -171,11 +173,6 @@ fun LogFilterDialog(
 
 @Composable
 private fun getLevelContainerColor(level: Int): Color {
-    return when (level) {
-        LogLevel.ERROR -> MaterialTheme.colorScheme.errorContainer
-        LogLevel.WARN -> Color(0xFFFFF3E0)
-        LogLevel.INFO -> MaterialTheme.colorScheme.secondaryContainer
-        LogLevel.DEBUG -> MaterialTheme.colorScheme.primaryContainer
-        else -> MaterialTheme.colorScheme.surfaceVariant
-    }
+    // 统一走 LogLevelColors 令牌，保证明暗主题下容器底色都合适
+    return LogLevelColors.palette(level).container
 }

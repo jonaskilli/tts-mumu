@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.itemsIndexed
@@ -24,12 +25,14 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.Notes
 import androidx.compose.material.icons.filled.KeyboardDoubleArrowDown
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -48,6 +51,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.style.TextAlign
 import androidx.core.text.HtmlCompat
 import com.github.jing332.common.LogEntry
 import com.github.jing332.common.LogLevel
@@ -57,6 +61,8 @@ import com.github.jing332.compose.ComposeExtensions.toAnnotatedString
 import com.github.jing332.compose.widgets.ControlBottomBarVisibility
 import com.github.jing332.tts_server_android.R
 import com.github.jing332.tts_server_android.compose.LocalBottomBarBehavior
+import com.github.jing332.tts_server_android.compose.ui.EmptyState
+import com.github.jing332.tts_server_android.compose.ui.LogLevelColors
 import kotlinx.coroutines.launch
 
 // SystemTtsService 拼接次级信息所用哨兵色，此处按主题重映射
@@ -122,9 +128,9 @@ fun LogScreen(
 
         if (list.isEmpty())
             Box(Modifier.align(Alignment.Center)) {
-                Text(
-                    text = stringResource(R.string.empty_list),
-                    style = MaterialTheme.typography.titleMedium
+                EmptyState(
+                    icon = Icons.AutoMirrored.Filled.Notes,
+                    title = stringResource(R.string.empty_list)
                 )
             }
 
@@ -167,19 +173,30 @@ fun LogScreen(
                                     )
                                 else Modifier
                             )
-                            .padding(
-                                start = 4.dp,
-                                end = 4.dp,
-                                top = 3.5.dp,
-                                bottom = 3.5.dp
-                            )
+                            .padding(horizontal = 6.dp, vertical = 4.dp)
                     ) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
-                            // 完整时间戳(年月日+时分秒+毫秒)，等级字母跟在时间后
-                            Text(text = log.time, style = MaterialTheme.typography.bodySmall)
+                            // 级别徽章：彩色圆角底 + 等级字母，扫视时快速定位错误
+                            val palette = LogLevelColors.palette(log.level)
+                            Surface(
+                                shape = RoundedCornerShape(4.dp),
+                                color = palette.container,
+                                modifier = Modifier.widthIn(min = 18.dp)
+                            ) {
+                                Text(
+                                    text = log.level.toLogLevelChar(),
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = palette.onContainer,
+                                    textAlign = TextAlign.Center,
+                                    modifier = Modifier.padding(horizontal = 3.dp, vertical = 1.dp)
+                                )
+                            }
+                            // 时间戳降为次要色，与正文拉开层次
                             Text(
-                                text = "\t${log.level.toLogLevelChar()}",
-                                style = MaterialTheme.typography.bodySmall
+                                text = "\u2002${log.time}",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.padding(start = 6.dp)
                             )
                         }
                         Text(
