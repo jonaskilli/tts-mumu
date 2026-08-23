@@ -59,19 +59,24 @@ import com.github.jing332.tts_server_android.R
 import com.github.jing332.tts_server_android.compose.LocalBottomBarBehavior
 import kotlinx.coroutines.launch
 
-// SystemTtsService 拼接次级信息所用哨兵色，此处按主题重映射为次级绿
-private val MetaColorSentinel = Color(0xFFFF00FF)
+// SystemTtsService 拼接次级信息所用哨兵色，此处按主题重映射
+private val MetaColorSentinel = Color(0xFFFF00FF)       // 获取成功前缀 → 石板灰
+private val VoiceMetaSentinel = Color(0xFF00FFFF)       // 发音人信息 → 雾紫
 
-// 把命中哨兵色的段落整体换成次级绿，让"请求音频"正文(纯绿)与
-// 声音配置/语速/备用等次级信息(深/浅绿)层次分明但不抢眼
-private fun AnnotatedString.remapMetaColor(metaColor: Color): AnnotatedString {
-    if (spanStyles.none { it.item.color == MetaColorSentinel }) return this
+// 把命中哨兵色的段落整体换成目标色，让"请求音频"正文(纯绿)与
+// 获取成功前缀(石板灰)/发音人信息(雾紫)层次分明但不抢眼
+private fun AnnotatedString.remapMetaColor(metaColor: Color, voiceColor: Color): AnnotatedString {
+    if (spanStyles.none { it.item.color == MetaColorSentinel || it.item.color == VoiceMetaSentinel }) return this
     return buildAnnotatedString {
         append(this@remapMetaColor.text)
         spanStyles.forEach { r ->
+            val newColor = when (r.item.color) {
+                MetaColorSentinel -> metaColor
+                VoiceMetaSentinel -> voiceColor
+                else -> r.item.color
+            }
             addStyle(
-                if (r.item.color == MetaColorSentinel) r.item.copy(color = metaColor)
-                else r.item,
+                r.item.copy(color = newColor),
                 r.start,
                 r.end
             )
@@ -127,15 +132,16 @@ fun LogScreen(
         SelectionContainer {
             LazyColumn(Modifier.fillMaxSize(), state = listState) {
                 itemsIndexed(list, key = { index, _ -> index }) { index, log ->
-                    // 次级色用石板灰 Blue Grey 800/200：深冷沉稳，与正文绿同属冷调不冲突，
-                    // 饱和度低不抢级别色戏，对比度强不低调
+                    // 获取成功前缀：石板灰 Blue Grey 800/200
+                    // 发音人信息：雾紫 #6D4C5E / 深色主题 #B088A0
                     val metaColor = if (darkTheme) Color(0xFFB0BEC5) else Color(0xFF37474F)
+                    val voiceColor = if (darkTheme) Color(0xFFB088A0) else Color(0xFF6D4C5E)
                     val style = MaterialTheme.typography.bodyMedium
-                    val spanned = remember(log.message, darkTheme, metaColor) {
+                    val spanned = remember(log.message, darkTheme, metaColor, voiceColor) {
                         HtmlCompat.fromHtml(log.message, HtmlCompat.FROM_HTML_MODE_COMPACT)
                             .toAnnotatedString()
-                            // 次级信息行(声音配置/语速/备用)按主题渲染为次级绿
-                            .remapMetaColor(metaColor)
+                            // 获取成功前缀→石板灰，发音人信息→雾紫
+                            .remapMetaColor(metaColor, voiceColor)
                     }
 
                     // 搜索命中项加背景高亮；搜索是定位不是过滤，列表保持完整可上下翻看前后文

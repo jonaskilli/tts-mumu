@@ -94,6 +94,8 @@ class SystemTtsService : TextToSpeechService(), IEventDispatcher {
         const val TAG = "SystemTtsService"
         // 日志消息中次级信息(声音配置/语速音量/备用)的哨兵色；渲染时在 LogScreen 按主题重映射为次级色
         private const val META_INFO_COLOR = "#FF00FF"
+        // 发音人信息专用哨兵色；渲染时在 LogScreen 按主题重映射为雾紫
+        private const val VOICE_META_COLOR = "#00FFFF"
         private val logger = KotlinLogging.logger(TAG)
         private val logFileLock = Any()
 
@@ -736,7 +738,7 @@ class SystemTtsService : TextToSpeechService(), IEventDispatcher {
                     .append(", ").append(config.speechInfo.tagName)
                 if (paramsInfo.isNotEmpty()) append("  ").append(paramsInfo)
             }
-            "<font color=\"" + META_INFO_COLOR + "\">" + meta + "</font>"
+            "<font color=\"" + VOICE_META_COLOR + "\">" + meta + "</font>"
         } else ""
     }
 
@@ -802,9 +804,9 @@ class SystemTtsService : TextToSpeechService(), IEventDispatcher {
 
             is NormalEvent.ReadAllFromStream -> {
                 if (e.size > 0) {
-                    // "获取成功:"前缀与"大小·耗时"均加粗，与请求音频正文对称
+                    // "获取成功:"前缀普通字重(石板灰)，"大小·耗时"加粗，与请求音频正文层次一致
                     logS(
-                        "<b><font color=\"" + META_INFO_COLOR + "\">获取成功：</font></b>" +
+                        "<font color=\"" + META_INFO_COLOR + "\">获取成功：</font>" +
                             "<b>大小 " + e.size.sizeToReadable() + " · 耗时 " + e.costTime + "ms</b>",
                         indent = 1
                     )
