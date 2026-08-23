@@ -178,7 +178,7 @@ fun LogScreen(
                         }
                         Text(
                             text = spanned,
-                            // 获取成功(SUCCESS)与次级信息同用石板灰；"大小·耗时"在 SystemTtsService 内已加 <b> 加粗
+                            // 获取成功(SUCCESS)与次级信息同用石板灰；"获取成功"前缀与"大小·耗时"在 SystemTtsService 内均已加 <b> 加粗
                             color = if (log.level == LogLevel.SUCCESS)
                                 metaColor
                             else Color(log.level.toArgb(isDarkTheme = darkTheme)),

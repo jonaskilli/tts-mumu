@@ -802,9 +802,9 @@ class SystemTtsService : TextToSpeechService(), IEventDispatcher {
 
             is NormalEvent.ReadAllFromStream -> {
                 if (e.size > 0) {
-                    // "获取成功:"前缀用哨兵色(→石板灰普通)，"大小·耗时"加粗，与请求音频正文对称
+                    // "获取成功:"前缀与"大小·耗时"均加粗，与请求音频正文对称
                     logS(
-                        "<font color=\"" + META_INFO_COLOR + "\">获取成功：</font>" +
+                        "<b><font color=\"" + META_INFO_COLOR + "\">获取成功：</font></b>" +
                             "<b>大小 " + e.size.sizeToReadable() + " · 耗时 " + e.costTime + "ms</b>",
                         indent = 1
                     )
