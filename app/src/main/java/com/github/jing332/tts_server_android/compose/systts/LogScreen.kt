@@ -133,14 +133,14 @@ fun LogScreen(
             LazyColumn(Modifier.fillMaxSize(), state = listState) {
                 itemsIndexed(list, key = { index, _ -> index }) { index, log ->
                     // 获取成功前缀：石板灰 Blue Grey 800/200
-                    // 发音人信息：雾紫 #6D4C5E / 深色主题 #B088A0
+                    // 发音人信息：苔绿 #558B6E / 深色主题 #6A9E7F
                     val metaColor = if (darkTheme) Color(0xFFB0BEC5) else Color(0xFF37474F)
-                    val voiceColor = if (darkTheme) Color(0xFFB088A0) else Color(0xFF6D4C5E)
+                    val voiceColor = if (darkTheme) Color(0xFF6A9E7F) else Color(0xFF558B6E)
                     val style = MaterialTheme.typography.bodyMedium
                     val spanned = remember(log.message, darkTheme, metaColor, voiceColor) {
                         HtmlCompat.fromHtml(log.message, HtmlCompat.FROM_HTML_MODE_COMPACT)
                             .toAnnotatedString()
-                            // 获取成功前缀→石板灰，发音人信息→雾紫
+                            // 获取成功前缀→石板灰，发音人信息→苔绿
                             .remapMetaColor(metaColor, voiceColor)
                     }
 
