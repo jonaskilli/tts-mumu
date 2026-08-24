@@ -59,6 +59,7 @@ import com.github.jing332.tts_server_android.compose.systts.AuditionDialog
 import com.github.jing332.tts_server_android.compose.systts.list.ui.widgets.AuditionTextField
 import com.github.jing332.tts_server_android.compose.systts.list.ui.widgets.BasicInfoEditScreen
 import com.github.jing332.tts_server_android.compose.systts.list.ui.widgets.SaveActionHandler
+import com.github.jing332.tts_server_android.compose.ui.FormSectionTitle
 import com.github.jing332.tts_server_android.constant.SpeechTarget
 import com.github.jing332.tts_server_android.model.rhino.speech_rule.SpeechRuleEngine
 import com.github.jing332.tts_server_android.service.systts.SystemTtsService
@@ -348,14 +349,17 @@ class PluginTtsUI : IConfigUI() {
                     .fillMaxWidth()
                     .padding(horizontal = 8.dp)
             ) {
-                if (showBasicInfo)
+                if (showBasicInfo) {
+                    FormSectionTitle(title = stringResource(R.string.section_basic_info))
                     BasicInfoEditScreen(
                         Modifier.fillMaxWidth(),
                         systemTts = systts,
                         onSystemTtsChange = onSysttsChange
                     )
+                }
 
                 if (!isUiOnly) {
+                    FormSectionTitle(title = stringResource(R.string.section_audition_plugin))
                     AuditionTextField(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -408,6 +412,7 @@ class PluginTtsUI : IConfigUI() {
                         Column {
                         if (!isUiOnly) {
                         Column {
+                            FormSectionTitle(title = stringResource(R.string.section_voice_language))
                             AppSpinner(
                                 modifier = Modifier
                                     .fillMaxWidth()
@@ -734,6 +739,7 @@ class PluginTtsUI : IConfigUI() {
 
                         // 仅界面模式开关：放在语音参数之后、插件自定义UI之前
                         if (showUiOnlySwitch && isRoleManagementPlugin) {
+                            FormSectionTitle(title = stringResource(R.string.plugin_ui_only_mode))
                             Row(
                                 Modifier
                                     .fillMaxWidth()
@@ -764,6 +770,7 @@ class PluginTtsUI : IConfigUI() {
                         // 加载期间不做高度动画：插件JS逐个addView会让animateContentSize
                         // 一直表演"从上往下撑开"(观感像黑影掉下来)；加载完成后的零星
                         // 尺寸变化(增删角色行)才保留平滑动画
+                        FormSectionTitle(title = stringResource(R.string.section_plugin_ui))
                         AndroidView(
                             modifier = Modifier
                                 .fillMaxWidth()
@@ -777,6 +784,7 @@ class PluginTtsUI : IConfigUI() {
             }
 
             if (!isUiOnly) {
+                FormSectionTitle(title = stringResource(R.string.audio_params))
                 ParamsEditScreen(
                     Modifier
                         .fillMaxWidth()

@@ -14,8 +14,11 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.github.jing332.database.entities.systts.SystemTtsV2
+import com.github.jing332.tts_server_android.R
+import com.github.jing332.tts_server_android.compose.ui.FormSectionTitle
 import kotlinx.coroutines.runBlocking
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -64,6 +67,7 @@ fun QuickEditBottomSheet(
                 systemTts = systts,
                 onSystemTtsChange = onSysttsChange
             )
+            FormSectionTitle(title = stringResource(R.string.audio_params))
             ui.ParamsEditScreen(
                 modifier = Modifier
                     .fillMaxWidth()

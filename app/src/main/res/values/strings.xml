@@ -398,6 +398,10 @@
     <string name="systts_log_text_handle_failed">文本处理失败: %1$s</string>
     <string name="audio_params">音频参数</string>
     <string name="label_speed">速度：</string>
+    <string name="section_basic_info">基本信息</string>
+    <string name="section_audition_plugin">试听与插件</string>
+    <string name="section_voice_language">语言与声音</string>
+    <string name="section_plugin_ui">插件自定义界面</string>
     <string name="audio_params_settings">设置音频参数</string>
     <string name="unknown">未知</string>
     <string name="plugin_vars">插件变量</string>
