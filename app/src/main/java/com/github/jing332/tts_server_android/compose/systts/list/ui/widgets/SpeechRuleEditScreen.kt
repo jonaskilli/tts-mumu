@@ -334,11 +334,9 @@ fun SpeechRuleEditScreen(
             }
 
             AnimatedVisibility(visible = config.speechRule.target == SpeechTarget.TAG) {
-                Row(Modifier) {
+                Column(Modifier) {
                     AppSpinner(
-                        modifier = Modifier
-                            .weight(1f)
-                            .padding(end = 4.dp),
+                        modifier = Modifier.fillMaxWidth(),
                         labelText = stringResource(R.string.speech_rule_script),
                         value = config.speechRule.tagRuleId,
                         values = speechRules.map { it.ruleId },
@@ -360,8 +358,8 @@ fun SpeechRuleEditScreen(
                     speechRule?.let { speechRule ->
                         AppSpinner(
                             modifier = Modifier
-                                .weight(1f)
-                                .padding(start = 4.dp),
+                                .fillMaxWidth()
+                                .padding(top = 8.dp),
                             labelText = stringResource(R.string.tag),
                             value = config.speechRule.tag,
                             values = speechRule.tags.keys.toList(),
