@@ -65,12 +65,17 @@ object ImportConfigFactory {
             ?: return null
 
         fun JsonObject.detect(): ImportType? {
-            // JRead 插件包
+            // JRead 包：声音配置包归 LIST，其余（插件包）归 PLUGIN
             val fmt = this["format"]
-            if (fmt is JsonPrimitive &&
-                fmt.contentOrNull?.contains("jread", ignoreCase = true) == true
-            ) return ImportType.PLUGIN
+            if (fmt is JsonPrimitive) {
+                if (fmt.contentOrNull?.contains("jread_voice_config_bundle") == true)
+                    return ImportType.LIST
+                if (fmt.contentOrNull?.contains("jread", ignoreCase = true) == true)
+                    return ImportType.PLUGIN
+            }
             if (this["plugins"] != null) return ImportType.PLUGIN
+            // JRead 配置：bundle 的 configs 数组 / 单条配置对象
+            if (this["configs"] != null || this["voiceTag"] != null) return ImportType.LIST
             // 插件：含 pluginId 或裸 code
             if (this["pluginId"] != null) return ImportType.PLUGIN
             // 朗读规则：含 ruleId / tags

@@ -22,6 +22,7 @@ import com.github.jing332.database.entities.replace.GroupWithReplaceRule
 import com.github.jing332.database.entities.replace.ReplaceRule
 import com.github.jing332.database.entities.replace.ReplaceRuleGroup
 import com.github.jing332.database.entities.systts.GroupWithSystemTts
+import com.github.jing332.database.entities.systts.JReadConfigMigration
 import com.github.jing332.database.entities.systts.SystemTtsGroup
 import com.github.jing332.database.entities.systts.SystemTtsMigration
 import com.github.jing332.database.entities.systts.SystemTtsV2
@@ -131,7 +132,7 @@ fun ListImportBottomSheet(onDismissRequest: () -> Unit) {
                             withIO { migrateTagNamesIfNeed(context, force = true) }
                             SystemTtsService.notifyUpdateConfig()
                         }
-                        successMsg.value = "已导入 ${result.count} 项${result.typeName}"
+                        successMsg.value = result.typeName
                     }
                 }
             }
@@ -196,7 +197,12 @@ internal fun doAutoImport(
                     context.getString(R.string.import_no_valid_config_reason_unknown)
                 )
                 is ListImportResult.Truncated -> AutoImportResult.Truncated(result.detail)
-                is ListImportResult.Success -> AutoImportResult.Success(result.count, type, "配置列表")
+                is ListImportResult.Success -> {
+                    var msg = "已导入 ${result.count} 项配置列表"
+                    if (result.skipped > 0)
+                        msg += "，跳过 ${result.skipped} 项（无插件或为 URL 直连型）"
+                    AutoImportResult.Success(result.count, type, msg)
+                }
             }
         }
         ImportType.PLUGIN -> doImportPlugin(effective, type)
@@ -277,7 +283,7 @@ private fun doImportReplaceRule(json: String, type: ImportType): AutoImportResul
 private sealed class ListImportResult {
     object EmptyOrUnrecognized : ListImportResult()
     data class Truncated(val detail: String) : ListImportResult()
-    data class Success(val count: Int) : ListImportResult()
+    data class Success(val count: Int, val skipped: Int = 0) : ListImportResult()
 }
 
 /**
@@ -307,7 +313,12 @@ private fun doImportList(
     } catch (e: Exception) {
         return ListImportResult.Truncated(e.message ?: e.toString())
     }
-    if (list.isNullOrEmpty()) return ListImportResult.EmptyOrUnrecognized
+    if (list.isNullOrEmpty()) {
+        // 原生格式识别不出 → 尝试按 JRead 配置包解析
+        val parsed = JReadConfigMigration.parse(trimmed)
+            ?: return ListImportResult.EmptyOrUnrecognized
+        return insertJReadItems(parsed)
+    }
 
     // 3. 写库：单事务批量插入，避免逐条 fsync；按批次更新进度反馈
     val baseId = System.currentTimeMillis()
@@ -348,6 +359,25 @@ private fun doImportList(
     }
     onProgress(imported, total)
     return ListImportResult.Success(imported)
+}
+
+/** JRead 配置写入：单分组 + categoryPath 分类，复用导入重编号逻辑 */
+private fun insertJReadItems(parsed: JReadConfigMigration.Parsed): ListImportResult {
+    val baseId = System.currentTimeMillis()
+    val group = SystemTtsGroup(
+        id = baseId,
+        name = StringUtils.formattedDate(),
+        order = dbm.systemTtsV2.groupCount
+    )
+    dbm.runInTransaction {
+        dbm.systemTtsV2.insertGroup(group)
+        dbm.systemTtsV2.insert(
+            *parsed.items.mapIndexed { i, it ->
+                it.copy(id = baseId + 100000 + i, groupId = group.id)
+            }.toTypedArray()
+        )
+    }
+    return ListImportResult.Success(parsed.items.size, parsed.skipped)
 }
 
 private fun getImportList(
