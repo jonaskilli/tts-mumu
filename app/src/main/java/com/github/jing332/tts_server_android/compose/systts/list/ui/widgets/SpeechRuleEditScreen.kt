@@ -7,7 +7,9 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.HelpOutline
 import androidx.compose.material.icons.filled.SelectAll
@@ -16,6 +18,7 @@ import androidx.compose.material.icons.filled.Tag
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -172,39 +175,41 @@ fun SpeechRuleEditScreen(
             Row(
                 Modifier
                     .align(Alignment.CenterHorizontally)
-                    .horizontalScroll(rememberScrollState())
+                    .horizontalScroll(rememberScrollState()),
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                TextButton(onClick = { showParamsDialog = true }) {
-                    Row {
-                        Icon(Icons.Default.Speed, stringResource(R.string.audio_params))
-                        Text(stringResource(id = R.string.audio_params))
-                    }
-                }
+                // 统一 FilterChip 风格：高度一致、基线对齐，替代 TextButton+Checkbox+IconButton 混排
+                FilterChip(
+                    selected = false,
+                    onClick = { showParamsDialog = true },
+                    label = { Text(stringResource(id = R.string.audio_params)) },
+                    leadingIcon = { Icon(Icons.Default.Speed, contentDescription = null) }
+                )
 
-                Row(
-                    Modifier
-                        .minimumInteractiveComponentSize()
-                        .clip(MaterialTheme.shapes.medium)
-                        .clickable(role = Role.Checkbox) {
-                            onSysttsChange(
-                                systts.copy(
-                                    config = config.copy(
-                                        speechRule = config.speechRule.copy(isStandby = !config.speechRule.isStandby)
-                                    )
+                FilterChip(
+                    selected = config.speechRule.isStandby,
+                    onClick = {
+                        onSysttsChange(
+                            systts.copy(
+                                config = config.copy(
+                                    speechRule = config.speechRule.copy(isStandby = !config.speechRule.isStandby)
                                 )
                             )
-                        },
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Checkbox(checked = config.speechRule.isStandby, onCheckedChange = null)
-                    Text(stringResource(id = R.string.as_standby))
-                    IconButton(onClick = { showStandbyHelpDialog = true }) {
-                        Icon(
-                            Icons.AutoMirrored.Filled.HelpOutline,
-                            stringResource(id = R.string.systts_as_standby_help)
                         )
-                    }
-                }
+                    },
+                    label = { Text(stringResource(id = R.string.as_standby)) }
+                )
+
+                Icon(
+                    imageVector = Icons.AutoMirrored.Filled.HelpOutline,
+                    contentDescription = stringResource(id = R.string.systts_as_standby_help),
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier
+                        .clip(CircleShape)
+                        .clickable(onClick = { showStandbyHelpDialog = true })
+                        .padding(4.dp)
+                        .size(16.dp)
+                )
             }
 
             var showTagClearDialog by remember { mutableStateOf(false) }
