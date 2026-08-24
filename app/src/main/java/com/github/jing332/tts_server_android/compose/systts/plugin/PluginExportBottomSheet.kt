@@ -30,14 +30,15 @@ import kotlinx.coroutines.withContext
 internal fun PluginExportBottomSheet(
     onDismissRequest: () -> Unit,
     fileName: String,
-    onGetJson: (isExportVars: Boolean) -> String,
+    onGetJson: (isExportVars: Boolean, isJReadFormat: Boolean) -> String,
 ) {
     var isExportVars by remember { mutableStateOf(false) }
+    var isJReadFormat by remember { mutableStateOf(false) }
     // 第9项: 序列化移到 IO 线程, 避免大插件列表导出时主线程卡顿。
-    // 切换 isExportVars 时也会重新在 IO 线程序列化。
-    var json by remember(isExportVars) { mutableStateOf<String?>(null) }
-    LaunchedEffect(isExportVars) {
-        json = withContext(Dispatchers.IO) { onGetJson(isExportVars) }
+    // 切换 isExportVars/isJReadFormat 时也会重新在 IO 线程序列化。
+    var json by remember(isExportVars, isJReadFormat) { mutableStateOf<String?>(null) }
+    LaunchedEffect(isExportVars, isJReadFormat) {
+        json = withContext(Dispatchers.IO) { onGetJson(isExportVars, isJReadFormat) }
     }
     val jStr = json
     if (jStr == null) {
@@ -60,7 +61,13 @@ internal fun PluginExportBottomSheet(
             content = {
                 TextCheckBox(modifier = Modifier
                     .align(Alignment.CenterHorizontally)
-                    .padding(vertical = 8.dp),
+                    .padding(vertical = 4.dp),
+                    text = { Text("JRead 格式") },
+                    checked = isJReadFormat,
+                    onCheckedChange = { isJReadFormat = !isJReadFormat })
+                TextCheckBox(modifier = Modifier
+                    .align(Alignment.CenterHorizontally)
+                    .padding(vertical = 4.dp),
                     text = { Text(stringResource(id = R.string.export_vars)) },
                     checked = isExportVars,
                     onCheckedChange = { isExportVars = !isExportVars })

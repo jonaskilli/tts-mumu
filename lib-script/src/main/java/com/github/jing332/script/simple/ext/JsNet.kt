@@ -17,9 +17,15 @@ open class JsNet(private val engineId: String) {
         Net.cancelGroup(groupId)
     }
 
+    // timeoutMs 参数为兼容 JRead 插件生态的调用习惯（如 httpGet(url, headers, timeout)）。
+    // 本框架不支持单请求超时，实际超时由引擎层 runWithTimeout 统一强制执行。
     @JvmOverloads
     @ScriptInterface
-    fun httpGet(url: CharSequence, headers: Map<CharSequence, CharSequence>? = null): Response {
+    fun httpGet(
+        url: CharSequence,
+        headers: Map<CharSequence, CharSequence>? = null,
+        timeoutMs: Long = 0L
+    ): Response {
         return Net.get(url.toString()) {
             setGroup(groupId)
             headers?.let {
@@ -67,12 +73,14 @@ open class JsNet(private val engineId: String) {
     /**
      * HTTP POST
      */
+    // timeoutMs 参数为兼容 JRead 插件生态的调用习惯；实际超时由引擎层统一强制执行
     @JvmOverloads
     @ScriptInterface
     fun httpPost(
         url: CharSequence,
         body: CharSequence? = null,
-        headers: Map<CharSequence, CharSequence>? = null
+        headers: Map<CharSequence, CharSequence>? = null,
+        timeoutMs: Long = 0L
     ): Response {
         return Net.post(url.toString()) {
             setGroup(groupId)

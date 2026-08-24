@@ -13,6 +13,7 @@ import com.github.jing332.database.entities.systts.GroupWithSystemTts
 import com.github.jing332.database.entities.systts.TtsConfigurationDTO
 import com.github.jing332.database.entities.systts.source.PluginTtsSource
 import com.github.jing332.tts_server_android.compose.systts.list.migrateTagNamesIfNeed
+import com.github.jing332.tts_server_android.compose.systts.plugin.parsePluginsJson
 import com.github.jing332.tts_server_android.conf.AppConfig
 import com.github.jing332.tts_server_android.constant.AppConst
 import org.json.JSONObject
@@ -140,7 +141,8 @@ class BackupRestoreViewModel(application: Application) : AndroidViewModel(applic
                 AppConst.jsonBuilder.decodeFromString(jsonStr)
             dbm.replaceRuleDao.insertRuleWithGroup(*list.toTypedArray())
         } else if (file.name.endsWith("plugins.json")) {
-            val list: List<Plugin> = AppConst.jsonBuilder.decodeFromString(jsonStr)
+            // 兼容原生格式和 JRead 插件包格式
+            val list: List<Plugin> = parsePluginsJson(jsonStr)
             dbm.pluginDao.insertOrUpdate(*list.toTypedArray())
         }
     }
