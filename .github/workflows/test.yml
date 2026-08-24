@@ -2,14 +2,14 @@ name: 编译验证
 
 on:
   push:
-    branches: [ mumu_tts_github ]
+    branches: [ mumu_tts_github, ui ]
     paths:
       - 'lib-tts/**'
       - 'lib-common/**'
       - 'lib-compose/**'
       - 'lib-database/**'
       - 'app/src/**'
-      - 'app/build.gradle'
+      - '.github/workflows/**'
       - 'build-logic/**'
       - 'gradle/libs.versions.toml'
   workflow_dispatch:
