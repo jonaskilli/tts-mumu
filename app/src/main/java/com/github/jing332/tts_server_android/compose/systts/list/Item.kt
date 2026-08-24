@@ -179,17 +179,28 @@ internal fun Item(
                     )
                 }
             }
+            val limitLen by remember { AppConfig.limitTagLength }
+            val limitedTagName = remember(tagName, limitLen) {
+                if (limitLen == 0) tagName else tagName.limitLength(limitLen)
+            }
+            val tagVisible = limitedTagName.isNotEmpty()
             Text(
                 limitedName,
                 style = MaterialTheme.typography.titleMedium,
                 maxLines = 1,
                 textAlign = TextAlign.Start,
                 fontWeight = FontWeight.Bold,
-                overflow = TextOverflow.Clip,
+                overflow = TextOverflow.Ellipsis,
                 modifier = Modifier
                     .constrainAs(nameRef) {
                         start.linkTo(checkRef.end)
                         top.linkTo(parent.top)
+                        if (tagVisible) {
+                            end.linkTo(targetRef.start, margin = 8.dp)
+                        } else {
+                            end.linkTo(buttonsRef.start, margin = 4.dp)
+                        }
+                        width = Dimension.fillToConstraints
                     }
                     .padding(bottom = 4.dp)
             )
@@ -215,11 +226,7 @@ internal fun Item(
                 )
             }
 
-            val limitLen by remember { AppConfig.limitTagLength }
-            val limitedTagName = remember(tagName, limitLen) {
-                if (limitLen == 0) tagName else tagName.limitLength(limitLen)
-            }
-            if (limitedTagName.isNotEmpty())
+            if (tagVisible)
                 TagScreen(
                     Modifier
                         .constrainAs(targetRef) {
@@ -352,6 +359,9 @@ internal fun Item(
                     text = type,
                     style = MaterialTheme.typography.labelMedium,
                     color = MaterialTheme.colorScheme.tertiary,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f, fill = false),
                 )
             }
 
@@ -370,7 +380,8 @@ private fun TagScreen(modifier: Modifier = Modifier, tag: String) {
             fontWeight = FontWeight.Medium,
             color = MaterialTheme.colorScheme.secondary,
             modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
-            overflow = TextOverflow.Clip,
+            overflow = TextOverflow.Ellipsis,
+            softWrap = false,
             textAlign = TextAlign.Center,
             maxLines = 1,
         )

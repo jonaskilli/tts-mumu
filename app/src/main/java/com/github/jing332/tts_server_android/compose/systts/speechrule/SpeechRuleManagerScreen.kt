@@ -20,10 +20,10 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.Input
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.AppShortcut
+import androidx.compose.material.icons.filled.Checklist
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Code
 import androidx.compose.material.icons.filled.DeleteForever
-import androidx.compose.material.icons.filled.DeleteSweep
 import androidx.compose.material.icons.filled.EditNote
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Output
@@ -57,6 +57,7 @@ import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.role
@@ -73,6 +74,7 @@ import com.github.jing332.script.JsMetadataSyncer
 import com.github.jing332.tts_server_android.R
 import com.github.jing332.tts_server_android.compose.LocalNavController
 import com.github.jing332.tts_server_android.compose.SharedViewModel
+import com.github.jing332.tts_server_android.compose.ui.EmptyState
 import com.github.jing332.tts_server_android.compose.systts.ConfigDeleteDialog
 import com.github.jing332.tts_server_android.utils.MyTools
 import com.drake.net.utils.withIO
@@ -285,7 +287,7 @@ fun SpeechRuleManagerScreen(sharedVM: SharedViewModel, finish: () -> Unit) {
                     // 第10项: 顶部整理图标(批量多选删除),不再藏在更多菜单里
                     IconButton(onClick = { selectionMode = true }) {
                         Icon(
-                            Icons.Default.DeleteSweep,
+                            Icons.Default.Checklist,
                             stringResource(id = R.string.select_delete)
                         )
                     }
@@ -376,6 +378,16 @@ fun SpeechRuleManagerScreen(sharedVM: SharedViewModel, finish: () -> Unit) {
                 .reorderable(reorderState),
             state = reorderState.listState,
         ) {
+            if (cache.list.isEmpty()) {
+                item(key = "empty_state") {
+                    EmptyState(
+                        icon = Icons.Default.Code,
+                        modifier = Modifier.padding(top = 96.dp),
+                        title = "暂无朗读规则",
+                        message = "朗读规则由 JS 插件驱动，可控制多文本拼接与朗读顺序，点击右下角按钮导入",
+                    )
+                }
+            }
             itemsIndexed(cache.list, key = { _, v -> v.id }) { index, item ->
                 ShadowedDraggableItem(reorderableState = reorderState, key = item.id) {
                     val isSelected = remember(item.id) {
@@ -477,8 +489,18 @@ internal fun Item(
                 )
                 }
                 Column(Modifier.weight(1f)) {
-                    Text(text = name, style = MaterialTheme.typography.titleMedium)
-                    Text(text = desc, style = MaterialTheme.typography.bodyMedium)
+                    Text(
+                        text = name,
+                        style = MaterialTheme.typography.titleMedium,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                    Text(
+                        text = desc,
+                        style = MaterialTheme.typography.bodyMedium,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis,
+                    )
                 }
                 if (!isSelectionMode) {
                 Row {

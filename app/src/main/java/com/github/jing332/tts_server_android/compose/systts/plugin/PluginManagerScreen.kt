@@ -29,6 +29,7 @@ import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.DeleteForever
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.EditNote
+import androidx.compose.material.icons.filled.Extension
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Output
 import androidx.compose.material.icons.filled.PlayArrow
@@ -93,6 +94,7 @@ import com.github.jing332.tts_server_android.compose.AppDefaultProperties
 import com.github.jing332.tts_server_android.compose.LocalNavController
 import com.github.jing332.tts_server_android.compose.SharedViewModel
 import com.github.jing332.tts_server_android.compose.systts.ConfigDeleteDialog
+import com.github.jing332.tts_server_android.compose.ui.EmptyState
 import com.github.jing332.tts_server_android.constant.AppConst
 import com.github.jing332.tts_server_android.service.systts.SystemTtsService
 import com.github.jing332.tts_server_android.utils.MyTools
@@ -152,12 +154,16 @@ fun PluginManagerScreen(sharedVM: SharedViewModel, onFinishActivity: () -> Unit)
         val pluginList = showExportConfig!!
         PluginExportBottomSheet(
             fileName = if (pluginList.size == 1) "插件-${pluginList[0].name}.json" else "插件-${pluginList.size}项.json",
-            onDismissRequest = { showExportConfig = null }) { isExportVars ->
-            // 修复: 导出用 prettyPrint, 每个配置项独立一行可读
-            if (isExportVars) {
-                AppConst.jsonBuilder.encodeToString(pluginList)
+            onDismissRequest = { showExportConfig = null }) { isExportVars, isJReadFormat ->
+            if (isJReadFormat) {
+                toJReadBundleJson(pluginList, isExportVars)
             } else {
-                AppConst.jsonBuilder.encodeToString(pluginList.map { it.copy(userVars = mutableMapOf()) })
+                // 修复: 导出用 prettyPrint, 每个配置项独立一行可读
+                if (isExportVars) {
+                    AppConst.jsonBuilder.encodeToString(pluginList)
+                } else {
+                    AppConst.jsonBuilder.encodeToString(pluginList.map { it.copy(userVars = mutableMapOf()) })
+                }
             }
         }
     }
@@ -663,6 +669,16 @@ fun PluginManagerScreen(sharedVM: SharedViewModel, onFinishActivity: () -> Unit)
                 .padding(paddingValues)
                 .reorderable(reorderState)
         ) {
+            if (cache.list.isEmpty()) {
+                item(key = "empty_state") {
+                    EmptyState(
+                        icon = Icons.Default.Extension,
+                        modifier = Modifier.padding(top = 96.dp),
+                        title = "暂无插件",
+                        message = "点击右上角菜单，导入本地或添加网络 TTS 插件",
+                    )
+                }
+            }
             itemsIndexed(cache.list, key = { _, item -> item.id }) { _, item ->
                 val desc = "${item.author} - v${item.version}"
                 ShadowedDraggableItem(reorderableState = reorderState, key = item.id) {

@@ -23,6 +23,7 @@ import androidx.compose.material.icons.filled.AppShortcut
 import androidx.compose.material.icons.filled.Checklist
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.DeleteForever
+import androidx.compose.material.icons.filled.FindInPage
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Output
 import androidx.compose.material.icons.filled.SelectAll
@@ -65,6 +66,7 @@ import com.github.jing332.tts_server_android.R
 import com.github.jing332.tts_server_android.compose.AppDefaultProperties
 import com.github.jing332.tts_server_android.compose.LocalNavController
 import com.github.jing332.tts_server_android.compose.SharedViewModel
+import com.github.jing332.tts_server_android.compose.ui.EmptyState
 import com.github.jing332.tts_server_android.compose.systts.sizeToToggleableState
 import com.github.jing332.tts_server_android.service.systts.SystemTtsService
 import com.github.jing332.tts_server_android.utils.MyTools
@@ -391,6 +393,16 @@ internal fun ReplaceRuleManagerScreen(
                 .reorderable(reorderState),
             state = listState,
         ) {
+            if (models.isEmpty()) {
+                item(key = "empty_state") {
+                    EmptyState(
+                        icon = Icons.Default.FindInPage,
+                        modifier = Modifier.padding(top = 96.dp),
+                        title = "暂无替换规则",
+                        message = "替换规则可在朗读前对文本进行查找与替换处理，点击右下角按钮添加",
+                    )
+                }
+            }
             models.forEachIndexed { _, groupWithRules ->
                 val g = groupWithRules.group
                 val toggleableState =
