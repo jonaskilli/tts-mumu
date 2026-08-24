@@ -154,16 +154,12 @@ fun PluginManagerScreen(sharedVM: SharedViewModel, onFinishActivity: () -> Unit)
         val pluginList = showExportConfig!!
         PluginExportBottomSheet(
             fileName = if (pluginList.size == 1) "插件-${pluginList[0].name}.json" else "插件-${pluginList.size}项.json",
-            onDismissRequest = { showExportConfig = null }) { isExportVars, isJReadFormat ->
-            if (isJReadFormat) {
-                toJReadBundleJson(pluginList, isExportVars)
+            onDismissRequest = { showExportConfig = null }) { isExportVars ->
+            // 修复: 导出用 prettyPrint, 每个配置项独立一行可读
+            if (isExportVars) {
+                AppConst.jsonBuilder.encodeToString(pluginList)
             } else {
-                // 修复: 导出用 prettyPrint, 每个配置项独立一行可读
-                if (isExportVars) {
-                    AppConst.jsonBuilder.encodeToString(pluginList)
-                } else {
-                    AppConst.jsonBuilder.encodeToString(pluginList.map { it.copy(userVars = mutableMapOf()) })
-                }
+                AppConst.jsonBuilder.encodeToString(pluginList.map { it.copy(userVars = mutableMapOf()) })
             }
         }
     }
