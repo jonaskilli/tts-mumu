@@ -106,6 +106,18 @@ object JReadConfigMigration {
                 val prefix = m.groupValues[2]
                 return prefix + formatSeq(prefix, m.groupValues[3].toInt())
             }
+        // 群杂组件式：群杂/男童01 → 男童01（源标签 男性儿童/通用01 与 男童01 等价）
+        Regex("^群杂/(男童|女童|少年|少女|男青年|女青年|男中年|女中年|男老年|女老年|混合)(\\d{1,3})$")
+            .matchEntire(t)?.let { m ->
+                val prefix = m.groupValues[1]
+                return prefix + formatSeq(prefix, m.groupValues[2].toInt())
+            }
+        // 音色长名式：女性青年/通用01 → 女青年01（按 JRead old286 转换表反向）
+        Regex("^(?:([男女])/)?(女性儿童|男性儿童|女性少年|男性少年|女性青年|男性青年|女性中年|男性中年|女性老年|男性老年)/通用(\\d{1,3})$")
+            .matchEntire(t)?.let { m ->
+                val prefix = LONG_TO_SHORT_PREFIX[m.groupValues[2]] ?: return@let
+                return prefix + formatSeq(prefix, m.groupValues[3].toInt())
+            }
         Regex("^(.*?\\D)(\\d{1,3})$").matchEntire(t)?.let { m ->
             val prefix = m.groupValues[1]
             if (prefix in SEQ_PREFIXES) {
@@ -121,6 +133,14 @@ object JReadConfigMigration {
     private val SEQ_PREFIXES = setOf(
         "女童", "少女", "女青年", "女中年", "女老年",
         "男童", "少年", "男青年", "男中年", "男老年", "男主", "女主", "旁白"
+    )
+
+    private val LONG_TO_SHORT_PREFIX = mapOf(
+        "女性儿童" to "女童", "男性儿童" to "男童",
+        "女性少年" to "少女", "男性少年" to "少年",
+        "女性青年" to "女青年", "男性青年" to "男青年",
+        "女性中年" to "女中年", "男性中年" to "男中年",
+        "女性老年" to "女老年", "男性老年" to "男老年"
     )
 
     private fun parseData(raw: String): Map<String, String> {
