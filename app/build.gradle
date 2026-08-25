@@ -131,7 +131,8 @@ android {
         ui {
             dimension = "version"
             applicationIdSuffix ".ui"
-            versionNameSuffix "-ui"
+            // ui 前缀版本号: ui-1.26.MMddHHmm, 与正式版一眼区分
+            versionName "ui-${version}"
         }
     }
 
@@ -139,10 +140,12 @@ android {
         variant.outputs.configureEach { output ->
             //noinspection GrDeprecatedAPIUsage
             def abiName = output.getFilter(com.android.build.OutputFile.ABI)
+            // ui 变体版本号已带 ui- 前缀, 文件名不再加 v 前缀, 避免出现 vui/双 ui
+            def baseName = variant.flavorName == "ui" ? "TTS-Server-${variant.versionName}" : "TTS-Server-v${variant.versionName}"
             if (abiName == null)
-                output.outputFileName = "TTS-Server-v${variant.versionName}.apk"
+                output.outputFileName = "${baseName}.apk"
             else
-                output.outputFileName = "TTS-Server-v${variant.versionName}_${abiName}.apk"
+                output.outputFileName = "${baseName}_${abiName}.apk"
         }
     }
 

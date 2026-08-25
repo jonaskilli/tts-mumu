@@ -44,13 +44,6 @@ private fun VersionInfo(modifier: Modifier) {
     val versionNameText = remember {
         "${BuildConfig.VERSION_NAME} (${BuildConfig.VERSION_CODE})"
     }
-    val flavorLabel = remember {
-        when (BuildConfig.FLAVOR) {
-            "ui" -> "UI预览版"
-            "dev" -> "共存开发版"
-            else -> "正式版"
-        }
-    }
 
     SelectionContainer {
         Column(modifier = modifier
@@ -69,7 +62,7 @@ private fun VersionInfo(modifier: Modifier) {
                         style = MaterialTheme.typography.titleMedium
                     )
                     Text(
-                        text = "$flavorLabel · $versionNameText",
+                        text = versionNameText,
                         style = MaterialTheme.typography.bodyMedium
                     )
                     Text(

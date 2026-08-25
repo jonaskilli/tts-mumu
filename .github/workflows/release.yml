@@ -90,8 +90,8 @@ jobs:
       - name: Get version from ui build
         run: |
           VER=$(cat artifacts/TTS-Server_ui_*/ver_name_ui.txt)
-          echo "release_name=UI预览版 $VER" >> $GITHUB_ENV
-          echo "release_tag=ui-$VER" >> $GITHUB_ENV
+          echo "release_name=$VER" >> $GITHUB_ENV
+          echo "release_tag=$VER" >> $GITHUB_ENV
 
       - uses: softprops/action-gh-release@v2
         with:
