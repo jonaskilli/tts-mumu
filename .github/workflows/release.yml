@@ -1,31 +1,17 @@
 name: Build Release
 
 on:
-  # 测试阶段: 去掉 push 自动触发, 避免与 test.yml 重复打包。
-  # 只保留手动触发, 需要发正式 Release 时再在 Actions 页面手动运行。
+  # ui 分支专用: 只打 UI 预览版 (包名 .ui 结尾), 以 ui- 前缀 tag 发布为预发布,
+  # 与 mumu_tts_github 分支发布的正式包完全隔离, 不会出现在 Release 最新列表。
   workflow_dispatch:
-    inputs:
-      build_dev:
-        description: "同时构建 dev 共存版 (默认不构建 dev, 可勾选开启)"
-        type: boolean
-        default: false
-      build_ui:
-        description: "构建 ui 预览版 (包名 com.github.jing332.tts_server_android.ui)"
-        type: boolean
-        default: true
 
 jobs:
   build:
-    strategy:
-      matrix:
-        product: ${{ fromJSON(format('["app"{0}{1}]', github.event.inputs.build_dev == 'true' && ',"dev"' || '', github.event.inputs.build_ui == 'true' && ',"ui"' || '')) }}
-
-      fail-fast: false
     runs-on: ubuntu-latest
     permissions:
       contents: write
     env:
-      product: ${{ matrix.product }}
+      product: ui
       outputs_dir: "${{ github.workspace }}/app/build/outputs"
       ver_name: ""
 
@@ -64,7 +50,7 @@ jobs:
       - name: Build with Gradle
         run: |
           chmod +x gradlew
-          ./gradlew assemble${{ env.product }}release --build-cache --parallel --daemon --warning-mode all
+          ./gradlew assembleUiRelease --build-cache --parallel --daemon --warning-mode all
 
       - name: Init environment variable
         run: |
@@ -101,19 +87,20 @@ jobs:
         with:
           path: artifacts
 
-      - name: Get version from app build
+      - name: Get version from ui build
         run: |
-          VER=$(cat artifacts/TTS-Server_app_*/ver_name_app.txt)
-          echo "ver_name=$VER" >> $GITHUB_ENV
+          VER=$(cat artifacts/TTS-Server_ui_*/ver_name_ui.txt)
+          echo "release_name=UI预览版 $VER" >> $GITHUB_ENV
+          echo "release_tag=ui-$VER" >> $GITHUB_ENV
 
       - uses: softprops/action-gh-release@v2
         with:
-          name: ${{ env.ver_name }}
-          tag_name: ${{ env.ver_name }}
+          name: ${{ env.release_name }}
+          tag_name: ${{ env.release_tag }}
           target_commitish: ${{ github.sha }}
           generate_release_notes: true
           draft: false
-          prerelease: false
+          prerelease: true
           files: artifacts/**/*.apk
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
