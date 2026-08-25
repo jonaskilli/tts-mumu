@@ -6,9 +6,9 @@ on:
   workflow_dispatch:
     inputs:
       build_dev:
-        description: "同时构建 dev 共存版 (默认同时构建 app 和 dev)"
+        description: "同时构建 dev 共存版 (默认不构建 dev, 可勾选开启)"
         type: boolean
-        default: true
+        default: false
       build_ui:
         description: "构建 ui 预览版 (包名 com.github.jing332.tts_server_android.ui)"
         type: boolean
@@ -18,7 +18,6 @@ jobs:
   build:
     strategy:
       matrix:
-        # 动态生成: build_dev=true 时含 "dev", build_ui=true 时含 "ui"; 始终含 "app"
         product: ${{ fromJSON(format('["app"{0}{1}]', github.event.inputs.build_dev == 'true' && ',"dev"' || '', github.event.inputs.build_ui == 'true' && ',"ui"' || '')) }}
 
       fail-fast: false
@@ -61,10 +60,6 @@ jobs:
           printf '%s' '${{ secrets.KEY_STORE }}' | base64 --decode > $GITHUB_WORKSPACE/app/key.jks
           file $GITHUB_WORKSPACE/app/key.jks
           ls -l $GITHUB_WORKSPACE/app/key.jks
-          if [ ! -s $GITHUB_WORKSPACE/app/key.jks ]; then
-            echo "::error::解码后的 key.jks 为空文件, 请检查 KEY_STORE Base64 是否正确"
-            exit 1
-          fi
 
       - name: Build with Gradle
         run: |
@@ -100,7 +95,7 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
-      actions: write  # 删除 artifact 需要
+      actions: write
     steps:
       - uses: actions/download-artifact@v4
         with:
@@ -139,5 +134,4 @@ jobs:
                 repo: context.repo.repo,
                 artifact_id: a.id
               });
-              core.info(`已删除 artifact: ${a.name}`);
             }
