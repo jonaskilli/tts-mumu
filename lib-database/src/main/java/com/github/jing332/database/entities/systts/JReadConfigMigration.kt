@@ -11,7 +11,12 @@ import kotlinx.serialization.json.contentOrNull
 
 object JReadConfigMigration {
 
-    class Parsed(val items: List<SystemTtsV2>, val skipped: Int)
+    class Parsed(
+        val items: List<SystemTtsV2>,
+        val skipped: Int,
+        /** 条目的一级组名（与 items 一一对应，空串表示源数据未提供） */
+        val groupNames: List<String> = List(items.size) { "" },
+    )
 
     fun parse(json: String): Parsed? {
         var el: JsonElement = runCatching { Json.parseToJsonElement(json.trim()) }.getOrNull()
@@ -29,6 +34,7 @@ object JReadConfigMigration {
 
         var skipped = 0
         val items = mutableListOf<SystemTtsV2>()
+        val groupNames = mutableListOf<String>()
         arr.forEachIndexed { index, item ->
             val o = item as? JsonObject ?: run { skipped++; return@forEachIndexed }
             val pluginId = o.str("pluginId")
@@ -37,6 +43,8 @@ object JReadConfigMigration {
                 skipped++
                 return@forEachIndexed
             }
+            // 一级组名进 mumu 分组名；二三级留在 categoryPath（树深度不变，菜单功能全兼容）
+            val groupName = o.str("groupName")
             val sub = o.str("subGroupName")
             val third = o.str("thirdGroupName")
             val categoryPath = buildList {
@@ -67,8 +75,9 @@ object JReadConfigMigration {
                     )
                 )
             )
+            groupNames.add(groupName)
         }
-        return if (items.isEmpty()) null else Parsed(items, skipped)
+        return if (items.isEmpty()) null else Parsed(items, skipped, groupNames)
     }
 
     private fun JsonObject.str(key: String): String =
