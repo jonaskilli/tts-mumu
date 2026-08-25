@@ -9,13 +9,17 @@ on:
         description: "同时构建 dev 共存版 (默认同时构建 app 和 dev)"
         type: boolean
         default: true
+      build_ui:
+        description: "构建 ui 预览版 (包名 com.github.jing332.tts_server_android.ui)"
+        type: boolean
+        default: true
 
 jobs:
   build:
     strategy:
       matrix:
-        # 动态生成: build_dev=true 时为 ["app","dev"], 否则只 ["app"]
-        product: ${{ fromJSON(format('["app"{0}]', github.event.inputs.build_dev == 'true' && ',"dev"' || '')) }}
+        # 动态生成: build_dev=true 时含 "dev", build_ui=true 时含 "ui"; 始终含 "app"
+        product: ${{ fromJSON(format('["app"{0}{1}]', github.event.inputs.build_dev == 'true' && ',"dev"' || '', github.event.inputs.build_ui == 'true' && ',"ui"' || '')) }}
 
       fail-fast: false
     runs-on: ubuntu-latest
@@ -46,7 +50,6 @@ jobs:
           echo ALIAS_PASSWORD='${{ secrets.ALIAS_PASSWORD }}' >> local.properties
           echo KEY_PASSWORD='${{ secrets.KEY_PASSWORD }}' >> local.properties
           echo KEY_PATH='./key.jks' >> local.properties
-          # 校验 Secrets 是否已配置 (空 KEY_STORE 会让签名 task 跑 14 分钟才失败)
           if [ -z "${{ secrets.KEY_STORE }}" ]; then
             echo "::error::Secret KEY_STORE 未配置, 请到 Settings > Secrets > Actions 添加 key.jks 的 Base64 编码"
             exit 1
@@ -55,9 +58,7 @@ jobs:
             echo "::error::签名 Secrets (ALIAS_NAME/ALIAS_PASSWORD/KEY_PASSWORD) 未完整配置"
             exit 1
           fi
-          # 从Secrets读取Base64并解码为 key.jks (用 printf 避免 echo 末尾换行污染二进制)
           printf '%s' '${{ secrets.KEY_STORE }}' | base64 --decode > $GITHUB_WORKSPACE/app/key.jks
-          # 校验解码后的文件非空且是 Java KeyStore
           file $GITHUB_WORKSPACE/app/key.jks
           ls -l $GITHUB_WORKSPACE/app/key.jks
           if [ ! -s $GITHUB_WORKSPACE/app/key.jks ]; then
@@ -82,7 +83,6 @@ jobs:
         with:
           name: mappings_${{ env.product }}_${{ env.ver_name }}
           path: ${{ env.outputs_dir }}/mapping/*/*.txt
-          # 短保留兜底: artifact 仅作 job 间中转, 发布完即删, 防止占满存储配额
           retention-days: 1
 
       - name: Upload APK To Artifact
@@ -124,7 +124,6 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Delete artifacts to free storage
-        # APK 已发布到 Release(不占 Actions 存储配额), artifact 仅是中转, 发布完立即删除
         if: success()
         uses: actions/github-script@v7
         with:
