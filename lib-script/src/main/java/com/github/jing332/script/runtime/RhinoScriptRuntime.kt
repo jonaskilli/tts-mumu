@@ -11,6 +11,7 @@ import org.mozilla.javascript.ScriptStackElement
 import org.mozilla.javascript.Scriptable
 import org.mozilla.javascript.ScriptableObject
 import org.mozilla.javascript.Undefined
+import java.util.function.Supplier
 
 open class RhinoScriptRuntime(
     var environment: Environment,
@@ -85,11 +86,6 @@ open class RhinoScriptRuntime(
     }
 
     protected fun ScriptableObject.defineGetter(key: String, getter: () -> Any) {
-        val accessor = object : BaseFunction() {
-            override fun call(
-                cx: Context?, scope: Scriptable?, thisObj: Scriptable?, args: Array<out Any?>?
-            ): Any? = getter()
-        }
-        defineProperty(key, accessor, null, ScriptableObject.READONLY or ScriptableObject.PERMANENT)
+        defineProperty(key, Supplier { getter() }, null, ScriptableObject.READONLY or ScriptableObject.PERMANENT)
     }
 }
