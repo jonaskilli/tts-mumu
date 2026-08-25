@@ -127,13 +127,17 @@ android {
             dimension = "version"
             applicationIdSuffix ".dev"
         }
+        ui {
+            dimension = "version"
+            applicationIdSuffix ".ui"
+        }
     }
 
     android.applicationVariants.configureEach { variant ->
         variant.outputs.configureEach { output ->
             //noinspection GrDeprecatedAPIUsage
             def abiName = output.getFilter(com.android.build.OutputFile.ABI)
-            def suffix = variant.flavorName == "dev" ? "_dev" : ""
+            def suffix = variant.flavorName == "dev" ? "_dev" : variant.flavorName == "ui" ? "_ui" : ""
             if (abiName == null)
                 output.outputFileName = "TTS-Server-v${variant.versionName}${suffix}.apk"
             else
