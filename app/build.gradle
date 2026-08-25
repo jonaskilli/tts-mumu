@@ -126,10 +126,12 @@ android {
         dev {
             dimension = "version"
             applicationIdSuffix ".dev"
+            versionNameSuffix "-dev"
         }
         ui {
             dimension = "version"
             applicationIdSuffix ".ui"
+            versionNameSuffix "-ui"
         }
     }
 

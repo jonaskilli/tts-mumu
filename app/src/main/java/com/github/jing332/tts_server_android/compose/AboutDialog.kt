@@ -44,6 +44,13 @@ private fun VersionInfo(modifier: Modifier) {
     val versionNameText = remember {
         "${BuildConfig.VERSION_NAME} (${BuildConfig.VERSION_CODE})"
     }
+    val flavorLabel = remember {
+        when {
+            BuildConfig.FLAVOR_version == "ui" -> "UI预览版"
+            BuildConfig.FLAVOR_version == "dev" -> "共存开发版"
+            else -> "正式版"
+        }
+    }
 
     SelectionContainer {
         Column(modifier = modifier
@@ -62,16 +69,27 @@ private fun VersionInfo(modifier: Modifier) {
                         style = MaterialTheme.typography.titleMedium
                     )
                     Text(
-                        text = versionNameText,
+                        text = "$flavorLabel · $versionNameText",
                         style = MaterialTheme.typography.bodyMedium
+                    )
+                    Text(
+                        text = BuildConfig.APPLICATION_ID,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
             }
             AnimatedVisibility(visible = isBuildTimeExpanded) {
-                Text(
-                    text = DateFormatConst.dateFormatSec.format(BuildConfig.BUILD_TIME * 1000),
-                    modifier = Modifier.padding(4.dp)
-                )
+                Column(Modifier.padding(4.dp)) {
+                    Text(
+                        text = DateFormatConst.dateFormatSec.format(BuildConfig.BUILD_TIME * 1000),
+                    )
+                    Text(
+                        text = "构建类型：${BuildConfig.BUILD_TYPE}",
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        style = MaterialTheme.typography.bodySmall
+                    )
+                }
             }
         }
     }
