@@ -85,6 +85,11 @@ open class RhinoScriptRuntime(
     }
 
     protected fun ScriptableObject.defineGetter(key: String, getter: () -> Any) {
-        defineProperty(key, getter, null, ScriptableObject.READONLY)
+        val accessor = object : BaseFunction() {
+            override fun call(
+                cx: Context?, scope: Scriptable?, thisObj: Scriptable?, args: Array<out Any?>?
+            ): Any? = getter()
+        }
+        defineProperty(key, accessor, null, ScriptableObject.READONLY or ScriptableObject.PERMANENT)
     }
 }

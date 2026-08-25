@@ -503,6 +503,39 @@ function __jreadMaybeJson(body) {
     return body;
 }
 try {
+    // 宿主 ttsrv 是 Java 对象，部分 Rhino 求值上下文对其做属性探测
+    // （如 "typeof ttsrv !== 'undefined' && ttsrv.httpPost"）会抛
+    // "TtsEngineContext 类型的 JavaScript 值无效"；用纯 JS 门面遮蔽，
+    // 常用 API 转发到宿主对象，插件侧只接触普通对象。
+    var __origTtsrv = typeof ttsrv !== 'undefined' ? ttsrv : null;
+    if (__origTtsrv) {
+        var __jreadTtsrvFacade = { __jreadWrapped: true };
+        var __fwd = function(name) {
+            return function() {
+                var fn = __origTtsrv[name];
+                if (fn == null) throw new Error('ttsrv.' + name + ' not available');
+                try {
+                    if (typeof fn.call === 'function') return fn.call(__origTtsrv);
+                    return fn.apply(__origTtsrv, arguments);
+                } catch (err) {
+                    if (typeof fn === 'function') return fn.apply(null, arguments);
+                    throw err;
+                }
+            };
+        };
+        for (var __tn in {
+            base64Encode: 1, base64Decode: 1, base64DecodeToBytes: 1,
+            httpGet: 1, httpPost: 1, userVars: 1, tts: 1, defVars: 1,
+            getAudioByTag: 1, getVoiceByTag: 1, getVoiceNamesByTags: 1,
+            getSpeechRuleList: 1, runSpeechRule: 1, deleteConfigByTag: 1,
+            updateConfigDisplayName: 1, jsEncrypt: 1, jsCrypto: 1, fs: 1
+        }) {
+            try { if (__origTtsrv[__tn] !== undefined) __jreadTtsrvFacade[__tn] = __fwd(__tn); } catch (e) {}
+        }
+        var ttsrv = __jreadTtsrvFacade;
+    }
+} catch (e) {}
+try {
     // 注意：全局 http 是 READONLY 属性，不能用赋值覆盖；
     // 用 var 在当前求值作用域声明同名变量遮蔽原型链上的全局定义
     var __origHttp = http;
