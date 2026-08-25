@@ -361,21 +361,34 @@ private fun doImportList(
     return ListImportResult.Success(imported)
 }
 
-/** JRead 配置写入：单分组 + categoryPath 分类，复用导入重编号逻辑 */
+/** JRead 配置写入：一级组名做 mumu 分组(同名复用)，二三级留在 categoryPath */
 private fun insertJReadItems(parsed: JReadConfigMigration.Parsed): ListImportResult {
     val baseId = System.currentTimeMillis()
-    val group = SystemTtsGroup(
-        id = baseId,
-        name = StringUtils.formattedDate(),
-        order = dbm.systemTtsV2.groupCount
-    )
+    // 按 groupName 分桶，保持首次出现顺序（携带全局索引保证 ID 唯一）
+    val buckets = linkedMapOf<String, MutableList<Pair<SystemTtsV2, Int>>>()
+    parsed.items.forEachIndexed { i, item ->
+        val name = parsed.groupNames[i].trim().ifBlank { StringUtils.formattedDate() }
+        buckets.getOrPut(name) { mutableListOf() }.add(item to i)
+    }
     dbm.runInTransaction {
-        dbm.systemTtsV2.insertGroup(group)
-        dbm.systemTtsV2.insert(
-            *parsed.items.mapIndexed { i, it ->
-                it.copy(id = baseId + 100000 + i, groupId = group.id)
-            }.toTypedArray()
-        )
+        var groupOrder = dbm.systemTtsV2.groupCount
+        val allGroups = dbm.systemTtsV2.allGroup
+        for ((name, bucket) in buckets) {
+            // 同名分组复用，避免重复导入产生多套同名组
+            val existing = allGroups.firstOrNull { it.name == name }
+            val groupId = existing?.id ?: run {
+                val newId = baseId + buckets.keys.indexOf(name) * 1000000L
+                dbm.systemTtsV2.insertGroup(
+                    SystemTtsGroup(id = newId, name = name, order = groupOrder++)
+                )
+                newId
+            }
+            dbm.systemTtsV2.insert(
+                *bucket.map { (item, i) ->
+                    item.copy(id = baseId + 100000L + i, groupId = groupId)
+                }.toTypedArray()
+            )
+        }
     }
     return ListImportResult.Success(parsed.items.size, parsed.skipped)
 }
