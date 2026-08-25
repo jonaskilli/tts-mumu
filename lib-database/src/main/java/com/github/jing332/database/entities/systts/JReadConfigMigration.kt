@@ -52,7 +52,7 @@ object JReadConfigMigration {
                     order = index,
                     categoryPath = categoryPath,
                     config = TtsConfigurationDTO(
-                        speechRule = SpeechRuleInfo(tag = o.str("voiceTag")),
+                        speechRule = SpeechRuleInfo(tag = mapGenericTag(o.str("voiceTag"))),
                         audioParams = AudioParams(
                             speed = o.optFloat("speed"),
                             volume = o.optFloat("volume"),
@@ -83,6 +83,45 @@ object JReadConfigMigration {
         val p = this[key] as? JsonPrimitive ?: return def
         return p.booleanOrNull ?: p.contentOrNull?.toBooleanStrictOrNull() ?: def
     }
+
+    /**
+     * JRead 通用标签 → mumu 标签（前缀+序号）。
+     * - 旁白/narration → narration
+     * - 斜杠式 "女/女青年3" → "女青年03"（男主不补零，其余两位补零，与朗读规则一致）
+     * - 主角式 "主角男主1" → "男主1"
+     * - 已是 "前缀+序号" 直写式 → 规范补零
+     * 无法识别的原样保留。
+     */
+    private fun mapGenericTag(raw: String): String {
+        val t = raw.trim()
+        if (t.isBlank()) return ""
+        if (t.equals("narration", true) || t == "旁白") return "narration"
+
+        Regex("^主角(男主|女主)(\\d{1,3})$").matchEntire(t)?.let { m ->
+            val prefix = m.groupValues[1]
+            return prefix + formatSeq(prefix, m.groupValues[2].toInt())
+        }
+        Regex("^(男|女)/(男童|女童|少年|少女|男青年|女青年|男中年|女中年|男老年|女老年|特殊)(\\d{1,3})$")
+            .matchEntire(t)?.let { m ->
+                val prefix = m.groupValues[2]
+                return prefix + formatSeq(prefix, m.groupValues[3].toInt())
+            }
+        Regex("^(.*?\\D)(\\d{1,3})$").matchEntire(t)?.let { m ->
+            val prefix = m.groupValues[1]
+            if (prefix in SEQ_PREFIXES) {
+                return prefix + formatSeq(prefix, m.groupValues[2].toInt())
+            }
+        }
+        return t
+    }
+
+    private fun formatSeq(prefix: String, seq: Int): String =
+        if (prefix == "男主") seq.toString() else String.format("%02d", seq)
+
+    private val SEQ_PREFIXES = setOf(
+        "女童", "少女", "女青年", "女中年", "女老年",
+        "男童", "少年", "男青年", "男中年", "男老年", "男主", "女主", "旁白"
+    )
 
     private fun parseData(raw: String): Map<String, String> {
         if (raw.isBlank()) return emptyMap()
