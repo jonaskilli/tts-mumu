@@ -45,9 +45,9 @@ private fun VersionInfo(modifier: Modifier) {
         "${BuildConfig.VERSION_NAME} (${BuildConfig.VERSION_CODE})"
     }
     val flavorLabel = remember {
-        when {
-            BuildConfig.FLAVOR_version == "ui" -> "UI预览版"
-            BuildConfig.FLAVOR_version == "dev" -> "共存开发版"
+        when (BuildConfig.FLAVOR) {
+            "ui" -> "UI预览版"
+            "dev" -> "共存开发版"
             else -> "正式版"
         }
     }
