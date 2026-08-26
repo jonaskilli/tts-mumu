@@ -913,7 +913,11 @@ internal fun ListManagerScreen(
                 title = { Text("转为子分组") },
                 text = {
                     Column {
-                        Text("选择目标分组，当前分组将作为其子分组：", modifier = Modifier.padding(bottom = 8.dp))
+                        if (otherGroups.isEmpty()) {
+                            Text("没有其他分组可选，请先创建其他分组。", color = MaterialTheme.colorScheme.outline)
+                        } else {
+                            Text("选择目标分组，当前分组将作为其子分组：", modifier = Modifier.padding(bottom = 8.dp))
+                        }
                         otherGroups.forEach { otherGroup ->
                             TextButton(
                                 onClick = {
@@ -939,10 +943,8 @@ internal fun ListManagerScreen(
                                                     }.toTypedArray()
                                                 )
                                             }
-                                            // 空分组也保留，不删除
-                                            if (currentGroupWithTts?.list?.isNotEmpty() == true) {
-                                                dbm.systemTtsV2.deleteGroup(targetGroup)
-                                            }
+                                            // 转为子分组后删除原分组（含空分组）
+                                            dbm.systemTtsV2.deleteGroup(targetGroup)
                                         }
                                         showTagOrganizeLoading = false
                                     }
