@@ -103,7 +103,11 @@ class PluginTtsViewModel(app: Application) : AndroidViewModel(app) {
                 }
 
                 updateLocales()
-                updateVoices(source.locale)
+                // 切换插件后 locale 为空：自动选中第一个语言，避免声音列表残留上一插件内容
+                val effectiveLocale = if (source.locale.isBlank()) {
+                    locales.firstOrNull()?.first ?: ""
+                } else source.locale
+                updateVoices(effectiveLocale)
 
                 // 修正：初始加载时如果已选择声音，触发 onVoiceChanged 以加载风格选项等自定义UI
                 if (source.voice.isNotBlank() && source.locale.isNotBlank()) {

@@ -375,15 +375,27 @@ class PluginTtsUI : IConfigUI() {
                         value = tts.pluginId,
                         values = vm.pluginList.map { it.pluginId },
                         entries = vm.pluginList.map { it.name },
-                        onSelectedChange = { id, _ ->
+                        onSelectedChange = { id, name ->
                             if (id == tts.pluginId) return@AppSpinner
+                            // 切换插件：清空跨插件残留状态（多选/分类/缓存/试听）
+                            selectedVoiceIds = emptySet()
+                            voiceCategoryMap = emptyMap()
+                            voiceSampleRateCache = emptyMap()
+                            auditionSystts = null
+                            auditionVoiceId = null
+                            vm.voices.clear()
+                            vm.locales.clear()
+                            // 显示名跟随新插件名；非角色管理类插件需退出仅界面模式，否则编辑区被隐藏且无法恢复
+                            val newPlugin = vm.pluginList.find { it.pluginId == id }
                             onSysttsChange(
                                 systts.copy(
+                                    displayName = newPlugin?.name ?: "",
                                     config = (systts.config as TtsConfigurationDTO).copy(
                                         source = tts.copy(
                                             pluginId = id as String,
                                             locale = "",
-                                            voice = ""
+                                            voice = "",
+                                            isUiOnly = false,
                                         )
                                     )
                                 )
@@ -443,9 +455,8 @@ class PluginTtsUI : IConfigUI() {
                                     val lastName = vm.voices.find { it.id == tts.voice }?.name ?: ""
                                     onSysttsChange(
                                         systts.copy(
-                                            displayName =
-                                            if (systts.displayName.isNullOrBlank() || lastName == systts.displayName) name
-                                            else systts.displayName,
+                                            // 切换发音人时显示名无条件跟随（用户要求）
+                                            displayName = name,
                                             config = (systts.config as TtsConfigurationDTO).copy(
                                                 source = tts.copy(
                                                     voice = voice as String
