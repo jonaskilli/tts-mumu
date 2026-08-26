@@ -1,10 +1,6 @@
 package com.github.jing332.tts_server_android.service.systts.help
 
-import com.github.jing332.database.dbm
-import com.github.jing332.database.entities.systts.v1.tts.PluginTTS
 import com.github.jing332.tts_server_android.conf.SystemTtsConfig
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.runBlocking
 import org.json.JSONArray
 import org.json.JSONObject
 import java.io.File
@@ -87,36 +83,21 @@ internal object InnerThoughtAiClassifier {
 
     /** 密钥来源探针(绕过缓存直读文件)，供设置页展示链路状态 */
     fun describeCredentialSource(): String {
-        val cur = findCurrentKeyName()
         val c = readFileCredentials()
-            ?: return "未找到可用密钥：请在角色管理插件添加密钥并设为「当前」${if (cur != null) "（数据库记录的当前密钥「$cur」在 key_list.json 中未找到）" else ""}，或多角色朗读 miyue.txt 配「地址@@模型@@Key」"
+            ?: return "未找到可用密钥：miyue.txt 未读取到。请在角色管理插件选择「当前密钥」或直接配置 Download/chajian/<插件目录>/miyue.txt"
         val masked = if (c.second.length > 8) c.second.take(4) + "****" + c.second.takeLast(4) else "****"
         return "已连接：${c.first}｜模型 ${c.third}｜Key $masked"
     }
 
-    /** 密钥读取：① 角色「当前密钥」精确匹配 ② key_list.json 第一条 ③ miyue.txt 兜底 */
-    private fun readFileCredentials(): Triple<String, String, String>? =
-        findCurrentKeyName()?.let { readKeyListJson(it) }
-            ?: readKeyListJson(null)
-            ?: readMiyueTxt()
-
-    /** 从数据库读角色管理配置的当前选中密钥名(ttsrv.tts.data['currentKeyName']) */
-    private fun findCurrentKeyName(): String? {
-        return runCatching {
-            runBlocking(Dispatchers.IO) {
-                dbm.systemTtsDao.allTts.firstNotNullOfOrNull { st ->
-                    val p = st.config as? PluginTTS ?: return@firstNotNullOfOrNull null
-                    val name = p.data["currentKeyName"]?.trim()
-                    if (!name.isNullOrEmpty()) name else null
-                }
-            }
-        }.getOrNull()
-    }
+    /** 密钥读取：只读 miyue.txt（角色管理「当前密钥」由插件写入此文件，多角色朗读同源） */
+    private fun readFileCredentials(): Triple<String, String, String>? = readMiyueTxt()
 
     /**
-     * 兜底：读多角色朗读(2.87)密钥文件 chajian/<引擎目录>/miyue.txt。
-     * 格式与该插件 loadKeyFile 对齐：## 分场景取前段；@@ 三元组「地址@@模型@@Key」；
-     * 无@@视为裸Key，沿用其 defaultConfig（智谱+glm-4-flash）兜底。
+     * 主力且唯一密钥源：读多角色朗读(2.87)/角色管理共用的 miyue.txt。
+     * 角色管理选「当前密钥」即写入此文件；格式与该插件 loadKeyFile 对齐：
+     * ## 分场景取前段(姓名分析)；无@@整段为裸Key；有@@按每3个一组流式解析，
+     * Key 空的组跳过；端点归一化后回填基址（请求时再拼 /chat/completions）；
+     * 裸Key沿用其 defaultConfig（智谱+glm-4-flash）兜底。
      */
     private fun readMiyueTxt(): Triple<String, String, String>? {
         return runCatching {
@@ -140,7 +121,6 @@ internal object InnerThoughtAiClassifier {
         val c = content.trim()
         if (c.isEmpty()) return null
         if (!c.contains("@@")) {
-            if (c.contains(" ")) return null
             return Triple(MIYUE_ENDPOINT_BASE, MIYUE_DEFAULT_MODEL, c)
         }
         val arr = c.split("@@")
@@ -158,40 +138,6 @@ internal object InnerThoughtAiClassifier {
             i += 3
         }
         return null
-    }
-
-    /**
-     * 读角色管理插件密钥文件 key_list.json（[[名称,{keyCode,value}],...]）。
-     * preferredName 非空时按「当前密钥」名精确匹配；null 时取第一条。
-     */
-    private fun readKeyListJson(preferredName: String?): Triple<String, String, String>? {
-        return runCatching {
-            val root = File("/storage/emulated/0/Download/chajian")
-            val dirs = root.listFiles(File::isDirectory) ?: return@runCatching null
-            for (dir in dirs) {
-                val f = File(dir, "key_list.json")
-                if (!f.exists()) continue
-                val arr = JSONArray(f.readText())
-                for (i in 0 until arr.length()) {
-                    val item = arr.optJSONArray(i) ?: continue
-                    if (preferredName != null && item.optString(0).trim() != preferredName) continue
-                    val value = item.optJSONObject(1)?.optString("value")?.trim() ?: continue
-                    parseKeyValue(value)?.let { return@runCatching it }
-                }
-            }
-            null
-        }.getOrNull()
-    }
-
-    /** 解析「地址@@模型@@Key」三元组 */
-    private fun parseKeyValue(value: String): Triple<String, String, String>? {
-        val parts = value.split("@@")
-        if (parts.size < 3 || !parts[0].trim().startsWith("http")) return null
-        return Triple(
-            parts[0].trim().trimEnd('/'),
-            parts.drop(2).joinToString("@@").trim(),
-            parts[1].trim(),
-        )
     }
 
     private fun request(

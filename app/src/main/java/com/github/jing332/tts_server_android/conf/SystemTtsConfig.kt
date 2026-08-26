@@ -243,7 +243,7 @@ object SystemTtsConfig {
 
     // ========== 心声 AI 判定配置 ==========
 
-    /** 心声 AI 兜底判定开关（正则弱线索命中时才调用；密钥自动读多角色朗读 miyue.txt / 角色管理 key_list.json） */
+    /** 心声 AI 兜底判定开关（正则弱线索命中时才调用；密钥自动读 miyue.txt=角色管理「当前密钥」） */
     val isInnerThoughtAiEnabled = mutableDataSaverStateOf(
         dataSaverInterface = dataSaverPref,
         key = "isInnerThoughtAiEnabled",
