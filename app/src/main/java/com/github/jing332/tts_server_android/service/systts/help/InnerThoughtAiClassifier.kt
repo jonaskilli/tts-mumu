@@ -1,6 +1,10 @@
 package com.github.jing332.tts_server_android.service.systts.help
 
+import com.github.jing332.database.dbm
+import com.github.jing332.database.entities.systts.v1.tts.PluginTTS
 import com.github.jing332.tts_server_android.conf.SystemTtsConfig
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.runBlocking
 import org.json.JSONArray
 import org.json.JSONObject
 import java.io.File
@@ -83,14 +87,31 @@ internal object InnerThoughtAiClassifier {
 
     /** 密钥来源探针(绕过缓存直读文件)，供设置页展示链路状态 */
     fun describeCredentialSource(): String {
-        val c = readFileCredentials() ?: return "未找到可用密钥：请先在角色管理插件中添加模型密钥（key_list.json），或多角色朗读 miyue.txt 配「地址@@模型@@Key」"
+        val cur = findCurrentKeyName()
+        val c = readFileCredentials()
+            ?: return "未找到可用密钥：请在角色管理插件添加密钥并设为「当前」${if (cur != null) "（数据库记录的当前密钥「$cur」在 key_list.json 中未找到）" else ""}，或多角色朗读 miyue.txt 配「地址@@模型@@Key」"
         val masked = if (c.second.length > 8) c.second.take(4) + "****" + c.second.takeLast(4) else "****"
         return "已连接：${c.first}｜模型 ${c.third}｜Key $masked"
     }
 
-    /** 密钥读取：优先角色管理 key_list.json(正常主力密钥)，降级多角色朗读 miyue.txt(兜底) */
+    /** 密钥读取：① 角色「当前密钥」精确匹配 ② key_list.json 第一条 ③ miyue.txt 兜底 */
     private fun readFileCredentials(): Triple<String, String, String>? =
-        readKeyListJson() ?: readMiyueTxt()
+        findCurrentKeyName()?.let { readKeyListJson(it) }
+            ?: readKeyListJson(null)
+            ?: readMiyueTxt()
+
+    /** 从数据库读角色管理配置的当前选中密钥名(ttsrv.tts.data['currentKeyName']) */
+    private fun findCurrentKeyName(): String? {
+        return runCatching {
+            runBlocking(Dispatchers.IO) {
+                dbm.systemTtsDao.allTts.firstNotNullOfOrNull { st ->
+                    val p = st.config as? PluginTTS ?: return@firstNotNullOfOrNull null
+                    val name = p.data["currentKeyName"]?.trim()
+                    if (!name.isNullOrEmpty()) name else null
+                }
+            }
+        }.getOrNull()
+    }
 
     /**
      * 兜底：读多角色朗读(2.87)密钥文件 chajian/<引擎目录>/miyue.txt。
@@ -139,8 +160,11 @@ internal object InnerThoughtAiClassifier {
         return null
     }
 
-    /** 主力：扫描角色管理插件密钥文件 key_list.json(「地址@@模型@@Key」，正常添加流程生成)，取第一条 */
-    private fun readKeyListJson(): Triple<String, String, String>? {
+    /**
+     * 读角色管理插件密钥文件 key_list.json（[[名称,{keyCode,value}],...]）。
+     * preferredName 非空时按「当前密钥」名精确匹配；null 时取第一条。
+     */
+    private fun readKeyListJson(preferredName: String?): Triple<String, String, String>? {
         return runCatching {
             val root = File("/storage/emulated/0/Download/chajian")
             val dirs = root.listFiles(File::isDirectory) ?: return@runCatching null
@@ -150,19 +174,24 @@ internal object InnerThoughtAiClassifier {
                 val arr = JSONArray(f.readText())
                 for (i in 0 until arr.length()) {
                     val item = arr.optJSONArray(i) ?: continue
+                    if (preferredName != null && item.optString(0).trim() != preferredName) continue
                     val value = item.optJSONObject(1)?.optString("value")?.trim() ?: continue
-                    val parts = value.split("@@")
-                    if (parts.size >= 3 && parts[0].trim().startsWith("http")) {
-                        return@runCatching Triple(
-                            parts[0].trim().trimEnd('/'),
-                            parts.drop(2).joinToString("@@").trim(),
-                            parts[1].trim(),
-                        )
-                    }
+                    parseKeyValue(value)?.let { return@runCatching it }
                 }
             }
             null
         }.getOrNull()
+    }
+
+    /** 解析「地址@@模型@@Key」三元组 */
+    private fun parseKeyValue(value: String): Triple<String, String, String>? {
+        val parts = value.split("@@")
+        if (parts.size < 3 || !parts[0].trim().startsWith("http")) return null
+        return Triple(
+            parts[0].trim().trimEnd('/'),
+            parts.drop(2).joinToString("@@").trim(),
+            parts[1].trim(),
+        )
     }
 
     private fun request(
