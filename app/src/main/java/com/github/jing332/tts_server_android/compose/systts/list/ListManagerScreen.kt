@@ -2637,9 +2637,9 @@ internal fun ListManagerScreen(
                     else SystemTtsV2.Converters.json.decodeFromString<Map<String, AudioParams>>(jsonStr).keys
                 }
                 val hasSubInList = gwt.list.any { it.categoryPath.isNotBlank() }
-                if (hasSubInList || subPaths.isNotEmpty()) {
+                gwt.group.id to (if (hasSubInList || subPaths.isNotEmpty()) {
                     flattenSubCategoryTree(buildSubCategoryTree(gwt.list, subPaths))
-                } else null
+                } else null)
             }
         }
         // 可见项过滤：轻量操作，每次展开/折叠时执行（仅遍历已缓存的扁平树做过滤，不重建树）
