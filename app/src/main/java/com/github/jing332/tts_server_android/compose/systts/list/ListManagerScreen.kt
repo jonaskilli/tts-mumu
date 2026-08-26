@@ -906,10 +906,13 @@ internal fun ListManagerScreen(
                                     withIO {
                                         val sourceItems = sourceGwt?.list ?: emptyList()
                                         val targetGwt = models.find { it.group.id == targetGroup.id }
-                                        val targetCategories = targetGwt?.list
-                                            ?.map { it.categoryPath }?.toSet() ?: emptySet()
-                                        // 匹配：源项的 categoryPath 在目标分组中已存在则移动
-                                        val toMove = sourceItems.filter { it.categoryPath in targetCategories }
+                                        // 严格匹配：categoryPath + tag 都相同才能合并
+                                        val targetKeys = targetGwt?.list
+                                            ?.map { it.categoryPath to (it.config as TtsConfigurationDTO).speechRule.tag }
+                                            ?.toSet() ?: emptySet()
+                                        val toMove = sourceItems.filter {
+                                            (it.categoryPath to (it.config as TtsConfigurationDTO).speechRule.tag) in targetKeys
+                                        }
                                         if (toMove.isNotEmpty()) {
                                             val baseOrder = (targetGwt?.list?.maxOfOrNull { it.order } ?: -1) + 1
                                             dbm.systemTtsV2.update(
@@ -930,7 +933,7 @@ internal fun ListManagerScreen(
                                             val msg = if (remaining == 0)
                                                 "已合并 ${toMove.size} 项，源分组已删除"
                                             else
-                                                "已合并 ${toMove.size} 项，${remaining} 项无匹配分类保留原分组"
+                                                "已合并 ${toMove.size} 项，${remaining} 项无匹配保留原分组"
                                             context.toast(msg)
                                         }
                                     }
