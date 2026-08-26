@@ -47,6 +47,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarDuration
 import androidx.compose.material3.SnackbarHost
@@ -86,6 +87,7 @@ import com.github.jing332.compose.widgets.AppDialog
 import com.github.jing332.compose.widgets.ShadowedDraggableItem
 import com.github.jing332.database.dbm
 import com.github.jing332.database.entities.plugin.Plugin
+import com.github.jing332.database.entities.systts.SystemTtsGroup
 import com.github.jing332.database.entities.systts.TtsConfigurationDTO
 import com.github.jing332.database.entities.systts.source.PluginTtsSource
 import com.github.jing332.script.JsMetadataSyncer
@@ -794,6 +796,9 @@ private fun Item(
     onEditMetadata: (() -> Unit)? = null,
 ) {
     val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    // 按分类入库：目标分组选择 + 导入进度
+    var showImportByCategory by remember { mutableStateOf(false) }
     ElevatedCard(modifier = modifier
         .combinedClickable(
             onClick = { if (isSelectionMode) onToggleSelection() else if (hasDefVars) onSetVars() },
@@ -902,6 +907,19 @@ private fun Item(
                                     }
                                 )
 
+                            // 按分类入库：遍历插件的全部语言分类，将各分类下音色批量导入所选分组
+                            if (plugin != null)
+                                DropdownMenuItem(
+                                    text = { Text("按分类入库") },
+                                    onClick = {
+                                        showOptions = false
+                                        showImportByCategory = true
+                                    },
+                                    leadingIcon = {
+                                        Icon(Icons.AutoMirrored.Filled.Input, "按分类入库")
+                                    }
+                                )
+
                             DropdownMenuItem(
                                 text = { Text(stringResource(id = R.string.export_config)) },
                                 onClick = {
@@ -985,6 +1003,91 @@ private fun Item(
                     style = MaterialTheme.typography.titleMedium,
                     color = MaterialTheme.colorScheme.primary
                 )
+
+            // 按分类入库：选分组 → 批量导入
+            ImportByCategoryDialog(
+                plugin = plugin,
+                visible = showImportByCategory && plugin != null,
+                onDismiss = { showImportByCategory = false },
+                scope = scope,
+                context = context
+            )
         }
     }
+}
+
+@Composable
+private fun ImportByCategoryDialog(
+    plugin: Plugin?,
+    visible: Boolean,
+    onDismiss: () -> Unit,
+    scope: kotlinx.coroutines.CoroutineScope,
+    context: Context,
+) {
+    if (!visible || plugin == null) return
+
+    var groups by remember { mutableStateOf<List<SystemTtsGroup>>(emptyList()) }
+    var selectedGroupId by remember { mutableStateOf(0L) }
+    var importing by remember { mutableStateOf(false) }
+    var progressText by remember { mutableStateOf("") }
+
+    LaunchedEffect(plugin.id) {
+        groups = dbm.systemTtsV2.allGroup().map { it.group }
+        if (selectedGroupId == 0L && groups.isNotEmpty())
+            selectedGroupId = groups.first().id
+    }
+
+    AlertDialog(
+        onDismissRequest = { if (!importing) onDismiss() },
+        title = { Text(if (importing) "正在按分类入库" else "按分类入库 - 选择目标分组") },
+        text = {
+            if (importing) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    CircularProgressIndicator(Modifier.size(24.dp), strokeWidth = 2.dp)
+                    Spacer(Modifier.width(12.dp))
+                    Text(progressText, style = MaterialTheme.typography.bodyMedium)
+                }
+            } else {
+                Column(Modifier.verticalScroll(rememberScrollState())) {
+                    if (groups.isEmpty())
+                        Text("暂无分组，请先在配置列表创建")
+                    groups.forEach { g ->
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            RadioButton(
+                                selected = selectedGroupId == g.id,
+                                onClick = { selectedGroupId = g.id }
+                            )
+                            Text(g.name, modifier = Modifier.padding(start = 4.dp))
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(
+                enabled = !importing && selectedGroupId != 0L,
+                onClick = {
+                    importing = true
+                    val groupId = selectedGroupId
+                    scope.launch {
+                        val result = runCatching {
+                            PluginCategoryImporter.import(context, plugin, groupId) { progressText = it }
+                        }
+                        result.fold(
+                            onSuccess = { count -> context.longToast("已导入 $count 个音色") },
+                            onFailure = { e -> context.longToast("导入失败: ${e.message}") }
+                        )
+                        importing = false
+                        onDismiss()
+                    }
+                }
+            ) { Text(if (importing) "导入中" else "开始导入") }
+        },
+        dismissButton = {
+            TextButton(enabled = !importing, onClick = onDismiss) { Text("取消") }
+        }
+    )
 }

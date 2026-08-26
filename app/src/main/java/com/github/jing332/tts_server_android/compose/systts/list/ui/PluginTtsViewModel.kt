@@ -138,43 +138,10 @@ class PluginTtsViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
-    // 逐分类（语言池）拉取全部音色：返回 (localeId, 分类显示名, 该池音色列表)，
-    // 供「全部分类入库」一次性遍历所有分类，无需逐个切换语言栏；
-    // 分类显示名已映射为标准分类名（映射不出时保留插件原名）
-    suspend fun allLocalesVoices(): List<Triple<String, String, List<TtsPluginUiEngineV2.Voice>>> {
-        val out = ArrayList<Triple<String, String, List<TtsPluginUiEngineV2.Voice>>>()
-        locales.forEach { (localeId, displayName) ->
-            runCatching { engine.getVoices(localeId).toList() }.getOrNull()
-                ?.takeIf { it.isNotEmpty() }
-                ?.let { out.add(Triple(localeId, mapToStandardCategory(displayName), it)) }
-        }
-        return out
-    }
-
     fun updateCustomUI(locale: String, voice: String) {
         try {
             engine.onVoiceChanged(locale, voice)
         } catch (_: NoSuchMethodException) {
         }
     }
-}
-
-/** 插件分类显示名 → 应用标准分类名的归一化：别名表 → 标准词包含 → 兜底原名 */
-private val CATEGORY_ALIASES = listOf(
-    "女性青年" to "女青年", "女青年通用" to "女青年",
-    "男性青年" to "男青年", "男青年通用" to "男青年",
-    "女特殊" to "特殊女", "女性特殊" to "特殊女",
-    "男特殊" to "特殊男", "男性特殊" to "特殊男"
-)
-
-private fun mapToStandardCategory(raw: String): String {
-    // 去掉常见修饰后缀，便于精确命中标准名
-    val s = raw.trim().removeSuffix("通用").removeSuffix("发音人").trim()
-    if (s in com.github.jing332.compose.widgets.VoiceCategories.ALL) return s
-    CATEGORY_ALIASES.firstOrNull { raw.contains(it.first) || s.contains(it.first) }
-        ?.let { return it.second }
-    // 分类名里直接出现标准词即采用；完全不含时保留插件原名作为新子分组
-    com.github.jing332.compose.widgets.VoiceCategories.ALL.firstOrNull { s.contains(it) }
-        ?.let { return it }
-    return raw.trim()
 }

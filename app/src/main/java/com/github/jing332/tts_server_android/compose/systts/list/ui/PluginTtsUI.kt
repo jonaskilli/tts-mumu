@@ -14,7 +14,6 @@ import androidx.compose.material.icons.filled.Headset
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.Checkbox
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -523,25 +522,11 @@ class PluginTtsUI : IConfigUI() {
                                 context.toast(if (it) "已开启：选分类后自动试听下一个" else "已关闭：选分类后不自动切换")
                             },
                             extraButtons = {
-                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Checkbox(
-                                        checked = allPoolsImport,
-                                        onCheckedChange = {
-                                            allPoolsImport = it
-                                            context.toast(
-                                                if (it) "已开启：保存时按分类入库该插件全部音色"
-                                                else "已关闭：仅保存勾选的音色"
-                                            )
-                                        }
-                                    )
-                                    Text("全部分类", style = MaterialTheme.typography.bodySmall)
-                                }
                                 TextButton(
-                                    enabled = (allPoolsImport || selectedVoiceIds.isNotEmpty()) && !showLoadingDialog,
+                                    enabled = selectedVoiceIds.isNotEmpty() && !showLoadingDialog,
                                     onClick = {
                                         val selectedVoices = vm.voices.filter { it.id in selectedVoiceIds }
-                                        val allPoolsSnapshot = allPoolsImport
-                                        if (!allPoolsSnapshot && selectedVoices.isEmpty()) {
+                                        if (selectedVoices.isEmpty()) {
                                             // 勾选项不在当前声音列表（切换语言/插件后列表已刷新）：
                                             // 显式提示而非静默返回，避免"点了保存没反应"
                                             context.toast("所选声音不在当前列表中，可能已切换语言或插件，请重新选择")
@@ -643,10 +628,7 @@ class PluginTtsUI : IConfigUI() {
                                                     savingProgressText =
                                                         "正在保存 ${voiceIdx + 1}/${importItems.size}：${voice.name}"
                                                 }
-                                                // 「全部分类」模式下池显示名充当分类：
-                                                // 手动分配的分类仍优先
                                                 val category = categoryMapSnapshot[voice.id]
-                                                    ?: poolName.takeIf { allPoolsSnapshot && it.isNotBlank() }
                                                 val newRuleData = config.speechRule.copy()
                                                 // 未分配分类时保留用户在分组树中已选的子分组路径，
                                                 // 不再被强制置空导致保存位置丢失
@@ -839,7 +821,7 @@ class PluginTtsUI : IConfigUI() {
  * 批量分组保存时，若插件 JS 未实现 getAudioSampleRate，则实际合成一次，
  * 从返回音频字节解析真实采样率，避免落入 16000 默认值。
  */
-private suspend fun resolveSampleRateBySynth(
+internal suspend fun resolveSampleRateBySynth(
     provider: TextToSpeechProvider<TextToSpeechSource>,
     config: TtsConfigurationDTO,
     tts: PluginTtsSource,
