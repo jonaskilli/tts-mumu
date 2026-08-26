@@ -2,11 +2,13 @@ package com.github.jing332.tts_server_android.compose.systts.list.ui.widgets
 
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.Clear
+import androidx.compose.material3.Checkbox
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -20,12 +22,15 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.github.jing332.database.dbm
 import com.github.jing332.database.entities.AbstractListGroup.Companion.DEFAULT_GROUP_ID
 import com.github.jing332.database.entities.systts.SystemTtsGroup
 import com.github.jing332.database.entities.systts.SystemTtsV2
+import com.github.jing332.database.entities.systts.TtsConfigurationDTO
+import com.github.jing332.database.entities.systts.AudioParams
 import com.github.jing332.tts_server_android.R
 import com.github.jing332.tts_server_android.compose.systts.list.GroupTreePickerDialog
 
@@ -105,5 +110,36 @@ fun BasicInfoEditScreen(
                     }
             }
         )
+
+        val dto = systemTts.config as? TtsConfigurationDTO
+        if (dto != null) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable {
+                        val p = dto.audioParams
+                        updateConfig(systemTts, onSystemTtsChange, p.copy(reverbEnabled = !p.reverbEnabled))
+                    },
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Checkbox(
+                    checked = dto.audioParams.reverbEnabled,
+                    onCheckedChange = {
+                        updateConfig(systemTts, onSystemTtsChange, dto.audioParams.copy(reverbEnabled = it))
+                    }
+                )
+                Text("心声混响")
+            }
+        }
     }
+}
+
+private fun updateConfig(
+    systemTts: SystemTtsV2,
+    onChange: (SystemTtsV2) -> Unit,
+    audioParams: AudioParams,
+) {
+    val config = systemTts.config
+    if (config is TtsConfigurationDTO)
+        onChange(systemTts.copy(config = config.copy(audioParams = audioParams)))
 }

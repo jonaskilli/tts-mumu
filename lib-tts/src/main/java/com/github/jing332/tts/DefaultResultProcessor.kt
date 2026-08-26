@@ -11,6 +11,7 @@ import androidx.media3.exoplayer.audio.SilenceSkippingAudioProcessor
 import com.github.jing332.common.audio.AudioDecoder.Companion.readPcmChunk
 import com.github.jing332.common.audio.exo.ExoAudioDecoder
 import com.github.jing332.common.audio.exo.LoudnessAudioProcessor
+import com.github.jing332.common.audio.exo.ReverbAudioProcessor
 import com.github.jing332.common.utils.rootCause
 import com.github.jing332.tts.error.StreamProcessorError
 import com.github.jing332.tts.error.StreamProcessorError.AudioDecoding
@@ -129,6 +130,7 @@ internal class DefaultResultProcessor(
                 if (context.cfg.silenceSkipEnabled()) skipAudioProcessor else null,
                 if (needsSonic) sonicAudioProcessor else null,
                 if (needsLoudness) loudnessAudioProcessor else null,
+                if (config.audioParams.reverbEnabled) ReverbAudioProcessor() else null,
             ).filterNotNull()
             val processor = AudioProcessingPipeline(ImmutableList.copyOf(pipelines))
 
