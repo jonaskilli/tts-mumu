@@ -240,8 +240,8 @@ class ListManagerViewModel : ViewModel() {
             val enabledIds = _enabledPluginIds.value
             val allItems = dbm.systemTtsV2.getAllGroupWithTts().flatMap { it.list }
             val toDelete = allItems.filter { item ->
-                val src = (item.config as? TtsConfigurationDTO)?.source
-                val isInvalid = src is PluginTtsSource && src.pluginId !in enabledIds
+                val src = (item.config as? TtsConfigurationDTO)?.source as? PluginTtsSource
+                val isInvalid = src != null && src.pluginId !in enabledIds
                 val matchSource = sourcePluginId == null || src?.pluginId == sourcePluginId
                 isInvalid && matchSource
             }
