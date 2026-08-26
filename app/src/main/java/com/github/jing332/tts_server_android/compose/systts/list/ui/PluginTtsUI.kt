@@ -524,7 +524,7 @@ class PluginTtsUI : IConfigUI() {
                                 context.toast(if (it) "已开启：选分类后自动试听下一个" else "已关闭：选分类后不自动切换")
                             },
                             autoGroupByLocale = autoGroupByLocale,
-                            onAutoGroupByLocaleChange = { autoGroupByLocale = it },
+                            onAutoGroupByLocaleChange = if (vm.locales.size > 1) ({ autoGroupByLocale = it }) else null,
                             extraButtons = {
                                 TextButton(
                                     enabled = selectedVoiceIds.isNotEmpty() && !showLoadingDialog,
