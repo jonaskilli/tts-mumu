@@ -2611,7 +2611,7 @@ internal fun ListManagerScreen(
         val ttsItemsSignature = remember(models) { models.map { it.list.hashCode() } }
         val subGroupTrees = remember(ttsItemsSignature) {
             models.associate { gwt ->
-                val subPaths = gwt.group.subGroupAudioParamsJson.let { jsonStr ->
+                val subPaths: Set<String> = gwt.group.subGroupAudioParamsJson.let { jsonStr ->
                     if (jsonStr.isBlank() || jsonStr == "{}") emptySet()
                     else SystemTtsV2.Converters.json.decodeFromString<Map<String, AudioParams>>(jsonStr).keys
                 }
