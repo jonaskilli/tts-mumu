@@ -1,8 +1,11 @@
 name: Build Release
 
 on:
-  # 测试阶段: 去掉 push 自动触发, 避免与 test.yml 重复打包。
-  # 只保留手动触发, 需要发正式 Release 时再在 Actions 页面手动运行。
+  # 推送 1.26.* 格式 tag 自动打包正式版 (只打 app, 不含 dev)
+  push:
+    tags:
+      - '1.26.*'
+  # 手动触发仍可用, 可选同时构建 dev 共存版
   workflow_dispatch:
     inputs:
       build_dev:
