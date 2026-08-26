@@ -80,7 +80,7 @@ abstract class DatabaseManager : RoomDatabase() {
     companion object {
         private const val DATABASE_NAME = "systts.db"
 
-        private val MIGRATION_31_32 = object : Migration(31, 32) {
+        val MIGRATION_31_32 = object : Migration(31, 32) {
             override fun migrate(db: SupportSQLiteDatabase) {
                 db.execSQL("ALTER TABLE Plugin ADD COLUMN pluginHandlesSpeed INTEGER NOT NULL DEFAULT 0")
                 db.execSQL("ALTER TABLE Plugin ADD COLUMN pluginHandlesVolume INTEGER NOT NULL DEFAULT 0")
@@ -88,7 +88,7 @@ abstract class DatabaseManager : RoomDatabase() {
             }
         }
 
-        private val MIGRATION_32_33 = object : Migration(32, 33) {
+        val MIGRATION_32_33 = object : Migration(32, 33) {
             override fun migrate(db: SupportSQLiteDatabase) {
                 db.execSQL("ALTER TABLE SystemTtsGroup ADD COLUMN audioParams_reverbEnabled INTEGER NOT NULL DEFAULT 0")
             }
