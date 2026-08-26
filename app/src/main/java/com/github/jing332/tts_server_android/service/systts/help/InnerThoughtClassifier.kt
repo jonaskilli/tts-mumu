@@ -14,7 +14,7 @@ internal object InnerThoughtClassifier {
     )
 
     private const val trailingAttributionPrefix =
-        "^[，,。.!！?？\\s"」』'"']*(?:[^，。！？!?：:\\n"""''']{0,20})?"
+        "^[，,。.!！?？\\s\u201C\u201D\u2018\u2019」』]*(?:[^，。！？!?：:\\n\u201C\u201D\u2018\u2019]{0,20})?"
 
     private const val trailingAttributionBoundary = "(?=$|[，,。.!！?？；;\\s])"
 
