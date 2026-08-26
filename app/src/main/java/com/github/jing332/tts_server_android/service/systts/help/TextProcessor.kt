@@ -135,10 +135,21 @@ class TextProcessor : ITextProcessor {
             } else if (isMultiVoice) {
                 val fragments = engine.handleText(replacedText, speechRules)
 
+                var offset = 0
                 fragments.forEach { txtWithTag ->
                     if (txtWithTag.text.isNotBlank()) {
+                        val beforeText = replacedText.take(offset)
+                        val afterText = replacedText.drop(offset + txtWithTag.text.length)
+                        val effectiveTag =
+                            if (InnerThoughtClassifier.isInnerThought(
+                                    txtWithTag.text, beforeText, afterText
+                                )
+                            ) InnerThoughtClassifier.INNER_THOUGHT_TAG
+                            else txtWithTag.tag
+                        offset += txtWithTag.text.length
+
                         val sameTagList = configs.filter {
-                            !it.speechInfo.isStandby && it.speechInfo.tag == txtWithTag.tag
+                            !it.speechInfo.isStandby && it.speechInfo.tag == effectiveTag
                         }
                         val configFromId =
                             sameTagList.find { it.speechInfo.configId == txtWithTag.id }
@@ -147,13 +158,13 @@ class TextProcessor : ITextProcessor {
                         val config = configFromId
                             ?: sameTagList.randomOrNull(random)
                             ?: configs.filter {
-                                !it.speechInfo.isStandby && it.speechInfo.voice == txtWithTag.tag
+                                !it.speechInfo.isStandby && it.speechInfo.voice == effectiveTag
                             }.randomOrNull(random)
                             ?: configs.randomOrNull(random)
                             ?: return Err(
                                 TextProcessorError.MissingConfig(
                                     ConfigType.TAG,
-                                    "tag=${txtWithTag.tag}, id=${txtWithTag.id}"
+                                    "tag=${effectiveTag}, id=${txtWithTag.id}"
                                 )
                             )
                         splitAndAdd(txtWithTag.text, config)
