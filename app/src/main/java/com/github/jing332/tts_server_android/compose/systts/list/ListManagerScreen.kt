@@ -245,10 +245,10 @@ internal fun ListManagerScreen(
     }
 
     // 子分组操作对话框状态
-    var showSubGroupRename by remember { mutableStateOf<Pair<List<SystemTtsV2>, String>?>(null) }
+    var showSubGroupRename by remember { mutableStateOf<Triple<SystemTtsGroup, List<SystemTtsV2>, String>?>(null) }
     if (showSubGroupRename != null) {
-        val (items, oldPath) = showSubGroupRename!!
-        var newName by remember { mutableStateOf(oldPath.substringAfterLast('/')) }
+        val (sgroup, items, oldPath) = showSubGroupRename!!
+        var newName by remember(oldPath) { mutableStateOf(oldPath.substringAfterLast('/')) }
         TextFieldDialog(
             title = "重命名子分组",
             text = newName,
@@ -264,6 +264,23 @@ internal fun ListManagerScreen(
                 withIO {
                     if (items.isNotEmpty()) {
                         dbm.systemTtsV2.update(*items.map { it.copy(categoryPath = newPath) }.toTypedArray())
+                    }
+                    // 子分组定义与音频参数键同步迁移（空子分组仅有键）
+                    val subMap = sgroup.subGroupAudioParamsJson.let { jsonStr ->
+                        if (jsonStr.isBlank() || jsonStr == "{}") emptyMap<String, AudioParams>()
+                        else SystemTtsV2.Converters.json.decodeFromString<Map<String, AudioParams>>(jsonStr)
+                    }
+                    if (subMap.keys.any { it == oldPath || it.startsWith("$oldPath/") }) {
+                        val newSubMap = subMap.entries.associate { (k, v) ->
+                            when {
+                                k == oldPath -> newPath to v
+                                k.startsWith("$oldPath/") -> newPath + k.removePrefix(oldPath) to v
+                                else -> k to v
+                            }
+                        }
+                        dbm.systemTtsV2.updateGroup(
+                            sgroup.copy(subGroupAudioParamsJson = SystemTtsV2.Converters.json.encodeToString(newSubMap))
+                        )
                     }
                 }
             }
@@ -728,14 +745,18 @@ internal fun ListManagerScreen(
     ): Int {
         if (find == replace) return 0
         val affected = list.filter { it.config is TtsConfigurationDTO && it.categoryPath.isNotBlank() }
-        if (affected.isEmpty()) return 0
 
+        // 候选首段 = 配置项路径 ∪ JSON 键，空子分组（仅存在于键中）也参与改名
+        val jsonSubPaths = group.subGroupAudioParamsJson.let { jsonStr ->
+            if (jsonStr.isBlank() || jsonStr == "{}") emptyList()
+            else SystemTtsV2.Converters.json.decodeFromString<Map<String, AudioParams>>(jsonStr).keys.toList()
+        }
         // 旧第一段 -> 新第一段 的映射（仅含发生变化的）
         val segRename = mutableMapOf<String, String>()
-        affected.forEach { item ->
-            val path = item.categoryPath
-            val firstSlash = path.indexOf('/')
-            val seg = if (firstSlash == -1) path else path.substring(0, firstSlash)
+        ((affected.map { it.categoryPath } + jsonSubPaths).mapNotNull { p ->
+            val firstSlash = p.indexOf('/')
+            if (firstSlash == -1) p else p.substring(0, firstSlash)
+        }).distinct().forEach { seg ->
             val newSeg = when {
                 find.isEmpty() -> replace + seg
                 seg.startsWith(find) -> replace + seg.removePrefix(find)
@@ -1032,6 +1053,21 @@ internal fun ListManagerScreen(
                                             val combined = (targetGwt?.list ?: emptyList()) + updates
                                             reassignTagsForAllSubGroups(combined.filter { it.categoryPath in affectedPaths })
                                         }
+                                        // 子分组定义与音频参数并入目标（键不覆盖目标已有，空子分组定义不丢）
+                                        val srcSubMap = sourceGroup.subGroupAudioParamsJson.let { jsonStr ->
+                                            if (jsonStr.isBlank() || jsonStr == "{}") emptyMap()
+                                            else SystemTtsV2.Converters.json.decodeFromString<Map<String, AudioParams>>(jsonStr)
+                                        }
+                                        if (srcSubMap.isNotEmpty()) {
+                                            val dstSubMap = targetGroup.subGroupAudioParamsJson.let { jsonStr ->
+                                                if (jsonStr.isBlank() || jsonStr == "{}") mutableMapOf<String, AudioParams>()
+                                                else SystemTtsV2.Converters.json.decodeFromString<Map<String, AudioParams>>(jsonStr).toMutableMap()
+                                            }
+                                            srcSubMap.forEach { (k, v) -> if (k !in dstSubMap) dstSubMap[k] = v }
+                                            dbm.systemTtsV2.updateGroup(
+                                                targetGroup.copy(subGroupAudioParamsJson = SystemTtsV2.Converters.json.encodeToString(dstSubMap))
+                                            )
+                                        }
                                         // 源分组整体迁空后必删
                                         dbm.systemTtsV2.deleteGroup(sourceGroup)
                                         withContext(Dispatchers.Main) {
@@ -1067,12 +1103,15 @@ internal fun ListManagerScreen(
         val previewRenames = remember(renameGwt, findText, replaceText) {
             if (findText == replaceText) emptyMap<String, String>()
             else {
-                val segs = renameGwt?.list
-                    ?.map { it.categoryPath }
-                    ?.filter { it.isNotBlank() }
-                    ?.map { p -> if (p.indexOf('/') == -1) p else p.substring(0, p.indexOf('/')) }
-                    ?.distinct()
-                    ?: emptyList()
+                // 候选并入 JSON 键，空子分组也能预览改名
+                val jsonPaths = renameGwt?.group?.subGroupAudioParamsJson?.let { jsonStr ->
+                    if (jsonStr.isBlank() || jsonStr == "{}") emptyList()
+                    else SystemTtsV2.Converters.json.decodeFromString<Map<String, AudioParams>>(jsonStr).keys.toList()
+                } ?: emptyList()
+                val segs = ((renameGwt?.list?.map { it.categoryPath } ?: emptyList()) + jsonPaths)
+                    .filter { it.isNotBlank() }
+                    .map { p -> if (p.indexOf('/') == -1) p else p.substring(0, p.indexOf('/')) }
+                    .distinct()
                 segs.mapNotNull { seg ->
                     val newSeg = when {
                         findText.isEmpty() -> replaceText + seg
@@ -1788,12 +1827,13 @@ internal fun ListManagerScreen(
         val sourceGroup = showConvertSubGroupsToTopLevel!!
         val sourceGwt = models.find { it.group.id == sourceGroup.id }
         val subPaths = remember(sourceGwt) {
-            sourceGwt?.list
-                ?.map { it.categoryPath }
-                ?.filter { it.isNotBlank() }
-                ?.distinct()
-                ?.sorted()
-                ?: emptyList()
+            // 候选并入 JSON 键，空子分组也可被转出为一级分组
+            val jsonPaths = sourceGwt?.group?.subGroupAudioParamsJson?.let { jsonStr ->
+                if (jsonStr.isBlank() || jsonStr == "{}") emptyList()
+                else SystemTtsV2.Converters.json.decodeFromString<Map<String, AudioParams>>(jsonStr).keys.toList()
+            } ?: emptyList()
+            ((sourceGwt?.list?.map { it.categoryPath } ?: emptyList()) + jsonPaths)
+                .filter { it.isNotBlank() }.distinct().sorted()
         }
         var selectedPaths by remember(sourceGroup.id) { mutableStateOf<Set<String>>(emptySet()) }
         val allSelected = subPaths.isNotEmpty() && selectedPaths.size == subPaths.size
