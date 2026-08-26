@@ -110,7 +110,8 @@ fun PluginImportBottomSheet(onDismissRequest: () -> Unit) {
                         )
                     }
                     is AutoImportResult.Success -> {
-                        successMsg.value = "已导入 ${result.count} 项${result.typeName}"
+                        // doAutoImport 已生成完整文案（含数量），直接展示
+                        successMsg.value = result.typeName
                     }
                 }
             }

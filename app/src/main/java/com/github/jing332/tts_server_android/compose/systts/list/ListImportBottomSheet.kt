@@ -222,7 +222,7 @@ private fun doImportPlugin(json: String, type: ImportType): AutoImportResult {
     }.getOrDefault(emptyList<Plugin>())
     if (plugins.isEmpty()) return AutoImportResult.Truncated(parseError ?: "未识别到有效配置")
     dbm.pluginDao.insert(*plugins.toTypedArray())
-    return AutoImportResult.Success(plugins.size, type, "插件")
+    return AutoImportResult.Success(plugins.size, type, "已导入 ${plugins.size} 个插件")
 }
 
 /** 朗读规则：解析并直接写库，不弹确认对话框 */
@@ -237,7 +237,7 @@ private fun doImportSpeechRule(json: String, type: ImportType): AutoImportResult
     }.getOrDefault(emptyList())
     if (rules.isEmpty()) return AutoImportResult.Truncated(parseError ?: "未识别到有效配置")
     dbm.speechRuleDao.insert(*rules.toTypedArray())
-    return AutoImportResult.Success(rules.size, type, "朗读规则")
+    return AutoImportResult.Success(rules.size, type, "已导入 ${rules.size} 条朗读规则")
 }
 
 /** 替换规则：解析并直接写库，不弹确认对话框 */
@@ -276,7 +276,10 @@ private fun doImportReplaceRule(json: String, type: ImportType): AutoImportResul
         dbm.replaceRuleDao.insertGroup(it.first)
     }
     dbm.replaceRuleDao.updateAllOrder()
-    return AutoImportResult.Success(pairs.size, type, "替换规则")
+    val groups = pairs.map { it.first.name }.distinct()
+    return AutoImportResult.Success(
+        pairs.size, type, "已导入 ${pairs.size} 条替换规则到 ${groups.size} 个分组"
+    )
 }
 
 /** 配置列表导入结果 */
