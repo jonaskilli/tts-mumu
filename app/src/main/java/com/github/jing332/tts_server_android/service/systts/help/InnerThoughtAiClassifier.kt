@@ -84,7 +84,7 @@ internal object InnerThoughtAiClassifier {
         return "已连接：${c.first}｜模型 ${c.third}｜Key $masked"
     }
 
-    /** 扫描 Download/chajian/*/key_list.json，取第一条 OpenAI 格式(URL@@模型名@@APIKey)密钥 */
+    /** 扫描 Download/chajian 下各插件目录的 key_list.json，取第一条 OpenAI 格式(URL@@模型名@@APIKey)密钥 */
     private fun readFileCredentials(): Triple<String, String, String>? {
         return runCatching {
             val root = File("/storage/emulated/0/Download/chajian")
