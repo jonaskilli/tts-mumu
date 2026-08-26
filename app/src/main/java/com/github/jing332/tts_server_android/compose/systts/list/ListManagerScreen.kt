@@ -2982,7 +2982,7 @@ internal fun ListManagerScreen(
                                                         }
                                                     },
                                                     onRename = {
-                                                        showSubGroupRename = subItems to fItem.node.fullPath
+                                                        showSubGroupRename = Triple(g, subItems, fItem.node.fullPath)
                                                     },
                                                     onSort = {
                                                         showSortDialog = subItems to groupWithSystemTts.list
