@@ -11,7 +11,12 @@ data class SubCategoryNode(
     val level: Int,
     val items: List<SystemTtsV2> = emptyList(),
     val children: List<SubCategoryNode> = emptyList()
-)
+) {
+    /** 聚合整棵子树（含各级后代节点）的全部条目，供上级分组头的勾选/删除等操作使用 */
+    val allItems: List<SystemTtsV2> by lazy {
+        items + children.flatMap { it.allItems }
+    }
+}
 
 /**
  * 扁平化的渲染项

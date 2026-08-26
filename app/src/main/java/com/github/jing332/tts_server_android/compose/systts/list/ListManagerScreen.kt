@@ -609,7 +609,7 @@ internal fun ListManagerScreen(
         val pending = mutableListOf<PendingUpdate>()
         flattened.filterIsInstance<FlattenedCategoryItem.SubGroupHeader>().forEach { header ->
             val detected = detectTagKeyword(header.node.name) ?: return@forEach
-            val subItems = header.node.items.filter { it.config is TtsConfigurationDTO }
+            val subItems = header.node.allItems.filter { it.config is TtsConfigurationDTO }
                 .sortedBy { it.order }
             if (subItems.isEmpty()) return@forEach
             subItems.forEachIndexed { idx, item ->
@@ -2582,7 +2582,8 @@ internal fun ListManagerScreen(
                                         val subKey = "sub_${g.id}_${fItem.node.fullPath}"
                                         val subDragModifier = if (searchKeyword.isNotEmpty() || selectionMode) Modifier
                                             else Modifier.detectReorderAfterLongPress(reorderState)
-                                        val subItems = fItem.node.items
+                                        // 聚合整棵子树：上级分组头的勾选/删除/导出等需覆盖其下所有层级
+                                        val subItems = fItem.node.allItems
                                         val subCheckState = subItems.filter { it.isEnabled }.size.sizeToToggleableState(subItems.size)
 
                                         val headerContent: @Composable LazyItemScope.() -> Unit = {
