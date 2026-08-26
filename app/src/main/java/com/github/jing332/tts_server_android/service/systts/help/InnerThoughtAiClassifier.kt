@@ -33,6 +33,10 @@ internal object InnerThoughtAiClassifier {
     private var cachedCredentials: Triple<String, String, String>? = null
     private var credentialsReadAt = 0L
 
+    // 与"多角色朗读2.87"defaultConfig 对齐：裸Key时兜底智谱端点(基址不带/chat/completions)
+    private const val MIYUE_ENDPOINT_BASE = "https://open.bigmodel.cn/api/paas/v4"
+    private const val MIYUE_DEFAULT_MODEL = "glm-4-flash"
+
     /**
      * AI 兜底判定是否心声。
      * @return null 表示未启用/未配置/请求失败/熔断中（调用方应回退正则结果）
@@ -79,13 +83,64 @@ internal object InnerThoughtAiClassifier {
 
     /** 密钥来源探针(绕过缓存直读文件)，供设置页展示链路状态 */
     fun describeCredentialSource(): String {
-        val c = readFileCredentials() ?: return "未找到可用密钥：需先在角色管理插件中添加「接口地址@@模型名@@API Key」格式密钥"
+        val c = readFileCredentials() ?: return "未找到可用密钥：请先在多角色朗读插件的 miyue.txt 中配置「地址@@模型@@Key」密钥（或角色管理插件导出 key_list.json）"
         val masked = if (c.second.length > 8) c.second.take(4) + "****" + c.second.takeLast(4) else "****"
         return "已连接：${c.first}｜模型 ${c.third}｜Key $masked"
     }
 
-    /** 扫描 Download/chajian 下各插件目录的 key_list.json，取第一条 OpenAI 格式(URL@@模型名@@APIKey)密钥 */
-    private fun readFileCredentials(): Triple<String, String, String>? {
+    /** 密钥读取：优先"多角色朗读"的 miyue.txt，其次角色管理 key_list.json */
+    private fun readFileCredentials(): Triple<String, String, String>? =
+        readMiyueTxt() ?: readKeyListJson()
+
+    /**
+     * 读多角色朗读(2.87)密钥文件 chajian/<引擎目录>/miyue.txt。
+     * 格式与该插件 loadKeyFile 对齐：## 分场景取前段；@@ 三元组「地址@@模型@@Key」；
+     * 无@@视为裸Key，沿用其 defaultConfig（智谱+glm-4-flash）兜底。
+     */
+    private fun readMiyueTxt(): Triple<String, String, String>? {
+        return runCatching {
+            val root = File("/storage/emulated/0/Download/chajian")
+            val dirs = root.listFiles(File::isDirectory) ?: return@runCatching null
+            for (dir in dirs) {
+                val f = File(dir, "miyue.txt")
+                if (!f.exists()) continue
+                val content = f.readText().trim()
+                if (content.isEmpty()) continue
+                val scene = if (content.contains("##")) content.split("##")[0].trim() else content
+                val parsed = parseMiyueGroup(scene)
+                if (parsed != null) return@runCatching parsed
+            }
+            null
+        }.getOrNull()
+    }
+
+    /** 按 2.87 parseSingleGroup 语义解析单场景内容 */
+    private fun parseMiyueGroup(content: String): Triple<String, String, String>? {
+        val c = content.trim()
+        if (c.isEmpty()) return null
+        if (!c.contains("@@")) {
+            if (c.contains(" ")) return null
+            return Triple(MIYUE_ENDPOINT_BASE, MIYUE_DEFAULT_MODEL, c)
+        }
+        val arr = c.split("@@")
+        var i = 0
+        while (i < arr.size) {
+            var endpoint = arr[i].trim()
+            val model = arr.getOrNull(i + 1)?.trim().orEmpty()
+            val key = arr.getOrNull(i + 2)?.trim().orEmpty()
+            if (key.isNotEmpty()) {
+                if (endpoint.endsWith("/chat/completions"))
+                    endpoint = endpoint.removeSuffix("/chat/completions")
+                endpoint = endpoint.trimEnd('/')
+                return Triple(endpoint.ifEmpty { MIYUE_ENDPOINT_BASE }, model.ifEmpty { MIYUE_DEFAULT_MODEL }, key)
+            }
+            i += 3
+        }
+        return null
+    }
+
+    /** 降级：扫描角色管理插件密钥文件 key_list.json，取第一条 OpenAI 格式密钥 */
+    private fun readKeyListJson(): Triple<String, String, String>? {
         return runCatching {
             val root = File("/storage/emulated/0/Download/chajian")
             val dirs = root.listFiles(File::isDirectory) ?: return@runCatching null
