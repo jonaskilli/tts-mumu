@@ -13,6 +13,7 @@ import com.github.jing332.database.entities.systts.GroupWithSystemTts
 import com.github.jing332.database.entities.systts.SystemTtsGroup
 import com.github.jing332.database.entities.systts.SystemTtsV2
 import com.github.jing332.database.entities.systts.TtsConfigurationDTO
+import com.github.jing332.database.entities.systts.source.PluginTtsSource
 import kotlinx.coroutines.flow.Flow
 
 @Dao
@@ -72,7 +73,7 @@ interface SystemTtsV2Dao {
     /** 查询使用指定插件的配置项（用于删除插件前统计引用） */
     fun getByPluginId(pluginId: String): List<SystemTtsV2> =
         all.filter {
-            (it.config as? TtsConfigurationDTO)?.source?.pluginId == pluginId
+            ((it.config as? TtsConfigurationDTO)?.source as? PluginTtsSource)?.pluginId == pluginId
         }
 
     @Query("DELETE from system_tts_v2 WHERE groupId = :groupId")
