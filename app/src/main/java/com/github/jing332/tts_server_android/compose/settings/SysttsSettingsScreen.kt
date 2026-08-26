@@ -1,6 +1,5 @@
 package com.github.jing332.tts_server_android.compose.settings
 
-import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
@@ -25,7 +24,6 @@ import androidx.compose.material.icons.filled.Waves
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -39,10 +37,8 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.util.fastRoundToInt
 import com.github.jing332.compose.widgets.TextFieldDialog
-import com.github.jing332.common.utils.toast
 import com.github.jing332.tts_server_android.R
-import org.json.JSONArray
-import java.io.File
+import com.github.jing332.tts_server_android.service.systts.help.InnerThoughtAiClassifier
 import com.github.jing332.tts_server_android.conf.AppConfig
 import com.github.jing332.tts_server_android.conf.SystemTtsConfig
 import com.github.jing332.tts.loudness.SpeakerLoudnessManager
@@ -282,16 +278,13 @@ internal fun ColumnScope.SysttsSettingsScreen(modifier: Modifier = Modifier) {
         icon = { Icon(Icons.Default.Psychology, null) }
     )
 
-    var showAiConfigDialog by remember { mutableStateOf(false) }
-    if (showAiConfigDialog)
-        InnerThoughtAiConfigDialog { showAiConfigDialog = false }
+    var aiSourceDesc by remember {
+        mutableStateOf(InnerThoughtAiClassifier.describeCredentialSource())
+    }
     BasePreferenceWidget(
-        onClick = { showAiConfigDialog = true },
-        title = { Text("AI 接口配置") },
-        subTitle = {
-            val url = SystemTtsConfig.innerThoughtAiUrl.value
-            Text(if (url.isEmpty()) "未配置（OpenAI 兼容地址 / Key / 模型名）" else url)
-        },
+        onClick = { aiSourceDesc = InnerThoughtAiClassifier.describeCredentialSource() },
+        title = { Text("密钥来源：角色管理插件") },
+        subTitle = { Text(aiSourceDesc) },
         icon = { Icon(Icons.Default.Psychology, null) }
     )
 
@@ -360,95 +353,3 @@ internal fun ColumnScope.SysttsSettingsScreen(modifier: Modifier = Modifier) {
 
 }
 
-@Composable
-private fun InnerThoughtAiConfigDialog(onDismiss: () -> Unit) {
-    var url by remember { mutableStateOf(SystemTtsConfig.innerThoughtAiUrl.value) }
-    var key by remember { mutableStateOf(SystemTtsConfig.innerThoughtAiKey.value) }
-    var model by remember { mutableStateOf(SystemTtsConfig.innerThoughtAiModel.value) }
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text("心声 AI 接口配置") },
-        text = {
-            Column {
-                OutlinedTextField(
-                    value = url,
-                    onValueChange = { url = it },
-                    label = { Text("接口地址") },
-                    placeholder = { Text("https://api.example.com/v1") },
-                    singleLine = true,
-                    modifier = Modifier.fillMaxWidth()
-                )
-                OutlinedTextField(
-                    value = key,
-                    onValueChange = { key = it },
-                    label = { Text("API Key") },
-                    singleLine = true,
-                    modifier = Modifier.fillMaxWidth().padding(top = 8.dp)
-                )
-                OutlinedTextField(
-                    value = model,
-                    onValueChange = { model = it },
-                    label = { Text("模型名") },
-                    placeholder = { Text("如 gpt-4o-mini / glm-4-flash") },
-                    singleLine = true,
-                    modifier = Modifier.fillMaxWidth().padding(top = 8.dp)
-                )
-                TextButton(
-                    onClick = {
-                        val result = importFromRoleManagerKeyFile()
-                        if (result != null) {
-                            url = result.first
-                            model = result.second
-                            key = result.third
-                            toast("已从角色管理密钥文件导入")
-                        } else {
-                            toast("未在 Download/chajian 的密钥文件中找到 URL@@模型@@Key 格式密钥")
-                        }
-                    }
-                ) { Text("从角色管理密钥文件导入") }
-            }
-        },
-        confirmButton = {
-            TextButton(onClick = {
-                SystemTtsConfig.innerThoughtAiUrl.value = url.trim()
-                SystemTtsConfig.innerThoughtAiKey.value = key.trim()
-                SystemTtsConfig.innerThoughtAiModel.value = model.trim()
-                onDismiss()
-            }) { Text(stringResource(id = R.string.confirm)) }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) { Text(stringResource(id = R.string.cancel)) }
-        }
-    )
-}
-
-/**
- * 扫描角色管理插件密钥文件(Download/chajian/*/key_list.json)，
- * 取第一条 OpenAI 格式(URL@@模型名@@APIKey)密钥。
- * @return Triple(url, model, key)，找不到返回 null
- */
-private fun importFromRoleManagerKeyFile(): Triple<String, String, String>? {
-    return runCatching {
-        val root = File("/storage/emulated/0/Download/chajian")
-        val keyFiles = root.listFiles(File::isDirectory)
-            ?.mapNotNull { File(it, "key_list.json").takeIf(File::exists) }
-            ?: emptyList()
-        for (f in keyFiles) {
-            if (!f.exists()) continue
-            val arr = JSONArray(f.readText())
-            for (i in 0 until arr.length()) {
-                val item = arr.optJSONArray(i) ?: continue
-                val value = item.optJSONObject(1)?.optString("value")?.trim() ?: continue
-                val parts = value.split("@@")
-                if (parts.size >= 3 && parts[0].trim().startsWith("http")) {
-                    return@runCatching Triple(
-                        parts[0].trim(),
-                        parts[1].trim(),
-                        parts.drop(2).joinToString("@@").trim()
-                    )
-                }
-            }
-        }
-        null
-    }.getOrNull()
-}
