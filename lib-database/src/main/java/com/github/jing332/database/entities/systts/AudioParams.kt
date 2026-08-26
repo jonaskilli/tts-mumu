@@ -12,6 +12,8 @@ data class AudioParams(
     var volume: Float = 1f,
 
     var pitch: Float = 1f,
+
+    var reverbEnabled: Boolean = false,
 ) : Parcelable {
     companion object {
         const val FOLLOW = 0f
