@@ -762,7 +762,8 @@ internal fun ListManagerScreen(
                 seg.startsWith(find) -> replace + seg.removePrefix(find)
                 else -> null
             } ?: return@forEach
-            if (newSeg != seg) segRename[seg] = newSeg
+            // 新名为空=整个子分组被清名，跳过防止路径/键损坏
+            if (newSeg.isNotBlank() && newSeg != seg) segRename[seg] = newSeg
         }
         if (segRename.isEmpty()) return 0
 
@@ -1097,30 +1098,41 @@ internal fun ListManagerScreen(
     if (showRenamePrefix != null) {
         val renameGroup = showRenamePrefix!!
         val renameGwt = models.find { it.group.id == renameGroup.id }
-        var findText by remember(renameGroup.id) { mutableStateOf("") }
-        var replaceText by remember(renameGroup.id) { mutableStateOf("") }
-        // 预览：第一段将发生变化的 子分组名映射
-        val previewRenames = remember(renameGwt, findText, replaceText) {
-            if (findText == replaceText) emptyMap<String, String>()
-            else {
-                // 候选并入 JSON 键，空子分组也能预览改名
-                val jsonPaths = renameGwt?.group?.subGroupAudioParamsJson?.let { jsonStr ->
-                    if (jsonStr.isBlank() || jsonStr == "{}") emptyList()
-                    else SystemTtsV2.Converters.json.decodeFromString<Map<String, AudioParams>>(jsonStr).keys.toList()
-                } ?: emptyList()
-                val segs = ((renameGwt?.list?.map { it.categoryPath } ?: emptyList()) + jsonPaths)
-                    .filter { it.isNotBlank() }
-                    .map { p -> if (p.indexOf('/') == -1) p else p.substring(0, p.indexOf('/')) }
-                    .distinct()
-                segs.mapNotNull { seg ->
-                    val newSeg = when {
-                        findText.isEmpty() -> replaceText + seg
-                        seg.startsWith(findText) -> replaceText + seg.removePrefix(findText)
-                        else -> null
-                    }
-                    if (newSeg != null && newSeg != seg) seg to newSeg else null
-                }.toMap()
+        var newText by remember(renameGroup.id) { mutableStateOf("") }
+        // 候选首段（配置项路径 ∪ JSON 键），空子分组也参与
+        val baseSegs = remember(renameGwt) {
+            val jsonPaths = renameGwt?.group?.subGroupAudioParamsJson?.let { jsonStr ->
+                if (jsonStr.isBlank() || jsonStr == "{}") emptyList()
+                else SystemTtsV2.Converters.json.decodeFromString<Map<String, AudioParams>>(jsonStr).keys.toList()
+            } ?: emptyList()
+            ((renameGwt?.list?.map { it.categoryPath } ?: emptyList()) + jsonPaths)
+                .filter { it.isNotBlank() }
+                .map { p -> if (p.indexOf('/') == -1) p else p.substring(0, p.indexOf('/')) }
+                .distinct()
+                .sorted()
+        }
+        // 自动识别最长公共前缀：非空则只替换该段，为空则视为加前缀模式
+        val detectedLcp = remember(baseSegs) {
+            if (baseSegs.isEmpty()) ""
+            else baseSegs.reduce { a, b ->
+                var i = 0
+                while (i < a.length && i < b.length && a[i] == b[i]) i++
+                a.substring(0, i)
             }
+        }
+        // 删前缀会清空整个名称的子分组（首段恰为前缀本身）需跳过并提示
+        val removalBlocked = detectedLcp.isNotEmpty() && newText.trim().isEmpty() &&
+            baseSegs.any { it == detectedLcp }
+        val previewRenames = remember(baseSegs, detectedLcp, newText) {
+            val t = newText.trim()
+            baseSegs.mapNotNull { seg ->
+                val newSeg = when {
+                    detectedLcp.isNotEmpty() && seg.startsWith(detectedLcp) -> t + seg.removePrefix(detectedLcp)
+                    detectedLcp.isEmpty() && t.isNotEmpty() -> t + seg
+                    else -> null
+                }
+                if (!newSeg.isNullOrBlank() && newSeg != seg) seg to newSeg else null
+            }.toMap()
         }
         AlertDialog(
             onDismissRequest = { showRenamePrefix = null },
@@ -1128,24 +1140,32 @@ internal fun ListManagerScreen(
             text = {
                 Column {
                     Text(
-                        "只替换子分组名开头的文字；查找留空=添加前缀，替换留空=去掉前缀：",
+                        if (detectedLcp.isEmpty())
+                            "未检测到公共前缀，输入的文字将作为统一前缀加到所有子分组开头："
+                        else
+                            "已自动识别公共前缀「${detectedLcp}」（共 ${baseSegs.size} 个子分组），只需输入新前缀：",
                         modifier = Modifier.padding(bottom = 8.dp)
                     )
                     OutlinedTextField(
-                        value = findText,
-                        onValueChange = { findText = it },
-                        label = { Text("查找前缀") },
+                        value = newText,
+                        onValueChange = { newText = it },
+                        label = {
+                            Text(
+                                if (detectedLcp.isEmpty()) "要添加的前缀"
+                                else "新前缀（留空则去掉「${detectedLcp}」）"
+                            )
+                        },
                         singleLine = true,
                         modifier = Modifier.fillMaxWidth()
                     )
-                    OutlinedTextField(
-                        value = replaceText,
-                        onValueChange = { replaceText = it },
-                        label = { Text("替换为") },
-                        singleLine = true,
-                        modifier = Modifier.fillMaxWidth().padding(top = 4.dp)
-                    )
-                    if (previewRenames.isNotEmpty()) {
+                    if (removalBlocked) {
+                        Text(
+                            "有子分组的完整名称就是「${detectedLcp}」，删除前缀将跳过它们",
+                            color = MaterialTheme.colorScheme.error,
+                            style = MaterialTheme.typography.bodySmall,
+                            modifier = Modifier.padding(top = 8.dp)
+                        )
+                    } else if (previewRenames.isNotEmpty()) {
                         Text(
                             "将修改 ${previewRenames.size} 个子分组：",
                             modifier = Modifier.padding(top = 8.dp)
@@ -1159,9 +1179,9 @@ internal fun ListManagerScreen(
                                 )
                             }
                         }
-                    } else if (findText.isNotEmpty() || replaceText.isNotEmpty()) {
+                    } else if (newText.isNotBlank()) {
                         Text(
-                            "没有匹配的子分组",
+                            "没有需要修改的子分组",
                             style = MaterialTheme.typography.bodySmall,
                             modifier = Modifier.padding(top = 8.dp)
                         )
@@ -1174,13 +1194,14 @@ internal fun ListManagerScreen(
                     onClick = {
                         showRenamePrefix = null
                         showTagOrganizeLoading = true
+                        val newPrefix = newText.trim()
                         scope.launch {
                             val count = withContext(Dispatchers.IO) {
                                 renameSubGroupPrefix(
                                     renameGroup,
                                     renameGwt?.list ?: emptyList(),
-                                    findText,
-                                    replaceText
+                                    detectedLcp,
+                                    newPrefix
                                 )
                             }
                             showTagOrganizeLoading = false
