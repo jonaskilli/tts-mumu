@@ -7,6 +7,8 @@ import androidx.room.DeleteColumn
 import androidx.room.Room
 import androidx.room.RoomDatabase
 import androidx.room.migration.AutoMigrationSpec
+import androidx.room.migration.Migration
+import androidx.sqlite.db.SupportSQLiteDatabase
 import com.github.jing332.database.dao.PluginDao
 import com.github.jing332.database.dao.ReplaceRuleDao
 import com.github.jing332.database.dao.SpeechRuleDao
@@ -23,10 +25,12 @@ import splitties.init.appCtx
 
 val dbm: DatabaseManager by lazy {
     Room.databaseBuilder(appCtx, DatabaseManager::class.java, "systts.db")
+        .addMigrations(DatabaseManager.MIGRATION_32_33)
         .allowMainThreadQueries()
         .openHelperFactory(LargeCursorOpenHelperFactory())
         .build()
 }
+
 
 @Database(
     version = 33,
@@ -65,7 +69,6 @@ val dbm: DatabaseManager by lazy {
         AutoMigration(from = 29, to = 30),
         AutoMigration(from = 30, to = 31),
         AutoMigration(from = 31, to = 32),
-        AutoMigration(from = 32, to = 33),
     ]
 )
 abstract class DatabaseManager : RoomDatabase() {
@@ -78,9 +81,16 @@ abstract class DatabaseManager : RoomDatabase() {
     companion object {
         private const val DATABASE_NAME = "systts.db"
 
+        private val MIGRATION_32_33 = object : Migration(32, 33) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE SystemTtsGroup ADD COLUMN audioParams_reverbEnabled INTEGER NOT NULL DEFAULT 0")
+            }
+        }
+
 
         fun createDatabase(context: Context) = Room
             .databaseBuilder(context, DatabaseManager::class.java, DATABASE_NAME)
+            .addMigrations(MIGRATION_32_33)
             .allowMainThreadQueries()
             .openHelperFactory(LargeCursorOpenHelperFactory())
             .build()
