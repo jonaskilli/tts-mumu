@@ -1,6 +1,7 @@
 package com.github.jing332.database.entities.systts
 
 import android.os.Parcelable
+import androidx.room.ColumnInfo
 import kotlinx.parcelize.Parcelize
 import kotlinx.serialization.Serializable
 
@@ -13,6 +14,7 @@ data class AudioParams(
 
     var pitch: Float = 1f,
 
+    @ColumnInfo(defaultValue = "0")
     var reverbEnabled: Boolean = false,
 ) : Parcelable {
     companion object {
