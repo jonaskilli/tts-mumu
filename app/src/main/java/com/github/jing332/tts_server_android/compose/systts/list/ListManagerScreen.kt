@@ -898,7 +898,7 @@ internal fun ListManagerScreen(
             title = { Text("合并到其他分组") },
             text = {
                 Column {
-                    Text("选择目标分组，相同分类的配置项将归入并重新编号：", modifier = Modifier.padding(bottom = 8.dp))
+                    Text("选择目标分组，相同分类的配置项归入并按关键词重新编号：", modifier = Modifier.padding(bottom = 8.dp))
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
                         modifier = Modifier.padding(bottom = 8.dp)
@@ -927,18 +927,14 @@ internal fun ListManagerScreen(
                                             matchKey(it.categoryPath, (it.config as TtsConfigurationDTO).speechRule.tag) in targetKeys
                                         }
                                         if (toMove.isNotEmpty()) {
-                                            // 计算目标分组中各关键词分类的最大序号，用于重新编号
-                                            val maxNumByKeyword = mutableMapOf<String, Int>()
+                                            // 构建关键词→目标 categoryPath 映射，用于统一源项的分类路径
+                                            val kwToTargetPath = mutableMapOf<String, String>()
                                             targetGwt?.list?.forEach { item ->
                                                 val kw = detectTagKeyword(item.categoryPath)?.prefix
-                                                if (kw != null) {
-                                                    val tag = (item.config as TtsConfigurationDTO).speechRule.tag
-                                                    val num = tag.removePrefix(kw).toIntOrNull() ?: 0
-                                                    if (num > (maxNumByKeyword[kw] ?: 0))
-                                                        maxNumByKeyword[kw] = num
+                                                if (kw != null && kw !in kwToTargetPath) {
+                                                    kwToTargetPath[kw] = item.categoryPath
                                                 }
                                             }
-                                            val counterByKeyword = mutableMapOf<String, Int>()
                                             // 位置：末尾追加 or 插入到开头
                                             val baseOrder = if (insertFront)
                                                 (targetGwt?.list?.minOfOrNull { it.order } ?: 0) - toMove.size
@@ -946,25 +942,18 @@ internal fun ListManagerScreen(
                                                 (targetGwt?.list?.maxOfOrNull { it.order } ?: -1) + 1
                                             val updates = toMove.mapIndexed { i, item ->
                                                 val kw = detectTagKeyword(item.categoryPath)?.prefix
-                                                val config = item.config as TtsConfigurationDTO
-                                                val newRule = if (kw != null) {
-                                                    // 重新编号：接在目标同分类最大序号后，各关键词独立计数
-                                                    val offset = counterByKeyword[kw] ?: 0
-                                                    counterByKeyword[kw] = offset + 1
-                                                    val nextNum = (maxNumByKeyword[kw] ?: 0) + offset + 1
-                                                    val zeroPad = kw !in NO_ZERO_PAD_PREFIXES
-                                                    val seq = if (zeroPad)
-                                                        String.format("%02d", nextNum) else nextNum.toString()
-                                                    val newTag = kw + seq
-                                                    config.speechRule.copy(tag = newTag).also { it.tagName = newTag }
-                                                } else config.speechRule
+                                                // 源项 categoryPath 改为目标分组中同关键词的分类路径
+                                                val newPath = kw?.let { kwToTargetPath[it] } ?: item.categoryPath
                                                 item.copy(
                                                     groupId = targetGroup.id,
                                                     order = baseOrder + i,
-                                                    config = config.copy(speechRule = newRule)
+                                                    categoryPath = newPath
                                                 )
                                             }
                                             dbm.systemTtsV2.update(*updates.toTypedArray())
+                                            // 合并后复用现有标签整理逻辑，按各子分类重新编号
+                                            val combined = (targetGwt?.list ?: emptyList()) + updates
+                                            reassignTagsForAllSubGroups(combined)
                                         }
                                         val remaining = sourceItems.size - toMove.size
                                         if (remaining == 0) {
