@@ -6,6 +6,7 @@ import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Column
+import androidx.compose.material3.AlertDialog
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
@@ -169,10 +170,56 @@ fun PluginManagerScreen(sharedVM: SharedViewModel, onFinishActivity: () -> Unit)
     var showDeleteDialog by remember { mutableStateOf<Plugin?>(null) }
     if (showDeleteDialog != null) {
         val plugin = showDeleteDialog!!
-        ConfigDeleteDialog(onDismissRequest = { showDeleteDialog = null }, content = plugin.name) {
-            dbm.pluginDao.delete(plugin)
-            showDeleteDialog = null
+        // 实时统计引用该插件的配置项数量
+        val refCount = remember(plugin.pluginId) {
+            dbm.systemTtsV2.getByPluginId(plugin.pluginId).size
         }
+        AlertDialog(
+            onDismissRequest = { showDeleteDialog = null },
+            title = { Text(stringResource(id = R.string.delete)) },
+            text = {
+                Column {
+                    Text("删除「${plugin.name}」？")
+                    if (refCount > 0) Text("它正被 $refCount 个配置项使用。")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showDeleteDialog = null }) {
+                    Text(stringResource(id = R.string.cancel))
+                }
+            },
+            confirmButton = {
+                Row {
+                    if (refCount > 0) {
+                        // 慎重操作放左侧：插件+全部关联配置项一起删
+                        TextButton(onClick = {
+                            dbm.runInTransaction {
+                                dbm.systemTtsV2.delete(*dbm.systemTtsV2.getByPluginId(plugin.pluginId).toTypedArray())
+                                dbm.pluginDao.delete(plugin)
+                            }
+                            SystemTtsService.notifyUpdateConfig()
+                            showDeleteDialog = null
+                        }) {
+                            Text("全部删除", color = MaterialTheme.colorScheme.error)
+                        }
+                        TextButton(onClick = {
+                            dbm.pluginDao.delete(plugin)
+                            SystemTtsService.notifyUpdateConfig()
+                            showDeleteDialog = null
+                        }) {
+                            Text("仅删插件")
+                        }
+                    } else {
+                        TextButton(onClick = {
+                            dbm.pluginDao.delete(plugin)
+                            showDeleteDialog = null
+                        }) {
+                            Text(stringResource(id = R.string.delete), color = MaterialTheme.colorScheme.error)
+                        }
+                    }
+                }
+            }
+        )
     }
 
 

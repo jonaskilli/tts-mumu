@@ -69,6 +69,12 @@ interface SystemTtsV2Dao {
     @Query("SELECT * FROM system_tts_v2 WHERE groupId = :groupId")
     fun getByGroup(groupId: Long): List<SystemTtsV2>
 
+    /** 查询使用指定插件的配置项（用于删除插件前统计引用） */
+    fun getByPluginId(pluginId: String): List<SystemTtsV2> =
+        all.filter {
+            (it.config as? TtsConfigurationDTO)?.source?.pluginId == pluginId
+        }
+
     @Query("DELETE from system_tts_v2 WHERE groupId = :groupId")
     fun deleteTtsByGroup(groupId: Long)
 
