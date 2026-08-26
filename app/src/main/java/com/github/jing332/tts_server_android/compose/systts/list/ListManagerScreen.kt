@@ -51,6 +51,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.ListItem
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.TextButton
@@ -161,17 +162,17 @@ import java.io.File
 private val GROUP_TAG_KEYWORDS = listOf(
     "女童", "少女", "女青年", "女中年", "女老年",
     "男童", "少年", "男青年", "男中年", "男老年",
-    "男主", "女主"
+    "男主", "女主", "特殊男", "特殊女"
 )
 
-/** 男主在朗读规则里不补零(男主1…男主20)；女主仍两位补零(女主01…)，与规则一致 */
-private val NO_ZERO_PAD_PREFIXES = setOf("男主")
+/** 男主/特殊男/特殊女在朗读规则里不补零(男主1…男主20、特殊女1…)；女主仍两位补零(女主01…)，与规则一致 */
+private val NO_ZERO_PAD_PREFIXES = setOf("男主", "特殊男", "特殊女")
 
 private data class DetectedKeyword(val prefix: String, val zeroPad: Boolean)
 
 /**
  * 从分组名匹配固定关键词（取最长匹配）。
- * 返回前缀与是否补零：男主不补零，其余(含女主)两位补零，与朗读规则一致。
+ * 返回前缀与是否补零：男主/特殊男/特殊女不补零，其余两位补零，与朗读规则一致。
  * 无匹配时回退为原分组名作为前缀。
  */
 private fun detectTagKeyword(name: String): DetectedKeyword? {
@@ -549,6 +550,7 @@ internal fun ListManagerScreen(
             dbm.systemTtsV2.update(*toUpdate.toTypedArray())
             SystemTtsService.notifyUpdateConfig()
         }
+        return toUpdate.size
     }
 
     /**
@@ -559,7 +561,7 @@ internal fun ListManagerScreen(
         list: List<SystemTtsV2>,
         prefix: String,
         zeroPad: Boolean = true,
-    ) {
+    ): Int {
         val toUpdate = mutableListOf<SystemTtsV2>()
         val ruleCache = mutableMapOf<String, SpeechRule?>()
         val engineCache = mutableMapOf<String, SpeechRuleEngine>()
@@ -573,6 +575,8 @@ internal fun ListManagerScreen(
                 val seq = if (zeroPad) String.format("%02d", idx + 1) else (idx + 1).toString()
                 val newTag = prefix + seq
                 val config = item.config as TtsConfigurationDTO
+                // 标签已正确则跳过，避免大规模分组(数百项)全量重算 JS 与无效写库
+                if (config.speechRule.tag == newTag) return@forEachIndexed
                 val newRule = config.speechRule.copy(tag = newTag)
                 computeTagNameOrFallback(context, newRule, newTag, ruleCache, engineCache)
                 toUpdate.add(item.copy(config = config.copy(speechRule = newRule)))
@@ -591,8 +595,7 @@ internal fun ListManagerScreen(
      */
     suspend fun reassignTagsByGroupName(list: List<SystemTtsV2>, groupName: String): Int {
         val detected = detectTagKeyword(groupName) ?: return 0
-        reassignTagsWithPrefix(list, detected.prefix, detected.zeroPad)
-        return list.count { it.config is TtsConfigurationDTO }
+        return reassignTagsWithPrefix(list, detected.prefix, detected.zeroPad)
     }
 
     /**
@@ -602,7 +605,7 @@ internal fun ListManagerScreen(
      * 性能优化：按 ruleId 分组并行评估 JS（不同 ruleId 各自独立 engine，
      * 可并行；同 ruleId 复用同一 engine 串行调用，Rhino 非线程安全）。
      */
-    suspend fun reassignTagsForAllSubGroups(list: List<SystemTtsV2>) {
+    suspend fun reassignTagsForAllSubGroups(list: List<SystemTtsV2>): Int {
         val tree = buildSubCategoryTree(list)
         val flattened = flattenSubCategoryTree(tree)
         // 先收集所有待处理项 (item, newRule, fallbackTag)
@@ -617,6 +620,8 @@ internal fun ListManagerScreen(
                 val seq = if (detected.zeroPad) String.format("%02d", idx + 1) else (idx + 1).toString()
                 val newTag = detected.prefix + seq
                 val config = item.config as TtsConfigurationDTO
+                // 标签已正确则跳过，避免大规模分组(数百项)全量重算 JS 与无效写库
+                if (config.speechRule.tag == newTag) return@forEachIndexed
                 val newRule = config.speechRule.copy(tag = newTag)
                 pending.add(PendingUpdate(item, newRule, newTag))
             }
@@ -653,6 +658,7 @@ internal fun ListManagerScreen(
             dbm.systemTtsV2.update(*allUpdates.toTypedArray())
             SystemTtsService.notifyUpdateConfig()
         }
+        return allUpdates.size
     }
 
     /**
@@ -705,6 +711,80 @@ internal fun ListManagerScreen(
         }
         dbm.systemTtsV2.update(*updates.toTypedArray())
         SystemTtsService.notifyUpdateConfig()
+    }
+
+    /**
+     * 子分组前缀一键修改：仅替换 categoryPath 第一段开头的匹配文字（查找/替换式）。
+     * - 查找为空 = 给所有子分组加前缀；替换为空 = 去掉匹配前缀；都非空 = 换前缀
+     * - 只碰第一段开头，多级路径(如 女青年/软萌)的后续层级不动
+     * - subGroupAudioParamsJson 的键同步迁移，音频参数不丢
+     * @return 实际改名的子分类数量
+     */
+    suspend fun renameSubGroupPrefix(
+        group: SystemTtsGroup,
+        list: List<SystemTtsV2>,
+        find: String,
+        replace: String,
+    ): Int {
+        if (find == replace) return 0
+        val affected = list.filter { it.config is TtsConfigurationDTO && it.categoryPath.isNotBlank() }
+        if (affected.isEmpty()) return 0
+
+        // 旧第一段 -> 新第一段 的映射（仅含发生变化的）
+        val segRename = mutableMapOf<String, String>()
+        affected.forEach { item ->
+            val path = item.categoryPath
+            val firstSlash = path.indexOf('/')
+            val seg = if (firstSlash == -1) path else path.substring(0, firstSlash)
+            val newSeg = when {
+                find.isEmpty() -> replace + seg
+                seg.startsWith(find) -> replace + seg.removePrefix(find)
+                else -> null
+            } ?: return@forEach
+            if (newSeg != seg) segRename[seg] = newSeg
+        }
+        if (segRename.isEmpty()) return 0
+
+        // 配置项 categoryPath 整体替换第一段
+        val updates = affected.mapNotNull { item ->
+            val path = item.categoryPath
+            val firstSlash = path.indexOf('/')
+            val seg = if (firstSlash == -1) path else path.substring(0, firstSlash)
+            val newSeg = segRename[seg] ?: return@mapNotNull null
+            val newPath = if (firstSlash == -1) newSeg else newSeg + path.substring(firstSlash)
+            item.copy(categoryPath = newPath)
+        }
+        if (updates.isNotEmpty()) {
+            dbm.systemTtsV2.update(*updates.toTypedArray())
+        }
+
+        // 音频参数键同步迁移
+        val subMap = group.subGroupAudioParamsJson.let { jsonStr ->
+            if (jsonStr.isBlank() || jsonStr == "{}") emptyMap()
+            else SystemTtsV2.Converters.json.decodeFromString<Map<String, AudioParams>>(jsonStr)
+        }.toMutableMap()
+        var subChanged = false
+        segRename.forEach { (oldSeg, newSeg) ->
+            // 键可能以第一段开头(多级路径)或恰为第一段
+            subMap.keys.toList().forEach { key ->
+                val newKey = when {
+                    key == oldSeg -> newSeg
+                    key.startsWith("$oldSeg/") -> newSeg + key.removePrefix(oldSeg)
+                    else -> null
+                }
+                if (newKey != null && newKey !in subMap) {
+                    subMap[newKey] = subMap.remove(key)!!
+                    subChanged = true
+                }
+            }
+        }
+        if (subChanged) {
+            dbm.systemTtsV2.updateGroup(
+                group.copy(subGroupAudioParamsJson = SystemTtsV2.Converters.json.encodeToString(subMap))
+            )
+        }
+        SystemTtsService.notifyUpdateConfig()
+        return segRename.size
     }
 
     /**
@@ -886,6 +966,7 @@ internal fun ListManagerScreen(
 
     // 合并到其他分组：将源分组中与目标分组 categoryPath 匹配的配置项移入目标分组
     var showMergeGroup by remember { mutableStateOf<SystemTtsGroup?>(null) }
+    var showRenamePrefix by remember { mutableStateOf<SystemTtsGroup?>(null) }
     var mergeInsertFront by remember { mutableStateOf(false) }
     if (showMergeGroup != null) {
         val sourceGroup = showMergeGroup!!
@@ -898,7 +979,7 @@ internal fun ListManagerScreen(
             title = { Text("合并到其他分组") },
             text = {
                 Column {
-                    Text("选择目标分组，相同分类的配置项归入并按关键词重新编号：", modifier = Modifier.padding(bottom = 8.dp))
+                    Text("选择目标分组，本分组全部配置项将迁入并按关键词重新编号，迁完删除本分组：", modifier = Modifier.padding(bottom = 8.dp))
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
                         modifier = Modifier.padding(bottom = 8.dp)
@@ -916,18 +997,11 @@ internal fun ListManagerScreen(
                                     withIO {
                                         val sourceItems = sourceGwt?.list ?: emptyList()
                                         val targetGwt = models.find { it.group.id == targetGroup.id }
-                                        // 关键词归一化匹配：从 categoryPath 提取关键词（女青年/男青年等），
-                                        // 无关键词时用原值精确匹配；tag 仍要求精确相同
-                                        fun matchKey(categoryPath: String, tag: String) =
-                                            (detectTagKeyword(categoryPath)?.prefix ?: categoryPath) to tag
-                                        val targetKeys = targetGwt?.list
-                                            ?.map { matchKey(it.categoryPath, (it.config as TtsConfigurationDTO).speechRule.tag) }
-                                            ?.toSet() ?: emptySet()
-                                        val toMove = sourceItems.filter {
-                                            matchKey(it.categoryPath, (it.config as TtsConfigurationDTO).speechRule.tag) in targetKeys
-                                        }
-                                        if (toMove.isNotEmpty()) {
-                                            // 构建关键词→目标 categoryPath 映射，用于统一源项的分类路径
+                                        // 全量迁移：源分组所有配置项整体搬入目标分组；
+                                        // categoryPath 按关键词归一化映射到目标同分类（如"纳米/女青年"→"剪映/女青年"），
+                                        // 无同关键词分类的项保留原路径（作为目标分组下的新子分类），
+                                        // 标签由迁移后的统一重编号理顺
+                                        if (sourceItems.isNotEmpty()) {
                                             val kwToTargetPath = mutableMapOf<String, String>()
                                             targetGwt?.list?.forEach { item ->
                                                 val kw = detectTagKeyword(item.categoryPath)?.prefix
@@ -937,12 +1011,11 @@ internal fun ListManagerScreen(
                                             }
                                             // 位置：末尾追加 or 插入到开头
                                             val baseOrder = if (insertFront)
-                                                (targetGwt?.list?.minOfOrNull { it.order } ?: 0) - toMove.size
+                                                (targetGwt?.list?.minOfOrNull { it.order } ?: 0) - sourceItems.size
                                             else
                                                 (targetGwt?.list?.maxOfOrNull { it.order } ?: -1) + 1
-                                            val updates = toMove.mapIndexed { i, item ->
+                                            val updates = sourceItems.mapIndexed { i, item ->
                                                 val kw = detectTagKeyword(item.categoryPath)?.prefix
-                                                // 源项 categoryPath 改为目标分组中同关键词的分类路径
                                                 val newPath = kw?.let { kwToTargetPath[it] } ?: item.categoryPath
                                                 item.copy(
                                                     groupId = targetGroup.id,
@@ -956,17 +1029,11 @@ internal fun ListManagerScreen(
                                             val combined = (targetGwt?.list ?: emptyList()) + updates
                                             reassignTagsForAllSubGroups(combined.filter { it.categoryPath in affectedPaths })
                                         }
-                                        val remaining = sourceItems.size - toMove.size
-                                        if (remaining == 0) {
-                                            dbm.systemTtsV2.deleteGroup(sourceGroup)
-                                        }
+                                        // 源分组整体迁空后必删
+                                        dbm.systemTtsV2.deleteGroup(sourceGroup)
                                         withContext(Dispatchers.Main) {
                                             showTagOrganizeLoading = false
-                                            val msg = if (remaining == 0)
-                                                "已合并 ${toMove.size} 项，源分组已删除"
-                                            else
-                                                "已合并 ${toMove.size} 项，${remaining} 项无匹配保留原分组"
-                                            context.toast(msg)
+                                            context.toast("已合并 ${sourceItems.size} 项到「${targetGroup.name}」，原分组已删除")
                                         }
                                     }
                                 }
@@ -981,6 +1048,107 @@ internal fun ListManagerScreen(
             confirmButton = {},
             dismissButton = {
                 TextButton(onClick = { showMergeGroup = null }) {
+                    Text(stringResource(R.string.cancel))
+                }
+            }
+        )
+    }
+
+    // 修改子分组前缀：查找/替换式批量改名，实时预览
+    if (showRenamePrefix != null) {
+        val renameGroup = showRenamePrefix!!
+        val renameGwt = models.find { it.group.id == renameGroup.id }
+        var findText by remember(renameGroup.id) { mutableStateOf("") }
+        var replaceText by remember(renameGroup.id) { mutableStateOf("") }
+        // 预览：第一段将发生变化的 子分组名映射
+        val previewRenames = remember(renameGwt, findText, replaceText) {
+            if (findText == replaceText) emptyMap()
+            else {
+                val segs = renameGwt?.list
+                    ?.mapNotNull { (it.config as? TtsConfigurationDTO)?.categoryPath }
+                    ?.filter { it.isNotBlank() }
+                    ?.map { p -> if (p.indexOf('/') == -1) p else p.substring(0, p.indexOf('/')) }
+                    ?.distinct()
+                    ?: emptyList()
+                segs.mapNotNull { seg ->
+                    val newSeg = when {
+                        findText.isEmpty() -> replaceText + seg
+                        seg.startsWith(findText) -> replaceText + seg.removePrefix(findText)
+                        else -> null
+                    }
+                    if (newSeg != null && newSeg != seg) seg to newSeg else null
+                }.toMap()
+            }
+        }
+        AlertDialog(
+            onDismissRequest = { showRenamePrefix = null },
+            title = { Text("修改子分组前缀") },
+            text = {
+                Column {
+                    Text(
+                        "只替换子分组名开头的文字；查找留空=添加前缀，替换留空=去掉前缀：",
+                        modifier = Modifier.padding(bottom = 8.dp)
+                    )
+                    OutlinedTextField(
+                        value = findText,
+                        onValueChange = { findText = it },
+                        label = { Text("查找前缀") },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    OutlinedTextField(
+                        value = replaceText,
+                        onValueChange = { replaceText = it },
+                        label = { Text("替换为") },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth().padding(top = 4.dp)
+                    )
+                    if (previewRenames.isNotEmpty()) {
+                        Text(
+                            "将修改 ${previewRenames.size} 个子分组：",
+                            modifier = Modifier.padding(top = 8.dp)
+                        )
+                        Column(modifier = Modifier.heightIn(max = 200.dp)) {
+                            previewRenames.forEach { (old, new) ->
+                                Text(
+                                    "$old → $new",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    modifier = Modifier.padding(vertical = 2.dp)
+                                )
+                            }
+                        }
+                    } else if (findText.isNotEmpty() || replaceText.isNotEmpty()) {
+                        Text(
+                            "没有匹配的子分组",
+                            style = MaterialTheme.typography.bodySmall,
+                            modifier = Modifier.padding(top = 8.dp)
+                        )
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(
+                    enabled = previewRenames.isNotEmpty(),
+                    onClick = {
+                        showRenamePrefix = null
+                        showTagOrganizeLoading = true
+                        scope.launch {
+                            val count = withContext(Dispatchers.IO) {
+                                renameSubGroupPrefix(
+                                    renameGroup,
+                                    renameGwt?.list ?: emptyList(),
+                                    findText,
+                                    replaceText
+                                )
+                            }
+                            showTagOrganizeLoading = false
+                            context.toast("已修改 $count 个子分组名")
+                        }
+                    }
+                ) { Text("执行") }
+            },
+            dismissButton = {
+                TextButton(onClick = { showRenamePrefix = null }) {
                     Text(stringResource(R.string.cancel))
                 }
             }
@@ -2446,7 +2614,7 @@ internal fun ListManagerScreen(
                     .reorderable(state = reorderState),
                 state = listState
             ) {
-                models.forEachIndexed { _, groupWithSystemTts ->
+                models.forEachIndexed { groupIndex, groupWithSystemTts ->
                     val g = groupWithSystemTts.group
                     val key = "g_${g.id}"
                     
@@ -2596,23 +2764,30 @@ internal fun ListManagerScreen(
                                                 reassignTagsByGroupName(groupWithSystemTts.list, g.name)
                                             }
                                             showTagOrganizeLoading = false
-                                            context.toast("已按「${detected.prefix}」整理 $count 个标签")
+                                            if (count == 0) context.toast("标签均已正确，无需整理")
+                                            else context.toast("已按「${detected.prefix}」重新编号 $count 个标签")
                                         }
                                     }
                                 },
                                 onReassignAllSubGroups = {
                                     showTagOrganizeLoading = true
                                     scope.launch {
-                                        withContext(Dispatchers.IO) {
+                                        val count = withContext(Dispatchers.IO) {
                                             reassignTagsForAllSubGroups(groupWithSystemTts.list)
                                         }
                                         showTagOrganizeLoading = false
-                                        context.toast("已按各子分组关键词整理标签")
+                                        if (count == 0) context.toast("标签均已正确，无需整理")
+                                        else context.toast("已按各子分组关键词重新编号 $count 个标签")
                                     }
                                 },
                                 onMergeGroup = {
                                     showMergeGroup = g
                                 },
+                                onRenameSubPrefix = {
+                                    showRenamePrefix = g
+                                },
+                                // 搜索过滤时序号会失真，隐藏
+                                index = if (searchKeyword.isEmpty()) groupIndex + 1 else -1,
                                 inSelectionMode = selectionMode,
                                 isSelected = remember(g.id) { derivedStateOf { g.id in selectedGroupIds } }.value,
                                 onToggleSelect = {
@@ -2745,7 +2920,8 @@ internal fun ListManagerScreen(
                                                                     reassignTagsByGroupName(subItems, fItem.node.name)
                                                                 }
                                                                 showTagOrganizeLoading = false
-                                                                context.toast("已按「${detected.prefix}」整理 $count 个标签")
+                                                                if (count == 0) context.toast("标签均已正确，无需整理")
+                                                                else context.toast("已按「${detected.prefix}」重新编号 $count 个标签")
                                                             }
                                                         }
                                                     },

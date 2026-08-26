@@ -65,6 +65,9 @@ fun Group(
     onReassignTagsByGroupName: () -> Unit = {},
     onReassignAllSubGroups: () -> Unit = {},
     onMergeGroup: (() -> Unit)? = null,
+    onRenameSubPrefix: (() -> Unit)? = null,
+    // 一级分组序号徽章（纯UI，按列表顺序自动编号）
+    index: Int = -1,
     itemCount: Int = -1,
 ) {
 
@@ -142,6 +145,7 @@ fun Group(
         onToggleSelect = onToggleSelect,
         itemCount = itemCount,
         hasSubGroups = hasSubGroups,
+        index = index,
         extraActions = { dismiss ->
             DropdownMenuItem(text = { Text("删除启用的配置") },
                 onClick = {
@@ -284,6 +288,19 @@ fun Group(
                     },
                     leadingIcon = {
                         Icon(Icons.AutoMirrored.Filled.DriveFileMove, null)
+                    }
+                )
+            }
+
+            // 修改子分组前缀：批量替换子分组名开头文字(加/去/换前缀)
+            if (onRenameSubPrefix != null) {
+                DropdownMenuItem(text = { Text("修改子分组前缀") },
+                    onClick = {
+                        dismiss()
+                        onRenameSubPrefix!!()
+                    },
+                    leadingIcon = {
+                        Icon(Icons.AutoMirrored.Filled.Label, null)
                     }
                 )
             }

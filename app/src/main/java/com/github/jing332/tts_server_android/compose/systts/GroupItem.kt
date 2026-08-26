@@ -71,6 +71,8 @@ fun GroupItem(
     itemCount: Int = -1,
     // 是否含子分组：用于视觉区分含子分组/不含子分组的一级分组
     hasSubGroups: Boolean = false,
+    // 序号徽章：>=1 时在名字前渲染，按列表顺序自动编号，纯UI不写进分组名
+    index: Int = -1,
     actions: @Composable ColumnScope.(() -> Unit) -> Unit,
     extraActions: (@Composable ColumnScope.(() -> Unit) -> Unit)? = null,
     // 多选模式下点击分组名/行是否切换选中：true=点击行选中(系统TTS默认), false=仅右侧方框选中, 点击名/行展开(替换规则)
@@ -145,6 +147,23 @@ fun GroupItem(
                 .graphicsLayer { rotationZ = rotationAngle }
                 .clickable { onClick() }
         )
+
+        // 序号徽章：按当前列表顺序自动编号，排序变化自动重编
+        if (index >= 1) {
+            Text(
+                "$index",
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onPrimaryContainer,
+                modifier = Modifier
+                    .align(Alignment.CenterVertically)
+                    .padding(end = 6.dp)
+                    .background(
+                        MaterialTheme.colorScheme.primaryContainer,
+                        androidx.compose.foundation.shape.RoundedCornerShape(4.dp)
+                    )
+                    .padding(horizontal = 6.dp, vertical = 2.dp)
+            )
+        }
 
         Text(
             name,
