@@ -43,10 +43,10 @@ object JReadConfigMigration {
                 skipped++
                 return@forEachIndexed
             }
-            // 一级组名进 mumu 分组名；二三级留在 categoryPath（树深度不变，菜单功能全兼容）
-            val groupName = o.str("groupName")
-            val sub = o.str("subGroupName")
-            val third = o.str("thirdGroupName")
+            // 一级组名进 mumu 分组名（可对应的做名称转换）；二三级留在 categoryPath
+            val groupName = mapGroupName(o.str("groupName"))
+            val sub = mapGroupName(o.str("subGroupName"))
+            val third = mapGroupName(o.str("thirdGroupName"))
             val categoryPath = buildList {
                 if (sub.isNotBlank()) add(sub)
                 if (third.isNotBlank()) add(third)
@@ -91,6 +91,23 @@ object JReadConfigMigration {
     private fun JsonObject.optBool(key: String, def: Boolean): Boolean {
         val p = this[key] as? JsonPrimitive ?: return def
         return p.booleanOrNull ?: p.contentOrNull?.toBooleanStrictOrNull() ?: def
+    }
+
+    /**
+     * JRead 分组名 → mumu 分组名：仅转换能明确对应的，其余原样保留。
+     * - 音色长名式「女性青年/通用」→「女青年」（与标签转换表同源）
+     * - 群杂组件式「群杂/男童」→「男童」
+     * - 斜杠式「女/女青年」→「女青年」
+     */
+    private fun mapGroupName(raw: String): String {
+        val t = raw.trim()
+        if (t.isBlank()) return t
+        LONG_TO_SHORT_PREFIX[t]?.let { return it }
+        Regex("^群杂/(男童|女童|少年|少女|男青年|女青年|男中年|女中年|男老年|女老年|混合)$")
+            .matchEntire(t)?.let { return it.groupValues[1] }
+        Regex("^[男女]/((?:女性儿童|男性儿童|女性少年|男性少年|女性青年|男性青年|女性中年|男性中年|女性老年|男性老年))$")
+            .matchEntire(t)?.let { return LONG_TO_SHORT_PREFIX[it.groupValues[1]] ?: it.groupValues[1] }
+        return t
     }
 
     /**
