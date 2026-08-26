@@ -44,6 +44,7 @@ import androidx.compose.material.icons.automirrored.filled.DriveFileMove
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.Switch
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -885,6 +886,7 @@ internal fun ListManagerScreen(
 
     // 合并到其他分组：将源分组中与目标分组 categoryPath 匹配的配置项移入目标分组
     var showMergeGroup by remember { mutableStateOf<SystemTtsGroup?>(null) }
+    var mergeInsertFront by remember { mutableStateOf(false) }
     if (showMergeGroup != null) {
         val sourceGroup = showMergeGroup!!
         val sourceGwt = models.find { it.group.id == sourceGroup.id }
@@ -896,12 +898,20 @@ internal fun ListManagerScreen(
             title = { Text("合并到其他分组") },
             text = {
                 Column {
-                    Text("选择目标分组，相同分类的配置项将归入：", modifier = Modifier.padding(bottom = 8.dp))
+                    Text("选择目标分组，相同分类的配置项将归入并重新编号：", modifier = Modifier.padding(bottom = 8.dp))
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.padding(bottom = 8.dp)
+                    ) {
+                        Switch(checked = mergeInsertFront, onCheckedChange = { mergeInsertFront = it })
+                        Text("插入到开头", modifier = Modifier.padding(start = 4.dp))
+                    }
                     otherGroups.forEach { targetGroup ->
                         TextButton(
                             onClick = {
                                 showMergeGroup = null
                                 showTagOrganizeLoading = true
+                                val insertFront = mergeInsertFront
                                 scope.launch {
                                     withIO {
                                         val sourceItems = sourceGwt?.list ?: emptyList()
@@ -917,15 +927,44 @@ internal fun ListManagerScreen(
                                             matchKey(it.categoryPath, (it.config as TtsConfigurationDTO).speechRule.tag) in targetKeys
                                         }
                                         if (toMove.isNotEmpty()) {
-                                            val baseOrder = (targetGwt?.list?.maxOfOrNull { it.order } ?: -1) + 1
-                                            dbm.systemTtsV2.update(
-                                                *toMove.mapIndexed { i, item ->
-                                                    item.copy(
-                                                        groupId = targetGroup.id,
-                                                        order = baseOrder + i
-                                                    )
-                                                }.toTypedArray()
-                                            )
+                                            // 计算目标分组中各关键词分类的最大序号，用于重新编号
+                                            val maxNumByKeyword = mutableMapOf<String, Int>()
+                                            targetGwt?.list?.forEach { item ->
+                                                val kw = detectTagKeyword(item.categoryPath)?.prefix
+                                                if (kw != null) {
+                                                    val tag = (item.config as TtsConfigurationDTO).speechRule.tag
+                                                    val num = tag.removePrefix(kw).toIntOrNull() ?: 0
+                                                    if (num > (maxNumByKeyword[kw] ?: 0))
+                                                        maxNumByKeyword[kw] = num
+                                                }
+                                            }
+                                            val counterByKeyword = mutableMapOf<String, Int>()
+                                            // 位置：末尾追加 or 插入到开头
+                                            val baseOrder = if (insertFront)
+                                                (targetGwt?.list?.minOfOrNull { it.order } ?: 0) - toMove.size
+                                            else
+                                                (targetGwt?.list?.maxOfOrNull { it.order } ?: -1) + 1
+                                            val updates = toMove.mapIndexed { i, item ->
+                                                val kw = detectTagKeyword(item.categoryPath)?.prefix
+                                                val config = item.config as TtsConfigurationDTO
+                                                val newRule = if (kw != null) {
+                                                    // 重新编号：接在目标同分类最大序号后，各关键词独立计数
+                                                    val offset = counterByKeyword[kw] ?: 0
+                                                    counterByKeyword[kw] = offset + 1
+                                                    val nextNum = (maxNumByKeyword[kw] ?: 0) + offset + 1
+                                                    val zeroPad = kw !in NO_ZERO_PAD_PREFIXES
+                                                    val seq = if (zeroPad)
+                                                        String.format("%02d", nextNum) else nextNum.toString()
+                                                    val newTag = kw + seq
+                                                    config.speechRule.copy(tag = newTag).also { it.tagName = newTag }
+                                                } else config.speechRule
+                                                item.copy(
+                                                    groupId = targetGroup.id,
+                                                    order = baseOrder + i,
+                                                    config = config.copy(speechRule = newRule)
+                                                )
+                                            }
+                                            dbm.systemTtsV2.update(*updates.toTypedArray())
                                         }
                                         val remaining = sourceItems.size - toMove.size
                                         if (remaining == 0) {
