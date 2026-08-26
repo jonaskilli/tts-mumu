@@ -31,9 +31,14 @@ sealed class FlattenedCategoryItem {
 }
 
 /**
- * 将音色列表按 categoryPath 构建为子分组树
+ * 将音色列表按 categoryPath 构建为子分组树。
+ * extraPaths: 额外已定义的子分组路径（如 subGroupAudioParamsJson 的键），
+ * 即使没有配置项也会作为空子分组头出现。
  */
-fun buildSubCategoryTree(items: List<SystemTtsV2>): SubCategoryNode {
+fun buildSubCategoryTree(
+    items: List<SystemTtsV2>,
+    extraPaths: Set<String> = emptySet()
+): SubCategoryNode {
     val sortedItems = items.sortedBy { it.order }
     val rootItems = mutableListOf<SystemTtsV2>()
     val childMap = mutableMapOf<String, MutableList<SystemTtsV2>>()
@@ -48,8 +53,9 @@ fun buildSubCategoryTree(items: List<SystemTtsV2>): SubCategoryNode {
         }
     }
 
-    val children = childMap.map { (name, list) ->
-        buildNode(name, name, 0, list)
+    val allKeys = (childMap.keys + extraPaths).toSet()
+    val children = allKeys.map { name ->
+        buildNode(name, name, 0, childMap[name] ?: emptyList())
     }.sortedBy { node -> node.items.minOfOrNull { it.order } ?: Int.MAX_VALUE }
 
     return SubCategoryNode("", "", -1, rootItems.sortedBy { it.order }, children)

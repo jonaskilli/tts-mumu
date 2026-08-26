@@ -891,7 +891,8 @@ internal fun ListManagerScreen(
     if (showConvertToSubGroup != null) {
         val targetGroup = showConvertToSubGroup!!
         val currentGroupWithTts = models.find { it.group.id == targetGroup.id }
-        val hasSubGroups = currentGroupWithTts?.list?.any { it.categoryPath.isNotBlank() } == true
+        val hasSubGroups = (currentGroupWithTts?.list?.any { it.categoryPath.isNotBlank() } == true) ||
+            targetGroup.subGroupAudioParamsJson.let { it.isNotBlank() && it != "{}" }
         val otherGroups = remember(models, targetGroup.id) {
             models.filter { it.group.id != targetGroup.id }.map { it.group }
         }
@@ -2570,8 +2571,13 @@ internal fun ListManagerScreen(
         val ttsItemsSignature = remember(models) { models.map { it.list.hashCode() } }
         val subGroupTrees = remember(ttsItemsSignature) {
             models.associate { gwt ->
-                gwt.group.id to if (gwt.list.any { it.categoryPath.isNotBlank() }) {
-                    flattenSubCategoryTree(buildSubCategoryTree(gwt.list))
+                val subPaths = gwt.group.subGroupAudioParamsJson.let { jsonStr ->
+                    if (jsonStr.isBlank() || jsonStr == "{}") emptySet()
+                    else SystemTtsV2.Converters.json.decodeFromString<Map<String, AudioParams>>(jsonStr).keys
+                }
+                val hasSubInList = gwt.list.any { it.categoryPath.isNotBlank() }
+                if (hasSubInList || subPaths.isNotEmpty()) {
+                    flattenSubCategoryTree(buildSubCategoryTree(gwt.list, subPaths))
                 } else null
             }
         }
@@ -2689,7 +2695,8 @@ internal fun ListManagerScreen(
                                 onCreateSubGroup = {
                                     showCreateSubGroup = g.id
                                 },
-                                hasSubGroups = groupWithSystemTts.list.any { it.categoryPath.isNotBlank() },
+                                hasSubGroups = groupWithSystemTts.list.any { it.categoryPath.isNotBlank() } ||
+                                    g.subGroupAudioParamsJson.let { it.isNotBlank() && it != "{}" },
                                 hasTagKeyword = detectTagKeyword(g.name) != null,
                                 itemCount = groupWithSystemTts.list.size,
                                 onBatchAssignTags = {
@@ -2812,7 +2819,8 @@ internal fun ListManagerScreen(
                     }
 
                     if (g.isExpanded) {
-                        val hasSubGroups = groupWithSystemTts.list.any { it.categoryPath.isNotBlank() }
+                        val hasSubGroups = groupWithSystemTts.list.any { it.categoryPath.isNotBlank() } ||
+                            g.subGroupAudioParamsJson.let { it.isNotBlank() && it != "{}" }
 
                         if (!hasSubGroups) {
                             // 无子分组时保持原有扁平渲染（支持拖拽排序）
