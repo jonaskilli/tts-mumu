@@ -94,19 +94,20 @@ object JReadConfigMigration {
     }
 
     /**
-     * JRead 分组名 → mumu 分组名：仅转换能明确对应的，其余原样保留。
-     * - 音色长名式「女性青年/通用」→「女青年」（与标签转换表同源）
-     * - 群杂组件式「群杂/男童」→「男童」
-     * - 斜杠式「女/女青年」→「女青年」
+     * JRead 分组名 → mumu 分组名：仅转换能明确对应的年龄段长名式与特殊，其余（含群杂）原样保留。
+     * - 长名式「女性青年」→「女青年」；斜杠式「女/女青年」→「女青年」
+     * - 特殊：「男/特殊」→「特殊男」，「女/特殊」→「特殊女」
      */
     private fun mapGroupName(raw: String): String {
         val t = raw.trim()
         if (t.isBlank()) return t
         LONG_TO_SHORT_PREFIX[t]?.let { return it }
-        Regex("^群杂/(男童|女童|少年|少女|男青年|女青年|男中年|女中年|男老年|女老年|混合)$")
-            .matchEntire(t)?.let { return it.groupValues[1] }
-        Regex("^[男女]/((?:女性儿童|男性儿童|女性少年|男性少年|女性青年|男性青年|女性中年|男性中年|女性老年|男性老年))$")
-            .matchEntire(t)?.let { return LONG_TO_SHORT_PREFIX[it.groupValues[1]] ?: it.groupValues[1] }
+        Regex("^[男女]/((?:女性儿童|男性儿童|女性少年|男性少年|女性青年|男性青年|女性中年|男性中年|女性老年|男性老年|特殊))$")
+            .matchEntire(t)?.let { m ->
+                val inner = m.groupValues[1]
+                if (inner == "特殊") return "特殊${m.groupValues[0].removeSuffix("/特殊").replace("/", "")}"
+                return LONG_TO_SHORT_PREFIX[inner] ?: inner
+            }
         return t
     }
 
@@ -131,12 +132,6 @@ object JReadConfigMigration {
             .matchEntire(t)?.let { m ->
                 val prefix = m.groupValues[2]
                 return prefix + formatSeq(prefix, m.groupValues[3].toInt())
-            }
-        // 群杂组件式：群杂/男童01 → 男童01（源标签 男性儿童/通用01 与 男童01 等价）
-        Regex("^群杂/(男童|女童|少年|少女|男青年|女青年|男中年|女中年|男老年|女老年|混合)(\\d{1,3})$")
-            .matchEntire(t)?.let { m ->
-                val prefix = m.groupValues[1]
-                return prefix + formatSeq(prefix, m.groupValues[2].toInt())
             }
         // 音色长名式：女性青年/通用01 → 女青年01（按 JRead old286 转换表反向）
         Regex("^(?:([男女])/)?(女性儿童|男性儿童|女性少年|男性少年|女性青年|男性青年|女性中年|男性中年|女性老年|男性老年)/通用(\\d{1,3})$")
