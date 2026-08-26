@@ -550,7 +550,6 @@ internal fun ListManagerScreen(
             dbm.systemTtsV2.update(*toUpdate.toTypedArray())
             SystemTtsService.notifyUpdateConfig()
         }
-        return toUpdate.size
     }
 
     /**
@@ -586,6 +585,7 @@ internal fun ListManagerScreen(
             dbm.systemTtsV2.update(*toUpdate.toTypedArray())
             SystemTtsService.notifyUpdateConfig()
         }
+        return toUpdate.size
     }
 
     /**
@@ -626,7 +626,7 @@ internal fun ListManagerScreen(
                 pending.add(PendingUpdate(item, newRule, newTag))
             }
         }
-        if (pending.isEmpty()) return
+        if (pending.isEmpty()) return 0
 
         // ruleId 为空的项无需 JS 评估，直接赋 fallback；其余按 ruleId 分组并行
         val ruleCache = ConcurrentHashMap<String, SpeechRule?>()
@@ -1062,10 +1062,10 @@ internal fun ListManagerScreen(
         var replaceText by remember(renameGroup.id) { mutableStateOf("") }
         // 预览：第一段将发生变化的 子分组名映射
         val previewRenames = remember(renameGwt, findText, replaceText) {
-            if (findText == replaceText) emptyMap()
+            if (findText == replaceText) emptyMap<String, String>()
             else {
                 val segs = renameGwt?.list
-                    ?.mapNotNull { (it.config as? TtsConfigurationDTO)?.categoryPath }
+                    ?.map { it.categoryPath }
                     ?.filter { it.isNotBlank() }
                     ?.map { p -> if (p.indexOf('/') == -1) p else p.substring(0, p.indexOf('/')) }
                     ?.distinct()
