@@ -83,17 +83,17 @@ internal object InnerThoughtAiClassifier {
 
     /** 密钥来源探针(绕过缓存直读文件)，供设置页展示链路状态 */
     fun describeCredentialSource(): String {
-        val c = readFileCredentials() ?: return "未找到可用密钥：请先在多角色朗读插件的 miyue.txt 中配置「地址@@模型@@Key」密钥（或角色管理插件导出 key_list.json）"
+        val c = readFileCredentials() ?: return "未找到可用密钥：请先在角色管理插件中添加模型密钥（key_list.json），或多角色朗读 miyue.txt 配「地址@@模型@@Key」"
         val masked = if (c.second.length > 8) c.second.take(4) + "****" + c.second.takeLast(4) else "****"
         return "已连接：${c.first}｜模型 ${c.third}｜Key $masked"
     }
 
-    /** 密钥读取：优先"多角色朗读"的 miyue.txt，其次角色管理 key_list.json */
+    /** 密钥读取：优先角色管理 key_list.json(正常主力密钥)，降级多角色朗读 miyue.txt(兜底) */
     private fun readFileCredentials(): Triple<String, String, String>? =
-        readMiyueTxt() ?: readKeyListJson()
+        readKeyListJson() ?: readMiyueTxt()
 
     /**
-     * 读多角色朗读(2.87)密钥文件 chajian/<引擎目录>/miyue.txt。
+     * 兜底：读多角色朗读(2.87)密钥文件 chajian/<引擎目录>/miyue.txt。
      * 格式与该插件 loadKeyFile 对齐：## 分场景取前段；@@ 三元组「地址@@模型@@Key」；
      * 无@@视为裸Key，沿用其 defaultConfig（智谱+glm-4-flash）兜底。
      */
@@ -139,7 +139,7 @@ internal object InnerThoughtAiClassifier {
         return null
     }
 
-    /** 降级：扫描角色管理插件密钥文件 key_list.json，取第一条 OpenAI 格式密钥 */
+    /** 主力：扫描角色管理插件密钥文件 key_list.json(「地址@@模型@@Key」，正常添加流程生成)，取第一条 */
     private fun readKeyListJson(): Triple<String, String, String>? {
         return runCatching {
             val root = File("/storage/emulated/0/Download/chajian")
