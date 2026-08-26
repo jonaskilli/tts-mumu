@@ -199,8 +199,14 @@ internal fun doAutoImport(
                 is ListImportResult.Truncated -> AutoImportResult.Truncated(result.detail)
                 is ListImportResult.Success -> {
                     var msg = "已导入 ${result.count} 项配置列表"
-                    if (result.skipped > 0)
-                        msg += "，跳过 ${result.skipped} 项（无插件或为 URL 直连型）"
+                    if (result.skipped > 0) {
+                        msg += "，跳过 ${result.skipped} 项"
+                        // 按原因分类计数，帮助定位缺插件/直连型配置
+                        val reasons = mutableListOf<String>()
+                        if (result.skippedNoPlugin > 0) reasons += "${result.skippedNoPlugin} 项缺少对应插件"
+                        if (result.skippedUrlDirect > 0) reasons += "${result.skippedUrlDirect} 项 URL 直连型"
+                        if (reasons.isNotEmpty()) msg += "（${reasons.joinToString("、")}）"
+                    }
                     AutoImportResult.Success(result.count, type, msg)
                 }
             }
@@ -286,7 +292,10 @@ private fun doImportReplaceRule(json: String, type: ImportType): AutoImportResul
 private sealed class ListImportResult {
     object EmptyOrUnrecognized : ListImportResult()
     data class Truncated(val detail: String) : ListImportResult()
-    data class Success(val count: Int, val skipped: Int = 0) : ListImportResult()
+    data class Success(
+        val count: Int, val skipped: Int = 0,
+        val skippedNoPlugin: Int = 0, val skippedUrlDirect: Int = 0,
+    ) : ListImportResult()
 }
 
 /**
@@ -393,7 +402,10 @@ private fun insertJReadItems(parsed: JReadConfigMigration.Parsed): ListImportRes
             )
         }
     }
-    return ListImportResult.Success(parsed.items.size, parsed.skipped)
+    return ListImportResult.Success(
+        parsed.items.size, parsed.skipped,
+        parsed.skippedNoPlugin, parsed.skippedUrlDirect
+    )
 }
 
 private fun getImportList(

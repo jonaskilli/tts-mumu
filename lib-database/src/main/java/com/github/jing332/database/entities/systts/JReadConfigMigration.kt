@@ -16,6 +16,10 @@ object JReadConfigMigration {
         val skipped: Int,
         /** 条目的一级组名（与 items 一一对应，空串表示源数据未提供） */
         val groupNames: List<String> = List(items.size) { "" },
+        /** 跳过原因细分：未关联插件数 */
+        val skippedNoPlugin: Int = 0,
+        /** 跳过原因细分：URL 直连型数 */
+        val skippedUrlDirect: Int = 0,
     )
 
     fun parse(json: String): Parsed? {
@@ -33,6 +37,8 @@ object JReadConfigMigration {
         }
 
         var skipped = 0
+        var skippedNoPlugin = 0
+        var skippedUrlDirect = 0
         val items = mutableListOf<SystemTtsV2>()
         val groupNames = mutableListOf<String>()
         arr.forEachIndexed { index, item ->
@@ -41,6 +47,8 @@ object JReadConfigMigration {
             val urlTemplate = o.str("urlTemplate")
             if (pluginId.isBlank() || urlTemplate.isNotBlank()) {
                 skipped++
+                // 细分跳过原因：无插件ID=未关联插件；有模板=URL直连型
+                if (pluginId.isBlank()) skippedNoPlugin++ else skippedUrlDirect++
                 return@forEachIndexed
             }
             // 一级组名进 mumu 分组名（可对应的做名称转换）；二三级留在 categoryPath
@@ -77,7 +85,9 @@ object JReadConfigMigration {
             )
             groupNames.add(groupName)
         }
-        return if (items.isEmpty()) null else Parsed(items, skipped, groupNames)
+        return if (items.isEmpty()) null else Parsed(
+            items, skipped, groupNames, skippedNoPlugin, skippedUrlDirect
+        )
     }
 
     private fun JsonObject.str(key: String): String =
