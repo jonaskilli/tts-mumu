@@ -25,7 +25,7 @@ import splitties.init.appCtx
 
 val dbm: DatabaseManager by lazy {
     Room.databaseBuilder(appCtx, DatabaseManager::class.java, "systts.db")
-        .addMigrations(DatabaseManager.MIGRATION_32_33)
+        .addMigrations(DatabaseManager.MIGRATION_31_32, DatabaseManager.MIGRATION_32_33)
         .allowMainThreadQueries()
         .openHelperFactory(LargeCursorOpenHelperFactory())
         .build()
@@ -68,7 +68,6 @@ val dbm: DatabaseManager by lazy {
         AutoMigration(from = 28, to = 29),
         AutoMigration(from = 29, to = 30),
         AutoMigration(from = 30, to = 31),
-        AutoMigration(from = 31, to = 32),
     ]
 )
 abstract class DatabaseManager : RoomDatabase() {
@@ -81,6 +80,14 @@ abstract class DatabaseManager : RoomDatabase() {
     companion object {
         private const val DATABASE_NAME = "systts.db"
 
+        private val MIGRATION_31_32 = object : Migration(31, 32) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE Plugin ADD COLUMN pluginHandlesSpeed INTEGER NOT NULL DEFAULT 0")
+                db.execSQL("ALTER TABLE Plugin ADD COLUMN pluginHandlesVolume INTEGER NOT NULL DEFAULT 0")
+                db.execSQL("ALTER TABLE Plugin ADD COLUMN pluginHandlesPitch INTEGER NOT NULL DEFAULT 0")
+            }
+        }
+
         private val MIGRATION_32_33 = object : Migration(32, 33) {
             override fun migrate(db: SupportSQLiteDatabase) {
                 db.execSQL("ALTER TABLE SystemTtsGroup ADD COLUMN audioParams_reverbEnabled INTEGER NOT NULL DEFAULT 0")
@@ -90,7 +97,7 @@ abstract class DatabaseManager : RoomDatabase() {
 
         fun createDatabase(context: Context) = Room
             .databaseBuilder(context, DatabaseManager::class.java, DATABASE_NAME)
-            .addMigrations(MIGRATION_32_33)
+            .addMigrations(MIGRATION_31_32, MIGRATION_32_33)
             .allowMainThreadQueries()
             .openHelperFactory(LargeCursorOpenHelperFactory())
             .build()
