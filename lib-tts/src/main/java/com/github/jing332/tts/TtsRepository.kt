@@ -54,7 +54,7 @@ internal class TtsRepository(
     }
 
 
-    // 带插件处理标志的 toVO：备用/兜底配置构造时同步插件表的 pluginHandlesXxx
+    // 带插件处理标志的 toVO：备用/兑底配置构造时同步插件表的 pluginHandlesXxx
     private fun TtsConfigurationDTO.toVOWithPluginFlags(): TtsConfiguration {
         val pluginRecord = (source as? com.github.jing332.database.entities.systts.source.PluginTtsSource)?.let {
             dbm.pluginDao.getByPluginId(it.pluginId)
@@ -78,7 +78,7 @@ internal class TtsRepository(
                     config.toVOWithPluginFlags().copy(tag = it)
                 }
 
-        // 性别兜底配置池：duihuaA(男)/duihuaB(女)/duihua(中性)三个标签的配置，不依赖 isStandby 标记
+        // 性别兑底配置池：duihuaA(男)/duihuaB(女)/duihua(中性)三个标签的配置，不依赖 isStandby 标记
         // 发音人获取失败时，按原tag性别回退到这里，无需用户额外标记为备用
         val genderFallbackConfigs =
             groupWithTts.flatMap { it.list }
@@ -106,8 +106,8 @@ internal class TtsRepository(
                             it.speechInfo.tagRuleId == c.speechRule.tagRuleId &&
                             it.speechInfo.tagName == c.speechRule.tagName
                 }
-                // 性别兜底：发音人获取失败时，按原tag的性别特征回退到 duihuaA(男)/duihuaB(女)/duihua(中性)
-                // 兜底标签自身跳过此层，避免自引用；直接用三个标签的配置，无需 isStandby 标记
+                // 性别兑底：发音人获取失败时，按原tag的性别特征回退到 duihuaA(男)/duihuaB(女)/duihua(中性)
+                // 兑底标签自身跳过此层，避免自引用；直接用三个标签的配置，无需 isStandby 标记
                 val genderStandby = run {
                     val origTag = c.speechRule.tag
                     if (origTag == "duihuaA" || origTag == "duihuaB" || origTag == "duihua") return@run null
@@ -122,8 +122,8 @@ internal class TtsRepository(
                                 it.speechInfo.tag == genderTag
                     }
                 }
-                // 同标签备用 > 性别兜底；兜底发音人(duihua/duihuaA/duihuaB)不挂任何备用，失败直接报错
-                // 备用/兜底与主配置走同一套五层叠加(插件×配置×子分组×分组×全局)，
+                // 同标签备用 > 性别兑底；兑底发音人(duihua/duihuaA/duihuaB)不挂任何备用，失败直接报错
+                // 备用/兑底与主配置走同一套五层叠加(插件×配置×子分组×分组×全局)，
                 // 否则全局/分组/插件级的音频参数修改对回落播放不生效
                 val standbyStacked = standby?.copy(
                     audioParams = stackAudioParamsFor(standby.tag, groupWithTts, tp)
@@ -159,7 +159,8 @@ internal class TtsRepository(
                     audioParams = AudioParams(
                         speed = finalSpeed,
                         volume = finalVolume,
-                        pitch = finalPitch
+                        pitch = finalPitch,
+                        reverbEnabled = configParams.reverbEnabled
                     ),
                     audioFormat = c.audioFormat,
                     source = c.source,
@@ -180,7 +181,7 @@ internal class TtsRepository(
         return dbm.systemTtsV2.allEnabled.map { it.config }.filterIsInstance<BgmConfiguration>()
     }
 
-    // 备用/兜底配置的音频参数叠加：委托 stackCore 做与主配置一致的
+    // 备用/兑底配置的音频参数叠加：委托 stackCore 做与主配置一致的
     // 插件×配置×子分组×分组×全局 五层乘法。
     // 此前备用仅带配置自身值，全局/分组/插件级修改对回落播放不生效
     private fun stackAudioParamsFor(
@@ -219,6 +220,7 @@ private fun stackCore(
         speed = calculateParam(pp.speed, cp.speed, sub.speed, gp.speed, tp.speed),
         volume = calculateParam(pp.volume, cp.volume, sub.volume, gp.volume, tp.volume),
         pitch = calculateParam(pp.pitch, cp.pitch, sub.pitch, gp.pitch, tp.pitch),
+        reverbEnabled = cp.reverbEnabled,
     )
 }
 
