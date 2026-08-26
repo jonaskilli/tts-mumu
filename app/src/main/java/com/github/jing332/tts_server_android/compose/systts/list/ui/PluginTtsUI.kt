@@ -14,6 +14,7 @@ import androidx.compose.material.icons.filled.Headset
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.Checkbox
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -271,6 +272,8 @@ class PluginTtsUI : IConfigUI() {
         var autoNextSwitch by remember { mutableStateOf(false) }
         // 开关3：按插件分区（语言）自动分组，未手动分配分类时以其显示名作 categoryPath
         var autoGroupByLocale by remember { mutableStateOf(false) }
+        // 全部分类入库：忽略勾选，逐分类拉全量，按每条音色所属分类落子分组
+        var allPoolsImport by remember { mutableStateOf(false) }
         val currentLocaleName =
             vm.locales.firstOrNull { it.first == tts.locale }?.second ?: tts.locale
 
@@ -527,11 +530,25 @@ class PluginTtsUI : IConfigUI() {
                             // 单语言插件同样显示：无脑全入库场景不依赖多语言
                             onAutoGroupByLocaleChange = { autoGroupByLocale = it },
                             extraButtons = {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Checkbox(
+                                        checked = allPoolsImport,
+                                        onCheckedChange = {
+                                            allPoolsImport = it
+                                            context.toast(
+                                                if (it) "已开启：保存时按分类入库该插件全部音色"
+                                                else "已关闭：仅保存勾选的音色"
+                                            )
+                                        }
+                                    )
+                                    Text("全部分类", style = MaterialTheme.typography.bodySmall)
+                                }
                                 TextButton(
-                                    enabled = selectedVoiceIds.isNotEmpty() && !showLoadingDialog,
+                                    enabled = (allPoolsImport || selectedVoiceIds.isNotEmpty()) && !showLoadingDialog,
                                     onClick = {
                                         val selectedVoices = vm.voices.filter { it.id in selectedVoiceIds }
-                                        if (selectedVoices.isEmpty()) {
+                                        val allPoolsSnapshot = allPoolsImport
+                                        if (!allPoolsSnapshot && selectedVoices.isEmpty()) {
                                             // 勾选项不在当前声音列表（切换语言/插件后列表已刷新）：
                                             // 显式提示而非静默返回，避免"点了保存没反应"
                                             context.toast("所选声音不在当前列表中，可能已切换语言或插件，请重新选择")
@@ -616,14 +633,29 @@ class PluginTtsUI : IConfigUI() {
                                                 .maxOfOrNull { it.order } ?: -1) + 1
                                             var orderSeq = 0
 
-                                            selectedVoices.forEachIndexed { voiceIdx, voice ->
+                                            // 待保存清单，元素为 (音色, 所属语言池ID, 池显示名):
+                                            // 「全部分类」模式逐分类拉全量（无需逐个切换语言栏），
+                                            // 普通模式退化为勾选列表，locale 即当前表单所选
+                                            val importItems =
+                                                if (allPoolsSnapshot)
+                                                    vm.allLocalesVoices().flatMap { (poolId, poolName, voices) ->
+                                                        voices.map { Triple(it, poolId, poolName) }
+                                                    }
+                                                else selectedVoices.map {
+                                                    Triple(it, ttsSnapshot.locale, "")
+                                                }
+
+                                            importItems.forEachIndexed { voiceIdx, (voice, voiceLocale, poolName) ->
                                                 // 进度反馈：每个声音可能触发一次合成来解析采样率，
                                                 // N 个声音耗时可达数十秒，必须让用户看到正在处理
                                                 withContext(Dispatchers.Main) {
                                                     savingProgressText =
-                                                        "正在保存 ${voiceIdx + 1}/${selectedVoices.size}：${voice.name}"
+                                                        "正在保存 ${voiceIdx + 1}/${importItems.size}：${voice.name}"
                                                 }
+                                                // 「全部分类」模式下池显示名充当分类：
+                                                // 手动分配的分类仍优先
                                                 val category = categoryMapSnapshot[voice.id]
+                                                    ?: poolName.takeIf { allPoolsSnapshot && it.isNotBlank() }
                                                 val newRuleData = config.speechRule.copy()
                                                 // 未分配分类时保留用户在分组树中已选的子分组路径，
                                                 // 不再被强制置空导致保存位置丢失
@@ -691,19 +723,22 @@ class PluginTtsUI : IConfigUI() {
                                                 // 3. 实际合成一次并从音频字节解出采样率（避免落入 16000 默认值）。
                                                 val voiceSampleRate = sampleRateCacheSnapshot[voice.id]
                                                     ?: runCatching {
-                                                        vm.engine.getSampleRate(ttsSnapshot.locale, voice.id)
+                                                        vm.engine.getSampleRate(voiceLocale, voice.id)
                                                     }.getOrNull()?.takeIf { it > 0 } ?: resolveSampleRateBySynth(
                                                     provider = vm.service(),
                                                     config = config,
                                                     voiceId = voice.id,
-                                                    tts = ttsSnapshot
+                                                    tts = ttsSnapshot.copy(locale = voiceLocale)
                                                 )
                                                 val voiceNeedDecode = runCatching {
-                                                    vm.engine.isNeedDecode(ttsSnapshot.locale, voice.id)
+                                                    vm.engine.isNeedDecode(voiceLocale, voice.id)
                                                 }.getOrNull() ?: config.audioFormat.isNeedDecode
 
                                                 val newConfig = config.copy(
-                                                    source = ttsSnapshot.copy(voice = voice.id),
+                                                    source = ttsSnapshot.copy(
+                                                        locale = voiceLocale,
+                                                        voice = voice.id
+                                                    ),
                                                     speechRule = newRuleData,
                                                     audioFormat = BasicAudioFormat(
                                                         sampleRate = voiceSampleRate,
@@ -728,7 +763,7 @@ class PluginTtsUI : IConfigUI() {
                                                 context.toast(
                                                     context.getString(
                                                         R.string.save_to_list,
-                                                        selectedVoices.size
+                                                        importItems.size
                                                     ) + " → $targetGroupName"
                                                 )
                                                 selectedVoiceIds = emptySet()

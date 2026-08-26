@@ -138,6 +138,18 @@ class PluginTtsViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
+    // 逐分类（语言池）拉取全部音色：返回 (localeId, 分类显示名, 该池音色列表)，
+    // 供「全部分类入库」一次性遍历所有分类，无需逐个切换语言栏
+    suspend fun allLocalesVoices(): List<Triple<String, String, List<TtsPluginUiEngineV2.Voice>>> {
+        val out = ArrayList<Triple<String, String, List<TtsPluginUiEngineV2.Voice>>>()
+        locales.forEach { (localeId, displayName) ->
+            runCatching { engine.getVoices(localeId).toList() }.getOrNull()
+                ?.takeIf { it.isNotEmpty() }
+                ?.let { out.add(Triple(localeId, displayName, it)) }
+        }
+        return out
+    }
+
     fun updateCustomUI(locale: String, voice: String) {
         try {
             engine.onVoiceChanged(locale, voice)
