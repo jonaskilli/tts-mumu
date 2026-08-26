@@ -883,6 +883,75 @@ internal fun ListManagerScreen(
         }
     }
 
+    // 合并到其他分组：将源分组中与目标分组 categoryPath 匹配的配置项移入目标分组
+    var showMergeGroup by remember { mutableStateOf<SystemTtsGroup?>(null) }
+    if (showMergeGroup != null) {
+        val sourceGroup = showMergeGroup!!
+        val sourceGwt = models.find { it.group.id == sourceGroup.id }
+        val otherGroups = remember(models, sourceGroup.id) {
+            models.filter { it.group.id != sourceGroup.id }.map { it.group }
+        }
+        AlertDialog(
+            onDismissRequest = { showMergeGroup = null },
+            title = { Text("合并到其他分组") },
+            text = {
+                Column {
+                    Text("选择目标分组，相同分类的配置项将归入：", modifier = Modifier.padding(bottom = 8.dp))
+                    otherGroups.forEach { targetGroup ->
+                        TextButton(
+                            onClick = {
+                                showMergeGroup = null
+                                showTagOrganizeLoading = true
+                                scope.launch {
+                                    withIO {
+                                        val sourceItems = sourceGwt?.list ?: emptyList()
+                                        val targetGwt = models.find { it.group.id == targetGroup.id }
+                                        val targetCategories = targetGwt?.list
+                                            ?.map { it.categoryPath }?.toSet() ?: emptySet()
+                                        // 匹配：源项的 categoryPath 在目标分组中已存在则移动
+                                        val toMove = sourceItems.filter { it.categoryPath in targetCategories }
+                                        if (toMove.isNotEmpty()) {
+                                            val baseOrder = (targetGwt?.list?.maxOfOrNull { it.order } ?: -1) + 1
+                                            dbm.systemTtsV2.update(
+                                                *toMove.mapIndexed { i, item ->
+                                                    item.copy(
+                                                        groupId = targetGroup.id,
+                                                        order = baseOrder + i
+                                                    )
+                                                }.toTypedArray()
+                                            )
+                                        }
+                                        val remaining = sourceItems.size - toMove.size
+                                        if (remaining == 0) {
+                                            dbm.systemTtsV2.deleteGroup(sourceGroup)
+                                        }
+                                        withContext(Dispatchers.Main) {
+                                            showTagOrganizeLoading = false
+                                            val msg = if (remaining == 0)
+                                                "已合并 ${toMove.size} 项，源分组已删除"
+                                            else
+                                                "已合并 ${toMove.size} 项，${remaining} 项无匹配分类保留原分组"
+                                            context.toast(msg)
+                                        }
+                                    }
+                                }
+                            },
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Text(targetGroup.name)
+                        }
+                    }
+                }
+            },
+            confirmButton = {},
+            dismissButton = {
+                TextButton(onClick = { showMergeGroup = null }) {
+                    Text(stringResource(R.string.cancel))
+                }
+            }
+        )
+    }
+
     // 多选转为子分组：批量把选中的（不含子分组的）分组降级为目标分组的子分组
     var showConvertToSubGroupMulti by remember { mutableStateOf(false) }
     // 弹窗内选中的源分组（独立于列表预选的 selectedGroupIds，打开弹窗时初始化）
@@ -2505,6 +2574,9 @@ internal fun ListManagerScreen(
                                         showTagOrganizeLoading = false
                                         context.toast("已按各子分组关键词整理标签")
                                     }
+                                },
+                                onMergeGroup = {
+                                    showMergeGroup = g
                                 },
                                 inSelectionMode = selectionMode,
                                 isSelected = remember(g.id) { derivedStateOf { g.id in selectedGroupIds } }.value,

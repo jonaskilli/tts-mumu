@@ -64,6 +64,7 @@ fun Group(
     onReassignTags: () -> Unit = {},
     onReassignTagsByGroupName: () -> Unit = {},
     onReassignAllSubGroups: () -> Unit = {},
+    onMergeGroup: (() -> Unit)? = null,
     itemCount: Int = -1,
 ) {
 
@@ -270,6 +271,19 @@ fun Group(
                     },
                     leadingIcon = {
                         Icon(Icons.AutoMirrored.Filled.Label, null)
+                    }
+                )
+            }
+
+            // 合并到其他分组：将本分组的配置项按 categoryPath 匹配归入目标分组
+            if (onMergeGroup != null) {
+                DropdownMenuItem(text = { Text("合并到其他分组") },
+                    onClick = {
+                        dismiss()
+                        onMergeGroup!!()
+                    },
+                    leadingIcon = {
+                        Icon(Icons.AutoMirrored.Filled.DriveFileMove, null)
                     }
                 )
             }
