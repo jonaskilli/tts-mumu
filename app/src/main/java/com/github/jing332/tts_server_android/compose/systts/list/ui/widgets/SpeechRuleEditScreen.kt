@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.HelpOutline
 import androidx.compose.material.icons.filled.SelectAll
@@ -16,6 +17,7 @@ import androidx.compose.material.icons.filled.Tag
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -58,6 +60,7 @@ import com.github.jing332.tts_server_android.compose.systts.list.BasicAudioParam
 import com.github.jing332.tts_server_android.constant.AppConst
 import com.github.jing332.tts_server_android.constant.SpeechTarget
 import com.github.jing332.tts_server_android.model.rhino.speech_rule.SpeechRuleEngine
+import com.github.jing332.tts_server_android.service.systts.help.InnerThoughtClassifier
 import com.github.jing332.tts_server_android.ui.view.AppDialogs.displayErrorDialog
 import kotlinx.serialization.encodeToString
 
@@ -378,6 +381,31 @@ fun SpeechRuleEditScreen(
                             }
                         )
                     }
+                }
+
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(top = 4.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    val isInnerThought = config.speechRule.tag == InnerThoughtClassifier.INNER_THOUGHT_TAG
+                    FilterChip(
+                        selected = isInnerThought,
+                        onClick = {
+                            if (config.speechRule.target != SpeechTarget.TAG) return@FilterChip
+                            val newTag =
+                                if (isInnerThought) "" else InnerThoughtClassifier.INNER_THOUGHT_TAG
+                            onSysttsChange(
+                                systts.copy(
+                                    config = config.copy(
+                                        speechRule = config.speechRule.copy(tag = newTag)
+                                    )
+                                )
+                            )
+                        },
+                        label = { Text("心声(内心独白)") }
+                    )
                 }
             }
 

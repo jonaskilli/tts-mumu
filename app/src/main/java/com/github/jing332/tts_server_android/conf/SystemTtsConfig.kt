@@ -240,4 +240,32 @@ object SystemTtsConfig {
         key = "timeoutWatchdogSeconds",
         initialValue = 20
     )
+
+    // ========== 心声 AI 判定配置 ==========
+
+    /** 心声 AI 兜底判定开关（正则弱线索命中时才调用） */
+    val isInnerThoughtAiEnabled = mutableDataSaverStateOf(
+        dataSaverInterface = dataSaverPref,
+        key = "isInnerThoughtAiEnabled",
+        initialValue = false
+    )
+
+    /** OpenAI 兼容接口地址，如 https://api.example.com/v1 */
+    val innerThoughtAiUrl = mutableDataSaverStateOf(
+        dataSaverInterface = dataSaverPref,
+        key = "innerThoughtAiUrl",
+        initialValue = ""
+    )
+
+    val innerThoughtAiKey = mutableDataSaverStateOf(
+        dataSaverInterface = dataSaverPref,
+        key = "innerThoughtAiKey",
+        initialValue = ""
+    )
+
+    val innerThoughtAiModel = mutableDataSaverStateOf(
+        dataSaverInterface = dataSaverPref,
+        key = "innerThoughtAiModel",
+        initialValue = ""
+    )
 }

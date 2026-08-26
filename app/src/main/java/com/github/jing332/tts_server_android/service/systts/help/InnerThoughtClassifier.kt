@@ -24,6 +24,11 @@ internal object InnerThoughtClassifier {
             trailingAttributionBoundary,
     )
 
+    // 弱线索：文本自身含心理活动相关词，但位置不足以构成硬判定，交给 AI 兜底
+    private val weakInnerThoughtCue = Regex(
+        "心想|心里|心中|内心|暗想|暗道|默念|喃喃|自语|脑中|脑海|暗忖|腹诽",
+    )
+
     private fun immediateBeforeClause(beforeText: String): String {
         val tail = beforeText.takeLast(240).trimEnd()
         val lastBoundary = tail.indexOfLast { it in hardContextBoundary }
@@ -42,6 +47,11 @@ internal object InnerThoughtClassifier {
 
         if (immediateInnerThoughtCue.containsMatchIn(before)) return true
         if (trailingInnerThoughtAttribution.containsMatchIn(after)) return true
+
+        // AI 兜底：仅当碎片自身含弱线索词时才调用，控制请求量
+        if (weakInnerThoughtCue.containsMatchIn(text)) {
+            InnerThoughtAiClassifier.classify(text)?.let { return it }
+        }
 
         return false
     }

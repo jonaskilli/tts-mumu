@@ -1,5 +1,6 @@
 package com.github.jing332.tts_server_android.compose.settings
 
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
@@ -13,6 +14,7 @@ import androidx.compose.material.icons.filled.Groups
 import androidx.compose.material.icons.filled.Headset
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.NotificationsNone
+import androidx.compose.material.icons.filled.Psychology
 import androidx.compose.material.icons.filled.Repeat
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.SelectAll
@@ -264,6 +266,32 @@ internal fun ColumnScope.SysttsSettingsScreen(modifier: Modifier = Modifier) {
         label = watchdogValue
     )
 
+    // ========== 心声 AI 判定 ==========
+
+    DividerPreference { Text("心声 AI 判定") }
+
+    var aiEnabled by remember { SystemTtsConfig.isInnerThoughtAiEnabled }
+    SwitchPreference(
+        title = { Text("启用心声 AI 兜底判定") },
+        subTitle = { Text("正则无法确定时调用 OpenAI 兼容接口判定；仅对含心理活动弱线索词的片段发起请求，带缓存与失败熔断") },
+        checked = aiEnabled,
+        onCheckedChange = { aiEnabled = it },
+        icon = { Icon(Icons.Default.Psychology, null) }
+    )
+
+    var showAiConfigDialog by remember { mutableStateOf(false) }
+    if (showAiConfigDialog)
+        InnerThoughtAiConfigDialog { showAiConfigDialog = false }
+    BasePreferenceWidget(
+        onClick = { showAiConfigDialog = true },
+        title = { Text("AI 接口配置") },
+        subTitle = {
+            val url = SystemTtsConfig.innerThoughtAiUrl.value
+            Text(if (url.isEmpty()) "未配置（OpenAI 兼容地址 / Key / 模型名）" else url)
+        },
+        icon = { Icon(Icons.Default.Psychology, null) }
+    )
+
     DividerPreference {
         Text(stringResource(id = R.string.systts_interface_preference))
     }
@@ -327,4 +355,53 @@ internal fun ColumnScope.SysttsSettingsScreen(modifier: Modifier = Modifier) {
         }
     )
 
+}
+
+@Composable
+private fun InnerThoughtAiConfigDialog(onDismiss: () -> Unit) {
+    var url by remember { mutableStateOf(SystemTtsConfig.innerThoughtAiUrl.value) }
+    var key by remember { mutableStateOf(SystemTtsConfig.innerThoughtAiKey.value) }
+    var model by remember { mutableStateOf(SystemTtsConfig.innerThoughtAiModel.value) }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("心声 AI 接口配置") },
+        text = {
+            Column {
+                OutlinedTextField(
+                    value = url,
+                    onValueChange = { url = it },
+                    label = { Text("接口地址") },
+                    placeholder = { Text("https://api.example.com/v1") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth()
+                )
+                OutlinedTextField(
+                    value = key,
+                    onValueChange = { key = it },
+                    label = { Text("API Key") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth().padding(top = 8.dp)
+                )
+                OutlinedTextField(
+                    value = model,
+                    onValueChange = { model = it },
+                    label = { Text("模型名") },
+                    placeholder = { Text("如 gpt-4o-mini / glm-4-flash") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth().padding(top = 8.dp)
+                )
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = {
+                SystemTtsConfig.innerThoughtAiUrl.value = url.trim()
+                SystemTtsConfig.innerThoughtAiKey.value = key.trim()
+                SystemTtsConfig.innerThoughtAiModel.value = model.trim()
+                onDismiss()
+            }) { Text(stringResource(id = R.string.confirm)) }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text(stringResource(id = R.string.cancel)) }
+        }
+    )
 }
