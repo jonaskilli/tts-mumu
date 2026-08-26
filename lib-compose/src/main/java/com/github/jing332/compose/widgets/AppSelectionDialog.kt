@@ -109,6 +109,8 @@ fun AppSelectionDialog(
     onWaitCategorySwitchChange: ((Boolean) -> Unit)? = null,
     autoNextSwitch: Boolean = false,
     onAutoNextSwitchChange: ((Boolean) -> Unit)? = null,
+    autoGroupByLocale: Boolean = false,
+    onAutoGroupByLocaleChange: ((Boolean) -> Unit)? = null,
 ) {
 
     // 搜索框固定在顶部常显，无需点击图标再展开
@@ -138,7 +140,7 @@ fun AppSelectionDialog(
             }
             Column(modifier = Modifier.fillMaxWidth()) {
                 // 开关行：等待分类 / 自动下一个，带文字标签，置于列表上方避免与标题挤在一起
-                if (onWaitCategorySwitchChange != null || onAutoNextSwitchChange != null) {
+                if (onWaitCategorySwitchChange != null || onAutoNextSwitchChange != null || onAutoGroupByLocaleChange != null) {
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -164,6 +166,19 @@ fun AppSelectionDialog(
                                 Switch(checked = autoNextSwitch, onCheckedChange = onChange)
                                 Text(
                                     stringResource(R.string.auto_next),
+                                    style = MaterialTheme.typography.labelMedium,
+                                    modifier = Modifier.padding(start = 4.dp)
+                                )
+                            }
+                        }
+                        if (onAutoNextSwitchChange != null && onAutoGroupByLocaleChange != null) {
+                            Spacer(Modifier.width(16.dp))
+                        }
+                        onAutoGroupByLocaleChange?.let { onChange ->
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Switch(checked = autoGroupByLocale, onCheckedChange = onChange)
+                                Text(
+                                    stringResource(R.string.auto_group_by_locale),
                                     style = MaterialTheme.typography.labelMedium,
                                     modifier = Modifier.padding(start = 4.dp)
                                 )

@@ -269,6 +269,10 @@ class PluginTtsUI : IConfigUI() {
         var waitCategorySwitch by remember { mutableStateOf(false) }
         // 开关2：点分类后自动试听下一个
         var autoNextSwitch by remember { mutableStateOf(false) }
+        // 开关3：按插件分区（语言）自动分组，未手动分配分类时以其显示名作 categoryPath
+        var autoGroupByLocale by remember { mutableStateOf(false) }
+        val currentLocaleName =
+            vm.locales.firstOrNull { it.first == tts.locale }?.second ?: tts.locale
 
         // 切换到指定发音人试听
         fun startAuditionForVoice(voice: com.github.jing332.tts.speech.plugin.engine.TtsPluginUiEngineV2.Voice) {
@@ -519,6 +523,8 @@ class PluginTtsUI : IConfigUI() {
                                 autoNextSwitch = it
                                 context.toast(if (it) "已开启：选分类后自动试听下一个" else "已关闭：选分类后不自动切换")
                             },
+                            autoGroupByLocale = autoGroupByLocale,
+                            onAutoGroupByLocaleChange = { autoGroupByLocale = it },
                             extraButtons = {
                                 TextButton(
                                     enabled = selectedVoiceIds.isNotEmpty() && !showLoadingDialog,
@@ -535,6 +541,8 @@ class PluginTtsUI : IConfigUI() {
                                         val sampleRateCacheSnapshot = voiceSampleRateCache
                                         val systtsSnapshot = systts
                                         val ttsSnapshot = tts
+                                        val autoGroupSnapshot = autoGroupByLocale
+                                        val localeNameSnapshot = currentLocaleName
                                         showLoadingDialog = true
                                         savingProgressText = ""
                                         scope.launch(Dispatchers.IO) {
@@ -619,6 +627,11 @@ class PluginTtsUI : IConfigUI() {
                                                 // 未分配分类时保留用户在分组树中已选的子分组路径，
                                                 // 不再被强制置空导致保存位置丢失
                                                 var categoryPath = systtsSnapshot.categoryPath
+
+                                                // 按语言自动分组：未手动分配分类时以当前语言显示名作 categoryPath
+                                                if (category == null && autoGroupSnapshot && localeNameSnapshot.isNotBlank()) {
+                                                    categoryPath = localeNameSnapshot
+                                                }
 
                                                 if (category != null) {
                                                     // —— 分配了分类：标签依据朗读规则生成 ——
