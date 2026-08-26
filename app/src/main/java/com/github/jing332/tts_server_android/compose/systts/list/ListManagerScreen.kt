@@ -2770,14 +2770,25 @@ internal fun ListManagerScreen(
                                     }
                                 },
                                 onReassignAllSubGroups = {
-                                    showTagOrganizeLoading = true
-                                    scope.launch {
-                                        val count = withContext(Dispatchers.IO) {
-                                            reassignTagsForAllSubGroups(groupWithSystemTts.list)
+                                    val subPaths = groupWithSystemTts.list
+                                        .filter { it.categoryPath.isNotBlank() }
+                                        .map { it.categoryPath }.distinct()
+                                    when {
+                                        subPaths.isEmpty() ->
+                                            context.toast("该分组下没有子分组")
+                                        subPaths.none { detectTagKeyword(it) != null } ->
+                                            context.toast("子分组名未包含关键词，无法自动整理")
+                                        else -> {
+                                            showTagOrganizeLoading = true
+                                            scope.launch {
+                                                val count = withContext(Dispatchers.IO) {
+                                                    reassignTagsForAllSubGroups(groupWithSystemTts.list)
+                                                }
+                                                showTagOrganizeLoading = false
+                                                if (count == 0) context.toast("标签均已正确，无需整理")
+                                                else context.toast("已按各子分组关键词重新编号 $count 个标签")
+                                            }
                                         }
-                                        showTagOrganizeLoading = false
-                                        if (count == 0) context.toast("标签均已正确，无需整理")
-                                        else context.toast("已按各子分组关键词重新编号 $count 个标签")
                                     }
                                 },
                                 onMergeGroup = {
