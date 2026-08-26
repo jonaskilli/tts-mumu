@@ -951,9 +951,10 @@ internal fun ListManagerScreen(
                                                 )
                                             }
                                             dbm.systemTtsV2.update(*updates.toTypedArray())
-                                            // 合并后复用现有标签整理逻辑，按各子分类重新编号
+                                            // 仅对受影响的分类重新编号，避免无关分类被改动
+                                            val affectedPaths = updates.map { it.categoryPath }.toSet()
                                             val combined = (targetGwt?.list ?: emptyList()) + updates
-                                            reassignTagsForAllSubGroups(combined)
+                                            reassignTagsForAllSubGroups(combined.filter { it.categoryPath in affectedPaths })
                                         }
                                         val remaining = sourceItems.size - toMove.size
                                         if (remaining == 0) {
