@@ -1969,6 +1969,15 @@ internal fun ListManagerScreen(
                                 }) {
                                     Text(stringResource(id = R.string.switch_to_other_plugin))
                                 }
+                                TextButton(onClick = {
+                                    vm.batchDeleteInvalidItems(sourceId)
+                                    showInvalidDetail = false
+                                }) {
+                                    Text(
+                                        stringResource(id = R.string.delete),
+                                        color = MaterialTheme.colorScheme.error
+                                    )
+                                }
                             }
                             // 展开后列出该来源下具体失效配置项名称
                             if (expanded) {

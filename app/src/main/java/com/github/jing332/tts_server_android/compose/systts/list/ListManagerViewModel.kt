@@ -231,6 +231,27 @@ class ListManagerViewModel : ViewModel() {
             }
         }
 
+    /**
+     * 批量删除失效配置项。
+     * @param sourcePluginId 源插件id；null=删除全部失效项，指定=只删引用该插件的项
+     */
+    fun batchDeleteInvalidItems(sourcePluginId: String? = null) =
+        viewModelScope.launch(Dispatchers.IO) {
+            val enabledIds = _enabledPluginIds.value
+            val allItems = dbm.systemTtsV2.getAllGroupWithTts().flatMap { it.list }
+            val toDelete = allItems.filter { item ->
+                val src = (item.config as? TtsConfigurationDTO)?.source
+                val isInvalid = src is PluginTtsSource && src.pluginId !in enabledIds
+                val matchSource = sourcePluginId == null || src?.pluginId == sourcePluginId
+                isInvalid && matchSource
+            }
+            if (toDelete.isNotEmpty()) {
+                dbm.runInTransaction {
+                    dbm.systemTtsV2.delete(*toDelete.toTypedArray())
+                }
+            }
+        }
+
     fun updateTtsEnabled(
         item: SystemTtsV2,
         enabled: Boolean,
