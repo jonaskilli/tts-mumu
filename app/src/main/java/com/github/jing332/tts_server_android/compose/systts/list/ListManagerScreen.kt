@@ -906,12 +906,15 @@ internal fun ListManagerScreen(
                                     withIO {
                                         val sourceItems = sourceGwt?.list ?: emptyList()
                                         val targetGwt = models.find { it.group.id == targetGroup.id }
-                                        // 严格匹配：categoryPath + tag 都相同才能合并
+                                        // 关键词归一化匹配：从 categoryPath 提取关键词（女青年/男青年等），
+                                        // 无关键词时用原值精确匹配；tag 仍要求精确相同
+                                        fun matchKey(categoryPath: String, tag: String) =
+                                            (detectTagKeyword(categoryPath)?.prefix ?: categoryPath) to tag
                                         val targetKeys = targetGwt?.list
-                                            ?.map { it.categoryPath to (it.config as TtsConfigurationDTO).speechRule.tag }
+                                            ?.map { matchKey(it.categoryPath, (it.config as TtsConfigurationDTO).speechRule.tag) }
                                             ?.toSet() ?: emptySet()
                                         val toMove = sourceItems.filter {
-                                            (it.categoryPath to (it.config as TtsConfigurationDTO).speechRule.tag) in targetKeys
+                                            matchKey(it.categoryPath, (it.config as TtsConfigurationDTO).speechRule.tag) in targetKeys
                                         }
                                         if (toMove.isNotEmpty()) {
                                             val baseOrder = (targetGwt?.list?.maxOfOrNull { it.order } ?: -1) + 1
