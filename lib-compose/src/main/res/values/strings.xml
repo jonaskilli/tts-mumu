@@ -11,6 +11,5 @@
     <string name="start">启动</string>
     <string name="wait_for_category">等待分类</string>
     <string name="auto_next">自动下一个</string>
-    <string name="auto_group_by_locale">按语言分组</string>
 </resources>
 
