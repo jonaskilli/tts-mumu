@@ -5,7 +5,6 @@ import androidx.compose.material.icons.automirrored.filled.Sort
 import androidx.compose.material.icons.filled.DeleteForever
 import androidx.compose.material.icons.automirrored.filled.DriveFileMove
 import androidx.compose.material.icons.filled.DriveFileRenameOutline
-import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.AccountTree
 import androidx.compose.material.icons.automirrored.filled.ExitToApp
 import androidx.compose.material.icons.automirrored.filled.Label
@@ -194,13 +193,13 @@ fun Group(
                 }
             )
 
-            DropdownMenuItem(text = { Text("编辑分组") },
+            DropdownMenuItem(text = { Text(stringResource(id = R.string.edit_group_content)) },
                 onClick = {
                     dismiss()
                     showEditContentDialog = true
                 },
                 leadingIcon = {
-                    Icon(Icons.Default.Edit, null)
+                    Icon(Icons.AutoMirrored.Filled.DriveFileMove, null)
                 }
             )
 

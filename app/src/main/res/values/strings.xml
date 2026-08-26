@@ -596,7 +596,7 @@
     <string name="save_and_test">保存并测试</string>
     <string name="not_configured">未配置</string>
     <string name="restore_from_url_net">从网络直链恢复</string>
-    <string name="edit_group_content">编辑分组</string>
+    <string name="edit_group_content">从其他分组移入配置</string>
     <string name="move_to_group">移动 %1$d 项到 %2$s</string>
     <string name="create_sub_group">新建子分组</string>
     <string name="group_empty_hint">暂无配置项，可通过右下角 + 添加或菜单新建子分组</string>
