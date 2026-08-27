@@ -105,6 +105,7 @@ import com.github.jing332.database.entities.AbstractListGroup.Companion.DEFAULT_
 import com.github.jing332.database.entities.plugin.Plugin
 import com.github.jing332.database.entities.systts.BgmConfiguration
 import com.github.jing332.database.entities.systts.GroupWithSystemTts
+import com.github.jing332.database.entities.systts.JReadConfigMigration
 import androidx.compose.material3.Tab
 import androidx.compose.material3.TabRow
 import androidx.compose.ui.text.style.TextAlign
@@ -218,14 +219,15 @@ internal fun ListManagerScreen(
     // 子分组展开状态：存储已展开的子分组完整路径（持久化，默认全部折叠）
     var expandedSubGroups by remember { AppConfig.expandedSubGroups }
 
-    // 池划分：含多级嵌套子分组（categoryPath 或空子分组键含"/"，即 jread 导入的未映射多级标签）的分组归入高级池
+    // 池划分：categoryPath 本来就是或能转换成标准标签样式（女青年/男主/特殊男/旁白等，emoji 装饰忽略）→ 通用池；
+    // 任一配置或子分组键含转换不了的段（性格词、群杂等，如 男青年/稳重）→ 整组高级池
     val (normalPoolModels, advancedPoolModels) = remember(models) {
         models.partition { gwt ->
-            gwt.list.any { it.categoryPath.contains('/') } || run {
+            gwt.list.any { !JReadConfigMigration.isNormalCategoryPath(it.categoryPath) } || run {
                 val subKeysJson = gwt.group.subGroupAudioParamsJson
                 subKeysJson.isNotBlank() && subKeysJson != "{}" &&
                     SystemTtsV2.Converters.json.decodeFromString<Map<String, AudioParams>>(subKeysJson)
-                        .keys.any { it.contains('/') }
+                        .keys.any { !JReadConfigMigration.isNormalCategoryPath(it) }
             }
         }
     }

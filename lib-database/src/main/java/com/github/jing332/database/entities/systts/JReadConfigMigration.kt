@@ -178,6 +178,31 @@ object JReadConfigMigration {
         return t.split("/").all { seg -> mapGroupName(seg) != seg }
     }
 
+    /**
+     * categoryPath 是否「本来就是或能转换成标准标签样式」（如 女青年/男主/特殊男/旁白，允许 emoji 装饰前缀）。
+     * 全部段满足 → true（通用池）；任一段转换不了（性格词、群杂等）→ false（高级池）。
+     */
+    fun isNormalCategoryPath(path: String): Boolean {
+        val t = path.trim()
+        if (t.isBlank()) return true
+        return t.split("/").all { seg ->
+            val core = seg.filter { ch ->
+                val c = ch.code
+                c in 0x4E00..0x9FFF || c in 0x3400..0x4DBF || ch.isLetterOrDigit()
+            }
+            if (core.isEmpty()) true  // 纯 emoji/装饰段不参与判断
+            else isStandardSegment(core)
+        }
+    }
+
+    private fun isStandardSegment(core: String): Boolean {
+        if (core in SEQ_PREFIXES || core == "特殊男" || core == "特殊女") return true
+        if (mapGroupName(core) != core) return true
+        if (mapGenericTag(core) != core) return true
+        // 「通用旁白」等「通用+标准名」形态：剥前缀后为标准名
+        return core.removePrefix("通用").let { it != core && isStandardSegment(it) }
+    }
+
     /** 单层子分组：先尝试整串整体映射（如「女/女童」→「女童」、「男/特殊」→「特殊男」）；
      *  整体映射不上时，只有当整串每一段都能映射进 mumu 分类才逐段短名化；
      *  任一含无法映射段（性格/形容类）则整串原样保留，不做任何改名 */
