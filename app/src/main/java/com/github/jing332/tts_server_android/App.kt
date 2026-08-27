@@ -8,6 +8,7 @@ import android.os.Process
 import com.github.jing332.compose.widgets.AsyncCircleImageSettings
 import com.github.jing332.database.entities.systts.SystemTtsV2
 import com.github.jing332.deepseekproxy.ProxyService
+import com.github.jing332.deepseekproxy.proxy.LogStore
 import com.github.jing332.tts_server_android.conf.SystemTtsConfig
 import com.github.jing332.tts_server_android.conf.SystemTtsForwarderConfig
 import com.github.jing332.tts_server_android.conf.SysTtsConfig
@@ -102,9 +103,16 @@ class App : Application() {
                 switchSysTtsForwarder()
             }
 
-            // 混元太极：若上次为「已开启」状态，App 重启后自动按原状态恢复服务
+            // 混元太极：若上次为「已开启」状态，App 重启后自动按原状态恢复服务。
+            // 加固：进程可能由后台路径拉起（如系统 TTS 引擎绑定），
+            // 此时 Android 12+ 上 startForegroundService 会抛
+            // ForegroundServiceStartNotAllowedException，不捕获会导致整个 App 闪退，
+            // 且用户手动打开时为前台、无法复现（偶发闪退的根源）。此处降级为记录日志。
             if (ProxyService.isSavedRunning(this@App)) {
-                ProxyService.startFromSaved(this@App)
+                runCatching { ProxyService.startFromSaved(this@App) }
+                    .onFailure {
+                        LogStore.e("Proxy", "App 重启后自动恢复混元太极服务失败: ${it.message}")
+                    }
             }
         }
     }
