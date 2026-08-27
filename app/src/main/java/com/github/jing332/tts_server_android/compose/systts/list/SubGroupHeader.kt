@@ -93,12 +93,17 @@ fun SubGroupHeader(
         modifier = modifier
             .fillMaxWidth()
             .background(
-                if (level == 0) MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
-                else MaterialTheme.colorScheme.surface
+                when (level) {
+                    // 背景随层级递减，配合缩进体现 jread 多级子分组的从属关系
+                    0 -> MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+                    1 -> MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.25f)
+                    else -> MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.12f)
+                }
             )
             .clickable { if (!showOptions && !showExtraOptions) onClick() }
             .padding(
-                start = 8.dp,
+                // 按层级水平缩进，每级 12dp
+                start = (8 + level * 12).dp,
                 top = paddingTop,
                 bottom = paddingBottom,
                 end = 8.dp

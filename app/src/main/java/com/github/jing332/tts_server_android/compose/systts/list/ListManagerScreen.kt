@@ -3101,7 +3101,8 @@ internal fun ListManagerScreen(
                                                 Item(
                                                     reorderState = reorderState,
                                                     modifier = itemDragModifier.padding(
-                                                        start = 8.dp,
+                                                        // 配置项随所属子分组层级缩进，与二级及更深的子分组头对齐
+                                                        start = (8 + (fItem.displayLevel - 1).coerceAtLeast(0) * 12).dp,
                                                         end = 8.dp,
                                                         top = 4.dp,
                                                         bottom = 4.dp
