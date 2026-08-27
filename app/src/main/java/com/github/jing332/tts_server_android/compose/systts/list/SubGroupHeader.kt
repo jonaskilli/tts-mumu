@@ -168,7 +168,7 @@ fun SubGroupHeader(
                 .size(48.dp)
                 .combinedClickable(
                     onClick = { showOptions = true },
-                    onLongClick = { showExtraOptions = true }
+                    onLongClick = { if (itemCount > 0) showExtraOptions = true }
                 ),
             contentAlignment = Alignment.Center
         ) {
@@ -177,43 +177,45 @@ fun SubGroupHeader(
                 contentDescription = "更多选项"
             )
 
-            // 长按菜单：仅启用相关功能
+            // 长按菜单：仅启用相关功能，仅组内非空时显示
             DropdownMenu(
                 expanded = showExtraOptions,
                 onDismissRequest = { showExtraOptions = false }
             ) {
-                DropdownMenuItem(
-                    text = { Text("删除启用的配置") },
-                    onClick = {
-                        showExtraOptions = false
-                        onDeleteEnabled()
-                    },
-                    leadingIcon = {
-                        Icon(Icons.Default.DeleteForever, null)
-                    }
-                )
+                if (itemCount > 0) {
+                    DropdownMenuItem(
+                        text = { Text("删除启用的配置") },
+                        onClick = {
+                            showExtraOptions = false
+                            onDeleteEnabled()
+                        },
+                        leadingIcon = {
+                            Icon(Icons.Default.DeleteForever, null)
+                        }
+                    )
 
-                DropdownMenuItem(
-                    text = { Text("删除未启用的配置") },
-                    onClick = {
-                        showExtraOptions = false
-                        onDeleteDisabled()
-                    },
-                    leadingIcon = {
-                        Icon(Icons.Default.DeleteForever, null)
-                    }
-                )
+                    DropdownMenuItem(
+                        text = { Text("删除未启用的配置") },
+                        onClick = {
+                            showExtraOptions = false
+                            onDeleteDisabled()
+                        },
+                        leadingIcon = {
+                            Icon(Icons.Default.DeleteForever, null)
+                        }
+                    )
 
-                DropdownMenuItem(
-                    text = { Text("移动启用配置到其他分组") },
-                    onClick = {
-                        showExtraOptions = false
-                        onMoveEnabledToGroup()
-                    },
-                    leadingIcon = {
-                        Icon(Icons.AutoMirrored.Filled.DriveFileMove, null)
-                    }
-                )
+                    DropdownMenuItem(
+                        text = { Text("移动启用配置到其他分组") },
+                        onClick = {
+                            showExtraOptions = false
+                            onMoveEnabledToGroup()
+                        },
+                        leadingIcon = {
+                            Icon(Icons.AutoMirrored.Filled.DriveFileMove, null)
+                        }
+                    )
+                }
             }
 
             // 主菜单：与启用状态无关的功能
@@ -232,7 +234,7 @@ fun SubGroupHeader(
                     }
                 )
 
-                DropdownMenuItem(
+                if (itemCount > 0) DropdownMenuItem(
                     text = { Text("排序") },
                     onClick = {
                         showOptions = false
@@ -279,7 +281,7 @@ fun SubGroupHeader(
                     }
                 )
 
-                DropdownMenuItem(
+                if (itemCount > 0) DropdownMenuItem(
                     text = { Text("导出") },
                     onClick = {
                         showOptions = false
