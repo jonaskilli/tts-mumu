@@ -144,6 +144,19 @@ object JReadConfigMigration {
      * - third 若以 sub 为前缀展开（如 sub=「女童」, third=「女童/活泼」），只追加 sub 之下的性格子段「活泼」，避免「/女童/女童」冗余。
      */
     private fun buildCategoryPath(subRaw: String, thirdRaw: String): String {
+        // 只有 sub 与 third 两层都能整段映射进 mumu 分类时才做短名归一化；
+        // 任一含无法映射段（如性格词「活泼」「可爱」)则整条原样保留，不做任何改名。
+        val subMappable = isFullyMappable(subRaw)
+        val thirdMappable = isFullyMappable(thirdRaw)
+        if (!subMappable || !thirdMappable) {
+            // 原样保留：仅剥离 sub==third 的完全重复层及「sub/子段」前缀冗余，名词一律不动
+            val sub = subRaw.trim()
+            val third = thirdRaw.trim()
+            if (sub.isBlank()) return third
+            if (third.isBlank() || third == sub) return sub
+            val rest = if (third.startsWith("$sub/")) third.removePrefix("$sub/") else third
+            return if (rest.isBlank()) sub else "$sub/$rest"
+        }
         val sub = normalizeCategoryPathSingle(subRaw)
         val third = normalizeCategoryPathSingle(thirdRaw)
         val segs = buildList {
@@ -156,17 +169,26 @@ object JReadConfigMigration {
         return segs.joinToString("/")
     }
 
-    /** 单层子分组：先尝试把整串作为整体映射（如「男/特殊」→「特殊男」，不该拆成两级）；
-     *  整体映射不上再按 "/" 拆段各段映射（如「女性儿童/活泼」→「女童/活泼」），原样保留无法映射段 */
+    /** 一段子分组名能否完全映射进 mumu 标准分类：整串整体可映射（如「男/特殊」）、
+     *  或分段每一层都可映射（已是短名或能转短名）均视为可映射；含性格/形容类则 false */
+    private fun isFullyMappable(raw: String): Boolean {
+        val t = raw.trim()
+        if (t.isBlank()) return true
+        if (mapGroupName(t) != t) return true
+        return t.split("/").all { seg -> mapGroupName(seg) != seg }
+    }
+
+    /** 单层子分组：先尝试整串整体映射（如「女/女童」→「女童」、「男/特殊」→「特殊男」）；
+     *  整体映射不上时，只有当整串每一段都能映射进 mumu 分类才逐段短名化；
+     *  任一含无法映射段（性格/形容类）则整串原样保留，不做任何改名 */
     private fun normalizeCategoryPathSingle(raw: String): String {
-        if (raw.isBlank()) return raw
-        // 整体能映射（例如斜杠式「女/女童」「男/特殊」）则优先整段处理
-        val whole = mapGroupName(raw)
-        if (whole != raw) return whole
-        return raw.split("/").joinToString("/") { seg ->
-            val mapped = mapGroupName(seg)
-            if (mapped == seg) seg else mapped
-        }
+        val t = raw.trim()
+        if (t.isBlank()) return t
+        val whole = mapGroupName(t)
+        if (whole != t) return whole
+        val segs = t.split("/")
+        if (segs.any { mapGroupName(it) == it }) return t
+        return segs.joinToString("/") { mapGroupName(it) }
     }
 
     /**
@@ -228,7 +250,8 @@ object JReadConfigMigration {
     private fun formatSeq(prefix: String, seq: Int): String =
         if (prefix in NO_ZERO_PAD_PREFIXES) seq.toString() else String.format("%02d", seq)
 
-    private val NO_ZERO_PAD_PREFIXES = setOf("男主", "特殊男", "特殊女")
+    // 与用户实际使用的标签一致：男主不补零（男主1…男主5），其余（含特殊男/特殊女、女主01…）均两位补零
+    private val NO_ZERO_PAD_PREFIXES = setOf("男主")
 
     private val SEQ_PREFIXES = setOf(
         "女童", "少女", "女青年", "女中年", "女老年",
