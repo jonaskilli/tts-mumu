@@ -156,9 +156,13 @@ object JReadConfigMigration {
         return segs.joinToString("/")
     }
 
-    /** 单层子分组：按 "/" 拆段后各段单独立名转换，原样保留无法映射段 */
+    /** 单层子分组：先尝试把整串作为整体映射（如「男/特殊」→「特殊男」，不该拆成两级）；
+     *  整体映射不上再按 "/" 拆段各段映射（如「女性儿童/活泼」→「女童/活泼」），原样保留无法映射段 */
     private fun normalizeCategoryPathSingle(raw: String): String {
         if (raw.isBlank()) return raw
+        // 整体能映射（例如斜杠式「女/女童」「男/特殊」）则优先整段处理
+        val whole = mapGroupName(raw)
+        if (whole != raw) return whole
         return raw.split("/").joinToString("/") { seg ->
             val mapped = mapGroupName(seg)
             if (mapped == seg) seg else mapped
@@ -198,7 +202,12 @@ object JReadConfigMigration {
         }
         Regex("^(男|女)/(男童|女童|少年|少女|男青年|女青年|男中年|女中年|男老年|女老年|特殊)(\\d{1,3})$")
             .matchEntire(t)?.let { m ->
-                val prefix = m.groupValues[2]
+                // 特殊类必须保留性别前缀成「特殊男/特殊女」，否则 mumu 无法区分对话角且规则读不到该前缀
+                val prefix = if (m.groupValues[2] == "特殊") {
+                    if (m.groupValues[1] == "男") "特殊男" else "特殊女"
+                } else {
+                    m.groupValues[2]
+                }
                 return prefix + formatSeq(prefix, m.groupValues[3].toInt())
             }
         // 音色长名式：女性青年/通用01 → 女青年01（按 JRead old286 转换表反向）
@@ -217,7 +226,9 @@ object JReadConfigMigration {
     }
 
     private fun formatSeq(prefix: String, seq: Int): String =
-        if (prefix == "男主") seq.toString() else String.format("%02d", seq)
+        if (prefix in NO_ZERO_PAD_PREFIXES) seq.toString() else String.format("%02d", seq)
+
+    private val NO_ZERO_PAD_PREFIXES = setOf("男主", "特殊男", "特殊女")
 
     private val SEQ_PREFIXES = setOf(
         "女童", "少女", "女青年", "女中年", "女老年",
