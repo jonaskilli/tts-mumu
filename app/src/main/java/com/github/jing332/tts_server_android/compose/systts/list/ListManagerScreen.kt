@@ -2093,126 +2093,37 @@ internal fun ListManagerScreen(
         }
     }
 
-    // 多选删除分组：删除前确认对话框
+    // 多选删除分组：简单确认对话框（直接删除已选中的分组，不再重复选择）
     var showDeleteSelectedDialog by remember { mutableStateOf(false) }
-    // 删除弹窗内选中的分组（独立于列表预选，打开弹窗时初始化）
-    var deleteSourcesSelected by remember { mutableStateOf<Set<Long>>(emptySet()) }
-    // 二次确认：首次点「删除(N)」仅进入待确认态，再点「确认删除」才真正执行
-    var deleteConfirmArmed by remember { mutableStateOf(false) }
     if (showDeleteSelectedDialog) {
-        val deleteTargets = models.filter { it.group.id in deleteSourcesSelected }
-        // 勾选变化时重置二次确认状态，避免残留
-        LaunchedEffect(deleteSourcesSelected) { deleteConfirmArmed = false }
-        val screenHeight = LocalConfiguration.current.screenHeightDp.dp
-        Dialog(
-            onDismissRequest = {
-                showDeleteSelectedDialog = false
-                deleteConfirmArmed = false
+        val deleteTargets = models.filter { it.group.id in selectedGroupIds }
+        AlertDialog(
+            onDismissRequest = { showDeleteSelectedDialog = false },
+            title = { Text("删除分组") },
+            text = { Text("确定删除选中的 ${deleteTargets.size} 个分组及其音色配置吗？") },
+            confirmButton = {
+                TextButton(onClick = {
+                    showDeleteSelectedDialog = false
+                    showTagOrganizeLoading = true
+                    scope.launch {
+                        withIO {
+                            deleteTargets.forEach { gwt ->
+                                dbm.systemTtsV2.delete(*gwt.list.toTypedArray())
+                                dbm.systemTtsV2.deleteGroup(gwt.group)
+                            }
+                        }
+                        selectedGroupIds = emptySet()
+                        selectionMode = false
+                        showTagOrganizeLoading = false
+                    }
+                }) { Text("删除", color = MaterialTheme.colorScheme.error) }
             },
-            properties = DialogProperties(usePlatformDefaultWidth = false)
-        ) {
-            Surface(
-                shape = MaterialTheme.shapes.large,
-                tonalElevation = 6.dp,
-                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp)
-            ) {
-                Column(Modifier.padding(20.dp)) {
-                    Text("删除分组", style = MaterialTheme.typography.titleLarge)
-                    Spacer(Modifier.height(12.dp))
-                    Column(
-                        modifier = Modifier
-                            .heightIn(max = screenHeight * 0.7f)
-                            .verticalScroll(rememberScrollState())
-                    ) {
-                        if (models.isEmpty()) {
-                            Text("没有可删除的分组。")
-                        } else {
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Text("选择要删除的分组：")
-                                TextButton(onClick = {
-                                    deleteSourcesSelected =
-                                        if (deleteSourcesSelected.size == models.size) emptySet()
-                                        else models.map { it.group.id }.toSet()
-                                }) {
-                                    Text(if (deleteSourcesSelected.size == models.size) "取消全选" else "全选")
-                                }
-                            }
-                            models.forEach { gwt ->
-                                Row(
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .clickable {
-                                            deleteSourcesSelected = if (gwt.group.id in deleteSourcesSelected)
-                                                deleteSourcesSelected - gwt.group.id
-                                            else deleteSourcesSelected + gwt.group.id
-                                        }
-                                ) {
-                                    Checkbox(
-                                        checked = gwt.group.id in deleteSourcesSelected,
-                                        onCheckedChange = {
-                                            deleteSourcesSelected = if (it) deleteSourcesSelected + gwt.group.id
-                                            else deleteSourcesSelected - gwt.group.id
-                                        }
-                                    )
-                                    Text(gwt.group.name)
-                                }
-                            }
-                        }
-                    }
-                    Spacer(Modifier.height(8.dp))
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.End)
-                    ) {
-                        TextButton(onClick = {
-                            showDeleteSelectedDialog = false
-                            deleteConfirmArmed = false
-                        }) {
-                            Text(stringResource(R.string.cancel))
-                        }
-                        TextButton(
-                            enabled = deleteTargets.isNotEmpty(),
-                            onClick = {
-                                if (!deleteConfirmArmed) {
-                                    deleteConfirmArmed = true
-                                } else {
-                                    showDeleteSelectedDialog = false
-                                    deleteConfirmArmed = false
-                                    showTagOrganizeLoading = true
-                                    scope.launch {
-                                        withIO {
-                                            deleteTargets.forEach { gwt ->
-                                                dbm.systemTtsV2.delete(*gwt.list.toTypedArray())
-                                                dbm.systemTtsV2.deleteGroup(gwt.group)
-                                            }
-                                        }
-                                        deleteSourcesSelected = emptySet()
-                                        selectedGroupIds = emptySet()
-                                        selectionMode = false
-                                        showTagOrganizeLoading = false
-                                    }
-                                }
-                            }
-                        ) {
-                            Text(
-                                when {
-                                    deleteTargets.isEmpty() -> "删除"
-                                    deleteConfirmArmed -> "确认删除 (${deleteTargets.size})"
-                                    else -> "删除 (${deleteTargets.size})"
-                                },
-                                color = if (deleteTargets.isNotEmpty()) MaterialTheme.colorScheme.error
-                                else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f)
-                            )
-                        }
-                    }
+            dismissButton = {
+                TextButton(onClick = { showDeleteSelectedDialog = false }) {
+                    Text(stringResource(R.string.cancel))
                 }
             }
-        }
+        )
     }
 
     val listState = rememberLazyListState()
@@ -2627,7 +2538,6 @@ internal fun ListManagerScreen(
                         }
                         TextButton(onClick = {
                             if (selectedGroupIds.isNotEmpty()) {
-                                deleteSourcesSelected = selectedGroupIds
                                 showDeleteSelectedDialog = true
                             }
                         }) {
