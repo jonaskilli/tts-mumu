@@ -38,7 +38,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.util.fastRoundToInt
 import com.github.jing332.compose.widgets.TextFieldDialog
 import com.github.jing332.tts_server_android.R
-import com.github.jing332.tts_server_android.service.systts.help.InnerThoughtAiClassifier
 import com.github.jing332.tts_server_android.conf.AppConfig
 import com.github.jing332.tts_server_android.conf.SystemTtsConfig
 import com.github.jing332.tts.loudness.SpeakerLoudnessManager
@@ -272,19 +271,9 @@ internal fun ColumnScope.SysttsSettingsScreen(modifier: Modifier = Modifier) {
     var aiEnabled by remember { SystemTtsConfig.isInnerThoughtAiEnabled }
     SwitchPreference(
         title = { Text("启用心声 AI 判定") },
-        subTitle = { Text("正则拿不准时调用 AI 判断（密钥用角色管理插件的当前密钥）") },
+        subTitle = { Text("正则拿不准时调用 AI 判断") },
         checked = aiEnabled,
         onCheckedChange = { aiEnabled = it },
-        icon = { Icon(Icons.Default.Psychology, null) }
-    )
-
-    var aiSourceDesc by remember {
-        mutableStateOf(InnerThoughtAiClassifier.describeCredentialSource())
-    }
-    BasePreferenceWidget(
-        onClick = { aiSourceDesc = InnerThoughtAiClassifier.describeCredentialSource() },
-        title = { Text("密钥状态") },
-        subTitle = { Text(aiSourceDesc) },
         icon = { Icon(Icons.Default.Psychology, null) }
     )
 
