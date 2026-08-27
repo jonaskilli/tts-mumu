@@ -150,31 +150,34 @@ fun Group(
         } else null,
         index = index,
         extraActions = { dismiss ->
-            DropdownMenuItem(text = { Text("删除启用的配置") },
-                onClick = {
-                    dismiss()
-                    onDeleteEnabled()
-                },
-                leadingIcon = { Icon(Icons.Default.DeleteForever, null) }
-            )
+            // 这些操作针对组内配置项，空分组（无配置项）时无意义，隐藏
+            if (itemCount > 0) {
+                DropdownMenuItem(text = { Text("删除启用的配置") },
+                    onClick = {
+                        dismiss()
+                        onDeleteEnabled()
+                    },
+                    leadingIcon = { Icon(Icons.Default.DeleteForever, null) }
+                )
 
-            DropdownMenuItem(text = { Text("删除未启用的配置") },
-                onClick = {
-                    dismiss()
-                    onDeleteDisabled()
-                },
-                leadingIcon = { Icon(Icons.Default.DeleteForever, null) }
-            )
+                DropdownMenuItem(text = { Text("删除未启用的配置") },
+                    onClick = {
+                        dismiss()
+                        onDeleteDisabled()
+                    },
+                    leadingIcon = { Icon(Icons.Default.DeleteForever, null) }
+                )
 
-            DropdownMenuItem(text = { Text("移动启用配置到其他分组") },
-                onClick = {
-                    dismiss()
-                    onMoveEnabledToGroup()
-                },
-                leadingIcon = {
-                    Icon(Icons.AutoMirrored.Filled.DriveFileMove, null)
-                }
-            )
+                DropdownMenuItem(text = { Text("移动启用配置到其他分组") },
+                    onClick = {
+                        dismiss()
+                        onMoveEnabledToGroup()
+                    },
+                    leadingIcon = {
+                        Icon(Icons.AutoMirrored.Filled.DriveFileMove, null)
+                    }
+                )
+            }
         },
         actions = { dismiss ->
             DropdownMenuItem(text = { Text(stringResource(id = R.string.rename)) },
@@ -187,15 +190,18 @@ fun Group(
                 }
             )
 
-            DropdownMenuItem(text = { Text(stringResource(id = R.string.sort)) },
-                onClick = {
-                    dismiss()
-                    onSort()
-                },
-                leadingIcon = {
-                    Icon(Icons.AutoMirrored.Default.Sort, null)
-                }
-            )
+            // 排序：空分组（无配置项且无子分组）时无意义，隐藏
+            if (itemCount > 0 || hasSubGroups) {
+                DropdownMenuItem(text = { Text(stringResource(id = R.string.sort)) },
+                    onClick = {
+                        dismiss()
+                        onSort()
+                    },
+                    leadingIcon = {
+                        Icon(Icons.AutoMirrored.Default.Sort, null)
+                    }
+                )
+            }
 
             DropdownMenuItem(text = { Text(stringResource(id = R.string.edit_group_content)) },
                 onClick = {
@@ -282,8 +288,8 @@ fun Group(
                 )
             }
 
-            // 合并同类配置项到其他分组：将本分组的配置项按 categoryPath 匹配归入目标分组
-            if (onMergeGroup != null) {
+            // 合并同类配置项到其他分组：将本分组的配置项按 categoryPath 匹配归入目标分组；空分组（无配置项）无意义，隐藏
+            if (onMergeGroup != null && itemCount > 0) {
                 DropdownMenuItem(text = { Text("合并同类配置项到其他分组") },
                     onClick = {
                         dismiss()
@@ -295,8 +301,8 @@ fun Group(
                 )
             }
 
-            // 修改子分组前缀：批量替换子分组名开头文字(加/去/换前缀)
-            if (onRenameSubPrefix != null) {
+            // 修改子分组前缀：批量替换子分组名开头文字(加/去/换前缀)；无子分组时无意义，隐藏
+            if (onRenameSubPrefix != null && hasSubGroups) {
                 DropdownMenuItem(text = { Text("修改子分组前缀") },
                     onClick = {
                         dismiss()
