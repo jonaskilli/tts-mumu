@@ -23,11 +23,33 @@ import java.util.concurrent.Executors
 
 /**
  * 插件「按分类入库」：从插件管理界面入口一次性遍历插件全部分类（getLocales），
- * 拉取每个分类下所有音色（getVoices），以插件自身分类名原样落为所选分组下的子分组。
+ * 拉取每个分类下所有音色（getVoices）落为所选分组下的子分组。
+ * 分类名可映射到标准人群词（男女童少青中老/特殊/旁白/男女主）则归一命名并打朗读标签；
+ * 无法映射的性格类等分类原样入库，不带标签。
  *
  * 与编辑页保存共用 resolveSampleRateBySynth；本类独立实例化引擎，不依赖任何已打开的编辑界面。
  */
 object PluginCategoryImporter {
+
+    /** 标准人群关键词：与列表页整理标签共用同一套词表（取最长匹配） */
+    private val TAG_KEYWORDS = listOf(
+        "女童", "少女", "女青年", "女中年", "女老年",
+        "男童", "少年", "男青年", "男中年", "男老年",
+        "特殊女", "特殊男", "女主", "男主", "旁白"
+    )
+
+    /** 这些前缀的标签在朗读规则里不补零（男主1…男主20），与其余两位补零一致 */
+    private val NO_ZERO_PAD_PREFIXES = setOf("男主", "特殊男", "特殊女")
+
+    /**
+     * 插件分类名 → 标准人群名；不可映射返回 null（调用方原样入库且不打标签）。
+     * 先归一"女性/男性"与常见修饰后缀，再按最长关键词命中。
+     */
+    internal fun mapTagCategory(raw: String): String? {
+        var s = raw.trim().removeSuffix("通用").removeSuffix("发音人").removeSuffix("音色").trim()
+        s = s.replace("女性", "女").replace("男性", "男")
+        return TAG_KEYWORDS.filter { s.contains(it) }.maxByOrNull { it.length }
+    }
 
     /**
      * @param targetGroupId 目标分组（菜单入口先让用户选）
@@ -86,8 +108,11 @@ object PluginCategoryImporter {
             var processed = 0
 
             engine.getLocales().forEach { (poolId, poolName) ->
-                val category = poolName.trim()
-                if (category.isBlank()) return@forEach
+                val rawName = poolName.trim()
+                if (rawName.isBlank()) return@forEach
+                // 可映射 → 标准人群名（序号+标签）；不可映射 → 原样名、无标签
+                val category = mapTagCategory(rawName)
+                val subGroupName = category ?: rawName
 
                 val voices = runCatching { engine.getVoices(poolId) }.getOrNull().orEmpty()
                     .filter { it.id.isNotBlank() }
@@ -95,28 +120,33 @@ object PluginCategoryImporter {
                     processed++
                     onProgress("正在导入 ${processed}：${voice.name}")
 
-                    // 各分类序号起点接库中已有数量，避免重号
-                    val cachedCount = categoryCountMap.getOrDefault(category, 0)
+                    // 各子分组序号起点接库中已有数量，避免重号
+                    val cachedCount = categoryCountMap.getOrDefault(subGroupName, 0)
                     val existing = if (cachedCount == 0) {
                         withContext(Dispatchers.IO) {
-                            dbm.systemTtsV2.getByGroup(targetGroupId).count { it.categoryPath == category }
+                            dbm.systemTtsV2.getByGroup(targetGroupId).count { it.categoryPath == subGroupName }
                         }
                     } else cachedCount
                     val seq = existing + 1
-                    categoryCountMap[category] = seq
+                    categoryCountMap[subGroupName] = seq
 
-                    // 标签优先由朗读规则生成；旁白为单一角色分类不带序号
-                    val tagLabel = if (category == "旁白") category
-                    else ruleEngine?.getCategoryTag(category, seq)
-                        ?: (category + String.format(java.util.Locale.US, "%02d", seq))
-                    val newRuleData = SpeechRuleInfo(
-                        target = SpeechTarget.TAG,
-                        tag = tagLabel,
-                        tagName = runCatching {
-                            ruleEngine?.getTagName(tagLabel, emptyMap())
-                        }.getOrNull()?.takeIf { it.isNotBlank() } ?: tagLabel,
-                        tagRuleId = speechRule?.ruleId ?: ""
-                    )
+                    // 无映射分类不打标签（空 SpeechRuleInfo）；旁白为单一角色分类不带序号
+                    val newRuleData = if (category == null) SpeechRuleInfo()
+                    else {
+                        val tagLabel = if (category == "旁白") category
+                        else ruleEngine?.getCategoryTag(category, seq)
+                            ?: (category + if (category in NO_ZERO_PAD_PREFIXES)
+                                seq.toString()
+                            else String.format(java.util.Locale.US, "%02d", seq))
+                        SpeechRuleInfo(
+                            target = SpeechTarget.TAG,
+                            tag = tagLabel,
+                            tagName = runCatching {
+                                ruleEngine?.getTagName(tagLabel, emptyMap())
+                            }.getOrNull()?.takeIf { it.isNotBlank() } ?: tagLabel,
+                            tagRuleId = speechRule?.ruleId ?: ""
+                        )
+                    }
 
                     val needDecode = runCatching {
                         engine.isNeedDecode(poolId, voice.id)
@@ -155,7 +185,7 @@ object PluginCategoryImporter {
                                 groupId = targetGroupId,
                                 isEnabled = false,
                                 order = baseOrder + orderSeq++,
-                                categoryPath = category,
+                                categoryPath = subGroupName,
                                 config = newConfig
                             )
                         )
