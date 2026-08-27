@@ -198,7 +198,7 @@ internal fun doAutoImport(
                 )
                 is ListImportResult.Truncated -> AutoImportResult.Truncated(result.detail)
                 is ListImportResult.Success -> {
-                    var msg = "已导入 ${result.groupCount} 组配置列表 ${result.count} 项"
+                    var msg = "已导入 ${result.groupCount} 组配置列表，共 ${result.count} 项"
                     if (result.skipped > 0) {
                         msg += "，跳过 ${result.skipped} 项"
                         // 按原因分类计数，帮助定位缺插件/直连型配置
@@ -284,7 +284,7 @@ private fun doImportReplaceRule(json: String, type: ImportType): AutoImportResul
     dbm.replaceRuleDao.updateAllOrder()
     val groups = pairs.map { it.first.name }.distinct()
     return AutoImportResult.Success(
-        pairs.size, type, "已导入 ${groups.size} 组替换规则 ${pairs.size} 条"
+        pairs.size, type, "已导入 ${groups.size} 组替换规则，共 ${pairs.size} 条"
     )
 }
 
