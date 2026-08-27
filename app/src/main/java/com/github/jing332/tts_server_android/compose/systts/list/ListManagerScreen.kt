@@ -2300,23 +2300,31 @@ internal fun ListManagerScreen(
                                         )
                                     }
                                 }
-                                TextButton(onClick = {
-                                    showInvalidDetail = false
-                                    // 进入目标插件选择，由下方 pendingSourceForPicker 分支渲染
-                                    fixSourcePluginId = sourceId
-                                    pendingSourceForPicker = sourceId
-                                }) {
-                                    Text(stringResource(id = R.string.switch_to_other_plugin))
-                                }
-                                TextButton(onClick = {
-                                    vm.batchDeleteInvalidItems(sourceId)
-                                    showInvalidDetail = false
-                                }) {
-                                    Text(
-                                        stringResource(id = R.string.delete),
-                                        color = MaterialTheme.colorScheme.error
-                                    )
-                                }
+                                // 轻量文本操作，避免双按钮撑满行宽导致分组名被挤成省略号
+                                Text(
+                                    stringResource(id = R.string.switch_to_other_plugin),
+                                    style = MaterialTheme.typography.labelLarge,
+                                    color = MaterialTheme.colorScheme.primary,
+                                    modifier = Modifier
+                                        .clickable {
+                                            showInvalidDetail = false
+                                            // 进入目标插件选择，由下方 pendingSourceForPicker 分支渲染
+                                            fixSourcePluginId = sourceId
+                                            pendingSourceForPicker = sourceId
+                                        }
+                                        .padding(horizontal = 10.dp, vertical = 10.dp)
+                                )
+                                Text(
+                                    stringResource(id = R.string.delete),
+                                    style = MaterialTheme.typography.labelLarge,
+                                    color = MaterialTheme.colorScheme.error,
+                                    modifier = Modifier
+                                        .clickable {
+                                            vm.batchDeleteInvalidItems(sourceId)
+                                            showInvalidDetail = false
+                                        }
+                                        .padding(start = 6.dp, end = 4.dp, top = 10.dp, bottom = 10.dp)
+                                )
                             }
                             // 展开后列出该来源下具体失效配置项名称
                             if (expanded) {
