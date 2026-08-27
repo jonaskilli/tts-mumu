@@ -128,8 +128,8 @@ fun SubGroupHeader(
                 .weight(1f)
         )
 
-        // 快捷入口：点击直接一键整理本子分组标签，仅子分组名含关键词时显示
-        if (hasTagKeyword) {
+        // 快捷入口：点击直接一键整理本子分组标签，仅子分组名含关键词且组内非空时显示
+        if (hasTagKeyword && itemCount > 0) {
             Icon(
                 Icons.AutoMirrored.Filled.Label,
                 contentDescription = "一键整理标签",

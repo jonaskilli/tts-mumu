@@ -145,7 +145,7 @@ fun Group(
         onToggleSelect = onToggleSelect,
         itemCount = itemCount,
         hasSubGroups = hasSubGroups,
-        quickOrganizeSubTags = if (hasSubGroups && hasSubGroupTagKeyword) {
+        quickOrganizeSubTags = if (hasSubGroups && hasSubGroupTagKeyword && itemCount > 0) {
             { onReassignAllSubGroups() }
         } else null,
         index = index,
