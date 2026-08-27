@@ -231,10 +231,13 @@ internal fun ListManagerScreen(
     }
     // 当前所在的池页签：false=通用池，true=高级池
     var showAdvancedPool by rememberSaveable { mutableStateOf(false) }
-    // 高级池为空时不显示页签，并自动切回通用池
+    // 只有一池有内容时直接展示该池；两池都有内容才显示页签
     val hasAdvancedPool = advancedPoolModels.isNotEmpty()
-    if (showAdvancedPool && !hasAdvancedPool) showAdvancedPool = false
-    val displayedModels = if (showAdvancedPool) advancedPoolModels else normalPoolModels
+    val hasNormalPool = normalPoolModels.isNotEmpty()
+    val showPoolTabs = hasAdvancedPool && hasNormalPool
+    val effectiveAdvanced = showAdvancedPool || !hasNormalPool
+    val displayedModels =
+        if (effectiveAdvanced && hasAdvancedPool) advancedPoolModels else normalPoolModels
 
     // 整理标签时的加载遮罩，避免主线程被 JS 引擎评估阻塞导致界面变灰卡住
     var showTagOrganizeLoading by remember { mutableStateOf(false) }
@@ -2725,10 +2728,10 @@ internal fun ListManagerScreen(
         }
         Column(Modifier.fillMaxSize()) {
         // 池页签：通用池 / 高级池；切换时清空搜索与多选状态，保证各池操作独立
-        // 无高级音色时隐藏页签，界面与普通列表一致
-        if (hasAdvancedPool) TabRow(selectedTabIndex = if (showAdvancedPool) 1 else 0) {
+        // 仅一池有内容时不显示页签，直接展示该池
+        if (showPoolTabs) TabRow(selectedTabIndex = if (effectiveAdvanced) 1 else 0) {
             Tab(
-                selected = !showAdvancedPool,
+                selected = !effectiveAdvanced,
                 onClick = {
                     if (showAdvancedPool) {
                         showAdvancedPool = false
@@ -2740,7 +2743,7 @@ internal fun ListManagerScreen(
                 text = { Text("通用池 (${normalPoolModels.size})") }
             )
             Tab(
-                selected = showAdvancedPool,
+                selected = effectiveAdvanced,
                 onClick = {
                     if (!showAdvancedPool) {
                         showAdvancedPool = true
