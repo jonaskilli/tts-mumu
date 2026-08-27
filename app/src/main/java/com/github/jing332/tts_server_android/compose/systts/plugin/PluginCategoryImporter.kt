@@ -23,34 +23,11 @@ import java.util.concurrent.Executors
 
 /**
  * 插件「按分类入库」：从插件管理界面入口一次性遍历插件全部分类（getLocales），
- * 拉取每个分类下所有音色（getVoices），映射为标准分类名后落为所选分组下的子分组。
+ * 拉取每个分类下所有音色（getVoices），以插件自身分类名原样落为所选分组下的子分组。
  *
  * 与编辑页保存共用 resolveSampleRateBySynth；本类独立实例化引擎，不依赖任何已打开的编辑界面。
  */
 object PluginCategoryImporter {
-
-    /** 插件分类显示名 → 应用标准分类名的归一化别名表 */
-    private val CATEGORY_ALIASES = listOf(
-        "女性青年" to "女青年", "女青年通用" to "女青年",
-        "男性青年" to "男青年", "男青年通用" to "男青年",
-        "女特殊" to "特殊女", "女性特殊" to "特殊女",
-        "男特殊" to "特殊男", "男性特殊" to "特殊男",
-        "女性童声" to "女童", "儿童女" to "女童",
-        "男性童声" to "男童", "儿童男" to "男童",
-    )
-
-    private val STANDARD_CATEGORIES =
-        listOf("女童", "男童", "女青年", "男青年", "中年女", "中年男", "老年女", "老年男", "特殊女", "特殊男", "旁白")
-
-    /** 归一化：去修饰后缀 → 精确命中标准名 → 别名表 → 标准词包含 → 兜底原名 */
-    internal fun mapToStandardCategory(raw: String): String {
-        val s = raw.trim().removeSuffix("通用").removeSuffix("发音人").trim()
-        if (s in STANDARD_CATEGORIES) return s
-        CATEGORY_ALIASES.firstOrNull { raw.contains(it.first) || s.contains(it.first) }
-            ?.let { return it.second }
-        STANDARD_CATEGORIES.firstOrNull { s.contains(it) }?.let { return it }
-        return raw.trim()
-    }
 
     /**
      * @param targetGroupId 目标分组（菜单入口先让用户选）
@@ -109,7 +86,7 @@ object PluginCategoryImporter {
             var processed = 0
 
             engine.getLocales().forEach { (poolId, poolName) ->
-                val category = mapToStandardCategory(poolName)
+                val category = poolName.trim()
                 if (category.isBlank()) return@forEach
 
                 val voices = runCatching { engine.getVoices(poolId) }.getOrNull().orEmpty()
