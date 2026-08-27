@@ -179,19 +179,6 @@ fun GroupItem(
                 .align(Alignment.CenterVertically)
                 .weight(1f)
         )
-        // 快捷入口：点击直接整理全部子分组标签，仅在含可整理子分组时由调用方传入
-        if (quickOrganizeSubTags != null) {
-            Icon(
-                Icons.AutoMirrored.Filled.Label,
-                contentDescription = "整理全部子分组标签",
-                tint = MaterialTheme.colorScheme.primary,
-                modifier = Modifier
-                    .align(Alignment.CenterVertically)
-                    .clickable { quickOrganizeSubTags() }
-                    .size(18.dp)
-                    .padding(end = 4.dp)
-            )
-        }
         // 含子分组的一级分组：标题旁显示子分组图标作为视觉区分
         if (hasSubGroups) {
             Icon(
@@ -237,6 +224,22 @@ fun GroupItem(
                     )
                 }
             )
+            }
+
+            // 快捷整理按钮：点击直接整理全部子分组标签，仅在含可整理子分组时由调用方传入；
+            // 放右侧操作区与菜单成组，标准 IconButton 触控区保证可见性与可点性
+            if (quickOrganizeSubTags != null) {
+                IconButton(
+                    onClick = quickOrganizeSubTags,
+                    modifier = Modifier.size(40.dp)
+                ) {
+                    Icon(
+                        Icons.AutoMirrored.Filled.Label,
+                        contentDescription = "整理全部子分组标签",
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(22.dp)
+                    )
+                }
             }
 
             Box(
