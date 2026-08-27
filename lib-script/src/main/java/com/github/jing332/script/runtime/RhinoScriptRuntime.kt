@@ -86,6 +86,6 @@ open class RhinoScriptRuntime(
     }
 
     protected fun ScriptableObject.defineGetter(key: String, getter: () -> Any) {
-        defineProperty(key, Supplier { getter() }, null, ScriptableObject.READONLY or ScriptableObject.PERMANENT)
+        defineProperty(key, Supplier { getter() }, null, ScriptableObject.READONLY)
     }
 }
