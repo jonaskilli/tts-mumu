@@ -989,7 +989,7 @@ internal fun ListManagerScreen(
         }
     }
 
-    // 合并到其他分组：将源分组中与目标分组 categoryPath 匹配的配置项移入目标分组
+    // 合并同类配置项到其他分组：源分组配置项整体迁入目标分组并按关键词归一化，迁完删除源分组
     var showMergeGroup by remember { mutableStateOf<SystemTtsGroup?>(null) }
     var showRenamePrefix by remember { mutableStateOf<SystemTtsGroup?>(null) }
     var mergeInsertFront by remember { mutableStateOf(false) }
@@ -1001,10 +1001,10 @@ internal fun ListManagerScreen(
         }
         AlertDialog(
             onDismissRequest = { showMergeGroup = null },
-            title = { Text("合并到其他分组") },
+            title = { Text("合并同类配置项到其他分组") },
             text = {
                 Column {
-                    Text("选择目标分组，本分组全部配置项将迁入并按关键词重新编号，迁完删除本分组：", modifier = Modifier.padding(bottom = 8.dp))
+                    Text("选择目标分组，本分组全部配置项将迁入，其中与目标子分组同类（同关键词）的自动归并、统一重新编号；迁完后本分组为空分组，自动删除不保留：", modifier = Modifier.padding(bottom = 8.dp))
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
                         modifier = Modifier.padding(bottom = 8.dp)
@@ -1073,7 +1073,7 @@ internal fun ListManagerScreen(
                                         dbm.systemTtsV2.deleteGroup(sourceGroup)
                                         withContext(Dispatchers.Main) {
                                             showTagOrganizeLoading = false
-                                            context.toast("已合并 ${sourceItems.size} 项到「${targetGroup.name}」，原分组已删除")
+                                            context.toast("已合并 ${sourceItems.size} 项到「${targetGroup.name}」，空分组已删除")
                                         }
                                     }
                                 }

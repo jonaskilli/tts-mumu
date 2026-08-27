@@ -18,12 +18,10 @@ import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Output
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
-import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Text
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.TriStateCheckbox
@@ -56,7 +54,7 @@ fun Int.sizeToToggleableState(total: Int): ToggleableState = when (this) {
     else -> ToggleableState.Indeterminate
 }
 
-@OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class, ExperimentalMaterial3Api::class)
+@OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
 @Composable
 fun GroupItem(
     modifier: Modifier,
@@ -236,29 +234,12 @@ fun GroupItem(
                     contentDescription = stringResource(id = R.string.more_options_desc, name)
                 )
 
-                // 长按扩展菜单：底部弹窗形式（动作少但重要性高的批量操作）
-                if (showExtraOptions) {
-                    ModalBottomSheet(onDismissRequest = { showExtraOptions = false }) {
-                        Text(
-                            name,
-                            style = MaterialTheme.typography.titleMedium,
-                            modifier = Modifier.padding(start = 16.dp, top = 12.dp, bottom = 8.dp)
-                        )
-                        HorizontalDivider()
-                        if (extraActions != null) extraActions!! { showExtraOptions = false }
-                    }
+                DropdownMenu(expanded = showExtraOptions, onDismissRequest = { showExtraOptions = false }) {
+                    if (extraActions != null) extraActions!! { showExtraOptions = false }
                 }
 
-                // 主菜单：底部弹窗形式，拇指热区 + 长动作列表更友好
-                if (showOptions) {
-                    ModalBottomSheet(onDismissRequest = { showOptions = false }) {
-                        Text(
-                            name,
-                            style = MaterialTheme.typography.titleMedium,
-                            modifier = Modifier.padding(start = 16.dp, top = 12.dp, bottom = 8.dp)
-                        )
-                        HorizontalDivider()
-                        actions { showOptions = false }
+                DropdownMenu(expanded = showOptions, onDismissRequest = { showOptions = false }) {
+                    actions { showOptions = false }
 
                     DropdownMenuItem(
                         text = { Text(stringResource(id = R.string.export_config)) },
@@ -291,7 +272,6 @@ fun GroupItem(
                             showDeleteDialog = true
                         }
                     )
-                    }
                 }
             }
         }

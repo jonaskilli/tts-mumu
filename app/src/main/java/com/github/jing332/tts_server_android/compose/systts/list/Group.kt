@@ -278,9 +278,9 @@ fun Group(
                 )
             }
 
-            // 合并到其他分组：将本分组的配置项按 categoryPath 匹配归入目标分组
+            // 合并同类配置项到其他分组：将本分组的配置项按 categoryPath 匹配归入目标分组
             if (onMergeGroup != null) {
-                DropdownMenuItem(text = { Text("合并到其他分组") },
+                DropdownMenuItem(text = { Text("合并同类配置项到其他分组") },
                     onClick = {
                         dismiss()
                         onMergeGroup!!()
