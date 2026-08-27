@@ -105,6 +105,9 @@ import com.github.jing332.database.entities.AbstractListGroup.Companion.DEFAULT_
 import com.github.jing332.database.entities.plugin.Plugin
 import com.github.jing332.database.entities.systts.BgmConfiguration
 import com.github.jing332.database.entities.systts.GroupWithSystemTts
+import androidx.compose.material3.Tab
+import androidx.compose.material3.TabRow
+import androidx.compose.ui.text.style.TextAlign
 import com.github.jing332.database.entities.systts.AudioParams
 import com.github.jing332.database.entities.systts.SystemTtsGroup
 import com.github.jing332.database.entities.systts.SystemTtsV2
@@ -214,6 +217,21 @@ internal fun ListManagerScreen(
 
     // 子分组展开状态：存储已展开的子分组完整路径（持久化，默认全部折叠）
     var expandedSubGroups by remember { AppConfig.expandedSubGroups }
+
+    // 池划分：含多级嵌套子分组（categoryPath 或空子分组键含"/"，即 jread 导入的未映射多级标签）的分组归入高级池
+    val (normalPoolModels, advancedPoolModels) = remember(models) {
+        models.partition { gwt ->
+            gwt.list.any { it.categoryPath.contains('/') } || run {
+                val subKeysJson = gwt.group.subGroupAudioParamsJson
+                subKeysJson.isNotBlank() && subKeysJson != "{}" &&
+                    SystemTtsV2.Converters.json.decodeFromString<Map<String, AudioParams>>(subKeysJson)
+                        .keys.any { it.contains('/') }
+            }
+        }
+    }
+    // 当前所在的池页签：false=通用池，true=高级池
+    var showAdvancedPool by rememberSaveable { mutableStateOf(false) }
+    val displayedModels = if (showAdvancedPool) advancedPoolModels else normalPoolModels
 
     // 整理标签时的加载遮罩，避免主线程被 JS 引擎评估阻塞导致界面变灰卡住
     var showTagOrganizeLoading by remember { mutableStateOf(false) }
@@ -2540,9 +2558,10 @@ internal fun ListManagerScreen(
         },
         bottomBar = {
             if (selectionMode) {
-                // 多选模式底部操作栏：全选 + 删除 + 转为子分组（条件显示）
-                val selectedGroups = models.filter { it.group.id in selectedGroupIds }
-                val allSelected = selectedGroupIds.size == models.size
+                // 多选模式底部操作栏：全选 + 删除 + 转为子分组（条件显示，范围限定当前池）
+                val selectedGroups = displayedModels.filter { it.group.id in selectedGroupIds }
+                val allSelected = displayedModels.isNotEmpty() &&
+                    selectedGroupIds.size == displayedModels.size
                 val canConvertToSubGroup = selectedGroups.isNotEmpty() &&
                     selectedGroups.none { it.list.any { tts -> tts.categoryPath.isNotBlank() } }
                 Surface(
@@ -2558,7 +2577,7 @@ internal fun ListManagerScreen(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         TextButton(onClick = {
-                            selectedGroupIds = if (allSelected) emptySet() else models.map { it.group.id }.toSet()
+                            selectedGroupIds = if (allSelected) emptySet() else displayedModels.map { it.group.id }.toSet()
                         }) {
                             Column(horizontalAlignment = Alignment.CenterHorizontally) {
                                 Icon(
@@ -2686,13 +2705,53 @@ internal fun ListManagerScreen(
                 }
             }
         }
-        LazyColumn(
+        Column(Modifier.fillMaxSize()) {
+        // 池页签：通用池 / 高级池；切换时清空搜索与多选状态，保证各池操作独立
+        TabRow(selectedTabIndex = if (showAdvancedPool) 1 else 0) {
+            Tab(
+                selected = !showAdvancedPool,
+                onClick = {
+                    if (showAdvancedPool) {
+                        showAdvancedPool = false
+                        if (isSearchMode) { isSearchMode = false; vm.setSearchKeyword("") }
+                        if (selectionMode) { selectionMode = false; selectedGroupIds = emptySet() }
+                        scope.launch { listState.scrollToItem(0) }
+                    }
+                },
+                text = { Text("通用池 (${normalPoolModels.size})") }
+            )
+            Tab(
+                selected = showAdvancedPool,
+                onClick = {
+                    if (!showAdvancedPool) {
+                        showAdvancedPool = true
+                        if (isSearchMode) { isSearchMode = false; vm.setSearchKeyword("") }
+                        if (selectionMode) { selectionMode = false; selectedGroupIds = emptySet() }
+                        scope.launch { listState.scrollToItem(0) }
+                    }
+                },
+                text = { Text("高级池 (${advancedPoolModels.size})") }
+            )
+        }
+        if (displayedModels.isEmpty()) {
+            Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                Text(
+                    if (showAdvancedPool)
+                        "暂无高级池分组\n多层嵌套的分组（如 jread 导入的未映射标签）会自动显示在这里"
+                    else "暂无通用池分组",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    textAlign = TextAlign.Center
+                )
+            }
+        } else LazyColumn(
                 Modifier
-                    .fillMaxSize()
+                    .fillMaxWidth()
+                    .weight(1f)
                     .reorderable(state = reorderState),
                 state = listState
             ) {
-                models.forEachIndexed { groupIndex, groupWithSystemTts ->
+                displayedModels.forEachIndexed { groupIndex, groupWithSystemTts ->
                     val g = groupWithSystemTts.group
                     val key = "g_${g.id}"
                     
@@ -3156,6 +3215,7 @@ internal fun ListManagerScreen(
                     Spacer(Modifier.padding(bottom = AppDefaultProperties.LIST_END_PADDING))
                 }
             }
+        }
         }
 
             DraggableVerticalScrollbar(
