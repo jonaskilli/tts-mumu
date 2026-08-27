@@ -93,6 +93,7 @@ import com.github.jing332.database.entities.plugin.Plugin
 import com.github.jing332.database.entities.systts.TtsConfigurationDTO
 import com.github.jing332.database.entities.systts.source.PluginTtsSource
 import com.github.jing332.script.JsMetadataSyncer
+import com.github.jing332.tts.speech.plugin.engine.TtsPluginUiEngineV2
 import com.github.jing332.tts_server_android.R
 import com.github.jing332.tts_server_android.compose.AppDefaultProperties
 import com.github.jing332.tts_server_android.compose.LocalNavController
