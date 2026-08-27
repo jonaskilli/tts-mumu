@@ -2762,6 +2762,9 @@ internal fun ListManagerScreen(
                                 hasSubGroups = groupWithSystemTts.list.any { it.categoryPath.isNotBlank() } ||
                                     g.subGroupAudioParamsJson.let { it.isNotBlank() && it != "{}" },
                                 hasTagKeyword = detectTagKeyword(g.name) != null,
+                                hasSubGroupTagKeyword = groupWithSystemTts.list
+                                    .filter { it.categoryPath.isNotBlank() }
+                                    .any { detectTagKeyword(it.categoryPath) != null },
                                 itemCount = groupWithSystemTts.list.size,
                                 onBatchAssignTags = {
                                     showBatchTagDialog = groupWithSystemTts.list

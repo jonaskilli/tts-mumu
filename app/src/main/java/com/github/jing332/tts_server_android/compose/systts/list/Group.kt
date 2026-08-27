@@ -50,6 +50,7 @@ fun Group(
     onCreateSubGroup: () -> Unit = {},
     hasSubGroups: Boolean = false,
     hasTagKeyword: Boolean = false,
+    hasSubGroupTagKeyword: Boolean = false,
     onBatchAssignTags: () -> Unit = {},
     onConvertToSubGroup: () -> Unit = {},
     onConvertSubGroupsToTopLevel: () -> Unit = {},
@@ -265,8 +266,8 @@ fun Group(
                 )
             }
 
-            // 整理全部子分组标签：仅含子分组时显示
-            if (hasSubGroups) {
+            // 整理全部子分组标签：含子分组且至少一个子分组名匹配关键词时显示
+            if (hasSubGroups && hasSubGroupTagKeyword) {
                 DropdownMenuItem(text = { Text("整理全部子分组标签") },
                     onClick = {
                         dismiss()
