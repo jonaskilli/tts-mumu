@@ -609,17 +609,9 @@ class PluginTtsUI : IConfigUI() {
                                                 .maxOfOrNull { it.order } ?: -1) + 1
                                             var orderSeq = 0
 
-                                            // 待保存清单，元素为 (音色, 所属语言池ID, 池显示名):
-                                            // 「全部分类」模式逐分类拉全量（无需逐个切换语言栏），
-                                            // 普通模式退化为勾选列表，locale 即当前表单所选
+                                            // 待保存清单：(音色, 语言池ID, "")，locale 即当前表单所选
                                             val importItems =
-                                                if (allPoolsSnapshot)
-                                                    vm.allLocalesVoices().flatMap { (poolId, poolName, voices) ->
-                                                        voices.map { Triple(it, poolId, poolName) }
-                                                    }
-                                                else selectedVoices.map {
-                                                    Triple(it, ttsSnapshot.locale, "")
-                                                }
+                                                selectedVoices.map { Triple(it, ttsSnapshot.locale, "") }
 
                                             importItems.forEachIndexed { voiceIdx, (voice, voiceLocale, poolName) ->
                                                 // 进度反馈：每个声音可能触发一次合成来解析采样率，

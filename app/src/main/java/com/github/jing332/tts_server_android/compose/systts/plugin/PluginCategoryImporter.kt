@@ -141,27 +141,31 @@ object PluginCategoryImporter {
                         tagRuleId = speechRule?.ruleId ?: ""
                     )
 
+                    val needDecode = runCatching {
+                        engine.isNeedDecode(poolId, voice.id)
+                    }.getOrNull() ?: true
+
+                    // 模板配置：source 不带音色（合成时按 voiceId copy），同时供采样率兜底取默认值
+                    // 注意 TtsConfigurationDTO 的 source 为必填参数，不能空构造
+                    val templateConfig = TtsConfigurationDTO(
+                        source = PluginTtsSource(pluginId = plugin.pluginId, locale = poolId),
+                        speechRule = newRuleData,
+                        audioFormat = BasicAudioFormat(isNeedDecode = needDecode)
+                    )
+
                     // 采样率解析链：JS getAudioSampleRate → 实际合成解析
                     val sampleRate = runCatching {
                         engine.getSampleRate(poolId, voice.id) ?: 0
                     }.getOrNull()?.takeIf { it > 0 } ?: resolveSampleRateBySynth(
                         provider = provider,
-                        config = TtsConfigurationDTO(),
-                        tts = PluginTtsSource(pluginId = plugin.pluginId, locale = poolId),
+                        config = templateConfig,
+                        tts = templateConfig.source,
                         voiceId = voice.id
                     )
-                    val needDecode = runCatching {
-                        engine.isNeedDecode(poolId, voice.id)
-                    }.getOrNull() ?: true
 
-                    val newConfig = TtsConfigurationDTO(
-                        source = PluginTtsSource(
-                            pluginId = plugin.pluginId,
-                            locale = poolId,
-                            voice = voice.id
-                        ),
-                        speechRule = newRuleData,
-                        audioFormat = BasicAudioFormat(sampleRate = sampleRate, isNeedDecode = needDecode)
+                    val newConfig = templateConfig.copy(
+                        audioFormat = templateConfig.audioFormat.copy(sampleRate = sampleRate),
+                        source = templateConfig.source.copy(voice = voice.id)
                     )
 
                     // 批量导入默认不启用：避免未知发音人立刻影响当前朗读
