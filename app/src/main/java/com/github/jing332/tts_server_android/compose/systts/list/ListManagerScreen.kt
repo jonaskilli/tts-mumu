@@ -1005,7 +1005,7 @@ internal fun ListManagerScreen(
             text = {
                 Column {
                     Text(
-                        "同关键词的配置项归并到目标的同名子分组，其余转为新子分组。请选择目标分组：",
+                        "子分组与目标分组有同类型标签则并入对应子分组，无则整个移入目标分组。请选择目标分组：",
                         modifier = Modifier.padding(bottom = 8.dp)
                     )
                     Row(
