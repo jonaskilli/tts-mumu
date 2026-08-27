@@ -2678,9 +2678,14 @@ internal fun ListManagerScreen(
             }
         }
         CompositionLocalProvider(LocalViewConfiguration provides fastLongPressConfig) {
-        // 树结构缓存：仅当各分组的 TTS 项内容变化时重建（展开/折叠只改 isExpanded，不改 TTS 项，
-        // 因此 hash 签名不变，树缓存命中）。避免每次展开/折叠都为所有分组重建树导致卡顿。
-        val ttsItemsSignature = remember(models) { models.map { it.list.hashCode() } }
+        // 树结构缓存：仅当各分组的 TTS 项内容或子分组定义(subGroupAudioParamsJson)变化时重建。
+        // 展开/折叠只改 isExpanded，不改 TTS 项也不改子分组定义，因此 hash 签名不变，树缓存命中，
+        // 避免每次展开/折叠都为所有分组重建树导致卡顿。
+        // 注意：空子分组仅靠 subGroupAudioParamsJson 注册，不写入 list，签名必须纳入该字段，
+        // 否则新建空子分组时 list 未变导致签名不变、树不重建，空子分组被漏显示。
+        val ttsItemsSignature = remember(models) {
+            models.map { it.list.hashCode() * 31 + it.group.subGroupAudioParamsJson.hashCode() }
+        }
         val subGroupTrees = remember(ttsItemsSignature) {
             models.associate { gwt ->
                 val subPaths: Set<String> = gwt.group.subGroupAudioParamsJson.let { jsonStr ->
