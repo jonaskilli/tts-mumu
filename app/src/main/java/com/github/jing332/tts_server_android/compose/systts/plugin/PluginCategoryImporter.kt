@@ -5,6 +5,7 @@ import com.github.jing332.database.dbm
 import com.github.jing332.database.entities.SpeechRule
 import com.github.jing332.database.entities.plugin.Plugin
 import com.github.jing332.database.entities.systts.BasicAudioFormat
+import com.github.jing332.database.entities.systts.SystemTtsGroup
 import com.github.jing332.database.entities.systts.SystemTtsV2
 import com.github.jing332.database.entities.systts.TtsConfigurationDTO
 import com.github.jing332.database.entities.systts.SpeechRuleInfo
@@ -22,10 +23,10 @@ import kotlinx.coroutines.withContext
 import java.util.concurrent.Executors
 
 /**
- * 插件「按分类入库」：从插件管理界面入口一次性遍历插件全部分类（getLocales），
- * 拉取每个分类下所有音色（getVoices）落为所选分组下的子分组。
- * 分类名可映射到标准人群词（男女童少青中老/特殊/旁白/男女主）则归一命名并打朗读标签；
- * 无法映射的性格类等分类原样入库，不带标签。
+ * 插件「按分类入库」：
+ * 1. 以插件名自动新建分组（不占用用户已有分组）
+ * 2. 拉取用户勾选的音色分类，每个分类作为子分组建在插件分组下
+ * 3. 分类名可映射到标准人群词则归一并打标签；无法映射则原样入库、不打标签
  *
  * 与编辑页保存共用 resolveSampleRateBySynth；本类独立实例化引擎，不依赖任何已打开的编辑界面。
  */
@@ -52,21 +53,20 @@ object PluginCategoryImporter {
     }
 
     /**
-     * @param targetGroupId 目标分组（菜单入口先让用户选）
+     * @param selectedPoolIds 用户在对话框中勾选的分类 poolId 列表
      * @param onProgress 进度回调，可从任意线程安全地更新 Compose 状态
      * @return 成功插入的配置项数量
      */
     suspend fun import(
         context: Context,
         plugin: Plugin,
-        targetGroupId: Long,
+        selectedPoolIds: List<String>,
         onProgress: (String) -> Unit = {},
     ): Int {
-        // Rhino 引擎线程绑定：全程固定单线程执行引擎调用
         val dispatcher = Executors.newSingleThreadExecutor().asCoroutineDispatcher()
         try {
             return withContext(dispatcher) {
-                importInternal(context, plugin, targetGroupId, onProgress)
+                importInternal(context, plugin, selectedPoolIds, onProgress)
             }
         } finally {
             dispatcher.close()
@@ -76,7 +76,7 @@ object PluginCategoryImporter {
     private suspend fun importInternal(
         context: Context,
         plugin: Plugin,
-        targetGroupId: Long,
+        selectedPoolIds: List<String>,
         onProgress: (String) -> Unit,
     ): Int {
         val engine = TtsPluginUiEngineV2(context, plugin)
@@ -94,20 +94,27 @@ object PluginCategoryImporter {
                 runCatching { SpeechRuleEngine(context, it).apply { eval() } }.getOrNull()
             }
 
-            // 数据库操作切换 IO；引擎调用保持在当前单线程
             val provider =
                 PluginTtsProvider(context, plugin).also { it.engine = engine } as TextToSpeechProvider<TextToSpeechSource>
 
+            // 以插件名自动新建分组
+            val groupName = plugin.name.ifBlank { "未命名插件" }
+            val newGroup = SystemTtsGroup(name = groupName)
+            withContext(Dispatchers.IO) {
+                dbm.systemTtsV2.insertGroup(newGroup)
+            }
+            val targetGroupId = newGroup.id
+
             val baseId = System.currentTimeMillis()
             var idSeq = 0
-            val baseOrder = withContext(Dispatchers.IO) {
-                dbm.systemTtsV2.getByGroup(targetGroupId).maxOfOrNull { it.order } ?: -1
-            } + 1
+            val baseOrder = 0
             var orderSeq = 0
             val categoryCountMap = mutableMapOf<String, Int>()
             var processed = 0
 
-            engine.getLocales().forEach { (poolId, poolName) ->
+            val locales = engine.getLocales()
+            selectedPoolIds.forEach { poolId ->
+                val poolName = locales[poolId] ?: return@forEach
                 val rawName = poolName.trim()
                 if (rawName.isBlank()) return@forEach
                 // 可映射 → 标准人群名（序号+标签）；不可映射 → 原样名、无标签
@@ -152,8 +159,6 @@ object PluginCategoryImporter {
                         engine.isNeedDecode(poolId, voice.id)
                     }.getOrNull() ?: true
 
-                    // 模板配置：DTO 的 source 声明为基类 TextToSpeechSource，
-                    // 具体类型用局部变量持有（基类无 copy），合成解析与落库各取所需
                     val src = PluginTtsSource(pluginId = plugin.pluginId, locale = poolId)
                     val templateConfig = TtsConfigurationDTO(
                         source = src,
@@ -161,7 +166,6 @@ object PluginCategoryImporter {
                         audioFormat = BasicAudioFormat(isNeedDecode = needDecode)
                     )
 
-                    // 采样率解析链：JS getAudioSampleRate → 实际合成解析
                     val sampleRate = runCatching {
                         engine.getSampleRate(poolId, voice.id) ?: 0
                     }.getOrNull()?.takeIf { it > 0 } ?: resolveSampleRateBySynth(

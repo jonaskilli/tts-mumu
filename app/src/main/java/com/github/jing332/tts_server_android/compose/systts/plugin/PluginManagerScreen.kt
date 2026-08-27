@@ -50,7 +50,6 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarDuration
 import androidx.compose.material3.SnackbarHost
@@ -91,7 +90,6 @@ import com.github.jing332.compose.widgets.AppDialog
 import com.github.jing332.compose.widgets.ShadowedDraggableItem
 import com.github.jing332.database.dbm
 import com.github.jing332.database.entities.plugin.Plugin
-import com.github.jing332.database.entities.systts.SystemTtsGroup
 import com.github.jing332.database.entities.systts.TtsConfigurationDTO
 import com.github.jing332.database.entities.systts.source.PluginTtsSource
 import com.github.jing332.script.JsMetadataSyncer
@@ -1030,20 +1028,32 @@ private fun ImportByCategoryDialog(
 ) {
     if (!visible || plugin == null) return
 
-    var groups by remember { mutableStateOf<List<SystemTtsGroup>>(emptyList()) }
-    var selectedGroupId by remember { mutableStateOf(0L) }
+    // 插件音色分类列表：poolId → poolName
+    data class CategoryItem(val poolId: String, val poolName: String, val mappedName: String?)
+    var categories by remember { mutableStateOf<List<CategoryItem>>(emptyList()) }
+    var selectedPoolIds by remember { mutableStateOf<Set<String>>(emptySet()) }
     var importing by remember { mutableStateOf(false) }
     var progressText by remember { mutableStateOf("") }
 
     LaunchedEffect(plugin.id) {
-        groups = dbm.systemTtsV2.allGroup().map { it.group }
-        if (selectedGroupId == 0L && groups.isNotEmpty())
-            selectedGroupId = groups.first().id
+        // 在主线程初始化引擎拉取分类列表（getLocales 是纯数据方法，不涉及耗时合成）
+        val engine = TtsPluginUiEngineV2(context, plugin)
+        runCatching {
+            engine.eval()
+            engine.onLoad()
+            categories = engine.getLocales().map { (id, name) ->
+                CategoryItem(id, name, mapTagCategory(name))
+            }
+            engine.destroy()
+        }
     }
+
+    val allSelected = categories.isNotEmpty() && selectedPoolIds.size == categories.size
+    val hasSelection = selectedPoolIds.isNotEmpty()
 
     AlertDialog(
         onDismissRequest = { if (!importing) onDismiss() },
-        title = { Text(if (importing) "正在按分类入库" else "按分类入库 - 选择目标分组") },
+        title = { Text(if (importing) "正在按分类入库" else "按分类入库 - ${plugin.name}") },
         text = {
             if (importing) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
@@ -1051,20 +1061,65 @@ private fun ImportByCategoryDialog(
                     Spacer(Modifier.width(12.dp))
                     Text(progressText, style = MaterialTheme.typography.bodyMedium)
                 }
+            } else if (categories.isEmpty()) {
+                Text("该插件无音色分类")
             } else {
                 Column(Modifier.verticalScroll(rememberScrollState())) {
-                    if (groups.isEmpty())
-                        Text("暂无分组，请先在配置列表创建")
-                    groups.forEach { g ->
+                    // 全选/取消全选
+                    Row(
+                        modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Checkbox(
+                            checked = allSelected,
+                            onCheckedChange = { checked ->
+                                selectedPoolIds = if (checked) categories.map { it.poolId }.toSet() else emptySet()
+                            }
+                        )
+                        Text(
+                            text = if (allSelected) "取消全选" else "全选",
+                            style = MaterialTheme.typography.bodyMedium,
+                            modifier = Modifier.padding(start = 4.dp)
+                        )
+                        Text(
+                            text = "（已选 ${selectedPoolIds.size}/${categories.size}）",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.padding(start = 8.dp)
+                        )
+                    }
+                    categories.forEach { item ->
                         Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.fillMaxWidth().clickable {
+                                selectedPoolIds = if (item.poolId in selectedPoolIds) {
+                                    selectedPoolIds - item.poolId
+                                } else {
+                                    selectedPoolIds + item.poolId
+                                }
+                            },
+                            verticalAlignment = Alignment.CenterVertically
                         ) {
-                            RadioButton(
-                                selected = selectedGroupId == g.id,
-                                onClick = { selectedGroupId = g.id }
+                            Checkbox(
+                                checked = item.poolId in selectedPoolIds,
+                                onCheckedChange = null
                             )
-                            Text(g.name, modifier = Modifier.padding(start = 4.dp))
+                            Column(modifier = Modifier.padding(start = 4.dp).weight(1f)) {
+                                // 原名
+                                Text(
+                                    text = item.poolName,
+                                    style = MaterialTheme.typography.bodyMedium
+                                )
+                                // 映射预览
+                                item.mappedName?.let { mapped ->
+                                    if (mapped != item.poolName) {
+                                        Text(
+                                            text = "→ $mapped",
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = MaterialTheme.colorScheme.primary
+                                        )
+                                    }
+                                }
+                            }
                         }
                     }
                 }
@@ -1072,16 +1127,16 @@ private fun ImportByCategoryDialog(
         },
         confirmButton = {
             TextButton(
-                enabled = !importing && selectedGroupId != 0L,
+                enabled = !importing && hasSelection,
                 onClick = {
                     importing = true
-                    val groupId = selectedGroupId
+                    val poolIds = selectedPoolIds.toList()
                     scope.launch {
                         val result = runCatching {
-                            PluginCategoryImporter.import(context, plugin, groupId) { progressText = it }
+                            PluginCategoryImporter.import(context, plugin, poolIds) { progressText = it }
                         }
                         result.fold(
-                            onSuccess = { count -> context.longToast("已导入 $count 个音色") },
+                            onSuccess = { count -> context.longToast("已导入 $count 个音色，已自动创建分组「${plugin.name}」") },
                             onFailure = { e -> context.longToast("导入失败: ${e.message}") }
                         )
                         importing = false
