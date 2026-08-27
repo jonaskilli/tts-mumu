@@ -29,58 +29,67 @@ import com.github.jing332.tts_server_android.ui.AppHelpDocumentActivity
 import java.io.File
 
 @Composable
-internal fun ColumnScope.OtherSettingsScreen() {
-    DividerPreference { Text(stringResource(R.string.other)) }
+internal fun ColumnScope.OtherSettingsScreen(search: SettingsSearch) {
+    if (!search.active())
+        DividerPreference { Text(stringResource(R.string.other)) }
     var showAboutDialog by rememberSaveable { mutableStateOf(false) }
     if (showAboutDialog)
         AboutDialog { showAboutDialog = false }
-    BasePreferenceWidget(
-        onClick = {
-            showAboutDialog = true
-        }, title = {
-            Text(stringResource(R.string.about))
-        }, icon = {
-            Icon(Icons.Default.Info, null)
-        }
-    )
+    SettingItem(search, "关于", "about", "版本", "作者") {
+        BasePreferenceWidget(
+            onClick = {
+                showAboutDialog = true
+            }, title = {
+                Text(stringResource(R.string.about))
+            }, icon = {
+                Icon(Icons.Default.Info, null)
+            }
+        )
+    }
 
     val context = LocalContext.current
-    BasePreferenceWidget(
-        onClick = {
-            context.startActivity(
-                Intent(
-                    context,
-                    AppHelpDocumentActivity::class.java
-                ).apply { action = Intent.ACTION_VIEW }
-            )
-        },
-        title = { Text(stringResource(R.string.app_help_document)) },
-        icon = {
-            Icon(Icons.AutoMirrored.Default.HelpOutline, null)
-        }
-    )
+    SettingItem(search, "帮助", "help", "文档", "教程") {
+        BasePreferenceWidget(
+            onClick = {
+                context.startActivity(
+                    Intent(
+                        context,
+                        AppHelpDocumentActivity::class.java
+                    ).apply { action = Intent.ACTION_VIEW }
+                )
+            },
+            title = { Text(stringResource(R.string.app_help_document)) },
+            icon = {
+                Icon(Icons.AutoMirrored.Default.HelpOutline, null)
+            }
+        )
+    }
 
 
     val updateCheckTrigger = LocalUpdateCheckTrigger.current
-    BasePreferenceWidget(
-        onClick = { updateCheckTrigger.value = true },
-        title = { Text(stringResource(R.string.check_update)) },
-        icon = {
-            Icon(Icons.Default.Refresh, null)
-        }
-    )
+    SettingItem(search, "检查更新", "更新", "update", "升级") {
+        BasePreferenceWidget(
+            onClick = { updateCheckTrigger.value = true },
+            title = { Text(stringResource(R.string.check_update)) },
+            icon = {
+                Icon(Icons.Default.Refresh, null)
+            }
+        )
+    }
 
 
-    BasePreferenceWidget(
-        onClick = {
-            context.clearWebViewData()
-            context.toast(R.string.clear_cache_ok)
-        },
-        title = { Text(stringResource(R.string.clear_web_data)) },
-        icon = {
-            Icon(Icons.Default.CleaningServices, null)
-        }
-    )
+    SettingItem(search, "清除网页数据", "缓存", "cache", "webview") {
+        BasePreferenceWidget(
+            onClick = {
+                context.clearWebViewData()
+                context.toast(R.string.clear_cache_ok)
+            },
+            title = { Text(stringResource(R.string.clear_web_data)) },
+            icon = {
+                Icon(Icons.Default.CleaningServices, null)
+            }
+        )
+    }
 
     // 清空数据：效果同长按软件-清除该软件数据
     var showClearDataDialog by rememberSaveable { mutableStateOf(false) }
@@ -110,12 +119,14 @@ internal fun ColumnScope.OtherSettingsScreen() {
             }
         )
     }
-    BasePreferenceWidget(
-        onClick = { showClearDataDialog = true },
-        title = { Text("清空数据") },
-        subTitle = { Text("清除本应用的所有数据") },
-        icon = {
-            Icon(Icons.Default.DeleteSweep, null)
-        }
-    )
+    SettingItem(search, "清空数据", "clear", "data", "重置应用") {
+        BasePreferenceWidget(
+            onClick = { showClearDataDialog = true },
+            title = { Text("清空数据") },
+            subTitle = { Text("清除本应用的所有数据") },
+            icon = {
+                Icon(Icons.Default.DeleteSweep, null)
+            }
+        )
+    }
 }

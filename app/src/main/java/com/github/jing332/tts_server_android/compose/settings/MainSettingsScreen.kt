@@ -6,6 +6,7 @@ import android.net.Uri
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
@@ -44,7 +45,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.nestedscroll.nestedScroll
@@ -66,6 +66,9 @@ import androidx.core.content.ContextCompat.startActivity
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SettingsScreen() {
+    var query by remember { mutableStateOf("") }
+    val search = rememberSettingsSearch(query)
+
     var showThemeDialog by remember { mutableStateOf(false) }
     if (showThemeDialog)
         ThemeSelectionDialog(
@@ -122,7 +125,7 @@ fun SettingsScreen() {
 
         Scaffold(
             contentWindowInsets = WindowInsets(0),
-            modifier = Modifier.nestedScroll(scrollBehaviour.nestedScrollConnection),
+            modifier = Modifier.nestedScroll(scrollBehavior = scrollBehaviour.nestedScrollConnection),
             topBar = {
                 NavTopAppBar(
                     title = { Text(stringResource(R.string.settings)) },
@@ -134,22 +137,36 @@ fun SettingsScreen() {
             Column(
                 Modifier
                     .padding(paddingValues)
-                    .verticalScroll(rememberScrollState())
+                    .fillMaxSize()
             ) {
-                DividerPreference { Text(stringResource(id = R.string.app_name)) }
+                SettingsSearchField(
+                    value = query,
+                    onValueChange = { query = it }
+                )
+
+                Column(
+                    Modifier
+                        .weight(1f)
+                        .verticalScroll(rememberScrollState())
+                ) {
+                    if (!search.active())
+                        DividerPreference { Text(stringResource(id = R.string.app_name)) }
 
             // 后台保活设置入口（使用 Activity 启动，与备份恢复保持一致）
-            BasePreferenceWidget(
-                onClick = {
-                    context.startActivity(
-                        Intent(context, KeepAliveSettingsActivity::class.java)
-                    )
-                },
-                title = { Text(stringResource(id = R.string.keep_alive_settings)) },
-                subTitle = { Text(stringResource(R.string.keep_alive_settings_summary)) },
-                icon = { Icon(Icons.Default.PowerSettingsNew, null) }
-            )
+            SettingItem(search, "保活", "keepalive", "后台", "alive", "自启动") {
+                BasePreferenceWidget(
+                    onClick = {
+                        context.startActivity(
+                            Intent(context, KeepAliveSettingsActivity::class.java)
+                        )
+                    },
+                    title = { Text(stringResource(id = R.string.keep_alive_settings)) },
+                    subTitle = { Text(stringResource(R.string.keep_alive_settings_summary)) },
+                    icon = { Icon(Icons.Default.PowerSettingsNew, null) }
+                )
+            }
 
+                SettingItem(search, "备份", "恢复", "backup", "restore") {
                 BasePreferenceWidget(
                     icon = {
                         Icon(Icons.Default.SettingsBackupRestore, null)
@@ -163,7 +180,9 @@ fun SettingsScreen() {
                     },
                     title = { Text(stringResource(id = R.string.backup_restore)) },
                 )
+                }
 
+                SettingItem(search, "直链", "directlink", "链接", "direct") {
                 BasePreferenceWidget(
                     icon = {
                         Icon(Icons.Default.Link, null)
@@ -176,8 +195,10 @@ fun SettingsScreen() {
                     },
                     title = { Text(stringResource(id = R.string.direct_link_settings)) },
                 )
+                }
 
                 // 转发器（从设置进入，底栏不再单独占用一栏）
+                SettingItem(search, "转发器", "forwarder", "服务器") {
                 BasePreferenceWidget(
                     icon = {
                         Icon(
@@ -213,15 +234,19 @@ fun SettingsScreen() {
                         )
                     }
                 )
+                }
 
                 // 第3项: 转发器端口快捷入口(点击弹窗改端口, 无需进入转发器页面)
+                SettingItem(search, "端口", "port", "监听") {
                 BasePreferenceWidget(
                     onClick = { showPortDialog = true },
                     icon = { Icon(Icons.Default.Lan, null) },
                     title = { Text(stringResource(id = R.string.listen_port)) },
                     subTitle = { Text(forwarderPort.toString()) }
                 )
+                }
 
+                SettingItem(search, "导入", "阅读", "legado", "一键", "引擎") {
                 BasePreferenceWidget(
                     onClick = {
                         // 第10项: 导入到阅读前必须强制开启转发器, 否则阅读无法访问接口
@@ -250,13 +275,16 @@ fun SettingsScreen() {
                     title = { Text("一键导入") },
                     subTitle = { Text("将TTS转发器引擎导入至阅读") }
                 )
+                }
 
+                SettingItem(search, "主题", "theme", "深色", "浅色", "外观") {
                 BasePreferenceWidget(
                     icon = { Icon(Icons.Default.ColorLens, null) },
                     onClick = { showThemeDialog = true },
                     title = { Text(stringResource(id = R.string.theme)) },
                     subTitle = { Text(stringResource(id = getAppTheme().stringResId)) },
                 )
+                }
 
                 val languageKeys = remember {
                     mutableListOf("").apply { addAll(AppLocale.localeMap.keys.toList()) }
@@ -269,6 +297,7 @@ fun SettingsScreen() {
                 }
 
                 var langMenu by remember { mutableStateOf(false) }
+                SettingItem(search, "语言", "language", "locale", "地区") {
                 DropdownPreference(
                     Modifier.minimumInteractiveComponentSize(),
                     expanded = langMenu,
@@ -299,7 +328,9 @@ fun SettingsScreen() {
                         )
                     }
                 }
+                }
 
+                SettingItem(search, "更新", "update", "检查", "自动") {
                 var autoCheck by remember { AppConfig.isAutoCheckUpdateEnabled }
                 SwitchPreference(
                     title = { Text(stringResource(id = R.string.auto_check_update)) },
@@ -310,7 +341,9 @@ fun SettingsScreen() {
                         Icon(Icons.Default.ArrowCircleUp, contentDescription = null)
                     }
                 )
+                }
 
+                SettingItem(search, "最近任务", "排除", "recent", "后台") {
                 var excludeFromRecent by remember { AppConfig.isExcludeFromRecent }
                 SwitchPreference(
                     title = { Text(stringResource(id = R.string.exclude_from_recent)) },
@@ -321,7 +354,9 @@ fun SettingsScreen() {
                         Icon(Icons.Default.HideSource, contentDescription = null)
                     }
                 )
+                }
 
+                SettingItem(search, "下拉", "spinner", "数量", "菜单") {
                 var maxDropdownCount by remember { AppConfig.spinnerMaxDropDownCount }
                 SliderPreference(
                     title = { Text(stringResource(id = R.string.spinner_drop_down_max_count)) },
@@ -332,11 +367,13 @@ fun SettingsScreen() {
                     valueRange = 0f..50f,
                     icon = { Icon(Icons.AutoMirrored.Filled.MenuOpen, null) }
                 )
+                }
 
-                SysttsSettingsScreen()
-                OtherSettingsScreen()
+                SysttsSettingsScreen(search)
+                OtherSettingsScreen(search)
 
                 Spacer(Modifier.navigationBarsPadding())
             }
         }
+    }
 }
