@@ -238,7 +238,8 @@ fun SubGroupHeader(
                     }
                 )
 
-                if (hasTagKeyword) {
+                // 一键整理标签：子分组名含关键词且组内非空时显示
+                if (hasTagKeyword && itemCount > 0) {
                     DropdownMenuItem(
                         text = { Text("一键整理标签") },
                         onClick = {

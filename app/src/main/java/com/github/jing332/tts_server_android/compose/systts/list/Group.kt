@@ -256,8 +256,8 @@ fun Group(
                 )
             }
 
-            // 一键整理标签：一级分组无子分组且名字匹配关键词时显示
-            if (!hasSubGroups && hasTagKeyword) {
+            // 一键整理标签：一级分组无子分组、名字匹配关键词且组内非空时显示
+            if (!hasSubGroups && hasTagKeyword && itemCount > 0) {
                 DropdownMenuItem(text = { Text("一键整理标签") },
                     onClick = {
                         dismiss()
@@ -269,8 +269,8 @@ fun Group(
                 )
             }
 
-            // 整理全部子分组标签：含子分组且至少一个子分组名匹配关键词时显示
-            if (hasSubGroups && hasSubGroupTagKeyword) {
+            // 整理全部子分组标签：含子分组、至少一个子分组名匹配关键词且组内非空时显示
+            if (hasSubGroups && hasSubGroupTagKeyword && itemCount > 0) {
                 DropdownMenuItem(text = { Text("整理全部子分组标签") },
                     onClick = {
                         dismiss()
