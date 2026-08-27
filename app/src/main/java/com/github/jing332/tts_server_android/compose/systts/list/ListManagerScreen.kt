@@ -1004,7 +1004,13 @@ internal fun ListManagerScreen(
             title = { Text("合并同类配置项到其他分组") },
             text = {
                 Column {
-                    Text("选择目标分组，本分组全部配置项将迁入，其中与目标子分组同类（同关键词）的自动归并、统一重新编号；迁完后本分组为空分组，自动删除不保留：", modifier = Modifier.padding(bottom = 8.dp))
+                    Text(
+                        "合并方式：本分组全部配置项一次性迁入所选分组\n" +
+                            "配置项：与目标子分组同关键词的归并进去，其余按原子分组名转为目标的新子分组，迁入后标签统一重新编号\n" +
+                            "原一级分组：迁空后自动删除，不保留；其子分组的音频参数定义并入目标分组，重名不覆盖\n" +
+                            "请选择目标分组：",
+                        modifier = Modifier.padding(bottom = 8.dp)
+                    )
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
                         modifier = Modifier.padding(bottom = 8.dp)
