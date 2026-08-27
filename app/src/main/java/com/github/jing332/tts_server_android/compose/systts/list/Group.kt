@@ -113,7 +113,7 @@ fun Group(
         androidx.compose.material3.AlertDialog(
             onDismissRequest = { showOrganizeConfirmDialog = false },
             title = { Text("整理全部子分组标签") },
-            text = { Text("将根据子分组名关键词自动重新编号全部标签，确定执行？") },
+            text = { Text("确定整理全部子分组标签？") },
             confirmButton = {
                 androidx.compose.material3.TextButton(onClick = {
                     showOrganizeConfirmDialog = false
