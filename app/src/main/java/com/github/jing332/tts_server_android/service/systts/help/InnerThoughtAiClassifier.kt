@@ -84,7 +84,7 @@ internal object InnerThoughtAiClassifier {
     /** 密钥来源探针(绕过缓存直读文件)，供设置页展示链路状态 */
     fun describeCredentialSource(): String {
         val c = readFileCredentials()
-            ?: return "未找到可用密钥：miyue.txt 未读取到。请在角色管理插件选择「当前密钥」或直接配置 Download/chajian/<插件目录>/miyue.txt"
+            ?: return "未找到密钥：请先在角色管理插件中选择「当前密钥」"
         val masked = if (c.second.length > 8) c.second.take(4) + "****" + c.second.takeLast(4) else "****"
         return "已连接：${c.first}｜模型 ${c.third}｜Key $masked"
     }

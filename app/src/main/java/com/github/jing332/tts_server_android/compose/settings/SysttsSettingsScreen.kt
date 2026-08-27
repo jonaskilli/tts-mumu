@@ -271,8 +271,8 @@ internal fun ColumnScope.SysttsSettingsScreen(modifier: Modifier = Modifier) {
 
     var aiEnabled by remember { SystemTtsConfig.isInnerThoughtAiEnabled }
     SwitchPreference(
-        title = { Text("启用心声 AI 兜底判定") },
-        subTitle = { Text("正则无法确定时调用 OpenAI 兼容接口判定；仅对含心理活动弱线索词的片段发起请求，带缓存与失败熔断") },
+        title = { Text("启用心声 AI 判定") },
+        subTitle = { Text("正则拿不准时调用 AI 判断（密钥用角色管理插件的当前密钥）") },
         checked = aiEnabled,
         onCheckedChange = { aiEnabled = it },
         icon = { Icon(Icons.Default.Psychology, null) }
@@ -283,7 +283,7 @@ internal fun ColumnScope.SysttsSettingsScreen(modifier: Modifier = Modifier) {
     }
     BasePreferenceWidget(
         onClick = { aiSourceDesc = InnerThoughtAiClassifier.describeCredentialSource() },
-        title = { Text("密钥来源：角色管理插件") },
+        title = { Text("密钥状态") },
         subTitle = { Text(aiSourceDesc) },
         icon = { Icon(Icons.Default.Psychology, null) }
     )
