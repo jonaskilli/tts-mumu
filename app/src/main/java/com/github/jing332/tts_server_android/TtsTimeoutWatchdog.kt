@@ -121,6 +121,10 @@ object TtsTimeoutWatchdog {
             Log.e(TAG, "检测到超时后 ${stalled}ms 无任何新日志（阈值 ${thresholdSeconds}s），判定卡死，重启 APP")
             // 先清除状态，防止重启过程中被重复触发
             lastTimeoutLogTime.set(0L)
+            // 留痕：下次进混元太极页可看到「看门狗主动重启」说明，与真实崩溃区分开
+            CrashCapture.writeNote(
+                "看门狗重启（非崩溃）：超时后 ${stalled}ms 无任何新日志（阈值 ${thresholdSeconds}s），判定卡死并主动重启 APP"
+            )
             writeRestartLog(stalled)
             restartApp()
         }

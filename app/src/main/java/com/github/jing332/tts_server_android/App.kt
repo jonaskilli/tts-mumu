@@ -25,6 +25,12 @@ import kotlinx.coroutines.GlobalScope
 import kotlinx.coroutines.launch
 // 👇 新增：NetConfig 配置所需的包
 import com.drake.net.NetConfig
+import java.io.File
+import java.io.PrintWriter
+import java.io.StringWriter
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 import java.util.concurrent.TimeUnit
 
 val app: App
@@ -53,12 +59,10 @@ class App : Application() {
         // 启动超时看门狗：独立守护线程，监测"超时后卡死"并自动重启 APP
         TtsTimeoutWatchdog.start()
 
-        // 过滤 Compose 的 LeftCompositionCancellationException，避免页面快速切换时崩溃
-        val previousHandler = Thread.getDefaultUncaughtExceptionHandler()
-        Thread.setDefaultUncaughtExceptionHandler { t, e ->
-            if (e::class.java.simpleName == "LeftCompositionCancellationException") return@setDefaultUncaughtExceptionHandler
-            previousHandler?.uncaughtException(t, e)
-        }
+        // 崩溃捕获：堆栈写入本地文件 crash_last.txt，下次进混元太极页弹窗展示，
+        // 便于没有 adb/logcat 的场景排查闪退原因。
+        // 沿用原策略：过滤 Compose 的 LeftCompositionCancellationException，避免页面快速切换时崩溃
+        CrashCapture.install()
 
         // 🛠️ 拔掉引线：暂时关闭 CrashHandler，它会触发崩溃的日志初始化
         // CrashHandler(this) 
@@ -111,5 +115,53 @@ class App : Application() {
         intent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_NEW_TASK)
         startActivity(intent)
         Runtime.getRuntime().exit(0)
+    }
+}
+
+/**
+ * 崩溃捕获：未捕获异常发生时，把线程名与完整堆栈写入 filesDir/crash_last.txt。
+ * 下次进入混元太极界面时读取该文件并弹窗展示（可一键复制），
+ * 用于没有 adb/logcat 的场景排查闪退原因；展示并关闭后删除文件避免重复弹窗。
+ */
+object CrashCapture {
+    private const val FILE_NAME = "crash_last.txt"
+
+    /** 安装全局未捕获异常处理器（App.onCreate 调用一次）。 */
+    fun install() {
+        val previous = Thread.getDefaultUncaughtExceptionHandler()
+        Thread.setDefaultUncaughtExceptionHandler { t, e ->
+            // Compose 页面快速切换的取消异常：忽略，保持进程存活（沿用原有策略）
+            if (e::class.java.simpleName == "LeftCompositionCancellationException") {
+                return@setDefaultUncaughtExceptionHandler
+            }
+            // 必须在交给系统处理器之前写文件：之后进程会终止
+            runCatching { writeCrash(e) }
+            previous?.uncaughtException(t, e)
+        }
+    }
+
+    /** 追加一条非崩溃说明（如看门狗主动重启），下次同样会以弹窗形式展示。 */
+    fun writeNote(text: String) {
+        runCatching { file().appendText("———— $text\n") }
+    }
+
+    /** 读取上次崩溃记录（无则返回 null）。 */
+    fun last(context: Context): String? {
+        if (!file().exists()) return null
+        return runCatching { file().readText() }.getOrNull()?.takeIf { it.isNotBlank() }
+    }
+
+    /** 展示后清除记录，避免重复弹窗。 */
+    fun clear(context: Context) {
+        runCatching { file().delete() }
+    }
+
+    private fun file() = File(App.instance.filesDir, FILE_NAME)
+
+    private fun writeCrash(e: Throwable) {
+        val sw = StringWriter()
+        e.printStackTrace(PrintWriter(sw))
+        val time = SimpleDateFormat("yyyy-MM-dd HH:mm:ss.SSS", Locale.getDefault()).format(Date())
+        file().writeText("崩溃时间: $time\n线程: ${Thread.currentThread().name}\n${sw}")
     }
 }

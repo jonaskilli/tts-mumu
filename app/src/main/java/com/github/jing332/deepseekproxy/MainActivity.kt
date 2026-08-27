@@ -38,11 +38,15 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.text.selection.SelectionContainer
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
@@ -51,6 +55,7 @@ import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.content.ContextCompat
 import com.github.jing332.deepseekproxy.proxy.CnbClient
 import com.github.jing332.deepseekproxy.proxy.LogStore
+import com.github.jing332.tts_server_android.CrashCapture
 import android.graphics.BitmapFactory
 import okhttp3.OkHttpClient
 import okhttp3.Request
@@ -256,6 +261,21 @@ fun App(vm: ProxyViewModel) {
         }
     }
 
+    // 上次闪退/看门狗重启记录：进入本页即弹窗展示（可一键复制），便于没有 adb/logcat 的环境排查闪退原因
+    var lastCrashText by remember { mutableStateOf<String?>(null) }
+    LaunchedEffect(Unit) {
+        CrashCapture.last(appContext)?.let { recorded ->
+            lastCrashText = recorded
+            LogStore.e("Crash", recorded.lineSequence().take(10).joinToString("\n"))
+        }
+    }
+    lastCrashText?.let { crash ->
+        CrashDialog(text = crash, onDismiss = {
+            CrashCapture.clear(appContext)
+            lastCrashText = null
+        })
+    }
+
     if (showCookieDialog) {
         CredentialPickerDialog(
             title = "选择 ${if (provider == "kimi") "Kimi" else "豆包"} Cookie",
@@ -399,6 +419,34 @@ fun App(vm: ProxyViewModel) {
             }
         }
     }
+}
+
+/** 上次崩溃/看门狗重启记录弹窗：完整展示文本，支持一键复制（复制后自动关闭）。 */
+@Composable
+private fun CrashDialog(text: String, onDismiss: () -> Unit) {
+    val clipboard = LocalClipboardManager.current
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("检测到上次异常记录") },
+        text = {
+            Column(
+                Modifier
+                    .heightIn(max = 420.dp)
+                    .verticalScroll(rememberScrollState())
+            ) {
+                Text(text, style = MaterialTheme.typography.bodySmall)
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = {
+                clipboard.setText(AnnotatedString(text))
+                onDismiss()
+            }) { Text("复制并关闭") }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text("关闭") }
+        }
+    )
 }
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
