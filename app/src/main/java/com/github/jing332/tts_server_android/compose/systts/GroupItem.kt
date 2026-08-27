@@ -150,16 +150,17 @@ fun GroupItem(
         )
 
         // 序号徽章：按当前列表顺序自动编号，排序变化自动重编
+        // 纯信息元素不用 primaryContainer 抢交互元素的注意力，用低饱和 surfaceVariant 同色系
         if (index >= 1) {
             Text(
                 "$index",
                 style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onPrimaryContainer,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier
                     .align(Alignment.CenterVertically)
                     .padding(end = 6.dp)
                     .background(
-                        MaterialTheme.colorScheme.primaryContainer,
+                        MaterialTheme.colorScheme.surfaceVariant,
                         androidx.compose.foundation.shape.RoundedCornerShape(4.dp)
                     )
                     .padding(horizontal = 6.dp, vertical = 2.dp)
