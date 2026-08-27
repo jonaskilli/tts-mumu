@@ -26,6 +26,7 @@ import com.github.jing332.database.entities.systts.JReadConfigMigration
 import com.github.jing332.database.entities.systts.SystemTtsGroup
 import com.github.jing332.database.entities.systts.SystemTtsMigration
 import com.github.jing332.database.entities.systts.SystemTtsV2
+import com.github.jing332.database.entities.systts.TtsConfigurationDTO
 import com.github.jing332.database.entities.systts.v1.GroupWithV1TTS
 import com.github.jing332.tts_server_android.R
 import com.github.jing332.tts_server_android.compose.systts.ConfigImportBottomSheet
@@ -358,7 +359,23 @@ private fun doImportList(
             val (newGroupId, newOrder) = oldToNewGroupId[group.id]!!
             groupsToInsert.add(group.copy(id = newGroupId, order = newOrder))
             for (tts in ttsList) {
-                ttsToInsert.add(tts.copy(id = baseId + 100000 + ttsSeq, groupId = newGroupId))
+                ttsToInsert.add(
+                    tts.copy(
+                        id = baseId + 100000 + ttsSeq,
+                        groupId = newGroupId,
+                        // jread 风格长名子分组 / 发音人标签导入时统一归一，无法映射则原样保留
+                        categoryPath = JReadConfigMigration.normalizeCategoryPath(tts.categoryPath),
+                        config = when (val c = tts.config) {
+                            is TtsConfigurationDTO -> {
+                                val newTag = JReadConfigMigration.normalizeTag(c.speechRule.tag)
+                                if (newTag != c.speechRule.tag) {
+                                    c.copy(speechRule = c.speechRule.copy(tag = newTag))
+                                } else c
+                            }
+                            else -> tts.config
+                        }
+                    )
+                )
                 ttsSeq++
                 imported++
                 // 每 10 项回报一次进度，使进度条更跟手

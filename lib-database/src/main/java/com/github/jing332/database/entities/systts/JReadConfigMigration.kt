@@ -4,6 +4,7 @@ import com.github.jing332.database.entities.systts.source.PluginTtsSource
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.booleanOrNull
@@ -51,14 +52,11 @@ object JReadConfigMigration {
                 if (pluginId.isBlank()) skippedNoPlugin++ else skippedUrlDirect++
                 return@forEachIndexed
             }
-            // 一级组名进 mumu 分组名（可对应的做名称转换）；二三级留在 categoryPath
+            // 一级组名进 mumu 分组名（可对应的做名称转换）；二三级压缩进 categoryPath
             val groupName = mapGroupName(o.str("groupName"))
-            val sub = mapGroupName(o.str("subGroupName"))
-            val third = mapGroupName(o.str("thirdGroupName"))
-            val categoryPath = buildList {
-                if (sub.isNotBlank()) add(sub)
-                if (third.isNotBlank()) add(third)
-            }.joinToString("/")
+            val subRaw = o.str("subGroupName")
+            val thirdRaw = o.str("thirdGroupName")
+            val categoryPath = buildCategoryPath(subRaw, thirdRaw)
             items.add(
                 SystemTtsV2(
                     id = 0,
@@ -78,7 +76,7 @@ object JReadConfigMigration {
                             locale = o.str("locale"),
                             voice = o.str("voice"),
                             pluginId = pluginId,
-                            data = parseData(o.str("data"))
+                            data = parseData(o["data"])
                         )
                     )
                 )
@@ -104,21 +102,76 @@ object JReadConfigMigration {
     }
 
     /**
-     * JRead 分组名 → mumu 分组名：仅转换能明确对应的年龄段长名式与特殊，其余（含群杂）原样保留。
-     * - 长名式「女性青年」→「女青年」；斜杠式「女/女青年」→「女青年」
+     * JRead 分组名 → mumu 分组名：仅转换能标准形象命的年龄段长名式与特殊，其余（含群养饭原样保留）。
+     * - 长名式「女性青年」→「女青年」；「女性青年甜美」（剥通用后缀）→「女青年」
+     * - 斜杠式「女/女青年」→「女青年」
      * - 特殊：「男/特殊」→「特殊男」，「女/特殊」→「特殊女」
      */
     private fun mapGroupName(raw: String): String {
         val t = raw.trim()
         if (t.isBlank()) return t
-        LONG_TO_SHORT_PREFIX[t]?.let { return it }
+        // 剥掉常见修饰后缀后随主体名，避免「女性青年」因带后缀匹配不上
+        val core = t
+            .removeSuffix("通用").removeSuffix("发音人").removeSuffix("音色")
+            .trim()
+        LONG_TO_SHORT_PREFIX[core]?.let { return it }
+        // 主角分组：「主角 女主」/「主角女主」→「女主」
+        Regex("^主角\\s?(男主|女主)$").matchEntire(core)?.let { return it.groupValues[1] }
         Regex("^[男女]/((?:女性儿童|男性儿童|女性少年|男性少年|女性青年|男性青年|女性中年|男性中年|女性老年|男性老年|特殊))$")
-            .matchEntire(t)?.let { m ->
+            .matchEntire(core)?.let { m ->
                 val inner = m.groupValues[1]
                 if (inner == "特殊") return "特殊${m.groupValues[0].removeSuffix("/特殊").replace("/", "")}"
                 return LONG_TO_SHORT_PREFIX[inner] ?: inner
             }
         return t
+    }
+
+    /**
+     * 归一化 categoryPath（以 "/" 分隔的各级子分组名）：
+     * 默认保留层级结构，仅对每级名字做标准人群名的长名→短名转换，
+     * 无法转换或非人群名（如性格类）原样保留。
+     * 供 GroupWithSystemTts 导入路径复用，使导入后缓存组的子分组名与作者列表所见一致。
+     */
+    fun normalizeCategoryPath(categoryPath: String): String {
+        if (categoryPath.isBlank()) return categoryPath
+        return normalizeCategoryPathSingle(categoryPath)
+    }
+
+    /**
+     * 由 jread 配置条目的二三级子分组名压缩成 categoryPath。
+     * - 各段先做单段人群名转换（含段内 "/" 拆分，如「女性儿童/活泼」→「女童/活泼」）；
+     * - third 若与 sub 完全相同（如主角池「主角 女主」三级重复、特殊池「男/特殊」重复）只保留一层避免「/A/A」；
+     * - third 若以 sub 为前缀展开（如 sub=「女童」, third=「女童/活泼」），只追加 sub 之下的性格子段「活泼」，避免「/女童/女童」冗余。
+     */
+    private fun buildCategoryPath(subRaw: String, thirdRaw: String): String {
+        val sub = normalizeCategoryPathSingle(subRaw)
+        val third = normalizeCategoryPathSingle(thirdRaw)
+        val segs = buildList {
+            if (sub.isNotBlank()) add(sub)
+            if (third.isNotBlank() && third != sub) {
+                // third 以 sub 为前缀展开（如 sub=「女童」, third=「女童/活泼」）时只取子段，避免「/女童/女童」冗余
+                add(if (sub.isNotBlank() && third.startsWith("$sub/")) third.removePrefix("$sub/") else third)
+            }
+        }
+        return segs.joinToString("/")
+    }
+
+    /** 单层子分组：按 "/" 拆段后各段单独立名转换，原样保留无法映射段 */
+    private fun normalizeCategoryPathSingle(raw: String): String {
+        if (raw.isBlank()) return raw
+        return raw.split("/").joinToString("/") { seg ->
+            val mapped = mapGroupName(seg)
+            if (mapped == seg) seg else mapped
+        }
+    }
+
+    /**
+     * 归一化发音人 tag：能识别的人群标签（女青年01等）做补零规范，无法识别原样保留。
+     */
+    fun normalizeTag(raw: String): String {
+        val t = raw.trim()
+        if (t.isBlank()) return t
+        return mapGenericTag(t)
     }
 
     /**
@@ -134,6 +187,11 @@ object JReadConfigMigration {
         if (t.isBlank()) return ""
         if (t.equals("narration", true) || t == "旁白") return "narration"
 
+        // 主角式带空格："主角 女主01" → "女主01"（jread 脚本保留标签的常用形式）
+        Regex("^主角\\s+(男主|女主)(\\d{1,3})$").matchEntire(t)?.let { m ->
+            val prefix = m.groupValues[1]
+            return prefix + formatSeq(prefix, m.groupValues[2].toInt())
+        }
         Regex("^主角(男主|女主)(\\d{1,3})$").matchEntire(t)?.let { m ->
             val prefix = m.groupValues[1]
             return prefix + formatSeq(prefix, m.groupValues[2].toInt())
@@ -174,10 +232,19 @@ object JReadConfigMigration {
         "女性老年" to "女老年", "男性老年" to "男老年"
     )
 
-    private fun parseData(raw: String): Map<String, String> {
-        if (raw.isBlank()) return emptyMap()
-        val obj = runCatching { Json.parseToJsonElement(raw) }.getOrNull() as? JsonObject
-            ?: return emptyMap()
+    /**
+     * 解析配置项的 data 字段：新 jread 导出里 data 是 JSON 对象（缺任一字段的标量原样保留），
+     * 旧格式可能是 JSON 字符串，两种都兼容；无法解析时返回空。
+     */
+    private fun parseData(raw: JsonElement?): Map<String, String> {
+        if (raw == null || raw == JsonNull) return emptyMap()
+        val obj = when (raw) {
+            is JsonObject -> raw
+            is JsonPrimitive -> runCatching {
+                Json.parseToJsonElement(raw.contentOrNull ?: "") as? JsonObject
+            }.getOrNull()
+            else -> null
+        } ?: return emptyMap()
         return buildMap {
             obj.forEach { (k, v) -> (v as? JsonPrimitive)?.contentOrNull?.let { put(k, it) } }
         }

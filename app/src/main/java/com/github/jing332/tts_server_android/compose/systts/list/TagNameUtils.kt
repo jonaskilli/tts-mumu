@@ -72,7 +72,17 @@ suspend fun migrateTagNamesIfNeed(context: Context, force: Boolean = false) {
             val config = systts.config as? TtsConfigurationDTO ?: continue
             val ruleData = config.speechRule
             val ruleId = ruleData.tagRuleId
-            if (ruleId.isBlank()) continue
+            if (ruleId.isBlank()) {
+                // 未关联朗读规则：无法用 JS 算出显示名，则把已分配的原始 tag 直接作为显示名（如 jread 导入的女青年01）
+                if (ruleData.tag.isNotBlank() && ruleData.tagName.isBlank()) {
+                    updated.add(
+                        systts.copy(
+                            config = config.copy(speechRule = ruleData.copy(tagName = ruleData.tag))
+                        )
+                    )
+                }
+                continue
+            }
 
             val speechRule = ruleCache.getOrPut(ruleId) {
                 runCatching { dbm.speechRuleDao.getByRuleId(ruleId) }.getOrNull()
