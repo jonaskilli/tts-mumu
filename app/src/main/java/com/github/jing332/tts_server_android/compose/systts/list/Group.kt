@@ -145,6 +145,9 @@ fun Group(
         onToggleSelect = onToggleSelect,
         itemCount = itemCount,
         hasSubGroups = hasSubGroups,
+        quickOrganizeSubTags = if (hasSubGroups && hasSubGroupTagKeyword) {
+            { onReassignAllSubGroups() }
+        } else null,
         index = index,
         extraActions = { dismiss ->
             DropdownMenuItem(text = { Text("删除启用的配置") },

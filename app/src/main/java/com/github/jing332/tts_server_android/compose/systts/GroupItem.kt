@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.Label
 import androidx.compose.material.icons.filled.AccountTree
 import androidx.compose.material.icons.filled.DeleteForever
 import androidx.compose.material.icons.filled.ExpandCircleDown
@@ -75,6 +76,7 @@ fun GroupItem(
     index: Int = -1,
     actions: @Composable ColumnScope.(() -> Unit) -> Unit,
     extraActions: (@Composable ColumnScope.(() -> Unit) -> Unit)? = null,
+    quickOrganizeSubTags: (() -> Unit)? = null,
     // 多选模式下点击分组名/行是否切换选中：true=点击行选中(系统TTS默认), false=仅右侧方框选中, 点击名/行展开(替换规则)
     selectOnRowClick: Boolean = true,
 ) {
@@ -173,6 +175,19 @@ fun GroupItem(
                 .align(Alignment.CenterVertically)
                 .weight(1f)
         )
+        // 快捷入口：点击直接整理全部子分组标签，仅在含可整理子分组时由调用方传入
+        if (quickOrganizeSubTags != null) {
+            Icon(
+                Icons.AutoMirrored.Filled.Label,
+                contentDescription = "整理全部子分组标签",
+                tint = MaterialTheme.colorScheme.primary,
+                modifier = Modifier
+                    .align(Alignment.CenterVertically)
+                    .clickable { quickOrganizeSubTags() }
+                    .size(18.dp)
+                    .padding(end = 4.dp)
+            )
+        }
         // 含子分组的一级分组：标题旁显示子分组图标作为视觉区分
         if (hasSubGroups) {
             Icon(
