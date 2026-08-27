@@ -99,11 +99,30 @@ fun Group(
 
     val context = LocalContext.current
     var showEditContentDialog by remember { mutableStateOf(false) }
+    var showOrganizeConfirmDialog by remember { mutableStateOf(false) }
 
     if (showEditContentDialog) {
         GroupEditContentDialog(
             group = group,
             onDismissRequest = { showEditContentDialog = false }
+        )
+    }
+
+    // 快捷整理按钮的二次确认：批量重新编号全部子分组标签，误触需拦截
+    if (showOrganizeConfirmDialog) {
+        androidx.compose.material3.AlertDialog(
+            onDismissRequest = { showOrganizeConfirmDialog = false },
+            title = { Text("整理全部子分组标签") },
+            text = { Text("将根据子分组名关键词自动重新编号全部标签，确定执行？") },
+            confirmButton = {
+                androidx.compose.material3.TextButton(onClick = {
+                    showOrganizeConfirmDialog = false
+                    onReassignAllSubGroups()
+                }) { Text("确定") }
+            },
+            dismissButton = {
+                androidx.compose.material3.TextButton(onClick = { showOrganizeConfirmDialog = false }) { Text("取消") }
+            }
         )
     }
 
@@ -146,7 +165,7 @@ fun Group(
         itemCount = itemCount,
         hasSubGroups = hasSubGroups,
         quickOrganizeSubTags = if (hasSubGroups && hasSubGroupTagKeyword && itemCount > 0) {
-            { onReassignAllSubGroups() }
+            { showOrganizeConfirmDialog = true }
         } else null,
         index = index,
         extraActions = { dismiss ->
