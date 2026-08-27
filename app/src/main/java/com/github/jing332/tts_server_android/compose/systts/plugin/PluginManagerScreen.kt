@@ -1043,7 +1043,7 @@ private fun ImportByCategoryDialog(
             engine.eval()
             engine.onLoad()
             categories = engine.getLocales().map { (id, name) ->
-                CategoryItem(id, name, mapTagCategory(name))
+                CategoryItem(id, name, PluginCategoryImporter.mapTagCategory(name))
             }
             engine.destroy()
         }

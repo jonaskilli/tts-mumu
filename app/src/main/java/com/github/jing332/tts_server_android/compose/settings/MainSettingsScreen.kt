@@ -125,7 +125,7 @@ fun SettingsScreen() {
 
         Scaffold(
             contentWindowInsets = WindowInsets(0),
-            modifier = Modifier.nestedScroll(scrollBehavior = scrollBehaviour.nestedScrollConnection),
+            modifier = Modifier.nestedScroll(scrollBehaviour.nestedScrollConnection),
             topBar = {
                 NavTopAppBar(
                     title = { Text(stringResource(R.string.settings)) },
