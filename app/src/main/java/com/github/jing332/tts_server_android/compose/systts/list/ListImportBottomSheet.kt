@@ -198,7 +198,7 @@ internal fun doAutoImport(
                 )
                 is ListImportResult.Truncated -> AutoImportResult.Truncated(result.detail)
                 is ListImportResult.Success -> {
-                    var msg = "已导入 ${result.count} 项配置列表"
+                    var msg = "已导入 ${result.groupCount} 组配置列表 ${result.count} 项"
                     if (result.skipped > 0) {
                         msg += "，跳过 ${result.skipped} 项"
                         // 按原因分类计数，帮助定位缺插件/直连型配置
@@ -284,7 +284,7 @@ private fun doImportReplaceRule(json: String, type: ImportType): AutoImportResul
     dbm.replaceRuleDao.updateAllOrder()
     val groups = pairs.map { it.first.name }.distinct()
     return AutoImportResult.Success(
-        pairs.size, type, "已导入 ${pairs.size} 条替换规则到 ${groups.size} 个分组"
+        pairs.size, type, "已导入 ${groups.size} 组替换规则 ${pairs.size} 条"
     )
 }
 
@@ -295,6 +295,7 @@ private sealed class ListImportResult {
     data class Success(
         val count: Int, val skipped: Int = 0,
         val skippedNoPlugin: Int = 0, val skippedUrlDirect: Int = 0,
+        val groupCount: Int = 0,
     ) : ListImportResult()
 }
 
@@ -370,7 +371,7 @@ private fun doImportList(
         dbm.systemTtsV2.insert(*ttsToInsert.toTypedArray())
     }
     onProgress(imported, total)
-    return ListImportResult.Success(imported)
+    return ListImportResult.Success(imported, groupCount = oldToNewGroupId.size)
 }
 
 /** JRead 配置写入：一级组名做 mumu 分组(同名复用)，二三级留在 categoryPath */
@@ -404,7 +405,8 @@ private fun insertJReadItems(parsed: JReadConfigMigration.Parsed): ListImportRes
     }
     return ListImportResult.Success(
         parsed.items.size, parsed.skipped,
-        parsed.skippedNoPlugin, parsed.skippedUrlDirect
+        parsed.skippedNoPlugin, parsed.skippedUrlDirect,
+        groupCount = buckets.size
     )
 }
 
