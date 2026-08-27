@@ -893,6 +893,21 @@ internal fun ListManagerScreen(
                                 dbm.systemTtsV2.update(
                                     *selectedItems.map { it.copy(categoryPath = subGroupName) }.toTypedArray()
                                 )
+                            } else {
+                                // 空子分组：把名字注册到 subGroupAudioParamsJson（仅当该子分组尚未定义时），
+                                // 使其作为空子分组头出现，之后可往里拖入音色；不覆盖已存在的音频参数
+                                val subMap = targetGroup.subGroupAudioParamsJson.let { jsonStr ->
+                                    if (jsonStr.isBlank() || jsonStr == "{}") emptyMap<String, AudioParams>()
+                                    else SystemTtsV2.Converters.json.decodeFromString<Map<String, AudioParams>>(jsonStr)
+                                }
+                                if (!subMap.containsKey(subGroupName)) {
+                                    val newSubMap = subMap.toMutableMap().apply { put(subGroupName, AudioParams()) }
+                                    dbm.systemTtsV2.updateGroup(
+                                        targetGroup.copy(
+                                            subGroupAudioParamsJson = SystemTtsV2.Converters.json.encodeToString(newSubMap)
+                                        )
+                                    )
+                                }
                             }
                         }
                     }

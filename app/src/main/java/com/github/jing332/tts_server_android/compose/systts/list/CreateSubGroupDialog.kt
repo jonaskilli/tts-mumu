@@ -177,7 +177,7 @@ fun CreateSubGroupDialog(
                         onConfirm(subGroupName.trim(), selected)
                     }
                 },
-                enabled = subGroupName.isNotBlank() && ungroupedItems.isNotEmpty()
+                enabled = subGroupName.isNotBlank()
             ) {
                 Text("确认")
             }
