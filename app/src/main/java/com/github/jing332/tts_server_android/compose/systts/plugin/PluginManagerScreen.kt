@@ -800,7 +800,7 @@ private fun Item(
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
-    // 按分类入库：目标分组选择 + 导入进度
+    // 按插件音色分类入库：目标分组选择 + 导入进度
     var showImportByCategory by remember { mutableStateOf(false) }
     ElevatedCard(modifier = modifier
         .combinedClickable(
@@ -910,16 +910,16 @@ private fun Item(
                                     }
                                 )
 
-                            // 按分类入库：遍历插件的全部语言分类，将各分类下音色批量导入所选分组
+                            // 按插件音色分类入库：遍历插件的全部音色分类，将各分类下音色批量导入所选分组
                             if (plugin != null)
                                 DropdownMenuItem(
-                                    text = { Text("按分类入库") },
+                                    text = { Text("按插件音色分类入库") },
                                     onClick = {
                                         showOptions = false
                                         showImportByCategory = true
                                     },
                                     leadingIcon = {
-                                        Icon(Icons.AutoMirrored.Filled.Input, "按分类入库")
+                                        Icon(Icons.AutoMirrored.Filled.Input, "按插件音色分类入库")
                                     }
                                 )
 
@@ -1007,7 +1007,7 @@ private fun Item(
                     color = MaterialTheme.colorScheme.primary
                 )
 
-            // 按分类入库：选分组 → 批量导入
+            // 按插件音色分类入库：选分组 → 批量导入
             ImportByCategoryDialog(
                 plugin = plugin,
                 visible = showImportByCategory && plugin != null,
@@ -1054,7 +1054,7 @@ private fun ImportByCategoryDialog(
 
     AlertDialog(
         onDismissRequest = { if (!importing) onDismiss() },
-        title = { Text(if (importing) "正在按分类入库" else "按分类入库 - ${plugin.name}") },
+        title = { Text(if (importing) "正在按插件音色分类入库" else "按插件音色分类入库 - ${plugin.name}") },
         text = {
             if (importing) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
@@ -1066,9 +1066,9 @@ private fun ImportByCategoryDialog(
                 Text("该插件无音色分类")
             } else {
                 Column(Modifier.verticalScroll(rememberScrollState())) {
-                    // 全选/取消全选
+                    // 全选/取消全选：与分类行同宽对齐，勾选框 + 标签 + 计数一行排开
                     Row(
-                        modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
+                        modifier = Modifier.fillMaxWidth().padding(bottom = 4.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Checkbox(
@@ -1083,12 +1083,13 @@ private fun ImportByCategoryDialog(
                             modifier = Modifier.padding(start = 4.dp)
                         )
                         Text(
-                            text = "（已选 ${selectedPoolIds.size}/${categories.size}）",
+                            text = "已选 ${selectedPoolIds.size}/${categories.size}",
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.padding(start = 8.dp)
+                            modifier = Modifier.padding(start = 10.dp)
                         )
                     }
+                    HorizontalDivider()
                     categories.forEach { item ->
                         Row(
                             modifier = Modifier.fillMaxWidth().clickable {
@@ -1104,21 +1105,20 @@ private fun ImportByCategoryDialog(
                                 checked = item.poolId in selectedPoolIds,
                                 onCheckedChange = null
                             )
-                            Column(modifier = Modifier.padding(start = 4.dp).weight(1f)) {
-                                // 原名
-                                Text(
-                                    text = item.poolName,
-                                    style = MaterialTheme.typography.bodyMedium
-                                )
-                                // 映射预览
-                                item.mappedName?.let { mapped ->
-                                    if (mapped != item.poolName) {
-                                        Text(
-                                            text = "→ $mapped",
-                                            style = MaterialTheme.typography.bodySmall,
-                                            color = MaterialTheme.colorScheme.primary
-                                        )
-                                    }
+                            // 分类原名占满左侧；映射结果同行右对齐，一行读完
+                            Text(
+                                text = item.poolName,
+                                style = MaterialTheme.typography.bodyMedium,
+                                modifier = Modifier.padding(start = 4.dp).weight(1f)
+                            )
+                            item.mappedName?.let { mapped ->
+                                if (mapped != item.poolName) {
+                                    Text(
+                                        text = "→ $mapped",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.primary,
+                                        modifier = Modifier.padding(start = 8.dp, end = 4.dp)
+                                    )
                                 }
                             }
                         }

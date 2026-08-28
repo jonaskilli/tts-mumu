@@ -23,7 +23,7 @@ import kotlinx.coroutines.withContext
 import java.util.concurrent.Executors
 
 /**
- * 插件「按分类入库」：
+ * 插件「按插件音色分类入库」：
  * 1. 以插件名自动新建分组（不占用用户已有分组）
  * 2. 拉取用户勾选的音色分类，每个分类作为子分组建在插件分组下
  * 3. 分类名可映射到标准人群词则归一并打标签；无法映射则原样入库、不打标签
