@@ -7,7 +7,6 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
@@ -15,8 +14,6 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.MenuOpen
 import androidx.compose.material.icons.filled.ArrowCircleUp
-import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.Search
 
 import androidx.compose.material.icons.filled.ColorLens
 import androidx.compose.material.icons.filled.FileOpen
@@ -29,15 +26,11 @@ import androidx.compose.material.icons.filled.PowerSettingsNew
 import androidx.compose.ui.res.painterResource
 import androidx.compose.material.icons.filled.SettingsBackupRestore
 import androidx.compose.material3.DropdownMenuItem
-import androidx.compose.material3.IconButton
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.TextFieldDefaults
 import android.content.IntentFilter
 import androidx.compose.foundation.clickable
 import androidx.compose.material3.Switch
 import androidx.compose.ui.Alignment
 import com.github.jing332.compose.widgets.LocalBroadcastReceiver
-import com.github.jing332.compose.widgets.DenseTextField
 import com.github.jing332.compose.widgets.TextFieldDialog
 import com.github.jing332.common.utils.toast
 import com.github.jing332.tts_server_android.service.forwarder.system.SysTtsForwarderService
@@ -54,7 +47,6 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
@@ -76,8 +68,6 @@ import androidx.core.content.ContextCompat.startActivity
 fun SettingsScreen() {
     var query by remember { mutableStateOf("") }
     val search = rememberSettingsSearch(query)
-    var isSearchMode by remember { mutableStateOf(false) }
-    if (!isSearchMode && query.isNotEmpty()) query = ""
 
     var showThemeDialog by remember { mutableStateOf(false) }
     if (showThemeDialog)
@@ -138,40 +128,7 @@ fun SettingsScreen() {
             modifier = Modifier.nestedScroll(scrollBehaviour.nestedScrollConnection),
             topBar = {
                 NavTopAppBar(
-                    title = {
-                        if (isSearchMode) {
-                            DenseTextField(
-                                modifier = Modifier.fillMaxWidth(),
-                                value = query,
-                                onValueChange = { query = it },
-                                colors = TextFieldDefaults.colors(
-                                    focusedContainerColor = Color.Transparent,
-                                    unfocusedContainerColor = Color.Transparent,
-                                    focusedIndicatorColor = Color.Transparent,
-                                    unfocusedIndicatorColor = Color.Transparent
-                                ),
-                                shape = MaterialTheme.shapes.extraLarge,
-                                placeholder = { Text(stringResource(R.string.search)) },
-                                singleLine = true
-                            )
-                        } else {
-                            Text(stringResource(R.string.settings))
-                        }
-                    },
-                    actions = {
-                        if (isSearchMode) {
-                            IconButton(onClick = {
-                                isSearchMode = false
-                                query = ""
-                            }) {
-                                Icon(Icons.Default.Close, stringResource(R.string.close))
-                            }
-                        } else {
-                            IconButton(onClick = { isSearchMode = true }) {
-                                Icon(Icons.Default.Search, stringResource(R.string.search))
-                            }
-                        }
-                    },
+                    title = { Text(stringResource(R.string.settings)) },
                     scrollBehavior = scrollBehaviour,
                 )
             }
@@ -182,6 +139,12 @@ fun SettingsScreen() {
                     .padding(paddingValues)
                     .fillMaxSize()
             ) {
+                // 顶栏下方常驻搜索框：固定不随列表滚动，输入即过滤下方设置项
+                SettingsSearchField(
+                    value = query,
+                    onValueChange = { query = it }
+                )
+
                 Column(
                     Modifier
                         .weight(1f)

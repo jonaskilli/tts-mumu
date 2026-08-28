@@ -221,7 +221,8 @@ internal fun ListManagerScreen(
 
     // 池划分：categoryPath 本来就是或能转换成标准标签样式（女青年/男主/特殊男/旁白等，emoji 装饰忽略）→ 通用池；
     // 任一配置或子分组键含转换不了的段（性格词、群杂等，如 男青年/稳重）→ 整组高级池
-    val (normalPoolModels, advancedPoolModels) = remember(models) {
+    // 池划分：partition 谓词为"存在非标准段 → 归高级池"，首个返回值即高级池，次序不可颠倒
+    val (advancedPoolModels, normalPoolModels) = remember(models) {
         models.partition { gwt ->
             gwt.list.any { !JReadConfigMigration.isNormalCategoryPath(it.categoryPath) } || run {
                 val subKeysJson = gwt.group.subGroupAudioParamsJson

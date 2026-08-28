@@ -22,7 +22,11 @@ class SettingsSearch(private val query: String) {
     fun hit(vararg keywords: String): Boolean {
         val q = query.trim().lowercase()
         if (q.isEmpty()) return true
-        return keywords.any { it.lowercase().contains(q) }
+        // 「设置」即本页主题：单独搜索时命中全部项；作为后缀时剥掉再匹配（如「主题设置」→「主题」）
+        if (q == "设置" || q == "settings") return true
+        val q2 = q.removeSuffix("设置").removeSuffix("settings").trim()
+        if (q2.isEmpty()) return true
+        return keywords.any { it.lowercase().contains(q) || it.lowercase().contains(q2) }
     }
 }
 
