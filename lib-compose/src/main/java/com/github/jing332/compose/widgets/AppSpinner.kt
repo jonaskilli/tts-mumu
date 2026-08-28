@@ -148,6 +148,8 @@ private fun TextFieldSelectionDialog(
                 value = selectedText,
                 onValueChange = { },
                 label = label,
+                // 选中值恒定单行：长名（如超长朗读规则名）折行会把字段撑高并压住浮动标题
+                maxLines = 1,
                 trailingIcon = {
                     ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded)
                 },
