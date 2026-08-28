@@ -108,11 +108,13 @@ class App : Application() {
             // 此时 Android 12+ 上 startForegroundService 会抛
             // ForegroundServiceStartNotAllowedException，不捕获会导致整个 App 闪退，
             // 且用户手动打开时为前台、无法复现（偶发闪退的根源）。此处降级为记录日志。
+            // 注意：runCatching 只捕获 Exception，NoClassDefFoundError 等 Error 需单独兜底。
             if (ProxyService.isSavedRunning(this@App)) {
-                runCatching { ProxyService.startFromSaved(this@App) }
-                    .onFailure {
-                        LogStore.e("Proxy", "App 重启后自动恢复混元太极服务失败: ${it.message}")
-                    }
+                try {
+                    ProxyService.startFromSaved(this@App)
+                } catch (e: Throwable) {
+                    LogStore.e("Proxy", "App 重启后自动恢复混元太极服务失败: ${e.javaClass.simpleName}: ${e.message}")
+                }
             }
         }
     }

@@ -8,6 +8,19 @@
 # 只保留 database entities（Gson 反序列化必需）
 -keep class com.github.jing332.database.entities.** { *; }
 
+# ============================================
+# 混元太极（deepseekproxy）：Ktor CIO 引擎反射加载 + WebView 保留
+# 不保留则 release 混淆后 embeddedServer(CIO) 抛 NoClassDefFoundError 闪退
+# ============================================
+-keep class com.github.jing332.deepseekproxy.** { *; }
+-keep class io.ktor.** { *; }
+-keep class io.ktor.server.** { *; }
+-keep class io.ktor.server.cio.** { *; }
+-keep class io.ktor.util.** { *; }
+-keep class io.ktor.http.** { *; }
+-keep class io.ktor.serialization.** { *; }
+-keep class io.ktor.client.** { *; }
+
 # 保留 Parcelable 实现类
 -keep class * implements android.os.Parcelable { *; }
 
