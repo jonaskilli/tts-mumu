@@ -337,6 +337,8 @@ fun SpeechRuleEditScreen(
             }
 
             AnimatedVisibility(visible = config.speechRule.target == SpeechTarget.TAG) {
+                // 心声保留标签是否生效：标签下拉候选与芯片、说明文案共用
+                val isInnerThought = config.speechRule.tag == InnerThoughtClassifier.INNER_THOUGHT_TAG
                 Row(Modifier) {
                     AppSpinner(
                         modifier = Modifier
@@ -361,14 +363,22 @@ fun SpeechRuleEditScreen(
                     )
 
                     speechRule?.let { speechRule ->
+                        // 心声点亮时把保留标签追加进候选：AppSpinner 对“值不在候选内”会强制重置为第一项，
+                        // 不追加的话芯片刚点亮就会被弹回；追加后下拉里也能直接选回心声
+                        val tagValues = if (isInnerThought)
+                            speechRule.tags.keys + InnerThoughtClassifier.INNER_THOUGHT_TAG
+                        else speechRule.tags.keys
+                        val tagEntries = if (isInnerThought)
+                            speechRule.tags.values + "心声(内心独白)"
+                        else speechRule.tags.values
                         AppSpinner(
                             modifier = Modifier
                                 .weight(1f)
                                 .padding(start = 4.dp),
                             labelText = stringResource(R.string.tag),
                             value = config.speechRule.tag,
-                            values = speechRule.tags.keys.toList(),
-                            entries = speechRule.tags.values.toList(),
+                            values = tagValues.toList(),
+                            entries = tagEntries.toList(),
                             onSelectedChange = { k, _ ->
                                 if (config.speechRule.target != SpeechTarget.TAG) return@AppSpinner
                                 onSysttsChange(
@@ -389,7 +399,6 @@ fun SpeechRuleEditScreen(
                         .padding(top = 4.dp),
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
-                    val isInnerThought = config.speechRule.tag == InnerThoughtClassifier.INNER_THOUGHT_TAG
                     FilterChip(
                         selected = isInnerThought,
                         onClick = {
@@ -405,6 +414,14 @@ fun SpeechRuleEditScreen(
                             )
                         },
                         label = { Text("心声(内心独白)") }
+                    )
+                }
+                if (isInnerThought) {
+                    Text(
+                        "朗读中判定为内心独白的句子会改用本配置的音色；可搭配设置页「启用心声 AI 判定」提升识别",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(start = 4.dp, top = 2.dp)
                     )
                 }
             }
