@@ -4,11 +4,13 @@ import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -128,7 +130,19 @@ fun SettingsScreen() {
             modifier = Modifier.nestedScroll(scrollBehaviour.nestedScrollConnection),
             topBar = {
                 NavTopAppBar(
-                    title = { Text(stringResource(R.string.settings)) },
+                    title = {
+                        // 标题右侧嵌入紧凑搜索框，占满顶栏剩余宽度
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(stringResource(R.string.settings))
+                            Spacer(Modifier.width(12.dp))
+                            SettingsSearchField(
+                                value = query,
+                                onValueChange = { query = it },
+                                modifier = Modifier.weight(1f),
+                                compact = true
+                            )
+                        }
+                    },
                     scrollBehavior = scrollBehaviour,
                 )
             }
@@ -139,12 +153,6 @@ fun SettingsScreen() {
                     .padding(paddingValues)
                     .fillMaxSize()
             ) {
-                // 顶栏下方常驻搜索框：固定不随列表滚动，输入即过滤下方设置项
-                SettingsSearchField(
-                    value = query,
-                    onValueChange = { query = it }
-                )
-
                 Column(
                     Modifier
                         .weight(1f)

@@ -1,18 +1,23 @@
 package com.github.jing332.tts_server_android.compose.settings
 
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.ShapeDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import androidx.compose.foundation.layout.ColumnScope
 
@@ -51,24 +56,49 @@ fun ColumnScope.SettingItem(
 fun SettingsSearchField(
     value: String,
     onValueChange: (String) -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    compact: Boolean = false,
 ) {
+    // 充色搜索条：无描边、surfaceVariant 底、全圆角——描边药丸与下方扁平设置列表放在一起过重、不和谐
+    val container = MaterialTheme.colorScheme.surfaceVariant
     OutlinedTextField(
         value = value,
         onValueChange = onValueChange,
         modifier = modifier
-            .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 4.dp),
+            .then(if (compact) Modifier.height(48.dp) else Modifier.fillMaxWidth())
+            .padding(horizontal = if (compact) 0.dp else 16.dp, vertical = if (compact) 0.dp else 4.dp),
         singleLine = true,
-        placeholder = { Text("搜索设置") },
-        leadingIcon = { Icon(Icons.Default.Search, null) },
+        placeholder = {
+            Text(
+                "搜索设置",
+                style = if (compact) MaterialTheme.typography.bodyMedium
+                else MaterialTheme.typography.bodyLarge
+            )
+        },
+        leadingIcon = {
+            Icon(
+                Icons.Default.Search, null,
+                modifier = if (compact) Modifier.size(20.dp) else Modifier
+            )
+        },
         trailingIcon = {
             if (value.isNotEmpty()) {
                 IconButton(onClick = { onValueChange("") }) {
-                    Icon(Icons.Default.Close, null)
+                    Icon(
+                        Icons.Default.Close, null,
+                        modifier = if (compact) Modifier.size(20.dp) else Modifier
+                    )
                 }
             }
         },
-        shape = ShapeDefaults.ExtraLarge
+        shape = ShapeDefaults.ExtraLarge,
+        colors = OutlinedTextFieldDefaults.colors(
+            focusedContainerColor = container,
+            unfocusedContainerColor = container,
+            disabledContainerColor = container,
+            focusedBorderColor = Color.Transparent,
+            unfocusedBorderColor = Color.Transparent,
+            disabledBorderColor = Color.Transparent,
+        )
     )
 }
