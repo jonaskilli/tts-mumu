@@ -224,7 +224,10 @@ internal fun ListManagerScreen(
     // 任一配置项标签为规则外标签（性格词、群杂式等）→ 整组高级池。分组名、子分组路径与参数字典键不参与判定
     val (advancedPoolModels, normalPoolModels) = remember(models) {
         models.partition { gwt ->
-            gwt.list.any { !JReadConfigMigration.isNormalTag(it.config.speechRule.tag) }
+            gwt.list.any {
+                val tag = (it.config as? TtsConfigurationDTO)?.speechRule?.tag ?: ""
+                !JReadConfigMigration.isNormalTag(tag)
+            }
         }
     }
     // 当前所在的池页签：false=通用池，true=高级池
