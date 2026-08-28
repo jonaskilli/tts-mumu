@@ -219,17 +219,12 @@ internal fun ListManagerScreen(
     // 子分组展开状态：存储已展开的子分组完整路径（持久化，默认全部折叠）
     var expandedSubGroups by remember { AppConfig.expandedSubGroups }
 
-    // 池划分：categoryPath 本来就是或能转换成标准标签样式（女青年/男主/特殊男/旁白等，emoji 装饰忽略）→ 通用池；
-    // 任一配置或子分组键含转换不了的段（性格词、群杂等，如 男青年/稳重）→ 整组高级池
-    // 池划分：partition 谓词为"存在非标准段 → 归高级池"，首个返回值即高级池，次序不可颠倒
+    // 池划分：只看配置项的朗读标签——全部标签都是朗读规则标签表内的标签（女青年01/男主1/narration/括号2/localSound1 等，
+    // 含能转换成这些的 jread 标签式；空白标签也算通用）→ 通用池；
+    // 任一配置项标签为规则外标签（性格词、群杂式等）→ 整组高级池。分组名、子分组路径与参数字典键不参与判定
     val (advancedPoolModels, normalPoolModels) = remember(models) {
         models.partition { gwt ->
-            gwt.list.any { !JReadConfigMigration.isNormalCategoryPath(it.categoryPath) } || run {
-                val subKeysJson = gwt.group.subGroupAudioParamsJson
-                subKeysJson.isNotBlank() && subKeysJson != "{}" &&
-                    SystemTtsV2.Converters.json.decodeFromString<Map<String, AudioParams>>(subKeysJson)
-                        .keys.any { !JReadConfigMigration.isNormalCategoryPath(it) }
-            }
+            gwt.list.any { !JReadConfigMigration.isNormalTag(it.config.speechRule.tag) }
         }
     }
     // 当前所在的池页签：false=通用池，true=高级池
@@ -2677,7 +2672,7 @@ internal fun ListManagerScreen(
             Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 Text(
                     if (showAdvancedPool)
-                        "暂无高级池分组\n多层嵌套的分组（如 jread 导入的未映射标签）会自动显示在这里"
+                        "暂无高级池分组\n含规则外朗读标签（如性格词、群杂式）的分组会自动显示在这里"
                     else "暂无通用池分组",
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,

@@ -102,10 +102,10 @@ object JReadConfigMigration {
     }
 
     /**
-     * JRead 分组名 → mumu 分组名：仅转换能标准形象命的年龄段长名式与特殊，其余（含群养饭原样保留）。
-     * - 长名式「女性青年」→「女青年」；「女性青年甜美」（剥通用后缀）→「女青年」
+     * JRead 分组名 → mumu 分组名：仅转换能标准形象命的年龄段长名式与特殊，其余（含群杂、旁白风味名）原样保留。
+     * - 长名式「女性青年」→「女青年」；「女性青年通用」（剥通用后缀）→「女青年」
      * - 斜杠式「女/女青年」→「女青年」
-     * - 特殊：「男/特殊」→「特殊男」，「女/特殊」→「特殊女」
+     * - 特殊：「男/特殊」→「特殊男」，「女/特殊」→「特殊女」；「男特殊」/「女特殊」（剪映子分组形态）→「特殊男」/「特殊女」
      */
     private fun mapGroupName(raw: String): String {
         val t = raw.trim()
@@ -123,6 +123,8 @@ object JReadConfigMigration {
                 if (inner == "特殊") return "特殊${m.groupValues[0].removeSuffix("/特殊").replace("/", "")}"
                 return LONG_TO_SHORT_PREFIX[inner] ?: inner
             }
+        // 紧贴复合式：「女特殊」→「特殊女」（剪映官方子分组，与斜杠式同一归宿）
+        if (core == "女特殊" || core == "男特殊") return "特殊${core.removeSuffix("特殊")}"
         return t
     }
 
@@ -179,29 +181,33 @@ object JReadConfigMigration {
     }
 
     /**
-     * categoryPath 是否「本来就是或能转换成标准标签样式」（如 女青年/男主/特殊男/旁白，允许 emoji 装饰前缀）。
-     * 全部段满足 → true（通用池）；任一段转换不了（性格词、群杂等）→ false（高级池）。
+     * 朗读标签是否为朗读规则标签表内的标签（列表页通用池判据）。
+     * 标签源头是「多角色朗读」规则（mingwuyan）的 tags 表：
+     * - 人群前缀+序号（男主1、女主01、女青年01…特殊男01）：序号超出初始范围由规则动态扩容，只校验形态；
+     * - 固定标签：narration、duihua、duihuaA、duihuaB、括号1~4；
+     * - 音效标签：localSound1~localSound100。
+     * 先经 mapGenericTag 归一（主角式/斜杠式/旁白/长名式/长名特殊式）再判定；
+     * 空白标签视为通用（未打标签不因此降池）；规则外标签（性格词如「女性青年/甜美01」、群杂式）→ false。
      */
-    fun isNormalCategoryPath(path: String): Boolean {
-        val t = path.trim()
-        if (t.isBlank()) return true
-        return t.split("/").all { seg ->
-            val core = seg.filter { ch ->
-                val c = ch.code
-                c in 0x4E00..0x9FFF || c in 0x3400..0x4DBF || ch.isLetterOrDigit()
-            }
-            if (core.isEmpty()) true  // 纯 emoji/装饰段不参与判断
-            else isStandardSegment(core)
-        }
+    fun isNormalTag(raw: String): Boolean {
+        val t = mapGenericTag(raw.trim())
+        if (t.isEmpty()) return true
+        if (t in FIXED_RULE_TAGS) return true
+        return RULE_POPULATION_TAG_REGEX.matches(t) || RULE_SOUND_TAG_REGEX.matches(t)
     }
 
-    private fun isStandardSegment(core: String): Boolean {
-        if (core in SEQ_PREFIXES || core == "特殊男" || core == "特殊女") return true
-        if (mapGroupName(core) != core) return true
-        if (mapGenericTag(core) != core) return true
-        // 「通用旁白」等「通用+标准名」形态：剥前缀后为标准名
-        return core.removePrefix("通用").let { it != core && isStandardSegment(it) }
-    }
+    /** 规则标签表里的固定功能标签：旁白/对话兜底/括号发音人 */
+    private val FIXED_RULE_TAGS = setOf(
+        "narration", "duihua", "duihuaA", "duihuaB",
+        "括号1", "括号2", "括号3", "括号4"
+    )
+
+    /** 人群标签形态：标准前缀+1~3位序号（含特殊男女，与朗读规则 BATCH_ROLES 一致） */
+    private val RULE_POPULATION_TAG_REGEX =
+        Regex("^(${DIRECT_TAG_PREFIXES.joinToString("|")})\\d{1,3}$")
+
+    /** 音效标签形态：localSound1~localSound100（规则按此循环注册） */
+    private val RULE_SOUND_TAG_REGEX = Regex("^localSound\\d{1,3}$")
 
     /** 单层子分组：先尝试整串整体映射（如「女/女童」→「女童」、「男/特殊」→「特殊男」）；
      *  整体映射不上时，只有当整串每一段都能映射进 mumu 分类才逐段短名化；
@@ -228,7 +234,8 @@ object JReadConfigMigration {
     /**
      * JRead 通用标签 → mumu 标签（前缀+序号）。
      * - 旁白/narration → narration
-     * - 斜杠式 "女/女青年3" → "女青年03"（男主不补零，其余两位补零，与朗读规则一致）
+     * - 斜杠式 "女/女青年3" → "女青年03"（仅 1–9 补成 01–09，10 及以上含三位数原样；男主始终不补零）
+     * - 长名特殊式 "女性青年/特殊10" → "特殊女10"（剪映官方导出的特殊音色形态）
      * - 主角式 "主角男主1" → "男主1"
      * - 已是 "前缀+序号" 直写式 → 规范补零
      * 无法识别的原样保留。
@@ -257,6 +264,12 @@ object JReadConfigMigration {
                 }
                 return prefix + formatSeq(prefix, m.groupValues[3].toInt())
             }
+        // 长名特殊式：女性青年/特殊10 → 特殊女10（性别取长名主体，序号补零规则同上）
+        Regex("^(女性儿童|男性儿童|女性少年|男性少年|女性青年|男性青年|女性中年|男性中年|女性老年|男性老年)/特殊(\\d{1,3})$")
+            .matchEntire(t)?.let { m ->
+                val prefix = if (m.groupValues[1].startsWith("女")) "特殊女" else "特殊男"
+                return prefix + formatSeq(prefix, m.groupValues[2].toInt())
+            }
         // 音色长名式：女性青年/通用01 → 女青年01（按 JRead old286 转换表反向）
         Regex("^(?:([男女])/)?(女性儿童|男性儿童|女性少年|男性少年|女性青年|男性青年|女性中年|男性中年|女性老年|男性老年)/通用(\\d{1,3})$")
             .matchEntire(t)?.let { m ->
@@ -265,7 +278,7 @@ object JReadConfigMigration {
             }
         Regex("^(.*?\\D)(\\d{1,3})$").matchEntire(t)?.let { m ->
             val prefix = m.groupValues[1]
-            if (prefix in SEQ_PREFIXES) {
+            if (prefix in DIRECT_TAG_PREFIXES) {
                 return prefix + formatSeq(prefix, m.groupValues[2].toInt())
             }
         }
@@ -275,13 +288,16 @@ object JReadConfigMigration {
     private fun formatSeq(prefix: String, seq: Int): String =
         if (prefix in NO_ZERO_PAD_PREFIXES) seq.toString() else String.format("%02d", seq)
 
-    // 与用户实际使用的标签一致：男主不补零（男主1…男主5），其余（含特殊男/特殊女、女主01…）均两位补零
+    // 与用户实际使用的标签一致：仅 1–9 补成 01–09，10 及以上（含三位数如 517）原样保留；男主始终不补零（男主1…男主20）
     private val NO_ZERO_PAD_PREFIXES = setOf("男主")
 
     private val SEQ_PREFIXES = setOf(
         "女童", "少女", "女青年", "女中年", "女老年",
         "男童", "少年", "男青年", "男中年", "男老年", "男主", "女主", "旁白"
     )
+
+    /** 直写式「前缀+序号」标签可识别/规范补零的完整前缀集（人群前缀+特殊男女） */
+    private val DIRECT_TAG_PREFIXES = SEQ_PREFIXES + setOf("特殊男", "特殊女")
 
     private val LONG_TO_SHORT_PREFIX = mapOf(
         "女性儿童" to "女童", "男性儿童" to "男童",
