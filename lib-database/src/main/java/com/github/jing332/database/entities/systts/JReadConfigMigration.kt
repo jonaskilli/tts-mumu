@@ -196,19 +196,6 @@ object JReadConfigMigration {
         return RULE_POPULATION_TAG_REGEX.matches(t) || RULE_SOUND_TAG_REGEX.matches(t)
     }
 
-    /** 规则标签表里的固定功能标签：旁白/对话兜底/括号发音人 */
-    private val FIXED_RULE_TAGS = setOf(
-        "narration", "duihua", "duihuaA", "duihuaB",
-        "括号1", "括号2", "括号3", "括号4"
-    )
-
-    /** 人群标签形态：标准前缀+1~3位序号（含特殊男女，与朗读规则 BATCH_ROLES 一致） */
-    private val RULE_POPULATION_TAG_REGEX =
-        Regex("^(${DIRECT_TAG_PREFIXES.joinToString("|")})\\d{1,3}$")
-
-    /** 音效标签形态：localSound1~localSound100（规则按此循环注册） */
-    private val RULE_SOUND_TAG_REGEX = Regex("^localSound\\d{1,3}$")
-
     /** 单层子分组：先尝试整串整体映射（如「女/女童」→「女童」、「男/特殊」→「特殊男」）；
      *  整体映射不上时，只有当整串每一段都能映射进 mumu 分类才逐段短名化；
      *  任一含无法映射段（性格/形容类）则整串原样保留，不做任何改名 */
@@ -298,6 +285,21 @@ object JReadConfigMigration {
 
     /** 直写式「前缀+序号」标签可识别/规范补零的完整前缀集（人群前缀+特殊男女） */
     private val DIRECT_TAG_PREFIXES = SEQ_PREFIXES + setOf("特殊男", "特殊女")
+
+    // 以下判定表依赖上方前缀集，必须声明在其后（object 属性按声明顺序初始化，前向引用会编译失败）
+
+    /** 规则标签表里的固定功能标签：旁白/对话兜底/括号发音人 */
+    private val FIXED_RULE_TAGS = setOf(
+        "narration", "duihua", "duihuaA", "duihuaB",
+        "括号1", "括号2", "括号3", "括号4"
+    )
+
+    /** 人群标签形态：标准前缀+1~3位序号（含特殊男女，与朗读规则 BATCH_ROLES 一致） */
+    private val RULE_POPULATION_TAG_REGEX =
+        Regex("^(${DIRECT_TAG_PREFIXES.joinToString("|")})\\d{1,3}$")
+
+    /** 音效标签形态：localSound1~localSound100（规则按此循环注册） */
+    private val RULE_SOUND_TAG_REGEX = Regex("^localSound\\d{1,3}$")
 
     private val LONG_TO_SHORT_PREFIX = mapOf(
         "女性儿童" to "女童", "男性儿童" to "男童",
