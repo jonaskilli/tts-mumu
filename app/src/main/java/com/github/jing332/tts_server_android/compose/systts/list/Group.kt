@@ -7,7 +7,7 @@ import androidx.compose.material.icons.automirrored.filled.DriveFileMove
 import androidx.compose.material.icons.filled.DriveFileRenameOutline
 import androidx.compose.material.icons.filled.AccountTree
 import androidx.compose.material.icons.automirrored.filled.ExitToApp
-import androidx.compose.material.icons.automirrored.filled.Label
+import androidx.compose.material.icons.filled.AutoFixHigh
 import androidx.compose.material.icons.filled.Speed
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
@@ -289,7 +289,7 @@ fun Group(
                         onReassignTagsByGroupName()
                     },
                     leadingIcon = {
-                        Icon(Icons.AutoMirrored.Filled.Label, null)
+                        Icon(Icons.Default.AutoFixHigh, null)
                     }
                 )
             }
@@ -302,7 +302,7 @@ fun Group(
                         onReassignAllSubGroups()
                     },
                     leadingIcon = {
-                        Icon(Icons.AutoMirrored.Filled.Label, null)
+                        Icon(Icons.Default.AutoFixHigh, null)
                     }
                 )
             }
@@ -328,7 +328,7 @@ fun Group(
                         onRenameSubPrefix!!()
                     },
                     leadingIcon = {
-                        Icon(Icons.AutoMirrored.Filled.Label, null)
+                        Icon(Icons.Default.DriveFileRenameOutline, null)
                     }
                 )
             }

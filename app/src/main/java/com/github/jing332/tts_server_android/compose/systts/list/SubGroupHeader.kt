@@ -15,7 +15,7 @@ import androidx.compose.material.icons.filled.DeleteForever
 import androidx.compose.material.icons.automirrored.filled.DriveFileMove
 import androidx.compose.material.icons.filled.DriveFileRenameOutline
 import androidx.compose.material.icons.filled.ExpandCircleDown
-import androidx.compose.material.icons.automirrored.filled.Label
+import androidx.compose.material.icons.filled.AutoFixHigh
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Output
 import androidx.compose.material.icons.filled.Speed
@@ -133,12 +133,13 @@ fun SubGroupHeader(
                 .weight(1f)
         )
 
-        // 快捷入口：点击直接一键整理本子分组标签，仅子分组名含关键词且组内非空时显示
+        // 快捷入口：点击直接一键整理本子分组标签，仅子分组名含关键词且组内非空时显示；
+        // AutoFixHigh 魔法棒表意"自动整理"，tertiary 青色系与系统勾选框绿色区分开
         if (hasTagKeyword && itemCount > 0) {
             Icon(
-                Icons.AutoMirrored.Filled.Label,
+                Icons.Default.AutoFixHigh,
                 contentDescription = "一键整理标签",
-                tint = MaterialTheme.colorScheme.primary,
+                tint = MaterialTheme.colorScheme.tertiary,
                 modifier = Modifier
                     .clickable { onReassignTagsByGroupName() }
                     .size(18.dp)
@@ -254,7 +255,7 @@ fun SubGroupHeader(
                             onReassignTagsByGroupName()
                         },
                         leadingIcon = {
-                            Icon(Icons.AutoMirrored.Filled.Label, null)
+                            Icon(Icons.Default.AutoFixHigh, null)
                         }
                     )
                 }

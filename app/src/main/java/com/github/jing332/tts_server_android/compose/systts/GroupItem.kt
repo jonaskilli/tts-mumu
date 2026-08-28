@@ -11,7 +11,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.Label
+import androidx.compose.material.icons.filled.AutoFixHigh
 import androidx.compose.material.icons.filled.AccountTree
 import androidx.compose.material.icons.filled.DeleteForever
 import androidx.compose.material.icons.filled.ExpandCircleDown
@@ -22,7 +22,6 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.Checkbox
@@ -191,6 +190,21 @@ fun GroupItem(
                 tint = MaterialTheme.colorScheme.primary
             )
         }
+        // 快捷整理按钮：点击整理全部子分组标签，仅在含可整理子分组时由调用方传入；
+        // 紧跟树图标之后、计数之前，与子分组头排列一致；
+        // AutoFixHigh 魔法棒表意"自动整理"，tertiary 青色系与系统勾选框绿色区分开
+        if (quickOrganizeSubTags != null) {
+            Icon(
+                imageVector = Icons.Default.AutoFixHigh,
+                contentDescription = "整理全部子分组标签",
+                modifier = Modifier
+                    .align(Alignment.CenterVertically)
+                    .size(18.dp)
+                    .padding(end = 4.dp)
+                    .clickable { quickOrganizeSubTags() },
+                tint = MaterialTheme.colorScheme.tertiary
+            )
+        }
         // 分组内配置项数量
         if (itemCount >= 0) {
             Text(
@@ -224,22 +238,6 @@ fun GroupItem(
                     )
                 }
             )
-            }
-
-            // 快捷整理按钮：点击直接整理全部子分组标签，仅在含可整理子分组时由调用方传入；
-            // 放右侧操作区与菜单成组，标准 IconButton 触控区保证可见性与可点性
-            if (quickOrganizeSubTags != null) {
-                IconButton(
-                    onClick = quickOrganizeSubTags,
-                    modifier = Modifier.size(40.dp)
-                ) {
-                    Icon(
-                        Icons.AutoMirrored.Filled.Label,
-                        contentDescription = "整理全部子分组标签",
-                        tint = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.size(22.dp)
-                    )
-                }
             }
 
             Box(
