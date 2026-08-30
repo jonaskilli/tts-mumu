@@ -160,17 +160,19 @@ import java.io.File
 
 
 /**
- * 按分组名一键分配标签时使用的固定关键词（性别 + 年龄段 + 主角），
+ * 按分组名一键分配标签时使用的固定关键词（性别 + 年龄段 + 主角 + 旁白），
  * 用于从分组名匹配出标签前缀（取最长匹配）。
+ * 旁白为单一角色：整理时不带序号，统一 narration/旁白（见 reassignNarrationTags）。
  */
 private val GROUP_TAG_KEYWORDS = listOf(
     "女童", "少女", "女青年", "女中年", "女老年",
     "男童", "少年", "男青年", "男中年", "男老年",
-    "男主", "女主", "特殊男", "特殊女"
+    "男主", "女主", "特殊男", "特殊女", "旁白"
 )
 
 /** 男主/特殊男/特殊女在朗读规则里不补零(男主1…男主20、特殊女1…)；女主仍两位补零(女主01…)，与规则一致 */
 private val NO_ZERO_PAD_PREFIXES = setOf("男主", "特殊男", "特殊女")
+
 
 private data class DetectedKeyword(val prefix: String, val zeroPad: Boolean)
 
@@ -631,12 +633,32 @@ internal fun ListManagerScreen(
     }
 
     /**
-     * 按分组名一键分配标签：从分组名匹配固定关键词(女童/少女/…/男主/女主)，
-     * 用该关键词作为前缀编号。男主不补零，其余两位补零。
+     * 旁白整理：旁白为单一角色不带序号，组内全部配置统一打 narration（显示名 旁白）。
+     * 标签名固定，无需 JS 评估；已正确的项跳过。
+     */
+    suspend fun reassignNarrationTags(list: List<SystemTtsV2>): Int {
+        val toUpdate = mutableListOf<SystemTtsV2>()
+        list.filter { it.config is TtsConfigurationDTO }.forEach { item ->
+            val config = item.config as TtsConfigurationDTO
+            if (config.speechRule.tag == "narration") return@forEach
+            val newRule = config.speechRule.copy(tag = "narration", tagName = "旁白")
+            toUpdate.add(item.copy(config = config.copy(speechRule = newRule)))
+        }
+        if (toUpdate.isNotEmpty()) {
+            dbm.systemTtsV2.update(*toUpdate.toTypedArray())
+            SystemTtsService.notifyUpdateConfig()
+        }
+        return toUpdate.size
+    }
+
+    /**
+     * 按分组名一键分配标签：从分组名匹配固定关键词(女童/少女/…/男主/女主/旁白)，
+     * 用该关键词作为前缀编号。男主不补零，其余两位补零；旁白不带序号统一 narration。
      * @return 实际整理的标签数量
      */
     suspend fun reassignTagsByGroupName(list: List<SystemTtsV2>, groupName: String): Int {
         val detected = detectTagKeyword(groupName) ?: return 0
+        if (detected.prefix == "旁白") return reassignNarrationTags(list)
         return reassignTagsWithPrefix(list, detected.prefix, detected.zeroPad)
     }
 
@@ -650,11 +672,17 @@ internal fun ListManagerScreen(
     suspend fun reassignTagsForAllSubGroups(list: List<SystemTtsV2>): Int {
         val tree = buildSubCategoryTree(list)
         val flattened = flattenSubCategoryTree(tree)
+        // 旁白子分组单一角色不带序号，先统一处理并从编号流程中排除
+        val narrationItems = flattened.filterIsInstance<FlattenedCategoryItem.SubGroupHeader>()
+            .filter { detectTagKeyword(it.node.name)?.prefix == "旁白" }
+            .flatMap { it.node.allItems }
+        val narrationCount = if (narrationItems.isEmpty()) 0 else reassignNarrationTags(narrationItems)
         // 先收集所有待处理项 (item, newRule, fallbackTag)
         data class PendingUpdate(val item: SystemTtsV2, val newRule: com.github.jing332.database.entities.systts.SpeechRuleInfo, val fallback: String)
         val pending = mutableListOf<PendingUpdate>()
         flattened.filterIsInstance<FlattenedCategoryItem.SubGroupHeader>().forEach { header ->
             val detected = detectTagKeyword(header.node.name) ?: return@forEach
+            if (detected.prefix == "旁白") return@forEach  // 已由 reassignNarrationTags 处理
             val subItems = header.node.allItems.filter { it.config is TtsConfigurationDTO }
                 .sortedBy { it.order }
             if (subItems.isEmpty()) return@forEach
@@ -696,11 +724,12 @@ internal fun ListManagerScreen(
                 allUpdates.add(u.item.copy(config = config.copy(speechRule = u.newRule)))
             }
         }
+        if (allUpdates.isEmpty() && narrationCount == 0) return 0
         if (allUpdates.isNotEmpty()) {
             dbm.systemTtsV2.update(*allUpdates.toTypedArray())
             SystemTtsService.notifyUpdateConfig()
         }
-        return allUpdates.size
+        return allUpdates.size + narrationCount
     }
 
     /**
