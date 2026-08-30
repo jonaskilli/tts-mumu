@@ -3,6 +3,7 @@ package com.github.jing332.tts_server_android.compose.systts.list.ui.widgets
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -22,7 +23,9 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ExposedDropdownMenuDefaults
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.SegmentedButton
 import androidx.compose.material3.SegmentedButtonDefaults
 import androidx.compose.material3.SingleChoiceSegmentedButtonRow
@@ -40,6 +43,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.dp
@@ -57,6 +62,8 @@ import com.github.jing332.database.entities.systts.SystemTtsV2
 import com.github.jing332.database.entities.systts.TtsConfigurationDTO
 import com.github.jing332.tts_server_android.R
 import com.github.jing332.tts_server_android.compose.systts.list.BasicAudioParamsDialog
+import com.github.jing332.tts_server_android.compose.systts.list.TagPickerDialog
+import com.github.jing332.tts_server_android.compose.systts.list.expandSpeechRuleTagsIfNeeded
 import com.github.jing332.tts_server_android.constant.AppConst
 import com.github.jing332.tts_server_android.constant.SpeechTarget
 import com.github.jing332.tts_server_android.model.rhino.speech_rule.SpeechRuleEngine
@@ -365,34 +372,69 @@ fun SpeechRuleEditScreen(
                         }
                     )
 
-                    speechRule?.let { speechRule ->
-                        // 心声点亮时把保留标签追加进候选：AppSpinner 对“值不在候选内”会强制重置为第一项，
-                        // 不追加的话芯片刚点亮就会被弹回；追加后下拉里也能直接选回心声
-                        val tagValues = if (isInnerThought)
-                            speechRule.tags.keys + InnerThoughtClassifier.INNER_THOUGHT_TAG
-                        else speechRule.tags.keys
-                        val tagEntries = if (isInnerThought)
-                            speechRule.tags.values + "心声(内心独白)"
-                        else speechRule.tags.values
-                        AppSpinner(
+                    speechRule?.let { rule ->
+                        var showTagPicker by remember { mutableStateOf(false) }
+                        var pickerRule by remember { mutableStateOf<SpeechRule?>(null) }
+                        // 打开选择弹窗前刷新规则并做标签扩容，覆盖超出初始序号范围的标签
+                        LaunchedEffect(showTagPicker, rule.tagRuleId) {
+                            if (!showTagPicker) return@LaunchedEffect
+                            pickerRule = null
+                            pickerRule = withContext(Dispatchers.IO) {
+                                runCatching {
+                                    val fresh = dbm.speechRuleDao.getByRuleId(rule.tagRuleId)
+                                        ?: return@runCatching null
+                                    runCatching { expandSpeechRuleTagsIfNeeded(fresh, dbm.systemTtsV2.all) }
+                                    dbm.speechRuleDao.getByRuleId(rule.tagRuleId)
+                                }.getOrNull()
+                            }
+                        }
+                        // 点击标签字段 → 两层「分类→序号」选择弹窗，与列表页标签切换同一交互
+                        Box(
                             modifier = Modifier
                                 .weight(1f)
-                                .padding(start = 4.dp),
-                            labelText = stringResource(R.string.tag),
-                            value = config.speechRule.tag,
-                            values = tagValues.toList(),
-                            entries = tagEntries.toList(),
-                            onSelectedChange = { k, _ ->
-                                if (config.speechRule.target != SpeechTarget.TAG) return@AppSpinner
-                                onSysttsChange(
-                                    systts.copy(
-                                        config = config.copy(
-                                            speechRule = config.speechRule.copy(tag = k as String)
+                                .padding(start = 4.dp)
+                                .clickable { showTagPicker = true }
+                        ) {
+                            OutlinedTextField(
+                                value = if (isInnerThought) "心声(内心独白)"
+                                else config.speechRule.tagName.ifBlank { config.speechRule.tag },
+                                onValueChange = {},
+                                readOnly = true,
+                                enabled = false,
+                                singleLine = true,
+                                label = { Text(stringResource(R.string.tag)) },
+                                trailingIcon = {
+                                    ExposedDropdownMenuDefaults.TrailingIcon(expanded = false)
+                                },
+                                colors = OutlinedTextFieldDefaults.colors(
+                                    disabledTextColor = MaterialTheme.colorScheme.onSurface,
+                                    disabledBorderColor = MaterialTheme.colorScheme.outline,
+                                    disabledLabelColor = MaterialTheme.colorScheme.onSurface
+                                ),
+                                modifier = Modifier.fillMaxWidth()
+                            )
+                        }
+                        if (showTagPicker) {
+                            val pr = pickerRule
+                            if (pr != null) {
+                                TagPickerDialog(
+                                    rule = pr,
+                                    currentTag = config.speechRule.tag,
+                                    onSelect = { tag, _ ->
+                                        // tag 变化后编辑页既有的 LaunchedEffect 会经规则 JS 重算 tagName
+                                        onSysttsChange(
+                                            systts.copy(
+                                                config = config.copy(
+                                                    speechRule = config.speechRule.copy(tag = tag)
+                                                )
+                                            )
                                         )
-                                    )
+                                        showTagPicker = false
+                                    },
+                                    onDismissRequest = { showTagPicker = false }
                                 )
                             }
-                        )
+                        }
                     }
                 }
 

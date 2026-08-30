@@ -38,9 +38,9 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
-private data class TagItem(val tag: String, val tagName: String)
+internal data class TagItem(val tag: String, val tagName: String)
 
-private data class TagGroup(
+internal data class TagGroup(
     val prefix: String,
     val items: List<TagItem>,
 )
@@ -50,40 +50,20 @@ private fun extractPrefix(name: String): String {
     return m?.groupValues?.get(1) ?: name
 }
 
+/**
+ * 两层标签选择弹窗（可复用纯 UI 构件）：第一层选大分类（旁白/女青年/男主…），第二层选具体序号；
+ * 单项分类（旁白/括号/音效等）点分类即选中。高亮当前标签并自动滚动定位。
+ * 不写库不通知，选中经 [onSelect]（tag 与 tags 表显示名）交调用方处理。
+ */
 @Composable
-fun TagSwitchDialog(
-    item: SystemTtsV2,
+fun TagPickerDialog(
+    rule: SpeechRule,
+    currentTag: String,
+    onSelect: (tag: String, tagName: String) -> Unit,
     onDismissRequest: () -> Unit,
 ) {
-    val context = LocalContext.current
-    val scope = rememberCoroutineScope()
-
-    val config = item.config as? TtsConfigurationDTO
-    val currentTag = config?.speechRule?.tag ?: ""
-    val tagRuleId = config?.speechRule?.tagRuleId ?: ""
-
-    var speechRule by remember { mutableStateOf<SpeechRule?>(null) }
-    var loaded by remember { mutableStateOf(false) }
-    LaunchedEffect(tagRuleId) {
-        loaded = false
-        if (tagRuleId.isNotBlank()) {
-            val rule = withContext(Dispatchers.IO) { dbm.speechRuleDao.getByRuleId(tagRuleId) }
-            if (rule != null) {
-                // 标签扩容：按配置列表里实际用到的最大序号补齐 tags，确保点标签时列表覆盖全部序号
-                withContext(Dispatchers.IO) {
-                    runCatching {
-                        expandSpeechRuleTagsIfNeeded(rule, dbm.systemTtsV2.all)
-                    }
-                }
-            }
-            speechRule = rule
-        }
-        loaded = true
-    }
-
-    val allTags = remember(speechRule) {
-        val tags = speechRule?.tags ?: emptyMap()
-        tags.entries.map { (key, value) -> TagItem(key, value) }
+    val allTags = remember(rule) {
+        rule.tags.entries.map { (key, value) -> TagItem(key, value) }
     }
 
     val groups = remember(allTags) {
@@ -120,25 +100,6 @@ fun TagSwitchDialog(
         }
     }
 
-    val handleSelect: (TagItem) -> Unit = { tagItem ->
-        if (tagItem.tag != currentTag) {
-            scope.launch {
-                withContext(Dispatchers.IO) {
-                    val ruleData = config!!.speechRule.copy()
-                    ruleData.tag = tagItem.tag
-                    ruleData.tagName = computeTagName(context, speechRule, ruleData, tagItem.tag)
-                    dbm.systemTtsV2.update(
-                        item.copy(config = config.copy(speechRule = ruleData))
-                    )
-                }
-                if (item.isEnabled) SystemTtsService.notifyUpdateConfig()
-                onDismissRequest()
-            }
-        } else {
-            onDismissRequest()
-        }
-    }
-
     AppDialog(
         onDismissRequest = onDismissRequest,
         title = {
@@ -152,119 +113,98 @@ fun TagSwitchDialog(
                     .fillMaxWidth()
                     .heightIn(max = 600.dp)
             ) {
-                when {
-                    // 加载中：显示 Loading，避免空列表时闪现"无可用标签"红字
-                    !loaded -> {
-                        LoadingContent(
-                            Modifier
-                                .fillMaxWidth()
-                                .padding(vertical = 24.dp),
-                            isLoading = true
-                        ) {}
-                    }
-                    tagRuleId.isBlank() -> {
-                        Text(
-                            "该配置项未绑定朗读规则，无法切换标签",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier
-                                .align(Alignment.CenterHorizontally)
-                                .padding(16.dp)
-                        )
-                    }
-                    allTags.isEmpty() -> {
-                        Text(
-                            "朗读规则中没有可用标签",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier
-                                .align(Alignment.CenterHorizontally)
-                                .padding(16.dp)
-                        )
-                    }
-                    else -> {
-                        val targetGroup = selectedGroup
-                        if (targetGroup == null) {
-                            // 第一层：大分类列表，自动定位到当前分类
-                            LazyColumn(
-                                state = groupListState,
-                                modifier = Modifier.fillMaxWidth()
-                            ) {
-                                items(groups, key = { it.prefix }) { group ->
-                                    val isCurrent = group.prefix == currentPrefix
-                                    Row(
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .clickable {
-                                                if (group.items.size == 1) {
-                                                    handleSelect(group.items.first())
-                                                } else {
-                                                    selectedGroup = group
-                                                }
+                if (groups.isEmpty()) {
+                    Text(
+                        "朗读规则中没有可用标签",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier
+                            .align(Alignment.CenterHorizontally)
+                            .padding(16.dp)
+                    )
+                } else {
+                    val targetGroup = selectedGroup
+                    if (targetGroup == null) {
+                        // 第一层：大分类列表，自动定位到当前分类
+                        LazyColumn(
+                            state = groupListState,
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            items(groups, key = { it.prefix }) { group ->
+                                val isCurrent = group.prefix == currentPrefix
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .clickable {
+                                            if (group.items.size == 1) {
+                                                val only = group.items.first()
+                                                onSelect(only.tag, only.tagName)
+                                            } else {
+                                                selectedGroup = group
                                             }
-                                            .padding(horizontal = 16.dp, vertical = 12.dp),
-                                        verticalAlignment = Alignment.CenterVertically
-                                    ) {
-                                        Text(
-                                            text = if (group.items.size > 1)
-                                                "${group.prefix}（${group.items.size}项）"
-                                            else group.prefix,
-                                            style = MaterialTheme.typography.bodyLarge,
-                                            fontWeight = if (isCurrent) FontWeight.Bold else FontWeight.Normal,
-                                            color = if (isCurrent)
-                                                MaterialTheme.colorScheme.primary
-                                            else
-                                                MaterialTheme.colorScheme.onSurface,
-                                            maxLines = 1,
-                                            overflow = TextOverflow.Ellipsis,
-                                            modifier = Modifier.weight(1f)
-                                        )
-                                        if (isCurrent) {
-                                            Text(
-                                                "当前",
-                                                style = MaterialTheme.typography.labelSmall,
-                                                color = MaterialTheme.colorScheme.primary,
-                                                fontWeight = FontWeight.Bold,
-                                            )
                                         }
+                                        .padding(horizontal = 16.dp, vertical = 12.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Text(
+                                        text = if (group.items.size > 1)
+                                            "${group.prefix}（${group.items.size}项）"
+                                        else group.prefix,
+                                        style = MaterialTheme.typography.bodyLarge,
+                                        fontWeight = if (isCurrent) FontWeight.Bold else FontWeight.Normal,
+                                        color = if (isCurrent)
+                                            MaterialTheme.colorScheme.primary
+                                        else
+                                            MaterialTheme.colorScheme.onSurface,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis,
+                                        modifier = Modifier.weight(1f)
+                                    )
+                                    if (isCurrent) {
+                                        Text(
+                                            "当前",
+                                            style = MaterialTheme.typography.labelSmall,
+                                            color = MaterialTheme.colorScheme.primary,
+                                            fontWeight = FontWeight.Bold,
+                                        )
                                     }
                                 }
                             }
-                        } else {
-                            // 第二层：具体标签列表，自动定位到当前标签
-                            LazyColumn(
-                                state = itemListState,
-                                modifier = Modifier.fillMaxWidth()
-                            ) {
-                                items(targetGroup.items, key = { it.tag }) { tagItem ->
-                                    val isCurrent = tagItem.tag == currentTag
-                                    Row(
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .clickable { handleSelect(tagItem) }
-                                            .padding(horizontal = 16.dp, vertical = 12.dp),
-                                        verticalAlignment = Alignment.CenterVertically
-                                    ) {
+                        }
+                    } else {
+                        // 第二层：具体标签列表，自动定位到当前标签
+                        LazyColumn(
+                            state = itemListState,
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            items(targetGroup.items, key = { it.tag }) { tagItem ->
+                                val isCurrent = tagItem.tag == currentTag
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .clickable { onSelect(tagItem.tag, tagItem.tagName) }
+                                        .padding(horizontal = 16.dp, vertical = 12.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Text(
+                                        text = tagItem.tagName,
+                                        style = MaterialTheme.typography.bodyLarge,
+                                        fontWeight = if (isCurrent) FontWeight.Bold else FontWeight.Normal,
+                                        color = if (isCurrent)
+                                            MaterialTheme.colorScheme.primary
+                                        else
+                                            MaterialTheme.colorScheme.onSurface,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis,
+                                        modifier = Modifier.weight(1f)
+                                    )
+                                    if (isCurrent) {
                                         Text(
-                                            text = tagItem.tagName,
-                                            style = MaterialTheme.typography.bodyLarge,
-                                            fontWeight = if (isCurrent) FontWeight.Bold else FontWeight.Normal,
-                                            color = if (isCurrent)
-                                                MaterialTheme.colorScheme.primary
-                                            else
-                                                MaterialTheme.colorScheme.onSurface,
-                                            maxLines = 1,
-                                            overflow = TextOverflow.Ellipsis,
-                                            modifier = Modifier.weight(1f)
+                                            "当前",
+                                            style = MaterialTheme.typography.labelSmall,
+                                            color = MaterialTheme.colorScheme.primary,
+                                            fontWeight = FontWeight.Bold,
                                         )
-                                        if (isCurrent) {
-                                            Text(
-                                                "当前",
-                                                style = MaterialTheme.typography.labelSmall,
-                                                color = MaterialTheme.colorScheme.primary,
-                                                fontWeight = FontWeight.Bold,
-                                            )
-                                        }
                                     }
                                 }
                             }
@@ -285,4 +225,96 @@ fun TagSwitchDialog(
             }
         }
     )
+}
+
+@Composable
+fun TagSwitchDialog(
+    item: SystemTtsV2,
+    onDismissRequest: () -> Unit,
+) {
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+
+    val config = item.config as? TtsConfigurationDTO
+    val currentTag = config?.speechRule?.tag ?: ""
+    val tagRuleId = config?.speechRule?.tagRuleId ?: ""
+
+    var speechRule by remember { mutableStateOf<SpeechRule?>(null) }
+    var loaded by remember { mutableStateOf(false) }
+    LaunchedEffect(tagRuleId) {
+        loaded = false
+        if (tagRuleId.isNotBlank()) {
+            val rule = withContext(Dispatchers.IO) { dbm.speechRuleDao.getByRuleId(tagRuleId) }
+            if (rule != null) {
+                // 标签扩容：按配置列表里实际用到的最大序号补齐 tags，确保点标签时列表覆盖全部序号
+                withContext(Dispatchers.IO) {
+                    runCatching {
+                        expandSpeechRuleTagsIfNeeded(rule, dbm.systemTtsV2.all)
+                    }
+                }
+            }
+            speechRule = rule
+        }
+        loaded = true
+    }
+
+    val handleSelect: (tag: String, tagName: String) -> Unit = { tag, _ ->
+        if (tag != currentTag) {
+            scope.launch {
+                withContext(Dispatchers.IO) {
+                    val ruleData = config!!.speechRule.copy()
+                    ruleData.tag = tag
+                    ruleData.tagName = computeTagName(context, speechRule, ruleData, tag)
+                    dbm.systemTtsV2.update(
+                        item.copy(config = config.copy(speechRule = ruleData))
+                    )
+                }
+                if (item.isEnabled) SystemTtsService.notifyUpdateConfig()
+                onDismissRequest()
+            }
+        } else {
+            onDismissRequest()
+        }
+    }
+
+    // 未加载/未绑定态用独立外壳；正常态直接由 TagPickerDialog 自带外壳，避免双弹窗嵌套
+    if (!loaded) {
+        AppDialog(
+            onDismissRequest = onDismissRequest,
+            title = { Text(stringResource(R.string.tag)) },
+            content = {
+                LoadingContent(
+                    Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 24.dp),
+                    isLoading = true
+                ) {}
+            },
+        )
+    } else {
+        val rule = speechRule
+        if (rule == null) {
+            AppDialog(
+                onDismissRequest = onDismissRequest,
+                title = { Text(stringResource(R.string.tag)) },
+                content = {
+                    Text(
+                        "该配置项未绑定朗读规则，无法切换标签",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier
+                            .align(Alignment.CenterHorizontally)
+                            .padding(16.dp)
+                    )
+                },
+            )
+        } else {
+            TagPickerDialog(
+                rule = rule,
+                currentTag = currentTag,
+                onSelect = handleSelect,
+                onDismissRequest = onDismissRequest,
+            )
+        }
+    }
 }
