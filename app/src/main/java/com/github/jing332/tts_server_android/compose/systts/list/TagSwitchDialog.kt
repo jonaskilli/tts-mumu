@@ -24,6 +24,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.github.jing332.compose.widgets.AppDialog
@@ -302,9 +303,12 @@ fun TagSwitchDialog(
                         "该配置项未绑定朗读规则，无法切换标签",
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        // AppDialog content 是 BoxScope：align 需要 Alignment 而非 Horizontal，
+                        // 用占满宽度 + 文字居中实现同样的视觉效果
                         modifier = Modifier
-                            .align(Alignment.CenterHorizontally)
-                            .padding(16.dp)
+                            .fillMaxWidth()
+                            .padding(16.dp),
+                        textAlign = TextAlign.Center
                     )
                 },
             )

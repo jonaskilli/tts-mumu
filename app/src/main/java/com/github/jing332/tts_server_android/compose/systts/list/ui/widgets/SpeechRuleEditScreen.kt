@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.automirrored.filled.HelpOutline
 import androidx.compose.material.icons.filled.SelectAll
 import androidx.compose.material.icons.filled.Speed
@@ -23,7 +24,6 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.ExposedDropdownMenuDefaults
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.SegmentedButton
@@ -376,15 +376,15 @@ fun SpeechRuleEditScreen(
                         var showTagPicker by remember { mutableStateOf(false) }
                         var pickerRule by remember { mutableStateOf<SpeechRule?>(null) }
                         // 打开选择弹窗前刷新规则并做标签扩容，覆盖超出初始序号范围的标签
-                        LaunchedEffect(showTagPicker, rule.tagRuleId) {
+                        LaunchedEffect(showTagPicker, rule.ruleId) {
                             if (!showTagPicker) return@LaunchedEffect
                             pickerRule = null
                             pickerRule = withContext(Dispatchers.IO) {
                                 runCatching {
-                                    val fresh = dbm.speechRuleDao.getByRuleId(rule.tagRuleId)
+                                    val fresh = dbm.speechRuleDao.getByRuleId(rule.ruleId)
                                         ?: return@runCatching null
                                     runCatching { expandSpeechRuleTagsIfNeeded(fresh, dbm.systemTtsV2.all) }
-                                    dbm.speechRuleDao.getByRuleId(rule.tagRuleId)
+                                    dbm.speechRuleDao.getByRuleId(rule.ruleId)
                                 }.getOrNull()
                             }
                         }
@@ -404,7 +404,7 @@ fun SpeechRuleEditScreen(
                                 singleLine = true,
                                 label = { Text(stringResource(R.string.tag)) },
                                 trailingIcon = {
-                                    ExposedDropdownMenuDefaults.TrailingIcon(expanded = false)
+                                    Icon(Icons.Default.ArrowDropDown, null)
                                 },
                                 colors = OutlinedTextFieldDefaults.colors(
                                     disabledTextColor = MaterialTheme.colorScheme.onSurface,
