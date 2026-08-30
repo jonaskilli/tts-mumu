@@ -27,7 +27,6 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.AutoFixHigh
 import androidx.compose.material.icons.filled.Output
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.DeleteForever
@@ -598,17 +597,9 @@ internal fun ListManagerScreen(
         }
     }
 
-    /** 前缀是否落在朗读规则标签表内（规则外前缀整理出来规则也读不到）。未绑定规则的项无从校验，放行 */
-    fun isLegalOrganizePrefix(rule: SpeechRule?, prefix: String): Boolean {
-        if (rule == null) return true
-        return rule.tags.keys.any { it.startsWith(prefix) }
-    }
-
     /**
      * 重新分配标签：用指定前缀，按当前位置顺序从01开始连续编号。
      * [zeroPad]=false 时不补零（如男主1…男主N，匹配朗读规则）。
-     * 只整理出合法标签：前缀不在绑定规则标签表内的项一律跳过；
-     * 全部项都不合法时返回 -1（调用方提示），部分合法则只更新合法项并返回数量。
      */
     suspend fun reassignTagsWithPrefix(
         list: List<SystemTtsV2>,
@@ -618,7 +609,6 @@ internal fun ListManagerScreen(
         val toUpdate = mutableListOf<SystemTtsV2>()
         val ruleCache = mutableMapOf<String, SpeechRule?>()
         val engineCache = mutableMapOf<String, SpeechRuleEngine>()
-        var illegalCount = 0
         // 按 categoryPath 分组，每个独立处理
         list.groupBy { it.categoryPath }.forEach { (path, items) ->
             val targetItems = items.filter { it.config is TtsConfigurationDTO }
@@ -631,13 +621,6 @@ internal fun ListManagerScreen(
                 val config = item.config as TtsConfigurationDTO
                 // 标签已正确则跳过，避免大规模分组(数百项)全量重算 JS 与无效写库
                 if (config.speechRule.tag == newTag) return@forEachIndexed
-                val rule = ruleCache.getOrPut(config.speechRule.tagRuleId) {
-                    runCatching { dbm.speechRuleDao.getByRuleId(config.speechRule.tagRuleId) }.getOrNull()
-                }
-                if (!isLegalOrganizePrefix(rule, prefix)) {
-                    illegalCount++
-                    return@forEachIndexed
-                }
                 val newRule = config.speechRule.copy(tag = newTag)
                 computeTagNameOrFallback(context, newRule, newTag, ruleCache, engineCache)
                 toUpdate.add(item.copy(config = config.copy(speechRule = newRule)))
@@ -647,28 +630,24 @@ internal fun ListManagerScreen(
             dbm.systemTtsV2.update(*toUpdate.toTypedArray())
             SystemTtsService.notifyUpdateConfig()
         }
-        if (toUpdate.isEmpty() && illegalCount > 0) return -1
         return toUpdate.size
     }
 
     /**
      * 旁白整理：旁白为单一角色不带序号，组内全部配置统一打 narration（显示名 旁白）。
-     * 标签名固定，无需 JS 评估；已正确的项跳过。绑定规则无 narration 族标签时返回 -1。
+     * 标签名固定，无需 JS 评估；已正确的项跳过。
+     * 防误转：只统一旁白族（旁白X/narration）与空白标签的项；
+     * 人物标签（如 jread 的 女青年01）即使出现在旁白命名的分组里也不改，避免一键整理毁掉人物标签。
      */
     suspend fun reassignNarrationTags(list: List<SystemTtsV2>): Int {
         val toUpdate = mutableListOf<SystemTtsV2>()
-        val ruleCache = mutableMapOf<String, SpeechRule?>()
-        var illegalCount = 0
         list.filter { it.config is TtsConfigurationDTO }.forEach { item ->
             val config = item.config as TtsConfigurationDTO
-            if (config.speechRule.tag == "narration") return@forEach
-            val rule = ruleCache.getOrPut(config.speechRule.tagRuleId) {
-                runCatching { dbm.speechRuleDao.getByRuleId(config.speechRule.tagRuleId) }.getOrNull()
-            }
-            if (rule != null && rule.tags.keys.none { it.equals("narration", true) || it == "旁白" }) {
-                illegalCount++
-                return@forEach
-            }
+            val tag = config.speechRule.tag
+            if (tag == "narration") return@forEach
+            val isNarrationFamily = tag.isBlank() ||
+                tag.equals("narration", true) || tag.startsWith("旁白")
+            if (!isNarrationFamily) return@forEach
             val newRule = config.speechRule.copy(tag = "narration", tagName = "旁白")
             toUpdate.add(item.copy(config = config.copy(speechRule = newRule)))
         }
@@ -676,7 +655,6 @@ internal fun ListManagerScreen(
             dbm.systemTtsV2.update(*toUpdate.toTypedArray())
             SystemTtsService.notifyUpdateConfig()
         }
-        if (toUpdate.isEmpty() && illegalCount > 0) return -1
         return toUpdate.size
     }
 
@@ -706,11 +684,10 @@ internal fun ListManagerScreen(
             .filter { detectTagKeyword(it.node.name)?.prefix == "旁白" }
             .flatMap { it.node.allItems }
         val narrationCount = if (narrationItems.isEmpty()) 0
-        else reassignNarrationTags(narrationItems).coerceAtLeast(0)
+        else reassignNarrationTags(narrationItems)
         // 先收集所有待处理项 (item, newRule, fallbackTag)
         data class PendingUpdate(val item: SystemTtsV2, val newRule: com.github.jing332.database.entities.systts.SpeechRuleInfo, val fallback: String)
         val pending = mutableListOf<PendingUpdate>()
-        val legalityRuleCache = mutableMapOf<String, SpeechRule?>()
         flattened.filterIsInstance<FlattenedCategoryItem.SubGroupHeader>().forEach { header ->
             val detected = detectTagKeyword(header.node.name) ?: return@forEach
             if (detected.prefix == "旁白") return@forEach  // 已由 reassignNarrationTags 处理
@@ -723,12 +700,6 @@ internal fun ListManagerScreen(
                 val config = item.config as TtsConfigurationDTO
                 // 标签已正确则跳过，避免大规模分组(数百项)全量重算 JS 与无效写库
                 if (config.speechRule.tag == newTag) return@forEachIndexed
-                // 只整理出合法标签：前缀不在绑定规则标签表内的项跳过
-                val rule = legalityRuleCache.getOrPut(config.speechRule.tagRuleId) {
-                    runCatching { dbm.speechRuleDao.getByRuleId(config.speechRule.tagRuleId) }.getOrNull()
-                }
-                if (!isLegalOrganizePrefix(rule, detected.prefix)) return@forEachIndexed
-                val newRule = config.speechRule.copy(tag = newTag)
                 pending.add(PendingUpdate(item, newRule, newTag))
             }
         }
@@ -2909,7 +2880,6 @@ internal fun ListManagerScreen(
                                             }
                                             showTagOrganizeLoading = false
                                             when {
-                                                count == -1 -> context.toast("前缀「${detected.prefix}」不在朗读规则标签表内，未整理")
                                                 count == 0 -> context.toast("标签均已正确，无需整理")
                                                 else -> context.toast("已按「${detected.prefix}」重新编号 $count 个标签")
                                             }
@@ -2933,7 +2903,6 @@ internal fun ListManagerScreen(
                                                 }
                                                 showTagOrganizeLoading = false
                                                 when {
-                                                    count == -1 -> context.toast("存在不在朗读规则标签表内的前缀，未整理")
                                                     count == 0 -> context.toast("标签均已正确，无需整理")
                                                     else -> context.toast("已按各子分组关键词重新编号 $count 个标签")
                                                 }
@@ -3083,7 +3052,6 @@ internal fun ListManagerScreen(
                                                                 }
                                                                 showTagOrganizeLoading = false
                                                                 when {
-                                                                    count == -1 -> context.toast("前缀「${detected.prefix}」不在朗读规则标签表内，未整理")
                                                                     count == 0 -> context.toast("标签均已正确，无需整理")
                                                                     else -> context.toast("已按「${detected.prefix}」重新编号 $count 个标签")
                                                                 }

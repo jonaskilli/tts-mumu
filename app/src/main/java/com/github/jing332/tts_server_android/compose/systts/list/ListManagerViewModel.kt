@@ -250,6 +250,12 @@ class ListManagerViewModel : ViewModel() {
             if (toDelete.isNotEmpty()) {
                 dbm.runInTransaction {
                     dbm.systemTtsV2.delete(*toDelete.toTypedArray())
+                    // 删完后变空的分组一并删除，不留空壳（默认分组保留）
+                    dbm.systemTtsV2.allGroup.forEach { g ->
+                        if (g.id != DEFAULT_GROUP_ID &&
+                            dbm.systemTtsV2.getByGroup(g.id).isEmpty()
+                        ) dbm.systemTtsV2.deleteGroup(g)
+                    }
                 }
             }
         }

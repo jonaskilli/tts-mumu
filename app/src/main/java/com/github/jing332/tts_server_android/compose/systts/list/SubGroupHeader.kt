@@ -26,7 +26,6 @@ import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import com.github.jing332.tts_server_android.compose.systts.ConfigDeleteDialog
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TriStateCheckbox
@@ -35,7 +34,6 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.rotate
@@ -44,9 +42,6 @@ import androidx.compose.ui.state.ToggleableState
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.foundation.ExperimentalFoundationApi
-
-// 整理标签专属色：琥珀金，固定不随主题，列表里认色即认功能
-private val OrganizeWandColor = Color(0xFFB8862B)
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
@@ -137,23 +132,8 @@ fun SubGroupHeader(
                 .weight(1f)
         )
 
-        // 快捷入口：点击直接一键整理本子分组标签，仅子分组名含关键词且组内非空时显示；
-        // 36dp 触控 + 20dp 琥珀金图标、无底色——jread 式克制：明显靠"每行一致"，不靠大圆底
-        if (hasTagKeyword && itemCount > 0) {
-            IconButton(
-                onClick = { onReassignTagsByGroupName() },
-                modifier = Modifier.size(36.dp)
-            ) {
-                Icon(
-                    Icons.Default.AutoFixHigh,
-                    contentDescription = "一键整理标签",
-                    tint = OrganizeWandColor,
-                    modifier = Modifier.size(20.dp)
-                )
-            }
-        }
-
         // 子分组内配置项数量
+        // （行内魔棒快捷键已删：单击立即整理无确认，易误触把整组标签改掉；功能保留在右侧菜单「一键整理标签」）
         if (itemCount >= 0) {
             Text(
                 "($itemCount)",
