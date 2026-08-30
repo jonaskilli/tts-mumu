@@ -32,6 +32,11 @@ import java.util.Collections
 class ListManagerViewModel : ViewModel() {
     companion object {
         const val TAG = "ListManagerViewModel"
+
+        // 进程内缓存最近一次全量列表（关键词为空时）。列表数据一直在数据库里，
+        // 但每次进页都要等「打开库→整表查询→JSON 反序列化上千条」后才首次出列表，
+        // 缓存让同一进程内再次进页/重建 Activity 时立即显示，数据库查完无缝替换
+        private var cachedFullList: List<GroupWithSystemTts>? = null
     }
 
     private val _keyword = MutableStateFlow("")
@@ -42,6 +47,10 @@ class ListManagerViewModel : ViewModel() {
 
     private val _list = MutableStateFlow<List<GroupWithSystemTts>>(emptyList())
     val list: StateFlow<List<GroupWithSystemTts>> get() = _list
+
+    // 首次数据库查询是否完成：完成前列表区显示加载中而不是误导性的「暂无分组」
+    private val _isInitialized = MutableStateFlow(false)
+    val isInitialized: StateFlow<Boolean> get() = _isInitialized
 
     // 缓存插件名称：响应式订阅插件表，插件新增/改名/pluginId变更/切换引用后自动刷新
     // 插件名缓存（pluginId → 展示名），供列表与批量修复来源选择使用
@@ -64,8 +73,12 @@ class ListManagerViewModel : ViewModel() {
 
     init {
         migrateExpandedGroupIds()
+        // 有缓存先立即显示，不等数据库冷启动
+        cachedFullList?.let { _list.value = it }
         viewModelScope.launch(Dispatchers.IO) {
-            dbm.systemTtsV2.updateAllOrder()
+            // 顺序整理挪到独立协程：它要整表读一遍并可能逐行写，此前串在列表链路前面，
+            // 首次显示必须等它跑完，是开页白屏几秒的主因之一
+            launch { runCatching { dbm.systemTtsV2.updateAllOrder() } }
 
             // 插件信息 Flow：插件表任何变化都会重新生成 pluginId→name 映射 + 已启用id集合
             val pluginInfoFlow = dbm.pluginDao.flowAllWithoutCode()
@@ -111,6 +124,8 @@ class ListManagerViewModel : ViewModel() {
                     }
                     Log.d(TAG, "update list: ${result.size}")
                     _list.value = result
+                    _isInitialized.value = true
+                    if (key.isBlank()) cachedFullList = result
                 }
         }
     }

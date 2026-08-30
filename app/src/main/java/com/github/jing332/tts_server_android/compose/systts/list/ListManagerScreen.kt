@@ -205,6 +205,7 @@ internal fun ListManagerScreen(
     val invalidSourceCounts by vm.invalidSourceCounts.collectAsStateWithLifecycle()
     val invalidSourceItems by vm.invalidSourceItems.collectAsStateWithLifecycle()
     val pluginNameCache by vm.pluginNameCache.collectAsStateWithLifecycle()
+    val isInitialized by vm.isInitialized.collectAsStateWithLifecycle()
 
     var isSearchMode by rememberSaveable { mutableStateOf(false) }
 
@@ -2712,14 +2713,19 @@ internal fun ListManagerScreen(
         }
         if (displayedModels.isEmpty()) {
             Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                Text(
-                    if (showAdvancedPool)
-                        "暂无高级池分组\n含规则外朗读标签（如性格词、群杂式）的分组会自动显示在这里"
-                    else "暂无通用池分组",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    textAlign = TextAlign.Center
-                )
+                if (!isInitialized) {
+                    // 首次数据库查询完成前显示加载中；否则「暂无分组」会闪一下再变出列表，像是不稳定
+                    CircularProgressIndicator()
+                } else {
+                    Text(
+                        if (showAdvancedPool)
+                            "暂无高级池分组\n含规则外朗读标签（如性格词、群杂式）的分组会自动显示在这里"
+                        else "暂无通用池分组",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        textAlign = TextAlign.Center
+                    )
+                }
             }
         } else LazyColumn(
                 Modifier
