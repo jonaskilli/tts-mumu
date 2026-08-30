@@ -76,6 +76,8 @@ object AppConfig {
     // 不再写分组表 isExpanded 列——写库会触发 Room 全量重发，导致展开/折叠时
     // 分池判定与全部分组树重建（大分组数千项时明显卡顿）。旧值启动时迁移进来
     val expandedGroupIds by lazy { mutableDataSaverStateOf(dataSaverPref, "expandedGroupIds", emptySet<String>()) }
+    // 规则外标签显示名修复标记：旧版曾把规则外标签显示名经 JS 兜底误写成「旁白」，升级后首启强制重算一次
+    val tagNameUnknownRepairDone by lazy { mutableDataSaverStateOf(dataSaverPref, "tagNameUnknownRepairDone", false) }
 
     // tagName 一次性迁移标记：首次进入列表时用 getTagName 重算所有 tagName 并清理废弃 personality 字段
     val tagNameMigrated by lazy { mutableDataSaverStateOf(dataSaverPref, "tagNameMigrated", false) }

@@ -634,6 +634,13 @@ class ListManagerViewModel : ViewModel() {
             )
         }
 
+        // 一次性修复：旧版曾把规则外标签（jread 性格/群杂等）的显示名经 JS 兜底误写成「旁白」，
+        // 升级后首启强制重算一遍（未知标签回写原始 tag，见 TagNameUtils 护栏），不依赖导入触发
+        if (!AppConfig.tagNameUnknownRepairDone.value) {
+            migrateTagNamesIfNeed(context, force = true)
+            AppConfig.tagNameUnknownRepairDone.value = true
+        }
+
         // tagName 一次性迁移：重算所有 tagName 并清理废弃的 personality 字段
         migrateTagNamesIfNeed(context)
     }
