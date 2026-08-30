@@ -7,6 +7,7 @@ import androidx.media3.common.audio.AudioProcessor.UnhandledAudioFormatException
 import androidx.media3.common.audio.BaseAudioProcessor
 import androidx.media3.common.util.UnstableApi
 import java.nio.ByteBuffer
+import kotlin.math.floor
 
 @OptIn(UnstableApi::class)
 /**
