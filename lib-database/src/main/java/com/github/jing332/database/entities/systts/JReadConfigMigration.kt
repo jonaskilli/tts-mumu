@@ -66,7 +66,11 @@ object JReadConfigMigration {
                     order = index,
                     categoryPath = categoryPath,
                     config = TtsConfigurationDTO(
-                        speechRule = SpeechRuleInfo(tag = mapGenericTag(o.str("voiceTag"))),
+                        speechRule = run {
+                            val t = mapGenericTag(o.str("voiceTag"))
+                            // tagName 为软件展示名（如 narration 显示为「旁白」），与 tag 一并写入
+                            SpeechRuleInfo(tag = t, tagName = tagNameFor(t))
+                        },
                         audioParams = AudioParams(
                             speed = o.optFloat("speed"),
                             volume = o.optFloat("volume"),
@@ -221,6 +225,7 @@ object JReadConfigMigration {
     /**
      * JRead 通用标签 → mumu 标签（前缀+序号）。
      * - 旁白/narration → narration
+     * - 括号显示名 → 标签：「【】括号发音人」→括号1、「在线音效」→括号2、「「」括号发音人」→括号3、「『对话旁白』/『』括号发音人」→括号4
      * - 斜杠式 "女/女青年3" → "女青年03"（仅 1–9 补成 01–09，10 及以上含三位数原样；男主始终不补零）
      * - 长名特殊式 "女性青年/特殊10" → "特殊女10"（剪映官方导出的特殊音色形态）
      * - 主角式 "主角男主1" → "男主1"
@@ -231,6 +236,9 @@ object JReadConfigMigration {
         val t = raw.trim()
         if (t.isBlank()) return ""
         if (t.equals("narration", true) || t == "旁白") return "narration"
+
+        // 括号发音人显示名 → 标签（规则 SPECIAL_ROLES/tags 表：四个括号各有固定标签）
+        BRACKET_NAME_TO_TAG[t]?.let { return it }
 
         // 主角式带空格："主角 女主01" → "女主01"（jread 脚本保留标签的常用形式）
         Regex("^主角\\s+(男主|女主)(\\d{1,3})$").matchEntire(t)?.let { m ->
@@ -300,6 +308,37 @@ object JReadConfigMigration {
 
     /** 音效标签形态：localSound1~localSound100（规则按此循环注册） */
     private val RULE_SOUND_TAG_REGEX = Regex("^localSound\\d{1,3}$")
+
+    /** 括号发音人显示名 → 标签，与朗读规则 SPECIAL_ROLES/tags 表一致（括号4两种写法都收） */
+    private val BRACKET_NAME_TO_TAG = mapOf(
+        "【】括号发音人" to "括号1",
+        "在线音效" to "括号2",
+        "「」括号发音人" to "括号3",
+        "『对话旁白』" to "括号4",
+        "『』括号发音人" to "括号4"
+    )
+
+    /** 固定标签的显示名（tagName，软件展示用），与朗读规则 tags 表一致 */
+    private val FIXED_TAG_NAMES = mapOf(
+        "narration" to "旁白",
+        "duihua" to "对话",
+        "duihuaA" to "男",
+        "duihuaB" to "女",
+        "括号1" to "【】括号发音人",
+        "括号2" to "在线音效",
+        "括号3" to "「」括号发音人",
+        "括号4" to "『』括号发音人"
+    )
+
+    /**
+     * 标签的显示名（tagName）：固定标签查规则 tags 表；localSoundN → 本地音效N；
+     * 人群标签与 tag 同名；规则外标签原样。jread 导入时与 tag 一并写入 SpeechRuleInfo。
+     */
+    fun tagNameFor(tag: String): String {
+        FIXED_TAG_NAMES[tag]?.let { return it }
+        if (RULE_SOUND_TAG_REGEX.matches(tag)) return "本地音效${tag.removePrefix("localSound")}"
+        return tag
+    }
 
     private val LONG_TO_SHORT_PREFIX = mapOf(
         "女性儿童" to "女童", "男性儿童" to "男童",
