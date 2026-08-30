@@ -181,6 +181,8 @@ private data class DetectedKeyword(val prefix: String, val zeroPad: Boolean)
  * 无匹配时回退为原分组名作为前缀。
  */
 private fun detectTagKeyword(name: String): DetectedKeyword? {
+    // 「女性少年/男性少年」是长名分组，不是「少年」组：明确排除，不触发关键词整理（用户指定仅「少年」名可触发）
+    if (name.contains("女性少年") || name.contains("男性少年")) return null
     val kw = GROUP_TAG_KEYWORDS.filter { name.contains(it) }
         .maxByOrNull { it.length } ?: return null
     return DetectedKeyword(kw, zeroPad = kw !in NO_ZERO_PAD_PREFIXES)

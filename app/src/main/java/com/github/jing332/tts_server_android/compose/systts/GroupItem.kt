@@ -11,7 +11,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.AutoFixHigh
 import androidx.compose.material.icons.filled.AccountTree
 import androidx.compose.material.icons.filled.DeleteForever
 import androidx.compose.material.icons.filled.ExpandCircleDown
@@ -22,7 +21,6 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.Checkbox
@@ -32,7 +30,6 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.rotate
@@ -51,8 +48,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.github.jing332.tts_server_android.R
 
-// 整理标签专属色：琥珀金，固定不随主题，列表里认色即认功能
-private val OrganizeWandColor = Color(0xFFB8862B)
 
 fun Int.sizeToToggleableState(total: Int): ToggleableState = when (this) {
     0 -> ToggleableState.Off
@@ -84,7 +79,6 @@ fun GroupItem(
     index: Int = -1,
     actions: @Composable ColumnScope.(() -> Unit) -> Unit,
     extraActions: (@Composable ColumnScope.(() -> Unit) -> Unit)? = null,
-    quickOrganizeSubTags: (() -> Unit)? = null,
     // 多选模式下点击分组名/行是否切换选中：true=点击行选中(系统TTS默认), false=仅右侧方框选中, 点击名/行展开(替换规则)
     selectOnRowClick: Boolean = true,
 ) {
@@ -210,23 +204,7 @@ fun GroupItem(
                     .padding(end = 4.dp)
             )
         }
-        // 快捷整理按钮：点击整理全部子分组标签，仅在含可整理子分组时由调用方传入；
-        // 36dp 触控 + 20dp 琥珀金图标、无底色——jread 式克制：明显靠"每行一致"，不靠大圆底
-        if (quickOrganizeSubTags != null) {
-            IconButton(
-                onClick = { quickOrganizeSubTags() },
-                modifier = Modifier
-                    .align(Alignment.CenterVertically)
-                    .size(36.dp)
-            ) {
-                Icon(
-                    imageVector = Icons.Default.AutoFixHigh,
-                    contentDescription = "整理全部子分组标签",
-                    tint = OrganizeWandColor,
-                    modifier = Modifier.size(20.dp)
-                )
-            }
-        }
+        // 一级分组行魔棒快捷键已删（与子分组行魔棒同步移除）；整理入口保留在右侧菜单「整理全部子分组标签」
         Row {
             if (inSelectionMode) {
                 Checkbox(

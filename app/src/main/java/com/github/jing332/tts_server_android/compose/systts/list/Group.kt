@@ -99,7 +99,6 @@ fun Group(
 
     val context = LocalContext.current
     var showEditContentDialog by remember { mutableStateOf(false) }
-    var showOrganizeConfirmDialog by remember { mutableStateOf(false) }
 
     if (showEditContentDialog) {
         GroupEditContentDialog(
@@ -108,23 +107,7 @@ fun Group(
         )
     }
 
-    // 快捷整理按钮的二次确认：批量重新编号全部子分组标签，误触需拦截
-    if (showOrganizeConfirmDialog) {
-        androidx.compose.material3.AlertDialog(
-            onDismissRequest = { showOrganizeConfirmDialog = false },
-            title = { Text("整理全部子分组标签") },
-            text = { Text("确定整理全部子分组标签？") },
-            confirmButton = {
-                androidx.compose.material3.TextButton(onClick = {
-                    showOrganizeConfirmDialog = false
-                    onReassignAllSubGroups()
-                }) { Text("确定") }
-            },
-            dismissButton = {
-                androidx.compose.material3.TextButton(onClick = { showOrganizeConfirmDialog = false }) { Text("取消") }
-            }
-        )
-    }
+    // 一级分组行魔棒快捷键已删（含其二次确认弹窗）；整理入口保留在右侧菜单「整理全部子分组标签」
 
     GroupItem(
         modifier = modifier.semantics {
@@ -164,9 +147,6 @@ fun Group(
         onToggleSelect = onToggleSelect,
         itemCount = itemCount,
         hasSubGroups = hasSubGroups,
-        quickOrganizeSubTags = if (hasSubGroups && hasSubGroupTagKeyword && itemCount > 0) {
-            { showOrganizeConfirmDialog = true }
-        } else null,
         index = index,
         extraActions = { dismiss ->
             // 这些操作针对组内配置项，空分组（无配置项）时无意义，隐藏
