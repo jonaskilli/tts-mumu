@@ -41,7 +41,10 @@ class PluginDescriptor(val context: Context, val systemTts: SystemTtsV2) : ItemD
         }
 
     override val bottom: String = (systemTts.config as TtsConfigurationDTO).audioFormat.run {
-        "${sampleRate}hz" + if (isNeedDecode) " | " + context.getString(R.string.decode) else ""
+        // 16000 是导入占位默认值（jread 无采样率字段）：播放时从音频头探测真实值，这里不再显示假数字，标「自适应」；
+        // 手动设置过采样率的配置照常显示具体数值
+        val rate = if (sampleRate == 16000) "自适应" else "${sampleRate}hz"
+        rate + if (isNeedDecode) " | " + context.getString(R.string.decode) else ""
     }
     override val type: String by lazy {
         synchronized(nameCache) {
