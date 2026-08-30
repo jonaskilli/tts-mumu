@@ -70,18 +70,31 @@ suspend fun migrateTagNamesIfNeed(context: Context, force: Boolean = false) {
 
         for (systts in dbm.systemTtsV2.all) {
             val config = systts.config as? TtsConfigurationDTO ?: continue
-            val ruleData = config.speechRule
-            val ruleId = ruleData.tagRuleId
+            var ruleData = config.speechRule
+            var ruleId = ruleData.tagRuleId
             if (ruleId.isBlank()) {
-                // 未关联朗读规则：无法用 JS 算出显示名，则把已分配的原始 tag 直接作为显示名（如 jread 导入的女青年01）
-                if (ruleData.tag.isNotBlank() && ruleData.tagName.isBlank()) {
+                // 旧导入（如 jread）有标签但未绑定规则：回填当前启用规则并继续走正常重算，
+                // 否则编辑页会提示「该配置项未绑定朗读规则，无法切换标签」
+                val enabled = if (ruleData.tag.isNotBlank()) {
+                    dbm.speechRuleDao.getAllEnabledWithoutCode().firstOrNull()
+                } else null
+                if (enabled != null) {
+                    ruleData = ruleData.copy(tagRuleId = enabled.ruleId)
+                    ruleId = enabled.ruleId
                     updated.add(
-                        systts.copy(
-                            config = config.copy(speechRule = ruleData.copy(tagName = ruleData.tag))
-                        )
+                        systts.copy(config = config.copy(speechRule = ruleData))
                     )
+                } else {
+                    // 未关联朗读规则：无法用 JS 算出显示名，则把已分配的原始 tag 直接作为显示名（如 jread 导入的女青年01）
+                    if (ruleData.tag.isNotBlank() && ruleData.tagName.isBlank()) {
+                        updated.add(
+                            systts.copy(
+                                config = config.copy(speechRule = ruleData.copy(tagName = ruleData.tag))
+                            )
+                        )
+                    }
+                    continue
                 }
-                continue
             }
 
             val speechRule = ruleCache.getOrPut(ruleId) {
