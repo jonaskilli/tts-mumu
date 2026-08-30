@@ -2,7 +2,6 @@ package com.github.jing332.tts_server_android.compose.systts
 
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.background
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Box
@@ -23,6 +22,7 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.Checkbox
@@ -35,7 +35,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalContext
@@ -198,23 +197,19 @@ fun GroupItem(
         }
         // 快捷整理按钮：点击整理全部子分组标签，仅在含可整理子分组时由调用方传入；
         // 紧跟树图标之后、计数之前，与子分组头排列一致；
-        // 38dp 主题色圆底 + 21dp 图标，与子分组头的新样式统一，触控区与视觉一致
+        // 36dp 触控 + 20dp 琥珀金图标、无底色——jread 式克制：明显靠"每行一致"，不靠大圆底
         if (quickOrganizeSubTags != null) {
-            Box(
+            IconButton(
+                onClick = { quickOrganizeSubTags() },
                 modifier = Modifier
                     .align(Alignment.CenterVertically)
-                    .padding(end = 6.dp)
-                    .size(38.dp)
-                    .clip(CircleShape)
-                    .background(OrganizeWandColor.copy(alpha = 0.18f))
-                    .clickable { quickOrganizeSubTags() },
-                contentAlignment = Alignment.Center
+                    .size(36.dp)
             ) {
                 Icon(
                     imageVector = Icons.Default.AutoFixHigh,
                     contentDescription = "整理全部子分组标签",
-                    modifier = Modifier.size(21.dp),
-                    tint = OrganizeWandColor
+                    tint = OrganizeWandColor,
+                    modifier = Modifier.size(20.dp)
                 )
             }
         }

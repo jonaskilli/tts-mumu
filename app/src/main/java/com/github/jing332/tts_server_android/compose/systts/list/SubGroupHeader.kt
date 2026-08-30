@@ -2,7 +2,6 @@ package com.github.jing332.tts_server_android.compose.systts.list
 
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.background
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Box
@@ -39,7 +38,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.state.ToggleableState
@@ -140,22 +138,17 @@ fun SubGroupHeader(
         )
 
         // 快捷入口：点击直接一键整理本子分组标签，仅子分组名含关键词且组内非空时显示；
-        // 38dp 主题色圆底 + 21dp 图标：脱离"裸小图标挤在文字边"的隐蔽感，触控区与视觉一致
+        // 36dp 触控 + 20dp 琥珀金图标、无底色——jread 式克制：明显靠"每行一致"，不靠大圆底
         if (hasTagKeyword && itemCount > 0) {
-            Box(
-                modifier = Modifier
-                    .padding(end = 6.dp)
-                    .size(38.dp)
-                    .clip(CircleShape)
-                    .background(OrganizeWandColor.copy(alpha = 0.18f))
-                    .clickable { onReassignTagsByGroupName() },
-                contentAlignment = Alignment.Center
+            IconButton(
+                onClick = { onReassignTagsByGroupName() },
+                modifier = Modifier.size(36.dp)
             ) {
                 Icon(
                     Icons.Default.AutoFixHigh,
                     contentDescription = "一键整理标签",
                     tint = OrganizeWandColor,
-                    modifier = Modifier.size(21.dp)
+                    modifier = Modifier.size(20.dp)
                 )
             }
         }
