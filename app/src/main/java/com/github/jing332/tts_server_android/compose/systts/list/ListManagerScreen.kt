@@ -700,6 +700,7 @@ internal fun ListManagerScreen(
                 val config = item.config as TtsConfigurationDTO
                 // 标签已正确则跳过，避免大规模分组(数百项)全量重算 JS 与无效写库
                 if (config.speechRule.tag == newTag) return@forEachIndexed
+                val newRule = config.speechRule.copy(tag = newTag)
                 pending.add(PendingUpdate(item, newRule, newTag))
             }
         }
