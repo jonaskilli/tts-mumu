@@ -220,6 +220,8 @@ internal fun ListManagerScreen(
 
     // 子分组展开状态：存储已展开的子分组完整路径（持久化，默认全部折叠）
     var expandedSubGroups by remember { AppConfig.expandedSubGroups }
+    // 大分组展开集合：轻量态，切换不写库（写库会触发 Room 全量重发 → 分池/树重建卡顿）
+    var expandedGroupIds by remember { AppConfig.expandedGroupIds }
 
     // 池划分：只看配置项的朗读标签——全部标签都是朗读规则标签表内的标签（女青年01/男主1/narration/括号2/localSound1 等，
     // 含能转换成这些的 jread 标签式；空白标签也算通用）→ 通用池；
@@ -2637,11 +2639,11 @@ internal fun ListManagerScreen(
             }
         }
         // 可见项过滤：轻量操作，每次展开/折叠时执行（仅遍历已缓存的扁平树做过滤，不重建树）
-        val subGroupVisibleItemsMap = remember(models, expandedSubGroups) {
+        val subGroupVisibleItemsMap = remember(models, expandedSubGroups, expandedGroupIds) {
             models.associate { gwt ->
                 val g = gwt.group
                 val flattened = subGroupTrees[g.id]
-                if (g.isExpanded && flattened != null) {
+                if (expandedGroupIds.contains(g.id.toString()) && flattened != null) {
                     val visItems = mutableListOf<FlattenedCategoryItem>()
                     var skipLevel = Int.MAX_VALUE
                     for (fItem in flattened) {
@@ -2735,14 +2737,14 @@ internal fun ListManagerScreen(
                             Group(modifier = groupDragModifier.fillMaxWidth(),
                                 name = g.name,
                                 group = g,
-                                isExpanded = g.isExpanded,
+                                isExpanded = expandedGroupIds.contains(g.id.toString()),
                                 toggleableState = checkState,
                                 onToggleableStateChange = {
                                     vm.updateGroupEnable(groupWithSystemTts, it)
                                 },
                                 onClick = {
-                                    val wasExpanded = g.isExpanded
-                                    vm.toggleGroupExpanded(g)
+                                    val wasExpanded = expandedGroupIds.contains(g.id.toString())
+                                    expandedGroupIds = if (wasExpanded) expandedGroupIds - g.id.toString() else expandedGroupIds + g.id.toString()
                                     if (!wasExpanded) {
                                         scope.launch {
                                             // 等待重组完成后再用新布局索引滚动，避免并发导致跳位
@@ -2917,7 +2919,7 @@ internal fun ListManagerScreen(
                         }
                     }
 
-                    if (g.isExpanded) {
+                    if (expandedGroupIds.contains(g.id.toString())) {
                         val hasSubGroups = groupWithSystemTts.list.any { it.categoryPath.isNotBlank() } ||
                             g.subGroupAudioParamsJson.let { it.isNotBlank() && it != "{}" }
 

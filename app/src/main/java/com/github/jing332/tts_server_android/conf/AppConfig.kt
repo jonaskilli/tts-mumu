@@ -72,6 +72,11 @@ object AppConfig {
     val webDavPath by lazy { mutableDataSaverStateOf(dataSaverPref, "webDavPath", "/TTS备份") }
     val expandedSubGroups by lazy { mutableDataSaverStateOf(dataSaverPref, "expandedSubGroups", emptySet<String>()) }
 
+    // 大分组展开状态：轻量集合（存 String id 复用 Set<String> 转换器）。
+    // 不再写分组表 isExpanded 列——写库会触发 Room 全量重发，导致展开/折叠时
+    // 分池判定与全部分组树重建（大分组数千项时明显卡顿）。旧值启动时迁移进来
+    val expandedGroupIds by lazy { mutableDataSaverStateOf(dataSaverPref, "expandedGroupIds", emptySet<String>()) }
+
     // tagName 一次性迁移标记：首次进入列表时用 getTagName 重算所有 tagName 并清理废弃 personality 字段
     val tagNameMigrated by lazy { mutableDataSaverStateOf(dataSaverPref, "tagNameMigrated", false) }
 }

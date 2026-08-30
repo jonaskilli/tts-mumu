@@ -5,6 +5,7 @@ import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.github.jing332.database.dbm
+import com.github.jing332.tts_server_android.conf.AppConfig
 import com.github.jing332.database.entities.AbstractListGroup.Companion.DEFAULT_GROUP_ID
 import com.github.jing332.database.entities.systts.AudioParams
 import com.github.jing332.database.entities.systts.GroupWithSystemTts
@@ -62,6 +63,7 @@ class ListManagerViewModel : ViewModel() {
     val invalidSourceItems: StateFlow<Map<String, List<String>>> get() = _invalidSourceItems
 
     init {
+        migrateExpandedGroupIds()
         viewModelScope.launch(Dispatchers.IO) {
             dbm.systemTtsV2.updateAllOrder()
 
@@ -368,14 +370,23 @@ class ListManagerViewModel : ViewModel() {
     /**
      * 切换一级分组展开/折叠状态：立即更新内存列表使UI即时响应，后台异步写入DB持久化。
      */
-    fun toggleGroupExpanded(group: SystemTtsGroup) {
-        _list.value = _list.value.map { gwt ->
-            if (gwt.group.id == group.id) {
-                gwt.copy(group = gwt.group.copy(isExpanded = !gwt.group.isExpanded))
-            } else gwt
-        }
+    /**
+     * 旧版展开状态写在分组表 isExpanded 列，切换会触发 Room 全量重发，
+     * 连带分池判定与分组树全量重建（大分组数千项时展开/折叠明显卡顿）。
+     * 现展开态走 AppConfig.expandedGroupIds 轻量集合；此处只做一次性迁移（只增不减）。
+     */
+    fun migrateExpandedGroupIds() {
         viewModelScope.launch(Dispatchers.IO) {
-            dbm.systemTtsV2.updateGroup(group.copy(isExpanded = !group.isExpanded))
+            runCatching {
+                val saved = AppConfig.expandedGroupIds.value
+                val fromDb = dbm.systemTtsV2.allGroup
+                    .filter { it.isExpanded }
+                    .map { it.id.toString() }
+                    .toSet()
+                if (fromDb.isNotEmpty() && !saved.containsAll(fromDb)) {
+                    AppConfig.expandedGroupIds.value = saved + fromDb
+                }
+            }
         }
     }
 
