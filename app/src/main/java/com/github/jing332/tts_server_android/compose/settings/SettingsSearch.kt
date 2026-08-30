@@ -56,6 +56,7 @@ fun ColumnScope.SettingItem(
     if (!search.active() || search.hit(*keywords)) content()
 }
 
+@OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
 @Composable
 fun SettingsSearchField(
     value: String,
