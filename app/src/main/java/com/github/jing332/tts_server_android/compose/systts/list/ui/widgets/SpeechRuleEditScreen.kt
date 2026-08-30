@@ -337,9 +337,12 @@ fun SpeechRuleEditScreen(
             }
 
             AnimatedVisibility(visible = config.speechRule.target == SpeechTarget.TAG) {
-                // 心声保留标签是否生效：标签下拉候选与芯片、说明文案共用
-                val isInnerThought = config.speechRule.tag == InnerThoughtClassifier.INNER_THOUGHT_TAG
-                Row(Modifier) {
+                // AnimatedVisibility 内容是堆叠布局：芯片、选择器、说明文字必须包进 Column 才竖排，
+                // 否则全部叠在同一位置（此前「心声(内心独白)」芯片就压在规则脚本选择器上）
+                Column {
+                    // 心声保留标签是否生效：标签下拉候选与芯片、说明文案共用
+                    val isInnerThought = config.speechRule.tag == InnerThoughtClassifier.INNER_THOUGHT_TAG
+                    Row(Modifier) {
                     AppSpinner(
                         modifier = Modifier
                             .weight(1f)
@@ -423,6 +426,7 @@ fun SpeechRuleEditScreen(
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.padding(start = 4.dp, top = 2.dp)
                     )
+                }
                 }
             }
 
