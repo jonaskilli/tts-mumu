@@ -11,6 +11,12 @@ class PluginDescriptor(val context: Context, val systemTts: SystemTtsV2) : ItemD
     private val cfg = (systemTts.config as TtsConfigurationDTO)
     private val source: PluginTtsSource = cfg.source as PluginTtsSource
 
+    companion object {
+        // 插件名缓存：数千配置项的列表滚动/展开时每张卡片组合期同步查库会拖慢主线程。
+        // 只缓存命中名（未启用的插件不缓存，恢复启用后可及时显示）；插件改名后重启刷新，列表卡片场景可接受
+        private val nameCache = HashMap<String, String>()
+    }
+
     override val name: String = systemTts.displayName
     override val desc: String
         get() {
@@ -38,8 +44,11 @@ class PluginDescriptor(val context: Context, val systemTts: SystemTtsV2) : ItemD
         "${sampleRate}hz" + if (isNeedDecode) " | " + context.getString(R.string.decode) else ""
     }
     override val type: String by lazy {
-        dbm.pluginDao.getEnabledName(source.pluginId)
-            ?: context.getString(R.string.not_found_plugin, source.pluginId)
+        synchronized(nameCache) {
+            nameCache[source.pluginId] ?: dbm.pluginDao.getEnabledName(source.pluginId)?.also {
+                nameCache[source.pluginId] = it
+            } ?: context.getString(R.string.not_found_plugin, source.pluginId)
+        }
     }
     override val tagName: String = cfg.speechRule.tagName
     override val standby: Boolean = cfg.speechRule.isStandby

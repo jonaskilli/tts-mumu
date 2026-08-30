@@ -66,6 +66,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.derivedStateOf
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.withFrameNanos
@@ -175,6 +176,13 @@ private val NO_ZERO_PAD_PREFIXES = setOf("男主", "特殊男", "特殊女")
 
 private data class DetectedKeyword(val prefix: String, val zeroPad: Boolean)
 
+/** 列表派生数据的后台预计算结果：池划分 + 各分组扁平子分组树（数千万级配置项时避免主线程重算卡顿） */
+private data class ListDerivedUi(
+    val advancedPool: List<GroupWithSystemTts>,
+    val normalPool: List<GroupWithSystemTts>,
+    val trees: Map<Long, List<FlattenedCategoryItem>?>,
+)
+
 /**
  * 从分组名匹配固定关键词（取最长匹配）。
  * 返回前缀与是否补零：男主/特殊男/特殊女不补零，其余两位补零，与朗读规则一致。
@@ -225,17 +233,34 @@ internal fun ListManagerScreen(
     // 大分组展开集合：轻量态，切换不写库（写库会触发 Room 全量重发 → 分池/树重建卡顿）
     var expandedGroupIds by remember { AppConfig.expandedGroupIds }
 
+    // 池划分与子分组树的后台预计算结果（见下方 produceState）
     // 池划分：只看配置项的朗读标签——全部标签都是朗读规则标签表内的标签（女青年01/男主1/narration/括号2/localSound1 等，
     // 含能转换成这些的 jread 标签式；空白标签也算通用）→ 通用池；
     // 任一配置项标签为规则外标签（性格词、群杂式等）→ 整组高级池。分组名、子分组路径与参数字典键不参与判定
-    val (advancedPoolModels, normalPoolModels) = remember(models) {
-        models.partition { gwt ->
-            gwt.list.any {
-                val tag = (it.config as? TtsConfigurationDTO)?.speechRule?.tag ?: ""
-                !JReadConfigMigration.isNormalTag(tag)
+    val derivedUi by produceState(ListDerivedUi(emptyList(), emptyList(), emptyMap()), models) {
+        // 数千配置项时分池正则/全量签名/树重建在主线程会明显卡顿，放后台算，主线程只做轻量过滤
+        value = withContext(Dispatchers.Default) {
+            val (advancedPoolModels, normalPoolModels) = models.partition { gwt ->
+                gwt.list.any {
+                    val tag = (it.config as? TtsConfigurationDTO)?.speechRule?.tag ?: ""
+                    !JReadConfigMigration.isNormalTag(tag)
+                }
             }
+            val trees = models.associate { gwt ->
+                val subPaths: Set<String> = gwt.group.subGroupAudioParamsJson.let { jsonStr ->
+                    if (jsonStr.isBlank() || jsonStr == "{}") emptySet()
+                    else SystemTtsV2.Converters.json.decodeFromString<Map<String, AudioParams>>(jsonStr).keys
+                }
+                val hasSubInList = gwt.list.any { it.categoryPath.isNotBlank() }
+                gwt.group.id to (if (hasSubInList || subPaths.isNotEmpty()) {
+                    flattenSubCategoryTree(buildSubCategoryTree(gwt.list, subPaths))
+                } else null)
+            }
+            ListDerivedUi(advancedPoolModels, normalPoolModels, trees)
         }
     }
+    val advancedPoolModels = derivedUi.advancedPool
+    val normalPoolModels = derivedUi.normalPool
     // 当前所在的池页签：false=通用池，true=高级池
     var showAdvancedPool by rememberSaveable { mutableStateOf(false) }
     // 只有一池有内容时直接展示该池；两池都有内容才显示页签
@@ -2627,31 +2652,12 @@ internal fun ListManagerScreen(
             }
         }
         CompositionLocalProvider(LocalViewConfiguration provides fastLongPressConfig) {
-        // 树结构缓存：仅当各分组的 TTS 项内容或子分组定义(subGroupAudioParamsJson)变化时重建。
-        // 展开/折叠只改 isExpanded，不改 TTS 项也不改子分组定义，因此 hash 签名不变，树缓存命中，
-        // 避免每次展开/折叠都为所有分组重建树导致卡顿。
-        // 注意：空子分组仅靠 subGroupAudioParamsJson 注册，不写入 list，签名必须纳入该字段，
-        // 否则新建空子分组时 list 未变导致签名不变、树不重建，空子分组被漏显示。
-        val ttsItemsSignature = remember(models) {
-            models.map { it.list.hashCode() * 31 + it.group.subGroupAudioParamsJson.hashCode() }
-        }
-        val subGroupTrees = remember(ttsItemsSignature) {
-            models.associate { gwt ->
-                val subPaths: Set<String> = gwt.group.subGroupAudioParamsJson.let { jsonStr ->
-                    if (jsonStr.isBlank() || jsonStr == "{}") emptySet()
-                    else SystemTtsV2.Converters.json.decodeFromString<Map<String, AudioParams>>(jsonStr).keys
-                }
-                val hasSubInList = gwt.list.any { it.categoryPath.isNotBlank() }
-                gwt.group.id to (if (hasSubInList || subPaths.isNotEmpty()) {
-                    flattenSubCategoryTree(buildSubCategoryTree(gwt.list, subPaths))
-                } else null)
-            }
-        }
+        // 树结构已在上方 produceState 后台预计算（derivedUi.trees）。展开/折叠只改展开态，models 不变则不重算。
         // 可见项过滤：轻量操作，每次展开/折叠时执行（仅遍历已缓存的扁平树做过滤，不重建树）
-        val subGroupVisibleItemsMap = remember(models, expandedSubGroups, expandedGroupIds) {
+        val subGroupVisibleItemsMap = remember(derivedUi, expandedSubGroups, expandedGroupIds) {
             models.associate { gwt ->
                 val g = gwt.group
-                val flattened = subGroupTrees[g.id]
+                val flattened = derivedUi.trees[g.id]
                 if (expandedGroupIds.contains(g.id.toString()) && flattened != null) {
                     val visItems = mutableListOf<FlattenedCategoryItem>()
                     var skipLevel = Int.MAX_VALUE
