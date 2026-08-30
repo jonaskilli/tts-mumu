@@ -352,6 +352,11 @@ internal fun Item(
                     text = type,
                     style = MaterialTheme.typography.labelMedium,
                     color = MaterialTheme.colorScheme.tertiary,
+                    // 插件名可能很长：单行+限宽+省略，防止横向铺开压过语速/采样率行
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    textAlign = TextAlign.End,
+                    modifier = Modifier.fillMaxWidth(0.6f),
                 )
             }
 
