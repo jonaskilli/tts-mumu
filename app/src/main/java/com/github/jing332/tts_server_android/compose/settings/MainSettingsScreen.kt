@@ -135,7 +135,7 @@ fun SettingsScreen() {
                         // 标题右侧嵌入紧凑搜索框，占满顶栏剩余宽度
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Text(stringResource(R.string.settings))
-                            Spacer(Modifier.width(12.dp))
+                            Spacer(Modifier.width(20.dp))
                             SettingsSearchField(
                                 value = query,
                                 onValueChange = { query = it },

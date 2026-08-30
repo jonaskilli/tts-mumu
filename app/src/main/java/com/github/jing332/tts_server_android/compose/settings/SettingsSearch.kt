@@ -59,18 +59,18 @@ fun SettingsSearchField(
     modifier: Modifier = Modifier,
     compact: Boolean = false,
 ) {
-    // 充色搜索条：无描边、surfaceVariant 底、全圆角——描边药丸与下方扁平设置列表放在一起过重、不和谐
-    val container = MaterialTheme.colorScheme.surfaceVariant
+    // 充色搜索条：无描边、全圆角；底色用 surfaceContainer（与底部导航栏同色的淡紫白，用户指定）
+    val container = MaterialTheme.colorScheme.surfaceContainer
     OutlinedTextField(
         value = value,
         onValueChange = onValueChange,
         modifier = modifier
-            .then(if (compact) Modifier.height(48.dp) else Modifier.fillMaxWidth())
+            .then(if (compact) Modifier.height(48.dp).padding(end = 12.dp) else Modifier.fillMaxWidth())
             .padding(horizontal = if (compact) 0.dp else 16.dp, vertical = if (compact) 0.dp else 4.dp),
         singleLine = true,
         placeholder = {
             Text(
-                "搜索设置",
+                "搜索设置项",
                 style = if (compact) MaterialTheme.typography.bodyMedium
                 else MaterialTheme.typography.bodyLarge
             )
