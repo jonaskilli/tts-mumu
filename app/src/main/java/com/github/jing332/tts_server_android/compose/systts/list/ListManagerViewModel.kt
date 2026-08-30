@@ -116,11 +116,14 @@ class ListManagerViewModel : ViewModel() {
                     _invalidCount.value = invalid
                     _invalidSourceCounts.value = srcCounts
                     _invalidSourceItems.value = srcItems
+                    // 默认分组（id=1）只在其中有配置项时显示：它永远留在库里做兜底，
+                    // 但空着的时候列出来只会"突然冒出来"让人困惑；其余分组空壳照常保留
+                    val visible = list.filter { it.group.id != DEFAULT_GROUP_ID || it.list.isNotEmpty() }
                     // 关键词为空时直接返回全量列表，否则按类型过滤
                     val result = if (key.isBlank()) {
-                        list
+                        visible
                     } else {
-                        filterList(list, key, searchType, enabledIds)
+                        filterList(visible, key, searchType, enabledIds)
                     }
                     Log.d(TAG, "update list: ${result.size}")
                     _list.value = result
