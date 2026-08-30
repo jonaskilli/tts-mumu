@@ -2,6 +2,7 @@ package com.github.jing332.tts_server_android.compose.systts.list
 
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.background
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Box
@@ -35,14 +36,19 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.state.ToggleableState
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.foundation.ExperimentalFoundationApi
+
+// 整理标签专属色：琥珀金，固定不随主题，列表里认色即认功能
+private val OrganizeWandColor = Color(0xFFB8862B)
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
@@ -134,17 +140,24 @@ fun SubGroupHeader(
         )
 
         // 快捷入口：点击直接一键整理本子分组标签，仅子分组名含关键词且组内非空时显示；
-        // AutoFixHigh 魔法棒表意"自动整理"，tertiary 青色系与系统勾选框绿色区分开
+        // 38dp 主题色圆底 + 21dp 图标：脱离"裸小图标挤在文字边"的隐蔽感，触控区与视觉一致
         if (hasTagKeyword && itemCount > 0) {
-            Icon(
-                Icons.Default.AutoFixHigh,
-                contentDescription = "一键整理标签",
-                tint = MaterialTheme.colorScheme.tertiary,
+            Box(
                 modifier = Modifier
-                    .clickable { onReassignTagsByGroupName() }
-                    .size(18.dp)
-                    .padding(end = 4.dp)
-            )
+                    .padding(end = 6.dp)
+                    .size(38.dp)
+                    .clip(CircleShape)
+                    .background(OrganizeWandColor.copy(alpha = 0.18f))
+                    .clickable { onReassignTagsByGroupName() },
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    Icons.Default.AutoFixHigh,
+                    contentDescription = "一键整理标签",
+                    tint = OrganizeWandColor,
+                    modifier = Modifier.size(21.dp)
+                )
+            }
         }
 
         // 子分组内配置项数量

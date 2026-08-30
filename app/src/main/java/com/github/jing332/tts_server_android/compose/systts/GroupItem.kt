@@ -2,6 +2,7 @@ package com.github.jing332.tts_server_android.compose.systts
 
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.background
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Box
@@ -31,8 +32,10 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalContext
@@ -48,6 +51,9 @@ import androidx.compose.ui.state.ToggleableState
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.github.jing332.tts_server_android.R
+
+// 整理标签专属色：琥珀金，固定不随主题，列表里认色即认功能
+private val OrganizeWandColor = Color(0xFFB8862B)
 
 fun Int.sizeToToggleableState(total: Int): ToggleableState = when (this) {
     0 -> ToggleableState.Off
@@ -192,18 +198,25 @@ fun GroupItem(
         }
         // 快捷整理按钮：点击整理全部子分组标签，仅在含可整理子分组时由调用方传入；
         // 紧跟树图标之后、计数之前，与子分组头排列一致；
-        // AutoFixHigh 魔法棒表意"自动整理"，tertiary 青色系与系统勾选框绿色区分开
+        // 38dp 主题色圆底 + 21dp 图标，与子分组头的新样式统一，触控区与视觉一致
         if (quickOrganizeSubTags != null) {
-            Icon(
-                imageVector = Icons.Default.AutoFixHigh,
-                contentDescription = "整理全部子分组标签",
+            Box(
                 modifier = Modifier
                     .align(Alignment.CenterVertically)
-                    .size(18.dp)
-                    .padding(end = 4.dp)
+                    .padding(end = 6.dp)
+                    .size(38.dp)
+                    .clip(CircleShape)
+                    .background(OrganizeWandColor.copy(alpha = 0.18f))
                     .clickable { quickOrganizeSubTags() },
-                tint = MaterialTheme.colorScheme.tertiary
-            )
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    imageVector = Icons.Default.AutoFixHigh,
+                    contentDescription = "整理全部子分组标签",
+                    modifier = Modifier.size(21.dp),
+                    tint = OrganizeWandColor
+                )
+            }
         }
         // 分组内配置项数量
         if (itemCount >= 0) {
