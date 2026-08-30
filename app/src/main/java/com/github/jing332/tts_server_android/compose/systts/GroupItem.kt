@@ -176,27 +176,41 @@ fun GroupItem(
             )
         }
 
-        Text(
-            name,
-            style = MaterialTheme.typography.titleMedium.copy(fontSize = 18.sp),
+        Row(
             modifier = Modifier
                 .align(Alignment.CenterVertically)
-                .weight(1f)
-        )
-        // 含子分组的一级分组：标题旁显示子分组图标作为视觉区分
-        if (hasSubGroups) {
-            Icon(
-                imageVector = Icons.Default.AccountTree,
-                contentDescription = "含子分组",
+                .weight(1f),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                name,
+                style = MaterialTheme.typography.titleMedium.copy(fontSize = 18.sp)
+            )
+            // 含子分组指示器：紧跟名称（纯信息，不进右侧动作栏），小号弱化色
+            if (hasSubGroups) {
+                Icon(
+                    imageVector = Icons.Default.AccountTree,
+                    contentDescription = "含子分组",
+                    modifier = Modifier
+                        .padding(start = 6.dp)
+                        .size(15.dp),
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        }
+        // 右侧动作栏排序：项数（信息）→ 魔棒（高频整理）→ 勾选 → 菜单；指示器已随名称左移
+        // 分组内配置项数量
+        if (itemCount >= 0) {
+            Text(
+                "($itemCount)",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier
                     .align(Alignment.CenterVertically)
-                    .size(18.dp)
-                    .padding(end = 4.dp),
-                tint = MaterialTheme.colorScheme.primary
+                    .padding(end = 4.dp)
             )
         }
         // 快捷整理按钮：点击整理全部子分组标签，仅在含可整理子分组时由调用方传入；
-        // 紧跟树图标之后、计数之前，与子分组头排列一致；
         // 36dp 触控 + 20dp 琥珀金图标、无底色——jread 式克制：明显靠"每行一致"，不靠大圆底
         if (quickOrganizeSubTags != null) {
             IconButton(
@@ -212,17 +226,6 @@ fun GroupItem(
                     modifier = Modifier.size(20.dp)
                 )
             }
-        }
-        // 分组内配置项数量
-        if (itemCount >= 0) {
-            Text(
-                "($itemCount)",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier
-                    .align(Alignment.CenterVertically)
-                    .padding(end = 4.dp)
-            )
         }
         Row {
             if (inSelectionMode) {
