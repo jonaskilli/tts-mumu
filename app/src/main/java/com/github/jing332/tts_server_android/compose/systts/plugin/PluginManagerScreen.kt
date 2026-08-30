@@ -1054,7 +1054,8 @@ private fun ImportByCategoryDialog(
 
     AlertDialog(
         onDismissRequest = { if (!importing) onDismiss() },
-        title = { Text(if (importing) "正在按插件音色分类入库" else "按插件音色分类入库 - ${plugin.name}") },
+        // 标题只留固定功能名：插件名长（如"墨听_阿里云QwenAudio…桥接版_v2"）会把大字标题撑出五六行
+        title = { Text(if (importing) "正在按插件音色分类入库" else "按插件音色分类入库") },
         text = {
             if (importing) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
@@ -1066,62 +1067,53 @@ private fun ImportByCategoryDialog(
                 Text("该插件无音色分类")
             } else {
                 Column(Modifier.verticalScroll(rememberScrollState())) {
-                    // 全选/取消全选：与分类行同宽对齐，勾选框 + 标签 + 计数一行排开
-                    Row(
-                        modifier = Modifier.fillMaxWidth().padding(bottom = 4.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Checkbox(
-                            checked = allSelected,
-                            onCheckedChange = { checked ->
-                                selectedPoolIds = if (checked) categories.map { it.poolId }.toSet() else emptySet()
-                            }
-                        )
-                        Text(
-                            text = if (allSelected) "取消全选" else "全选",
-                            style = MaterialTheme.typography.bodyMedium,
-                            modifier = Modifier.padding(start = 4.dp)
-                        )
-                        Text(
-                            text = "已选 ${selectedPoolIds.size}/${categories.size}",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.padding(start = 10.dp)
-                        )
-                    }
-                    HorizontalDivider()
+                    // 插件名：次级信息行，小字最多两行省略，归属可见又不抢标题
+                    Text(
+                        text = plugin.name,
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.padding(bottom = 10.dp)
+                    )
+                    // 全选行与分类行共用 CheckRow，勾选框绝对同列
+                    CheckRow(
+                        checked = allSelected,
+                        onChecked = {
+                            selectedPoolIds = if (allSelected) emptySet() else categories.map { it.poolId }.toSet()
+                        },
+                        label = if (allSelected) "取消全选" else "全选",
+                        trailing = {
+                            Text(
+                                "已选 ${selectedPoolIds.size}/${categories.size}",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    )
+                    HorizontalDivider(Modifier.padding(bottom = 2.dp))
                     categories.forEach { item ->
-                        Row(
-                            modifier = Modifier.fillMaxWidth().clickable {
+                        CheckRow(
+                            checked = item.poolId in selectedPoolIds,
+                            onChecked = null,
+                            label = item.poolName,
+                            onClick = {
                                 selectedPoolIds = if (item.poolId in selectedPoolIds) {
                                     selectedPoolIds - item.poolId
                                 } else {
                                     selectedPoolIds + item.poolId
                                 }
                             },
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Checkbox(
-                                checked = item.poolId in selectedPoolIds,
-                                onCheckedChange = null
-                            )
-                            // 分类原名占满左侧；映射结果同行右对齐，一行读完
-                            Text(
-                                text = item.poolName,
-                                style = MaterialTheme.typography.bodyMedium,
-                                modifier = Modifier.padding(start = 4.dp).weight(1f)
-                            )
-                            item.mappedName?.let { mapped ->
-                                if (mapped != item.poolName) {
+                            trailing = item.mappedName?.takeIf { it != item.poolName }?.let { mapped ->
+                                @Composable {
                                     Text(
                                         text = "→ $mapped",
                                         style = MaterialTheme.typography.bodySmall,
-                                        color = MaterialTheme.colorScheme.primary,
-                                        modifier = Modifier.padding(start = 8.dp, end = 4.dp)
+                                        color = MaterialTheme.colorScheme.primary
                                     )
                                 }
                             }
-                        }
+                        )
                     }
                 }
             }
@@ -1150,4 +1142,36 @@ private fun ImportByCategoryDialog(
             TextButton(enabled = !importing, onClick = onDismiss) { Text("取消") }
         }
     )
+}
+
+/**
+ * 分类入库对话框的统一选择行：勾选框 + 标签（占满）+ 右侧元信息。
+ * 全选行与分类行共用同一构件，勾选框/内边距绝对同列对齐。
+ * [onChecked] 为勾选框自身回调（可为 null 只读）；[onClick] 为整行点击（可为 null）。
+ */
+@Composable
+private fun CheckRow(
+    checked: Boolean,
+    label: String,
+    onChecked: (() -> Unit)?,
+    modifier: Modifier = Modifier,
+    onClick: (() -> Unit)? = null,
+    trailing: (@Composable () -> Unit)? = null,
+) {
+    Row(
+        modifier = modifier
+            .fillMaxWidth()
+            .then(if (onClick != null) Modifier.clickable { onClick() } else Modifier),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Checkbox(checked = checked, onCheckedChange = if (onChecked != null) { _ -> onChecked() } else null)
+        Text(
+            text = label,
+            style = MaterialTheme.typography.bodyMedium,
+            modifier = Modifier
+                .padding(start = 4.dp)
+                .weight(1f)
+        )
+        trailing?.invoke()
+    }
 }
