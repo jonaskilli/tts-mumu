@@ -394,6 +394,9 @@ private fun doImportList(
 /** JRead 配置写入：一级组名做 mumu 分组(同名复用)，二三级留在 categoryPath */
 private fun insertJReadItems(parsed: JReadConfigMigration.Parsed): ListImportResult {
     val baseId = System.currentTimeMillis()
+    // 绑定当前启用的朗读规则：tagRuleId 为空时编辑页会提示「该配置项未绑定朗读规则，无法切换标签」；
+    // 仅绑定有标签的项，无标签项（群杂等未映射）保持未绑定不打扰
+    val enabledRuleId = dbm.speechRuleDao.getAllEnabledWithoutCode().firstOrNull()?.ruleId ?: ""
     // 按 groupName 分桶，保持首次出现顺序（携带全局索引保证 ID 唯一）
     val buckets = linkedMapOf<String, MutableList<Pair<SystemTtsV2, Int>>>()
     parsed.items.forEachIndexed { i, item ->
@@ -415,7 +418,11 @@ private fun insertJReadItems(parsed: JReadConfigMigration.Parsed): ListImportRes
             }
             dbm.systemTtsV2.insert(
                 *bucket.map { (item, i) ->
-                    item.copy(id = baseId + 100000L + i, groupId = groupId)
+                    val bound = item.copy(id = baseId + 100000L + i, groupId = groupId)
+                    val cfg = bound.config as? TtsConfigurationDTO
+                    if (enabledRuleId.isNotBlank() && cfg != null && cfg.speechRule.tag.isNotBlank()) {
+                        bound.copy(config = cfg.copy(speechRule = cfg.speechRule.copy(tagRuleId = enabledRuleId)))
+                    } else bound
                 }.toTypedArray()
             )
         }
