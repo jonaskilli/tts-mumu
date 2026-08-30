@@ -239,7 +239,8 @@ fun GroupItem(
             TriStateCheckbox(
                 state = toggleableState,
                 onClick = {
-                    onToggleableStateChange(toggleableState != ToggleableState.On)
+                    // 半选态单击直接全部取消（旧逻辑半选→先全选，会触发跨分组标签去重顶掉其他分组）
+                    onToggleableStateChange(toggleableState == ToggleableState.Off)
                 },
                 modifier = Modifier.semantics {
                     stateDescription = context.getString(
