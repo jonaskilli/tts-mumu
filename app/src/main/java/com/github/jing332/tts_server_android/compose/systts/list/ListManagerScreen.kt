@@ -3106,7 +3106,8 @@ internal fun ListManagerScreen(
                                                     onMoveToOtherGroup = {
                                                         showMoveSingleSubGroupDialog = g to fItem.node.fullPath
                                                     },
-                                                    itemCount = subItems.size
+                                                    itemCount = subItems.size,
+                                                    hasSubGroups = fItem.node.children.isNotEmpty()
                                                 )
                                             }
                                         }

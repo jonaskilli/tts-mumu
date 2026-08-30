@@ -177,15 +177,15 @@ fun GroupItem(
                 .align(Alignment.CenterVertically)
                 .weight(1f)
         )
-        // 含子分组的一级分组：行右侧显示子分组树图标（18dp 主题色，恢复 b963380 之前的位置与形状）
+        // 含子分组（下方可展开）的分组：行右侧显示树图标（15dp 主题色）；直接是配置项的不带
         if (hasSubGroups) {
             Icon(
                 imageVector = Icons.Default.AccountTree,
-                contentDescription = "含子分组",
+                contentDescription = "含下级内容",
                 modifier = Modifier
                     .align(Alignment.CenterVertically)
                     .padding(end = 4.dp)
-                    .size(18.dp),
+                    .size(15.dp),
                 tint = MaterialTheme.colorScheme.primary
             )
         }

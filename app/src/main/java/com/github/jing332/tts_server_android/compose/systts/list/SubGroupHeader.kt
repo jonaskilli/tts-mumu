@@ -66,6 +66,8 @@ fun SubGroupHeader(
     onMoveToOtherGroup: () -> Unit = {},
     onMoveEnabledToGroup: () -> Unit = {},
     itemCount: Int = -1,
+    // 该子分组下是否还有下级子分组（与 itemCount>0 一起决定树图标显示）
+    hasSubGroups: Boolean = false,
 ) {
     val rotationAngle by animateFloatAsState(
         targetValue = if (isExpanded) 0f else -45f,
@@ -131,6 +133,18 @@ fun SubGroupHeader(
                 .padding(start = 8.dp)
                 .weight(1f)
         )
+
+        // 含下级子分组（下方可展开）的子分组：行右侧树图标（15dp 主题色，与一级分组行一致）；直接是配置项的不带
+        if (hasSubGroups) {
+            Icon(
+                imageVector = Icons.Default.AccountTree,
+                contentDescription = "含下级内容",
+                modifier = Modifier
+                    .padding(end = 4.dp)
+                    .size(15.dp),
+                tint = MaterialTheme.colorScheme.primary
+            )
+        }
 
         // 子分组内配置项数量
         // （行内魔棒快捷键已删：单击立即整理无确认，易误触把整组标签改掉；功能保留在右侧菜单「一键整理标签」）
