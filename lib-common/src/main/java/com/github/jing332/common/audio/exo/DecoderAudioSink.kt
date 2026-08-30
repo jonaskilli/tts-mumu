@@ -15,7 +15,9 @@ import java.nio.ByteBuffer
  */
 class DecoderAudioSink(
     private val onPcmBuffer: (ByteBuffer) -> Unit,
-    private val onEndOfStream: () -> Unit
+    private val onEndOfStream: () -> Unit,
+    // 解码后的真实 PCM 格式回调（Exo 从音频头解析，如 mp3 实际 24000hz）：首段 PCM 输出前必然先回调
+    private val onAudioFormatDetected: (Int) -> Unit = {}
 ) : AudioSink {
     private var timeUs: Long = 0L
 
@@ -39,6 +41,7 @@ class DecoderAudioSink(
         specifiedBufferSize: Int,
         outputChannels: IntArray?
     ) {
+        if (inputFormat.sampleRate > 0) onAudioFormatDetected(inputFormat.sampleRate)
     }
 
     override fun play() {

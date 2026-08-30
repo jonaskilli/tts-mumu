@@ -54,10 +54,12 @@ internal class DefaultResultProcessor(
     private suspend fun decode(
         ins: InputStream,
         tts: TtsConfiguration,
+        onFormatDetected: (Int) -> Unit = {},
         onRead: (ByteBuffer) -> Unit,
     ) {
 
         if (tts.shouldDecode()) {
+            mDecoder.onAudioFormatDetected = onFormatDetected
             mDecoder.callback = ExoAudioDecoder.Callback { byteBuffer ->
                 onRead(byteBuffer)
             }
@@ -122,22 +124,31 @@ internal class DefaultResultProcessor(
             val effectiveSpeed = if (config.pluginHandlesSpeed || config.audioParams.speed <= 0f) 1f else config.audioParams.speed
             val effectiveVolume = if (config.pluginHandlesVolume || config.audioParams.volume <= 0f) 1f else config.audioParams.volume
             val effectivePitch = if (config.pluginHandlesPitch || config.audioParams.pitch <= 0f) 1f else config.audioParams.pitch
-            val needsResample = config.audioFormat.sampleRate != targetSampleRate
-            val needsSonic = effectiveSpeed != 1f || effectiveVolume != 1f || effectivePitch != 1f || needsResample
             val needsLoudness = loudnessInfo.gain != 1f
 
-            val pipelines = listOf(
-                if (context.cfg.silenceSkipEnabled()) skipAudioProcessor else null,
-                if (needsSonic) sonicAudioProcessor else null,
-                if (needsLoudness) loudnessAudioProcessor else null,
-                if (config.audioParams.reverbEnabled) ReverbAudioProcessor() else null,
-            ).filterNotNull()
-            val processor = AudioProcessingPipeline(ImmutableList.copyOf(pipelines))
+            // 真实输入采样率：优先用解码器从音频头探测的值（mp3/wav 等自描述格式）。
+            // 配置里的采样率可能是占位默认值（如 jread 导入无采样率字段，写 16000，实际多为 24000），
+            // 拿占位值算重采样比例/上报系统会导致语速、音调异常；裸 PCM 无头可读，回退配置值（此时配置值是唯一事实）
+            var inputSampleRate = config.audioFormat.sampleRate
 
-            if (pipelines.isNotEmpty()) {
-                processor.configure(
+            // 管线推迟到拿到真实输入采样率后再装配（解码路径在首段 PCM 输出前就会回调真实格式）
+            var processor: AudioProcessingPipeline? = null
+            fun ensurePipeline() {
+                if (processor != null) return
+                val needsResample = inputSampleRate != targetSampleRate
+                val needsSonic = effectiveSpeed != 1f || effectiveVolume != 1f || effectivePitch != 1f || needsResample
+                val pipelines = listOf(
+                    if (context.cfg.silenceSkipEnabled()) skipAudioProcessor else null,
+                    if (needsSonic) sonicAudioProcessor else null,
+                    if (needsLoudness) loudnessAudioProcessor else null,
+                    if (config.audioParams.reverbEnabled) ReverbAudioProcessor() else null,
+                ).filterNotNull()
+                if (pipelines.isEmpty()) return
+
+                val p = AudioProcessingPipeline(ImmutableList.copyOf(pipelines))
+                p.configure(
                     AudioProcessor.AudioFormat(
-                        config.audioFormat.sampleRate,
+                        inputSampleRate,
                         1,
                         C.ENCODING_PCM_16BIT
                     )
@@ -148,7 +159,7 @@ internal class DefaultResultProcessor(
                         speed = effectiveSpeed
                         volume = effectiveVolume
                         pitch = effectivePitch
-                        rate = config.audioFormat.sampleRate.toFloat() / targetSampleRate.toFloat()
+                        rate = inputSampleRate.toFloat() / targetSampleRate.toFloat()
                     }
                 }
 
@@ -156,7 +167,8 @@ internal class DefaultResultProcessor(
                     loudnessAudioProcessor.setGain(loudnessInfo.gain)
                 }
 
-                processor.flush()
+                p.flush()
+                processor = p
             }
 
 
@@ -167,7 +179,9 @@ internal class DefaultResultProcessor(
             } else null
 
             fun handle(pcm: ByteBuffer?) {
-                if (pipelines.isEmpty()) {
+                ensurePipeline()
+                val p = processor
+                if (p == null) {
                     if (pcm != null) {
                         if (loudnessPcmCollector != null) {
                             val dup = pcm.duplicate()
@@ -179,8 +193,8 @@ internal class DefaultResultProcessor(
                 }
 
                 if (pcm == null) {
-                    processor.queueEndOfStream()
-                    val out = processor.output
+                    p.queueEndOfStream()
+                    val out = p.output
                     if (loudnessPcmCollector != null && out.hasRemaining()) {
                         val dup = out.duplicate()
                         while (dup.hasRemaining()) loudnessPcmCollector.write(dup.get().toInt())
@@ -188,8 +202,8 @@ internal class DefaultResultProcessor(
                     callback.receive(out)
                 } else {
                     while (pcm.hasRemaining()) {
-                        processor.queueInput(pcm)
-                        val out = processor.output
+                        p.queueInput(pcm)
+                        val out = p.output
                         if (loudnessPcmCollector != null && out.hasRemaining()) {
                             val dup = out.duplicate()
                             while (dup.hasRemaining()) loudnessPcmCollector.write(dup.get().toInt())
@@ -203,6 +217,10 @@ internal class DefaultResultProcessor(
                 decode(
                     ins = stream,
                     tts = config,
+                    onFormatDetected = {
+                        // 解码器从音频头解析出的真实采样率（首段 PCM 前回调，先于 ensurePipeline 使用）
+                        inputSampleRate = it
+                    },
                     onRead = { pcm -> handle(pcm = pcm) })
                 handle(null)
             } catch (e: ExoPlaybackException) {

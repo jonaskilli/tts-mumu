@@ -26,6 +26,9 @@ class ExoAudioDecoder(val context: Context) {
     private var mContinuation: Continuation<Unit>? = null
     var callback: Callback? = null
 
+    // 解码后的真实 PCM 采样率回调（来自 DecoderAudioSink.configure 的音频头解析结果）
+    var onAudioFormatDetected: ((Int) -> Unit)? = null
+
     private val exoPlayer by lazy {
         val rendererFactory = object : DefaultRenderersFactory(context) {
             override fun buildAudioSink(
@@ -39,6 +42,9 @@ class ExoAudioDecoder(val context: Context) {
                     },
                     onEndOfStream = {
 
+                    },
+                    onAudioFormatDetected = { sampleRate ->
+                        onAudioFormatDetected?.invoke(sampleRate)
                     }
                 )
             }
