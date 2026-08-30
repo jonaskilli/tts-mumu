@@ -12,6 +12,7 @@ import com.github.jing332.common.audio.AudioDecoder.Companion.readPcmChunk
 import com.github.jing332.common.audio.exo.ExoAudioDecoder
 import com.github.jing332.common.audio.exo.LoudnessAudioProcessor
 import com.github.jing332.common.audio.exo.ReverbAudioProcessor
+import com.github.jing332.common.audio.exo.SampleRateResampleProcessor
 import com.github.jing332.common.utils.rootCause
 import com.github.jing332.tts.error.StreamProcessorError
 import com.github.jing332.tts.error.StreamProcessorError.AudioDecoding
@@ -127,21 +128,24 @@ internal class DefaultResultProcessor(
             val needsLoudness = loudnessInfo.gain != 1f
 
             // 真实输入采样率：优先用解码器从音频头探测的值（mp3/wav 等自描述格式）。
-            // 配置里的采样率可能是占位默认值（如 jread 导入无采样率字段，写 16000，实际多为 24000），
-            // 拿占位值算重采样比例/上报系统会导致语速、音调异常；裸 PCM 无头可读，回退配置值（此时配置值是唯一事实）
+            // 配置采样率对多采样率音源（如本地音效，各音频文件速率不同）和占位导入值（jread 写 16000）天然不准，
+            // 统一以音频头为准；裸 PCM 无头可读，回退配置值（此时配置值是唯一事实）
             var inputSampleRate = config.audioFormat.sampleRate
 
             // 管线推迟到拿到真实输入采样率后再装配（解码路径在首段 PCM 输出前就会回调真实格式）
             var processor: AudioProcessingPipeline? = null
             fun ensurePipeline() {
                 if (processor != null) return
-                val needsResample = inputSampleRate != targetSampleRate
-                val needsSonic = effectiveSpeed != 1f || effectiveVolume != 1f || effectivePitch != 1f || needsResample
+                val needsSonic = effectiveSpeed != 1f || effectiveVolume != 1f || effectivePitch != 1f
+                // 注意：Sonic 的 rate 是"变速变调"参数（时长与音调一起变），不能拿来当重采样器——
+                // 采样率转换交给末尾的线性插值重采样器（时长音调不变），否则语速/音调错误
                 val pipelines = listOf(
                     if (context.cfg.silenceSkipEnabled()) skipAudioProcessor else null,
                     if (needsSonic) sonicAudioProcessor else null,
                     if (needsLoudness) loudnessAudioProcessor else null,
                     if (config.audioParams.reverbEnabled) ReverbAudioProcessor() else null,
+                    if (inputSampleRate != targetSampleRate)
+                        SampleRateResampleProcessor(inputSampleRate, targetSampleRate) else null,
                 ).filterNotNull()
                 if (pipelines.isEmpty()) return
 
@@ -159,7 +163,6 @@ internal class DefaultResultProcessor(
                         speed = effectiveSpeed
                         volume = effectiveVolume
                         pitch = effectivePitch
-                        rate = inputSampleRate.toFloat() / targetSampleRate.toFloat()
                     }
                 }
 
@@ -217,9 +220,10 @@ internal class DefaultResultProcessor(
                 decode(
                     ins = stream,
                     tts = config,
-                    onFormatDetected = {
-                        // 解码器从音频头解析出的真实采样率（首段 PCM 前回调，先于 ensurePipeline 使用）
-                        inputSampleRate = it
+                    onFormatDetected = { detected ->
+                        // 解码器从音频头解析出的真实采样率（首段 PCM 前回调）：多采样率音源（本地音效等）
+                        // 各音频文件速率不同，固定配置值天然不准，统一以音频头为准
+                        inputSampleRate = detected
                     },
                     onRead = { pcm -> handle(pcm = pcm) })
                 handle(null)
