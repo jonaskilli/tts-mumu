@@ -27,6 +27,9 @@ suspend fun computeTagName(
     fallback: String,
     engineCache: MutableMap<String, SpeechRuleEngine>? = null,
 ): String {
+    // 规则外标签（jread 未映射的性格/群杂等）：JS getTagName 对表外标签一律兜底「旁白」，
+    // 会把未映射项显示名误标成旁白——跳过 JS，原样返回 fallback
+    if (speechRule != null && speechRule.tags[ruleData.tag] == null) return fallback
     val computed = if (speechRule != null) {
         runCatching {
             if (engineCache != null) {
@@ -101,7 +104,11 @@ suspend fun migrateTagNamesIfNeed(context: Context, force: Boolean = false) {
                 runCatching { dbm.speechRuleDao.getByRuleId(ruleId) }.getOrNull()
             } ?: continue
 
-            val newTagName = runCatching {
+            // 规则外标签（jread 未映射的性格/群杂等）：JS getTagName 会兜底「旁白」，
+            // 已被误标的项在此修复——显示名强制回写原始 tag
+            val newTagName = if (speechRule.tags[ruleData.tag] == null) {
+                ruleData.tag
+            } else runCatching {
                 val engine = engineCache.getOrPut(ruleId) {
                     SpeechRuleEngine(context, speechRule).also { it.eval() }
                 }

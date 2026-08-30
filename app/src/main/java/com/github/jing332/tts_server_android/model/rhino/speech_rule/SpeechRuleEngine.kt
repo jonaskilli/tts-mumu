@@ -25,6 +25,10 @@ class SpeechRuleEngine(
         const val FUNC_GET_CATEGORY_TAG = "getCategoryTag"
 
         fun getTagName(context: Context, speechRule: SpeechRule, info: SpeechRuleInfo): String {
+            // 规则外标签（jread 未映射的性格/群杂等）：规则 JS 对表外标签一律兜底返回「旁白」，
+            // 会把未映射项显示名误标成旁白——直接原样返回，不进 JS
+            if (speechRule.tags[info.tag] == null) return info.tag
+
             val engine = SpeechRuleEngine(context, speechRule)
             engine.eval()
 
