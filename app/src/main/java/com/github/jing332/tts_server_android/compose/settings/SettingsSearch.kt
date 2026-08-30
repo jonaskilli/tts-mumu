@@ -78,6 +78,9 @@ fun SettingsSearchField(
                 expanded = false,
                 onExpandedChange = { },
                 placeholder = { Text("搜索设置项") },
+                leadingIcon = {
+                    Icon(Icons.Default.Search, "搜索")
+                },
                 trailingIcon = {
                     if (value.isNotEmpty()) {
                         IconButton(onClick = { onValueChange("") }) {
