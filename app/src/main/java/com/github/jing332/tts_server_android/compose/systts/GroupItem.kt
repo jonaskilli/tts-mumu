@@ -170,29 +170,25 @@ fun GroupItem(
             )
         }
 
-        Row(
+        Text(
+            name,
+            style = MaterialTheme.typography.titleMedium.copy(fontSize = 18.sp),
             modifier = Modifier
                 .align(Alignment.CenterVertically)
-                .weight(1f),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Text(
-                name,
-                style = MaterialTheme.typography.titleMedium.copy(fontSize = 18.sp)
+                .weight(1f)
+        )
+        // 含子分组的一级分组：行右侧显示子分组树图标（18dp 主题色，恢复 b963380 之前的位置与形状）
+        if (hasSubGroups) {
+            Icon(
+                imageVector = Icons.Default.AccountTree,
+                contentDescription = "含子分组",
+                modifier = Modifier
+                    .align(Alignment.CenterVertically)
+                    .padding(end = 4.dp)
+                    .size(18.dp),
+                tint = MaterialTheme.colorScheme.primary
             )
-            // 含子分组指示器：紧跟名称（纯信息，不进右侧动作栏），小号弱化色
-            if (hasSubGroups) {
-                Icon(
-                    imageVector = Icons.Default.AccountTree,
-                    contentDescription = "含子分组",
-                    modifier = Modifier
-                        .padding(start = 6.dp)
-                        .size(15.dp),
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
         }
-        // 右侧动作栏排序：项数（信息）→ 魔棒（高频整理）→ 勾选 → 菜单；指示器已随名称左移
         // 分组内配置项数量
         if (itemCount >= 0) {
             Text(
