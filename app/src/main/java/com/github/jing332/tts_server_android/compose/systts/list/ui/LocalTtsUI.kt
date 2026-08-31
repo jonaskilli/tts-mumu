@@ -64,6 +64,7 @@ class LocalTtsUI() : IConfigUI() {
         val params = config.audioParams
 
         var showDirectPlayHelpDialog by remember { mutableStateOf(false) }
+        var showPcmSampleRateHelpDialog by remember { mutableStateOf(false) }
         if (showDirectPlayHelpDialog)
             AlertDialog(
                 onDismissRequest = { showDirectPlayHelpDialog = false },
@@ -71,6 +72,17 @@ class LocalTtsUI() : IConfigUI() {
                 text = { Text(stringResource(id = R.string.systts_direct_play_help_msg)) },
                 confirmButton = {
                     TextButton(onClick = { showDirectPlayHelpDialog = false }) {
+                        Text(text = stringResource(id = android.R.string.ok))
+                    }
+                }
+            )
+        if (showPcmSampleRateHelpDialog)
+            AlertDialog(
+                onDismissRequest = { showPcmSampleRateHelpDialog = false },
+                title = { Text(stringResource(id = R.string.systts_pcm_sample_rate_help)) },
+                text = { Text(stringResource(id = R.string.systts_pcm_sample_rate_help_msg)) },
+                confirmButton = {
+                    TextButton(onClick = { showPcmSampleRateHelpDialog = false }) {
                         Text(text = stringResource(id = android.R.string.ok))
                     }
                 }
@@ -110,7 +122,15 @@ class LocalTtsUI() : IConfigUI() {
             Row {
                 var sampleRateStr by remember { mutableStateOf(config.audioFormat.sampleRate.toString()) }
                 DenseOutlinedField(
-                    label = { Text(stringResource(R.string.systts_sample_rate)) },
+                    label = { Text(stringResource(R.string.systts_pcm_sample_rate)) },
+                    trailingIcon = {
+                        IconButton(onClick = { showPcmSampleRateHelpDialog = true }) {
+                            Icon(
+                                Icons.AutoMirrored.Filled.HelpOutline,
+                                stringResource(id = R.string.systts_pcm_sample_rate_help)
+                            )
+                        }
+                    },
                     modifier = Modifier
                         .weight(1f)
                         .padding(8.dp),

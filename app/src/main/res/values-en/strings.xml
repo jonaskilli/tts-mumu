@@ -134,6 +134,11 @@
 <br> - Due to the internal player having no audio buffer, there will be a delay of several hundred milliseconds between <b>paragraphs</b> and <b>sentences (if long sentence segmentation is enabled)</b> compared to system playback.]]>&lt;/DATA&gt;</string>
     <string name="systts_help_secondary_locale">Select the secondary language, that is, use this language when reading aloud.</string>
     <string name="systts_sample_rate">Sample rate（hz）</string>
+    <string name="systts_pcm_sample_rate">PCM fallback rate (Hz)</string>
+    <string name="systts_pcm_sample_rate_help">PCM output / raw-audio fallback rate</string>
+    <string name="systts_pcm_sample_rate_help_msg">MP3, WAV, Opus, and other header-described audio automatically use their actual format, so this value does not determine their playback speed. Only headerless raw PCM must use the same sample rate as its source audio. This value also participates in selecting the common PCM output format for system TTS. Format and sample-rate selections in a plugin UI are stored by that plugin and are unaffected by this setting.</string>
+    <string name="systts_auto_detect_audio_format">Automatically detect format</string>
+    <string name="systts_pcm_format">PCM %1$d Hz</string>
     <string name="systts_secondaryLocale">Language secondary（language skill）</string>
     <string name="systts_voice_data_load_failed">Voice failed to load</string>
     <string name="systts_help_sample_rate">The system TTS needs to specify the sample rate when starting to play. If [built-in player] is turned on, this option can be ignored.</string>

@@ -94,8 +94,6 @@ fun AuditionDialog(
     assignedCategory: String? = null,
     // 进度序号，如 "12/50"
     progressText: String? = null,
-    // 试听时从真实音频解析出采样率后回调，供批量保存缓存复用（避免保存时重复合成）
-    onSampleRateResolved: ((voiceId: Any?, sampleRate: Int) -> Unit)? = null,
     onDismissRequest: () -> Unit,
 ) {
     val context = LocalContext.current
@@ -153,10 +151,6 @@ fun AuditionDialog(
                     val audio = stream.readBytes()
                     val rateAndMime =
                         com.github.jing332.common.audio.AudioDecoder.getSampleRateAndMime(audio)
-                    // 真实采样率回传：批量保存时缓存复用，无需再合成一次
-                    if (rateAndMime.first > 0) {
-                        onSampleRateResolved?.invoke(voiceId, rateAndMime.first)
-                    }
                     withMain {
                         // 与日志一致的最终倍率展示(仅≠1的项)：试听时明确知道当前生效的叠加参数
                         val p = config.audioParams

@@ -35,8 +35,12 @@ class LocalTtsDescriptor(val context: Context, val systemTts: SystemTtsV2) :
 
 
     override val bottom: String
-        get() = (systemTts.config as TtsConfigurationDTO).audioFormat.run {
-            "${sampleRate}hz" + if (isNeedDecode) " | " + context.getString(R.string.decode) else ""
+        get() = config.audioFormat.run {
+            if (source.shouldDecode(this)) {
+                context.getString(R.string.systts_auto_detect_audio_format)
+            } else {
+                context.getString(R.string.systts_pcm_format, sampleRate)
+            }
         }
 
 }

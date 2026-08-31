@@ -34,7 +34,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.drake.net.utils.withIO
-import com.github.jing332.common.audio.AudioDecoder
 import com.github.jing332.common.utils.toScale
 import com.github.jing332.common.utils.toast
 import com.github.jing332.compose.widgets.AppSpinner
@@ -44,17 +43,11 @@ import com.github.jing332.compose.widgets.LoadingDialog
 import com.github.jing332.database.dbm
 import com.github.jing332.database.entities.SpeechRule
 import com.github.jing332.database.entities.plugin.Plugin
-import com.github.jing332.database.entities.systts.BasicAudioFormat
 import com.github.jing332.database.entities.systts.SystemTtsGroup
 import com.github.jing332.database.entities.systts.SystemTtsV2
 import com.github.jing332.database.entities.systts.TtsConfigurationDTO
 import com.github.jing332.database.entities.systts.source.PluginTtsSource
-import com.github.jing332.database.entities.systts.source.TextToSpeechSource
-import com.github.jing332.tts.speech.TextToSpeechProvider
-import com.github.jing332.tts.synthesizer.SystemParams
 import com.github.jing332.tts_server_android.R
-import com.github.jing332.tts_server_android.conf.AppConfig
-import com.github.jing332.tts_server_android.conf.SysTtsConfig
 import com.github.jing332.tts_server_android.compose.systts.AuditionDialog
 import com.github.jing332.tts_server_android.compose.systts.list.ui.widgets.AuditionTextField
 import com.github.jing332.tts_server_android.compose.systts.list.ui.widgets.BasicInfoEditScreen
@@ -207,7 +200,11 @@ class PluginTtsUI : IConfigUI() {
                 true
             } else {
             val sampleRate = try {
-                withIO { vm.engine.getSampleRate(tts.locale, tts.voice) ?: 16000 }
+                withIO {
+                    vm.engine.getSampleRate(tts.locale, tts.voice)
+                        ?.takeIf { it > 0 }
+                        ?: (systts.config as TtsConfigurationDTO).audioFormat.sampleRate
+                }
             } catch (e: Exception) {
                 context.displayErrorDialog(
                     e,
@@ -231,7 +228,7 @@ class PluginTtsUI : IConfigUI() {
                     systts.copy(
                         displayName = if (systts.displayName.isNullOrBlank()) displayName else systts.displayName,
                         config = (systts.config as TtsConfigurationDTO).copy(
-                            audioFormat = BasicAudioFormat(
+                            audioFormat = (systts.config as TtsConfigurationDTO).audioFormat.copy(
                                 sampleRate = sampleRate,
                                 isNeedDecode = isNeedDecode
                             )
@@ -245,8 +242,7 @@ class PluginTtsUI : IConfigUI() {
             }
         }
 
-        // 批量保存中：显示带进度的加载弹窗。保存会对每个声音合成音频解析采样率，
-        // 耗时可达数十秒，无反馈时容易被误认为"点了保存没反应/没保存成功"
+        // 批量保存中：显示进度，避免大量声音入库时被误认为没有响应
         var showLoadingDialog by remember { mutableStateOf(false) }
         var savingProgressText by remember { mutableStateOf("") }
         if (showLoadingDialog)
@@ -263,8 +259,6 @@ class PluginTtsUI : IConfigUI() {
         var auditionVoiceId by remember { mutableStateOf<Any?>(null) }
         // 发音人 → 分类名（分配了分类的发音人保存时走新逻辑）
         var voiceCategoryMap by remember { mutableStateOf<Map<Any, String>>(emptyMap()) }
-        // 发音人 → 真实采样率（试听时从音频解析缓存，批量保存直接复用，无需再合成）
-        var voiceSampleRateCache by remember { mutableStateOf<Map<Any, Int>>(emptyMap()) }
         // 开关1：试听弹窗等待分类（播放完毕不自动关闭）
         var waitCategorySwitch by remember { mutableStateOf(false) }
         // 开关2：点分类后自动试听下一个
@@ -330,10 +324,7 @@ class PluginTtsUI : IConfigUI() {
                 },
                 assignedCategory = voiceCategoryMap[auditionVoiceId],
                 progressText = if (currentVoiceIndex >= 0 && vm.voices.size > 1)
-                    "${currentVoiceIndex + 1}/${vm.voices.size}" else null,
-                onSampleRateResolved = { vid, rate ->
-                    if (vid != null) voiceSampleRateCache = voiceSampleRateCache + (vid to rate)
-                }
+                    "${currentVoiceIndex + 1}/${vm.voices.size}" else null
             ) {
                 auditionSystts = null
                 auditionVoiceId = null
@@ -379,10 +370,9 @@ class PluginTtsUI : IConfigUI() {
                         entries = vm.pluginList.map { it.name },
                         onSelectedChange = { id, name ->
                             if (id == tts.pluginId) return@AppSpinner
-                            // 切换插件：清空跨插件残留状态（多选/分类/缓存/试听）
+                            // 切换插件：清空跨插件残留状态（多选/分类/试听）
                             selectedVoiceIds = emptySet()
                             voiceCategoryMap = emptyMap()
-                            voiceSampleRateCache = emptyMap()
                             auditionSystts = null
                             auditionVoiceId = null
                             vm.voices.clear()
@@ -534,7 +524,6 @@ class PluginTtsUI : IConfigUI() {
                                         }
                                         // 主线程先捕获状态快照，IO 协程内不再读取 Compose 状态
                                         val categoryMapSnapshot = voiceCategoryMap
-                                        val sampleRateCacheSnapshot = voiceSampleRateCache
                                         val systtsSnapshot = systts
                                         val ttsSnapshot = tts
                                         showLoadingDialog = true
@@ -614,8 +603,6 @@ class PluginTtsUI : IConfigUI() {
                                                 selectedVoices.map { Triple(it, ttsSnapshot.locale, "") }
 
                                             importItems.forEachIndexed { voiceIdx, (voice, voiceLocale, poolName) ->
-                                                // 进度反馈：每个声音可能触发一次合成来解析采样率，
-                                                // N 个声音耗时可达数十秒，必须让用户看到正在处理
                                                 withContext(Dispatchers.Main) {
                                                     savingProgressText =
                                                         "正在保存 ${voiceIdx + 1}/${importItems.size}：${voice.name}"
@@ -677,19 +664,13 @@ class PluginTtsUI : IConfigUI() {
                                                     }
                                                 }
 
-                                                // 解析该声音的真实采样率与是否需要解码：
-                                                // 1. 试听时从真实音频解析并缓存的采样率（零额外开销）；
-                                                // 2. 插件 JS 实现的 getAudioSampleRate（快且准）；
-                                                // 3. 实际合成一次并从音频字节解出采样率（避免落入 16000 默认值）。
-                                                val voiceSampleRate = sampleRateCacheSnapshot[voice.id]
-                                                    ?: runCatching {
-                                                        vm.engine.getSampleRate(voiceLocale, voice.id)
-                                                    }.getOrNull()?.takeIf { it > 0 } ?: resolveSampleRateBySynth(
-                                                    provider = vm.service(),
-                                                    config = config,
-                                                    voiceId = voice.id,
-                                                    tts = ttsSnapshot.copy(locale = voiceLocale)
-                                                )
+                                                // 插件声明的采样率是用户在插件界面选择的请求/PCM兜底值。
+                                                // MP3/WAV/Opus 等有音频头的实际输入格式在播放时自动识别，
+                                                // 不再把试听或额外合成测得的瞬时值写进每个配置项。
+                                                val voiceSampleRate = runCatching {
+                                                    vm.engine.getSampleRate(voiceLocale, voice.id)
+                                                }.getOrNull()?.takeIf { it > 0 }
+                                                    ?: config.audioFormat.sampleRate
                                                 val voiceNeedDecode = runCatching {
                                                     vm.engine.isNeedDecode(voiceLocale, voice.id)
                                                 }.getOrNull() ?: config.audioFormat.isNeedDecode
@@ -700,7 +681,7 @@ class PluginTtsUI : IConfigUI() {
                                                         voice = voice.id
                                                     ),
                                                     speechRule = newRuleData,
-                                                    audioFormat = BasicAudioFormat(
+                                                    audioFormat = config.audioFormat.copy(
                                                         sampleRate = voiceSampleRate,
                                                         isNeedDecode = voiceNeedDecode
                                                     )
@@ -806,35 +787,5 @@ class PluginTtsUI : IConfigUI() {
                 )
             }
         }
-    }
-}
-
-/**
- * 批量分组保存时，若插件 JS 未实现 getAudioSampleRate，则实际合成一次，
- * 从返回音频字节解析真实采样率，避免落入 16000 默认值。
- */
-internal suspend fun resolveSampleRateBySynth(
-    provider: TextToSpeechProvider<TextToSpeechSource>,
-    config: TtsConfigurationDTO,
-    tts: PluginTtsSource,
-    voiceId: String,
-): Int {
-    return try {
-        val stream = provider.getStream(
-            SystemParams(
-                text = AppConfig.testSampleText.value,
-                speed = config.audioParams.speed,
-                volume = config.audioParams.volume,
-                pitch = config.audioParams.pitch,
-                requestTimeout = SysTtsConfig.requestTimeout.toLong()
-            ),
-            tts.copy(voice = voiceId)
-        )
-        val audio = stream.readBytes()
-        val rate = AudioDecoder.getSampleRateAndMime(audio).first
-        if (rate <= 0) config.audioFormat.sampleRate else rate
-    } catch (e: Exception) {
-        // 合成失败时退回原配置值，保留用户已有采样率
-        config.audioFormat.sampleRate
     }
 }

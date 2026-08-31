@@ -10,11 +10,7 @@ import com.github.jing332.database.entities.systts.SystemTtsV2
 import com.github.jing332.database.entities.systts.TtsConfigurationDTO
 import com.github.jing332.database.entities.systts.SpeechRuleInfo
 import com.github.jing332.database.entities.systts.source.PluginTtsSource
-import com.github.jing332.database.entities.systts.source.TextToSpeechSource
-import com.github.jing332.tts.speech.TextToSpeechProvider
-import com.github.jing332.tts.speech.plugin.PluginTtsProvider
 import com.github.jing332.tts.speech.plugin.engine.TtsPluginUiEngineV2
-import com.github.jing332.tts_server_android.compose.systts.list.ui.resolveSampleRateBySynth
 import com.github.jing332.tts_server_android.constant.SpeechTarget
 import com.github.jing332.tts_server_android.model.rhino.speech_rule.SpeechRuleEngine
 import kotlinx.coroutines.Dispatchers
@@ -28,7 +24,7 @@ import java.util.concurrent.Executors
  * 2. 拉取用户勾选的音色分类，每个分类作为子分组建在插件分组下
  * 3. 分类名可映射到标准人群词则归一并打标签；无法映射则原样入库、不打标签
  *
- * 与编辑页保存共用 resolveSampleRateBySynth；本类独立实例化引擎，不依赖任何已打开的编辑界面。
+ * 采样率使用插件声明的请求/裸 PCM 兜底值；MP3/WAV/Opus 等实际输入格式在播放时自动识别。
  */
 object PluginCategoryImporter {
 
@@ -93,9 +89,6 @@ object PluginCategoryImporter {
             val ruleEngine = speechRule?.let {
                 runCatching { SpeechRuleEngine(context, it).apply { eval() } }.getOrNull()
             }
-
-            val provider =
-                PluginTtsProvider(context, plugin).also { it.engine = engine } as TextToSpeechProvider<TextToSpeechSource>
 
             // 以插件名自动新建分组
             val groupName = plugin.name.ifBlank { "未命名插件" }
@@ -166,14 +159,11 @@ object PluginCategoryImporter {
                         audioFormat = BasicAudioFormat(isNeedDecode = needDecode)
                     )
 
+                    // 插件声明值对应用户在插件界面选定的请求/裸 PCM 兜底格式。
+                    // 可解码音频会在播放时从音频头识别实际输入格式，无需逐声音合成测率。
                     val sampleRate = runCatching {
-                        engine.getSampleRate(poolId, voice.id) ?: 0
-                    }.getOrNull()?.takeIf { it > 0 } ?: resolveSampleRateBySynth(
-                        provider = provider,
-                        config = templateConfig,
-                        tts = src,
-                        voiceId = voice.id
-                    )
+                        engine.getSampleRate(poolId, voice.id)
+                    }.getOrNull()?.takeIf { it > 0 } ?: templateConfig.audioFormat.sampleRate
 
                     val newConfig = templateConfig.copy(
                         audioFormat = templateConfig.audioFormat.copy(sampleRate = sampleRate),
