@@ -56,7 +56,7 @@ internal class DefaultResultProcessor(
     private suspend fun decode(
         ins: InputStream,
         tts: TtsConfiguration,
-        onFormatDetected: (sampleRate: Int, channelCount: Int) -> Unit = {},
+        onFormatDetected: (sampleRate: Int, channelCount: Int) -> Unit = { _, _ -> },
         onRead: (ByteBuffer) -> Unit,
     ) {
 
