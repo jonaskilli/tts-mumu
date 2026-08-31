@@ -9,6 +9,7 @@ import androidx.media3.common.util.UnstableApi
 import androidx.media3.exoplayer.ExoPlaybackException
 import androidx.media3.exoplayer.audio.SilenceSkippingAudioProcessor
 import com.github.jing332.common.audio.AudioDecoder.Companion.readPcmChunk
+import com.github.jing332.common.audio.exo.DownmixAudioProcessor
 import com.github.jing332.common.audio.exo.ExoAudioDecoder
 import com.github.jing332.common.audio.exo.LoudnessAudioProcessor
 import com.github.jing332.common.audio.exo.ReverbAudioProcessor
@@ -55,7 +56,7 @@ internal class DefaultResultProcessor(
     private suspend fun decode(
         ins: InputStream,
         tts: TtsConfiguration,
-        onFormatDetected: (Int) -> Unit = {},
+        onFormatDetected: (sampleRate: Int, channelCount: Int) -> Unit = {},
         onRead: (ByteBuffer) -> Unit,
     ) {
 
@@ -131,6 +132,8 @@ internal class DefaultResultProcessor(
             // 配置采样率对多采样率音源（如本地音效，各音频文件速率不同）和占位导入值（jread 写 16000）天然不准，
             // 统一以音频头为准；裸 PCM 无头可读，回退配置值（此时配置值是唯一事实）
             var inputSampleRate = config.audioFormat.sampleRate
+            // 真实声道数：音频头探测（立体声音源按单声道消费时长会翻倍，表现为慢速）
+            var inputChannelCount = 1
 
             // 管线推迟到拿到真实输入采样率后再装配（解码路径在首段 PCM 输出前就会回调真实格式）
             var processor: AudioProcessingPipeline? = null
@@ -139,7 +142,9 @@ internal class DefaultResultProcessor(
                 val needsSonic = effectiveSpeed != 1f || effectiveVolume != 1f || effectivePitch != 1f
                 // 注意：Sonic 的 rate 是"变速变调"参数（时长与音调一起变），不能拿来当重采样器——
                 // 采样率转换交给末尾的线性插值重采样器（时长音调不变），否则语速/音调错误
+                // 多声道音源先降混为单声道（向系统声明的是单声道），其余处理器只处理单声道
                 val pipelines = listOf(
+                    if (inputChannelCount > 1) DownmixAudioProcessor() else null,
                     if (context.cfg.silenceSkipEnabled()) skipAudioProcessor else null,
                     if (needsSonic) sonicAudioProcessor else null,
                     if (needsLoudness) loudnessAudioProcessor else null,
@@ -153,7 +158,7 @@ internal class DefaultResultProcessor(
                 p.configure(
                     AudioProcessor.AudioFormat(
                         inputSampleRate,
-                        1,
+                        inputChannelCount,
                         C.ENCODING_PCM_16BIT
                     )
                 )
@@ -220,10 +225,14 @@ internal class DefaultResultProcessor(
                 decode(
                     ins = stream,
                     tts = config,
-                    onFormatDetected = { detected ->
-                        // 解码器从音频头解析出的真实采样率（首段 PCM 前回调）：多采样率音源（本地音效等）
-                        // 各音频文件速率不同，固定配置值天然不准，统一以音频头为准
+                    onFormatDetected = { detected, channels ->
+                        // 解码器从音频头解析出的真实格式（首段 PCM 前回调）：多采样率音源（本地音效等）
+                        // 各音频文件速率/声道不同，固定配置值天然不准，统一以音频头为准
+                        logger.debug {
+                            "audio format detected: rate=$detected ch=$channels (config rate=${config.audioFormat.sampleRate})"
+                        }
                         inputSampleRate = detected
+                        inputChannelCount = channels
                     },
                     onRead = { pcm -> handle(pcm = pcm) })
                 handle(null)
