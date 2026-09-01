@@ -175,6 +175,41 @@ private val NO_ZERO_PAD_PREFIXES = setOf("男主", "特殊男", "特殊女")
 
 private data class DetectedKeyword(val prefix: String, val zeroPad: Boolean)
 
+/**
+ * 分组树跨重组缓存：Room 全量重发产生全新 models 对象图，逐组内容签名未变的组直接复用
+ * 上一轮树实例，树重建量从 O(全库) 降到 O(变化的组)。纯主线程访问（remember 块内），
+ * 不涉及任何跨线程状态；容量超限整表重建防泄漏。
+ */
+private val groupTreeCache = java.util.concurrent.ConcurrentHashMap<Long, GroupDerivedEntry>()
+
+/**
+ * 逐组内容签名：组内 size/每项 id+order+categoryPath+enabled + paramsJson 参与摘要。
+ * 任何增删改/排序/移动/标签改动都会变；分池与树缓存共用，签名未变即整组跳过重算。
+ * 顺序敏感（order 参与），拖动排序后签名必然变化，与树内排序语义一致。
+ */
+private fun groupContentSignature(gwt: GroupWithSystemTts): Long {
+    var sig: Long = 1125899906842597L
+    sig = sig * 31 + gwt.list.size
+    for (item in gwt.list) {
+        sig = sig * 31 + item.id
+        sig = sig * 31 + item.order.toLong()
+        sig = sig * 31 + item.categoryPath.hashCode()
+        sig = sig * 31 + item.isEnabled.hashCode()
+    }
+    sig = sig * 31 + gwt.group.subGroupAudioParamsJson.hashCode()
+    return sig
+}
+
+/**
+ * 分组派生缓存条目：签名 + 扁平树（null=无子分组）+ 是否高级池。
+ * Room 全量重发后签名命中的组：树直接复用实例、分池直接复用结论，两者都零重算。
+ */
+private class GroupDerivedEntry(
+    val signature: Long,
+    val flattened: List<FlattenedCategoryItem>?,
+    val isAdvanced: Boolean,
+)
+
 
 /**
  * 从分组名匹配固定关键词（取最长匹配）。
@@ -229,14 +264,42 @@ internal fun ListManagerScreen(
     // 池划分：只看配置项的朗读标签——全部标签都是朗读规则标签表内的标签（女青年01/男主1/narration/括号2/localSound1 等，
     // 含能转换成这些的 jread 标签式；空白标签也算通用）→ 通用池；
     // 任一配置项标签为规则外标签（性格词、群杂式等）→ 整组高级池。分组名、子分组路径与参数字典键不参与判定
-    // （曾改为 produceState 后台预计算，实测 jread 树形分组会整体不显示，回退同步计算保显示正确）
+    // （曾改为 produceState 后台预计算，实测 jread 树形分组会整体不显示，回退同步计算保显示正确）。
+    // 优化（纯主线程，无跨线程状态）：此处统一做"逐组签名 → 命中则整组复用树实例+池结论"，
+    // 未命中才重算该组；结果写 groupTreeCache 供下方树块直接取用。
+    // Room 全量重发的新 models 中内容未变的组零重算，数千项时刷新/展开不再整库陪跑
     val (advancedPoolModels, normalPoolModels) = remember(models) {
-        models.partition { gwt ->
-            gwt.list.any {
-                val tag = (it.config as? TtsConfigurationDTO)?.speechRule?.tag ?: ""
-                !JReadConfigMigration.isNormalTag(tag)
+        val advanced = mutableListOf<GroupWithSystemTts>()
+        val normal = mutableListOf<GroupWithSystemTts>()
+        val nextCache = HashMap<Long, GroupDerivedEntry>(groupTreeCache.size)
+        for (gwt in models) {
+            val sig = groupContentSignature(gwt)
+            val cached = groupTreeCache[g.id]
+            val entry: GroupDerivedEntry = if (cached != null && cached.signature == sig) {
+                cached
+            } else {
+                val subPaths: Set<String> = gwt.group.subGroupAudioParamsJson.let { jsonStr ->
+                    if (jsonStr.isBlank() || jsonStr == "{}") emptySet()
+                    else SystemTtsV2.Converters.json.decodeFromString<Map<String, AudioParams>>(jsonStr).keys
+                }
+                val hasSubInList = gwt.list.any { it.categoryPath.isNotBlank() }
+                val flat = if (hasSubInList || subPaths.isNotEmpty())
+                    flattenSubCategoryTree(buildSubCategoryTree(gwt.list, subPaths))
+                else null
+                // 空列表组视为通用池（无标签可判）
+                val isAdvanced = gwt.list.any {
+                    val tag = (it.config as? TtsConfigurationDTO)?.speechRule?.tag ?: ""
+                    !JReadConfigMigration.isNormalTag(tag)
+                }
+                GroupDerivedEntry(sig, flat, isAdvanced)
             }
+            nextCache[g.id] = entry
+            if (entry.isAdvanced) advanced.add(gwt) else normal.add(gwt)
         }
+        // 清理已删除分组的缓存，防大库下无界增长
+        groupTreeCache.clear()
+        groupTreeCache.putAll(nextCache)
+        advanced to normal
     }
     // 当前所在的池页签：false=通用池，true=高级池
     var showAdvancedPool by rememberSaveable { mutableStateOf(false) }
@@ -2629,24 +2692,13 @@ internal fun ListManagerScreen(
             }
         }
         CompositionLocalProvider(LocalViewConfiguration provides fastLongPressConfig) {
-        // 树结构缓存：仅当各分组的 TTS 项内容或子分组定义(subGroupAudioParamsJson)变化时重建。
-        // 展开/折叠只改 isExpanded，不改 TTS 项也不改子分组定义，因此 hash 签名不变，树缓存命中，
-        // 避免每次展开/折叠都为所有分组重建树导致卡顿。
-        // 注意：空子分组仅靠 subGroupAudioParamsJson 注册，不写入 list，签名必须纳入该字段，
-        // 否则新建空子分组时 list 未变导致签名不变、树不重建，空子分组被漏显示。
-        val ttsItemsSignature = remember(models) {
-            models.map { it.list.hashCode() * 31 + it.group.subGroupAudioParamsJson.hashCode() }
-        }
-        val subGroupTrees = remember(ttsItemsSignature) {
-            models.associate { gwt ->
-                val subPaths: Set<String> = gwt.group.subGroupAudioParamsJson.let { jsonStr ->
-                    if (jsonStr.isBlank() || jsonStr == "{}") emptySet()
-                    else SystemTtsV2.Converters.json.decodeFromString<Map<String, AudioParams>>(jsonStr).keys
-                }
-                val hasSubInList = gwt.list.any { it.categoryPath.isNotBlank() }
-                gwt.group.id to (if (hasSubInList || subPaths.isNotEmpty()) {
-                    flattenSubCategoryTree(buildSubCategoryTree(gwt.list, subPaths))
-                } else null)
+        // 树结构缓存：上方分池块已按"逐组签名→命中复用/未命中重算"写好 groupTreeCache，
+        // 此处直接取每组的扁平树实例（签名命中时与上一轮同一实例，树身份跨重组稳定）。
+        // 注意：空子分组仅靠 subGroupAudioParamsJson 注册（签名已含该字段），
+        // 新建空子分组时签名必变、树必重建，不会被漏显示
+        val subGroupTrees = remember(models) {
+            HashMap<Long, List<FlattenedCategoryItem>?>(models.size).apply {
+                for (gwt in models) put(g.id, groupTreeCache[g.id]?.flattened)
             }
         }
         // 可见项过滤：轻量操作，每次展开/折叠时执行（仅遍历已缓存的扁平树做过滤，不重建树）
