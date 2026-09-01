@@ -2953,8 +2953,8 @@ internal fun ListManagerScreen(
                                     reorderableState = reorderState,
                                     key = "${g.id}_${item.id}"
                                 ) {
-                                    val descriptor = remember(item) {
-                                        ItemDescriptorFactory.from(context, item)
+                                    val descriptor = remember(item, pluginNameCache) {
+                                        ItemDescriptorFactory.from(context, item, pluginNameCache)
                                     }
                                     Item(reorderState = reorderState,
                                         modifier = (if (searchKeyword.isNotEmpty() || selectionMode) Modifier
@@ -3146,8 +3146,8 @@ internal fun ListManagerScreen(
                                                 reorderableState = reorderState,
                                                 key = itemKey
                                             ) { _ ->
-                                                val descriptor = remember(item) {
-                                                    ItemDescriptorFactory.from(context, item)
+                                                val descriptor = remember(item, pluginNameCache) {
+                                                    ItemDescriptorFactory.from(context, item, pluginNameCache)
                                                 }
                                                 Item(
                                                     reorderState = reorderState,

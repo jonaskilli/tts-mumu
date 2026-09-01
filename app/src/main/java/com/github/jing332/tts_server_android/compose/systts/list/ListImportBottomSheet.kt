@@ -128,9 +128,13 @@ fun ListImportBottomSheet(onDismissRequest: () -> Unit) {
                         )
                     }
                     is AutoImportResult.Success -> {
-                        // 仅配置列表需要通知 TTS 服务刷新，并强制重算 tagName（防止导入旧格式）
+                        // 仅配置列表需要通知 TTS 服务刷新；tagName 迁移只处理本次导入项——
+                        // 此前 force 全表扫描+重写，大库导入后会让整个软件持续卡顿
                         if (result.type == ImportType.LIST) {
-                            withIO { migrateTagNamesIfNeed(context, force = true) }
+                            withIO {
+                                if (result.imported.isNotEmpty())
+                                    migrateTagNamesIfNeed(context, force = true, scope = result.imported)
+                            }
                             SystemTtsService.notifyUpdateConfig()
                         }
                         successMsg.value = result.typeName
@@ -146,7 +150,11 @@ internal sealed class AutoImportResult {
     // reason：识别不出类型时的可读原因（如「无法判断配置类型…」），用于向用户展示而非只给一句空话
     data class EmptyOrUnrecognized(val reason: String) : AutoImportResult()
     data class Truncated(val detail: String) : AutoImportResult()
-    data class Success(val count: Int, val type: ImportType, val typeName: String) : AutoImportResult()
+    data class Success(
+        val count: Int, val type: ImportType, val typeName: String,
+        // 配置列表导入时本次实际写库的项（其他类型为空）：供导入后按范围迁移 tagName
+        val imported: List<SystemTtsV2> = emptyList(),
+    ) : AutoImportResult()
 }
 
 /**
@@ -208,7 +216,7 @@ internal fun doAutoImport(
                         if (result.skippedUrlDirect > 0) reasons += "${result.skippedUrlDirect} 项 URL 直连型"
                         if (reasons.isNotEmpty()) msg += "（${reasons.joinToString("、")}）"
                     }
-                    AutoImportResult.Success(result.count, type, msg)
+                    AutoImportResult.Success(result.count, type, msg, imported = result.imported)
                 }
             }
         }
@@ -297,6 +305,8 @@ private sealed class ListImportResult {
         val count: Int, val skipped: Int = 0,
         val skippedNoPlugin: Int = 0, val skippedUrlDirect: Int = 0,
         val groupCount: Int = 0,
+        // 本次实际写库的配置项：导入后只对它们做 tagName 迁移，避免大库全表扫描
+        val imported: List<SystemTtsV2> = emptyList(),
     ) : ListImportResult()
 }
 
@@ -351,9 +361,9 @@ private fun doImportList(
     // 总项数（用于进度分母）
     val total = list.sumOf { it.list.size }
     var imported = 0
+    val groupsToInsert = mutableListOf<SystemTtsGroup>()
+    val ttsToInsert = mutableListOf<SystemTtsV2>()
     dbm.runInTransaction {
-        val groupsToInsert = mutableListOf<SystemTtsGroup>()
-        val ttsToInsert = mutableListOf<SystemTtsV2>()
         for (groupWithTts in list) {
             val (group, ttsList) = groupWithTts
             val (newGroupId, newOrder) = oldToNewGroupId[group.id]!!
@@ -388,7 +398,7 @@ private fun doImportList(
         dbm.systemTtsV2.insert(*ttsToInsert.toTypedArray())
     }
     onProgress(imported, total)
-    return ListImportResult.Success(imported, groupCount = oldToNewGroupId.size)
+    return ListImportResult.Success(imported, groupCount = oldToNewGroupId.size, imported = ttsToInsert)
 }
 
 /** JRead 配置写入：一级组名做 mumu 分组(同名复用)，二三级留在 categoryPath */
@@ -403,6 +413,7 @@ private fun insertJReadItems(parsed: JReadConfigMigration.Parsed): ListImportRes
         val name = parsed.groupNames[i].trim().ifBlank { StringUtils.formattedDate() }
         buckets.getOrPut(name) { mutableListOf() }.add(item to i)
     }
+    val importedItems = mutableListOf<SystemTtsV2>()
     dbm.runInTransaction {
         var groupOrder = dbm.systemTtsV2.groupCount
         val allGroups = dbm.systemTtsV2.allGroup
@@ -420,9 +431,11 @@ private fun insertJReadItems(parsed: JReadConfigMigration.Parsed): ListImportRes
                 *bucket.map { (item, i) ->
                     val bound = item.copy(id = baseId + 100000L + i, groupId = groupId)
                     val cfg = bound.config as? TtsConfigurationDTO
-                    if (enabledRuleId.isNotBlank() && cfg != null && cfg.speechRule.tag.isNotBlank()) {
+                    val toInsert = if (enabledRuleId.isNotBlank() && cfg != null && cfg.speechRule.tag.isNotBlank()) {
                         bound.copy(config = cfg.copy(speechRule = cfg.speechRule.copy(tagRuleId = enabledRuleId)))
                     } else bound
+                    importedItems.add(toInsert)
+                    toInsert
                 }.toTypedArray()
             )
         }
@@ -430,7 +443,8 @@ private fun insertJReadItems(parsed: JReadConfigMigration.Parsed): ListImportRes
     return ListImportResult.Success(
         parsed.items.size, parsed.skipped,
         parsed.skippedNoPlugin, parsed.skippedUrlDirect,
-        groupCount = buckets.size
+        groupCount = buckets.size,
+        imported = importedItems
     )
 }
 

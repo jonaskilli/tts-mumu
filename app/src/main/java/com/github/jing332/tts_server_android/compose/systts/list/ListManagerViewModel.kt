@@ -77,8 +77,14 @@ class ListManagerViewModel : ViewModel() {
         cachedFullList?.let { _list.value = it }
         viewModelScope.launch(Dispatchers.IO) {
             // 顺序整理挪到独立协程：它要整表读一遍并可能逐行写，此前串在列表链路前面，
-            // 首次显示必须等它跑完，是开页白屏几秒的主因之一
-            launch { runCatching { dbm.systemTtsV2.updateAllOrder() } }
+            // 首次显示必须等它跑完，是开页白屏几秒的主因之一。
+            // 包一层事务：原实现逐行 update 各自开事务，大库时数千次写入=
+            // 数千次 Room 失效波，每次都触发全列表重查+JSON 反序列化
+            launch {
+                runCatching {
+                    dbm.runInTransaction { dbm.systemTtsV2.updateAllOrder() }
+                }
+            }
 
             // 插件信息 Flow：插件表任何变化都会重新生成 pluginId→name 映射 + 已启用id集合
             val pluginInfoFlow = dbm.pluginDao.flowAllWithoutCode()
