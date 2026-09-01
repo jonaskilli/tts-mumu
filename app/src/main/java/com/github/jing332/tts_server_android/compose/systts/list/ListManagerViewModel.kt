@@ -77,6 +77,12 @@ class ListManagerViewModel : ViewModel() {
     // 展开切换只重算可见项过滤，树身份保持稳定
     private val treeCache = HashMap<Long, Pair<Int, List<FlattenedCategoryItem>?>>()
 
+    // 界面侧当前展开态快照（expandedSubGroups 全路径 / expandedGroupIds 组id字符串）。
+    // 展开切换零数据库成本，但需要重新过滤可见项——由 onExpandedStateChanged 通知派生 worker。
+    // 注意：必须声明在 init 之前（Kotlin 属性按声明顺序初始化，init 里要引用它们）
+    @Volatile private var currentExpandedSubGroups: Set<String> = emptySet()
+    @Volatile private var currentExpandedGroupIds: Set<String> = emptySet()
+
     // 首次数据库查询是否完成：完成前列表区显示加载中而不是误导性的「暂无分组」
     private val _isInitialized = MutableStateFlow(false)
     val isInitialized: StateFlow<Boolean> get() = _isInitialized
@@ -194,11 +200,6 @@ class ListManagerViewModel : ViewModel() {
                 }
         }
     }
-
-    // 界面侧当前展开态快照（expandedSubGroups 全路径 / expandedGroupIds 组id字符串）。
-    // 展开切换零数据库成本，但需要重新过滤可见项——由 onExpandedStateChanged 通知派生 worker
-    @Volatile private var currentExpandedSubGroups: Set<String> = emptySet()
-    @Volatile private var currentExpandedGroupIds: Set<String> = emptySet()
 
     /** 界面展开/折叠子分组或大分组时调用：只重算可见项过滤（树缓存命中），不重建树 */
     fun onExpandedStateChanged(subGroups: Set<String>, groupIds: Set<String>) {
