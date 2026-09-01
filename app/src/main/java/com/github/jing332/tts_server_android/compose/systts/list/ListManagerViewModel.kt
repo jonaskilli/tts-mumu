@@ -36,12 +36,13 @@ class ListManagerViewModel : ViewModel() {
 
         // 进程内缓存最近一次全量列表（关键词为空时）。列表数据一直在数据库里，
         // 但每次进页都要等「打开库→整表查询→JSON 反序列化上千条」后才首次出列表，
-        // 缓存让同一进程内再次进页/重建 Activity 时立即显示，数据库查完无缝替换
-        private var cachedFullList: List<GroupWithSystemTts>? = null
+        // 缓存让同一进程内再次进页/重建 Activity 时立即显示，数据库查完无缝替换。
+        // @Volatile：IO 线程写、Default 线程(worker/新实例构造)读，需保证可见性
+        @Volatile private var cachedFullList: List<GroupWithSystemTts>? = null
 
         // 最近一次派生结果缓存（models 与 cachedFullList 同源时）：同进程重进页立即恢复
-        // 完整池/树/可见项，不必等后台重算
-        private var cachedDerivedUi: ListDerivedUiState? = null
+        // 完整池/树/可见项，不必等后台重算。同样跨线程读写，@Volatile 兜可见性
+        @Volatile private var cachedDerivedUi: ListDerivedUiState? = null
     }
 
     private val _keyword = MutableStateFlow("")
@@ -108,23 +109,30 @@ class ListManagerViewModel : ViewModel() {
 
     init {
         migrateExpandedGroupIds()
-        // 有缓存先立即显示，不等数据库冷启动
-        cachedFullList?.let { _list.value = it }
-        // 派生结果缓存同步恢复：重进页即见完整池/树/可见项；数据库更新后无缝替换
-        cachedDerivedUi?.let {
-            _derivedUi.value = it
-            _isInitialized.value = true
-        }
         // 展开态从 AppConfig 直接播种：即使首条 Room 发射早于界面回调，
         // 首次派生即以正确的展开态计算可见项，不会闪"全折叠"
         currentExpandedSubGroups = AppConfig.expandedSubGroups.value
         currentExpandedGroupIds = AppConfig.expandedGroupIds.value
 
+        // 有缓存先立即显示，不等数据库冷启动。
+        // 注意：只在主线程（构造期）写状态，且 worker 尚未启动——
+        // 跨线程写 Compose 观察的 StateFlow 若与组合并发会触发
+        // "Reading a state that was created after the snapshot" 崩溃（实测 Pager 双页重组时）
+        cachedFullList?.let { _list.value = it }
+
         // 后台派生 worker：单飞行任务，输入合并最后一次（models 变化或展开态变化都会触发）。
-        // Dispatchers.Default 与朗读/IO 线程池隔离，计算完成才整体发布，界面不出现中间态
+        // Dispatchers.Default 与朗读/IO 线程池隔离，计算完成才整体发布，界面不出现中间态。
+        // 缓存的派生结果在 worker 首次运行时抢先发布（不在构造期写，见上），效果相同：
+        // worker 启动到 Room 首查之间界面显示缓存而非空列表
+        val primedCache = cachedDerivedUi
         viewModelScope.launch(Dispatchers.Default) {
             deriveInput.collect { input ->
                 if (input == null) return@collect
+                if (primedCache != null && _derivedUi.value === primedCache) {
+                    // 重进页：先把上次完整结果发布出去（树/池即刻可见），再无缝替换新结果
+                    _derivedUi.value = primedCache
+                    _isInitialized.value = true
+                }
                 val (models, expanded) = input
                 val derived = computeDerivedUi(models, expanded)
                 _derivedUi.value = derived
