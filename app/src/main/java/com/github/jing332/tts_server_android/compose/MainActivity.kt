@@ -197,11 +197,22 @@ private fun MainScreen(finish: () -> Unit) {
                         scope.launch {
                             withIO {
                                 // 分组兜底：groupId 无效（0 或分组已删除）时归位到默认分组，
-                                // 否则插入项挂在不存在的分组下，主列表按分组查询永远不可见
+                                // 否则插入项挂在不存在的分组下，主列表按分组查询永远不可见。
+                                // 默认分组行可能已被用户删除（历史语义：删除后不自动复活），
+                                // 此时按需补建真实分组行再保存，避免成为列表查不到的孤儿项
                                 val toSave = stateSystemTts.let { tts ->
-                                    if (dbm.systemTtsV2.getGroup(tts.groupId) == null)
+                                    if (dbm.systemTtsV2.getGroup(tts.groupId) == null) {
+                                        if (dbm.systemTtsV2.getGroup(DEFAULT_GROUP_ID) == null) {
+                                            dbm.systemTtsV2.insertGroup(
+                                                com.github.jing332.database.entities.systts.SystemTtsGroup(
+                                                    DEFAULT_GROUP_ID,
+                                                    context.getString(R.string.default_group),
+                                                    dbm.systemTtsV2.groupCount
+                                                )
+                                            )
+                                        }
                                         tts.copy(groupId = DEFAULT_GROUP_ID)
-                                    else tts
+                                    } else tts
                                 }
                                 dbm.systemTtsV2.insert(toSave)
                             }

@@ -71,6 +71,9 @@ fun GroupTreePickerDialog(
     var selectedCategoryPath by remember { mutableStateOf(currentCategoryPath) }
     var isCreatingNew by remember { mutableStateOf(false) }
     var newSubGroupName by remember { mutableStateOf("") }
+    // 新建一级分组模式：与组内"新建子分组"互斥，确认时真实落库并选中
+    var isCreatingNewGroup by remember { mutableStateOf(false) }
+    var newGroupName by remember { mutableStateOf("") }
     // 默认展开当前所在大分组，便于识别当前位置
     var expandedGroups by remember { mutableStateOf(setOf(currentGroupId)) }
 
@@ -109,7 +112,11 @@ fun GroupTreePickerDialog(
                     }
                 }
                 Text(
-                    text = if (isCreatingNew) "新建于: $locationText" else "当前选择: $locationText",
+                    text = when {
+                        isCreatingNewGroup -> "新建分组: ${newGroupName.trim().ifBlank { "(未命名)" }}"
+                        isCreatingNew -> "新建于: $locationText"
+                        else -> "当前选择: $locationText"
+                    },
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.primary,
                     modifier = Modifier.padding(bottom = 8.dp)
@@ -134,8 +141,10 @@ fun GroupTreePickerDialog(
                                     selectedCategoryPath = ""
                                     isCreatingNew = false
                                     newSubGroupName = ""
+                                    isCreatingNewGroup = false
                                     expandedGroups = setOf(group.id)
                                 } else {
+                                    isCreatingNewGroup = false
                                     expandedGroups = if (isExpanded) expandedGroups - group.id
                                     else setOf(group.id)
                                 }
@@ -167,6 +176,7 @@ fun GroupTreePickerDialog(
                                 selectedCategoryPath = ""
                                 isCreatingNew = false
                                 newSubGroupName = ""
+                                isCreatingNewGroup = false
                                 expandedGroups = setOf(group.id)
                             }
                         )
@@ -190,6 +200,7 @@ fun GroupTreePickerDialog(
                                             selectedCategoryPath = ""
                                             isCreatingNew = false
                                             newSubGroupName = ""
+                                            isCreatingNewGroup = false
                                         }
                                     )
                                     .padding(start = 64.dp, top = 2.dp, bottom = 2.dp),
@@ -202,6 +213,7 @@ fun GroupTreePickerDialog(
                                         selectedCategoryPath = ""
                                         isCreatingNew = false
                                         newSubGroupName = ""
+                                        isCreatingNewGroup = false
                                     }
                                 )
                                 Text(
@@ -229,6 +241,7 @@ fun GroupTreePickerDialog(
                                             selectedCategoryPath = path
                                             isCreatingNew = false
                                             newSubGroupName = ""
+                                            isCreatingNewGroup = false
                                         }
                                     )
                                     .padding(start = subIndent, top = 2.dp, bottom = 2.dp),
@@ -241,6 +254,7 @@ fun GroupTreePickerDialog(
                                         selectedCategoryPath = path
                                         isCreatingNew = false
                                         newSubGroupName = ""
+                                        isCreatingNewGroup = false
                                     }
                                 )
                                 Text(
@@ -261,6 +275,7 @@ fun GroupTreePickerDialog(
                                     onClick = {
                                         selectedGroupId = group.id
                                         isCreatingNew = true
+                                        isCreatingNewGroup = false
                                         selectedCategoryPath = ""
                                     }
                                 )
@@ -272,6 +287,7 @@ fun GroupTreePickerDialog(
                                 onClick = {
                                     selectedGroupId = group.id
                                     isCreatingNew = true
+                                    isCreatingNewGroup = false
                                     selectedCategoryPath = ""
                                 }
                             )
@@ -301,12 +317,77 @@ fun GroupTreePickerDialog(
                         HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
                     }
                 }
+
+                // 新建一级分组：独立于所有已有大分组的尾部入口，确认时落库并选中
+                HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
+                val isCreateGroupSelected = isCreatingNewGroup
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .selectable(
+                            selected = isCreateGroupSelected,
+                            onClick = {
+                                isCreatingNewGroup = true
+                                isCreatingNew = false
+                                selectedCategoryPath = ""
+                            }
+                        )
+                        .padding(vertical = 4.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    RadioButton(
+                        selected = isCreateGroupSelected,
+                        onClick = {
+                            isCreatingNewGroup = true
+                            isCreatingNew = false
+                            selectedCategoryPath = ""
+                        }
+                    )
+                    Icon(
+                        Icons.Default.CreateNewFolder,
+                        contentDescription = null,
+                        modifier = Modifier.padding(start = 4.dp)
+                    )
+                    Text(
+                        text = "新建分组",
+                        style = MaterialTheme.typography.titleMedium,
+                        modifier = Modifier.padding(start = 4.dp)
+                    )
+                }
+                if (isCreateGroupSelected) {
+                    OutlinedTextField(
+                        value = newGroupName,
+                        onValueChange = { newGroupName = it },
+                        label = { Text("分组名称") },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(top = 4.dp),
+                        singleLine = true
+                    )
+                }
             }
         },
         confirmButton = {
             TextButton(
-                onClick = { onConfirm(selectedGroupId, finalCategoryPath) },
-                enabled = !isRootSelectedInvalid && (!isCreatingNew || newSubGroupName.isNotBlank())
+                onClick = {
+                    if (isCreatingNewGroup) {
+                        // 新建一级分组：真实落库（与主界面"添加分组"同一写入方式），
+                        // 随后直接选中新分组返回；categoryPath 为空 = 该组根目录
+                        val newGroup = com.github.jing332.database.entities.systts.SystemTtsGroup(
+                            name = newGroupName.trim(),
+                            order = dbm.systemTtsV2.groupCount
+                        )
+                        dbm.systemTtsV2.insertGroup(newGroup)
+                        onConfirm(newGroup.id, "")
+                    } else {
+                        onConfirm(selectedGroupId, finalCategoryPath)
+                    }
+                },
+                enabled = when {
+                    isCreatingNewGroup -> newGroupName.isNotBlank()
+                    isCreatingNew -> newSubGroupName.isNotBlank()
+                    else -> !isRootSelectedInvalid
+                }
             ) {
                 Text("确认")
             }
