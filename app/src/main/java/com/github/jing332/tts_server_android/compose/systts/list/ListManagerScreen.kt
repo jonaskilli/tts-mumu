@@ -274,7 +274,7 @@ internal fun ListManagerScreen(
         val nextCache = HashMap<Long, GroupDerivedEntry>(groupTreeCache.size)
         for (gwt in models) {
             val sig = groupContentSignature(gwt)
-            val cached = groupTreeCache[g.id]
+            val cached = groupTreeCache[gwt.group.id]
             val entry: GroupDerivedEntry = if (cached != null && cached.signature == sig) {
                 cached
             } else {
@@ -293,7 +293,7 @@ internal fun ListManagerScreen(
                 }
                 GroupDerivedEntry(sig, flat, isAdvanced)
             }
-            nextCache[g.id] = entry
+            nextCache[gwt.group.id] = entry
             if (entry.isAdvanced) advanced.add(gwt) else normal.add(gwt)
         }
         // 清理已删除分组的缓存，防大库下无界增长
@@ -2698,7 +2698,7 @@ internal fun ListManagerScreen(
         // 新建空子分组时签名必变、树必重建，不会被漏显示
         val subGroupTrees = remember(models) {
             HashMap<Long, List<FlattenedCategoryItem>?>(models.size).apply {
-                for (gwt in models) put(g.id, groupTreeCache[g.id]?.flattened)
+                for (gwt in models) put(gwt.group.id, groupTreeCache[gwt.group.id]?.flattened)
             }
         }
         // 可见项过滤：轻量操作，每次展开/折叠时执行（仅遍历已缓存的扁平树做过滤，不重建树）
