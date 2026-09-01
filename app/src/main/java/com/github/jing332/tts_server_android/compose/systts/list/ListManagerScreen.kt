@@ -104,7 +104,6 @@ import com.github.jing332.database.entities.AbstractListGroup.Companion.DEFAULT_
 import com.github.jing332.database.entities.plugin.Plugin
 import com.github.jing332.database.entities.systts.BgmConfiguration
 import com.github.jing332.database.entities.systts.GroupWithSystemTts
-import com.github.jing332.database.entities.systts.JReadConfigMigration
 import androidx.compose.material3.Tab
 import androidx.compose.material3.TabRow
 import androidx.compose.ui.text.style.TextAlign
@@ -199,7 +198,10 @@ internal fun ListManagerScreen(
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
 
-    val models by vm.list.collectAsStateWithLifecycle()
+    // 列表 UI 数据全部来自 ViewModel 后台派生（models+分池+树+可见项一次性发布）：
+    // 主线程只做渲染，不再分池/建树/过滤（数千项时这些计算曾造成刷新与展开卡顿）
+    val derivedUi by vm.derivedUi.collectAsStateWithLifecycle()
+    val models = derivedUi.models
     val searchKeyword by vm.keyword.collectAsStateWithLifecycle()
     val searchType by vm.searchType.collectAsStateWithLifecycle()
     val invalidCount by vm.invalidCount.collectAsStateWithLifecycle()
@@ -226,18 +228,11 @@ internal fun ListManagerScreen(
     // 大分组展开集合：轻量态，切换不写库（写库会触发 Room 全量重发 → 分池/树重建卡顿）
     var expandedGroupIds by remember { AppConfig.expandedGroupIds }
 
-    // 池划分：只看配置项的朗读标签——全部标签都是朗读规则标签表内的标签（女青年01/男主1/narration/括号2/localSound1 等，
-    // 含能转换成这些的 jread 标签式；空白标签也算通用）→ 通用池；
-    // 任一配置项标签为规则外标签（性格词、群杂式等）→ 整组高级池。分组名、子分组路径与参数字典键不参与判定
-    // （曾改为 produceState 后台预计算，实测 jread 树形分组会整体不显示，回退同步计算保显示正确）
-    val (advancedPoolModels, normalPoolModels) = remember(models) {
-        models.partition { gwt ->
-            gwt.list.any {
-                val tag = (it.config as? TtsConfigurationDTO)?.speechRule?.tag ?: ""
-                !JReadConfigMigration.isNormalTag(tag)
-            }
-        }
-    }
+    // 池划分已在 ViewModel 后台派生（derivedUi），主线程零计算。
+    // 历史注记：曾改为 produceState 空初始值后台预计算，实测 jread 树形分组会整体不显示，已回退；
+    // 现方案为后台算完整体发布，不存在空树首帧
+    val advancedPoolModels = derivedUi.advancedPool
+    val normalPoolModels = derivedUi.normalPool
     // 当前所在的池页签：false=通用池，true=高级池
     var showAdvancedPool by rememberSaveable { mutableStateOf(false) }
     // 只有一池有内容时直接展示该池；两池都有内容才显示页签
@@ -2629,61 +2624,11 @@ internal fun ListManagerScreen(
             }
         }
         CompositionLocalProvider(LocalViewConfiguration provides fastLongPressConfig) {
-        // 树结构缓存：仅当各分组的 TTS 项内容或子分组定义(subGroupAudioParamsJson)变化时重建。
-        // 展开/折叠只改 isExpanded，不改 TTS 项也不改子分组定义，因此 hash 签名不变，树缓存命中，
-        // 避免每次展开/折叠都为所有分组重建树导致卡顿。
-        // 注意：空子分组仅靠 subGroupAudioParamsJson 注册，不写入 list，签名必须纳入该字段，
-        // 否则新建空子分组时 list 未变导致签名不变、树不重建，空子分组被漏显示。
-        val ttsItemsSignature = remember(models) {
-            models.map { it.list.hashCode() * 31 + it.group.subGroupAudioParamsJson.hashCode() }
-        }
-        val subGroupTrees = remember(ttsItemsSignature) {
-            models.associate { gwt ->
-                val subPaths: Set<String> = gwt.group.subGroupAudioParamsJson.let { jsonStr ->
-                    if (jsonStr.isBlank() || jsonStr == "{}") emptySet()
-                    else SystemTtsV2.Converters.json.decodeFromString<Map<String, AudioParams>>(jsonStr).keys
-                }
-                val hasSubInList = gwt.list.any { it.categoryPath.isNotBlank() }
-                gwt.group.id to (if (hasSubInList || subPaths.isNotEmpty()) {
-                    flattenSubCategoryTree(buildSubCategoryTree(gwt.list, subPaths))
-                } else null)
-            }
-        }
-        // 可见项过滤：轻量操作，每次展开/折叠时执行（仅遍历已缓存的扁平树做过滤，不重建树）
-        val subGroupVisibleItemsMap = remember(models, expandedSubGroups, expandedGroupIds) {
-            models.associate { gwt ->
-                val g = gwt.group
-                val flattened = subGroupTrees[g.id]
-                if (expandedGroupIds.contains(g.id.toString()) && flattened != null) {
-                    val visItems = mutableListOf<FlattenedCategoryItem>()
-                    var skipLevel = Int.MAX_VALUE
-                    for (fItem in flattened) {
-                        when (fItem) {
-                            is FlattenedCategoryItem.SubGroupHeader -> {
-                                if (fItem.node.level <= skipLevel) {
-                                    skipLevel = Int.MAX_VALUE
-                                }
-                                if (fItem.node.level > skipLevel) {
-                                    continue
-                                }
-                                visItems.add(fItem)
-                                if (!expandedSubGroups.contains(fItem.node.fullPath)) {
-                                    skipLevel = fItem.node.level
-                                }
-                            }
-                            is FlattenedCategoryItem.TtsItem -> {
-                                if (fItem.displayLevel <= skipLevel) {
-                                    visItems.add(fItem)
-                                }
-                            }
-                        }
-                    }
-                    g.id to visItems
-                } else {
-                    g.id to null
-                }
-            }
-        }
+        // 树结构与可见项过滤均已由 ViewModel 后台派生（derivedUi.trees / derivedUi.visibleItems）：
+        // 树按分组签名缓存（list hash + subGroupAudioParamsJson hash，空子分组仅靠 JSON 键注册故签名必须纳入），
+        // 展开/折叠只重算可见项过滤，树实例身份稳定
+        val subGroupTrees = derivedUi.trees
+        val subGroupVisibleItemsMap = derivedUi.visibleItems
         Column(Modifier.fillMaxSize()) {
         // 池页签：通用池 / 高级池；切换时清空搜索与多选状态，保证各池操作独立
         // 仅一池有内容时不显示页签，直接展示该池
@@ -2761,6 +2706,7 @@ internal fun ListManagerScreen(
                                 onClick = {
                                     val wasExpanded = expandedGroupIds.contains(g.id.toString())
                                     expandedGroupIds = if (wasExpanded) expandedGroupIds - g.id.toString() else expandedGroupIds + g.id.toString()
+                                    vm.onExpandedStateChanged(expandedSubGroups, expandedGroupIds)
                                     if (!wasExpanded) {
                                         scope.launch {
                                             // 等待重组完成后再用新布局索引滚动，避免并发导致跳位
@@ -3035,12 +2981,13 @@ internal fun ListManagerScreen(
                                                     },
                                                     onClick = {
                                                         val fullPath = fItem.node.fullPath
-                                                        if (expandedSubGroups.contains(fullPath)) {
-                                                            expandedSubGroups = expandedSubGroups - fullPath
-                                                        } else {
-                                                            expandedSubGroups = expandedSubGroups + fullPath
-                                                        }
-                                                    },
+                                                            if (expandedSubGroups.contains(fullPath)) {
+                                                                expandedSubGroups = expandedSubGroups - fullPath
+                                                            } else {
+                                                                expandedSubGroups = expandedSubGroups + fullPath
+                                                            }
+                                                            vm.onExpandedStateChanged(expandedSubGroups, expandedGroupIds)
+                                                        },
                                                     onRename = {
                                                         showSubGroupRename = Triple(g, subItems, fItem.node.fullPath)
                                                     },

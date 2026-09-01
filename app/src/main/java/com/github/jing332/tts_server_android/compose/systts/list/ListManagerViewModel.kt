@@ -28,6 +28,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.burnoutcrew.reorderable.ItemPosition
 import java.util.Collections
+import com.github.jing332.database.entities.systts.JReadConfigMigration
 
 class ListManagerViewModel : ViewModel() {
     companion object {
@@ -37,6 +38,10 @@ class ListManagerViewModel : ViewModel() {
         // 但每次进页都要等「打开库→整表查询→JSON 反序列化上千条」后才首次出列表，
         // 缓存让同一进程内再次进页/重建 Activity 时立即显示，数据库查完无缝替换
         private var cachedFullList: List<GroupWithSystemTts>? = null
+
+        // 最近一次派生结果缓存（models 与 cachedFullList 同源时）：同进程重进页立即恢复
+        // 完整池/树/可见项，不必等后台重算
+        private var cachedDerivedUi: ListDerivedUiState? = null
     }
 
     private val _keyword = MutableStateFlow("")
@@ -47,6 +52,30 @@ class ListManagerViewModel : ViewModel() {
 
     private val _list = MutableStateFlow<List<GroupWithSystemTts>>(emptyList())
     val list: StateFlow<List<GroupWithSystemTts>> get() = _list
+
+    // 后台派生的完整列表 UI 状态：models + 池划分 + 各分组扁平树 + 可见项过滤，
+    // 一次算完整体发布——界面永远拿到"配套完整"的一份数据，绝不渲染半成品。
+    // （上次 produceState 空初始值方案导致 jread 树形分组整体不显示，已回退；本实现规避该问题）
+    data class ListDerivedUiState(
+        val models: List<GroupWithSystemTts>,
+        val advancedPool: List<GroupWithSystemTts>,
+        val normalPool: List<GroupWithSystemTts>,
+        // groupId → 扁平子分组树（null=该组无子分组无需树渲染）
+        val trees: Map<Long, List<FlattenedCategoryItem>?>,
+        // groupId → 按展开态过滤后的可见扁平项（null=组未展开或无树）
+        val visibleItems: Map<Long, List<FlattenedCategoryItem>?>,
+    )
+
+    private val _derivedUi = MutableStateFlow(
+        ListDerivedUiState(emptyList(), emptyList(), emptyList(), emptyMap(), emptyMap())
+    )
+    val derivedUi: StateFlow<ListDerivedUiState> get() = _derivedUi
+
+    // 派生输入：最新待计算的 models + 展开态（合并语义，连续变化只算最后一次）
+    private val deriveInput = MutableStateFlow<Pair<List<GroupWithSystemTts>, Pair<Set<String>, Set<String>>?>?>(null)
+    // per-group 树缓存：签名(list hash+paramsJson hash)未变的组直接复用树实例，
+    // 展开切换只重算可见项过滤，树身份保持稳定
+    private val treeCache = HashMap<Long, Pair<Int, List<FlattenedCategoryItem>?>>()
 
     // 首次数据库查询是否完成：完成前列表区显示加载中而不是误导性的「暂无分组」
     private val _isInitialized = MutableStateFlow(false)
@@ -75,6 +104,31 @@ class ListManagerViewModel : ViewModel() {
         migrateExpandedGroupIds()
         // 有缓存先立即显示，不等数据库冷启动
         cachedFullList?.let { _list.value = it }
+        // 派生结果缓存同步恢复：重进页即见完整池/树/可见项；数据库更新后无缝替换
+        cachedDerivedUi?.let {
+            _derivedUi.value = it
+            _isInitialized.value = true
+        }
+        // 展开态从 AppConfig 直接播种：即使首条 Room 发射早于界面回调，
+        // 首次派生即以正确的展开态计算可见项，不会闪"全折叠"
+        currentExpandedSubGroups = AppConfig.expandedSubGroups.value
+        currentExpandedGroupIds = AppConfig.expandedGroupIds.value
+
+        // 后台派生 worker：单飞行任务，输入合并最后一次（models 变化或展开态变化都会触发）。
+        // Dispatchers.Default 与朗读/IO 线程池隔离，计算完成才整体发布，界面不出现中间态
+        viewModelScope.launch(Dispatchers.Default) {
+            deriveInput.collect { input ->
+                if (input == null) return@collect
+                val (models, expanded) = input
+                val derived = computeDerivedUi(models, expanded)
+                _derivedUi.value = derived
+                // 首次派生发布才算初始化完成：保证界面从加载态直接切到完整列表，
+                // 不存在"先渲染无树空状态再补"的时序窗口（上次树消失问题的根因）
+                _isInitialized.value = true
+                if (derived.models === cachedFullList) cachedDerivedUi = derived
+            }
+        }
+
         viewModelScope.launch(Dispatchers.IO) {
             // 顺序整理挪到独立协程：它要整表读一遍并可能逐行写，此前串在列表链路前面，
             // 首次显示必须等它跑完，是开页白屏几秒的主因之一。
@@ -133,10 +187,101 @@ class ListManagerViewModel : ViewModel() {
                     }
                     Log.d(TAG, "update list: ${result.size}")
                     _list.value = result
-                    _isInitialized.value = true
                     if (key.isBlank()) cachedFullList = result
+                    // 投递给后台派生 worker（models + 当前展开态）；连续变化自动合并，
+                    // 算完才发布，_isInitialized 在首次派生后置位
+                    deriveInput.value = result to (currentExpandedSubGroups to currentExpandedGroupIds)
                 }
         }
+    }
+
+    // 界面侧当前展开态快照（expandedSubGroups 全路径 / expandedGroupIds 组id字符串）。
+    // 展开切换零数据库成本，但需要重新过滤可见项——由 onExpandedStateChanged 通知派生 worker
+    @Volatile private var currentExpandedSubGroups: Set<String> = emptySet()
+    @Volatile private var currentExpandedGroupIds: Set<String> = emptySet()
+
+    /** 界面展开/折叠子分组或大分组时调用：只重算可见项过滤（树缓存命中），不重建树 */
+    fun onExpandedStateChanged(subGroups: Set<String>, groupIds: Set<String>) {
+        currentExpandedSubGroups = subGroups
+        currentExpandedGroupIds = groupIds
+        val models = deriveInput.value?.first ?: _list.value
+        if (models.isEmpty()) return
+        deriveInput.value = models to (subGroups to groupIds)
+    }
+
+    /**
+     * 后台派生：分池 + per-group 扁平树（签名缓存复用）+ 可见项过滤。
+     * 算完才发布，绝不产生"models 与树不配套"的中间态。
+     */
+    private fun computeDerivedUi(
+        models: List<GroupWithSystemTts>,
+        expanded: Pair<Set<String>, Set<String>>?,
+    ): ListDerivedUiState {
+        val (expandedSub, expandedGroups) = expanded ?: (currentExpandedSubGroups to currentExpandedGroupIds)
+
+        // 分池：任一配置项标签为规则外标签 → 整组高级池（与原 Screen 逻辑一致）
+        val (advancedPool, normalPool) = models.partition { gwt ->
+            gwt.list.any {
+                val tag = (it.config as? TtsConfigurationDTO)?.speechRule?.tag ?: ""
+                !JReadConfigMigration.isNormalTag(tag)
+            }
+        }
+
+        // 树构建：签名 = list hash + subGroupAudioParamsJson hash（空子分组仅靠 JSON 键注册，
+        // 签名必须纳入该字段，否则新建空子分组时 list 未变导致树不重建、空子分组被漏显示）
+        val trees = HashMap<Long, List<FlattenedCategoryItem>?>(models.size)
+        for (gwt in models) {
+            val signature = gwt.list.hashCode() * 31 + gwt.group.subGroupAudioParamsJson.hashCode()
+            val cached = treeCache[gwt.group.id]
+            val flat: List<FlattenedCategoryItem>? = if (cached != null && cached.first == signature) {
+                cached.second
+            } else {
+                val subPaths: Set<String> = gwt.group.subGroupAudioParamsJson.let { jsonStr ->
+                    if (jsonStr.isBlank() || jsonStr == "{}") emptySet()
+                    else SystemTtsV2.Converters.json.decodeFromString<Map<String, AudioParams>>(jsonStr).keys
+                }
+                val hasSubInList = gwt.list.any { it.categoryPath.isNotBlank() }
+                val built = if (hasSubInList || subPaths.isNotEmpty())
+                    flattenSubCategoryTree(buildSubCategoryTree(gwt.list, subPaths))
+                else null
+                treeCache[gwt.group.id] = signature to built
+                built
+            }
+            trees[gwt.group.id] = flat
+        }
+        // 缓存清理：分组被删除后移除其树，避免大库下缓存无界增长
+        if (treeCache.size > models.size + 16) {
+            treeCache.keys.retainAll(models.associateTo(HashMap()) { it.group.id to true }.keys.toSet())
+        }
+
+        // 可见项过滤：仅遍历缓存的扁平树做折叠过滤（原 Screen 逻辑原样搬运）
+        val visibleItems = HashMap<Long, List<FlattenedCategoryItem>?>(models.size)
+        for (gwt in models) {
+            val g = gwt.group
+            val flattened = trees[g.id]
+            if (expandedGroups.contains(g.id.toString()) && flattened != null) {
+                val visItems = mutableListOf<FlattenedCategoryItem>()
+                var skipLevel = Int.MAX_VALUE
+                for (fItem in flattened) {
+                    when (fItem) {
+                        is FlattenedCategoryItem.SubGroupHeader -> {
+                            if (fItem.node.level <= skipLevel) skipLevel = Int.MAX_VALUE
+                            if (fItem.node.level > skipLevel) continue
+                            visItems.add(fItem)
+                            if (!expandedSub.contains(fItem.node.fullPath)) skipLevel = fItem.node.level
+                        }
+                        is FlattenedCategoryItem.TtsItem -> {
+                            if (fItem.displayLevel <= skipLevel) visItems.add(fItem)
+                        }
+                    }
+                }
+                visibleItems[g.id] = visItems
+            } else {
+                visibleItems[g.id] = null
+            }
+        }
+
+        return ListDerivedUiState(models, advancedPool, normalPool, trees, visibleItems)
     }
 
     /** 四元组，用于 combine 后承载搜索输入 */
