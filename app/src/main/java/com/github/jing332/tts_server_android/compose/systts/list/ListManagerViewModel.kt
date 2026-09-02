@@ -722,6 +722,6 @@ class ListManagerViewModel : ViewModel() {
         migrateTagNamesIfNeed(context)
 
         // 单条音频参数折叠：把旧版 source.* 调节迁入唯一生效的 audioParams 层
-        collapseAudioParamsIfNeed(context)
+        collapseAudioParamsIfNeed()
     }
 }

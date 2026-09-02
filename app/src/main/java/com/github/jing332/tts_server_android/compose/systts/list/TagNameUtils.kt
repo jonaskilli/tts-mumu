@@ -224,29 +224,18 @@ private const val PARAM_COLLAPSE_TAG = "AudioParamCollapse"
  * 必须在 IO 线程调用；完成后置 AppConfig.audioParamsCollapsed 标记。
  */
 suspend fun collapseAudioParamsIfNeed(
-    context: Context,
     force: Boolean = false,
     scope: List<SystemTtsV2>? = null,
 ) {
-    val cfg = AppConfig
-    if (!force && cfg.audioParamsCollapsed.value) return
-    if (!force && scope == null && !cfg.audioParamsCollapsed.value) { /* 标记守卫在上 */ }
+    if (!force && AppConfig.audioParamsCollapsed.value) return
 
     withContext(Dispatchers.IO) {
-        var changedCount = 0
         val toSave = mutableListOf<SystemTtsV2>()
         val items = scope ?: dbm.systemTtsV2.all
         for (item in items) {
             val c = item.config as? TtsConfigurationDTO ?: continue
             val src = c.source as? PluginTtsSource ?: continue
             val params = c.audioParams
-            var changed = false
-            var newSpeed = params.speed
-            var newVolume = params.volume
-            var newPitch = params.pitch
-            var newSrcSpeed = src.speed
-            var newSrcVolume = src.volume
-            var newSrcPitch = src.pitch
 
             fun collapse(pSrc: Float, pDst: Float): Pair<Float, Float> {
                 if (pSrc != 1f && pDst == 1f) return pSrc to 1f
@@ -267,11 +256,10 @@ suspend fun collapseAudioParamsIfNeed(
                         )
                     )
                 )
-                changedCount++
             }
         }
         if (toSave.isNotEmpty()) dbm.systemTtsV2.update(*toSave.toTypedArray())
-        if (!force && scope == null) cfg.audioParamsCollapsed.value = true
-        Log.d(PARAM_COLLAPSE_TAG, "audioParams collapse done, changed=${changedCount}")
+        if (!force && scope == null) AppConfig.audioParamsCollapsed.value = true
+        Log.d(PARAM_COLLAPSE_TAG, "audioParams collapse done, changed=${toSave.size}")
     }
 }
