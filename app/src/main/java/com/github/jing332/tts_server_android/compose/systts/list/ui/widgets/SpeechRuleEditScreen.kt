@@ -56,10 +56,12 @@ import com.github.jing332.compose.widgets.AppDialog
 import com.github.jing332.compose.widgets.AppSpinner
 import com.github.jing332.database.dbm
 import com.github.jing332.database.entities.SpeechRule
+import com.github.jing332.database.entities.systts.AudioParams
 import com.github.jing332.database.entities.systts.SpeechRuleInfo
 import com.github.jing332.database.entities.systts.SystemTtsV2
 import com.github.jing332.database.entities.systts.TtsConfigurationDTO
 import com.github.jing332.tts_server_android.R
+import com.github.jing332.tts_server_android.compose.systts.list.BasicAudioParamsDialog
 import com.github.jing332.tts_server_android.compose.systts.list.TagPickerDialog
 import com.github.jing332.tts_server_android.compose.systts.list.expandSpeechRuleTagsIfNeeded
 import com.github.jing332.tts_server_android.constant.AppConst
@@ -147,8 +149,33 @@ fun SpeechRuleEditScreen(
             onDismissRequest = { showStandbyHelpDialog = false }
         )
 
-    // 「音频参数」弹窗入口已移除：单条速度/音量/音高与下方滑块共用 audioParams 一份
-    // （重置=1.0 跟随语义只留给全局/分组层），见 PluginTtsUI.ParamsEditScreen。
+    // 「音频参数」弹窗与下方滑块共用同一份 audioParams，两入口天然同步；
+    // 提供大号滑块的快捷调整入口，重置语义与滑块一致（=1.0）
+    var showParamsDialog by remember { mutableStateOf(false) }
+    if (showParamsDialog) {
+        val params = config.audioParams
+        fun changeParams(speed: Float = params.speed, volume: Float = params.volume, pitch: Float = params.pitch) {
+            onSysttsChange(
+                systts.copy(
+                    config = config.copy(audioParams = AudioParams(speed, volume, pitch))
+                )
+            )
+        }
+
+        BasicAudioParamsDialog(
+            title = { Text(stringResource(id = R.string.audio_params)) },
+            onDismissRequest = { showParamsDialog = false },
+            resetValue = 1f,
+            speed = params.speed,
+            onSpeedChange = { changeParams(speed = it) },
+            volume = params.volume,
+            onVolumeChange = { changeParams(volume = it) },
+            pitch = params.pitch,
+            onPitchChange = { changeParams(pitch = it) },
+
+            onReset = { changeParams(1f, 1f, 1f) }
+        )
+    }
 
     if (showSpeechTarget)
         Column(modifier.fillMaxWidth()) {
@@ -160,6 +187,13 @@ fun SpeechRuleEditScreen(
                     .align(Alignment.CenterHorizontally)
                     .horizontalScroll(rememberScrollState())
             ) {
+                TextButton(onClick = { showParamsDialog = true }) {
+                    Row {
+                        Icon(Icons.Default.Speed, stringResource(R.string.audio_params))
+                        Text(stringResource(id = R.string.audio_params))
+                    }
+                }
+
                 Row(
                     Modifier
                         .minimumInteractiveComponentSize()
