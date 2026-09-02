@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.Alignment
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Headset
@@ -370,7 +371,14 @@ class PluginTtsUI : IConfigUI() {
                         modifier = Modifier
                             .fillMaxWidth()
                             .padding(top = 4.dp),
-                        labelText = stringResource(R.string.plugin), 
+                        // 插件是切换音色来源的核心入口：主题色加粗+🧩，与普通字段一眼区分
+                        label = {
+                            Text(
+                                "🧩 " + stringResource(R.string.plugin),
+                                color = MaterialTheme.colorScheme.primary,
+                                fontWeight = FontWeight.Bold,
+                            )
+                        },
                         value = tts.pluginId,
                         values = vm.pluginList.map { it.pluginId },
                         entries = vm.pluginList.map { it.name },
@@ -422,8 +430,14 @@ class PluginTtsUI : IConfigUI() {
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .padding(top = 4.dp),
-                                labelText = stringResource(R.string.language),
-                                value = tts.locale,
+                                // 语言标签维持默认样式；声音与插件同属音色来源组：主题色+🎤
+                                label = {
+                                    Text(
+                                        "🎤 " + stringResource(R.string.label_voice),
+                                        color = MaterialTheme.colorScheme.primary,
+                                    )
+                                },
+                                value = tts.voice,
                                 values = vm.locales.map { it.first },
                                 entries = vm.locales.map { it.second },
                                 onSelectedChange = { locale, _ ->
