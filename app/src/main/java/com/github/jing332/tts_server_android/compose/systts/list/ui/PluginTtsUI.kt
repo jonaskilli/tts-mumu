@@ -167,12 +167,7 @@ class PluginTtsUI : IConfigUI() {
             onCancel = onCancel,
             onSave = onSave,
         ) {
-            // 分区顺序：基本信息 → 音色来源 → 朗读与标签 → 音频参数
-            EditContentScreen(
-                systts = systemTts,
-                onSysttsChange = onSystemTtsChange,
-                showParamsSection = false,
-            )
+            // 分区顺序：朗读与标签(含全部/标签、音频参数入口,用户要求必须最上) → 基本信息 → 音色来源 → 音频参数
             SectionCard(
                 title = "朗读与标签",
                 icon = Icons.Default.Tag,
@@ -182,6 +177,11 @@ class PluginTtsUI : IConfigUI() {
             ) {
                 content()
             }
+            EditContentScreen(
+                systts = systemTts,
+                onSysttsChange = onSystemTtsChange,
+                showParamsSection = false,
+            )
             val isUiOnly = (systemTts.config as? TtsConfigurationDTO)
                 ?.source?.let { it as? PluginTtsSource }?.isUiOnly == true
             if (!isUiOnly)
@@ -402,6 +402,8 @@ class PluginTtsUI : IConfigUI() {
             SectionCard(
                 title = "音色来源",
                 icon = Icons.Default.Headset,
+                // 仅界面模式下卡片里只剩插件自定义UI：隐藏「音色来源」标题省空间(用户要求)
+                showHeader = !isUiOnly,
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(horizontal = 8.dp, vertical = 4.dp),

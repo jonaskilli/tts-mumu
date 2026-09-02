@@ -218,8 +218,7 @@ class LocalTtsUI() : IConfigUI() {
             onCancel = onCancel,
             onSave = onSave,
         ) {
-            // 分区顺序与插件编辑页一致：基本信息 → 音色来源 → 朗读与标签 → 音频参数
-            Content(systts = systemTts, onSysttsChange = onSystemTtsChange, showParams = false)
+            // 分区顺序与插件页一致：朗读与标签(必须最上) → 基本信息/音色来源 → 音频参数
             SectionCard(
                 title = "朗读与标签",
                 icon = Icons.Default.Tag,
@@ -229,6 +228,7 @@ class LocalTtsUI() : IConfigUI() {
             ) {
                 content()
             }
+            Content(systts = systemTts, onSysttsChange = onSystemTtsChange, showParams = false)
             SectionCard(
                 title = "音频参数",
                 icon = Icons.Default.Speed,

@@ -29,31 +29,35 @@ internal fun SectionCard(
     modifier: Modifier = Modifier,
     title: String,
     icon: ImageVector,
+    // false 时不渲染图标+标题行：如仅界面模式下「音色来源」卡只剩插件自定义UI，省一行高度
+    showHeader: Boolean = true,
     trailing: @Composable () -> Unit = {},
     content: @Composable ColumnScope.() -> Unit,
 ) {
     OutlinedCard(modifier = modifier) {
         Column(Modifier.padding(vertical = 6.dp)) {
-            Row(
-                Modifier
-                    .fillMaxWidth()
-                    .padding(start = 12.dp, end = 8.dp, top = 4.dp, bottom = 2.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Icon(
-                    icon,
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier.size(18.dp),
-                )
-                Text(
-                    title,
-                    modifier = Modifier.padding(start = 6.dp),
-                    style = MaterialTheme.typography.titleSmall,
-                    fontWeight = FontWeight.Bold,
-                )
-                Spacer(Modifier.weight(1f))
-                trailing()
+            if (showHeader) {
+                Row(
+                    Modifier
+                        .fillMaxWidth()
+                        .padding(start = 12.dp, end = 8.dp, top = 4.dp, bottom = 2.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Icon(
+                        icon,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(18.dp),
+                    )
+                    Text(
+                        title,
+                        modifier = Modifier.padding(start = 6.dp),
+                        style = MaterialTheme.typography.titleSmall,
+                        fontWeight = FontWeight.Bold,
+                    )
+                    Spacer(Modifier.weight(1f))
+                    trailing()
+                }
             }
             content()
         }
