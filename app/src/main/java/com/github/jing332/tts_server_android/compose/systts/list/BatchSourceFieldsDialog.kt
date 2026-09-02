@@ -33,8 +33,9 @@ fun BatchSourceFieldsDialog(
     onApply: (enabled: Boolean?, sampleRate: Int?, locale: String?) -> Unit,
 ) {
     var enabledSel by remember { mutableStateOf<Boolean?>(null) }
-    var rateSel by remember { mutableStateOf<Int?>(null) }
-    var localeSel by remember { mutableStateOf<String?>(null) }
+    // AppSpinner 需要 Any 非空值：用 "none"/"auto"/Int/"具体locale" 作为哨兵
+    var rateSelKey by remember { mutableStateOf<Any>("none") }
+    var localeSelKey by remember { mutableStateOf<Any>("none") }
 
     AppDialog(
         title = { Text("批量修改来源字段") },
@@ -67,14 +68,14 @@ fun BatchSourceFieldsDialog(
                     modifier = Modifier.padding(top = 8.dp)
                 )
                 val rateEntries = listOf("不修改", "自动识别格式") + sampleRateOptions.map { "$it Hz" }
-                val rateValues = listOf<Int?>(null, -1) + sampleRateOptions
+                val rateValues: List<Any> = listOf("none", "auto") + sampleRateOptions
                 AppSpinner(
                     modifier = Modifier.fillMaxWidth(),
                     labelText = "采样率",
-                    value = rateSel,
+                    value = rateSelKey,
                     values = rateValues,
                     entries = rateEntries,
-                    onSelectedChange = { key, _ -> rateSel = key as Int? }
+                    onSelectedChange = { key, _ -> rateSelKey = key }
                 )
 
                 Text(
@@ -82,20 +83,26 @@ fun BatchSourceFieldsDialog(
                     style = MaterialTheme.typography.labelMedium,
                     modifier = Modifier.padding(top = 8.dp)
                 )
-                val localeValues = listOf<String?>(null) + localeOptions
+                val localeValues: List<Any> = listOf("none") + localeOptions
                 AppSpinner(
                     modifier = Modifier.fillMaxWidth(),
                     labelText = "locale",
-                    value = localeSel,
+                    value = localeSelKey,
                     values = localeValues,
                     entries = listOf("不修改") + localeOptions,
-                    onSelectedChange = { key, _ -> localeSel = key as String? }
+                    onSelectedChange = { key, _ -> localeSelKey = key }
                 )
             }
         },
         buttons = {
             Row {
-                TextButton(onClick = { onApply(enabledSel, rateSel, localeSel) }) {
+                TextButton(onClick = {
+                    onApply(
+                        enabledSel,
+                        when (val k = rateSelKey) { "none" -> null; "auto" -> -1; else -> k as? Int },
+                        if (localeSelKey == "none") null else localeSelKey,
+                    )
+                }) {
                     Text("应用")
                 }
             }
