@@ -22,8 +22,13 @@ class TtsLogViewModel : ViewModel() {
     companion object {
         const val TAG = "TtsLogViewModel"
 
-        // 日志总上限，达到后自动清空
-        const val MAX_LOGS_BEFORE_CLEAR = 500000
+        // 内存日志滑动窗口上限：旧值50万条，插件日志每条可达数KB，长会话直接吃满256MB堆
+        // （装机实测 OOM：画列表项时连80字节都分配失败）。完整历史仍由磁盘
+        // cache/log/system_tts.log 承载，内存只保最近段。超限后按批裁最旧，不清空全部
+        const val MAX_LOGS = 20000
+
+        // 裁剪批量：让 size 长到 MAX+PRUNE_BATCH 再一次裁回 MAX，均摊掉逐条删头部的数组搬移开销
+        const val PRUNE_BATCH = 1000
 
         // 支持的日志级别
         val LOG_LEVELS = listOf(
@@ -57,27 +62,17 @@ class TtsLogViewModel : ViewModel() {
     
     val filteredLogs: List<LogEntry>
         get() {
-            var filtered = logs.toList()
-
-            // 按日志级别筛选
-            if (selectedLevels.isNotEmpty()) {
-                filtered = filtered.filter { it.level in selectedLevels }
+            // 单遍过滤：旧实现 toList 后最多再 filter 三次，高频日志下每次重组都全量复制三份列表
+            val levels = selectedLevels
+            val showPlugin = showPluginLogs.value
+            val showRule = showSpeechRuleLogs.value
+            return logs.filter {
+                (levels.isEmpty() || it.level in levels) &&
+                        (showPlugin || !it.isPluginLog) &&
+                        (showRule || !it.isSpeechRuleLog)
             }
-
             // 注：搜索词不做过滤——搜索是定位(跳转+高亮)，由 TtsLogScreen/LogScreen 处理，
             // 保留完整列表便于查看匹配项的前后文
-
-            // 调试模式：控制是否显示插件日志
-            if (!showPluginLogs.value) {
-                filtered = filtered.filter { !it.isPluginLog }
-            }
-            
-            // 调试模式：控制是否显示朗读规则日志
-            if (!showSpeechRuleLogs.value) {
-                filtered = filtered.filter { !it.isSpeechRuleLog }
-            }
-            
-            return filtered
         }
     
     fun toggleLevel(level: Int) {
@@ -123,18 +118,14 @@ class TtsLogViewModel : ViewModel() {
             viewModelScope.launch(Dispatchers.IO) {
                 pull()
 
-                // 统一的日志添加函数，满5000条自动清空
+                // 统一的日志添加函数：滑动窗口，超限裁掉最旧的
                 fun addLog(entry: LogEntry) {
                     runOnUI {
-                        // 达到上限时自动清空日志
-                        if (logs.size >= MAX_LOGS_BEFORE_CLEAR) {
-                            logs.clear()
-                            logs.add(LogEntry(
-                                level = LogLevel.WARN,
-                                message = "日志达到上限，已自动清空"
-                            ))
-                        }
                         logs.add(entry)
+                        val overflow = logs.size - MAX_LOGS
+                        if (overflow >= PRUNE_BATCH) {
+                            repeat(overflow) { logs.removeAt(0) }
+                        }
                     }
                 }
 
