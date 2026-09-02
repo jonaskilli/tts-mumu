@@ -163,7 +163,7 @@ class TtsLogViewModel : ViewModel() {
         runCatching {
             if (file.exists()) {
                 // 最多读取最近 1500 行，解析后批量添加，避免逐条 add 触发多次重组
-                val entries = file.readLines().takeLast(1500).mapNotNull { line ->
+                val entries = readTailLines(file, 1500).mapNotNull { line ->
                     runCatching { toLogEntry(line) }.getOrNull()
                 }
                 withMain {
@@ -175,5 +175,25 @@ class TtsLogViewModel : ViewModel() {
             Log.e(TAG, "pull: ", it)
         }
 
+    }
+
+    /**
+     * 只读文件尾部 N 行。
+     * 旧实现 file.readLines() 把整个文件一次性载入内存再 takeLast——日志文件按天滚动
+     * 无大小上限，单日可达数十 MB，瞬时分配与文件大小成正比，是启动后首次进日志栏
+     * 的 OOM 爆点。尾部 1MB 按平均 ~700B/行覆盖 1500 行绰绰有余。
+     */
+    private fun readTailLines(file: File, maxLines: Int): List<String> {
+        val fileLen = file.length()
+        val tailLen = minOf(fileLen, 1_000_000L).toInt()
+        val buf = ByteArray(tailLen)
+        java.io.RandomAccessFile(file, "r").use { raf ->
+            raf.seek(fileLen - tailLen)
+            raf.readFully(buf)
+        }
+        val lines = String(buf, Charsets.UTF_8).split('\n')
+        // 起点不在文件头时，首行大概率是被截断的半行，丢弃
+        val start = if (tailLen < fileLen) 1 else 0
+        return lines.drop(start).filter { it.isNotBlank() }.takeLast(maxLines)
     }
 }
