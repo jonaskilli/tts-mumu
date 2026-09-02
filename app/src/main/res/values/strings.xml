@@ -163,7 +163,7 @@
     <string name="systts_pcm_sample_rate">PCM兜底采样率（Hz）</string>
     <string name="systts_pcm_sample_rate_help">PCM输出 / 原始音频兜底采样率</string>
     <string name="systts_pcm_sample_rate_help_msg">MP3、WAV、Opus等带音频头的音频会自动识别实际格式，不使用此数值判断播放速度。只有无音频头的原始PCM需要填写与源音频一致的采样率；此值同时参与系统TTS统一PCM输出格式的选择。插件界面中选择的格式和采样率由插件自身保存，不受此项影响。</string>
-    <string name="systts_auto_detect_audio_format">自动识别格式</string>
+    <string name="systts_auto_detect_audio_format">跟随音源格式</string>
     <string name="systts_pcm_format">PCM %1$d Hz</string>
     <string name="systts_secondaryLocale">二级语言（语言技能）</string>
     <string name="systts_voice_data_load_failed">语音数据加载失败</string>

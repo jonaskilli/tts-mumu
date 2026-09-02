@@ -67,7 +67,7 @@ fun BatchSourceFieldsDialog(
                     style = MaterialTheme.typography.labelMedium,
                     modifier = Modifier.padding(top = 8.dp)
                 )
-                val rateEntries = listOf("不修改", "自动识别格式") + sampleRateOptions.map { "$it Hz" }
+                val rateEntries = listOf("不修改", "跟随音源格式") + sampleRateOptions.map { "$it Hz" }
                 val rateValues: List<Any> = listOf("none", "auto") + sampleRateOptions
                 AppSpinner(
                     modifier = Modifier.fillMaxWidth(),
