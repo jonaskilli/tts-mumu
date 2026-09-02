@@ -95,6 +95,13 @@ class JsBridgeInputStream : InputStream() {
     }
 
     /**
+     * 流式 PCM 格式声明（小米 MiMo/硅基 CosyVoice2 等插件合成首块前调用，与 streaming 声明对应）
+     */
+    var streamFormat: StreamFormat? = null
+
+    data class StreamFormat(val encoding: String?, val sampleRate: Int, val channels: Int)
+
+    /**
      *  Interface for JavaScript to interact with the OutputStream.  The names
      *  and signatures MUST match your Kotlin definitions.
      */
@@ -103,6 +110,9 @@ class JsBridgeInputStream : InputStream() {
         fun write(data: Any?)
         fun close()
         fun error(data: Any?)
+        fun streamStart(encoding: String?, sampleRate: Int, channels: Int)
+        fun streamWrite(data: Any?)
+        fun streamComplete()
     }
 
     suspend fun getCallback(): Callback {
@@ -160,6 +170,20 @@ class JsBridgeInputStream : InputStream() {
                     close()
                 } catch (ignored: IOException) {
                 }
+            }
+
+            // 流式协议桥（小米 MiMo 三款/硅基 CosyVoice2）：streamStart 声明格式，
+            // streamWrite 等价 write 分块入队，streamComplete 收尾同 close
+            override fun streamStart(encoding: String?, sampleRate: Int, channels: Int) {
+                this@JsBridgeInputStream.streamFormat = StreamFormat(encoding, sampleRate, channels)
+            }
+
+            override fun streamWrite(data: Any?) {
+                write(data)
+            }
+
+            override fun streamComplete() {
+                close()
             }
         }
     }
