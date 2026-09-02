@@ -95,7 +95,7 @@ class LocalTtsUI() : IConfigUI() {
 
         Column(modifier) {
             LabelSlider(
-                text = "⚡ " + stringResource(R.string.label_speech_rate, "%.2f".format(params.speed)),
+                text = stringResource(R.string.label_speech_rate, "%.2f".format(params.speed)),
                 value = params.speed, onValueChange = {
                 onSystemTtsChange(
                     systemTts.copy(
@@ -105,7 +105,7 @@ class LocalTtsUI() : IConfigUI() {
             }, valueRange = 0.1f..3f, step = 0.05f)
 
             LabelSlider(
-                text = "🎵 " + stringResource(R.string.label_speech_pitch, "%.2f".format(params.pitch)),
+                text = stringResource(R.string.label_speech_pitch, "%.2f".format(params.pitch)),
                 value = params.pitch, onValueChange = {
                 onSystemTtsChange(
                     systemTts.copy(
@@ -115,7 +115,7 @@ class LocalTtsUI() : IConfigUI() {
             }, valueRange = 0.1f..3f, step = 0.05f)
 
             LabelSlider(
-                text = "🔊 " + stringResource(R.string.label_speech_volume, "%.2f".format(params.volume)),
+                text = stringResource(R.string.label_speech_volume, "%.2f".format(params.volume)),
                 value = params.volume, onValueChange = {
                 onSystemTtsChange(
                     systemTts.copy(

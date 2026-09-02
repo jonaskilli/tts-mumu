@@ -84,7 +84,7 @@ class PluginTtsUI : IConfigUI() {
         fun snap(v: Float): Float = (kotlin.math.round(v * 100f) / 100f)
         Column(modifier) {
             LabelSlider(
-                text = "⚡ " + stringResource(R.string.label_speech_rate, "%.2f".format(params.speed)),
+                text = stringResource(R.string.label_speech_rate, "%.2f".format(params.speed)),
                 value = params.speed,
                 onValueChange = {
                     val v = snap(it)
@@ -101,7 +101,7 @@ class PluginTtsUI : IConfigUI() {
             )
 
             LabelSlider(
-                text = "🔊 " + stringResource(R.string.label_speech_volume, "%.2f".format(params.volume)),
+                text = stringResource(R.string.label_speech_volume, "%.2f".format(params.volume)),
                 value = params.volume, onValueChange = {
                     val v = snap(it)
                     onSystemTtsChange(
@@ -116,7 +116,7 @@ class PluginTtsUI : IConfigUI() {
             )
 
             LabelSlider(
-                text = "🎵 " + stringResource(R.string.label_speech_pitch, "%.2f".format(params.pitch)),
+                text = stringResource(R.string.label_speech_pitch, "%.2f".format(params.pitch)),
                 value = params.pitch, onValueChange = {
                     val v = snap(it)
                     onSystemTtsChange(

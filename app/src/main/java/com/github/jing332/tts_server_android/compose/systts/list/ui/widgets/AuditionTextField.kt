@@ -19,7 +19,7 @@ fun AuditionTextField(modifier: Modifier, onAudition: (String) -> Unit) {
     var text by remember { AppConfig.testSampleText }
     OutlinedTextField(
         modifier = modifier,
-        label = { Text("🔊 " + stringResource(R.string.audition_text)) },
+        label = { Text("💬 " + stringResource(R.string.audition_text)) },
         value = text,
         onValueChange = { text = it },
         trailingIcon = {
