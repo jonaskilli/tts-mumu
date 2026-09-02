@@ -92,14 +92,8 @@ fun SubGroupHeader(
     Row(
         modifier = modifier
             .fillMaxWidth()
-            .background(
-                when (level) {
-                    // 背景随层级递减，配合缩进体现 jread 多级子分组的从属关系
-                    0 -> MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
-                    1 -> MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.25f)
-                    else -> MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.12f)
-                }
-            )
+            // 统一淡面板色(与编辑页SectionCard同款)：不再按层级阶梯涂色,层级靠缩进体现
+            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f))
             .clickable { if (!showOptions && !showExtraOptions) onClick() }
             .padding(
                 // 按层级水平缩进，每级 12dp

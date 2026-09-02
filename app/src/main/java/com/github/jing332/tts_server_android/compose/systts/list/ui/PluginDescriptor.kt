@@ -27,34 +27,26 @@ class PluginDescriptor(
     override val name: String = systemTts.displayName
     override val desc: String
         get() {
-            // 列表配置项显示在「仅界面模式」开启前后保持一致；
-            // 仅界面模式的差异只在点击进入编辑页面时体现(见 PluginTtsUI.EditContentScreen)。
             val strFollow by lazy { context.getString(R.string.follow) }
 
-            // 滑块/日志/卡片三处统一显示 audioParams（唯一生效层）；
-            // 0=跟随（用于全局/分组层覆盖），非0=该条单条值。
+            // 卡片三行制：行1名称+标签、行2参数·格式(desc)、行3插件名(type)。
+            // 旧版行2是 voice id 技术串(信息量低)，按用户要求删除；格式(bottom)并入参数行。
             // toScale(2) 去噪：历史数据里存在 1.1499999f 这类浮点噪声，直接插值会原样上屏
             val p = cfg.audioParams
             val rateStr = if (p.speed == 0f) strFollow else p.speed.toScale(2)
             val pitchStr = if (p.pitch == 0f) strFollow else p.pitch.toScale(2)
             val volumeStr = if (p.volume == 0f) strFollow else p.volume.toScale(2)
 
-            return source.voice + "<br>" + context.getString(
+            return context.getString(
                 R.string.systts_play_params_description,
                 "<b>${rateStr}</b>",
                 "<b>${volumeStr}</b>",
                 "<b>${pitchStr}</b>"
-            )
-
+            ) + " · " + bottom
         }
 
-    override val bottom: String = cfg.audioFormat.run {
-        if (source.shouldDecode(this)) {
-            context.getString(R.string.systts_auto_detect_audio_format)
-        } else {
-            context.getString(R.string.systts_pcm_format, sampleRate)
-        }
-    }
+    // 格式信息已并入 desc 参数行；bottom 槽位由卡片渲染为独立 HtmlText，置空避免重复
+    override val bottom: String = ""
     override val type: String by lazy {
         if (pluginNames != null) {
             // 传了映射就完全不走 IO：映射来自插件表 Flow（含未启用插件），查不到即插件已删除
