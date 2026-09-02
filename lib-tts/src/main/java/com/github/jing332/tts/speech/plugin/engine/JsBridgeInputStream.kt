@@ -4,6 +4,9 @@ import androidx.annotation.Keep
 import com.github.jing332.script.exception.ScriptException
 import io.github.oshai.kotlinlogging.KotlinLogging
 import org.mozilla.javascript.Context
+import org.mozilla.javascript.typedarrays.NativeArrayBuffer
+import org.mozilla.javascript.typedarrays.NativeUint8Array
+import java.io.IOException
 import java.io.InputStream
 
 /**
