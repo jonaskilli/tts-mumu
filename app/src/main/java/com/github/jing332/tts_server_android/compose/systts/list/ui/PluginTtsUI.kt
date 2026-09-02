@@ -430,14 +430,9 @@ class PluginTtsUI : IConfigUI() {
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .padding(top = 4.dp),
-                                // 语言标签维持默认样式；声音与插件同属音色来源组：主题色+🎤
-                                label = {
-                                    Text(
-                                        "🎤 " + stringResource(R.string.label_voice),
-                                        color = MaterialTheme.colorScheme.primary,
-                                    )
-                                },
-                                value = tts.voice,
+                                // 语言池选择器：普通样式与默认绑定；音色来源组(插件/声音)才用主题色
+                                labelText = stringResource(R.string.language),
+                                value = tts.locale,
                                 values = vm.locales.map { it.first },
                                 entries = vm.locales.map { it.second },
                                 onSelectedChange = { locale, _ ->
