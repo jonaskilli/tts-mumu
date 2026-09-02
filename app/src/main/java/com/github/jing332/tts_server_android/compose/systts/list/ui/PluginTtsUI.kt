@@ -84,7 +84,7 @@ class PluginTtsUI : IConfigUI() {
         fun snap(v: Float): Float = (kotlin.math.round(v * 100f) / 100f)
         Column(modifier) {
             LabelSlider(
-                text = stringResource(R.string.label_speech_rate, "%.2f".format(params.speed)),
+                text = "⚡ " + stringResource(R.string.label_speech_rate, "%.2f".format(params.speed)),
                 value = params.speed,
                 onValueChange = {
                     val v = snap(it)
@@ -101,7 +101,7 @@ class PluginTtsUI : IConfigUI() {
             )
 
             LabelSlider(
-                text = stringResource(R.string.label_speech_volume, "%.2f".format(params.volume)),
+                text = "🔊 " + stringResource(R.string.label_speech_volume, "%.2f".format(params.volume)),
                 value = params.volume, onValueChange = {
                     val v = snap(it)
                     onSystemTtsChange(
@@ -116,7 +116,7 @@ class PluginTtsUI : IConfigUI() {
             )
 
             LabelSlider(
-                text = stringResource(R.string.label_speech_pitch, "%.2f".format(params.pitch)),
+                text = "🎵 " + stringResource(R.string.label_speech_pitch, "%.2f".format(params.pitch)),
                 value = params.pitch, onValueChange = {
                     val v = snap(it)
                     onSystemTtsChange(
@@ -487,7 +487,7 @@ class PluginTtsUI : IConfigUI() {
                                     .fillMaxWidth()
                                     .padding(top = 4.dp),
                                 // 语言池选择器：普通样式与默认绑定；音色来源组(插件/声音)才用主题色
-                                labelText = stringResource(R.string.language),
+                                labelText = "🌐 " + stringResource(R.string.language),
                                 value = tts.locale,
                                 values = vm.locales.map { it.first },
                                 entries = vm.locales.map { it.second },

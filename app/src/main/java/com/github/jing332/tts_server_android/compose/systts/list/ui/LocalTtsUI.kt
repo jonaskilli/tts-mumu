@@ -95,7 +95,7 @@ class LocalTtsUI() : IConfigUI() {
 
         Column(modifier) {
             LabelSlider(
-                text = stringResource(R.string.label_speech_rate, "%.2f".format(params.speed)),
+                text = "⚡ " + stringResource(R.string.label_speech_rate, "%.2f".format(params.speed)),
                 value = params.speed, onValueChange = {
                 onSystemTtsChange(
                     systemTts.copy(
@@ -105,7 +105,7 @@ class LocalTtsUI() : IConfigUI() {
             }, valueRange = 0.1f..3f, step = 0.05f)
 
             LabelSlider(
-                text = stringResource(R.string.label_speech_pitch, "%.2f".format(params.pitch)),
+                text = "🎵 " + stringResource(R.string.label_speech_pitch, "%.2f".format(params.pitch)),
                 value = params.pitch, onValueChange = {
                 onSystemTtsChange(
                     systemTts.copy(
@@ -115,7 +115,7 @@ class LocalTtsUI() : IConfigUI() {
             }, valueRange = 0.1f..3f, step = 0.05f)
 
             LabelSlider(
-                text = stringResource(R.string.label_speech_volume, "%.2f".format(params.volume)),
+                text = "🔊 " + stringResource(R.string.label_speech_volume, "%.2f".format(params.volume)),
                 value = params.volume, onValueChange = {
                 onSystemTtsChange(
                     systemTts.copy(
@@ -331,7 +331,7 @@ class LocalTtsUI() : IConfigUI() {
 
                         AppSpinner(
                             modifier = Modifier.padding(vertical = 2.dp),
-                            labelText = stringResource(id = R.string.label_tts_engine),
+                            labelText = "🔌 " + stringResource(id = R.string.label_tts_engine),
                             value = source.engine,
                             values = vm.engines.map { it.name },
                             entries = vm.engines.map { it.label },
@@ -350,7 +350,7 @@ class LocalTtsUI() : IConfigUI() {
 
                         AppSpinner(
                             modifier = Modifier.padding(vertical = 2.dp),
-                            labelText = stringResource(id = R.string.label_language),
+                            labelText = "🌐 " + stringResource(id = R.string.label_language),
                             value = source.locale,
                             values = vm.locales.map { it.toLanguageTag() },
                             entries = vm.locales.map { it.country.toCountryFlagEmoji() + " " + it.displayName },
@@ -363,7 +363,7 @@ class LocalTtsUI() : IConfigUI() {
 
                         AppSpinner(
                             modifier = Modifier.padding(vertical = 2.dp),
-                            labelText = stringResource(id = R.string.label_voice),
+                            labelText = "🎤 " + stringResource(id = R.string.label_voice),
                             value = source.voice,
                             values = vm.voices.map { it.name },
                             entries = vm.voices.map {

@@ -357,7 +357,7 @@ fun SpeechRuleEditScreen(
                         modifier = Modifier
                             .weight(1f)
                             .padding(end = 4.dp),
-                        labelText = stringResource(R.string.speech_rule_script),
+                        labelText = "📜 " + stringResource(R.string.speech_rule_script),
                         value = config.speechRule.tagRuleId,
                         values = speechRules.map { it.ruleId },
                         entries = speechRules.map { it.name },
@@ -405,7 +405,7 @@ fun SpeechRuleEditScreen(
                                 readOnly = true,
                                 enabled = false,
                                 singleLine = true,
-                                label = { Text(stringResource(R.string.tag)) },
+                                label = { Text("🏷️ " + stringResource(R.string.tag)) },
                                 trailingIcon = {
                                     Icon(Icons.Default.ArrowDropDown, null)
                                 },

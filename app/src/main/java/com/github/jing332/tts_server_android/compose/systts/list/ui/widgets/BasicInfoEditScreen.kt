@@ -85,7 +85,7 @@ fun BasicInfoEditScreen(
                 disabledTrailingIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
                 disabledLabelColor = MaterialTheme.colorScheme.onSurfaceVariant,
             ),
-            label = { Text(stringResource(R.string.group)) },
+            label = { Text("📁 " + stringResource(R.string.group)) },
             value = locationText,
             onValueChange = {},
             trailingIcon = {
@@ -94,7 +94,7 @@ fun BasicInfoEditScreen(
         )
 
         OutlinedTextField(
-            label = { Text(stringResource(R.string.display_name)) },
+            label = { Text("✏️ " + stringResource(R.string.display_name)) },
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(top = 4.dp),
