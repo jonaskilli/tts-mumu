@@ -3,6 +3,7 @@ package com.github.jing332.tts
 import android.content.Context
 import com.github.jing332.database.entities.systts.source.TextToSpeechSource
 import com.github.jing332.tts.speech.TextToSpeechProvider
+import com.github.jing332.tts.speech.plugin.PluginTtsProvider
 import com.github.jing332.tts.util.AbstractCachedManager
 import io.github.oshai.kotlinlogging.KotlinLogging
 import java.util.concurrent.Executors
@@ -53,6 +54,23 @@ object CachedEngineManager :
                 runCatching { engine.onDestroy() }
                     .onFailure { logger.warn(it) { "async engine destroy failed: $key" } }
             }
+        }
+    }
+
+    /**
+     * 按插件失效全部合成引擎缓存：插件变量(userVars)/代码更新后调用。
+     * 缓存是「访问即续期」的 TimedCache，频繁试听的旧引擎永不过期，
+     * 不主动清掉的话，改完变量主界面试听仍会提示“请先填写变量”。
+     */
+    fun removeByPluginId(pluginId: String) {
+        cache.removeAll { value ->
+            if (value is PluginTtsProvider && value.plugin.pluginId == pluginId) {
+                destroyExecutor.submit {
+                    runCatching { value.onDestroy() }
+                        .onFailure { logger.warn(it) { "async engine destroy failed: $pluginId" } }
+                }
+                true
+            } else false
         }
     }
 

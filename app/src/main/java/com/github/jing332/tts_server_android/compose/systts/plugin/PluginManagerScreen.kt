@@ -236,6 +236,10 @@ fun PluginManagerScreen(sharedVM: SharedViewModel, onFinishActivity: () -> Unit)
         }
         PluginVarsBottomSheet(onDismissRequest = {
             dbm.pluginDao.update(plugin)
+            // 变量(如api key)保存后立即失效该插件的引擎缓存：
+            // 合成引擎是「访问即续期」的缓存，不清的话主界面试听仍提示“请先填写变量”
+            com.github.jing332.tts.CachedEngineManager.removeByPluginId(plugin.pluginId)
+            com.github.jing332.tts.speech.plugin.TtsPluginEngineManager.remove(plugin.pluginId)
             showVarsSettings = null
         }, plugin = plugin) {
             plugin = it

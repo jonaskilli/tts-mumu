@@ -61,6 +61,8 @@ class PluginEditorViewModel(app: Application) : AndroidViewModel(app) {
     fun updateCode(code: String) {
         // 清除旧引擎缓存
         com.github.jing332.tts.speech.plugin.TtsPluginEngineManager.remove(plugin.pluginId)
+        // 代码更新同样影响主界面的合成引擎缓存（含新引擎要用的变量），一并失效
+        com.github.jing332.tts.CachedEngineManager.removeByPluginId(plugin.pluginId)
 
         // 强制重新创建引擎，确保使用最新代码
         val newPlugin = plugin.copy(code = code)
