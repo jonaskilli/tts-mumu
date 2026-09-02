@@ -25,6 +25,25 @@ open class JsExtensions(open val context: Context, open val engineId: String = "
         return getAudioSampleRate(ins.readBytes())
     }
 
+    /**
+     * ByteArrayOutputStream 重载：jread 适配插件的 getAudio 普遍直接返回
+     * ByteArrayOutputStream（如讯飞 fxpicker 的 getAudioStream 尾段），
+     * 缺此重载时 Rhino 按 Java 重载解析失败，报「找不到方法 getAudioSampleRate」。
+     */
+    @ScriptInterface
+    fun getAudioSampleRate(ins: java.io.ByteArrayOutputStream): Int {
+        return getAudioSampleRate(ins.toByteArray())
+    }
+
+    /**
+     * 文件路径重载：jread 体系插件把试听音频落盘后以路径(String)查询的形态也收录，
+     * 避免同类重载解析失败。
+     */
+    @ScriptInterface
+    fun getAudioSampleRate(path: String): Int {
+        return getAudioSampleRate(File(path).readBytes())
+    }
+
     /* Str转ByteArray */
     @ScriptInterface
     fun strToBytes(str: String): ByteArray {
