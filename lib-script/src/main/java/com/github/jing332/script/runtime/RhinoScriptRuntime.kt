@@ -11,6 +11,7 @@ import org.mozilla.javascript.ScriptStackElement
 import org.mozilla.javascript.Scriptable
 import org.mozilla.javascript.ScriptableObject
 import org.mozilla.javascript.Undefined
+import java.util.function.Supplier
 
 open class RhinoScriptRuntime(
     var environment: Environment,
@@ -86,19 +87,13 @@ open class RhinoScriptRuntime(
 
     protected fun ScriptableObject.defineGetter(key: String, getter: () -> Any) {
         // getter 返回值必须经 javaToJS 包装成 Scriptable 再交给 JS：
-        // 此前直接把 Supplier 交给 defineProperty，JS 读到的是未包装的原始 Java 对象，
-        // 插件里普遍的 `typeof ttsrv !== "undefined"` 会抛
+        // Rhino 的 LambdaSlot.getValue 对 Supplier getter 的返回值不包装，JS 读到的是
+        // 未包装的原始 Java 对象，插件里普遍的 `typeof ttsrv !== "undefined"` 会抛
         // 「TtsEngineContext 类型的 JavaScript 值无效」（jread 插件集 16/33 在用），
         // 表现为该插件的鉴权/试听分支全部失效
-        defineProperty(key, object : BaseFunction() {
-            override fun call(
-                cx: Context,
-                scope: Scriptable,
-                thisObj: Scriptable,
-                args: Array<out Any?>,
-            ): Any {
-                return Context.javaToJS(getter(), scope)
-            }
+        val scope = this
+        defineProperty(key, Supplier {
+            Context.javaToJS(getter(), scope)
         }, null, ScriptableObject.READONLY)
     }
 }
