@@ -71,17 +71,17 @@ class PluginTtsUI : IConfigUI() {
         systemTts: SystemTtsV2,
         onSystemTtsChange: (SystemTtsV2) -> Unit,
     ) {
-        val tts = (systemTts.config as TtsConfigurationDTO).source as PluginTtsSource
         val config = systemTts.config as TtsConfigurationDTO
+        val params = config.audioParams
         Column(modifier) {
             LabelSlider(
-                text = stringResource(R.string.label_speech_rate, "%.2f".format(tts.speed)),
-                value = tts.speed,
+                text = stringResource(R.string.label_speech_rate, "%.2f".format(params.speed)),
+                value = params.speed,
                 onValueChange = {
                     onSystemTtsChange(
                         systemTts.copy(
                             config = config.copy(
-                                source = tts.copy(speed = it.toScale(2))
+                                audioParams = params.copy(speed = it.toScale(2))
                             )
                         )
                     )
@@ -91,12 +91,12 @@ class PluginTtsUI : IConfigUI() {
             )
 
             LabelSlider(
-                text = stringResource(R.string.label_speech_volume, "%.2f".format(tts.volume)),
-                value = tts.volume,                 onValueChange = {
+                text = stringResource(R.string.label_speech_volume, "%.2f".format(params.volume)),
+                value = params.volume, onValueChange = {
                     onSystemTtsChange(
                         systemTts.copy(
                             config = config.copy(
-                                source = tts.copy(volume = it.toScale(2))
+                                audioParams = params.copy(volume = it.toScale(2))
                             )
                         )
                     )
@@ -105,12 +105,12 @@ class PluginTtsUI : IConfigUI() {
             )
 
             LabelSlider(
-                text = stringResource(R.string.label_speech_pitch, "%.2f".format(tts.pitch)),
-                value = tts.pitch,                 onValueChange = {
+                text = stringResource(R.string.label_speech_pitch, "%.2f".format(params.pitch)),
+                value = params.pitch, onValueChange = {
                     onSystemTtsChange(
                         systemTts.copy(
                             config = config.copy(
-                                source = tts.copy(pitch = it.toScale(2))
+                                audioParams = params.copy(pitch = it.toScale(2))
                             )
                         )
                     )
@@ -128,8 +128,7 @@ class PluginTtsUI : IConfigUI() {
                     onSystemTtsChange(
                         systemTts.copy(
                             config = config.copy(
-                                source = tts.copy(speed = 1f, volume = 1f, pitch = 1f),
-                                audioParams = config.audioParams.copy(speed = 1f, volume = 1f, pitch = 1f)
+                                audioParams = params.copy(speed = 1f, volume = 1f, pitch = 1f)
                             )
                         )
                     )

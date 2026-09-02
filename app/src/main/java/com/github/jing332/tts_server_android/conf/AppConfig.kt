@@ -81,4 +81,8 @@ object AppConfig {
 
     // tagName 一次性迁移标记：首次进入列表时用 getTagName 重算所有 tagName 并清理废弃 personality 字段
     val tagNameMigrated by lazy { mutableDataSaverStateOf(dataSaverPref, "tagNameMigrated", false) }
+
+    // 单条音频参数折叠迁移标记：旧版编辑页滑块写 source.* 而 audioParams 才是生效层，
+    // 两者并存造成卡片/日志显示分裂（如滑块0.9、日志1.15）。折叠后滑块唯一写 audioParams
+    val audioParamsCollapsed by lazy { mutableDataSaverStateOf(dataSaverPref, "audioParamsCollapsed", false) }
 }

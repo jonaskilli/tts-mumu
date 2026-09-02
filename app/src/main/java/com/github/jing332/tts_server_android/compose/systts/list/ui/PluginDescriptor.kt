@@ -30,12 +30,12 @@ class PluginDescriptor(
             // 仅界面模式的差异只在点击进入编辑页面时体现(见 PluginTtsUI.EditContentScreen)。
             val strFollow by lazy { context.getString(R.string.follow) }
 
-            val rateStr =
-                if (source.speed == PluginTtsSource.SPEED_FOLLOW) strFollow else source.speed
-            val pitchStr =
-                if (source.pitch == PluginTtsSource.PITCH_FOLLOW) strFollow else source.pitch
-            val volumeStr =
-                if (source.volume == PluginTtsSource.VOLUME_FOLLOW) strFollow else source.volume
+            // 滑块/日志/卡片三处统一显示 audioParams（唯一生效层）；
+            // 0=跟随（用于全局/分组层覆盖），非0=该条单条值
+            val p = cfg.audioParams
+            val rateStr = if (p.speed == 0f) strFollow else p.speed
+            val pitchStr = if (p.pitch == 0f) strFollow else p.pitch
+            val volumeStr = if (p.volume == 0f) strFollow else p.volume
 
             return source.voice + "<br>" + context.getString(
                 R.string.systts_play_params_description,

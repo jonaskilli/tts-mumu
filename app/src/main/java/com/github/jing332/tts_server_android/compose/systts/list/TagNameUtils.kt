@@ -8,8 +8,11 @@ import com.github.jing332.database.entities.SpeechRule
 import com.github.jing332.database.entities.systts.SpeechRuleInfo
 import com.github.jing332.database.entities.systts.SystemTtsV2
 import com.github.jing332.database.entities.systts.TtsConfigurationDTO
+import com.github.jing332.database.entities.systts.source.PluginTtsSource
 import com.github.jing332.tts_server_android.conf.AppConfig
 import com.github.jing332.tts_server_android.model.rhino.speech_rule.SpeechRuleEngine
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 
 /**
  * 统一计算 tagName（供「一键分配/重排」与「批量分配标签」对话框共用）：
@@ -202,5 +205,73 @@ internal fun expandSpeechRuleTagsIfNeeded(
     if (changed) {
         rule.tags = newTags
         dbm.speechRuleDao.update(rule)
+    }
+}
+
+private const val PARAM_COLLAPSE_TAG = "AudioParamCollapse"
+
+/**
+ * 单条音频参数折叠迁移（一次性）：
+ * 旧版编辑页滑块写 PluginTtsSource.speed/volume/pitch，而真正生效的五层配置层是
+ * config.audioParams；两者并存导致卡片/滑块显示与日志/听感分裂（如滑块0.9、日志1.15）。
+ *
+ * 规则：
+ * - source.X≠1 且 audioParams.X==1 → audioParams.X=source.X、source 复位 1（让历史调节真正生效）
+ * - 两者均非默认 → 保留 audioParams.X（生效层），source 复位 1（避免运行时再乘一次）
+ * - 其余（source.X==1）→ 不动
+ *
+ * [force]=true 用于忽略标记强制执行（导入场景），不重置标记。
+ * 必须在 IO 线程调用；完成后置 AppConfig.audioParamsCollapsed 标记。
+ */
+suspend fun collapseAudioParamsIfNeed(
+    context: Context,
+    force: Boolean = false,
+    scope: List<SystemTtsV2>? = null,
+) {
+    val cfg = AppConfig
+    if (!force && cfg.audioParamsCollapsed.value) return
+    if (!force && scope == null && !cfg.audioParamsCollapsed.value) { /* 标记守卫在上 */ }
+
+    withContext(Dispatchers.IO) {
+        var changedCount = 0
+        val toSave = mutableListOf<SystemTtsV2>()
+        val items = scope ?: dbm.systemTtsV2.all
+        for (item in items) {
+            val c = item.config as? TtsConfigurationDTO ?: continue
+            val src = c.source as? PluginTtsSource ?: continue
+            val params = c.audioParams
+            var changed = false
+            var newSpeed = params.speed
+            var newVolume = params.volume
+            var newPitch = params.pitch
+            var newSrcSpeed = src.speed
+            var newSrcVolume = src.volume
+            var newSrcPitch = src.pitch
+
+            fun collapse(pSrc: Float, pDst: Float): Pair<Float, Float> {
+                if (pSrc != 1f && pDst == 1f) return pSrc to 1f
+                if (pSrc != 1f && pDst != 1f) return pDst to 1f
+                return pDst to pSrc
+            }
+            val (s, ss) = collapse(src.speed, params.speed)
+            val (v, sv) = collapse(src.volume, params.volume)
+            val (p, sp) = collapse(src.pitch, params.pitch)
+            if (s != params.speed || v != params.volume || p != params.pitch ||
+                ss != src.speed || sv != src.volume || sp != src.pitch
+            ) {
+                toSave.add(
+                    item.copy(
+                        config = c.copy(
+                            source = src.copy(speed = ss, volume = sv, pitch = sp),
+                            audioParams = params.copy(speed = s, volume = v, pitch = p)
+                        )
+                    )
+                )
+                changedCount++
+            }
+        }
+        if (toSave.isNotEmpty()) dbm.systemTtsV2.update(*toSave.toTypedArray())
+        if (!force && scope == null) cfg.audioParamsCollapsed.value = true
+        Log.d(PARAM_COLLAPSE_TAG, "audioParams collapse done, changed=${changedCount}")
     }
 }

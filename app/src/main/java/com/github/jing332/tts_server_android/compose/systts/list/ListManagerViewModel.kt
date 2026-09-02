@@ -649,5 +649,8 @@ class ListManagerViewModel : ViewModel() {
 
         // tagName 一次性迁移：重算所有 tagName 并清理废弃的 personality 字段
         migrateTagNamesIfNeed(context)
+
+        // 单条音频参数折叠：把旧版 source.* 调节迁入唯一生效的 audioParams 层
+        collapseAudioParamsIfNeed(context)
     }
 }
