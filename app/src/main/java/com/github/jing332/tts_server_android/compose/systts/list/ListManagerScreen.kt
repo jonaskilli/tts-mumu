@@ -2260,6 +2260,23 @@ internal fun ListManagerScreen(
         ListExportBottomSheet(onDismissRequest = { showGroupExportSheet = null }, list = list)
     }
 
+    // 批量调整音频参数：作用域=当前搜索结果（未搜索时=当前池全部配置项）
+    var showBatchAudioParams by remember { mutableStateOf(false) }
+    if (showBatchAudioParams) {
+        val scopeItems = models.flatMap { it.list }
+        BatchAudioParamsDialog(
+            itemCount = scopeItems.size,
+            scopeDesc = if (searchKeyword.isNotBlank()) "搜索结果" else "当前池全部配置项",
+            onDismissRequest = { showBatchAudioParams = false },
+            onApply = { speed, volume, pitch ->
+                showBatchAudioParams = false
+                vm.updateAudioParamsBatch(scopeItems, speed, volume, pitch) {
+                    context.toast("已更新 $it 项音频参数")
+                }
+            },
+        )
+    }
+
     // 多选模式下导出选中的分组
     var showExportSelected by remember { mutableStateOf(false) }
     if (showExportSelected) {
@@ -2588,7 +2605,8 @@ internal fun ListManagerScreen(
                             MenuMoreOptions(
                                 expanded = showOptions,
                                 onDismissRequest = { showOptions = false },
-                                onExportAll = { showGroupExportSheet = models }
+                                onExportAll = { showGroupExportSheet = models },
+                                onBatchAudioParams = { showBatchAudioParams = true }
                             )
                         }
                     }

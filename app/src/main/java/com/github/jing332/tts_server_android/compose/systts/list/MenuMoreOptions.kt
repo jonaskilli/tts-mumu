@@ -6,6 +6,7 @@ import androidx.compose.material.icons.automirrored.filled.ManageSearch
 import androidx.compose.material.icons.automirrored.filled.MenuBook
 import androidx.compose.material.icons.filled.Audiotrack
 import androidx.compose.material.icons.filled.ContentCut
+import androidx.compose.material.icons.filled.GraphicEq
 import androidx.compose.material.icons.filled.Group
 import androidx.compose.material.icons.filled.Output
 import androidx.compose.material.icons.filled.Speed
@@ -37,6 +38,7 @@ internal fun MenuMoreOptions(
     expanded: Boolean,
     onDismissRequest: () -> Unit,
     onExportAll: () -> Unit,
+    onBatchAudioParams: () -> Unit = {},
 ) {
     var showBgmSettingsDialog  by remember { mutableStateOf(false) }
     if (showBgmSettingsDialog)
@@ -91,6 +93,17 @@ internal fun MenuMoreOptions(
             onClick = { showAudioParamsDialog = true },
             leadingIcon = {
                 Icon(Icons.Default.Speed, null)
+            }
+        )
+
+        DropdownMenuItem(
+            text = { Text("批量调整音频参数") },
+            onClick = {
+                onDismissRequest()
+                onBatchAudioParams()
+            },
+            leadingIcon = {
+                Icon(Icons.Default.GraphicEq, null)
             }
         )
 

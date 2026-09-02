@@ -398,8 +398,35 @@ class ListManagerViewModel : ViewModel() {
     }
 
     /**
-     * 切换一级分组展开/折叠状态：立即更新内存列表使UI即时响应，后台异步写入DB持久化。
+     * 批量音频参数：把作用域内配置项的单条 audioParams 统一改为给定值。
+     * [speed]/[volume]/[pitch] 为 null 表示该维度保持原值不动；重置传 1f。
+     * 覆盖 LOCAL 与 PLUGIN 两类配置（LOCAL 滑块本来就写 audioParams）。
+     * 完成后通知服务刷新；内存列表由 Room 全量重发自然更新。
      */
+    fun updateAudioParamsBatch(
+        items: List<SystemTtsV2>,
+        speed: Float?,
+        volume: Float?,
+        pitch: Float?,
+        onDone: (Int) -> Unit = {},
+    ) = viewModelScope.launch(Dispatchers.IO) {
+        val updates = items.mapNotNull { item ->
+            val c = item.config as? TtsConfigurationDTO ?: return@mapNotNull null
+            val p = c.audioParams
+            val newParams = p.copy(
+                speed = speed ?: p.speed,
+                volume = volume ?: p.volume,
+                pitch = pitch ?: p.pitch,
+            )
+            if (newParams != p) item.copy(config = c.copy(audioParams = newParams)) else null
+        }
+        if (updates.isNotEmpty()) {
+            dbm.systemTtsV2.update(*updates.toTypedArray())
+            SystemTtsService.notifyUpdateConfig()
+        }
+        withContext(Dispatchers.Main) { onDone(updates.size) }
+    }
+
     /**
      * 旧版展开状态写在分组表 isExpanded 列，切换会触发 Room 全量重发，
      * 连带分池判定与分组树全量重建（大分组数千项时展开/折叠明显卡顿）。
