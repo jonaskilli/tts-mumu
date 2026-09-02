@@ -57,6 +57,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.TriStateCheckbox
 import androidx.compose.material.icons.filled.CheckBox
 import androidx.compose.material.icons.filled.CheckBoxOutlineBlank
+import androidx.compose.material.icons.filled.Checklist
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBarDefaults
@@ -2631,7 +2632,7 @@ internal fun ListManagerScreen(
                                 }
                             }
                             IconButton(onClick = { selectionMode = true }) {
-                                Icon(Icons.Default.CheckBox, "多选")
+                                Icon(Icons.Default.Checklist, "多选")
                             }
                             IconButton(onClick = { showRestartDialog = true }) {
                                 Icon(Icons.Default.Refresh, stringResource(id = R.string.restart))

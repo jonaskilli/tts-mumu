@@ -23,7 +23,7 @@ import androidx.compose.material.icons.filled.AppShortcut
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Code
 import androidx.compose.material.icons.filled.DeleteForever
-import androidx.compose.material.icons.filled.DeleteSweep
+import androidx.compose.material.icons.filled.Checklist
 import androidx.compose.material.icons.filled.EditNote
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Output
@@ -285,8 +285,8 @@ fun SpeechRuleManagerScreen(sharedVM: SharedViewModel, finish: () -> Unit) {
                     // 第10项: 顶部整理图标(批量多选删除),不再藏在更多菜单里
                     IconButton(onClick = { selectionMode = true }) {
                         Icon(
-                            Icons.Default.DeleteSweep,
-                            stringResource(id = R.string.select_delete)
+                            Icons.Default.Checklist,
+                            stringResource(id = R.string.multi_select)
                         )
                     }
 
