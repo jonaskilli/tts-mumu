@@ -13,7 +13,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AccountTree
 import androidx.compose.material.icons.filled.DeleteForever
-import androidx.compose.material.icons.filled.ExpandCircleDown
+import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Output
 import androidx.compose.material3.DropdownMenu
@@ -33,7 +33,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.rotate
-import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.res.stringResource
@@ -140,15 +139,16 @@ fun GroupItem(
         verticalAlignment = Alignment.CenterVertically
     ) {
         val rotationAngle by animateFloatAsState(
-            targetValue = if (isExpanded) 0f else -45f,
+            targetValue = if (isExpanded) 0f else -90f,
             label = ""
         )
+        // 纯箭头(无实心圆底)弱化色：展开朝下/折叠朝右，比ExpandCircleDown黑圆轻盈
         Icon(
-            Icons.Default.ExpandCircleDown,
+            Icons.Default.ExpandMore,
             contentDescription = stringResource(if (isExpanded) R.string.desc_collapse_group else R.string.desc_expand_group, name),
+            tint = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier
                 .rotate(rotationAngle)
-                .graphicsLayer { rotationZ = rotationAngle }
                 .clickable { onClick() }
         )
 

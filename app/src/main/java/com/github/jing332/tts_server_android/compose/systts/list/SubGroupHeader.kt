@@ -14,7 +14,7 @@ import androidx.compose.material.icons.filled.AccountTree
 import androidx.compose.material.icons.filled.DeleteForever
 import androidx.compose.material.icons.automirrored.filled.DriveFileMove
 import androidx.compose.material.icons.filled.DriveFileRenameOutline
-import androidx.compose.material.icons.filled.ExpandCircleDown
+import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.AutoFixHigh
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Output
@@ -37,7 +37,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.rotate
-import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.state.ToggleableState
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -70,7 +69,7 @@ fun SubGroupHeader(
     hasSubGroups: Boolean = false,
 ) {
     val rotationAngle by animateFloatAsState(
-        targetValue = if (isExpanded) 0f else -45f,
+        targetValue = if (isExpanded) 0f else -90f,
         label = ""
     )
 
@@ -112,13 +111,12 @@ fun SubGroupHeader(
         verticalAlignment = Alignment.CenterVertically
     ) {
         Icon(
-            imageVector = Icons.Default.ExpandCircleDown,
+            imageVector = Icons.Default.ExpandMore,
             contentDescription = if (isExpanded) "收起" else "展开",
             modifier = Modifier
                 .size(20.dp)
-                .rotate(rotationAngle)
-                .graphicsLayer { rotationZ = rotationAngle },
-            tint = MaterialTheme.colorScheme.primary
+                .rotate(rotationAngle),
+            tint = MaterialTheme.colorScheme.onSurfaceVariant
         )
 
         Text(
