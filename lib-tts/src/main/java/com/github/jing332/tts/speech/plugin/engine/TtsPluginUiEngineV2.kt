@@ -73,9 +73,12 @@ class TtsPluginUiEngineV2(context: Context, plugin: Plugin) : TtsPluginEngineV2(
         return engine.invokeMethod(editUiJsObject, FUNC_LOCALES).run {
             when (this) {
                 is List<*> -> this.associate {
-                    val locale = Locale.forLanguageTag(it.toString())
-                    val displayName = locale.country.toCountryFlagEmoji() + " " + locale.displayName
-                    it.toString() to displayName
+                    val raw = it.toString()
+                    val locale = Locale.forLanguageTag(raw)
+                    // 插件可能直接返回中文池名（如猫箱 VV 核心的"旁白/性格无通用"），
+                    // forLanguageTag 解析不出语言时 displayName 为空，兜底显示原文
+                    val displayName = locale.displayName.ifBlank { raw }
+                    raw to (locale.country.toCountryFlagEmoji() + " " + displayName).trim()
                 }
 
                 is Map<*, *> -> {
