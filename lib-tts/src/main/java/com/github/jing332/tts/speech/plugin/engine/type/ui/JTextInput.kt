@@ -16,7 +16,16 @@ import androidx.compose.ui.platform.ComposeView
 
 @Suppress("unused")
 @SuppressLint("ViewConstructor")
-class JTextInput(context: Context, val hint: CharSequence? = null) : FrameLayout(context) {
+class JTextInput(context: Context, hint: CharSequence? = null) : FrameLayout(context) {
+
+    // hint 状态化：插件 JS 运行时调用 setHint 也能实时更新 Compose label
+    private var mHint by mutableStateOf(hint?.toString() ?: "")
+
+    fun setHint(hint: CharSequence) {
+        mHint = hint.toString()
+    }
+
+    fun getHint(): String = mHint
 
     interface OnTextChangedListener {
         fun onChanged(text: CharSequence)
@@ -72,7 +81,9 @@ class JTextInput(context: Context, val hint: CharSequence? = null) : FrameLayout
                 }
             },
             maxLines = mMaxLines,
-            label = { Text(hint.toString()) }
+            label = {
+                if (mHint.isNotEmpty()) Text(mHint)
+            }
         )
     }
 
