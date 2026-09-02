@@ -245,46 +245,36 @@ class PluginTtsUI : IConfigUI() {
                 onSysttsChange(systts)
                 true
             } else {
+            val oldAudioFormat = (systts.config as TtsConfigurationDTO).audioFormat
+            // 采样率/解码探测失败不阻断保存：保留当前格式值，播放时由「跟随音源格式」兜底。
+            // 历史上这里 catch 后 return false，插件探测一旦抛异常（引擎初始化失败/桥接异常等）
+            // 整条保存被中断，表现为"jread 转来的配置项保存不了"（本地条目不走此路径）。
             val sampleRate = try {
                 withIO {
-                    vm.engine.getSampleRate(tts.locale, tts.voice)
-                        ?.takeIf { it > 0 }
-                        ?: (systts.config as TtsConfigurationDTO).audioFormat.sampleRate
+                    vm.engine.getSampleRate(tts.locale, tts.voice)?.takeIf { it > 0 }
                 }
             } catch (e: Exception) {
-                context.displayErrorDialog(
-                    e,
-                    context.getString(R.string.plugin_tts_get_sample_rate_failed)
-                )
                 null
-            }
-
+            } ?: oldAudioFormat.sampleRate
             val isNeedDecode = try {
                 withIO { vm.engine.isNeedDecode(tts.locale, tts.voice) }
             } catch (e: Exception) {
-                context.displayErrorDialog(
-                    e,
-                    context.getString(R.string.plugin_tts_get_need_decode_failed)
-                )
                 null
-            }
+            } ?: oldAudioFormat.isNeedDecode
 
-            if (sampleRate != null && isNeedDecode != null) {
-                onSysttsChange(
-                    systts.copy(
-                        displayName = if (systts.displayName.isNullOrBlank()) displayName else systts.displayName,
-                        config = (systts.config as TtsConfigurationDTO).copy(
-                            audioFormat = (systts.config as TtsConfigurationDTO).audioFormat.copy(
-                                sampleRate = sampleRate,
-                                isNeedDecode = isNeedDecode
-                            )
-                        ),
-                    )
+            onSysttsChange(
+                systts.copy(
+                    displayName = if (systts.displayName.isNullOrBlank()) displayName else systts.displayName,
+                    config = (systts.config as TtsConfigurationDTO).copy(
+                        audioFormat = oldAudioFormat.copy(
+                            sampleRate = sampleRate,
+                            isNeedDecode = isNeedDecode
+                        )
+                    ),
                 )
+            )
 
-                true
-            } else
-                false
+            true
             }
         }
 
