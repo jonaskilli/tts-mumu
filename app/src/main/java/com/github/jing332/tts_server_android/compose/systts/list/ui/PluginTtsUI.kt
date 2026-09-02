@@ -73,15 +73,20 @@ class PluginTtsUI : IConfigUI() {
     ) {
         val config = systemTts.config as TtsConfigurationDTO
         val params = config.audioParams
+        // 浮点去噪：滑块 `step=0.05f` 在某些步进处会产生 1.0999999 这种 JSON 反序列化噪声；
+        // 显示用原始 params.speed，但 onValueChange 写回时统一 round 到 0.01，
+        // 保证卡片/滑块/日志三处长期一致（1.10 显示 vs 1.0999999 噪声不会出现）。
+        fun snap(v: Float): Float = (kotlin.math.round(v * 100f) / 100f)
         Column(modifier) {
             LabelSlider(
                 text = stringResource(R.string.label_speech_rate, "%.2f".format(params.speed)),
                 value = params.speed,
                 onValueChange = {
+                    val v = snap(it)
                     onSystemTtsChange(
                         systemTts.copy(
                             config = config.copy(
-                                audioParams = params.copy(speed = it.toScale(2))
+                                audioParams = params.copy(speed = v)
                             )
                         )
                     )
@@ -93,10 +98,11 @@ class PluginTtsUI : IConfigUI() {
             LabelSlider(
                 text = stringResource(R.string.label_speech_volume, "%.2f".format(params.volume)),
                 value = params.volume, onValueChange = {
+                    val v = snap(it)
                     onSystemTtsChange(
                         systemTts.copy(
                             config = config.copy(
-                                audioParams = params.copy(volume = it.toScale(2))
+                                audioParams = params.copy(volume = v)
                             )
                         )
                     )
@@ -107,10 +113,11 @@ class PluginTtsUI : IConfigUI() {
             LabelSlider(
                 text = stringResource(R.string.label_speech_pitch, "%.2f".format(params.pitch)),
                 value = params.pitch, onValueChange = {
+                    val v = snap(it)
                     onSystemTtsChange(
                         systemTts.copy(
                             config = config.copy(
-                                audioParams = params.copy(pitch = it.toScale(2))
+                                audioParams = params.copy(pitch = v)
                             )
                         )
                     )
