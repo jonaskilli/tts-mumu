@@ -153,7 +153,7 @@ fun GroupItem(
         )
 
         // 序号徽章：按当前列表顺序自动编号，排序变化自动重编
-        // 用 primaryContainer/onPrimaryContainer 跟随主题色：切换主题时徽章颜色随主题一起变
+        // primaryContainer 打五折透明度：色相跟随主题(切主题会变)但强度比主题色弱一档，不抢眼
         if (index >= 1) {
             Text(
                 "$index",
@@ -163,7 +163,7 @@ fun GroupItem(
                     .align(Alignment.CenterVertically)
                     .padding(end = 6.dp)
                     .background(
-                        MaterialTheme.colorScheme.primaryContainer,
+                        MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f),
                         androidx.compose.foundation.shape.RoundedCornerShape(4.dp)
                     )
                     .padding(horizontal = 6.dp, vertical = 2.dp)
