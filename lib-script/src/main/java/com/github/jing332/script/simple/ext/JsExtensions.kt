@@ -50,7 +50,7 @@ open class JsExtensions(open val context: Context, open val engineId: String = "
             path.startsWith("https://", ignoreCase = true)
         ) {
             runCatching {
-                httpGetBytes(path)?.let { getAudioSampleRate(it) }
+                httpGetBytes(path)?.let { getAudioSampleRate(it) } ?: 0
             }.getOrDefault(0)
         } else {
             getAudioSampleRate(File(path).readBytes())
