@@ -38,10 +38,23 @@ open class JsExtensions(open val context: Context, open val engineId: String = "
     /**
      * 文件路径重载：jread 体系插件把试听音频落盘后以路径(String)查询的形态也收录，
      * 避免同类重载解析失败。
+     * 讯飞 fxpicker 类插件的 getSampleRate 传的是合成音频的 http/https 下载地址——
+     * 此前一律按本地文件打开报 ENOENT（URL 还会被 File 规范化成 https:/），
+     * 异常沿保存回调上抛，表现为「主界面保存发音人提示错误、保存不了」。
+     * 现按协议头分流：URL 走下载；下载/解析失败返回 0（未知采样率），
+     * 由播放链「跟随音源格式」兜底，不再阻塞保存。
      */
     @ScriptInterface
     fun getAudioSampleRate(path: String): Int {
-        return getAudioSampleRate(File(path).readBytes())
+        return if (path.startsWith("http://", ignoreCase = true) ||
+            path.startsWith("https://", ignoreCase = true)
+        ) {
+            runCatching {
+                httpGetBytes(path)?.let { getAudioSampleRate(it) }
+            }.getOrDefault(0)
+        } else {
+            getAudioSampleRate(File(path).readBytes())
+        }
     }
 
     /* Str转ByteArray */
