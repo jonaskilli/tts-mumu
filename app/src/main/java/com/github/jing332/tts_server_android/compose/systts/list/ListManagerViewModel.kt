@@ -445,24 +445,43 @@ class ListManagerViewModel : ViewModel() {
     }
 
     /**
-     * 批量采样率与 locale：只影响插件型配置。
+     * 批量采样率：只影响插件型配置。
      * [sampleRate] 为 null 表示保持原值；jread 占位 16000 可批量改为真实值或自动识别标志。
-     * [locale] 为 null 表示保持原值。
      */
     fun updateSourceFieldsBatch(
         items: List<SystemTtsV2>,
         sampleRate: Int?,
-        locale: String?,
+        onDone: (Int) -> Unit = {},
+    ) = viewModelScope.launch(Dispatchers.IO) {
+        val updates = items.mapNotNull { item ->
+            val c = item.config as? TtsConfigurationDTO ?: return@mapNotNull null
+            if (c.source !is PluginTtsSource) return@mapNotNull null
+            val newFormat = if (sampleRate != null)
+                c.audioFormat.copy(sampleRate = sampleRate) else c.audioFormat
+            val newConfig = c.copy(audioFormat = newFormat)
+            if (newConfig != c) item.copy(config = newConfig) else null
+        }
+        if (updates.isNotEmpty()) {
+            dbm.systemTtsV2.update(*updates.toTypedArray())
+            SystemTtsService.notifyUpdateConfig()
+        }
+        withContext(Dispatchers.Main) { onDone(updates.size) }
+    }
+
+    /**
+     * 批量切换来源插件：把作用域内插件型配置项的 pluginId 改指向另一插件（发音人/locale 等保持原值）。
+     * 与 batchFixInvalidItems 不同：不要求原插件已失效，凡 pluginId 不同的都改。
+     */
+    fun updateSourcePluginBatch(
+        items: List<SystemTtsV2>,
+        newPluginId: String,
         onDone: (Int) -> Unit = {},
     ) = viewModelScope.launch(Dispatchers.IO) {
         val updates = items.mapNotNull { item ->
             val c = item.config as? TtsConfigurationDTO ?: return@mapNotNull null
             val src = c.source as? PluginTtsSource ?: return@mapNotNull null
-            val newFormat = if (sampleRate != null)
-                c.audioFormat.copy(sampleRate = sampleRate) else c.audioFormat
-            val newSource = if (locale != null) src.copy(locale = locale) else src
-            val newConfig = c.copy(audioFormat = newFormat, source = newSource)
-            if (newConfig != c) item.copy(config = newConfig) else null
+            if (src.pluginId == newPluginId) return@mapNotNull null
+            item.copy(config = c.copy(source = src.copy(pluginId = newPluginId)))
         }
         if (updates.isNotEmpty()) {
             dbm.systemTtsV2.update(*updates.toTypedArray())

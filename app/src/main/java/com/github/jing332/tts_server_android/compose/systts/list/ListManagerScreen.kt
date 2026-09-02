@@ -2261,41 +2261,44 @@ internal fun ListManagerScreen(
         ListExportBottomSheet(onDismissRequest = { showGroupExportSheet = null }, list = list)
     }
 
-    // 批量调整音频参数：作用域=当前搜索结果（未搜索时=当前池全部配置项）
+    // 批量调整音频参数：作用域=当前搜索结果（未搜索时=当前池全部配置项），可再按插件筛选
     var showBatchAudioParams by remember { mutableStateOf(false) }
     if (showBatchAudioParams) {
         val scopeItems = models.flatMap { it.list }
         BatchAudioParamsDialog(
-            itemCount = scopeItems.size,
             scopeDesc = if (searchKeyword.isNotBlank()) "搜索结果" else "当前池全部配置项",
+            pluginOptions = remember(scopeItems, pluginNameCache) { batchPluginOptions(scopeItems, pluginNameCache) },
+            pluginItemCounts = remember(scopeItems) { batchPluginItemCounts(scopeItems) },
             onDismissRequest = { showBatchAudioParams = false },
-            onApply = { speed, volume, pitch ->
+            onApply = { pluginId, speed, volume, pitch ->
                 showBatchAudioParams = false
-                vm.updateAudioParamsBatch(scopeItems, speed, volume, pitch) {
+                vm.updateAudioParamsBatch(scopeItems.filterByPluginId(pluginId), speed, volume, pitch) {
                     context.toast("已更新 $it 项音频参数")
                 }
             },
         )
     }
 
-    // 批量修改来源字段：启用/停用 + 采样率 + locale
+    // 批量修改来源字段：启用/停用 + 采样率 + 来源插件切换
     var showBatchSourceFields by remember { mutableStateOf(false) }
     if (showBatchSourceFields) {
         val scopeItems = models.flatMap { it.list }
-        // locale 候选：作用域内已出现的去重值，避免用户猜拼写
-        val localeOptions = scopeItems.mapNotNull {
-            (it.config as? TtsConfigurationDTO)?.source?.let { s -> s.locale }
-        }.filter { it.isNotBlank() }.distinct()
+        // 来源插件切换候选=全部已安装插件（含停用，改名后旧 pluginId 也能对上显示名）
+        val targetPluginOptions = remember(pluginNameCache) {
+            pluginNameCache.entries.map { it.key to it.value }.sortedBy { it.second }
+        }
         BatchSourceFieldsDialog(
-            itemCount = scopeItems.size,
             scopeDesc = if (searchKeyword.isNotBlank()) "搜索结果" else "当前池全部配置项",
+            pluginOptions = remember(scopeItems, pluginNameCache) { batchPluginOptions(scopeItems, pluginNameCache) },
+            pluginItemCounts = remember(scopeItems) { batchPluginItemCounts(scopeItems) },
             sampleRateOptions = listOf(16000, 22050, 24000, 32000, 44100, 48000),
-            localeOptions = localeOptions,
+            targetPluginOptions = targetPluginOptions,
             onDismissRequest = { showBatchSourceFields = false },
-            onApply = { enabled, sampleRate, locale ->
+            onApply = { pluginId, enabled, sampleRate, targetPluginId ->
                 showBatchSourceFields = false
+                val targets = scopeItems.filterByPluginId(pluginId)
                 if (enabled != null) {
-                    vm.updateEnabledBatch(scopeItems, enabled) {
+                    vm.updateEnabledBatch(targets, enabled) {
                         context.toast("已更新 $it 项启用状态")
                     }
                 }
@@ -2306,13 +2309,17 @@ internal fun ListManagerScreen(
                     else -> sampleRate
                 }
                 val restoreAuto = sampleRate == -1
-                vm.updateSourceFieldsBatch(scopeItems, rate, locale) { n ->
+                vm.updateSourceFieldsBatch(targets, rate) { n ->
                     if (restoreAuto) {
                         // 自动识别：把采样率语义交还音频头（shouldDecode=true 由插件声明层决定，
                         // 这里只把明显占位值归零让播放链按头探测）
-                        vm.updateSourceFieldsBatch(scopeItems, 0, null) { }
+                        vm.updateSourceFieldsBatch(targets, 0) { }
                     }
-                    context.toast("已更新 $n 项来源字段")
+                }
+                if (targetPluginId != null) {
+                    vm.updateSourcePluginBatch(targets, targetPluginId) {
+                        context.toast("已把 $it 项来源切换为「${pluginNameCache[targetPluginId] ?: targetPluginId}」")
+                    }
                 }
             },
         )
@@ -3383,5 +3390,38 @@ internal fun ListManagerScreen(
             }
 
         }
+    }
+}
+
+// —— 批量弹窗（音频参数/来源字段）共用的插件筛选工具 ——
+
+/** 插件筛选候选：""=全部（不按插件筛选），仅列出作用域内实际出现的插件，显示名优先用响应式映射 */
+private fun batchPluginOptions(
+    items: List<SystemTtsV2>,
+    nameMap: Map<String, String>,
+): List<Pair<String, String>> {
+    val ids = items.mapNotNull {
+        (it.config as? TtsConfigurationDTO)?.source as? PluginTtsSource
+    }.map { it.pluginId }.distinct()
+    return listOf("" to "全部（不按插件筛选）") + ids.map { id -> id to (nameMap[id] ?: id) }
+}
+
+/** pluginId → 作用域内配置项数（""=总数，含本地TTS），供弹窗选择插件后实时显示影响范围 */
+private fun batchPluginItemCounts(items: List<SystemTtsV2>): Map<String, Int> {
+    val counts = HashMap<String, Int>()
+    counts[""] = items.size
+    items.forEach {
+        val src = (it.config as? TtsConfigurationDTO)?.source as? PluginTtsSource ?: return@forEach
+        counts[src.pluginId] = (counts[src.pluginId] ?: 0) + 1
+    }
+    return counts
+}
+
+/** 按插件筛选作用域：pluginId=null 表示全部不筛；本地TTS配置不属于任何插件，指定插件时被排除 */
+private fun List<SystemTtsV2>.filterByPluginId(pluginId: String?): List<SystemTtsV2> {
+    if (pluginId == null) return this
+    return filter {
+        val src = (it.config as? TtsConfigurationDTO)?.source as? PluginTtsSource
+        src != null && src.pluginId == pluginId
     }
 }
