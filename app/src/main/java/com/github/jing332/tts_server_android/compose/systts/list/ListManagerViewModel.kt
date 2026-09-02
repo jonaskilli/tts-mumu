@@ -428,6 +428,50 @@ class ListManagerViewModel : ViewModel() {
     }
 
     /**
+     * 批量启用/停用：作用域内配置项统一 isEnabled。
+     */
+    fun updateEnabledBatch(
+        items: List<SystemTtsV2>,
+        enabled: Boolean,
+        onDone: (Int) -> Unit = {},
+    ) = viewModelScope.launch(Dispatchers.IO) {
+        val updates = items.filter { it.isEnabled != enabled }
+            .map { it.copy(isEnabled = enabled) }
+        if (updates.isNotEmpty()) {
+            dbm.systemTtsV2.update(*updates.toTypedArray())
+            SystemTtsService.notifyUpdateConfig()
+        }
+        withContext(Dispatchers.Main) { onDone(updates.size) }
+    }
+
+    /**
+     * 批量采样率与 locale：只影响插件型配置。
+     * [sampleRate] 为 null 表示保持原值；jread 占位 16000 可批量改为真实值或自动识别标志。
+     * [locale] 为 null 表示保持原值。
+     */
+    fun updateSourceFieldsBatch(
+        items: List<SystemTtsV2>,
+        sampleRate: Int?,
+        locale: String?,
+        onDone: (Int) -> Unit = {},
+    ) = viewModelScope.launch(Dispatchers.IO) {
+        val updates = items.mapNotNull { item ->
+            val c = item.config as? TtsConfigurationDTO ?: return@mapNotNull null
+            val src = c.source as? PluginTtsSource ?: return@mapNotNull null
+            val newFormat = if (sampleRate != null)
+                c.audioFormat.copy(sampleRate = sampleRate) else c.audioFormat
+            val newSource = if (locale != null) src.copy(locale = locale) else src
+            val newConfig = c.copy(audioFormat = newFormat, source = newSource)
+            if (newConfig != c) item.copy(config = newConfig) else null
+        }
+        if (updates.isNotEmpty()) {
+            dbm.systemTtsV2.update(*updates.toTypedArray())
+            SystemTtsService.notifyUpdateConfig()
+        }
+        withContext(Dispatchers.Main) { onDone(updates.size) }
+    }
+
+    /**
      * 旧版展开状态写在分组表 isExpanded 列，切换会触发 Room 全量重发，
      * 连带分池判定与分组树全量重建（大分组数千项时展开/折叠明显卡顿）。
      * 现展开态走 AppConfig.expandedGroupIds 轻量集合；此处只做一次性迁移（只增不减）。

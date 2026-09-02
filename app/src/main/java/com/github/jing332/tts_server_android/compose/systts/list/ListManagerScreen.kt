@@ -2277,6 +2277,46 @@ internal fun ListManagerScreen(
         )
     }
 
+    // 批量修改来源字段：启用/停用 + 采样率 + locale
+    var showBatchSourceFields by remember { mutableStateOf(false) }
+    if (showBatchSourceFields) {
+        val scopeItems = models.flatMap { it.list }
+        // locale 候选：作用域内已出现的去重值，避免用户猜拼写
+        val localeOptions = scopeItems.mapNotNull {
+            (it.config as? TtsConfigurationDTO)?.source?.let { s -> s.locale }
+        }.filter { it.isNotBlank() }.distinct()
+        BatchSourceFieldsDialog(
+            itemCount = scopeItems.size,
+            scopeDesc = if (searchKeyword.isNotBlank()) "搜索结果" else "当前池全部配置项",
+            sampleRateOptions = listOf(16000, 22050, 24000, 32000, 44100, 48000),
+            localeOptions = localeOptions,
+            onDismissRequest = { showBatchSourceFields = false },
+            onApply = { enabled, sampleRate, locale ->
+                showBatchSourceFields = false
+                if (enabled != null) {
+                    vm.updateEnabledBatch(scopeItems, enabled) {
+                        context.toast("已更新 $it 项启用状态")
+                    }
+                }
+                // rate=-1 表示「自动识别格式」：恢复 shouldDecode 由音频头探测
+                val rate = when (sampleRate) {
+                    null -> null
+                    -1 -> null
+                    else -> sampleRate
+                }
+                val restoreAuto = sampleRate == -1
+                vm.updateSourceFieldsBatch(scopeItems, rate, locale) { n ->
+                    if (restoreAuto) {
+                        // 自动识别：把采样率语义交还音频头（shouldDecode=true 由插件声明层决定，
+                        // 这里只把明显占位值归零让播放链按头探测）
+                        vm.updateSourceFieldsBatch(scopeItems, 0, null) { }
+                    }
+                    context.toast("已更新 $n 项来源字段")
+                }
+            },
+        )
+    }
+
     // 多选模式下导出选中的分组
     var showExportSelected by remember { mutableStateOf(false) }
     if (showExportSelected) {
@@ -2606,7 +2646,8 @@ internal fun ListManagerScreen(
                                 expanded = showOptions,
                                 onDismissRequest = { showOptions = false },
                                 onExportAll = { showGroupExportSheet = models },
-                                onBatchAudioParams = { showBatchAudioParams = true }
+                                onBatchAudioParams = { showBatchAudioParams = true },
+                                onBatchSourceFields = { showBatchSourceFields = true }
                             )
                         }
                     }

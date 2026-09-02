@@ -5,6 +5,7 @@ import androidx.compose.material.icons.automirrored.filled.Input
 import androidx.compose.material.icons.automirrored.filled.ManageSearch
 import androidx.compose.material.icons.automirrored.filled.MenuBook
 import androidx.compose.material.icons.filled.Audiotrack
+import androidx.compose.material.icons.filled.Build
 import androidx.compose.material.icons.filled.ContentCut
 import androidx.compose.material.icons.filled.GraphicEq
 import androidx.compose.material.icons.filled.Group
@@ -39,6 +40,7 @@ internal fun MenuMoreOptions(
     onDismissRequest: () -> Unit,
     onExportAll: () -> Unit,
     onBatchAudioParams: () -> Unit = {},
+    onBatchSourceFields: () -> Unit = {},
 ) {
     var showBgmSettingsDialog  by remember { mutableStateOf(false) }
     if (showBgmSettingsDialog)
@@ -104,6 +106,17 @@ internal fun MenuMoreOptions(
             },
             leadingIcon = {
                 Icon(Icons.Default.GraphicEq, null)
+            }
+        )
+
+        DropdownMenuItem(
+            text = { Text("批量修改来源字段") },
+            onClick = {
+                onDismissRequest()
+                onBatchSourceFields()
+            },
+            leadingIcon = {
+                Icon(Icons.Default.Build, null)
             }
         )
 
