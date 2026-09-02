@@ -27,6 +27,15 @@ class JTextInput(context: Context, hint: CharSequence? = null) : FrameLayout(con
 
     fun getHint(): String = mHint
 
+    // 插件惯用 EditText 式赋值/单行声明（moting 调 setText、qianwen 调 setSingleLine）
+    fun setText(text: CharSequence) {
+        mText = text.toString()
+    }
+
+    fun setSingleLine(singleLine: Boolean) {
+        mMaxLines = if (singleLine) 1 else Int.MAX_VALUE
+    }
+
     interface OnTextChangedListener {
         fun onChanged(text: CharSequence)
     }
