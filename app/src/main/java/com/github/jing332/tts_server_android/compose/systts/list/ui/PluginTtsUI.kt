@@ -171,6 +171,7 @@ class PluginTtsUI : IConfigUI() {
             SectionCard(
                 title = "朗读与标签",
                 icon = Icons.Default.Tag,
+                showHeader = false,
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(horizontal = 8.dp, vertical = 4.dp),
