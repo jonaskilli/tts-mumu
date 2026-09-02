@@ -12,6 +12,9 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.Alignment
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Headset
+import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.Speed
+import androidx.compose.material.icons.filled.Tag
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -53,6 +56,7 @@ import com.github.jing332.tts_server_android.compose.systts.AuditionDialog
 import com.github.jing332.tts_server_android.compose.systts.list.ui.widgets.AuditionTextField
 import com.github.jing332.tts_server_android.compose.systts.list.ui.widgets.BasicInfoEditScreen
 import com.github.jing332.tts_server_android.compose.systts.list.ui.widgets.SaveActionHandler
+import com.github.jing332.tts_server_android.compose.systts.list.ui.widgets.SectionCard
 import com.github.jing332.tts_server_android.constant.SpeechTarget
 import com.github.jing332.tts_server_android.model.rhino.speech_rule.SpeechRuleEngine
 import com.github.jing332.tts_server_android.service.systts.SystemTtsService
@@ -163,8 +167,39 @@ class PluginTtsUI : IConfigUI() {
             onCancel = onCancel,
             onSave = onSave,
         ) {
-            content()
-            EditContentScreen(systts = systemTts, onSysttsChange = onSystemTtsChange,)
+            // 分区顺序：基本信息 → 音色来源 → 朗读与标签 → 音频参数
+            EditContentScreen(
+                systts = systemTts,
+                onSysttsChange = onSystemTtsChange,
+                showParamsSection = false,
+            )
+            SectionCard(
+                title = "朗读与标签",
+                icon = Icons.Default.Tag,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 8.dp, vertical = 4.dp),
+            ) {
+                content()
+            }
+            val isUiOnly = (systemTts.config as? TtsConfigurationDTO)
+                ?.source?.let { it as? PluginTtsSource }?.isUiOnly == true
+            if (!isUiOnly)
+                SectionCard(
+                    title = "音频参数",
+                    icon = Icons.Default.Speed,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 8.dp, vertical = 4.dp),
+                ) {
+                    ParamsEditScreen(
+                        Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 12.dp, vertical = 4.dp),
+                        systemTts = systemTts,
+                        onSystemTtsChange = onSystemTtsChange
+                    )
+                }
         }
     }
 
@@ -180,6 +215,9 @@ class PluginTtsUI : IConfigUI() {
         showPluginSelector: Boolean = true,
         // 是否显示「仅界面模式」开关：角色管理栏顶部已有独立开关，传 false 隐藏内容区开关节省空间
         showUiOnlySwitch: Boolean = true,
+        // 是否在底部渲染「音频参数」卡片：完整编辑页由 FullEditScreen 统一放在朗读标签卡之后，
+        // 预览/工具箱等调用方保持默认 true 维持原位
+        showParamsSection: Boolean = true,
         // 插件 UI 重建触发器：变化时强制重新 onLoadUI（用于运行规则后刷新角色列表）
         reloadKey: Any? = null,
         // 批量保存成功后的回调：用于关闭当前界面（如预览 Activity finish），
@@ -343,28 +381,46 @@ class PluginTtsUI : IConfigUI() {
                 tts.pluginId == "mingwuyan" ||
                     dbm.pluginDao.getByPluginId(tts.pluginId)?.name?.contains("角色管理") == true
             }
-            Column(
-                Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 8.dp)
-            ) {
-                if (showBasicInfo)
+            // 分区卡片化：基本信息 / 音色来源 /（朗读与标签由 FullEditScreen 渲染）/ 音频参数
+            if (showBasicInfo)
+                SectionCard(
+                    title = "基本信息",
+                    icon = Icons.Default.Info,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 8.dp, vertical = 4.dp),
+                ) {
                     BasicInfoEditScreen(
-                        Modifier.fillMaxWidth(),
+                        Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 12.dp, vertical = 4.dp),
                         systemTts = systts,
                         onSystemTtsChange = onSysttsChange
                     )
-
-                if (!isUiOnly) {
-                    AuditionTextField(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(top = 8.dp),
-                        onAudition = {
-                            auditionSystts = systts
-                        }
-                    )
                 }
+
+            SectionCard(
+                title = "音色来源",
+                icon = Icons.Default.Headset,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 8.dp, vertical = 4.dp),
+            ) {
+                Column(
+                    Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 12.dp, vertical = 4.dp)
+                ) {
+                    if (!isUiOnly) {
+                        AuditionTextField(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(top = 8.dp),
+                            onAudition = {
+                                auditionSystts = systts
+                            }
+                        )
+                    }
 
                 if (showPluginSelector && !isUiOnly) {
                     AppSpinner(
@@ -789,17 +845,25 @@ class PluginTtsUI : IConfigUI() {
                         }
                     }
                 }
-
+                }
             }
 
-            if (!isUiOnly) {
-                ParamsEditScreen(
-                    Modifier
+            if (!isUiOnly && showParamsSection) {
+                SectionCard(
+                    title = "音频参数",
+                    icon = Icons.Default.Speed,
+                    modifier = Modifier
                         .fillMaxWidth()
-                        .padding(top = 16.dp),
-                    systemTts = systts,
-                    onSystemTtsChange = onSysttsChange
-                )
+                        .padding(horizontal = 8.dp, vertical = 4.dp),
+                ) {
+                    ParamsEditScreen(
+                        Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 12.dp, vertical = 4.dp),
+                        systemTts = systts,
+                        onSystemTtsChange = onSysttsChange
+                    )
+                }
             }
         }
     }

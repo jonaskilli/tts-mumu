@@ -9,6 +9,10 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.HelpOutline
+import androidx.compose.material.icons.filled.Headset
+import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.Speed
+import androidx.compose.material.icons.filled.Tag
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -49,6 +53,7 @@ import com.github.jing332.tts_server_android.compose.systts.AuditionDialog
 import com.github.jing332.tts_server_android.compose.systts.list.ui.widgets.AuditionTextField
 import com.github.jing332.tts_server_android.compose.systts.list.ui.widgets.BasicInfoEditScreen
 import com.github.jing332.tts_server_android.compose.systts.list.ui.widgets.SaveActionHandler
+import com.github.jing332.tts_server_android.compose.systts.list.ui.widgets.SectionCard
 import com.github.jing332.tts_server_android.ui.view.AppDialogs.displayErrorDialog
 
 class LocalTtsUI() : IConfigUI() {
@@ -213,8 +218,32 @@ class LocalTtsUI() : IConfigUI() {
             onCancel = onCancel,
             onSave = onSave,
         ) {
-            content()
-            Content(systts = systemTts, onSysttsChange = onSystemTtsChange)
+            // 分区顺序与插件编辑页一致：基本信息 → 音色来源 → 朗读与标签 → 音频参数
+            Content(systts = systemTts, onSysttsChange = onSystemTtsChange, showParams = false)
+            SectionCard(
+                title = "朗读与标签",
+                icon = Icons.Default.Tag,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 8.dp, vertical = 4.dp),
+            ) {
+                content()
+            }
+            SectionCard(
+                title = "音频参数",
+                icon = Icons.Default.Speed,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 8.dp, vertical = 4.dp),
+            ) {
+                ParamsEditScreen(
+                    Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 12.dp, vertical = 4.dp),
+                    systemTts = systemTts,
+                    onSystemTtsChange = onSystemTtsChange
+                )
+            }
         }
     }
 
@@ -224,6 +253,7 @@ class LocalTtsUI() : IConfigUI() {
         systts: SystemTtsV2,
         onSysttsChange: (SystemTtsV2) -> Unit,
         vm: LocalTtsViewModel = viewModel(),
+        showParams: Boolean = true,
     ) {
         val systts by rememberUpdatedState(newValue = systts)
 
@@ -243,24 +273,46 @@ class LocalTtsUI() : IConfigUI() {
             }
 
         Column(modifier) {
-            Column(Modifier.padding(horizontal = 8.dp)) {
+            SectionCard(
+                title = "基本信息",
+                icon = Icons.Default.Info,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 8.dp, vertical = 4.dp),
+            ) {
                 BasicInfoEditScreen(
-                    modifier = Modifier.fillMaxWidth(),
+                    Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 12.dp, vertical = 4.dp),
                     systemTts = systts,
                     onSystemTtsChange = onSysttsChange,
                 )
-                // 使用 rememberUpdatedState 确保获取最新的 systts
-                val currentSystts by rememberUpdatedState(systts)
-                AuditionTextField(modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(top = 4.dp), onAudition = {
-                    // 强制创建新的对象副本，确保 Compose 检测到变化并重新触发试听
-                    auditionSystts = currentSystts.copy()
-                    showAuditionDialog = true
-                })
+            }
 
-                val context = LocalContext.current
-                var isLoading by remember { mutableStateOf(false) }
+            SectionCard(
+                title = "音色来源",
+                icon = Icons.Default.Headset,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 8.dp, vertical = 4.dp),
+            ) {
+                Column(
+                    Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 12.dp, vertical = 4.dp)
+                ) {
+                    // 使用 rememberUpdatedState 确保获取最新的 systts
+                    val currentSystts by rememberUpdatedState(systts)
+                    AuditionTextField(modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(top = 4.dp), onAudition = {
+                        // 强制创建新的对象副本，确保 Compose 检测到变化并重新触发试听
+                        auditionSystts = currentSystts.copy()
+                        showAuditionDialog = true
+                    })
+
+                    val context = LocalContext.current
+                    var isLoading by remember { mutableStateOf(false) }
                 LoadingContent(isLoading = isLoading) {
                     Column {
                         LaunchedEffect(source.engine) {
@@ -326,14 +378,25 @@ class LocalTtsUI() : IConfigUI() {
                         )
                     }
                 }
+                }
             }
-            ParamsEditScreen(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(top = 8.dp),
-                systemTts = systts,
-                onSystemTtsChange = onSysttsChange
-            )
+
+            if (showParams)
+                SectionCard(
+                    title = "音频参数",
+                    icon = Icons.Default.Speed,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 8.dp, vertical = 4.dp),
+                ) {
+                    ParamsEditScreen(
+                        Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 12.dp, vertical = 4.dp),
+                        systemTts = systts,
+                        onSystemTtsChange = onSysttsChange
+                    )
+                }
         }
     }
 }

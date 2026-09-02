@@ -20,6 +20,8 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AudioFile
 import androidx.compose.material.icons.filled.CreateNewFolder
 import androidx.compose.material.icons.filled.DeleteForever
+import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.Speed
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
@@ -58,6 +60,7 @@ import com.github.jing332.database.entities.systts.BgmConfiguration
 import com.github.jing332.database.entities.systts.SystemTtsV2
 import com.github.jing332.tts_server_android.R
 import com.github.jing332.tts_server_android.compose.systts.list.ui.widgets.BasicInfoEditScreen
+import com.github.jing332.tts_server_android.compose.systts.list.ui.widgets.SectionCard
 import com.github.jing332.tts_server_android.ui.AppActivityResultContracts
 import com.github.jing332.tts_server_android.ui.ExoPlayerActivity
 import com.github.jing332.tts_server_android.ui.FilePickerActivity
@@ -138,18 +141,37 @@ class BgmConfigUI : IConfigUI() {
                 onSave()
             }
         ) {
-            BasicInfoEditScreen(
-                modifier = Modifier.padding(8.dp),
-                systemTts = systemTts,
-                onSystemTtsChange = onSystemTtsChange
-            )
-
-            ParamsEditScreen(
+            SectionCard(
+                title = "基本信息",
+                icon = Icons.Default.Info,
                 modifier = Modifier
-                    .fillMaxWidth(),
-                systemTts = systemTts,
-                onSystemTtsChange = onSystemTtsChange
-            )
+                    .fillMaxWidth()
+                    .padding(horizontal = 8.dp, vertical = 4.dp),
+            ) {
+                BasicInfoEditScreen(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 12.dp, vertical = 4.dp),
+                    systemTts = systemTts,
+                    onSystemTtsChange = onSystemTtsChange
+                )
+            }
+
+            SectionCard(
+                title = "音频参数",
+                icon = Icons.Default.Speed,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 8.dp, vertical = 4.dp),
+            ) {
+                ParamsEditScreen(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 12.dp, vertical = 4.dp),
+                    systemTts = systemTts,
+                    onSystemTtsChange = onSystemTtsChange
+                )
+            }
 
             OutlinedCard(
                 Modifier
