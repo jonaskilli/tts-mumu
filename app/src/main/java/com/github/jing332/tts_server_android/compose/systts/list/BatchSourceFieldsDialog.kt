@@ -100,7 +100,7 @@ fun BatchSourceFieldsDialog(
                     onApply(
                         enabledSel,
                         when (val k = rateSelKey) { "none" -> null; "auto" -> -1; else -> k as? Int },
-                        if (localeSelKey == "none") null else localeSelKey,
+                        if (localeSelKey == "none") null else localeSelKey as String,
                     )
                 }) {
                     Text("应用")
