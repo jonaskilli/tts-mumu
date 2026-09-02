@@ -193,14 +193,17 @@ private fun MainScreen(finish: () -> Unit) {
                         stateSystemTts = it
                     },
                     onSave = {
-                        navController.popBackStack()
+                        // 保存回调（采样率/标签名刷新）已在容器层同步跑完，此刻 stateSystemTts 即最终值。
+                        // 必须先落库再 popBackStack：本组合的 rememberCoroutineScope 在页面离开组合后被取消，
+                        // 若先 pop 再异步落库，协程会在 withIO 挂起点被静默取消，表现为「点了保存但没保存」。
+                        val current = stateSystemTts
                         scope.launch {
                             withIO {
                                 // 分组兜底：groupId 无效（0 或分组已删除）时归位到默认分组，
                                 // 否则插入项挂在不存在的分组下，主列表按分组查询永远不可见。
                                 // 默认分组行可能已被用户删除（历史语义：删除后不自动复活），
                                 // 此时按需补建真实分组行再保存，避免成为列表查不到的孤儿项
-                                val toSave = stateSystemTts.let { tts ->
+                                val toSave = current.let { tts ->
                                     if (dbm.systemTtsV2.getGroup(tts.groupId) == null) {
                                         if (dbm.systemTtsV2.getGroup(DEFAULT_GROUP_ID) == null) {
                                             dbm.systemTtsV2.insertGroup(
@@ -216,7 +219,8 @@ private fun MainScreen(finish: () -> Unit) {
                                 }
                                 dbm.systemTtsV2.insert(toSave)
                             }
-                            if (stateSystemTts.isEnabled) SystemTtsService.notifyUpdateConfig()
+                            if (current.isEnabled) SystemTtsService.notifyUpdateConfig()
+                            navController.popBackStack()
                         }
                     },
                     onCancel = {
