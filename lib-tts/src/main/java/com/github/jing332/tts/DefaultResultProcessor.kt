@@ -18,6 +18,7 @@ import com.github.jing332.common.utils.rootCause
 import com.github.jing332.tts.error.StreamProcessorError
 import com.github.jing332.tts.error.StreamProcessorError.AudioDecoding
 import com.github.jing332.tts.error.StreamProcessorError.HandleError
+import com.github.jing332.database.entities.systts.source.PluginTtsSource
 import com.github.jing332.tts.loudness.SpeakerLoudnessManager
 import com.github.jing332.tts.synthesizer.IResultProcessor
 import com.github.jing332.tts.synthesizer.PcmAudioDataListener
@@ -120,12 +121,17 @@ internal class DefaultResultProcessor(
             // 响度均衡：始终开启，计算当前发音人的增益
             val loudnessInfo = SpeakerLoudnessManager.infoFor(config)
 
-            // 计算实际生效的音频参数，判断是否需要 Sonic 和 Loudness 处理
-            // pluginHandlesXxx=true 表示插件JS已自行处理该项(如发给服务端变速)，
-            // 本机 Sonic 不再叠加，避免朗读双重生效
-            val effectiveSpeed = if (config.pluginHandlesSpeed || config.audioParams.speed <= 0f) 1f else config.audioParams.speed
-            val effectiveVolume = if (config.pluginHandlesVolume || config.audioParams.volume <= 0f) 1f else config.audioParams.volume
-            val effectivePitch = if (config.pluginHandlesPitch || config.audioParams.pitch <= 0f) 1f else config.audioParams.pitch
+            val pluginSource = config.source as? PluginTtsSource
+            val route = parameterRoute(
+                pluginId = pluginSource?.pluginId.orEmpty(),
+                legacySpeed = config.pluginHandlesSpeed,
+                legacyVolume = config.pluginHandlesVolume,
+                legacyPitch = config.pluginHandlesPitch,
+            )
+            // 已知插件按内置能力路由；旧版未收录插件沿用已保存标志；未知默认本机。
+            val effectiveSpeed = if (route.pluginSpeed || config.audioParams.speed <= 0f) 1f else config.audioParams.speed
+            val effectiveVolume = if (route.pluginVolume || config.audioParams.volume <= 0f) 1f else config.audioParams.volume
+            val effectivePitch = if (route.pluginPitch || config.audioParams.pitch <= 0f) 1f else config.audioParams.pitch
             val needsLoudness = loudnessInfo.gain != 1f
 
             // 真实输入采样率：优先用解码器从音频头探测的值（mp3/wav 等自描述格式）。

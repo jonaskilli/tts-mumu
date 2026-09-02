@@ -2,26 +2,16 @@ package com.github.jing332.tts_server_android.compose.systts.plugin
 
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.verticalScroll
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Checkbox
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
@@ -32,20 +22,13 @@ import com.github.jing332.tts_server_android.compose.systts.list.FloatSlider
 @Composable
 fun PluginAudioParamsDialog(
     initialParams: AudioParams,
-    initialHandlesSpeed: Boolean = false,
-    initialHandlesVolume: Boolean = false,
-    initialHandlesPitch: Boolean = false,
     onDismissRequest: () -> Unit,
-    onConfirm: (params: AudioParams, handlesSpeed: Boolean, handlesVolume: Boolean, handlesPitch: Boolean) -> Unit
+    onConfirm: (params: AudioParams) -> Unit
 ) {
-    // 0 表示跟随，显示时转为 1.0，保存时再转回
+    // 0 表示跟随，显示时转为 1.0，保存时保持现有全局/插件层语义
     var speed by remember { mutableFloatStateOf(if (initialParams.speed == 0f) 1f else initialParams.speed) }
     var volume by remember { mutableFloatStateOf(if (initialParams.volume == 0f) 1f else initialParams.volume) }
     var pitch by remember { mutableFloatStateOf(if (initialParams.pitch == 0f) 1f else initialParams.pitch) }
-
-    var handlesSpeed by remember { mutableStateOf(initialHandlesSpeed) }
-    var handlesVolume by remember { mutableStateOf(initialHandlesVolume) }
-    var handlesPitch by remember { mutableStateOf(initialHandlesPitch) }
 
     AlertDialog(
         onDismissRequest = onDismissRequest,
@@ -82,38 +65,6 @@ fun PluginAudioParamsDialog(
 
                 HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
 
-                // 勾选项区：一个标题 + 一段总说明 + 三个复选框，不逐项重复
-                Text(
-                    stringResource(id = R.string.plugin_handles_params_title),
-                    style = MaterialTheme.typography.labelMedium,
-                    modifier = Modifier.padding(bottom = 2.dp)
-                )
-                Text(
-                    stringResource(id = R.string.plugin_handles_params_desc),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(bottom = 6.dp)
-                )
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceEvenly
-                ) {
-                    HandlesParamCheckbox(
-                        label = stringResource(id = R.string.plugin_handles_speed),
-                        checked = handlesSpeed,
-                        onCheckedChange = { handlesSpeed = it }
-                    )
-                    HandlesParamCheckbox(
-                        label = stringResource(id = R.string.plugin_handles_volume),
-                        checked = handlesVolume,
-                        onCheckedChange = { handlesVolume = it }
-                    )
-                    HandlesParamCheckbox(
-                        label = stringResource(id = R.string.plugin_handles_pitch),
-                        checked = handlesPitch,
-                        onCheckedChange = { handlesPitch = it }
-                    )
-                }
             }
         },
         confirmButton = {
@@ -127,8 +78,7 @@ fun PluginAudioParamsDialog(
                 }
                 TextButton(onClick = {
                     onConfirm(
-                        AudioParams(speed = speed, volume = volume, pitch = pitch),
-                        handlesSpeed, handlesVolume, handlesPitch
+                        AudioParams(speed = speed, volume = volume, pitch = pitch)
                     )
                 }) {
                     Text(stringResource(id = R.string.confirm))
@@ -141,24 +91,4 @@ fun PluginAudioParamsDialog(
             }
         }
     )
-}
-
-@Composable
-private fun HandlesParamCheckbox(
-    label: String,
-    checked: Boolean,
-    onCheckedChange: (Boolean) -> Unit
-) {
-    Row(
-        verticalAlignment = Alignment.CenterVertically,
-        modifier = Modifier.padding(vertical = 4.dp)
-    ) {
-        Checkbox(checked = checked, onCheckedChange = onCheckedChange)
-        Text(
-            label,
-            style = MaterialTheme.typography.bodyMedium,
-            maxLines = 1,
-            modifier = Modifier.padding(start = 2.dp)
-        )
-    }
 }

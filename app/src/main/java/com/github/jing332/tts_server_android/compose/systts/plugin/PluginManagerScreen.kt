@@ -250,18 +250,10 @@ fun PluginManagerScreen(sharedVM: SharedViewModel, onFinishActivity: () -> Unit)
         val plugin = showAudioParamsDialog!!
         PluginAudioParamsDialog(
             initialParams = plugin.audioParams,
-            initialHandlesSpeed = plugin.pluginHandlesSpeed,
-            initialHandlesVolume = plugin.pluginHandlesVolume,
-            initialHandlesPitch = plugin.pluginHandlesPitch,
             onDismissRequest = { showAudioParamsDialog = null },
-            onConfirm = { newParams, handlesSpeed, handlesVolume, handlesPitch ->
+            onConfirm = { newParams ->
                 dbm.pluginDao.update(
-                    plugin.copy(
-                        audioParams = newParams,
-                        pluginHandlesSpeed = handlesSpeed,
-                        pluginHandlesVolume = handlesVolume,
-                        pluginHandlesPitch = handlesPitch
-                    )
+                    plugin.copy(audioParams = newParams)
                 )
                 // 通知服务更新配置，使插件音频参数立即生效
                 SystemTtsService.notifyUpdateConfig()
