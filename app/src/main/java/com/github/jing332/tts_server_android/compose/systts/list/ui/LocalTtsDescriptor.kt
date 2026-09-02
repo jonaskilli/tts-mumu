@@ -26,13 +26,14 @@ class LocalTtsDescriptor(val context: Context, val systemTts: SystemTtsV2) :
                 if (params.pitch == 0f) strFollow else params.pitch.toScale(2)
             val volumeStr =
                 if (params.volume == 0f) strFollow else params.volume.toScale(2)
+            val formatStr = formatString(context, config.audioFormat)
 
             return context.getString(
                 R.string.systts_play_params_description,
                 "<b>${rateStr}</b>",
                 "<b>${volumeStr}</b>",
                 "<b>${pitchStr}</b>"
-            ) + " · " + bottom
+            ) + " | " + formatStr
         }
 
 
