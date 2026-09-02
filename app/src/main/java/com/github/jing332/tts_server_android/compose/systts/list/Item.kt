@@ -227,7 +227,8 @@ internal fun Item(
                     Modifier
                         .constrainAs(targetRef) {
                             top.linkTo(nameRef.top)
-                            end.linkTo(parent.end)
+                            // 三行精简后卡片变矮：标签徽章让位到按钮组左侧，避免与右下类型行叠压
+                            end.linkTo(buttonsRef.start)
                         }
                         .padding(end = 4.dp)
                         .clickable { onSwitchTag() },
@@ -235,8 +236,9 @@ internal fun Item(
                 )
 
             Row(modifier = Modifier.constrainAs(buttonsRef) {
+                // 仅顶对齐：按钮组(编辑+⋮)固定在右上角标题行高度，
+                // 不再垂直居中撑满卡片——三行布局下居中会把按钮压到右下类型行上
                 top.linkTo(parent.top)
-                bottom.linkTo(parent.bottom)
                 end.linkTo(parent.end)
             }) {
                 val swapButton = AppConfig.isSwapListenAndEditButton.value
