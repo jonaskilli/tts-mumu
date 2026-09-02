@@ -33,7 +33,6 @@ import androidx.compose.material.icons.filled.DeleteForever
 import androidx.compose.material.icons.filled.Deselect
 import androidx.compose.material.icons.filled.ExpandLess
 import androidx.compose.material.icons.filled.ExpandMore
-import androidx.compose.material.icons.filled.ExpandCircleDown
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Search
@@ -1699,9 +1698,10 @@ internal fun ListManagerScreen(
                                     else expandedMoveGroups + grp.id
                                 }) {
                                     Icon(
-                                        Icons.Default.ExpandCircleDown,
+                                        Icons.Default.ExpandMore,
                                         contentDescription = null,
-                                        modifier = Modifier.rotate(if (isExpanded) 0f else -45f)
+                                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        modifier = Modifier.rotate(if (isExpanded) 0f else -90f)
                                     )
                                 }
                             } else {
@@ -2390,16 +2390,14 @@ internal fun ListManagerScreen(
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
                                 Icon(
-                                    imageVector = Icons.Default.ExpandCircleDown,
+                                    imageVector = Icons.Default.ExpandMore,
                                     contentDescription = if (expanded)
                                         stringResource(id = R.string.collapse)
                                     else stringResource(id = R.string.expand),
                                     modifier = Modifier
                                         .padding(end = 8.dp)
-                                        .graphicsLayer {
-                                            rotationZ = if (expanded) 180f else 0f
-                                        },
-                                    tint = MaterialTheme.colorScheme.primary
+                                        .rotate(if (expanded) 0f else -90f),
+                                    tint = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
                                 Column(modifier = Modifier.weight(1f)) {
                                     Row(verticalAlignment = Alignment.CenterVertically) {

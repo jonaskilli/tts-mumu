@@ -12,7 +12,7 @@ import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ExpandCircleDown
+import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.CreateNewFolder
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.HorizontalDivider
@@ -153,12 +153,13 @@ fun GroupTreePickerDialog(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         val rotationAngle by animateFloatAsState(
-                            targetValue = if (isExpanded) 0f else -45f,
+                            targetValue = if (isExpanded) 0f else -90f,
                             label = "groupExpandRotation"
                         )
                         Icon(
-                            Icons.Default.ExpandCircleDown,
+                            Icons.Default.ExpandMore,
                             contentDescription = if (isExpanded) "收起" else "展开",
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
                             modifier = Modifier
                                 .clickable {
                                     // 手风琴: 同时只展开一个一级分组
@@ -166,7 +167,6 @@ fun GroupTreePickerDialog(
                                     else setOf(group.id)
                                 }
                                 .rotate(rotationAngle)
-                                .graphicsLayer { rotationZ = rotationAngle }
                         )
                         RadioButton(
                             selected = isGroupRootSelected,
