@@ -390,11 +390,18 @@ class PluginTtsUI : IConfigUI() {
                     )
                 }
 
-            // 音色来源卡：仅界面模式下整个不渲染壳（此前只隐藏标题，导致角色管理栏里
-            // 插件自定义UI仍被一层分区底色包着，用户反馈应直接躺在 surface 页面上）；
-            // 非仅界面才渲染完整卡（试听文本/插件选择/语言/声音都在卡内）
-            if (!isUiOnly)
-            SectionCard(
+            // 音色来源区：ui-only（角色管理栏）时不用卡片壳，直接渲染插件自定义UI躺在 surface 上
+            // （用户反馈：去掉分区底色壳≠连插件UI一起消失）；完整编辑模式才包 SectionCard
+            // （试听文本/插件选择/语言/声音都在卡内）
+            if (isUiOnly) {
+                RoleManagementPluginContent(
+                    tts = tts,
+                    vm = vm,
+                    plugin = plugin,
+                    reloadKey = reloadKey,
+                    onLoadingError = { context.displayErrorDialog(it) }
+                )
+            } else SectionCard(
                 title = "音色来源",
                 icon = Icons.Default.Headset,
                 modifier = Modifier
@@ -859,6 +866,48 @@ class PluginTtsUI : IConfigUI() {
                         onSystemTtsChange = onSysttsChange
                     )
                 }
+            }
+        }
+    }
+
+    /**
+     * 角色管理栏（仅界面模式）的插件自定义 UI 直渲染块。
+     * 与「音色来源」卡内共用同一套加载逻辑（onLoadUI 填充 LinearLayout → AndroidView 展示），
+     * 但不包任何卡片/分区壳：仅界面模式下去壳是用户要求，去壳≠连插件 UI 一起不渲染
+     * （09a7c30 曾误把整卡 if(!isUiOnly) 导致角色管理栏空白）。
+     */
+    @Composable
+    private fun RoleManagementPluginContent(
+        tts: PluginTtsSource,
+        vm: PluginTtsViewModel,
+        plugin: Plugin?,
+        reloadKey: Any?,
+        onLoadingError: (Throwable) -> Unit,
+    ) {
+        val context = LocalContext.current
+        key(tts.pluginId, reloadKey) {
+            val customViewLayout = remember { LinearLayout(context).apply { orientation = LinearLayout.VERTICAL } }
+
+            LaunchedEffect(tts.pluginId, reloadKey) {
+                runCatching {
+                    vm.load(context, plugin, tts, customViewLayout)
+                }.onFailure {
+                    it.printStackTrace()
+                    onLoadingError(it)
+                }
+            }
+
+            LoadingContent(isLoading = vm.isLoading) {
+                // 插件自定义 UI 始终展示，即使界面模式(isUiOnly)下也可见
+                // 加载期间不做高度动画：插件JS逐个addView会让animateContentSize
+                // 一直表演"从上往下撑开"(观感像黑影掉下来)；加载完成后的零星
+                // 尺寸变化(增删角色行)才保留平滑动画
+                AndroidView(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .then(if (vm.isLoading) Modifier else Modifier.animateContentSize()),
+                    factory = { customViewLayout }
+                )
             }
         }
     }
