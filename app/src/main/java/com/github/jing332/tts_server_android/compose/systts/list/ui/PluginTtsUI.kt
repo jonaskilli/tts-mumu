@@ -390,11 +390,13 @@ class PluginTtsUI : IConfigUI() {
                     )
                 }
 
+            // 音色来源卡：仅界面模式下整个不渲染壳（此前只隐藏标题，导致角色管理栏里
+            // 插件自定义UI仍被一层分区底色包着，用户反馈应直接躺在 surface 页面上）；
+            // 非仅界面才渲染完整卡（试听文本/插件选择/语言/声音都在卡内）
+            if (!isUiOnly)
             SectionCard(
                 title = "音色来源",
                 icon = Icons.Default.Headset,
-                // 仅界面模式下卡片里只剩插件自定义UI：隐藏「音色来源」标题省空间(用户要求)
-                showHeader = !isUiOnly,
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(horizontal = 8.dp, vertical = 4.dp),
