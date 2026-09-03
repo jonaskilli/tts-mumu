@@ -38,9 +38,7 @@ import com.github.jing332.tts.loudness.SpeakerLoudnessManager
 
 @Composable
 internal fun ColumnScope.SysttsSettingsScreen(search: SettingsSearch) {
-    if (!search.active())
-        DividerPreference { Text(stringResource(id = R.string.system_tts)) }
-
+    SettingsGroup(title = { Text(stringResource(id = R.string.system_tts)) }, show = !search.active()) {
     var loudnessEnabled by remember { SystemTtsConfig.isLoudnessEnabled }
     SettingItem(search, "音量平衡", "响度", "loudness", "平衡") {
         SwitchPreference(
@@ -284,10 +282,9 @@ internal fun ColumnScope.SysttsSettingsScreen(search: SettingsSearch) {
     }
 
     // ========== 心声 AI 判定 ==========
+    }
 
-    if (!search.active())
-        DividerPreference { Text("心声 AI 判定") }
-
+    SettingsGroup(title = { Text("心声 AI 判定") }, show = !search.active()) {
     var aiEnabled by remember { SystemTtsConfig.isInnerThoughtAiEnabled }
     SettingItem(search, "心声", "ai", "心理活动", "inner", "内心") {
         SwitchPreference(
@@ -299,11 +296,9 @@ internal fun ColumnScope.SysttsSettingsScreen(search: SettingsSearch) {
         )
     }
 
-    if (!search.active())
-        DividerPreference {
-            Text(stringResource(id = R.string.systts_interface_preference))
-        }
+    }
 
+    SettingsGroup(title = { Text(stringResource(id = R.string.systts_interface_preference)) }, show = !search.active()) {
     var limitTagLen by remember { AppConfig.limitTagLength }
     val limitTagLenString =
         if (limitTagLen == 0) stringResource(id = R.string.unlimited) else limitTagLen.toString()
@@ -371,6 +366,7 @@ internal fun ColumnScope.SysttsSettingsScreen(search: SettingsSearch) {
                 Icon(Icons.Default.Groups, contentDescription = null)
             }
         )
+    }
     }
 
 }

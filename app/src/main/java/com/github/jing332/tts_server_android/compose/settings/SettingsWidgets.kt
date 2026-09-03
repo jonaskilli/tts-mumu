@@ -12,7 +12,8 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.selection.toggleable
-import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.LocalTextStyle
 import androidx.compose.material3.MaterialTheme
@@ -96,6 +97,54 @@ internal fun DividerPreference(title: @Composable () -> Unit) {
 
 }
 
+/**
+ * 设置分组卡片：卡片上方小标题 + surfaceContainerLow 容器包住组内全部项。
+ * 与列表页子分组面板/底栏/菜单同一容器色带，替代旧"裸标题+平铺行"的松散结构。
+ * [show]=false（搜索模式）时整体不渲染分组壳，调用方内容退回平铺——
+ * 搜索只列命中项，不出"只有标题的空组卡"。
+ */
+@Composable
+internal fun SettingsGroup(
+    title: @Composable () -> Unit,
+    modifier: Modifier = Modifier,
+    show: Boolean = true,
+    content: @Composable ColumnScope.() -> Unit,
+) {
+    if (!show) {
+        Column(content = content)
+        return
+    }
+    Column(modifier.fillMaxWidth()) {
+        // 卡片外小标题：onSurfaceVariant 弱化，让组内项成为主角
+        CompositionLocalProvider(
+            LocalTextStyle provides MaterialTheme.typography.titleSmall.copy(
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            ),
+        ) {
+            Row(
+                Modifier.padding(
+                    start = horizontalPadding + 4.dp,
+                    top = verticalPadding + 6.dp,
+                    bottom = 4.dp
+                )
+            ) {
+                title()
+            }
+        }
+        Card(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 8.dp),
+            colors = CardDefaults.cardColors(
+                containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
+            ),
+            shape = MaterialTheme.shapes.large,
+        ) {
+            Column(content = content)
+        }
+    }
+}
+
 @Composable
 internal fun SwitchPreference(
     modifier: Modifier = Modifier,
@@ -173,7 +222,11 @@ internal fun BasePreferenceWidget(
                 title()
             }
 
-            CompositionLocalProvider(LocalTextStyle provides MaterialTheme.typography.bodyMedium.copy(fontSize = 15.sp)) {
+            // 副标题弱化为 onSurfaceVariant：与标题拉开主次，长描述不再糊成一团
+            CompositionLocalProvider(LocalTextStyle provides MaterialTheme.typography.bodyMedium.copy(
+                fontSize = 15.sp,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )) {
                 subTitle()
             }
         }
@@ -230,7 +283,10 @@ internal fun SliderPreference(
     BasePreferenceWidget(modifier, onClick = {
         show = true
     }, title = title, icon = icon, subTitle = subTitle) {
-        Text(label)
+        // trailing 当前值：弱化色，与标题基线视觉呼应，不再与描述抢眼
+        Text(label, style = MaterialTheme.typography.titleMedium.copy(
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        ))
     }
 }
 

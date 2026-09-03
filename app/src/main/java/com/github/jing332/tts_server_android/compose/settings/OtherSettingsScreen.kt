@@ -30,8 +30,7 @@ import java.io.File
 
 @Composable
 internal fun ColumnScope.OtherSettingsScreen(search: SettingsSearch) {
-    if (!search.active())
-        DividerPreference { Text(stringResource(R.string.other)) }
+    SettingsGroup(title = { Text(stringResource(R.string.other)) }, show = !search.active()) {
     var showAboutDialog by rememberSaveable { mutableStateOf(false) }
     if (showAboutDialog)
         AboutDialog { showAboutDialog = false }
@@ -128,5 +127,6 @@ internal fun ColumnScope.OtherSettingsScreen(search: SettingsSearch) {
                 Icon(Icons.Default.DeleteSweep, null)
             }
         )
+    }
     }
 }

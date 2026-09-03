@@ -159,8 +159,7 @@ fun SettingsScreen() {
                         .weight(1f)
                         .verticalScroll(rememberScrollState())
                 ) {
-                    if (!search.active())
-                        DividerPreference { Text(stringResource(id = R.string.app_name)) }
+                    SettingsGroup(title = { Text(stringResource(id = R.string.app_name)) }, show = !search.active()) {
 
             // 后台保活设置入口（使用 Activity 启动，与备份恢复保持一致）
             SettingItem(search, "保活", "keepalive", "后台", "alive", "自启动") {
@@ -377,6 +376,7 @@ fun SettingsScreen() {
                     valueRange = 0f..50f,
                     icon = { Icon(Icons.AutoMirrored.Filled.MenuOpen, null) }
                 )
+                }
                 }
 
                 SysttsSettingsScreen(search)

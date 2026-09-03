@@ -156,7 +156,7 @@ class KeepAliveSettingsActivity : ComposeActivity() {
                     icon = { Icon(Icons.Default.MobileFriendly, null) }
                 )
 
-                DividerPreference { Text(stringResource(R.string.keep_alive_settings)) }
+                SettingsGroup(title = { Text(stringResource(R.string.keep_alive_settings)) }) {
 
                 // 启用后台保活
                 val isForwarderRunning = SysTtsForwarderService.isRunning
@@ -195,14 +195,14 @@ class KeepAliveSettingsActivity : ComposeActivity() {
                     onCheckedChange = { isAutoStartEnabled = it },
                     icon = { Icon(Icons.Default.Refresh, null) }
                 )
+                }
 
-                DividerPreference { Text(stringResource(R.string.advanced_keep_alive)) }
-
+                SettingsGroup(title = { Text(stringResource(R.string.advanced_keep_alive)) }) {
                 // 高级保活选项
                 AdvancedKeepAliveOptions()
+                }
 
-                DividerPreference { Text(stringResource(R.string.help)) }
-
+                SettingsGroup(title = { Text(stringResource(R.string.help)) }) {
                 // 帮助入口 - 点击进入三级页面
                 BasePreferenceWidget(
                     onClick = { showHelpDetail = true },
@@ -210,6 +210,7 @@ class KeepAliveSettingsActivity : ComposeActivity() {
                     subTitle = { Text(stringResource(R.string.keep_alive_help_summary)) },
                     icon = { Icon(Icons.AutoMirrored.Filled.Help, null) }
                 )
+                }
 
                 Spacer(Modifier.navigationBarsPadding())
             }
