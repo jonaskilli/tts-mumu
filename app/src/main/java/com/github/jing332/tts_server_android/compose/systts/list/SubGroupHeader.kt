@@ -1,7 +1,6 @@
 package com.github.jing332.tts_server_android.compose.systts.list
 
 import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Box
@@ -93,13 +92,13 @@ fun SubGroupHeader(
     Row(
         modifier = modifier
             .fillMaxWidth()
-            // 统一容器色 surfaceContainerLow：与底栏/菜单同带(tint 5% 绿调)，
-            // 取代旧 surfaceVariant@35%(灰调)——页面→面板→白卡三层只剩一个容器档
-            .background(MaterialTheme.colorScheme.surfaceContainerLow)
+            // 层次区分不再用底色（与一级分组/底栏同为淡色系分不出），改树形缩进引导线：
+            // depth=level+1 条竖线画在行左缘，内容起点随之缩进，与树内配置项卡片对齐
+            .indentGuides(depth = level + 1, color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.25f))
             .clickable { if (!showOptions && !showExtraOptions) onClick() }
             .padding(
-                // 按层级水平缩进，每级 12dp
-                start = (8 + level * 12).dp,
+                // 引导线占 depth×12dp，内容起点 = 8 + depth×12；每深一级再缩进一层
+                start = (8 + (level + 1) * 12).dp,
                 top = paddingTop,
                 bottom = paddingBottom,
                 end = 8.dp
