@@ -41,7 +41,9 @@ internal fun SectionCard(
     Card(
         modifier = modifier,
         colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f),
+            // surfaceContainerLow 与子分组面板/底栏/菜单同带(tint 5%)，
+            // 取代 surfaceVariant@35% 灰调，全局色阶统一
+            containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
         ),
     ) {
         Column(Modifier.padding(vertical = 6.dp)) {

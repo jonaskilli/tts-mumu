@@ -93,8 +93,9 @@ fun SubGroupHeader(
     Row(
         modifier = modifier
             .fillMaxWidth()
-            // 统一淡面板色(与编辑页SectionCard同款)：不再按层级阶梯涂色,层级靠缩进体现
-            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f))
+            // 统一容器色 surfaceContainerLow：与底栏/菜单同带(tint 5% 绿调)，
+            // 取代旧 surfaceVariant@35%(灰调)——页面→面板→白卡三层只剩一个容器档
+            .background(MaterialTheme.colorScheme.surfaceContainerLow)
             .clickable { if (!showOptions && !showExtraOptions) onClick() }
             .padding(
                 // 按层级水平缩进，每级 12dp
