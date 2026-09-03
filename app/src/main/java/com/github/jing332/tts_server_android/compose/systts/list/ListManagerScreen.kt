@@ -136,7 +136,6 @@ import com.github.jing332.tts_server_android.compose.systts.list.SubGroupHeader
 import com.github.jing332.tts_server_android.compose.systts.list.buildSubCategoryTree
 import com.github.jing332.tts_server_android.compose.systts.list.flattenSubCategoryTree
 import com.github.jing332.tts_server_android.compose.systts.list.FlattenedCategoryItem
-import com.github.jing332.tts_server_android.compose.systts.list.indentGuides
 import com.github.jing332.tts_server_android.compose.systts.sizeToToggleableState
 import com.github.jing332.tts_server_android.constant.AppConst
 import com.github.jing332.tts_server_android.constant.SpeechTarget
@@ -3288,17 +3287,11 @@ internal fun ListManagerScreen(
                                                 val descriptor = remember(item, pluginNameCache) {
                                                     ItemDescriptorFactory.from(context, item, pluginNameCache)
                                                 }
-                                                // 与子分组头同款树形引导线：displayLevel 条竖线，
-                                                // 内容缩进 8+displayLevel×12dp，与上级分组头对齐
                                                 Item(
                                                     reorderState = reorderState,
-                                                    modifier = itemDragModifier
-                                                        .indentGuides(
-                                                            depth = fItem.displayLevel,
-                                                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.25f)
-                                                        )
-                                                        .padding(
-                                                        start = (8 + fItem.displayLevel * 12).dp,
+                                                    modifier = itemDragModifier.padding(
+                                                        // 配置项卡片随所属子分组层级缩进，与子分组头对齐
+                                                        start = (8 + (fItem.displayLevel - 1).coerceAtLeast(0) * 12).dp,
                                                         end = 8.dp,
                                                         top = 4.dp,
                                                         bottom = 4.dp

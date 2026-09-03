@@ -1,6 +1,7 @@
 package com.github.jing332.tts_server_android.compose.systts.list
 
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Box
@@ -92,13 +93,19 @@ fun SubGroupHeader(
     Row(
         modifier = modifier
             .fillMaxWidth()
-            // 层次区分不再用底色（与一级分组/底栏同为淡色系分不出），改树形缩进引导线：
-            // depth=level+1 条竖线画在行左缘，内容起点随之缩进，与树内配置项卡片对齐
-            .indentGuides(depth = level + 1, color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.25f))
+            // 子分组行底色 primaryContainer@35%/20%：绿调色相一眼区分于页面底(0%)，
+            // 层级递减(一级35%、更深统一20%)配合缩进体现从属；配置项卡片(surfaceContainerLow)
+            // 比面板浅一档自然浮起。用户定稿方案A(撤掉树形引导线)
+            .background(
+                when (level) {
+                    0 -> MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.35f)
+                    else -> MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.20f)
+                }
+            )
             .clickable { if (!showOptions && !showExtraOptions) onClick() }
             .padding(
-                // 引导线占 depth×12dp，内容起点 = 8 + depth×12；每深一级再缩进一层
-                start = (8 + (level + 1) * 12).dp,
+                // 按层级水平缩进，每级 12dp（与树内配置项卡片缩进公式一致）
+                start = (8 + level * 12).dp,
                 top = paddingTop,
                 bottom = paddingBottom,
                 end = 8.dp
