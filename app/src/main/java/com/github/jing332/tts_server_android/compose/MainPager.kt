@@ -129,7 +129,8 @@ fun AnimatedContentScope.MainPager(sharedVM: SharedViewModel) {
                             .height(64.dp + WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()),
                         // 底栏独立色 tint 6%：介于页面 surface 与分区卡(surfaceContainerLow,3%)之间——
                         // 与分区卡拉开层次防"融为一体"，又远比默认 surfaceContainer(9%) 浅（用户嫌过深）
-                        containerColor = MaterialTheme.colorScheme.surface.lerp(
+                        containerColor = lerp(
+                            MaterialTheme.colorScheme.surface,
                             MaterialTheme.colorScheme.surfaceTint, 0.06f
                         ),
                     ) {
