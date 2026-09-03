@@ -93,9 +93,9 @@ fun SubGroupHeader(
     Row(
         modifier = modifier
             .fillMaxWidth()
-            // 子分组面板=surfaceContainerLow(tint 3%,用户点名喜欢的5575f6c版配色,一字不改)；
-            // 层次靠卡片提亮为Lowest(近白)实现浮起，面板本身不再动
-            .background(MaterialTheme.colorScheme.surfaceContainerLow)
+            // 子分组面板=surfaceContainer(tint 9%)：用户确认 3% 过浅，提两档到 9%；
+            // 层次=页面0%→底栏4%→菜单6%→面板9%→卡片Lowest近白浮起
+            .background(MaterialTheme.colorScheme.surfaceContainer)
             .clickable { if (!showOptions && !showExtraOptions) onClick() }
             .padding(
                 // 按层级水平缩进，每级 12dp（与树内配置项卡片缩进公式一致）

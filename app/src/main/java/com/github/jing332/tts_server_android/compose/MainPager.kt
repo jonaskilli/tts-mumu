@@ -127,11 +127,10 @@ fun AnimatedContentScope.MainPager(sharedVM: SharedViewModel) {
                             // M3 默认 80dp 比微信级底栏高约 1/3，压到内容 64dp+手势条 inset；
                             // height 会覆盖 NavigationBar 内部的 80dp defaultMinSize
                             .height(64.dp + WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()),
-                        // 底栏独立色 tint 6%：介于页面 surface 与分区卡(surfaceContainerLow,3%)之间——
-                        // 与分区卡拉开层次防"融为一体"，又远比默认 surfaceContainer(9%) 浅（用户嫌过深）
+                        // 底栏独立色 tint 4%：用户嫌 6% 深，降一档；与菜单(6%)/子分组面板(9%)拉开层次
                         containerColor = lerp(
                             MaterialTheme.colorScheme.surface,
-                            MaterialTheme.colorScheme.surfaceTint, 0.06f
+                            MaterialTheme.colorScheme.surfaceTint, 0.04f
                         ),
                     ) {
                         for (destination in PagerDestination.routes) {
