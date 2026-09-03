@@ -3,7 +3,6 @@ package com.github.jing332.tts_server_android.compose.systts.list
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxHeight
@@ -19,11 +18,9 @@ import androidx.compose.material.icons.filled.Headphones
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Output
 import androidx.compose.material3.Checkbox
-import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.DropdownMenuItem
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.ElevatedCard
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -99,10 +96,8 @@ internal fun Item(
         if (limitNameLen == 0) name else name.limitLength(limitNameLen)
     }
 
-    // surface 白底卡浮在子分组淡面板上,层次=页面底→淡面板→白卡;不再用带阴影的ElevatedCard
-    Card(
-        modifier = modifier,
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+    ElevatedCard(
+        modifier = modifier
     ) {
         // 卡片中间区域单击：与右侧显式按钮互补
         // 默认(swapButton=false,右侧是编辑)：单击=试听；交换后(swapButton=true,右侧是试听)：单击=编辑
@@ -190,14 +185,11 @@ internal fun Item(
                 maxLines = 1,
                 textAlign = TextAlign.Start,
                 fontWeight = FontWeight.Bold,
-                overflow = TextOverflow.Ellipsis,
+                overflow = TextOverflow.Clip,
                 modifier = Modifier
                     .constrainAs(nameRef) {
                         start.linkTo(checkRef.end)
                         top.linkTo(parent.top)
-                        // 右边界让位给tag徽章+按钮组：名称超长截断，不再钻到按钮/tag底下重叠
-                        end.linkTo(targetRef.start)
-                        width = Dimension.fillToConstraints
                     }
                     .padding(bottom = 4.dp)
             )
@@ -207,12 +199,9 @@ internal fun Item(
                     .constrainAs(contentRef) {
                         start.linkTo(checkRef.end)
                         top.linkTo(nameRef.bottom)
-                        // 夹在名称行与右下类型行之间，不再与类型行共用 bottom 锚叠压
-                        bottom.linkTo(typeRef.top)
-                        // 参数行右边界收进按钮组左侧，防止长文案顶到边
-                        end.linkTo(buttonsRef.start)
-                        width = Dimension.fillToConstraints
-                    },
+                        bottom.linkTo(parent.bottom)
+                    }
+                    .fillMaxWidth(),
                 horizontalAlignment = Alignment.Start
             ) {
                 HtmlText(
@@ -230,28 +219,21 @@ internal fun Item(
             val limitedTagName = remember(tagName, limitLen) {
                 if (limitLen == 0) tagName else tagName.limitLength(limitLen)
             }
-            // 恒渲染的占位锚（tag为空时0宽）：nameRef 的 end 约束始终有有效目标，
-            // 避免「tag不显示时引用未创建ref」的运行时异常
-            Box(
-                Modifier
-                    .constrainAs(targetRef) {
-                        top.linkTo(nameRef.top)
-                        end.linkTo(buttonsRef.start)
-                    }
-            ) {
-                if (limitedTagName.isNotEmpty())
-                    TagScreen(
-                        Modifier
-                            .padding(end = 4.dp)
-                            .clickable { onSwitchTag() },
-                        tag = limitedTagName,
-                    )
-            }
+            if (limitedTagName.isNotEmpty())
+                TagScreen(
+                    Modifier
+                        .constrainAs(targetRef) {
+                            top.linkTo(nameRef.top)
+                            end.linkTo(parent.end)
+                        }
+                        .padding(end = 4.dp)
+                        .clickable { onSwitchTag() },
+                    tag = limitedTagName,
+                )
 
             Row(modifier = Modifier.constrainAs(buttonsRef) {
-                // 仅顶对齐：按钮组(编辑+⋮)固定在右上角标题行高度，
-                // 不再垂直居中撑满卡片——三行布局下居中会把按钮压到右下类型行上
                 top.linkTo(parent.top)
+                bottom.linkTo(parent.bottom)
                 end.linkTo(parent.end)
             }) {
                 val swapButton = AppConfig.isSwapListenAndEditButton.value
