@@ -26,9 +26,9 @@ fun appTheme(
     context: Context = LocalContext.current,
 ): ColorScheme {
     val scheme = when (themeType) {
-        AppTheme.DEFAULT -> defaultTheme(darkTheme)
-        AppTheme.DYNAMIC_COLOR -> dynamicColorTheme(darkTheme, context)
         AppTheme.GREEN -> greenTheme(darkTheme)
+        AppTheme.DYNAMIC_COLOR -> dynamicColorTheme(darkTheme, context)
+        AppTheme.BEAN_GREEN -> beanGreenTheme(darkTheme)
         AppTheme.RED -> redTheme(darkTheme)
         AppTheme.PINK -> pinkTheme(darkTheme)
         AppTheme.BLUE -> blueTheme(darkTheme)
@@ -65,9 +65,9 @@ private fun ColorScheme.deriveSurfaceContainers(darkTheme: Boolean): ColorScheme
     )
 }
 
-//全局主题状态
+//全局主题状态（默认=绿色）
 private val themeTypeState: MutableState<AppTheme> by lazy(mode = LazyThreadSafetyMode.SYNCHRONIZED) {
-    mutableStateOf(AppTheme.DEFAULT)
+    mutableStateOf(AppTheme.GREEN)
 }
 
 @Composable
@@ -76,7 +76,7 @@ private fun InitTheme() {
         AppConfig.theme.value
     } catch (e: Exception) {
         e.printStackTrace()
-        AppTheme.DEFAULT
+        AppTheme.GREEN
     }
     setAppTheme(themeType = theme)
 }

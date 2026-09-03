@@ -48,14 +48,15 @@ object AppConfig {
         registerTypeConverters(
             save = { it.id },
             restore = { value ->
-                AppTheme.values().find { it.id == value } ?: AppTheme.DEFAULT
+                // 旧存档 id=""（原 DEFAULT 豆绿）与新默认统一解析为 GREEN
+                AppTheme.values().find { it.id == value } ?: AppTheme.GREEN
             }
         )
     }
 
     private val dataSaverPref by lazy { DataSaverPreferences((app as Context).getSharedPreferences("app", 0)) }
 
-    val theme by lazy { mutableDataSaverStateOf(dataSaverPref, "theme", AppTheme.DEFAULT) }
+    val theme by lazy { mutableDataSaverStateOf(dataSaverPref, "theme", AppTheme.GREEN) }
     val limitTagLength by lazy { mutableDataSaverStateOf(dataSaverPref, "limitTagLength", 0) }
     val limitNameLength by lazy { mutableDataSaverStateOf(dataSaverPref, "limitNameLength", 0) }
     val isSwapListenAndEditButton by lazy { mutableDataSaverStateOf(dataSaverPref, "isSwapListenAndEditButton", false) }
