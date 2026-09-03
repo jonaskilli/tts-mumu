@@ -40,6 +40,7 @@ import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.unit.dp
 import com.github.jing332.tts_server_android.R
 import com.github.jing332.tts_server_android.compose.systts.ConfigDeleteDialog
+import com.github.jing332.compose.widgets.AppDropdownMenu
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
@@ -134,7 +135,7 @@ internal fun Item(
                             tint = MaterialTheme.colorScheme.onBackground
                         )
 
-                        DropdownMenu(expanded = isMoreOptionsVisible,
+                        AppDropdownMenu(expanded = isMoreOptionsVisible,
                             onDismissRequest = { isMoreOptionsVisible = false }) {
 
                             DropdownMenuItem(

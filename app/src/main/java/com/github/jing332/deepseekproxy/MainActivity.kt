@@ -62,6 +62,7 @@ import okhttp3.Request
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import com.github.jing332.compose.widgets.AppDropdownMenu
 
 class MainActivity : ComponentActivity() {
     private val vm: ProxyViewModel by viewModels()

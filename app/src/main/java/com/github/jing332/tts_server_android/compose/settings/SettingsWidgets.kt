@@ -39,6 +39,7 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.github.jing332.compose.widgets.AppDropdownMenu
 import com.github.jing332.compose.widgets.AppDialog
 import com.github.jing332.compose.widgets.LabelSlider
 import com.github.jing332.tts_server_android.R
@@ -59,7 +60,7 @@ internal fun DropdownPreference(
     BasePreferenceWidget(modifier = modifier, icon = icon, onClick = {
         onExpandedChange(true)
     }, title = title, subTitle = subTitle) {
-        DropdownMenu(
+        AppDropdownMenu(
             modifier = Modifier.align(Alignment.Top),
             expanded = expanded,
             onDismissRequest = { onExpandedChange(false) }) {

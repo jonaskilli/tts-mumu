@@ -37,6 +37,7 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.github.jing332.tts_server_android.R
 import com.github.jing332.tts_server_android.compose.theme.AppTheme
+import com.github.jing332.compose.widgets.AppDropdownMenu
 import com.github.jing332.compose.widgets.DenseTextField
 
 enum class SearchType(@StringRes val strId: Int) {
@@ -82,7 +83,7 @@ internal fun SearchTextField(
                         Icons.Default.AccountTree, stringResource(id = R.string.type)
                     )
 
-                    DropdownMenu(
+                    AppDropdownMenu(
                         expanded = showTypeOptions,
                         onDismissRequest = { showTypeOptions = false }) {
 

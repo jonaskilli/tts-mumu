@@ -26,7 +26,7 @@ import androidx.compose.material.icons.filled.DeleteForever
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Output
 import androidx.compose.material.icons.filled.SelectAll
-import androidx.compose.material3.DropdownMenu
+import com.github.jing332.compose.widgets.AppDropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -215,7 +215,7 @@ internal fun ReplaceRuleManagerScreen(
                             var showAddOptions by remember { mutableStateOf(false) }
                             IconButton(onClick = { showAddOptions = true }) {
                                 Icon(Icons.Default.Add, stringResource(id = R.string.add_config))
-                                DropdownMenu(
+                                AppDropdownMenu(
                                     expanded = showAddOptions,
                                     onDismissRequest = { showAddOptions = false }) {
                                     DropdownMenuItem(
@@ -308,7 +308,7 @@ internal fun ReplaceRuleManagerScreen(
                         IconButton(onClick = { showOptions = true }) {
                             Icon(Icons.Default.MoreVert, stringResource(id = R.string.more_options))
 
-                            DropdownMenu(
+                            AppDropdownMenu(
                                 expanded = showOptions,
                                 onDismissRequest = { showOptions = false }) {
                                 DropdownMenuItem(

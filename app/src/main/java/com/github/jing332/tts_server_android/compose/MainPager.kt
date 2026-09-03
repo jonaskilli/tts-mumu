@@ -9,8 +9,12 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
@@ -33,6 +37,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.unit.dp
 import com.github.jing332.compose.widgets.ControlBottomBarVisibility
 import com.github.jing332.compose.widgets.rememberA11TouchEnabled
 import com.github.jing332.tts_server_android.compose.hunyuantaiji.HunyuanTaijiScreen
@@ -117,7 +122,10 @@ fun AnimatedContentScope.MainPager(sharedVM: SharedViewModel) {
                 bottomBar = {
                     NavigationBar(
                         modifier = Modifier
-                            .fillMaxWidth(),
+                            .fillMaxWidth()
+                            // M3 默认 80dp 比微信级底栏高约 1/3，压到内容 64dp+手势条 inset；
+                            // height 会覆盖 NavigationBar 内部的 80dp defaultMinSize
+                            .height(64.dp + WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()),
                         // 默认 containerColor=surfaceContainer(tint 9%)偏深，用户反馈与 surface 差距太大；
                         // 降到 surfaceContainerLow(tint 5%)——仍比页面底色深一档保留分层，但温和得多
                         containerColor = MaterialTheme.colorScheme.surfaceContainerLow,

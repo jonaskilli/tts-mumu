@@ -41,6 +41,7 @@ import androidx.compose.ui.state.ToggleableState
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.foundation.ExperimentalFoundationApi
+import com.github.jing332.compose.widgets.AppDropdownMenu
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
@@ -172,7 +173,7 @@ fun SubGroupHeader(
             )
 
             // 长按菜单：仅启用相关功能，仅组内非空时显示
-            DropdownMenu(
+            AppDropdownMenu(
                 expanded = showExtraOptions,
                 onDismissRequest = { showExtraOptions = false }
             ) {
@@ -213,7 +214,7 @@ fun SubGroupHeader(
             }
 
             // 主菜单：与启用状态无关的功能
-            DropdownMenu(
+            AppDropdownMenu(
                 expanded = showOptions,
                 onDismissRequest = { showOptions = false }
             ) {

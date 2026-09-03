@@ -22,6 +22,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.core.net.toUri
+import com.github.jing332.compose.widgets.AppDropdownMenu
 import com.github.jing332.compose.widgets.CheckedMenuItem
 import com.github.jing332.tts_server_android.R
 import com.github.jing332.tts_server_android.compose.nav.NavTopAppBar
@@ -64,7 +65,7 @@ internal fun ForwarderTopAppBar(
             IconButton(onClick = { showOptions = true }) {
                 Icon(Icons.Default.MoreVert, stringResource(id = R.string.more_options))
 
-                DropdownMenu(expanded = showOptions, onDismissRequest = { showOptions = false }) {
+                AppDropdownMenu(expanded = showOptions, onDismissRequest = { showOptions = false }) {
                     CheckedMenuItem(
                         text = { Text(text = stringResource(id = R.string.wake_lock)) },
                         checked = wakeLockEnabled,

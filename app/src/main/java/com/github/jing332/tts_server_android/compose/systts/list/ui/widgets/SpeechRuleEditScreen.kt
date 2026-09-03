@@ -17,7 +17,7 @@ import androidx.compose.material.icons.filled.SelectAll
 import androidx.compose.material.icons.filled.Speed
 import androidx.compose.material.icons.filled.Tag
 import androidx.compose.material3.Checkbox
-import androidx.compose.material3.DropdownMenu
+import com.github.jing332.compose.widgets.AppDropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.HorizontalDivider
@@ -298,7 +298,7 @@ fun SpeechRuleEditScreen(
                         modifier = Modifier.padding(start = 4.dp, end = 10.dp)
                     )
 
-                    DropdownMenu(
+                    AppDropdownMenu(
                         expanded = showTagOptions,
                         onDismissRequest = { showTagOptions = false }) {
                         Text(

@@ -41,7 +41,7 @@ import androidx.compose.material.icons.filled.SwapHoriz
 import androidx.compose.material.icons.filled.VolumeUp
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.DropdownMenu
+import com.github.jing332.compose.widgets.AppDropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ElevatedCard
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -649,7 +649,7 @@ fun PluginManagerScreen(sharedVM: SharedViewModel, onFinishActivity: () -> Unit)
                     }) {
                         Icon(Icons.Default.MoreVert, stringResource(id = R.string.more_options))
 
-                        DropdownMenu(
+                        AppDropdownMenu(
                             expanded = showOptions,
                             onDismissRequest = { showOptions = false }) {
                             DropdownMenuItem(
@@ -876,7 +876,7 @@ private fun Item(
                             Icons.Default.MoreVert,
                             stringResource(id = R.string.more_options_desc, name)
                         )
-                        DropdownMenu(
+                        AppDropdownMenu(
                             expanded = showOptions,
                             onDismissRequest = { showOptions = false }) {
 

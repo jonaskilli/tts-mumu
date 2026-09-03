@@ -25,6 +25,7 @@ import com.github.jing332.tts_server_android.ui.view.AppDialogs.displayErrorDial
 import io.github.rosemoe.sora.widget.CodeEditor
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import com.github.jing332.compose.widgets.AppDropdownMenu
 
 class LinkUploadRuleActivity : ComposeActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -87,7 +88,7 @@ class LinkUploadRuleActivity : ComposeActivity() {
                 }
             },
             debugIconContent = {
-                DropdownMenu(expanded = targets != null, onDismissRequest = { targets = null }) {
+                AppDropdownMenu(expanded = targets != null, onDismissRequest = { targets = null }) {
                     targets?.forEach {
                         DropdownMenuItem(text = { Text(it.name) }, onClick = {
                             targets = null

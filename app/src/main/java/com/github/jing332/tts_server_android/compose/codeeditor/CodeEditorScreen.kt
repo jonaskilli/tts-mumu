@@ -75,6 +75,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.github.jing332.common.utils.longToast
 import com.github.jing332.compose.ComposeExtensions.clickableRipple
+import com.github.jing332.compose.widgets.AppDropdownMenu
 import com.github.jing332.compose.widgets.AppTooltip
 import com.github.jing332.compose.widgets.CheckedMenuItem
 import com.github.jing332.compose.widgets.LongClickIconButton
@@ -294,7 +295,7 @@ fun CodeEditorScreen(
                     ) {
                         Icon(Icons.Default.MoreVert, stringResource(id = R.string.more_options))
 
-                        DropdownMenu(
+                        AppDropdownMenu(
                             expanded = showOptions,
                             onDismissRequest = { showOptions = false }) {
                             if (onSaveFile != null)

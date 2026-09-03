@@ -55,6 +55,7 @@ import androidx.constraintlayout.compose.ConstraintLayout
 import androidx.constraintlayout.compose.Dimension
 import com.github.jing332.common.utils.StringUtils.limitLength
 import com.github.jing332.common.utils.performLongPress
+import com.github.jing332.compose.widgets.AppDropdownMenu
 import com.github.jing332.compose.widgets.LongClickIconButton
 import com.github.jing332.compose.widgets.htmlcompose.HtmlText
 import com.github.jing332.tts_server_android.R
@@ -263,7 +264,7 @@ internal fun Item(
                         stringResource(id = R.string.more_options_desc, name)
                     )
 
-                    DropdownMenu(
+                    AppDropdownMenu(
                         expanded = showOptions,
                         onDismissRequest = { showOptions = false }) {
 

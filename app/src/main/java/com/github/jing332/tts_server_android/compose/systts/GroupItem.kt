@@ -16,7 +16,7 @@ import androidx.compose.material.icons.filled.DeleteForever
 import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Output
-import androidx.compose.material3.DropdownMenu
+import com.github.jing332.compose.widgets.AppDropdownMenu
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.HorizontalDivider
@@ -240,11 +240,11 @@ fun GroupItem(
                     contentDescription = stringResource(id = R.string.more_options_desc, name)
                 )
 
-                DropdownMenu(expanded = showExtraOptions, onDismissRequest = { showExtraOptions = false }) {
+                AppDropdownMenu(expanded = showExtraOptions, onDismissRequest = { showExtraOptions = false }) {
                     if (extraActions != null) extraActions!! { showExtraOptions = false }
                 }
 
-                DropdownMenu(expanded = showOptions, onDismissRequest = { showOptions = false }) {
+                AppDropdownMenu(expanded = showOptions, onDismissRequest = { showOptions = false }) {
                     actions { showOptions = false }
 
                     DropdownMenuItem(
