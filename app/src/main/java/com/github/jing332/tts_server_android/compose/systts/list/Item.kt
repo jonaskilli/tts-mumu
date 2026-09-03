@@ -18,6 +18,7 @@ import androidx.compose.material.icons.filled.Headphones
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Output
 import androidx.compose.material3.Checkbox
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ElevatedCard
@@ -96,8 +97,11 @@ internal fun Item(
         if (limitNameLen == 0) name else name.limitLength(limitNameLen)
     }
 
+    // 卡片底=surfaceContainerLowest(向白偏4%,#FBFCFA)：比子分组面板(surfaceContainerLow,3%)
+    // 亮一档才能从面板上浮起——此前卡片默认同为3%与面板同色，是"面板区分不清"的实因
     ElevatedCard(
-        modifier = modifier
+        modifier = modifier,
+        colors = CardDefaults.elevatedCardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLowest)
     ) {
         // 卡片中间区域单击：与右侧显式按钮互补
         // 默认(swapButton=false,右侧是编辑)：单击=试听；交换后(swapButton=true,右侧是试听)：单击=编辑

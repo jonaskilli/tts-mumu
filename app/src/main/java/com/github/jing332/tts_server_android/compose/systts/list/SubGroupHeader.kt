@@ -93,15 +93,9 @@ fun SubGroupHeader(
     Row(
         modifier = modifier
             .fillMaxWidth()
-            // 子分组行底色 primaryContainer@35%/20%：绿调色相一眼区分于页面底(0%)，
-            // 层级递减(一级35%、更深统一20%)配合缩进体现从属；配置项卡片(surfaceContainerLow)
-            // 比面板浅一档自然浮起。用户定稿方案A(撤掉树形引导线)
-            .background(
-                when (level) {
-                    0 -> MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.35f)
-                    else -> MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.20f)
-                }
-            )
+            // 子分组面板=surfaceContainerLow(tint 3%,用户点名喜欢的5575f6c版配色,一字不改)；
+            // 层次靠卡片提亮为Lowest(近白)实现浮起，面板本身不再动
+            .background(MaterialTheme.colorScheme.surfaceContainerLow)
             .clickable { if (!showOptions && !showExtraOptions) onClick() }
             .padding(
                 // 按层级水平缩进，每级 12dp（与树内配置项卡片缩进公式一致）
