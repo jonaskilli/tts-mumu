@@ -118,6 +118,9 @@ fun AnimatedContentScope.MainPager(sharedVM: SharedViewModel) {
                     NavigationBar(
                         modifier = Modifier
                             .fillMaxWidth(),
+                        // 默认 containerColor=surfaceContainer(tint 9%)偏深，用户反馈与 surface 差距太大；
+                        // 降到 surfaceContainerLow(tint 5%)——仍比页面底色深一档保留分层，但温和得多
+                        containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
                     ) {
                         for (destination in PagerDestination.routes) {
                             val isSelected = pagerState.currentPage == destination.index
