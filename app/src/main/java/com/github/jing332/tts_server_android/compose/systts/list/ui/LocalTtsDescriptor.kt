@@ -16,7 +16,7 @@ class LocalTtsDescriptor(val context: Context, val systemTts: SystemTtsV2) :
     override val desc: String
         get() {
             val strFollow by lazy { context.getString(R.string.follow) }
-            // 卡片三行制(同PluginDescriptor)：删voice id行,格式并入参数行;toScale(2)去噪
+            // 卡片四行制：行2=voice id，行3=参数，行4=格式(bottom)；toScale(2)去噪
             val config = systemTts.config as TtsConfigurationDTO
             val params = config.audioParams
 
@@ -26,18 +26,17 @@ class LocalTtsDescriptor(val context: Context, val systemTts: SystemTtsV2) :
                 if (params.pitch == 0f) strFollow else params.pitch.toScale(2)
             val volumeStr =
                 if (params.volume == 0f) strFollow else params.volume.toScale(2)
-            val formatStr = formatString(context, config.audioFormat)
 
-            return context.getString(
+            return source.voice + "<br>" + context.getString(
                 R.string.systts_play_params_description,
                 "<b>${rateStr}</b>",
                 "<b>${volumeStr}</b>",
                 "<b>${pitchStr}</b>"
-            ) + " | " + formatStr
+            )
         }
 
 
-    // 格式信息已并入 desc；置空避免卡片重复渲染
-    override val bottom: String = ""
+    override val bottom: String
+        get() = formatString(context, config.audioFormat)
 
 }

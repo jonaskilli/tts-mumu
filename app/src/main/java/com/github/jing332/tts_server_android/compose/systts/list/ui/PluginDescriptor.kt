@@ -29,25 +29,23 @@ class PluginDescriptor(
         get() {
             val strFollow by lazy { context.getString(R.string.follow) }
 
-            // 卡片三行制：行1名称+标签、行2参数·格式(desc)、行3插件名(type)。
-            // 旧版行2是 voice id 技术串(信息量低)，按用户要求删除；格式(跟随音源/PCM)并入参数行。
+            // 卡片四行制：行2=voice id，行3=参数，行4=格式(bottom)。
             // toScale(2) 去噪：历史数据里存在 1.1499999f 这类浮点噪声，直接插值会原样上屏
             val p = cfg.audioParams
             val rateStr = if (p.speed == 0f) strFollow else p.speed.toScale(2)
             val pitchStr = if (p.pitch == 0f) strFollow else p.pitch.toScale(2)
             val volumeStr = if (p.volume == 0f) strFollow else p.volume.toScale(2)
-            val formatStr = formatString(context, cfg.audioFormat)
 
-            return context.getString(
+            return source.voice + "<br>" + context.getString(
                 R.string.systts_play_params_description,
                 "<b>${rateStr}</b>",
                 "<b>${volumeStr}</b>",
                 "<b>${pitchStr}</b>"
-            ) + " | " + formatStr
+            )
         }
 
-    // 格式已并入 desc 参数行；bottom 槽位由卡片渲染为独立行，置空避免重复
-    override val bottom: String = ""
+    override val bottom: String
+        get() = formatString(context, cfg.audioFormat)
     override val type: String by lazy {
         if (pluginNames != null) {
             // 传了映射就完全不走 IO：映射来自插件表 Flow（含未启用插件），查不到即插件已删除
