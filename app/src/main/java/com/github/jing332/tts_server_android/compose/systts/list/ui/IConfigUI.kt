@@ -59,7 +59,6 @@ abstract class IConfigUI {
             modifier = modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
             topBar = {
                 TtsTopAppBar(
-                    scrollBehavior = scrollBehavior,
                     title = { Text(text = title) },
                     onBackAction = onCancel,
                     onSaveAction = onSave

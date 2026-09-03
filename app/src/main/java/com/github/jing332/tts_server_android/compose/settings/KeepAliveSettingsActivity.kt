@@ -112,7 +112,6 @@ class KeepAliveSettingsActivity : ComposeActivity() {
             topBar = {
                 TopAppBar(
                     title = { Text(stringResource(R.string.keep_alive_settings)) },
-                    scrollBehavior = scrollBehaviour,
                     navigationIcon = {
                         IconButton(onClick = { finish() }) {
                             Icon(Icons.AutoMirrored.Filled.ArrowBack, stringResource(R.string.navigate_back))
@@ -428,7 +427,6 @@ class KeepAliveSettingsActivity : ComposeActivity() {
             topBar = {
                 TopAppBar(
                     title = { Text(stringResource(R.string.keep_alive_help_title)) },
-                    scrollBehavior = scrollBehaviour,
                     navigationIcon = {
                         IconButton(onClick = onNavigateBack) {
                             Icon(Icons.AutoMirrored.Filled.ArrowBack, stringResource(R.string.navigate_back))

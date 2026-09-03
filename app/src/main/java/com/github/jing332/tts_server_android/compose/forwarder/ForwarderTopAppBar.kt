@@ -43,7 +43,6 @@ internal fun ForwarderTopAppBar(
     val context = LocalContext.current
     NavTopAppBar(
         title = title,
-        scrollBehavior = scrollBehavior,
         actions = {
             IconButton(onClick = {
                 val url = onOpenWeb.invoke()

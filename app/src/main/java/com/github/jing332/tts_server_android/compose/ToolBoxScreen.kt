@@ -146,7 +146,6 @@ fun ToolBoxScreen(sharedVM: SharedViewModel, pagerState: PagerState) {
         topBar = {
             NavTopAppBar(
                 title = { Text(stringResource(R.string.toolbox)) },
-                scrollBehavior = scrollBehavior,
                 actions = {
                     // 仅界面模式开关：仅角色管理插件(mingwuyan)安装后显示，无文字提示
                     if (isRoleManagementPlugin && plugin != null) {

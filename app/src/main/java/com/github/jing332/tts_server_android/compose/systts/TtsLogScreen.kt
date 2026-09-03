@@ -130,7 +130,6 @@ internal fun TtsLogScreen(vm: TtsLogViewModel = viewModel()) {
         topBar = {
             Column {
                 TopAppBar(
-                    scrollBehavior = scrollBehavior,
                     title = {
                         AnimatedContent(
                             targetState = isSearchActive,

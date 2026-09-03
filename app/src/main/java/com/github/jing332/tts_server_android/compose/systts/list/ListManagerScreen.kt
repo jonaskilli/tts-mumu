@@ -2584,7 +2584,6 @@ internal fun ListManagerScreen(
         modifier = Modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
         topBar = {
             NavTopAppBar(
-                scrollBehavior = scrollBehavior,
                 title = {
                     when {
                         isSearchMode -> {

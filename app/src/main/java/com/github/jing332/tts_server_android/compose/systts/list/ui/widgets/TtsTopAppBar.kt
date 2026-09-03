@@ -27,7 +27,6 @@ fun TtsTopAppBar(
     moreOptions: (@Composable (dismiss: () -> Unit) -> Unit)? = null,
 ) {
     TopAppBar(
-        scrollBehavior = scrollBehavior,
         title = title,
         navigationIcon = {
             IconButton(onClick = onBackAction) {
