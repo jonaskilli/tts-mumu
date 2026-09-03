@@ -364,7 +364,7 @@ class LocalTtsUI() : IConfigUI() {
 
                         AppSpinner(
                             modifier = Modifier.padding(vertical = 2.dp),
-                            labelText = "🎤 " + stringResource(id = R.string.label_voice),
+                            labelText = "🔊 " + stringResource(id = R.string.label_voice),
                             value = source.voice,
                             values = vm.voices.map { it.name },
                             entries = vm.voices.map {
