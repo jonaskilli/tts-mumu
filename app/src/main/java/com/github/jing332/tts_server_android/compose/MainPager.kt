@@ -46,7 +46,7 @@ import com.github.jing332.tts_server_android.compose.settings.SettingsScreen
 import com.github.jing332.tts_server_android.compose.systts.MigrationTips
 import com.github.jing332.tts_server_android.compose.systts.TtsLogScreen
 import com.github.jing332.tts_server_android.compose.systts.list.ListManagerScreen
-import com.github.jing332.tts_server_android.compose.ToolBoxScreen
+import com.github.jing332.tts_server_android.compose.RoleManagementScreen
 import com.github.jing332.tts_server_android.conf.AppConfig
 import kotlinx.coroutines.launch
 
@@ -163,7 +163,7 @@ fun AnimatedContentScope.MainPager(sharedVM: SharedViewModel) {
                 ) { index ->
                     when (index) {
                         PagerDestination.SystemTts.index -> ListManagerScreen(sharedVM)
-                        PagerDestination.Tool.index -> ToolBoxScreen(sharedVM, pagerState)
+                        PagerDestination.Tool.index -> RoleManagementScreen(sharedVM, pagerState)
                         PagerDestination.SystemTtsLog.index -> TtsLogScreen()
                         PagerDestination.HunyuanTaiji.index -> HunyuanTaijiScreen()
                         PagerDestination.Settings.index -> SettingsScreen()

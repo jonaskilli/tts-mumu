@@ -42,7 +42,7 @@ sealed class PagerDestination(
     })
 
     // 角色管理：独立于发音人，承载「仅界面模式」的工具型插件
-    object Tool : PagerDestination(2, R.string.toolbox, R.string.toolbox, {
+    object Tool : PagerDestination(2, R.string.role_management, R.string.role_management, {
         Icon(
             modifier = Modifier.size(24.dp),
             imageVector = Icons.Default.AccountCircle,

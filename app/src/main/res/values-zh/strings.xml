@@ -348,9 +348,9 @@
     <string name="plugin">插件</string>
     <string name="replace_rule">替换规则</string>
     <string name="speech_rule">朗读规则</string>
-    <string name="toolbox">角色管理</string>
-    <string name="toolbox_empty">暂无角色管理插件\n\n请先导入角色管理插件</string>
-    <string name="toolbox_no_ui_only_config">未找到已开启「仅界面模式」的角色管理配置项\n\n请在系统TTS中添加角色管理配置项，并在编辑页面开启「仅界面模式」</string>
+    <string name="role_management">角色管理</string>
+    <string name="role_management_empty">暂无角色管理插件\n\n请先导入角色管理插件</string>
+    <string name="role_management_no_ui_only_config">未找到已开启「仅界面模式」的角色管理配置项\n\n请在系统TTS中添加角色管理配置项，并在编辑页面开启「仅界面模式」</string>
     <string name="plugin_not_found">未找到对应插件</string>
     <string name="import_auto_detected">已自动识别为：%1$s</string>
     <string name="invalid_scheme_msg">无效的Scheme: %1$s</string>

@@ -64,7 +64,7 @@ import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun ToolBoxScreen(sharedVM: SharedViewModel, pagerState: PagerState) {
+fun RoleManagementScreen(sharedVM: SharedViewModel, pagerState: PagerState) {
     // 角色管理插件：优先按固定 id 查找；兼容插件换 pluginId 后按名称回退
     val plugin = remember {
         dbm.pluginDao.getByPluginId("mingwuyan")
@@ -145,7 +145,7 @@ fun ToolBoxScreen(sharedVM: SharedViewModel, pagerState: PagerState) {
         modifier = Modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
         topBar = {
             NavTopAppBar(
-                title = { Text(stringResource(R.string.toolbox)) },
+                title = { Text(stringResource(R.string.role_management)) },
                 actions = {
                     // 仅界面模式开关：仅角色管理插件(mingwuyan)安装后显示，无文字提示
                     if (isRoleManagementPlugin && plugin != null) {
@@ -199,7 +199,7 @@ fun ToolBoxScreen(sharedVM: SharedViewModel, pagerState: PagerState) {
                             tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
                         )
                         Text(
-                            stringResource(R.string.toolbox_empty),
+                            stringResource(R.string.role_management_empty),
                             style = MaterialTheme.typography.bodyLarge,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                             textAlign = TextAlign.Center
@@ -338,7 +338,7 @@ fun ToolBoxScreen(sharedVM: SharedViewModel, pagerState: PagerState) {
                             tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
                         )
                         Text(
-                            stringResource(R.string.toolbox_no_ui_only_config),
+                            stringResource(R.string.role_management_no_ui_only_config),
                             style = MaterialTheme.typography.bodyLarge,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                             textAlign = TextAlign.Center
