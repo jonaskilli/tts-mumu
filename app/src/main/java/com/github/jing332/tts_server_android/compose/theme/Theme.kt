@@ -57,7 +57,8 @@ private fun ColorScheme.deriveSurfaceContainers(darkTheme: Boolean): ColorScheme
         surfaceDim = if (darkTheme) lerp(base, Color.Black, 0.06f) else lerp(base, Color.Black, 0.05f),
         surfaceBright = if (darkTheme) lerp(base, Color.White, 0.08f) else base,
         surfaceContainerLowest = lerp(base, if (darkTheme) Color.Black else Color.White, 0.04f),
-        surfaceContainerLow = lerp(base, tint, 0.05f),
+        // 5%→3%：用户反馈分区面板/菜单/底栏这一档还是偏深，再降一档贴近页面底色
+        surfaceContainerLow = lerp(base, tint, 0.03f),
         surfaceContainer = lerp(base, tint, 0.09f),
         surfaceContainerHigh = lerp(base, tint, 0.13f),
         surfaceContainerHighest = lerp(base, tint, 0.17f),

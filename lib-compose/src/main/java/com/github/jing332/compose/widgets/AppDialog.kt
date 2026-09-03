@@ -83,7 +83,11 @@ fun AppDialog(
     properties = properties
 ) {
     Surface(
-        tonalElevation = 8.dp, shadowElevation = 8.dp, shape = MaterialTheme.shapes.extraLarge
+        // 弹窗容器色显式压到 surfaceContainerLow：M3 默认按 tonalElevation 8dp 自动派生容器色，
+        // 比分区面板/菜单(surfaceContainerLow)深 8~10 个点，用户反馈弹窗过深与界面色带不齐；
+        // tonalElevation 归零避免海拔叠加又把颜色拉深，投影保留维持浮层感
+        color = MaterialTheme.colorScheme.surfaceContainerLow,
+        tonalElevation = 0.dp, shadowElevation = 8.dp, shape = MaterialTheme.shapes.extraLarge
     ) {
         Column(
             modifier = Modifier
