@@ -3,6 +3,7 @@ package com.github.jing332.tts_server_android.compose.systts.list
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxHeight
@@ -189,11 +190,14 @@ internal fun Item(
                 maxLines = 1,
                 textAlign = TextAlign.Start,
                 fontWeight = FontWeight.Bold,
-                overflow = TextOverflow.Clip,
+                overflow = TextOverflow.Ellipsis,
                 modifier = Modifier
                     .constrainAs(nameRef) {
                         start.linkTo(checkRef.end)
                         top.linkTo(parent.top)
+                        // 右边界让位给tag徽章+按钮组：名称超长截断，不再钻到按钮/tag底下重叠
+                        end.linkTo(targetRef.start)
+                        width = Dimension.fillToConstraints
                     }
                     .padding(bottom = 4.dp)
             )
@@ -203,9 +207,12 @@ internal fun Item(
                     .constrainAs(contentRef) {
                         start.linkTo(checkRef.end)
                         top.linkTo(nameRef.bottom)
-                        bottom.linkTo(parent.bottom)
-                    }
-                    .fillMaxWidth(),
+                        // 夹在名称行与右下类型行之间，不再与类型行共用 bottom 锚叠压
+                        bottom.linkTo(typeRef.top)
+                        // 参数行右边界收进按钮组左侧，防止长文案顶到边
+                        end.linkTo(buttonsRef.start)
+                        width = Dimension.fillToConstraints
+                    },
                 horizontalAlignment = Alignment.Start
             ) {
                 HtmlText(
@@ -223,18 +230,23 @@ internal fun Item(
             val limitedTagName = remember(tagName, limitLen) {
                 if (limitLen == 0) tagName else tagName.limitLength(limitLen)
             }
-            if (limitedTagName.isNotEmpty())
-                TagScreen(
-                    Modifier
-                        .constrainAs(targetRef) {
-                            top.linkTo(nameRef.top)
-                            // 三行精简后卡片变矮：标签徽章让位到按钮组左侧，避免与右下类型行叠压
-                            end.linkTo(buttonsRef.start)
-                        }
-                        .padding(end = 4.dp)
-                        .clickable { onSwitchTag() },
-                    tag = limitedTagName,
-                )
+            // 恒渲染的占位锚（tag为空时0宽）：nameRef 的 end 约束始终有有效目标，
+            // 避免「tag不显示时引用未创建ref」的运行时异常
+            Box(
+                Modifier
+                    .constrainAs(targetRef) {
+                        top.linkTo(nameRef.top)
+                        end.linkTo(buttonsRef.start)
+                    }
+            ) {
+                if (limitedTagName.isNotEmpty())
+                    TagScreen(
+                        Modifier
+                            .padding(end = 4.dp)
+                            .clickable { onSwitchTag() },
+                        tag = limitedTagName,
+                    )
+            }
 
             Row(modifier = Modifier.constrainAs(buttonsRef) {
                 // 仅顶对齐：按钮组(编辑+⋮)固定在右上角标题行高度，
