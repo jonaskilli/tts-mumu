@@ -124,38 +124,45 @@ class LocalTtsUI() : IConfigUI() {
                 )
             }, valueRange = 0.1f..3f, step = 0.05f)
 
-            Row {
-                var sampleRateStr by remember { mutableStateOf(config.audioFormat.sampleRate.toString()) }
-                DenseOutlinedField(
-                    label = { Text(stringResource(R.string.systts_pcm_sample_rate)) },
-                    trailingIcon = {
-                        IconButton(onClick = { showPcmSampleRateHelpDialog = true }) {
-                            Icon(
-                                Icons.AutoMirrored.Filled.HelpOutline,
-                                stringResource(id = R.string.systts_pcm_sample_rate_help)
-                            )
-                        }
-                    },
-                    modifier = Modifier
-                        .weight(1f)
-                        .padding(8.dp),
-                    value = sampleRateStr,
-                    onValueChange = {
-                        if (it.isEmpty()) {
-                            sampleRateStr = it
-                        } else {
-                            sampleRateStr = it.toInt().toString()
-                            onSystemTtsChange(systemTts.copy(config = config.copy(audioFormat = config.audioFormat.apply {
-                                this.sampleRate = it.toInt()
-                            })))
-                        }
+            // PCM兜底采样率：独立一行（旧版与直接播放/重置挤一行，weight拉宽+label换行
+            // 疑似把整行撑出大段不可见高度，也是"参数卡尾部大片空白"的头号嫌疑）
+            var sampleRateStr by remember { mutableStateOf(config.audioFormat.sampleRate.toString()) }
+            DenseOutlinedField(
+                label = { Text(stringResource(R.string.systts_pcm_sample_rate)) },
+                trailingIcon = {
+                    IconButton(onClick = { showPcmSampleRateHelpDialog = true }) {
+                        Icon(
+                            Icons.AutoMirrored.Filled.HelpOutline,
+                            stringResource(id = R.string.systts_pcm_sample_rate_help)
+                        )
                     }
-                )
+                },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = 4.dp),
+                value = sampleRateStr,
+                onValueChange = {
+                    if (it.isEmpty()) {
+                        sampleRateStr = it
+                    } else {
+                        sampleRateStr = it.toInt().toString()
+                        onSystemTtsChange(systemTts.copy(config = config.copy(audioFormat = config.audioFormat.apply {
+                            this.sampleRate = it.toInt()
+                        })))
+                    }
+                }
+            )
 
+            // 直接播放 + 重置：一行收尾
+            Row(
+                Modifier
+                    .fillMaxWidth()
+                    .padding(top = 4.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
                 Row(
                     Modifier
-                        .minimumInteractiveComponentSize()
-                        .padding(8.dp)
+                        .weight(1f)
                         .clip(MaterialTheme.shapes.medium)
                         .clickable(role = Role.Checkbox) {
                             onSystemTtsChange(
@@ -180,23 +187,16 @@ class LocalTtsUI() : IConfigUI() {
                     }
                 }
 
-                Row(
-                    Modifier
-                        .fillMaxWidth()
-                        .padding(top = 8.dp),
-                    horizontalArrangement = Arrangement.End
-                ) {
-                    TextButton(onClick = {
-                        onSystemTtsChange(
-                            systemTts.copy(
-                                config = config.copy(
-                                    audioParams = params.copy(speed = 1f, volume = 1f, pitch = 1f)
-                                )
+                TextButton(onClick = {
+                    onSystemTtsChange(
+                        systemTts.copy(
+                            config = config.copy(
+                                audioParams = params.copy(speed = 1f, volume = 1f, pitch = 1f)
                             )
                         )
-                    }) {
-                        Text(stringResource(id = R.string.reset))
-                    }
+                    )
+                }) {
+                    Text(stringResource(id = R.string.reset))
                 }
             }
         }
