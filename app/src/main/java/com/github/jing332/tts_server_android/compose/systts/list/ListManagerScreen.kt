@@ -2448,7 +2448,9 @@ internal fun ListManagerScreen(
                             if (expanded) {
                                 Spacer(modifier = Modifier.height(8.dp))
                                 Surface(
-                                    color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+                                    // AlertDialog 底=surfaceContainerHigh(13%)，内嵌面板用 Highest(17%) 成标准内凹档，
+                                    // 弃旧 surfaceVariant 灰调
+                                    color = MaterialTheme.colorScheme.surfaceContainerHighest,
                                     shape = MaterialTheme.shapes.small,
                                     modifier = Modifier
                                         .fillMaxWidth()
@@ -2593,7 +2595,7 @@ internal fun ListManagerScreen(
                                     .fillMaxWidth()
                                     .height(48.dp)
                                     .clip(CircleShape),
-                                color = MaterialTheme.colorScheme.surfaceVariant,
+                                color = MaterialTheme.colorScheme.surfaceContainerLow,
                                 shape = CircleShape
                             ) {
                                 SearchTextField(
@@ -3262,7 +3264,7 @@ internal fun ListManagerScreen(
                                                     modifier = Modifier
                                                         .fillMaxWidth()
                                                         .padding(horizontal = 8.dp, vertical = 2.dp),
-                                                    color = MaterialTheme.colorScheme.surfaceVariant,
+                                                    color = MaterialTheme.colorScheme.surfaceContainerLow,
                                                     shape = MaterialTheme.shapes.small
                                                 ) {
                                                     Text(
