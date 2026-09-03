@@ -500,7 +500,7 @@ class PluginTtsUI : IConfigUI() {
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .padding(top = 4.dp),
-                                labelText = stringResource(R.string.label_voice),
+                                labelText = "🎤 " + stringResource(R.string.label_voice),
                                 value = tts.voice,
                                 values = vm.voices.map { it.id },
                                 entries = vm.voices.map { it.name },
