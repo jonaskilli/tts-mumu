@@ -300,9 +300,9 @@
     <string name="plugin_preview_ui">预览UI并设置</string>
     <string name="plugin_ui_only_mode">仅界面模式（隐藏语音参数）</string>
     <string name="edit_plugin_tts">编辑插件TTS</string>
-    <string name="toolbox">角色管理</string>
-    <string name="toolbox_empty">未找到角色管理插件。\n\n请先导入插件。</string>
-    <string name="toolbox_no_ui_only_config">没有开启「仅界面模式」的角色管理配置项。\n\n请在系统TTS中添加角色管理配置项，并在其编辑页开启「仅界面模式」。</string>
+    <string name="toolbox">Role Management</string>
+    <string name="toolbox_empty">No role management plugin found.\n\nPlease import the plugin first.</string>
+    <string name="toolbox_no_ui_only_config">No role management config with \"UI-only mode\" enabled.\n\nPlease add a role management config in System TTS and enable \"UI-only mode\" in its edit page.</string>
     <string name="plugin_not_found">Plugin not found</string>
     <string name="import_auto_detected">Auto-detected as: %1$s</string>
     <string name="not_found_plugin">⚠️未找到插件: %1$s</string>
