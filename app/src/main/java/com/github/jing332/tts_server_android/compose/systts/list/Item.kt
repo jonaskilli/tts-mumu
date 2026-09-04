@@ -97,11 +97,12 @@ internal fun Item(
         if (limitNameLen == 0) name else name.limitLength(limitNameLen)
     }
 
-    // 卡片底=surfaceContainerLowest(向白偏4%,#FBFCFA)：比子分组面板(surfaceContainerLow,3%)
-    // 亮一档才能从面板上浮起——此前卡片默认同为3%与面板同色，是"面板区分不清"的实因
+    // 卡片底=surfaceContainerLow(3%,#F1F6EF)：与搜索胶囊/设置分区/弹窗同档。
+    // Lowest(向白4%)在绿色主题下≈页面底同色(#F8FAF5)导致平铺区卡片与页面融合，
+    // 3%淡而可辨；子分组面板为9%，卡片在面板上仍深一档对比自然浮起
     ElevatedCard(
         modifier = modifier,
-        colors = CardDefaults.elevatedCardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLowest)
+        colors = CardDefaults.elevatedCardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow)
     ) {
         // 卡片中间区域单击：与右侧显式按钮互补
         // 默认(swapButton=false,右侧是编辑)：单击=试听；交换后(swapButton=true,右侧是试听)：单击=编辑
