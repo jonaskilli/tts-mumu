@@ -485,7 +485,7 @@ fun SpeechRuleEditScreen(
                 AnimatedVisibility(visible = config.speechRule.target == SpeechTarget.TAG) {
                     SectionCard(
                         title = "基本信息",
-                        icon = Icons.Default.Tag,
+                        icon = Icons.Default.Info,
                         modifier = Modifier
                             .fillMaxWidth()
                             .padding(top = 4.dp),
