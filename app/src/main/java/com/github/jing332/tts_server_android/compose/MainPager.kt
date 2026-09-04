@@ -129,6 +129,7 @@ fun AnimatedContentScope.MainPager(sharedVM: SharedViewModel) {
 
             Scaffold(
                 modifier = Modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
+                bottomBar = {
                     // 自绘紧凑底栏（替代 M3 NavigationBar）：M3 栏最低 80dp 偏高且选中胶囊
                     // 在 64dp 钉死高度下被裁一半；微信级矮栏只能自绘：24dp 图标+8sp 标签
                     // 纵排、选中态用淡绿胶囊背景（沿用主题选中观感）
