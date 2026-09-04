@@ -181,7 +181,7 @@ class PluginTtsUI : IConfigUI() {
                 ?.source?.let { it as? PluginTtsSource }?.isUiOnly == true
             if (!isUiOnly)
                 SectionCard(
-                    title = "⏱️ 音频参数",
+                    title = "音频参数",
                     icon = Icons.Default.Speed,
                     modifier = Modifier
                         .fillMaxWidth()
@@ -370,7 +370,7 @@ class PluginTtsUI : IConfigUI() {
             // 基本信息：保留分区壳但不出标题（用户定稿：分区保留、标题删除）
             if (showBasicInfo)
                 SectionCard(
-                    title = "📋 基本信息",
+                    title = "基本信息",
                     icon = Icons.Default.Info,
                     showHeader = false,
                     modifier = Modifier
@@ -398,7 +398,7 @@ class PluginTtsUI : IConfigUI() {
                     onLoadingError = { context.displayErrorDialog(it) }
                 )
             } else SectionCard(
-                title = "🎧 音色来源",
+                title = "音色来源",
                 icon = Icons.Default.Headset,
                 modifier = Modifier
                     .fillMaxWidth()
@@ -848,7 +848,7 @@ class PluginTtsUI : IConfigUI() {
 
             if (!isUiOnly && showParamsSection) {
                 SectionCard(
-                    title = "⏱️ 音频参数",
+                    title = "音频参数",
                     icon = Icons.Default.Speed,
                     modifier = Modifier
                         .fillMaxWidth()
