@@ -352,11 +352,12 @@ internal fun Item(
                     text = type,
                     style = MaterialTheme.typography.labelMedium,
                     color = MaterialTheme.colorScheme.tertiary,
-                    // 插件名可能很长：单行+限宽+省略，防止横向铺开压过语速/采样率行
+                    // 插件名可能很长：限宽 45%+单行省略；底行左侧为「采样率自动识别」
+                    // 定长文本，两者不再重叠
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                     textAlign = TextAlign.End,
-                    modifier = Modifier.fillMaxWidth(0.6f),
+                    modifier = Modifier.fillMaxWidth(0.45f),
                 )
             }
 

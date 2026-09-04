@@ -7,9 +7,11 @@ import androidx.compose.animation.core.tween
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.asPaddingValues
@@ -18,23 +20,28 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.material3.BottomAppBarDefaults
 import androidx.compose.material3.BottomAppBarScrollBehavior
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.NavigationBar
-import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.semantics.Role
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.nestedscroll.nestedScroll
@@ -122,39 +129,78 @@ fun AnimatedContentScope.MainPager(sharedVM: SharedViewModel) {
 
             Scaffold(
                 modifier = Modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
-                bottomBar = {
-                    Column {
-                        NavigationBar(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                // M3 默认 80dp 比微信级底栏高约 1/3，压到内容 64dp；
-                                // height 会覆盖 NavigationBar 内部的 80dp defaultMinSize
-                                .height(64.dp)
-                        ) {
-                            for (destination in PagerDestination.routes) {
-                                val isSelected = pagerState.currentPage == destination.index
-                                NavigationBarItem(
-                                    selected = isSelected,
-                                    alwaysShowLabel = a11yTouchEnabled,
-                                    onClick = {
-                                        scope.launch {
-                                            pagerState.animateScrollToPage(destination.index)
+                    // 自绘紧凑底栏（替代 M3 NavigationBar）：M3 栏最低 80dp 偏高且选中胶囊
+                    // 在 64dp 钉死高度下被裁一半；微信级矮栏只能自绘：24dp 图标+8sp 标签
+                    // 纵排、选中态用淡绿胶囊背景（沿用主题选中观感）
+                    Surface(
+                        modifier = Modifier.fillMaxWidth(),
+                        color = MaterialTheme.colorScheme.surfaceContainer
+                    ) {
+                        Column {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(56.dp)
+                                    .padding(horizontal = 4.dp),
+                                horizontalArrangement = Arrangement.SpaceEvenly,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                for (destination in PagerDestination.routes) {
+                                    val isSelected =
+                                        pagerState.currentPage == destination.index
+                                    val itemColor =
+                                        if (isSelected) MaterialTheme.colorScheme.primary
+                                        else MaterialTheme.colorScheme.onSurfaceVariant
+                                    Column(
+                                        modifier = Modifier
+                                            .weight(1f)
+                                            .clip(MaterialTheme.shapes.medium)
+                                            .clickable(
+                                                role = Role.Tab,
+                                                onClick = {
+                                                    scope.launch {
+                                                        pagerState.animateScrollToPage(destination.index)
+                                                    }
+                                                }
+                                            )
+                                            .padding(vertical = 4.dp),
+                                        horizontalAlignment = Alignment.CenterHorizontally,
+                                        verticalArrangement = Arrangement.Center
+                                    ) {
+                                        Box(
+                                            modifier = Modifier
+                                                .clip(MaterialTheme.shapes.large)
+                                                .background(
+                                                    if (isSelected) MaterialTheme.colorScheme.primaryContainer
+                                                    else Color.Transparent
+                                                )
+                                                .padding(horizontal = 14.dp, vertical = 2.dp)
+                                        ) {
+                                            CompositionLocalProvider(
+                                                LocalContentColor provides itemColor
+                                            ) {
+                                                Box(Modifier.size(22.dp)) {
+                                                    destination.icon()
+                                                }
+                                            }
                                         }
-                                    },
-                                    icon = destination.icon,
-                                    label = { Text(stringResource(destination.strId)) }
-                                )
+                                        if (a11yTouchEnabled) {
+                                            Text(
+                                                stringResource(destination.strId),
+                                                style = MaterialTheme.typography.labelSmall,
+                                                color = itemColor,
+                                                maxLines = 1
+                                            )
+                                        }
+                                    }
+                                }
                             }
-                        }
-                        // 手势条区域与底栏同色：Android14+ 关闭导航栏半透明后，
-                        // 64dp 底栏下方会露出一条 Scaffold 背景色的缝（微信=白栏白手势区，无缝）
-                        Surface(
-                            modifier = Modifier.fillMaxWidth(),
-                            color = MaterialTheme.colorScheme.surfaceContainer
-                        ) {
+                            // 手势条区域与底栏同色：Android14+ 关闭导航栏半透明后，
+                            // 底栏下方会露出一条 Scaffold 背景色的缝（微信=白栏白手势区，无缝）
                             Spacer(
                                 Modifier.height(
-                                    WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
+                                    WindowInsets.navigationBars.asPaddingValues()
+                                        .calculateBottomPadding()
                                 )
                             )
                         }
