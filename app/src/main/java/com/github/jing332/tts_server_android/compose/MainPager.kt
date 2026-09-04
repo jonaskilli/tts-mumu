@@ -131,7 +131,7 @@ fun AnimatedContentScope.MainPager(sharedVM: SharedViewModel) {
                 modifier = Modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
                 bottomBar = {
                     // 自绘微信式底栏（替代 M3 NavigationBar）：M3 最低 80dp（32dp 胶囊撑高），
-                    // 微信/QQ同款 56dp：24dp 图标+中文常显，选中态无胶囊、图标文字同染 primary
+                    // 微信/QQ同款 60dp：24dp 图标+3dp 图文缝+中文常显，选中态无胶囊、图标文字同染 primary
                     Surface(
                         modifier = Modifier.fillMaxWidth(),
                         color = MaterialTheme.colorScheme.surfaceContainer
@@ -140,7 +140,7 @@ fun AnimatedContentScope.MainPager(sharedVM: SharedViewModel) {
                             Row(
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .height(56.dp)
+                                    .height(60.dp)
                                     .padding(horizontal = 4.dp),
                                 horizontalArrangement = Arrangement.SpaceEvenly,
                                 verticalAlignment = Alignment.CenterVertically
@@ -166,7 +166,11 @@ fun AnimatedContentScope.MainPager(sharedVM: SharedViewModel) {
                                             )
                                             .padding(vertical = 6.dp),
                                         horizontalAlignment = Alignment.CenterHorizontally,
-                                        verticalArrangement = Arrangement.Center
+                                        // 图文缝 3dp+垂直居中：微信松弛感的关键，贴死会显得紧巴巴
+                                        verticalArrangement = Arrangement.spacedBy(
+                                            3.dp,
+                                            Alignment.CenterVertically
+                                        )
                                     ) {
                                         CompositionLocalProvider(
                                             LocalContentColor provides contentColor
