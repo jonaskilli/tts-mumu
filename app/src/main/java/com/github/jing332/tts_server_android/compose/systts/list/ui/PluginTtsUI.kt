@@ -246,7 +246,7 @@ class PluginTtsUI : IConfigUI() {
                 true
             } else {
             val oldAudioFormat = (systts.config as TtsConfigurationDTO).audioFormat
-            // 采样率/解码探测失败不阻断保存：保留当前格式值，播放时由「跟随音源格式」兜底。
+            // 采样率/解码探测失败不阻断保存：保留当前格式值，播放时由「采样率自动识别」兜底。
             // 历史上这里 catch 后 return false，插件探测一旦抛异常（引擎初始化失败/桥接异常等）
             // 整条保存被中断，表现为"jread 转来的配置项保存不了"（本地条目不走此路径）。
             val sampleRate = try {

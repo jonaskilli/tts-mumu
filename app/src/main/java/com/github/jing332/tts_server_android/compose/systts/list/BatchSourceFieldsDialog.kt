@@ -19,7 +19,7 @@ import com.github.jing332.compose.widgets.AppSpinner
 
 /**
  * 批量修改来源字段：插件筛选 + 启用/停用 + 采样率 + 来源插件切换。
- * [sampleRateOptions] 由调用方提供（「跟随音源格式」=-1 语义由调用方解释）。
+ * [sampleRateOptions] 由调用方提供（「采样率自动识别」=-1 语义由调用方解释）。
  * [pluginOptions] 插件筛选候选：pluginId（""=全部，不按插件筛选）→ 显示名，仅含作用域内实际出现的插件；
  * [pluginItemCounts] pluginId → 作用域内配置项数（""=总数），供选择后实时显示影响范围。
  * [targetPluginOptions] 来源插件切换候选：全部已安装插件 pluginId → 显示名。
@@ -81,11 +81,11 @@ fun BatchSourceFieldsDialog(
                 }
 
                 Text(
-                    "采样率（跟随音源格式=由音频头探测）",
+                    "采样率（自动识别=由音频头探测）",
                     style = MaterialTheme.typography.labelMedium,
                     modifier = Modifier.padding(top = 8.dp)
                 )
-                val rateEntries = listOf("不修改", "跟随音源格式") + sampleRateOptions.map { "$it Hz" }
+                val rateEntries = listOf("不修改", "采样率自动识别") + sampleRateOptions.map { "$it Hz" }
                 val rateValues: List<Any> = listOf("none", "auto") + sampleRateOptions
                 AppSpinner(
                     modifier = Modifier.fillMaxWidth(),

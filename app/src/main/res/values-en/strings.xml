@@ -137,7 +137,7 @@
     <string name="systts_pcm_sample_rate">PCM fallback rate (Hz)</string>
     <string name="systts_pcm_sample_rate_help">PCM output / raw-audio fallback rate</string>
     <string name="systts_pcm_sample_rate_help_msg">MP3, WAV, Opus, and other header-described audio automatically use their actual format, so this value does not determine their playback speed. Only headerless raw PCM must use the same sample rate as its source audio. This value also participates in selecting the common PCM output format for system TTS. Format and sample-rate selections in a plugin UI are stored by that plugin and are unaffected by this setting.</string>
-    <string name="systts_auto_detect_audio_format">Automatically detect format</string>
+    <string name="systts_auto_detect_audio_format">Auto-detect sample rate</string>
     <string name="systts_pcm_format">PCM %1$d Hz</string>
     <string name="systts_secondaryLocale">Language secondary（language skill）</string>
     <string name="systts_voice_data_load_failed">Voice failed to load</string>

@@ -2302,7 +2302,7 @@ internal fun ListManagerScreen(
                         context.toast("已更新 $it 项启用状态")
                     }
                 }
-                // rate=-1 表示「跟随音源格式」：恢复 shouldDecode 由音频头探测
+                // rate=-1 表示「采样率自动识别」：恢复 shouldDecode 由音频头探测
                 val rate = when (sampleRate) {
                     null -> null
                     -1 -> null
