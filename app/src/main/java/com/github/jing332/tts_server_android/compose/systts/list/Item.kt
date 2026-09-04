@@ -349,15 +349,14 @@ internal fun Item(
                 }
 
                 Text(
-                    text = type,
+                    text = type.limitLength(14, "…"),
                     style = MaterialTheme.typography.labelMedium,
                     color = MaterialTheme.colorScheme.tertiary,
-                    // 插件名可能很长：限宽 45%+单行省略；底行左侧为「采样率自动识别」
-                    // 定长文本，两者不再重叠
+                    // 插件名按字符数截短（14字+省略号，中文字符宽度统一可预测），
+                    // 右侧留 8dp 空隙避免与左侧采样率标签贴死
                     maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
                     textAlign = TextAlign.End,
-                    modifier = Modifier.fillMaxWidth(0.45f),
+                    modifier = Modifier.padding(end = 8.dp),
                 )
             }
 
