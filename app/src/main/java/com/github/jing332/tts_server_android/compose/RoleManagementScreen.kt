@@ -4,6 +4,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.Spacer
@@ -296,19 +297,27 @@ fun RoleManagementScreen(sharedVM: SharedViewModel, pagerState: PagerState) {
 
                 if (roleFilesReady && isPageVisible.value) {
                     val ui = remember { PluginTtsUI() }
-                    ui.EditContentScreen(
-                        modifier = Modifier
+                    // 底部避让改为内容内安全垫：仅顶部吃 Scaffold 边距，底部垫底栏高+8dp，
+                    // 让长 UI 能滚进底栏上方（同系统TTS列表 contentPadding 思路，消除白条截断）
+                    val bottomPad = paddingValues.calculateBottomPadding()
+                    Column(
+                        Modifier
                             .fillMaxSize()
-                            .padding(paddingValues)
-                            .verticalScroll(rememberScrollState()),
-                        systts = systts,
-                        onSysttsChange = { systts = it },
-                        showBasicInfo = false,
-                        plugin = plugin,
-                        showPluginSelector = false,
-                        showUiOnlySwitch = false,
-                        reloadKey = reloadKey,
-                    )
+                            .padding(top = paddingValues.calculateTopPadding())
+                            .verticalScroll(rememberScrollState())
+                    ) {
+                        ui.EditContentScreen(
+                            modifier = Modifier.fillMaxWidth(),
+                            systts = systts,
+                            onSysttsChange = { systts = it },
+                            showBasicInfo = false,
+                            plugin = plugin,
+                            showPluginSelector = false,
+                            showUiOnlySwitch = false,
+                            reloadKey = reloadKey,
+                        )
+                        Spacer(Modifier.height(bottomPad + 8.dp))
+                    }
                 } else if (!roleFilesReady) {
                     Box(
                         Modifier.fillMaxSize().padding(paddingValues),
