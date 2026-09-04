@@ -10,7 +10,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.HelpOutline
 import androidx.compose.material.icons.filled.Headset
-import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Speed
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Checkbox
@@ -265,24 +264,15 @@ class LocalTtsUI() : IConfigUI() {
             }
 
         Column(modifier) {
-            // 基本信息：完整编辑页已并入上方朗读卡，此处按开关显示
+            // 基本信息去卡壳平铺：与顶部朗读块同为页面底色，上下连成一片
             if (showBasicInfo)
-                SectionCard(
-                    title = "基本信息",
-                icon = Icons.Default.Info,
-                showHeader = false,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 8.dp, vertical = 4.dp),
-            ) {
                 BasicInfoEditScreen(
                     Modifier
                         .fillMaxWidth()
-                        .padding(horizontal = 12.dp, vertical = 4.dp),
+                        .padding(horizontal = 20.dp, vertical = 4.dp),
                     systemTts = systts,
                     onSystemTtsChange = onSysttsChange,
                 )
-            }
 
             SectionCard(
                 title = "音色来源",
