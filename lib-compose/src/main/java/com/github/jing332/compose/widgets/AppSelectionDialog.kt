@@ -72,24 +72,7 @@ fun AppSelectionDialog(
     isLoading: Boolean = false,
     searchEnabled: Boolean = values.size > 5,
 
-    itemContent: @Composable RowScope.(Boolean, String, Any?, Any) -> Unit = { isSelected, entry, icon, _ ->
-        if (icon != null)
-            AsyncCircleImage(
-                modifier = Modifier.size(32.dp),
-                model = icon,
-                contentDescription = entry
-            )
-        Text(
-            entry,
-            style = MaterialTheme.typography.bodyLarge,
-            modifier = Modifier
-                .weight(1f)
-                .padding(horizontal = 16.dp, vertical = 12.dp),
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
-        )
-    },
+    itemContent: (@Composable RowScope.(Boolean, String, Any?, Any) -> Unit)? = null,
 
     extraButtons: @Composable BoxScope.() -> Unit = {},
     buttons: @Composable BoxScope.() -> Unit = {
@@ -110,6 +93,25 @@ fun AppSelectionDialog(
     autoNextSwitch: Boolean = false,
     onAutoNextSwitchChange: ((Boolean) -> Unit)? = null,
 ) {
+    // null 时走默认渲染（icons 圆图+文字）；调用方可传自定义渲染（如插件图标失败显示名称首字）
+    val content = itemContent ?: { isSelected, entry, icon, _ ->
+        if (icon != null)
+            AsyncCircleImage(
+                modifier = Modifier.size(32.dp),
+                model = icon,
+                contentDescription = entry
+            )
+        Text(
+            entry,
+            style = MaterialTheme.typography.bodyLarge,
+            modifier = Modifier
+                .weight(1f)
+                .padding(horizontal = 16.dp, vertical = 12.dp),
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+        )
+    }
 
     // 搜索框固定在顶部常显，无需点击图标再展开
     // 当前高亮的条目值（点击试听或多选按钮时设置，单选式：点另一个即转移）
@@ -260,7 +262,7 @@ fun AppSelectionDialog(
                                     },
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
-                                itemContent(isSelected, entry, icon, value)
+                                content(isSelected, entry, icon, value)
                                 if (trailingContent != null) trailingContent(current, entry) {
                                     highlightedValue = current
                                 }

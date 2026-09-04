@@ -68,6 +68,8 @@ private fun TextFieldSelectionDialog(
     onWaitCategorySwitchChange: ((Boolean) -> Unit)? = null,
     autoNextSwitch: Boolean = false,
     onAutoNextSwitchChange: ((Boolean) -> Unit)? = null,
+    // 自定义条目渲染（如插件图标加载失败显示名称首字）；不传走 icons+默认渲染
+    itemContent: (@Composable RowScope.(Boolean, String, Any?, Any) -> Unit)? = null,
 ) {
     val selectedText = entries.getOrNull(max(0, values.indexOf(value))) ?: ""
     var expanded by rememberSaveable { mutableStateOf(false) }
@@ -101,6 +103,7 @@ private fun TextFieldSelectionDialog(
             onWaitCategorySwitchChange = onWaitCategorySwitchChange,
             autoNextSwitch = autoNextSwitch,
             onAutoNextSwitchChange = onAutoNextSwitchChange,
+            itemContent = itemContent,
         )
     }
 
@@ -185,6 +188,8 @@ fun AppSpinner(
     onWaitCategorySwitchChange: ((Boolean) -> Unit)? = null,
     autoNextSwitch: Boolean = false,
     onAutoNextSwitchChange: ((Boolean) -> Unit)? = null,
+    // 自定义条目渲染（如插件图标加载失败显示名称首字）；不传走 icons+默认渲染
+    itemContent: (@Composable RowScope.(Boolean, String, Any?, Any) -> Unit)? = null,
 ) {
     if (values.isNotEmpty() && !values.contains(value)) {
         onSelectedChange.invoke(values[0], entries[0])
@@ -227,6 +232,7 @@ fun AppSpinner(
             onWaitCategorySwitchChange = onWaitCategorySwitchChange,
             autoNextSwitch = autoNextSwitch,
             onAutoNextSwitchChange = onAutoNextSwitchChange,
+            itemContent = itemContent,
         )
     } else
         DropdownTextField(

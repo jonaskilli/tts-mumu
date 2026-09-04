@@ -9,10 +9,12 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.Alignment
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Headset
 import androidx.compose.material.icons.filled.Info
+import com.github.jing332.tts_server_android.compose.systts.plugin.PluginImage
 import androidx.compose.material.icons.filled.Speed
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -436,8 +438,22 @@ class PluginTtsUI : IConfigUI() {
                         value = tts.pluginId,
                         values = vm.pluginList.map { it.pluginId },
                         entries = vm.pluginList.map { it.name },
-                        // 插件列表带各插件自己的图标，长列表一眼区分（空 iconUrl 的插件显示占位圈）
+                        // 插件列表带各插件自己的图标（与插件管理页同款 PluginImage：
+                        // 加载失败/无图标自动显示插件名首字），长列表一眼区分
                         icons = vm.pluginList.map { it.iconUrl },
+                        itemContent = { isSelected, entry, icon, _ ->
+                            PluginImage(model = icon, name = entry)
+                            Text(
+                                entry,
+                                style = MaterialTheme.typography.bodyLarge,
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .padding(horizontal = 16.dp, vertical = 12.dp),
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+                            )
+                        },
                         onSelectedChange = { id, name ->
                             if (id == tts.pluginId) return@AppSpinner
                             // 切换插件：清空跨插件残留状态（多选/分类/试听）
