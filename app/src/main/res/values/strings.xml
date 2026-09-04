@@ -477,7 +477,6 @@
     <string name="no_audio_data_head_warn">⚠️ 该音频没有数据头，故无法获取信息。</string>
 
     <string name="theme_default">默认</string>
-    <string name="theme_bean_green">豆绿</string>
     <string name="dynamic_color">动态颜色</string>
     <string name="orange">橙色</string>
     <string name="green">绿色</string>

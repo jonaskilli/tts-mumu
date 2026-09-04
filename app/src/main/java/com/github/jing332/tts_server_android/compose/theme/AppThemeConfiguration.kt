@@ -16,11 +16,10 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 
 /**
- * 豆绿（原"默认"主题，已移出选择列表；函数保留便于恢复）。
- * 当前默认主题为绿色 greenTheme（AppTheme.GREEN）。
+ * 默认主题
  */
 @Composable
-fun beanGreenTheme(
+fun defaultTheme(
     darkTheme: Boolean
 ): ColorScheme =
     if (!darkTheme)
@@ -100,7 +99,7 @@ fun dynamicColorTheme(
     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S)
         if (darkTheme) dynamicDarkColorScheme(context) else dynamicLightColorScheme(context)
     else
-        greenTheme(darkTheme)
+        defaultTheme(darkTheme)
 
 /**
  * 绿色
