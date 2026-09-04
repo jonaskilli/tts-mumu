@@ -12,6 +12,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.Alignment
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Headset
+import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Speed
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -361,15 +362,25 @@ class PluginTtsUI : IConfigUI() {
                 tts.pluginId == "mingwuyan" ||
                     dbm.pluginDao.getByPluginId(tts.pluginId)?.name?.contains("角色管理") == true
             }
-            // 基本信息去卡壳平铺：与顶部朗读块同为页面底色，上下连成一片
+            // 分区卡片化：基本信息 / 音色来源 /（朗读与标签由 FullEditScreen 渲染）/ 音频参数
+            // 基本信息：保留分区壳但不出标题（用户定稿：分区保留、标题删除）
             if (showBasicInfo)
-                BasicInfoEditScreen(
-                    Modifier
+                SectionCard(
+                    title = "基本信息",
+                    icon = Icons.Default.Info,
+                    showHeader = false,
+                    modifier = Modifier
                         .fillMaxWidth()
-                        .padding(horizontal = 20.dp, vertical = 4.dp),
-                    systemTts = systts,
-                    onSystemTtsChange = onSysttsChange
-                )
+                        .padding(horizontal = 8.dp, vertical = 4.dp),
+                ) {
+                    BasicInfoEditScreen(
+                        Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 12.dp, vertical = 4.dp),
+                        systemTts = systts,
+                        onSystemTtsChange = onSysttsChange
+                    )
+                }
 
             // 音色来源区：ui-only（角色管理栏）时不用卡片壳，直接渲染插件自定义UI躺在 surface 上
             // （用户反馈：去掉分区底色壳≠连插件UI一起消失）；完整编辑模式才包 SectionCard
