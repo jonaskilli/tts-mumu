@@ -436,6 +436,8 @@ class PluginTtsUI : IConfigUI() {
                         value = tts.pluginId,
                         values = vm.pluginList.map { it.pluginId },
                         entries = vm.pluginList.map { it.name },
+                        // 插件列表带各插件自己的图标，长列表一眼区分（空 iconUrl 的插件显示占位圈）
+                        icons = vm.pluginList.map { it.iconUrl },
                         onSelectedChange = { id, name ->
                             if (id == tts.pluginId) return@AppSpinner
                             // 切换插件：清空跨插件残留状态（多选/分类/试听）
