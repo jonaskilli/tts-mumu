@@ -93,9 +93,14 @@ fun SubGroupHeader(
     Row(
         modifier = modifier
             .fillMaxWidth()
-            // 子分组面板=surfaceContainer(tint 9%)：用户确认 3% 过浅，提两档到 9%；
-            // 层次=页面0%→底栏4%→菜单6%→面板9%→卡片Lowest近白浮起
-            .background(MaterialTheme.colorScheme.surfaceContainer)
+            .background(
+                when (level) {
+                    // 背景随层级递减，配合缩进体现 jread 多级子分组的从属关系
+                    0 -> MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+                    1 -> MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.25f)
+                    else -> MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.12f)
+                }
+            )
             .clickable { if (!showOptions && !showExtraOptions) onClick() }
             .padding(
                 // 按层级水平缩进，每级 12dp（与树内配置项卡片缩进公式一致）

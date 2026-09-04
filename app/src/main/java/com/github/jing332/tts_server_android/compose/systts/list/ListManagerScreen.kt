@@ -2447,9 +2447,7 @@ internal fun ListManagerScreen(
                             if (expanded) {
                                 Spacer(modifier = Modifier.height(8.dp))
                                 Surface(
-                                    // AlertDialog 底=surfaceContainerHigh(13%)，内嵌面板用 Highest(17%) 成标准内凹档，
-                                    // 弃旧 surfaceVariant 灰调
-                                    color = MaterialTheme.colorScheme.surfaceContainerHighest,
+                                    color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
                                     shape = MaterialTheme.shapes.small,
                                     modifier = Modifier
                                         .fillMaxWidth()
@@ -2589,14 +2587,14 @@ internal fun ListManagerScreen(
                 title = {
                     when {
                         isSearchMode -> {
-                            Surface(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .height(48.dp)
-                                    .clip(CircleShape),
-                                color = MaterialTheme.colorScheme.surfaceContainerLow,
-                                shape = CircleShape
-                            ) {
+                                Surface(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .height(48.dp)
+                                        .clip(CircleShape),
+                                    color = MaterialTheme.colorScheme.surfaceVariant,
+                                    shape = CircleShape
+                                ) {
                                 SearchTextField(
                                     modifier = Modifier.fillMaxSize().padding(horizontal = 8.dp),
                                     value = searchKeyword,
@@ -3263,7 +3261,7 @@ internal fun ListManagerScreen(
                                                     modifier = Modifier
                                                         .fillMaxWidth()
                                                         .padding(horizontal = 8.dp, vertical = 2.dp),
-                                                    color = MaterialTheme.colorScheme.surfaceContainerLow,
+                                                    color = MaterialTheme.colorScheme.surfaceVariant,
                                                     shape = MaterialTheme.shapes.small
                                                 ) {
                                                     Text(

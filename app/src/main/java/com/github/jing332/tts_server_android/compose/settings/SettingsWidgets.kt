@@ -12,8 +12,6 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.selection.toggleable
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.LocalTextStyle
 import androidx.compose.material3.MaterialTheme
@@ -98,10 +96,9 @@ internal fun DividerPreference(title: @Composable () -> Unit) {
 }
 
 /**
- * 设置分组卡片：卡片上方小标题 + surfaceContainerLow 容器包住组内全部项。
- * 与列表页子分组面板/底栏/菜单同一容器色带，替代旧"裸标题+平铺行"的松散结构。
- * [show]=false（搜索模式）时整体不渲染分组壳，调用方内容退回平铺——
- * 搜索只列命中项，不出"只有标题的空组卡"。
+ * 设置分组（返璞归真批次改为直通渲染）：不再出卡片壳与组标题，
+ * 内容直接平铺进设置页——原版设置页就是无分组结构。
+ * 保留 [show] 语义：搜索模式下调用方本就以 show=false 退平铺，行为不变。
  */
 @Composable
 internal fun SettingsGroup(
@@ -110,39 +107,7 @@ internal fun SettingsGroup(
     show: Boolean = true,
     content: @Composable ColumnScope.() -> Unit,
 ) {
-    if (!show) {
-        Column(content = content)
-        return
-    }
-    Column(modifier.fillMaxWidth()) {
-        // 卡片外小标题：onSurfaceVariant 弱化，让组内项成为主角
-        CompositionLocalProvider(
-            LocalTextStyle provides MaterialTheme.typography.titleSmall.copy(
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            ),
-        ) {
-            Row(
-                Modifier.padding(
-                    start = horizontalPadding + 4.dp,
-                    top = verticalPadding + 6.dp,
-                    bottom = 4.dp
-                )
-            ) {
-                title()
-            }
-        }
-        Card(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 8.dp),
-            colors = CardDefaults.cardColors(
-                containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
-            ),
-            shape = MaterialTheme.shapes.large,
-        ) {
-            Column(content = content)
-        }
-    }
+    Column(content = content)
 }
 
 @Composable

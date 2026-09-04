@@ -34,7 +34,6 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
@@ -126,12 +125,7 @@ fun AnimatedContentScope.MainPager(sharedVM: SharedViewModel) {
                             .fillMaxWidth()
                             // M3 默认 80dp 比微信级底栏高约 1/3，压到内容 64dp+手势条 inset；
                             // height 会覆盖 NavigationBar 内部的 80dp defaultMinSize
-                            .height(64.dp + WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()),
-                        // 底栏独立色 tint 4%：用户嫌 6% 深，降一档；与菜单(6%)/子分组面板(9%)拉开层次
-                        containerColor = lerp(
-                            MaterialTheme.colorScheme.surface,
-                            MaterialTheme.colorScheme.surfaceTint, 0.04f
-                        ),
+                            .height(64.dp + WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding())
                     ) {
                         for (destination in PagerDestination.routes) {
                             val isSelected = pagerState.currentPage == destination.index
