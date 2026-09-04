@@ -14,7 +14,6 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Headset
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Speed
-import androidx.compose.material.icons.filled.Tag
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -167,28 +166,11 @@ class PluginTtsUI : IConfigUI() {
             onCancel = onCancel,
             onSave = onSave,
         ) {
-            // 分区顺序：朗读与标签+基本信息合一张卡(用户要求上方两块合并) → 音色来源 → 音频参数
-            SectionCard(
-                title = "朗读与标签",
-                icon = Icons.Default.Tag,
-                showHeader = false,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 8.dp, vertical = 4.dp),
-            ) {
-                content()
-                BasicInfoEditScreen(
-                    Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 12.dp, vertical = 4.dp),
-                    systemTts = systemTts,
-                    onSystemTtsChange = onSystemTtsChange,
-                )
-            }
+            // 顶部朗读块去卡壳平铺（紧贴下方基本信息卡），基本信息由 EditContentScreen 正常渲染
+            content()
             EditContentScreen(
                 systts = systemTts,
                 onSysttsChange = onSystemTtsChange,
-                showBasicInfo = false,
                 showParamsSection = false,
             )
             val isUiOnly = (systemTts.config as? TtsConfigurationDTO)

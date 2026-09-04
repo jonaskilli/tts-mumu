@@ -12,7 +12,6 @@ import androidx.compose.material.icons.automirrored.filled.HelpOutline
 import androidx.compose.material.icons.filled.Headset
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Speed
-import androidx.compose.material.icons.filled.Tag
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -218,25 +217,9 @@ class LocalTtsUI() : IConfigUI() {
             onCancel = onCancel,
             onSave = onSave,
         ) {
-            // 上方两块合一张卡：朗读与标签+基本信息(同插件页)
-            SectionCard(
-                title = "朗读与标签",
-                icon = Icons.Default.Tag,
-                showHeader = false,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 8.dp, vertical = 4.dp),
-            ) {
-                content()
-                BasicInfoEditScreen(
-                    Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 12.dp, vertical = 4.dp),
-                    systemTts = systemTts,
-                    onSystemTtsChange = onSystemTtsChange,
-                )
-            }
-            Content(systts = systemTts, onSysttsChange = onSystemTtsChange, showBasicInfo = false, showParams = false)
+            // 顶部朗读块去卡壳平铺（紧贴下方基本信息卡，同插件页）
+            content()
+            Content(systts = systemTts, onSysttsChange = onSystemTtsChange, showParams = false)
             SectionCard(
                 title = "音频参数",
                 icon = Icons.Default.Speed,
