@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.HelpOutline
 import androidx.compose.material.icons.filled.Headset
+import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Speed
 import androidx.compose.material.icons.filled.Tag
 import androidx.compose.material3.AlertDialog
@@ -273,14 +274,23 @@ class LocalTtsUI() : IConfigUI() {
             }
 
         Column(modifier) {
-            // 基本信息：不套分区卡（同 PluginTtsUI，删标题去壳），字段直接躺页面
-            BasicInfoEditScreen(
-                Modifier
+            // 基本信息：保留分区壳但不出标题（同 PluginTtsUI 用户定稿）
+            SectionCard(
+                title = "基本信息",
+                icon = Icons.Default.Info,
+                showHeader = false,
+                modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 4.dp),
-                systemTts = systts,
-                onSystemTtsChange = onSysttsChange,
-            )
+                    .padding(horizontal = 8.dp, vertical = 4.dp),
+            ) {
+                BasicInfoEditScreen(
+                    Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 12.dp, vertical = 4.dp),
+                    systemTts = systts,
+                    onSystemTtsChange = onSysttsChange,
+                )
+            }
 
             SectionCard(
                 title = "音色来源",
