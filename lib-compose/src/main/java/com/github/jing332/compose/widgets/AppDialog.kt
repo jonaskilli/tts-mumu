@@ -83,7 +83,10 @@ fun AppDialog(
     properties = properties
 ) {
     Surface(
-        tonalElevation = 8.dp, shadowElevation = 8.dp, shape = MaterialTheme.shapes.extraLarge
+        // 显式 surface 白底+零色调海拔：豆绿主题下 surfaceTint(绿)会随 tonalElevation 染进弹窗底，
+        // 8dp 派生让弹窗发绿(用户指认遗留绿)；白底+阴影保留浮起感，全弹窗统一
+        color = MaterialTheme.colorScheme.surface,
+        tonalElevation = 0.dp, shadowElevation = 8.dp, shape = MaterialTheme.shapes.extraLarge
     ) {
         Column(
             modifier = Modifier

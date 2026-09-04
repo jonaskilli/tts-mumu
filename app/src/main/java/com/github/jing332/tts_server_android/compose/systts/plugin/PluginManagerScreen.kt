@@ -446,22 +446,19 @@ fun PluginManagerScreen(sharedVM: SharedViewModel, onFinishActivity: () -> Unit)
                         label = { Text("pluginId (JS: id)") },
                         value = editPluginId,
                         onValueChange = { editPluginId = it },
-                        modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
-                        singleLine = true
+                        modifier = Modifier.fillMaxWidth().padding(top = 4.dp)
                     )
                     OutlinedTextField(
                         label = { Text("author") },
                         value = editAuthor,
                         onValueChange = { editAuthor = it },
-                        modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
-                        singleLine = true
+                        modifier = Modifier.fillMaxWidth().padding(top = 4.dp)
                     )
                     OutlinedTextField(
                         label = { Text("version") },
                         value = editVersion,
                         onValueChange = { editVersion = it.filter { c -> c.isDigit() } },
-                        modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
-                        singleLine = true
+                        modifier = Modifier.fillMaxWidth().padding(top = 4.dp)
                     )
                 }
             },
