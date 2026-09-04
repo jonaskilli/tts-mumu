@@ -3364,7 +3364,9 @@ internal fun ListManagerScreen(
             FloatingAddConfigButtonGroup(
                 modifier = Modifier
                     .align(Alignment.BottomEnd)
-                    .padding(12.dp),
+                    .padding(12.dp)
+                    // 系统TTS页视口不收缩（MainPager 传 bottom=0），FAB 自行抬高避让底栏
+                    .padding(bottom = listBottomPadding),
                 visible = true,
                 addBgm = {
                     navigateToEdit(SystemTtsV2(groupId = DEFAULT_GROUP_ID, config = BgmConfiguration()))

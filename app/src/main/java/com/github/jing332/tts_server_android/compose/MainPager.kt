@@ -130,9 +130,8 @@ fun AnimatedContentScope.MainPager(sharedVM: SharedViewModel) {
             Scaffold(
                 modifier = Modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
                 bottomBar = {
-                    // 自绘紧凑底栏（替代 M3 NavigationBar）：M3 栏最低 80dp 偏高且选中胶囊
-                    // 在 64dp 钉死高度下被裁一半；微信级矮栏只能自绘：24dp 图标+中文标签
-                    // 纵排、选中态沿用 M3 默认（secondaryContainer 胶囊+深色图标+中文常显）
+                    // 自绘微信式底栏（替代 M3 NavigationBar）：M3 最低 80dp（32dp 胶囊撑高），
+                    // 微信/QQ同款 56dp：24dp 图标+中文常显，选中态无胶囊、图标文字同染 primary
                     Surface(
                         modifier = Modifier.fillMaxWidth(),
                         color = MaterialTheme.colorScheme.surfaceContainer
@@ -149,11 +148,9 @@ fun AnimatedContentScope.MainPager(sharedVM: SharedViewModel) {
                                 for (destination in PagerDestination.routes) {
                                     val isSelected =
                                         pagerState.currentPage == destination.index
-                                    val iconColor =
-                                        if (isSelected) MaterialTheme.colorScheme.onSecondaryContainer
-                                        else MaterialTheme.colorScheme.onSurfaceVariant
-                                    val labelColor =
-                                        if (isSelected) MaterialTheme.colorScheme.onSurface
+                                    // 微信式：无胶囊，选中态图标文字同染 primary，未选中 onSurfaceVariant
+                                    val contentColor =
+                                        if (isSelected) MaterialTheme.colorScheme.primary
                                         else MaterialTheme.colorScheme.onSurfaceVariant
                                     Column(
                                         modifier = Modifier
@@ -167,31 +164,21 @@ fun AnimatedContentScope.MainPager(sharedVM: SharedViewModel) {
                                                     }
                                                 }
                                             )
-                                            .padding(vertical = 4.dp),
+                                            .padding(vertical = 6.dp),
                                         horizontalAlignment = Alignment.CenterHorizontally,
                                         verticalArrangement = Arrangement.Center
                                     ) {
-                                        Box(
-                                            modifier = Modifier
-                                                .clip(MaterialTheme.shapes.large)
-                                                .background(
-                                                    if (isSelected) MaterialTheme.colorScheme.secondaryContainer
-                                                    else Color.Transparent
-                                                )
-                                                .padding(horizontal = 14.dp, vertical = 2.dp)
+                                        CompositionLocalProvider(
+                                            LocalContentColor provides contentColor
                                         ) {
-                                            CompositionLocalProvider(
-                                                LocalContentColor provides iconColor
-                                            ) {
-                                                Box(Modifier.size(22.dp)) {
-                                                    destination.icon()
-                                                }
+                                            Box(Modifier.size(24.dp)) {
+                                                destination.icon()
                                             }
                                         }
                                         Text(
                                             stringResource(destination.strId),
                                             style = MaterialTheme.typography.labelSmall,
-                                            color = labelColor,
+                                            color = contentColor,
                                             maxLines = 1
                                         )
                                     }
