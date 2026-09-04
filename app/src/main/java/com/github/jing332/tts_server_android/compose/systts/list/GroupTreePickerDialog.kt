@@ -94,6 +94,8 @@ fun GroupTreePickerDialog(
 
     AlertDialog(
         onDismissRequest = onDismissRequest,
+        // 与 AppDialog 白底统一：M3 默认容器 surfaceContainerHigh 在豆绿主题下泛灰绿
+        containerColor = MaterialTheme.colorScheme.surface,
         modifier = Modifier.fillMaxWidth(0.9f),
         shape = RoundedCornerShape(16.dp),
         properties = DialogProperties(usePlatformDefaultWidth = false),

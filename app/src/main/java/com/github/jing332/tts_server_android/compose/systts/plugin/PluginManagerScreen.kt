@@ -181,6 +181,7 @@ fun PluginManagerScreen(sharedVM: SharedViewModel, onFinishActivity: () -> Unit)
         }
         AlertDialog(
             onDismissRequest = { showDeleteDialog = null },
+            containerColor = MaterialTheme.colorScheme.surface,
             title = { Text(stringResource(id = R.string.delete)) },
             text = {
                 Column {
@@ -1047,6 +1048,8 @@ private fun ImportByCategoryDialog(
 
     AlertDialog(
         onDismissRequest = { if (!importing) onDismiss() },
+        // 与 AppDialog 白底统一：M3 默认容器 surfaceContainerHigh 在豆绿主题下泛灰绿
+        containerColor = MaterialTheme.colorScheme.surface,
         // 标题只留固定功能名：插件名长（如"墨听_阿里云QwenAudio…桥接版_v2"）会把大字标题撑出五六行
         title = { Text(if (importing) "正在按插件音色分类入库" else "按插件音色分类入库") },
         text = {
@@ -1154,10 +1157,17 @@ private fun CheckRow(
     Row(
         modifier = modifier
             .fillMaxWidth()
-            .then(if (onClick != null) Modifier.clickable { onClick() } else Modifier),
+            .then(if (onClick != null) Modifier.clickable { onClick() } else Modifier)
+            // 行间距：分类多时上下行不贴死
+            .padding(vertical = 4.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Checkbox(checked = checked, onCheckedChange = if (onChecked != null) { _ -> onChecked() } else null)
+        // 勾选框恒可交互：M3 Checkbox 只在 onCheckedChange!=null 时套 48dp 触摸盒，
+        // 可空会令该行勾选框贴左、与可交互行错位 4dp（全选行缩进的真根因）
+        Checkbox(
+            checked = checked,
+            onCheckedChange = { if (onChecked != null) onChecked() else onClick?.invoke() }
+        )
         Text(
             text = label,
             style = MaterialTheme.typography.bodyMedium,
