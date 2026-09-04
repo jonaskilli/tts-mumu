@@ -167,7 +167,7 @@ class PluginTtsUI : IConfigUI() {
             onCancel = onCancel,
             onSave = onSave,
         ) {
-            // 分区顺序：朗读与标签(含全部/标签、音频参数入口,用户要求必须最上) → 基本信息 → 音色来源 → 音频参数
+            // 分区顺序：朗读与标签+基本信息合一张卡(用户要求上方两块合并) → 音色来源 → 音频参数
             SectionCard(
                 title = "朗读与标签",
                 icon = Icons.Default.Tag,
@@ -177,10 +177,18 @@ class PluginTtsUI : IConfigUI() {
                     .padding(horizontal = 8.dp, vertical = 4.dp),
             ) {
                 content()
+                BasicInfoEditScreen(
+                    Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 12.dp, vertical = 4.dp),
+                    systemTts = systemTts,
+                    onSystemTtsChange = onSystemTtsChange,
+                )
             }
             EditContentScreen(
                 systts = systemTts,
                 onSysttsChange = onSystemTtsChange,
+                showBasicInfo = false,
                 showParamsSection = false,
             )
             val isUiOnly = (systemTts.config as? TtsConfigurationDTO)

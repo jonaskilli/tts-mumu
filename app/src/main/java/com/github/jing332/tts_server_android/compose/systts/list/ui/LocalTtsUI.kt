@@ -218,7 +218,7 @@ class LocalTtsUI() : IConfigUI() {
             onCancel = onCancel,
             onSave = onSave,
         ) {
-            // 分区顺序与插件页一致：朗读与标签(必须最上) → 基本信息/音色来源 → 音频参数
+            // 上方两块合一张卡：朗读与标签+基本信息(同插件页)
             SectionCard(
                 title = "朗读与标签",
                 icon = Icons.Default.Tag,
@@ -228,8 +228,15 @@ class LocalTtsUI() : IConfigUI() {
                     .padding(horizontal = 8.dp, vertical = 4.dp),
             ) {
                 content()
+                BasicInfoEditScreen(
+                    Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 12.dp, vertical = 4.dp),
+                    systemTts = systemTts,
+                    onSystemTtsChange = onSystemTtsChange,
+                )
             }
-            Content(systts = systemTts, onSysttsChange = onSystemTtsChange, showParams = false)
+            Content(systts = systemTts, onSysttsChange = onSystemTtsChange, showBasicInfo = false, showParams = false)
             SectionCard(
                 title = "音频参数",
                 icon = Icons.Default.Speed,
@@ -254,6 +261,7 @@ class LocalTtsUI() : IConfigUI() {
         systts: SystemTtsV2,
         onSysttsChange: (SystemTtsV2) -> Unit,
         vm: LocalTtsViewModel = viewModel(),
+        showBasicInfo: Boolean = true,
         showParams: Boolean = true,
     ) {
         val systts by rememberUpdatedState(newValue = systts)
@@ -274,9 +282,10 @@ class LocalTtsUI() : IConfigUI() {
             }
 
         Column(modifier) {
-            // 基本信息：保留分区壳但不出标题（同 PluginTtsUI 用户定稿）
-            SectionCard(
-                title = "基本信息",
+            // 基本信息：完整编辑页已并入上方朗读卡，此处按开关显示
+            if (showBasicInfo)
+                SectionCard(
+                    title = "基本信息",
                 icon = Icons.Default.Info,
                 showHeader = false,
                 modifier = Modifier

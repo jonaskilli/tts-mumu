@@ -349,10 +349,10 @@ internal fun Item(
                 }
 
                 Text(
-                    text = type.limitLength(14, "…"),
+                    text = type.limitLength(12, "…"),
                     style = MaterialTheme.typography.labelMedium,
                     color = MaterialTheme.colorScheme.tertiary,
-                    // 插件名按字符数截短（14字+省略号，中文字符宽度统一可预测），
+                    // 插件名按字符数截短（12字+省略号，中文字符宽度统一可预测），
                     // 右侧留 8dp 空隙避免与左侧采样率标签贴死
                     maxLines = 1,
                     textAlign = TextAlign.End,
