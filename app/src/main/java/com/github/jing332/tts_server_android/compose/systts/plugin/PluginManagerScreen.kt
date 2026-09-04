@@ -438,8 +438,9 @@ fun PluginManagerScreen(sharedVM: SharedViewModel, onFinishActivity: () -> Unit)
                         label = { Text("name") },
                         value = editName,
                         onValueChange = { editName = it },
-                        modifier = Modifier.fillMaxWidth(),
-                        singleLine = true
+                        modifier = Modifier.fillMaxWidth()
+                        // 插件名可很长（如"角色管理v9_模型拉取_密钥导出导入"）：不锁单行，
+                        // 自动换行完整显示便于修改；弹窗内容区本身可竖向滚动
                     )
                     OutlinedTextField(
                         label = { Text("pluginId (JS: id)") },
