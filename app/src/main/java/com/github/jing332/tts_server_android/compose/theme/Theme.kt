@@ -10,8 +10,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
 import com.github.jing332.tts_server_android.conf.AppConfig
@@ -38,30 +36,9 @@ fun appTheme(
         AppTheme.BROWN -> brownTheme(darkTheme)
         AppTheme.GRAY -> grayTheme(darkTheme)
     }
-    // 动态取色自带全套色槽；手写配色补齐 M3 1.2 新增的 surfaceContainer 系
-    return if (themeType == AppTheme.DYNAMIC_COLOR) scheme
-    else scheme.deriveSurfaceContainers(darkTheme)
-}
-
-/**
- * 补齐 M3 1.2 新增的 surfaceContainer 系色槽（surfaceDim/Bright/ContainerLowest~Highest）。
- * 手写的 lightColorScheme/darkColorScheme 只覆盖了旧 29 槽，新槽留的是 M3 基线默认值——
- * 淡紫底！ElevatedCard(配置项卡片=surfaceContainerHighest)与 NavigationBar(底栏=
- * surfaceContainer)因此与绿色主题脱节。按 MD3 表面海拔规则用 surface 与 surfaceTint
- * 插值派生：海拔越高 tint 占比越大；明/暗侧的 Dim/Bright 分别向黑/白微调。
- */
-private fun ColorScheme.deriveSurfaceContainers(darkTheme: Boolean): ColorScheme {
-    val base = surface
-    val tint = surfaceTint
-    return copy(
-        surfaceDim = if (darkTheme) lerp(base, Color.Black, 0.06f) else lerp(base, Color.Black, 0.05f),
-        surfaceBright = if (darkTheme) lerp(base, Color.White, 0.08f) else base,
-        surfaceContainerLowest = lerp(base, if (darkTheme) Color.Black else Color.White, 0.04f),
-        surfaceContainerLow = lerp(base, tint, 0.05f),
-        surfaceContainer = lerp(base, tint, 0.09f),
-        surfaceContainerHigh = lerp(base, tint, 0.13f),
-        surfaceContainerHighest = lerp(base, tint, 0.17f),
-    )
+    // 返璞归真：不再对 M3 1.2 新增的 surfaceContainer 系色槽做绿调派生（0e76bad 作废），
+    // 手写主题保留 M3 基线默认值——配置项卡片/底栏/弹窗等容器色回归原版（混元时代）观感
+    return scheme
 }
 
 //全局主题状态
