@@ -8,7 +8,9 @@ import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
@@ -25,6 +27,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
@@ -120,34 +123,50 @@ fun AnimatedContentScope.MainPager(sharedVM: SharedViewModel) {
             Scaffold(
                 modifier = Modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
                 bottomBar = {
-                    NavigationBar(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            // M3 默认 80dp 比微信级底栏高约 1/3，压到内容 64dp+手势条 inset；
-                            // height 会覆盖 NavigationBar 内部的 80dp defaultMinSize
-                            .height(64.dp + WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding())
-                    ) {
-                        for (destination in PagerDestination.routes) {
-                            val isSelected = pagerState.currentPage == destination.index
-                            NavigationBarItem(
-                                selected = isSelected,
-                                alwaysShowLabel = a11yTouchEnabled,
-                                onClick = {
-                                    scope.launch {
-                                        pagerState.animateScrollToPage(destination.index)
-                                    }
-                                },
-                                icon = destination.icon,
-                                label = { Text(stringResource(destination.strId)) }
+                    Column {
+                        NavigationBar(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                // M3 默认 80dp 比微信级底栏高约 1/3，压到内容 64dp；
+                                // height 会覆盖 NavigationBar 内部的 80dp defaultMinSize
+                                .height(64.dp)
+                        ) {
+                            for (destination in PagerDestination.routes) {
+                                val isSelected = pagerState.currentPage == destination.index
+                                NavigationBarItem(
+                                    selected = isSelected,
+                                    alwaysShowLabel = a11yTouchEnabled,
+                                    onClick = {
+                                        scope.launch {
+                                            pagerState.animateScrollToPage(destination.index)
+                                        }
+                                    },
+                                    icon = destination.icon,
+                                    label = { Text(stringResource(destination.strId)) }
+                                )
+                            }
+                        }
+                        // 手势条区域与底栏同色：Android14+ 关闭导航栏半透明后，
+                        // 64dp 底栏下方会露出一条 Scaffold 背景色的缝（微信=白栏白手势区，无缝）
+                        Surface(
+                            modifier = Modifier.fillMaxWidth(),
+                            color = MaterialTheme.colorScheme.surfaceContainer
+                        ) {
+                            Spacer(
+                                Modifier.height(
+                                    WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
+                                )
                             )
                         }
                     }
-
                 }
             ) { paddingValues ->
+                val bottomPad = paddingValues.calculateBottomPadding()
                 HorizontalPager(
                     modifier = Modifier
-                        .padding(bottom = paddingValues.calculateBottomPadding())
+                        // 系统TTS列表页不收缩视口（其列表用 contentPadding 自行避让底栏，
+                        // 展开项可填满整屏不被"白条"截断）；其余页维持外层收缩
+                        .padding(bottom = if (pagerState.currentPage == PagerDestination.SystemTts.index) 0.dp else bottomPad)
                         .fillMaxSize(),
                     state = pagerState,
                     // 恢复左右滑动手势
@@ -156,7 +175,7 @@ fun AnimatedContentScope.MainPager(sharedVM: SharedViewModel) {
                     beyondViewportPageCount = 1,
                 ) { index ->
                     when (index) {
-                        PagerDestination.SystemTts.index -> ListManagerScreen(sharedVM)
+                        PagerDestination.SystemTts.index -> ListManagerScreen(sharedVM, listBottomPadding = bottomPad)
                         PagerDestination.Tool.index -> RoleManagementScreen(sharedVM, pagerState)
                         PagerDestination.SystemTtsLog.index -> TtsLogScreen()
                         PagerDestination.HunyuanTaiji.index -> HunyuanTaijiScreen()

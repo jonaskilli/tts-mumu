@@ -5,6 +5,7 @@ import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.Arrangement
@@ -84,6 +85,7 @@ import androidx.compose.ui.platform.ViewConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalViewConfiguration
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
@@ -228,6 +230,10 @@ private fun detectTagKeyword(name: String): DetectedKeyword? {
 @Composable
 internal fun ListManagerScreen(
     sharedVM: SharedViewModel,
+    // 底部安全垫：主界面底栏(64dp+手势条)总高，由 MainPager 传入。列表不用外层视口收缩，
+    // 而是作为自身 contentPadding——展开底部分组时新行能填满整屏直到底栏上方，
+    // 消除"展开项被视口边缘白条挡住"的问题
+    listBottomPadding: Dp = 0.dp,
     vm: ListManagerViewModel = viewModel(),
 ) {
     val navController = LocalNavController.current
@@ -2850,7 +2856,8 @@ internal fun ListManagerScreen(
                     .fillMaxWidth()
                     .weight(1f)
                     .reorderable(state = reorderState),
-                state = listState
+                state = listState,
+                contentPadding = PaddingValues(bottom = listBottomPadding + 8.dp)
             ) {
                 displayedModels.forEachIndexed { groupIndex, groupWithSystemTts ->
                     val g = groupWithSystemTts.group
