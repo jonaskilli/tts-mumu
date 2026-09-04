@@ -1,6 +1,7 @@
 package com.github.jing332.tts_server_android.compose.systts.list.ui.widgets
 
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
@@ -53,6 +54,18 @@ fun TtsEditContainerScreen(
                     Modifier.padding(8.dp),
                     systts,
                     onSysttsChange = onSysttsChange,
+                    // 完整编辑页：正文（规则脚本/标签字段）+基本信息 同一张淡底卡；
+                    // 音频参数行/朗读切换行由组件留在卡外平铺
+                    bodyInCard = true,
+                    cardTrailer = {
+                        BasicInfoEditScreen(
+                            Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 12.dp, vertical = 4.dp),
+                            systemTts = systts,
+                            onSystemTtsChange = onSysttsChange,
+                        )
+                    }
                 )
             },
             onSystemTtsChange = onSysttsChange,

@@ -218,24 +218,12 @@ class LocalTtsUI() : IConfigUI() {
             onCancel = onCancel,
             onSave = onSave,
         ) {
-            // 按朗读目标区分（同插件页）：标签态朗读块单独套同色卡，朗读全部态维持平铺
+            // 标签态：正文+基本信息合卡由 SpeechRuleEditScreen(bodyInCard/cardTrailer) 内部处理，
+            // 基本信息卡在此关闭；朗读全部态：平铺+基本信息卡原样（同插件页）
             val isTagTarget = (systemTts.config as? TtsConfigurationDTO)
                 ?.speechRule?.target == SpeechTarget.TAG
-            if (isTagTarget) {
-                SectionCard(
-                    title = "朗读与标签",
-                    icon = Icons.Default.Info,
-                    showHeader = false,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 8.dp, vertical = 4.dp),
-                ) {
-                    content()
-                }
-            } else {
-                content()
-            }
-            Content(systts = systemTts, onSysttsChange = onSystemTtsChange, showParams = false)
+            content()
+            Content(systts = systemTts, onSysttsChange = onSystemTtsChange, showBasicInfo = isTagTarget.not(), showParams = false)
             SectionCard(
                 title = "音频参数",
                 icon = Icons.Default.Speed,

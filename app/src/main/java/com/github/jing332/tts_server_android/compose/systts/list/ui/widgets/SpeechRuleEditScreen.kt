@@ -79,6 +79,11 @@ fun SpeechRuleEditScreen(
 
     showSpeechTarget: Boolean = true,
     speechRules: List<SpeechRule> = remember { dbm.speechRuleDao.allEnabled },
+    // true 时正文（规则脚本/标签字段+心声+自定义字段+cardTrailer）包进无标题淡底卡（完整编辑页用），
+    // 顶部的音频参数行/朗读切换行仍在卡外平铺；false 全部平铺（快捷编辑面板等）
+    bodyInCard: Boolean = false,
+    // bodyInCard 且标签态时渲染在正文卡末尾的内容（完整编辑页把分组/显示名称等基本信息放进同一张卡）
+    cardTrailer: @Composable () -> Unit = {},
 ) {
     val context = LocalContext.current
 
@@ -346,13 +351,13 @@ fun SpeechRuleEditScreen(
                 }
             }
 
-            AnimatedVisibility(visible = config.speechRule.target == SpeechTarget.TAG) {
-                // AnimatedVisibility 内容是堆叠布局：芯片、选择器、说明文字必须包进 Column 才竖排，
-                // 否则全部叠在同一位置（此前「心声(内心独白)」芯片就压在规则脚本选择器上）
-                Column {
-                    // 心声保留标签是否生效：标签下拉候选与芯片、说明文案共用
-                    val isInnerThought = config.speechRule.tag == InnerThoughtClassifier.INNER_THOUGHT_TAG
-                    Row(Modifier) {
+            // 正文：规则脚本/标签字段+心声芯片，卡片模式与平铺模式共用同一份内容。
+            // 芯片、选择器、说明文字必须包进 Column 才竖排（AnimatedVisibility 内容是堆叠布局，
+            // 此前「心声(内心独白)」芯片就压在规则脚本选择器上）
+            val ruleTagBody: @Composable () -> Unit = {
+                // 心声保留标签是否生效：标签下拉候选与芯片、说明文案共用
+                val isInnerThought = config.speechRule.tag == InnerThoughtClassifier.INNER_THOUGHT_TAG
+                Row(Modifier) {
                     AppSpinner(
                         modifier = Modifier
                             .weight(1f)
@@ -472,18 +477,52 @@ fun SpeechRuleEditScreen(
                         modifier = Modifier.padding(start = 4.dp, top = 2.dp)
                     )
                 }
-                }
             }
 
-            speechRule?.let {
-                CustomTagScreen(
-                    info = config.speechRule,
-                    onInfoChange = {
-                        if (config.speechRule.target == SpeechTarget.TAG)
-                            onSysttsChange(systts.copy(config = config.copy(speechRule = it)))
-                    },
-                    speechRule = it
-                )
+            // 卡片模式（完整编辑页）：正文+自定义字段+基本信息(cardTrailer)同一张无标题淡底卡，
+            // 显隐仍由 AnimatedVisibility 承担；平铺模式（快捷编辑面板）：维持原结构
+            if (bodyInCard) {
+                AnimatedVisibility(visible = config.speechRule.target == SpeechTarget.TAG) {
+                    SectionCard(
+                        title = "朗读与标签",
+                        icon = Icons.Default.Tag,
+                        showHeader = false,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(top = 4.dp),
+                    ) {
+                        Column(Modifier.padding(horizontal = 12.dp, vertical = 4.dp)) {
+                            ruleTagBody()
+                            val currentRule = speechRule
+                            if (currentRule != null) {
+                                CustomTagScreen(
+                                    info = config.speechRule,
+                                    onInfoChange = {
+                                        if (config.speechRule.target == SpeechTarget.TAG)
+                                            onSysttsChange(systts.copy(config = config.copy(speechRule = it)))
+                                    },
+                                    speechRule = currentRule
+                                )
+                            }
+                        }
+                        cardTrailer()
+                    }
+                }
+            } else {
+                AnimatedVisibility(visible = config.speechRule.target == SpeechTarget.TAG) {
+                    Column { ruleTagBody() }
+                }
+
+                speechRule?.let {
+                    CustomTagScreen(
+                        info = config.speechRule,
+                        onInfoChange = {
+                            if (config.speechRule.target == SpeechTarget.TAG)
+                                onSysttsChange(systts.copy(config = config.copy(speechRule = it)))
+                        },
+                        speechRule = it
+                    )
+                }
             }
         }
 }
