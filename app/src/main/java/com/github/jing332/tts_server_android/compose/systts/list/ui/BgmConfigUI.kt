@@ -142,7 +142,7 @@ class BgmConfigUI : IConfigUI() {
             }
         ) {
             SectionCard(
-                title = "基本信息",
+                title = "📋 基本信息",
                 icon = Icons.Default.Info,
                 modifier = Modifier
                     .fillMaxWidth()
@@ -158,7 +158,7 @@ class BgmConfigUI : IConfigUI() {
             }
 
             SectionCard(
-                title = "音频参数",
+                title = "⏱️ 音频参数",
                 icon = Icons.Default.Speed,
                 modifier = Modifier
                     .fillMaxWidth()

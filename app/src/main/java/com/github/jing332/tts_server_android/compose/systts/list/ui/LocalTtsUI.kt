@@ -225,7 +225,7 @@ class LocalTtsUI() : IConfigUI() {
             content()
             Content(systts = systemTts, onSysttsChange = onSystemTtsChange, showBasicInfo = isTagTarget.not(), showParams = false)
             SectionCard(
-                title = "音频参数",
+                title = "⏱️ 音频参数",
                 icon = Icons.Default.Speed,
                 modifier = Modifier
                     .fillMaxWidth()
@@ -272,7 +272,7 @@ class LocalTtsUI() : IConfigUI() {
             // 基本信息：保留分区壳但不出标题（同 PluginTtsUI 用户定稿）
             if (showBasicInfo)
                 SectionCard(
-                    title = "基本信息",
+                    title = "📋 基本信息",
                     icon = Icons.Default.Info,
                     showHeader = false,
                     modifier = Modifier
@@ -289,7 +289,7 @@ class LocalTtsUI() : IConfigUI() {
                 }
 
             SectionCard(
-                title = "音色来源",
+                title = "🎧 音色来源",
                 icon = Icons.Default.Headset,
                 modifier = Modifier
                     .fillMaxWidth()
@@ -382,7 +382,7 @@ class LocalTtsUI() : IConfigUI() {
 
             if (showParams)
                 SectionCard(
-                    title = "音频参数",
+                    title = "⏱️ 音频参数",
                     icon = Icons.Default.Speed,
                     modifier = Modifier
                         .fillMaxWidth()
