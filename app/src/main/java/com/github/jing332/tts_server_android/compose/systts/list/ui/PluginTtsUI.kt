@@ -166,8 +166,24 @@ class PluginTtsUI : IConfigUI() {
             onCancel = onCancel,
             onSave = onSave,
         ) {
-            // 顶部朗读块去卡壳平铺（紧贴下方基本信息卡），基本信息由 EditContentScreen 正常渲染
-            content()
+            // 按朗读目标区分：标签态展开表单高，白底平铺与下方淡底卡交界生硬→朗读块单独套同色卡，
+            // 分界变成卡与卡的正常缝；朗读全部态顶部矮，平铺观感自然，维持去壳
+            val isTagTarget = (systemTts.config as? TtsConfigurationDTO)
+                ?.speechRule?.target == SpeechTarget.TAG
+            if (isTagTarget) {
+                SectionCard(
+                    title = "朗读与标签",
+                    icon = Icons.Default.Info,
+                    showHeader = false,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 8.dp, vertical = 4.dp),
+                ) {
+                    content()
+                }
+            } else {
+                content()
+            }
             EditContentScreen(
                 systts = systemTts,
                 onSysttsChange = onSystemTtsChange,

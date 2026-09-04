@@ -49,6 +49,7 @@ import com.github.jing332.database.entities.systts.source.LocalTtsSource
 import com.github.jing332.tts_server_android.PackageDrawable
 import com.github.jing332.tts_server_android.R
 import com.github.jing332.tts_server_android.compose.systts.AuditionDialog
+import com.github.jing332.tts_server_android.constant.SpeechTarget
 import com.github.jing332.tts_server_android.compose.systts.list.ui.widgets.AuditionTextField
 import com.github.jing332.tts_server_android.compose.systts.list.ui.widgets.BasicInfoEditScreen
 import com.github.jing332.tts_server_android.compose.systts.list.ui.widgets.SaveActionHandler
@@ -217,8 +218,23 @@ class LocalTtsUI() : IConfigUI() {
             onCancel = onCancel,
             onSave = onSave,
         ) {
-            // 顶部朗读块去卡壳平铺（紧贴下方基本信息卡，同插件页）
-            content()
+            // 按朗读目标区分（同插件页）：标签态朗读块单独套同色卡，朗读全部态维持平铺
+            val isTagTarget = (systemTts.config as? TtsConfigurationDTO)
+                ?.speechRule?.target == SpeechTarget.TAG
+            if (isTagTarget) {
+                SectionCard(
+                    title = "朗读与标签",
+                    icon = Icons.Default.Info,
+                    showHeader = false,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 8.dp, vertical = 4.dp),
+                ) {
+                    content()
+                }
+            } else {
+                content()
+            }
             Content(systts = systemTts, onSysttsChange = onSystemTtsChange, showParams = false)
             SectionCard(
                 title = "音频参数",
