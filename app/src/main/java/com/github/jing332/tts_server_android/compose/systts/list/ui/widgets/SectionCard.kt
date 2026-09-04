@@ -41,8 +41,8 @@ internal fun SectionCard(
     Card(
         modifier = modifier,
         colors = CardDefaults.cardColors(
-            // 原版配色 surfaceVariant@35% 灰调绿底（返璞归真批次恢复）
-            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f),
+            // surfaceVariant@20% 淡底：比页面底略深一眼认出分区，又比旧 35% 轻（用户反馈太重）
+            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.20f),
         ),
     ) {
         Column(Modifier.padding(vertical = 6.dp)) {

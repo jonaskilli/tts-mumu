@@ -362,7 +362,7 @@ fun SpeechRuleEditScreen(
                         modifier = Modifier
                             .weight(1f)
                             .padding(end = 4.dp),
-                        labelText = stringResource(R.string.speech_rule_script),
+                        labelText = "📜 " + stringResource(R.string.speech_rule_script),
                         value = config.speechRule.tagRuleId,
                         values = speechRules.map { it.ruleId },
                         entries = speechRules.map { it.name },
@@ -410,7 +410,7 @@ fun SpeechRuleEditScreen(
                                 readOnly = true,
                                 enabled = false,
                                 singleLine = true,
-                                label = { Text(stringResource(R.string.tag)) },
+                                label = { Text("🏷️ " + stringResource(R.string.tag)) },
                                 trailingIcon = {
                                     Icon(Icons.Default.ArrowDropDown, null)
                                 },
@@ -479,14 +479,13 @@ fun SpeechRuleEditScreen(
                 }
             }
 
-            // 卡片模式（完整编辑页）：正文+自定义字段+基本信息(cardTrailer)同一张无标题淡底卡，
-            // 显隐仍由 AnimatedVisibility 承担；平铺模式（快捷编辑面板）：维持原结构
+            // 卡片模式（完整编辑页）：正文+自定义字段+基本信息(cardTrailer)同一张淡底卡，
+            // 卡标题「基本信息」；显隐仍由 AnimatedVisibility 承担；平铺模式（快捷编辑面板）：维持原结构
             if (bodyInCard) {
                 AnimatedVisibility(visible = config.speechRule.target == SpeechTarget.TAG) {
                     SectionCard(
-                        title = "朗读与标签",
+                        title = "📋 基本信息",
                         icon = Icons.Default.Tag,
-                        showHeader = false,
                         modifier = Modifier
                             .fillMaxWidth()
                             .padding(top = 4.dp),
