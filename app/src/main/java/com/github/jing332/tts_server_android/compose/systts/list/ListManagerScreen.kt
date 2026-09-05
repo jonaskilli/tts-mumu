@@ -185,8 +185,8 @@ private data class DetectedKeyword(val prefix: String, val zeroPad: Boolean)
 private val groupTreeCache = java.util.concurrent.ConcurrentHashMap<Long, GroupDerivedEntry>()
 
 /**
- * 逐组内容签名：组内 size/每项 id+order+categoryPath+enabled + paramsJson 参与摘要。
- * 任何增删改/排序/移动/标签改动都会变；分池与树缓存共用，签名未变即整组跳过重算。
+ * 逐组内容签名：组内 size/每项 id+order+categoryPath+enabled+displayName+config(含 audioParams/标签/来源) + paramsJson 参与摘要。
+ * 任何增删改/排序/移动/标签/音频参数改动都会变；分池与树缓存共用，签名未变即整组跳过重算。
  * 顺序敏感（order 参与），拖动排序后签名必然变化，与树内排序语义一致。
  */
 private fun groupContentSignature(gwt: GroupWithSystemTts): Long {
@@ -197,6 +197,10 @@ private fun groupContentSignature(gwt: GroupWithSystemTts): Long {
         sig = sig * 31 + item.order.toLong()
         sig = sig * 31 + item.categoryPath.hashCode()
         sig = sig * 31 + item.isEnabled.hashCode()
+        sig = sig * 31 + item.displayName.hashCode()
+        // config 整体参与摘要(data class hashCode 覆盖 audioParams/speechRule/source/audioFormat):
+        // 此前缺 config 摘要,编辑页调音频参数保存后签名不变→树缓存命中→列表参数显示不刷新
+        sig = sig * 31 + item.config.hashCode()
     }
     sig = sig * 31 + gwt.group.subGroupAudioParamsJson.hashCode()
     return sig
