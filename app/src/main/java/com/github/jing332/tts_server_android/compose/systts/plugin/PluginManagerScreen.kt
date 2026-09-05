@@ -569,15 +569,14 @@ fun PluginManagerScreen(sharedVM: SharedViewModel, onFinishActivity: () -> Unit)
     val flowAll = remember { dbm.pluginDao.flowAll().conflate() }
     val list by flowAll.collectAsStateWithLifecycle(emptyList())
 
-    // 搜索过滤:插件多时肉眼难找,按 名称/pluginId/作者 模糊匹配,对话框输入实时生效
+    // 搜索过滤:插件多时肉眼难找,按 名称/pluginId 模糊匹配(用户:一般只搜名称,不匹配作者),对话框输入实时生效
     var showSearchDialog by remember { mutableStateOf(false) }
     var searchQuery by remember { mutableStateOf("") }
     val filteredList = remember(list, searchQuery) {
         if (searchQuery.isBlank()) list
         else list.filter {
             it.name.contains(searchQuery, true) ||
-                    it.pluginId.contains(searchQuery, true) ||
-                    it.author.contains(searchQuery, true)
+                    it.pluginId.contains(searchQuery, true)
         }
     }
 
@@ -591,7 +590,7 @@ fun PluginManagerScreen(sharedVM: SharedViewModel, onFinishActivity: () -> Unit)
                     modifier = Modifier.fillMaxWidth(),
                     value = searchQuery,
                     onValueChange = { searchQuery = it },
-                    label = { Text("名称 / pluginId / 作者") },
+                    label = { Text("名称 / pluginId") },
                     singleLine = true,
                     trailingIcon = {
                         if (searchQuery.isNotEmpty()) {
