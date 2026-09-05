@@ -36,6 +36,7 @@ import androidx.compose.material.icons.filled.EditNote
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Output
 import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.SelectAll
 import androidx.compose.material.icons.filled.SwapHoriz
 import androidx.compose.material.icons.filled.VolumeUp
@@ -568,6 +569,59 @@ fun PluginManagerScreen(sharedVM: SharedViewModel, onFinishActivity: () -> Unit)
     val flowAll = remember { dbm.pluginDao.flowAll().conflate() }
     val list by flowAll.collectAsStateWithLifecycle(emptyList())
 
+    // 搜索过滤:插件多时肉眼难找,按 名称/pluginId/作者 模糊匹配,对话框输入实时生效
+    var showSearchDialog by remember { mutableStateOf(false) }
+    var searchQuery by remember { mutableStateOf("") }
+    val filteredList = remember(list, searchQuery) {
+        if (searchQuery.isBlank()) list
+        else list.filter {
+            it.name.contains(searchQuery, true) ||
+                    it.pluginId.contains(searchQuery, true) ||
+                    it.author.contains(searchQuery, true)
+        }
+    }
+
+    // 搜索弹窗:输入实时过滤背后列表,清除/取消恢复全量
+    if (showSearchDialog) {
+        AppDialog(
+            onDismissRequest = { showSearchDialog = false },
+            title = { Text("搜索插件") },
+            content = {
+                OutlinedTextField(
+                    modifier = Modifier.fillMaxWidth(),
+                    value = searchQuery,
+                    onValueChange = { searchQuery = it },
+                    label = { Text("名称 / pluginId / 作者") },
+                    singleLine = true,
+                    trailingIcon = {
+                        if (searchQuery.isNotEmpty()) {
+                            IconButton(onClick = { searchQuery = "" }) {
+                                Icon(Icons.Default.Close, "清除")
+                            }
+                        }
+                    },
+                )
+                Text(
+                    "命中 ${filteredList.size}/${list.size} 个,列表已实时过滤",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(top = 8.dp)
+                )
+            },
+            buttons = {
+                TextButton(onClick = {
+                    searchQuery = ""
+                    showSearchDialog = false
+                }) { Text(stringResource(id = R.string.cancel)) }
+                TextButton(onClick = { showSearchDialog = false }) {
+                    Text(stringResource(id = R.string.confirm))
+                }
+            }
+        )
+    }
+
     Scaffold(contentWindowInsets = WindowInsets(0),
         snackbarHost = { SnackbarHost(snackbarHostState) },
         modifier = Modifier
@@ -631,6 +685,15 @@ fun PluginManagerScreen(sharedVM: SharedViewModel, onFinishActivity: () -> Unit)
                             )
                         }
                     } else {
+                    IconButton(onClick = { showSearchDialog = true }) {
+                        Icon(
+                            Icons.Default.Search, "搜索插件",
+                            tint = if (searchQuery.isNotBlank())
+                                MaterialTheme.colorScheme.primary
+                            else MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+
                     IconButton(onClick = {
                         onEdit()
                     }) {
@@ -698,7 +761,8 @@ fun PluginManagerScreen(sharedVM: SharedViewModel, onFinishActivity: () -> Unit)
                 }
             )
         }) { paddingValues ->
-        val cache = rememberLazyListReorderCache(list)
+        // 过滤时禁用拖拽排序:onDragEnd 按显示顺序重写 order,子集顺序写库会打乱全部排序
+        val cache = rememberLazyListReorderCache(filteredList)
 
         val reorderState = rememberReorderableLazyListState(onMove = { from, to ->
             cache.move(from.index, to.index)
@@ -717,6 +781,26 @@ fun PluginManagerScreen(sharedVM: SharedViewModel, onFinishActivity: () -> Unit)
                 .padding(paddingValues)
                 .reorderable(reorderState)
         ) {
+            if (searchQuery.isNotBlank()) {
+                item(key = "search_filter_bar") {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 12.dp, vertical = 2.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            "筛选「${searchQuery}」:${filteredList.size}/${list.size}",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.weight(1f)
+                        )
+                        TextButton(onClick = { searchQuery = "" }) {
+                            Text(stringResource(id = R.string.cancel))
+                        }
+                    }
+                }
+            }
             itemsIndexed(cache.list, key = { _, item -> item.id }) { _, item ->
                 val desc = "${item.author} - v${item.version}"
                 ShadowedDraggableItem(reorderableState = reorderState, key = item.id) {
@@ -732,7 +816,7 @@ fun PluginManagerScreen(sharedVM: SharedViewModel, onFinishActivity: () -> Unit)
                     Item(
                         modifier = Modifier
                             .padding(horizontal = 8.dp, vertical = 4.dp)
-                            .then(if (!selectionMode) { Modifier.detectReorderAfterLongPress(reorderState) } else Modifier),
+                            .then(if (!selectionMode && searchQuery.isBlank()) { Modifier.detectReorderAfterLongPress(reorderState) } else Modifier),
                         hasDefVars = hasVars,
                         needSetVars = hasVars && item.userVars.isEmpty(),
                         name = item.name,
