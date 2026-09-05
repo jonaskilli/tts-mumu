@@ -2,11 +2,13 @@ package com.github.jing332.tts_server_android.compose.systts.plugin
 
 import android.content.Context
 import android.content.Intent
+import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.AlertDialog
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -43,6 +45,7 @@ import androidx.compose.material.icons.filled.VolumeUp
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CircularProgressIndicator
 import com.github.jing332.compose.widgets.AppDropdownMenu
+import com.github.jing332.compose.widgets.DenseTextField
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ElevatedCard
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -55,24 +58,30 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarDuration
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.rotate
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.material3.LocalTextStyle
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.CustomAccessibilityAction
 import androidx.compose.ui.semantics.Role
@@ -84,6 +93,7 @@ import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.github.jing332.common.utils.longToast
 import com.github.jing332.compose.rememberLazyListReorderCache
@@ -569,8 +579,9 @@ fun PluginManagerScreen(sharedVM: SharedViewModel, onFinishActivity: () -> Unit)
     val flowAll = remember { dbm.pluginDao.flowAll().conflate() }
     val list by flowAll.collectAsStateWithLifecycle(emptyList())
 
-    // 搜索过滤:插件多时肉眼难找,按 名称/pluginId 模糊匹配(用户:一般只搜名称,不匹配作者),对话框输入实时生效
-    var showSearchDialog by remember { mutableStateOf(false) }
+    // 搜索过滤:插件多时肉眼难找,按 名称/pluginId 模糊匹配(用户:一般只搜名称,不匹配作者)
+    // 搜索态在顶栏内完成(与主列表页一致)，不弹窗
+    var isSearchMode by rememberSaveable { mutableStateOf(false) }
     var searchQuery by remember { mutableStateOf("") }
     val filteredList = remember(list, searchQuery) {
         if (searchQuery.isBlank()) list
@@ -580,45 +591,9 @@ fun PluginManagerScreen(sharedVM: SharedViewModel, onFinishActivity: () -> Unit)
         }
     }
 
-    // 搜索弹窗:输入实时过滤背后列表,清除/取消恢复全量
-    if (showSearchDialog) {
-        AppDialog(
-            onDismissRequest = { showSearchDialog = false },
-            title = { Text("搜索插件") },
-            content = {
-                OutlinedTextField(
-                    modifier = Modifier.fillMaxWidth(),
-                    value = searchQuery,
-                    onValueChange = { searchQuery = it },
-                    label = { Text("名称 / pluginId") },
-                    singleLine = true,
-                    trailingIcon = {
-                        if (searchQuery.isNotEmpty()) {
-                            IconButton(onClick = { searchQuery = "" }) {
-                                Icon(Icons.Default.Close, "清除")
-                            }
-                        }
-                    },
-                )
-                Text(
-                    "命中 ${filteredList.size}/${list.size} 个,列表已实时过滤",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(top = 8.dp)
-                )
-            },
-            buttons = {
-                TextButton(onClick = {
-                    searchQuery = ""
-                    showSearchDialog = false
-                }) { Text(stringResource(id = R.string.cancel)) }
-                TextButton(onClick = { showSearchDialog = false }) {
-                    Text(stringResource(id = R.string.confirm))
-                }
-            }
-        )
+    BackHandler(enabled = isSearchMode) {
+        isSearchMode = false
+        searchQuery = ""
     }
 
     Scaffold(contentWindowInsets = WindowInsets(0),
@@ -629,10 +604,44 @@ fun PluginManagerScreen(sharedVM: SharedViewModel, onFinishActivity: () -> Unit)
         topBar = {
             TopAppBar(
                 title = {
-                    if (selectionMode) {
-                        Text(context.getString(R.string.selected_count, selectedIds.size))
-                    } else {
-                        Text(stringResource(id = R.string.plugin_manager))
+                    when {
+                        // 搜索态：顶栏标题位换成圆角搜索框，输入即过滤背后列表
+                        isSearchMode -> {
+                            Surface(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(48.dp)
+                                    .clip(CircleShape),
+                                color = MaterialTheme.colorScheme.surfaceVariant,
+                                shape = CircleShape
+                            ) {
+                                CompositionLocalProvider(LocalTextStyle provides MaterialTheme.typography.titleMedium) {
+                                    DenseTextField(
+                                        modifier = Modifier.fillMaxSize().padding(horizontal = 8.dp),
+                                        value = searchQuery,
+                                        onValueChange = { searchQuery = it },
+                                        placeholder = { Text("名称 / pluginId", maxLines = 1) },
+                                        singleLine = true,
+                                        trailingIcon = {
+                                            if (searchQuery.isNotEmpty()) {
+                                                IconButton(onClick = { searchQuery = "" }) {
+                                                    Icon(Icons.Default.Close, "清除")
+                                                }
+                                            }
+                                        },
+                                        colors = TextFieldDefaults.colors(
+                                            focusedContainerColor = Color.Transparent,
+                                            unfocusedContainerColor = Color.Transparent,
+                                            focusedIndicatorColor = Color.Transparent,
+                                            unfocusedIndicatorColor = Color.Transparent
+                                        ),
+                                        shape = MaterialTheme.shapes.extraLarge
+                                    )
+                                }
+                            }
+                        }
+                        selectionMode -> Text(context.getString(R.string.selected_count, selectedIds.size))
+                        else -> Text(stringResource(id = R.string.plugin_manager))
                     }
                 },
                 navigationIcon = {
@@ -653,7 +662,17 @@ fun PluginManagerScreen(sharedVM: SharedViewModel, onFinishActivity: () -> Unit)
                     }
                 },
                 actions = {
-                    if (selectionMode) {
+                    when {
+                        // 搜索态只留关闭：退出并恢复全量列表
+                        isSearchMode -> {
+                            IconButton(onClick = {
+                                isSearchMode = false
+                                searchQuery = ""
+                            }) {
+                                Icon(Icons.Default.Close, stringResource(id = R.string.close))
+                            }
+                        }
+                        selectionMode -> {
                         IconButton(onClick = {
                             selectedIds = if (selectedIds.size == list.size) emptySet()
                             else list.map { it.id }.toSet()
@@ -683,13 +702,12 @@ fun PluginManagerScreen(sharedVM: SharedViewModel, onFinishActivity: () -> Unit)
                                 else MaterialTheme.colorScheme.onSurfaceVariant
                             )
                         }
-                    } else {
-                    IconButton(onClick = { showSearchDialog = true }) {
+                    } // end selectionMode
+                    else -> {
+                    IconButton(onClick = { isSearchMode = true }) {
                         Icon(
                             Icons.Default.Search, "搜索插件",
-                            tint = if (searchQuery.isNotBlank())
-                                MaterialTheme.colorScheme.primary
-                            else MaterialTheme.colorScheme.onSurfaceVariant
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
 
@@ -756,7 +774,8 @@ fun PluginManagerScreen(sharedVM: SharedViewModel, onFinishActivity: () -> Unit)
                             )
                         }
                     }
-                    } // end else
+                    } // end else ->
+                    } // end when
                 }
             )
         }) { paddingValues ->
@@ -941,10 +960,11 @@ private fun Item(
                         .padding(start = 8.dp)
                         .fillMaxWidth(),
                 ) {
-                    // 字号让一让换更多内容:名称14sp限两行(用户:两行位置就够),author等次要信息12sp
+                    // 字号让一让换更多内容:名称15sp限两行(用户定稿),desc等次要信息12sp
                     Text(
                         text = name,
                         style = MaterialTheme.typography.bodyMedium,
+                        fontSize = 15.sp,
                         maxLines = 2,
                         overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
                     )
@@ -1091,7 +1111,9 @@ private fun Item(
                 Text(
                     text = stringResource(id = R.string.systts_plugin_please_set_vars),
                     modifier = Modifier.align(Alignment.CenterHorizontally),
-                    style = MaterialTheme.typography.titleMedium,
+                    // 与插件名称同字号15sp(用户定稿)，primary高亮色保留提示作用
+                    style = MaterialTheme.typography.bodyMedium,
+                    fontSize = 15.sp,
                     color = MaterialTheme.colorScheme.primary
                 )
 

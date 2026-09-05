@@ -37,7 +37,9 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.github.jing332.tts_server_android.R
 import com.github.jing332.tts_server_android.compose.systts.ConfigDeleteDialog
 import com.github.jing332.compose.widgets.AppDropdownMenu
@@ -112,7 +114,11 @@ internal fun Item(
             }
             Text(
                 name,
-                maxLines = 1,
+                // 与插件管理列表同步(用户定稿15sp两行省略)：Surface默认bodyLarge 16sp过大
+                style = MaterialTheme.typography.bodyMedium,
+                fontSize = 15.sp,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
                 modifier = Modifier
                     .weight(1f)
                     .padding(start = 4.dp)
