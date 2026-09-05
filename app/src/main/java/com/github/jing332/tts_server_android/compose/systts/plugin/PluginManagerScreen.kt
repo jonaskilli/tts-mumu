@@ -858,11 +858,11 @@ private fun Item(
                         .padding(start = 8.dp)
                         .fillMaxWidth(),
                 ) {
-                    // 字号让一让换完整名称:名称14sp最多6行,author等次要信息12sp
+                    // 字号让一让换更多内容:名称14sp限两行(用户:两行位置就够),author等次要信息12sp
                     Text(
                         text = name,
                         style = MaterialTheme.typography.bodyMedium,
-                        maxLines = 6,
+                        maxLines = 2,
                         overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
                     )
                     Spacer(Modifier.height(4.dp))

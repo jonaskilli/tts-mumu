@@ -68,6 +68,9 @@ private fun TextFieldSelectionDialog(
     onWaitCategorySwitchChange: ((Boolean) -> Unit)? = null,
     autoNextSwitch: Boolean = false,
     onAutoNextSwitchChange: ((Boolean) -> Unit)? = null,
+    // 选中值允许行数:默认1(恒定单行,长名折行会把字段撑高并压住浮动标题);
+    // 插件选择器等需要完整显示长名称的场景传更大值
+    valueMaxLines: Int = 1,
     // 自定义条目渲染（如插件图标加载失败显示名称首字）；不传走 icons+默认渲染
     itemContent: (@Composable RowScope.(Boolean, String, Any?, Any) -> Unit)? = null,
 ) {
@@ -151,8 +154,7 @@ private fun TextFieldSelectionDialog(
                 value = selectedText,
                 onValueChange = { },
                 label = label,
-                // 选中值恒定单行：长名（如超长朗读规则名）折行会把字段撑高并压住浮动标题
-                maxLines = 1,
+                maxLines = valueMaxLines,
                 trailingIcon = {
                     ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded)
                 },
@@ -188,6 +190,8 @@ fun AppSpinner(
     onWaitCategorySwitchChange: ((Boolean) -> Unit)? = null,
     autoNextSwitch: Boolean = false,
     onAutoNextSwitchChange: ((Boolean) -> Unit)? = null,
+    // 选中值允许行数:默认1恒定单行;插件选择器等需完整显示长名称的场景传更大值
+    valueMaxLines: Int = 1,
     // 自定义条目渲染（如插件图标加载失败显示名称首字）；不传走 icons+默认渲染
     itemContent: (@Composable RowScope.(Boolean, String, Any?, Any) -> Unit)? = null,
 ) {
@@ -250,6 +254,7 @@ fun AppSpinner(
             onWaitCategorySwitchChange = onWaitCategorySwitchChange,
             autoNextSwitch = autoNextSwitch,
             onAutoNextSwitchChange = onAutoNextSwitchChange,
+            valueMaxLines = valueMaxLines,
             itemContent = itemContent,
         )
     } else
@@ -265,6 +270,7 @@ fun AppSpinner(
             enabled = enabled,
             onSelectedChange = onSelectedChange,
             onValueSame = onValueSame,
+            valueMaxLines = valueMaxLines,
         )
 }
 

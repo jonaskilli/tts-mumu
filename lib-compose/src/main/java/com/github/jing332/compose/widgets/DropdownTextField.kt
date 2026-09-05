@@ -68,6 +68,8 @@ fun DropdownTextField(
     icons: List<Any?> = emptyList(),
     enabled: Boolean = true,
     leadingIcon: @Composable (() -> Unit)? = null,
+    // 选中值允许行数:默认1恒定单行;长名完整显示场景传更大值
+    valueMaxLines: Int = 1,
     onValueSame: (current: Any, new: Any) -> Boolean = { current, new -> current == new },
     onSelectedChange: (value: Any, entry: String) -> Unit,
 ) {
@@ -119,8 +121,7 @@ fun DropdownTextField(
                 value = selectedText,
                 onValueChange = { },
                 label = label,
-                // 选中值恒定单行：长名（如超长朗读规则名）折行会把字段撑高并压住浮动标题
-                maxLines = 1,
+                maxLines = valueMaxLines,
                 trailingIcon = {
                     ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded)
                 },

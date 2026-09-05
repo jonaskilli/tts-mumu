@@ -441,6 +441,8 @@ class PluginTtsUI : IConfigUI() {
                         // 插件列表带各插件自己的图标（与插件管理页同款 PluginImage：
                         // 加载失败/无图标自动显示插件名首字），长列表一眼区分
                         icons = vm.pluginList.map { it.iconUrl },
+                        // 插件名长(如“小米 MiMo V2.5 TTS 三模型·…·情绪导演版”),收起栏完整显示
+                        valueMaxLines = 3,
                         itemContent = { isSelected, entry, icon, _ ->
                             PluginImage(model = icon, name = entry)
                             Text(
@@ -449,7 +451,7 @@ class PluginTtsUI : IConfigUI() {
                                 modifier = Modifier
                                     .weight(1f)
                                     .padding(horizontal = 16.dp, vertical = 12.dp),
-                                maxLines = 1,
+                                maxLines = 3,
                                 overflow = TextOverflow.Ellipsis,
                                 fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
                             )

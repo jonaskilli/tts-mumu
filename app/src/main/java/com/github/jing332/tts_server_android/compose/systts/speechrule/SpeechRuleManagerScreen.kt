@@ -476,8 +476,9 @@ internal fun Item(
                 )
                 }
                 Column(Modifier.weight(1f)) {
-                    // 名称14sp、author等次要信息12sp,与插件管理列表一致
-                    Text(text = name, style = MaterialTheme.typography.bodyMedium)
+                    // 名称14sp限两行、author等次要信息12sp,与插件管理列表一致
+                    Text(text = name, style = MaterialTheme.typography.bodyMedium, maxLines = 2,
+                        overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
                     Text(text = desc, style = MaterialTheme.typography.bodySmall)
                 }
                 if (!isSelectionMode) {
