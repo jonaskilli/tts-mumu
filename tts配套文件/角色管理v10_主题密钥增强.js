@@ -1,5 +1,8 @@
 // ============================================================================
-// 角色管理v10_主题适配 —— 基于 v9(20260813) 重生成，功能逻辑零改动。
+// 角色管理v10_主题密钥增强 —— 基于 v9(20260813) 重生成；09-05 密钥管理增强批次：
+//   ①密钥测试修复（直接验对话端点+响应内容校验，堵 /models 不鉴权导致的假阳性）
+//   ②网址智能补全（无版本段自动加 /v1；智谱 /v4、Gemini /v1beta 原样）
+//   ③拉取模型选择：顶部搜索过滤+默认不勾选（全选只作用可见项）④拉取/新增操作行移至列表上方
 // 内置八套配色（顶部🎨按钮=色块预览弹窗，点击行立即换色免重进）：
 //   湛蓝#3272D9(默认) · 翠绿#009452 · 紫韵#7E57C2 · 中性灰绿#43483E · 赤红#D9453C ·
 //   青瓷#0F9186 · 赭棕#BC5F31 · 黛蓝#1B87A3
@@ -8,11 +11,11 @@
 // 原版存档：tts配套文件/角色管理v9_模型拉取_密钥导出导入.js（未改动）
 // ============================================================================
 var PluginJS = {
-    'name': "角色管理v9_模型拉取_密钥导出导入",
+    'name': "角色管理v10_主题密钥增强",
     'id': "mingwuyan",
     'author': "命無言",
     'iconUrl': 'https://img.picui.cn/free/2025/02/24/67bc5a1bac4cf.png',
-    'version': 20260813,
+    'version': 20260905,
   
     // 【核心修改：新增http开头文本的直接下载逻辑】
     'getAudio': function (text, locale, voice, speed, volume, pitch) {
@@ -20,7 +23,8 @@ var PluginJS = {
 };
 
 var voices = {
-    "tts.default.placeholder": { name: "默认发音人", locale: "zh-CN", gender: "female" }
+    // 占位发音人：仅界面模式的角色管理没有真实音色，app 的显示名会跟随发音人名，故命名为"角色管理"
+    "tts.default.placeholder": { name: "角色管理", locale: "zh-CN", gender: "female" }
 };
 
 // 定义6个变量，分别对应6排关键词（可按需调整每排内容）
@@ -242,7 +246,7 @@ var EditorJS = {
         // 密钥管理对话框引用（供 showModelSelectDialog 保存后关闭旧弹窗用）
         var keyManageDialog = null;
 
-        // ===== 以下辅助函数为 onLoadUI 顶层定义，供 showKeyManageDialog / batchPullKeysDialog / showModelSelectDialog 共用 =====
+        // ===== 以下辅助函数为 onLoadUI 顶层定义，供 showKeyManageDialog / 接口中心弹窗 / showModelSelectDialog 共用 =====
 
         function runOnUiThreadSafe(fn) {
             try {
@@ -275,6 +279,11 @@ var EditorJS = {
             var u = normalizeBaseUrl(url);
             if (endsWithText(u, "/chat/completions")) return u.substring(0, u.length - "/chat/completions".length);
             if (endsWithText(u, "/completions")) return u.substring(0, u.length - "/completions".length);
+            if (endsWithText(u, "/models")) return u.substring(0, u.length - "/models".length);
+            // 智能补全：地址里不含任何版本段（/v1、/v4、/v1beta…）时自动补 /v1
+            // （OpenAI/OneAPI/NewAPI 类站点的端点都挂在 /v1 下；智谱 /api/paas/v4、Gemini /v1beta/openai 等
+            //   已含版本段的站点不受影响，直接拼端点名）
+            if (!/\/v\d+[a-z]*/.test(u)) u = u + "/v1";
             return u;
         }
 
@@ -377,6 +386,15 @@ var EditorJS = {
         }
 
         // 密钥管理对话框（直接显示密钥列表，每项含切换/修改/删除）
+        // 密钥管理弹窗滚动位置记忆 + 接口分组折叠状态（弹窗重建时保持，不跳顶）
+        var keyMgrScrollPos = 0;
+        var grpCollapsed = {};
+        // 删除选择模式：deleteMode={组名:true} 进入模式；deleteChecked={条目名:true} 勾选；组头变全选/取消/删除工具条
+        var deleteMode = {};
+        var deleteChecked = {};
+        // 批量/单条测试结果记忆（密钥条目名 → true/false），渲染时在名称旁标记 ✓通/✗不通
+        var batchTestResults = {};
+
         function showKeyManageDialog() {
             var kl = getKeyMapAndList();
             var curName = (ttsrv.tts.data['currentKeyName'] || '').toString().trim();
@@ -463,13 +481,274 @@ var EditorJS = {
             }
 
             function refreshKeyManageDialog() {
+                // 记住当前滚动位置，重建后恢复（编辑/删除/折叠后不跳回开头）
+                try { keyMgrScrollPos = scrollView.getScrollY(); } catch (spErr) {}
                 try {
                     if (dialog) dialog.dismiss();
                 } catch (refreshErr) {
                     console.error("刷新密钥管理弹窗失败：" + refreshErr.toString());
                 }
-                showKeyManageDialog();
+                // 延迟一拍重建：同步 dismiss+show 会抛 WindowManager 异常（表现为界面直接退出）
+                new android.os.Handler(android.os.Looper.getMainLooper()).post(new java.lang.Runnable({
+                    run: function() {
+                        try { showKeyManageDialog(); } catch (reErr) {
+                            console.error("重建密钥管理弹窗失败：" + reErr.toString());
+                        }
+                    }
+                }));
             }
+
+            // ===== 接口中心弹窗 =====
+            function makeFormInput(hint, value) {
+                var input = new android.widget.EditText(ctx);
+                input.setHint(hint);
+                input.setTextSize(15);
+                input.setSingleLine(true);
+                input.setTextColor(android.graphics.Color.parseColor("#333333"));
+                input.setPadding(dipToPx(12), dipToPx(10), dipToPx(12), dipToPx(10));
+                var bg = new android.graphics.drawable.GradientDrawable();
+                bg.setShape(android.graphics.drawable.GradientDrawable.RECTANGLE);
+                bg.setCornerRadius(dipToPx(8));
+                bg.setColor(android.graphics.Color.parseColor("#FFFFFF"));
+                bg.setStroke(dipToPx(1), android.graphics.Color.parseColor("#10000000"));
+                input.setBackground(bg);
+                if (value) input.setText(value);
+                return input;
+            }
+
+            // 新建/编辑接口共用表单；ifc 为空=新建（ifcIdx 传 -1），编辑模式下底部提供删除入口，onSaved(data) 由保存按钮触发
+            function showInterfaceFormDialog(title, ifc, ifcIdx, onSaved) {
+                var builder = new android.app.AlertDialog.Builder(ctx);
+                var root = new android.widget.LinearLayout(ctx);
+                root.setOrientation(android.widget.LinearLayout.VERTICAL);
+                root.setPadding(dipToPx(20), dipToPx(16), dipToPx(20), dipToPx(16));
+                root.addView(createDialogTitle(title));
+                function formLabel(txt) {
+                    var lb = new android.widget.TextView(ctx);
+                    lb.setText(txt);
+                    lb.setTextSize(13);
+                    lb.setTextColor(android.graphics.Color.parseColor("#757575"));
+                    lb.setPadding(dipToPx(2), dipToPx(10), 0, dipToPx(4));
+                    return lb;
+                }
+                root.addView(formLabel("接口名称（自己起，如：智谱主力 / 硅基备用）"));
+                root.addView(makeFormInput("智谱主力", ifc ? ifc.name : ""));
+                var nameInput = root.getChildAt(root.getChildCount() - 1);
+                root.addView(formLabel("接口地址（可自动补 /v1）"));
+                root.addView(makeFormInput("https://api.openai.com/v1", ifc ? ifc.baseUrl : ""));
+                var urlInput = root.getChildAt(root.getChildCount() - 1);
+                root.addView(formLabel("API Key"));
+                root.addView(makeFormInput("sk-…", ifc ? ifc.apiKey : ""));
+                var keyInput = root.getChildAt(root.getChildCount() - 1);
+                if (ifc && ifcIdx >= 0) {
+                    // 编辑模式：底部提供删除入口（危险操作远离组头日常视线，确认弹窗兜底）
+                    var delSpacer = new android.view.View(ctx);
+                    delSpacer.setLayoutParams(new android.widget.LinearLayout.LayoutParams(
+                        android.widget.LinearLayout.LayoutParams.MATCH_PARENT, dipToPx(16)));
+                    root.addView(delSpacer);
+                    var delIfcInline = new android.widget.TextView(ctx);
+                    delIfcInline.setText("🗑 删除该接口（连同其下所有密钥条目）");
+                    delIfcInline.setTextSize(13);
+                    delIfcInline.setTextColor(android.graphics.Color.parseColor("#C62828"));
+                    delIfcInline.setGravity(android.view.Gravity.CENTER);
+                    delIfcInline.setPadding(dipToPx(8), dipToPx(10), dipToPx(8), dipToPx(2));
+                    delIfcInline.setOnClickListener(new android.view.View.OnClickListener({
+                        onClick: function(v) {
+                            dForm.dismiss();
+                            showDeleteInterfaceDialog(ifcIdx);
+                        }
+                    }));
+                    root.addView(delIfcInline);
+                }
+                builder.setView(root);
+                builder.setPositiveButton("保存", new android.content.DialogInterface.OnClickListener({
+                    onClick: function(d, which) {
+                        var name = nameInput.getText() ? nameInput.getText().toString().trim() : "";
+                        var url = normalizeBaseUrl(urlInput.getText() ? urlInput.getText().toString().trim() : "");
+                        var key = keyInput.getText() ? keyInput.getText().toString().trim() : "";
+                        if (!name) { Toast.makeText(ctx, "请填写接口名称", Toast.LENGTH_SHORT).show(); return; }
+                        if (!url || url.indexOf("http") !== 0) { Toast.makeText(ctx, "请填写正确的接口地址", Toast.LENGTH_SHORT).show(); return; }
+                        if (!key) { Toast.makeText(ctx, "请填写 API Key", Toast.LENGTH_SHORT).show(); return; }
+                        onSaved({ name: name, baseUrl: url, apiKey: key });
+                    }
+                }));
+                builder.setNegativeButton("取消", null);
+                var dForm = builder.show();
+                applyDialogRoundCorner(dForm);
+            }
+
+            function showNewInterfaceDialog() {
+                showInterfaceFormDialog("新建接口", null, -1, function(data) {
+                    var center = readApiCenter() || { interfaces: [] };
+                    for (var i = 0; i < center.interfaces.length; i++) {
+                        if (center.interfaces[i].name === data.name) {
+                            Toast.makeText(ctx, "已存在同名接口，请换个名称", Toast.LENGTH_LONG).show();
+                            showNewInterfaceDialog();
+                            return;
+                        }
+                    }
+                    center.interfaces.push({ name: data.name, baseUrl: data.baseUrl, apiKey: data.apiKey, models: [] });
+                    writeApiCenter(center);
+                    Toast.makeText(ctx, "接口「" + data.name + "」已创建，正在拉取模型列表…", Toast.LENGTH_SHORT).show();
+                    refreshKeyManageDialog();
+                    var ifcIdxNew = center.interfaces.length - 1;
+                    var ifcNew = center.interfaces[ifcIdxNew];
+                    new java.lang.Thread(new java.lang.Runnable({
+                        run: function() {
+                            var resp;
+                            try { resp = httpJsonRequest(joinApiPath(ifcNew.baseUrl, "/models"), "GET", ifcNew.apiKey, null); }
+                            catch (pullErr) { resp = { ok: false, body: pullErr.toString(), code: -1 }; }
+                            var models = [];
+                            if (resp.ok) {
+                                try {
+                                    var parsed = JSON.parse(resp.body);
+                                    var arr = parsed.data || parsed.models || parsed;
+                                    if (Array.isArray(arr)) {
+                                        for (var i = 0; i < arr.length; i++) {
+                                            var m = arr[i];
+                                            if (m && m.id) models.push(String(m.id));
+                                            else if (typeof m === "string") models.push(m);
+                                        }
+                                    }
+                                } catch (parseErr) {}
+                            }
+                            runOnUiThreadSafe(function() {
+                                if (!resp.ok) { showErrorDialog("拉取失败", briefResponse(resp)); return; }
+                                if (models.length === 0) {
+                                    Toast.makeText(ctx, "未拉取到任何模型，可在弹窗里手填", Toast.LENGTH_SHORT).show();
+                                    showModelSelectDialog(ifcNew.baseUrl, ifcNew.apiKey, [], { ifcIdx: ifcIdxNew });
+                                    return;
+                                }
+                                showModelSelectDialog(ifcNew.baseUrl, ifcNew.apiKey, models, { ifcIdx: ifcIdxNew });
+                            });
+                        }
+                    })).start();
+                });
+            }
+
+            function showEditInterfaceDialog(ifcIdx) {
+                var center = readApiCenter();
+                if (!center || !center.interfaces[ifcIdx]) return;
+                var ifc = center.interfaces[ifcIdx];
+                showInterfaceFormDialog("编辑接口", ifc, ifcIdx, function(data) {
+                    for (var i = 0; i < center.interfaces.length; i++) {
+                        if (i !== ifcIdx && center.interfaces[i].name === data.name) {
+                            Toast.makeText(ctx, "已存在同名接口，请换个名称", Toast.LENGTH_LONG).show();
+                            showEditInterfaceDialog(ifcIdx);
+                            return;
+                        }
+                    }
+                    var oldUrl = ifc.baseUrl, oldKey = ifc.apiKey;
+                    ifc.name = data.name; ifc.baseUrl = data.baseUrl; ifc.apiKey = data.apiKey;
+                    // 同步组内密钥条目：网址/密钥变了，整组条目的 value 一起改写（模型名不变）
+                    var kl = getKeyMapAndList();
+                    var changed = false;
+                    for (var j = 0; j < kl.list.length; j++) {
+                        var it = kl.map[kl.list[j]];
+                        var pv = parseKeyValue(it && it.value);
+                        if (pv && !pv.isDirect && sameApiSite(pv.url, oldUrl) && pv.key === oldKey) {
+                            it.value = data.baseUrl + "@@" + pv.model + "@@" + data.apiKey;
+                            changed = true;
+                        }
+                    }
+                    if (changed) saveKeyMapToData(kl.map, kl.list);
+                    writeApiCenter(center);
+                    Toast.makeText(ctx, "接口已更新", Toast.LENGTH_SHORT).show();
+                    refreshKeyManageDialog();
+                });
+            }
+
+            function showDeleteInterfaceDialog(ifcIdx) {
+                var center = readApiCenter();
+                if (!center || !center.interfaces[ifcIdx]) return;
+                var ifc = center.interfaces[ifcIdx];
+                var count = 0;
+                var kl0 = getKeyMapAndList();
+                for (var i = 0; i < kl0.list.length; i++) {
+                    if (keyBelongsTo(kl0.map[kl0.list[i]] && kl0.map[kl0.list[i]].value, ifc)) count++;
+                }
+                new android.app.AlertDialog.Builder(ctx)
+                    .setTitle("删除接口")
+                    .setMessage("删除接口「" + ifc.name + "」及其下 " + count + " 个密钥条目？该操作不可恢复。")
+                    .setPositiveButton("删除", new android.content.DialogInterface.OnClickListener({
+                        onClick: function(d, which) {
+                            center.interfaces.splice(ifcIdx, 1);
+                            var kl = getKeyMapAndList();
+                            var keyMap = kl.map, keyOrder = [];
+                            var removed = 0;
+                            for (var j = 0; j < kl.list.length; j++) {
+                                var nm = kl.list[j];
+                                if (keyBelongsTo(keyMap[nm] && keyMap[nm].value, ifc)) { removed++; continue; }
+                                keyOrder.push(nm);
+                            }
+                            if (removed > 0) saveKeyMapToData(keyMap, keyOrder);
+                            writeApiCenter(center);
+                            Toast.makeText(ctx, "已删除接口「" + ifc.name + "」（" + removed + " 条）", Toast.LENGTH_SHORT).show();
+                            refreshKeyManageDialog();
+                        }
+                    }))
+                    .setNegativeButton("取消", null)
+                    .show();
+            }
+
+            function showManualModelDialog(ifcIdx) {
+                var center = readApiCenter();
+                if (!center || !center.interfaces[ifcIdx]) return;
+                var ifc = center.interfaces[ifcIdx];
+                var builder = new android.app.AlertDialog.Builder(ctx);
+                var root = new android.widget.LinearLayout(ctx);
+                root.setOrientation(android.widget.LinearLayout.VERTICAL);
+                root.setPadding(dipToPx(20), dipToPx(16), dipToPx(20), dipToPx(16));
+                root.addView(createDialogTitle("手填模型「" + ifc.name + "」"));
+                var tip = new android.widget.TextView(ctx);
+                tip.setText("每行一个模型名，可一次填多个（不联网，直接保存）");
+                tip.setTextSize(12);
+                tip.setTextColor(android.graphics.Color.parseColor("#9e9e9e"));
+                tip.setPadding(0, dipToPx(6), 0, dipToPx(8));
+                root.addView(tip);
+                var modelInput = new android.widget.EditText(ctx);
+                modelInput.setHint("glm-4.6\\ndeepseek-v3");
+                modelInput.setTextSize(15);
+                modelInput.setMinLines(2);
+                modelInput.setTextColor(android.graphics.Color.parseColor("#333333"));
+                modelInput.setPadding(dipToPx(12), dipToPx(10), dipToPx(12), dipToPx(10));
+                var mBg = new android.graphics.drawable.GradientDrawable();
+                mBg.setShape(android.graphics.drawable.GradientDrawable.RECTANGLE);
+                mBg.setCornerRadius(dipToPx(8));
+                mBg.setColor(android.graphics.Color.parseColor("#FFFFFF"));
+                mBg.setStroke(dipToPx(1), android.graphics.Color.parseColor("#10000000"));
+                modelInput.setBackground(mBg);
+                root.addView(modelInput);
+                builder.setView(root);
+                builder.setPositiveButton("保存", new android.content.DialogInterface.OnClickListener({
+                    onClick: function(d, which) {
+                        var raw = modelInput.getText() ? modelInput.getText().toString() : "";
+                        var lines = raw.split(/[\\n,，、]+/);
+                        var kl = getKeyMapAndList();
+                        var keyMap = kl.map, keyOrder = kl.list.slice();
+                        var added = 0;
+                        for (var i = 0; i < lines.length; i++) {
+                            var mn = lines[i].trim();
+                            if (!mn) continue;
+                            if (ifc.models.indexOf(mn) < 0) ifc.models.push(mn);
+                            if (!keyMap.hasOwnProperty(mn)) {
+                                var kn = uniqueKeyName(mn, ifc.name, keyMap);
+                                keyMap[kn] = { keyCode: getNextKeyCode(keyMap), value: ifc.baseUrl + "@@" + mn + "@@" + ifc.apiKey };
+                                keyOrder.push(kn);
+                                added++;
+                            }
+                        }
+                        saveKeyMapToData(keyMap, keyOrder);
+                        writeApiCenter(center);
+                        Toast.makeText(ctx, added > 0 ? "已添加 " + added + " 个模型" : "没有新增（可能已存在）", Toast.LENGTH_SHORT).show();
+                        refreshKeyManageDialog();
+                    }
+                }));
+                builder.setNegativeButton("取消", null);
+                var d3 = builder.show();
+                applyDialogRoundCorner(d3);
+            }
+            // ===== 接口中心弹窗结束 =====
 
             function parseKeyForTest(rawKey) {
                 var text = (rawKey || "").toString().trim();
@@ -491,40 +770,87 @@ var EditorJS = {
                 return { ok: true, type: "zhipu", apiKey: text };
             }
 
+            // 响应业务校验：HTTP 2xx ≠ 可用（部分中转 /models 不校验密钥、部分 200 包 error body）
+            function chatReplyOk(resp) {
+                try {
+                    var j = JSON.parse(resp.body);
+                    if (!j || j.error) return false;
+                    if (j.choices && j.choices.length) return true;
+                    if (j.content || j.output || j.data) return true;
+                    return false;
+                } catch (e) { return false; }
+            }
+            function modelListOk(resp) {
+                try {
+                    var j = JSON.parse(resp.body);
+                    if (!j || j.error) return false;
+                    var arr = j.data || j.models || j;
+                    return Array.isArray(arr);
+                } catch (e) { return false; }
+            }
+
             function testModelKey(rawKey) {
                 var parsed = parseKeyForTest(rawKey);
                 if (!parsed.ok) return { ok: false, message: parsed.reason };
                 if (parsed.type === "zhipu") {
+                    var zhipuStartedAt = new Date().getTime();
                     var zhipuResp = httpJsonRequest("https://open.bigmodel.cn/api/paas/v4/models", "GET", parsed.apiKey, null);
-                    if (zhipuResp.ok) return { ok: true, message: "密钥可用！智谱 /models 验证成功" };
+                    if (zhipuResp.ok && modelListOk(zhipuResp)) return { ok: true, message: "智谱 /models 验证成功，" + (new Date().getTime() - zhipuStartedAt) + "ms" };
+                    if (zhipuResp.code === 401 || zhipuResp.code === 403) return { ok: false, message: "密钥无效或无权限（HTTP " + zhipuResp.code + "）" };
                     return { ok: false, message: "智谱 /models 验证失败：" + briefResponse(zhipuResp) };
                 }
 
-                var modelsUrl = joinApiPath(parsed.baseUrl, "/models");
-                var modelsResp = httpJsonRequest(modelsUrl, "GET", parsed.apiKey, null);
-                if (modelsResp.ok) return { ok: true, message: "密钥可用！模型：" + parsed.model };
-
-                var completionsUrl = joinApiPath(parsed.baseUrl, "/completions");
-                var payload = JSON.stringify({ model: parsed.model, prompt: "ping", max_tokens: 1, temperature: 0 });
-                var compResp = httpJsonRequest(completionsUrl, "POST", parsed.apiKey, payload);
-                if (compResp.ok) return { ok: true, message: "密钥可用！模型：" + parsed.model };
-
+                // 直接验证真实对话端点：/models 在很多中转站不校验密钥（任何 key 都返回 200），不能作为可用依据
                 var chatUrl = parsed.chatUrl || joinApiPath(parsed.baseUrl, "/chat/completions");
-                var chatPayload = JSON.stringify({
-                    model: parsed.model,
-                    messages: [{ role: "user", content: "ping" }],
-                    max_tokens: 1,
-                    temperature: 0
-                });
-                var chatResp = httpJsonRequest(chatUrl, "POST", parsed.apiKey, chatPayload);
-                if (chatResp.ok) return { ok: true, message: "密钥可用！模型：" + parsed.model };
+                var startedAt = new Date().getTime();
+                function tryChat(payload) {
+                    return httpJsonRequest(chatUrl, "POST", parsed.apiKey, JSON.stringify(payload));
+                }
+                // 请求形状对齐 jread："只回复 pong" + max_tokens 16（过小可能被部分模型拒绝）
+                var chatResp = tryChat({ model: parsed.model, messages: [{ role: "user", content: "只回复 pong" }], max_tokens: 16, temperature: 0, stream: false });
+                if (!(chatResp.ok && chatReplyOk(chatResp))) {
+                    // 降级重试：部分推理模型不接受 max_tokens/temperature 参数，用最小请求再验一次
+                    var retryResp = tryChat({ model: parsed.model, messages: [{ role: "user", content: "ping" }], stream: false });
+                    if (retryResp.ok && chatReplyOk(retryResp)) chatResp = retryResp;
+                }
+                if (chatResp.ok && chatReplyOk(chatResp)) return { ok: true, message: "测试成功，" + (new Date().getTime() - startedAt) + "ms" };
 
-                return { ok: false, message: "/models、/completions 与 /chat/completions 均验证失败。\n/models：" + briefResponse(modelsResp) + "\n/completions：" + briefResponse(compResp) + "\n/chat/completions：" + briefResponse(chatResp) };
+                var msg;
+                if (chatResp.ok) {
+                    msg = "接口返回异常：HTTP 状态正常但内容不是有效的对话响应。\n" + briefResponse(chatResp);
+                } else if (chatResp.code === 401 || chatResp.code === 403) {
+                    msg = "密钥无效或无权限（HTTP " + chatResp.code + "）：" + briefResponse(chatResp);
+                } else if (chatResp.code === 404) {
+                    msg = "对话端点不存在（HTTP 404），请检查接口地址结尾/模型名：" + briefResponse(chatResp);
+                } else if (chatResp.code === 400) {
+                    msg = "请求被拒绝（HTTP 400，常见原因：模型名不存在或参数不支持）：" + briefResponse(chatResp);
+                } else {
+                    msg = "chat/completions 验证失败：" + briefResponse(chatResp);
+                }
+                var modelsResp = httpJsonRequest(joinApiPath(parsed.baseUrl, "/models"), "GET", parsed.apiKey, null);
+                if (modelsResp.ok) msg += "\n(参考：/models 可访问——该端点多数站点不校验密钥，不能说明密钥可用)";
+                return { ok: false, message: msg };
             }
 
             var currentTestResultPopup = null;
             function showBottomTestTip(anchor, ok, message) {
                 try {
+                    if (!ok) {
+                        // 失败信息较长，用完整弹窗展示（可滚动），避免小气泡截断
+                        var errScroll = new android.widget.ScrollView(ctx);
+                        var errText = new android.widget.TextView(ctx);
+                        errText.setText("测试失败！\n\n" + (message || "未知结果"));
+                        errText.setTextSize(14);
+                        errText.setTextColor(android.graphics.Color.parseColor("#333333"));
+                        errText.setPadding(dipToPx(20), dipToPx(10), dipToPx(20), dipToPx(10));
+                        errScroll.addView(errText);
+                        new android.app.AlertDialog.Builder(ctx)
+                            .setTitle("！测试失败")
+                            .setView(errScroll)
+                            .setPositiveButton("知道了", null)
+                            .show();
+                        return;
+                    }
                     if (currentTestResultPopup != null && currentTestResultPopup.isShowing()) {
                         currentTestResultPopup.dismiss();
                     }
@@ -683,9 +1009,61 @@ var EditorJS = {
 
             container.addView(titleRow);
 
+            // 顶部操作行：新增密钥 + 拉取模型（等宽并排，放列表上方更顺手）
+            var bottomRow = new android.widget.LinearLayout(ctx);
+            bottomRow.setOrientation(android.widget.LinearLayout.HORIZONTAL);
+            bottomRow.setGravity(android.view.Gravity.CENTER);
+            var bottomRowParams = new android.widget.LinearLayout.LayoutParams(
+                android.widget.LinearLayout.LayoutParams.MATCH_PARENT,
+                android.widget.LinearLayout.LayoutParams.WRAP_CONTENT
+            );
+            bottomRowParams.setMargins(0, dipToPx(8), 0, dipToPx(4));
+            bottomRow.setLayoutParams(bottomRowParams);
+
+            function createBottomBtn(text, color) {
+                var btn = new android.widget.TextView(ctx);
+                btn.setText(text);
+                btn.setTextSize(14);
+                btn.setTextColor(android.graphics.Color.parseColor(color));
+                btn.setGravity(android.view.Gravity.CENTER);
+                var bg = new android.graphics.drawable.GradientDrawable();
+                bg.setShape(android.graphics.drawable.GradientDrawable.RECTANGLE);
+                bg.setCornerRadius(dipToPx(10));
+                bg.setColor(android.graphics.Color.parseColor("#FFFFFF"));
+                bg.setStroke(dipToPx(1), android.graphics.Color.parseColor("#10000000"));
+                btn.setBackground(bg);
+                btn.setPadding(dipToPx(12), dipToPx(12), dipToPx(12), dipToPx(12));
+                var p = new android.widget.LinearLayout.LayoutParams(
+                    0, android.widget.LinearLayout.LayoutParams.WRAP_CONTENT, 1
+                );
+                btn.setLayoutParams(p);
+                return btn;
+            }
+
+            var addBtn = createBottomBtn("＋ 新增密钥", RMTHEME.cur.main);
+            addBtn.getLayoutParams().setMargins(0, 0, dipToPx(4), 0);
+            addBtn.setOnClickListener(new android.view.View.OnClickListener({
+                onClick: function(v) {
+                    dialog.dismiss();
+                    showAddKeyDialog();
+                }
+            }));
+            bottomRow.addView(addBtn);
+
+            var pullBtn = createBottomBtn("🔍 拉取模型", "#6A1B9A");
+            pullBtn.getLayoutParams().setMargins(dipToPx(4), 0, 0, 0);
+            pullBtn.setOnClickListener(new android.view.View.OnClickListener({
+                onClick: function(v) {
+                    showNewInterfaceDialog();
+                }
+            }));
+            bottomRow.addView(pullBtn);
+
+            container.addView(bottomRow);
+
             if (kl.list.length === 0) {
                 var emptyHint = new android.widget.TextView(ctx);
-                emptyHint.setText("暂无密钥，点击下方「新增密钥」添加");
+                emptyHint.setText("暂无密钥，点击上方「新增密钥」添加");
                 emptyHint.setTextSize(14);
                 emptyHint.setTextColor(android.graphics.Color.parseColor("#757575"));
                 emptyHint.setPadding(0, dipToPx(24), 0, dipToPx(24));
@@ -693,8 +1071,240 @@ var EditorJS = {
                 container.addView(emptyHint);
             }
 
-            for (var i = 0; i < kl.list.length; i++) {
-                (function(name, keyItem, isCurrent, keyIdx) {
+            // ===== 接口分组渲染：组头（接口名+编辑/加模型/删除）+ 组内密钥行（行内操作原样） =====
+            var apiCenter = ensureApiCenter();
+            var keyGroups = buildKeyGroups(kl, apiCenter);
+            for (var gi2 = 0; gi2 < keyGroups.length; gi2++) {
+                (function(grp) {
+                    var isCollapsed = grpCollapsed[grp.title] === true;
+                    var groupHeader = new android.widget.LinearLayout(ctx);
+                    groupHeader.setOrientation(android.widget.LinearLayout.VERTICAL);
+                    groupHeader.setPadding(dipToPx(4), dipToPx(10), dipToPx(4), dipToPx(2));
+                    var headerRow = new android.widget.LinearLayout(ctx);
+                    headerRow.setOrientation(android.widget.LinearLayout.HORIZONTAL);
+                    headerRow.setGravity(android.view.Gravity.CENTER_VERTICAL);
+                    var grpHasCurrent = false;
+                    for (var hci = 0; hci < grp.entries.length; hci++) {
+                        if (isCurrentKeyItem(grp.entries[hci].name, grp.entries[hci].item)) { grpHasCurrent = true; break; }
+                    }
+                    var deleting = deleteMode[grp.title] === true;
+                    var grpTitle = new android.widget.TextView(ctx);
+                    if (deleting) {
+                        var selCount = 0;
+                        for (var sci = 0; sci < grp.entries.length; sci++) if (deleteChecked[grp.entries[sci].name]) selCount++;
+                        grpTitle.setText("选择要删除的密钥（已选 " + selCount + "）");
+                        grpTitle.setTextColor(android.graphics.Color.parseColor("#C62828"));
+                    } else {
+                        // 折叠组若含当前使用的密钥，组名前 ✓ 提示，避免"当前密钥藏哪了"找不到
+                        grpTitle.setText((isCollapsed ? "▸ " : "▾ ") + (grpHasCurrent ? "✓" : "") + grp.title + "（" + grp.entries.length + "）");
+                        // 点击组名折叠/展开（模型多的接口收起省地方）
+                        grpTitle.setOnClickListener(new android.view.View.OnClickListener({
+                            onClick: function(v) {
+                                grpCollapsed[grp.title] = !isCollapsed;
+                                refreshKeyManageDialog();
+                            }
+                        }));
+                    }
+                    grpTitle.setTextSize(14);
+                    grpTitle.setTypeface(android.graphics.Typeface.DEFAULT_BOLD);
+                    grpTitle.setTextColor(android.graphics.Color.parseColor(grp.ifc ? RMTHEME.cur.main : "#757575"));
+                    // 单行+省略：标题与右侧按钮同行，组名过长时省略号收尾，防止挤成竖排
+                    grpTitle.setSingleLine(true);
+                    grpTitle.setEllipsize(android.text.TextUtils.TruncateAt.END);
+                    grpTitle.setLayoutParams(new android.widget.LinearLayout.LayoutParams(
+                        0, android.widget.LinearLayout.LayoutParams.WRAP_CONTENT, 1
+                    ));
+                    headerRow.addView(grpTitle);
+                    if (deleting) {
+                        // 删除选择模式工具条：全选 / 取消 / 执行删除
+                        var selAllBtn = createSmallButton("全选", "#757575", true);
+                        selAllBtn.setOnClickListener(new android.view.View.OnClickListener({
+                            onClick: function(v) {
+                                var allSel = true;
+                                for (var si = 0; si < grp.entries.length; si++) {
+                                    if (!deleteChecked[grp.entries[si].name]) { allSel = false; break; }
+                                }
+                                for (var sj = 0; sj < grp.entries.length; sj++) deleteChecked[grp.entries[sj].name] = !allSel;
+                                refreshKeyManageDialog();
+                            }
+                        }));
+                        headerRow.addView(selAllBtn);
+                        var cancelDelBtn = createSmallButton("取消", "#757575", true);
+                        cancelDelBtn.setOnClickListener(new android.view.View.OnClickListener({
+                            onClick: function(v) {
+                                deleteMode[grp.title] = false;
+                                deleteChecked = {};
+                                refreshKeyManageDialog();
+                            }
+                        }));
+                        headerRow.addView(cancelDelBtn);
+                        var delGoBtn = createSmallButton("删除(" + selCount + ")", "#C62828", true);
+                        delGoBtn.setOnClickListener(new android.view.View.OnClickListener({
+                            onClick: function(v) {
+                                if (selCount === 0) {
+                                    Toast.makeText(ctx, "请先勾选要删除的密钥", Toast.LENGTH_SHORT).show();
+                                    return;
+                                }
+                                new android.app.AlertDialog.Builder(ctx)
+                                    .setTitle("删除确认")
+                                    .setMessage("确定删除「" + grp.title + "」中选中的 " + selCount + " 条密钥？不可恢复。")
+                                    .setPositiveButton("删除", new android.content.DialogInterface.OnClickListener({
+                                        onClick: function(d2, which) {
+                                            var centerDel = readApiCenter();
+                                            var ifcDel = centerDel ? centerDel.interfaces[grp.ifcIdx] : null;
+                                            var klDel = getKeyMapAndList();
+                                            var mapDel = klDel.map, orderDel = [];
+                                            var removed = 0, removedModels = [];
+                                            var cur = (ttsrv.tts.data['currentKeyName'] || '').toString().trim();
+                                            var curWasRemoved = false;
+                                            for (var j2 = 0; j2 < klDel.list.length; j2++) {
+                                                var nmDel = klDel.list[j2];
+                                                if (deleteChecked[nmDel]) {
+                                                    var pvDel = parseKeyValue(mapDel[nmDel] && mapDel[nmDel].value);
+                                                    if (pvDel && !pvDel.isDirect) removedModels.push(pvDel.model);
+                                                    if (nmDel === cur) curWasRemoved = true;
+                                                    delete mapDel[nmDel];
+                                                    removed++;
+                                                    continue;
+                                                }
+                                                orderDel.push(nmDel);
+                                            }
+                                            if (ifcDel) {
+                                                for (var rm = 0; rm < removedModels.length; rm++) {
+                                                    var mi2 = ifcDel.models.indexOf(removedModels[rm]);
+                                                    if (mi2 !== -1) ifcDel.models.splice(mi2, 1);
+                                                }
+                                                writeApiCenter(centerDel);
+                                            }
+                                            saveKeyMapToData(mapDel, orderDel);
+                                            deleteMode[grp.title] = false;
+                                            deleteChecked = {};
+                                            // 当前密钥被删时自动切换到剩余第一条
+                                            if (curWasRemoved && orderDel.length > 0) {
+                                                var nextName = orderDel[0];
+                                                var nextVal = mapDel[nextName] && mapDel[nextName].value ? String(mapDel[nextName].value).trim() : "";
+                                                if (nextVal) { saveKeyToLocal(nextVal); ttsrv.tts.data['currentKeyName'] = nextName; }
+                                            }
+                                            Toast.makeText(ctx, "已删除 " + removed + " 条密钥", Toast.LENGTH_SHORT).show();
+                                            refreshKeyManageDialog();
+                                        }
+                                    }))
+                                    .setNegativeButton("取消", function(d2) { d2.cancel(); })
+                                    .show();
+                            }
+                        }));
+                        headerRow.addView(delGoBtn);
+                    } else {
+                        if (grp.ifc) {
+                        var addModelBtn = createSmallButton("🔍", RMTHEME.cur.main, true);
+                        // 点了直接拉取（高频路径），手填入口在拉取模型选择弹窗里兜底
+                        addModelBtn.setOnClickListener(new android.view.View.OnClickListener({
+                            onClick: function(v) {
+                                var centerNow = readApiCenter();
+                                var ifc = centerNow ? centerNow.interfaces[grp.ifcIdx] : null;
+                                if (!ifc) return;
+                                addModelBtn.setEnabled(false);
+                                addModelBtn.setText("…");
+                                Toast.makeText(ctx, "正在拉取「" + ifc.name + "」模型列表…", Toast.LENGTH_SHORT).show();
+                                new java.lang.Thread(new java.lang.Runnable({
+                                    run: function() {
+                                        var resp;
+                                        try { resp = httpJsonRequest(joinApiPath(ifc.baseUrl, "/models"), "GET", ifc.apiKey, null); }
+                                        catch (pullErr) { resp = { ok: false, body: pullErr.toString(), code: -1 }; }
+                                        var models = [];
+                                        if (resp.ok) {
+                                            try {
+                                                var parsed = JSON.parse(resp.body);
+                                                var arr = parsed.data || parsed.models || parsed;
+                                                if (Array.isArray(arr)) {
+                                                    for (var i = 0; i < arr.length; i++) {
+                                                        var m = arr[i];
+                                                        if (m && m.id) models.push(String(m.id));
+                                                        else if (typeof m === "string") models.push(m);
+                                                    }
+                                                }
+                                            } catch (parseErr) {}
+                                        }
+                                        runOnUiThreadSafe(function() {
+                                            addModelBtn.setEnabled(true);
+                                            addModelBtn.setText("＋模型");
+                                            if (!resp.ok) { showErrorDialog("拉取失败", briefResponse(resp)); return; }
+                                            if (models.length === 0) { Toast.makeText(ctx, "未拉取到任何模型", Toast.LENGTH_SHORT).show(); return; }
+                                            showModelSelectDialog(ifc.baseUrl, ifc.apiKey, models, { ifcIdx: grp.ifcIdx });
+                                        });
+                                    }
+                                })).start();
+                            }
+                        }));
+                        var testAllBtn = createSmallButton("⚡", RMTHEME.cur.main, true);
+                        testAllBtn.setOnClickListener(new android.view.View.OnClickListener({
+                            onClick: function(v) {
+                                if (grp.entries.length === 0) {
+                                    Toast.makeText(ctx, "该接口下没有密钥条目", Toast.LENGTH_SHORT).show();
+                                    return;
+                                }
+                                Toast.makeText(ctx, "开始测试「" + grp.title + "」共 " + grp.entries.length + " 条，完成后逐条标记", Toast.LENGTH_LONG).show();
+                                new java.lang.Thread(new java.lang.Runnable({
+                                    run: function() {
+                                        var okCount = 0;
+                                        for (var ti = 0; ti < grp.entries.length; ti++) {
+                                            var entry = grp.entries[ti];
+                                            var testVal = entry.item && entry.item.value ? String(entry.item.value).trim() : "";
+                                            var testResult;
+                                            try { testResult = testModelKey(testVal); } catch (tErr) {
+                                                testResult = { ok: false, message: tErr.toString() };
+                                            }
+                                            batchTestResults[entry.name] = !!testResult.ok;
+                                            if (testResult.ok) okCount++;
+                                        }
+                                        runOnUiThreadSafe(function() {
+                                            refreshKeyManageDialog();
+                                            Toast.makeText(ctx, "「" + grp.title + "」测试完成：" + okCount + " 通 / " + (grp.entries.length - okCount) + " 不通", Toast.LENGTH_LONG).show();
+                                        });
+                                    }
+                                })).start();
+                            }
+                        }));
+                        // ✎ 编辑接口（低频配置）放最后
+                        var editIfcBtn = createSmallButton("✏️", RMTHEME.cur.main, true);
+                        editIfcBtn.setOnClickListener(new android.view.View.OnClickListener({
+                            onClick: function(v) { showEditInterfaceDialog(grp.ifcIdx); }
+                        }));
+                        headerRow.addView(editIfcBtn);
+                        headerRow.addView(addModelBtn);
+                        headerRow.addView(testAllBtn);
+                        }
+                        // ✕ 进入删除选择模式（所有组都有；接口组删除会同步移除接口登记的模型）
+                        var delModeBtn = createSmallButton("🗑️", "#C62828", true);
+                        delModeBtn.setOnClickListener(new android.view.View.OnClickListener({
+                            onClick: function(v) {
+                                deleteMode[grp.title] = true;
+                                deleteChecked = {};
+                                grpCollapsed[grp.title] = false;
+                                refreshKeyManageDialog();
+                            }
+                        }));
+                        headerRow.addView(delModeBtn);
+                    }
+                    groupHeader.addView(headerRow);
+                    // 第二行：网址+密钥尾4（整行灰字；单字符操作按钮都在行1，与密钥条目行风格一致）
+                    if (grp.ifc) {
+                        var keyTail = String(grp.ifc.apiKey || "");
+                        if (keyTail.length > 4) keyTail = keyTail.substring(keyTail.length - 4);
+                        var ifcUrl = new android.widget.TextView(ctx);
+                        ifcUrl.setText(grp.ifc.baseUrl + "  *尾" + keyTail);
+                        ifcUrl.setTextSize(12);
+                        ifcUrl.setTextColor(android.graphics.Color.parseColor("#9e9e9e"));
+                        ifcUrl.setSingleLine(true);
+                        ifcUrl.setEllipsize(android.text.TextUtils.TruncateAt.MIDDLE);
+                        ifcUrl.setPadding(dipToPx(2), 0, 0, 0);
+                        groupHeader.addView(ifcUrl);
+                    }
+                    container.addView(groupHeader);
+                    if (isCollapsed) return;
+
+                    for (var i = 0; i < grp.entries.length; i++) {
+                        (function(name, keyItem, isCurrent, keyIdx) {
                     var row = new android.widget.LinearLayout(ctx);
                     row.setOrientation(android.widget.LinearLayout.VERTICAL);
                     var rowParams = new android.widget.LinearLayout.LayoutParams(
@@ -731,6 +1341,8 @@ var EditorJS = {
                         ttsrv.tts.data['currentKeyName'] = name;
                         currentLocalKey = key;
                         curName = name;
+                        // 切换后自动展开所在分组，让 ✓ 当前标记可见
+                        grpCollapsed[grp.title] = false;
                         Toast.makeText(ctx, "已切换到【" + name + "】", Toast.LENGTH_SHORT).show();
                         if (dialog) dialog.dismiss();
                     }
@@ -743,6 +1355,15 @@ var EditorJS = {
                         android.widget.LinearLayout.LayoutParams.MATCH_PARENT,
                         android.widget.LinearLayout.LayoutParams.WRAP_CONTENT
                     ));
+                    // 删除选择模式：行前勾选框（组头工具条全选/删除）
+                    if (grp.ifc && deleteMode[grp.title]) {
+                        var delCb = new android.widget.CheckBox(ctx);
+                        delCb.setChecked(!!deleteChecked[name]);
+                        delCb.setOnCheckedChangeListener(new android.widget.CompoundButton.OnCheckedChangeListener({
+                            onCheckedChanged: function(bv, isChecked) { deleteChecked[name] = isChecked; }
+                        }));
+                        topRow.addView(delCb);
+                    }
 
                     // 左侧指示器（参考书籍切换栏：选中=蓝色对勾，未选中=彩色圆点）
                     var keyColors = ["#7E57C2", "#5C6BC0", "#26A69A", "#8D6E63", "#66BB6A", "#EC407A", "#FF7043", "#42A5F5"];
@@ -781,80 +1402,18 @@ var EditorJS = {
                     }));
                     topRow.addView(nameText);
 
-                    // 拉取按钮：用本行密钥的URL+Key拉取模型，生成新密钥
-                    var pullBtn = createSmallButton("🔍", "#6A1B9A", true);
-                    pullBtn.setPadding(dipToPx(6), dipToPx(6), dipToPx(6), dipToPx(6));
-                    pullBtn.setOnClickListener(new android.view.View.OnClickListener({
-                        onClick: function(v) {
-                            var curKey = getItemKey(keyItem);
-                            var parts = curKey.split("@@");
-                            if (parts.length < 3) {
-                                Toast.makeText(ctx, "智谱内置密钥不支持拉取", Toast.LENGTH_SHORT).show();
-                                return;
-                            }
-                            var baseUrl = normalizeBaseUrl(parts[0].trim());
-                            var apiKey = parts.slice(2).join("@@").trim();
-                            var modelsUrl = joinApiPath(baseUrl, "/models");
-                            pullBtn.setEnabled(false);
-                            pullBtn.setText("…");
-                            Toast.makeText(ctx, "正在拉取模型列表…", Toast.LENGTH_SHORT).show();
-                            new java.lang.Thread(new java.lang.Runnable({
-                                run: function() {
-                                    var resp;
-                                    try {
-                                        resp = httpJsonRequest(modelsUrl, "GET", apiKey, null);
-                                    } catch (pullErr) {
-                                        runOnUiThreadSafe(function() {
-                                            pullBtn.setEnabled(true);
-                                            pullBtn.setText("🔍");
-                                            showErrorDialog("拉取失败", pullErr.toString());
-                                        });
-                                        return;
-                                    }
-                                    if (!resp.ok) {
-                                        runOnUiThreadSafe(function() {
-                                            pullBtn.setEnabled(true);
-                                            pullBtn.setText("🔍");
-                                            showErrorDialog("拉取失败", briefResponse(resp));
-                                        });
-                                        return;
-                                    }
-                                    var models = [];
-                                    try {
-                                        var parsed = JSON.parse(resp.body);
-                                        var arr = parsed.data || parsed.models || parsed;
-                                        if (Array.isArray(arr)) {
-                                            for (var i = 0; i < arr.length; i++) {
-                                                var m = arr[i];
-                                                if (m && m.id) models.push(String(m.id));
-                                                else if (typeof m === "string") models.push(m);
-                                            }
-                                        }
-                                    } catch (parseErr) {
-                                        runOnUiThreadSafe(function() {
-                                            pullBtn.setEnabled(true);
-                                            pullBtn.setText("🔍");
-                                            showErrorDialog("解析模型列表失败", parseErr.toString());
-                                        });
-                                        return;
-                                    }
-                                    runOnUiThreadSafe(function() {
-                                        pullBtn.setEnabled(true);
-                                        pullBtn.setText("🔍");
-                                        if (models.length === 0) {
-                                            Toast.makeText(ctx, "未拉取到任何模型", Toast.LENGTH_SHORT).show();
-                                            return;
-                                        }
-                                        showModelSelectDialog(baseUrl, apiKey, models);
-                                    });
-                                }
-                            })).start();
-                        }
-                    }));
-                    topRow.addView(pullBtn);
+                    // 连通测试标记（⚡测全部/单条测试后显示）：/models 能拉 ≠ chat 能通，以真实对话端点结果为准
+                    if (batchTestResults.hasOwnProperty(name)) {
+                        var resMark = new android.widget.TextView(ctx);
+                        resMark.setText(batchTestResults[name] ? "✓通" : "✗不通");
+                        resMark.setTextSize(11);
+                        resMark.setTextColor(android.graphics.Color.parseColor(batchTestResults[name] ? "#2E7D32" : "#C62828"));
+                        resMark.setPadding(dipToPx(4), 0, 0, 0);
+                        topRow.addView(resMark);
+                    }
 
                     // 测试按钮：后台测试密钥可用性，结果用 Toast 提示
-                    var testBtn = createSmallButton("⚡", "#455A64", true);
+                            var testBtn = createSmallButton("⚡", "#455A64", true);
                     testBtn.setPadding(dipToPx(6), dipToPx(6), dipToPx(6), dipToPx(6));
                     testBtn.setOnClickListener(new android.view.View.OnClickListener({
                         onClick: function(v) {
@@ -874,6 +1433,7 @@ var EditorJS = {
                                     } catch (testErr) {
                                         result = { ok: false, message: testErr.toString() };
                                     }
+                                    batchTestResults[curName] = !!result.ok;
                                     runOnUiThreadSafe(function() {
                                         try {
                                             testBtn.setEnabled(true);
@@ -888,7 +1448,7 @@ var EditorJS = {
                     topRow.addView(testBtn);
 
                     // 编辑按钮：查看/编辑密钥内容，可复制、编辑或删除
-                    var viewEditBtn = createSmallButton("✎", RMTHEME.cur.main, true);
+                    var viewEditBtn = createSmallButton("✏️", RMTHEME.cur.main, true);
                     viewEditBtn.setPadding(dipToPx(6), dipToPx(6), dipToPx(6), dipToPx(6));
                     viewEditBtn.setOnClickListener(new android.view.View.OnClickListener({
                         onClick: function(v) {
@@ -1130,54 +1690,9 @@ var EditorJS = {
                     }));
                     topRow.addView(viewEditBtn);
 
-                    // 删除按钮（带确认）
-                    var delBtn = createSmallButton("✖", "#E53935", true);
-                    delBtn.setPadding(dipToPx(6), dipToPx(6), dipToPx(6), dipToPx(6));
-                    delBtn.setOnClickListener(new android.view.View.OnClickListener({
-                        onClick: function(v) {
-                            new android.app.AlertDialog.Builder(ctx)
-                                .setTitle("删除确认")
-                                .setMessage("确定删除【" + name + "】？")
-                                .setPositiveButton("删除", function(d) {
-                                    delete kl.map[name];
-                                    // 从顺序列表中移除
-                                    var di2 = kl.list.indexOf(name);
-                                    if (di2 !== -1) kl.list.splice(di2, 1);
-                                    saveKeyMapToData(kl.map, kl.list);
-                                    var cur = (ttsrv.tts.data['currentKeyName'] || '').toString().trim();
-                                    if (cur === name) {
-                                        ttsrv.tts.data['currentKeyName'] = "";
-                                        // 还有密钥时自动启用第一个（按添加顺序）
-                                        if (kl.list.length > 0) {
-                                            var nextName2 = kl.list[0];
-                                            var nextKey2 = kl.map[nextName2];
-                                            var nextKeyValue2 = nextKey2 && nextKey2.value ? nextKey2.value.toString().trim() : "";
-                                            if (nextKeyValue2) {
-                                                saveKeyToLocal(nextKeyValue2);
-                                                ttsrv.tts.data['currentKeyName'] = nextName2;
-                                                console.log("删除后自动启用: " + nextName2);
-                                            }
-                                        } else {
-                                            try {
-                                                ttsrv.writeTxtFile("miyue.txt", "");
-                                                ttsrv.writeTxtFile("gengxin.txt", "");
-                                            } catch (clearErr) {
-                                                console.error("清除本地密钥失败：" + clearErr.toString());
-                                            }
-                                        }
-                                    }
-                                    Toast.makeText(ctx, "已删除【" + name + "】", Toast.LENGTH_SHORT).show();
-                                    d.dismiss();
-                                    if (dialog) dialog.dismiss();
-                                })
-                                .setNegativeButton("取消", function(d) { d.cancel(); })
-                                .show();
-                        }
-                    }));
-                    topRow.addView(delBtn);
                     row.addView(topRow);
 
-                    // 第二行：来源小标签（从 value 解析 URL/Key尾4位，纯key显示"智谱内置"）
+                    // 第二行：来源小标签——接口组内条目不再显示（网址/密钥已上移组头），仅未分组/直连组保留
                     var keyRaw = getItemKey(keyItem);
                     var label = "";
                     var parts = keyRaw.split("@@");
@@ -1193,7 +1708,7 @@ var EditorJS = {
                     } else {
                         label = "智谱内置";
                     }
-                    if (label) {
+                    if (label && !grp.ifc) {
                         var srcText = new android.widget.TextView(ctx);
                         srcText.setText(label);
                         srcText.setTextSize(12);
@@ -1208,60 +1723,10 @@ var EditorJS = {
                     }
 
                     container.addView(row);
-                })(kl.list[i], kl.map[kl.list[i]], isCurrentKeyItem(kl.list[i], kl.map[kl.list[i]]), i);
+                        })(grp.entries[i].name, grp.entries[i].item, isCurrentKeyItem(grp.entries[i].name, grp.entries[i].item), i);
+                    }
+                })(keyGroups[gi2]);
             }
-
-            // 底部操作行：新增密钥 + 拉取模型（等宽并排）
-            var bottomRow = new android.widget.LinearLayout(ctx);
-            bottomRow.setOrientation(android.widget.LinearLayout.HORIZONTAL);
-            bottomRow.setGravity(android.view.Gravity.CENTER);
-            var bottomRowParams = new android.widget.LinearLayout.LayoutParams(
-                android.widget.LinearLayout.LayoutParams.MATCH_PARENT,
-                android.widget.LinearLayout.LayoutParams.WRAP_CONTENT
-            );
-            bottomRowParams.setMargins(0, dipToPx(8), 0, dipToPx(4));
-            bottomRow.setLayoutParams(bottomRowParams);
-
-            function createBottomBtn(text, color) {
-                var btn = new android.widget.TextView(ctx);
-                btn.setText(text);
-                btn.setTextSize(14);
-                btn.setTextColor(android.graphics.Color.parseColor(color));
-                btn.setGravity(android.view.Gravity.CENTER);
-                var bg = new android.graphics.drawable.GradientDrawable();
-                bg.setShape(android.graphics.drawable.GradientDrawable.RECTANGLE);
-                bg.setCornerRadius(dipToPx(10));
-                bg.setColor(android.graphics.Color.parseColor("#FFFFFF"));
-                bg.setStroke(dipToPx(1), android.graphics.Color.parseColor("#10000000"));
-                btn.setBackground(bg);
-                btn.setPadding(dipToPx(12), dipToPx(12), dipToPx(12), dipToPx(12));
-                var p = new android.widget.LinearLayout.LayoutParams(
-                    0, android.widget.LinearLayout.LayoutParams.WRAP_CONTENT, 1
-                );
-                btn.setLayoutParams(p);
-                return btn;
-            }
-
-            var addBtn = createBottomBtn("＋ 新增密钥", RMTHEME.cur.main);
-            addBtn.getLayoutParams().setMargins(0, 0, dipToPx(4), 0);
-            addBtn.setOnClickListener(new android.view.View.OnClickListener({
-                onClick: function(v) {
-                    dialog.dismiss();
-                    showAddKeyDialog();
-                }
-            }));
-            bottomRow.addView(addBtn);
-
-            var pullBtn = createBottomBtn("🔍 拉取模型", "#6A1B9A");
-            pullBtn.getLayoutParams().setMargins(dipToPx(4), 0, 0, 0);
-            pullBtn.setOnClickListener(new android.view.View.OnClickListener({
-                onClick: function(v) {
-                    batchPullKeysDialog();
-                }
-            }));
-            bottomRow.addView(pullBtn);
-
-            container.addView(bottomRow);
 
             var scrollView = new android.widget.ScrollView(ctx);
             scrollView.addView(container);
@@ -1425,181 +1890,42 @@ var EditorJS = {
         }
 
         // 批量拉取：输入URL+Key，拉取模型列表，分类多选，生成 URL@@模型名@@Key 密钥
-        function batchPullKeysDialog() {
-            var builder = new android.app.AlertDialog.Builder(ctx);
-            var root = new android.widget.LinearLayout(ctx);
-            root.setOrientation(android.widget.LinearLayout.VERTICAL);
-            root.setPadding(dipToPx(20), dipToPx(16), dipToPx(20), dipToPx(16));
-            root.addView(createDialogTitle("批量拉取模型"));
 
-            function createCardBg() {
-                var bg = new android.graphics.drawable.GradientDrawable();
-                bg.setShape(android.graphics.drawable.GradientDrawable.RECTANGLE);
-                bg.setCornerRadius(dipToPx(8));
-                bg.setColor(android.graphics.Color.parseColor("#FFFFFF"));
-                bg.setStroke(dipToPx(1.5), android.graphics.Color.parseColor("#10000000"));
-                return bg;
-            }
-
-            var urlLabel = new android.widget.TextView(ctx);
-            urlLabel.setText("接口地址（如 https://api.openai.com/v1）");
-            urlLabel.setTextSize(14);
-            urlLabel.setTextColor(android.graphics.Color.parseColor("#757575"));
-            urlLabel.setPadding(dipToPx(2), 0, 0, dipToPx(4));
-            root.addView(urlLabel);
-
-            var urlInput = new android.widget.EditText(ctx);
-            urlInput.setHint("https://api.openai.com/v1");
-            urlInput.setTextSize(15);
-            urlInput.setSingleLine(true);
-            urlInput.setTextColor(android.graphics.Color.parseColor("#333333"));
-            urlInput.setPadding(dipToPx(12), dipToPx(10), dipToPx(12), dipToPx(10));
-            urlInput.setBackground(createCardBg());
-            root.addView(urlInput);
-
-            var spacer1 = new android.view.View(ctx);
-            spacer1.setLayoutParams(new android.widget.LinearLayout.LayoutParams(
-                android.widget.LinearLayout.LayoutParams.MATCH_PARENT, dipToPx(10)));
-            root.addView(spacer1);
-
-            var keyLabel = new android.widget.TextView(ctx);
-            keyLabel.setText("API Key");
-            keyLabel.setTextSize(14);
-            keyLabel.setTextColor(android.graphics.Color.parseColor("#757575"));
-            keyLabel.setPadding(dipToPx(2), 0, 0, dipToPx(4));
-            root.addView(keyLabel);
-
-            var keyInput = new android.widget.EditText(ctx);
-            keyInput.setHint("sk-...");
-            keyInput.setTextSize(15);
-            keyInput.setSingleLine(true);
-            keyInput.setTextColor(android.graphics.Color.parseColor("#333333"));
-            keyInput.setPadding(dipToPx(12), dipToPx(10), dipToPx(12), dipToPx(10));
-            keyInput.setBackground(createCardBg());
-            root.addView(keyInput);
-
-            var hint = new android.widget.TextView(ctx);
-            hint.setText("将调用 /models 接口拉取可用模型，按类型分组后勾选生成密钥");
-            hint.setTextSize(12);
-            hint.setTextColor(android.graphics.Color.parseColor("#9e9e9e"));
-            hint.setPadding(0, dipToPx(8), 0, 0);
-            root.addView(hint);
-
-            builder.setView(root);
-
-            builder.setPositiveButton("拉取", new android.content.DialogInterface.OnClickListener({
-                onClick: function(d) {
-                    var url = urlInput.getText() ? urlInput.getText().toString().trim() : "";
-                    var apiKey = keyInput.getText() ? keyInput.getText().toString().trim() : "";
-                    if (!url) {
-                        Toast.makeText(ctx, "请输入接口地址", Toast.LENGTH_SHORT).show();
-                        return;
-                    }
-                    if (!apiKey) {
-                        Toast.makeText(ctx, "请输入 API Key", Toast.LENGTH_SHORT).show();
-                        return;
-                    }
-                    d.dismiss();
-                    var normalizedUrl = normalizeBaseUrl(url);
-                    var modelsUrl = joinApiPath(normalizedUrl, "/models");
-                    Toast.makeText(ctx, "正在拉取模型列表…", Toast.LENGTH_SHORT).show();
-                    new java.lang.Thread(new java.lang.Runnable({
-                        run: function() {
-                            var resp;
-                            try {
-                                resp = httpJsonRequest(modelsUrl, "GET", apiKey, null);
-                            } catch (pullErr) {
-                                runOnUiThreadSafe(function() {
-                                    showErrorDialog("拉取失败", pullErr.toString());
-                                });
-                                return;
-                            }
-                            if (!resp.ok) {
-                                runOnUiThreadSafe(function() {
-                                    showErrorDialog("拉取失败", briefResponse(resp));
-                                });
-                                return;
-                            }
-                            var models = [];
-                            try {
-                                var parsed = JSON.parse(resp.body);
-                                var arr = parsed.data || parsed.models || parsed;
-                                if (Array.isArray(arr)) {
-                                    for (var i = 0; i < arr.length; i++) {
-                                        var m = arr[i];
-                                        if (m && m.id) models.push(String(m.id));
-                                        else if (typeof m === "string") models.push(m);
-                                    }
-                                }
-                            } catch (parseErr) {
-                                runOnUiThreadSafe(function() {
-                                    showErrorDialog("解析模型列表失败", parseErr.toString());
-                                });
-                                return;
-                            }
-                            if (models.length === 0) {
-                                runOnUiThreadSafe(function() {
-                                    Toast.makeText(ctx, "未拉取到任何模型", Toast.LENGTH_SHORT).show();
-                                });
-                                return;
-                            }
-                            runOnUiThreadSafe(function() {
-                                showModelSelectDialog(normalizedUrl, apiKey, models);
-                            });
-                        }
-                    })).start();
-                }
-            }));
-            builder.setNegativeButton("取消", new android.content.DialogInterface.OnClickListener({
-                onClick: function(d) { d.cancel(); }
-            }));
-            var roundPullDlg = builder.show();
-            applyDialogRoundCorner(roundPullDlg);
-        }
-
-        // 模型分类：按名称模式归类（对话/嵌入/图像/音频/其他）
+        // 模型分类：按主流能力归类（文本/向量/图像/视频/音频/其他）。
+        // 判定=强特征优先，未命中特殊能力的模型保守归"文本"（与 jread 同策略，避免新厂商/未知名字堆进"其他"）
         function classifyModel(modelName) {
             var n = String(modelName).toLowerCase();
-            // 对话类（默认勾选）
-            if (n.indexOf("gpt-") === 0 || n.indexOf("chatgpt") >= 0 ||
-                n.indexOf("claude") >= 0 || n.indexOf("gemini") >= 0 ||
-                n.indexOf("glm-") === 0 || n.indexOf("qwen") >= 0 ||
-                n.indexOf("deepseek") >= 0 || n.indexOf("moonshot") >= 0 ||
-                n.indexOf("yi-") === 0 || n.indexOf("baichuan") >= 0 ||
-                n.indexOf("llama") >= 0 || n.indexOf("mistral") >= 0 ||
-                n.indexOf("mixtral") >= 0 || n.indexOf("command") >= 0 ||
-                n.indexOf("spark") >= 0 || n.indexOf("ernie") >= 0 ||
-                n.indexOf("hunyuan") >= 0 || n.indexOf("doubao") >= 0 ||
-                n.indexOf("chat") >= 0 || n.indexOf("instruct") >= 0 ||
-                n.indexOf("conversation") >= 0) {
-                return "对话";
+            // 向量（含重排序）
+            if (n.indexOf("embed") >= 0 || n.indexOf("babbage") >= 0 || n.indexOf("rerank") >= 0) {
+                return "向量";
             }
-            // 嵌入类
-            if (n.indexOf("embed") >= 0 || n.indexOf("babbage") >= 0 || n.indexOf("davinci") >= 0) {
-                return "嵌入";
-            }
-            // 图像类
-            if (n.indexOf("dall-e") >= 0 || n.indexOf("image") >= 0 || n.indexOf("stable-diffusion") >= 0 ||
-                n.indexOf("midjourney") >= 0 || n.indexOf("flux") >= 0) {
+            // 图像生成
+            if (n.indexOf("dall-e") >= 0 || n.indexOf("image") >= 0 || n.indexOf("diffusion") >= 0 ||
+                n.indexOf("midjourney") >= 0 || n.indexOf("flux") >= 0 || n.indexOf("sdxl") >= 0 ||
+                n.indexOf("sd3") >= 0 || n.indexOf("cogview") >= 0 || n.indexOf("kolors") >= 0 ||
+                n.indexOf("janus") >= 0) {
                 return "图像";
             }
-            // 音频类
+            // 视频生成
+            if (n.indexOf("video") >= 0 || n.indexOf("sora") >= 0 || n.indexOf("kling") >= 0 ||
+                n.indexOf("vidu") >= 0 || n.indexOf("cogvideo") >= 0) {
+                return "视频";
+            }
+            // 音频（合成/识别）
             if (n.indexOf("whisper") >= 0 || n.indexOf("tts") >= 0 || n.indexOf("audio") >= 0 ||
-                n.indexOf("speech") >= 0 || n.indexOf("voice") >= 0) {
+                n.indexOf("speech") >= 0 || n.indexOf("voice") >= 0 || n.indexOf("asr") >= 0 ||
+                n.indexOf("transcri") >= 0 || n.indexOf("cosyvoice") >= 0) {
                 return "音频";
             }
-            // 视觉类
-            if (n.indexOf("vision") >= 0 || n.indexOf("ocr") >= 0) {
-                return "视觉";
-            }
-            return "其他";
+            return "文本";
         }
 
-        // 模型选择弹窗：分组显示，对话类默认勾选，确认后生成密钥
-        function showModelSelectDialog(baseUrl, apiKey, models) {
-            // 分类
+        // 模型选择弹窗：分类分组显示+搜索过滤，默认全部不勾选（勾哪个存哪个），确认后生成密钥
+        // targetIfc 可选：{ ifcIdx }——拉取结果归属到指定接口（api_center 登记 + 密钥条目名唯一化）
+        function showModelSelectDialog(baseUrl, apiKey, models, targetIfc) {
+            // 分类（组内保持接口返回顺序）
             var groups = {};
-            var groupOrder = ["对话", "嵌入", "图像", "音频", "视觉", "其他"];
+            var groupOrder = ["文本", "向量", "图像", "视频", "音频", "其他"];
             for (var i = 0; i < models.length; i++) {
                 var cat = classifyModel(models[i]);
                 if (!groups[cat]) groups[cat] = [];
@@ -1610,14 +1936,13 @@ var EditorJS = {
             var existingNames = {};
             for (var e = 0; e < kl.list.length; e++) existingNames[kl.list[e]] = true;
 
-            // 勾选状态：对话类默认勾选
+            // 勾选状态：默认全部不勾选，勾哪个存哪个
             var checked = {};
             for (var g = 0; g < groupOrder.length; g++) {
                 var gname = groupOrder[g];
                 if (groups[gname]) {
                     for (var m = 0; m < groups[gname].length; m++) {
-                        var mname = groups[gname][m];
-                        checked[mname] = (gname === "对话");
+                        checked[groups[gname][m]] = false;
                     }
                 }
             }
@@ -1628,6 +1953,101 @@ var EditorJS = {
             root.setPadding(dipToPx(16), dipToPx(12), dipToPx(16), dipToPx(16));
             root.addView(createDialogTitle("选择模型（共 " + models.length + " 个）"));
 
+            // 搜索框：实时按模型名过滤（模型太多时定位用）
+            var filterText = "";
+            var searchInput = new android.widget.EditText(ctx);
+            searchInput.setHint("搜索模型名…");
+            searchInput.setTextSize(14);
+            searchInput.setSingleLine(true);
+            searchInput.setTextColor(android.graphics.Color.parseColor("#333333"));
+            searchInput.setHintTextColor(android.graphics.Color.parseColor("#9e9e9e"));
+            searchInput.setPadding(dipToPx(12), dipToPx(9), dipToPx(12), dipToPx(9));
+            var searchBg = new android.graphics.drawable.GradientDrawable();
+            searchBg.setShape(android.graphics.drawable.GradientDrawable.RECTANGLE);
+            searchBg.setCornerRadius(dipToPx(8));
+            searchBg.setColor(android.graphics.Color.parseColor(RMTHEME.cur.tint));
+            searchInput.setBackground(searchBg);
+            searchInput.addTextChangedListener(new android.text.TextWatcher({
+                beforeTextChanged: function() {},
+                onTextChanged: function() {},
+                afterTextChanged: function(s) {
+                    var t = s ? s.toString() : "";
+                    if (t === filterText) return;
+                    filterText = t.trim().toLowerCase();
+                    rebuildList();
+                }
+            }));
+            root.addView(searchInput);
+            var searchSpacer = new android.view.View(ctx);
+            searchSpacer.setLayoutParams(new android.widget.LinearLayout.LayoutParams(
+                android.widget.LinearLayout.LayoutParams.MATCH_PARENT, dipToPx(8)));
+            root.addView(searchSpacer);
+
+            // 手填兜底（仅接口模式）：接口拉不到的模型直接填名字当场添加，列表里同步标为已存在
+            if (targetIfc) {
+                var manualRow = new android.widget.LinearLayout(ctx);
+                manualRow.setOrientation(android.widget.LinearLayout.HORIZONTAL);
+                manualRow.setGravity(android.view.Gravity.CENTER_VERTICAL);
+                manualRow.setPadding(0, 0, 0, dipToPx(4));
+                var manualInput = new android.widget.EditText(ctx);
+                manualInput.setHint("列表没有？手填模型名，逗号分隔");
+                manualInput.setTextSize(13);
+                manualInput.setSingleLine(true);
+                manualInput.setTextColor(android.graphics.Color.parseColor("#333333"));
+                manualInput.setPadding(dipToPx(12), dipToPx(8), dipToPx(12), dipToPx(8));
+                var manualBg = new android.graphics.drawable.GradientDrawable();
+                manualBg.setShape(android.graphics.drawable.GradientDrawable.RECTANGLE);
+                manualBg.setCornerRadius(dipToPx(8));
+                manualBg.setColor(android.graphics.Color.parseColor("#FFFFFF"));
+                manualBg.setStroke(dipToPx(1), android.graphics.Color.parseColor("#10000000"));
+                manualInput.setBackground(manualBg);
+                manualInput.setLayoutParams(new android.widget.LinearLayout.LayoutParams(
+                    0, android.widget.LinearLayout.LayoutParams.WRAP_CONTENT, 1
+                ));
+                manualRow.addView(manualInput);
+                var manualGo = new android.widget.TextView(ctx);
+                manualGo.setText("添加");
+                manualGo.setTextSize(14);
+                manualGo.setTypeface(android.graphics.Typeface.DEFAULT_BOLD);
+                manualGo.setTextColor(android.graphics.Color.parseColor(RMTHEME.cur.main));
+                manualGo.setPadding(dipToPx(12), 0, 0, 0);
+                manualGo.setOnClickListener(new android.view.View.OnClickListener({
+                    onClick: function(v) {
+                        var raw = manualInput.getText() ? manualInput.getText().toString() : "";
+                        var lines = raw.split(/[,,、]+/);
+                        var hasInput = false;
+                        for (var li = 0; li < lines.length; li++) { if (lines[li].trim()) { hasInput = true; break; } }
+                        if (!hasInput) { Toast.makeText(ctx, "请先填写模型名", Toast.LENGTH_SHORT).show(); return; }
+                        var centerM = readApiCenter();
+                        var ifcM = centerM ? centerM.interfaces[targetIfc.ifcIdx] : null;
+                        if (!ifcM) return;
+                        var klM = getKeyMapAndList();
+                        var mapM = klM.map, orderM = klM.list.slice();
+                        var addedCount = 0;
+                        for (var mi = 0; mi < lines.length; mi++) {
+                            var mn = lines[mi].trim();
+                            if (!mn) continue;
+                            if (ifcM.models.indexOf(mn) < 0) ifcM.models.push(mn);
+                            if (!mapM.hasOwnProperty(mn)) {
+                                var knM = uniqueKeyName(mn, ifcM.name, mapM);
+                                mapM[knM] = { keyCode: getNextKeyCode(mapM), value: ifcM.baseUrl + "@@" + mn + "@@" + ifcM.apiKey };
+                                orderM.push(knM);
+                                addedCount++;
+                            }
+                            existingNames[mn] = true;
+                            if (models.indexOf(mn) < 0) { models.push(mn); checked[mn] = false; }
+                        }
+                        saveKeyMapToData(mapM, orderM);
+                        writeApiCenter(centerM);
+                        manualInput.setText("");
+                        rebuildList();
+                        Toast.makeText(ctx, "已手填添加 " + addedCount + " 个模型到「" + ifcM.name + "」", Toast.LENGTH_SHORT).show();
+                    }
+                }));
+                manualRow.addView(manualGo);
+                root.addView(manualRow);
+            }
+
             var scrollView = new android.widget.ScrollView(ctx);
             scrollView.setLayoutParams(new android.widget.LinearLayout.LayoutParams(
                 android.widget.LinearLayout.LayoutParams.MATCH_PARENT, dipToPx(320)
@@ -1637,18 +2057,28 @@ var EditorJS = {
 
             function rebuildList() {
                 listContainer.removeAllViews();
+                var totalShown = 0;
                 for (var g = 0; g < groupOrder.length; g++) {
                     var gname = groupOrder[g];
                     if (!groups[gname]) continue;
 
-                    // 分组标题
+                    // 搜索过滤：只显示命中项；组内无命中则整组隐藏
+                    var shown = [];
+                    for (var m = 0; m < groups[gname].length; m++) {
+                        var mn = groups[gname][m];
+                        if (!filterText || String(mn).toLowerCase().indexOf(filterText) >= 0) shown.push(mn);
+                    }
+                    if (shown.length === 0) continue;
+                    totalShown += shown.length;
+
+                    // 分组标题（有过滤时显示 命中/总数）
                     var titleRow = new android.widget.LinearLayout(ctx);
                     titleRow.setOrientation(android.widget.LinearLayout.HORIZONTAL);
                     titleRow.setGravity(android.view.Gravity.CENTER_VERTICAL);
                     titleRow.setPadding(0, dipToPx(8), 0, dipToPx(4));
 
                     var groupTitle = new android.widget.TextView(ctx);
-                    groupTitle.setText(gname + "（" + groups[gname].length + "）");
+                    groupTitle.setText(gname + "（" + shown.length + (shown.length < groups[gname].length ? "/" + groups[gname].length : "") + "）");
                     groupTitle.setTextSize(14);
                     groupTitle.setTextColor(android.graphics.Color.parseColor(RMTHEME.cur.main));
                     groupTitle.setTypeface(android.graphics.Typeface.DEFAULT_BOLD);
@@ -1658,31 +2088,31 @@ var EditorJS = {
                     groupTitle.setLayoutParams(titleParams);
                     titleRow.addView(groupTitle);
 
-                    // 全选/全不选按钮
+                    // 全选/全不选按钮：只作用于当前可见项（避免把搜索过滤掉的模型误勾进来）
                     var toggleAllBtn = new android.widget.TextView(ctx);
                     toggleAllBtn.setText("全选");
                     toggleAllBtn.setTextSize(12);
                     toggleAllBtn.setTextColor(android.graphics.Color.parseColor("#757575"));
                     toggleAllBtn.setPadding(dipToPx(8), 0, dipToPx(8), 0);
-                    (function(gn) {
+                    (function(gn, shownArr) {
                         toggleAllBtn.setOnClickListener(new android.view.View.OnClickListener({
                             onClick: function(v) {
                                 var allChecked = true;
-                                for (var i = 0; i < groups[gn].length; i++) {
-                                    if (!checked[groups[gn][i]]) { allChecked = false; break; }
+                                for (var i = 0; i < shownArr.length; i++) {
+                                    if (!checked[shownArr[i]]) { allChecked = false; break; }
                                 }
-                                for (var j = 0; j < groups[gn].length; j++) {
-                                    checked[groups[gn][j]] = !allChecked;
+                                for (var j = 0; j < shownArr.length; j++) {
+                                    checked[shownArr[j]] = !allChecked;
                                 }
                                 rebuildList();
                             }
                         }));
-                    })(gname);
+                    })(gname, shown);
                     titleRow.addView(toggleAllBtn);
                     listContainer.addView(titleRow);
 
                     // 模型条目
-                    for (var mi = 0; mi < groups[gname].length; mi++) {
+                    for (var mi = 0; mi < shown.length; mi++) {
                         (function(modelName, groupName) {
                             var row = new android.widget.LinearLayout(ctx);
                             row.setOrientation(android.widget.LinearLayout.HORIZONTAL);
@@ -1711,13 +2141,26 @@ var EditorJS = {
                             }));
                             row.addView(cb);
                             listContainer.addView(row);
-                        })(groups[gname][mi], gname);
+                        })(shown[mi], gname);
                     }
+                }
+                if (totalShown === 0) {
+                    var emptyTip = new android.widget.TextView(ctx);
+                    emptyTip.setText("没有匹配的模型");
+                    emptyTip.setTextSize(13);
+                    emptyTip.setTextColor(android.graphics.Color.parseColor("#9e9e9e"));
+                    emptyTip.setGravity(android.view.Gravity.CENTER);
+                    emptyTip.setPadding(0, dipToPx(20), 0, dipToPx(20));
+                    listContainer.addView(emptyTip);
                 }
             }
             rebuildList();
 
             scrollView.addView(listContainer);
+            // 恢复上次滚动位置（编辑/删除后刷新不跳顶）
+            scrollView.post(new java.lang.Runnable({ run: function() {
+                try { scrollView.setScrollY(keyMgrScrollPos); } catch (spErr2) {}
+            }}));
             root.addView(scrollView);
 
             builder.setView(root);
@@ -1732,6 +2175,35 @@ var EditorJS = {
                     if (selected.length === 0) {
                         Toast.makeText(ctx, "未选择新模型", Toast.LENGTH_SHORT).show();
                         return;
+                    }
+                    // 归属接口模式：模型登记进接口，密钥条目名做跨接口唯一化（模型名 / 模型名@接口名）
+                    if (targetIfc) {
+                        var center = readApiCenter();
+                        var ifc = center ? center.interfaces[targetIfc.ifcIdx] : null;
+                        if (ifc) {
+                            var klIfc = getKeyMapAndList();
+                            var mapIfc = klIfc.map, orderIfc = klIfc.list.slice();
+                            var addedIfc = 0;
+                            for (var iIfc = 0; iIfc < selected.length; iIfc++) {
+                                var mIfc = selected[iIfc];
+                                if (ifc.models.indexOf(mIfc) < 0) ifc.models.push(mIfc);
+                                var knIfc = uniqueKeyName(mIfc, ifc.name, mapIfc);
+                                mapIfc[knIfc] = { keyCode: getNextKeyCode(mapIfc), value: ifc.baseUrl + "@@" + mIfc + "@@" + ifc.apiKey };
+                                orderIfc.push(knIfc);
+                                addedIfc++;
+                            }
+                            saveKeyMapToData(mapIfc, orderIfc);
+                            writeApiCenter(center);
+                            Toast.makeText(ctx, "已添加 " + addedIfc + " 个模型到「" + ifc.name + "」", Toast.LENGTH_LONG).show();
+                            d.dismiss();
+                            if (keyManageDialog) { keyManageDialog.dismiss(); keyManageDialog = null; }
+                            new android.os.Handler(android.os.Looper.getMainLooper()).post(new java.lang.Runnable({
+                                run: function() {
+                                    try { showKeyManageDialog(); } catch (eR2) {}
+                                }
+                            }));
+                            return;
+                        }
                     }
                     var keyMap = kl.map;
                     var keyOrder = kl.list.slice();
@@ -1935,6 +2407,123 @@ var EditorJS = {
         // 辅助函数（保留）
         // 密钥列表持久化文件名
         var KEY_LIST_FILE = "key_list.json";
+        var KEY_LIST_BACKUP_FILE = "key_list.backup.json";
+
+        // ===== 接口中心数据层（api_center.json）=====
+        // 接口=用户命名的实体（名称/网址/密钥/模型清单），一个网址可建多个接口（不同密钥），
+        // 同一模型可挂多个接口。key_list.json 仍是消费端唯一数据源（值=网址@@模型名@@Key），
+        // 接口层为管理视图：各操作在此双写保持两边一致。分组按（归一化网址+密钥）匹配。
+        var API_CENTER_FILE = "api_center.json";
+
+        function readApiCenter() {
+            try {
+                var txt = ttsrv.readTxtFile(API_CENTER_FILE);
+                if (!txt || !txt.trim()) return null;
+                var obj = JSON.parse(txt);
+                if (!obj || !Array.isArray(obj.interfaces)) return null;
+                return obj;
+            } catch (e) {
+                console.error("读取接口中心失败：" + e.toString());
+                return null;
+            }
+        }
+
+        function writeApiCenter(center) {
+            try { ttsrv.writeTxtFile(API_CENTER_FILE, JSON.stringify(center)); } catch (wErr) {
+                console.error("写入接口中心失败：" + wErr.toString());
+            }
+        }
+
+        // 解析密钥值：@@串 → {isDirect:false,url,model,key}；纯key → {isDirect:true,key}
+        function parseKeyValue(v) {
+            var text = String(v || "").trim();
+            if (!text) return null;
+            var parts = text.split("@@");
+            if (parts.length >= 3) {
+                return { isDirect: false, url: (parts[0] || "").trim(), model: (parts[1] || "").trim(), key: parts.slice(2).join("@@").trim() };
+            }
+            return { isDirect: true, key: text };
+        }
+
+        function sameApiSite(urlA, urlB) {
+            try { return getOpenAiBaseUrl(urlA) === getOpenAiBaseUrl(urlB); } catch (e) { return String(urlA) === String(urlB); }
+        }
+
+        function keyBelongsTo(value, ifc) {
+            var pv = parseKeyValue(value);
+            if (!pv || pv.isDirect) return false;
+            return sameApiSite(pv.url, ifc.baseUrl) && pv.key === String(ifc.apiKey || "").trim();
+        }
+
+        // 首次迁移：无 api_center.json 时，把现有 @@ 密钥按（网址+密钥）聚合成接口（默认名"接口N"），纯key留直连组
+        function ensureApiCenter() {
+            var c = readApiCenter();
+            if (c) return c;
+            c = { interfaces: [] };
+            try {
+                var kl = getKeyMapAndList();
+                var sigIdx = {};
+                for (var i = 0; i < kl.list.length; i++) {
+                    var it = kl.map[kl.list[i]];
+                    var v = it && it.value ? String(it.value).trim() : "";
+                    var pv = parseKeyValue(v);
+                    if (!pv || pv.isDirect) continue;
+                    var sig = pv.url + "||" + pv.key;
+                    var idx = sigIdx[sig];
+                    if (idx === undefined) {
+                        c.interfaces.push({ name: "接口" + (c.interfaces.length + 1), baseUrl: pv.url, apiKey: pv.key, models: [] });
+                        idx = c.interfaces.length - 1;
+                        sigIdx[sig] = idx;
+                    }
+                    if (c.interfaces[idx].models.indexOf(pv.model) < 0) c.interfaces[idx].models.push(pv.model);
+                }
+            } catch (migErr) {
+                console.error("接口迁移失败：" + migErr.toString());
+            }
+            writeApiCenter(c);
+            return c;
+        }
+
+        // 同模型跨接口的密钥条目命名：模型名优先，重名加 @接口名（消费端列表里能看出归属）
+        function uniqueKeyName(modelName, ifcName, keyMap) {
+            if (!keyMap.hasOwnProperty(modelName)) return modelName;
+            var alt = modelName + "@" + ifcName;
+            if (!keyMap.hasOwnProperty(alt)) return alt;
+            var n = 2;
+            while (keyMap.hasOwnProperty(alt + n)) n++;
+            return alt + n;
+        }
+
+        // 按接口分组密钥条目：[{ifc, ifcIdx, entries:[{name,item}]}...]，末尾追加未分组/直连组
+        function buildKeyGroups(kl, center) {
+            var groups = [];
+            var assigned = {};
+            for (var gi = 0; gi < center.interfaces.length; gi++) {
+                var ifc = center.interfaces[gi];
+                var entries = [];
+                for (var i = 0; i < kl.list.length; i++) {
+                    var nm = kl.list[i];
+                    if (assigned[nm]) continue;
+                    var it = kl.map[nm];
+                    var v = it && it.value ? String(it.value).trim() : "";
+                    if (keyBelongsTo(v, ifc)) { entries.push({ name: nm, item: it }); assigned[nm] = true; }
+                }
+                groups.push({ ifc: ifc, ifcIdx: gi, title: ifc.name, entries: entries });
+            }
+            var ungrouped = [], direct = [];
+            for (var i2 = 0; i2 < kl.list.length; i2++) {
+                if (assigned[kl.list[i2]]) continue;
+                var it2 = kl.map[kl.list[i2]];
+                var v2 = it2 && it2.value ? String(it2.value).trim() : "";
+                var pv2 = parseKeyValue(v2);
+                if (pv2 && !pv2.isDirect) ungrouped.push({ name: kl.list[i2], item: it2 });
+                else direct.push({ name: kl.list[i2], item: it2 });
+            }
+            if (ungrouped.length) groups.push({ ifc: null, ifcIdx: -1, title: "未分组", entries: ungrouped });
+            if (direct.length) groups.push({ ifc: null, ifcIdx: -1, title: "直连密钥", entries: direct });
+            return groups;
+        }
+        // ===== 接口中心数据层结束 =====
 
         // 从持久化存储读取密钥映射（保持添加顺序）
         // 优先读取文件 key_list.json（有序数组格式），回退到 ttsrv.tts.data.keyListJson（旧格式）
@@ -1964,6 +2553,26 @@ var EditorJS = {
                 }
             } catch (e) {
                 console.error("从文件读取密钥列表失败：" + e.toString());
+                // 损坏自愈：主文件读不出（写坏/被截断）时回退上一份备份
+                try {
+                    var backupContent = ttsrv.readTxtFile(KEY_LIST_BACKUP_FILE);
+                    if (backupContent && backupContent.trim()) {
+                        var backupArr = JSON.parse(backupContent);
+                        if (Array.isArray(backupArr)) {
+                            var backupMap = {};
+                            for (var bi = 0; bi < backupArr.length; bi++) {
+                                if (backupArr[bi] && backupArr[bi].length >= 2) {
+                                    backupMap[backupArr[bi][0]] = backupArr[bi][1];
+                                }
+                            }
+                            ttsrv.tts.data.keyListJson = JSON.stringify(backupMap);
+                            console.warn("密钥主文件损坏，已从 key_list.backup.json 恢复 " + backupArr.length + " 项");
+                            return backupMap;
+                        }
+                    }
+                } catch (bakErr) {
+                    console.error("读取密钥备份也失败：" + bakErr.toString());
+                }
             }
 
             // 回退：旧的 ttsrv.tts.data.keyListJson 格式
@@ -1996,6 +2605,11 @@ var EditorJS = {
                     }
                 }
                 var jsonStr = JSON.stringify(arr);
+                // 损坏自愈：写入前把当前文件留作备份，主文件写坏时可回退
+                try {
+                    var prevContent = ttsrv.readTxtFile(KEY_LIST_FILE);
+                    if (prevContent && prevContent.trim()) ttsrv.writeTxtFile(KEY_LIST_BACKUP_FILE, prevContent);
+                } catch (bakErr) {}
                 // 写入文件（持久化，重启后可恢复）
                 ttsrv.writeTxtFile(KEY_LIST_FILE, jsonStr);
                 // 同时写入 ttsrv.tts.data（兼容旧代码读取）
