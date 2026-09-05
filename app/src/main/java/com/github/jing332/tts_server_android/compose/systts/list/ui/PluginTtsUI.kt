@@ -69,9 +69,6 @@ import kotlinx.coroutines.withContext
 class PluginTtsUI : IConfigUI() {
     companion object {
         const val TAG = "PluginTtsUI"
-
-        // 参数链诊断:logger 名在 SysttsFilter 白名单(PluginTtsUI)内才会进日志页
-        private val paramsTraceLogger = io.github.oshai.kotlinlogging.KotlinLogging.logger("PluginTtsUI")
     }
 
     @Composable
@@ -92,7 +89,6 @@ class PluginTtsUI : IConfigUI() {
                 value = params.speed,
                 onValueChange = {
                     val v = snap(it)
-                    paramsTraceLogger.info { "[参数链] 滑块写入 speed=$v systts@${System.identityHashCode(systemTts)}" }
                     onSystemTtsChange(
                         systemTts.copy(
                             config = config.copy(
@@ -262,9 +258,6 @@ class PluginTtsUI : IConfigUI() {
                 null
             } ?: oldAudioFormat.isNeedDecode
 
-            paramsTraceLogger.info {
-                "[参数链] 采样率回调写入 speed=${(systts.config as TtsConfigurationDTO).audioParams.speed} systts@${System.identityHashCode(systts)}"
-            }
             onSysttsChange(
                 systts.copy(
                     displayName = if (systts.displayName.isNullOrBlank()) displayName else systts.displayName,
