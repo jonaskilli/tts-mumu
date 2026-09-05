@@ -32,6 +32,8 @@ import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.minimumInteractiveComponentSize
+import androidx.compose.ui.layout.ContentScale
+import coil3.compose.SubcomposeAsyncImage
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
@@ -95,12 +97,23 @@ fun AppSelectionDialog(
 ) {
     // null 时走默认渲染（icons 圆图+文字）；调用方可传自定义渲染（如插件图标失败显示名称首字）
     val content = itemContent ?: { isSelected, entry, icon, _ ->
-        if (icon != null)
-            AsyncCircleImage(
+        // 空字符串图标(音色/条目普遍无 icon)不算有图标;加载失败回退首字徽章,
+        // 避免列表每行留一个空白头像占位
+        val hasIcon = when (icon) {
+            null -> false
+            is CharSequence -> icon.isNotBlank()
+            else -> true
+        }
+        if (hasIcon)
+            SubcomposeAsyncImage(
+                icon,
+                null,
+                contentScale = ContentScale.Crop,
                 modifier = Modifier.size(32.dp),
-                model = icon,
-                contentDescription = entry
+                error = { CenterTextImage(entry.getOrElse(0) { '-' }.toString()) }
             )
+        else
+            CenterTextImage(entry.take(1))
         Text(
             entry,
             style = MaterialTheme.typography.bodyLarge,

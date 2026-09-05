@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -27,6 +28,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalTextInputService
 import androidx.compose.ui.platform.LocalTextToolbar
 import androidx.compose.ui.semantics.Role
@@ -36,6 +38,8 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.text
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.unit.dp
+import coil3.compose.SubcomposeAsyncImage
 import com.github.jing332.compose.ComposeWidgetSettings
 import kotlin.math.max
 
@@ -219,7 +223,20 @@ fun AppSpinner(
             leadingIcon != null -> leadingIcon
             hasIcon -> {
                 {
-                    AsyncCircleImage(icon)
+                    // 加载失败也回退首字徽章,避免留空白圆位
+                    SubcomposeAsyncImage(
+                        icon,
+                        null,
+                        contentScale = ContentScale.Crop,
+                        modifier = Modifier.size(32.dp),
+                        error = {
+                            CenterTextImage(
+                                firstCharEntry?.take(1)
+                                    ?: icon?.toString()?.trim()?.take(1)
+                                    ?: "?"
+                            )
+                        }
+                    )
                 }
             }
             // 无图标回退名称首字徽章,与下拉项(PluginImage)行为一致,避免收起态留白
