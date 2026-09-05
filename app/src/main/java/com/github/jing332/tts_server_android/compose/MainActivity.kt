@@ -47,6 +47,7 @@ import com.github.jing332.common.utils.toast
 import com.github.jing332.database.dbm
 import com.github.jing332.database.entities.AbstractListGroup.Companion.DEFAULT_GROUP_ID
 import com.github.jing332.database.entities.systts.SystemTtsV2
+import com.github.jing332.database.entities.systts.TtsConfigurationDTO
 import com.github.jing332.tts_server_android.R
 import com.github.jing332.tts_server_android.ShortCuts
 import com.github.jing332.tts_server_android.compose.nav.NavRoutes
@@ -197,6 +198,11 @@ private fun MainScreen(finish: () -> Unit) {
                         // 必须先落库再 popBackStack：本组合的 rememberCoroutineScope 在页面离开组合后被取消，
                         // 若先 pop 再异步落库，协程会在 withIO 挂起点被静默取消，表现为「点了保存但没保存」。
                         val current = stateSystemTts
+                        // 参数链诊断:落库瞬间的 audioParams,用于对照「编辑页调的值」定位回退发生在保存侧还是加载侧
+                        Log.i(
+                            TAG,
+                            "[参数链] 落库 id=${current.id} speed=${(current.config as? TtsConfigurationDTO)?.audioParams?.speed}"
+                        )
                         scope.launch {
                             withIO {
                                 // 分组兜底：groupId 无效（0 或分组已删除）时归位到默认分组，
