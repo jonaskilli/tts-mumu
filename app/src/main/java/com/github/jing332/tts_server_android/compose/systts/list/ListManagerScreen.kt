@@ -3365,8 +3365,9 @@ internal fun ListManagerScreen(
                 modifier = Modifier
                     .align(Alignment.BottomEnd)
                     .padding(12.dp)
-                    // 系统TTS页视口不收缩（MainPager 传 bottom=0），FAB 自行抬高避让底栏
-                    .padding(bottom = listBottomPadding),
+                    // 系统TTS页视口不收缩（MainPager 传 bottom=0），FAB 自行抬高避让底栏;
+                    // 底栏降为60dp后视觉偏浮，底部贴回8dp（视觉距底栏4dp），下限防御小屏无inset
+                    .padding(bottom = (listBottomPadding - 8.dp).coerceAtLeast(0.dp)),
                 visible = true,
                 addBgm = {
                     navigateToEdit(SystemTtsV2(groupId = DEFAULT_GROUP_ID, config = BgmConfiguration()))
