@@ -17,6 +17,7 @@ import com.github.jing332.common.audio.exo.SampleRateResampleProcessor
 import com.github.jing332.common.utils.rootCause
 import com.github.jing332.tts.error.StreamProcessorError
 import com.github.jing332.tts.error.StreamProcessorError.AudioDecoding
+import com.github.jing332.tts.speech.plugin.engine.JsBridgeInputStream
 import com.github.jing332.tts.speech.plugin.parameterRoute
 import com.github.jing332.database.entities.systts.source.PluginTtsSource
 import com.github.jing332.tts.loudness.SpeakerLoudnessManager
@@ -57,11 +58,23 @@ internal class DefaultResultProcessor(
     private suspend fun decode(
         ins: InputStream,
         tts: TtsConfiguration,
+        bridgePcmFormat: JsBridgeInputStream.StreamFormat?,
         onFormatDetected: (sampleRate: Int, channelCount: Int) -> Unit = { _, _ -> },
         onRead: (ByteBuffer) -> Unit,
     ) {
 
-        if (tts.shouldDecode()) {
+        // 插件经 getAudioV2 桥 callback.streamStart 声明的裸 PCM 流(MiMo/硅基 CosyVoice2 等):
+        // 字节无容器头,与配置的 isNeedDecode 声明可能矛盾(此类插件常误标 true,送去
+        // extractor 嗅探会报 UnrecognizedInputFormatException)。有 PCM 声明时强制直通,
+        // 并用声明格式回调纠正采样率/声道(jread 导入的占位值一并纠正)。
+        val declaredPcm =
+            bridgePcmFormat != null &&
+                    bridgePcmFormat.encoding?.startsWith("pcm", ignoreCase = true) == true
+        if (declaredPcm) {
+            onFormatDetected(bridgePcmFormat!!.sampleRate, bridgePcmFormat.channels)
+        }
+
+        if (tts.shouldDecode() && !declaredPcm) {
             mDecoder.onAudioFormatDetected = onFormatDetected
             mDecoder.callback = ExoAudioDecoder.Callback { byteBuffer ->
                 onRead(byteBuffer)
@@ -116,6 +129,8 @@ internal class DefaultResultProcessor(
         }
 
         try {
+            // 桥接流的 PCM 格式声明必须在 getAudioStream 包装/读尽前取出(非流式模式会重建流)
+            val bridgePcmFormat = (ins as? JsBridgeInputStream)?.streamFormat
             val stream = getAudioStream(ins, request, requestCostMs).onFailure { return Err(it) }.value
 
             // 响度均衡：始终开启，计算当前发音人的增益
@@ -231,6 +246,7 @@ internal class DefaultResultProcessor(
                 decode(
                     ins = stream,
                     tts = config,
+                    bridgePcmFormat = bridgePcmFormat,
                     onFormatDetected = { detected, channels ->
                         // 解码器从音频头解析出的真实格式（首段 PCM 前回调）：多采样率音源（本地音效等）
                         // 各音频文件速率/声道不同，固定配置值天然不准，统一以音频头为准

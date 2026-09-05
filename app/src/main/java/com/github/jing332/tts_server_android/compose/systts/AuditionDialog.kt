@@ -48,6 +48,7 @@ import com.github.jing332.tts.loudness.SpeakerLoudnessManager
 import com.github.jing332.tts.stackedAudioParamsFor
 import com.github.jing332.tts.speech.EngineState
 import com.github.jing332.tts.speech.TextToSpeechProvider
+import com.github.jing332.tts.speech.plugin.engine.JsBridgeInputStream
 import com.github.jing332.tts.synthesizer.SystemParams
 import com.github.jing332.tts.synthesizer.TtsConfiguration
 import com.github.jing332.tts.synthesizer.TtsConfiguration.Companion.toVO
@@ -148,6 +149,9 @@ fun AuditionDialog(
                         ),
                         config.source
                     )
+                    // 插件桥接流可能在 streamStart 声明裸 PCM(与 isNeedDecode 配置矛盾),
+                    // 格式声明读流前后都可取,但必须在 readBytes 之外单独引用
+                    val bridgePcmFormat = (stream as? JsBridgeInputStream)?.streamFormat
                     val audio = stream.readBytes()
                     val rateAndMime =
                         com.github.jing332.common.audio.AudioDecoder.getSampleRateAndMime(audio)
@@ -178,10 +182,17 @@ fun AuditionDialog(
                     val loudnessGain = SpeakerLoudnessManager.infoFor(config).gain
                     val localVolume = (effVolume * loudnessGain).coerceIn(0f, 1f)
 
-                    if (config.shouldDecode())
+                    val declaredPcm =
+                        bridgePcmFormat?.encoding?.startsWith("pcm", ignoreCase = true) == true
+                    if (config.shouldDecode() && !declaredPcm)
                         audioPlayer.play(audio, effSpeed, localVolume, effPitch)
                     else
-                        audioPlayer.play(audio, config.audioFormat.sampleRate, effSpeed, localVolume, effPitch)
+                        // 裸 PCM(声明或配置):AudioPlayer 会按采样率包 WAV 头/直通 AudioTrack
+                        audioPlayer.play(
+                            audio,
+                            if (declaredPcm) bridgePcmFormat!!.sampleRate else config.audioFormat.sampleRate,
+                            effSpeed, localVolume, effPitch
+                        )
                 }
                 withContext(Dispatchers.Main) {
                     if (autoDismiss) onDismissRequest()

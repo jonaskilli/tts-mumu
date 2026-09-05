@@ -21,6 +21,7 @@ import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
@@ -73,7 +74,8 @@ internal fun PluginVarsBottomSheet(
             plugin.defVars.forEach {
                 val key = it.key
                 val hint = it.value["hint"] ?: ""
-                val label = it.value["label"] ?: ""
+                // jread 系插件 defVars 用 "name" 字段承载显示名,仅取 "label" 会显示为空
+                val label = it.value["label"] ?: it.value["name"] ?: ""
 
                 val binding = it.value["binding"] ?: ""
                 val loginUrl = it.value["loginUrl"] ?: ""
@@ -127,7 +129,52 @@ internal fun PluginVarsBottomSheet(
                     placeholder = { Text(hint) },
                 )
             }
+            val scannedFormVars = remember(plugin.code, plugin.defVars) {
+                scanSelfDrawnFormVars(plugin.code, plugin.defVars.keys)
+            }
+            scannedFormVars.forEach { (key, formLabel) ->
+                val value = plugin.userVars.getOrDefault(key, "")
+                OutlinedTextField(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(bottom = 4.dp, start = 8.dp, end = 8.dp),
+                    maxLines = 10,
+                    value = value,
+                    onValueChange = {
+                        onPluginChange(
+                            plugin.copy(
+                                userVars = plugin.userVars.toMutableMap().apply {
+                                    this[key] = it
+                                    if (it.isBlank()) this.remove(key)
+                                }
+                            )
+                        )
+                    },
+                    label = { Text(formLabel.ifBlank { key }) },
+                    placeholder = { Text(key) },
+                )
+            }
 
         }
     }
+}
+
+/**
+ * 扫描插件 onLoadUI 自绘表单的字面量字段(addInput/addSpinner 等)。
+ * jread 系插件(火山豆包 v7 等)defVars 为空、全部变量定义只在自绘表单里,
+ * 变量弹窗按 defVars 渲染会一条不剩;把扫出的字段补为变量条目,
+ * 值存 userVars,插件 data() 的 userVars 兜底链可读到。与 defVars 条目去重。
+ */
+private fun scanSelfDrawnFormVars(code: String, existingKeys: Set<String>): Map<String, String> {
+    if (code.isBlank()) return emptyMap()
+    val result = linkedMapOf<String, String>()
+    val re = Regex(
+        """(?:addInput|addSpinner|addSwitch|addCheckBox|addEditText)\(\s*"([A-Za-z_][A-Za-z0-9_]*)"\s*,\s*"((?:[^"\\]|\\.)*)"""
+    )
+    re.findAll(code).forEach { m ->
+        val key = m.groupValues[1]
+        if (key in existingKeys || result.containsKey(key)) return@forEach
+        result[key] = m.groupValues[2]
+    }
+    return result
 }
