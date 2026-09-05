@@ -113,7 +113,8 @@ fun AuditionDialog(
         launch(Dispatchers.IO) {
             runCatching {
                 val e = engine ?: CachedEngineManager.getEngine(appCtx, config.source) ?: return@runCatching
-                if (e.state is EngineState.Uninitialized) e.onInit()
+                // !Initialized(含预热中 Initializing):挂起等待完成,保证预热协程结束时引擎必然就绪
+                if (e.state != EngineState.Initialized) e.onInit()
             }
         }
     }
@@ -126,7 +127,10 @@ fun AuditionDialog(
                 val e = engine ?: CachedEngineManager.getEngine(appCtx, config.source)
                 ?: throw IllegalStateException("engine is null")
 
-                if (e.state is EngineState.Uninitialized) e.onInit()
+                // 必须用 !Initialized 判定:预热协程可能正把 state 置为 Initializing,
+                // 旧写法 is Uninitialized 会跳过等待直接 getStream,撞上 mEngine 未就绪
+                // 抛 "Engine not initialized"(首次导入即试听必现,第二次才成功)
+                if (e.state != EngineState.Initialized) e.onInit()
                 if (e.isSyncPlay(config.source)) {
                     e.syncPlay(
                         SystemParams(
