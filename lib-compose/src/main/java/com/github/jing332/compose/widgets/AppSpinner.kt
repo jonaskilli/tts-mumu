@@ -6,7 +6,6 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -28,7 +27,6 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalTextInputService
 import androidx.compose.ui.platform.LocalTextToolbar
 import androidx.compose.ui.semantics.Role
@@ -38,8 +36,6 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.text
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.tooling.preview.Preview
-import androidx.compose.ui.unit.dp
-import coil3.compose.SubcomposeAsyncImage
 import com.github.jing332.compose.ComposeWidgetSettings
 import kotlin.math.max
 
@@ -203,56 +199,14 @@ fun AppSpinner(
         onSelectedChange.invoke(values[0], entries[0])
     }
 
-    val index = remember(value, values) { values.indexOf(value) }
-    val icon = remember(icons, index) { icons.getOrNull(index) }
-
-    // Non-null causes placeholder issues
-    @Composable
-    fun leading(): @Composable (() -> Unit)? {
-        // 空字符串 iconUrl(如未配图标的插件)不算有图标,否则留下空白头像占位
-        val hasIcon = when (icon) {
-            null -> false
-            is CharSequence -> icon.isNotBlank()
-            else -> true
-        }
-        // 仅当调用方传了 icons(本意就要显示图标,如插件选择器)才回退首字徽章;
-        // 普通下拉不传 icons,保持无 leading 图标
-        val firstCharEntry = if (icons.isNotEmpty())
-            entries.getOrNull(index)?.takeIf { it.isNotBlank() } else null
-        return when {
-            leadingIcon != null -> leadingIcon
-            hasIcon -> {
-                {
-                    // 加载失败也回退首字徽章,避免留空白圆位
-                    SubcomposeAsyncImage(
-                        icon,
-                        null,
-                        contentScale = ContentScale.Crop,
-                        modifier = Modifier.size(32.dp),
-                        error = {
-                            CenterTextImage(
-                                firstCharEntry?.take(1)
-                                    ?: icon?.toString()?.trim()?.take(1)
-                                    ?: "?"
-                            )
-                        }
-                    )
-                }
-            }
-            // 无图标回退名称首字徽章,与下拉项(PluginImage)行为一致,避免收起态留白
-            firstCharEntry != null -> {
-                { CenterTextImage(firstCharEntry.take(1)) }
-            }
-            else -> null
-        }
-    }
+    // 收起栏只显示名称不显示头像(用户定稿)：图标仅出现在点开的列表弹窗里
 
     if (maxDropDownCount > 0 && values.size > maxDropDownCount) {
         TextFieldSelectionDialog(
             modifier = modifier,
             label = label,
             labelText = labelText,
-            leadingIcon = leading(),
+            leadingIcon = leadingIcon,
             value = value,
             values = values,
             entries = entries,
@@ -279,7 +233,7 @@ fun AppSpinner(
             modifier = modifier,
             label = label,
             labelText = labelText,
-            leadingIcon = leading(),
+            leadingIcon = leadingIcon,
             value = value,
             values = values,
             entries = entries,

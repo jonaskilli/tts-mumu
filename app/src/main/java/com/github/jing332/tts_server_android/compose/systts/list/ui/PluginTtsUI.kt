@@ -438,8 +438,9 @@ class PluginTtsUI : IConfigUI() {
                         value = tts.pluginId,
                         values = vm.pluginList.map { it.pluginId },
                         entries = vm.pluginList.map { it.name },
-                        // 插件列表带各插件自己的图标（与插件管理页同款 PluginImage：
-                        // 加载失败/无图标自动显示插件名首字），长列表一眼区分
+                        // 点开的弹窗列表带各插件自己的图标（与插件管理页同款 PluginImage：
+                        // 加载失败/无图标自动显示插件名首字——仅插件栏补首字,其他栏不补）；
+                        // 收起栏只显示名称不带头像(用户定稿)
                         icons = vm.pluginList.map { it.iconUrl },
                         // 插件名长(如“小米 MiMo V2.5 TTS 三模型·…·情绪导演版”),收起栏完整显示
                         valueMaxLines = 3,

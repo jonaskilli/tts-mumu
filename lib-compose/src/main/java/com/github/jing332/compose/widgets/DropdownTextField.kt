@@ -86,11 +86,15 @@ fun DropdownTextField(
     }
 
     // Non-null causes placeholder issues
+    // 菜单条目:仅"本来有图标"的显示(空串图标=没图标,不画避免留空);收起栏恒为调用方的 leadingIcon
     @Composable
     fun leading(): @Composable (() -> Unit)? {
-        return if (leadingIcon == null && icon != null) {
+        val iconVal = icon
+        val hasIcon =
+            iconVal != null && (iconVal !is CharSequence || iconVal.isNotBlank())
+        return if (leadingIcon == null && hasIcon) {
             {
-                AsyncCircleImage(icon)
+                AsyncCircleImage(iconVal)
             }
         } else leadingIcon
     }

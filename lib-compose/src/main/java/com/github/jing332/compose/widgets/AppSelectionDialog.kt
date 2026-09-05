@@ -95,10 +95,11 @@ fun AppSelectionDialog(
     autoNextSwitch: Boolean = false,
     onAutoNextSwitchChange: ((Boolean) -> Unit)? = null,
 ) {
-    // null 时走默认渲染（icons 圆图+文字）；调用方可传自定义渲染（如插件图标失败显示名称首字）
+    // null 时走默认渲染（icons 圆图+文字）；调用方可传自定义渲染（如插件选择器传 PluginImage,
+    // 加载失败回退名称首字徽章——与插件管理页头像一致,仅插件栏补首字,其他栏无图标不补不留空）
     val content = itemContent ?: { isSelected, entry, icon, _ ->
-        // 空字符串图标(音色/条目普遍无 icon)不算有图标;加载失败回退首字徽章,
-        // 避免列表每行留一个空白头像占位
+        // 无图标条目不造首字徽章(用户:除插件栏外其他栏补徽章太冗余),文字直接顶格,
+        // 有图标的条目加载失败才回退首字,避免已声明图标的位置留空白圆位
         val hasIcon = when (icon) {
             null -> false
             is CharSequence -> icon.isNotBlank()
@@ -112,8 +113,6 @@ fun AppSelectionDialog(
                 modifier = Modifier.size(32.dp),
                 error = { CenterTextImage(entry.getOrElse(0) { '-' }.toString()) }
             )
-        else
-            CenterTextImage(entry.take(1))
         Text(
             entry,
             style = MaterialTheme.typography.bodyLarge,
