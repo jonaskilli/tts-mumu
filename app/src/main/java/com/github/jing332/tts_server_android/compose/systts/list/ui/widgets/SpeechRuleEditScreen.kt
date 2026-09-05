@@ -130,6 +130,10 @@ fun SpeechRuleEditScreen(
             }
         }
 
+        android.util.Log.i(
+            "PluginTtsUI",
+            "[参数链] tagName回调写入 speed=${config.audioParams.speed} systts@${System.identityHashCode(systts)}"
+        )
         onSysttsChange(
             systts.copy(
                 config = config.copy(config.speechRule.copy(tagName = tagName))

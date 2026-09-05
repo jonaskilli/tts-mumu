@@ -89,6 +89,7 @@ class PluginTtsUI : IConfigUI() {
                 value = params.speed,
                 onValueChange = {
                     val v = snap(it)
+                    Log.i(TAG, "[参数链] 滑块写入 speed=$v systts@${System.identityHashCode(systemTts)}")
                     onSystemTtsChange(
                         systemTts.copy(
                             config = config.copy(
@@ -258,6 +259,10 @@ class PluginTtsUI : IConfigUI() {
                 null
             } ?: oldAudioFormat.isNeedDecode
 
+            Log.i(
+                TAG,
+                "[参数链] 采样率回调写入 speed=${(systts.config as TtsConfigurationDTO).audioParams.speed} systts@${System.identityHashCode(systts)}"
+            )
             onSysttsChange(
                 systts.copy(
                     displayName = if (systts.displayName.isNullOrBlank()) displayName else systts.displayName,
