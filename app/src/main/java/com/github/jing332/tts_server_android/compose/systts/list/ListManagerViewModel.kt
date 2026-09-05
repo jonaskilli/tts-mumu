@@ -138,7 +138,6 @@ class ListManagerViewModel : ViewModel() {
                         } else {
                             filterList(visible, key, searchType, enabledIds)
                         }
-                        listTraceLogger.info { "update list: ${result.size}" }
                         _list.value = result
                         _isInitialized.value = true
                         if (key.isBlank()) cachedFullList = result
