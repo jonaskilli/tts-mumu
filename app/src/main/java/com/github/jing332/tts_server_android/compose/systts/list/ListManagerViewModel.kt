@@ -33,6 +33,9 @@ class ListManagerViewModel : ViewModel() {
     companion object {
         const val TAG = "ListManagerViewModel"
 
+        // 刷新链诊断:logger 名须加入 SysttsFilter 的 SYSTTS_INTERNAL_LOGGER_NAMES 白名单才会进日志页
+        private val listTraceLogger = io.github.oshai.kotlinlogging.KotlinLogging.logger(TAG)
+
         // 进程内缓存最近一次全量列表（关键词为空时）。列表数据一直在数据库里，
         // 但每次进页都要等「打开库→整表查询→JSON 反序列化上千条」后才首次出列表，
         // 缓存让同一进程内再次进页/重建 Activity 时立即显示，数据库查完无缝替换
@@ -102,39 +105,46 @@ class ListManagerViewModel : ViewModel() {
                     Quad(triple.first, triple.second, triple.third, nameMap, enabledIds)
                 }
                 .collect { (list, key, searchType, nameMap, enabledIds) ->
-                    _pluginNameCache.value = nameMap
-                    _enabledPluginIds.value = enabledIds
-                    // 计算失效项数量与按源插件的分组统计
-                    val srcCounts = mutableMapOf<String, Int>()
-                    val srcItems = mutableMapOf<String, MutableList<String>>()
-                    var invalid = 0
-                    list.forEach { groupWithTts ->
-                        groupWithTts.list.forEach { item ->
-                            val src = (item.config as? TtsConfigurationDTO)?.source
-                            if (src is PluginTtsSource && src.pluginId !in enabledIds) {
-                                invalid++
-                                srcCounts[src.pluginId] = (srcCounts[src.pluginId] ?: 0) + 1
-                                srcItems.getOrPut(src.pluginId) { mutableListOf() }
-                                    .add(item.displayName.ifBlank { "(#${item.id})" })
+                    // 容错:collect 内任何一条脏数据抛异常都会杀死整个收集协程,
+                    // 此后所有保存的列表刷新全部静默失效(表现为「改了参数要重启才生效」),
+                    // 必须捕获保证协程存活,等待下一次 Flow 重发
+                    runCatching {
+                        _pluginNameCache.value = nameMap
+                        _enabledPluginIds.value = enabledIds
+                        // 计算失效项数量与按源插件的分组统计
+                        val srcCounts = mutableMapOf<String, Int>()
+                        val srcItems = mutableMapOf<String, MutableList<String>>()
+                        var invalid = 0
+                        list.forEach { groupWithTts ->
+                            groupWithTts.list.forEach { item ->
+                                val src = (item.config as? TtsConfigurationDTO)?.source
+                                if (src is PluginTtsSource && src.pluginId !in enabledIds) {
+                                    invalid++
+                                    srcCounts[src.pluginId] = (srcCounts[src.pluginId] ?: 0) + 1
+                                    srcItems.getOrPut(src.pluginId) { mutableListOf() }
+                                        .add(item.displayName.ifBlank { "(#${item.id})" })
+                                }
                             }
                         }
+                        _invalidCount.value = invalid
+                        _invalidSourceCounts.value = srcCounts
+                        _invalidSourceItems.value = srcItems
+                        // 默认分组（id=1）只在其中有配置项时显示：它永远留在库里做兜底，
+                        // 但空着的时候列出来只会"突然冒出来"让人困惑；其余分组空壳照常保留
+                        val visible = list.filter { it.group.id != DEFAULT_GROUP_ID || it.list.isNotEmpty() }
+                        // 关键词为空时直接返回全量列表，否则按类型过滤
+                        val result = if (key.isBlank()) {
+                            visible
+                        } else {
+                            filterList(visible, key, searchType, enabledIds)
+                        }
+                        listTraceLogger.info { "update list: ${result.size}" }
+                        _list.value = result
+                        _isInitialized.value = true
+                        if (key.isBlank()) cachedFullList = result
+                    }.onFailure { e ->
+                        listTraceLogger.error(e) { "列表重算失败(跳过本次,等待下次数据重发): ${e.message}" }
                     }
-                    _invalidCount.value = invalid
-                    _invalidSourceCounts.value = srcCounts
-                    _invalidSourceItems.value = srcItems
-                    // 默认分组（id=1）只在其中有配置项时显示：它永远留在库里做兜底，
-                    // 但空着的时候列出来只会"突然冒出来"让人困惑；其余分组空壳照常保留
-                    val visible = list.filter { it.group.id != DEFAULT_GROUP_ID || it.list.isNotEmpty() }
-                    // 关键词为空时直接返回全量列表，否则按类型过滤
-                    val result = if (key.isBlank()) {
-                        visible
-                    } else {
-                        filterList(visible, key, searchType, enabledIds)
-                    }
-                    Log.d(TAG, "update list: ${result.size}")
-                    _list.value = result
-                    _isInitialized.value = true
-                    if (key.isBlank()) cachedFullList = result
                 }
         }
     }

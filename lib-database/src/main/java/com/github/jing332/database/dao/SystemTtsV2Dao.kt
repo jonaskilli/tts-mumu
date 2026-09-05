@@ -138,12 +138,20 @@ interface SystemTtsV2Dao {
     fun updateAllOrder() {
         getAllGroupWithTts().forEachIndexed { index, groupWithSystemTts ->
             val g = groupWithSystemTts.group
-            if (g.order != index) updateGroup(g.copy(order = index))
+            if (g.order != index) updateGroupOrder(g.id, index)
 
             groupWithSystemTts.list.sortedBy { it.order }.forEachIndexed { subIndex, systemTts ->
-                if (systemTts.order != subIndex) update(systemTts.copy(order = subIndex))
+                if (systemTts.order != subIndex) updateItemOrder(systemTts.id, subIndex)
             }
         }
     }
+
+    // order 重排必须只写 order 列:此前 update(整实体)在长事务里与用户保存并发时,
+    // 会用「事务开始时读出的旧实体」整行写回,把刚保存的 audioParams 等覆盖回旧值
+    @Query("UPDATE system_tts_v2 SET `order` = :order WHERE id = :id")
+    fun updateItemOrder(id: Long, order: Int)
+
+    @Query("UPDATE `SystemTtsGroup` SET `order` = :order WHERE `groupId` = :id")
+    fun updateGroupOrder(id: Long, order: Int)
 
 }

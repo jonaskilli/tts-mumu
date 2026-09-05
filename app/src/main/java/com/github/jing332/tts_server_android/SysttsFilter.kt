@@ -31,7 +31,8 @@ class SysttsFilter : Filter<ILoggingEvent>() {
 
         // 系统 TTS 内部模块的 logger 名称（非插件，归入系统日志，默认显示在日志栏）
         private val SYSTTS_INTERNAL_LOGGER_NAMES = listOf(
-            "SpeakerLoudnessManager"
+            "SpeakerLoudnessManager",
+            "ListManagerViewModel"
         )
     }
 
