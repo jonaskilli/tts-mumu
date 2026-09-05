@@ -1,7 +1,9 @@
 // ============================================================================
 // 角色管理v10_主题适配 —— 基于 v9(20260813) 重生成，功能逻辑零改动。
-// 内置三套配色（顶部🎨按钮切换，重进页面生效）：
-//   主题绿 T1=主#376A20/边#B7F398 · 中性灰绿 T2=主#43483E/边#D8E7CB · 紫韵 T5=主#7E57C2/边#D7C8F0
+// 内置十二套配色（顶部🎨按钮=色块预览弹窗，点击行立即换色免重进）：
+//   勾选绿#4CAF50(默认) · 紫韵#7E57C2 · 中性灰绿#43483E · 经典蓝#1976D2(v9原版基色) ·
+//   翠绿#009452 · 赤红#D9453C · 樱粉#CE5580 · 湛蓝#3272D9 · 青瓷#0F9186 ·
+//   琥珀#C26F00 · 赭棕#BC5F31 · 黛蓝#1B87A3
 // accent 全部查表（RMTHEME），性别蓝粉点/多色圆点阵/琥珀/红/紫全选键等功能色保留原样；
 // 结构改动=左右8dp边距、密钥/备份/主题三按钮同色系、圆角12、字号对齐。
 // 原版存档：tts配套文件/角色管理v9_模型拉取_密钥导出导入.js（未改动）
@@ -107,27 +109,45 @@ var EditorJS = {
         // 框架已预定义 ttsrv，直接使用即可，禁止赋值 ttsrv = {}
         if (!ttsrv.tts || typeof ttsrv.tts !== "object") ttsrv.tts = {};
         
-        // ===== 插件配色主题（T1主题绿/T2中性灰绿/T5紫），🎨按钮切换，重进页面生效 =====
+        // ===== 插件配色主题（TTS界面主题十色+v9经典蓝+中性灰绿独立款），🎨按钮点击即换色 =====
+        // 排序：默认勾选绿 → 紫韵/中性灰绿/经典蓝（用户钦点依次）→ 其余按TTS主题切换器顺序
         var RMTHEME = (function () {
             var defs = {
-                green:  { label: "勾选绿A",   main: "#43A047", border: "#A5D6A7", bg: "#F3FAF4", tint: "#E5F4E7", accent2: "#43A047" },
-mint:   { label: "勾选绿B",   main: "#3BA55D", border: "#A3D4B5", bg: "#F2F9F4", tint: "#E2F3E9", accent2: "#3BA55D" },
-leaf:   { label: "勾选绿C",   main: "#4CAF50", border: "#A8D8AA", bg: "#F4FAF4", tint: "#E2F3E3", accent2: "#4CAF50" },
-
-                gray:   { label: "中性灰绿", main: "#43483E", border: "#D8E7CB", bg: "#F1F5EC", tint: "#E9F0E1", accent2: "#376A20" },
-                purple: { label: "紫韵",     main: "#7E57C2", border: "#D7C8F0", bg: "#F8F5FD", tint: "#F0EAF9", accent2: "#7E57C2" }
+                beanGreen:   { label: "勾选绿",   main: "#4CAF50", border: "#A8D8AA", bg: "#F4FAF4", tint: "#E2F3E3", accent2: "#4CAF50" },
+                purple:      { label: "紫韵",     main: "#7E57C2", border: "#D7C8F0", bg: "#F8F5FD", tint: "#F0EAF9", accent2: "#7E57C2" },
+                grayGreen:   { label: "中性灰绿", main: "#43483E", border: "#D8E7CB", bg: "#F1F5EC", tint: "#E9F0E1", accent2: "#376A20" },
+                classicBlue: { label: "经典蓝",   main: "#1976D2", border: "#BBDEFB", bg: "#F4F9FE", tint: "#E3F2FD", accent2: "#1976D2" },
+                green:       { label: "翠绿",     main: "#009452", border: "#A8DDBE", bg: "#F1FAF4", tint: "#E0F3E8", accent2: "#006D3A" },
+                red:         { label: "赤红",     main: "#D9453C", border: "#F4BDB8", bg: "#FDF4F3", tint: "#F9E2DF", accent2: "#B4271F" },
+                pink:        { label: "樱粉",     main: "#CE5580", border: "#F3C2D2", bg: "#FDF3F7", tint: "#F9E2EB", accent2: "#A73258" },
+                blue:        { label: "湛蓝",     main: "#3272D9", border: "#B5CFF4", bg: "#F3F7FD", tint: "#E3EDFA", accent2: "#005AC1" },
+                cyan:        { label: "青瓷",     main: "#0F9186", border: "#A5D8D1", bg: "#F0F9F7", tint: "#DFF0ED", accent2: "#006B60" },
+                orange:      { label: "琥珀",     main: "#C26F00", border: "#F0CA9C", bg: "#FDF7EC", tint: "#FAEBD4", accent2: "#8B5000" },
+                brown:       { label: "赭棕",     main: "#BC5F31", border: "#F0C9B0", bg: "#FCF5F0", tint: "#F6E8DE", accent2: "#9A4520" },
+                gray:        { label: "黛蓝",     main: "#1B87A3", border: "#ACD6E1", bg: "#F1F9FB", tint: "#E0F1F5", accent2: "#006783" }
             };
-            var key = "green";
-            // 主题选择持久化在插件数据目录 theme.json（app顶栏🎨按钮与本插件共享读写）：
-            // {"current":"green","themes":[{"key":"green","label":"勾选绿A"},...]}
+            var key = "beanGreen";
+            // 兼容旧存档 key：绿A/B/C(mint等)→勾选绿；旧 gray(中性灰绿)→grayGreen；purple 同名延续。
+            // compat 优先于 defs 查找，避免旧 "green"(勾选绿A) 撞新表翠绿
+            var COMPAT = { green: "beanGreen", mint: "beanGreen", leaf: "beanGreen", gray: "grayGreen" };
+            // 主题选择持久化在插件数据目录 theme.json（仅本插件读写）：
+            // {"current":"beanGreen","themes":[{"key":"beanGreen","label":"勾选绿"},...]}
+            // 色单清单以本表为权威源，进页面即同步回写，保持文件清单与色表一致
             try {
+                var obj = {};
                 if (ttsrv.fileExist("theme.json")) {
-                    var obj = JSON.parse(ttsrv.readTxtFile("theme.json") || "{}");
+                    try { obj = JSON.parse(ttsrv.readTxtFile("theme.json") || "{}"); } catch (e1) {}
+                    if (typeof obj !== "object" || obj === null) obj = {};
                     var saved = String(obj.current || "").trim();
-                    if (defs[saved]) key = saved;
+                    var sk = COMPAT[saved] || saved;
+                    if (defs[sk]) key = sk;
                 }
+                var arr = [];
+                for (var k2 in defs) arr.push({ key: k2, label: defs[k2].label });
+                obj.themes = arr;
+                ttsrv.writeTxtFile("theme.json", JSON.stringify(obj));
             } catch (e) {}
-            return { key: key, cur: defs[key], defs: defs, keys: ["green", "mint", "leaf", "gray", "purple"] };
+            return { key: key, cur: defs[key], defs: defs, keys: ["beanGreen", "purple", "grayGreen", "classicBlue", "green", "red", "pink", "blue", "cyan", "orange", "brown", "gray"] };
         })();
         
         // 读取自动备份状态（字符清洗+严谨判断）
@@ -2793,40 +2813,116 @@ leaf:   { label: "勾选绿C",   main: "#4CAF50", border: "#A8D8AA", bg: "#F4FAF
         var themeBtn = createRoundedButton("🎨 主题", RMTHEME.cur.main);
         themeBtn.getLayoutParams().setMargins(dipToPx(8), 0, 0, 0);
         topButtonsLayout.addView(themeBtn);
+        // ===== 换肤：更新 RMTHEME 后重涂主框架静态控件+刷新动态列表 =====
+        // （列表项/各弹窗每次构建时读 RMTHEME.cur，刷新或重开即自动新色；主题色槽位见色表）
+        function repaintRoundedBtn(btn, colorStr) {
+            try {
+                var cInt = android.graphics.Color.parseColor(colorStr);
+                var lr = Math.round(android.graphics.Color.red(cInt) * 0.12 + 255 * 0.88);
+                var lg = Math.round(android.graphics.Color.green(cInt) * 0.12 + 255 * 0.88);
+                var lb = Math.round(android.graphics.Color.blue(cInt) * 0.12 + 255 * 0.88);
+                var bg = btn.getBackground();
+                if (bg != null && bg instanceof android.graphics.drawable.GradientDrawable) {
+                    bg.setColor(android.graphics.Color.argb(255, lr, lg, lb));
+                    bg.setStroke(dipToPx(1.5), android.graphics.Color.parseColor(RMTHEME.cur.border));
+                }
+                btn.setTextColor(cInt);
+            } catch (eR) {}
+        }
+        function applyThemeNow(pickKey) {
+            RMTHEME.key = pickKey;
+            RMTHEME.cur = RMTHEME.defs[pickKey];
+            try {
+                var themeObj = {};
+                try { themeObj = JSON.parse(ttsrv.readTxtFile("theme.json") || "{}"); } catch (e5) {}
+                if (typeof themeObj !== "object" || themeObj === null) themeObj = {};
+                themeObj.current = pickKey;
+                ttsrv.writeTxtFile("theme.json", JSON.stringify(themeObj));
+            } catch (e5) {}
+            repaintRoundedBtn(keyManageBtn, RMTHEME.cur.main);
+            repaintRoundedBtn(backupRestoreButton, RMTHEME.cur.main);
+            repaintRoundedBtn(themeBtn, RMTHEME.cur.main);
+            try {
+                bookBorder.setColor(android.graphics.Color.parseColor(RMTHEME.cur.tint));
+                bookLabel.setTextColor(android.graphics.Color.parseColor(RMTHEME.cur.main));
+                switchBookButton.setTextColor(android.graphics.Color.parseColor(RMTHEME.cur.accent2));
+                mergeLabel.setTextColor(android.graphics.Color.parseColor(RMTHEME.cur.main));
+            } catch (e6) {}
+            try { refreshCharacterList(); } catch (e7) {}
+        }
         themeBtn.setOnClickListener(new android.view.View.OnClickListener({
             onClick: function(view) {
-                var labels = [];
-                for (var ti = 0; ti < RMTHEME.keys.length; ti++) labels.push(RMTHEME.defs[RMTHEME.keys[ti]].label);
-                var javaLabels = java.lang.reflect.Array.newInstance(java.lang.String, labels.length);
-                for (var li = 0; li < labels.length; li++) javaLabels[li] = labels[li];
-                var curIdx = RMTHEME.keys.indexOf(RMTHEME.key);
-                if (curIdx < 0) curIdx = 0;
-                new android.app.AlertDialog.Builder(ctx)
-                    .setTitle("插件配色")
-                    .setSingleChoiceItems(javaLabels, curIdx, null)
-                    .setPositiveButton("确定", function(d, which) {
-                        try {
-                            var sel = d.getListView().getCheckedItemPosition();
-                            if (sel >= 0) {
-                                var pickKey = RMTHEME.keys[sel];
-                                var themeObj = {};
-                                try { themeObj = JSON.parse(ttsrv.readTxtFile("theme.json") || "{}"); } catch (e5) {}
-                                themeObj.current = pickKey;
-                                if (!themeObj.themes) {
-                                    var arr = [];
-                                    for (var k2 in RMTHEME.defs) arr.push({ key: k2, label: RMTHEME.defs[k2].label });
-                                    themeObj.themes = arr;
+                try {
+                    // 色块预览弹窗：每行=主色块(实际填充+描边)+主色文字；点击行立即应用，弹窗留在原地可连续试色
+                    var listWrap = new android.widget.LinearLayout(ctx);
+                    listWrap.setOrientation(android.widget.LinearLayout.VERTICAL);
+                    listWrap.setPadding(dipToPx(8), dipToPx(4), dipToPx(8), dipToPx(4));
+
+                    function buildThemeList() {
+                        listWrap.removeAllViews();
+                        for (var ti = 0; ti < RMTHEME.keys.length; ti++) {
+                            (function() {
+                                var tKey = RMTHEME.keys[ti];
+                                var t = RMTHEME.defs[tKey];
+                                var isCur = (tKey === RMTHEME.key);
+                                var row = new android.widget.LinearLayout(ctx);
+                                row.setOrientation(android.widget.LinearLayout.HORIZONTAL);
+                                row.setGravity(android.view.Gravity.CENTER_VERTICAL);
+                                row.setPadding(dipToPx(10), dipToPx(7), dipToPx(10), dipToPx(7));
+                                var sw = new android.view.View(ctx);
+                                var swBg = new android.graphics.drawable.GradientDrawable();
+                                swBg.setShape(android.graphics.drawable.GradientDrawable.RECTANGLE);
+                                swBg.setCornerRadius(dipToPx(6));
+                                swBg.setColor(android.graphics.Color.parseColor(t.main));
+                                swBg.setStroke(dipToPx(1.5), android.graphics.Color.parseColor(t.border));
+                                sw.setBackground(swBg);
+                                var swLp = new android.widget.LinearLayout.LayoutParams(dipToPx(46), dipToPx(28));
+                                swLp.rightMargin = dipToPx(12);
+                                sw.setLayoutParams(swLp);
+                                row.addView(sw);
+                                var name = new android.widget.TextView(ctx);
+                                name.setText(t.label + (isCur ? "（当前）" : ""));
+                                name.setTextSize(15);
+                                name.setTextColor(android.graphics.Color.parseColor(t.main));
+                                name.setTypeface(null, isCur ? android.graphics.Typeface.BOLD : android.graphics.Typeface.NORMAL);
+                                row.addView(name, new android.widget.LinearLayout.LayoutParams(0, android.view.ViewGroup.LayoutParams.WRAP_CONTENT, 1));
+                                if (isCur) {
+                                    var ck = new android.widget.TextView(ctx);
+                                    ck.setText("✓");
+                                    ck.setTextSize(16);
+                                    ck.setTypeface(null, android.graphics.Typeface.BOLD);
+                                    ck.setTextColor(android.graphics.Color.parseColor(t.main));
+                                    row.addView(ck);
                                 }
-                                ttsrv.writeTxtFile("theme.json", JSON.stringify(themeObj));
-                                Toast.makeText(ctx, "已切换为「" + RMTHEME.defs[pickKey].label + "」，重新进入角色管理页生效", Toast.LENGTH_LONG).show();
-                            }
-                        } catch (e3) {
-                            Toast.makeText(ctx, "切换失败: " + e3, Toast.LENGTH_SHORT).show();
+                                row.setOnClickListener(new android.view.View.OnClickListener({
+                                    onClick: function(v2) {
+                                        try {
+                                            applyThemeNow(tKey);
+                                            buildThemeList();
+                                            Toast.makeText(ctx, "已切换为「" + t.label + "」", Toast.LENGTH_SHORT).show();
+                                        } catch (e9) {
+                                            Toast.makeText(ctx, "切换失败: " + e9, Toast.LENGTH_SHORT).show();
+                                        }
+                                    }
+                                }));
+                                listWrap.addView(row);
+                            })();
                         }
-                        d.dismiss();
-                    })
-                    .setNegativeButton("取消", null)
-                    .show();
+                    }
+                    buildThemeList();
+
+                    var scroll = new android.widget.ScrollView(ctx);
+                    scroll.addView(listWrap);
+
+                    var dlg = new android.app.AlertDialog.Builder(ctx)
+                        .setTitle("插件配色 · 点击行立即生效")
+                        .setView(scroll)
+                        .setNegativeButton("关闭", null)
+                        .show();
+                    try { applyDialogRoundCorner(dlg); } catch (e8) {}
+                } catch (e3) {
+                    Toast.makeText(ctx, "打开配色失败: " + e3, Toast.LENGTH_SHORT).show();
+                }
             }
         }));
 

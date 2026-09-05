@@ -3,7 +3,6 @@ package com.github.jing332.tts_server_android.compose
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -15,18 +14,13 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AccountCircle
-import androidx.compose.material.icons.filled.Palette
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.foundation.pager.PagerState
 import androidx.compose.runtime.derivedStateOf
@@ -69,7 +63,6 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.flow.conflate
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -156,23 +149,6 @@ fun RoleManagementScreen(sharedVM: SharedViewModel, pagerState: PagerState) {
             NavTopAppBar(
                 title = { Text(stringResource(R.string.role_management)) },
                 actions = {
-                    // 🎨 插件配色切换：仅角色管理插件安装后显示，读写插件数据目录 theme.json
-                    // （/Download/chajian/<pluginId>/theme.json，与插件JS共享；色单来自文件，加色免改源码）
-                    if (isRoleManagementPlugin && plugin != null) {
-                        var showThemeDialog by remember { mutableStateOf(false) }
-                        if (showThemeDialog) {
-                            PluginThemeDialog(
-                                pluginId = rolePluginId,
-                                onDismiss = { showThemeDialog = false }
-                            )
-                        }
-                        IconButton(
-                            onClick = { showThemeDialog = true },
-                            modifier = Modifier.padding(end = 4.dp)
-                        ) {
-                            Icon(Icons.Default.Palette, contentDescription = "插件配色")
-                        }
-                    }
                     // 仅界面模式开关：仅角色管理插件(mingwuyan)安装后显示，无文字提示
                     if (isRoleManagementPlugin && plugin != null) {
                         Spacer(Modifier.width(8.dp))
@@ -388,105 +364,3 @@ fun RoleManagementScreen(sharedVM: SharedViewModel, pagerState: PagerState) {
  * 标签扩容函数已移至 [com.github.jing332.tts_server_android.compose.systts.list.expandSpeechRuleTagsIfNeeded]，
  * 供工具箱页与标签切换/批量标签弹窗共用。
  */
-
-/**
- * 插件配色切换弹窗：读写插件数据目录 theme.json（/Download/chajian/<pluginId>/theme.json），
- * 与插件 JS 共享同一存储。色单（key+label 清单）来自文件内 "themes" 数组，
- * app 不感知具体颜色——插件侧加色只改文件，无需改 app 源码。
- * 文件结构: {"current":"green","themes":[{"key":"green","label":"勾选绿A"},...]}
- */
-@Composable
-private fun PluginThemeDialog(pluginId: String, onDismiss: () -> Unit) {
-    val context = LocalContext.current
-    val scope = rememberCoroutineScope()
-    val file = remember(pluginId) { java.io.File("/storage/emulated/0/Download/chajian/$pluginId/theme.json") }
-
-    // 读文件拿主题清单与当前值；文件缺失/异常时给内置兜底清单（与插件默认色表一致）
-    var themeKey by remember { mutableStateOf("green") }
-    var themes by remember {
-        mutableStateOf(
-            listOf("green" to "勾选绿A", "mint" to "勾选绿B", "leaf" to "勾选绿C",
-                "gray" to "中性灰绿", "purple" to "紫韵")
-        )
-    }
-    LaunchedEffect(pluginId) {
-        withIO {
-            runCatching {
-                if (file.exists()) {
-                    val obj = org.json.JSONObject(file.readText())
-                    themeKey = obj.optString("current", "green")
-                    val arr = obj.optJSONArray("themes")
-                    if (arr != null && arr.length() > 0) {
-                        val list = mutableListOf<Pair<String, String>>()
-                        for (i in 0 until arr.length()) {
-                            val o = arr.optJSONObject(i) ?: continue
-                            val k = o.optString("key")
-                            val l = o.optString("label")
-                            if (k.isNotBlank()) list.add(k to l)
-                        }
-                        if (list.isNotEmpty()) themes = list
-                    }
-                }
-            }
-        }
-    }
-
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        containerColor = MaterialTheme.colorScheme.surface,
-        title = { Text("插件配色") },
-        text = {
-            Column {
-                themes.forEach { (key, label) ->
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(vertical = 4.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        RadioButton(
-                            selected = themeKey == key,
-                            onClick = { themeKey = key }
-                        )
-                        Text(
-                            label,
-                            style = MaterialTheme.typography.bodyLarge,
-                            modifier = Modifier.padding(start = 4.dp)
-                        )
-                    }
-                }
-            }
-        },
-        confirmButton = {
-            TextButton(onClick = {
-                // 写回同一文件，保留 themes 清单只更新 current；插件 JS 下次进入页面读取生效
-                scope.launch {
-                    withIO {
-                        runCatching {
-                            val obj = if (file.exists())
-                                org.json.JSONObject(file.readText())
-                            else org.json.JSONObject()
-                            obj.put("current", themeKey)
-                            if (!obj.has("themes")) {
-                                val arr = org.json.JSONArray()
-                                themes.forEach { (k, l) ->
-                                    arr.put(org.json.JSONObject().put("key", k).put("label", l))
-                                }
-                                obj.put("themes", arr)
-                            }
-                            file.writeText(obj.toString())
-                        }.onSuccess {
-                            withContext(Dispatchers.Main) { context.toast("已保存，重新进入角色管理页生效") }
-                        }.onFailure {
-                            withContext(Dispatchers.Main) { context.toast("保存失败: ${it.message}") }
-                        }
-                    }
-                }
-                onDismiss()
-            }) { Text(stringResource(R.string.save)) }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) { Text(stringResource(R.string.cancel)) }
-        }
-    )
-}
