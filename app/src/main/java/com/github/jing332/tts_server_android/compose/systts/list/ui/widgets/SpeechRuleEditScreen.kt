@@ -130,10 +130,9 @@ fun SpeechRuleEditScreen(
             }
         }
 
-        android.util.Log.i(
-            "PluginTtsUI",
+        io.github.oshai.kotlinlogging.KotlinLogging.logger("PluginTtsUI").info {
             "[参数链] tagName回调写入 speed=${config.audioParams.speed} systts@${System.identityHashCode(systts)}"
-        )
+        }
         onSysttsChange(
             systts.copy(
                 config = config.copy(config.speechRule.copy(tagName = tagName))

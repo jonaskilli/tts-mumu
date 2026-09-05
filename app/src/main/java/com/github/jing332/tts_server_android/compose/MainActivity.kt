@@ -57,9 +57,13 @@ import com.github.jing332.tts_server_android.conf.AppConfig
 import com.github.jing332.tts_server_android.service.systts.SystemTtsService
 import com.drake.net.utils.withIO
 import com.google.accompanist.permissions.ExperimentalPermissionsApi
+import io.github.oshai.kotlinlogging.KotlinLogging
 import kotlinx.coroutines.launch
 import com.google.accompanist.permissions.isGranted
 import com.google.accompanist.permissions.rememberPermissionState
+
+// 参数链诊断:logger 名须在 SysttsFilter 白名单(PluginTtsUI)内才会进日志页,android.util.Log 走 logcat 不可见
+private val paramsTraceLogger = KotlinLogging.logger("PluginTtsUI")
 
 val LocalNavController = compositionLocalOf<NavHostController> { error("No nav controller") }
 val LocalDrawerState = compositionLocalOf<DrawerState> { error("No drawer state") }
@@ -199,10 +203,9 @@ private fun MainScreen(finish: () -> Unit) {
                         // 若先 pop 再异步落库，协程会在 withIO 挂起点被静默取消，表现为「点了保存但没保存」。
                         val current = stateSystemTts
                         // 参数链诊断:落库瞬间的 audioParams,用于对照「编辑页调的值」定位回退发生在保存侧还是加载侧
-                        Log.i(
-                            "TtsEdit",
+                        paramsTraceLogger.info {
                             "[参数链] 落库 id=${current.id} speed=${(current.config as? TtsConfigurationDTO)?.audioParams?.speed}"
-                        )
+                        }
                         scope.launch {
                             withIO {
                                 // 分组兜底：groupId 无效（0 或分组已删除）时归位到默认分组，
