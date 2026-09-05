@@ -201,11 +201,29 @@ fun AppSpinner(
     // Non-null causes placeholder issues
     @Composable
     fun leading(): @Composable (() -> Unit)? {
-        return if (leadingIcon == null && icon != null) {
-            {
-                AsyncCircleImage(icon)
+        // 空字符串 iconUrl(如未配图标的插件)不算有图标,否则留下空白头像占位
+        val hasIcon = when (icon) {
+            null -> false
+            is CharSequence -> icon.isNotBlank()
+            else -> true
+        }
+        // 仅当调用方传了 icons(本意就要显示图标,如插件选择器)才回退首字徽章;
+        // 普通下拉不传 icons,保持无 leading 图标
+        val firstCharEntry = if (icons.isNotEmpty())
+            entries.getOrNull(index)?.takeIf { it.isNotBlank() } else null
+        return when {
+            leadingIcon != null -> leadingIcon
+            hasIcon -> {
+                {
+                    AsyncCircleImage(icon)
+                }
             }
-        } else leadingIcon
+            // 无图标回退名称首字徽章,与下拉项(PluginImage)行为一致,避免收起态留白
+            firstCharEntry != null -> {
+                { CenterTextImage(firstCharEntry.take(1)) }
+            }
+            else -> null
+        }
     }
 
     if (maxDropDownCount > 0 && values.size > maxDropDownCount) {

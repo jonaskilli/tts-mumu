@@ -476,8 +476,9 @@ internal fun Item(
                 )
                 }
                 Column(Modifier.weight(1f)) {
-                    Text(text = name, style = MaterialTheme.typography.titleMedium)
-                    Text(text = desc, style = MaterialTheme.typography.bodyMedium)
+                    // 名称14sp、author等次要信息12sp,与插件管理列表一致
+                    Text(text = name, style = MaterialTheme.typography.bodyMedium)
+                    Text(text = desc, style = MaterialTheme.typography.bodySmall)
                 }
                 if (!isSelectionMode) {
                 Row {

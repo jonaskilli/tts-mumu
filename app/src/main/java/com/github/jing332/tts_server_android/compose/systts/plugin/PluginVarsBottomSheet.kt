@@ -164,8 +164,9 @@ internal fun PluginVarsBottomSheet(
  * jread 系插件(火山豆包 v7 等)defVars 为空、全部变量定义只在自绘表单里,
  * 变量弹窗按 defVars 渲染会一条不剩;把扫出的字段补为变量条目,
  * 值存 userVars,插件 data() 的 userVars 兜底链可读到。与 defVars 条目去重。
+ * 供插件管理列表判断"是否有变量入口"复用,故 internal。
  */
-private fun scanSelfDrawnFormVars(code: String, existingKeys: Set<String>): Map<String, String> {
+internal fun scanSelfDrawnFormVars(code: String, existingKeys: Set<String>): Map<String, String> {
     if (code.isBlank()) return emptyMap()
     val result = linkedMapOf<String, String>()
     val re = Regex(

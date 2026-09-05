@@ -153,7 +153,12 @@ fun AuditionDialog(
                     // 格式声明读流前后都可取,但必须在 readBytes 之外单独引用
                     val bridgePcmFormat = (stream as? JsBridgeInputStream)?.streamFormat
                     val audio = stream.readBytes()
-                    val rateAndMime =
+                    val declaredPcm =
+                        bridgePcmFormat?.encoding?.startsWith("pcm", ignoreCase = true) == true
+                    // 裸 PCM 无容器头,getSampleRateAndMime 探测结果为空,直接用 streamStart 声明值展示
+                    val rateAndMime = if (declaredPcm)
+                        Pair(bridgePcmFormat!!.sampleRate, "pcm")
+                    else
                         com.github.jing332.common.audio.AudioDecoder.getSampleRateAndMime(audio)
                     withMain {
                         // 与日志一致的最终倍率展示(仅≠1的项)：试听时明确知道当前生效的叠加参数
@@ -182,8 +187,6 @@ fun AuditionDialog(
                     val loudnessGain = SpeakerLoudnessManager.infoFor(config).gain
                     val localVolume = (effVolume * loudnessGain).coerceIn(0f, 1f)
 
-                    val declaredPcm =
-                        bridgePcmFormat?.encoding?.startsWith("pcm", ignoreCase = true) == true
                     if (config.shouldDecode() && !declaredPcm)
                         audioPlayer.play(audio, effSpeed, localVolume, effPitch)
                     else

@@ -232,7 +232,11 @@ fun PluginManagerScreen(sharedVM: SharedViewModel, onFinishActivity: () -> Unit)
     var showVarsSettings by remember { mutableStateOf<Plugin?>(null) }
     if (showVarsSettings != null) {
         var plugin by remember { mutableStateOf(showVarsSettings!!) }
-        if (plugin.defVars.isEmpty()) {
+        // defVars 为空的 jread 系插件可能只在 onLoadUI 自绘表单里定义变量(已扫描兜底),
+        // 只有连自绘表单字段都没有时才不弹
+        if (plugin.defVars.isEmpty() &&
+            scanSelfDrawnFormVars(plugin.code, plugin.defVars.keys).isEmpty()
+        ) {
             showVarsSettings = null
         }
         PluginVarsBottomSheet(onDismissRequest = {
@@ -719,12 +723,18 @@ fun PluginManagerScreen(sharedVM: SharedViewModel, onFinishActivity: () -> Unit)
                     val isSelected = remember(item.id) {
                         derivedStateOf { item.id in selectedIds }
                     }.value
+                    // defVars 为空但 onLoadUI 自绘表单里有字面量变量的插件(火山豆包v7等)也算有变量入口;
+                    // 正则扫 code 有成本,按插件缓存避免列表滚动重复扫
+                    val hasVars = remember(item.id, item.code, item.defVars) {
+                        item.defVars.isNotEmpty() ||
+                                scanSelfDrawnFormVars(item.code, item.defVars.keys).isNotEmpty()
+                    }
                     Item(
                         modifier = Modifier
                             .padding(horizontal = 8.dp, vertical = 4.dp)
                             .then(if (!selectionMode) { Modifier.detectReorderAfterLongPress(reorderState) } else Modifier),
-                        hasDefVars = item.defVars.isNotEmpty(),
-                        needSetVars = item.defVars.isNotEmpty() && item.userVars.isEmpty(),
+                        hasDefVars = hasVars,
+                        needSetVars = hasVars && item.userVars.isEmpty(),
                         name = item.name,
                         desc = desc,
                         iconUrl = item.iconUrl,
@@ -848,16 +858,17 @@ private fun Item(
                         .padding(start = 8.dp)
                         .fillMaxWidth(),
                 ) {
+                    // 字号让一让换完整名称:名称14sp最多6行,author等次要信息12sp
                     Text(
                         text = name,
-                        style = MaterialTheme.typography.titleMedium,
-                        maxLines = 2,
+                        style = MaterialTheme.typography.bodyMedium,
+                        maxLines = 6,
                         overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
                     )
                     Spacer(Modifier.height(4.dp))
                     Text(
                         text = desc,
-                        style = MaterialTheme.typography.bodyMedium,
+                        style = MaterialTheme.typography.bodySmall,
                         maxLines = 1,
                         overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
                     )
