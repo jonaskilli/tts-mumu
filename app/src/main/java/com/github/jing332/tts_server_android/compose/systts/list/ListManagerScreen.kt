@@ -2667,13 +2667,17 @@ internal fun ListManagerScreen(
         bottomBar = {
             if (selectionMode) {
                 // 多选模式底部操作栏：全选 + 删除 + 转为子分组（条件显示，范围限定当前池）
+                // 垫高 listBottomPadding:主界面微信底栏(MainPager层)覆盖在内容之上，
+                // 此栏贴页面底会被整个盖住(多选键点击后底部操作栏"消失"的回归)
                 val selectedGroups = displayedModels.filter { it.group.id in selectedGroupIds }
                 val allSelected = displayedModels.isNotEmpty() &&
                     selectedGroupIds.size == displayedModels.size
                 val canConvertToSubGroup = selectedGroups.isNotEmpty() &&
                     selectedGroups.none { it.list.any { tts -> tts.categoryPath.isNotBlank() } }
                 Surface(
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(bottom = listBottomPadding),
                     tonalElevation = 3.dp,
                     color = MaterialTheme.colorScheme.surfaceContainer
                 ) {

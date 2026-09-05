@@ -200,7 +200,7 @@ private fun MainScreen(finish: () -> Unit) {
                         val current = stateSystemTts
                         // 参数链诊断:落库瞬间的 audioParams,用于对照「编辑页调的值」定位回退发生在保存侧还是加载侧
                         Log.i(
-                            TAG,
+                            "TtsEdit",
                             "[参数链] 落库 id=${current.id} speed=${(current.config as? TtsConfigurationDTO)?.audioParams?.speed}"
                         )
                         scope.launch {
