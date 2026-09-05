@@ -1,9 +1,8 @@
 // ============================================================================
 // 角色管理v10_主题适配 —— 基于 v9(20260813) 重生成，功能逻辑零改动。
-// 内置十二套配色（顶部🎨按钮=色块预览弹窗，点击行立即换色免重进）：
-//   勾选绿#4CAF50(默认) · 紫韵#7E57C2 · 中性灰绿#43483E · 经典蓝#1976D2(v9原版基色) ·
-//   翠绿#009452 · 赤红#D9453C · 樱粉#CE5580 · 湛蓝#3272D9 · 青瓷#0F9186 ·
-//   琥珀#C26F00 · 赭棕#BC5F31 · 黛蓝#1B87A3
+// 内置八套配色（顶部🎨按钮=色块预览弹窗，点击行立即换色免重进）：
+//   湛蓝#3272D9(默认) · 翠绿#009452 · 紫韵#7E57C2 · 中性灰绿#43483E · 赤红#D9453C ·
+//   青瓷#0F9186 · 赭棕#BC5F31 · 黛蓝#1B87A3
 // accent 全部查表（RMTHEME），性别蓝粉点/多色圆点阵/琥珀/红/紫全选键等功能色保留原样；
 // 结构改动=左右8dp边距、密钥/备份/主题三按钮同色系、圆角12、字号对齐。
 // 原版存档：tts配套文件/角色管理v9_模型拉取_密钥导出导入.js（未改动）
@@ -109,29 +108,26 @@ var EditorJS = {
         // 框架已预定义 ttsrv，直接使用即可，禁止赋值 ttsrv = {}
         if (!ttsrv.tts || typeof ttsrv.tts !== "object") ttsrv.tts = {};
         
-        // ===== 插件配色主题（TTS界面主题十色+v9经典蓝+中性灰绿独立款），🎨按钮点击即换色 =====
-        // 排序：默认勾选绿 → 紫韵/中性灰绿/经典蓝（用户钦点依次）→ 其余按TTS主题切换器顺序
+        // ===== 插件配色主题（TTS界面主题十色+中性灰绿独立款），🎨按钮点击即换色 =====
+        // 排序：默认湛蓝 → 翠绿/紫韵/中性灰绿靠前 → 其余按TTS主题切换器顺序
         var RMTHEME = (function () {
             var defs = {
-                beanGreen:   { label: "勾选绿",   main: "#4CAF50", border: "#A8D8AA", bg: "#F4FAF4", tint: "#E2F3E3", accent2: "#4CAF50" },
-                purple:      { label: "紫韵",     main: "#7E57C2", border: "#D7C8F0", bg: "#F8F5FD", tint: "#F0EAF9", accent2: "#7E57C2" },
-                grayGreen:   { label: "中性灰绿", main: "#43483E", border: "#D8E7CB", bg: "#F1F5EC", tint: "#E9F0E1", accent2: "#376A20" },
-                classicBlue: { label: "经典蓝",   main: "#1976D2", border: "#BBDEFB", bg: "#F4F9FE", tint: "#E3F2FD", accent2: "#1976D2" },
-                green:       { label: "翠绿",     main: "#009452", border: "#A8DDBE", bg: "#F1FAF4", tint: "#E0F3E8", accent2: "#006D3A" },
-                red:         { label: "赤红",     main: "#D9453C", border: "#F4BDB8", bg: "#FDF4F3", tint: "#F9E2DF", accent2: "#B4271F" },
-                pink:        { label: "樱粉",     main: "#CE5580", border: "#F3C2D2", bg: "#FDF3F7", tint: "#F9E2EB", accent2: "#A73258" },
-                blue:        { label: "湛蓝",     main: "#3272D9", border: "#B5CFF4", bg: "#F3F7FD", tint: "#E3EDFA", accent2: "#005AC1" },
-                cyan:        { label: "青瓷",     main: "#0F9186", border: "#A5D8D1", bg: "#F0F9F7", tint: "#DFF0ED", accent2: "#006B60" },
-                orange:      { label: "琥珀",     main: "#C26F00", border: "#F0CA9C", bg: "#FDF7EC", tint: "#FAEBD4", accent2: "#8B5000" },
-                brown:       { label: "赭棕",     main: "#BC5F31", border: "#F0C9B0", bg: "#FCF5F0", tint: "#F6E8DE", accent2: "#9A4520" },
-                gray:        { label: "黛蓝",     main: "#1B87A3", border: "#ACD6E1", bg: "#F1F9FB", tint: "#E0F1F5", accent2: "#006783" }
+                // tint 统一向白提亮40%对齐v9底色亮度级（v9芯片/书卡底=固定#E3F2FD极浅亮蓝,原v10 tint饱和度偏高显暗）
+                blue:        { label: "湛蓝",     main: "#3272D9", border: "#B5CFF4", bg: "#F3F7FD", tint: "#EEF4FC", accent2: "#005AC1" },
+                green:       { label: "翠绿",     main: "#009452", border: "#A8DDBE", bg: "#F1FAF4", tint: "#ECF8F1", accent2: "#006D3A" },
+                purple:      { label: "紫韵",     main: "#7E57C2", border: "#D7C8F0", bg: "#F8F5FD", tint: "#F6F2FB", accent2: "#7E57C2" },
+                grayGreen:   { label: "中性灰绿", main: "#43483E", border: "#D8E7CB", bg: "#F1F5EC", tint: "#F2F6ED", accent2: "#376A20" },
+                red:         { label: "赤红",     main: "#D9453C", border: "#F4BDB8", bg: "#FDF4F3", tint: "#FBEEEC", accent2: "#B4271F" },
+                cyan:        { label: "青瓷",     main: "#0F9186", border: "#A5D8D1", bg: "#F0F9F7", tint: "#ECF6F4", accent2: "#006B60" },
+                brown:       { label: "赭棕",     main: "#BC5F31", border: "#F0C9B0", bg: "#FCF5F0", tint: "#FAF1EB", accent2: "#9A4520" },
+                gray:        { label: "黛蓝",     main: "#1B87A3", border: "#ACD6E1", bg: "#F1F9FB", tint: "#ECF7F9", accent2: "#006783" }
             };
-            var key = "beanGreen";
-            // 兼容旧存档 key：绿A/B/C(mint等)→勾选绿；旧 gray(中性灰绿)→grayGreen；purple 同名延续。
-            // compat 优先于 defs 查找，避免旧 "green"(勾选绿A) 撞新表翠绿
-            var COMPAT = { green: "beanGreen", mint: "beanGreen", leaf: "beanGreen", gray: "grayGreen" };
+            var key = "blue";
+            // 兼容旧存档 key：勾选绿(beanGreen)与绿A/B/C(mint等)→翠绿；旧 gray(中性灰绿)→grayGreen；已删经典蓝→湛蓝。
+            // compat 优先于 defs 查找
+            var COMPAT = { green: "green", mint: "green", leaf: "green", beanGreen: "green", gray: "grayGreen", classicBlue: "blue" };
             // 主题选择持久化在插件数据目录 theme.json（仅本插件读写）：
-            // {"current":"beanGreen","themes":[{"key":"beanGreen","label":"勾选绿"},...]}
+            // {"current":"blue","themes":[{"key":"blue","label":"湛蓝"},...]}
             // 色单清单以本表为权威源，进页面即同步回写，保持文件清单与色表一致
             try {
                 var obj = {};
@@ -147,7 +143,7 @@ var EditorJS = {
                 obj.themes = arr;
                 ttsrv.writeTxtFile("theme.json", JSON.stringify(obj));
             } catch (e) {}
-            return { key: key, cur: defs[key], defs: defs, keys: ["beanGreen", "purple", "grayGreen", "classicBlue", "green", "red", "pink", "blue", "cyan", "orange", "brown", "gray"] };
+            return { key: key, cur: defs[key], defs: defs, keys: ["blue", "green", "purple", "grayGreen", "red", "cyan", "brown", "gray"] };
         })();
         
         // 读取自动备份状态（字符清洗+严谨判断）
@@ -2744,6 +2740,12 @@ var EditorJS = {
         var topButtonsLayout = new android.widget.LinearLayout(ctx);
         topButtonsLayout.setOrientation(android.widget.LinearLayout.HORIZONTAL);
         linearLayout.addView(topButtonsLayout);
+        // 显式 MATCH_PARENT：默认 addView 生成的是 WRAP_CONTENT，三按钮(宽0+weight等分)在 wrap 父里
+        // 首次测量按文字宽挤居左，列表加载触发重排后才拉宽居中（表现为"主题键先居左后居中"）
+        topButtonsLayout.setLayoutParams(new android.widget.LinearLayout.LayoutParams(
+            android.widget.LinearLayout.LayoutParams.MATCH_PARENT,
+            android.widget.LinearLayout.LayoutParams.WRAP_CONTENT
+        ));
         ttsrv.setMargins(topButtonsLayout, 8, 12, 8, 0);
 
         // 实色填充按钮（鲜艳彩色，白字，统一风格）
@@ -2767,6 +2769,32 @@ var EditorJS = {
             return btn;
         }
 
+        // 按钮浅底：HSV 保色相浅化（降饱和提亮度）——RGB直接混白对暖色系（琥珀/赭棕）会偏出发黄，
+        // 在HSV空间按原色相浅化，任何主题都得到"该主题色的浅版"。
+        // 纯JS数学实现：插件的Rhino沙箱禁访问java.lang.Class，Float.TYPE反射数组会炸（2772行教训）
+        function lightenedBg(colorStr) {
+            var c = android.graphics.Color.parseColor(colorStr);
+            var r = android.graphics.Color.red(c) / 255, g = android.graphics.Color.green(c) / 255, b = android.graphics.Color.blue(c) / 255;
+            var max = Math.max(r, g, b), min = Math.min(r, g, b), d = max - min;
+            var h = 0, s = (max === 0 ? 0 : d / max), v = max;
+            if (d !== 0) {
+                if (max === r) h = 60 * (((g - b) / d) % 6);
+                else if (max === g) h = 60 * ((b - r) / d + 2);
+                else h = 60 * ((r - g) / d + 4);
+            }
+            if (h < 0) h += 360;
+            s = s * 0.35; v = 0.96;
+            var c2 = v * s, x = c2 * (1 - Math.abs((h / 60) % 2 - 1)), m = v - c2;
+            var rp = 0, gp = 0, bp = 0;
+            if (h < 60) { rp = c2; gp = x; }
+            else if (h < 120) { rp = x; gp = c2; }
+            else if (h < 180) { gp = c2; bp = x; }
+            else if (h < 240) { gp = x; bp = c2; }
+            else if (h < 300) { rp = x; bp = c2; }
+            else { rp = c2; bp = x; }
+            return android.graphics.Color.argb(255, Math.round((rp + m) * 255), Math.round((gp + m) * 255), Math.round((bp + m) * 255));
+        }
+
         function createRoundedButton(text, bgColor, textColor) {
             var btn = new android.widget.TextView(ctx);
             btn.setText(text);
@@ -2774,13 +2802,10 @@ var EditorJS = {
             var shape = new android.graphics.drawable.GradientDrawable();
             shape.setShape(android.graphics.drawable.GradientDrawable.RECTANGLE);
             shape.setCornerRadius(dipToPx(12));
-            // 突出但和谐：浅色底 + 彩色描边 + 彩色文字（与书籍卡片风格统一）
+            // v9风格：浅色底(保色相) + 主色描边 + 主色文字（描边用主色实线，浅色border线会发虚）
             var cInt = android.graphics.Color.parseColor(bgColor);
-            var lr = Math.round(android.graphics.Color.red(cInt) * 0.12 + 255 * 0.88);
-            var lg = Math.round(android.graphics.Color.green(cInt) * 0.12 + 255 * 0.88);
-            var lb = Math.round(android.graphics.Color.blue(cInt) * 0.12 + 255 * 0.88);
-            shape.setColor(android.graphics.Color.argb(255, lr, lg, lb));
-            shape.setStroke(dipToPx(1.5), android.graphics.Color.parseColor(RMTHEME.cur.border));
+            shape.setColor(lightenedBg(bgColor));
+            shape.setStroke(dipToPx(1.5), cInt);
             btn.setBackground(shape);
             btn.setTextColor(cInt);
             btn.setSingleLine(true);
@@ -2809,7 +2834,7 @@ var EditorJS = {
         backupRestoreButton.getLayoutParams().setMargins(dipToPx(8), 0, 0, 0);
         topButtonsLayout.addView(backupRestoreButton);
 
-        // 🎨 主题切换按钮：三套配色单选，保存后重新进入角色管理页生效
+        // 🎨 主题切换按钮：色块预览弹窗，点击行立即换色
         var themeBtn = createRoundedButton("🎨 主题", RMTHEME.cur.main);
         themeBtn.getLayoutParams().setMargins(dipToPx(8), 0, 0, 0);
         topButtonsLayout.addView(themeBtn);
@@ -2818,13 +2843,10 @@ var EditorJS = {
         function repaintRoundedBtn(btn, colorStr) {
             try {
                 var cInt = android.graphics.Color.parseColor(colorStr);
-                var lr = Math.round(android.graphics.Color.red(cInt) * 0.12 + 255 * 0.88);
-                var lg = Math.round(android.graphics.Color.green(cInt) * 0.12 + 255 * 0.88);
-                var lb = Math.round(android.graphics.Color.blue(cInt) * 0.12 + 255 * 0.88);
                 var bg = btn.getBackground();
                 if (bg != null && bg instanceof android.graphics.drawable.GradientDrawable) {
-                    bg.setColor(android.graphics.Color.argb(255, lr, lg, lb));
-                    bg.setStroke(dipToPx(1.5), android.graphics.Color.parseColor(RMTHEME.cur.border));
+                    bg.setColor(lightenedBg(colorStr));
+                    bg.setStroke(dipToPx(1.5), cInt);
                 }
                 btn.setTextColor(cInt);
             } catch (eR) {}
@@ -2874,7 +2896,7 @@ var EditorJS = {
                                 swBg.setShape(android.graphics.drawable.GradientDrawable.RECTANGLE);
                                 swBg.setCornerRadius(dipToPx(6));
                                 swBg.setColor(android.graphics.Color.parseColor(t.main));
-                                swBg.setStroke(dipToPx(1.5), android.graphics.Color.parseColor(t.border));
+                                swBg.setStroke(dipToPx(1.5), android.graphics.Color.parseColor(t.accent2));
                                 sw.setBackground(swBg);
                                 var swLp = new android.widget.LinearLayout.LayoutParams(dipToPx(46), dipToPx(28));
                                 swLp.rightMargin = dipToPx(12);
@@ -2885,7 +2907,7 @@ var EditorJS = {
                                 name.setTextSize(15);
                                 name.setTextColor(android.graphics.Color.parseColor(t.main));
                                 name.setTypeface(null, isCur ? android.graphics.Typeface.BOLD : android.graphics.Typeface.NORMAL);
-                                row.addView(name, new android.widget.LinearLayout.LayoutParams(0, android.view.ViewGroup.LayoutParams.WRAP_CONTENT, 1));
+                                row.addView(name, new android.widget.LinearLayout.LayoutParams(0, android.widget.LinearLayout.LayoutParams.WRAP_CONTENT, 1));
                                 if (isCur) {
                                     var ck = new android.widget.TextView(ctx);
                                     ck.setText("✓");
@@ -3148,7 +3170,7 @@ var EditorJS = {
             switchContainer.setPadding(dipToPx(16), dipToPx(12), dipToPx(16), dipToPx(16));
             switchContainer.addView(createDialogTitle("书籍列表（点击切换 · 点✕删除）"));
 
-            var switchColors = ["#7E57C2", "#7E57C2", "#26A69A", "#8D6E63", "#66BB6A", "#EC407A", "#FF7043", "#42A5F5"];
+            var switchColors = ["#7E57C2", "#5C6BC0", "#26A69A", "#8D6E63", "#66BB6A", "#EC407A", "#FF7043", "#42A5F5"];
 
             for (var si = 0; si < displayList.length; si++) {
                 (function(sBookName, sIdx) {
@@ -5963,7 +5985,7 @@ var EditorJS = {
             voiceContainer.addView(createDialogTitle("选择新发音人"));
 
             // 颜色数组：确保相邻项颜色不同
-            var dotColors = ["#7E57C2", "#7E57C2", "#26A69A", "#8D6E63", "#66BB6A", "#EC407A", "#FF7043", "#42A5F5"];
+            var dotColors = ["#7E57C2", "#5C6BC0", "#26A69A", "#8D6E63", "#66BB6A", "#EC407A", "#FF7043", "#42A5F5"];
             var prevColorIdx = -1;
 
             for (var vi = 0; vi < voiceOptions.length; vi++) {
@@ -7163,7 +7185,7 @@ var EditorJS = {
                         var dotBg = new android.graphics.drawable.GradientDrawable();
                         dotBg.setShape(android.graphics.drawable.GradientDrawable.OVAL);
                         // 颜色数组，确保相邻不同
-                        var releaseDotColors = ["#7E57C2", "#7E57C2", "#26A69A", "#8D6E63", "#66BB6A", "#EC407A", "#FF7043", "#42A5F5"];
+                        var releaseDotColors = ["#7E57C2", "#5C6BC0", "#26A69A", "#8D6E63", "#66BB6A", "#EC407A", "#FF7043", "#42A5F5"];
                         dotBg.setColor(android.graphics.Color.parseColor(releaseDotColors[ni % releaseDotColors.length]));
                         dotView.setBackground(dotBg);
                         row.addView(dotView);
