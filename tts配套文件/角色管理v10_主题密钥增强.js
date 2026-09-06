@@ -6142,7 +6142,8 @@ var EditorJS = {
         }
 
         function _pvPlay(tag, label, btn) {
-            _pvStop();
+            // 注意：这里绝不能再调 _pvStop()！它现在会触发 ttsrv.stopTtsPreview()
+            // 取消刚刚启动的播放协程(无声元凶)。启动新试听本就会自动取消上一个。
             _pvCurrentBtn = btn;
             _pvPlaying = true;
             btn.setText("■");
@@ -6522,17 +6523,22 @@ var EditorJS = {
                             // 三层最终参数与参数路由合成并播放(插件/本机分流由 app 处理)
                             var previewText = "你好，这是试听语音。";
                             var started = false;
+                            var apiErr = null;
                             try { started = ttsrv.playTtsByTag(tag, previewText); } catch (eTag) {
-                                console.log("playTtsByTag尝试失败(" + tag + "): " + eTag.toString());
+                                apiErr = eTag.toString();
+                                console.log("playTtsByTag尝试失败(" + tag + "): " + apiErr);
                             }
                             if (started) {
                                 _pvHandler.post(new java.lang.Runnable({ run: function () { _pvPlay(tag, tag, btn); } }));
                                 return;
                             }
-                            // 桥接试听未匹配到配置项，直接提示（不使用本地服务器兜底）
+                            // 桥接失败：区分"app版本过旧无此方法"与"未匹配到配置项"，提示可行动
                             _pvHandler.post(new java.lang.Runnable({ run: function () {
                                 _pvStop();
-                                Toast.makeText(ctx, "未匹配到配置项：" + tag, Toast.LENGTH_LONG).show();
+                                var msg = (apiErr !== null)
+                                    ? "试听桥接不可用，请更新APP到最新版：" + apiErr
+                                    : "未匹配到配置项：" + tag;
+                                Toast.makeText(ctx, msg, Toast.LENGTH_LONG).show();
                             } }));
                         } catch (e) { _pvHandler.post(new java.lang.Runnable({ run: function () { _pvStop(); Toast.makeText(ctx, "试听异常：" + e.toString(), Toast.LENGTH_SHORT).show(); } })); }
                     }

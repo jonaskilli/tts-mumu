@@ -30,6 +30,14 @@ object TaggedTtsPreviewPlayer {
     private var job: Job? = null
     private var player: AudioPlayer? = null
 
+    private fun toast(context: Context, msg: String) {
+        android.os.Handler(android.os.Looper.getMainLooper()).post {
+            android.widget.Toast.makeText(
+                context.applicationContext, msg, android.widget.Toast.LENGTH_SHORT
+            ).show()
+        }
+    }
+
     fun play(context: Context, entity: SystemTtsV2, text: String) {
         synchronized(lock) {
             job?.cancel()
@@ -40,9 +48,15 @@ object TaggedTtsPreviewPlayer {
             job = scope.launch {
                 try {
                     val resolved = resolveTtsPlayback(entity, TtsPreviewConfig.globalAudioParamsProvider())
-                        ?: return@launch
+                    if (resolved == null) {
+                        toast(context, "试听失败：配置项解析失败")
+                        return@launch
+                    }
                     val provider = CachedEngineManager.getEngine(context.applicationContext, resolved.configuration.source)
-                        ?: return@launch
+                    if (provider == null) {
+                        toast(context, "试听失败：目标插件未启用或不存在")
+                        return@launch
+                    }
                     if (provider.state != EngineState.Initialized) provider.onInit()
 
                     // Local direct-play engines already apply their final parameters themselves.
@@ -62,7 +76,10 @@ object TaggedTtsPreviewPlayer {
                     }
                     val bridgeFormat = (stream as? JsBridgeInputStream)?.streamFormat
                     val bytes = stream.readBytes()
-                    if (bytes.isEmpty()) return@launch
+                    if (bytes.isEmpty()) {
+                        toast(context, "试听失败：合成返回空音频")
+                        return@launch
+                    }
 
                     val declaredPcm = bridgeFormat?.encoding?.startsWith("pcm", ignoreCase = true) == true
                     val local = resolved.localPlaybackParams
@@ -83,10 +100,16 @@ object TaggedTtsPreviewPlayer {
                     }
                 } catch (_: CancellationException) {
                     // Replacing/stopping a preview is normal.
-                } catch (_: Exception) {
+                } catch (e: Exception) {
                     // A newer preview may have released this session's player mid-write
-                    // (AudioTrack.write is blocking and cannot honour cancellation).
-                    // Swallow silently: the replacement preview owns playback from here on.
+                    // (AudioTrack.write is blocking and cannot honour cancellation): the
+                    // replacement then owns `player` and owns playback from here on — stay
+                    // silent. Report only when this session's player is still the active one,
+                    // so real synthesis errors are not swallowed.
+                    val stillOwnsPlayer = synchronized(lock) { player === audioPlayer }
+                    if (stillOwnsPlayer) {
+                        toast(context, "试听失败：${e.message ?: e.javaClass.simpleName}")
+                    }
                 }
             }
         }
