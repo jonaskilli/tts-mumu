@@ -69,7 +69,7 @@ object AppConfig {
     val webDavUrl by lazy { mutableDataSaverStateOf(dataSaverPref, "webDavUrl", "") }
     val webDavUser by lazy { mutableDataSaverStateOf(dataSaverPref, "webDavUser", "") }
     val webDavPass by lazy { mutableDataSaverStateOf(dataSaverPref, "webDavPass", "") }
-    val webDavPath by lazy { mutableDataSaverStateOf(dataSaverPref, "webDavPath", "/TTS备份") }
+    val webDavPath by lazy { mutableDataSaverStateOf(dataSaverPref, "webDavPath", "TTS备份") }
     val expandedSubGroups by lazy { mutableDataSaverStateOf(dataSaverPref, "expandedSubGroups", emptySet<String>()) }
 
     // 大分组展开状态：轻量集合（存 String id 复用 Set<String> 转换器）。

@@ -1,0 +1,31 @@
+package com.github.jing332.tts_server_android.compose.backup
+
+import com.github.jing332.database.entities.SpeechRule
+import com.github.jing332.database.entities.plugin.Plugin
+import com.github.jing332.database.entities.replace.GroupWithReplaceRule
+import com.github.jing332.database.entities.systts.GroupWithSystemTts
+
+data class ParsedBackupArchive(
+    val profile: BackupProfile?,
+    val isLegacy: Boolean,
+    val preferences: PreferencesPayload?,
+    val lists: List<GroupWithSystemTts>?,
+    val speechRules: List<SpeechRule>?,
+    val replaceRules: List<GroupWithReplaceRule>?,
+    val plugins: List<Plugin>?,
+    val legacyLoudness: ByteArray? = null,
+    val warnings: List<String> = emptyList(),
+) {
+    val restoreMode: RestoreMode
+        get() = if (profile == BackupProfile.PERSONAL_FULL) RestoreMode.SNAPSHOT else RestoreMode.MERGE
+}
+
+internal data class BackupPayload(
+    val profile: BackupProfile,
+    val preferences: PreferencesPayload,
+    val lists: List<GroupWithSystemTts>,
+    val speechRules: List<SpeechRule>,
+    val replaceRules: List<GroupWithReplaceRule>,
+    val plugins: List<Plugin>,
+    val redactedValueCount: Int,
+)

@@ -49,6 +49,9 @@ interface PluginDao {
     @Delete
     fun delete(vararg data: Plugin)
 
+    @Query("DELETE FROM plugin")
+    fun deleteAll()
+
     @Update
     fun update(vararg data: Plugin)
 

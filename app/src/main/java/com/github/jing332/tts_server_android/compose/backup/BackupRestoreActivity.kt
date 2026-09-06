@@ -35,6 +35,9 @@ import com.thegrizzlylabs.sardineandroid.DavResource
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 
 class BackupRestoreActivity : ComposeActivity() {
     private var showFromFileRestoreDialog = mutableStateOf<ByteArray?>(null)
@@ -45,7 +48,7 @@ class BackupRestoreActivity : ComposeActivity() {
         setContent {
             AppTheme {
                 val vm: BackupRestoreViewModel = viewModel()
-                var showBackupDialog by remember { mutableStateOf(false) }
+                var backupProfile by remember { mutableStateOf<BackupProfile?>(null) }
                 var showRestoreMenu by remember { mutableStateOf(false) }
                 var showWebDavSettings by remember { mutableStateOf(false) }
                 var showUrlInputDialog by remember { mutableStateOf(false) }
@@ -54,7 +57,59 @@ class BackupRestoreActivity : ComposeActivity() {
 
                 if (isLoading) LoadingDialog(onDismissRequest = { isLoading = false })
 
-                if (showBackupDialog) BackupDialog(onDismissRequest = { showBackupDialog = false })
+                val context = LocalContext.current
+                val saveFilePicker = rememberLauncherForActivityResult(
+                    contract = AppActivityResultContracts.filePickerActivity(),
+                ) {}
+                val scope = rememberCoroutineScope()
+                backupProfile?.let { profile ->
+                    BackupDialog(
+                        profile = profile,
+                        onDismissRequest = { backupProfile = null },
+                        onBackupRequested = { requestedProfile, uploadToWebDav ->
+                            if (uploadToWebDav && AppConfig.webDavUrl.value.isBlank()) {
+                                Toast.makeText(
+                                    context,
+                                    context.getString(R.string.config_webdav_first),
+                                    Toast.LENGTH_SHORT,
+                                ).show()
+                                return@BackupDialog
+                            }
+                            isLoading = true
+                            scope.launch {
+                                runCatching {
+                                    val data = vm.backup(requestedProfile)
+                                    val fileName = when (requestedProfile) {
+                                        BackupProfile.PERSONAL_FULL -> "ttsrv-personal-backup-"
+                                        BackupProfile.SHARE_SANITIZED -> "ttsrv-share-backup-"
+                                    } + SimpleDateFormat(
+                                        "yyyy-MM-dd_HH-mm-ss",
+                                        Locale.getDefault(),
+                                    ).format(Date()) + ".zip"
+                                    if (uploadToWebDav) {
+                                        vm.uploadToWebDav(data, fileName)
+                                        Toast.makeText(
+                                            context,
+                                            context.getString(R.string.backup_uploaded_success),
+                                            Toast.LENGTH_LONG,
+                                        ).show()
+                                    } else {
+                                        saveFilePicker.launch(
+                                            FilePickerActivity.RequestSaveFile(
+                                                fileName = fileName,
+                                                fileMime = "application/zip",
+                                                fileBytes = data,
+                                            )
+                                        )
+                                    }
+                                }.onFailure {
+                                    context.displayErrorDialog(it, context.getString(R.string.backup))
+                                }
+                                isLoading = false
+                            }
+                        },
+                    )
+                }
 
                 if (showRestoreMenu) {
                     AlertDialog(
@@ -150,7 +205,18 @@ class BackupRestoreActivity : ComposeActivity() {
                         })
                 }) { padding ->
                     Column(Modifier.padding(padding)) {
-                        BasePreferenceWidget(onClick = { showBackupDialog = true }, title = { Text(stringResource(id = R.string.backup)) }, icon = { Icon(Icons.Default.Output, null) })
+                        BasePreferenceWidget(
+                            onClick = { backupProfile = BackupProfile.PERSONAL_FULL },
+                            title = { Text(stringResource(R.string.personal_complete_backup)) },
+                            subTitle = { Text(stringResource(R.string.personal_complete_backup_summary)) },
+                            icon = { Icon(Icons.Default.Output, null) },
+                        )
+                        BasePreferenceWidget(
+                            onClick = { backupProfile = BackupProfile.SHARE_SANITIZED },
+                            title = { Text(stringResource(R.string.share_backup)) },
+                            subTitle = { Text(stringResource(R.string.share_backup_summary)) },
+                            icon = { Icon(Icons.Filled.IosShare, null) },
+                        )
                         BasePreferenceWidget(onClick = { showRestoreMenu = true }, title = { Text(stringResource(id = R.string.restore)) }, icon = { Icon(Icons.AutoMirrored.Filled.Input, null) })
                         BasePreferenceWidget(
                             onClick = { showWebDavSettings = true },
