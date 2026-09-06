@@ -75,7 +75,6 @@ internal class BackupRestoreEngine(
             } else {
                 parseLegacyArchive(entries)
             }
-            if (archive.restoreMode != RestoreMode.MERGE) return@withIO emptyList()
             archive.plugins.orEmpty().mapNotNull { plugin ->
                 if (plugin.pluginId.isBlank()) null
                 else if (dbm.pluginDao.getByPluginId(plugin.pluginId) != null)
@@ -225,45 +224,13 @@ internal class BackupRestoreEngine(
     ) {
         val preferenceSnapshot = archive.preferences?.let(::snapshotPreferences)
         try {
+            // 全部档案统一合并语义（用户定稿：不清空，需要清空自己先清）：
+            // 各域只增/更，不删除设备已有内容；插件冲突由 UI 决议
             dbm.runInTransaction {
-                if (archive.restoreMode == RestoreMode.SNAPSHOT) {
-                    // 快照：档案内相同 item id（跨分组重复）时为后出现的分配新 ID，保留两组共存
-                    archive.lists?.let { lists ->
-                        val seen = HashSet<Long>()
-                        val baseId = System.currentTimeMillis()
-                        var seq = 0
-                        val fixed = lists.map { group ->
-                            group.copy(list = group.list.map { item ->
-                                if (seen.add(item.id)) item
-                                else item.copy(id = baseId + (seq++))
-                            })
-                        }
-                        dbm.systemTtsV2.deleteAllTts()
-                        dbm.systemTtsV2.deleteAllGroups()
-                        dbm.systemTtsV2.insertGroupWithTts(*fixed.toTypedArray())
-                    }
-                    archive.replaceRules?.let {
-                        dbm.replaceRuleDao.deleteAllRules()
-                        dbm.replaceRuleDao.deleteAllGroups()
-                        dbm.replaceRuleDao.insertRuleWithGroup(*it.toTypedArray())
-                    }
-                    archive.speechRules?.let { rules ->
-                        // 快照：同 ruleId+name 去重（保留最后一版），同名不同版本共存的合法数据不再被唯一性校验拦截
-                        val seen = HashSet<Pair<String, String>>()
-                        val deduped = rules.filter { seen.add(it.ruleId to it.name) }
-                        dbm.speechRuleDao.deleteAll()
-                        dbm.speechRuleDao.insert(*deduped.toTypedArray())
-                    }
-                    archive.plugins?.let {
-                        dbm.pluginDao.deleteAll()
-                        dbm.pluginDao.insert(*it.toTypedArray())
-                    }
-                } else {
-                    archive.lists?.let(::mergeLists)
-                    archive.replaceRules?.let(::mergeReplaceRules)
-                    archive.speechRules?.let(::mergeSpeechRules)
-                    archive.plugins?.let { mergePlugins(it, pluginConflict) }
-                }
+                archive.lists?.let(::mergeLists)
+                archive.replaceRules?.let(::mergeReplaceRules)
+                archive.speechRules?.let(::mergeSpeechRules)
+                archive.plugins?.let { mergePlugins(it, pluginConflict) }
             }
             archive.preferences?.let(::applyPreferences)
             archive.legacyLoudness?.let { bytes ->
@@ -400,7 +367,6 @@ internal class BackupRestoreEngine(
         payload.documents.forEach { document ->
             val prefs = context.getSharedPreferences(document.name, Context.MODE_PRIVATE)
             val editor = prefs.edit()
-            if (document.mode == RestoreMode.SNAPSHOT) editor.clear()
             document.values.forEach { (key, value) -> putPreference(editor, key, value) }
             check(editor.commit()) { "无法保存偏好设置：${document.name}" }
         }

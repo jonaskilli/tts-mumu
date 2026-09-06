@@ -115,7 +115,7 @@ internal class BackupPayloadFactory(
     private fun snapshotPreference(
         name: String,
         allowedKeys: Set<String>? = null,
-        mode: RestoreMode = RestoreMode.SNAPSHOT,
+        mode: RestoreMode = RestoreMode.MERGE,
         stripWebDav: Boolean = false,
     ): PreferenceDocument? {
         val prefs = context.getSharedPreferences(name, Context.MODE_PRIVATE)

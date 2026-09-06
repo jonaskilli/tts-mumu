@@ -17,10 +17,7 @@ data class ParsedBackupArchive(
     val webDavIncluded: Boolean = true,
     val legacyLoudness: ByteArray? = null,
     val warnings: List<String> = emptyList(),
-) {
-    val restoreMode: RestoreMode
-        get() = if (profile == BackupProfile.PERSONAL_FULL) RestoreMode.SNAPSHOT else RestoreMode.MERGE
-}
+)
 
 internal data class BackupPayload(
     val profile: BackupProfile,
