@@ -162,7 +162,7 @@ class BackupRestoreActivity : ComposeActivity() {
                         onDismissRequest = { showUrlInputDialog = false },
                         title = { Text(stringResource(R.string.restore_from_url_dialog_title)) },
                         content = {
-                            OutlinedTextField(value = url, onValueChange = { url = it }, label = { Text("URL") }, modifier = Modifier.fillMaxWidth())
+                            OutlinedTextField(value = url, onValueChange = { url = it }, label = { Text(stringResource(R.string.restore_from_url_dialog_title)) }, modifier = Modifier.fillMaxWidth())
                         },
                         buttons = {
                             TextButton(onClick = { showUrlInputDialog = false }) { Text(stringResource(R.string.cancel)) }
