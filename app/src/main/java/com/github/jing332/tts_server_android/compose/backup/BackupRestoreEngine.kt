@@ -9,6 +9,8 @@ import com.github.jing332.database.entities.replace.GroupWithReplaceRule
 import com.github.jing332.database.entities.systts.GroupWithSystemTts
 import com.github.jing332.database.entities.systts.SystemTtsGroup
 import com.github.jing332.database.entities.systts.SystemTtsV2
+import com.github.jing332.database.entities.systts.TtsConfigurationDTO
+import com.github.jing332.database.entities.systts.source.PluginTtsSource
 import com.github.jing332.tts_server_android.compose.systts.list.migrateTagNamesIfNeed
 import com.github.jing332.tts_server_android.compose.systts.plugin.parsePluginsJson
 import com.github.jing332.tts_server_android.conf.AppConfig
@@ -31,10 +33,7 @@ internal class BackupRestoreEngine(
         ArchiveZipCodec.create(manifest, entries)
     }
 
-    suspend fun restore(
-        bytes: ByteArray,
-        pluginConflict: PluginConflictResolution? = null,
-    ): RestoreResult = withIO {
+    suspend fun restore(bytes: ByteArray): RestoreResult = withIO {
         runCatching {
             val entries = SafeZipReader.read(bytes)
             val archive = if (MANIFEST_ENTRY in entries) {
@@ -42,7 +41,7 @@ internal class BackupRestoreEngine(
             } else {
                 parseLegacyArchive(entries)
             }
-            apply(archive, pluginConflict)
+            apply(archive)
             // 旧备份（含旧版兼容合并）可能带回历史 isUiOnly 宿主配置项，恢复后立即清理
             runCatching {
                 com.github.jing332.tts_server_android.compose.cleanupRoleHostConfigItems()
@@ -61,27 +60,6 @@ internal class BackupRestoreEngine(
                 cause = throwable,
             )
         }
-    }
-
-    /**
-     * 合并恢复前的插件冲突检测：archive 中的插件与设备上已有同 pluginId 时返回冲突清单。
-     * 快照恢复（完整备份）整表重建，无冲突概念，直接返回空。
-     */
-    suspend fun pluginConflicts(bytes: ByteArray): List<PluginConflict> = withIO {
-        runCatching {
-            val entries = SafeZipReader.read(bytes)
-            val archive = if (MANIFEST_ENTRY in entries) {
-                parseCurrentArchive(entries)
-            } else {
-                parseLegacyArchive(entries)
-            }
-            archive.plugins.orEmpty().mapNotNull { plugin ->
-                if (plugin.pluginId.isBlank()) null
-                else if (dbm.pluginDao.getByPluginId(plugin.pluginId) != null)
-                    PluginConflict(plugin.pluginId, plugin.name)
-                else null
-            }
-        }.getOrDefault(emptyList())
     }
 
     private fun parseCurrentArchive(entries: Map<String, ByteArray>): ParsedBackupArchive {
@@ -218,10 +196,7 @@ internal class BackupRestoreEngine(
         }
     }
 
-    private fun apply(
-        archive: ParsedBackupArchive,
-        pluginConflict: PluginConflictResolution? = null,
-    ) {
+    private fun apply(archive: ParsedBackupArchive) {
         val preferenceSnapshot = archive.preferences?.let(::snapshotPreferences)
         try {
             // 全部档案统一合并语义（用户定稿：不清空，需要清空自己先清）：
@@ -230,7 +205,7 @@ internal class BackupRestoreEngine(
                 archive.lists?.let(::mergeLists)
                 archive.replaceRules?.let(::mergeReplaceRules)
                 archive.speechRules?.let(::mergeSpeechRules)
-                archive.plugins?.let { mergePlugins(it, pluginConflict) }
+                    archive.plugins?.let { mergePlugins(it) }
             }
             archive.preferences?.let(::applyPreferences)
             archive.legacyLoudness?.let { bytes ->
@@ -245,8 +220,9 @@ internal class BackupRestoreEngine(
     }
 
     /**
-     * 配置列表合并：同名分组并入设备已有分组，组内同名项（displayName 相同）跳过不重复导入，
-     * 新内容追加新 ID；不同分组允许出现同名项。
+     * 配置列表合并（指纹判定）：同名分组并入设备已有分组；组内 voice/tag/所在路径
+     * 等主要信息一致的项视为同一条，用备份覆盖（保留设备主键）；有差异即追加为新项；
+     * 不同分组允许出现同名项。
      */
     private fun mergeLists(groups: List<GroupWithSystemTts>) {
         if (groups.isEmpty()) return
@@ -276,18 +252,38 @@ internal class BackupRestoreEngine(
                 id
             }
 
-            // 组内去重：同 displayName（非空）视为相同项跳过；不同组允许同名
+            // 组内按指纹（voice/tag/categoryPath/来源插件）判同一条：一致覆盖，有差异追加
             val existingItems = dbm.systemTtsV2.getByGroup(groupId).toMutableList()
+            val toUpdate = mutableListOf<SystemTtsV2>()
             val toInsert = mutableListOf<SystemTtsV2>()
             source.list.forEach { item ->
-                val name = item.displayName
-                if (name.isNotBlank() && existingItems.any { it.displayName == name }) return@forEach
-                val inserted = item.copy(id = baseId + 100_000L + seq++, groupId = groupId)
-                existingItems.add(inserted)
-                toInsert.add(inserted)
+                val key = listItemKey(item)
+                val twin = existingItems.firstOrNull { listItemKey(it) == key }
+                when {
+                    key.isBlank() -> toInsert.add(item.copy(id = baseId + 100_000L + seq++, groupId = groupId))
+                    twin != null -> toUpdate.add(item.copy(id = twin.id, groupId = groupId))
+                    else -> {
+                        val inserted = item.copy(id = baseId + 100_000L + seq++, groupId = groupId)
+                        existingItems.add(inserted)
+                        toInsert.add(inserted)
+                    }
+                }
             }
+            if (toUpdate.isNotEmpty()) dbm.systemTtsV2.update(*toUpdate.toTypedArray())
             if (toInsert.isNotEmpty()) dbm.systemTtsV2.insert(*toInsert.toTypedArray())
         }
+    }
+
+    /** 配置列表项的主要信息指纹：发音人 voice + 标签 + 所在子分组路径 + 来源插件 */
+    private fun listItemKey(item: SystemTtsV2): String {
+        val config = item.config as? TtsConfigurationDTO ?: return ""
+        val source = config.source
+        return listOf(
+            source.voice,
+            config.speechRule.tag,
+            item.categoryPath,
+            (source as? PluginTtsSource)?.pluginId ?: source.getKey(),
+        ).joinToString("|")
     }
 
     private fun mergeReplaceRules(groups: List<GroupWithReplaceRule>) {
@@ -309,53 +305,82 @@ internal class BackupRestoreEngine(
     }
 
     /**
-     * 朗读规则合并：同 ruleId 且同 name 视为同一条，用备份覆盖设备版本（保留设备主键，
-     * 标签引用不断）；同 ruleId 不同 name 是用户有意保留的多版本，共存。
+     * 朗读规则合并（指纹判定）：同 ruleId 下，version/author/code/tags/tagsData
+     * 全部一致才视为同一条并覆盖（保留设备主键）；任一项不同即共存为独立规则。
      */
     private fun mergeSpeechRules(rules: List<SpeechRule>) {
         rules.forEach { rule ->
             val sameRuleId = dbm.speechRuleDao.getAllWithoutCode().filter { it.ruleId == rule.ruleId }
-            val twin = sameRuleId.firstOrNull { it.name == rule.name }
             when {
                 sameRuleId.isEmpty() -> dbm.speechRuleDao.insert(rule)
-                twin != null -> dbm.speechRuleDao.update(rule.copy(id = twin.id))
-                else -> dbm.speechRuleDao.insert(rule)
+                else -> {
+                    val twin = sameRuleId.firstOrNull { speechRuleFingerprint(it) == speechRuleFingerprint(rule) }
+                    if (twin != null) dbm.speechRuleDao.update(rule.copy(id = twin.id))
+                    else dbm.speechRuleDao.insert(rule)
+                }
             }
         }
     }
 
+    private fun speechRuleFingerprint(rule: SpeechRule): String = buildString {
+        append(rule.name).append('|')
+        append(rule.version).append('|')
+        append(rule.author).append('|')
+        append(rule.code).append('|')
+        rule.tags.entries.sortedBy { it.key }.forEach { append(it.key).append('=').append(it.value).append(';') }
+        append('|')
+        rule.tagsData.entries.sortedBy { it.key }.forEach { (tag, keys) ->
+            append(tag).append('[')
+            keys.entries.sortedBy { it.key }.forEach { (key, attrs) ->
+                append(key).append('=')
+                attrs.entries.sortedBy { it.key }.forEach { (attr, value) ->
+                    append(attr).append(':').append(value).append(',')
+                }
+                append(';')
+            }
+            append("];")
+        }
+    }
+
     /**
-     * 插件合并：无冲突直接插入；有冲突按用户决议——
-     * OVERWRITE=备份覆盖设备版本（保留设备主键与本地 userVars）；
-     * COEXIST=进来的插件改用新 pluginId（原 id 加后缀）插入，设备原插件与配置项引用不动。
+     * 插件合并（指纹判定）：name/version/author/iconUrl/code/defVars/三个处理开关
+     * 全部一致才覆盖设备插件（保留设备主键与本地 userVars）；任一项不同即共存，
+     * 新插件自动加 _N 后缀改名插入，设备原插件与配置项引用不动。
      */
-    private fun mergePlugins(
-        plugins: List<Plugin>,
-        pluginConflict: PluginConflictResolution?,
-    ) {
+    private fun mergePlugins(plugins: List<Plugin>) {
         plugins.forEach { plugin ->
             val existing = dbm.pluginDao.getByPluginId(plugin.pluginId)
             if (existing == null) {
                 dbm.pluginDao.insert(plugin)
                 return@forEach
             }
-            when (pluginConflict) {
-                PluginConflictResolution.OVERWRITE -> dbm.pluginDao.update(
-                    plugin.copy(id = existing.id, userVars = existing.userVars)
-                )
-                PluginConflictResolution.COEXIST -> {
-                    var suffix = 1
-                    var newId = plugin.pluginId + "_1"
-                    while (dbm.pluginDao.getByPluginId(newId) != null) {
-                        suffix++
-                        newId = plugin.pluginId + "_" + suffix
-                    }
-                    dbm.pluginDao.insert(plugin.copy(pluginId = newId))
+            if (pluginFingerprint(existing) == pluginFingerprint(plugin)) {
+                dbm.pluginDao.update(plugin.copy(id = existing.id, userVars = existing.userVars))
+            } else {
+                var suffix = 1
+                var newId = plugin.pluginId + "_1"
+                while (dbm.pluginDao.getByPluginId(newId) != null) {
+                    suffix++
+                    newId = plugin.pluginId + "_" + suffix
                 }
-                // 未决议（不应发生：UI 必须先询问）→ 保守跳过，不动设备插件
-                null -> Unit
+                dbm.pluginDao.insert(plugin.copy(pluginId = newId))
             }
         }
+    }
+
+    private fun pluginFingerprint(plugin: Plugin): String = buildString {
+        append(plugin.name).append('|')
+        append(plugin.version).append('|')
+        append(plugin.author).append('|')
+        append(plugin.iconUrl).append('|')
+        append(plugin.code).append('|')
+        plugin.defVars.entries.sortedBy { it.key }.forEach { (key, vars) ->
+            append(key).append('[')
+            vars.entries.sortedBy { it.key }.forEach { (k, v) -> append(k).append('=').append(v).append(';') }
+            append("];")
+        }
+        append('|')
+        append(plugin.pluginHandlesSpeed).append(plugin.pluginHandlesVolume).append(plugin.pluginHandlesPitch)
     }
 
     private fun snapshotPreferences(payload: PreferencesPayload): Map<String, Map<String, Any?>> =

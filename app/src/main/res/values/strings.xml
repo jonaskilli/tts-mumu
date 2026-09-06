@@ -459,9 +459,6 @@
     <string name="backup_save_local">保存至本地</string>
     <string name="backup_need_content">请至少选择一项备份内容</string>
     <string name="backup_need_save_target">请至少选择一种保存方式</string>
-    <string name="backup_plugin_conflict_title">检测到插件冲突，请选择处理方式</string>
-    <string name="backup_plugin_conflict_overwrite">覆盖：用备份版本替换设备上的同名插件</string>
-    <string name="backup_plugin_conflict_coexist">共存：备份插件自动改名后加入</string>
     <string name="preference_settings">偏好设置</string>
     <string name="restart">重启</string>
     <string name="restarted">服务已重启</string>
