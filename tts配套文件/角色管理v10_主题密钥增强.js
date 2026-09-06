@@ -6529,36 +6529,56 @@ var EditorJS = {
                                 console.log("playTtsByTag尝试失败(" + tag + "): " + apiErr);
                             }
                             if (started) {
-                                // 按钮保持"…"橙(合成中)；轮询到 app 真正出声才切■红(对齐v9时机)，
-                                // 播完(或失败结束)自动复位回 ▶，不再卡在红色 ■
+                                // 按钮保持"…"橙(合成中)；出声后切■红(对齐v9)，播完自动复位▶。
+                                // 能力探测：旧app没有 isTtsPreviewAudible 时自动降级——
+                                // 任何单方法缺失绝不能杀死监听线程，否则按钮永久卡死
+                                var capPlaying = true;   // isTtsPreviewPlaying 是否可用
+                                var capAudible = true;   // isTtsPreviewAudible 是否可用(旧app无)
                                 new java.lang.Thread(new java.lang.Runnable({
                                     run: function () {
                                         try {
                                             var audible = false;
                                             var idle = 0;
+                                            var guard = 0;
                                             while (_pvCurrentBtn === btn) {
-                                                var playing = false;
-                                                try {
-                                                    playing = ttsrv.isTtsPreviewPlaying();
-                                                    if (!audible) audible = ttsrv.isTtsPreviewAudible();
-                                                } catch (eQ) { break; }
+                                                var playing = true;
+                                                if (capPlaying) {
+                                                    try { playing = ttsrv.isTtsPreviewPlaying(); }
+                                                    catch (eP) { capPlaying = false; playing = true; }
+                                                }
+                                                if (capAudible && !audible) {
+                                                    try { audible = ttsrv.isTtsPreviewAudible(); }
+                                                    catch (eA) { capAudible = false; audible = true; }
+                                                }
                                                 if (audible && _pvPlaying !== true) {
                                                     _pvPlaying = true;
                                                     _pvHandler.post(new java.lang.Runnable({ run: function () {
                                                         if (_pvCurrentBtn === btn) _pvPlay(tag, tag, btn);
                                                     } }));
                                                 }
-                                                if (!playing) {
+                                                var done = false;
+                                                if (!capPlaying) {
+                                                    // app连状态查询都没有(极旧)：无法判断结束，
+                                                    // 用固定观察窗兜底——60s后强制复位，防永久卡死
+                                                    guard++;
+                                                    if (guard >= 200) done = true;   // 200*300ms=60s
+                                                } else if (!playing) {
                                                     // 短去抖：轮询间隙/状态翻转瞬间不算结束
                                                     idle++;
-                                                    if (idle >= 2) break;
+                                                    if (idle >= 2) done = true;
                                                 } else idle = 0;
+                                                if (done) break;
                                                 java.lang.Thread.sleep(300);
                                             }
                                             if (_pvCurrentBtn === btn) {
                                                 _pvHandler.post(new java.lang.Runnable({ run: function () { _pvStop(); } }));
                                             }
-                                        } catch (eW) {}
+                                        } catch (eW) {
+                                            // 监听本身异常也不能留卡死按钮
+                                            if (_pvCurrentBtn === btn) {
+                                                _pvHandler.post(new java.lang.Runnable({ run: function () { _pvStop(); } }));
+                                            }
+                                        }
                                     }
                                 })).start();
                                 return;
