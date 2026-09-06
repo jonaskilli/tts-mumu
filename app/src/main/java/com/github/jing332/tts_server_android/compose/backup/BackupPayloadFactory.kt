@@ -72,6 +72,8 @@ internal class BackupPayloadFactory(
         REPLACE_RULES_ENTRY to AppBackupJson.encodeToString(payload.replaceRules).encodeToByteArray(),
         PLUGINS_ENTRY to AppBackupJson.encodeToString(payload.plugins).encodeToByteArray(),
     )
+    // 注意：chajian 本地文件（角色记录/密钥/书单等 JS 落盘文件）任何 profile 都不备份。
+    // 这些文件在使用中持续变化，快照恢复会用备份时点覆盖更新的现场，用户明确不要此行为。
 
     private fun snapshotPreference(
         name: String,
@@ -202,3 +204,6 @@ internal const val LISTS_ENTRY = "lists.json"
 internal const val SPEECH_RULES_ENTRY = "speech_rules.json"
 internal const val REPLACE_RULES_ENTRY = "replace_rules.json"
 internal const val PLUGINS_ENTRY = "plugins.json"
+
+/** 档案内插件本地文件条目的保留前缀：任何 profile 均不备份，恢复端遇此前缀直接拒绝。 */
+internal const val CHAJIAN_ENTRY_PREFIX = "chajian/"

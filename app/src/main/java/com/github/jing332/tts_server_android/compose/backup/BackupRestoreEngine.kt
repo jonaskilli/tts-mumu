@@ -72,12 +72,17 @@ internal class BackupRestoreEngine(
             REPLACE_RULES_ENTRY,
             PLUGINS_ENTRY,
         )
+        // chajian 本地文件任何 profile 都不备份也不恢复（使用中持续变化，恢复覆盖现场是用户明确排除的行为）；
+        // 档案中若出现该前缀条目一律拒绝
+        require(payload.keys.none { it.startsWith(CHAJIAN_ENTRY_PREFIX) }) {
+            "备份包含不允许的插件数据文件"
+        }
         require(payload.keys.all(expected::contains)) { "备份包含未识别的文件" }
-        require(PREFERENCES_ENTRY in payload) { "备份缺少偏好设置" }
-        require(LISTS_ENTRY in payload) { "备份缺少配置列表" }
-        require(SPEECH_RULES_ENTRY in payload) { "备份缺少朗读规则" }
-        require(REPLACE_RULES_ENTRY in payload) { "备份缺少替换规则" }
-        require(PLUGINS_ENTRY in payload) { "备份缺少插件" }
+        require(PREFERENCES_ENTRY in entries) { "备份缺少偏好设置" }
+        require(LISTS_ENTRY in entries) { "备份缺少配置列表" }
+        require(SPEECH_RULES_ENTRY in entries) { "备份缺少朗读规则" }
+        require(REPLACE_RULES_ENTRY in entries) { "备份缺少替换规则" }
+        require(PLUGINS_ENTRY in entries) { "备份缺少插件" }
 
         val preferences = AppBackupJson.json.decodeFromString<PreferencesPayload>(
             payload.getValue(PREFERENCES_ENTRY).decodeToString()
