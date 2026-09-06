@@ -124,18 +124,14 @@ internal class BackupRestoreEngine(
         }
 
         val preferencePaths = entries.keys.filter { it.startsWith("shared_prefs/") && it.endsWith(".xml") }
-        // 旧包偏好补丁只接受应用自有偏好文件，WebView 等运行时产物直接跳过
-        val (knownPaths, unknownPaths) = preferencePaths.partition { path ->
-            path.removePrefix("shared_prefs/").removeSuffix(".xml") in knownPreferenceNames
-        }
-        val preferenceDocuments = knownPaths.map { path ->
+        // 非应用自有偏好（WebView内核统计/历史遗留等）静默跳过，不恢复也不提示；
+        // 仅合并应用自有偏好文件，保留备份中不存在的新字段与本机WebDAV
+        val preferenceDocuments = preferencePaths.mapNotNull { path ->
             val name = path.removePrefix("shared_prefs/").removeSuffix(".xml")
+            if (name !in knownPreferenceNames) return@mapNotNull null
             PreferenceDocument(name, parseLegacyPreferences(entries.getValue(path)), RestoreMode.MERGE)
         }
-        val legacyWarnings = buildList {
-            add("正在以旧版兼容模式合并恢复")
-            unknownPaths.forEach { add("已跳过非应用偏好文件：${it.removePrefix("shared_prefs/")}") }
-        }
+        val legacyWarnings = listOf("正在以旧版兼容模式合并恢复")
 
         val lists = entries["list.json"]?.let {
             AppConst.jsonBuilder.decodeFromString<List<GroupWithSystemTts>>(it.decodeToString())

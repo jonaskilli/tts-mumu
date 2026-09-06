@@ -1,5 +1,6 @@
 package com.github.jing332.tts_server_android.compose.backup
 
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.MaterialTheme
@@ -20,6 +21,7 @@ import com.github.jing332.compose.widgets.AppDialog
 import com.github.jing332.compose.widgets.LoadingContent
 import com.github.jing332.tts_server_android.R
 import com.github.jing332.tts_server_android.app
+import kotlinx.coroutines.delay
 
 @Composable
 internal fun RestoreDialog(
@@ -35,9 +37,17 @@ internal fun RestoreDialog(
         isLoading = false
     }
 
-    // 恢复偏好设置后必须重启：DataSaver 等进程内缓存依赖重启彻底重载，不允许取消留在旧状态
+    // 恢复偏好设置后进程内缓存(DataSaver等)与磁盘不一致，必须重启彻底重载；
+    // 恢复成功即自动重启，无需用户确认
     val resolved = result
     val mustRestart = resolved is RestoreResult.Success && resolved.restartRequired
+    LaunchedEffect(mustRestart) {
+        if (mustRestart) {
+            delay(1200)
+            app.restart()
+        }
+    }
+
     AppDialog(
         onDismissRequest = { if (mustRestart) app.restart() else onDismissRequest() },
         properties = DialogProperties(
@@ -50,36 +60,37 @@ internal fun RestoreDialog(
                 Modifier.fillMaxWidth().padding(vertical = 16.dp),
                 isLoading = isLoading
             ) {
-                when (val value = resolved) {
-                    is RestoreResult.Success -> {
-                        Text(stringResource(id = R.string.restore_finished))
-                        if (value.restartRequired) {
-                            Text(
-                                stringResource(id = R.string.restore_restart_msg),
-                                style = MaterialTheme.typography.bodyMedium,
-                                modifier = Modifier.padding(top = 8.dp),
-                            )
+                // LoadingContent 内容区是 Box，多段文字必须手动纵向排列，否则全部叠在同一位置
+                Column {
+                    when (val value = resolved) {
+                        is RestoreResult.Success -> {
+                            if (value.restartRequired) {
+                                Text(stringResource(id = R.string.restarting))
+                            } else {
+                                Text(stringResource(id = R.string.restore_finished))
+                            }
+                            if (value.warnings.isNotEmpty()) {
+                                Text(
+                                    value.warnings.joinToString("\n") { "⚠️ $it" },
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    modifier = Modifier.padding(top = 8.dp),
+                                )
+                            }
                         }
-                        if (value.warnings.isNotEmpty()) {
-                            Text(
-                                value.warnings.joinToString("\n") { "⚠️ $it" },
-                                style = MaterialTheme.typography.bodyMedium,
-                                modifier = Modifier.padding(top = 8.dp),
-                            )
-                        }
+
+                        is RestoreResult.Failure -> Text(
+                            value.message,
+                            color = MaterialTheme.colorScheme.error,
+                        )
+
+                        null -> Unit
                     }
-
-                    is RestoreResult.Failure -> Text(
-                        value.message,
-                        color = MaterialTheme.colorScheme.error,
-                    )
-
-                    null -> Unit
                 }
             }
         },
         buttons = {
             if (mustRestart) {
+                // 自动重启进行中；保留按钮作为手动立即重启的兜底
                 TextButton(onClick = { app.restart() }) {
                     Text(stringResource(id = R.string.restart))
                 }
