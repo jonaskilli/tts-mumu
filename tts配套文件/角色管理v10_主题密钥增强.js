@@ -2903,13 +2903,23 @@ var EditorJS = {
                 isValid = false;
             }
 
+            // 标签+发音人连写(用户定稿)：男主1晓伊——tagName前缀+发音人主题色强调；
+            // 显示名本身以标签名开头时不再重复拼接(防男主1男主1)
+            var tagNamePrefix = (voiceTag && displayText.indexOf(voiceTag) !== 0) ? voiceTag : "";
+
             var ssb = new android.text.SpannableStringBuilder();
             var CLR_TAG = android.graphics.Color.parseColor(RMTHEME.cur.main);
             var CLR_WARN = android.graphics.Color.parseColor("#D32F2F");
             var SPAN = android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE;
 
+            if (tagNamePrefix) {
+                var prefixStart = ssb.length();
+                ssb.append(tagNamePrefix);
+                ssb.setSpan(new android.text.style.ForegroundColorSpan(CLR_TAG), prefixStart, ssb.length(), SPAN);
+            }
+
             var tagStart = ssb.length();
-            ssb.append(truncateVoiceName(displayText));
+            ssb.append(truncateVoiceName(displayText, 12));
             ssb.setSpan(new android.text.style.ForegroundColorSpan(CLR_TAG), tagStart, ssb.length(), SPAN);
 
             if (!isValid) {
@@ -2944,11 +2954,13 @@ var EditorJS = {
         }
 
         var VOICE_DISPLAY_MAX = 8;
-        function truncateVoiceName(name) {
+        // maxLen 可选：胶囊带 tagName 前缀时传 12 加宽，其余调用沿用默认 8
+        function truncateVoiceName(name, maxLen) {
+            var max = maxLen || VOICE_DISPLAY_MAX;
             if (!name) return "";
             var s = String(name);
-            if (s.length <= VOICE_DISPLAY_MAX) return s;
-            return s.substring(0, VOICE_DISPLAY_MAX) + "…";
+            if (s.length <= max) return s;
+            return s.substring(0, max) + "…";
         }
   
         
