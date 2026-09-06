@@ -305,9 +305,9 @@ internal class BackupRestoreEngine(
     }
 
     /**
-     * 朗读规则合并（指纹判定）：同 ruleId 下，version/author/code/tags/tagsData
-     * 全部一致才视为同一条并覆盖（保留设备主键）；任一项不同即共存为独立规则。
-     * 必须用含 code 的全量查询取设备侧规则——轻量查询返回空 code，指纹永远对不上。
+     * 朗读规则合并（元数据判定）：同 ruleId 下，"编辑元数据"四项（name/ruleId/author/version）
+     * 一致即视为同一条，用备份覆盖（保留设备主键，code 等内容以备份为准）；
+     * 任一项不同即共存为独立规则。ruleId 已是分组键，指纹比对 name/author/version。
      */
     private fun mergeSpeechRules(rules: List<SpeechRule>) {
         if (rules.isEmpty()) return
@@ -326,30 +326,13 @@ internal class BackupRestoreEngine(
         }
     }
 
-    private fun speechRuleFingerprint(rule: SpeechRule): String = buildString {
-        append(rule.name).append('|')
-        append(rule.version).append('|')
-        append(rule.author).append('|')
-        append(rule.code).append('|')
-        rule.tags.entries.sortedBy { it.key }.forEach { append(it.key).append('=').append(it.value).append(';') }
-        append('|')
-        rule.tagsData.entries.sortedBy { it.key }.forEach { (tag, keys) ->
-            append(tag).append('[')
-            keys.entries.sortedBy { it.key }.forEach { (key, attrs) ->
-                append(key).append('=')
-                attrs.entries.sortedBy { it.key }.forEach { (attr, value) ->
-                    append(attr).append(':').append(value).append(',')
-                }
-                append(';')
-            }
-            append("];")
-        }
-    }
+    private fun speechRuleFingerprint(rule: SpeechRule): String =
+        "${rule.name}|${rule.author}|${rule.version}"
 
     /**
-     * 插件合并（指纹判定）：name/version/author/iconUrl/code/defVars/三个处理开关
-     * 全部一致才覆盖设备插件（保留设备主键与本地 userVars）；任一项不同即共存，
-     * 新插件自动加 _N 后缀改名插入，设备原插件与配置项引用不动。
+     * 插件合并（元数据判定）：同 pluginId 下，"编辑元数据"四项（name/pluginId/author/version）
+     * 一致即视为同一插件，用备份覆盖（保留设备主键与本地 userVars，code 等内容以备份为准）；
+     * 任一项不同即共存，新插件自动加 _N 后缀改名插入，设备原插件与配置项引用不动。
      */
     private fun mergePlugins(plugins: List<Plugin>) {
         plugins.forEach { plugin ->
@@ -372,20 +355,8 @@ internal class BackupRestoreEngine(
         }
     }
 
-    private fun pluginFingerprint(plugin: Plugin): String = buildString {
-        append(plugin.name).append('|')
-        append(plugin.version).append('|')
-        append(plugin.author).append('|')
-        append(plugin.iconUrl).append('|')
-        append(plugin.code).append('|')
-        plugin.defVars.entries.sortedBy { it.key }.forEach { (key, vars) ->
-            append(key).append('[')
-            vars.entries.sortedBy { it.key }.forEach { (k, v) -> append(k).append('=').append(v).append(';') }
-            append("];")
-        }
-        append('|')
-        append(plugin.pluginHandlesSpeed).append(plugin.pluginHandlesVolume).append(plugin.pluginHandlesPitch)
-    }
+    private fun pluginFingerprint(plugin: Plugin): String =
+        "${plugin.name}|${plugin.author}|${plugin.version}"
 
     private fun snapshotPreferences(payload: PreferencesPayload): Map<String, Map<String, Any?>> =
         payload.documents.associate { document ->
