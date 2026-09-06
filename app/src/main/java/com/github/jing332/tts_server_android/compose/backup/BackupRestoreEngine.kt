@@ -38,6 +38,10 @@ internal class BackupRestoreEngine(
                 parseLegacyArchive(entries)
             }
             apply(archive)
+            // 旧备份（含旧版兼容合并）可能带回历史 isUiOnly 宿主配置项，恢复后立即清理
+            runCatching {
+                com.github.jing332.tts_server_android.compose.cleanupRoleHostConfigItems()
+            }
             val preferenceRestored = archive.preferences?.documents?.isNotEmpty() == true
             AppConfig.tagNameMigrated.value = false
             if (!preferenceRestored) migrateTagNamesIfNeed(context, force = true)

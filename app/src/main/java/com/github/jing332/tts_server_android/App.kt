@@ -103,6 +103,13 @@ class App : Application() {
         )
 
         GlobalScope.launch {
+            // 直连改造后角色管理宿主配置项为遗留物：启动时清理（数据在 chajian 文件，删除零损失）
+            runCatching {
+                com.drake.net.utils.withIO {
+                    com.github.jing332.tts_server_android.compose.cleanupRoleHostConfigItems()
+                }
+            }
+
             HanlpManager.initDir(
                 context.getExternalFilesDir("hanlp")?.absolutePath
                     ?: "/data/data/$packageName/files/hanlp"
