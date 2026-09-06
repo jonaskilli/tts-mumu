@@ -205,7 +205,7 @@ internal class BackupRestoreEngine(
                 archive.lists?.let(::mergeLists)
                 archive.replaceRules?.let(::mergeReplaceRules)
                 archive.speechRules?.let(::mergeSpeechRules)
-                    archive.plugins?.let { mergePlugins(it) }
+                archive.plugins?.let { mergePlugins(it) }
             }
             archive.preferences?.let(::applyPreferences)
             archive.legacyLoudness?.let { bytes ->
