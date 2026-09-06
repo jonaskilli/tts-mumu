@@ -528,6 +528,7 @@ try {
             base64Encode: 1, base64Decode: 1, base64DecodeToBytes: 1,
             httpGet: 1, httpPost: 1, userVars: 1, tts: 1, defVars: 1,
             getAudioByTag: 1, getVoiceByTag: 1, getVoiceNamesByTags: 1,
+            playTtsByTag: 1, stopTtsPreview: 1,
             getSpeechRuleList: 1, runSpeechRule: 1, deleteConfigByTag: 1,
             updateConfigDisplayName: 1, jsEncrypt: 1, jsCrypto: 1, fs: 1
         }) {

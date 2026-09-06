@@ -6124,46 +6124,30 @@ var EditorJS = {
         }
 
         // === 试听功能 ===
-        var _pvMediaPlayer = null;
+        // 播放已完全交给 app 统一试听链(ttsrv.playTtsByTag)：三层最终参数(插件×配置×全局)
+        // + 插件/本机参数路由 + 解码/PCM/响度，与实际朗读及配置页试听完全同速同量。
+        // JS 只负责按钮状态与提示，不再自建 MediaPlayer 原速播放。
+        var _pvPlaying = false;
         var _pvCurrentBtn = null;
         var _pvHandler = null;
         try { _pvHandler = new android.os.Handler(android.os.Looper.getMainLooper()); } catch (eHp) {}
 
         function _pvStop() {
-            try {
-                if (_pvMediaPlayer !== null) {
-                    try { if (_pvMediaPlayer.isPlaying()) _pvMediaPlayer.stop(); } catch (e3) {}
-                    _pvMediaPlayer.release();
-                    _pvMediaPlayer = null;
-                }
-            } catch (e) {}
+            try { ttsrv.stopTtsPreview(); } catch (eStop) {}
+            _pvPlaying = false;
             if (_pvCurrentBtn !== null) {
                 try { _pvCurrentBtn.setText("▶"); _pvCurrentBtn.setTextColor(android.graphics.Color.parseColor(RMTHEME.cur.main)); } catch (e) {}
                 _pvCurrentBtn = null;
             }
         }
 
-        function _pvPlay(ttsurl, label, btn) {
-            try {
-                _pvStop();
-                _pvCurrentBtn = btn;
-                btn.setText("…");
-                btn.setTextColor(android.graphics.Color.parseColor("#FF6F00"));
-                var mp = new android.media.MediaPlayer();
-                _pvMediaPlayer = mp;
-                mp.setDataSource(ctx, android.net.Uri.parse(ttsurl));
-                mp.setOnPreparedListener(new android.media.MediaPlayer.OnPreparedListener({
-                    onPrepared: function (p) {
-                        try { p.start(); btn.setText("■"); btn.setTextColor(android.graphics.Color.parseColor("#F44336")); Toast.makeText(ctx, "试听：" + label, Toast.LENGTH_SHORT).show(); }
-                        catch (e7) { _pvStop(); }
-                    }
-                }));
-                mp.setOnCompletionListener(new android.media.MediaPlayer.OnCompletionListener({ onCompletion: function (p) { _pvStop(); } }));
-                mp.setOnErrorListener(new android.media.MediaPlayer.OnErrorListener({
-                    onError: function (p, w, x) { _pvStop(); Toast.makeText(ctx, "播放出错", Toast.LENGTH_SHORT).show(); return true; }
-                }));
-                mp.prepareAsync();
-            } catch (e) { _pvStop(); Toast.makeText(ctx, "播放失败", Toast.LENGTH_SHORT).show(); }
+        function _pvPlay(tag, label, btn) {
+            _pvStop();
+            _pvCurrentBtn = btn;
+            _pvPlaying = true;
+            btn.setText("■");
+            btn.setTextColor(android.graphics.Color.parseColor("#F44336"));
+            Toast.makeText(ctx, "试听：" + label, Toast.LENGTH_SHORT).show();
         }
 
         // ===== 发音人管理弹窗（删除/标记） =====
@@ -6524,7 +6508,7 @@ var EditorJS = {
 
         function previewVoiceByName(tag, btn) {
             try {
-                if (_pvCurrentBtn === btn && _pvMediaPlayer !== null) {
+                if (_pvCurrentBtn === btn && _pvPlaying) {
                     // 用户点击正在播放的按钮，停止播放
                     _pvStop(); return;
                 }
@@ -6534,37 +6518,22 @@ var EditorJS = {
                 new java.lang.Thread(new java.lang.Runnable({
                     run: function () {
                         try {
-                            // 优先尝试通过 app TTS 配置项试听（ttsrv.getAudioByTag）
-                            try {
-                                var previewText = "你好，这是试听语音。";
-                                // tag 直接查当前分组（与标签显示一致）
-                                var tagCandidates = [tag];
-                                var audioPath = null;
-                                for (var ti = 0; ti < tagCandidates.length; ti++) {
-                                    try {
-                                        audioPath = ttsrv.getAudioByTag(tagCandidates[ti], previewText);
-                                        if (audioPath) break;
-                                    } catch (eTag) { console.log("getAudioByTag尝试失败(" + tagCandidates[ti] + "): " + eTag.toString()); }
-                                }
-                                if (audioPath) {
-                                    var fileUri = "file://" + audioPath;
-                                    var playLabel = tag;
-                                    _pvHandler.post(new java.lang.Runnable({ run: function () { _pvPlay(fileUri, playLabel, btn); } }));
-                                    return;
-                                }
-                                // 桥接试听未匹配到配置项，直接提示（不使用本地服务器兜底）
-                                _pvHandler.post(new java.lang.Runnable({ run: function () {
-                                    _pvStop();
-                                    Toast.makeText(ctx, "未匹配到配置项：" + tag, Toast.LENGTH_LONG).show();
-                                } }));
-                                return;
-                            } catch (eAppTts) {
-                                _pvHandler.post(new java.lang.Runnable({ run: function () {
-                                    _pvStop();
-                                    Toast.makeText(ctx, "试听异常：" + eAppTts.toString(), Toast.LENGTH_SHORT).show();
-                                } }));
+                            // app 统一试听链：按 tag 匹配配置项，用与实际朗读一致的
+                            // 三层最终参数与参数路由合成并播放(插件/本机分流由 app 处理)
+                            var previewText = "你好，这是试听语音。";
+                            var started = false;
+                            try { started = ttsrv.playTtsByTag(tag, previewText); } catch (eTag) {
+                                console.log("playTtsByTag尝试失败(" + tag + "): " + eTag.toString());
+                            }
+                            if (started) {
+                                _pvHandler.post(new java.lang.Runnable({ run: function () { _pvPlay(tag, tag, btn); } }));
                                 return;
                             }
+                            // 桥接试听未匹配到配置项，直接提示（不使用本地服务器兜底）
+                            _pvHandler.post(new java.lang.Runnable({ run: function () {
+                                _pvStop();
+                                Toast.makeText(ctx, "未匹配到配置项：" + tag, Toast.LENGTH_LONG).show();
+                            } }));
                         } catch (e) { _pvHandler.post(new java.lang.Runnable({ run: function () { _pvStop(); Toast.makeText(ctx, "试听异常：" + e.toString(), Toast.LENGTH_SHORT).show(); } })); }
                     }
                 })).start();

@@ -12,14 +12,8 @@ import com.github.jing332.script.simple.SimpleScriptEngine
 import com.github.jing332.script.simple.ext.JsExtensions
 import com.github.jing332.script.source.StringScriptSource
 import com.github.jing332.tts.CachedEngineManager
-import com.github.jing332.tts.speech.EngineState
-import com.github.jing332.tts.synthesizer.SystemParams
-import kotlinx.coroutines.runBlocking
-import kotlinx.coroutines.withTimeout
+import com.github.jing332.tts.TaggedTtsPreviewPlayer
 import org.json.JSONArray
-import java.io.File
-import java.nio.ByteBuffer
-import java.nio.ByteOrder
 
 /**
  * @param tts 在JS中用 `ttsrv.tts` 访问
@@ -34,82 +28,50 @@ data class TtsEngineContext(
 
     companion object {
         private const val TAG = "TtsEngineContext"
-        private const val AUDITION_TIMEOUT = 30_000L
     }
 
     /**
-     * 通过标签(tag)查找绑定的TTS配置项，合成试听音频并写入临时文件。
+     * 通过标签(tag)试听绑定的TTS配置项，由 app 统一播放。
      *
      * 匹配顺序：speechRule.tag → source.voice → displayName → tagName
      * 仅查找 tagRuleId == 当前插件ID 的配置项，跳过当前插件自身的配置项（避免死锁）。
      *
+     * 播放走 app 侧统一试听链（三层最终参数 + 插件/本机路由 + 解码/PCM/响度），
+     * 与正式朗读及配置页试听完全同速同量；插件 JS 不再拿音频文件自播。
+     *
      * @param tag 标签名(如"男主1")或发音人名
      * @param text 试听文本
-     * @return 临时音频文件路径，失败返回null
+     * @return true=已开始播放；false=未匹配到配置项
      */
     @ScriptInterface
-    fun getAudioByTag(tag: String, text: String): String? {
+    fun playTtsByTag(tag: String, text: String): Boolean {
         return try {
-            val audioBytes = synthesizeByTag(tag, text) ?: return null
-            val tempFile = File(context.cacheDir, "audition_${System.currentTimeMillis()}.tmp")
-            tempFile.writeBytes(audioBytes)
-            tempFile.deleteOnExit()
-            tempFile.absolutePath
+            val trimmedTag = tag.trim()
+            if (trimmedTag.isEmpty()) return false
+
+            val match = findConfigByTag(dbm.systemTtsV2.allEnabled, trimmedTag) ?: return false
+            val source = (match.config as TtsConfigurationDTO).source
+            if (source is PluginTtsSource && source.pluginId == engineId) return false
+
+            TaggedTtsPreviewPlayer.play(context, match, text)
+            true
         } catch (e: Exception) {
-            Log.w(TAG, "getAudioByTag failed: ${e.message}")
-            null
+            Log.w(TAG, "playTtsByTag failed: ${e.message}")
+            false
         }
     }
 
-    private fun synthesizeByTag(tag: String, text: String): ByteArray? {
-        val trimmedTag = tag.trim()
-        if (trimmedTag.isEmpty()) return null
-
-        // 1. 查找匹配的配置项（仅限当前插件管理的）
-        val allEnabled = dbm.systemTtsV2.allEnabled
-        val match = findConfigByTag(allEnabled, trimmedTag) ?: return null
-
-        val ttsConfig = match.config as TtsConfigurationDTO
-        val source = ttsConfig.source
-
-        // 2. 避免死锁：跳过当前插件自身的配置项
-        if (source is PluginTtsSource && source.pluginId == engineId) return null
-
-        // 3. 获取或创建引擎
-        val engine = CachedEngineManager.getEngine(context, source) ?: return null
-
-        // 4. 初始化引擎（如需要）
-        runBlocking {
-            if (engine.state is EngineState.Uninitialized) engine.onInit()
-        }
-
-        // 5. 合成音频
-        val params = SystemParams(
-            text = text,
-            speed = ttsConfig.audioParams.speed,
-            volume = ttsConfig.audioParams.volume,
-            pitch = ttsConfig.audioParams.pitch,
-        )
-
-        val stream = runBlocking {
-            withTimeout(AUDITION_TIMEOUT) { engine.getStream(params, source) }
-        }
-        val audioBytes = stream.readBytes()
-        if (audioBytes.isEmpty()) return null
-
-        // 6. 如果是原始PCM，包装WAV头以便MediaPlayer播放
-        return if (ttsConfig.isNeedDecode()) {
-            audioBytes
-        } else {
-            wrapPcmInWav(audioBytes, ttsConfig.audioFormat.sampleRate)
-        }
+    /** 停止 playTtsByTag 发起的试听（用户再次点击同一试听按钮时调用）。 */
+    @ScriptInterface
+    fun stopTtsPreview() {
+        TaggedTtsPreviewPlayer.stop()
     }
 
     /**
      * 通过标签(tag)查找当前已启用的TTS配置项的发音人显示名。
      *
      * 用于切换分组后实时获取实际生效的发音人名称，替代静态存储的 record.voice。
-     * 匹配逻辑与 getAudioByTag 一致，仅查找 tagRuleId == engineId 且已启用的配置项。
+     * 匹配逻辑与 playTtsByTag 一致，仅查找 tagRuleId == engineId 且已启用的配置项。
      *
      * @param tag 标签名(如"男主1")或发音人名
      * @return 配置项的 displayName，未匹配返回 null
@@ -124,7 +86,7 @@ data class TtsEngineContext(
             val match = findConfigByTag(allEnabled, trimmedTag) ?: return null
 
             // getVoiceByTag 仅查询 displayName，不调用引擎获取音频，无需死锁保护
-            // （getAudioByTag 才需要跳过当前插件自身避免死锁）
+            // （playTtsByTag 才需要跳过当前插件自身避免死锁）
             match.displayName
         } catch (e: Exception) {
             Log.w(TAG, "getVoiceByTag failed: ${e.message}")
@@ -217,7 +179,7 @@ data class TtsEngineContext(
     }
 
     /**
-     * 查找匹配 tag 的已启用配置项（四级匹配，与 getAudioByTag 共用）
+     * 查找匹配 tag 的已启用配置项（四级匹配，与 playTtsByTag 共用）
      */
     private fun findConfigByTag(
         allEnabled: List<com.github.jing332.database.entities.systts.SystemTtsV2>,
@@ -294,37 +256,5 @@ data class TtsEngineContext(
             Log.w(TAG, "updateConfigDisplayName failed: ${e.message}")
             e.message ?: e.toString()
         }
-    }
-
-    /**
-     * 将原始PCM数据包装为WAV格式（16bit单声道）
-     */
-    private fun wrapPcmInWav(pcmData: ByteArray, sampleRate: Int): ByteArray {
-        val channels = 1
-        val bitsPerSample = 16
-        val byteRate = sampleRate * channels * bitsPerSample / 8
-        val blockAlign = channels * bitsPerSample / 8
-        val dataSize = pcmData.size
-
-        val buffer = ByteBuffer.allocate(44 + dataSize).order(ByteOrder.LITTLE_ENDIAN)
-        // RIFF header
-        buffer.put("RIFF".toByteArray())
-        buffer.putInt(36 + dataSize)
-        buffer.put("WAVE".toByteArray())
-        // fmt chunk
-        buffer.put("fmt ".toByteArray())
-        buffer.putInt(16)          // Subchunk1Size for PCM
-        buffer.putShort(1)         // AudioFormat = PCM
-        buffer.putShort(channels.toShort())
-        buffer.putInt(sampleRate)
-        buffer.putInt(byteRate)
-        buffer.putShort(blockAlign.toShort())
-        buffer.putShort(bitsPerSample.toShort())
-        // data chunk
-        buffer.put("data".toByteArray())
-        buffer.putInt(dataSize)
-        buffer.put(pcmData)
-
-        return buffer.array()
     }
 }
