@@ -7,6 +7,7 @@ import android.content.Intent
 import android.os.Process 
 import com.github.jing332.compose.widgets.AsyncCircleImageSettings
 import com.github.jing332.database.entities.systts.SystemTtsV2
+import com.github.jing332.database.entities.systts.AudioParams
 import com.github.jing332.deepseekproxy.ProxyService
 import com.github.jing332.deepseekproxy.proxy.LogStore
 import com.github.jing332.tts_server_android.conf.SystemTtsConfig
@@ -17,6 +18,7 @@ import com.github.jing332.tts_server_android.model.hanlp.HanlpManager
 import com.github.jing332.tts_server_android.service.forwarder.ForwarderServiceManager.switchSysTtsForwarder
 import com.github.jing332.tts_server_android.service.forwarder.system.SysTtsForwarderService
 import com.github.jing332.tts.loudness.SpeakerLoudnessManager
+import com.github.jing332.tts.TtsPreviewConfig
 import coil3.ImageLoader
 import coil3.SingletonImageLoader
 import coil3.annotation.DelicateCoilApi
@@ -77,6 +79,13 @@ class App : Application() {
         }
 
         SystemTtsV2.Converters.json = AppConst.jsonBuilder
+        TtsPreviewConfig.globalAudioParamsProvider = {
+            AudioParams(
+                speed = SysTtsConfig.audioParamsSpeed,
+                volume = SysTtsConfig.audioParamsVolume,
+                pitch = SysTtsConfig.audioParamsPitch,
+            )
+        }
         AsyncCircleImageSettings.interceptor = AsyncImageInterceptor
 
         // 初始化响度均衡管理器

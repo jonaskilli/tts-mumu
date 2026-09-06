@@ -14,6 +14,7 @@ import com.github.jing332.database.entities.systts.SystemTtsGroup
 import com.github.jing332.database.entities.systts.SystemTtsV2
 import com.github.jing332.database.entities.systts.TtsConfigurationDTO
 import com.github.jing332.database.entities.systts.source.PluginTtsSource
+import com.github.jing332.database.entities.systts.withClearedAudioParams
 import kotlinx.coroutines.flow.Flow
 
 @Dao
@@ -103,10 +104,23 @@ interface SystemTtsV2Dao {
     fun getTtsListByGroupId(groupId: Long): List<SystemTtsV2>
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
-    fun insertGroup(vararg group: SystemTtsGroup)
+    fun insertGroupRaw(vararg group: SystemTtsGroup)
+
+    /**
+     * Group audio parameters were retired: groups only organize items now.
+     * Preserve subgroup JSON keys because they register empty subgroup paths, but reset every
+     * legacy value so imports/backups cannot silently restore a removed playback layer.
+     */
+    fun insertGroup(vararg group: SystemTtsGroup) {
+        insertGroupRaw(*group.map { it.withClearedAudioParams() }.toTypedArray())
+    }
 
     @Update(onConflict = OnConflictStrategy.REPLACE)
-    fun updateGroup(group: SystemTtsGroup)
+    fun updateGroupRaw(group: SystemTtsGroup)
+
+    fun updateGroup(group: SystemTtsGroup) {
+        updateGroupRaw(group.withClearedAudioParams())
+    }
 
     @Delete
     fun deleteGroup(group: SystemTtsGroup)

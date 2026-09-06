@@ -19,13 +19,18 @@ import com.github.jing332.database.entities.plugin.Plugin
 import com.github.jing332.database.entities.replace.ReplaceRule
 import com.github.jing332.database.entities.replace.ReplaceRuleGroup
 import com.github.jing332.database.entities.systts.SystemTtsGroup
+import com.github.jing332.database.entities.systts.clearSubGroupAudioParamsJson
 import com.github.jing332.database.entities.systts.SystemTtsV2
 import com.github.jing332.database.entities.systts.v1.SystemTts
 import splitties.init.appCtx
 
 val dbm: DatabaseManager by lazy {
     Room.databaseBuilder(appCtx, DatabaseManager::class.java, "systts.db")
-        .addMigrations(DatabaseManager.MIGRATION_31_32, DatabaseManager.MIGRATION_32_33)
+        .addMigrations(
+            DatabaseManager.MIGRATION_31_32,
+            DatabaseManager.MIGRATION_32_33,
+            DatabaseManager.MIGRATION_33_34,
+        )
         .allowMainThreadQueries()
         .openHelperFactory(LargeCursorOpenHelperFactory())
         .build()
@@ -33,7 +38,7 @@ val dbm: DatabaseManager by lazy {
 
 
 @Database(
-    version = 33,
+    version = 34,
     entities = [
         SystemTts::class,
         SystemTtsV2::class,
@@ -94,10 +99,40 @@ abstract class DatabaseManager : RoomDatabase() {
             }
         }
 
+        /**
+         * Group/subgroup audio parameter scopes were removed. Keep the columns and JSON shape for
+         * database/backup compatibility, but wipe every stored value once so no hidden multiplier
+         * can survive the upgrade. JSON keys remain because they represent empty subgroup paths.
+         */
+        val MIGRATION_33_34 = object : Migration(33, 34) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    "UPDATE SystemTtsGroup SET " +
+                        "audioParams_speed = 1.0, audioParams_volume = 1.0, " +
+                        "audioParams_pitch = 1.0, audioParams_reverbEnabled = 0"
+                )
+                db.query("SELECT groupId, subGroupAudioParamsJson FROM SystemTtsGroup").use { cursor ->
+                    val idIndex = cursor.getColumnIndexOrThrow("groupId")
+                    val jsonIndex = cursor.getColumnIndexOrThrow("subGroupAudioParamsJson")
+                    while (cursor.moveToNext()) {
+                        val cleared = clearSubGroupAudioParamsJson(cursor.getString(jsonIndex).orEmpty())
+                        db.execSQL(
+                            "UPDATE SystemTtsGroup SET subGroupAudioParamsJson = ? WHERE groupId = ?",
+                            arrayOf(cleared, cursor.getLong(idIndex))
+                        )
+                    }
+                }
+            }
+        }
+
 
         fun createDatabase(context: Context) = Room
             .databaseBuilder(context, DatabaseManager::class.java, DATABASE_NAME)
-            .addMigrations(MIGRATION_31_32, MIGRATION_32_33)
+            .addMigrations(
+                MIGRATION_31_32,
+                MIGRATION_32_33,
+                MIGRATION_33_34,
+            )
             .allowMainThreadQueries()
             .openHelperFactory(LargeCursorOpenHelperFactory())
             .build()

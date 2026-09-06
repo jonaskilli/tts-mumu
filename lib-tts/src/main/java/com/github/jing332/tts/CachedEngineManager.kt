@@ -63,22 +63,34 @@ object CachedEngineManager :
      * 不主动清掉的话，改完变量主界面试听仍会提示“请先填写变量”。
      */
     fun removeByPluginId(pluginId: String) {
-        cache.removeAll { value ->
+        // hutool 的缓存值/条目迭代器只读(CacheValuesIterator.remove 直接抛
+        // UnsupportedOperationException)，removeAll{}/迭代中 remove 会崩溃；
+        // keySet() 是底层 ConcurrentHashMap 键集,先快照再逐键 remove
+        val keys = cache.keySet().toList()
+        for (key in keys) {
+            val value = cache[key] ?: continue
             if (value is PluginTtsProvider && value.plugin.pluginId == pluginId) {
                 destroyExecutor.submit {
                     runCatching { value.onDestroy() }
                         .onFailure { logger.warn(it) { "async engine destroy failed: $pluginId" } }
                 }
-                true
-            } else false
+                cache.remove(key)
+            }
         }
     }
 
     fun expireAll() {
         logger.atDebug { message = "Expire all cached engine" }
-        cache.removeAll {
-            it.onDestroy()
-            true
+        val keys = cache.keySet().toList()
+        for (key in keys) {
+            val value = cache[key]
+            if (value != null) {
+                destroyExecutor.submit {
+                    runCatching { value.onDestroy() }
+                        .onFailure { logger.warn(it) { "async engine destroy failed: $key" } }
+                }
+            }
+            cache.remove(key)
         }
     }
 }

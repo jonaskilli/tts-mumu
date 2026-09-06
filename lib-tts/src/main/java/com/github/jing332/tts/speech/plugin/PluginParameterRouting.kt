@@ -5,13 +5,13 @@ package com.github.jing332.tts.speech.plugin
  * Known plugin behavior takes precedence; legacy persisted flags remain a fallback.
  * Unknown plugins stay local so a user adjustment cannot silently disappear.
  */
-internal data class PluginParameterRoute(
+data class PluginParameterRoute(
     val pluginSpeed: Boolean,
     val pluginVolume: Boolean,
     val pluginPitch: Boolean,
 )
 
-internal fun parameterRoute(
+fun parameterRoute(
     pluginId: String,
     legacySpeed: Boolean,
     legacyVolume: Boolean,
