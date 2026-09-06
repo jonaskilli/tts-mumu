@@ -58,6 +58,7 @@ import com.github.jing332.tts_server_android.R
 import com.github.jing332.tts_server_android.compose.systts.AuditionDialog
 import com.github.jing332.tts_server_android.compose.systts.list.ui.widgets.AuditionTextField
 import com.github.jing332.tts_server_android.compose.systts.list.ui.widgets.BasicInfoEditScreen
+import com.github.jing332.tts_server_android.compose.systts.list.ui.widgets.RemoteAudioParamsSection
 import com.github.jing332.tts_server_android.compose.systts.list.ui.widgets.SaveActionHandler
 import com.github.jing332.tts_server_android.compose.systts.list.ui.widgets.SectionCard
 import com.github.jing332.tts_server_android.constant.SpeechTarget
@@ -182,9 +183,9 @@ class PluginTtsUI : IConfigUI() {
                 com.github.jing332.tts.resolveTtsPlayback(
                     entity,
                     AudioParams(
-                        speed = com.github.jing332.tts_server_android.conf.SysTtsConfig.audioParamsSpeed.value,
-                        volume = com.github.jing332.tts_server_android.conf.SysTtsConfig.audioParamsVolume.value,
-                        pitch = com.github.jing332.tts_server_android.conf.SysTtsConfig.audioParamsPitch.value,
+                        speed = com.github.jing332.tts_server_android.conf.SysTtsConfig.audioParamsSpeed,
+                        volume = com.github.jing332.tts_server_android.conf.SysTtsConfig.audioParamsVolume,
+                        pitch = com.github.jing332.tts_server_android.conf.SysTtsConfig.audioParamsPitch,
                     ),
                 )
             }.getOrNull()

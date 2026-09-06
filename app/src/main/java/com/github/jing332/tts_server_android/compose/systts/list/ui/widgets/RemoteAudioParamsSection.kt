@@ -138,8 +138,8 @@ private fun PluginLayerSliders(pluginId: String?, onApplied: (() -> Unit)?) {
 
 @Composable
 private fun GlobalLayerSliders(onApplied: (() -> Unit)?) {
-    var speed by remember { mutableStateOf(SysTtsConfig.audioParamsSpeed.value) }
-    var volume by remember { mutableStateOf(SysTtsConfig.audioParamsVolume.value) }
+    var speed by remember { mutableStateOf(SysTtsConfig.audioParamsSpeed) }
+    var volume by remember { mutableStateOf(SysTtsConfig.audioParamsVolume) }
     val scopeHint = stringResource(R.string.audio_params_apply_global_toast)
 
     Column(Modifier.fillMaxWidth()) {
@@ -162,8 +162,8 @@ private fun GlobalLayerSliders(onApplied: (() -> Unit)?) {
                     Text(stringResource(R.string.reset))
                 }
                 TextButton(onClick = {
-                    SysTtsConfig.audioParamsSpeed.value = snap(speed)
-                    SysTtsConfig.audioParamsVolume.value = snap(volume)
+                    SysTtsConfig.audioParamsSpeed = snap(speed)
+                    SysTtsConfig.audioParamsVolume = snap(volume)
                     SystemTtsService.notifyUpdateConfig()
                     android.widget.Toast.makeText(
                         com.github.jing332.tts_server_android.app,
