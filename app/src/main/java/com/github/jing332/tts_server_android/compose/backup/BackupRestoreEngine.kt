@@ -307,14 +307,18 @@ internal class BackupRestoreEngine(
     /**
      * 朗读规则合并（指纹判定）：同 ruleId 下，version/author/code/tags/tagsData
      * 全部一致才视为同一条并覆盖（保留设备主键）；任一项不同即共存为独立规则。
+     * 必须用含 code 的全量查询取设备侧规则——轻量查询返回空 code，指纹永远对不上。
      */
     private fun mergeSpeechRules(rules: List<SpeechRule>) {
+        if (rules.isEmpty()) return
+        val localRules = dbm.speechRuleDao.all
         rules.forEach { rule ->
-            val sameRuleId = dbm.speechRuleDao.getAllWithoutCode().filter { it.ruleId == rule.ruleId }
+            val sameRuleId = localRules.filter { it.ruleId == rule.ruleId }
             when {
                 sameRuleId.isEmpty() -> dbm.speechRuleDao.insert(rule)
                 else -> {
-                    val twin = sameRuleId.firstOrNull { speechRuleFingerprint(it) == speechRuleFingerprint(rule) }
+                    val fingerprint = speechRuleFingerprint(rule)
+                    val twin = sameRuleId.firstOrNull { speechRuleFingerprint(it) == fingerprint }
                     if (twin != null) dbm.speechRuleDao.update(rule.copy(id = twin.id))
                     else dbm.speechRuleDao.insert(rule)
                 }
