@@ -256,7 +256,7 @@ fun RoleManagementScreen(sharedVM: SharedViewModel, pagerState: PagerState) {
  */
 fun cleanupRoleHostConfigItems() {
     val hosts = dbm.systemTtsV2.all.filter { item ->
-        (item.config as? TtsConfigurationDTO)?.source?.isUiOnly == true
+        ((item.config as? TtsConfigurationDTO)?.source as? PluginTtsSource)?.isUiOnly == true
     }
     if (hosts.isEmpty()) return
     dbm.systemTtsV2.delete(*hosts.toTypedArray())
