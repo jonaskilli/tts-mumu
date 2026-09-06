@@ -71,6 +71,10 @@ data class TtsEngineContext(
     @ScriptInterface
     fun isTtsPreviewPlaying(): Boolean = TaggedTtsPreviewPlayer.isPlaying()
 
+    /** 本次试听是否已真正出声(合成完毕进入播放)；JS 轮询到 true 才把…切成■,对齐v9时机。 */
+    @ScriptInterface
+    fun isTtsPreviewAudible(): Boolean = TaggedTtsPreviewPlayer.isAudible()
+
     /**
      * 通过标签(tag)查找当前已启用的TTS配置项的发音人显示名。
      *

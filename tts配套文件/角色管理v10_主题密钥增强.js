@@ -6509,8 +6509,8 @@ var EditorJS = {
 
         function previewVoiceByName(tag, btn) {
             try {
-                if (_pvCurrentBtn === btn && _pvPlaying) {
-                    // 用户点击正在播放的按钮，停止播放
+                if (_pvCurrentBtn === btn) {
+                    // 用户点击同一按钮(合成中或播放中)：停止并复位
                     _pvStop(); return;
                 }
                 // 切换到新发音人，先停止当前播放
@@ -6529,18 +6529,27 @@ var EditorJS = {
                                 console.log("playTtsByTag尝试失败(" + tag + "): " + apiErr);
                             }
                             if (started) {
-                                _pvHandler.post(new java.lang.Runnable({ run: function () { _pvPlay(tag, tag, btn); } }));
-                                // 播放归 app 后 JS 无完成回调：轻量轮询 isTtsPreviewPlaying，
-                                // 播完(或失败结束)自动把按钮复位回 ▶，不再卡在红色 ■
+                                // 按钮保持"…"橙(合成中)；轮询到 app 真正出声才切■红(对齐v9时机)，
+                                // 播完(或失败结束)自动复位回 ▶，不再卡在红色 ■
                                 new java.lang.Thread(new java.lang.Runnable({
                                     run: function () {
                                         try {
+                                            var audible = false;
                                             var idle = 0;
-                                            while (_pvPlaying && _pvCurrentBtn === btn) {
+                                            while (_pvCurrentBtn === btn) {
                                                 var playing = false;
-                                                try { playing = ttsrv.isTtsPreviewPlaying(); } catch (eQ) { break; }
+                                                try {
+                                                    playing = ttsrv.isTtsPreviewPlaying();
+                                                    if (!audible) audible = ttsrv.isTtsPreviewAudible();
+                                                } catch (eQ) { break; }
+                                                if (audible && _pvPlaying !== true) {
+                                                    _pvPlaying = true;
+                                                    _pvHandler.post(new java.lang.Runnable({ run: function () {
+                                                        if (_pvCurrentBtn === btn) _pvPlay(tag, tag, btn);
+                                                    } }));
+                                                }
                                                 if (!playing) {
-                                                    // 短去抖：合成的短暂间隙不算结束
+                                                    // 短去抖：轮询间隙/状态翻转瞬间不算结束
                                                     idle++;
                                                     if (idle >= 2) break;
                                                 } else idle = 0;

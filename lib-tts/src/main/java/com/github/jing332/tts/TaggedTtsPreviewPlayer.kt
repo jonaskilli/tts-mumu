@@ -30,6 +30,10 @@ object TaggedTtsPreviewPlayer {
     private var job: Job? = null
     private var player: AudioPlayer? = null
 
+    // 本次会话是否已真正出声(合成完毕进入播放)；JS 用它把按钮从…切到■,对齐v9时机
+    @Volatile
+    private var audible: Boolean = false
+
     private fun toast(context: Context, msg: String) {
         android.os.Handler(android.os.Looper.getMainLooper()).post {
             android.widget.Toast.makeText(
@@ -42,6 +46,7 @@ object TaggedTtsPreviewPlayer {
         synchronized(lock) {
             job?.cancel()
             player?.stop()
+            audible = false
             val audioPlayer = AudioPlayer(context.applicationContext)
             player?.release()
             player = audioPlayer
@@ -61,6 +66,7 @@ object TaggedTtsPreviewPlayer {
 
                     // Local direct-play engines already apply their final parameters themselves.
                     if (provider.isSyncPlay(resolved.configuration.source)) {
+                        audible = true
                         provider.syncPlay(
                             resolved.providerParams(text, PREVIEW_TIMEOUT_MS),
                             resolved.configuration.source,
@@ -87,6 +93,7 @@ object TaggedTtsPreviewPlayer {
                     val localVolume = (local.volume * loudnessGain).coerceIn(0f, 1f)
 
                     if (resolved.configuration.shouldDecode() && !declaredPcm) {
+                        audible = true
                         audioPlayer.play(bytes, local.speed, localVolume, local.pitch)
                     } else {
                         val sampleRate = if (declaredPcm) {
@@ -96,6 +103,7 @@ object TaggedTtsPreviewPlayer {
                                 .takeIf { it > 0 }
                                 ?: resolved.configuration.audioFormat.sampleRate
                         }
+                        audible = true
                         audioPlayer.play(bytes, sampleRate, local.speed, localVolume, local.pitch)
                     }
                 } catch (_: CancellationException) {
@@ -119,6 +127,7 @@ object TaggedTtsPreviewPlayer {
         synchronized(lock) {
             job?.cancel()
             job = null
+            audible = false
             player?.stop()
             player?.release()
             player = null
@@ -127,4 +136,7 @@ object TaggedTtsPreviewPlayer {
 
     /** 播放会话是否仍存活(合成中或播放中)；供 JS 侧轮询以在播完后复位按钮。 */
     fun isPlaying(): Boolean = synchronized(lock) { job?.isActive == true }
+
+    /** 本次会话是否已真正出声(合成完毕进入播放)；供 JS 把按钮从…切到■,对齐v9时机。 */
+    fun isAudible(): Boolean = synchronized(lock) { audible }
 }
