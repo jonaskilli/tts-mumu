@@ -21,9 +21,7 @@ data class DecodedBackupArchive(
  * The archive always contains [MANIFEST_PATH] plus the payload entries supplied by the caller.
  * Manifest entry metadata covers payload entries only, never the manifest itself.
  */
-class ArchiveZipCodec(
-    private val safeZipReader: SafeZipReader = SafeZipReader(),
-) {
+class ArchiveZipCodec {
     /**
      * Builds a manifest with byte-size and SHA-256 metadata derived from [entries].
      */
@@ -115,7 +113,7 @@ class ArchiveZipCodec(
         expectedTopLevelPaths: Set<String>? = null,
     ): DecodedBackupArchive {
         val allowedTopLevelPaths = expectedTopLevelPaths?.plus(MANIFEST_PATH)
-        val archiveEntries = safeZipReader.read(archiveBytes, allowedTopLevelPaths).toMutableMap()
+        val archiveEntries = SafeZipReader.read(archiveBytes, allowedTopLevelPaths).toMutableMap()
         val manifestBytes = archiveEntries.remove(MANIFEST_PATH)
             ?: throw ArchiveZipException("ZIP archive does not contain $MANIFEST_PATH.")
         val manifest = decodeManifest(manifestBytes)
