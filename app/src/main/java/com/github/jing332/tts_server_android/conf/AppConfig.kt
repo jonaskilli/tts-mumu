@@ -66,10 +66,18 @@ object AppConfig {
     val fragmentIndex by lazy { mutableDataSaverStateOf(dataSaverPref, "fragmentIndex", 0) }
     val spinnerMaxDropDownCount by lazy { mutableDataSaverStateOf(dataSaverPref, "spinnerMaxDropDownCount", 20) }
     val lastReadHelpDocumentVersion by lazy { mutableDataSaverStateOf(dataSaverPref, "lastReadHelpDocumentVersion", 0) }
-    val webDavUrl by lazy { mutableDataSaverStateOf(dataSaverPref, "webDavUrl", "") }
+    val webDavUrl by lazy { mutableDataSaverStateOf(dataSaverPref, "webDavUrl", DEFAULT_WEBDAV_URL) }
     val webDavUser by lazy { mutableDataSaverStateOf(dataSaverPref, "webDavUser", "") }
     val webDavPass by lazy { mutableDataSaverStateOf(dataSaverPref, "webDavPass", "") }
     val webDavPath by lazy { mutableDataSaverStateOf(dataSaverPref, "webDavPath", "TTS备份") }
+
+    const val DEFAULT_WEBDAV_URL = "https://dav.jianguoyun.com/dav/"
+
+    /** 未配置 = 地址为默认(或空)且未填账号：仅预填默认地址不代表可用 */
+    val isWebDavConfigured: Boolean
+        get() = webDavUrl.value.trim().let { url ->
+            url.isNotBlank() && (url != DEFAULT_WEBDAV_URL || webDavUser.value.isNotBlank())
+        }
     val expandedSubGroups by lazy { mutableDataSaverStateOf(dataSaverPref, "expandedSubGroups", emptySet<String>()) }
 
     // 大分组展开状态：轻量集合（存 String id 复用 Set<String> 转换器）。

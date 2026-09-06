@@ -21,9 +21,9 @@ import java.io.File
 internal class BackupRestoreEngine(
     private val context: Context,
 ) {
-    suspend fun create(profile: BackupProfile): ByteArray = withIO {
+    suspend fun create(profile: BackupProfile, types: Collection<Type>): ByteArray = withIO {
         val factory = BackupPayloadFactory(context)
-        val payload = factory.create(profile)
+        val payload = factory.create(profile, types)
         val entries = factory.entriesFor(payload)
         val manifest = factory.manifestFor(payload, entries)
         ArchiveZipCodec.create(manifest, entries)
@@ -68,40 +68,31 @@ internal class BackupRestoreEngine(
         require(manifest.format == BackupManifest.FORMAT) { "不支持的备份格式" }
         require(manifest.schemaVersion == BackupManifest.SCHEMA_VERSION) { "不支持的备份版本" }
 
-        val expected = setOf(
-            MANIFEST_ENTRY,
-            PREFERENCES_ENTRY,
-            LISTS_ENTRY,
-            SPEECH_RULES_ENTRY,
-            REPLACE_RULES_ENTRY,
-            PLUGINS_ENTRY,
-        )
         // chajian 本地文件任何 profile 都不备份也不恢复（使用中持续变化，恢复覆盖现场是用户明确排除的行为）；
         // 档案中若出现该前缀条目一律拒绝
         require(payload.keys.none { it.startsWith(CHAJIAN_ENTRY_PREFIX) }) {
             "备份包含不允许的插件数据文件"
         }
-        require(payload.keys.all(expected::contains)) { "备份包含未识别的文件" }
-        require(PREFERENCES_ENTRY in entries) { "备份缺少偏好设置" }
-        require(LISTS_ENTRY in entries) { "备份缺少配置列表" }
-        require(SPEECH_RULES_ENTRY in entries) { "备份缺少朗读规则" }
-        require(REPLACE_RULES_ENTRY in entries) { "备份缺少替换规则" }
-        require(PLUGINS_ENTRY in entries) { "备份缺少插件" }
+        // 各域文件=该域被勾选备份；未出现的域在档案中即不存在，恢复时不动本机该域。
+        // 偏好与配置列表是备份的最低要求（否则包里没有任何个人数据），分享包允许只有列表等自由组合
+        val hasAnyDomain = PREFERENCES_ENTRY in payload || LISTS_ENTRY in payload ||
+            SPEECH_RULES_ENTRY in payload || REPLACE_RULES_ENTRY in payload || PLUGINS_ENTRY in payload
+        require(hasAnyDomain) { "备份中未发现可恢复的数据" }
 
-        val preferences = AppBackupJson.json.decodeFromString<PreferencesPayload>(
-            payload.getValue(PREFERENCES_ENTRY).decodeToString()
-        )
-        validatePreferences(preferences, manifest.profile)
-        val lists = AppBackupJson.json.decodeFromString<List<GroupWithSystemTts>>(
-            payload.getValue(LISTS_ENTRY).decodeToString()
-        )
-        val speechRules = AppBackupJson.json.decodeFromString<List<SpeechRule>>(
-            payload.getValue(SPEECH_RULES_ENTRY).decodeToString()
-        )
-        val replaceRules = AppBackupJson.json.decodeFromString<List<GroupWithReplaceRule>>(
-            payload.getValue(REPLACE_RULES_ENTRY).decodeToString()
-        )
-        val plugins = parseStrictPlugins(payload.getValue(PLUGINS_ENTRY).decodeToString())
+        val preferences = payload[PREFERENCES_ENTRY]?.let {
+            AppBackupJson.json.decodeFromString<PreferencesPayload>(it.decodeToString())
+                .also { prefs -> validatePreferences(prefs, manifest.profile) }
+        }
+        val lists = payload[LISTS_ENTRY]?.let {
+            AppBackupJson.json.decodeFromString<List<GroupWithSystemTts>>(it.decodeToString())
+        }
+        val speechRules = payload[SPEECH_RULES_ENTRY]?.let {
+            AppBackupJson.json.decodeFromString<List<SpeechRule>>(it.decodeToString())
+        }
+        val replaceRules = payload[REPLACE_RULES_ENTRY]?.let {
+            AppBackupJson.json.decodeFromString<List<GroupWithReplaceRule>>(it.decodeToString())
+        }
+        val plugins = payload[PLUGINS_ENTRY]?.let { parseStrictPlugins(it.decodeToString()) }
         validateDomains(lists, speechRules, replaceRules, plugins)
 
         return ParsedBackupArchive(

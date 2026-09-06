@@ -12,11 +12,21 @@ import kotlinx.serialization.encodeToString
 internal class BackupPayloadFactory(
     private val context: Context,
 ) {
-    fun create(profile: BackupProfile): BackupPayload {
+    fun create(profile: BackupProfile, types: Collection<Type>): BackupPayload {
+        val includePreference = Type.Preference in types
+        val includeList = Type.List in types
+        val includeSpeech = Type.SpeechRule in types
+        val includeReplace = Type.ReplaceRule in types
+        val includePlugins = Type.Plugin in types || Type.PluginVars in types
+        val includeVars = Type.PluginVars in types
+        val includeWebDav = Type.WebDav in types
+
         val redaction = RedactionCounter()
-        val preferences = when (profile) {
+        val preferences = if (!includePreference) PreferencesPayload(emptyList()) else when (profile) {
             BackupProfile.PERSONAL_FULL -> PreferencesPayload(
-                personalPreferenceNames.mapNotNull { name -> snapshotPreference(name) }
+                personalPreferenceNames.mapNotNull { name ->
+                    snapshotPreference(name, stripWebDav = !includeWebDav && name == "app")
+                }
             )
 
             BackupProfile.SHARE_SANITIZED -> PreferencesPayload(
@@ -26,12 +36,12 @@ internal class BackupPayloadFactory(
             )
         }
 
-        val lists = dbm.systemTtsV2.getAllGroupWithTts().let { groups ->
+        val lists = if (!includeList) null else dbm.systemTtsV2.getAllGroupWithTts().let { groups ->
             if (profile == BackupProfile.PERSONAL_FULL) groups
             else sanitizeLists(groups, redaction)
         }
-        val plugins = dbm.pluginDao.all.map { plugin ->
-            if (profile == BackupProfile.PERSONAL_FULL) plugin
+        val plugins = if (!includePlugins) null else dbm.pluginDao.all.map { plugin ->
+            if (profile == BackupProfile.PERSONAL_FULL && includeVars) plugin
             else plugin.copy(userVars = emptyMap())
         }
 
@@ -39,9 +49,16 @@ internal class BackupPayloadFactory(
             profile = profile,
             preferences = preferences,
             lists = lists,
-            speechRules = dbm.speechRuleDao.all,
-            replaceRules = dbm.replaceRuleDao.allGroupWithReplaceRules(),
+            speechRules = if (includeSpeech) dbm.speechRuleDao.all else null,
+            replaceRules = if (includeReplace) dbm.replaceRuleDao.allGroupWithReplaceRules() else null,
             plugins = plugins,
+            includePreference = includePreference,
+            includeList = includeList,
+            includeSpeech = includeSpeech,
+            includeReplace = includeReplace,
+            includePlugins = includePlugins,
+            includeVars = includeVars,
+            includeWebDav = includeWebDav,
             redactedValueCount = redaction.value,
         )
     }
@@ -52,38 +69,60 @@ internal class BackupPayloadFactory(
             profile = payload.profile,
             createdAt = System.currentTimeMillis(),
             appVersion = BuildConfig.VERSION_NAME,
-            includedTypes = if (personal) personalTypeNames else shareTypeNames,
+            includedTypes = buildList {
+                if (payload.includePreference) add("Preference")
+                if (payload.includeList) add("List")
+                if (payload.includeSpeech) add("SpeechRule")
+                if (payload.includeReplace) add("ReplaceRule")
+                if (payload.includePlugins) add("Plugin")
+                if (payload.includeVars) add("PluginVars")
+                if (payload.includeWebDav) add("WebDav")
+            },
             entries = ArchiveZipCodec.entryMetadata(entries),
             sanitization = ArchiveSanitization(
                 preferencePolicy = if (personal) "full_snapshot" else "allowlist_v1",
-                pluginUserVarsIncluded = personal,
+                pluginUserVarsIncluded = payload.includeVars,
                 sourceDataPolicy = if (personal) "preserved" else "known_plus_generic_redaction_v1",
-                webDavIncluded = personal,
+                webDavIncluded = payload.includeWebDav,
                 redactedValueCount = payload.redactedValueCount,
                 omittedPreferenceFiles = if (personal) emptyList() else shareOmittedPreferenceFiles,
             ),
         )
     }
 
-    fun entriesFor(payload: BackupPayload): Map<String, ByteArray> = linkedMapOf(
-        PREFERENCES_ENTRY to AppBackupJson.encodeToString(payload.preferences).encodeToByteArray(),
-        LISTS_ENTRY to AppBackupJson.encodeToString(payload.lists).encodeToByteArray(),
-        SPEECH_RULES_ENTRY to AppBackupJson.encodeToString(payload.speechRules).encodeToByteArray(),
-        REPLACE_RULES_ENTRY to AppBackupJson.encodeToString(payload.replaceRules).encodeToByteArray(),
-        PLUGINS_ENTRY to AppBackupJson.encodeToString(payload.plugins).encodeToByteArray(),
-    )
-    // 注意：chajian 本地文件（角色记录/密钥/书单等 JS 落盘文件）任何 profile 都不备份。
-    // 这些文件在使用中持续变化，快照恢复会用备份时点覆盖更新的现场，用户明确不要此行为。
+    fun entriesFor(payload: BackupPayload): Map<String, ByteArray> {
+        val entries = linkedMapOf<String, ByteArray>()
+        if (payload.includePreference) {
+            entries[PREFERENCES_ENTRY] = AppBackupJson.encodeToString(payload.preferences).encodeToByteArray()
+        }
+        if (payload.includeList) {
+            entries[LISTS_ENTRY] = AppBackupJson.encodeToString(payload.lists ?: emptyList()).encodeToByteArray()
+        }
+        if (payload.includeSpeech) {
+            entries[SPEECH_RULES_ENTRY] = AppBackupJson.encodeToString(payload.speechRules ?: emptyList()).encodeToByteArray()
+        }
+        if (payload.includeReplace) {
+            entries[REPLACE_RULES_ENTRY] = AppBackupJson.encodeToString(payload.replaceRules ?: emptyList()).encodeToByteArray()
+        }
+        if (payload.includePlugins) {
+            entries[PLUGINS_ENTRY] = AppBackupJson.encodeToString(payload.plugins ?: emptyList()).encodeToByteArray()
+        }
+        return entries
+        // 注意：chajian 本地文件（角色记录/密钥/书单等 JS 落盘文件）任何 profile 都不备份。
+        // 这些文件在使用中持续变化，快照恢复会用备份时点覆盖更新的现场，用户明确不要此行为。
+    }
 
     private fun snapshotPreference(
         name: String,
         allowedKeys: Set<String>? = null,
         mode: RestoreMode = RestoreMode.SNAPSHOT,
+        stripWebDav: Boolean = false,
     ): PreferenceDocument? {
         val prefs = context.getSharedPreferences(name, Context.MODE_PRIVATE)
         val values = prefs.all.entries
             .asSequence()
             .filter { allowedKeys == null || it.key in allowedKeys }
+            .filter { !stripWebDav || it.key !in webDavPrefKeys }
             .mapNotNull { (key, value) -> preferenceValue(value)?.let { key to it } }
             .toMap(LinkedHashMap())
         return PreferenceDocument(name, values, mode)
@@ -183,10 +222,8 @@ internal class BackupPayloadFactory(
             "accesstoken", "refreshtoken", "credential", "privatekey",
         )
 
-        val personalTypeNames = listOf(
-            "Preference", "List", "SpeechRule", "ReplaceRule", "Plugin", "PluginVars", "WebDav",
-        )
-        val shareTypeNames = listOf("Preference", "List", "SpeechRule", "ReplaceRule", "Plugin")
+        val webDavPrefKeys = setOf("webDavUrl", "webDavUser", "webDavPass", "webDavPath")
+
         val shareOmittedPreferenceFiles = listOf(
             "ds_proxy", "server", "direct_link_upload", "code_editor", "speech_rule", "replace_rule", "plugin",
         )

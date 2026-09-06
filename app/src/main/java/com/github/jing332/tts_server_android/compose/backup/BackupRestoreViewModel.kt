@@ -14,8 +14,9 @@ import org.json.JSONObject
 class BackupRestoreViewModel(application: Application) : AndroidViewModel(application) {
     private val engine by lazy { BackupRestoreEngine(application) }
 
-    /** 按 profile 生成档案：个人完整包含全部数据，分享包内置脱敏。 */
-    suspend fun backup(profile: BackupProfile): ByteArray = engine.create(profile)
+    /** 按 profile 与勾选的内容项生成档案：个人完整包含全部数据，分享包内置脱敏。 */
+    suspend fun backup(profile: BackupProfile, types: Collection<Type>): ByteArray =
+        engine.create(profile, types)
 
     /** 恢复：先全量校验，再按档案语义（个人=快照，分享/旧包=合并）一次性应用。 */
     suspend fun restore(bytes: ByteArray): RestoreResult = engine.restore(bytes)

@@ -48,12 +48,17 @@ class BackupRestoreActivity : ComposeActivity() {
         setContent {
             AppTheme {
                 val vm: BackupRestoreViewModel = viewModel()
-                var backupProfile by remember { mutableStateOf<BackupProfile?>(null) }
+                var showBackupDialog by remember { mutableStateOf(false) }
                 var showRestoreMenu by remember { mutableStateOf(false) }
                 var showWebDavSettings by remember { mutableStateOf(false) }
                 var showUrlInputDialog by remember { mutableStateOf(false) }
                 var showWebDavListDialog by remember { mutableStateOf(false) }
                 var isLoading by remember { mutableStateOf(false) }
+
+                fun backupFileName(profile: BackupProfile): String = when (profile) {
+                    BackupProfile.PERSONAL_FULL -> "ttsrv-personal-backup-"
+                    BackupProfile.SHARE_SANITIZED -> "ttsrv-share-backup-"
+                } + SimpleDateFormat("yyyy-MM-dd_HH-mm-ss", Locale.getDefault()).format(Date()) + ".zip"
 
                 if (isLoading) LoadingDialog(onDismissRequest = { isLoading = false })
 
@@ -62,12 +67,12 @@ class BackupRestoreActivity : ComposeActivity() {
                     contract = AppActivityResultContracts.filePickerActivity(),
                 ) {}
                 val scope = rememberCoroutineScope()
-                backupProfile?.let { profile ->
+
+                if (showBackupDialog) {
                     BackupDialog(
-                        profile = profile,
-                        onDismissRequest = { backupProfile = null },
-                        onBackupRequested = { requestedProfile, uploadToWebDav ->
-                            if (uploadToWebDav && AppConfig.webDavUrl.value.isBlank()) {
+                        onDismissRequest = { showBackupDialog = false },
+                        onBackupRequested = { profile, types, saveToLocal, uploadToWebDav ->
+                            if (uploadToWebDav && !AppConfig.isWebDavConfigured) {
                                 Toast.makeText(
                                     context,
                                     context.getString(R.string.config_webdav_first),
@@ -78,25 +83,19 @@ class BackupRestoreActivity : ComposeActivity() {
                             isLoading = true
                             scope.launch {
                                 runCatching {
-                                    val data = vm.backup(requestedProfile)
-                                    val fileName = when (requestedProfile) {
-                                        BackupProfile.PERSONAL_FULL -> "ttsrv-personal-backup-"
-                                        BackupProfile.SHARE_SANITIZED -> "ttsrv-share-backup-"
-                                    } + SimpleDateFormat(
-                                        "yyyy-MM-dd_HH-mm-ss",
-                                        Locale.getDefault(),
-                                    ).format(Date()) + ".zip"
+                                    val data = vm.backup(profile, types)
                                     if (uploadToWebDav) {
-                                        vm.uploadToWebDav(data, fileName)
+                                        vm.uploadToWebDav(data, backupFileName(profile))
                                         Toast.makeText(
                                             context,
                                             context.getString(R.string.backup_uploaded_success),
                                             Toast.LENGTH_LONG,
                                         ).show()
-                                    } else {
+                                    }
+                                    if (saveToLocal) {
                                         saveFilePicker.launch(
                                             FilePickerActivity.RequestSaveFile(
-                                                fileName = fileName,
+                                                fileName = backupFileName(profile),
                                                 fileMime = "application/zip",
                                                 fileBytes = data,
                                             )
@@ -140,7 +139,7 @@ class BackupRestoreActivity : ComposeActivity() {
                                 ListItem(
                                     modifier = Modifier.clickable {
                                         showRestoreMenu = false
-                                        if (AppConfig.webDavUrl.value.isBlank()) {
+                                        if (!AppConfig.isWebDavConfigured) {
                                             Toast.makeText(context, context.getString(R.string.config_webdav_first), Toast.LENGTH_SHORT).show()
                                             showWebDavSettings = true
                                         } else { showWebDavListDialog = true }
@@ -206,22 +205,16 @@ class BackupRestoreActivity : ComposeActivity() {
                 }) { padding ->
                     Column(Modifier.padding(padding)) {
                         BasePreferenceWidget(
-                            onClick = { backupProfile = BackupProfile.PERSONAL_FULL },
-                            title = { Text(stringResource(R.string.personal_complete_backup)) },
-                            subTitle = { Text(stringResource(R.string.personal_complete_backup_summary)) },
+                            onClick = { showBackupDialog = true },
+                            title = { Text(stringResource(R.string.backup)) },
+                            subTitle = { Text(stringResource(R.string.backup_entry_summary)) },
                             icon = { Icon(Icons.Default.Output, null) },
-                        )
-                        BasePreferenceWidget(
-                            onClick = { backupProfile = BackupProfile.SHARE_SANITIZED },
-                            title = { Text(stringResource(R.string.share_backup)) },
-                            subTitle = { Text(stringResource(R.string.share_backup_summary)) },
-                            icon = { Icon(Icons.Filled.IosShare, null) },
                         )
                         BasePreferenceWidget(onClick = { showRestoreMenu = true }, title = { Text(stringResource(id = R.string.restore)) }, icon = { Icon(Icons.AutoMirrored.Filled.Input, null) })
                         BasePreferenceWidget(
                             onClick = { showWebDavSettings = true },
                             title = { Text(stringResource(R.string.webdav_settings)) },
-                            subTitle = { Text(if (AppConfig.webDavUrl.value.isBlank()) stringResource(R.string.not_configured) else AppConfig.webDavUrl.value) },
+                            subTitle = { Text(if (AppConfig.isWebDavConfigured) AppConfig.webDavUrl.value else stringResource(R.string.not_configured)) },
                             icon = { Icon(Icons.Default.Settings, null) }
                         )
                     }
@@ -243,7 +236,7 @@ class BackupRestoreActivity : ComposeActivity() {
 
     @Composable
     fun WebDavSettingsDialog(onDismissRequest: () -> Unit, vm: BackupRestoreViewModel) {
-        var url by remember { mutableStateOf(AppConfig.webDavUrl.value) }
+        var url by remember { mutableStateOf(AppConfig.webDavUrl.value.ifBlank { AppConfig.DEFAULT_WEBDAV_URL }) }
         var user by remember { mutableStateOf(AppConfig.webDavUser.value) }
         var pass by remember { mutableStateOf(AppConfig.webDavPass.value) }
         var path by remember { mutableStateOf(AppConfig.webDavPath.value) }
