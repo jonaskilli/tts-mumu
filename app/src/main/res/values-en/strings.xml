@@ -401,6 +401,10 @@
     <string name="audio_params_apply">Apply</string>
     <string name="audio_params_apply_plugin_toast">Applied to all configs of this plugin</string>
     <string name="audio_params_apply_global_toast">Applied to all configs</string>
+    <string name="log_quick_panel_title">Quick adjust</string>
+    <string name="log_panel_config_missing">Config item missing or deleted</string>
+    <string name="log_panel_voice_label">Voice</string>
+    <string name="log_panel_config_layer">This config (affects only this item)</string>
     <string name="restore_from_url_net">Restore from number / URL</string>
     <string name="restore_from_url_dialog_title">Restore from number / URL</string>
     <string name="preference_settings">Preference</string>

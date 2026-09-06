@@ -467,6 +467,10 @@
     <string name="audio_params_apply">应用</string>
     <string name="audio_params_apply_plugin_toast">已应用，影响该插件全部配置项</string>
     <string name="audio_params_apply_global_toast">已应用，影响全部配置项</string>
+    <string name="log_quick_panel_title">快捷调整</string>
+    <string name="log_panel_config_missing">配置项不存在或已删除</string>
+    <string name="log_panel_voice_label">发音人</string>
+    <string name="log_panel_config_layer">本配置项（仅影响这一条）</string>
     <string name="preference_settings">偏好设置</string>
     <string name="restart">重启</string>
     <string name="restarted">服务已重启</string>

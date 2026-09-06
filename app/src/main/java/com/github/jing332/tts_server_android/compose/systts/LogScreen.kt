@@ -7,6 +7,7 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.shrinkOut
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -35,8 +36,10 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -98,6 +101,14 @@ fun LogScreen(
     val scope = rememberCoroutineScope()
     val view = LocalView.current
     val context = LocalContext.current
+    // 非空时显示日志快捷面板（点带 configId 的请求主行触发）
+    var quickPanelEntry by remember { mutableStateOf<LogEntry?>(null) }
+    quickPanelEntry?.let { entry ->
+        com.github.jing332.tts_server_android.compose.systts.log.LogQuickPanel(
+            onDismissRequest = { quickPanelEntry = null },
+            entry = entry,
+        )
+    }
     Box(modifier) {
         val isAtBottom by remember {
             derivedStateOf {
@@ -159,6 +170,12 @@ fun LogScreen(
                     Column(
                         modifier = Modifier
                             .fillMaxWidth()
+                            // 带 configId 的请求主行可点击：弹日志快捷面板（换发音人/调参）
+                            .then(
+                                if (log.configId != 0L) Modifier.clickable {
+                                    quickPanelEntry = log
+                                } else Modifier
+                            )
                             .then(
                                 if (isMatch) Modifier
                                     .clip(RoundedCornerShape(6.dp))
