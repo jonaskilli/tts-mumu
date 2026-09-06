@@ -17,6 +17,7 @@ import androidx.compose.material.icons.filled.Info
 import com.github.jing332.tts_server_android.compose.systts.plugin.PluginImage
 import androidx.compose.material.icons.filled.Speed
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -49,6 +50,7 @@ import com.github.jing332.database.dbm
 import com.github.jing332.database.entities.SpeechRule
 import com.github.jing332.database.entities.plugin.Plugin
 import com.github.jing332.database.entities.systts.SystemTtsGroup
+import com.github.jing332.database.entities.systts.AudioParams
 import com.github.jing332.database.entities.systts.SystemTtsV2
 import com.github.jing332.database.entities.systts.TtsConfigurationDTO
 import com.github.jing332.database.entities.systts.source.PluginTtsSource
@@ -149,7 +151,51 @@ class PluginTtsUI : IConfigUI() {
                     Text(stringResource(id = R.string.reset))
                 }
             }
+
+            // ===== 三层音频参数：插件层（仅插件来源）/全局层（折叠+应用确认，音高仅配置层） =====
+            HorizontalDivider(Modifier.padding(vertical = 4.dp))
+            var appliedTick by remember { mutableStateOf(0) }
+            if (config.source is PluginTtsSource) {
+                RemoteAudioParamsSection(
+                    layer = com.github.jing332.tts_server_android.compose.systts.list.ui.widgets.Layer.PLUGIN,
+                    pluginId = (config.source as PluginTtsSource).pluginId,
+                    onApplied = { appliedTick++ },
+                )
+            }
+            RemoteAudioParamsSection(
+                layer = com.github.jing332.tts_server_android.compose.systts.list.ui.widgets.Layer.GLOBAL,
+                onApplied = { appliedTick++ },
+            )
+            ThreeLayerFinalLine(systemTts, appliedTick)
         }
+    }
+
+    /**
+     * 最终值行：三层乘积（经插件处理路由）。
+     * 复用播放链同一 resolveTtsPlayback()，所见即所播；配置层滑块随重组实时刷新，
+     * 插件/全局层点「应用」后由 appliedTick 触发刷新。
+     */
+    @Composable
+    private fun ThreeLayerFinalLine(entity: SystemTtsV2, appliedTick: Int = 0) {
+        val resolved = remember(entity.id, appliedTick, entity) {
+            runCatching {
+                com.github.jing332.tts.resolveTtsPlayback(
+                    entity,
+                    AudioParams(
+                        speed = com.github.jing332.tts_server_android.conf.SysTtsConfig.audioParamsSpeed.value,
+                        volume = com.github.jing332.tts_server_android.conf.SysTtsConfig.audioParamsVolume.value,
+                        pitch = com.github.jing332.tts_server_android.conf.SysTtsConfig.audioParamsPitch.value,
+                    ),
+                )
+            }.getOrNull()
+        } ?: return
+        val p = resolved.configuration.audioParams
+        Text(
+            text = "最终：语速%.2fx 音量%.2fx 音高%.2fx".format(p.speed, p.volume, p.pitch),
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.padding(top = 4.dp),
+        )
     }
 
     @OptIn(ExperimentalMaterial3Api::class)

@@ -47,7 +47,10 @@ class SysttsFilter : Filter<ILoggingEvent>() {
                     time = LocalDateTimeUtil.of(event.timeStamp, TimeZone.getDefault())
                         .format(dateFormatter),
                     message = event.message,
-                    isPluginLog = isPluginLog
+                    isPluginLog = isPluginLog,
+                    // 请求行经 MDC 携带的配置项 id（SystemTtsService 写"请求音频"时放入），
+                    // 供日志快捷面板定位配置项；无关联日志该键不存在，回退 0
+                    configId = event.mdcPropertyMap["configId"]?.toLongOrNull() ?: 0L,
                 )
             )
 

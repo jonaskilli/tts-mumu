@@ -459,6 +459,14 @@
     <string name="backup_save_local">保存至本地</string>
     <string name="backup_need_content">请至少选择一项备份内容</string>
     <string name="backup_need_save_target">请至少选择一种保存方式</string>
+    <string name="audio_params_layer_plugin">插件层（影响该插件全部配置项）</string>
+    <string name="audio_params_layer_plugin_hint">调整后影响此插件下的全部配置项，拖动后请点「应用」生效</string>
+    <string name="audio_params_layer_global">全局层（影响全部配置项 · 谨慎）</string>
+    <string name="audio_params_layer_global_hint">调整后影响全部配置项，拖动后请点「应用」生效</string>
+    <string name="audio_params_plugin_not_found">未找到插件，请检查插件是否已启用</string>
+    <string name="audio_params_apply">应用</string>
+    <string name="audio_params_apply_plugin_toast">已应用，影响该插件全部配置项</string>
+    <string name="audio_params_apply_global_toast">已应用，影响全部配置项</string>
     <string name="preference_settings">偏好设置</string>
     <string name="restart">重启</string>
     <string name="restarted">服务已重启</string>

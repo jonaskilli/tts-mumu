@@ -393,6 +393,14 @@
     <string name="backup_save_local">Save to local storage</string>
     <string name="backup_need_content">Select at least one item to back up</string>
     <string name="backup_need_save_target">Select at least one save destination</string>
+    <string name="audio_params_layer_plugin">Plugin layer (affects all items of this plugin)</string>
+    <string name="audio_params_layer_plugin_hint">Changes affect every config of this plugin; tap Apply to take effect</string>
+    <string name="audio_params_layer_global">Global layer (affects all items · careful)</string>
+    <string name="audio_params_layer_global_hint">Changes affect all configs; tap Apply to take effect</string>
+    <string name="audio_params_plugin_not_found">Plugin not found; check whether it is enabled</string>
+    <string name="audio_params_apply">Apply</string>
+    <string name="audio_params_apply_plugin_toast">Applied to all configs of this plugin</string>
+    <string name="audio_params_apply_global_toast">Applied to all configs</string>
     <string name="restore_from_url_net">Restore from number / URL</string>
     <string name="restore_from_url_dialog_title">Restore from number / URL</string>
     <string name="preference_settings">Preference</string>

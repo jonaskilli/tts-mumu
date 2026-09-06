@@ -731,16 +731,20 @@ class SystemTtsService : TextToSpeechService(), IEventDispatcher {
 
         // 声音配置信息/语速音量等为次级信息，用哨兵色标记，
         // 渲染时(LogScreen)按主题重映射为次级色，避免与正文一起全是绿色而看不清；
-        // 语速音量音调与配置名同行显示。
         // 备用配置不在此显示：真正切备用时由"使用备用TTS：xxx"日志提示，避免每次请求重复刷屏
         // voice id 技术串对用户无意义，不再进日志(用户要求)
         return if (tag is SystemTtsV2) {
             val meta = buildString {
+                // 角色 tagData 里的角色名(如"张三")在最前，中文逗号分隔
+                config.speechInfo.tagData["role"]?.takeIf { it.isNotBlank() }?.let {
+                    append(it).append("，")
+                }
+                // 标签+发音人连写(用户定稿)：男主1晓伊
+                if (config.speechInfo.tagName.isNotBlank()) {
+                    append(config.speechInfo.tagName)
+                }
                 append(tag.displayName)
-                if (config.speechInfo.tagName.isNotBlank())
-                    append(", ").append(config.speechInfo.tagName)
-                // 同行拼接(用户定稿):名字过长被屏宽硬折行时参数可能从中间断开,接受
-                if (paramsInfo.isNotEmpty()) append("  ").append(paramsInfo)
+                if (paramsInfo.isNotEmpty()) append(paramsInfo)
             }
             "<font color=\"" + VOICE_META_COLOR + "\">" + meta + "</font>"
         } else ""
@@ -795,11 +799,17 @@ class SystemTtsService : TextToSpeechService(), IEventDispatcher {
             is NormalEvent.Request ->
                 if (e.retries > 0)
                     logW(getString(R.string.systts_log_start_retry, e.retries))
-                else
-                    // "请求音频:"前缀走级别色(绿)普通, 正文 <b> 加粗, 次级信息哨兵色→石板灰
-                    logI(
-                        "请求音频：" + e.request.text()
-                    )
+                else {
+                    // "请求音频:"前缀走级别色(绿)普通, 正文 <b> 加粗, 次级信息哨兵色→石板灰；
+                    // MDC 携带配置项 id 供日志快捷面板定位（写完立即清理防串扰）
+                    val configId = (e.request.config.tag as? SystemTtsV2)?.id ?: 0L
+                    try {
+                        org.slf4j.MDC.put("configId", configId.toString())
+                        logI("请求音频：" + e.request.text())
+                    } finally {
+                        org.slf4j.MDC.remove("configId")
+                    }
+                }
 
 
             is NormalEvent.DirectPlay -> logI(
