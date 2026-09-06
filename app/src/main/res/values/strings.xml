@@ -459,6 +459,9 @@
     <string name="backup_save_local">保存至本地</string>
     <string name="backup_need_content">请至少选择一项备份内容</string>
     <string name="backup_need_save_target">请至少选择一种保存方式</string>
+    <string name="backup_plugin_conflict_title">检测到插件冲突，请选择处理方式</string>
+    <string name="backup_plugin_conflict_overwrite">覆盖：用备份版本替换设备上的同名插件</string>
+    <string name="backup_plugin_conflict_coexist">共存：备份插件自动改名后加入</string>
     <string name="preference_settings">偏好设置</string>
     <string name="restart">重启</string>
     <string name="restarted">服务已重启</string>
@@ -609,7 +612,8 @@
     <string name="empty_folder">空文件夹</string>
     <string name="save_and_test">保存并测试</string>
     <string name="not_configured">未配置</string>
-    <string name="restore_from_url_net">从网络直链恢复</string>
+    <string name="restore_from_url_net">数字/网络直链恢复</string>
+    <string name="restore_from_url_dialog_title">数字/URL恢复</string>
     <string name="edit_group_content">从其他分组移入配置</string>
     <string name="move_to_group">移动 %1$d 项到 %2$s</string>
     <string name="create_sub_group">新建子分组</string>

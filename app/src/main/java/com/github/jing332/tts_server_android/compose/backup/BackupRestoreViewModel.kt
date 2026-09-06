@@ -18,8 +18,15 @@ class BackupRestoreViewModel(application: Application) : AndroidViewModel(applic
     suspend fun backup(profile: BackupProfile, types: Collection<Type>): ByteArray =
         engine.create(profile, types)
 
+    /** 恢复前检测：合并模式下与设备插件同 pluginId 的冲突清单（快照恢复返回空） */
+    suspend fun pluginConflicts(bytes: ByteArray): List<PluginConflict> =
+        engine.pluginConflicts(bytes)
+
     /** 恢复：先全量校验，再按档案语义（个人=快照，分享/旧包=合并）一次性应用。 */
-    suspend fun restore(bytes: ByteArray): RestoreResult = engine.restore(bytes)
+    suspend fun restore(
+        bytes: ByteArray,
+        pluginConflict: PluginConflictResolution? = null,
+    ): RestoreResult = engine.restore(bytes, pluginConflict)
 
     override fun onCleared() {
         super.onCleared()

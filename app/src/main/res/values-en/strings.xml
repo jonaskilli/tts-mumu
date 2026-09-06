@@ -393,6 +393,11 @@
     <string name="backup_save_local">Save to local storage</string>
     <string name="backup_need_content">Select at least one item to back up</string>
     <string name="backup_need_save_target">Select at least one save destination</string>
+    <string name="backup_plugin_conflict_title">Plugin conflicts detected, choose how to handle</string>
+    <string name="backup_plugin_conflict_overwrite">Overwrite: replace the existing plugin with the backup version</string>
+    <string name="backup_plugin_conflict_coexist">Keep both: the backup plugin is added with a renamed ID</string>
+    <string name="restore_from_url_net">Restore from number / URL</string>
+    <string name="restore_from_url_dialog_title">Restore from number / URL</string>
     <string name="preference_settings">Preference</string>
     <string name="restart">Restart</string>
     <string name="restore_finished">Restore Finished</string>

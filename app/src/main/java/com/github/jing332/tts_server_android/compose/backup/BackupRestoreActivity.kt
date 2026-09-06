@@ -160,7 +160,7 @@ class BackupRestoreActivity : ComposeActivity() {
                     var url by remember { mutableStateOf("") }
                     AppDialog(
                         onDismissRequest = { showUrlInputDialog = false },
-                        title = { Text(stringResource(R.string.import_from_url)) },
+                        title = { Text(stringResource(R.string.restore_from_url_dialog_title)) },
                         content = {
                             OutlinedTextField(value = url, onValueChange = { url = it }, label = { Text("URL") }, modifier = Modifier.fillMaxWidth())
                         },

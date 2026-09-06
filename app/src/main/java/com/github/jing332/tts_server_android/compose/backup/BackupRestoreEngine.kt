@@ -7,6 +7,8 @@ import com.github.jing332.database.entities.SpeechRule
 import com.github.jing332.database.entities.plugin.Plugin
 import com.github.jing332.database.entities.replace.GroupWithReplaceRule
 import com.github.jing332.database.entities.systts.GroupWithSystemTts
+import com.github.jing332.database.entities.systts.SystemTtsGroup
+import com.github.jing332.database.entities.systts.SystemTtsV2
 import com.github.jing332.tts_server_android.compose.systts.list.migrateTagNamesIfNeed
 import com.github.jing332.tts_server_android.compose.systts.plugin.parsePluginsJson
 import com.github.jing332.tts_server_android.conf.AppConfig
@@ -29,7 +31,10 @@ internal class BackupRestoreEngine(
         ArchiveZipCodec.create(manifest, entries)
     }
 
-    suspend fun restore(bytes: ByteArray): RestoreResult = withIO {
+    suspend fun restore(
+        bytes: ByteArray,
+        pluginConflict: PluginConflictResolution? = null,
+    ): RestoreResult = withIO {
         runCatching {
             val entries = SafeZipReader.read(bytes)
             val archive = if (MANIFEST_ENTRY in entries) {
@@ -37,7 +42,7 @@ internal class BackupRestoreEngine(
             } else {
                 parseLegacyArchive(entries)
             }
-            apply(archive)
+            apply(archive, pluginConflict)
             // 旧备份（含旧版兼容合并）可能带回历史 isUiOnly 宿主配置项，恢复后立即清理
             runCatching {
                 com.github.jing332.tts_server_android.compose.cleanupRoleHostConfigItems()
@@ -56,6 +61,28 @@ internal class BackupRestoreEngine(
                 cause = throwable,
             )
         }
+    }
+
+    /**
+     * 合并恢复前的插件冲突检测：archive 中的插件与设备上已有同 pluginId 时返回冲突清单。
+     * 快照恢复（完整备份）整表重建，无冲突概念，直接返回空。
+     */
+    suspend fun pluginConflicts(bytes: ByteArray): List<PluginConflict> = withIO {
+        runCatching {
+            val entries = SafeZipReader.read(bytes)
+            val archive = if (MANIFEST_ENTRY in entries) {
+                parseCurrentArchive(entries)
+            } else {
+                parseLegacyArchive(entries)
+            }
+            if (archive.restoreMode != RestoreMode.MERGE) return@withIO emptyList()
+            archive.plugins.orEmpty().mapNotNull { plugin ->
+                if (plugin.pluginId.isBlank()) null
+                else if (dbm.pluginDao.getByPluginId(plugin.pluginId) != null)
+                    PluginConflict(plugin.pluginId, plugin.name)
+                else null
+            }
+        }.getOrDefault(emptyList())
     }
 
     private fun parseCurrentArchive(entries: Map<String, ByteArray>): ParsedBackupArchive {
@@ -182,19 +209,9 @@ internal class BackupRestoreEngine(
         replaceRules: List<GroupWithReplaceRule>?,
         plugins: List<Plugin>?,
     ) {
-        lists?.let { value ->
-            require(value.map { it.group.id }.distinct().size == value.size) { "配置分组 ID 重复" }
-            val ids = value.flatMap { it.list }.map { it.id }
-            require(ids.distinct().size == ids.size) { "配置项 ID 重复" }
-        }
-        speechRules?.let { value ->
-            require(value.map { it.ruleId }.filter(String::isNotBlank).distinct().size == value.count { it.ruleId.isNotBlank() }) {
-                "朗读规则 ID 重复"
-            }
-        }
-        replaceRules?.let { value ->
-            require(value.map { it.group.id }.distinct().size == value.size) { "替换规则分组 ID 重复" }
-        }
+        // 朗读规则允许 ruleId 重复（多版本共存，合并按 name 判同一条）；
+        // 列表/替换规则分组 ID 重复也放行：快照按主键落到最后一版，合并路径会重新分配 ID。
+        // 仅插件 pluginId 重复仍拒绝：它是配置项寻址的唯一逻辑键，包内重复无法判定取舍
         plugins?.let { value ->
             require(value.map { it.pluginId }.filter(String::isNotBlank).distinct().size == value.count { it.pluginId.isNotBlank() }) {
                 "插件 ID 重复"
@@ -202,24 +219,40 @@ internal class BackupRestoreEngine(
         }
     }
 
-    private fun apply(archive: ParsedBackupArchive) {
+    private fun apply(
+        archive: ParsedBackupArchive,
+        pluginConflict: PluginConflictResolution? = null,
+    ) {
         val preferenceSnapshot = archive.preferences?.let(::snapshotPreferences)
         try {
             dbm.runInTransaction {
                 if (archive.restoreMode == RestoreMode.SNAPSHOT) {
-                    archive.lists?.let {
+                    // 快照：档案内相同 item id（跨分组重复）时为后出现的分配新 ID，保留两组共存
+                    archive.lists?.let { lists ->
+                        val seen = HashSet<Long>()
+                        val baseId = System.currentTimeMillis()
+                        var seq = 0
+                        val fixed = lists.map { group ->
+                            group.copy(list = group.list.map { item ->
+                                if (seen.add(item.id)) item
+                                else item.copy(id = baseId + (seq++))
+                            })
+                        }
                         dbm.systemTtsV2.deleteAllTts()
                         dbm.systemTtsV2.deleteAllGroups()
-                        dbm.systemTtsV2.insertGroupWithTts(*it.toTypedArray())
+                        dbm.systemTtsV2.insertGroupWithTts(*fixed.toTypedArray())
                     }
                     archive.replaceRules?.let {
                         dbm.replaceRuleDao.deleteAllRules()
                         dbm.replaceRuleDao.deleteAllGroups()
                         dbm.replaceRuleDao.insertRuleWithGroup(*it.toTypedArray())
                     }
-                    archive.speechRules?.let {
+                    archive.speechRules?.let { rules ->
+                        // 快照：同 ruleId+name 去重（保留最后一版），同名不同版本共存的合法数据不再被唯一性校验拦截
+                        val seen = HashSet<Pair<String, String>>()
+                        val deduped = rules.filter { seen.add(it.ruleId to it.name) }
                         dbm.speechRuleDao.deleteAll()
-                        dbm.speechRuleDao.insert(*it.toTypedArray())
+                        dbm.speechRuleDao.insert(*deduped.toTypedArray())
                     }
                     archive.plugins?.let {
                         dbm.pluginDao.deleteAll()
@@ -229,7 +262,7 @@ internal class BackupRestoreEngine(
                     archive.lists?.let(::mergeLists)
                     archive.replaceRules?.let(::mergeReplaceRules)
                     archive.speechRules?.let(::mergeSpeechRules)
-                    archive.plugins?.let(::mergePlugins)
+                    archive.plugins?.let { mergePlugins(it, pluginConflict) }
                 }
             }
             archive.preferences?.let(::applyPreferences)
@@ -244,22 +277,50 @@ internal class BackupRestoreEngine(
         }
     }
 
+    /**
+     * 配置列表合并：同名分组并入设备已有分组，组内同名项（displayName 相同）跳过不重复导入，
+     * 新内容追加新 ID；不同分组允许出现同名项。
+     */
     private fun mergeLists(groups: List<GroupWithSystemTts>) {
         if (groups.isEmpty()) return
         val baseId = System.currentTimeMillis()
-        var groupOffset = 0L
-        var itemOffset = 0L
-        val groupOrder = dbm.systemTtsV2.groupCount
-        val rebuilt = groups.map { source ->
-            val groupId = baseId + groupOffset++
-            source.copy(
-                group = source.group.copy(id = groupId, order = groupOrder + groupOffset.toInt() - 1),
-                list = source.list.map { item ->
-                    item.copy(id = baseId + 100_000L + itemOffset++, groupId = groupId)
-                },
-            )
+        var seq = 0L
+        val knownGroups = dbm.systemTtsV2.allGroup.toMutableList()
+        val usedGroupIds = knownGroups.map { it.id }.toMutableSet()
+
+        fun newGroupId(): Long {
+            var candidate = baseId + seq
+            while (candidate in usedGroupIds || candidate % 100_000L == 0L) candidate++
+            usedGroupIds.add(candidate)
+            seq++
+            return candidate
         }
-        dbm.systemTtsV2.insertGroupWithTts(*rebuilt.toTypedArray())
+
+        val groupOrder = dbm.systemTtsV2.groupCount
+        var nextOrder = groupOrder
+        groups.forEach { source ->
+            val groupName = source.group.name
+            val existingGroup = knownGroups.firstOrNull { it.name == groupName }
+            val groupId = existingGroup?.id ?: run {
+                val id = newGroupId()
+                val group = SystemTtsGroup(id = id, name = groupName, order = nextOrder++)
+                dbm.systemTtsV2.insertGroup(group)
+                knownGroups.add(group)
+                id
+            }
+
+            // 组内去重：同 displayName（非空）视为相同项跳过；不同组允许同名
+            val existingItems = dbm.systemTtsV2.getByGroup(groupId).toMutableList()
+            val toInsert = mutableListOf<SystemTtsV2>()
+            source.list.forEach { item ->
+                val name = item.displayName
+                if (name.isNotBlank() && existingItems.any { it.displayName == name }) return@forEach
+                val inserted = item.copy(id = baseId + 100_000L + seq++, groupId = groupId)
+                existingItems.add(inserted)
+                toInsert.add(inserted)
+            }
+            if (toInsert.isNotEmpty()) dbm.systemTtsV2.insert(*toInsert.toTypedArray())
+        }
     }
 
     private fun mergeReplaceRules(groups: List<GroupWithReplaceRule>) {
@@ -280,25 +341,52 @@ internal class BackupRestoreEngine(
         dbm.replaceRuleDao.insertRuleWithGroup(*rebuilt.toTypedArray())
     }
 
+    /**
+     * 朗读规则合并：同 ruleId 且同 name 视为同一条，用备份覆盖设备版本（保留设备主键，
+     * 标签引用不断）；同 ruleId 不同 name 是用户有意保留的多版本，共存。
+     */
     private fun mergeSpeechRules(rules: List<SpeechRule>) {
         rules.forEach { rule ->
-            val existing = dbm.speechRuleDao.getByRuleIdAll(rule.ruleId)
-            if (existing == null) dbm.speechRuleDao.insert(rule)
+            val sameRuleId = dbm.speechRuleDao.getAllWithoutCode().filter { it.ruleId == rule.ruleId }
+            val twin = sameRuleId.firstOrNull { it.name == rule.name }
+            when {
+                sameRuleId.isEmpty() -> dbm.speechRuleDao.insert(rule)
+                twin != null -> dbm.speechRuleDao.update(rule.copy(id = twin.id))
+                else -> dbm.speechRuleDao.insert(rule)
+            }
         }
     }
 
-    private fun mergePlugins(plugins: List<Plugin>) {
+    /**
+     * 插件合并：无冲突直接插入；有冲突按用户决议——
+     * OVERWRITE=备份覆盖设备版本（保留设备主键与本地 userVars）；
+     * COEXIST=进来的插件改用新 pluginId（原 id 加后缀）插入，设备原插件与配置项引用不动。
+     */
+    private fun mergePlugins(
+        plugins: List<Plugin>,
+        pluginConflict: PluginConflictResolution?,
+    ) {
         plugins.forEach { plugin ->
             val existing = dbm.pluginDao.getByPluginId(plugin.pluginId)
             if (existing == null) {
                 dbm.pluginDao.insert(plugin)
-            } else if (plugin.version > existing.version) {
-                dbm.pluginDao.update(
-                    plugin.copy(
-                        id = existing.id,
-                        userVars = existing.userVars,
-                    )
+                return@forEach
+            }
+            when (pluginConflict) {
+                PluginConflictResolution.OVERWRITE -> dbm.pluginDao.update(
+                    plugin.copy(id = existing.id, userVars = existing.userVars)
                 )
+                PluginConflictResolution.COEXIST -> {
+                    var suffix = 1
+                    var newId = plugin.pluginId + "_1"
+                    while (dbm.pluginDao.getByPluginId(newId) != null) {
+                        suffix++
+                        newId = plugin.pluginId + "_" + suffix
+                    }
+                    dbm.pluginDao.insert(plugin.copy(pluginId = newId))
+                }
+                // 未决议（不应发生：UI 必须先询问）→ 保守跳过，不动设备插件
+                null -> Unit
             }
         }
     }
