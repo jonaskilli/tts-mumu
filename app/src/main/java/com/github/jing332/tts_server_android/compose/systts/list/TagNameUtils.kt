@@ -212,7 +212,7 @@ private const val PARAM_COLLAPSE_TAG = "AudioParamCollapse"
 
 /**
  * 单条音频参数折叠迁移（一次性）：
- * 旧版编辑页滑块写 PluginTtsSource.speed/volume/pitch，而真正生效的五层配置层是
+ * 旧版编辑页滑块写 PluginTtsSource.speed/volume/pitch，而真正生效的配置层是
  * config.audioParams；两者并存导致卡片/滑块显示与日志/听感分裂（如滑块0.9、日志1.15）。
  *
  * 规则：

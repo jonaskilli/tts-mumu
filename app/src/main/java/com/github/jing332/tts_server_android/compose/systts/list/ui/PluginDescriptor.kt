@@ -1,6 +1,7 @@
 package com.github.jing332.tts_server_android.compose.systts.list.ui
 
 import android.content.Context
+import com.github.jing332.common.utils.StringUtils.limitLength
 import com.github.jing332.common.utils.toScale
 import com.github.jing332.database.dbm
 import com.github.jing332.database.entities.systts.SystemTtsV2
@@ -29,14 +30,14 @@ class PluginDescriptor(
         get() {
             val strFollow by lazy { context.getString(R.string.follow) }
 
-            // 卡片四行制：行2=voice id，行3=参数，行4=格式(bottom)。
+            // 卡片三行制：行2=voice id(限一行,超20字符截断防换行,用户定稿)，行3=参数，行4=格式(bottom)。
             // toScale(2) 去噪：历史数据里存在 1.1499999f 这类浮点噪声，直接插值会原样上屏
             val p = cfg.audioParams
             val rateStr = if (p.speed == 0f) strFollow else p.speed.toScale(2)
             val pitchStr = if (p.pitch == 0f) strFollow else p.pitch.toScale(2)
             val volumeStr = if (p.volume == 0f) strFollow else p.volume.toScale(2)
 
-            return source.voice + "<br>" + context.getString(
+            return source.voice.limitLength(20, "…") + "<br>" + context.getString(
                 R.string.systts_play_params_description,
                 "<b>${rateStr}</b>",
                 "<b>${volumeStr}</b>",

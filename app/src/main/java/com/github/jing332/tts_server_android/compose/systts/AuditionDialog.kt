@@ -37,15 +37,14 @@ import com.github.jing332.common.utils.messageChain
 import com.github.jing332.common.utils.sizeToReadable
 import com.github.jing332.compose.widgets.AppDialog
 import com.github.jing332.compose.widgets.LoadingContent
-import com.github.jing332.database.dbm
 import com.github.jing332.database.entities.systts.AudioParams
 import com.github.jing332.database.entities.systts.SystemTtsV2
 import com.github.jing332.database.entities.systts.TtsConfigurationDTO
-import com.github.jing332.database.entities.systts.source.PluginTtsSource
 import com.github.jing332.database.entities.systts.source.TextToSpeechSource
 import com.github.jing332.tts.CachedEngineManager
+import com.github.jing332.tts.localPlaybackParamsFor
+import com.github.jing332.tts.resolveTtsPlayback
 import com.github.jing332.tts.loudness.SpeakerLoudnessManager
-import com.github.jing332.tts.stackedAudioParamsFor
 import com.github.jing332.tts.speech.EngineState
 import com.github.jing332.tts.speech.TextToSpeechProvider
 import com.github.jing332.tts.speech.plugin.engine.JsBridgeInputStream
@@ -71,18 +70,16 @@ fun AuditionDialog(
     systts: SystemTtsV2,
     text: String = AppConfig.testSampleText.value,
 
-    // 与实际朗读同源：五层叠加(插件×配置×子分组×分组×全局)后的参数，
-    // 试听听到的即为真实播放效果，全局/分组/插件级修改即时体现
-    config: TtsConfiguration = (systts.config as TtsConfigurationDTO).toVO().copy(
-        audioParams = stackedAudioParamsFor(
-            systts,
-            AudioParams(
-                speed = SysTtsConfig.audioParamsSpeed,
-                volume = SysTtsConfig.audioParamsVolume,
-                pitch = SysTtsConfig.audioParamsPitch
-            )
+    // 与实际朗读同源：三层叠加(插件×配置×全局)并共享插件/本机参数路由，
+    // 试听听到的即为真实播放效果，分组/子分组仅组织列表、不参与倍率。
+    config: TtsConfiguration = resolveTtsPlayback(
+        systts,
+        AudioParams(
+            speed = SysTtsConfig.audioParamsSpeed,
+            volume = SysTtsConfig.audioParamsVolume,
+            pitch = SysTtsConfig.audioParamsPitch
         )
-    ),
+    )?.configuration ?: (systts.config as TtsConfigurationDTO).toVO(),
     engine: TextToSpeechProvider<TextToSpeechSource>? = null,
     voiceId: Any? = null,
     autoDismiss: Boolean = true,
@@ -131,26 +128,28 @@ fun AuditionDialog(
                 // 旧写法 is Uninitialized 会跳过等待直接 getStream,撞上 mEngine 未就绪
                 // 抛 "Engine not initialized"(首次导入即试听必现,第二次才成功)
                 if (e.state != EngineState.Initialized) e.onInit()
+                val resolvedProviderParams = resolveTtsPlayback(
+                    systts,
+                    AudioParams(
+                        speed = SysTtsConfig.audioParamsSpeed,
+                        volume = SysTtsConfig.audioParamsVolume,
+                        pitch = SysTtsConfig.audioParamsPitch
+                    )
+                )?.providerParams(text, SysTtsConfig.requestTimeout.toLong()) ?: SystemParams(
+                    text = text,
+                    speed = config.audioParams.speed,
+                    volume = config.audioParams.volume,
+                    pitch = config.audioParams.pitch,
+                    requestTimeout = SysTtsConfig.requestTimeout.toLong()
+                )
                 if (e.isSyncPlay(config.source)) {
                     e.syncPlay(
-                        SystemParams(
-                            text = text,
-                            speed = config.audioParams.speed,
-                            volume = config.audioParams.volume,
-                            pitch = config.audioParams.pitch,
-                            requestTimeout = SysTtsConfig.requestTimeout.toLong()
-                        ),
+                        resolvedProviderParams,
                         config.source
                     )
                 } else {
                     val stream = e.getStream(
-                        SystemParams(
-                            text = text,
-                            speed = config.audioParams.speed,
-                            volume = config.audioParams.volume,
-                            pitch = config.audioParams.pitch,
-                            requestTimeout = SysTtsConfig.requestTimeout.toLong()
-                        ),
+                        resolvedProviderParams,
                         config.source
                     )
                     // 插件桥接流可能在 streamStart 声明裸 PCM(与 isNeedDecode 配置矛盾),
@@ -178,27 +177,21 @@ fun AuditionDialog(
                         ) + if (paramsInfo.isNotEmpty()) "\n$paramsInfo" else ""
                     }
 
-                    // 与朗读路径一致的本地参数应用：插件表标记「插件自行处理」的项
-                    // 服务端已生效、本地不再叠加，其余项在播放器本地应用；
-                    // 音量并入响度均衡增益(朗读路径恒开响度均衡)
-                    val pluginRecord = (config.source as? PluginTtsSource)?.let {
-                        dbm.pluginDao.getByPluginId(it.pluginId)
-                    }
-                    val ap = config.audioParams
-                    val effSpeed = if (pluginRecord?.pluginHandlesSpeed == true || ap.speed <= 0f) 1f else ap.speed
-                    val effVolume = if (pluginRecord?.pluginHandlesVolume == true || ap.volume <= 0f) 1f else ap.volume
-                    val effPitch = if (pluginRecord?.pluginHandlesPitch == true || ap.pitch <= 0f) 1f else ap.pitch
+                    // Same app-side routing as DefaultResultProcessor: providers that own a
+                    // dimension receive it during synthesis; all remaining plugin dimensions are
+                    // applied once here. Local engines already applied their final values.
+                    val localParams = localPlaybackParamsFor(config)
                     val loudnessGain = SpeakerLoudnessManager.infoFor(config).gain
-                    val localVolume = (effVolume * loudnessGain).coerceIn(0f, 1f)
+                    val localVolume = (localParams.volume * loudnessGain).coerceIn(0f, 1f)
 
                     if (config.shouldDecode() && !declaredPcm)
-                        audioPlayer.play(audio, effSpeed, localVolume, effPitch)
+                        audioPlayer.play(audio, localParams.speed, localVolume, localParams.pitch)
                     else
                         // 裸 PCM(声明或配置):AudioPlayer 会按采样率包 WAV 头/直通 AudioTrack
                         audioPlayer.play(
                             audio,
                             if (declaredPcm) bridgePcmFormat!!.sampleRate else config.audioFormat.sampleRate,
-                            effSpeed, localVolume, effPitch
+                            localParams.speed, localVolume, localParams.pitch
                         )
                 }
                 withContext(Dispatchers.Main) {

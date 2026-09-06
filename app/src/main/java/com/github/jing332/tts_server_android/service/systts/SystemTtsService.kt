@@ -719,14 +719,15 @@ class SystemTtsService : TextToSpeechService(), IEventDispatcher {
     private fun RequestPayload.configInfo(): String {
         val tag = config.tag
 
-        // 五层叠加(插件×配置×子分组×分组×全局)后的最终音频参数，
-        // 仅显示≠1的项，全部为1时不占位；如 语速2.00x 音量0.80x
+        // 三层叠加(插件×配置×全局)后的最终音频参数，
+        // 仅显示≠1的项，全部为1时不占位；如（语速2.00x，音量0.80x）
+        // 用户定稿:中文括号+逗号简单制式,跟在发音人后不突兀
         val p = config.audioParams
         val paramsInfo = buildList {
             if (kotlin.math.abs(p.speed - 1f) > 0.005f) add("语速%.2fx".format(p.speed))
             if (kotlin.math.abs(p.volume - 1f) > 0.005f) add("音量%.2fx".format(p.volume))
             if (kotlin.math.abs(p.pitch - 1f) > 0.005f) add("音调%.2fx".format(p.pitch))
-        }.joinToString(" ")
+        }.joinToString("，")
 
         // 声音配置信息/语速音量等为次级信息，用哨兵色标记，
         // 渲染时(LogScreen)按主题重映射为次级色，避免与正文一起全是绿色而看不清；
@@ -738,6 +739,7 @@ class SystemTtsService : TextToSpeechService(), IEventDispatcher {
                 append(tag.displayName)
                 if (config.speechInfo.tagName.isNotBlank())
                     append(", ").append(config.speechInfo.tagName)
+                // 同行拼接(用户定稿):名字过长被屏宽硬折行时参数可能从中间断开,接受
                 if (paramsInfo.isNotEmpty()) append("  ").append(paramsInfo)
             }
             "<font color=\"" + VOICE_META_COLOR + "\">" + meta + "</font>"
@@ -806,10 +808,10 @@ class SystemTtsService : TextToSpeechService(), IEventDispatcher {
 
             is NormalEvent.ReadAllFromStream -> {
                 if (e.size > 0) {
-                    // "获取成功:"前缀普通字重(石板灰)，"大小·耗时"加粗，与请求音频正文层次一致
+                    // 冒号前后同字重(用户:获取成功行不要加粗)，整行走 SUCCESS 石板灰
                     logS(
                         "<font color=\"" + META_INFO_COLOR + "\">获取成功：</font>" +
-                            "<b>大小 " + e.size.sizeToReadable() + " · 耗时 " + e.costTime + "ms</b>",
+                            "大小 " + e.size.sizeToReadable() + " · 耗时 " + e.costTime + "ms",
                         indent = 1
                     )
                 }

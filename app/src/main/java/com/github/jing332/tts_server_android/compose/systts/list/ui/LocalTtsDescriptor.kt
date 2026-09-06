@@ -1,6 +1,7 @@
 package com.github.jing332.tts_server_android.compose.systts.list.ui
 
 import android.content.Context
+import com.github.jing332.common.utils.StringUtils.limitLength
 import com.github.jing332.common.utils.toScale
 import com.github.jing332.database.entities.systts.SystemTtsV2
 import com.github.jing332.database.entities.systts.TtsConfigurationDTO
@@ -16,7 +17,7 @@ class LocalTtsDescriptor(val context: Context, val systemTts: SystemTtsV2) :
     override val desc: String
         get() {
             val strFollow by lazy { context.getString(R.string.follow) }
-            // 卡片四行制：行2=voice id，行3=参数，行4=格式(bottom)；toScale(2)去噪
+            // 卡片三行制：行2=voice id(限一行,超20字符截断防换行,用户定稿)，行3=参数，行4=格式(bottom)；toScale(2)去噪
             val config = systemTts.config as TtsConfigurationDTO
             val params = config.audioParams
 
@@ -27,7 +28,7 @@ class LocalTtsDescriptor(val context: Context, val systemTts: SystemTtsV2) :
             val volumeStr =
                 if (params.volume == 0f) strFollow else params.volume.toScale(2)
 
-            return source.voice + "<br>" + context.getString(
+            return source.voice.limitLength(20, "…") + "<br>" + context.getString(
                 R.string.systts_play_params_description,
                 "<b>${rateStr}</b>",
                 "<b>${volumeStr}</b>",
