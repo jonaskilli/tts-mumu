@@ -31,7 +31,7 @@ import kotlin.math.sqrt
  *   这样手动调节变化时，新数据会自然覆盖旧数据
  * - 置信度机制：学习次数少时补偿幅度打折扣，避免过度补偿
  *
- * 数据存储：单一文件 Download/chajian/loudness_stats.json（用户可见、可直接查看），
+ * 数据存储：单一文件 Download/chajian/mingwuyan/loudness_stats.json（用户可见、可直接查看），
  * 不再使用 SharedPreferences。文件内字段为中文易读格式。
  */
 object SpeakerLoudnessManager {
@@ -48,13 +48,14 @@ object SpeakerLoudnessManager {
     private const val MAX_ATTENUATION_DB = 9f
 
     /**
-     * 学习数据文件：/storage/emulated/0/Download/chajian/loudness_stats.json
-     * 路径与项目其它模块一致（朗读规则 JS 的 getFile()、插件缓存 PluginManager.CACHE_BASE_DIR
-     * 均写到 /storage/emulated/0/Download/chajian）。这是唯一存储，用户可直接查看。
+     * 学习数据文件：/storage/emulated/0/Download/chajian/mingwuyan/loudness_stats.json
+     * 不放 chajian 根目录（用户要求），归入 mingwuyan 插件子目录。这是唯一存储，用户可直接查看。
      */
-    private const val FILE_BASE_DIR = "/storage/emulated/0/Download"
-    private const val FILE_DIR_NAME = "chajian"
+    private const val FILE_BASE_DIR = "/storage/emulated/0/Download/chajian"
+    private const val FILE_DIR_NAME = "mingwuyan"
     private const val FILE_NAME = "loudness_stats.json"
+    /** 旧版本路径（chajian 根目录）：仅用于一次性迁移到新位置 */
+    private val legacyFile = File("/storage/emulated/0/Download/chajian", FILE_NAME)
 
     private val lock = Any()
     private var cachedStats: MutableMap<String, LoudnessStat> = linkedMapOf()
@@ -317,13 +318,22 @@ object SpeakerLoudnessManager {
     }
 
     /**
-     * 从 Download/chajian/loudness_stats.json 读取数据到内存缓存。
+     * 从 Download/chajian/mingwuyan/loudness_stats.json 读取数据到内存缓存。
      * 文件不存在或解析失败时回退为空数据，不影响播放。
      */
     private fun loadFromFileLocked() {
         fileLoaded = true
         runCatching {
-            val file = File(File(FILE_BASE_DIR, FILE_DIR_NAME), FILE_NAME)
+            val file = File(FILE_BASE_DIR, FILE_DIR_NAME + "/" + FILE_NAME)
+            if (!file.exists()) {
+                // 一次性迁移：旧版放在 chajian 根目录，搬进 mingwuyan 子目录避免学习数据丢失
+                if (legacyFile.exists()) {
+                    file.parentFile?.mkdirs()
+                    if (legacyFile.renameTo(file)) {
+                        logger.info { "loudness stats migrated to $file" }
+                    }
+                }
+            }
             if (!file.exists()) {
                 cachedStats = linkedMapOf()
                 return@runCatching
@@ -391,7 +401,7 @@ object SpeakerLoudnessManager {
     }
 
     /**
-     * 把内存数据以中文易读格式写入 Download/chajian/loudness_stats.json。
+     * 把内存数据以中文易读格式写入 Download/chajian/mingwuyan/loudness_stats.json。
      * 这是唯一存储，整体覆盖写入；失败仅记录日志，不影响播放（内存缓存仍有效）。
      */
     private fun persistLocked() {
@@ -423,7 +433,7 @@ object SpeakerLoudnessManager {
 
     private fun deleteFileLocked() {
         runCatching {
-            val file = File(File(FILE_BASE_DIR, FILE_DIR_NAME), FILE_NAME)
+            val file = File(FILE_BASE_DIR, FILE_DIR_NAME + "/" + FILE_NAME)
             if (file.exists()) file.delete()
         }.onFailure { logger.warn(it) { "loudness delete file failed" } }
     }

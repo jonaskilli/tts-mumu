@@ -6,6 +6,7 @@ import com.github.jing332.database.dbm
 import com.github.jing332.database.entities.SpeechRule
 import com.github.jing332.database.entities.plugin.Plugin
 import com.github.jing332.database.entities.replace.GroupWithReplaceRule
+import com.github.jing332.database.entities.replace.ReplaceRule
 import com.github.jing332.database.entities.systts.GroupWithSystemTts
 import com.github.jing332.database.entities.systts.SystemTtsGroup
 import com.github.jing332.database.entities.systts.SystemTtsV2
@@ -20,7 +21,6 @@ import kotlinx.serialization.decodeFromString
 import org.xmlpull.v1.XmlPullParser
 import org.xmlpull.v1.XmlPullParserFactory
 import java.io.ByteArrayInputStream
-import java.io.File
 
 internal class BackupRestoreEngine(
     private val context: Context,
@@ -151,7 +151,7 @@ internal class BackupRestoreEngine(
             speechRules = speechRules,
             replaceRules = replaceRules,
             plugins = plugins,
-            legacyLoudness = entries["loudness_stats.json"],
+            // loudness_stats.json 保留在允许清单中仅为旧包不被判未知文件，内容一律不恢复
             warnings = legacyWarnings,
         )
     }
@@ -208,11 +208,8 @@ internal class BackupRestoreEngine(
                 archive.plugins?.let { mergePlugins(it) }
             }
             archive.preferences?.let(::applyPreferences)
-            archive.legacyLoudness?.let { bytes ->
-                val target = File("/storage/emulated/0/Download/chajian/loudness_stats.json")
-                target.parentFile?.mkdirs()
-                target.writeBytes(bytes)
-            }
+            // 旧包中的 loudness_stats.json（响度学习数据）按 A 方案静默跳过不恢复：
+            // 会自动重新学习，不值得冒旧文件覆盖本机现场的风险
         } catch (throwable: Throwable) {
             preferenceSnapshot?.let(::restorePreferenceSnapshot)
             throw throwable
@@ -286,22 +283,56 @@ internal class BackupRestoreEngine(
         ).joinToString("|")
     }
 
+    /**
+     * 替换规则合并：同名分组并入设备已有分组（新分组追加）；组内同名规则视为同一条，
+     * 用备份覆盖（保留设备主键）；不同名追加为新规则。
+     */
     private fun mergeReplaceRules(groups: List<GroupWithReplaceRule>) {
         if (groups.isEmpty()) return
         val baseId = System.currentTimeMillis()
-        var groupOffset = 0L
-        var ruleOffset = 0L
-        val groupOrder = dbm.replaceRuleDao.allGroup.size
-        val rebuilt = groups.map { source ->
-            val groupId = baseId + groupOffset++
-            source.copy(
-                group = source.group.copy(id = groupId, order = groupOrder + groupOffset.toInt() - 1),
-                list = source.list.map { rule ->
-                    rule.copy(id = baseId + 100_000L + ruleOffset++, groupId = groupId)
-                },
-            )
+        var seq = 0L
+        val knownGroups = dbm.replaceRuleDao.allGroup.associateBy { it.name }.toMutableMap()
+        val usedGroupIds = dbm.replaceRuleDao.allGroup.map { it.id }.toMutableSet()
+        val usedRuleIds = dbm.replaceRuleDao.all.map { it.id }.toMutableSet()
+        var nextOrder = knownGroups.size
+
+        fun newId(): Long {
+            var candidate = baseId + seq
+            while (candidate in usedGroupIds || candidate in usedRuleIds) candidate++
+            seq++
+            return candidate
         }
-        dbm.replaceRuleDao.insertRuleWithGroup(*rebuilt.toTypedArray())
+
+        groups.forEach { source ->
+            val groupName = source.group.name
+            val existingGroup = knownGroups[groupName]
+            val groupId = existingGroup?.id ?: run {
+                val id = newId()
+                val group = source.group.copy(id = id, order = nextOrder++)
+                dbm.replaceRuleDao.insertGroup(group)
+                knownGroups[groupName] = group
+                usedGroupIds.add(id)
+                id
+            }
+
+            // 组内同名规则覆盖（备份内容为准，保留设备主键），不同名追加
+            val existingRules = dbm.replaceRuleDao.getListInGroup(groupId).toMutableList()
+            val toUpdate = mutableListOf<ReplaceRule>()
+            val toInsert = mutableListOf<ReplaceRule>()
+            source.list.forEach { rule ->
+                val twin = existingRules.firstOrNull { it.name == rule.name }
+                when {
+                    twin != null -> toUpdate.add(rule.copy(id = twin.id, groupId = groupId))
+                    else -> {
+                        val inserted = rule.copy(id = newId(), groupId = groupId)
+                        existingRules.add(inserted)
+                        toInsert.add(inserted)
+                    }
+                }
+            }
+            if (toUpdate.isNotEmpty()) dbm.replaceRuleDao.update(*toUpdate.toTypedArray())
+            if (toInsert.isNotEmpty()) dbm.replaceRuleDao.insert(*toInsert.toTypedArray())
+        }
     }
 
     /**
