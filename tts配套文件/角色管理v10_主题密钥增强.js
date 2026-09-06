@@ -6530,6 +6530,28 @@ var EditorJS = {
                             }
                             if (started) {
                                 _pvHandler.post(new java.lang.Runnable({ run: function () { _pvPlay(tag, tag, btn); } }));
+                                // 播放归 app 后 JS 无完成回调：轻量轮询 isTtsPreviewPlaying，
+                                // 播完(或失败结束)自动把按钮复位回 ▶，不再卡在红色 ■
+                                new java.lang.Thread(new java.lang.Runnable({
+                                    run: function () {
+                                        try {
+                                            var idle = 0;
+                                            while (_pvPlaying && _pvCurrentBtn === btn) {
+                                                var playing = false;
+                                                try { playing = ttsrv.isTtsPreviewPlaying(); } catch (eQ) { break; }
+                                                if (!playing) {
+                                                    // 短去抖：合成的短暂间隙不算结束
+                                                    idle++;
+                                                    if (idle >= 2) break;
+                                                } else idle = 0;
+                                                java.lang.Thread.sleep(300);
+                                            }
+                                            if (_pvCurrentBtn === btn) {
+                                                _pvHandler.post(new java.lang.Runnable({ run: function () { _pvStop(); } }));
+                                            }
+                                        } catch (eW) {}
+                                    }
+                                })).start();
                                 return;
                             }
                             // 桥接失败：区分"app版本过旧无此方法"与"未匹配到配置项"，提示可行动

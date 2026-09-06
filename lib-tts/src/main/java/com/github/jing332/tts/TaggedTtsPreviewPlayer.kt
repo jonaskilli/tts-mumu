@@ -124,4 +124,7 @@ object TaggedTtsPreviewPlayer {
             player = null
         }
     }
+
+    /** 播放会话是否仍存活(合成中或播放中)；供 JS 侧轮询以在播完后复位按钮。 */
+    fun isPlaying(): Boolean = synchronized(lock) { job?.isActive == true }
 }

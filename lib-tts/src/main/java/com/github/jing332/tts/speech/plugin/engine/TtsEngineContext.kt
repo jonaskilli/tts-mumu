@@ -67,6 +67,10 @@ data class TtsEngineContext(
         TaggedTtsPreviewPlayer.stop()
     }
 
+    /** 试听是否仍在进行(合成中或播放中)；JS 轮询以在播完后复位按钮。 */
+    @ScriptInterface
+    fun isTtsPreviewPlaying(): Boolean = TaggedTtsPreviewPlayer.isPlaying()
+
     /**
      * 通过标签(tag)查找当前已启用的TTS配置项的发音人显示名。
      *
