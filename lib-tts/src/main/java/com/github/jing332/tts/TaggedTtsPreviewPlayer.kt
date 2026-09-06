@@ -139,4 +139,28 @@ object TaggedTtsPreviewPlayer {
 
     /** 本次会话是否已真正出声(合成完毕进入播放)；供 JS 把按钮从…切到■,对齐v9时机。 */
     fun isAudible(): Boolean = synchronized(lock) { audible }
+
+    /**
+     * 阻塞等待到真正出声(供JS后台线程同步调用,v9式单线程模型)。
+     * 会话在出声前死亡(合成失败/被停止)→返回false;超时→返回当前状态。
+     */
+    fun awaitAudible(timeoutMs: Long): Boolean {
+        val start = System.currentTimeMillis()
+        while (System.currentTimeMillis() - start < timeoutMs) {
+            if (!isPlaying()) return isAudible()
+            if (isAudible()) return true
+            Thread.sleep(100)
+        }
+        return isAudible()
+    }
+
+    /** 阻塞等待会话结束(播完/失败/被停止)；超时返回false。 */
+    fun awaitDone(timeoutMs: Long): Boolean {
+        val start = System.currentTimeMillis()
+        while (isPlaying()) {
+            if (System.currentTimeMillis() - start >= timeoutMs) return false
+            Thread.sleep(100)
+        }
+        return true
+    }
 }

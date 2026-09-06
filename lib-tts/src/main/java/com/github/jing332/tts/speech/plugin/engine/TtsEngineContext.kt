@@ -75,6 +75,16 @@ data class TtsEngineContext(
     @ScriptInterface
     fun isTtsPreviewAudible(): Boolean = TaggedTtsPreviewPlayer.isAudible()
 
+    /** 阻塞等待出声(供JS后台线程同步调用)；出声前会话死亡返回false。 */
+    @ScriptInterface
+    fun awaitTtsPreviewAudible(timeoutMs: Long): Boolean =
+        TaggedTtsPreviewPlayer.awaitAudible(timeoutMs)
+
+    /** 阻塞等待试听结束(播完/失败/被停止)；超时返回false。 */
+    @ScriptInterface
+    fun awaitTtsPreviewDone(timeoutMs: Long): Boolean =
+        TaggedTtsPreviewPlayer.awaitDone(timeoutMs)
+
     /**
      * 通过标签(tag)查找当前已启用的TTS配置项的发音人显示名。
      *
