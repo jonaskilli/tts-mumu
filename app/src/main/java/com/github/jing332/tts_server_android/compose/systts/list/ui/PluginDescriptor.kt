@@ -39,19 +39,20 @@ class PluginDescriptor(
     }
 
     override val name: String = systemTts.displayName
+
+    // 卡片行2：voice id（限一行，超20字符截断防换行，用户定稿）。
+    // 参数行已挪入 bottom 小字槽（09-07 用户：观感须与「采样率自动识别」行一致，
+    // 勿放 desc 大字槽、勿加粗着色——desc 大字观感突兀）
     override val desc: String
+        get() = source.voice.limitLength(20, "…")
+
+    override val bottom: String
         get() {
-            val strFollow by lazy { context.getString(R.string.follow) }
-
-            // 卡片三行制：行2=voice id(限一行,超20字符截断防换行,用户定稿)，行3=参数，行4=格式(bottom)。
-            // 参数行按维度合并显示(用户定稿)：每个维度内按固定顺序(配→插→全)显示全部值，
-            // 用×连接、层标(配)/(插)/(全)后缀；全1.0时也显示一行作占位(防卡片排布跳变)；
-            // 音高维度加回(换行防放不下)
+            // 小字槽两行制：行1=参数行（按维度合并显示），行2=采样率/格式。
+            // 参数行规律(用户定稿)：每维度内固定顺序(配→插→全)，×连接，值=1.0 省略，
+            // ≠1.0 带 (配)/(插)/(全) 层标；三维全 1.0 时显示「无设置」占位（防排布跳变）。
+            // 格式布局参考混元原版模板（语速:x | 音量:x | 音高:x），纯文本无任何格式标记。
             val p = cfg.audioParams
-            val rateStr = if (p.speed == 0f) strFollow else p.speed.toScale(2)
-            val volumeStr = if (p.volume == 0f) strFollow else p.volume.toScale(2)
-            val pitchStr = if (p.pitch == 0f) strFollow else p.pitch.toScale(2)
-
             val pluginId = (cfg.source as? PluginTtsSource)?.pluginId
             val pluginParams = pluginId?.let {
                 synchronized(pluginParamsCache) {
@@ -68,12 +69,12 @@ class PluginDescriptor(
             val globalVolume = com.github.jing332.tts_server_android.conf.SysTtsConfig.audioParamsVolume
 
             fun dimensionText(configVal: Float, pluginVal: Float, globalVal: Float): String? {
-                // 全部=1.0时该维度不显示(由上层统一显示"无设置"占位)
+                // 该维度全部=1.0 时省略不显示
                 if (kotlin.math.abs(configVal - 1f) <= 0.005f &&
                     kotlin.math.abs(pluginVal - 1f) <= 0.005f &&
                     kotlin.math.abs(globalVal - 1f) <= 0.005f
                 ) return null
-                // 固定顺序(配→插→全)；值=1.0时省略不写，≠1.0时写"数值(层标)"后缀提示来源
+                // 固定顺序(配→插→全)；值=1.0 时省略不写，≠1.0 时写"数值(层标)"后缀提示来源
                 val layerConfig = context.getString(R.string.audio_params_tag_config)
                 val layerPlugin = context.getString(R.string.audio_params_tag_plugin)
                 val layerGlobal = context.getString(R.string.audio_params_tag_global)
@@ -88,23 +89,23 @@ class PluginDescriptor(
                 return parts.joinToString("×")
             }
 
-            val speedText = dimensionText(p.speed, pluginSpeed, globalSpeed) ?: strFollow
-            val volumeText = dimensionText(p.volume, pluginVolume, globalVolume) ?: strFollow
-            val pitchText = dimensionText(p.pitch, pluginPitch, 1f) ?: strFollow
+            val speedText = dimensionText(p.speed, pluginSpeed, globalSpeed)
+            val volumeText = dimensionText(p.volume, pluginVolume, globalVolume)
+            val pitchText = dimensionText(p.pitch, pluginPitch, 1f)
 
-            // 格式对齐混元原版（用户 09-07：参考原本改造）——systts_play_params_description
-            // 模板「语速:%1$s | 音量:%2$s | 音高:%3$s」，数值加粗、标签普通；
-            // 内容为三层合并值（含层标），未设置的维度显示「跟随」（原版语义）
-            return source.voice.limitLength(20, "…") + "<br>" + context.getString(
-                R.string.systts_play_params_description,
-                "<b>$speedText</b>",
-                "<b>$volumeText</b>",
-                "<b>$pitchText</b>",
-            )
+            val paramsLine = if (speedText == null && volumeText == null && pitchText == null) {
+                context.getString(R.string.audio_params_none)
+            } else {
+                listOfNotNull(
+                    speedText?.let { "语速: $it" },
+                    volumeText?.let { "音量: $it" },
+                    pitchText?.let { "音高: $it" },
+                ).joinToString(" | ")
+            }
+
+            return paramsLine + "<br>" + formatString(context, cfg.audioFormat)
         }
 
-    override val bottom: String
-        get() = formatString(context, cfg.audioFormat)
     override val type: String by lazy {
         if (pluginNames != null) {
             // 传了映射就完全不走 IO：映射来自插件表 Flow（含未启用插件），查不到即插件已删除
