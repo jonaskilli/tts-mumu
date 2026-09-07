@@ -1,7 +1,6 @@
 package com.github.jing332.tts_server_android.compose.systts.list.ui.widgets
 
 import android.widget.Toast
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -64,9 +63,7 @@ fun AudioParamsDialog(
     var volume by remember(systemTts.id) { mutableStateOf(config.audioParams.volume) }
     var pitch by remember(systemTts.id) { mutableStateOf(config.audioParams.pitch) }
 
-    // 远端层展开态与草稿（用户 09-07 定稿：默认展开不折叠，仅保留收起按钮）
-    var pluginExpanded by remember { mutableStateOf(true) }
-    var globalExpanded by remember { mutableStateOf(true) }
+    // 远端层草稿（用户 09-07 定稿：默认展开且常驻，无收起键）
     var pluginSpeed by remember { mutableStateOf(plugin?.audioParams?.speed ?: 1f) }
     var pluginVolume by remember { mutableStateOf(plugin?.audioParams?.volume ?: 1f) }
     var globalSpeed by remember { mutableStateOf(SysTtsConfig.audioParamsSpeed) }
@@ -157,13 +154,9 @@ fun AudioParamsDialog(
 
                 HorizontalDivider(Modifier.padding(vertical = 4.dp))
 
-                // ===== 插件音频参数（折叠）=====
+                // ===== 插件音频参数（常驻展开，无收起键）=====
                 if (source != null) {
-                    CollapsibleSection(
-                        title = stringResource(R.string.audio_params_plugin_layer),
-                        expanded = pluginExpanded,
-                        onToggle = { pluginExpanded = !pluginExpanded },
-                    ) {
+                    SectionTitle(stringResource(R.string.audio_params_plugin_layer))
                         LabelSlider(
                             modifier = Modifier.fillMaxWidth(),
                             text = stringResource(R.string.label_speech_rate, "%.2f".format(pluginSpeed)),
@@ -206,49 +199,43 @@ fun AudioParamsDialog(
                                 }
                             },
                         )
-                    }
                 }
 
                 HorizontalDivider(Modifier.padding(vertical = 4.dp))
 
-                // ===== 全局音频参数（折叠）=====
-                CollapsibleSection(
-                    title = stringResource(R.string.audio_params_global_layer),
-                    expanded = globalExpanded,
-                    onToggle = { globalExpanded = !globalExpanded },
-                ) {
-                    LabelSlider(
-                        modifier = Modifier.fillMaxWidth(),
-                        text = stringResource(R.string.label_speech_rate, "%.2f".format(globalSpeed)),
-                        value = globalSpeed,
-                        onValueChange = { globalSpeed = snap(it) },
-                        valueRange = 0.1f..3f,
-                        step = 0.05f,
-                    )
-                    LabelSlider(
-                        modifier = Modifier.fillMaxWidth(),
-                        text = stringResource(R.string.label_speech_volume, "%.2f".format(globalVolume)),
-                        value = globalVolume,
-                        onValueChange = { globalVolume = snap(it) },
-                        valueRange = 0.1f..3f,
-                        step = 0.05f,
-                    )
-                    Row2Buttons(
-                        onReset = { globalSpeed = 1f; globalVolume = 1f },
-                        onApply = {
-                            scope.launch {
-                                SysTtsConfig.audioParamsSpeed = snap(globalSpeed)
-                                SysTtsConfig.audioParamsVolume = snap(globalVolume)
-                                SystemTtsService.notifyUpdateConfig()
-                                Toast.makeText(
-                                    context,
-                                    context.getString(R.string.audio_params_apply_global_toast),
-                                    Toast.LENGTH_SHORT,
-                                ).show()
-                            }
-                        },
-                    )
-                }
+                // ===== 全局音频参数（常驻展开，无收起键）=====
+                SectionTitle(stringResource(R.string.audio_params_global_layer))
+                LabelSlider(
+                    modifier = Modifier.fillMaxWidth(),
+                    text = stringResource(R.string.label_speech_rate, "%.2f".format(globalSpeed)),
+                    value = globalSpeed,
+                    onValueChange = { globalSpeed = snap(it) },
+                    valueRange = 0.1f..3f,
+                    step = 0.05f,
+                )
+                LabelSlider(
+                    modifier = Modifier.fillMaxWidth(),
+                    text = stringResource(R.string.label_speech_volume, "%.2f".format(globalVolume)),
+                    value = globalVolume,
+                    onValueChange = { globalVolume = snap(it) },
+                    valueRange = 0.1f..3f,
+                    step = 0.05f,
+                )
+                Row2Buttons(
+                    onReset = { globalSpeed = 1f; globalVolume = 1f },
+                    onApply = {
+                        scope.launch {
+                            SysTtsConfig.audioParamsSpeed = snap(globalSpeed)
+                            SysTtsConfig.audioParamsVolume = snap(globalVolume)
+                            SystemTtsService.notifyUpdateConfig()
+                            Toast.makeText(
+                                context,
+                                context.getString(R.string.audio_params_apply_global_toast),
+                                Toast.LENGTH_SHORT,
+                            ).show()
+                        }
+                    },
+                )
             }
         },
         buttons = {
@@ -289,34 +276,6 @@ private fun SectionTitle(text: String) {
         style = MaterialTheme.typography.titleSmall,
         modifier = Modifier.padding(bottom = 4.dp),
     )
-}
-
-@Composable
-private fun CollapsibleSection(
-    title: String,
-    expanded: Boolean,
-    onToggle: () -> Unit,
-    content: @Composable () -> Unit,
-) {
-    // 整行可点 + 标题 weight(1f)：标题过长时不再把右侧「展开」挤出可视区
-    // （用户 09-07 反馈：弹窗内两块折叠区看不到展开入口）
-    Row(
-        Modifier
-            .fillMaxWidth()
-            .clickable(onClick = onToggle),
-        horizontalArrangement = androidx.compose.foundation.layout.Arrangement.SpaceBetween,
-        verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
-    ) {
-        Text(
-            title,
-            style = MaterialTheme.typography.titleSmall,
-            modifier = Modifier.weight(1f, fill = false),
-        )
-        TextButton(onClick = onToggle) {
-            Text(stringResource(if (expanded) R.string.collapse else R.string.expand))
-        }
-    }
-    if (expanded) content()
 }
 
 @Composable
