@@ -200,7 +200,7 @@ fun LogQuickPanel(
                 val p = resolved?.configuration?.audioParams
                 if (p != null) {
                     Text(
-                        text = "最终：语速%.2fx 音量%.2fx".format(p.speed, p.volume),
+                        text = "最终：语速%.2fx，音量%.2fx".format(p.speed, p.volume),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.padding(top = 6.dp),
