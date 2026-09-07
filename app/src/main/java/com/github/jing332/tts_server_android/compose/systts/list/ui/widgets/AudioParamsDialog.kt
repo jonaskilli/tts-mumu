@@ -1,6 +1,7 @@
 package com.github.jing332.tts_server_android.compose.systts.list.ui.widgets
 
 import android.widget.Toast
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -114,15 +115,10 @@ fun AudioParamsDialog(
                     valueRange = 0.1f..3f,
                     step = 0.05f,
                 )
-                TextButton(
-                    modifier = Modifier.align(androidx.compose.ui.Alignment.End),
-                    onClick = { speed = 1f; volume = 1f; pitch = 1f },
-                ) {
-                    Text(stringResource(R.string.reset))
-                }
-                TextButton(
-                    modifier = Modifier.align(androidx.compose.ui.Alignment.End),
-                    onClick = {
+                // 重置/应用同一行（用户 09-07 反馈：分行太散），与插件/全局层 Row2Buttons 同款
+                Row2Buttons(
+                    onReset = { speed = 1f; volume = 1f; pitch = 1f },
+                    onApply = {
                         // 双写：落库 + 回写页面内存，防"应用后再保存"被旧内存覆盖
                         scope.launch {
                             withIO {
@@ -150,9 +146,7 @@ fun AudioParamsDialog(
                             ).show()
                         }
                     },
-                ) {
-                    Text(stringResource(R.string.audio_params_apply))
-                }
+                )
 
                 HorizontalDivider(Modifier.padding(vertical = 6.dp))
 
@@ -297,12 +291,20 @@ private fun CollapsibleSection(
     onToggle: () -> Unit,
     content: @Composable () -> Unit,
 ) {
+    // 整行可点 + 标题 weight(1f)：标题过长时不再把右侧「展开」挤出可视区
+    // （用户 09-07 反馈：弹窗内两块折叠区看不到展开入口）
     Row(
-        Modifier.fillMaxWidth(),
+        Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onToggle),
         horizontalArrangement = androidx.compose.foundation.layout.Arrangement.SpaceBetween,
         verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
     ) {
-        Text(title, style = MaterialTheme.typography.titleSmall)
+        Text(
+            title,
+            style = MaterialTheme.typography.titleSmall,
+            modifier = Modifier.weight(1f, fill = false),
+        )
         TextButton(onClick = onToggle) {
             Text(stringResource(if (expanded) R.string.collapse else R.string.expand))
         }
