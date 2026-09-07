@@ -316,5 +316,4 @@ private fun Row2Buttons(onReset: () -> Unit, onApply: () -> Unit) {
         TextButton(onClick = onApply) { Text(stringResource(R.string.audio_params_apply)) }
     }
 }
-
-internal fun snap(v: Float): Float = (kotlin.math.round(v * 100f) / 100f)
+// snap() 复用同包 RemoteAudioParamsSection.kt 的顶层定义（勿在本文件重复定义，同包重名会重载歧义）
