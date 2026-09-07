@@ -201,7 +201,7 @@ fun LogQuickPanel(
                 val finalSpeed = if (handlesSpeed) speed else speed * pluginSpeed * globalSpeed
                 val finalVolume = if (handlesVolume) volume else volume * pluginVolume * globalVolume
                 val finalPitch = if (handlesPitch) config.audioParams.pitch
-                else config.audioParams.pitch * (pluginParams?.pitch ?: 1f) *
+                else config.audioParams.pitch * (plugin?.audioParams?.pitch ?: 1f) *
                     com.github.jing332.tts_server_android.conf.SysTtsConfig.audioParamsPitch
                 val finalDims = buildList {
                     if (kotlin.math.abs(finalSpeed - 1f) > 0.005f) add("语速%.2fx".format(finalSpeed))
