@@ -403,12 +403,12 @@
     <string name="systts_log_text_handle_failed">文本处理失败: %1$s</string>
     <string name="audio_params">音频参数</string>
     <string name="audio_params_config_item">配置项音频参数</string>
-    <string name="audio_params_config_layer">配置项音频参数（仅本条）</string>
+    <string name="audio_params_config_layer">配置项音频参数（仅影响本条）</string>
     <string name="audio_params_plugin_layer">插件音频参数（影响该插件全部配置项）</string>
     <string name="audio_params_global_layer">全局音频参数（影响全部配置项·谨慎）</string>
     <string name="audio_params_final">最终：语速%1$.2fx，音量%2$.2fx，音高%3$.2fx</string>
     <string name="audio_params_card_hint">点击调整：配置项 / 插件 / 全局 三处音频参数</string>
-    <string name="audio_params_none">语速、音量、音高无设置</string>
+    <string name="audio_params_none">语速、音量、音高未设置</string>
     <string name="audio_params_tag_config">配置</string>
     <string name="audio_params_tag_plugin">插件</string>
     <string name="audio_params_tag_global">全局</string>
