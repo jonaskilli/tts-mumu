@@ -103,9 +103,8 @@ class PluginDescriptor(
                 ).joinToString(" | ")
             }
 
-            // 样式恢复旧版（用户 09-07 反馈：span 颜色走 HTML 渲染链路异常发蓝）——
-            // 与旧行一致用 <b> 加粗、默认字色字号，仅内容格式为新的三维合并行
-            return source.voice.limitLength(20, "…") + "<br><b>$paramsLine</b>"
+            // 纯文本无特殊格式（用户 09-07：与「采样率自动识别」等行观感一致，不加粗不加色）
+            return source.voice.limitLength(20, "…") + "<br>$paramsLine"
         }
 
     override val bottom: String
