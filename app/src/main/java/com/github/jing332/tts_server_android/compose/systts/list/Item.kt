@@ -86,6 +86,8 @@ internal fun Item(
     onExport: () -> Unit,
     onMoveToSubGroup: () -> Unit = {},
     onSwitchTag: () -> Unit = {},
+    // 音频参数：卡片⋮菜单直达三层弹窗（配置项/插件/全局），不进编辑页（用户要求就地触发）
+    onAudioParams: () -> Unit = {},
     isInSubGroup: Boolean = false,
 ) {
     val view = LocalView.current
@@ -297,6 +299,17 @@ internal fun Item(
                             },
                             leadingIcon = {
                                 Icon(Icons.Default.Output, stringResource(R.string.export_config))
+                            }
+                        )
+                        // 音频参数：直达三层弹窗（配置项/插件/全局），不进编辑页
+                        DropdownMenuItem(
+                            text = { Text(stringResource(id = R.string.audio_params)) },
+                            onClick = {
+                                showOptions = false
+                                onAudioParams()
+                            },
+                            leadingIcon = {
+                                Icon(Icons.Default.Speed, stringResource(R.string.audio_params))
                             }
                         )
                         DropdownMenuItem(

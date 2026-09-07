@@ -464,6 +464,16 @@ internal fun ListManagerScreen(
     }
 
     var showQuickEdit by remember { mutableStateOf<SystemTtsV2?>(null) }
+    // 卡片⋮菜单「音频参数」直达三层弹窗（配置项/插件/全局）
+    var showAudioParams by remember { mutableStateOf<SystemTtsV2?>(null) }
+    showAudioParams?.let { item ->
+        com.github.jing332.tts_server_android.compose.systts.list.ui.widgets.AudioParamsDialog(
+            onDismissRequest = { showAudioParams = null },
+            systemTts = item,
+            // 应用已在弹窗内落库并通知服务，无需额外回调
+            onSysttsChange = {},
+        )
+    }
     if (showQuickEdit != null) {
         QuickEditBottomSheet(onDismissRequest = {
             val toSave = showQuickEdit
@@ -3128,6 +3138,9 @@ internal fun ListManagerScreen(
                                         },
                                         onSwitchTag = {
                                             showTagSwitch = item
+                                        },
+                                        onAudioParams = {
+                                            showAudioParams = item
                                         }
                                     )
                                 }
@@ -3343,6 +3356,9 @@ internal fun ListManagerScreen(
                                                     },
                                                     onSwitchTag = {
                                                         showTagSwitch = item
+                                                    },
+                                                    onAudioParams = {
+                                                        showAudioParams = item
                                                     }
                                                 )
                                             }
