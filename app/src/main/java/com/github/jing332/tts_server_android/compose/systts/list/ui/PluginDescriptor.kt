@@ -88,23 +88,19 @@ class PluginDescriptor(
                 return parts.joinToString("×")
             }
 
-            val speedText = dimensionText(p.speed, pluginSpeed, globalSpeed)
-            val volumeText = dimensionText(p.volume, pluginVolume, globalVolume)
-            val pitchText = dimensionText(p.pitch, pluginPitch, 1f)
+            val speedText = dimensionText(p.speed, pluginSpeed, globalSpeed) ?: strFollow
+            val volumeText = dimensionText(p.volume, pluginVolume, globalVolume) ?: strFollow
+            val pitchText = dimensionText(p.pitch, pluginPitch, 1f) ?: strFollow
 
-            // 全默认时显示一行浅灰占位(用户定稿：防卡片排布跳变)；有设置时显示三维数值
-            val paramsLine = if (speedText == null && volumeText == null && pitchText == null) {
-                context.getString(R.string.audio_params_none)
-            } else {
-                listOfNotNull(
-                    speedText?.let { "语速: $it" },
-                    volumeText?.let { "音量: $it" },
-                    pitchText?.let { "音高: $it" },
-                ).joinToString(" | ")
-            }
-
-            // 纯文本无特殊格式（用户 09-07：与「采样率自动识别」等行观感一致，不加粗不加色）
-            return source.voice.limitLength(20, "…") + "<br>$paramsLine"
+            // 格式对齐混元原版（用户 09-07：参考原本改造）——systts_play_params_description
+            // 模板「语速:%1$s | 音量:%2$s | 音高:%3$s」，数值加粗、标签普通；
+            // 内容为三层合并值（含层标），未设置的维度显示「跟随」（原版语义）
+            return source.voice.limitLength(20, "…") + "<br>" + context.getString(
+                R.string.systts_play_params_description,
+                "<b>$speedText</b>",
+                "<b>$volumeText</b>",
+                "<b>$pitchText</b>",
+            )
         }
 
     override val bottom: String
