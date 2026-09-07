@@ -156,13 +156,22 @@ fun LogQuickPanel(
         text = {
             Column(Modifier.fillMaxWidth()) {
                 // ===== 换发音人（最上方，无标题字）=====
+                // 分类 = 配置项所用朗读规则声明的标签表（speech_rules.tags），
+                // 默认选中该配置项当前使用的标签（speechRule.tagName）——不点分类即在原分类里选
+                val ruleTagNames = remember(entity.id) {
+                    val ruleId = config.speechRule.tagRuleId
+                    dbm.speechRuleDao.getAllWithoutCode()
+                        .firstOrNull { it.ruleId == ruleId }?.tags?.keys?.toList() ?: emptyList()
+                }
                 if (source != null && voices.isNotEmpty()) {
-                    // 分类 chips（照搬角色管理 12 预设 + 全部；横向滚动，单选，再点取消过滤）
-                    var selectedCategory by remember { mutableStateOf<String?>(null) }
-                    val categories = listOf(
-                        "少女", "少年", "女青年", "男青年", "女中年", "男中年",
-                        "女老年", "男老年", "女童", "男童", "女主", "男主",
-                    )
+                    var selectedCategory by remember(entity.id) {
+                        mutableStateOf(
+                            config.speechRule.tagName.takeIf { t ->
+                                t.isNotBlank() && ruleTagNames.contains(t)
+                            }
+                        )
+                    }
+                    val categories = ruleTagNames
                     Row(
                         Modifier
                             .fillMaxWidth()
