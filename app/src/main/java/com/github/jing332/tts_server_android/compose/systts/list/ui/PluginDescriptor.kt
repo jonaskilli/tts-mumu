@@ -40,18 +40,12 @@ class PluginDescriptor(
 
     override val name: String = systemTts.displayName
 
-    // 卡片行2：voice id（限一行，超20字符截断防换行，用户定稿）。
-    // 参数行已挪入 bottom 小字槽（09-07 用户：观感须与「采样率自动识别」行一致，
-    // 勿放 desc 大字槽、勿加粗着色——desc 大字观感突兀）
+    // 卡片行2：voice id（限一行，超20字符截断防换行，用户定稿）；行3=参数行（bodyMedium 同字号）。
+    // 参数行规律(用户定稿 09-07 晚)：维度内固定顺序(配置→插件→全局)，×连接，值=1.0 省略，
+    // ≠1.0 带 (配置)/(插件)/(全局) 层标；三维全 1.0 时显示「无设置」占位行。
+    // 纯文本无任何格式标记（无加粗无着色，用户 09-07：数值也不加粗）
     override val desc: String
-        get() = source.voice.limitLength(20, "…")
-
-    override val bottom: String
         get() {
-            // 小字槽两行制：行1=参数行（按维度合并显示），行2=采样率/格式。
-            // 参数行规律(用户定稿)：每维度内固定顺序(配→插→全)，×连接，值=1.0 省略，
-            // ≠1.0 带 (配)/(插)/(全) 层标；三维全 1.0 时显示「无设置」占位（防排布跳变）。
-            // 格式布局参考混元原版模板（语速:x | 音量:x | 音高:x），纯文本无任何格式标记。
             val p = cfg.audioParams
             val pluginId = (cfg.source as? PluginTtsSource)?.pluginId
             val pluginParams = pluginId?.let {
@@ -74,7 +68,6 @@ class PluginDescriptor(
                     kotlin.math.abs(pluginVal - 1f) <= 0.005f &&
                     kotlin.math.abs(globalVal - 1f) <= 0.005f
                 ) return null
-                // 固定顺序(配→插→全)；值=1.0 时省略不写，≠1.0 时写"数值(层标)"后缀提示来源
                 val layerConfig = context.getString(R.string.audio_params_tag_config)
                 val layerPlugin = context.getString(R.string.audio_params_tag_plugin)
                 val layerGlobal = context.getString(R.string.audio_params_tag_global)
@@ -103,8 +96,11 @@ class PluginDescriptor(
                 ).joinToString(" | ")
             }
 
-            return paramsLine + "<br>" + formatString(context, cfg.audioFormat)
+            return source.voice.limitLength(20, "…") + "<br>$paramsLine"
         }
+
+    override val bottom: String
+        get() = formatString(context, cfg.audioFormat)
 
     override val type: String by lazy {
         if (pluginNames != null) {

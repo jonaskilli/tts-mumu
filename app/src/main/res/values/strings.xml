@@ -409,9 +409,9 @@
     <string name="audio_params_final">最终：语速%1$.2fx，音量%2$.2fx，音高%3$.2fx</string>
     <string name="audio_params_card_hint">点击调整：配置项 / 插件 / 全局 三处音频参数</string>
     <string name="audio_params_none">语速、音量、音高无设置</string>
-    <string name="audio_params_tag_config">配</string>
-    <string name="audio_params_tag_plugin">插</string>
-    <string name="audio_params_tag_global">全</string>
+    <string name="audio_params_tag_config">配置</string>
+    <string name="audio_params_tag_plugin">插件</string>
+    <string name="audio_params_tag_global">全局</string>
     <string name="audio_params_plugin_speed">插件语速%1$s</string>
     <string name="audio_params_plugin_volume">插件音量%1$s</string>
     <string name="audio_params_global_speed">全局语速%1$s</string>
