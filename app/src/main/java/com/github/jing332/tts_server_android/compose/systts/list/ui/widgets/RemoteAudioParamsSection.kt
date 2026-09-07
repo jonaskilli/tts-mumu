@@ -122,6 +122,9 @@ private fun PluginLayerSliders(pluginId: String?, onApplied: (() -> Unit)?) {
                     audioParams = plugin.audioParams.copy(speed = snap(speed), volume = snap(volume))
                 )
                 dbm.pluginDao.update(updated)
+                // 卡片"插件语速/音量"显示走 PluginDescriptor.pluginParamsCache，应用后失效重查
+                com.github.jing332.tts_server_android.compose.systts.list.ui.PluginDescriptor
+                    .invalidatePluginParamsCache(plugin.pluginId)
                 SystemTtsService.notifyUpdateConfig()
                 android.widget.Toast.makeText(
                     com.github.jing332.tts_server_android.app,

@@ -275,6 +275,9 @@ fun PluginManagerScreen(sharedVM: SharedViewModel, onFinishActivity: () -> Unit)
                 dbm.pluginDao.update(
                     plugin.copy(audioParams = newParams)
                 )
+                // 卡片"插件语速/音量"显示缓存失效（PluginDescriptor）
+                com.github.jing332.tts_server_android.compose.systts.list.ui.PluginDescriptor
+                    .invalidatePluginParamsCache(plugin.pluginId)
                 // 通知服务更新配置，使插件音频参数立即生效
                 SystemTtsService.notifyUpdateConfig()
                 showAudioParamsDialog = null

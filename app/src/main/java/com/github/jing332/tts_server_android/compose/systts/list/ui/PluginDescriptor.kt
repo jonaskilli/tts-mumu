@@ -4,6 +4,7 @@ import android.content.Context
 import com.github.jing332.common.utils.StringUtils.limitLength
 import com.github.jing332.common.utils.toScale
 import com.github.jing332.database.dbm
+import com.github.jing332.database.entities.systts.AudioParams
 import com.github.jing332.database.entities.systts.SystemTtsV2
 import com.github.jing332.database.entities.systts.TtsConfigurationDTO
 import com.github.jing332.database.entities.systts.source.PluginTtsSource
@@ -23,6 +24,18 @@ class PluginDescriptor(
         // 插件名缓存：数千配置项的列表滚动/展开时每张卡片组合期同步查库会拖慢主线程。
         // 只缓存命中名（未启用的插件不缓存，恢复启用后可及时显示）；插件改名后重启刷新，列表卡片场景可接受
         private val nameCache = HashMap<String, String>()
+
+        // 插件层音频参数缓存（同 nameCache 策略）：卡片显示"插件语速2.5"等层值用；
+        // 插件参数被编辑后由调用方 invalidate 清空重查
+        private val pluginParamsCache = HashMap<String, AudioParams>()
+
+        /** 插件音频参数变化后调用（插件参数应用/插件更新），下次卡片重组重新查库 */
+        fun invalidatePluginParamsCache(pluginId: String? = null) {
+            synchronized(pluginParamsCache) {
+                if (pluginId == null) pluginParamsCache.clear()
+                else pluginParamsCache.remove(pluginId)
+            }
+        }
     }
 
     override val name: String = systemTts.displayName
@@ -37,12 +50,33 @@ class PluginDescriptor(
             val pitchStr = if (p.pitch == 0f) strFollow else p.pitch.toScale(2)
             val volumeStr = if (p.volume == 0f) strFollow else p.volume.toScale(2)
 
+            // 三层透明度(用户定稿)：插件/全局层 ≠1.0 时才追加，带来源标注；全默认时与旧显示完全一致。
+            // 插件层同步查库一次——与 nameCache 同款缓存兜底，避免滚动逐卡查库
+            val extra = buildList {
+                val pluginId = (cfg.source as? PluginTtsSource)?.pluginId
+                if (pluginId != null) {
+                    val pluginParams = synchronized(pluginParamsCache) {
+                        pluginParamsCache.getOrPut(pluginId) {
+                            dbm.pluginDao.getByPluginId(pluginId)?.audioParams ?: AudioParams()
+                        }
+                    }
+                    if (kotlin.math.abs(pluginParams.speed - 1f) > 0.005f)
+                        add(context.getString(R.string.audio_params_plugin_speed, pluginParams.speed.toScale(2)))
+                    if (kotlin.math.abs(pluginParams.volume - 1f) > 0.005f)
+                        add(context.getString(R.string.audio_params_plugin_volume, pluginParams.volume.toScale(2)))
+                }
+                if (kotlin.math.abs(com.github.jing332.tts_server_android.conf.SysTtsConfig.audioParamsSpeed - 1f) > 0.005f)
+                    add(context.getString(R.string.audio_params_global_speed, com.github.jing332.tts_server_android.conf.SysTtsConfig.audioParamsSpeed.toScale(2)))
+                if (kotlin.math.abs(com.github.jing332.tts_server_android.conf.SysTtsConfig.audioParamsVolume - 1f) > 0.005f)
+                    add(context.getString(R.string.audio_params_global_volume, com.github.jing332.tts_server_android.conf.SysTtsConfig.audioParamsVolume.toScale(2)))
+            }
+
             return source.voice.limitLength(20, "…") + "<br>" + context.getString(
                 R.string.systts_play_params_description,
                 "<b>${rateStr}</b>",
                 "<b>${volumeStr}</b>",
                 "<b>${pitchStr}</b>"
-            )
+            ) + if (extra.isNotEmpty()) " | " + extra.joinToString(" | ") else ""
         }
 
     override val bottom: String

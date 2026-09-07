@@ -192,6 +192,9 @@ fun AudioParamsDialog(
                                                 )
                                             )
                                         )
+                                        // 卡片"插件语速/音量"显示缓存失效，应用后重查
+                                        com.github.jing332.tts_server_android.compose.systts.list.ui.PluginDescriptor
+                                            .invalidatePluginParamsCache(p.pluginId)
                                         SystemTtsService.notifyUpdateConfig()
                                     }
                                     Toast.makeText(
