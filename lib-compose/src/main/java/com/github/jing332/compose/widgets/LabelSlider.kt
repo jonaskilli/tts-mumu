@@ -8,6 +8,8 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Remove
@@ -79,24 +81,121 @@ fun LabelSlider(
 
     text: String,
 ) {
-    LabelSlider(
-        modifier = modifier,
-        enabled = enabled,
-        value = value,
-        onValueChange = onValueChange,
-        valueRange = valueRange,
-        steps = steps,
-        onValueChangeFinished = onValueChangeFinished,
-        showButton = showButton,
-        buttonSteps = buttonSteps,
-        buttonLongSteps = buttonLongSteps,
-        step = step,
-        valueChange = valueChange,
-        onValueRemove = onValueRemove,
-        onValueAdd = onValueAdd,
-        a11yDescription = text,
+    // 单行式布局（09-07 用户定稿，参考 JRead 图2）：左列竖排[标签/数值]小字，
+    // 右侧 −/滑杆/＋ 同行。text 按首个全角/半角冒号拆分为「标签」「数值」两部分，
+    // 无冒号则整串作为标签。保留：长按 −/＋ 快调、step 吸附、无障碍进度语义。
+    val updatedValue = rememberUpdatedState(value)
+    val view = LocalView.current
+    val sliderSteps =
+        if (step > 0f) max(0, ((valueRange.endInclusive - valueRange.start) / step).toInt())
+        else steps
+    var first by remember { mutableStateOf(true) }
+    LaunchedEffect(value) {
+        if (first) {
+            first = false
+            return@LaunchedEffect
+        }
+
+        view.announceForAccessibility(a11yDescription)
+    }
+
+    val sepIdx = remember(text) { text.indexOfFirst { it == '：' || it == ':' } }
+    val labelPart = if (sepIdx > 0) text.substring(0, sepIdx) else text
+    val valuePart = if (sepIdx > 0) text.substring(sepIdx + 1).trim() else ""
+
+    Row(
+        modifier,
+        verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
     ) {
-        Text(text = text, modifier = Modifier.semantics { invisibleToUser() })
+        Column(Modifier.padding(end = 8.dp)) {
+            Text(
+                text = labelPart,
+                style = MaterialTheme.typography.bodySmall,
+                maxLines = 1,
+            )
+            if (valuePart.isNotEmpty())
+                Text(
+                    text = valuePart,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                )
+        }
+
+        if (showButton)
+            LongClickIconButton(
+                modifier = Modifier
+                    .semantics {
+                        contentDescription = a11yDescription
+                    },
+                enabled = value > valueRange.start,
+                onClick = { onValueRemove(false) },
+                onLongClick = { onValueRemove(true) }
+            ) {
+                Icon(Icons.Default.Remove, stringResource(id = R.string.desc_seekbar_remove))
+            }
+
+        Box(
+            Modifier
+                .weight(1f)
+                .clearAndSetSemantics {
+                    focused = true
+                    if (!enabled) disabled()
+
+                    stateDescription = a11yDescription
+                    contentDescription = a11yDescription
+
+                    progressBarRangeInfo = ProgressBarRangeInfo(value, valueRange, sliderSteps)
+                    setProgress {
+                        onValueChange(it)
+                        true
+                    }
+                },
+        ) {
+            Slider(
+                modifier = Modifier.fillMaxWidth(),
+                value = value,
+                onValueChange = {
+                    val snapped = if (step > 0f) {
+                        val stepsCount = ((it - valueRange.start) / step).roundToInt()
+                        (valueRange.start + stepsCount * step).coerceIn(
+                            valueRange.start,
+                            valueRange.endInclusive
+                        )
+                    } else it
+                    onValueChange(snapped)
+
+                    if (snapped == valueRange.start || snapped == valueRange.endInclusive)
+                        view.performLongPress()
+                },
+                enabled = enabled,
+                valueRange = valueRange,
+                steps = 0,
+                onValueChangeFinished = onValueChangeFinished,
+                thumb = {
+                    SliderDefaults.Thumb(
+                        interactionSource = remember { MutableInteractionSource() },
+                        colors = SliderDefaults.colors(),
+                        enabled = enabled,
+                        thumbSize = DpSize(4.dp, 24.dp)
+                    )
+                }
+            )
+        }
+
+        if (showButton) {
+            LongClickIconButton(
+                modifier = Modifier
+                    .semantics {
+                        contentDescription = a11yDescription
+                    },
+                enabled = value < valueRange.endInclusive,
+                onClick = { onValueAdd(false) },
+                onLongClick = { onValueAdd(true) }
+            ) {
+                Icon(Icons.Default.Add, stringResource(id = R.string.desc_seekbar_add))
+            }
+        }
     }
 }
 
