@@ -1,3 +1,4 @@
+@file:OptIn(ExperimentalMaterial3Api::class)
 package com.github.jing332.compose.widgets
 
 import androidx.compose.foundation.ExperimentalFoundationApi
@@ -13,6 +14,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Remove
+import androidx.compose.foundation.layout.size
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Slider
@@ -79,6 +81,7 @@ fun LabelSlider(
         valueChange(value + if (it) buttonLongSteps else buttonSteps)
     },
 
+    a11yDescription: String = "",
     text: String,
 ) {
     // 单行式布局（09-07 用户定稿，参考 JRead 图2）：左列竖排[标签/数值]小字，
@@ -125,6 +128,7 @@ fun LabelSlider(
         if (showButton)
             LongClickIconButton(
                 modifier = Modifier
+                    .size(32.dp)
                     .semantics {
                         contentDescription = a11yDescription
                     },
@@ -132,7 +136,11 @@ fun LabelSlider(
                 onClick = { onValueRemove(false) },
                 onLongClick = { onValueRemove(true) }
             ) {
-                Icon(Icons.Default.Remove, stringResource(id = R.string.desc_seekbar_remove))
+                Icon(
+                        Icons.Default.Remove,
+                        stringResource(id = R.string.desc_seekbar_remove),
+                        modifier = Modifier.size(18.dp),
+                    )
             }
 
         Box(
@@ -186,6 +194,7 @@ fun LabelSlider(
         if (showButton) {
             LongClickIconButton(
                 modifier = Modifier
+                    .size(32.dp)
                     .semantics {
                         contentDescription = a11yDescription
                     },
@@ -193,7 +202,11 @@ fun LabelSlider(
                 onClick = { onValueAdd(false) },
                 onLongClick = { onValueAdd(true) }
             ) {
-                Icon(Icons.Default.Add, stringResource(id = R.string.desc_seekbar_add))
+                Icon(
+                        Icons.Default.Add,
+                        stringResource(id = R.string.desc_seekbar_add),
+                        modifier = Modifier.size(18.dp),
+                    )
             }
         }
     }
@@ -252,6 +265,7 @@ fun LabelSlider(
             if (showButton)
                 LongClickIconButton(
                     modifier = Modifier
+                    .size(32.dp)
                         .semantics {
                             contentDescription = a11yDescription
                         },
@@ -259,7 +273,11 @@ fun LabelSlider(
                     onClick = { onValueRemove(false) },
                     onLongClick = { onValueRemove(true) }
                 ) {
-                    Icon(Icons.Default.Remove, stringResource(id = R.string.desc_seekbar_remove))
+                    Icon(
+                        Icons.Default.Remove,
+                        stringResource(id = R.string.desc_seekbar_remove),
+                        modifier = Modifier.size(18.dp),
+                    )
                 }
 
             Column(
@@ -287,6 +305,7 @@ fun LabelSlider(
                 }
                 Slider(
                     modifier = Modifier
+                    .size(32.dp)
                         .padding(horizontal = 8.dp)
                         .semantics { invisibleToUser() },
                     value = value,
@@ -321,6 +340,7 @@ fun LabelSlider(
             if (showButton) {
                 LongClickIconButton(
                     modifier = Modifier
+                    .size(32.dp)
                         .semantics {
                             contentDescription = a11yDescription
                         },
@@ -328,7 +348,11 @@ fun LabelSlider(
                     onClick = { onValueAdd(false) },
                     onLongClick = { onValueAdd(true) }
                 ) {
-                    Icon(Icons.Default.Add, stringResource(id = R.string.desc_seekbar_add))
+                    Icon(
+                        Icons.Default.Add,
+                        stringResource(id = R.string.desc_seekbar_add),
+                        modifier = Modifier.size(18.dp),
+                    )
                 }
             }
         }
