@@ -69,6 +69,11 @@ fun AudioParamsDialog(
     var globalSpeed by remember { mutableStateOf(SysTtsConfig.audioParamsSpeed) }
     var globalVolume by remember { mutableStateOf(SysTtsConfig.audioParamsVolume) }
 
+    // 未保存标记：滑杆改动后置 true，「应用」成功清除（● 提示哪块有待保存）
+    var configDirty by remember(systemTts.id) { mutableStateOf(false) }
+    var pluginDirty by remember(systemTts.id) { mutableStateOf(false) }
+    var globalDirty by remember(systemTts.id) { mutableStateOf(false) }
+
     AppDialog(
         onDismissRequest = onDismissRequest,
         title = { Text(stringResource(R.string.audio_params)) },
@@ -109,7 +114,7 @@ fun AudioParamsDialog(
                     modifier = Modifier.fillMaxWidth(),
                     text = stringResource(R.string.label_speech_rate, "%.2f".format(speed)),
                     value = speed,
-                    onValueChange = { speed = snap(it) },
+                    onValueChange = { speed = snap(it); configDirty = true },
                     valueRange = 0.1f..3f,
                     step = 0.05f,
                 )
@@ -117,7 +122,7 @@ fun AudioParamsDialog(
                     modifier = Modifier.fillMaxWidth(),
                     text = stringResource(R.string.label_speech_volume, "%.2f".format(volume)),
                     value = volume,
-                    onValueChange = { volume = snap(it) },
+                    onValueChange = { volume = snap(it); configDirty = true },
                     valueRange = 0.1f..3f,
                     step = 0.05f,
                 )
@@ -125,12 +130,13 @@ fun AudioParamsDialog(
                     modifier = Modifier.fillMaxWidth(),
                     text = stringResource(R.string.label_speech_pitch, "%.2f".format(pitch)),
                     value = pitch,
-                    onValueChange = { pitch = snap(it) },
+                    onValueChange = { pitch = snap(it); configDirty = true },
                     valueRange = 0.1f..3f,
                     step = 0.05f,
                 )
                 // 重置/应用同一行（用户 09-07 反馈：分行太散），与插件/全局层 Row2Buttons 同款
                 Row2Buttons(
+                    applyText = (if (configDirty) "● " else "") + stringResource(R.string.audio_params_apply),
                     onReset = { speed = 1f; volume = 1f; pitch = 1f },
                     onApply = {
                         // 双写：落库 + 回写页面内存，防"应用后再保存"被旧内存覆盖
@@ -158,6 +164,7 @@ fun AudioParamsDialog(
                                 context.getString(R.string.audio_params_apply_config_toast),
                                 Toast.LENGTH_SHORT,
                             ).show()
+                            configDirty = false
                         }
                     },
                 )
@@ -171,7 +178,7 @@ fun AudioParamsDialog(
                             modifier = Modifier.fillMaxWidth(),
                             text = stringResource(R.string.label_speech_rate, "%.2f".format(pluginSpeed)),
                             value = pluginSpeed,
-                            onValueChange = { pluginSpeed = snap(it) },
+                            onValueChange = { pluginSpeed = snap(it); pluginDirty = true },
                             valueRange = 0.1f..3f,
                             step = 0.05f,
                         )
@@ -179,11 +186,12 @@ fun AudioParamsDialog(
                             modifier = Modifier.fillMaxWidth(),
                             text = stringResource(R.string.label_speech_volume, "%.2f".format(pluginVolume)),
                             value = pluginVolume,
-                            onValueChange = { pluginVolume = snap(it) },
+                            onValueChange = { pluginVolume = snap(it); pluginDirty = true },
                             valueRange = 0.1f..3f,
                             step = 0.05f,
                         )
                         Row2Buttons(
+                            applyText = (if (pluginDirty) "● " else "") + stringResource(R.string.audio_params_apply),
                             onReset = { pluginSpeed = 1f; pluginVolume = 1f },
                             onApply = {
                                 val p = plugin ?: return@Row2Buttons
@@ -200,6 +208,7 @@ fun AudioParamsDialog(
                                         com.github.jing332.tts_server_android.compose.systts.list.ui.PluginDescriptor
                                             .invalidatePluginParamsCache(p.pluginId)
                                         SystemTtsService.notifyUpdateConfig()
+                                        pluginDirty = false
                                     }
                                     Toast.makeText(
                                         context,
@@ -219,7 +228,7 @@ fun AudioParamsDialog(
                     modifier = Modifier.fillMaxWidth(),
                     text = stringResource(R.string.label_speech_rate, "%.2f".format(globalSpeed)),
                     value = globalSpeed,
-                    onValueChange = { globalSpeed = snap(it) },
+                    onValueChange = { globalSpeed = snap(it); globalDirty = true },
                     valueRange = 0.1f..3f,
                     step = 0.05f,
                 )
@@ -227,17 +236,19 @@ fun AudioParamsDialog(
                     modifier = Modifier.fillMaxWidth(),
                     text = stringResource(R.string.label_speech_volume, "%.2f".format(globalVolume)),
                     value = globalVolume,
-                    onValueChange = { globalVolume = snap(it) },
+                    onValueChange = { globalVolume = snap(it); globalDirty = true },
                     valueRange = 0.1f..3f,
                     step = 0.05f,
                 )
                 Row2Buttons(
+                    applyText = (if (globalDirty) "● " else "") + stringResource(R.string.audio_params_apply),
                     onReset = { globalSpeed = 1f; globalVolume = 1f },
                     onApply = {
                         scope.launch {
                             SysTtsConfig.audioParamsSpeed = snap(globalSpeed)
                             SysTtsConfig.audioParamsVolume = snap(globalVolume)
                             SystemTtsService.notifyUpdateConfig()
+                            globalDirty = false
                             Toast.makeText(
                                 context,
                                 context.getString(R.string.audio_params_apply_global_toast),
@@ -291,13 +302,13 @@ private fun SectionTitle(text: String) {
 }
 
 @Composable
-private fun Row2Buttons(onReset: () -> Unit, onApply: () -> Unit) {
+private fun Row2Buttons(onReset: () -> Unit, onApply: () -> Unit, applyText: String = stringResource(R.string.audio_params_apply)) {
     androidx.compose.foundation.layout.Row(
         Modifier.fillMaxWidth(),
         horizontalArrangement = androidx.compose.foundation.layout.Arrangement.End,
     ) {
         TextButton(onClick = onReset) { Text(stringResource(R.string.reset)) }
-        TextButton(onClick = onApply) { Text(stringResource(R.string.audio_params_apply)) }
+        TextButton(onClick = onApply) { Text(applyText) }
     }
 }
 // snap() 复用同包 RemoteAudioParamsSection.kt 的顶层定义（勿在本文件重复定义，同包重名会重载歧义）
