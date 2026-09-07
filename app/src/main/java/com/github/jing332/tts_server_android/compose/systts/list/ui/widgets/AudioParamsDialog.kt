@@ -64,9 +64,9 @@ fun AudioParamsDialog(
     var volume by remember(systemTts.id) { mutableStateOf(config.audioParams.volume) }
     var pitch by remember(systemTts.id) { mutableStateOf(config.audioParams.pitch) }
 
-    // 远端层展开态与草稿
-    var pluginExpanded by remember { mutableStateOf(false) }
-    var globalExpanded by remember { mutableStateOf(false) }
+    // 远端层展开态与草稿（用户 09-07 定稿：默认展开不折叠，仅保留收起按钮）
+    var pluginExpanded by remember { mutableStateOf(true) }
+    var globalExpanded by remember { mutableStateOf(true) }
     var pluginSpeed by remember { mutableStateOf(plugin?.audioParams?.speed ?: 1f) }
     var pluginVolume by remember { mutableStateOf(plugin?.audioParams?.volume ?: 1f) }
     var globalSpeed by remember { mutableStateOf(SysTtsConfig.audioParamsSpeed) }
@@ -93,7 +93,7 @@ fun AudioParamsDialog(
                     text = stringResource(R.string.audio_params_final, finalParams.speed, finalParams.volume, finalParams.pitch),
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier.padding(bottom = 8.dp),
+                    modifier = Modifier.padding(bottom = 4.dp),
                 )
 
                 // ===== 配置项音频参数（仅本条）=====
@@ -155,7 +155,7 @@ fun AudioParamsDialog(
                     },
                 )
 
-                HorizontalDivider(Modifier.padding(vertical = 6.dp))
+                HorizontalDivider(Modifier.padding(vertical = 4.dp))
 
                 // ===== 插件音频参数（折叠）=====
                 if (source != null) {
@@ -209,7 +209,7 @@ fun AudioParamsDialog(
                     }
                 }
 
-                HorizontalDivider(Modifier.padding(vertical = 6.dp))
+                HorizontalDivider(Modifier.padding(vertical = 4.dp))
 
                 // ===== 全局音频参数（折叠）=====
                 CollapsibleSection(

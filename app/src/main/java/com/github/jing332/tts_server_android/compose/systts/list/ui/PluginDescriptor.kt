@@ -102,7 +102,9 @@ class PluginDescriptor(
                 ).joinToString(" | ")
             }
 
-            return source.voice.limitLength(20, "…") + "<br><span style=\"color: #888;\">$paramsLine</span>"
+            // 样式恢复旧版（用户 09-07 反馈：span 颜色走 HTML 渲染链路异常发蓝）——
+            // 与旧行一致用 <b> 加粗、默认字色字号，仅内容格式为新的三维合并行
+            return source.voice.limitLength(20, "…") + "<br><b>$paramsLine</b>"
         }
 
     override val bottom: String
