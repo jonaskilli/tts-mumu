@@ -121,19 +121,17 @@ fun LogQuickPanel(
         )
     }
 
-    /** 配置层应用：发音人 + 语速 + 音量 落库本条，即时生效不关面板 */
+    /** 配置层应用：只保存本块语速/音量（发音人独立即选即存，不在此处捎带），即时生效不关面板 */
     fun applyConfigLayer() {
         scope.launch {
             withIO {
-                val sourceNow = (entity.config as? TtsConfigurationDTO)?.source as? PluginTtsSource
                 val newConfig = config.copy(
                     audioParams = config.audioParams.copy(
                         speed = snapParam(speed),
                         volume = snapParam(volume),
                     ),
-                    source = if (sourceNow != null) sourceNow.copy(voice = voice) else config.source,
                 )
-                dbm.systemTtsV2.update(entity.copy(displayName = displayName, config = newConfig))
+                dbm.systemTtsV2.update(entity.copy(config = newConfig))
                 SystemTtsService.notifyUpdateConfig()
             }
             Toast.makeText(
@@ -161,7 +159,26 @@ fun LogQuickPanel(
                             value = voice,
                             values = voices.map { it.first },
                             entries = voices.map { it.second },
-                            onSelectedChange = { key, _ -> voice = key as String },
+                            onSelectedChange = { key, _ ->
+                                // 换了即保存（用户 09-07：发音人更换独立保存，不搭配置层应用的车）
+                                voice = key as String
+                                scope.launch {
+                                    withIO {
+                                        val sourceNow =
+                                            (entity.config as? TtsConfigurationDTO)?.source as? PluginTtsSource
+                                        if (sourceNow != null) {
+                                            val newConfig = config.copy(source = sourceNow.copy(voice = voice))
+                                            dbm.systemTtsV2.update(entity.copy(config = newConfig))
+                                            SystemTtsService.notifyUpdateConfig()
+                                        }
+                                    }
+                                    Toast.makeText(
+                                        context,
+                                        context.getString(R.string.log_panel_voice_applied),
+                                        Toast.LENGTH_SHORT,
+                                    ).show()
+                                }
+                            },
                         )
                         TextButton(onClick = {
                             TaggedTtsPreviewPlayer.play(context, draftEntity(), "你好，这是试听语音。")

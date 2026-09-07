@@ -418,6 +418,7 @@
     <string name="audio_params_apply_global_toast">Applied to all configs</string>
     <string name="audio_params_apply_config_toast">Applied to this config item only</string>
     <string name="log_panel_title">Voice Adjustment</string>
+    <string name="log_panel_voice_applied">Voice changed and saved</string>
     <string name="log_panel_config_missing">Config item missing or deleted</string>
     <string name="log_panel_voice_label">Voice</string>
     <string name="log_panel_config_layer">This config (affects only this item)</string>
