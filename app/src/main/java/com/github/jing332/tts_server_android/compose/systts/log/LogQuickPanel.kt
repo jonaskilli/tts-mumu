@@ -183,7 +183,8 @@ fun LogQuickPanel(
                         add("音高%.2fx".format(config.audioParams.pitch))
                 }
                 Text(
-                    text = "最终：" + (finalDims.ifEmpty { listOf("全部默认") }.joinToString("，")),
+                    text = if (finalDims.isEmpty()) stringResource(R.string.audio_params_none)
+                    else "最终：" + finalDims.joinToString("，"),
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.primary,
                     modifier = Modifier.padding(top = 4.dp, bottom = 6.dp),

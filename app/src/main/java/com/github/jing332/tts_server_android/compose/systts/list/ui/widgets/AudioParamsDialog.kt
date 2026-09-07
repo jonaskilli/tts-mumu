@@ -80,14 +80,24 @@ fun AudioParamsDialog(
                     .verticalScroll(rememberScrollState())
             ) {
                 // ===== 终值置顶（用户定稿）：配置层草稿 × 插件层现值 × 全局层现值 =====
+                // 值为 1.0 的维度不显示；三维全默认显示「语速、音量、音高无设置」（09-07 与日志面板同步格式）
                 val finalParams = computeFinalParams(
                     config, source, plugin,
                     snap(speed), snap(volume), snap(pitch),
                     snap(pluginSpeed), snap(pluginVolume),
                     snap(globalSpeed), snap(globalVolume),
                 )
+                val finalDims = buildList {
+                    if (kotlin.math.abs(finalParams.speed - 1f) > 0.005f)
+                        add("语速%.2fx".format(finalParams.speed))
+                    if (kotlin.math.abs(finalParams.volume - 1f) > 0.005f)
+                        add("音量%.2fx".format(finalParams.volume))
+                    if (kotlin.math.abs(finalParams.pitch - 1f) > 0.005f)
+                        add("音高%.2fx".format(finalParams.pitch))
+                }
                 Text(
-                    text = stringResource(R.string.audio_params_final, finalParams.speed, finalParams.volume, finalParams.pitch),
+                    text = if (finalDims.isEmpty()) stringResource(R.string.audio_params_none)
+                    else "最终：" + finalDims.joinToString("，"),
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.primary,
                     modifier = Modifier.padding(bottom = 4.dp),
