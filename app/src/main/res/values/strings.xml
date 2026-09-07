@@ -483,6 +483,7 @@
     <string name="audio_params_apply_plugin_toast">已应用，影响该插件全部配置项</string>
     <string name="audio_params_apply_global_toast">已应用，影响全部配置项</string>
     <string name="audio_params_apply_config_toast">已应用，仅影响本配置项</string>
+    <string name="log_panel_title">发音人调整</string>
     <string name="log_panel_config_missing">配置项不存在或已删除</string>
     <string name="log_panel_voice_label">发音人</string>
     <string name="log_panel_config_layer">本配置项（仅影响这一条）</string>
