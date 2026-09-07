@@ -55,8 +55,9 @@ class PluginDescriptor(
             val pluginId = (cfg.source as? PluginTtsSource)?.pluginId
             val pluginParams = pluginId?.let {
                 synchronized(pluginParamsCache) {
+                    // 轻量元数据查询：列表滚动首次命中逐插件触发，SELECT * 会把 5MB+ JS 读进 CursorWindow
                     pluginParamsCache.getOrPut(it) {
-                        dbm.pluginDao.getByPluginId(it)?.audioParams ?: AudioParams()
+                        dbm.pluginDao.getMetaByPluginId(it)?.audioParams ?: AudioParams()
                     }
                 }
             }

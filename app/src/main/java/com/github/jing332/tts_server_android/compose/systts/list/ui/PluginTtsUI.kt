@@ -667,7 +667,7 @@ class PluginTtsUI : IConfigUI() {
                                                 targetGroupName = existingGroup.name
                                             } else {
                                                 val pluginName = plugin?.name
-                                                    ?: dbm.pluginDao.getByPluginId(ttsSnapshot.pluginId)?.name
+                                                    ?: dbm.pluginDao.getMetaByPluginId(ttsSnapshot.pluginId)?.name
                                                     ?: "插件分组"
                                                 val sameName = dbm.systemTtsV2.allGroup()
                                                     .firstOrNull { it.group.name == pluginName }
