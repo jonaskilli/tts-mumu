@@ -75,10 +75,24 @@ fun localPlaybackParamsFor(configuration: TtsConfiguration): AudioParams {
 
 /**
  * Resolves the exact three-layer parameter set used by normal playback and every preview.
+ *
+ * [pluginCache] 传入时（getAllTts 批量解析）直接取缓存，避免逐条配置查库；
+ * 单条调用（预览/弹窗）不传则轻量单查。
+ *
+ * 注意：返回的 [ResolvedTtsPlayback.plugin] 是**无 code 的元数据副本**——
+ * 09-07 OOM 实锤：此处曾用 SELECT * 全量查插件，5MB+ 插件 JS 撑爆 CursorWindow
+ * 导致点击朗读即崩。需要 JS 源码的场景（引擎加载等）请走 pluginDao.getByPluginId。
  */
-fun resolveTtsPlayback(entity: SystemTtsV2, globalParams: AudioParams): ResolvedTtsPlayback? {
+fun resolveTtsPlayback(
+    entity: SystemTtsV2,
+    globalParams: AudioParams,
+    pluginCache: Map<String, Plugin>? = null,
+): ResolvedTtsPlayback? {
     val dto = entity.config as? TtsConfigurationDTO ?: return null
-    val plugin = (dto.source as? PluginTtsSource)?.let { dbm.pluginDao.getByPluginId(it.pluginId) }
+    val plugin = when (val source = dto.source as? PluginTtsSource) {
+        null -> null
+        else -> pluginCache?.get(source.pluginId) ?: dbm.pluginDao.getMetaByPluginId(source.pluginId)
+    }
     val pluginParams = plugin?.audioParams ?: AudioParams()
     val finalParams = AudioParams(
         speed = multiplyParam(pluginParams.speed, dto.audioParams.speed, globalParams.speed),

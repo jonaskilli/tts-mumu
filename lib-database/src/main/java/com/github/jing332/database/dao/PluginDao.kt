@@ -40,6 +40,21 @@ interface PluginDao {
     @Query("SELECT id, isEnabled, version, name, pluginId, author, iconUrl, '' AS code, defVars, userVars, `order`, audioParams, pluginHandlesSpeed, pluginHandlesVolume, pluginHandlesPitch FROM plugin WHERE isEnabled = '1' ORDER BY `order` ASC")
     fun getAllEnabledWithoutCode(): List<Plugin>
 
+    /**
+     * 轻量单查：按 pluginId 取插件元数据（code 为空串）。
+     * 09-07 崩溃实锤：resolveTtsPlayback 曾用 SELECT * 的 getByPluginId，
+     * 5MB+ 插件 JS 撑爆 CursorWindow 致点击朗读即 OOM。参数解析只需元数据。
+     */
+    @Query("SELECT id, isEnabled, version, name, pluginId, author, iconUrl, '' AS code, defVars, userVars, `order`, audioParams, pluginHandlesSpeed, pluginHandlesVolume, pluginHandlesPitch FROM plugin WHERE pluginId = :pluginId LIMIT 1")
+    fun getMetaByPluginId(pluginId: String): Plugin?
+
+    /**
+     * 轻量全表：全部插件元数据（code 为空串）。
+     * getAllTts 批量解析时一次查完建缓存，消灭逐条配置全量查插件的 N+1。
+     */
+    @Query("SELECT id, isEnabled, version, name, pluginId, author, iconUrl, '' AS code, defVars, userVars, `order`, audioParams, pluginHandlesSpeed, pluginHandlesVolume, pluginHandlesPitch FROM plugin")
+    fun getAllMeta(): List<Plugin>
+
     @get:Query("SELECT count(*) FROM plugin")
     val count: Int
 

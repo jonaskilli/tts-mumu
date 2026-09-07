@@ -29,10 +29,14 @@ internal class TtsRepository(
         val groups = dbm.systemTtsV2.getAllGroupWithTts()
         val allItems = groups.flatMap { it.list }
 
+        // 一次轻量查全部插件元数据（code 为空串）建缓存：消灭逐条配置全量查插件的
+        // N+1 与大 code CursorWindow OOM（09-07 崩溃实锤：数千配置 × 5MB 插件 JS）
+        val pluginMeta = dbm.pluginDao.getAllMeta().associateBy { it.pluginId }
+
         // Resolve once for every persisted item. Standby/rollback configs use the same final
         // three-layer parameters as a direct request, even when they belong to another group.
         val resolvedById = allItems.associate { item ->
-            item.id to resolveTtsPlayback(item, globalParams)
+            item.id to resolveTtsPlayback(item, globalParams, pluginMeta)
         }
         fun configurationFor(item: SystemTtsV2): TtsConfiguration? = resolvedById[item.id]?.configuration
 
