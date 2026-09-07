@@ -227,44 +227,8 @@ class PluginTtsUI : IConfigUI() {
                 showBasicInfo = isTagTarget.not(),
                 showParamsSection = false,
             )
-            val isUiOnly = (systemTts.config as? TtsConfigurationDTO)
-                ?.source?.let { it as? PluginTtsSource }?.isUiOnly == true
-            if (!isUiOnly)
-                AudioParamsCard(systemTts, onSystemTtsChange)
-        }
-    }
-
-    /**
-     * 配置项「音频参数」卡：标题行点击弹三层音频参数弹窗（用户定稿：取消滑块区，
-     * 三层调节统一走弹窗；终值置顶；配置层带应用按键）。
-     */
-    @Composable
-    private fun AudioParamsCard(
-        systemTts: SystemTtsV2,
-        onSystemTtsChange: (SystemTtsV2) -> Unit,
-    ) {
-        var showParamsDialog by remember { mutableStateOf(false) }
-        if (showParamsDialog) {
-            com.github.jing332.tts_server_android.compose.systts.list.ui.widgets.AudioParamsDialog(
-                onDismissRequest = { showParamsDialog = false },
-                systemTts = systemTts,
-                onSysttsChange = onSystemTtsChange,
-            )
-        }
-        SectionCard(
-            title = stringResource(id = R.string.audio_params),
-            icon = Icons.Default.Speed,
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 8.dp, vertical = 4.dp)
-                .clickable { showParamsDialog = true },
-        ) {
-            Text(
-                text = stringResource(R.string.audio_params_card_hint),
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(start = 16.dp, end = 16.dp, bottom = 12.dp),
-            )
+            // 音频参数入口仅保留顶部「音频参数」按钮（SpeechRuleEditScreen，弹三层弹窗）；
+            // 底部不再放任何音频参数区域/入口卡（用户 09-07 定稿：不要底部加弹窗入口）
         }
     }
 
