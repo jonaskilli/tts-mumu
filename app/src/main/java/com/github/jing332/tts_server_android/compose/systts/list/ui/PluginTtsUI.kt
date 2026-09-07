@@ -899,9 +899,8 @@ class PluginTtsUI : IConfigUI() {
                 }
             }
 
-            if (!isUiOnly && showParamsSection) {
-                AudioParamsCard(systts, onSysttsChange)
-            }
+            // 音频参数卡已删（用户 09-07 定稿：入口收敛到顶部「音频参数」按钮），
+            // 预览路径同样不再渲染任何音频参数区域
         }
     }
 
