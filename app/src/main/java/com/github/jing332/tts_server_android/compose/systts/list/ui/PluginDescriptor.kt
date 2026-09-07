@@ -73,9 +73,9 @@ class PluginDescriptor(
                     kotlin.math.abs(globalVal - 1f) <= 0.005f
                 ) return null
                 // 固定顺序(配→插→全)；值=1.0时省略不写，≠1.0时写"数值(层标)"后缀提示来源
-                val layerConfig = context.getString(R.string.audio_params_layer_config)
-                val layerPlugin = context.getString(R.string.audio_params_layer_plugin)
-                val layerGlobal = context.getString(R.string.audio_params_layer_global)
+                val layerConfig = context.getString(R.string.audio_params_tag_config)
+                val layerPlugin = context.getString(R.string.audio_params_tag_plugin)
+                val layerGlobal = context.getString(R.string.audio_params_tag_global)
                 val parts = buildList {
                     if (kotlin.math.abs(configVal - 1f) > 0.005f)
                         add("${configVal.toScale(2)}($layerConfig)")
@@ -102,12 +102,7 @@ class PluginDescriptor(
                 ).joinToString(" | ")
             }
 
-            return source.voice.limitLength(20, "…") + "<br>" + context.getString(
-                R.string.systts_play_params_description,
-                "<b>${rateStr}</b>",
-                "<b>${volumeStr}</b>",
-                "<b>${pitchStr}</b>"
-            ) + "<br><span style=\"color: #888;\">$paramsLine</span>"
+            return source.voice.limitLength(20, "…") + "<br><span style=\"color: #888;\">$paramsLine</span>"
         }
 
     override val bottom: String

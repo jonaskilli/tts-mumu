@@ -347,9 +347,9 @@
     <string name="audio_params_global_layer">Global audio params (affects all items · careful)</string>
     <string name="audio_params_final">Final: speed %1$.2fx volume %2$.2fx pitch %3$.2fx</string>
     <string name="audio_params_card_hint">Tap to adjust: config item / plugin / global audio params</string>
-    <string name="audio_params_layer_config">C</string>
-    <string name="audio_params_layer_plugin">P</string>
-    <string name="audio_params_layer_global">G</string>
+    <string name="audio_params_tag_config">C</string>
+    <string name="audio_params_tag_plugin">P</string>
+    <string name="audio_params_tag_global">G</string>
     <string name="audio_params_plugin_speed">Plugin speed %1$s</string>
     <string name="audio_params_plugin_volume">Plugin volume %1$s</string>
     <string name="audio_params_global_speed">Global speed %1$s</string>
