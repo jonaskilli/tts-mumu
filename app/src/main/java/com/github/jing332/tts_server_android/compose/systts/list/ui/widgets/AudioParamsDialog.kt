@@ -3,6 +3,8 @@ package com.github.jing332.tts_server_android.compose.systts.list.ui.widgets
 import android.widget.Toast
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -74,7 +76,12 @@ fun AudioParamsDialog(
         onDismissRequest = onDismissRequest,
         title = { Text(stringResource(R.string.audio_params)) },
         content = {
-            Column(Modifier.fillMaxWidth()) {
+            // verticalScroll：插件/全局层展开后内容超屏可上下滑动查看（用户 09-07 反馈）
+            Column(
+                Modifier
+                    .fillMaxWidth()
+                    .verticalScroll(rememberScrollState())
+            ) {
                 // ===== 终值置顶（用户定稿）：配置层草稿 × 插件层现值 × 全局层现值 =====
                 val finalParams = computeFinalParams(
                     config, source, plugin,
