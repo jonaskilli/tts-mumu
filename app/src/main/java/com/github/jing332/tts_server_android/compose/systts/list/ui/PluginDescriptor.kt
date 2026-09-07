@@ -44,31 +44,62 @@ class PluginDescriptor(
             val strFollow by lazy { context.getString(R.string.follow) }
 
             // 卡片三行制：行2=voice id(限一行,超20字符截断防换行,用户定稿)，行3=参数，行4=格式(bottom)。
-            // toScale(2) 去噪：历史数据里存在 1.1499999f 这类浮点噪声，直接插值会原样上屏
+            // 参数行按维度合并显示(用户定稿)：每个维度内按固定顺序(配→插→全)显示全部值，
+            // 用×连接、层标(配)/(插)/(全)后缀；全1.0时也显示一行作占位(防卡片排布跳变)；
+            // 音高维度加回(换行防放不下)
             val p = cfg.audioParams
             val rateStr = if (p.speed == 0f) strFollow else p.speed.toScale(2)
-            val pitchStr = if (p.pitch == 0f) strFollow else p.pitch.toScale(2)
             val volumeStr = if (p.volume == 0f) strFollow else p.volume.toScale(2)
+            val pitchStr = if (p.pitch == 0f) strFollow else p.pitch.toScale(2)
 
-            // 三层透明度(用户定稿)：插件/全局层 ≠1.0 时才追加，带来源标注；全默认时与旧显示完全一致。
-            // 插件层同步查库一次——与 nameCache 同款缓存兜底，避免滚动逐卡查库
-            val extra = buildList {
-                val pluginId = (cfg.source as? PluginTtsSource)?.pluginId
-                if (pluginId != null) {
-                    val pluginParams = synchronized(pluginParamsCache) {
-                        pluginParamsCache.getOrPut(pluginId) {
-                            dbm.pluginDao.getByPluginId(pluginId)?.audioParams ?: AudioParams()
-                        }
+            val pluginId = (cfg.source as? PluginTtsSource)?.pluginId
+            val pluginParams = pluginId?.let {
+                synchronized(pluginParamsCache) {
+                    pluginParamsCache.getOrPut(it) {
+                        dbm.pluginDao.getByPluginId(it)?.audioParams ?: AudioParams()
                     }
-                    if (kotlin.math.abs(pluginParams.speed - 1f) > 0.005f)
-                        add(context.getString(R.string.audio_params_plugin_speed, pluginParams.speed.toScale(2)))
-                    if (kotlin.math.abs(pluginParams.volume - 1f) > 0.005f)
-                        add(context.getString(R.string.audio_params_plugin_volume, pluginParams.volume.toScale(2)))
                 }
-                if (kotlin.math.abs(com.github.jing332.tts_server_android.conf.SysTtsConfig.audioParamsSpeed - 1f) > 0.005f)
-                    add(context.getString(R.string.audio_params_global_speed, com.github.jing332.tts_server_android.conf.SysTtsConfig.audioParamsSpeed.toScale(2)))
-                if (kotlin.math.abs(com.github.jing332.tts_server_android.conf.SysTtsConfig.audioParamsVolume - 1f) > 0.005f)
-                    add(context.getString(R.string.audio_params_global_volume, com.github.jing332.tts_server_android.conf.SysTtsConfig.audioParamsVolume.toScale(2)))
+            }
+            val pluginSpeed = pluginParams?.speed ?: 1f
+            val pluginVolume = pluginParams?.volume ?: 1f
+            val pluginPitch = pluginParams?.pitch ?: 1f
+            val globalSpeed = com.github.jing332.tts_server_android.conf.SysTtsConfig.audioParamsSpeed
+            val globalVolume = com.github.jing332.tts_server_android.conf.SysTtsConfig.audioParamsVolume
+
+            fun dimensionText(configVal: Float, pluginVal: Float, globalVal: Float): String? {
+                // 全部=1.0时该维度不显示(由上层统一显示"无设置"占位)
+                if (kotlin.math.abs(configVal - 1f) <= 0.005f &&
+                    kotlin.math.abs(pluginVal - 1f) <= 0.005f &&
+                    kotlin.math.abs(globalVal - 1f) <= 0.005f
+                ) return null
+                // 固定顺序(配→插→全)；值=1.0时省略不写，≠1.0时写"数值(层标)"后缀提示来源
+                val layerConfig = context.getString(R.string.audio_params_layer_config)
+                val layerPlugin = context.getString(R.string.audio_params_layer_plugin)
+                val layerGlobal = context.getString(R.string.audio_params_layer_global)
+                val parts = buildList {
+                    if (kotlin.math.abs(configVal - 1f) > 0.005f)
+                        add("${configVal.toScale(2)}($layerConfig)")
+                    if (pluginParams != null && kotlin.math.abs(pluginVal - 1f) > 0.005f)
+                        add("${pluginVal.toScale(2)}($layerPlugin)")
+                    if (kotlin.math.abs(globalVal - 1f) > 0.005f)
+                        add("${globalVal.toScale(2)}($layerGlobal)")
+                }
+                return parts.joinToString("×")
+            }
+
+            val speedText = dimensionText(p.speed, pluginSpeed, globalSpeed)
+            val volumeText = dimensionText(p.volume, pluginVolume, globalVolume)
+            val pitchText = dimensionText(p.pitch, pluginPitch, 1f)
+
+            // 全默认时显示一行浅灰占位(用户定稿：防卡片排布跳变)；有设置时显示三维数值
+            val paramsLine = if (speedText == null && volumeText == null && pitchText == null) {
+                context.getString(R.string.audio_params_none)
+            } else {
+                listOfNotNull(
+                    speedText?.let { "语速: $it" },
+                    volumeText?.let { "音量: $it" },
+                    pitchText?.let { "音高: $it" },
+                ).joinToString(" | ")
             }
 
             return source.voice.limitLength(20, "…") + "<br>" + context.getString(
@@ -76,7 +107,7 @@ class PluginDescriptor(
                 "<b>${rateStr}</b>",
                 "<b>${volumeStr}</b>",
                 "<b>${pitchStr}</b>"
-            ) + if (extra.isNotEmpty()) " | " + extra.joinToString(" | ") else ""
+            ) + "<br><span style=\"color: #888;\">$paramsLine</span>"
         }
 
     override val bottom: String
