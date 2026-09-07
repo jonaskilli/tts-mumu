@@ -1,7 +1,9 @@
 package com.github.jing332.tts_server_android.compose.systts.log
 
 import android.widget.Toast
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -155,15 +157,55 @@ fun LogQuickPanel(
             Column(Modifier.fillMaxWidth()) {
                 // ===== 换发音人（最上方，无标题字）=====
                 if (source != null && voices.isNotEmpty()) {
+                    // 分类 chips（照搬角色管理 12 预设 + 全部；横向滚动，单选，再点取消过滤）
+                    var selectedCategory by remember { mutableStateOf<String?>(null) }
+                    val categories = listOf(
+                        "少女", "少年", "女青年", "男青年", "女中年", "男中年",
+                        "女老年", "男老年", "女童", "男童", "女主", "男主",
+                    )
                     Row(
-                        Modifier.fillMaxWidth(),
+                        Modifier
+                            .fillMaxWidth()
+                            .horizontalScroll(
+                                rememberScrollState()
+                            ),
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    ) {
+                        androidx.compose.material3.FilterChip(
+                            selected = selectedCategory == null,
+                            onClick = { selectedCategory = null },
+                            label = { Text("全部") },
+                        )
+                        categories.forEach { c ->
+                            androidx.compose.material3.FilterChip(
+                                selected = selectedCategory == c,
+                                onClick = { selectedCategory = if (selectedCategory == c) null else c },
+                                label = { Text(c) },
+                            )
+                        }
+                    }
+
+                    // 按分类过滤（名称包含即匹配，同角色管理）；当前发音人不属于该分类时
+                    // 补在列表顶部标「当前」，防 AppSpinner 值不在候选被强制重置
+                    val filtered = voices.filter {
+                        selectedCategory == null || it.second.contains(selectedCategory)
+                    }
+                    val displayVoices = if (voice.isNotEmpty() && filtered.none { it.first == voice }) {
+                        val currentName = voices.firstOrNull { it.first == voice }?.second ?: voice
+                        listOf(voice to "当前: $currentName") + filtered
+                    } else filtered
+
+                    Row(
+                        Modifier
+                            .fillMaxWidth()
+                            .padding(top = 6.dp),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
                         AppSpinner(
                             modifier = Modifier.weight(1f),
                             value = voice,
-                            values = voices.map { it.first },
-                            entries = voices.map { it.second },
+                            values = displayVoices.map { it.first },
+                            entries = displayVoices.map { it.second },
                             onSelectedChange = { key, _ ->
                                 // 换了即保存（用户 09-07：发音人更换独立保存，不搭配置层应用的车）
                                 voice = key as String
