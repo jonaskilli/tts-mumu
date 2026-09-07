@@ -9,7 +9,10 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
@@ -185,8 +188,26 @@ fun LabelSlider(
                         interactionSource = remember { MutableInteractionSource() },
                         colors = SliderDefaults.colors(),
                         enabled = enabled,
-                        thumbSize = DpSize(4.dp, 24.dp)
+                        thumbSize = DpSize(3.dp, 18.dp)
                     )
+                },
+                track = { sliderState ->
+                    // 自绘细轨道 2.5dp（用户 09-07：滑杆调细、整体和谐）
+                    val colors = SliderDefaults.colors()
+                    val frac = if (sliderState.valueRange.endInclusive > sliderState.valueRange.start)
+                        ((sliderState.value - sliderState.valueRange.start) /
+                            (sliderState.valueRange.endInclusive - sliderState.valueRange.start))
+                            .coerceIn(0f, 1f)
+                    else 0f
+                    Box(
+                        Modifier
+                            .fillMaxWidth()
+                            .height(2.5.dp)
+                            .clip(androidx.compose.foundation.shape.RoundedCornerShape(2.dp))
+                    ) {
+                        Box(Modifier.fillMaxSize().background(colors.inactiveTrackColor))
+                        Box(Modifier.fillMaxWidth(frac).fillMaxHeight().background(colors.activeTrackColor))
+                    }
                 }
             )
         }
