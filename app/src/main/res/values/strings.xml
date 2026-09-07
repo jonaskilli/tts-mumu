@@ -402,12 +402,19 @@
     <string name="format_error">格式错误</string>
     <string name="systts_log_text_handle_failed">文本处理失败: %1$s</string>
     <string name="audio_params">音频参数</string>
+    <string name="audio_params_config_item">配置项音频参数</string>
+    <string name="audio_params_config_layer">配置项音频参数（仅本条）</string>
+    <string name="audio_params_plugin_layer">插件音频参数（影响该插件全部配置项）</string>
+    <string name="audio_params_global_layer">全局音频参数（影响全部配置项·谨慎）</string>
+    <string name="audio_params_final">最终：语速%1$.2fx 音量%2$.2fx 音高%3$.2fx</string>
+    <string name="audio_params_card_hint">点击调整：配置项 / 插件 / 全局 三处音频参数</string>
+    <string name="audio_params_global">全局音频参数</string>
     <string name="label_speed">速度：</string>
-    <string name="audio_params_settings">设置音频参数</string>
+    <string name="audio_params_settings">全局音频参数</string>
     <string name="unknown">未知</string>
     <string name="plugin_vars">插件变量</string>
     <string name="plugin_set_vars">设置变量</string>
-    <string name="plugin_audio_params">音频参数</string>
+    <string name="plugin_audio_params">插件音频参数</string>
     <string name="plugin_audio_params_desc">统一调节该插件下所有发音人的语速、音量、音调。最终参数 = 插件参数 × 单独参数 × 分组参数 × 全局参数</string>
     <string name="plugin_audio_params_saved">音频参数已保存</string>
     <string name="plugin_handles_params_title">参数由插件处理</string>
@@ -467,7 +474,7 @@
     <string name="audio_params_apply">应用</string>
     <string name="audio_params_apply_plugin_toast">已应用，影响该插件全部配置项</string>
     <string name="audio_params_apply_global_toast">已应用，影响全部配置项</string>
-    <string name="log_quick_panel_title">快捷调整</string>
+    <string name="audio_params_apply_config_toast">已应用，仅影响本配置项</string>
     <string name="log_panel_config_missing">配置项不存在或已删除</string>
     <string name="log_panel_voice_label">发音人</string>
     <string name="log_panel_config_layer">本配置项（仅影响这一条）</string>

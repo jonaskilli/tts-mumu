@@ -126,7 +126,8 @@ fun LogQuickPanel(
 
     androidx.compose.material3.AlertDialog(
         onDismissRequest = onDismissRequest,
-        title = { Text(stringResource(R.string.log_quick_panel_title)) },
+        // 总名与编辑页弹窗一致(用户定稿)：音频参数，下分配置项/插件/全局三区
+        title = { Text(stringResource(R.string.audio_params)) },
         text = {
             Column(Modifier.fillMaxWidth()) {
                 // ===== 发音人 =====

@@ -341,8 +341,15 @@
     <string name="format_error">Format error</string>
     <string name="systts_log_text_handle_failed">Text processing failed: %1$s</string>
     <string name="audio_params">Audio Params</string>
+    <string name="audio_params_config_item">Config item audio params</string>
+    <string name="audio_params_config_layer">Config item audio params (this item only)</string>
+    <string name="audio_params_plugin_layer">Plugin audio params (affects all items of this plugin)</string>
+    <string name="audio_params_global_layer">Global audio params (affects all items · careful)</string>
+    <string name="audio_params_final">Final: speed %1$.2fx volume %2$.2fx pitch %3$.2fx</string>
+    <string name="audio_params_card_hint">Tap to adjust: config item / plugin / global audio params</string>
+    <string name="audio_params_global">Global audio params</string>
     <string name="label_speed">Speed：</string>
-    <string name="audio_params_settings">Set Audio Params</string>
+    <string name="audio_params_settings">Global audio params</string>
     <string name="unknown">Unknown</string>
     <string name="plugin_vars">Plugin Variables</string>
     <string name="plugin_set_vars">Set Variables</string>
@@ -401,7 +408,7 @@
     <string name="audio_params_apply">Apply</string>
     <string name="audio_params_apply_plugin_toast">Applied to all configs of this plugin</string>
     <string name="audio_params_apply_global_toast">Applied to all configs</string>
-    <string name="log_quick_panel_title">Quick adjust</string>
+    <string name="audio_params_apply_config_toast">Applied to this config item only</string>
     <string name="log_panel_config_missing">Config item missing or deleted</string>
     <string name="log_panel_voice_label">Voice</string>
     <string name="log_panel_config_layer">This config (affects only this item)</string>

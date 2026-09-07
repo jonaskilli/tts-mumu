@@ -3,6 +3,7 @@ package com.github.jing332.tts_server_android.compose.systts.list.ui
 import android.util.Log
 import android.widget.LinearLayout
 import androidx.compose.animation.animateContentSize
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -229,21 +230,41 @@ class PluginTtsUI : IConfigUI() {
             val isUiOnly = (systemTts.config as? TtsConfigurationDTO)
                 ?.source?.let { it as? PluginTtsSource }?.isUiOnly == true
             if (!isUiOnly)
-                SectionCard(
-                    title = "音频参数",
-                    icon = Icons.Default.Speed,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 8.dp, vertical = 4.dp),
-                ) {
-                    ParamsEditScreen(
-                        Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 12.dp, vertical = 4.dp),
-                        systemTts = systemTts,
-                        onSystemTtsChange = onSystemTtsChange
-                    )
-                }
+                AudioParamsCard(systemTts, onSystemTtsChange)
+        }
+    }
+
+    /**
+     * 配置项「音频参数」卡：标题行点击弹三层音频参数弹窗（用户定稿：取消滑块区，
+     * 三层调节统一走弹窗；终值置顶；配置层带应用按键）。
+     */
+    @Composable
+    private fun AudioParamsCard(
+        systemTts: SystemTtsV2,
+        onSystemTtsChange: (SystemTtsV2) -> Unit,
+    ) {
+        var showParamsDialog by remember { mutableStateOf(false) }
+        if (showParamsDialog) {
+            com.github.jing332.tts_server_android.compose.systts.list.ui.widgets.AudioParamsDialog(
+                onDismissRequest = { showParamsDialog = false },
+                systemTts = systemTts,
+                onSysttsChange = onSystemTtsChange,
+            )
+        }
+        SectionCard(
+            title = stringResource(id = R.string.audio_params),
+            icon = Icons.Default.Speed,
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 8.dp, vertical = 4.dp)
+                .clickable { showParamsDialog = true },
+        ) {
+            Text(
+                text = stringResource(R.string.audio_params_card_hint),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(start = 16.dp, end = 16.dp, bottom = 12.dp),
+            )
         }
     }
 
@@ -915,21 +936,7 @@ class PluginTtsUI : IConfigUI() {
             }
 
             if (!isUiOnly && showParamsSection) {
-                SectionCard(
-                    title = "音频参数",
-                    icon = Icons.Default.Speed,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 8.dp, vertical = 4.dp),
-                ) {
-                    ParamsEditScreen(
-                        Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 12.dp, vertical = 4.dp),
-                        systemTts = systts,
-                        onSystemTtsChange = onSysttsChange
-                    )
-                }
+                AudioParamsCard(systts, onSysttsChange)
             }
         }
     }
