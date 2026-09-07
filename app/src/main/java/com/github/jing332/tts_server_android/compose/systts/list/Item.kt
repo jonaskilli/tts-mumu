@@ -16,6 +16,7 @@ import androidx.compose.material.icons.filled.DeleteForever
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Headphones
 import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material.icons.filled.Speed
 import androidx.compose.material.icons.filled.Output
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.RadioButton
