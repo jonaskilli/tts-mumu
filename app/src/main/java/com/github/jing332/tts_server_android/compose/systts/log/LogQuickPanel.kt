@@ -108,6 +108,11 @@ fun LogQuickPanel(
     var globalSpeed by remember { mutableStateOf(com.github.jing332.tts_server_android.conf.SysTtsConfig.audioParamsSpeed) }
     var globalVolume by remember { mutableStateOf(com.github.jing332.tts_server_android.conf.SysTtsConfig.audioParamsVolume) }
 
+    // 未保存标记：滑杆被改动后置 true，该块「应用」成功后清除（按钮高亮提示哪块有待保存）
+    var configDirty by remember(entity.id) { mutableStateOf(false) }
+    var pluginDirty by remember(entity.id) { mutableStateOf(false) }
+    var globalDirty by remember { mutableStateOf(false) }
+
     /** 用当前草稿构造临时实体试听：未保存候选也先听，走统一试听链 */
     fun draftEntity(candidateVoice: String? = null): SystemTtsV2 {
         val v = candidateVoice ?: voice
@@ -211,6 +216,8 @@ fun LogQuickPanel(
                     modifier = Modifier.padding(top = 4.dp, bottom = 6.dp),
                 )
 
+                // ===== 音频参数大区（内部三块以短分隔线区分）=====
+                HorizontalDivider(Modifier.padding(vertical = 6.dp))
                 // ===== 配置项音频参数（仅本条）=====
                 Text(
                     stringResource(R.string.audio_params_config_layer),
@@ -221,7 +228,7 @@ fun LogQuickPanel(
                     modifier = Modifier.fillMaxWidth(),
                     text = stringResource(R.string.label_speech_rate, "%.2f".format(speed)),
                     value = speed,
-                    onValueChange = { speed = it },
+                    onValueChange = { speed = it; configDirty = true },
                     valueRange = 0.1f..3f,
                     step = 0.05f,
                 )
@@ -229,7 +236,7 @@ fun LogQuickPanel(
                     modifier = Modifier.fillMaxWidth(),
                     text = stringResource(R.string.label_speech_volume, "%.2f".format(volume)),
                     value = volume,
-                    onValueChange = { volume = it },
+                    onValueChange = { volume = it; configDirty = true },
                     valueRange = 0.1f..3f,
                     step = 0.05f,
                 )
@@ -240,13 +247,17 @@ fun LogQuickPanel(
                     TextButton(onClick = { speed = 1f; volume = 1f }) {
                         Text(stringResource(R.string.reset))
                     }
-                    TextButton(onClick = { applyConfigLayer() }) {
-                        Text(stringResource(R.string.audio_params_apply))
+                    TextButton(onClick = { applyConfigLayer(); configDirty = false }) {
+                        Text((if (configDirty) "● " else "") + stringResource(R.string.audio_params_apply))
                     }
                 }
 
                 // ===== 插件音频参数（影响该插件全部配置项）=====
-                HorizontalDivider(Modifier.padding(vertical = 6.dp))
+                HorizontalDivider(
+                    Modifier
+                        .fillMaxWidth(0.66f)
+                        .padding(vertical = 6.dp),
+                )
                 if (source != null) {
                     Text(
                         stringResource(R.string.audio_params_plugin_layer),
@@ -257,7 +268,7 @@ fun LogQuickPanel(
                         modifier = Modifier.fillMaxWidth(),
                         text = stringResource(R.string.label_speech_rate, "%.2f".format(pluginSpeed)),
                         value = pluginSpeed,
-                        onValueChange = { pluginSpeed = it },
+                        onValueChange = { pluginSpeed = it; pluginDirty = true },
                         valueRange = 0.1f..3f,
                         step = 0.05f,
                     )
@@ -265,7 +276,7 @@ fun LogQuickPanel(
                         modifier = Modifier.fillMaxWidth(),
                         text = stringResource(R.string.label_speech_volume, "%.2f".format(pluginVolume)),
                         value = pluginVolume,
-                        onValueChange = { pluginVolume = it },
+                        onValueChange = { pluginVolume = it; pluginDirty = true },
                         valueRange = 0.1f..3f,
                         step = 0.05f,
                     )
@@ -292,6 +303,7 @@ fun LogQuickPanel(
                                     PluginDescriptor.invalidatePluginParamsCache(p.pluginId)
                                     SystemTtsService.notifyUpdateConfig()
                                 }
+                                pluginDirty = false
                                 Toast.makeText(
                                     context,
                                     context.getString(R.string.audio_params_apply_plugin_toast),
@@ -299,13 +311,17 @@ fun LogQuickPanel(
                                 ).show()
                             }
                         }) {
-                            Text(stringResource(R.string.audio_params_apply))
+                            Text((if (pluginDirty) "● " else "") + stringResource(R.string.audio_params_apply))
                         }
                     }
                 }
 
                 // ===== 全局音频参数（影响全部配置项·谨慎）=====
-                HorizontalDivider(Modifier.padding(vertical = 6.dp))
+                HorizontalDivider(
+                    Modifier
+                        .fillMaxWidth(0.66f)
+                        .padding(vertical = 6.dp),
+                )
                 Text(
                     stringResource(R.string.audio_params_global_layer),
                     style = MaterialTheme.typography.titleSmall,
@@ -315,7 +331,7 @@ fun LogQuickPanel(
                     modifier = Modifier.fillMaxWidth(),
                     text = stringResource(R.string.label_speech_rate, "%.2f".format(globalSpeed)),
                     value = globalSpeed,
-                    onValueChange = { globalSpeed = it },
+                    onValueChange = { globalSpeed = it; globalDirty = true },
                     valueRange = 0.1f..3f,
                     step = 0.05f,
                 )
@@ -323,7 +339,7 @@ fun LogQuickPanel(
                     modifier = Modifier.fillMaxWidth(),
                     text = stringResource(R.string.label_speech_volume, "%.2f".format(globalVolume)),
                     value = globalVolume,
-                    onValueChange = { globalVolume = it },
+                    onValueChange = { globalVolume = it; globalDirty = true },
                     valueRange = 0.1f..3f,
                     step = 0.05f,
                 )
@@ -341,6 +357,7 @@ fun LogQuickPanel(
                             com.github.jing332.tts_server_android.conf.SysTtsConfig.audioParamsVolume =
                                 snapParam(globalVolume)
                             SystemTtsService.notifyUpdateConfig()
+                            globalDirty = false
                             Toast.makeText(
                                 context,
                                 context.getString(R.string.audio_params_apply_global_toast),
@@ -348,7 +365,7 @@ fun LogQuickPanel(
                             ).show()
                         }
                     }) {
-                        Text(stringResource(R.string.audio_params_apply))
+                        Text((if (globalDirty) "● " else "") + stringResource(R.string.audio_params_apply))
                     }
                 }
             }
