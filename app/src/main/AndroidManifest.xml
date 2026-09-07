@@ -257,11 +257,13 @@
             android:exported="false"
             android:foregroundServiceType="specialUse" />
 
-        <!-- 混元太极本地中转前台服务 -->
+        <!-- 混元太极本地中转前台服务：mediaPlayback 无时长配额。
+             勿改回 dataSync——Android 15 对 dataSync 有 24h 滚动窗口 6h 配额，
+             用尽后 startForeground 抛 ForegroundServiceStartNotAllowedException 致点击朗读闪退（已踩） -->
         <service
             android:name="com.github.jing332.deepseekproxy.ProxyService"
             android:exported="false"
-            android:foregroundServiceType="dataSync" />
+            android:foregroundServiceType="mediaPlayback" />
 
         <!-- JobScheduler 保活服务 -->
         <service

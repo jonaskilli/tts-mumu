@@ -122,7 +122,15 @@ class ProxyService : android.app.Service() {
         val longcat = loadList(lcPrefs, "longcat_configs", "longcat_config")
         ProxyServer.setLongCatConfigList(longcat)
 
-        startForeground(NOTIF_ID, buildNotification("服务运行中 · 端口 $port · ${if (stream) "流式" else "非流式"}"))
+        // startForeground 防崩护栏：系统仍可能拒绝（如配额/后台限制），
+        // 异常时停服务而不是让 RuntimeException 顺 onStartCommand 炸掉整个应用
+        try {
+            startForeground(NOTIF_ID, buildNotification("服务运行中 · 端口 $port · ${if (stream) "流式" else "非流式"}"))
+        } catch (e: Exception) {
+            LogStore.e("Proxy", "startForeground 被系统拒绝: ${e.javaClass.simpleName}: ${e.message}")
+            stopSelf(startId)
+            return START_NOT_STICKY
+        }
 
         ProxyServer.streamMode = stream
         // csrfkey 留空由 CNB 自动获取；豆包 / Kimi / 千问均使用 Cookie，并自动轮换
