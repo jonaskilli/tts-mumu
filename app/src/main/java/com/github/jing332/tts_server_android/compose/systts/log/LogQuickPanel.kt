@@ -172,14 +172,15 @@ fun LogQuickPanel(
                 }
 
                 // ===== 终值（播放链同源三层乘积；值为 1.0 的维度不显示）=====
+                // 最终值恒为 配置×插件×全局（弹窗有无音高滑杆不影响计算）
                 val handlesSpeed = plugin?.pluginHandlesSpeed == true
                 val handlesVolume = plugin?.pluginHandlesVolume == true
                 val handlesPitch = plugin?.pluginHandlesPitch == true
                 val finalSpeed = if (handlesSpeed) speed else speed * pluginSpeed * globalSpeed
                 val finalVolume = if (handlesVolume) volume else volume * pluginVolume * globalVolume
-                // 音高为相乘最终值：配置层 × 插件层（面板无音高滑杆，全局层不参与音高）
                 val finalPitch = if (handlesPitch) config.audioParams.pitch
-                else config.audioParams.pitch * (pluginParams?.pitch ?: 1f)
+                else config.audioParams.pitch * (pluginParams?.pitch ?: 1f) *
+                    com.github.jing332.tts_server_android.conf.SysTtsConfig.audioParamsPitch
                 val finalDims = buildList {
                     if (kotlin.math.abs(finalSpeed - 1f) > 0.005f) add("语速%.2fx".format(finalSpeed))
                     if (kotlin.math.abs(finalVolume - 1f) > 0.005f) add("音量%.2fx".format(finalVolume))

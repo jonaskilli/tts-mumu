@@ -256,7 +256,8 @@ fun AudioParamsDialog(
     )
 }
 
-/** 三层乘积（尊重 pluginHandles 路由：由插件处理的维度，插件/全局层不参与叠加） */
+/** 三层乘积（尊重 pluginHandles 路由：由插件处理的维度，插件/全局层不参与叠加）。
+ *  三维最终值恒为 配置×插件×全局（弹窗有无某滑杆不影响计算） */
 private fun computeFinalParams(
     config: TtsConfigurationDTO,
     source: PluginTtsSource?,
@@ -272,10 +273,11 @@ private fun computeFinalParams(
     val pSpeed = if (isPlugin) pluginSpeed else 1f
     val pVolume = if (isPlugin) pluginVolume else 1f
     val pPitch = if (isPlugin) plugin?.audioParams?.pitch ?: 1f else 1f
+    val globalPitch = com.github.jing332.tts_server_android.conf.SysTtsConfig.audioParamsPitch
     return AudioParams(
         speed = if (handlesSpeed) cfgSpeed else cfgSpeed * pSpeed * globalSpeed,
         volume = if (handlesVolume) cfgVolume else cfgVolume * pVolume * globalVolume,
-        pitch = if (handlesPitch) cfgPitch else cfgPitch * pPitch,
+        pitch = if (handlesPitch) cfgPitch else cfgPitch * pPitch * globalPitch,
     )
 }
 
