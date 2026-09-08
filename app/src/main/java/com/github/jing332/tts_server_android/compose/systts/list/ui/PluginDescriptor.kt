@@ -43,7 +43,8 @@ class PluginDescriptor(
     // 卡片行2：voice id（限一行，超20字符截断防换行，用户定稿）；行3=参数行（bodyMedium 同字号）。
     // 参数行规律(用户定稿 09-07 晚)：维度内固定顺序(配置→插件→全局)，×连接，值=1.0 省略，
     // ≠1.0 带 (配置)/(插件)/(全局) 层标；三维全 1.0 时显示「无设置」占位行。
-    // 纯文本无任何格式标记（无加粗无着色，用户 09-07：数值也不加粗）
+    // 纯文本无加粗无着色（用户 09-07：数值也不加粗）；层标用 <small> 缩小一号（09-08 用户定稿，
+    // HtmlText 渲染链支持 RelativeSizeSpan，与 span 颜色发蓝问题无关）
     override val desc: String
         get() {
             val p = cfg.audioParams
@@ -73,11 +74,11 @@ class PluginDescriptor(
                 val layerGlobal = context.getString(R.string.audio_params_tag_global)
                 val parts = buildList {
                     if (kotlin.math.abs(configVal - 1f) > 0.005f)
-                        add("${configVal.toScale(2)}($layerConfig)")
+                        add("${configVal.toScale(2)}<small>($layerConfig)</small>")
                     if (pluginParams != null && kotlin.math.abs(pluginVal - 1f) > 0.005f)
-                        add("${pluginVal.toScale(2)}($layerPlugin)")
+                        add("${pluginVal.toScale(2)}<small>($layerPlugin)</small>")
                     if (kotlin.math.abs(globalVal - 1f) > 0.005f)
-                        add("${globalVal.toScale(2)}($layerGlobal)")
+                        add("${globalVal.toScale(2)}<small>($layerGlobal)</small>")
                 }
                 return parts.joinToString("×")
             }

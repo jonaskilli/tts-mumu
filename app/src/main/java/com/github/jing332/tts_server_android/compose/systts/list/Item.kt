@@ -209,6 +209,9 @@ internal fun Item(
             ) {
                 HtmlText(
                     text = desc,
+                    // <small> 层标靠 RelativeSizeSpan 缩放，换算基准是 fontSize 参数；
+                    // 不传(默认 Unspecified)则相对缩放被静默丢弃、层标缩不了——必须显式传正文字号
+                    fontSize = MaterialTheme.typography.bodyMedium.fontSize,
                     style = MaterialTheme.typography.bodyMedium.copy(color = MaterialTheme.colorScheme.onBackground),
                 )
 
