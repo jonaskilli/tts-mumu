@@ -753,7 +753,7 @@ class SystemTtsService : TextToSpeechService(), IEventDispatcher {
                 }
                 // 显示名限 6 字（用户 09-08：显示名不能太长）
                 if (hasPrev) append("，")
-                append(tag.displayName.limitLength(6, "…"))
+                append(tag.displayName.let { if (it.length > 6) it.take(6) + "…" else it })
                 if (paramsInfo.isNotEmpty()) append("，").append(paramsInfo)
             }
             "<font color=\"" + VOICE_META_COLOR + "\">" + meta + "</font>"

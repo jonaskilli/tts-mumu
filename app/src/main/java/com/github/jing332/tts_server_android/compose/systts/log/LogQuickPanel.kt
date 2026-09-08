@@ -263,7 +263,7 @@ fun LogQuickPanel(
                         val pool = CharacterRecordsFile.readVoicePool(config.speechRule.tagRuleId)
                         val filtered = pool.filter {
                             it in enabledTags &&
-                                (selectedCategory == null || it.contains(selectedCategory)) &&
+                                (selectedCategory == null || it.contains(selectedCategory ?: "")) &&
                                 (tagSearch.isBlank() || it.contains(tagSearch))
                         }
                         // 当前绑定不在候选时补在顶部，防丢值

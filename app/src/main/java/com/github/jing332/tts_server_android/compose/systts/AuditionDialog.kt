@@ -100,22 +100,35 @@ fun AuditionDialog(
     var info by remember { mutableStateOf("") }
     val audioPlayer = remember { AudioPlayer(context) }
 
+    val focusListener = remember {
+        android.media.AudioManager.OnAudioFocusChangeListener { }
+    }
+    var focusRequest by remember { mutableStateOf<android.media.AudioFocusRequest?>(null) }
+
     // 试听申请瞬时音频焦点（用户 09-08）：朗读客户端收到焦点丢失自动暂停，
     // 试听结束释放焦点、朗读续播——解决"试听与朗读混音听不清"（与日志面板试听同款）
-    @Suppress("DEPRECATION")
     fun requestAuditionFocus() {
+        if (android.os.Build.VERSION.SDK_INT < android.os.Build.VERSION_CODES.O) return
         val am = context.getSystemService(Context.AUDIO_SERVICE) as android.media.AudioManager
-        am.requestAudioFocus(
-            focusListener,
-            android.media.AudioManager.STREAM_MUSIC,
-            android.media.AudioManager.AUDIOFOCUS_GAIN_TRANSIENT,
+        val req = android.media.AudioFocusRequest.Builder(
+            android.media.AudioManager.AUDIOFOCUS_GAIN_TRANSIENT
         )
+            .setAudioAttributes(
+                android.media.AudioAttributes.Builder()
+                    .setUsage(android.media.AudioAttributes.USAGE_MEDIA)
+                    .setContentType(android.media.AudioAttributes.CONTENT_TYPE_SPEECH)
+                    .build()
+            )
+            .build()
+        focusRequest = req
+        am.requestAudioFocus(req)
     }
 
-    @Suppress("DEPRECATION")
     fun abandonAuditionFocus() {
+        if (android.os.Build.VERSION.SDK_INT < android.os.Build.VERSION_CODES.O) return
+        val req = focusRequest ?: return
         val am = context.getSystemService(Context.AUDIO_SERVICE) as android.media.AudioManager
-        am.abandonFocus(focusListener)
+        am.abandonAudioFocusRequest(req)
     }
 
     DisposableEffect(systts) {
