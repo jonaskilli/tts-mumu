@@ -449,10 +449,10 @@ fun LogQuickPanel(
                                     verticalAlignment = Alignment.CenterVertically,
                                 ) {
                                     Text(
-                                        // 分类(标签)在前、配置项名在后（用户 09-08 调换，原为 配置项名 · 标签）
+                                        // 分类(标签)在前、配置项名在后，单空格分隔（用户 09-08：去掉·）
                                         (if (isCurrent) "✓ " else "") +
                                             (if (isPending && !isCurrent) "● " else "") +
-                                            (if (tagName.isNotBlank()) tagName + " · " else "") + name,
+                                            (if (tagName.isNotBlank()) tagName + " " else "") + name,
                                         modifier = Modifier.weight(1f),
                                         style = MaterialTheme.typography.bodyMedium,
                                         maxLines = 1,
