@@ -1,7 +1,12 @@
 package com.github.jing332.tts_server_android.compose.systts.log
 
 import android.widget.Toast
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.layout.Column
@@ -200,9 +205,9 @@ fun LogQuickPanel(
                         }
                     }
                     if (isBindingMode) {
-                        // ===== 绑定模式：标签池 ∩ 启用配置（用户 09-08：只能选启用项）=====
+                        // ===== 绑定模式：chips 定范围 + 常驻搜索（范围内）+ 列表（行内试听）=====
                         var selectedCategory by remember(entity.id) {
-                            // 默认选中配置项当前标签所属分类（「女青年25」→「女青年」）——不点分类即在原分类里选
+                            // 默认选中配置项当前标签所属分类（「女青年25」→「女青年」）
                             mutableStateOf(
                                 Regex("^(.*[\\u4e00-\\u9fa5])\\d{0,4}$")
                                     .find(config.speechRule.tagName)?.groupValues?.getOrNull(1)
@@ -210,55 +215,35 @@ fun LogQuickPanel(
                             )
                         }
                         val categories = ruleCategories
-                        // 搜索框点了「搜索」chip 才出现（用户 09-08：控面板长度），默认隐藏
-                        var searchMode by remember(entity.id) { mutableStateOf(false) }
                         var tagSearch by remember(entity.id) { mutableStateOf("") }
                         Row(
                             Modifier
                                 .fillMaxWidth()
-                                .horizontalScroll(
-                                    rememberScrollState()
-                                ),
+                                .horizontalScroll(rememberScrollState()),
                             horizontalArrangement = Arrangement.spacedBy(6.dp),
                         ) {
                             androidx.compose.material3.FilterChip(
-                                selected = selectedCategory == null && !searchMode,
-                                onClick = {
-                                    searchMode = false
-                                    selectedCategory = null
-                                },
+                                selected = selectedCategory == null,
+                                onClick = { selectedCategory = null },
                                 label = { Text("全部") },
                             )
                             categories.forEach { c ->
                                 androidx.compose.material3.FilterChip(
-                                    selected = !searchMode && selectedCategory == c,
-                                    onClick = {
-                                        searchMode = false
-                                        selectedCategory = if (selectedCategory == c) null else c
-                                    },
+                                    selected = selectedCategory == c,
+                                    onClick = { selectedCategory = if (selectedCategory == c) null else c },
                                     label = { Text(c) },
                                 )
                             }
-                            androidx.compose.material3.FilterChip(
-                                selected = searchMode,
-                                onClick = {
-                                    searchMode = !searchMode
-                                    if (searchMode) selectedCategory = null
-                                },
-                                label = { Text("搜索") },
-                            )
                         }
-                        if (searchMode) {
-                            OutlinedTextField(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(top = 4.dp),
-                                label = { Text("搜索标签名") },
-                                value = tagSearch,
-                                onValueChange = { tagSearch = it },
-                                singleLine = true,
-                            )
-                        }
+                        OutlinedTextField(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(top = 4.dp),
+                            label = { Text("搜索标签名（当前范围内）") },
+                            value = tagSearch,
+                            onValueChange = { tagSearch = it },
+                            singleLine = true,
+                        )
 
                         // 改绑到无启用配置的标签会掉进随机兜底，读声不可控，必须排除
                         val enabledTags = remember(entity.id) {
@@ -278,112 +263,102 @@ fun LogQuickPanel(
                         val pool = CharacterRecordsFile.readVoicePool(config.speechRule.tagRuleId)
                         val filtered = pool.filter {
                             it in enabledTags &&
-                                if (searchMode) it.contains(tagSearch)
-                                else selectedCategory == null || it.contains(selectedCategory)
+                                (selectedCategory == null || it.contains(selectedCategory)) &&
+                                (tagSearch.isBlank() || it.contains(tagSearch))
                         }
-                        // 当前绑定标签不属于该分类时补在顶部标「当前」，防 Spinner 强制重置
-                        val displayVoices =
+                        // 当前绑定不在候选时补在顶部，防丢值
+                        val displayTags =
                             if (boundVoice.isNotEmpty() && filtered.none { it == boundVoice }) {
-                                listOf(boundVoice to "当前: $boundVoice") + filtered
+                                listOf(boundVoice) + filtered
                             } else filtered
 
-                        Row(
+                        // 候选列表：点行=改绑应用；▶=只试听该标签对应的启用配置（不应用）
+                        Column(
                             Modifier
                                 .fillMaxWidth()
-                                .padding(top = 6.dp),
-                            verticalAlignment = Alignment.CenterVertically,
+                                .padding(top = 6.dp)
+                                .heightIn(max = 220.dp)
+                                .verticalScroll(rememberScrollState())
+                                .border(
+                                    0.5.dp,
+                                    MaterialTheme.colorScheme.outlineVariant,
+                                    RoundedCornerShape(8.dp),
+                                ),
                         ) {
-                            AppSpinner(
-                                modifier = Modifier.weight(1f),
-                                value = boundVoice,
-                                values = displayVoices.map { it.first },
-                                entries = displayVoices.map { it.second },
-                                onSelectedChange = { key, _ ->
-                                    // 互通换发音人：改写角色绑定文件（与角色管理同文件同字段），
-                                    // 朗读规则下次分析即用新绑定；不改配置项本体
-                                    boundVoice = key as String
-                                    scope.launch {
-                                        val ok = withIO {
-                                            CharacterRecordsFile.rebind(
-                                                config.speechRule.tagRuleId,
-                                                entry.roleName,
-                                                boundVoice,
-                                            )
-                                        }
-                                        Toast.makeText(
-                                            context,
-                                            if (ok) "已将「${entry.roleName}」的发音人换为 $boundVoice"
-                                            else context.getString(R.string.log_panel_rebind_failed),
-                                            Toast.LENGTH_SHORT,
-                                        ).show()
-                                    }
-                                },
-                            )
-                            TextButton(onClick = {
-                                // 绑定模式试听：播放新标签对应配置项的声音（当前配置项声音已不代表目标）
-                                scope.launch {
-                                    val target = withIO {
-                                        dbm.systemTtsV2.getAllGroupWithTts().flatMap { it.list }
-                                            .firstOrNull {
-                                                it.isEnabled &&
-                                                    (it.config as? TtsConfigurationDTO)?.speechRule?.tag == boundVoice
+                            if (displayTags.isEmpty()) {
+                                Text(
+                                    "该范围内没有可用的标签",
+                                    modifier = Modifier.padding(10.dp),
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
+                            }
+                            displayTags.forEach { tag ->
+                                val isCurrent = tag == boundVoice
+                                Row(
+                                    Modifier
+                                        .fillMaxWidth()
+                                        .clickable {
+                                            // 点行=改绑应用（与角色管理同文件同字段）
+                                            boundVoice = tag
+                                            scope.launch {
+                                                val ok = withIO {
+                                                    CharacterRecordsFile.rebind(
+                                                        config.speechRule.tagRuleId,
+                                                        entry.roleName,
+                                                        tag,
+                                                    )
+                                                }
+                                                Toast.makeText(
+                                                    context,
+                                                    if (ok) "已将「${entry.roleName}」的发音人换为 $tag"
+                                                    else context.getString(R.string.log_panel_rebind_failed),
+                                                    Toast.LENGTH_SHORT,
+                                                ).show()
                                             }
-                                    }
-                                    if (target != null) {
-                                        TaggedTtsPreviewPlayer.play(context, target, "你好，这是试听语音。")
-                                    } else {
-                                        Toast.makeText(
-                                            context,
-                                            context.getString(R.string.log_panel_rebind_no_config),
-                                            Toast.LENGTH_SHORT,
-                                        ).show()
+                                        }
+                                        .padding(horizontal = 10.dp, vertical = 2.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                ) {
+                                    Text(
+                                        (if (isCurrent) "✓ " else "") + tag,
+                                        modifier = Modifier.weight(1f),
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        maxLines = 1,
+                                        color = if (isCurrent) MaterialTheme.colorScheme.primary
+                                        else MaterialTheme.colorScheme.onSurface,
+                                    )
+                                    TextButton(onClick = {
+                                        // 行内试听：播放该标签对应启用配置的声音，不应用
+                                        scope.launch {
+                                            val target = withIO {
+                                                dbm.systemTtsV2.getAllGroupWithTts().flatMap { it.list }
+                                                    .firstOrNull {
+                                                        it.isEnabled &&
+                                                            (it.config as? TtsConfigurationDTO)?.speechRule?.tag == tag
+                                                    }
+                                            }
+                                            if (target != null) {
+                                                TaggedTtsPreviewPlayer.play(context, target, "你好，这是试听语音。")
+                                            } else {
+                                                Toast.makeText(
+                                                    context,
+                                                    context.getString(R.string.log_panel_rebind_no_config),
+                                                    Toast.LENGTH_SHORT,
+                                                ).show()
+                                            }
+                                        }
+                                    }) {
+                                        Text("▶")
                                     }
                                 }
-                            }) {
-                                Text("▶")
                             }
                         }
                     } else {
-                        // ===== 旁白/非多角色：两分类（用户 09-08 定稿）=====
-                        var presetMode by remember(entity.id) { mutableStateOf(true) }
+                        // ===== 旁白/非多角色：chips 定范围 + 常驻搜索 + 列表（行内试听）=====
+                        // narrationScope: null=旁白 preset；"全部"=全配置；其他=该分类配置
+                        var narrationScope by remember(entity.id) { mutableStateOf<String?>(null) }
                         var searchQuery by remember(entity.id) { mutableStateOf("") }
-
-                        // 全部配置项（含禁用——主界面预置的 preset 库）
-                        val allConfigs = remember(entity.id) {
-                            dbm.systemTtsV2.getAllGroupWithTts().flatMap { it.list }
-                        }
-                        fun categoryOf(tagName: String): String? =
-                            Regex("^(.*[\\u4e00-\\u9fa5])\\d{0,4}$").find(tagName)
-                                ?.groupValues?.getOrNull(1) ?: tagName.takeIf { it.isNotBlank() }
-
-                        // 候选 (voiceId, 显示名)
-                        val candidates: List<Pair<String, String>> = if (presetMode) {
-                            // [旁白]：主界面绑旁白标签配置的声音直选（去重）
-                            allConfigs.mapNotNull { c ->
-                                val dto = c.config as? TtsConfigurationDTO ?: return@mapNotNull null
-                                val v = (dto.source as? PluginTtsSource)?.voice
-                                    ?.takeIf { it.isNotEmpty() } ?: return@mapNotNull null
-                                if (categoryOf(dto.speechRule.tagName) != "旁白") return@mapNotNull null
-                                v to c.displayName
-                            }.distinctBy { it.first }
-                        } else {
-                            // [其他]：按配置项名搜索（数量庞大无法分类）
-                            allConfigs.mapNotNull { c ->
-                                val dto = c.config as? TtsConfigurationDTO ?: return@mapNotNull null
-                                val v = (dto.source as? PluginTtsSource)?.voice
-                                    ?.takeIf { it.isNotEmpty() } ?: return@mapNotNull null
-                                if (searchQuery.isNotBlank() &&
-                                    !c.displayName.contains(searchQuery, ignoreCase = true)
-                                ) return@mapNotNull null
-                                v to c.displayName
-                            }.distinctBy { it.first }.take(30)
-                        }
-                        // 当前声音不在候选时补顶部防 Spinner 强制重置
-                        val displayVoices =
-                            if (voice.isNotEmpty() && candidates.none { it.first == voice }) {
-                                listOf(voice to "当前: $voice") + candidates
-                            } else candidates
-
                         Row(
                             Modifier
                                 .fillMaxWidth()
@@ -391,47 +366,110 @@ fun LogQuickPanel(
                             horizontalArrangement = Arrangement.spacedBy(6.dp),
                         ) {
                             androidx.compose.material3.FilterChip(
-                                selected = presetMode,
-                                onClick = { presetMode = true },
+                                selected = narrationScope == null,
+                                onClick = { narrationScope = null },
                                 label = { Text("旁白") },
                             )
                             androidx.compose.material3.FilterChip(
-                                selected = !presetMode,
-                                onClick = { presetMode = false },
-                                label = { Text("其他") },
+                                selected = narrationScope == "全部",
+                                onClick = { narrationScope = "全部" },
+                                label = { Text("全部") },
                             )
+                            ruleCategories.forEach { c ->
+                                androidx.compose.material3.FilterChip(
+                                    selected = narrationScope == c,
+                                    onClick = { narrationScope = if (narrationScope == c) null else c },
+                                    label = { Text(c) },
+                                )
+                            }
                         }
-                        if (!presetMode) {
-                            OutlinedTextField(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(top = 4.dp),
-                                label = { Text("搜索配置项名") },
-                                value = searchQuery,
-                                onValueChange = { searchQuery = it },
-                                singleLine = true,
-                            )
-                        }
+                        OutlinedTextField(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(top = 4.dp),
+                            label = { Text("搜索配置项名（当前范围内）") },
+                            value = searchQuery,
+                            onValueChange = { searchQuery = it },
+                            singleLine = true,
+                        )
 
-                        Row(
+                        val allConfigs = remember(entity.id) {
+                            dbm.systemTtsV2.getAllGroupWithTts().flatMap { it.list }
+                        }
+                        fun categoryOf(tagName: String): String? =
+                            Regex("^(.*[\\u4e00-\\u9fa5])\\d{0,4}$").find(tagName)
+                                ?.groupValues?.getOrNull(1) ?: tagName.takeIf { it.isNotBlank() }
+
+                        // 候选配置项（去重：同一声音只留一个代表，供试听/应用）
+                        val candidateConfigs = allConfigs
+                            .mapNotNull { c ->
+                                val dto = c.config as? TtsConfigurationDTO ?: return@mapNotNull null
+                                val v = (dto.source as? PluginTtsSource)?.voice
+                                    ?.takeIf { it.isNotEmpty() } ?: return@mapNotNull null
+                                val inScope = when (narrationScope) {
+                                    null -> categoryOf(dto.speechRule.tagName) == "旁白"
+                                    "全部" -> true
+                                    else -> categoryOf(dto.speechRule.tagName) == narrationScope
+                                }
+                                if (!inScope) return@mapNotNull null
+                                if (searchQuery.isNotBlank() &&
+                                    !c.displayName.contains(searchQuery, ignoreCase = true)
+                                ) return@mapNotNull null
+                                Triple(v, c.displayName, dto.speechRule.tagName)
+                            }
+                            .distinctBy { it.first }
+
+                        // 候选列表：点行=应用该声音到启用的旁白配置；▶=试听该配置的声音
+                        Column(
                             Modifier
                                 .fillMaxWidth()
-                                .padding(top = 6.dp),
-                            verticalAlignment = Alignment.CenterVertically,
+                                .padding(top = 6.dp)
+                                .heightIn(max = 220.dp)
+                                .verticalScroll(rememberScrollState())
+                                .border(
+                                    0.5.dp,
+                                    MaterialTheme.colorScheme.outlineVariant,
+                                    RoundedCornerShape(8.dp),
+                                ),
                         ) {
-                            AppSpinner(
-                                modifier = Modifier.weight(1f),
-                                value = voice,
-                                values = displayVoices.map { it.first },
-                                entries = displayVoices.map { it.second },
-                                onSelectedChange = { key, _ ->
-                                    applyVoice(key as String)
-                                },
-                            )
-                            TextButton(onClick = {
-                                TaggedTtsPreviewPlayer.play(context, draftEntity(), "你好，这是试听语音。")
-                            }) {
-                                Text("▶")
+                            if (candidateConfigs.isEmpty()) {
+                                Text(
+                                    "该范围内没有匹配的配置项",
+                                    modifier = Modifier.padding(10.dp),
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
+                            }
+                            candidateConfigs.forEach { (v, name, tagName) ->
+                                val isCurrent = v == voice && voice.isNotEmpty()
+                                Row(
+                                    Modifier
+                                        .fillMaxWidth()
+                                        .clickable { applyVoice(v) }
+                                        .padding(horizontal = 10.dp, vertical = 2.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                ) {
+                                    Text(
+                                        (if (isCurrent) "✓ " else "") + name +
+                                            (if (tagName.isNotBlank()) " · " + tagName else ""),
+                                        modifier = Modifier.weight(1f),
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        maxLines = 1,
+                                        color = if (isCurrent) MaterialTheme.colorScheme.primary
+                                        else MaterialTheme.colorScheme.onSurface,
+                                    )
+                                    TextButton(onClick = {
+                                        val target = allConfigs.firstOrNull {
+                                            (it.config as? TtsConfigurationDTO)?.source
+                                                ?.let { s -> (s as? PluginTtsSource)?.voice } == v
+                                        }
+                                        if (target != null) {
+                                            TaggedTtsPreviewPlayer.play(context, target, "你好，这是试听语音。")
+                                        }
+                                    }) {
+                                        Text("▶")
+                                    }
+                                }
                             }
                         }
                     }
