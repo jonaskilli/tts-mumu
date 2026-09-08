@@ -735,16 +735,22 @@ class SystemTtsService : TextToSpeechService(), IEventDispatcher {
         // voice id 技术串对用户无意义，不再进日志(用户要求)
         return if (tag is SystemTtsV2) {
             val meta = buildString {
-                // 角色 tagData 里的角色名(如"张三")在最前，中文逗号分隔
+                // 三段式全角逗号分隔（用户 09-08）：角色名，标签，显示名，参数——层次清晰不粘连
+                var hasPrev = false
                 config.speechInfo.tagData["role"]?.takeIf { it.isNotBlank() }?.let {
-                    append(it).append("，")
+                    append(it)
+                    hasPrev = true
                 }
-                // 标签+发音人连写(用户定稿)：男主1晓伊
+                // 标签（如"旁白"）
                 if (config.speechInfo.tagName.isNotBlank()) {
+                    if (hasPrev) append("，")
                     append(config.speechInfo.tagName)
+                    hasPrev = true
                 }
-                append(tag.displayName)
-                if (paramsInfo.isNotEmpty()) append(paramsInfo)
+                // 显示名限 6 字（用户 09-08：显示名不能太长）
+                if (hasPrev) append("，")
+                append(tag.displayName.limitLength(6, "…"))
+                if (paramsInfo.isNotEmpty()) append("，").append(paramsInfo)
             }
             "<font color=\"" + VOICE_META_COLOR + "\">" + meta + "</font>"
         } else ""
