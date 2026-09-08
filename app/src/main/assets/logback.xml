@@ -39,7 +39,8 @@
     <appender name="SystemTTS" class="ch.qos.logback.core.rolling.RollingFileAppender">
         <file>${LOG_DIR}/system_tts.log</file>
         <encoder>
-            <pattern>%d{yyyy-MM-dd HH:mm:ss.SSS} | %-5level | %msg%n</pattern>
+            <!-- configId/roleName 经 MDC 落盘（用户 09-08）：重启后旧日志行仍可点开快捷面板 -->
+            <pattern>%d{yyyy-MM-dd HH:mm:ss.SSS} | %-5level | %X{configId} | %X{roleName} | %msg%n</pattern>
         </encoder>
 
         <filter class="com.github.jing332.tts_server_android.SysttsFilter" />

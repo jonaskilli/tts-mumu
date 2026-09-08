@@ -30,6 +30,30 @@ object TaggedTtsPreviewPlayer {
     private var job: Job? = null
     private var player: AudioPlayer? = null
 
+    // 试听申请瞬时音频焦点（用户 09-08）：朗读客户端收到焦点丢失自动暂停，
+    // 试听结束释放焦点、朗读续播——解决"试听与朗读混音听不清"
+    private val focusListener = android.media.AudioManager.OnAudioFocusChangeListener { }
+    private var focusSession = 0
+    private var appContext: Context? = null
+
+    @Suppress("DEPRECATION")
+    private fun requestAudioFocus(context: Context) {
+        appContext = context.applicationContext
+        val am = context.getSystemService(Context.AUDIO_SERVICE) as android.media.AudioManager
+        am.requestAudioFocus(
+            focusListener,
+            android.media.AudioManager.STREAM_MUSIC,
+            android.media.AudioManager.AUDIOFOCUS_GAIN_TRANSIENT,
+        )
+    }
+
+    @Suppress("DEPRECATION")
+    private fun abandonAudioFocus() {
+        val ctx = appContext ?: return
+        val am = ctx.getSystemService(Context.AUDIO_SERVICE) as android.media.AudioManager
+        am.abandonFocus(focusListener)
+    }
+
     // 本次会话是否已真正出声(合成完毕进入播放)；JS 用它把按钮从…切到■,对齐v9时机
     @Volatile
     private var audible: Boolean = false
@@ -50,6 +74,10 @@ object TaggedTtsPreviewPlayer {
             val audioPlayer = AudioPlayer(context.applicationContext)
             player?.release()
             player = audioPlayer
+            // 申请瞬时焦点：书声让位暂停（用户 09-08），试听结束在 finally 释放、朗读续播
+            focusSession++
+            val session = focusSession
+            requestAudioFocus(context)
             job = scope.launch {
                 try {
                     val resolved = resolveTtsPlayback(entity, TtsPreviewConfig.globalAudioParamsProvider())
@@ -118,6 +146,9 @@ object TaggedTtsPreviewPlayer {
                     if (stillOwnsPlayer) {
                         toast(context, "试听失败：${e.message ?: e.javaClass.simpleName}")
                     }
+                } finally {
+                    // 播完/被替换/失败都释放焦点；被新试听顶替时 session 不匹配，由新会话接管
+                    if (focusSession == session) abandonAudioFocus()
                 }
             }
         }
@@ -131,6 +162,8 @@ object TaggedTtsPreviewPlayer {
             player?.stop()
             player?.release()
             player = null
+            focusSession++
+            abandonAudioFocus()
         }
     }
 

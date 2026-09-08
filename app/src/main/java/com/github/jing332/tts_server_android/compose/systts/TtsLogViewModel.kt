@@ -99,12 +99,26 @@ class TtsLogViewModel : ViewModel() {
 
 
     private fun toLogEntry(line: String): LogEntry {
+        // 新格式（09-08）：time | LEVEL | configId | roleName | message —— configId/roleName
+        // 随 MDC 落盘，重启后旧日志行仍可点开快捷面板；configId 恒为数字作判别，兼容旧三段格式
+        Regex(
+            "^(\\d{4}-\\d\\d-\\d\\d \\d\\d:\\d\\d:\\d\\d\\.\\d{3}) \\|\\s*([A-Z]+)\\s*\\|\\s*(\\d+)\\s*\\|\\s*(.*?)\\s*\\|\\s*(.*)$"
+        ).find(line)?.let { m ->
+            return LogEntry(
+                level = m.groupValues[2].toLogLevel(),
+                time = m.groupValues[1],
+                message = m.groupValues[5],
+                configId = m.groupValues[3].toLongOrNull() ?: 0L,
+                roleName = m.groupValues[4],
+            )
+        }
+        // 旧格式：time | LEVEL | message（message 可含 " | "，需全量重组）
         return line.split(" | ").let {
             val time = it[0]
             val level = it[1]
-            val msg = it[2]
+            val message = it.drop(2).joinToString(" | ")
             LogEntry(
-                level = level.toLogLevel(), time = time, message = msg
+                level = level.toLogLevel(), time = time, message = message
             )
         }
     }
