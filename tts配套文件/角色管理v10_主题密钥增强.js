@@ -10,9 +10,14 @@
 // 结构改动=左右8dp边距、密钥/备份/主题三按钮同色系、圆角12、字号对齐。
 // 原版存档：tts配套文件/角色管理v9_模型拉取_密钥导出导入.js（未改动）
 // ============================================================================
+// —— 日志静默（用户 09-08：刷新日志刷屏很烦）——
+// 常规日志全部改走 _clog（默认静默，函数声明提升全脚本可用）；每个动作只保留一行关键结果走 _clogKey
+var _QUIET_LOG = true;
+function _clog(msg) { if (!_QUIET_LOG) console.log(msg); }
+function _clogKey(msg) { console.log(msg); }
+
 var PluginJS = {
-    'name': "角色管理v10_主题密钥增强",
-    'id': "mingwuyan",
+
     'author': "命無言",
     'iconUrl': 'https://img.picui.cn/free/2025/02/24/67bc5a1bac4cf.png',
     'version': 20260905,
@@ -85,17 +90,17 @@ var EditorJS = {
                 var liebiaoJson = ttsrv.readTxtFile(liebiaoPath);
                 if (!liebiaoJson || liebiaoJson.trim() === "") {
                     ttsrv.writeTxtFile(liebiaoPath, defaultLiebiao); // 写入默认内容
-                    console.log("liebiao.json 为空，已初始化为 [\"默认\"]");
+                    _clog("liebiao.json 为空，已初始化为 [\"默认\"]");
                     Toast.makeText(ctx, "列表配置文件为空，已初始化", Toast.LENGTH_SHORT).show();
                     return;
                 }
                 var liebiaoList = JSON.parse(liebiaoJson);
                 if (!Array.isArray(liebiaoList)) {
                     ttsrv.writeTxtFile(liebiaoPath, defaultLiebiao); // 格式错误时写入默认内容
-                    console.log("liebiao.json 格式错，已初始化为 [\"默认\"]");
+                    _clog("liebiao.json 格式错，已初始化为 [\"默认\"]");
                     Toast.makeText(ctx, "列表配置格式错误，已初始化", Toast.LENGTH_SHORT).show();
                 } else {
-                    console.log("liebiao.json 正常，共" + liebiaoList.length + "条列表数据");
+                    _clog("liebiao.json 正常，共" + liebiaoList.length + "条列表数据");
                 }
             } catch (e) {
                 ttsrv.writeTxtFile(liebiaoPath, defaultLiebiao); // 文件不存在时写入默认内容
@@ -155,7 +160,7 @@ var EditorJS = {
         try {
             // 处理原始值：转为字符串+去空格，避免异常格式
             var rawState = String(ttsrv.tts.data.autoBackupEnable || "").trim();
-            console.log("自动备份原始状态：值='" + rawState + "', 类型=" + typeof rawState);
+            _clog("自动备份原始状态：值='" + rawState + "', 类型=" + typeof rawState);
             
             // 仅当清洗后是"1"才视为开启
             autoBackupState = (rawState === "1") ? "1" : "0";
@@ -167,9 +172,9 @@ var EditorJS = {
         // 状态为"1"时执行备份
         if (autoBackupState === "1") {
             backupAllFilesToData();
-            console.log("自动备份（备份到角色数据）已执行");
+            _clog("自动备份（备份到角色数据）已执行");
         } else {
-            console.log("自动备份关闭，不执行");
+            _clog("自动备份关闭，不执行");
         }
 
         
@@ -199,9 +204,9 @@ var EditorJS = {
                         if (reB) return 1;
                         return String(a) < String(b) ? -1 : 1;
                     });
-                    console.log("从fayinren.json刷新发音人列表: " + fayinrenList.length + " 条");
+                    _clog("从fayinren.json刷新发音人列表: " + fayinrenList.length + " 条");
                 } else {
-                    console.log("fayinren.json文件内容为空");
+                    _clog("fayinren.json文件内容为空");
                 }
             } catch (e) {
                 console.error("读取fayinren.json失败: " + e.toString());
@@ -406,7 +411,7 @@ var EditorJS = {
                     var sk = (ttsrv.readTxtFile(keyFiles[si]) || "").toString().trim();
                     if (sk) {
                         currentLocalKey = sk;
-                        console.log("从 " + keyFiles[si] + " 读取到本地密钥");
+                        _clog("从 " + keyFiles[si] + " 读取到本地密钥");
                         break; // 读到第一个非空就停止，不再继续遍历备份文件
                     }
                 } catch (eSrc) {
@@ -451,7 +456,7 @@ var EditorJS = {
                             hasActive = true;
                             curName = kl.list[ci2];
                             ttsrv.tts.data['currentKeyName'] = curName;
-                            console.log("反向匹配到密钥: " + curName);
+                            _clog("反向匹配到密钥: " + curName);
                             break;
                         }
                     }
@@ -467,14 +472,14 @@ var EditorJS = {
                         ttsrv.tts.data['currentKeyName'] = firstName;
                         curName = firstName;
                         currentLocalKey = firstKeyValue;
-                        console.log("无匹配项，自动启用第一个密钥: " + firstName);
+                        _clog("无匹配项，自动启用第一个密钥: " + firstName);
                     } else {
-                        console.log("列表第一个密钥内容为空，跳过启用");
+                        _clog("列表第一个密钥内容为空，跳过启用");
                     }
                 }
             }
 
-            console.log("密钥管理：curName='" + curName + "', currentLocalKey长度=" + currentLocalKey.length);
+            _clog("密钥管理：curName='" + curName + "', currentLocalKey长度=" + currentLocalKey.length);
 
             function getItemKey(keyItem) {
                 return keyItem && keyItem.value ? keyItem.value.toString().trim() : "";
@@ -1560,7 +1565,7 @@ var EditorJS = {
                                                         if (nextKeyValue) {
                                                             saveKeyToLocal(nextKeyValue);
                                                             ttsrv.tts.data['currentKeyName'] = nextName;
-                                                            console.log("删除后自动启用: " + nextName);
+                                                            _clog("删除后自动启用: " + nextName);
                                                         }
                                                     } else {
                                                         try {
@@ -2615,7 +2620,7 @@ var EditorJS = {
                 // 同时写入 ttsrv.tts.data（兼容旧代码读取）
                 var keyListJson = JSON.stringify(keyMap);
                 ttsrv.tts.data.keyListJson = keyListJson;
-                console.log("密钥列表已保存到文件（" + arr.length + "项，长度" + jsonStr.length + "）");
+                _clog("密钥列表已保存到文件（" + arr.length + "项，长度" + jsonStr.length + "）");
             } catch (e) {
                 console.error("保存密钥列表失败：" + e.toString());
                 Toast.makeText(ctx, "密钥存储失败", Toast.LENGTH_SHORT).show();
@@ -2643,7 +2648,7 @@ var EditorJS = {
                 ttsrv.writeTxtFile("miyue.txt", cleanKey);
                 ttsrv.writeTxtFile("gengxin.txt", cleanKey);
                 saveKeyWithMultipleMethods(cleanKey);
-                console.log("本地txt已更新（清洗后长度：" + cleanKey.length + "）");
+                _clog("本地txt已更新（清洗后长度：" + cleanKey.length + "）");
             } catch (e) {
                 console.error("本地保存失败：" + e.toString());
                 Toast.makeText(ctx, "本地txt保存失败", Toast.LENGTH_SHORT).show();
@@ -2653,7 +2658,7 @@ var EditorJS = {
         function saveKeyWithMultipleMethods(key) {
             try {
                 ttsrv.writeTxtFile("miyue_backup.txt", key);
-                console.log("密钥备份成功");
+                _clog("密钥备份成功");
             } catch (e1) {
                 console.error("ttsrv备份失败：" + e1.toString());
                 try {
@@ -2678,35 +2683,35 @@ var EditorJS = {
         var characterFilePath = 'characterRecords.json';
         
         try {
-            console.log("尝试读取角色数据文件: " + characterFilePath);
+            _clog("尝试读取角色数据文件: " + characterFilePath);
             
             try {
                 var data = ttsrv.readTxtFile(characterFilePath);
-                console.log("使用ttsrv.readTxtFile读取文件成功");
+                _clog("使用ttsrv.readTxtFile读取文件成功");
                 
                 // 空文件或空内容视为空数组（不回退到默认角色数据）
                 if (!data || data.trim() === "" || data.trim() === "[]") {
                     characterRecords = [];
-                    console.log("角色数据文件为空或无角色，使用空列表");
+                    _clog("角色数据文件为空或无角色，使用空列表");
                 } else {
                     characterRecords = JSON.parse(data) || [];
                     // record.voice 存的是 tag（如"女青年01"），标签显示由 generateVoiceTag 通过 getVoiceByTag(tag) 实时查询当前分组
                 }
             } catch (e) {
-                console.log("读取角色数据失败: " + e.toString());
+                _clog("读取角色数据失败: " + e.toString());
                 
                 // 解析失败时：不回退到默认角色数据，使用空列表（避免已删除的角色复活）
                 characterRecords = [];
-                console.log("角色数据解析失败，使用空列表（不恢复默认数据）");
+                _clog("角色数据解析失败，使用空列表（不恢复默认数据）");
             }
             
-            console.log("成功解析角色数据，记录数: " + characterRecords.length);
+            _clog("成功解析角色数据，记录数: " + characterRecords.length);
             
             var allNames = [];
             for (var i = 0; i < characterRecords.length; i++) {
                 allNames.push(characterRecords[i].name);
             }
-            console.log("所有角色名称: " + allNames.join(", "));
+            _clog("所有角色名称: " + allNames.join(", "));
         } catch (e) {
             console.error("读取角色数据失败: " + e.toString());
         }
@@ -2858,7 +2863,7 @@ var EditorJS = {
                     }
                 }
             } catch (e) {
-                console.log("prefetchVoiceNames 异常: " + e.toString());
+                _clog("prefetchVoiceNames 异常: " + e.toString());
             }
         }
 
@@ -2966,7 +2971,7 @@ var EditorJS = {
         
         function initializeFileSystem() {
             try {
-                console.log("开始初始化文件系统");
+                _clog("开始初始化文件系统");
                 
                 // 每次直接从cunfang.txt读取最新书名（支持框架自动切换书籍）
                 var currentBookName = "默认";
@@ -2981,17 +2986,17 @@ var EditorJS = {
                     ttsrv.writeTxtFile("cunfang.txt", "默认");
                 }
                 ttsrv.tts.data['currentBookName'] = currentBookName;
-                console.log("当前书名: [" + currentBookName + "]");
+                _clog("当前书名: [" + currentBookName + "]");
                 
                 try {
                     var characterData = ttsrv.readTxtFile("characterRecords.json");
                     if (characterData) {
                         var shumingFileName = "shuming." + currentBookName + ".json";
                         ttsrv.writeTxtFile(shumingFileName, characterData);
-                        console.log("角色数据已保存到: " + shumingFileName);
+                        _clog("角色数据已保存到: " + shumingFileName);
                     }
                 } catch (e) {
-                    console.log("保存shuming文件失败: " + e.toString());
+                    _clog("保存shuming文件失败: " + e.toString());
                 }
                 
                 var bookList = [];
@@ -2999,10 +3004,10 @@ var EditorJS = {
                     var liebiaoData = ttsrv.readTxtFile("liebiao.json");
                     if (liebiaoData) {
                         bookList = JSON.parse(liebiaoData);
-                        console.log("读取liebiao.json成功，列表: " + bookList.join(", "));
+                        _clog("读取liebiao.json成功，列表: " + bookList.join(", "));
                     }
                 } catch (e) {
-                    console.log("liebiao.json读取失败，创建新文件: " + e.toString());
+                    _clog("liebiao.json读取失败，创建新文件: " + e.toString());
                 }
                 var needSave = false;
                 
@@ -3018,7 +3023,7 @@ var EditorJS = {
                     // 当前书名不在列表中，直接追加（保留所有书籍，支持多本书共存）
                     bookList.push(currentBookName);
                     needSave = true;
-                    console.log("已添加'" + currentBookName + "'到liebiao.json");
+                    _clog("已添加'" + currentBookName + "'到liebiao.json");
                 }
                 
                 var hasDefault = false;
@@ -3032,14 +3037,14 @@ var EditorJS = {
                 if (!hasDefault) {
                     bookList.push("默认");
                     needSave = true;
-                    console.log("已添加'默认'到liebiao.json");
+                    _clog("已添加'默认'到liebiao.json");
                 }
                 
                 var cleanedList = removeDuplicateBooks(bookList);
                 if (cleanedList.length !== bookList.length) {
                     bookList = cleanedList;
                     needSave = true;
-                    console.log("已清理重复的书名");
+                    _clog("已清理重复的书名");
                 }
                 
                 // 注意：此处不再清理"无 shuming 文件的书名"。
@@ -3049,10 +3054,10 @@ var EditorJS = {
                 if (needSave) {
                     ttsrv.writeTxtFile("liebiao.json", JSON.stringify(bookList, null, 2));
                     refreshBookListCache(bookList);
-                    console.log("已更新liebiao.json");
+                    _clog("已更新liebiao.json");
                 }
                 
-                console.log("文件系统初始化完成");
+                _clog("文件系统初始化完成");
                 
             } catch (e) {
                 console.error("文件系统初始化失败: " + e.toString());
@@ -3074,7 +3079,7 @@ var EditorJS = {
                 ttsrv.tts.data['currentBookName'] = currentBookName;
                 return currentBookName;
             } catch (e) {
-                console.log("获取当前书名失败，使用默认值: " + e.toString());
+                _clog("获取当前书名失败，使用默认值: " + e.toString());
                 return "默认";
             }
         }
@@ -3094,7 +3099,7 @@ var EditorJS = {
                     return bookList;
                 }
             } catch (e) {
-                console.log("读取liebiao.json失败: " + e.toString());
+                _clog("读取liebiao.json失败: " + e.toString());
             }
             _bookListCache = ["默认"];
             return ["默认"];
@@ -3119,9 +3124,9 @@ var EditorJS = {
             try {
                 ttsrv.writeTxtFile("liebiao.json", JSON.stringify(dedupedList, null, 2));
             } catch (e) {
-                console.log("写入liebiao.json失败（不影响功能，tts.data已更新）: " + e.toString());
+                _clog("写入liebiao.json失败（不影响功能，tts.data已更新）: " + e.toString());
             }
-            console.log("书籍列表缓存+tts.data已刷新: " + JSON.stringify(dedupedList));
+            _clog("书籍列表缓存+tts.data已刷新: " + JSON.stringify(dedupedList));
         }
         
         function saveCharacterData() {
@@ -3156,21 +3161,21 @@ var EditorJS = {
                 var jsonData = JSON.stringify(saveRecords, null, 2);
   // ↑ 修复结束
   
-                console.log("准备写入JSON数据，长度: " + jsonData.length);
+                _clog("准备写入JSON数据，长度: " + jsonData.length);
                 
                 ttsrv.writeTxtFile("characterRecords.json", jsonData);
-                console.log("角色记录已保存到characterRecords.json");
+                _clog("角色记录已保存到characterRecords.json");
                 
                 var shumingFileName = "shuming." + currentBookName + ".json";
                 ttsrv.writeTxtFile(shumingFileName, jsonData);
-                console.log("角色记录已保存到" + shumingFileName);
+                _clog("角色记录已保存到" + shumingFileName);
                 
                 ttsrv.writeTxtFile("gengxin.json", jsonData);
-                console.log("角色记录已保存到gengxin.json");
+                _clog("角色记录已保存到gengxin.json");
                 
                 // 同步更新备份文件，防止框架从旧备份恢复已删除的数据
                 ttsrv.writeTxtFile("characterRecords_backup.json", jsonData);
-                console.log("角色记录已同步到characterRecords_backup.json");
+                _clog("角色记录已同步到characterRecords_backup.json");
 
             } catch (e) {
                 console.error("写入文件失败: " + e.toString());
@@ -3197,7 +3202,7 @@ var EditorJS = {
               }
               var jsonData = JSON.stringify(saveRecords, null, 2);
               ttsrv.writeTxtFile("gengxin.json", jsonData);
-              console.log("已创建/更新gengxin.json文件（已执行反向映射）");
+              _clog("已创建/更新gengxin.json文件（已执行反向映射）");
             } catch (e) {
               console.error("创建gengxin.json文件失败: " + e.toString());
             }
@@ -3206,19 +3211,19 @@ var EditorJS = {
         
         function backupOriginalData() {
             try {
-                console.log("开始备份原始数据");
+                _clog("开始备份原始数据");
                 
                 var currentData = "";
                 try {
                     currentData = ttsrv.readTxtFile("characterRecords.json");
-                    console.log("成功读取当前文件内容");
+                    _clog("成功读取当前文件内容");
                 } catch (e) {
-                    console.log("无法读取当前文件，使用内存数据备份: " + e.toString());
+                    _clog("无法读取当前文件，使用内存数据备份: " + e.toString());
                     currentData = serializeRecordsForStorage();
                 }
                 
                 ttsrv.writeTxtFile("characterRecords_backup.json", currentData);
-                console.log("原始数据备份完成");
+                _clog("原始数据备份完成");
                 
             } catch (e) {
                 console.error("备份原始数据失败: " + e.toString());
@@ -3692,7 +3697,7 @@ var EditorJS = {
         // 修复后：通过"标准化角色名"匹配，确保待合并角色被删除
         function refreshCharacterData() {
             try {
-                console.log("开始刷新角色列表数据");
+                _clog("开始刷新角色列表数据");
                 
                 var characterData = ttsrv.readTxtFile("characterRecords.json");
                 if (characterData && characterData.trim() !== "") {
@@ -3704,14 +3709,14 @@ var EditorJS = {
   
   
   
-                    console.log("重新读取角色数据成功，记录数: " + characterRecords.length);
+                    _clog("重新读取角色数据成功，记录数: " + characterRecords.length);
                     
                     // 刷新按钮：角色列表不变，只更新发音人标签（不重建行，不闪烁）
                     refreshVoiceTagsOnly();
                     
                     Toast.makeText(ctx, "角色列表已刷新", Toast.LENGTH_SHORT).show();
                 } else {
-                    console.log("characterRecords.json文件为空");
+                    _clog("characterRecords.json文件为空");
                     characterRecords = [];
                     refreshCharacterList();
                     Toast.makeText(ctx, "角色数据为空", Toast.LENGTH_SHORT).show();
@@ -3725,7 +3730,7 @@ var EditorJS = {
         function initBookSpinner() {
             try {
                 var currentBook = getCurrentBookName();
-                console.log("初始化书名编辑器，当前书名: [" + currentBook + "]");
+                _clog("初始化书名编辑器，当前书名: [" + currentBook + "]");
                 bookNameEditor.setText(currentBook);
             } catch (e) {
                 console.error("初始化书名编辑器失败: " + e.toString());
@@ -3766,13 +3771,13 @@ var EditorJS = {
         // 弹出书籍列表（书名框和箭头共用）—— 融合管理功能：含当前书、长按删除、新增书籍
         function showBookSwitchDialog() {
             var bookList = getBookList();
-            console.log("showBookSwitchDialog 书籍列表: " + JSON.stringify(bookList));
+            _clog("showBookSwitchDialog 书籍列表: " + JSON.stringify(bookList));
             
             if (!bookList || bookList.length === 0) {
                 bookList = ["默认"];
             }
             var currentBookName = getCurrentBookName();
-            console.log("当前书名: [" + currentBookName + "]");
+            _clog("当前书名: [" + currentBookName + "]");
 
             // 去重 + 确保当前书在列表中（使用 normalizeString 容忍大小写/不可见字符差异）
             var displayList = [];
@@ -4072,13 +4077,13 @@ var EditorJS = {
         function renameCurrentBook(newBookName) {
             newBookName = String(newBookName).trim();
             var currentBook = getCurrentBookName();
-            console.log("renameCurrentBook: currentBook=[" + currentBook + "], newBookName=[" + newBookName + "]");
+            _clog("renameCurrentBook: currentBook=[" + currentBook + "], newBookName=[" + newBookName + "]");
             if (newBookName === currentBook) {
-                console.log("书名未变化，跳过");
+                _clog("书名未变化，跳过");
                 return;
             }
             if (newBookName === "") {
-                console.log("新书名为空，恢复原书名");
+                _clog("新书名为空，恢复原书名");
                 bookNameEditor.setText(currentBook);
                 return;
             }
@@ -4094,7 +4099,7 @@ var EditorJS = {
 
                 // 3. 构建新书名列表（彻底移除旧名，添加新名）
                 var bookList = getBookList();
-                console.log("重命名前书籍列表: " + JSON.stringify(bookList) + ", currentBook=[" + currentBook + "]");
+                _clog("重命名前书籍列表: " + JSON.stringify(bookList) + ", currentBook=[" + currentBook + "]");
                 var finalList = [];
                 var currentBookNorm = normalizeString(currentBook);
                 var newBookNameNorm = normalizeString(newBookName);
@@ -4122,7 +4127,7 @@ var EditorJS = {
 
                 // refreshBookListCache 会同时更新 _bookListCache + tts.data + liebiao.json
                 refreshBookListCache(finalList);
-                console.log("第一阶段完成: 书籍列表已更新为: " + JSON.stringify(finalList));
+                _clog("第一阶段完成: 书籍列表已更新为: " + JSON.stringify(finalList));
 
                 // 立即显示成功提示
                 Toast.makeText(ctx, "已重命名为「" + newBookName + "」", Toast.LENGTH_SHORT).show();
@@ -4176,7 +4181,7 @@ var EditorJS = {
                             // 更新下拉栏
                             initBookSpinner();
 
-                            console.log("第二阶段完成: shuming迁移 + 角色列表刷新");
+                            _clog("第二阶段完成: shuming迁移 + 角色列表刷新");
                         } catch (e2) {
                             console.error("第二阶段出错: " + e2.toString());
                         }
@@ -4192,23 +4197,23 @@ var EditorJS = {
         // ============== 新增：切换前保存当前书籍数据 ==============
         function saveCurrentBookBeforeSwitch(newBookName) {
             try {
-                console.log("开始保存当前书籍数据");
+                _clog("开始保存当前书籍数据");
                 var characterData = "";
                 try {
                     characterData = ttsrv.readTxtFile("characterRecords.json");
-                    console.log("重新读取characterRecords.json成功");
+                    _clog("重新读取characterRecords.json成功");
                 } catch (e) {
-                    console.log("重新读取characterRecords.json失败: " + e.toString());
+                    _clog("重新读取characterRecords.json失败: " + e.toString());
                     characterData = serializeRecordsForStorage();
                 }
                 var currentBookName = getCurrentBookName();
                 if (currentBookName && currentBookName.trim() !== "") {
                     var shumingFileName = "shuming." + currentBookName + ".json";
                     ttsrv.writeTxtFile(shumingFileName, characterData);
-                    console.log("当前书籍数据已保存到: " + shumingFileName);
+                    _clog("当前书籍数据已保存到: " + shumingFileName);
                     createGengxinFile();
                 } else {
-                    console.log("当前书名为空，跳过保存");
+                    _clog("当前书名为空，跳过保存");
                 }
                 useBook(newBookName);
             } catch (e) {
@@ -4221,23 +4226,23 @@ var EditorJS = {
         // ============== 新增：加载目标书籍数据 ==============
         function useBook(newBookName) {
             try {
-                console.log("开始使用书籍: [" + newBookName + "]");
+                _clog("开始使用书籍: [" + newBookName + "]");
                 ttsrv.writeTxtFile("cunfang.txt", newBookName);
                 ttsrv.tts.data['currentBookName'] = newBookName;
-                console.log("已更新cunfang.txt: " + newBookName);
+                _clog("已更新cunfang.txt: " + newBookName);
                 var shumingFileName = "shuming." + newBookName + ".json";
-                console.log("尝试读取书籍文件: " + shumingFileName);
+                _clog("尝试读取书籍文件: " + shumingFileName);
                 try {
                     var bookData = ttsrv.readTxtFile(shumingFileName);
                     if (bookData && bookData.trim() !== "") {
-                        console.log("成功读取书籍文件，长度: " + bookData.length);
+                        _clog("成功读取书籍文件，长度: " + bookData.length);
                         try {
                             var parsedData = JSON.parse(bookData);
                             characterRecords = parsedData || [];
-                            console.log("成功解析书籍数据，角色数量: " + characterRecords.length);
+                            _clog("成功解析书籍数据，角色数量: " + characterRecords.length);
                             // record.voice 保持 tag 原值，不做转换
                             ttsrv.writeTxtFile("characterRecords.json", bookData);
-                            console.log("已更新characterRecords.json");
+                            _clog("已更新characterRecords.json");
                             createGengxinFile();
                             refreshCharacterList();
                             bookNameEditor.setText(newBookName);
@@ -4250,7 +4255,7 @@ var EditorJS = {
                             refreshCharacterList();
                         }
                     } else {
-                        console.log("书籍文件为空或不存在");
+                        _clog("书籍文件为空或不存在");
                         characterRecords = [];
                         ttsrv.writeTxtFile("characterRecords.json", "[]");
                         createGengxinFile();
@@ -4258,7 +4263,7 @@ var EditorJS = {
                         Toast.makeText(ctx, "书籍文件为空，已清空角色数据", Toast.LENGTH_SHORT).show();
                     }
                 } catch (e) {
-                    console.log("读取书籍文件失败: " + e.toString());
+                    _clog("读取书籍文件失败: " + e.toString());
                     characterRecords = [];
                     ttsrv.writeTxtFile("characterRecords.json", "[]");
                     createGengxinFile();
@@ -4397,12 +4402,12 @@ var EditorJS = {
 
                 var currentBook = getCurrentBookName();
                 var currentBookNorm = normalizeString(currentBook);
-                console.log("当前书籍: [" + currentBook + "] normalized: [" + currentBookNorm + "]");
-                console.log("要删除的书籍(normalized): " + JSON.stringify(normalizedDelete));
+                _clog("当前书籍: [" + currentBook + "] normalized: [" + currentBookNorm + "]");
+                _clog("要删除的书籍(normalized): " + JSON.stringify(normalizedDelete));
 
                 // 用 normalize 后的值比较，避免不可见字符导致匹配失败
                 var isCurrentBookDeleted = (normalizedDelete.indexOf(currentBookNorm) !== -1);
-                console.log("当前书籍是否被删除: " + isCurrentBookDeleted);
+                _clog("当前书籍是否被删除: " + isCurrentBookDeleted);
 
                 // 关闭批量删除弹窗
                 if (multiSelectBookDialog) {
@@ -4411,12 +4416,12 @@ var EditorJS = {
                 }
 
                 if (isCurrentBookDeleted) {
-                    console.log("当前书籍被删除，开始切换到默认书籍");
+                    _clog("当前书籍被删除，开始切换到默认书籍");
 
                     // 1. 写 cunfang.txt 为默认
                     ttsrv.writeTxtFile("cunfang.txt", "默认");
                     ttsrv.tts.data['currentBookName'] = "默认";
-                    console.log("已立即更新cunfang.txt为默认");
+                    _clog("已立即更新cunfang.txt为默认");
 
                     // 2. 加载默认书籍角色数据
                     try {
@@ -4426,16 +4431,16 @@ var EditorJS = {
                             ttsrv.writeTxtFile("gengxin.json", defaultData);
                             characterRecords = JSON.parse(defaultData) || [];
                             // record.voice 保持 tag 原值，不做转换
-                            console.log("内存数据已更新为默认数据，角色数量: " + characterRecords.length);
+                            _clog("内存数据已更新为默认数据，角色数量: " + characterRecords.length);
                         } else {
                             var emptyData = "[]";
                             ttsrv.writeTxtFile("characterRecords.json", emptyData);
                             ttsrv.writeTxtFile("gengxin.json", emptyData);
                             characterRecords = [];
-                            console.log("默认文件为空或不存在，已清空数据");
+                            _clog("默认文件为空或不存在，已清空数据");
                         }
                     } catch (e) {
-                        console.log("读取默认书籍失败，创建空数据: " + e.toString());
+                        _clog("读取默认书籍失败，创建空数据: " + e.toString());
                         var emptyData = "[]";
                         ttsrv.writeTxtFile("characterRecords.json", emptyData);
                         ttsrv.writeTxtFile("gengxin.json", emptyData);
@@ -4446,7 +4451,7 @@ var EditorJS = {
                 // 3. 更新 liebiao.json（不管是否删当前书都要更新）
                 ttsrv.writeTxtFile("liebiao.json", JSON.stringify(newBookList, null, 2));
                 refreshBookListCache(newBookList);
-                console.log("已更新liebiao.json，新列表: " + JSON.stringify(newBookList));
+                _clog("已更新liebiao.json，新列表: " + JSON.stringify(newBookList));
 
                 // 4. 删除被删书籍的 shuming 文件（用原始书名构建文件名）
                 for (var fi = 0; fi < booksToDelete.length; fi++) {
@@ -4455,13 +4460,13 @@ var EditorJS = {
                     try {
                         var deleteResult = ttsrv.deleteFile(shumingFileName);
                         if (deleteResult) {
-                            console.log("已删除文件: " + shumingFileName);
+                            _clog("已删除文件: " + shumingFileName);
                         } else {
-                            console.log("文件不存在或删除失败，覆写为空: " + shumingFileName);
+                            _clog("文件不存在或删除失败，覆写为空: " + shumingFileName);
                             ttsrv.writeTxtFile(shumingFileName, "[]");
                         }
                     } catch (e) {
-                        console.log("删除文件失败，尝试覆写为空: " + e.toString());
+                        _clog("删除文件失败，尝试覆写为空: " + e.toString());
                         try {
                             ttsrv.writeTxtFile(shumingFileName, "[]");
                         } catch (e2) {
@@ -4795,7 +4800,7 @@ var EditorJS = {
                             : "自动备份已关闭（下次启动初始化时不执行）", 
                         Toast.LENGTH_SHORT
                     ).show();
-                    console.log("自动备份状态更新：" + (newState === "1" ? "开启" : "关闭") + "（存储类型：String，值：" + newState + "）");
+                    _clog("自动备份状态更新：" + (newState === "1" ? "开启" : "关闭") + "（存储类型：String，值：" + newState + "）");
                     dialog.dismiss();
                 }
             }));
@@ -4848,7 +4853,7 @@ var EditorJS = {
                                 allFilesData["__ttsData_bookListData"] = (ttsrv.tts.data['bookListData'] || '').toString();
                                 allFilesData["__ttsData_currentBookName"] = (ttsrv.tts.data['currentBookName'] || '').toString();
                         } catch (e) {
-                                console.log("同步tts.data到备份失败: " + e.toString());
+                                _clog("同步tts.data到备份失败: " + e.toString());
                         }
   
                         // 3. 读取书籍列表，添加书籍文件到备份集合
@@ -4858,10 +4863,10 @@ var EditorJS = {
                                 var liebiaoContent = "";
                                 if (bookListData) {
                                         liebiaoContent = bookListData;
-                                        console.log("从 tts.data 获取书名列表用于备份");
+                                        _clog("从 tts.data 获取书名列表用于备份");
                                 } else {
                                         liebiaoContent = allFilesData["liebiao.json"] || ttsrv.readTxtFile("liebiao.json") || "[]";
-                                        console.log("从 liebiao.json 获取书名列表用于备份");
+                                        _clog("从 liebiao.json 获取书名列表用于备份");
                                 }
                                 var bookList = JSON.parse(liebiaoContent);
                                 // 仅当书籍列表是数组时才遍历
@@ -4888,7 +4893,7 @@ var EditorJS = {
                                                         }
                                                         // 【核心】将书籍文件加入备份集合
                                                         allFilesData[bookFileName] = bookContent;
-                                                        console.log("已添加书籍文件到备份：" + bookFileName);
+                                                        _clog("已添加书籍文件到备份：" + bookFileName);
                                                 } catch (e) {
                                                         allFilesData[bookFileName] = "[]"; // 空文件用空数组占位
                                                         console.error("处理书籍" + bookFileName + "失败：" + e);
@@ -4928,7 +4933,7 @@ var EditorJS = {
                                                 characterRecords = JSON.parse(allFilesData[fileName]) || [];
   
   
-                                                console.log("已同步保存characterRecords.json内容到gengxin.json");
+                                                _clog("已同步保存characterRecords.json内容到gengxin.json");
                                                 restoredCount++; // 计数+1（同步文件也算恢复成功1个）
                                         }
                                 } catch (e) {
@@ -4945,14 +4950,14 @@ var EditorJS = {
                                 if (allFilesData["__ttsData_bookListData"]) {
                                         ttsrv.tts.data['bookListData'] = allFilesData["__ttsData_bookListData"];
                                         _bookListCache = JSON.parse(allFilesData["__ttsData_bookListData"]);
-                                        console.log("已恢复 tts.data 书名列表");
+                                        _clog("已恢复 tts.data 书名列表");
                                 }
                                 if (allFilesData["__ttsData_currentBookName"]) {
                                         ttsrv.tts.data['currentBookName'] = allFilesData["__ttsData_currentBookName"];
-                                        console.log("已恢复 tts.data 当前书名");
+                                        _clog("已恢复 tts.data 当前书名");
                                 }
                         } catch (e) {
-                                console.log("恢复tts.data失败: " + e.toString());
+                                _clog("恢复tts.data失败: " + e.toString());
                         }
                         // 还原后数据整体替换，需要重建列表（不能用 refreshCharacterData 只更新标签）
                         refreshCharacterList("");
@@ -5061,7 +5066,7 @@ var EditorJS = {
                     bookList = removeDuplicateBooks(bookList);
                     ttsrv.writeTxtFile("liebiao.json", JSON.stringify(bookList, null, 2));
                     refreshBookListCache(bookList);
-                    console.log("已添加新书名到liebiao.json: " + newBookName);
+                    _clog("已添加新书名到liebiao.json: " + newBookName);
                 }
                 
             } catch (e) {
@@ -5070,8 +5075,8 @@ var EditorJS = {
         }
         
         function removeDuplicateBooks(bookList) {
-            console.log("开始检测重复书籍...");
-            console.log("原始书籍列表: " + JSON.stringify(bookList));
+            _clog("开始检测重复书籍...");
+            _clog("原始书籍列表: " + JSON.stringify(bookList));
             
             var uniqueBooks = [];
             var seenBooks = {};
@@ -5084,18 +5089,18 @@ var EditorJS = {
                 if (!seenBooks[bookNameNorm]) {
                     seenBooks[bookNameNorm] = true;
                     uniqueBooks.push(bookList[i]);
-                    console.log("保留书籍: [" + bookName + "]");
+                    _clog("保留书籍: [" + bookName + "]");
                 } else {
                     removedCount++;
-                    console.log("移除重复书籍: [" + bookName + "]");
+                    _clog("移除重复书籍: [" + bookName + "]");
                 }
             }
             
             if (removedCount > 0) {
-                console.log("共移除 " + removedCount + " 个重复书籍");
-                console.log("清理后书籍列表: " + JSON.stringify(uniqueBooks));
+                _clog("共移除 " + removedCount + " 个重复书籍");
+                _clog("清理后书籍列表: " + JSON.stringify(uniqueBooks));
             } else {
-                console.log("未发现重复书籍");
+                _clog("未发现重复书籍");
             }
             
             return uniqueBooks;
@@ -5707,7 +5712,7 @@ var EditorJS = {
             }
         }
 
-        console.log("填充列表，角色记录数量: " + characterRecords.length);
+        _clog("填充列表，角色记录数量: " + characterRecords.length);
 
         var selectedIndex = -1;
 
@@ -5767,7 +5772,7 @@ var EditorJS = {
                     }
                 }
                 markedIndices = newMarkedIndices;
-                console.log("取消标记角色索引: " + originalIndex);
+                _clog("取消标记角色索引: " + originalIndex);
                 if (selectedIndex === originalIndex) {
                     selectedIndex = -1;
                     setListItemChecked(position, false);
@@ -5776,7 +5781,7 @@ var EditorJS = {
                 }
             } else {
                 markedIndices.push(originalIndex);
-                console.log("标记角色索引: " + originalIndex);
+                _clog("标记角色索引: " + originalIndex);
                 selectedIndex = originalIndex;
                 setListItemChecked(position, true);
             }
@@ -5793,7 +5798,7 @@ var EditorJS = {
             var originalIndex = filteredIndices[position];
             if (markedIndices.indexOf(originalIndex) === -1) {
                 markedIndices.push(originalIndex);
-                console.log("长按自动标记角色索引: " + originalIndex);
+                _clog("长按自动标记角色索引: " + originalIndex);
             }
             selectedIndex = originalIndex;
             setListItemChecked(position, true);
@@ -6538,7 +6543,7 @@ var EditorJS = {
                             var apiErr = null;
                             try { started = ttsrv.playTtsByTag(tag, previewText); } catch (eTag) {
                                 apiErr = eTag.toString();
-                                console.log("playTtsByTag尝试失败(" + tag + "): " + apiErr);
+                                _clog("playTtsByTag尝试失败(" + tag + "): " + apiErr);
                             }
                             if (started) {
                                 // v9同构单线程模型：本后台线程同步阻塞等待，不嵌套线程、
@@ -6661,7 +6666,7 @@ var EditorJS = {
                         onClick: function(view) {
                             var selectedVoice = vopt.value;
                             var selectedName = vopt.name;
-                            console.log("新发音人已更改为: " + selectedName);
+                            _clog("新发音人已更改为: " + selectedName);
                             voiceDialog.dismiss();
                             new android.os.Handler(android.os.Looper.getMainLooper()).post(new java.lang.Runnable({
                                 run: function() {
@@ -6880,7 +6885,7 @@ var EditorJS = {
                                 var parsed = JSON.parse(json);
                                 if (parsed && typeof parsed === "object") nameMap = parsed;
                             }
-                        } catch (eMap) { console.log("getVoiceNamesByTags失败: " + eMap.toString()); }
+                        } catch (eMap) { _clog("getVoiceNamesByTags失败: " + eMap.toString()); }
 
                         var items = [];
                         for (var i = 0; i < filteredList.length; i++) {
@@ -6954,7 +6959,7 @@ var EditorJS = {
                     }
                 }
             } catch (e) {
-                console.log("读取自定义关键词失败: " + e.toString());
+                _clog("读取自定义关键词失败: " + e.toString());
             }
             _customKeywordsCache = [];
             return [];
@@ -7735,7 +7740,7 @@ var EditorJS = {
                 var character = characterRecords[index];
                 
                 if (!character) {
-                    console.log("processNext: 角色索引 " + index + " 无效，跳过");
+                    _clog("processNext: 角色索引 " + index + " 无效，跳过");
                     processNext();
                     return;
                 }
@@ -8085,7 +8090,7 @@ var EditorJS = {
                         ttsrv.writeTxtFile("gengxin.json", retryJson);
                         // 同步更新备份文件，防止框架从备份恢复旧数据
                         ttsrv.writeTxtFile("characterRecords_backup.json", retryJson);
-                        console.log("重试写入完成");
+                        _clog("重试写入完成");
                     } catch (retryErr) {
                         console.error("重试写入失败: " + retryErr.toString());
                         Toast.makeText(ctx, "保存失败，请重试", Toast.LENGTH_LONG).show();
@@ -8122,7 +8127,7 @@ var EditorJS = {
             } catch (eThread) { /* 线程检查失败则继续往下走 */ }
             // 防重入：已在刷新中则跳过（删除配置项会触发 直接调用 + onVoiceChanged 两次刷新，只需一次）
             if (_refreshInProgress) {
-                console.log("refreshCharacterList: 已在刷新中，跳过本次重复调用");
+                _clog("refreshCharacterList: 已在刷新中，跳过本次重复调用");
                 return;
             }
             _refreshInProgress = true;
@@ -8197,6 +8202,8 @@ var EditorJS = {
                 Toast.makeText(ctx, "列表刷新异常: " + e.toString(), Toast.LENGTH_SHORT).show();
             } finally {
                 _refreshInProgress = false;
+                // 唯一保留的关键日志行（用户 09-08：刷新刷屏很烦，留一行简约的即可）
+                _clogKey("角色列表已刷新（共 " + (characterRecords ? characterRecords.length : 0) + " 个角色）");
             }
         }
 
@@ -8468,7 +8475,7 @@ var EditorJS = {
     // 发音人切换回调：前台切换发音人列表后，刷新角色列表
     'onVoiceChanged': function (locale, voice) {
         try {
-            console.log("onVoiceChanged: 触发刷新角色列表");
+            _clog("onVoiceChanged: 触发刷新角色列表");
             // 注意：onVoiceChanged 由 tts-server 在协程后台线程触发，
             // 刷新角色列表会操作UI（mergeListView等），必须切回主线程，否则抛
             // CalledFromWrongThreadException / Can't toast on a thread without Looper
