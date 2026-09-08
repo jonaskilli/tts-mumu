@@ -335,7 +335,7 @@ class BackupRestoreActivity : ComposeActivity() {
             onDismissRequest = onDismissRequest,
             title = { Text(stringResource(R.string.webdav_settings)) },
             content = {
-                // 水平再让 4dp（叠加 AppDialog 自带 12dp ≈16dp，与设置列表段间距一致）
+                // 水平再让 4dp（叠加 AppDialog 自带 12dp ≈16dp）：与音频参数弹窗同款（边距定调起源，用户 09-09）
                 Column(Modifier.padding(horizontal = 4.dp)) {
                     OutlinedTextField(
                         value = url, onValueChange = { url = it }, label = { Text("WebDAV 服务器地址") },

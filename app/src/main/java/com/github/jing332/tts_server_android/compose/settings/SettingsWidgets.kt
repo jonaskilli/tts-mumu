@@ -230,8 +230,8 @@ internal fun SliderPreference(
             // AppDialog 的 content 在参数表中间（非末位），尾随 lambda 绑不上，
             // 必须显式传参（CI: "No value passed for parameter 'content'"）
             content = {
-                // 水平再让 4dp（叠加 AppDialog 自带 12dp ≈16dp）：与设置列表行段间距一致，
-                // 滑杆 −/+ 不贴边（用户 09-09，与音频参数弹窗同款）
+                // 水平再让 4dp（叠加 AppDialog 自带 12dp ≈16dp）：滑杆 −/+ 不贴边。
+                // 边距定调起源是音频参数弹窗（用户 09-09），设置区滑杆弹窗跟随同款
                 LabelSlider(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -271,7 +271,7 @@ internal fun PreferenceDialog(
     var showDialog by remember { mutableStateOf(false) }
     if (showDialog) {
         AppDialog(title = title, content = {
-            // 与 SliderPreference 同款水平 4dp（≈16dp，同设置列表段间距）
+            // 与音频参数弹窗同款水平 4dp（≈16dp，音频参数弹窗为边距定调起源）
             Column(Modifier.padding(horizontal = 4.dp)) {
                 dialogContent()
             }
