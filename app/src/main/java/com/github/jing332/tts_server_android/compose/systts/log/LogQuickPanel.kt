@@ -106,6 +106,10 @@ fun LogQuickPanel(
     fun previewLabelColor(key: Any?): Color =
         if (previewingKey == key) MaterialTheme.colorScheme.tertiary else Color.Unspecified
 
+    // 面板分段：0=更换发音人 1=音频参数。声明在 AppDialog 外——buttons 槽也要读它
+    //（09-09 CI教训：content 槽内声明的局部状态对 buttons 槽不可见）
+    var panelTab by remember(entity.id) { mutableStateOf(0) }
+
     // ===== 本地编辑草稿：各块应用才落库 =====
     var displayName by remember(entity.id) { mutableStateOf(entity.displayName) }
     var voice by remember(entity.id) { mutableStateOf(source?.voice ?: "") }
@@ -298,7 +302,6 @@ fun LogQuickPanel(
             // 分段两区（用户 09-09：同配置项编辑页「朗读全部/标签」SegmentedButton 样式）：
             // 0=更换发音人 1=音频参数；当前发音人+终值两区共用，固定在分段之上。
             // 宽度适配文字不均分（用户 09-09：两项文字长度差很多，均分浪费），居中放置
-            var panelTab by remember(entity.id) { mutableStateOf(0) }
             SegmentedTextToggle(
                 options = listOf("更换发音人", "音频参数"),
                 selectedIndex = panelTab,
