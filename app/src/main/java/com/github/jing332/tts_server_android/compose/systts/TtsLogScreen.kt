@@ -7,6 +7,8 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.togetherWith
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -286,29 +288,35 @@ internal fun TtsLogScreen(vm: TtsLogViewModel = viewModel()) {
                                 style = MaterialTheme.typography.labelMedium,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
-                            vm.selectedLevels.forEach { level ->
-                                FilterChip(
-                                    selected = true,
-                                    onClick = { vm.toggleLevel(level) },
-                                    label = { Text(getLevelName(level)) },
-                                    trailingIcon = {
-                                        Icon(
-                                            Icons.Default.Clear,
-                                            contentDescription = null,
-                                            modifier = Modifier.height(16.dp).width(16.dp)
+                            // chips 横向滚动：选中级别多时不裁剪不换行（用户 09-08：选5只显示3/INFO折行）
+                            Row(
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .horizontalScroll(rememberScrollState()),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                vm.selectedLevels.forEach { level ->
+                                    FilterChip(
+                                        selected = true,
+                                        onClick = { vm.toggleLevel(level) },
+                                        label = { Text(getLevelName(level), maxLines = 1) },
+                                        trailingIcon = {
+                                            Icon(
+                                                Icons.Default.Clear,
+                                                contentDescription = null,
+                                                modifier = Modifier.height(16.dp).width(16.dp)
+                                            )
+                                        },
+                                        colors = FilterChipDefaults.filterChipColors(
+                                            selectedContainerColor = getLevelColor(level)
                                         )
-                                    },
-                                    colors = FilterChipDefaults.filterChipColors(
-                                        selectedContainerColor = getLevelColor(level)
                                     )
-                                )
-                            }
-                            // 清除所有筛选
-                            if (vm.selectedLevels.isNotEmpty()) {
-                                Spacer(modifier = Modifier.weight(1f))
-                                IconButton(onClick = { vm.clearFilter() }) {
-                                    Icon(Icons.Default.Clear, null)
                                 }
+                            }
+                            // 清除所有筛选（"筛选"标签与清除键固定两侧，chips 在中间滚动）
+                            IconButton(onClick = { vm.clearFilter() }) {
+                                Icon(Icons.Default.Clear, null)
                             }
                         }
                         HorizontalDivider()
