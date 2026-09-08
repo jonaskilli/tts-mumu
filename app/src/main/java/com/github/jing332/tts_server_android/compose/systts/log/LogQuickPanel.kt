@@ -221,6 +221,13 @@ fun LogQuickPanel(
                     (it.config as? TtsConfigurationDTO)?.speechRule?.tag == tag
             }
 
+    /** 按 tag 查任意配置项（不限 isEnabled），仅用于取 displayName 展示——
+     * 绑定的 tag 对应配置项可能未启用（用户禁用/导入后未启用），原 enabled 查询会返回 null
+     * 致顶部"当前发音人"fallback 到 boundVoice(标签名)。显示名放宽不限启用，试听仍用 enabled 版。 */
+    fun configEntityByTag(tag: String): SystemTtsV2? =
+        dbm.systemTtsV2.getAllGroupWithTts().flatMap { it.list }
+            .firstOrNull { (it.config as? TtsConfigurationDTO)?.speechRule?.tag == tag }
+
     // 居中弹窗（用户 09-09：底部弹窗全面撤回，恢复 AppDialog 中弹窗形态；标题即面板名）
     AppDialog(
         onDismissRequest = onDismissRequest,
@@ -235,7 +242,9 @@ fun LogQuickPanel(
             ) {
             // ===== 顶部块（用户 09-09 重排）：当前发音人 + 试听 + 终值 =====
             val boundConfigName = remember(entity.id, boundVoice) {
-                if (isBindingMode) enabledConfigEntityByTag(boundVoice)?.displayName ?: boundVoice else ""
+                // 不限 isEnabled 取配置项名（用户 09-09：原 enabled 查询遇未启用项返回 null，
+                // fallback 到 boundVoice(标签名) 显示，用户希望看到配置项名）
+                if (isBindingMode) configEntityByTag(boundVoice)?.displayName?.takeIf { it.isNotBlank() } ?: boundVoice else ""
             }
             val currentVoiceName = if (isBindingMode) boundConfigName else entity.displayName
             Row(
