@@ -556,9 +556,11 @@ fun LogQuickPanel(
                 }
             }
 
-            // ===== 音频参数大区（分段第二区；内部三块以短分隔线区分）=====
+            // ===== 音频参数大区（分段第二区；内部三块以分隔线区分）=====
             if (panelTab == 1) {
-            HorizontalDivider(Modifier.padding(vertical = 6.dp))
+            // 水平再让 4dp（叠加弹窗自带 12dp）：滑条 −/+ 贴边太挤（用户 09-09，与音频参数弹窗同款）
+            Column(Modifier.padding(horizontal = 4.dp)) {
+            HorizontalDivider(Modifier.padding(vertical = 4.dp))
             // ===== 配置项音频参数（仅本条）=====
             Text(
                 stringResource(R.string.audio_params_config_layer),
@@ -594,11 +596,7 @@ fun LogQuickPanel(
             }
 
             // ===== 插件音频参数（影响该插件全部配置项）=====
-            HorizontalDivider(
-                Modifier
-                    .fillMaxWidth(0.66f)
-                    .padding(vertical = 6.dp),
-            )
+            HorizontalDivider(Modifier.padding(vertical = 4.dp))
             if (source != null) {
                 Text(
                     stringResource(R.string.audio_params_plugin_layer),
@@ -658,11 +656,7 @@ fun LogQuickPanel(
             }
 
             // ===== 全局音频参数（影响全部配置项·谨慎）=====
-            HorizontalDivider(
-                Modifier
-                    .fillMaxWidth(0.66f)
-                    .padding(vertical = 6.dp),
-            )
+            HorizontalDivider(Modifier.padding(vertical = 4.dp))
             Text(
                 stringResource(R.string.audio_params_global_layer),
                 style = MaterialTheme.typography.titleSmall,
@@ -709,6 +703,7 @@ fun LogQuickPanel(
                     Text((if (globalDirty) "● " else "") + stringResource(R.string.audio_params_apply))
                 }
             }
+            } // Column（水平边距）
             } // panelTab == 1（音频参数区）
             }
         },

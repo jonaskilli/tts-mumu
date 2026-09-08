@@ -78,10 +78,12 @@ fun AudioParamsDialog(
         onDismissRequest = onDismissRequest,
         title = { Text(stringResource(R.string.audio_params)) },
         content = {
-            // verticalScroll：插件/全局层展开后内容超屏可上下滑动查看（用户 09-07 反馈）
+            // verticalScroll：插件/全局层展开后内容超屏可上下滑动查看（用户 09-07 反馈）；
+            // 水平再让 4dp（叠加弹窗自带 12dp ≈16dp）：滑条 −/+ 贴边太挤（用户 09-09）
             Column(
                 Modifier
                     .fillMaxWidth()
+                    .padding(horizontal = 4.dp)
                     .verticalScroll(rememberScrollState())
             ) {
                 // ===== 终值置顶（用户定稿）：配置层草稿 × 插件层现值 × 全局层现值 =====
@@ -174,23 +176,23 @@ fun AudioParamsDialog(
                 // ===== 插件音频参数（常驻展开，无收起键）=====
                 if (source != null) {
                     SectionTitle(stringResource(R.string.audio_params_plugin_layer))
-                        LabelSlider(
-                            modifier = Modifier.fillMaxWidth(),
-                            text = stringResource(R.string.label_speech_rate, "%.2f".format(pluginSpeed)),
-                            value = pluginSpeed,
-                            onValueChange = { pluginSpeed = snap(it); pluginDirty = true },
-                            valueRange = 0.1f..3f,
-                            step = 0.05f,
-                        )
-                        LabelSlider(
-                            modifier = Modifier.fillMaxWidth(),
-                            text = stringResource(R.string.label_speech_volume, "%.2f".format(pluginVolume)),
-                            value = pluginVolume,
-                            onValueChange = { pluginVolume = snap(it); pluginDirty = true },
-                            valueRange = 0.1f..3f,
-                            step = 0.05f,
-                        )
-                        Row2Buttons(
+                    LabelSlider(
+                        modifier = Modifier.fillMaxWidth(),
+                        text = stringResource(R.string.label_speech_rate, "%.2f".format(pluginSpeed)),
+                        value = pluginSpeed,
+                        onValueChange = { pluginSpeed = snap(it); pluginDirty = true },
+                        valueRange = 0.1f..3f,
+                        step = 0.05f,
+                    )
+                    LabelSlider(
+                        modifier = Modifier.fillMaxWidth(),
+                        text = stringResource(R.string.label_speech_volume, "%.2f".format(pluginVolume)),
+                        value = pluginVolume,
+                        onValueChange = { pluginVolume = snap(it); pluginDirty = true },
+                        valueRange = 0.1f..3f,
+                        step = 0.05f,
+                    )
+                    Row2Buttons(
                             applyText = (if (pluginDirty) "● " else "") + stringResource(R.string.audio_params_apply),
                             onReset = { pluginSpeed = 1f; pluginVolume = 1f },
                             onApply = {
