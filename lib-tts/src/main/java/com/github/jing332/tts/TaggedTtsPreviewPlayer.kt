@@ -35,39 +35,8 @@ object TaggedTtsPreviewPlayer {
     private var job: Job? = null
     private var player: AudioPlayer? = null
 
-    // 试听申请瞬时音频焦点（用户 09-08）：朗读客户端收到焦点丢失自动暂停，
-    // 试听结束释放焦点、朗读续播——解决"试听与朗读混音听不清"
-    private val focusListener = android.media.AudioManager.OnAudioFocusChangeListener { }
+    // 会话计数守卫：被新试听顶替时旧 job 的 finally 不得清掉新会话的 state
     private var focusSession = 0
-    private var focusRequest: android.media.AudioFocusRequest? = null
-    private var appContext: Context? = null
-
-    private fun requestAudioFocus(context: Context) {
-        // AudioFocusRequest 需 API 26；低版本跳过焦点管理，仅失去"书声让位"能力
-        if (android.os.Build.VERSION.SDK_INT < android.os.Build.VERSION_CODES.O) return
-        appContext = context.applicationContext
-        val am = context.getSystemService(Context.AUDIO_SERVICE) as android.media.AudioManager
-        val req = android.media.AudioFocusRequest.Builder(
-            android.media.AudioManager.AUDIOFOCUS_GAIN_TRANSIENT
-        )
-            .setAudioAttributes(
-                android.media.AudioAttributes.Builder()
-                    .setUsage(android.media.AudioAttributes.USAGE_MEDIA)
-                    .setContentType(android.media.AudioAttributes.CONTENT_TYPE_SPEECH)
-                    .build()
-            )
-            .build()
-        focusRequest = req
-        am.requestAudioFocus(req)
-    }
-
-    private fun abandonAudioFocus() {
-        if (android.os.Build.VERSION.SDK_INT < android.os.Build.VERSION_CODES.O) return
-        val req = focusRequest ?: return
-        val ctx = appContext ?: return
-        val am = ctx.getSystemService(Context.AUDIO_SERVICE) as android.media.AudioManager
-        am.abandonAudioFocusRequest(req)
-    }
 
     // 本次会话是否已真正出声(合成完毕进入播放)；JS 用它把按钮从…切到■,对齐v9时机
     @Volatile
@@ -94,10 +63,8 @@ object TaggedTtsPreviewPlayer {
             val audioPlayer = AudioPlayer(context.applicationContext)
             player?.release()
             player = audioPlayer
-            // 申请瞬时焦点：书声让位暂停（用户 09-08），试听结束在 finally 释放、朗读续播
             focusSession++
             val session = focusSession
-            requestAudioFocus(context)
             job = scope.launch {
                 try {
                     val resolved = resolveTtsPlayback(entity, TtsPreviewConfig.globalAudioParamsProvider())
@@ -170,10 +137,8 @@ object TaggedTtsPreviewPlayer {
                         toast(context, "试听失败：${e.message ?: e.javaClass.simpleName}")
                     }
                 } finally {
-                    // 播完/被替换/失败都释放焦点；被新试听顶替时 session 不匹配，由新会话接管
+                    // 被新试听顶替时 session 不匹配，由新会话接管，不得清掉新会话的 state
                     if (focusSession == session) {
-                        abandonAudioFocus()
-                        // 同一守卫：被顶替时不得清掉新会话刚置的 SYNTHESIZING/PLAYING
                         _state.value = PreviewState.IDLE
                     }
                 }
@@ -191,7 +156,6 @@ object TaggedTtsPreviewPlayer {
             player?.release()
             player = null
             focusSession++
-            abandonAudioFocus()
         }
     }
 
