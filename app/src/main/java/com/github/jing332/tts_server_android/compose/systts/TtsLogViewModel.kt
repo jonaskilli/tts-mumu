@@ -30,11 +30,15 @@ class TtsLogViewModel : ViewModel() {
         // 裁剪批量：让 size 长到 MAX+PRUNE_BATCH 再一次裁回 MAX，均摊掉逐条删头部的数组搬移开销
         const val PRUNE_BATCH = 1000
 
-        // 插件/朗读规则日志独立缓冲上限（用户 09-08：不再混入主列表刷屏/挤占窗口）
-        const val AUX_MAX = 2000
+        // 插件/朗读规则日志独立缓冲上限（用户 09-08：不再混入主列表刷屏/挤占窗口）。
+        // 条数 500 + 字符总量熔断 30 万（双保险：单条可长达数KB~十几KB，纯条数上限挡不住堆积）
+        const val AUX_MAX = 500
 
         // 独立缓冲裁剪批量
-        const val AUX_PRUNE = 500
+        const val AUX_PRUNE = 100
+
+        // 独立缓冲字符总量熔断线（message 字符数合计；超限按最旧裁，UTF-16 下约 0.6MB/缓冲）
+        const val AUX_CHAR_BUDGET = 300_000L
 
         // 支持的日志级别
         val LOG_LEVELS = listOf(
@@ -87,24 +91,40 @@ class TtsLogViewModel : ViewModel() {
             // 保留完整列表便于查看匹配项的前后文
         }
 
-    // 按类型路由日志到对应缓冲（主列表 / 插件缓冲 / 规则缓冲），各自限高裁剪
+    // 按类型路由日志到对应缓冲（主列表 / 插件缓冲 / 规则缓冲）。
+    // 双保险裁剪：条数上限 + 字符总量熔断（超长条目堆积时按最旧裁，与条数无关）
+    private val pluginChars = java.util.concurrent.atomic.AtomicLong()
+    private val ruleChars = java.util.concurrent.atomic.AtomicLong()
+
     private fun routeEntry(entry: LogEntry) {
-        val target = when {
-            entry.isPluginLog -> pluginLogs
-            entry.isSpeechRuleLog -> speechRuleLogs
-            else -> null
-        }
-        if (target == null) {
-            logs.add(entry)
-            val overflow = logs.size - MAX_LOGS
-            if (overflow >= PRUNE_BATCH) {
-                repeat(overflow) { logs.removeAt(0) }
+        val isPlugin = entry.isPluginLog
+        val isRule = entry.isSpeechRuleLog
+        when {
+            isPlugin || isRule -> {
+                val target = if (isPlugin) pluginLogs else speechRuleLogs
+                val chars = if (isPlugin) pluginChars else ruleChars
+                target.add(entry)
+                chars.addAndGet(entry.message.length.toLong())
+                // 条数裁剪
+                val overflow = target.size - AUX_MAX
+                if (overflow >= AUX_PRUNE) {
+                    repeat(overflow) {
+                        val removed = target.removeAt(0)
+                        chars.addAndGet(-removed.message.length.toLong())
+                    }
+                }
+                // 字符总量熔断（防超长条目堆积）
+                while (chars.get() > AUX_CHAR_BUDGET && target.size > 1) {
+                    val removed = target.removeAt(0)
+                    chars.addAndGet(-removed.message.length.toLong())
+                }
             }
-        } else {
-            target.add(entry)
-            val overflow = target.size - AUX_MAX
-            if (overflow >= AUX_PRUNE) {
-                repeat(overflow) { target.removeAt(0) }
+            else -> {
+                logs.add(entry)
+                val overflow = logs.size - MAX_LOGS
+                if (overflow >= PRUNE_BATCH) {
+                    repeat(overflow) { logs.removeAt(0) }
+                }
             }
         }
     }
