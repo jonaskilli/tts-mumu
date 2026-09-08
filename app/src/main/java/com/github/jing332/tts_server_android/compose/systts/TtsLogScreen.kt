@@ -7,7 +7,8 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.togetherWith
-import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -71,6 +72,7 @@ import java.io.File
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
+@OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
 internal fun TtsLogScreen(vm: TtsLogViewModel = viewModel()) {
     val context = LocalContext.current
     var isSearchActive by rememberSaveable { mutableStateOf(false) }
@@ -288,13 +290,11 @@ internal fun TtsLogScreen(vm: TtsLogViewModel = viewModel()) {
                                 style = MaterialTheme.typography.labelMedium,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
-                            // chips 横向滚动：选中级别多时不裁剪不换行（用户 09-08：选5只显示3/INFO折行）
-                            Row(
-                                modifier = Modifier
-                                    .weight(1f)
-                                    .horizontalScroll(rememberScrollState()),
+                            // chips 流式换行：一行放不下自动折第二行（用户 09-08：不想左右滑）
+                            FlowRow(
+                                modifier = Modifier.weight(1f),
                                 horizontalArrangement = Arrangement.spacedBy(8.dp),
-                                verticalAlignment = Alignment.CenterVertically
+                                verticalArrangement = Arrangement.spacedBy(2.dp)
                             ) {
                                 vm.selectedLevels.forEach { level ->
                                     FilterChip(
