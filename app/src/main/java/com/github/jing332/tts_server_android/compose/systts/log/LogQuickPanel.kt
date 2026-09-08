@@ -210,6 +210,9 @@ fun LogQuickPanel(
                             )
                         }
                         val categories = ruleCategories
+                        // 搜索框点了「搜索」chip 才出现（用户 09-08：控面板长度），默认隐藏
+                        var searchMode by remember(entity.id) { mutableStateOf(false) }
+                        var tagSearch by remember(entity.id) { mutableStateOf("") }
                         Row(
                             Modifier
                                 .fillMaxWidth()
@@ -219,17 +222,42 @@ fun LogQuickPanel(
                             horizontalArrangement = Arrangement.spacedBy(6.dp),
                         ) {
                             androidx.compose.material3.FilterChip(
-                                selected = selectedCategory == null,
-                                onClick = { selectedCategory = null },
+                                selected = selectedCategory == null && !searchMode,
+                                onClick = {
+                                    searchMode = false
+                                    selectedCategory = null
+                                },
                                 label = { Text("全部") },
                             )
                             categories.forEach { c ->
                                 androidx.compose.material3.FilterChip(
-                                    selected = selectedCategory == c,
-                                    onClick = { selectedCategory = if (selectedCategory == c) null else c },
+                                    selected = !searchMode && selectedCategory == c,
+                                    onClick = {
+                                        searchMode = false
+                                        selectedCategory = if (selectedCategory == c) null else c
+                                    },
                                     label = { Text(c) },
                                 )
                             }
+                            androidx.compose.material3.FilterChip(
+                                selected = searchMode,
+                                onClick = {
+                                    searchMode = !searchMode
+                                    if (searchMode) selectedCategory = null
+                                },
+                                label = { Text("搜索") },
+                            )
+                        }
+                        if (searchMode) {
+                            OutlinedTextField(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(top = 4.dp),
+                                label = { Text("搜索标签名") },
+                                value = tagSearch,
+                                onValueChange = { tagSearch = it },
+                                singleLine = true,
+                            )
                         }
 
                         // 改绑到无启用配置的标签会掉进随机兜底，读声不可控，必须排除
@@ -249,8 +277,9 @@ fun LogQuickPanel(
                         }
                         val pool = CharacterRecordsFile.readVoicePool(config.speechRule.tagRuleId)
                         val filtered = pool.filter {
-                            (selectedCategory == null || it.contains(selectedCategory)) &&
-                                it in enabledTags
+                            it in enabledTags &&
+                                if (searchMode) it.contains(tagSearch)
+                                else selectedCategory == null || it.contains(selectedCategory)
                         }
                         // 当前绑定标签不属于该分类时补在顶部标「当前」，防 Spinner 强制重置
                         val displayVoices =
