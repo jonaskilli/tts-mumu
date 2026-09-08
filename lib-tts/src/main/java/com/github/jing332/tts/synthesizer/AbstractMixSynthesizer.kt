@@ -175,8 +175,9 @@ abstract class AbstractMixSynthesizer() : Synthesizer {
         maxRetries: Int = context.cfg.maxRetryTimes(),
         prefetchedStream: InputStream? = null,
         prefetchedCostMs: Long = 0,
+        roleName: String = "",
     ) {
-        val request = RequestPayload(params, config)
+        val request = RequestPayload(params, config, roleName)
         suspend fun retry() {
             CachedEngineManager.removeEngine(config.source)
             delay(context.cfg.retryDelay())
@@ -194,7 +195,7 @@ abstract class AbstractMixSynthesizer() : Synthesizer {
                     toTag = toTag,
                     reason = "retry",
                 ))
-                requestAndProcess(channel, params, config.standbyConfig, 0, maxRetries)
+                requestAndProcess(channel, params, config.standbyConfig, 0, maxRetries, roleName = roleName)
             } else {
                 val next = retries + 1
                 // 重试时在原文末尾追加可配置的字符（次数 = 重试次数），
@@ -206,7 +207,7 @@ abstract class AbstractMixSynthesizer() : Synthesizer {
                 } else {
                     params
                 }
-                requestAndProcess(channel, retryParams, config, next, maxRetries)
+                requestAndProcess(channel, retryParams, config, next, maxRetries, roleName = roleName)
             }
         }
 
@@ -314,17 +315,18 @@ abstract class AbstractMixSynthesizer() : Synthesizer {
                                 requestAndProcess(
                                     channel, segParams, segment.tts,
                                     prefetchedStream = prefetched.stream,
-                                    prefetchedCostMs = prefetched.costMs
+                                    prefetchedCostMs = prefetched.costMs,
+                                    roleName = segment.roleName
                                 )
                             } else {
                                 // 无预取（首段/预取失败），正常请求
-                                requestAndProcess(channel, segParams, segment.tts)
+                                requestAndProcess(channel, segParams, segment.tts, roleName = segment.roleName)
                             }
 
                             // 启动下一段的预取请求（与当前段的处理并行执行）
                             if (index + 1 < list.size) {
                                 val nextSeg = list[index + 1]
-                                val nextRequest = RequestPayload(params.copy(text = nextSeg.text), nextSeg.tts)
+                                val nextRequest = RequestPayload(params.copy(text = nextSeg.text), nextSeg.tts, nextSeg.roleName)
                                 prefetchJob = async(Dispatchers.IO) {
                                     val start = SystemClock.elapsedRealtime()
                                     val s = runCatching {

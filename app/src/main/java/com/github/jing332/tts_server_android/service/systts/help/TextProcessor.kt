@@ -117,14 +117,14 @@ class TextProcessor : ITextProcessor {
         fun add(vararg fragments: TextSegment) {
             fragments.forEach { f ->
                 resultList.add(
-                    TextSegment(text = replace(f.text, ReplaceExecution.AFTER), f.tts)
+                    TextSegment(text = replace(f.text, ReplaceExecution.AFTER), f.tts, f.roleName)
                 )
             }
         }
 
-        fun splitAndAdd(text: String, config: TtsConfiguration) {
+        fun splitAndAdd(text: String, config: TtsConfiguration, roleName: String = "") {
             splitText(text).forEach {
-                add(TextSegment(text = it, tts = config))
+                add(TextSegment(text = it, tts = config, roleName = roleName))
             }
         }
 
@@ -167,7 +167,7 @@ class TextProcessor : ITextProcessor {
                                     "tag=${effectiveTag}, id=${txtWithTag.id}"
                                 )
                             )
-                        splitAndAdd(txtWithTag.text, config)
+                        splitAndAdd(txtWithTag.text, config, txtWithTag.roleName)
                     }
                 }
             } else {

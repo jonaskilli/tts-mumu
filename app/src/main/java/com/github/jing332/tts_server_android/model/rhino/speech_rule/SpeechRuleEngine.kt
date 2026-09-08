@@ -164,6 +164,9 @@ class SpeechRuleEngine(
                                 it["text"].toString(),
                                 it["tag"].toString(),
                                 it.getOrDefault("id", 0).toString().toLong(),
+                                // 实时角色名（用户 09-08）：规则 JS 返回条目可带 name 字段，
+                                // 旧规则没有此字段时为空串，向后兼容
+                                roleName = it["name"]?.toString() ?: "",
                             )
                         )
                     }
@@ -182,5 +185,5 @@ class SpeechRuleEngine(
         ) as List<CharSequence>
     }
 
-    data class TextWithTag(val text: String, val tag: String, val id: Long)
+    data class TextWithTag(val text: String, val tag: String, val id: Long, val roleName: String = "")
 }

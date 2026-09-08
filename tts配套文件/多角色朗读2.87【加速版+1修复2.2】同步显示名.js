@@ -4802,17 +4802,21 @@ text = text.replace(/(^|[^a-zA-Z\u4e00-\u9fa5])(嗝|嗝儿)(?![a-zA-Z\u4e00-\u9f
                     if (apiResult) {
                       apiResult.text = this.restoreTargetContentSymbols(apiResult.text.toString());
                       var roleName = apiResult.tag.toString();
+                      // 实时角色名（用户 09-08）：把分析出的角色名随条目传回 app 日志
+                      var characterName = (apiResult.characterInfo && apiResult.characterInfo.name) ? String(apiResult.characterInfo.name) : "";
                       if (roleToRootIdMap.hasOwnProperty(roleName)) {
                         var rootId = roleToRootIdMap[roleName] || "0";
-                        originalItem = { 
-                          text: apiResult.text.toString(), 
-                          tag: "duihua", 
-                          id: rootId 
+                        originalItem = {
+                          text: apiResult.text.toString(),
+                          tag: "duihua",
+                          id: rootId,
+                          name: characterName
                         };
                       } else {
-                        originalItem = { 
-                          text: apiResult.text.toString(), 
-                          tag: roleName 
+                        originalItem = {
+                          text: apiResult.text.toString(),
+                          tag: roleName,
+                          name: characterName
                         };
                       }
                     } else {
@@ -4837,20 +4841,24 @@ text = text.replace(/(^|[^a-zA-Z\u4e00-\u9fa5])(嗝|嗝儿)(?![a-zA-Z\u4e00-\u9f
                 var narrationMatchResult = matchNarrationFromCache(restoredText.toString());
                 if (narrationMatchResult && narrationMatchResult.voice) {
                     var targetVoice = narrationMatchResult.voice.toString();
+                    // 实时角色名（用户 09-08）：旁白缓存命中时同样带回角色名
+                    var cacheCharacterName = narrationMatchResult.name ? String(narrationMatchResult.name) : "";
                     // 核心修复：兼容duihua动态发音人，和对话处理逻辑保持一致
                     if (roleToRootIdMap.hasOwnProperty(targetVoice)) {
                         // 是duihua动态发音人，按系统要求设置tag和id
                         var rootId = roleToRootIdMap[targetVoice] || "0";
-                        originalItem = { 
-                            text: restoredText.toString(), 
-                            tag: "duihua", 
-                            id: rootId 
+                        originalItem = {
+                            text: restoredText.toString(),
+                            tag: "duihua",
+                            id: rootId,
+                            name: cacheCharacterName
                         };
                     } else {
                         // 是硬编发音人，直接使用原voice作为tag
-                        originalItem = { 
-                            text: restoredText.toString(), 
-                            tag: targetVoice 
+                        originalItem = {
+                            text: restoredText.toString(),
+                            tag: targetVoice,
+                            name: cacheCharacterName
                         };
                     }
                 } else {
