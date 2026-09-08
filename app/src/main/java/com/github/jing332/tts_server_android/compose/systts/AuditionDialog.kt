@@ -1,5 +1,6 @@
 package com.github.jing332.tts_server_android.compose.systts
 
+import android.content.Context
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -99,9 +100,28 @@ fun AuditionDialog(
     var info by remember { mutableStateOf("") }
     val audioPlayer = remember { AudioPlayer(context) }
 
+    // 试听申请瞬时音频焦点（用户 09-08）：朗读客户端收到焦点丢失自动暂停，
+    // 试听结束释放焦点、朗读续播——解决"试听与朗读混音听不清"（与日志面板试听同款）
+    @Suppress("DEPRECATION")
+    fun requestAuditionFocus() {
+        val am = context.getSystemService(Context.AUDIO_SERVICE) as android.media.AudioManager
+        am.requestAudioFocus(
+            focusListener,
+            android.media.AudioManager.STREAM_MUSIC,
+            android.media.AudioManager.AUDIOFOCUS_GAIN_TRANSIENT,
+        )
+    }
+
+    @Suppress("DEPRECATION")
+    fun abandonAuditionFocus() {
+        val am = context.getSystemService(Context.AUDIO_SERVICE) as android.media.AudioManager
+        am.abandonFocus(focusListener)
+    }
+
     DisposableEffect(systts) {
         onDispose {
             audioPlayer.stop()
+            abandonAuditionFocus()
         }
     }
 
@@ -116,11 +136,17 @@ fun AuditionDialog(
         }
     }
 
+    val focusListener = remember {
+        android.media.AudioManager.OnAudioFocusChangeListener { }
+    }
+
     LaunchedEffect(systts) {
         error = ""
         info = ""
         launch(Dispatchers.IO) {
             try {
+                // 申请瞬时焦点：书声让位暂停（用户 09-08），试听结束在 finally 释放、朗读续播
+                requestAuditionFocus()
                 val e = engine ?: CachedEngineManager.getEngine(appCtx, config.source)
                 ?: throw IllegalStateException("engine is null")
 
@@ -204,6 +230,9 @@ fun AuditionDialog(
             } catch (e: Exception) {
                 error = e.messageChain
                 logger.warn { e.stackTraceToString() }
+            } finally {
+                // 播完/失败/关闭都释放焦点，朗读续播
+                abandonAuditionFocus()
             }
         }
     }
