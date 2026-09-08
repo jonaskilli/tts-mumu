@@ -227,20 +227,23 @@ internal fun SliderPreference(
         AppDialog(
             onDismissRequest = { show = false },
             title = title,
-        ) {
-            LabelSlider(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(top = 8.dp),
-                value = value,
-                onValueChange = onValueChange,
-                valueRange = valueRange,
-                steps = steps,
-                buttonSteps = buttonSteps,
-                buttonLongSteps = buttonLongSteps,
-                text = label
-            )
-        }
+            // AppDialog 的 content 在参数表中间（非末位），尾随 lambda 绑不上，
+            // 必须显式传参（CI: "No value passed for parameter 'content'"）
+            content = {
+                LabelSlider(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(top = 8.dp),
+                    value = value,
+                    onValueChange = onValueChange,
+                    valueRange = valueRange,
+                    steps = steps,
+                    buttonSteps = buttonSteps,
+                    buttonLongSteps = buttonLongSteps,
+                    text = label
+                )
+            },
+        )
 
     BasePreferenceWidget(modifier, onClick = {
         show = true
