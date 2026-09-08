@@ -87,9 +87,11 @@ open class TtsPluginEngineV2(val context: Context, var plugin: Plugin) {
     fun eval() {
         execute(plugin.code)
         pluginJsObj.apply {
-            plugin.name = get("name").toString()
-            plugin.pluginId = get("id").toString()
-            plugin.author = get("author").toString()
+            // 与 iconUrl 同款判空：新版角色管理等插件若未声明 name/id/author，
+            // get() 返回 null，直接 .toString() 会 NPE 中断保存（用户 09-09 反馈）
+            plugin.name = get("name")?.toString() ?: ""
+            plugin.pluginId = get("id")?.toString() ?: ""
+            plugin.author = get("author")?.toString() ?: ""
             plugin.iconUrl = get("iconUrl")?.toString() ?: ""
             plugin.defVars = try { get("vars") as Map<String, Map<String, String>> } catch (_: Exception) { emptyMap() }
             plugin.version = try { org.mozilla.javascript.Context.toNumber(get("version")).toInt() } catch (e: Exception) { -1 }
