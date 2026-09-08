@@ -225,9 +225,9 @@ fun Group(
                 )
             }
 
-            // 整理全部子分组标签：含子分组、至少一个子分组名匹配关键词且组内非空时显示
+            // 整理子分组标签（用户 09-09 改名，原「整理全部子分组标签」）：含子分组、至少一个子分组名匹配关键词且组内非空时显示
             if (hasSubGroups && hasSubGroupTagKeyword && itemCount > 0) {
-                DropdownMenuItem(text = { Text("整理全部子分组标签") },
+                DropdownMenuItem(text = { Text("整理子分组标签") },
                     onClick = {
                         dismiss()
                         onReassignAllSubGroups()

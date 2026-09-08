@@ -36,6 +36,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.drake.net.utils.withIO
 import com.github.jing332.common.LogEntry
+import com.github.jing332.compose.widgets.AppDialog
 import com.github.jing332.compose.widgets.AppSpinner
 import com.github.jing332.compose.widgets.LabelSlider
 import com.github.jing332.database.dbm
@@ -218,24 +219,18 @@ fun LogQuickPanel(
                     (it.config as? TtsConfigurationDTO)?.speechRule?.tag == tag
             }
 
-    androidx.compose.material3.ModalBottomSheet(
+    // 居中弹窗（用户 09-09：底部弹窗全面撤回，恢复 AppDialog 中弹窗形态；标题即面板名）
+    AppDialog(
         onDismissRequest = onDismissRequest,
-    ) {
-        Column(
-            Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 8.dp)
-                // 弹窗内容整体可滚（用户 09-08：屏幕装不下时下方音频参数区域看不到）；
-                // 候选列表自带 220dp 内滚，内层优先消费手势，到边缘后外层接管，不冲突
-                .verticalScroll(rememberScrollState())
-        ) {
-            // 总标题（用户 09-07 定稿）：发音人调整
-            Text(
-                stringResource(R.string.log_panel_title),
-                style = MaterialTheme.typography.titleLarge,
-                modifier = Modifier.padding(bottom = 8.dp),
-            )
-
+        title = { Text(stringResource(R.string.log_panel_title)) },
+        content = {
+            Column(
+                Modifier
+                    .fillMaxWidth()
+                    .heightIn(max = 600.dp)
+                    // 内容整体可滚：候选列表自带内滚，内层优先消费手势，到边缘后外层接管，不冲突
+                    .verticalScroll(rememberScrollState())
+            ) {
             // ===== 顶部块（用户 09-09 重排）：当前发音人 + 试听 + 终值 =====
             val boundConfigName = remember(entity.id, boundVoice) {
                 if (isBindingMode) enabledConfigEntityByTag(boundVoice)?.displayName ?: boundVoice else ""
@@ -715,12 +710,12 @@ fun LogQuickPanel(
                 }
             }
             } // panelTab == 1（音频参数区）
-
-            // ===== 底部操作行：换声两段式确认（用户 09-08，即点即改反馈弱且易误触）+ 取消 =====
+            }
+        },
+        buttons = {
+            // 底部操作行：换声两段式确认（用户 09-08，即点即改反馈弱且易误触）+ 取消
             Row(
-                Modifier
-                    .fillMaxWidth()
-                    .padding(top = 8.dp, bottom = 12.dp),
+                Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.End,
                 verticalAlignment = Alignment.CenterVertically,
             ) {
@@ -762,8 +757,8 @@ fun LogQuickPanel(
                     Text((if (pendingVoice != null) "● " else "") + stringResource(R.string.confirm))
                 }
             }
-        }
-    }
+        },
+    )
 }
 
 /** 顶部「当前发音人」试听键的 previewingKey 哨兵（行键为 tag/voice 字符串，避撞） */

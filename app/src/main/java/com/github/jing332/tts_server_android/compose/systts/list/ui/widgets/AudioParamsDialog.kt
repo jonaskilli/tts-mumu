@@ -1,7 +1,6 @@
 package com.github.jing332.tts_server_android.compose.systts.list.ui.widgets
 
 import android.widget.Toast
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -23,6 +22,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.drake.net.utils.withIO
+import com.github.jing332.compose.widgets.AppDialog
 import com.github.jing332.compose.widgets.LabelSlider
 import com.github.jing332.database.dbm
 import com.github.jing332.database.entities.systts.AudioParams
@@ -46,7 +46,6 @@ import kotlinx.coroutines.launch
  *
  * [onSysttsChange] 由调用方传编辑页内存回调，保证双写一致。
  */
-@OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
 @Composable
 fun AudioParamsDialog(
     onDismissRequest: () -> Unit,
@@ -75,23 +74,16 @@ fun AudioParamsDialog(
     var pluginDirty by remember(systemTts.id) { mutableStateOf(false) }
     var globalDirty by remember(systemTts.id) { mutableStateOf(false) }
 
-    // 底部弹窗（用户 09-08 定稿）：三层内容长，sheet 比 AppDialog 合适（与发音人调整面板同形态）
-    androidx.compose.material3.ModalBottomSheet(
+    AppDialog(
         onDismissRequest = onDismissRequest,
-    ) {
-        Column(
-            Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 8.dp)
-                // verticalScroll：插件/全局层展开后内容超屏可上下滑动查看（用户 09-07 反馈）
-                .verticalScroll(rememberScrollState())
-        ) {
-            // 总标题
-            Text(
-                stringResource(R.string.audio_params),
-                style = MaterialTheme.typography.titleLarge,
-                modifier = Modifier.padding(bottom = 8.dp),
-            )
+        title = { Text(stringResource(R.string.audio_params)) },
+        content = {
+            // verticalScroll：插件/全局层展开后内容超屏可上下滑动查看（用户 09-07 反馈）
+            Column(
+                Modifier
+                    .fillMaxWidth()
+                    .verticalScroll(rememberScrollState())
+            ) {
                 // ===== 终值置顶（用户定稿）：配置层草稿 × 插件层现值 × 全局层现值 =====
                 // 值为 1.0 的维度不显示；三维全默认显示「语速、音量、音高无设置」（09-07 与日志面板同步格式）
                 val finalParams = computeFinalParams(
@@ -265,20 +257,14 @@ fun AudioParamsDialog(
                         }
                     },
                 )
-
-                // 底部取消（sheet 无 buttons 槽，自行放行尾）
-                Row(
-                    Modifier
-                        .fillMaxWidth()
-                        .padding(top = 8.dp, bottom = 12.dp),
-                    horizontalArrangement = Arrangement.End,
-                ) {
-                    TextButton(onClick = onDismissRequest) {
-                        Text(stringResource(R.string.cancel))
-                    }
-                }
             }
-        }
+        },
+        buttons = {
+            TextButton(onClick = onDismissRequest) {
+                Text(stringResource(R.string.cancel))
+            }
+        },
+    )
 }
 
 /** 三层乘积（尊重 pluginHandles 路由：由插件处理的维度，插件/全局层不参与叠加）。
