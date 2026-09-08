@@ -4,6 +4,7 @@ import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Column
@@ -2824,6 +2825,55 @@ internal fun ListManagerScreen(
                 }
             }
         }
+
+        // 主界面定位（用户 09-09）：日志快捷面板换旁白发音人落库后写入被改配置项 id，
+        // 此处展开所在分组、按结构算扁平索引滚动到位，并短暂高亮该项
+        val pendingLocate by sharedVM.pendingLocateConfigId.collectAsStateWithLifecycle()
+        var locatedConfigId by remember { mutableStateOf<Long?>(null) }
+        LaunchedEffect(pendingLocate) {
+            val targetId = pendingLocate ?: return@LaunchedEffect
+            sharedVM.pendingLocateConfigId.value = null
+            // 搜索态是另一套渲染分支（结果列表无分组结构），定位无意义
+            if (searchKeyword.isNotEmpty()) return@LaunchedEffect
+            val targetGroup = displayedModels.firstOrNull { grp -> grp.list.any { it.id == targetId } }
+                ?: return@LaunchedEffect
+            val gidStr = targetGroup.group.id.toString()
+            if (!expandedGroupIds.contains(gidStr)) expandedGroupIds = expandedGroupIds + gidStr
+            // 等展开/树/可见项缓存重组完成（两帧），再按分组结构算目标的扁平索引
+            withFrameNanos { }
+            withFrameNanos { }
+            var idx = 0
+            var target = -1
+            for (gwt in displayedModels) {
+                val g = gwt.group
+                val expanded = expandedGroupIds.contains(g.id.toString())
+                val hasSub = gwt.list.any { it.categoryPath.isNotBlank() } ||
+                    g.subGroupAudioParamsJson.let { it.isNotBlank() && it != "{}" }
+                if (g.id == targetGroup.group.id) {
+                    if (!expanded) break
+                    val pos = if (!hasSub) {
+                        gwt.list.sortedBy { it.order }.indexOfFirst { it.id == targetId }
+                    } else {
+                        subGroupVisibleItemsMap[g.id]?.indexOfFirst { f ->
+                            f is FlattenedCategoryItem.TtsItem && f.item.id == targetId
+                        } ?: -1
+                    }
+                    if (pos >= 0) target = idx + 1 + pos
+                    break
+                }
+                idx += 1
+                if (expanded) {
+                    idx += if (hasSub) (subGroupVisibleItemsMap[g.id]?.size ?: 0) else gwt.list.size
+                }
+            }
+            if (target >= 0) {
+                listState.animateScrollToItem(target)
+                locatedConfigId = targetId
+                kotlinx.coroutines.delay(2500)
+                if (locatedConfigId == targetId) locatedConfigId = null
+            }
+        }
+
         Column(Modifier.fillMaxSize()) {
         // 池页签：通用池 / 高级池；切换时清空搜索与多选状态，保证各池操作独立
         // 仅一池有内容时不显示页签，直接展示该池
@@ -3098,9 +3148,14 @@ internal fun ListManagerScreen(
                                         ItemDescriptorFactory.from(context, item, pluginNameCache)
                                     }
                                     Item(reorderState = reorderState,
-                                        modifier = (if (searchKeyword.isNotEmpty() || selectionMode) Modifier
+                                        modifier = (if (locatedConfigId == item.id) Modifier.background(
+                                            MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.5f),
+                                            RoundedCornerShape(8.dp),
+                                        ) else Modifier
+                                        ).then(
+                                            if (searchKeyword.isNotEmpty() || selectionMode) Modifier
                                             else Modifier.detectReorderAfterLongPress(reorderState)
-                                            ).padding(
+                                        ).padding(
                                             horizontal = 8.dp,
                                             vertical = 4.dp
                                         ),
@@ -3315,7 +3370,11 @@ internal fun ListManagerScreen(
                                                 }
                                                 Item(
                                                     reorderState = reorderState,
-                                                    modifier = itemDragModifier.padding(
+                                                    modifier = (if (locatedConfigId == item.id) Modifier.background(
+                                                        MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.5f),
+                                                        RoundedCornerShape(8.dp),
+                                                    ) else Modifier
+                                                    ).then(itemDragModifier).padding(
                                                         // 配置项卡片随所属子分组层级缩进，与子分组头对齐
                                                         start = (8 + (fItem.displayLevel - 1).coerceAtLeast(0) * 12).dp,
                                                         end = 8.dp,

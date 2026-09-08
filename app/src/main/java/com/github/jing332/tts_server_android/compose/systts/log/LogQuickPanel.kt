@@ -15,6 +15,9 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.SegmentedButton
+import androidx.compose.material3.SegmentedButtonDefaults
+import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -30,6 +33,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.viewmodel.compose.viewModel
 import com.drake.net.utils.withIO
 import com.github.jing332.common.LogEntry
 import com.github.jing332.compose.widgets.AppSpinner
@@ -41,6 +45,7 @@ import com.github.jing332.database.entities.systts.source.PluginTtsSource
 import com.github.jing332.tts.PreviewState
 import com.github.jing332.tts.TaggedTtsPreviewPlayer
 import com.github.jing332.tts_server_android.R
+import com.github.jing332.tts_server_android.compose.SharedViewModel
 import com.github.jing332.tts_server_android.compose.systts.list.ui.PluginDescriptor
 import com.github.jing332.tts_server_android.service.systts.SystemTtsService
 import com.github.jing332.tts_server_android.service.systts.help.CharacterRecordsFile
@@ -48,13 +53,15 @@ import kotlinx.coroutines.launch
 
 /**
  * 日志快捷面板「发音人调整」：点带 configId 的"请求音频"主行弹出。
- * 结构（用户 09-09 重排，纵向三块）：
- * - 顶部「当前发音人」：人名 + ▶试听 + 终值行（播放链同源三层乘积，值为 1.0 的维度不显示）；
- * - 中部「更换发音人」：分类下拉（全部/旁白[仅非对话]/女/男…，用户 09-09 定稿顺序）+
- *   搜索 + 候选列表（行内试听，▶/…/■ 状态机参照角色管理v10）；
- * - 底部「音频参数」：配置项音频参数（仅本条）/ 插件音频参数 / 全局音频参数，
+ * 结构（用户 09-09 定稿）：
+ * - 顶部（两区共用）：当前发音人 + ▶试听 + 终值行（播放链同源三层乘积，值为 1.0 的维度不显示）；
+ * - SegmentedButton 两区（同编辑页「朗读全部/标签」样式）：
+ *   [更换发音人] 对话绑定模式=分类下拉(含全部，带N项)+搜索+候选列表；
+ *   旁白模式=直接列旁白分类候选（标签是「旁白」的配置项，无下拉/搜索）；
+ *   行内试听 ▶/…/■ 状态机参照角色管理v10；换声两段式：点行=暂存(●)，底部「确认」落库，
+ *   旁白落库后主列表自动定位高亮被改项（sharedVM.pendingLocateConfigId）。
+ *   [音频参数] 配置项音频参数（仅本条）/ 插件音频参数 / 全局音频参数，
  *   各自带重置/应用，应用即落库生效不关面板。
- * 换声两段式（用户 09-08）：点候选行=暂存选中（●），底部「确认」键才落库，关闭未确认即弃。
  */
 @OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
 @Composable
@@ -64,6 +71,8 @@ fun LogQuickPanel(
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
+    // 主界面共享状态：换旁白发音人后通知主列表定位高亮（Activity 级单例，与 MainPager 同实例）
+    val sharedVM: SharedViewModel = viewModel()
 
     val entity = remember(entry.configId) { dbm.systemTtsV2.get(entry.configId) }
     if (entity == null) {
@@ -121,6 +130,8 @@ fun LogQuickPanel(
                     SystemTtsService.notifyUpdateConfig()
                 }
             }
+            // 主界面定位（用户 09-09）：换完旁白发音人，主列表滚动到被改的配置项并短暂高亮
+            sharedVM.pendingLocateConfigId.value = entity.id
             Toast.makeText(
                 context,
                 context.getString(R.string.log_panel_voice_applied),
@@ -291,15 +302,28 @@ fun LogQuickPanel(
                 modifier = Modifier.padding(top = 4.dp),
             )
 
-            // ===== 更换发音人（用户 09-09：分类改下拉框省空间，含「全部」）=====
-            HorizontalDivider(Modifier.padding(vertical = 6.dp))
-            if (source != null) {
-                Text(
-                    "更换发音人",
-                    style = MaterialTheme.typography.titleSmall,
-                    modifier = Modifier.padding(bottom = 4.dp),
-                )
-                // 分类定稿（用户 09-09 下拉版顺序）：全部 + 旁白(仅非对话) + 女/男系列；
+            // 分段两区（用户 09-09：同配置项编辑页「朗读全部/标签」SegmentedButton 样式）：
+            // 0=更换发音人 1=音频参数；当前发音人+终值两区共用，固定在分段之上
+            var panelTab by remember(entity.id) { mutableStateOf(0) }
+            SingleChoiceSegmentedButtonRow(
+                Modifier
+                    .fillMaxWidth()
+                    .padding(top = 6.dp),
+            ) {
+                SegmentedButton(
+                    selected = panelTab == 0,
+                    onClick = { panelTab = 0 },
+                    shape = SegmentedButtonDefaults.itemShape(0, 2),
+                ) { Text("更换发音人", maxLines = 1) }
+                SegmentedButton(
+                    selected = panelTab == 1,
+                    onClick = { panelTab = 1 },
+                    shape = SegmentedButtonDefaults.itemShape(1, 2),
+                ) { Text("音频参数", maxLines = 1) }
+            }
+
+            if (panelTab == 0 && source != null) {
+                // 分类定稿（用户 09-09 下拉版顺序）：全部 + 女/男系列（旁白不下拉，见下）；
                 // 提取方式参照标签分类（剥尾部数字取汉字前缀），前缀在白名单内才可被分类筛选命中；
                 // 对话/括号/本地音效/角色名等不入分类；「全部」=不筛选
                 val voiceCategories = listOf(
@@ -317,12 +341,10 @@ fun LogQuickPanel(
                     }
                 }
 
-                // 候选键：""=全部（不筛选）；旁白分类只在非对话（旁白/其他）模式提供；
-                // 展示名运行时追加「（N项）」（用户 09-09，同标签选择器样式），键保持纯分类名
+                // 候选键：""=全部（不筛选）；展示名运行时追加「（N项）」（用户 09-09，同标签选择器样式），
+                // 键保持纯分类名
                 val categoryOptions: List<Pair<String, String>> =
-                    listOf("" to "全部") +
-                        (if (isBindingMode) emptyList() else listOf("旁白" to "旁白")) +
-                        voiceCategories.map { it to it }
+                    listOf("" to "全部") + voiceCategories.map { it to it }
 
                 if (isBindingMode) {
                     // ===== 绑定模式：下拉定范围 + 常驻搜索（范围内）+ 列表（行内试听）=====
@@ -454,64 +476,27 @@ fun LogQuickPanel(
                         }
                     }
                 } else {
-                    // ===== 旁白/非多角色：下拉定范围 + 常驻搜索 + 列表（行内试听）=====
-                    // 分类=旁白+女/男系列（用户 09-09 下拉版）；默认选中当前配置项标签所属桶
-                    // （「旁白」配置→旁白，「男青年25」→男青年）；「全部」=不筛选
-                    var narrationScope by remember(entity.id) {
-                        mutableStateOf(voiceCategoryOf(config.speechRule.tagName))
-                    }
-                    var searchQuery by remember(entity.id) { mutableStateOf("") }
+                    // ===== 旁白/非多角色（用户 09-09 简化）：直接列旁白分类候选，无下拉/搜索 =====
+                    // 旁白分类只认标签本身是「旁白」的配置项（用户 09-09：标签是旁白才是旁白分类），
+                    // 不按名字前缀归桶；点行=暂存选中，底部「确认」写本配置项 voice，
+                    // 落库后主列表自动定位高亮被改项（sharedVM.pendingLocateConfigId）
                     val allConfigs = remember(entity.id) {
                         dbm.systemTtsV2.getAllGroupWithTts().flatMap { it.list }
                     }
-
-                    // 候选配置项（去重：同一声音只留一个代表，供试听/应用）——先做无筛选全集
-                    val baseCandidates = allConfigs
-                        .mapNotNull { c ->
+                    val narrationCandidates = remember(entity.id) {
+                        allConfigs.mapNotNull { c ->
                             val dto = c.config as? TtsConfigurationDTO ?: return@mapNotNull null
+                            if (dto.speechRule.tag != "旁白") return@mapNotNull null
                             val v = (dto.source as? PluginTtsSource)?.voice
                                 ?.takeIf { it.isNotEmpty() } ?: return@mapNotNull null
-                            Triple(v, c.displayName, dto.speechRule.tagName)
-                        }
-                        .distinctBy { it.first }
-                    // 下拉项带括号项数（用户 09-09，同标签选择器样式；不含范围/搜索过滤）；
-                    // 0 项的分类不带括号，避免一排「（0项）」噪音
-                    val categoryCounts = baseCandidates.groupingBy { voiceCategoryOf(it.third) }.eachCount()
-                    val categoryEntries = categoryOptions.map { (key, label) ->
-                        val n = if (key.isEmpty()) baseCandidates.size else categoryCounts[key] ?: 0
-                        if (n > 0) "$label（${n}项）" else label
+                            Pair(v, c.displayName)
+                        }.distinctBy { it.first }
                     }
-                    AppSpinner(
-                        modifier = Modifier.fillMaxWidth(),
-                        labelText = "分类",
-                        value = narrationScope ?: "",
-                        values = categoryOptions.map { it.first },
-                        entries = categoryEntries,
-                        onSelectedChange = { key, _ ->
-                            narrationScope = (key as? String)?.takeIf { it.isNotEmpty() }
-                        },
-                    )
-                    OutlinedTextField(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(top = 4.dp),
-                        label = { Text("搜索配置项名（当前范围内）") },
-                        value = searchQuery,
-                        onValueChange = { searchQuery = it },
-                        singleLine = true,
-                    )
-                    val candidateConfigs = baseCandidates.filter { (_, name, tagName) ->
-                        // 全部=不筛选；选中=候选标签归桶后与所选一致
-                        (narrationScope == null || voiceCategoryOf(tagName) == narrationScope) &&
-                            (searchQuery.isBlank() || name.contains(searchQuery, ignoreCase = true))
-                    }
-
-                    // 候选列表：点行=暂存应用该声音；▶=试听该配置的声音
                     Column(
                         Modifier
                             .fillMaxWidth()
                             .padding(top = 6.dp)
-                            .heightIn(max = 220.dp)
+                            .heightIn(max = 300.dp)
                             .verticalScroll(rememberScrollState())
                             .border(
                                 0.5.dp,
@@ -519,15 +504,15 @@ fun LogQuickPanel(
                                 RoundedCornerShape(8.dp),
                             ),
                     ) {
-                        if (candidateConfigs.isEmpty()) {
+                        if (narrationCandidates.isEmpty()) {
                             Text(
-                                "该范围内没有匹配的配置项",
+                                "旁白分类没有可用的配置项",
                                 modifier = Modifier.padding(10.dp),
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                             )
                         }
-                        candidateConfigs.forEach { (v, name, tagName) ->
+                        narrationCandidates.forEach { (v, name) ->
                             val isCurrent = v == voice && voice.isNotEmpty()
                             val isPending = v == pendingVoice
                             Row(
@@ -541,10 +526,8 @@ fun LogQuickPanel(
                                 verticalAlignment = Alignment.CenterVertically,
                             ) {
                                 Text(
-                                    // 分类(标签)在前、配置项名在后，单空格分隔（用户 09-08：去掉·）
                                     (if (isCurrent) "✓ " else "") +
-                                        (if (isPending && !isCurrent) "● " else "") +
-                                        (if (tagName.isNotBlank()) tagName + " " else "") + name,
+                                        (if (isPending && !isCurrent) "● " else "") + name,
                                     modifier = Modifier.weight(1f),
                                     style = MaterialTheme.typography.bodyMedium,
                                     maxLines = 1,
@@ -578,7 +561,8 @@ fun LogQuickPanel(
                 }
             }
 
-            // ===== 音频参数大区（内部三块以短分隔线区分）=====
+            // ===== 音频参数大区（分段第二区；内部三块以短分隔线区分）=====
+            if (panelTab == 1) {
             HorizontalDivider(Modifier.padding(vertical = 6.dp))
             // ===== 配置项音频参数（仅本条）=====
             Text(
@@ -730,6 +714,7 @@ fun LogQuickPanel(
                     Text((if (globalDirty) "● " else "") + stringResource(R.string.audio_params_apply))
                 }
             }
+            } // panelTab == 1（音频参数区）
 
             // ===== 底部操作行：换声两段式确认（用户 09-08，即点即改反馈弱且易误触）+ 取消 =====
             Row(
