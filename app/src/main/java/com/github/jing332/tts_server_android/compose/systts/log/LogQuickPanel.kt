@@ -17,7 +17,6 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.SegmentedButton
 import androidx.compose.material3.SegmentedButtonDefaults
-import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -298,12 +297,14 @@ fun LogQuickPanel(
             )
 
             // 分段两区（用户 09-09：同配置项编辑页「朗读全部/标签」SegmentedButton 样式）：
-            // 0=更换发音人 1=音频参数；当前发音人+终值两区共用，固定在分段之上
+            // 0=更换发音人 1=音频参数；当前发音人+终值两区共用，固定在分段之上。
+            // 宽度适配文字不均分（用户 09-09：两项文字长度差很多，均分浪费），居中放置
             var panelTab by remember(entity.id) { mutableStateOf(0) }
-            SingleChoiceSegmentedButtonRow(
+            Row(
                 Modifier
-                    .fillMaxWidth()
-                    .padding(top = 6.dp),
+                    .padding(top = 8.dp)
+                    .align(Alignment.CenterHorizontally),
+                horizontalArrangement = Arrangement.Center,
             ) {
                 SegmentedButton(
                     selected = panelTab == 0,
@@ -558,8 +559,13 @@ fun LogQuickPanel(
 
             // ===== 音频参数大区（分段第二区；内部三块以分隔线区分）=====
             if (panelTab == 1) {
-            // 水平再让 4dp（叠加弹窗自带 12dp）：滑条 −/+ 贴边太挤（用户 09-09，与音频参数弹窗同款）
-            Column(Modifier.padding(horizontal = 4.dp)) {
+            // 水平再让 4dp（叠加弹窗自带 12dp）：滑条 −/+ 贴边太挤（用户 09-09，与音频参数弹窗同款）；
+            // 底部无按钮行，补 4dp 底边距与左右一致收尾
+            Column(
+                Modifier
+                    .padding(horizontal = 4.dp)
+                    .padding(bottom = 4.dp)
+            ) {
             HorizontalDivider(Modifier.padding(vertical = 4.dp))
             // ===== 配置项音频参数（仅本条）=====
             Text(
@@ -708,48 +714,52 @@ fun LogQuickPanel(
             }
         },
         buttons = {
-            // 底部操作行：换声两段式确认（用户 09-08，即点即改反馈弱且易误触）+ 取消
-            Row(
-                Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.End,
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                TextButton(onClick = onDismissRequest) { Text(stringResource(R.string.cancel)) }
-                TextButton(
-                    enabled = pendingVoice != null,
-                    onClick = {
-                        val selected = pendingVoice ?: return@TextButton
-                        if (isBindingMode) {
-                            // 绑定模式：改写 characterRecords.json（与角色管理同文件同字段）
-                            if (selected == boundVoice) {
-                                pendingVoice = null
-                                return@TextButton
-                            }
-                            scope.launch {
-                                val ok = withIO {
-                                    CharacterRecordsFile.rebind(
-                                        config.speechRule.tagRuleId,
-                                        entry.roleName,
-                                        selected,
-                                    )
-                                }
-                                if (ok) boundVoice = selected
-                                pendingVoice = null
-                                Toast.makeText(
-                                    context,
-                                    if (ok) "已将「${entry.roleName}」的发音人换为 $selected"
-                                    else context.getString(R.string.log_panel_rebind_failed),
-                                    Toast.LENGTH_SHORT,
-                                ).show()
-                            }
-                        } else {
-                            // 旁白/其他：写配置项 voice
-                            applyVoice(selected)
-                            pendingVoice = null
-                        }
-                    },
+            // 底部操作行仅更换发音人区显示（用户 09-09：音频参数区各块自带重置/应用，
+            // 取消/确定多余；删除后由内容底部边距收尾，弹窗点外部/返回键即关）
+            if (panelTab == 0) {
+                // 换声两段式确认（用户 09-08，即点即改反馈弱且易误触）+ 取消
+                Row(
+                    Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.End,
+                    verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    Text((if (pendingVoice != null) "● " else "") + stringResource(R.string.confirm))
+                    TextButton(onClick = onDismissRequest) { Text(stringResource(R.string.cancel)) }
+                    TextButton(
+                        enabled = pendingVoice != null,
+                        onClick = {
+                            val selected = pendingVoice ?: return@TextButton
+                            if (isBindingMode) {
+                                // 绑定模式：改写 characterRecords.json（与角色管理同文件同字段）
+                                if (selected == boundVoice) {
+                                    pendingVoice = null
+                                    return@TextButton
+                                }
+                                scope.launch {
+                                    val ok = withIO {
+                                        CharacterRecordsFile.rebind(
+                                            config.speechRule.tagRuleId,
+                                            entry.roleName,
+                                            selected,
+                                        )
+                                    }
+                                    if (ok) boundVoice = selected
+                                    pendingVoice = null
+                                    Toast.makeText(
+                                        context,
+                                        if (ok) "已将「${entry.roleName}」的发音人换为 $selected"
+                                        else context.getString(R.string.log_panel_rebind_failed),
+                                        Toast.LENGTH_SHORT,
+                                    ).show()
+                                }
+                            } else {
+                                // 旁白/其他：写配置项 voice
+                                applyVoice(selected)
+                                pendingVoice = null
+                            }
+                        },
+                    ) {
+                        Text((if (pendingVoice != null) "● " else "") + stringResource(R.string.confirm))
+                    }
                 }
             }
         },

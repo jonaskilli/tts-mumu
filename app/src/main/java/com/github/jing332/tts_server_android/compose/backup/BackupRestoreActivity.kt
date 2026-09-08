@@ -8,15 +8,13 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.*
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Color 
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
@@ -25,7 +23,6 @@ import androidx.lifecycle.viewModelScope
 import com.github.jing332.common.utils.FileUtils.readBytes
 import com.github.jing332.compose.widgets.AppDialog
 import com.github.jing332.compose.widgets.LoadingDialog
-import com.github.jing332.compose.widgets.TextCheckBox
 import com.github.jing332.tts_server_android.R
 import com.github.jing332.tts_server_android.compose.ComposeActivity
 import com.github.jing332.tts_server_android.compose.settings.BasePreferenceWidget
@@ -34,7 +31,7 @@ import com.github.jing332.tts_server_android.conf.AppConfig
 import com.github.jing332.tts_server_android.ui.AppActivityResultContracts
 import com.github.jing332.tts_server_android.ui.FilePickerActivity
 import com.github.jing332.tts_server_android.ui.view.AppDialogs.displayErrorDialog
-import com.thegrizzlylabs.sardineandroid.DavResource
+import com.thegrizzlylabs.sardineandroid.DavResource 
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -51,6 +48,7 @@ class BackupRestoreActivity : ComposeActivity() {
         setContent {
             AppTheme {
                 val vm: BackupRestoreViewModel = viewModel()
+                var showBackupDialog by remember { mutableStateOf(false) }
                 var showRestoreMenu by remember { mutableStateOf(false) }
                 var showWebDavSettings by remember { mutableStateOf(false) }
                 var showUrlInputDialog by remember { mutableStateOf(false) }
@@ -68,8 +66,49 @@ class BackupRestoreActivity : ComposeActivity() {
                 val saveFilePicker = rememberLauncherForActivityResult(
                     contract = AppActivityResultContracts.filePickerActivity(),
                 ) {}
-
                 val scope = rememberCoroutineScope()
+
+                if (showBackupDialog) {
+                    BackupDialog(
+                        onDismissRequest = { showBackupDialog = false },
+                        onBackupRequested = { profile, types, saveToLocal, uploadToWebDav ->
+                            if (uploadToWebDav && !AppConfig.isWebDavConfigured) {
+                                Toast.makeText(
+                                    context,
+                                    context.getString(R.string.config_webdav_first),
+                                    Toast.LENGTH_SHORT,
+                                ).show()
+                                return@BackupDialog
+                            }
+                            isLoading = true
+                            scope.launch {
+                                runCatching {
+                                    val data = vm.backup(profile, types)
+                                    if (uploadToWebDav) {
+                                        vm.uploadToWebDav(data, backupFileName(profile))
+                                        Toast.makeText(
+                                            context,
+                                            context.getString(R.string.backup_uploaded_success),
+                                            Toast.LENGTH_LONG,
+                                        ).show()
+                                    }
+                                    if (saveToLocal) {
+                                        saveFilePicker.launch(
+                                            FilePickerActivity.RequestSaveFile(
+                                                fileName = backupFileName(profile),
+                                                fileMime = "application/zip",
+                                                fileBytes = data,
+                                            )
+                                        )
+                                    }
+                                }.onFailure {
+                                    context.displayErrorDialog(it, context.getString(R.string.backup))
+                                }
+                                isLoading = false
+                            }
+                        },
+                    )
+                }
 
                 if (showRestoreMenu) {
                     AlertDialog(
@@ -82,9 +121,9 @@ class BackupRestoreActivity : ComposeActivity() {
                                     result?.second?.let { uri -> showFromFileRestoreDialog.value = uri.readBytes(this@BackupRestoreActivity) }
                                 }
                                 ListItem(
-                                    modifier = Modifier.clickable {
+                                    modifier = Modifier.clickable { 
                                         // 🛠️ 修复：传入 ZIP 专用 MIME 类型，确保系统选择器可以选中 ZIP 文件
-                                        filePicker.launch(FilePickerActivity.RequestSelectFile(listOf("application/zip", "application/x-zip-compressed")))
+                                        filePicker.launch(FilePickerActivity.RequestSelectFile(listOf("application/zip", "application/x-zip-compressed"))) 
                                     },
                                     headlineContent = { Text(stringResource(R.string.file_picker_mode_system)) },
                                     leadingContent = { Icon(Icons.Default.FolderOpen, null) },
@@ -111,8 +150,8 @@ class BackupRestoreActivity : ComposeActivity() {
                                 )
                             }
                         },
-                        confirmButton = {
-                            TextButton(onClick = { showRestoreMenu = false }) { Text(stringResource(R.string.cancel)) }
+                        confirmButton = { 
+                            TextButton(onClick = { showRestoreMenu = false }) { Text(stringResource(R.string.cancel)) } 
                         }
                     )
                 }
@@ -164,140 +203,13 @@ class BackupRestoreActivity : ComposeActivity() {
                             }
                         })
                 }) { padding ->
-                    Column(
-                        Modifier
-                            .padding(padding)
-                            .fillMaxSize()
-                            .verticalScroll(rememberScrollState())
-                    ) {
-                        // ===== 备份顶部分区（用户 09-09）：完整备份 | 分享备份 两区，
-                        // SegmentedButton 同配置项编辑页「朗读全部/标签」样式；原备份弹窗内容内联进各区 =====
-                        var backupTab by remember { mutableStateOf(0) }
-                        val profile =
-                            if (backupTab == 0) BackupProfile.PERSONAL_FULL else BackupProfile.SHARE_SANITIZED
-                        val checkedTypes = remember { mutableStateListOf<Type>() }
-                        // 切区重置为该区默认勾选集（原备份弹窗行为）
-                        LaunchedEffect(backupTab) {
-                            checkedTypes.clear()
-                            checkedTypes.addAll(defaultTypes(profile))
-                        }
-                        var saveToLocal by remember { mutableStateOf(true) }
-                        var uploadToWebDav by remember { mutableStateOf(false) }
-
-                        SingleChoiceSegmentedButtonRow(
-                            Modifier
-                                .fillMaxWidth()
-                                .padding(horizontal = 8.dp, vertical = 8.dp),
-                        ) {
-                            SegmentedButton(
-                                selected = backupTab == 0,
-                                onClick = { backupTab = 0 },
-                                shape = SegmentedButtonDefaults.itemShape(0, 2),
-                            ) { Text(stringResource(R.string.personal_complete_backup), maxLines = 1) }
-                            SegmentedButton(
-                                selected = backupTab == 1,
-                                onClick = { backupTab = 1 },
-                                shape = SegmentedButtonDefaults.itemShape(1, 2),
-                            ) { Text(stringResource(R.string.share_backup), maxLines = 1) }
-                        }
-                        Text(
-                            text = stringResource(modeWarningRes(profile)),
-                            color = MaterialTheme.colorScheme.error,
-                            style = MaterialTheme.typography.bodyMedium,
-                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
+                    Column(Modifier.padding(padding)) {
+                        BasePreferenceWidget(
+                            onClick = { showBackupDialog = true },
+                            title = { Text(stringResource(R.string.backup)) },
+                            subTitle = { Text(stringResource(R.string.backup_entry_summary)) },
+                            icon = { Icon(Icons.Default.Output, null) },
                         )
-                        Text(
-                            text = stringResource(R.string.backup_included_content),
-                            style = MaterialTheme.typography.titleSmall,
-                            modifier = Modifier.padding(start = 16.dp, top = 4.dp, bottom = 4.dp),
-                        )
-                        availableTypes(profile).forEach { type ->
-                            TextCheckBox(
-                                modifier = Modifier.fillMaxWidth(),
-                                text = { Text(stringResource(type.nameStrId)) },
-                                checked = type in checkedTypes,
-                                onCheckedChange = { checked ->
-                                    if (checked) {
-                                        checkedTypes.add(type)
-                                    } else {
-                                        // 取消"插件"时连带取消"插件变量"
-                                        if (type == Type.Plugin) checkedTypes.remove(Type.PluginVars)
-                                        if (type == Type.Preference) checkedTypes.remove(Type.WebDav)
-                                        checkedTypes.remove(type)
-                                    }
-                                },
-                                horizontalArrangement = Arrangement.Start,
-                            )
-                        }
-
-                        // 保存到：本地默认 + WebDAV 可选，可同时（原备份弹窗行为）
-                        HorizontalDivider(Modifier.padding(vertical = 8.dp))
-                        Text(
-                            text = stringResource(R.string.backup_save_to),
-                            style = MaterialTheme.typography.titleSmall,
-                            modifier = Modifier.padding(start = 16.dp),
-                        )
-                        TextCheckBox(
-                            modifier = Modifier.fillMaxWidth(),
-                            text = { Text(stringResource(R.string.backup_save_local)) },
-                            checked = saveToLocal,
-                            onCheckedChange = { saveToLocal = it },
-                            horizontalArrangement = Arrangement.Start,
-                        )
-                        TextCheckBox(
-                            modifier = Modifier.fillMaxWidth(),
-                            text = { Text(stringResource(R.string.backup_to_webdav)) },
-                            checked = uploadToWebDav,
-                            onCheckedChange = { uploadToWebDav = it },
-                            horizontalArrangement = Arrangement.Start,
-                        )
-                        Row(
-                            Modifier
-                                .fillMaxWidth()
-                                .padding(horizontal = 8.dp),
-                            horizontalArrangement = Arrangement.End,
-                        ) {
-                            TextButton(onClick = {
-                                if (checkedTypes.isEmpty()) {
-                                    Toast.makeText(context, context.getString(R.string.backup_need_content), Toast.LENGTH_SHORT).show()
-                                    return@TextButton
-                                }
-                                if (!saveToLocal && !uploadToWebDav) {
-                                    Toast.makeText(context, context.getString(R.string.backup_need_save_target), Toast.LENGTH_SHORT).show()
-                                    return@TextButton
-                                }
-                                isLoading = true
-                                scope.launch {
-                                    runCatching {
-                                        val data = vm.backup(profile, checkedTypes.toList())
-                                        if (uploadToWebDav) {
-                                            vm.uploadToWebDav(data, backupFileName(profile))
-                                            Toast.makeText(
-                                                context,
-                                                context.getString(R.string.backup_uploaded_success),
-                                                Toast.LENGTH_LONG,
-                                            ).show()
-                                        }
-                                        if (saveToLocal) {
-                                            saveFilePicker.launch(
-                                                FilePickerActivity.RequestSaveFile(
-                                                    fileName = backupFileName(profile),
-                                                    fileMime = "application/zip",
-                                                    fileBytes = data,
-                                                )
-                                            )
-                                        }
-                                    }.onFailure {
-                                        context.displayErrorDialog(it, context.getString(R.string.backup))
-                                    }
-                                    isLoading = false
-                                }
-                            }) {
-                                Text(stringResource(R.string.backup))
-                            }
-                        }
-
-                        HorizontalDivider(Modifier.padding(vertical = 4.dp))
                         BasePreferenceWidget(onClick = { showRestoreMenu = true }, title = { Text(stringResource(id = R.string.restore)) }, icon = { Icon(Icons.AutoMirrored.Filled.Input, null) })
                         BasePreferenceWidget(
                             onClick = { showWebDavSettings = true },
@@ -388,7 +300,7 @@ class BackupRestoreActivity : ComposeActivity() {
             isLoading = false
         }
 
-        if (isLoading) { LoadingDialog(onDismissRequest = { }) }
+        if (isLoading) { LoadingDialog(onDismissRequest = { }) } 
         else {
             AlertDialog(
                 onDismissRequest = onDismissRequest,
@@ -422,24 +334,4 @@ class BackupRestoreActivity : ComposeActivity() {
             )
         }
     }
-}
-
-// ===== 备份分区辅助（原 BackupDialog 私有辅助，随内容内联迁入） =====
-
-private fun availableTypes(profile: BackupProfile): List<Type> = when (profile) {
-    BackupProfile.PERSONAL_FULL -> Type.typeList
-    BackupProfile.SHARE_SANITIZED -> listOf(
-        Type.Preference,
-        Type.List,
-        Type.SpeechRule,
-        Type.ReplaceRule,
-        Type.Plugin,
-    )
-}
-
-private fun defaultTypes(profile: BackupProfile): List<Type> = availableTypes(profile)
-
-private fun modeWarningRes(profile: BackupProfile): Int = when (profile) {
-    BackupProfile.PERSONAL_FULL -> R.string.personal_backup_sensitive_warning
-    BackupProfile.SHARE_SANITIZED -> R.string.share_backup_privacy_warning
 }
