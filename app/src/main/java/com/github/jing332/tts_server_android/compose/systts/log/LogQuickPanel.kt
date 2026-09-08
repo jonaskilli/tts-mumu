@@ -213,7 +213,7 @@ fun LogQuickPanel(
         }
     }
 
-    /** 按标签查启用配置项（顶部试听/绑定行试听/当前发音人名共用） */
+    /** 按标签查启用配置项（试听/当前发音人名共用） */
     fun enabledConfigEntityByTag(tag: String): SystemTtsV2? =
         dbm.systemTtsV2.getAllGroupWithTts().flatMap { it.list }
             .firstOrNull {
@@ -221,9 +221,8 @@ fun LogQuickPanel(
                     (it.config as? TtsConfigurationDTO)?.speechRule?.tag == tag
             }
 
-    /** 按 tag 查任意配置项（不限 isEnabled），仅用于取 displayName 展示——
-     * 绑定的 tag 对应配置项可能未启用（用户禁用/导入后未启用），原 enabled 查询会返回 null
-     * 致顶部"当前发音人"fallback 到 boundVoice(标签名)。显示名放宽不限启用，试听仍用 enabled 版。 */
+    /** 按 tag 查任意配置项（不限 isEnabled），仅用于候选行取 displayName 拼接显示——
+     * 候选标签池含未启用项的 tag，enabled 查询会返回 null 拿不到 displayName */
     fun configEntityByTag(tag: String): SystemTtsV2? =
         dbm.systemTtsV2.getAllGroupWithTts().flatMap { it.list }
             .firstOrNull { (it.config as? TtsConfigurationDTO)?.speechRule?.tag == tag }
@@ -242,9 +241,7 @@ fun LogQuickPanel(
             ) {
             // ===== 顶部块（用户 09-09 重排）：当前发音人 + 试听 + 终值 =====
             val boundConfigName = remember(entity.id, boundVoice) {
-                // 不限 isEnabled 取配置项名（用户 09-09：原 enabled 查询遇未启用项返回 null，
-                // fallback 到 boundVoice(标签名) 显示，用户希望看到配置项名）
-                if (isBindingMode) configEntityByTag(boundVoice)?.displayName?.takeIf { it.isNotBlank() } ?: boundVoice else ""
+                if (isBindingMode) enabledConfigEntityByTag(boundVoice)?.displayName ?: boundVoice else ""
             }
             val currentVoiceName = if (isBindingMode) boundConfigName else entity.displayName
             Row(
@@ -421,6 +418,10 @@ fun LogQuickPanel(
                         displayTags.forEach { tag ->
                             val isCurrent = tag == boundVoice
                             val isPending = tag == pendingVoice
+                            // 候选行显示「标签名+配置项名」（用户 09-09：原 displayName·tag 反过来去点，
+                            // 不限 isEnabled 查配置项名——候选含未启用项的 tag）
+                            val cfgName = configEntityByTag(tag)?.displayName.orEmpty()
+                            val displayText = tag + cfgName
                             Row(
                                 Modifier
                                     .fillMaxWidth()
@@ -433,7 +434,7 @@ fun LogQuickPanel(
                             ) {
                                 Text(
                                     (if (isCurrent) "✓ " else "") +
-                                        (if (isPending && !isCurrent) "● " else "") + tag,
+                                        (if (isPending && !isCurrent) "● " else "") + displayText,
                                     modifier = Modifier.weight(1f),
                                     style = MaterialTheme.typography.bodyMedium,
                                     maxLines = 1,
