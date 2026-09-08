@@ -303,8 +303,8 @@ fun LogQuickPanel(
                 // 提取方式参照标签分类（剥尾部数字取汉字前缀），前缀在白名单内才可被分类筛选命中；
                 // 对话/括号/本地音效/角色名等不入分类；「全部」=不筛选
                 val voiceCategories = listOf(
-                    "女主", "男主", "女青年", "男青年", "女中年", "男中年",
-                    "女老年", "男老年", "少女", "少年", "女童", "男童", "特殊女", "特殊男",
+                    "女青年", "男青年", "女中年", "男中年", "女老年", "男老年",
+                    "少女", "少年", "女童", "男童", "女主", "男主", "特殊女", "特殊男",
                 )
 
                 fun voiceCategoryOf(tagName: String): String? {
@@ -317,7 +317,8 @@ fun LogQuickPanel(
                     }
                 }
 
-                // 候选键：""=全部（不筛选）；旁白分类只在非对话（旁白/其他）模式提供
+                // 候选键：""=全部（不筛选）；旁白分类只在非对话（旁白/其他）模式提供；
+                // 展示名运行时追加「（N项）」（用户 09-09，同标签选择器样式），键保持纯分类名
                 val categoryOptions: List<Pair<String, String>> =
                     listOf("" to "全部") +
                         (if (isBindingMode) emptyList() else listOf("旁白" to "旁白")) +
@@ -335,7 +336,7 @@ fun LogQuickPanel(
                         labelText = "分类",
                         value = selectedCategory ?: "",
                         values = categoryOptions.map { it.first },
-                        entries = categoryOptions.map { it.second },
+                        entries = categoryEntries,
                         onSelectedChange = { key, _ ->
                             selectedCategory = (key as? String)?.takeIf { it.isNotEmpty() }
                         },
@@ -358,10 +359,17 @@ fun LogQuickPanel(
                                 (it.config as? TtsConfigurationDTO)?.speechRule?.tag
                             }
                     }
-                    val pool = CharacterRecordsFile.readVoicePool(config.speechRule.tagRuleId)
-                    val filtered = pool.filter {
-                        it in enabledTags &&
-                            (selectedCategory == null || voiceCategoryOf(it) == selectedCategory) &&
+                    val poolEnabled = CharacterRecordsFile.readVoicePool(config.speechRule.tagRuleId)
+                        .filter { it in enabledTags }
+                    // 下拉项带括号项数（不含搜索过滤，选分类前就知道各范围有多少可选）；
+                    // 0 项的分类不带括号，避免一排「（0项）」噪音
+                    val categoryCounts = poolEnabled.groupingBy { voiceCategoryOf(it) }.eachCount()
+                    val categoryEntries = categoryOptions.map { (key, label) ->
+                        val n = if (key.isEmpty()) poolEnabled.size else categoryCounts[key] ?: 0
+                        if (n > 0) "$label（${n}项）" else label
+                    }
+                    val filtered = poolEnabled.filter {
+                        (selectedCategory == null || voiceCategoryOf(it) == selectedCategory) &&
                             (tagSearch.isBlank() || it.contains(tagSearch))
                     }
                     // 当前绑定不在候选时补在顶部，防丢值
@@ -459,7 +467,7 @@ fun LogQuickPanel(
                         labelText = "分类",
                         value = narrationScope ?: "",
                         values = categoryOptions.map { it.first },
-                        entries = categoryOptions.map { it.second },
+                        entries = categoryEntries,
                         onSelectedChange = { key, _ ->
                             narrationScope = (key as? String)?.takeIf { it.isNotEmpty() }
                         },
@@ -478,22 +486,27 @@ fun LogQuickPanel(
                         dbm.systemTtsV2.getAllGroupWithTts().flatMap { it.list }
                     }
 
-                    // 候选配置项（去重：同一声音只留一个代表，供试听/应用）
-                    val candidateConfigs = allConfigs
+                    // 候选配置项（去重：同一声音只留一个代表，供试听/应用）——先做无筛选全集
+                    val baseCandidates = allConfigs
                         .mapNotNull { c ->
                             val dto = c.config as? TtsConfigurationDTO ?: return@mapNotNull null
                             val v = (dto.source as? PluginTtsSource)?.voice
                                 ?.takeIf { it.isNotEmpty() } ?: return@mapNotNull null
-                            val cat = voiceCategoryOf(dto.speechRule.tagName)
-                            // 全部=不筛选；选中=候选标签归桶后与所选一致
-                            val inScope = narrationScope == null || cat == narrationScope
-                            if (!inScope) return@mapNotNull null
-                            if (searchQuery.isNotBlank() &&
-                                !c.displayName.contains(searchQuery, ignoreCase = true)
-                            ) return@mapNotNull null
                             Triple(v, c.displayName, dto.speechRule.tagName)
                         }
                         .distinctBy { it.first }
+                    // 下拉项带括号项数（用户 09-09，同标签选择器样式；不含范围/搜索过滤）；
+                    // 0 项的分类不带括号，避免一排「（0项）」噪音
+                    val categoryCounts = baseCandidates.groupingBy { voiceCategoryOf(it.third) }.eachCount()
+                    val categoryEntries = categoryOptions.map { (key, label) ->
+                        val n = if (key.isEmpty()) baseCandidates.size else categoryCounts[key] ?: 0
+                        if (n > 0) "$label（${n}项）" else label
+                    }
+                    val candidateConfigs = baseCandidates.filter { (_, name, tagName) ->
+                        // 全部=不筛选；选中=候选标签归桶后与所选一致
+                        (narrationScope == null || voiceCategoryOf(tagName) == narrationScope) &&
+                            (searchQuery.isBlank() || name.contains(searchQuery, ignoreCase = true))
+                    }
 
                     // 候选列表：点行=暂存应用该声音；▶=试听该配置的声音
                     Column(
