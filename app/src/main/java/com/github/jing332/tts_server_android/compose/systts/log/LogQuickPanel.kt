@@ -209,7 +209,15 @@ fun LogQuickPanel(
                     }
 
                     // ===== 候选与当前值（按模式分流）=====
-                    // 绑定模式：候选=标签池；当前值=该角色在角色文件里的绑定标签（缺省回退配置项标签）
+                    // 绑定模式：候选=标签池 ∩ 有启用配置的标签（用户 09-08：只能选启用项）——
+                    // 改绑到无启用配置的标签会掉进随机兜底，读声不可控，必须排除
+                    val enabledTags = remember(entity.id) {
+                        dbm.systemTtsV2.getAllGroupWithTts().flatMap { it.list }
+                            .filter { it.isEnabled }
+                            .mapNotNullTo(mutableSetOf()) {
+                                (it.config as? TtsConfigurationDTO)?.speechRule?.tag
+                            }
+                    }
                     var boundVoice by remember(entity.id) {
                         mutableStateOf(
                             CharacterRecordsFile.readCharacterVoice(
@@ -220,7 +228,8 @@ fun LogQuickPanel(
                     val displayVoices: List<Pair<String, String>> = if (isBindingMode) {
                         val pool = CharacterRecordsFile.readVoicePool(config.speechRule.tagRuleId)
                         val filtered = pool.filter {
-                            selectedCategory == null || it.contains(selectedCategory)
+                            (selectedCategory == null || it.contains(selectedCategory)) &&
+                                it in enabledTags
                         }
                         // 当前绑定标签不属于该分类时补在顶部标「当前」，防 Spinner 强制重置
                         if (boundVoice.isNotEmpty() && filtered.none { it == boundVoice }) {
