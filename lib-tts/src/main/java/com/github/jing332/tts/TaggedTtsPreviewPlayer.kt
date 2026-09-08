@@ -12,8 +12,13 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeout
+
+/** 试听会话状态：合成中(…) / 已出声播放中(■) / 空闲(▶)；与角色管理v9/v10按钮时机对齐 */
+enum class PreviewState { IDLE, SYNTHESIZING, PLAYING }
 
 /**
  * Silent preview session for plugin-owned UI (for example role management).
@@ -68,6 +73,10 @@ object TaggedTtsPreviewPlayer {
     @Volatile
     private var audible: Boolean = false
 
+    // Compose 侧可观察状态：日志面板等 UI 直接收集渲染 ▶/…/■，与 JS 轮询 isPlaying/isAudible 同源
+    private val _state = MutableStateFlow(PreviewState.IDLE)
+    val state: StateFlow<PreviewState> = _state
+
     private fun toast(context: Context, msg: String) {
         android.os.Handler(android.os.Looper.getMainLooper()).post {
             android.widget.Toast.makeText(
@@ -81,6 +90,7 @@ object TaggedTtsPreviewPlayer {
             job?.cancel()
             player?.stop()
             audible = false
+            _state.value = PreviewState.SYNTHESIZING
             val audioPlayer = AudioPlayer(context.applicationContext)
             player?.release()
             player = audioPlayer
@@ -105,6 +115,7 @@ object TaggedTtsPreviewPlayer {
                     // Local direct-play engines already apply their final parameters themselves.
                     if (provider.isSyncPlay(resolved.configuration.source)) {
                         audible = true
+                        _state.value = PreviewState.PLAYING
                         provider.syncPlay(
                             resolved.providerParams(text, PREVIEW_TIMEOUT_MS),
                             resolved.configuration.source,
@@ -132,6 +143,7 @@ object TaggedTtsPreviewPlayer {
 
                     if (resolved.configuration.shouldDecode() && !declaredPcm) {
                         audible = true
+                        _state.value = PreviewState.PLAYING
                         audioPlayer.play(bytes, local.speed, localVolume, local.pitch)
                     } else {
                         val sampleRate = if (declaredPcm) {
@@ -142,6 +154,7 @@ object TaggedTtsPreviewPlayer {
                                 ?: resolved.configuration.audioFormat.sampleRate
                         }
                         audible = true
+                        _state.value = PreviewState.PLAYING
                         audioPlayer.play(bytes, sampleRate, local.speed, localVolume, local.pitch)
                     }
                 } catch (_: CancellationException) {
@@ -158,7 +171,11 @@ object TaggedTtsPreviewPlayer {
                     }
                 } finally {
                     // 播完/被替换/失败都释放焦点；被新试听顶替时 session 不匹配，由新会话接管
-                    if (focusSession == session) abandonAudioFocus()
+                    if (focusSession == session) {
+                        abandonAudioFocus()
+                        // 同一守卫：被顶替时不得清掉新会话刚置的 SYNTHESIZING/PLAYING
+                        _state.value = PreviewState.IDLE
+                    }
                 }
             }
         }
@@ -169,6 +186,7 @@ object TaggedTtsPreviewPlayer {
             job?.cancel()
             job = null
             audible = false
+            _state.value = PreviewState.IDLE
             player?.stop()
             player?.release()
             player = null

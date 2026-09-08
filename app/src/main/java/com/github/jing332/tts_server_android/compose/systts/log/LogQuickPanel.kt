@@ -20,6 +20,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -27,6 +28,8 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
@@ -39,6 +42,7 @@ import com.github.jing332.database.entities.systts.AudioParams
 import com.github.jing332.database.entities.systts.SystemTtsV2
 import com.github.jing332.database.entities.systts.TtsConfigurationDTO
 import com.github.jing332.database.entities.systts.source.PluginTtsSource
+import com.github.jing332.tts.PreviewState
 import com.github.jing332.tts.TaggedTtsPreviewPlayer
 import com.github.jing332.tts_server_android.R
 import com.github.jing332.tts_server_android.app
@@ -78,6 +82,22 @@ fun LogQuickPanel(
         return
     }
     val source = config.source as? PluginTtsSource
+
+    // ===== 行内试听状态（参照角色管理v9/v10试听状态机：▶ →(点击)… →(真正出声)■ →(播完复位)▶）=====
+    // 播放器全局单实例（同一时刻只有一个试听），previewingKey 记当前行（绑定模式=tag，旁白=voice）；
+    // 状态由 TaggedTtsPreviewPlayer.state 驱动，播完/失败/被顶替回到 IDLE 时复位行标记
+    val previewState by TaggedTtsPreviewPlayer.state.collectAsState()
+    var previewingKey by remember(entity.id) { mutableStateOf<Any?>(null) }
+    androidx.compose.runtime.LaunchedEffect(previewState) {
+        if (previewState == PreviewState.IDLE) previewingKey = null
+    }
+    fun previewLabel(key: Any?): String = when {
+        previewingKey == key && previewState == PreviewState.PLAYING -> "■"
+        previewingKey == key -> "…"
+        else -> "▶"
+    }
+    fun previewLabelColor(key: Any?): Color =
+        if (previewingKey == key) MaterialTheme.colorScheme.tertiary else Color.Unspecified
 
     // ===== 本地编辑草稿：各块应用才落库 =====
     var displayName by remember(entity.id) { mutableStateOf(entity.displayName) }
@@ -335,7 +355,14 @@ fun LogQuickPanel(
                                         },
                                     )
                                     TextButton(onClick = {
-                                        // 行内试听：播放该标签对应启用配置的声音，不应用
+                                        // 行内试听：播放该标签对应启用配置的声音，不应用；
+                                        // 播放中/合成中再点同一行=停止复位（角色管理同款交互）
+                                        if (previewingKey == tag && previewState != PreviewState.IDLE) {
+                                            TaggedTtsPreviewPlayer.stop()
+                                            previewingKey = null
+                                            return@TextButton
+                                        }
+                                        previewingKey = tag
                                         scope.launch {
                                             val target = withIO {
                                                 dbm.systemTtsV2.getAllGroupWithTts().flatMap { it.list }
@@ -347,6 +374,7 @@ fun LogQuickPanel(
                                             if (target != null) {
                                                 TaggedTtsPreviewPlayer.play(context, target, "你好，这是试听语音。")
                                             } else {
+                                                previewingKey = null
                                                 Toast.makeText(
                                                     context,
                                                     context.getString(R.string.log_panel_rebind_no_config),
@@ -355,7 +383,10 @@ fun LogQuickPanel(
                                             }
                                         }
                                     }) {
-                                        Text("▶")
+                                        Text(
+                                            previewLabel(tag),
+                                            color = previewLabelColor(tag),
+                                        )
                                     }
                                 }
                             }
@@ -461,15 +492,25 @@ fun LogQuickPanel(
                                         else MaterialTheme.colorScheme.onSurface,
                                     )
                                     TextButton(onClick = {
+                                        // 播放中/合成中再点同一行=停止复位（角色管理同款交互）
+                                        if (previewingKey == v && previewState != PreviewState.IDLE) {
+                                            TaggedTtsPreviewPlayer.stop()
+                                            previewingKey = null
+                                            return@TextButton
+                                        }
                                         val target = allConfigs.firstOrNull {
                                             (it.config as? TtsConfigurationDTO)?.source
                                                 ?.let { s -> (s as? PluginTtsSource)?.voice } == v
                                         }
                                         if (target != null) {
+                                            previewingKey = v
                                             TaggedTtsPreviewPlayer.play(context, target, "你好，这是试听语音。")
                                         }
                                     }) {
-                                        Text("▶")
+                                        Text(
+                                            previewLabel(v),
+                                            color = previewLabelColor(v),
+                                        )
                                     }
                                 }
                             }
