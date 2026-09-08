@@ -51,6 +51,8 @@ class SysttsFilter : Filter<ILoggingEvent>() {
                     // 请求行经 MDC 携带的配置项 id（SystemTtsService 写"请求音频"时放入），
                     // 供日志快捷面板定位配置项；无关联日志该键不存在，回退 0
                     configId = event.mdcPropertyMap["configId"]?.toLongOrNull() ?: 0L,
+                    // 实时角色名同走 MDC（多角色对话请求才有值）
+                    roleName = event.mdcPropertyMap["roleName"] ?: "",
                 )
             )
 

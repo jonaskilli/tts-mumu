@@ -811,13 +811,16 @@ class SystemTtsService : TextToSpeechService(), IEventDispatcher {
                     logW(getString(R.string.systts_log_start_retry, e.retries))
                 else {
                     // "请求音频:"前缀走级别色(绿)普通, 正文 <b> 加粗, 次级信息哨兵色→石板灰；
-                    // MDC 携带配置项 id 供日志快捷面板定位（写完立即清理防串扰）
+                    // MDC 携带配置项 id + 实时角色名 供日志快捷面板定位（写完立即清理防串扰）
                     val configId = (e.request.config.tag as? SystemTtsV2)?.id ?: 0L
                     try {
                         org.slf4j.MDC.put("configId", configId.toString())
+                        if (e.request.roleName.isNotBlank())
+                            org.slf4j.MDC.put("roleName", e.request.roleName)
                         logI("请求音频：" + e.request.text())
                     } finally {
                         org.slf4j.MDC.remove("configId")
+                        org.slf4j.MDC.remove("roleName")
                     }
                 }
 

@@ -37,6 +37,7 @@ import com.github.jing332.tts_server_android.R
 import com.github.jing332.tts_server_android.app
 import com.github.jing332.tts_server_android.compose.systts.list.ui.PluginDescriptor
 import com.github.jing332.tts_server_android.service.systts.SystemTtsService
+import com.github.jing332.tts_server_android.service.systts.help.CharacterRecordsFile
 import kotlinx.coroutines.launch
 
 /**
@@ -170,7 +171,12 @@ fun LogQuickPanel(
                         }
                         .distinct()
                 }
-                if (source != null && voices.isNotEmpty()) {
+                // 终版模式分流（用户 09-08 互通定稿）：
+                // - 对话请求（entry.roleName 非空）：候选=fayinren.json 标签池（角色管理同源），
+                //   选中即改写 characterRecords.json 里该角色的绑定——与角色管理换发音人完全互通；
+                // - 旁白/非多角色（无角色名）：保留旧行为（引擎 voices 下拉，改配置项本体声音）
+                val isBindingMode = entry.roleName.isNotBlank()
+                if (source != null && (isBindingMode || voices.isNotEmpty())) {
                     var selectedCategory by remember(entity.id) {
                         // 默认选中配置项当前标签所属分类（「女青年25」→「女青年」）——不点分类即在原分类里选
                         mutableStateOf(
@@ -202,15 +208,34 @@ fun LogQuickPanel(
                         }
                     }
 
-                    // 按分类过滤（名称包含即匹配，同角色管理）；当前发音人不属于该分类时
-                    // 补在列表顶部标「当前」，防 AppSpinner 值不在候选被强制重置
-                    val filtered = voices.filter {
-                        selectedCategory == null || it.second.contains(selectedCategory)
+                    // ===== 候选与当前值（按模式分流）=====
+                    // 绑定模式：候选=标签池；当前值=该角色在角色文件里的绑定标签（缺省回退配置项标签）
+                    var boundVoice by remember(entity.id) {
+                        mutableStateOf(
+                            CharacterRecordsFile.readCharacterVoice(
+                                config.speechRule.tagRuleId, entry.roleName
+                            ) ?: config.speechRule.tag
+                        )
                     }
-                    val displayVoices = if (voice.isNotEmpty() && filtered.none { it.first == voice }) {
-                        val currentName = voices.firstOrNull { it.first == voice }?.second ?: voice
-                        listOf(voice to "当前: $currentName") + filtered
-                    } else filtered
+                    val displayVoices: List<Pair<String, String>> = if (isBindingMode) {
+                        val pool = CharacterRecordsFile.readVoicePool(config.speechRule.tagRuleId)
+                        val filtered = pool.filter {
+                            selectedCategory == null || it.contains(selectedCategory)
+                        }
+                        // 当前绑定标签不属于该分类时补在顶部标「当前」，防 Spinner 强制重置
+                        if (boundVoice.isNotEmpty() && filtered.none { it == boundVoice }) {
+                            listOf(boundVoice to "当前: $boundVoice") + filtered
+                        } else filtered
+                    } else {
+                        // 旧行为：插件 voices 按分类过滤；当前声音不在候选时补「当前」防重置
+                        val filtered = voices.filter {
+                            selectedCategory == null || it.second.contains(selectedCategory)
+                        }
+                        if (voice.isNotEmpty() && filtered.none { it.first == voice }) {
+                            val currentName = voices.firstOrNull { it.first == voice }?.second ?: voice
+                            listOf(voice to "当前: $currentName") + filtered
+                        } else filtered
+                    }
 
                     Row(
                         Modifier
@@ -220,32 +245,76 @@ fun LogQuickPanel(
                     ) {
                         AppSpinner(
                             modifier = Modifier.weight(1f),
-                            value = voice,
+                            value = if (isBindingMode) boundVoice else voice,
                             values = displayVoices.map { it.first },
                             entries = displayVoices.map { it.second },
                             onSelectedChange = { key, _ ->
-                                // 换了即保存（用户 09-07：发音人更换独立保存，不搭配置层应用的车）
-                                voice = key as String
-                                scope.launch {
-                                    withIO {
-                                        val sourceNow =
-                                            (entity.config as? TtsConfigurationDTO)?.source as? PluginTtsSource
-                                        if (sourceNow != null) {
-                                            val newConfig = config.copy(source = sourceNow.copy(voice = voice))
-                                            dbm.systemTtsV2.update(entity.copy(config = newConfig))
-                                            SystemTtsService.notifyUpdateConfig()
+                                val selected = key as String
+                                if (isBindingMode) {
+                                    // 互通换发音人：改写角色绑定文件（与角色管理同文件同字段），
+                                    // 朗读规则下次分析即用新绑定；不改配置项本体
+                                    boundVoice = selected
+                                    scope.launch {
+                                        val ok = withIO {
+                                            CharacterRecordsFile.rebind(
+                                                config.speechRule.tagRuleId,
+                                                entry.roleName,
+                                                selected,
+                                            )
                                         }
+                                        Toast.makeText(
+                                            context,
+                                            if (ok) "已将「${entry.roleName}」的发音人换为 $selected"
+                                            else context.getString(R.string.log_panel_rebind_failed),
+                                            Toast.LENGTH_SHORT,
+                                        ).show()
                                     }
-                                    Toast.makeText(
-                                        context,
-                                        context.getString(R.string.log_panel_voice_applied),
-                                        Toast.LENGTH_SHORT,
-                                    ).show()
+                                } else {
+                                    // 旧行为：改配置项本体声音（用户 09-07：独立保存不搭配置层应用的车）
+                                    voice = selected
+                                    scope.launch {
+                                        withIO {
+                                            val sourceNow =
+                                                (entity.config as? TtsConfigurationDTO)?.source as? PluginTtsSource
+                                            if (sourceNow != null) {
+                                                val newConfig = config.copy(source = sourceNow.copy(voice = voice))
+                                                dbm.systemTtsV2.update(entity.copy(config = newConfig))
+                                                SystemTtsService.notifyUpdateConfig()
+                                            }
+                                        }
+                                        Toast.makeText(
+                                            context,
+                                            context.getString(R.string.log_panel_voice_applied),
+                                            Toast.LENGTH_SHORT,
+                                        ).show()
+                                    }
                                 }
                             },
                         )
                         TextButton(onClick = {
-                            TaggedTtsPreviewPlayer.play(context, draftEntity(), "你好，这是试听语音。")
+                            if (isBindingMode) {
+                                // 绑定模式试听：播放新标签对应配置项的声音（当前配置项声音已不代表目标）
+                                scope.launch {
+                                    val target = withIO {
+                                        dbm.systemTtsV2.getAllGroupWithTts().flatMap { it.list }
+                                            .firstOrNull {
+                                                it.isEnabled &&
+                                                    (it.config as? TtsConfigurationDTO)?.speechRule?.tag == boundVoice
+                                            }
+                                    }
+                                    if (target != null) {
+                                        TaggedTtsPreviewPlayer.play(context, target, "你好，这是试听语音。")
+                                    } else {
+                                        Toast.makeText(
+                                            context,
+                                            context.getString(R.string.log_panel_rebind_no_config),
+                                            Toast.LENGTH_SHORT,
+                                        ).show()
+                                    }
+                                }
+                            } else {
+                                TaggedTtsPreviewPlayer.play(context, draftEntity(), "你好，这是试听语音。")
+                            }
                         }) {
                             Text("▶")
                         }

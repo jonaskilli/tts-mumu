@@ -16,6 +16,8 @@ data class LogEntry(
     val indent: Int = 0,
     // 请求发生时的配置项 id：日志快捷面板凭它定位配置项（0=无关联，如插件日志/系统日志）
     val configId: Long = 0,
+    // 朗读规则实时分析出的角色名（用户 09-08）：仅多角色对话请求有值，供快捷面板精确改绑该角色
+    val roleName: String = "",
 ) :
     Parcelable {
     fun getLevelChar(): String = level.toLogLevelChar()
