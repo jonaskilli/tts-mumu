@@ -295,16 +295,6 @@ internal fun Item(
                                 Icon(Icons.Default.CopyAll, stringResource(R.string.copy))
                             }
                         )
-                        DropdownMenuItem(
-                            text = { Text(stringResource(id = R.string.export_config)) },
-                            onClick = {
-                                showOptions = false
-                                onExport()
-                            },
-                            leadingIcon = {
-                                Icon(Icons.Default.Output, stringResource(R.string.export_config))
-                            }
-                        )
                         // 音频参数：直达三层弹窗（配置项/插件/全局），不进编辑页
                         DropdownMenuItem(
                             text = { Text(stringResource(id = R.string.audio_params)) },
@@ -324,6 +314,16 @@ internal fun Item(
                             },
                             leadingIcon = {
                                 Icon(Icons.Default.AccountTree, null)
+                            }
+                        )
+                        DropdownMenuItem(
+                            text = { Text(stringResource(id = R.string.export_config)) },
+                            onClick = {
+                                showOptions = false
+                                onExport()
+                            },
+                            leadingIcon = {
+                                Icon(Icons.Default.Output, stringResource(R.string.export_config))
                             }
                         )
                         HorizontalDivider()
