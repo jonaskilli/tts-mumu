@@ -51,6 +51,7 @@ import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.github.jing332.common.utils.performLongPress
 import com.github.jing332.compose.R
 import kotlin.math.max
@@ -118,13 +119,13 @@ fun LabelSlider(
         Column(Modifier.padding(end = 8.dp)) {
             Text(
                 text = labelPart,
-                style = MaterialTheme.typography.bodyMedium,
+                style = MaterialTheme.typography.bodySmall.copy(fontSize = 13.sp),
                 maxLines = 1,
             )
             if (valuePart.isNotEmpty())
                 Text(
                     text = valuePart,
-                    style = MaterialTheme.typography.bodyMedium,
+                    style = MaterialTheme.typography.bodySmall.copy(fontSize = 13.sp),
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     maxLines = 1,
                 )
@@ -144,7 +145,7 @@ fun LabelSlider(
                 Icon(
                         Icons.Default.Remove,
                         stringResource(id = R.string.desc_seekbar_remove),
-                        modifier = Modifier.size(24.dp),
+                        modifier = Modifier.size(20.dp),
                     )
             }
 
@@ -190,11 +191,11 @@ fun LabelSlider(
                         interactionSource = remember { MutableInteractionSource() },
                         colors = SliderDefaults.colors(),
                         enabled = enabled,
-                        thumbSize = DpSize(4.dp, 22.dp)
+                        thumbSize = DpSize(3.dp, 20.dp)
                     )
                 },
                 track = { sliderState ->
-                    // 自绘轨道 4dp（09-08 用户定稿：左侧字号与滑杆粗细加大一档；09-07 曾从 M3 默认调细至 2.5dp）
+                    // 自绘轨道 3dp（09-08 终稿：比 09-07 的 2.5dp 略粗、明显小于 M3 默认 4dp——中间档）
                     val colors = SliderDefaults.colors()
                     val frac = if (sliderState.valueRange.endInclusive > sliderState.valueRange.start)
                         ((sliderState.value - sliderState.valueRange.start) /
@@ -204,7 +205,7 @@ fun LabelSlider(
                     Box(
                         Modifier
                             .fillMaxWidth()
-                            .height(4.dp)
+                            .height(3.dp)
                             .clip(androidx.compose.foundation.shape.RoundedCornerShape(2.dp))
                     ) {
                         Box(Modifier.fillMaxSize().background(colors.inactiveTrackColor))
@@ -228,7 +229,7 @@ fun LabelSlider(
                 Icon(
                         Icons.Default.Add,
                         stringResource(id = R.string.desc_seekbar_add),
-                        modifier = Modifier.size(24.dp),
+                        modifier = Modifier.size(20.dp),
                     )
             }
         }
@@ -299,7 +300,7 @@ fun LabelSlider(
                     Icon(
                         Icons.Default.Remove,
                         stringResource(id = R.string.desc_seekbar_remove),
-                        modifier = Modifier.size(24.dp),
+                        modifier = Modifier.size(20.dp),
                     )
                 }
 
@@ -374,7 +375,7 @@ fun LabelSlider(
                     Icon(
                         Icons.Default.Add,
                         stringResource(id = R.string.desc_seekbar_add),
-                        modifier = Modifier.size(24.dp),
+                        modifier = Modifier.size(20.dp),
                     )
                 }
             }
