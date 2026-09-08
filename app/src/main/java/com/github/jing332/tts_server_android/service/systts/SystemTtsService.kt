@@ -738,7 +738,8 @@ class SystemTtsService : TextToSpeechService(), IEventDispatcher {
                 // 三段式全角逗号分隔（用户 09-08）：角色名，标签，显示名，参数——层次清晰不粘连
                 var hasPrev = false
                 config.speechInfo.tagData["role"]?.takeIf { it.isNotBlank() }?.let {
-                    append(it)
+                    // 角色名特殊标示：全角方头括号（用户 09-08：简单区分，不加粗）
+                    append("【").append(it).append("】")
                     hasPrev = true
                 }
                 // 标签（如"旁白"）
