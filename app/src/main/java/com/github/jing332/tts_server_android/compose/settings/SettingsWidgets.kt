@@ -8,14 +8,12 @@ import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.defaultMinSize
-import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.selection.toggleable
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.LocalTextStyle
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -220,60 +218,37 @@ internal fun SliderPreference(
     buttonSteps: Float = 1f,
     buttonLongSteps: Float = 2f,
     label: String,
-    // inline=true：滑条常驻卡片下方、即调即存（不弹底部面板、无右侧当前值）；
-    // false：保留旧行为（点卡片弹底部面板 + trailing 当前值），底部面板保持左右贴边
-    inline: Boolean = false,
 ) {
     var show by rememberSaveable { mutableStateOf(false) }
-    if (!inline && show)
-        ModalBottomSheet(onDismissRequest = { show = false }) {
-            Column(
-                horizontalAlignment = Alignment.CenterHorizontally,
-                modifier = Modifier.fillMaxHeight(0.4f)
-            ) {
-                CompositionLocalProvider(
-                    LocalTextStyle provides MaterialTheme.typography.titleLarge
-                ) { title() }
-                LabelSlider(
-                    modifier = Modifier
-                        .padding(vertical = 16.dp),
-                    value = value,
-                    onValueChange = onValueChange,
-                    valueRange = valueRange,
-                    steps = steps,
-                    buttonSteps = buttonSteps,
-                    buttonLongSteps = buttonLongSteps,
-                    text = label
-                )
-            }
+    if (show)
+        // 点击卡片弹居中对话框（AppDialog，与音频参数/发音人调整同弹窗语言）：
+        // 内容自适应不再撑 40% 屏高；即调即存，关闭即完成（用户 09-08 方案A 定稿，
+        // 取代上游遗产的底部弹窗——40% 空壳托一条滑杆且文字贴边，非本项目的考量设计）
+        AppDialog(
+            onDismissRequest = { show = false },
+            title = title,
+        ) {
+            LabelSlider(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = 8.dp),
+                value = value,
+                onValueChange = onValueChange,
+                valueRange = valueRange,
+                steps = steps,
+                buttonSteps = buttonSteps,
+                buttonLongSteps = buttonLongSteps,
+                text = label
+            )
         }
 
-    BasePreferenceWidget(modifier, onClick = if (inline) null else {
+    BasePreferenceWidget(modifier, onClick = {
         show = true
     }, title = title, icon = icon, subTitle = subTitle) {
-        if (!inline) {
-            // trailing 当前值：弱化色，与标题基线视觉呼应，不再与描述抢眼
-            Text(label, style = MaterialTheme.typography.titleMedium.copy(
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            ))
-        }
-    }
-
-    if (inline) {
-        LabelSlider(
-            // 左缩进 48dp = 页边距16 + 图标24 + 间隙8，与卡片标题/副标题左缘对齐；右侧与卡片同宽
-            modifier = Modifier.padding(
-                start = horizontalPadding + 32.dp,
-                end = horizontalPadding,
-            ),
-            value = value,
-            onValueChange = onValueChange,
-            valueRange = valueRange,
-            steps = steps,
-            buttonSteps = buttonSteps,
-            buttonLongSteps = buttonLongSteps,
-            text = label
-        )
+        // trailing 当前值：弱化色，与标题基线视觉呼应，不再与描述抢眼
+        Text(label, style = MaterialTheme.typography.titleMedium.copy(
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        ))
     }
 }
 
