@@ -331,6 +331,23 @@ fun LogQuickPanel(
                         mutableStateOf(voiceCategoryOf(config.speechRule.tagName))
                     }
                     var tagSearch by remember(entity.id) { mutableStateOf("") }
+                    // 改绑到无启用配置的标签会掉进随机兜底，读声不可控，必须排除
+                    val enabledTags = remember(entity.id) {
+                        dbm.systemTtsV2.getAllGroupWithTts().flatMap { it.list }
+                            .filter { it.isEnabled }
+                            .mapNotNullTo(mutableSetOf()) {
+                                (it.config as? TtsConfigurationDTO)?.speechRule?.tag
+                            }
+                    }
+                    val poolEnabled = CharacterRecordsFile.readVoicePool(config.speechRule.tagRuleId)
+                        .filter { it in enabledTags }
+                    // 下拉项带括号项数（不含搜索过滤，选分类前就知道各范围有多少可选）；
+                    // 0 项的分类不带括号，避免一排「（0项）」噪音
+                    val categoryCounts = poolEnabled.groupingBy { voiceCategoryOf(it) }.eachCount()
+                    val categoryEntries = categoryOptions.map { (key, label) ->
+                        val n = if (key.isEmpty()) poolEnabled.size else categoryCounts[key] ?: 0
+                        if (n > 0) "$label（${n}项）" else label
+                    }
                     AppSpinner(
                         modifier = Modifier.fillMaxWidth(),
                         labelText = "分类",
@@ -350,24 +367,6 @@ fun LogQuickPanel(
                         onValueChange = { tagSearch = it },
                         singleLine = true,
                     )
-
-                    // 改绑到无启用配置的标签会掉进随机兜底，读声不可控，必须排除
-                    val enabledTags = remember(entity.id) {
-                        dbm.systemTtsV2.getAllGroupWithTts().flatMap { it.list }
-                            .filter { it.isEnabled }
-                            .mapNotNullTo(mutableSetOf()) {
-                                (it.config as? TtsConfigurationDTO)?.speechRule?.tag
-                            }
-                    }
-                    val poolEnabled = CharacterRecordsFile.readVoicePool(config.speechRule.tagRuleId)
-                        .filter { it in enabledTags }
-                    // 下拉项带括号项数（不含搜索过滤，选分类前就知道各范围有多少可选）；
-                    // 0 项的分类不带括号，避免一排「（0项）」噪音
-                    val categoryCounts = poolEnabled.groupingBy { voiceCategoryOf(it) }.eachCount()
-                    val categoryEntries = categoryOptions.map { (key, label) ->
-                        val n = if (key.isEmpty()) poolEnabled.size else categoryCounts[key] ?: 0
-                        if (n > 0) "$label（${n}项）" else label
-                    }
                     val filtered = poolEnabled.filter {
                         (selectedCategory == null || voiceCategoryOf(it) == selectedCategory) &&
                             (tagSearch.isBlank() || it.contains(tagSearch))
@@ -462,26 +461,6 @@ fun LogQuickPanel(
                         mutableStateOf(voiceCategoryOf(config.speechRule.tagName))
                     }
                     var searchQuery by remember(entity.id) { mutableStateOf("") }
-                    AppSpinner(
-                        modifier = Modifier.fillMaxWidth(),
-                        labelText = "分类",
-                        value = narrationScope ?: "",
-                        values = categoryOptions.map { it.first },
-                        entries = categoryEntries,
-                        onSelectedChange = { key, _ ->
-                            narrationScope = (key as? String)?.takeIf { it.isNotEmpty() }
-                        },
-                    )
-                    OutlinedTextField(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(top = 4.dp),
-                        label = { Text("搜索配置项名（当前范围内）") },
-                        value = searchQuery,
-                        onValueChange = { searchQuery = it },
-                        singleLine = true,
-                    )
-
                     val allConfigs = remember(entity.id) {
                         dbm.systemTtsV2.getAllGroupWithTts().flatMap { it.list }
                     }
@@ -502,6 +481,25 @@ fun LogQuickPanel(
                         val n = if (key.isEmpty()) baseCandidates.size else categoryCounts[key] ?: 0
                         if (n > 0) "$label（${n}项）" else label
                     }
+                    AppSpinner(
+                        modifier = Modifier.fillMaxWidth(),
+                        labelText = "分类",
+                        value = narrationScope ?: "",
+                        values = categoryOptions.map { it.first },
+                        entries = categoryEntries,
+                        onSelectedChange = { key, _ ->
+                            narrationScope = (key as? String)?.takeIf { it.isNotEmpty() }
+                        },
+                    )
+                    OutlinedTextField(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(top = 4.dp),
+                        label = { Text("搜索配置项名（当前范围内）") },
+                        value = searchQuery,
+                        onValueChange = { searchQuery = it },
+                        singleLine = true,
+                    )
                     val candidateConfigs = baseCandidates.filter { (_, name, tagName) ->
                         // 全部=不筛选；选中=候选标签归桶后与所选一致
                         (narrationScope == null || voiceCategoryOf(tagName) == narrationScope) &&
