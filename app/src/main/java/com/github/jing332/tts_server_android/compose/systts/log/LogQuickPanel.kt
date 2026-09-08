@@ -356,8 +356,16 @@ fun LogQuickPanel(
                         }
                     } else {
                         // ===== 旁白/非多角色：chips 定范围 + 常驻搜索 + 列表（行内试听）=====
-                        // narrationScope: null=旁白 preset；"全部"=全配置；其他=该分类配置
-                        var narrationScope by remember(entity.id) { mutableStateOf<String?>(null) }
+                        // narrationScope="全部"=全配置；其他=该分类配置。
+                        // 默认范围=当前配置项自己标签所属分类（用户 09-08：自适应任意规则，不写死"旁白"）
+                        fun categoryOf(tagName: String): String? =
+                            Regex("^(.*[\\u4e00-\\u9fa5])\\d{0,4}$").find(tagName)
+                                ?.groupValues?.getOrNull(1) ?: tagName.takeIf { it.isNotBlank() }
+
+                        val ownCategory = categoryOf(config.speechRule.tagName)
+                        var narrationScope by remember(entity.id) {
+                            mutableStateOf(ownCategory ?: "全部")
+                        }
                         var searchQuery by remember(entity.id) { mutableStateOf("") }
                         Row(
                             Modifier
@@ -366,9 +374,9 @@ fun LogQuickPanel(
                             horizontalArrangement = Arrangement.spacedBy(6.dp),
                         ) {
                             androidx.compose.material3.FilterChip(
-                                selected = narrationScope == null,
-                                onClick = { narrationScope = null },
-                                label = { Text("旁白") },
+                                selected = narrationScope == ownCategory,
+                                onClick = { narrationScope = ownCategory },
+                                label = { Text(ownCategory ?: "旁白") },
                             )
                             androidx.compose.material3.FilterChip(
                                 selected = narrationScope == "全部",
@@ -378,7 +386,7 @@ fun LogQuickPanel(
                             ruleCategories.forEach { c ->
                                 androidx.compose.material3.FilterChip(
                                     selected = narrationScope == c,
-                                    onClick = { narrationScope = if (narrationScope == c) null else c },
+                                    onClick = { narrationScope = if (narrationScope == c) ownCategory ?: "全部" else c },
                                     label = { Text(c) },
                                 )
                             }
@@ -396,9 +404,6 @@ fun LogQuickPanel(
                         val allConfigs = remember(entity.id) {
                             dbm.systemTtsV2.getAllGroupWithTts().flatMap { it.list }
                         }
-                        fun categoryOf(tagName: String): String? =
-                            Regex("^(.*[\\u4e00-\\u9fa5])\\d{0,4}$").find(tagName)
-                                ?.groupValues?.getOrNull(1) ?: tagName.takeIf { it.isNotBlank() }
 
                         // 候选配置项（去重：同一声音只留一个代表，供试听/应用）
                         val candidateConfigs = allConfigs
@@ -406,10 +411,11 @@ fun LogQuickPanel(
                                 val dto = c.config as? TtsConfigurationDTO ?: return@mapNotNull null
                                 val v = (dto.source as? PluginTtsSource)?.voice
                                     ?.takeIf { it.isNotEmpty() } ?: return@mapNotNull null
-                                val inScope = when (narrationScope) {
-                                    null -> categoryOf(dto.speechRule.tagName) == "旁白"
-                                    "全部" -> true
-                                    else -> categoryOf(dto.speechRule.tagName) == narrationScope
+                                val cat = categoryOf(dto.speechRule.tagName)
+                                val inScope = when {
+                                    narrationScope == "全部" -> true
+                                    narrationScope != null -> cat == narrationScope
+                                    else -> cat == null
                                 }
                                 if (!inScope) return@mapNotNull null
                                 if (searchQuery.isNotBlank() &&
