@@ -13,7 +13,7 @@
         </encoder>
     </appender>
 
-    <appender name="CrashLog" class="ch.qos.logback.core.FileAppender">
+    <appender name="CrashLog" class="ch.qos.logback.core.rolling.RollingFileAppender">
         <file>${LOG_DIR}/crash.log</file>
 
         <encoder>
@@ -22,6 +22,14 @@
         </encoder>
 
         <filter class="com.github.jing332.tts_server_android.CrashFilter" />
+
+        <!-- 体积上限（用户 09-08：防日志积累） -->
+        <rollingPolicy class="ch.qos.logback.core.rolling.SizeAndTimeBasedRollingPolicy">
+            <fileNamePattern>${LOG_DIR}/crash_%d{yyyy-MM-dd}.%i.log</fileNamePattern>
+            <maxFileSize>2MB</maxFileSize>
+            <maxHistory>3</maxHistory>
+            <totalSizeCap>5MB</totalSizeCap>
+        </rollingPolicy>
     </appender>
 
     <appender name="Log" class="ch.qos.logback.core.rolling.RollingFileAppender">
@@ -29,10 +37,11 @@
         <encoder>
             <pattern>%d{MM-dd HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n</pattern>
         </encoder>
-        <rollingPolicy class="ch.qos.logback.core.rolling.TimeBasedRollingPolicy">
-            <fileNamePattern>${LOG_DIR}/debug_%d.log</fileNamePattern>
-
-            <maxHistory>3</maxHistory>
+        <rollingPolicy class="ch.qos.logback.core.rolling.SizeAndTimeBasedRollingPolicy">
+            <fileNamePattern>${LOG_DIR}/debug_%d{yyyy-MM-dd}.%i.log</fileNamePattern>
+            <maxFileSize>10MB</maxFileSize>
+            <maxHistory>2</maxHistory>
+            <totalSizeCap>20MB</totalSizeCap>
         </rollingPolicy>
     </appender>
 
@@ -44,10 +53,12 @@
         </encoder>
 
         <filter class="com.github.jing332.tts_server_android.SysttsFilter" />
-        <rollingPolicy class="ch.qos.logback.core.rolling.TimeBasedRollingPolicy">
-            <fileNamePattern>${LOG_DIR}/system_tts_%d.log</fileNamePattern>
-
+        <!-- 体积上限（用户 09-08：插件日志刷屏场景防膨胀；插件日志缓冲另限2000条内存） -->
+        <rollingPolicy class="ch.qos.logback.core.rolling.SizeAndTimeBasedRollingPolicy">
+            <fileNamePattern>${LOG_DIR}/system_tts_%d{yyyy-MM-dd}.%i.log</fileNamePattern>
+            <maxFileSize>10MB</maxFileSize>
             <maxHistory>1</maxHistory>
+            <totalSizeCap>30MB</totalSizeCap>
         </rollingPolicy>
     </appender>
 

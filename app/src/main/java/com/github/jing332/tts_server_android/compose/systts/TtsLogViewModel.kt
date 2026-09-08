@@ -30,6 +30,12 @@ class TtsLogViewModel : ViewModel() {
         // 裁剪批量：让 size 长到 MAX+PRUNE_BATCH 再一次裁回 MAX，均摊掉逐条删头部的数组搬移开销
         const val PRUNE_BATCH = 1000
 
+        // 插件/朗读规则日志独立缓冲上限（用户 09-08：不再混入主列表刷屏/挤占窗口）
+        const val AUX_MAX = 2000
+
+        // 独立缓冲裁剪批量
+        const val AUX_PRUNE = 500
+
         // 支持的日志级别
         val LOG_LEVELS = listOf(
             LogLevel.ERROR,
@@ -47,6 +53,11 @@ class TtsLogViewModel : ViewModel() {
 
     val logs = mutableStateListOf<LogEntry>()
 
+    // 插件/朗读规则日志独立缓冲（用户 09-08 定稿）：始终记录、不混入主列表；
+    // 勾选"插件日志/朗读规则日志"= 切换显示这个缓冲（磁盘文件始终全量落盘，与此无关）
+    val pluginLogs = mutableStateListOf<LogEntry>()
+    val speechRuleLogs = mutableStateListOf<LogEntry>()
+
     // 日志级别筛选（存储选中的日志级别 Int 值）
     val selectedLevels = mutableStateListOf<Int>()
     val showFilterDialog = mutableStateOf(false)
@@ -62,18 +73,41 @@ class TtsLogViewModel : ViewModel() {
     
     val filteredLogs: List<LogEntry>
         get() {
-            // 单遍过滤：旧实现 toList 后最多再 filter 三次，高频日志下每次重组都全量复制三份列表
+            // 显示源随调试开关切换（用户 09-08 定稿）：插件/规则日志在独立缓冲，主列表永不被刷屏
+            val source: List<LogEntry> = when {
+                showPluginLogs.value -> pluginLogs
+                showSpeechRuleLogs.value -> speechRuleLogs
+                else -> logs
+            }
             val levels = selectedLevels
-            val showPlugin = showPluginLogs.value
-            val showRule = showSpeechRuleLogs.value
-            return logs.filter {
-                (levels.isEmpty() || it.level in levels) &&
-                        (showPlugin || !it.isPluginLog) &&
-                        (showRule || !it.isSpeechRuleLog)
+            return source.filter {
+                levels.isEmpty() || it.level in levels
             }
             // 注：搜索词不做过滤——搜索是定位(跳转+高亮)，由 TtsLogScreen/LogScreen 处理，
             // 保留完整列表便于查看匹配项的前后文
         }
+
+    // 按类型路由日志到对应缓冲（主列表 / 插件缓冲 / 规则缓冲），各自限高裁剪
+    private fun routeEntry(entry: LogEntry) {
+        val target = when {
+            entry.isPluginLog -> pluginLogs
+            entry.isSpeechRuleLog -> speechRuleLogs
+            else -> null
+        }
+        if (target == null) {
+            logs.add(entry)
+            val overflow = logs.size - MAX_LOGS
+            if (overflow >= PRUNE_BATCH) {
+                repeat(overflow) { logs.removeAt(0) }
+            }
+        } else {
+            target.add(entry)
+            val overflow = target.size - AUX_MAX
+            if (overflow >= AUX_PRUNE) {
+                repeat(overflow) { target.removeAt(0) }
+            }
+        }
+    }
     
     fun toggleLevel(level: Int) {
         if (level in selectedLevels) {
@@ -87,13 +121,31 @@ class TtsLogViewModel : ViewModel() {
         selectedLevels.clear()
     }
 
+    /** 显示范围=全部（用户 09-08 简化：级别键退役，只留三态） */
+    fun showAllLevels() {
+        selectedLevels.clear()
+    }
+
+    /** 显示范围=只看错误+警告（排障态） */
+    fun showErrorsOnly() {
+        selectedLevels.clear()
+        selectedLevels.add(LogLevel.ERROR)
+        selectedLevels.add(LogLevel.WARN)
+    }
+
+    /** 当前是否为"只看错误"态 */
+    fun isErrorsOnly(): Boolean =
+        selectedLevels.toList() == listOf(LogLevel.ERROR, LogLevel.WARN)
+
     fun clear() {
         logs.clear()
+        pluginLogs.clear()
+        speechRuleLogs.clear()
         runCatching {
             FileWriter(file, false).use { it.write(CharArray(0)) }
         }.onFailure {
             logs.add(LogEntry(level = LogLevel.ERROR, message = it.stackTraceToString()))
-            Log.e(TAG, "clear: ", it) 
+            Log.e(TAG, "clear: ", it)
         }
     }
 
@@ -133,29 +185,19 @@ class TtsLogViewModel : ViewModel() {
                 pull()
 
                 // 统一的日志添加函数：滑动窗口，超限裁掉最旧的
-                fun addLog(entry: LogEntry) {
-                    runOnUI {
-                        logs.add(entry)
-                        val overflow = logs.size - MAX_LOGS
-                        if (overflow >= PRUNE_BATCH) {
-                            repeat(overflow) { logs.removeAt(0) }
-                        }
-                    }
+                // 统一入口：按类型路由（主列表/插件缓冲/规则缓冲），各自限高
+                SysttsLogger.register { log ->
+                    runOnUI { routeEntry(log) }
                 }
-
-                SysttsLogger.register({ log ->
-                    addLog(log)
-                })
 
                 // 注册插件日志监听器
                 Console.globalPluginLogListener = { logEntry ->
-                    addLog(logEntry)
+                    runOnUI { routeEntry(logEntry) }
                 }
 
                 // 注册朗读规则日志监听器
                 Console.globalSpeechRuleLogListener = { logEntry ->
-                    Log.d(TAG, "globalSpeechRuleLogListener: ${logEntry.message}")
-                    addLog(logEntry)
+                    runOnUI { routeEntry(logEntry) }
                 }
             }
         } catch (e: Exception) {
@@ -176,12 +218,12 @@ class TtsLogViewModel : ViewModel() {
     suspend fun pull() {
         runCatching {
             if (file.exists()) {
-                // 最多读取最近 1500 行，解析后批量添加，避免逐条 add 触发多次重组
+                // 最多读取最近 1500 行，解析后按类型路由批量添加，避免逐条触发多次重组
                 val entries = readTailLines(file, 1500).mapNotNull { line ->
                     runCatching { toLogEntry(line) }.getOrNull()
                 }
                 withMain {
-                    logs.addAll(entries)
+                    entries.forEach { routeEntry(it) }
                 }
             }
         }.onFailure {

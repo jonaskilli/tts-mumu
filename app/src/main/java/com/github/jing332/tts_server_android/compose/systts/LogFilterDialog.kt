@@ -21,17 +21,16 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
-import com.github.jing332.common.LogLevel
 import com.github.jing332.tts_server_android.R
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun LogFilterDialog(
-    selectedLevels: List<Int>,
-    onLevelToggle: (Int) -> Unit,
+    errorOnly: Boolean,
+    onShowAll: () -> Unit,
+    onErrorsOnly: () -> Unit,
     showPluginLogs: Boolean,
     onPluginLogsToggle: () -> Unit,
     showSpeechRuleLogs: Boolean,
@@ -40,42 +39,37 @@ fun LogFilterDialog(
     onAutoScrollToggle: () -> Unit,
     onDismiss: () -> Unit
 ) {
-    val levelOptions = listOf(
-        LogLevel.ERROR to "ERROR",
-        LogLevel.WARN to "WARN",
-        LogLevel.INFO to "INFO",
-        LogLevel.DEBUG to "DEBUG",
-        LogLevel.TRACE to "VERBOSE"
-    )
-    
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text(stringResource(R.string.filter_log_level)) },
         text = {
             Column {
                 Text(
-                    text = stringResource(R.string.select_log_level_to_filter),
+                    text = "显示范围",
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
-                Spacer(modifier = Modifier.height(16.dp))
-                
+                Spacer(modifier = Modifier.height(12.dp))
+
+                // 显示范围两态（用户 09-08 简化：五级别键退役——只留"全部/只看错误"）
                 FlowRow(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                     verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    levelOptions.forEach { (level, name) ->
-                        val isSelected = level in selectedLevels
-                        FilterChip(
-                            selected = isSelected,
-                            onClick = { onLevelToggle(level) },
-                            label = { Text(name) },
-                            colors = FilterChipDefaults.filterChipColors(
-                                selectedContainerColor = getLevelContainerColor(level)
-                            )
+                    FilterChip(
+                        selected = !errorOnly,
+                        onClick = onShowAll,
+                        label = { Text("显示全部") }
+                    )
+                    FilterChip(
+                        selected = errorOnly,
+                        onClick = onErrorsOnly,
+                        label = { Text("只看错误") },
+                        colors = FilterChipDefaults.filterChipColors(
+                            selectedContainerColor = MaterialTheme.colorScheme.errorContainer
                         )
-                    }
+                    )
                 }
                 
                 // 调试选项分割线
@@ -167,15 +161,4 @@ fun LogFilterDialog(
             }
         }
     )
-}
-
-@Composable
-private fun getLevelContainerColor(level: Int): Color {
-    return when (level) {
-        LogLevel.ERROR -> MaterialTheme.colorScheme.errorContainer
-        LogLevel.WARN -> Color(0xFFFFF3E0)
-        LogLevel.INFO -> MaterialTheme.colorScheme.secondaryContainer
-        LogLevel.DEBUG -> MaterialTheme.colorScheme.primaryContainer
-        else -> MaterialTheme.colorScheme.surfaceVariant
-    }
 }

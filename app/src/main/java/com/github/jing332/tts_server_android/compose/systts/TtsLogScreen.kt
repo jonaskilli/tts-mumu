@@ -339,8 +339,9 @@ internal fun TtsLogScreen(vm: TtsLogViewModel = viewModel()) {
     // 筛选对话框
     if (vm.showFilterDialog.value) {
         LogFilterDialog(
-            selectedLevels = vm.selectedLevels,
-            onLevelToggle = { vm.toggleLevel(it) },
+            errorOnly = vm.isErrorsOnly(),
+            onShowAll = { vm.showAllLevels() },
+            onErrorsOnly = { vm.showErrorsOnly() },
             showPluginLogs = vm.showPluginLogs.value,
             onPluginLogsToggle = { vm.showPluginLogs.value = !vm.showPluginLogs.value },
             showSpeechRuleLogs = vm.showSpeechRuleLogs.value,
