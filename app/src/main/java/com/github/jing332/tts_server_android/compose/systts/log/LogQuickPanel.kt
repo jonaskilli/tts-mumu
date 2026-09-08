@@ -163,19 +163,29 @@ fun LogQuickPanel(
         text = {
             Column(Modifier.fillMaxWidth()) {
                 // ===== 换发音人（最上方，无标题字）=====
-                // 分类 = 配置项所用朗读规则的 tagName（显示名）按「汉字前缀+数字序号」拆分去重——
-                // 注意看 tagName 而非 tag（内部键），tags 表的 value 才是 tagName（双轨制）
-                val ruleCategories = remember(entity.id) {
-                    val ruleId = config.speechRule.tagRuleId
-                    val tagsMap = dbm.speechRuleDao.getAllWithoutCode()
-                        .firstOrNull { it.ruleId == ruleId }?.tags ?: return@remember emptyList()
-                    // 「女青年25」→「女青年」；「男主1」→「男主」；「女主」→「女主」
-                    tagsMap.values
-                        .mapNotNull { tn ->
-                            Regex("^(.*[\\u4e00-\\u9fa5])\\d{0,4}$").find(tn)?.groupValues?.getOrNull(1)
-                                ?: tn.takeIf { it.isNotBlank() }
-                        }
-                        .distinct()
+                // 分类定稿（用户 09-08）：9 固定桶——童/少/青/中/老（吞并男女前缀对）+特殊男/特殊女/男主/女主；
+                // 旁白模式在此基础上多加「旁白」。提取方式参照标签分类（剥尾部数字取汉字前缀）后归桶，
+                // 对话/括号/本地音效/角色名等标签不入分类；「全部」chip 移除（不选=不筛选）
+                val voiceCategories = listOf(
+                    "童", "少", "青", "中", "老", "特殊男", "特殊女", "男主", "女主"
+                )
+
+                fun voiceCategoryOf(tagName: String): String? {
+                    val base = Regex("^(.*[\\u4e00-\\u9fa5])\\d{0,4}$").find(tagName)
+                        ?.groupValues?.getOrNull(1) ?: tagName.takeIf { it.isNotBlank() } ?: return null
+                    return when {
+                        base == "旁白" -> "旁白"
+                        base.contains("特殊男") -> "特殊男"
+                        base.contains("特殊女") -> "特殊女"
+                        base.contains("男主") -> "男主"
+                        base.contains("女主") -> "女主"
+                        base.contains("童") -> "童"
+                        base.contains("少") -> "少"
+                        base.contains("青") -> "青"
+                        base.contains("中") -> "中"
+                        base.contains("老") -> "老"
+                        else -> null
+                    }
                 }
                 // 终版模式分流（用户 09-08 互通定稿）：
                 // - 对话请求（entry.roleName 非空）：候选=fayinren.json 标签池∩启用配置（角色管理同源），
@@ -207,14 +217,9 @@ fun LogQuickPanel(
                     if (isBindingMode) {
                         // ===== 绑定模式：chips 定范围 + 常驻搜索（范围内）+ 列表（行内试听）=====
                         var selectedCategory by remember(entity.id) {
-                            // 默认选中配置项当前标签所属分类（「女青年25」→「女青年」）
-                            mutableStateOf(
-                                Regex("^(.*[\\u4e00-\\u9fa5])\\d{0,4}$")
-                                    .find(config.speechRule.tagName)?.groupValues?.getOrNull(1)
-                                    ?.takeIf { ruleCategories.contains(it) }
-                            )
+                            // 默认选中配置项当前标签所属分类（「女青年25」→「青」；九类外如「括号1」→不选=不筛选）
+                            mutableStateOf(voiceCategoryOf(config.speechRule.tagName))
                         }
-                        val categories = ruleCategories
                         var tagSearch by remember(entity.id) { mutableStateOf("") }
                         Row(
                             Modifier
@@ -222,12 +227,7 @@ fun LogQuickPanel(
                                 .horizontalScroll(rememberScrollState()),
                             horizontalArrangement = Arrangement.spacedBy(6.dp),
                         ) {
-                            androidx.compose.material3.FilterChip(
-                                selected = selectedCategory == null,
-                                onClick = { selectedCategory = null },
-                                label = { Text("全部") },
-                            )
-                            categories.forEach { c ->
+                            voiceCategories.forEach { c ->
                                 androidx.compose.material3.FilterChip(
                                     selected = selectedCategory == c,
                                     onClick = { selectedCategory = if (selectedCategory == c) null else c },
@@ -263,7 +263,7 @@ fun LogQuickPanel(
                         val pool = CharacterRecordsFile.readVoicePool(config.speechRule.tagRuleId)
                         val filtered = pool.filter {
                             it in enabledTags &&
-                                (selectedCategory == null || it.contains(selectedCategory ?: "")) &&
+                                (selectedCategory == null || voiceCategoryOf(it) == selectedCategory) &&
                                 (tagSearch.isBlank() || it.contains(tagSearch))
                         }
                         // 当前绑定不在候选时补在顶部，防丢值
@@ -356,15 +356,12 @@ fun LogQuickPanel(
                         }
                     } else {
                         // ===== 旁白/非多角色：chips 定范围 + 常驻搜索 + 列表（行内试听）=====
-                        // narrationScope="全部"=全配置；其他=该分类配置。
-                        // 默认范围=当前配置项自己标签所属分类（用户 09-08：自适应任意规则，不写死"旁白"）
-                        fun categoryOf(tagName: String): String? =
-                            Regex("^(.*[\\u4e00-\\u9fa5])\\d{0,4}$").find(tagName)
-                                ?.groupValues?.getOrNull(1) ?: tagName.takeIf { it.isNotBlank() }
-
-                        val ownCategory = categoryOf(config.speechRule.tagName)
+                        // 分类=九桶+「旁白」（用户 09-08：旁白多加一个分类）；默认选中当前配置项标签所属桶
+                        // （「旁白」配置→旁白，「男青年25」→青）；「全部」chip 移除（不选=不筛选）
+                        val narrationCategories = listOf("旁白") + voiceCategories
+                        val ownCategory = voiceCategoryOf(config.speechRule.tagName)
                         var narrationScope by remember(entity.id) {
-                            mutableStateOf(ownCategory ?: "全部")
+                            mutableStateOf(ownCategory)
                         }
                         var searchQuery by remember(entity.id) { mutableStateOf("") }
                         Row(
@@ -373,20 +370,10 @@ fun LogQuickPanel(
                                 .horizontalScroll(rememberScrollState()),
                             horizontalArrangement = Arrangement.spacedBy(6.dp),
                         ) {
-                            androidx.compose.material3.FilterChip(
-                                selected = narrationScope == ownCategory,
-                                onClick = { narrationScope = ownCategory ?: "全部" },
-                                label = { Text(ownCategory ?: "旁白") },
-                            )
-                            androidx.compose.material3.FilterChip(
-                                selected = narrationScope == "全部",
-                                onClick = { narrationScope = "全部" },
-                                label = { Text("全部") },
-                            )
-                            ruleCategories.forEach { c ->
+                            narrationCategories.forEach { c ->
                                 androidx.compose.material3.FilterChip(
                                     selected = narrationScope == c,
-                                    onClick = { narrationScope = if (narrationScope == c) ownCategory ?: "全部" else c },
+                                    onClick = { narrationScope = if (narrationScope == c) null else c },
                                     label = { Text(c) },
                                 )
                             }
@@ -411,12 +398,9 @@ fun LogQuickPanel(
                                 val dto = c.config as? TtsConfigurationDTO ?: return@mapNotNull null
                                 val v = (dto.source as? PluginTtsSource)?.voice
                                     ?.takeIf { it.isNotEmpty() } ?: return@mapNotNull null
-                                val cat = categoryOf(dto.speechRule.tagName)
-                                val inScope = when {
-                                    narrationScope == "全部" -> true
-                                    narrationScope != null -> cat == narrationScope
-                                    else -> cat == null
-                                }
+                                val cat = voiceCategoryOf(dto.speechRule.tagName)
+                                // 未选分类=不筛选；选中=候选标签归桶后与所选一致
+                                val inScope = narrationScope == null || cat == narrationScope
                                 if (!inScope) return@mapNotNull null
                                 if (searchQuery.isNotBlank() &&
                                     !c.displayName.contains(searchQuery, ignoreCase = true)
