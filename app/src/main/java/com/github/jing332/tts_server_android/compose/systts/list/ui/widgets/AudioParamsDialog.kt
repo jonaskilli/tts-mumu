@@ -279,7 +279,6 @@ fun AudioParamsDialog(
                 }
             }
         }
-    )
 }
 
 /** 三层乘积（尊重 pluginHandles 路由：由插件处理的维度，插件/全局层不参与叠加）。
