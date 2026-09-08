@@ -10,11 +10,14 @@ import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -41,7 +44,9 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
@@ -75,6 +80,8 @@ import java.io.File
 internal fun TtsLogScreen(vm: TtsLogViewModel = viewModel()) {
     val context = LocalContext.current
     var isSearchActive by rememberSaveable { mutableStateOf(false) }
+    // 日志文件列表弹窗（用户 09-08：文件夹点开自由选择文件，不再直接扔给外部查看器）
+    var showLogFilesDialog by remember { mutableStateOf(false) }
     var searchQuery by remember { mutableStateOf("") }
     // 只看匹配：开启后按搜索词过滤列表，关闭则完整列表+高亮定位
     var filterMatches by rememberSaveable { mutableStateOf(false) }
@@ -192,38 +199,8 @@ internal fun TtsLogScreen(vm: TtsLogViewModel = viewModel()) {
                             Icon(Icons.Default.FilterList, stringResource(R.string.filter))
                         }
                         
-                        // 文件夹按钮 - 用文件管理器打开日志文件
-                        IconButton(onClick = {
-                            val logFile = File(vm.logDir())
-                            
-                            kotlin.runCatching {
-                                val uri = FileProvider.getUriForFile(
-                                    context,
-                                    "${context.packageName}.fileprovider",
-                                    logFile
-                                )
-                                val intent = android.content.Intent(android.content.Intent.ACTION_VIEW).apply {
-                                    setDataAndType(uri, "text/plain")
-                                    flags = android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION or
-                                            android.content.Intent.FLAG_ACTIVITY_NEW_TASK
-                                }
-                                context.startActivity(intent)
-                            }.onFailure {
-                                // 降级：使用通用类型
-                                kotlin.runCatching {
-                                    val uri = FileProvider.getUriForFile(
-                                        context,
-                                        "${context.packageName}.fileprovider",
-                                        logFile
-                                    )
-                                    val intent = android.content.Intent(android.content.Intent.ACTION_VIEW).apply {
-                                        setDataAndType(uri, "*/*")
-                                        flags = android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION
-                                    }
-                                    context.startActivity(intent)
-                                }
-                            }
-                        }) {
+                        // 文件夹按钮 - 先弹日志文件列表自由选择（用户 09-08），点击文件再用外部查看器打开
+                        IconButton(onClick = { showLogFilesDialog = true }) {
                             Icon(Icons.Default.FolderOpen, stringResource(R.string.open_log_folder))
                         }
                         
@@ -336,6 +313,74 @@ internal fun TtsLogScreen(vm: TtsLogViewModel = viewModel()) {
         )
     }
 
+    // 日志文件列表（用户 09-08：自由选择要打开的日志文件）
+    if (showLogFilesDialog) {
+        val logFiles = remember {
+            File(vm.logDir()).listFiles()
+                ?.sortedByDescending { it.lastModified() } ?: emptyList()
+        }
+        val timeFmt = remember {
+            java.text.SimpleDateFormat("MM-dd HH:mm", java.util.Locale.getDefault())
+        }
+        AlertDialog(
+            onDismissRequest = { showLogFilesDialog = false },
+            title = { Text("日志文件") },
+            text = {
+                Column(
+                    Modifier
+                        .heightIn(max = 360.dp)
+                        .verticalScroll(rememberScrollState())
+                ) {
+                    if (logFiles.isEmpty()) {
+                        Text(
+                            "日志目录为空",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                    logFiles.forEach { f ->
+                        Row(
+                            Modifier
+                                .fillMaxWidth()
+                                .clickable {
+                                    showLogFilesDialog = false
+                                    openLogFileWithViewer(context, f)
+                                }
+                                .padding(vertical = 8.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Column(Modifier.weight(1f)) {
+                                Text(
+                                    f.name,
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    maxLines = 1
+                                )
+                                Text(
+                                    "${f.length() / 1024} KB · " + timeFmt.format(f.lastModified()),
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    showLogFilesDialog = false
+                    openLogFileWithViewer(context, File(vm.logDir()))
+                }) {
+                    Text("打开整个目录")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showLogFilesDialog = false }) {
+                    Text(stringResource(R.string.cancel))
+                }
+            }
+        )
+    }
+
     // 筛选对话框
     if (vm.showFilterDialog.value) {
         LogFilterDialog(
@@ -373,5 +418,37 @@ private fun getLevelColor(level: Int): Color {
         LogLevel.INFO -> MaterialTheme.colorScheme.secondaryContainer
         LogLevel.DEBUG -> MaterialTheme.colorScheme.primaryContainer
         else -> MaterialTheme.colorScheme.surfaceVariant
+    }
+}
+
+// 用外部查看器打开文件/目录（text/plain 优先，通用类型兜底）
+private fun openLogFileWithViewer(context: android.content.Context, file: java.io.File) {
+    kotlin.runCatching {
+        val uri = FileProvider.getUriForFile(
+            context,
+            "${context.packageName}.fileprovider",
+            file
+        )
+        context.startActivity(
+            android.content.Intent(android.content.Intent.ACTION_VIEW).apply {
+                setDataAndType(uri, "text/plain")
+                flags = android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION or
+                        android.content.Intent.FLAG_ACTIVITY_NEW_TASK
+            }
+        )
+    }.onFailure {
+        kotlin.runCatching {
+            val uri = FileProvider.getUriForFile(
+                context,
+                "${context.packageName}.fileprovider",
+                file
+            )
+            context.startActivity(
+                android.content.Intent(android.content.Intent.ACTION_VIEW).apply {
+                    setDataAndType(uri, "*/*")
+                    flags = android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION
+                }
+            )
+        }
     }
 }
