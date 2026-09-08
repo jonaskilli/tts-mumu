@@ -34,24 +34,34 @@ object TaggedTtsPreviewPlayer {
     // 试听结束释放焦点、朗读续播——解决"试听与朗读混音听不清"
     private val focusListener = android.media.AudioManager.OnAudioFocusChangeListener { }
     private var focusSession = 0
+    private var focusRequest: android.media.AudioFocusRequest? = null
     private var appContext: Context? = null
 
-    @Suppress("DEPRECATION")
     private fun requestAudioFocus(context: Context) {
+        // AudioFocusRequest 需 API 26；低版本跳过焦点管理，仅失去"书声让位"能力
+        if (android.os.Build.VERSION.SDK_INT < android.os.Build.VERSION_CODES.O) return
         appContext = context.applicationContext
         val am = context.getSystemService(Context.AUDIO_SERVICE) as android.media.AudioManager
-        am.requestAudioFocus(
-            focusListener,
-            android.media.AudioManager.STREAM_MUSIC,
-            android.media.AudioManager.AUDIOFOCUS_GAIN_TRANSIENT,
+        val req = android.media.AudioFocusRequest.Builder(
+            android.media.AudioManager.AUDIOFOCUS_GAIN_TRANSIENT
         )
+            .setAudioAttributes(
+                android.media.AudioAttributes.Builder()
+                    .setUsage(android.media.AudioAttributes.USAGE_MEDIA)
+                    .setContentType(android.media.AudioAttributes.CONTENT_TYPE_SPEECH)
+                    .build()
+            )
+            .build()
+        focusRequest = req
+        am.requestAudioFocus(req)
     }
 
-    @Suppress("DEPRECATION")
     private fun abandonAudioFocus() {
+        if (android.os.Build.VERSION.SDK_INT < android.os.Build.VERSION_CODES.O) return
+        val req = focusRequest ?: return
         val ctx = appContext ?: return
         val am = ctx.getSystemService(Context.AUDIO_SERVICE) as android.media.AudioManager
-        am.abandonFocus(focusListener)
+        am.abandonAudioFocusRequest(req)
     }
 
     // 本次会话是否已真正出声(合成完毕进入播放)；JS 用它把按钮从…切到■,对齐v9时机
