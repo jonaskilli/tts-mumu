@@ -3,11 +3,12 @@ package com.github.jing332.tts_server_android.compose.systts.log
 import android.widget.Toast
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -55,6 +56,7 @@ import kotlinx.coroutines.launch
  *   配置项音频参数（仅本条，应用含发音人）/ 插件音频参数 / 全局音频参数，
  *   各自带重置/应用，应用即落库生效不关面板。
  */
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun LogQuickPanel(
     onDismissRequest: () -> Unit,
@@ -161,13 +163,21 @@ fun LogQuickPanel(
         // 总标题（用户 09-07 定稿）：发音人调整
         title = { Text(stringResource(R.string.log_panel_title)) },
         text = {
-            Column(Modifier.fillMaxWidth()) {
+            Column(
+                Modifier
+                    .fillMaxWidth()
+                    // 弹窗内容整体可滚（用户 09-08：屏幕装不下时下方音频参数区域看不到）；
+                    // 候选列表自带 220dp 内滚，内层优先消费手势，到边缘后外层接管，不冲突
+                    .verticalScroll(rememberScrollState())
+            ) {
                 // ===== 换发音人（最上方，无标题字）=====
-                // 分类定稿（用户 09-08）：9 固定桶——童/少/青/中/老（吞并男女前缀对）+特殊男/特殊女/男主/女主；
-                // 旁白模式在此基础上多加「旁白」。提取方式参照标签分类（剥尾部数字取汉字前缀）后归桶，
-                // 对话/括号/本地音效/角色名等标签不入分类；「全部」chip 移除（不选=不筛选）
+                // 分类定稿（用户 09-08 方案A）：14 个全称 chips（不合并男女），顺序用户拍板；
+                // 提取方式参照标签分类（剥尾部数字取汉字前缀），前缀在白名单内才可被分类筛选命中，
+                // 对话/括号/本地音效/角色名等不入分类；「全部」chip 移除（不选=不筛选）；
+                // chips 用 FlowRow 流式换行不横滑（与日志栏筛选同款）
                 val voiceCategories = listOf(
-                    "童", "少", "青", "中", "老", "特殊男", "特殊女", "男主", "女主"
+                    "女主", "男主", "少女", "少年", "女青年", "男青年", "女中年", "男中年",
+                    "女老年", "男老年", "女童", "男童", "特殊男", "特殊女",
                 )
 
                 fun voiceCategoryOf(tagName: String): String? {
@@ -175,15 +185,7 @@ fun LogQuickPanel(
                         ?.groupValues?.getOrNull(1) ?: tagName.takeIf { it.isNotBlank() } ?: return null
                     return when {
                         base == "旁白" -> "旁白"
-                        base.contains("特殊男") -> "特殊男"
-                        base.contains("特殊女") -> "特殊女"
-                        base.contains("男主") -> "男主"
-                        base.contains("女主") -> "女主"
-                        base.contains("童") -> "童"
-                        base.contains("少") -> "少"
-                        base.contains("青") -> "青"
-                        base.contains("中") -> "中"
-                        base.contains("老") -> "老"
+                        base in voiceCategories -> base
                         else -> null
                     }
                 }
@@ -221,11 +223,11 @@ fun LogQuickPanel(
                             mutableStateOf(voiceCategoryOf(config.speechRule.tagName))
                         }
                         var tagSearch by remember(entity.id) { mutableStateOf("") }
-                        Row(
-                            Modifier
-                                .fillMaxWidth()
-                                .horizontalScroll(rememberScrollState()),
+                        // FlowRow 流式换行：14 个全称 chips 一行放不下自动折行，不左右滑（与日志栏筛选同款）
+                        FlowRow(
+                            modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.spacedBy(6.dp),
+                            verticalArrangement = Arrangement.spacedBy(4.dp),
                         ) {
                             voiceCategories.forEach { c ->
                                 androidx.compose.material3.FilterChip(
@@ -364,11 +366,10 @@ fun LogQuickPanel(
                             mutableStateOf(ownCategory)
                         }
                         var searchQuery by remember(entity.id) { mutableStateOf("") }
-                        Row(
-                            Modifier
-                                .fillMaxWidth()
-                                .horizontalScroll(rememberScrollState()),
+                        FlowRow(
+                            modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.spacedBy(6.dp),
+                            verticalArrangement = Arrangement.spacedBy(4.dp),
                         ) {
                             narrationCategories.forEach { c ->
                                 androidx.compose.material3.FilterChip(
