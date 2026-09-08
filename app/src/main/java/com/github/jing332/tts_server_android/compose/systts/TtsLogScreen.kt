@@ -70,9 +70,8 @@ import com.github.jing332.tts_server_android.R
 import kotlinx.coroutines.launch
 import java.io.File
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
 @Composable
-@OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
 internal fun TtsLogScreen(vm: TtsLogViewModel = viewModel()) {
     val context = LocalContext.current
     var isSearchActive by rememberSaveable { mutableStateOf(false) }
