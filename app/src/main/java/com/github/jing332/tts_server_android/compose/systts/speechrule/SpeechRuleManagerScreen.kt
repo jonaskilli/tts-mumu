@@ -21,7 +21,7 @@ import androidx.compose.material.icons.automirrored.filled.Input
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.AppShortcut
 import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.Code
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.DeleteForever
 import androidx.compose.material.icons.filled.Checklist
 import androidx.compose.material.icons.filled.EditNote
@@ -485,7 +485,7 @@ internal fun Item(
                 Row {
                     var showOptions by remember { mutableStateOf(false) }
                     IconButton(onClick = onEdit) {
-                        Icon(Icons.Default.Code, stringResource(id = R.string.edit_code_desc, name))
+                        Icon(Icons.Default.Edit, stringResource(id = R.string.edit_code_desc, name))
                     }
                     IconButton(onClick = { showOptions = true }) {
                         Icon(

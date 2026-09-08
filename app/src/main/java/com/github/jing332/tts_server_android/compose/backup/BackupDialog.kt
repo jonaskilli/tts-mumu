@@ -9,8 +9,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.SegmentedButton
-import androidx.compose.material3.SegmentedButtonDefaults
+import com.github.jing332.tts_server_android.compose.SegmentedTextToggle
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -58,38 +57,26 @@ internal fun BackupDialog(
         title = { Text(stringResource(modeTitleRes(profile))) },
         content = {
             LazyColumn(Modifier.fillMaxWidth()) {
-                // 模式切换（用户 09-09）：RadioButton 行改 SegmentedButton 分段（同编辑页
-                // 「朗读全部/标签」样式），宽度适配文字不均分，居中放置
+                // 模式切换（用户 09-09）：RadioButton 行改分段切换（同编辑页「朗读全部/标签」样式），
+                // 宽度适配文字不均分，居中放置
                 item {
-                    Row(
-                        Modifier.fillMaxWidth(),
+                    SegmentedTextToggle(
+                        options = listOf(
+                            stringResource(R.string.personal_complete_backup),
+                            stringResource(R.string.share_backup),
+                        ),
+                        selectedIndex = if (profile == BackupProfile.PERSONAL_FULL) 0 else 1,
+                        onSelect = { i ->
+                            val target =
+                                if (i == 0) BackupProfile.PERSONAL_FULL else BackupProfile.SHARE_SANITIZED
+                            if (profile != target) {
+                                profile = target
+                                resetTypes(target)
+                            }
+                        },
+                        modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.Center,
-                    ) {
-                        SegmentedButton(
-                            selected = profile == BackupProfile.PERSONAL_FULL,
-                            onClick = {
-                                if (profile != BackupProfile.PERSONAL_FULL) {
-                                    profile = BackupProfile.PERSONAL_FULL
-                                    resetTypes(profile)
-                                }
-                            },
-                            shape = SegmentedButtonDefaults.itemShape(0, 2),
-                        ) {
-                            Text(stringResource(R.string.personal_complete_backup), maxLines = 1)
-                        }
-                        SegmentedButton(
-                            selected = profile == BackupProfile.SHARE_SANITIZED,
-                            onClick = {
-                                if (profile != BackupProfile.SHARE_SANITIZED) {
-                                    profile = BackupProfile.SHARE_SANITIZED
-                                    resetTypes(profile)
-                                }
-                            },
-                            shape = SegmentedButtonDefaults.itemShape(1, 2),
-                        ) {
-                            Text(stringResource(R.string.share_backup), maxLines = 1)
-                        }
-                    }
+                    )
                     Text(
                         text = stringResource(modeWarningRes(profile)),
                         color = MaterialTheme.colorScheme.error,

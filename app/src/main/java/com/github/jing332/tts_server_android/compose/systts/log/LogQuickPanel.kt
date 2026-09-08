@@ -15,8 +15,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.SegmentedButton
-import androidx.compose.material3.SegmentedButtonDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -45,6 +43,7 @@ import com.github.jing332.database.entities.systts.source.PluginTtsSource
 import com.github.jing332.tts.PreviewState
 import com.github.jing332.tts.TaggedTtsPreviewPlayer
 import com.github.jing332.tts_server_android.R
+import com.github.jing332.tts_server_android.compose.SegmentedTextToggle
 import com.github.jing332.tts_server_android.compose.SharedViewModel
 import com.github.jing332.tts_server_android.compose.systts.list.ui.PluginDescriptor
 import com.github.jing332.tts_server_android.service.systts.SystemTtsService
@@ -300,23 +299,14 @@ fun LogQuickPanel(
             // 0=更换发音人 1=音频参数；当前发音人+终值两区共用，固定在分段之上。
             // 宽度适配文字不均分（用户 09-09：两项文字长度差很多，均分浪费），居中放置
             var panelTab by remember(entity.id) { mutableStateOf(0) }
-            Row(
-                Modifier
+            SegmentedTextToggle(
+                options = listOf("更换发音人", "音频参数"),
+                selectedIndex = panelTab,
+                onSelect = { panelTab = it },
+                modifier = Modifier
                     .padding(top = 8.dp)
                     .align(Alignment.CenterHorizontally),
-                horizontalArrangement = Arrangement.Center,
-            ) {
-                SegmentedButton(
-                    selected = panelTab == 0,
-                    onClick = { panelTab = 0 },
-                    shape = SegmentedButtonDefaults.itemShape(0, 2),
-                ) { Text("更换发音人", maxLines = 1) }
-                SegmentedButton(
-                    selected = panelTab == 1,
-                    onClick = { panelTab = 1 },
-                    shape = SegmentedButtonDefaults.itemShape(1, 2),
-                ) { Text("音频参数", maxLines = 1) }
-            }
+            )
 
             if (panelTab == 0 && source != null) {
                 // 分类定稿（用户 09-09 下拉版顺序）：全部 + 女/男系列（旁白不下拉，见下）；
