@@ -202,16 +202,6 @@ fun Group(
                 )
             }
 
-            DropdownMenuItem(text = { Text(stringResource(id = R.string.edit_group_content)) },
-                onClick = {
-                    dismiss()
-                    showEditContentDialog = true
-                },
-                leadingIcon = {
-                    Icon(Icons.AutoMirrored.Filled.DriveFileMove, null)
-                }
-            )
-
             DropdownMenuItem(text = { Text(stringResource(id = R.string.create_sub_group)) },
                 onClick = {
                     dismiss()
@@ -235,28 +225,15 @@ fun Group(
                 )
             }
 
-            // 移动子分组：仅含子分组的一级分组显示，移动子分组到其他一级分组
-            if (hasSubGroups) {
-                DropdownMenuItem(text = { Text("移动子分组到其他一级分组") },
+            // 整理全部子分组标签：含子分组、至少一个子分组名匹配关键词且组内非空时显示
+            if (hasSubGroups && hasSubGroupTagKeyword && itemCount > 0) {
+                DropdownMenuItem(text = { Text("整理全部子分组标签") },
                     onClick = {
                         dismiss()
-                        onMoveSubGroups()
+                        onReassignAllSubGroups()
                     },
                     leadingIcon = {
-                        Icon(Icons.AutoMirrored.Filled.DriveFileMove, null)
-                    }
-                )
-            }
-
-            // 子分组转为一级分组：仅含子分组的一级分组显示，多选子分组各自转为独立一级分组
-            if (hasSubGroups) {
-                DropdownMenuItem(text = { Text("子分组转为一级分组") },
-                    onClick = {
-                        dismiss()
-                        onConvertSubGroupsToTopLevel()
-                    },
-                    leadingIcon = {
-                        Icon(Icons.AutoMirrored.Filled.ExitToApp, null)
+                        Icon(Icons.Default.AutoFixHigh, null)
                     }
                 )
             }
@@ -274,18 +251,54 @@ fun Group(
                 )
             }
 
-            // 整理全部子分组标签：含子分组、至少一个子分组名匹配关键词且组内非空时显示
-            if (hasSubGroups && hasSubGroupTagKeyword && itemCount > 0) {
-                DropdownMenuItem(text = { Text("整理全部子分组标签") },
+            // 修改子分组前缀：批量替换子分组名开头文字(加/去/换前缀)；无子分组时无意义，隐藏
+            if (onRenameSubPrefix != null && hasSubGroups) {
+                DropdownMenuItem(text = { Text("修改子分组前缀") },
                     onClick = {
                         dismiss()
-                        onReassignAllSubGroups()
+                        onRenameSubPrefix!!()
                     },
                     leadingIcon = {
-                        Icon(Icons.Default.AutoFixHigh, null)
+                        Icon(Icons.Default.DriveFileRenameOutline, null)
                     }
                 )
             }
+
+            // 子分组转为一级分组：仅含子分组的一级分组显示，多选子分组各自转为独立一级分组
+            if (hasSubGroups) {
+                DropdownMenuItem(text = { Text("子分组转为一级分组") },
+                    onClick = {
+                        dismiss()
+                        onConvertSubGroupsToTopLevel()
+                    },
+                    leadingIcon = {
+                        Icon(Icons.AutoMirrored.Filled.ExitToApp, null)
+                    }
+                )
+            }
+
+            // 移动子分组：仅含子分组的一级分组显示，移动子分组到其他一级分组
+            if (hasSubGroups) {
+                DropdownMenuItem(text = { Text("移动子分组到其他一级分组") },
+                    onClick = {
+                        dismiss()
+                        onMoveSubGroups()
+                    },
+                    leadingIcon = {
+                        Icon(Icons.AutoMirrored.Filled.DriveFileMove, null)
+                    }
+                )
+            }
+
+            DropdownMenuItem(text = { Text(stringResource(id = R.string.edit_group_content)) },
+                onClick = {
+                    dismiss()
+                    showEditContentDialog = true
+                },
+                leadingIcon = {
+                    Icon(Icons.AutoMirrored.Filled.DriveFileMove, null)
+                }
+            )
 
             // 合并同类配置项到其他分组：将本分组的配置项按 categoryPath 匹配归入目标分组；空分组（无配置项）无意义，隐藏
             if (onMergeGroup != null && itemCount > 0) {
@@ -296,19 +309,6 @@ fun Group(
                     },
                     leadingIcon = {
                         Icon(Icons.AutoMirrored.Filled.DriveFileMove, null)
-                    }
-                )
-            }
-
-            // 修改子分组前缀：批量替换子分组名开头文字(加/去/换前缀)；无子分组时无意义，隐藏
-            if (onRenameSubPrefix != null && hasSubGroups) {
-                DropdownMenuItem(text = { Text("修改子分组前缀") },
-                    onClick = {
-                        dismiss()
-                        onRenameSubPrefix!!()
-                    },
-                    leadingIcon = {
-                        Icon(Icons.Default.DriveFileRenameOutline, null)
                     }
                 )
             }
