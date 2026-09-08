@@ -220,9 +220,12 @@ internal fun SliderPreference(
     buttonSteps: Float = 1f,
     buttonLongSteps: Float = 2f,
     label: String,
+    // inline=true：滑条常驻卡片下方、即调即存（不弹底部面板、无右侧当前值）；
+    // false：保留旧行为（点卡片弹底部面板 + trailing 当前值），底部面板保持左右贴边
+    inline: Boolean = false,
 ) {
     var show by rememberSaveable { mutableStateOf(false) }
-    if (show)
+    if (!inline && show)
         ModalBottomSheet(onDismissRequest = { show = false }) {
             Column(
                 horizontalAlignment = Alignment.CenterHorizontally,
@@ -245,13 +248,32 @@ internal fun SliderPreference(
             }
         }
 
-    BasePreferenceWidget(modifier, onClick = {
+    BasePreferenceWidget(modifier, onClick = if (inline) null else {
         show = true
     }, title = title, icon = icon, subTitle = subTitle) {
-        // trailing 当前值：弱化色，与标题基线视觉呼应，不再与描述抢眼
-        Text(label, style = MaterialTheme.typography.titleMedium.copy(
-            color = MaterialTheme.colorScheme.onSurfaceVariant
-        ))
+        if (!inline) {
+            // trailing 当前值：弱化色，与标题基线视觉呼应，不再与描述抢眼
+            Text(label, style = MaterialTheme.typography.titleMedium.copy(
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            ))
+        }
+    }
+
+    if (inline) {
+        LabelSlider(
+            // 左缩进 48dp = 页边距16 + 图标24 + 间隙8，与卡片标题/副标题左缘对齐；右侧与卡片同宽
+            modifier = Modifier.padding(
+                start = horizontalPadding + 32.dp,
+                end = horizontalPadding,
+            ),
+            value = value,
+            onValueChange = onValueChange,
+            valueRange = valueRange,
+            steps = steps,
+            buttonSteps = buttonSteps,
+            buttonLongSteps = buttonLongSteps,
+            text = label
+        )
     }
 }
 

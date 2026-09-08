@@ -94,9 +94,9 @@ internal fun ColumnScope.SysttsSettingsScreen(search: SettingsSearch) {
     }
 
     var segmentPause by remember { SystemTtsConfig.segmentPauseMs }
-    val segmentPauseLabel =
-        if (segmentPause == 0) stringResource(id = R.string.disabled) else "${segmentPause}ms"
     SettingItem(search, "分段停顿", "停顿", "pause", "segment") {
+        // inline：滑条常驻卡片下方即调即存（用户 09-08 定稿，不再弹底部面板）；
+        // 副标题精简、右侧无当前值角标（数值在滑条左列）；0 值直接显示 0ms（旧"不重启"文案是重试场景语义错位）
         SliderPreference(
             title = { Text(stringResource(id = R.string.segment_pause)) },
             subTitle = { Text(stringResource(id = R.string.segment_pause_summary)) },
@@ -108,7 +108,8 @@ internal fun ColumnScope.SysttsSettingsScreen(search: SettingsSearch) {
             buttonSteps = 50f,
             buttonLongSteps = 100f,
             icon = { Icon(Icons.Default.AccessTime, null) },
-            label = segmentPauseLabel,
+            label = "时长: ${segmentPause}ms",
+            inline = true,
         )
     }
 
