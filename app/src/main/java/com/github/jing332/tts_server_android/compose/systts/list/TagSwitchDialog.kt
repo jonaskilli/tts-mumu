@@ -1,6 +1,7 @@
 package com.github.jing332.tts_server_android.compose.systts.list
 
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -27,7 +28,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import com.github.jing332.compose.widgets.AppDialog
 import com.github.jing332.compose.widgets.LoadingContent
 import com.github.jing332.database.dbm
 import com.github.jing332.database.entities.SpeechRule
@@ -56,6 +56,7 @@ private fun extractPrefix(name: String): String {
  * 单项分类（旁白/括号/音效等）点分类即选中。高亮当前标签并自动滚动定位。
  * 不写库不通知，选中经 [onSelect]（tag 与 tags 表显示名）交调用方处理。
  */
+@OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
 @Composable
 fun TagPickerDialog(
     rule: SpeechRule,
@@ -101,19 +102,22 @@ fun TagPickerDialog(
         }
     }
 
-    AppDialog(
+    // 底部弹窗（用户 09-08 定稿）：两层候选列表长，与发音人调整面板同形态
+    androidx.compose.material3.ModalBottomSheet(
         onDismissRequest = onDismissRequest,
-        title = {
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 8.dp)
+                .heightIn(max = 600.dp)
+        ) {
+            // 标题：未进二级=选分类，已进二级=选序号
             Text(
                 text = if (selectedGroup == null) "选择标签分类" else "选择标签序号",
+                style = MaterialTheme.typography.titleLarge,
+                modifier = Modifier.padding(bottom = 8.dp),
             )
-        },
-        content = {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .heightIn(max = 600.dp)
-            ) {
                 if (groups.isEmpty()) {
                     Text(
                         "朗读规则中没有可用标签",
@@ -212,22 +216,28 @@ fun TagPickerDialog(
                         }
                     }
                 }
-            }
-        },
-        buttons = {
-            if (selectedGroup != null) {
-                TextButton(onClick = { selectedGroup = null }) {
-                    Text("返回")
-                }
-            } else {
-                TextButton(onClick = onDismissRequest) {
-                    Text(stringResource(R.string.cancel))
+            // 底部按钮：二级层给「返回」，一级层给「取消」（sheet 无 buttons 槽，自行放行尾）
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = 8.dp, bottom = 12.dp),
+                horizontalArrangement = Arrangement.End,
+            ) {
+                if (selectedGroup != null) {
+                    TextButton(onClick = { selectedGroup = null }) {
+                        Text("返回")
+                    }
+                } else {
+                    TextButton(onClick = onDismissRequest) {
+                        Text(stringResource(R.string.cancel))
+                    }
                 }
             }
         }
-    )
+    }
 }
 
+@OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
 @Composable
 fun TagSwitchDialog(
     item: SystemTtsV2,
@@ -280,38 +290,29 @@ fun TagSwitchDialog(
 
     // 未加载/未绑定态用独立外壳；正常态直接由 TagPickerDialog 自带外壳，避免双弹窗嵌套
     if (!loaded) {
-        AppDialog(
-            onDismissRequest = onDismissRequest,
-            title = { Text(stringResource(R.string.tag)) },
-            content = {
-                LoadingContent(
-                    Modifier
-                        .fillMaxWidth()
-                        .padding(vertical = 24.dp),
-                    isLoading = true
-                ) {}
-            },
-        )
+        androidx.compose.material3.ModalBottomSheet(onDismissRequest = onDismissRequest) {
+            LoadingContent(
+                Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = 24.dp),
+                isLoading = true
+            ) {}
+        }
     } else {
         val rule = speechRule
         if (rule == null) {
-            AppDialog(
-                onDismissRequest = onDismissRequest,
-                title = { Text(stringResource(R.string.tag)) },
-                content = {
-                    Text(
-                        "该配置项未绑定朗读规则，无法切换标签",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        // AppDialog content 是 BoxScope：align 需要 Alignment 而非 Horizontal，
-                        // 用占满宽度 + 文字居中实现同样的视觉效果
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(16.dp),
-                        textAlign = TextAlign.Center
-                    )
-                },
-            )
+            androidx.compose.material3.ModalBottomSheet(onDismissRequest = onDismissRequest) {
+                Text(
+                    "该配置项未绑定朗读规则，无法切换标签",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    // ColumnScope 内：占满宽度 + 文字居中实现视觉居中
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(16.dp),
+                    textAlign = TextAlign.Center
+                )
+            }
         } else {
             TagPickerDialog(
                 rule = rule,
