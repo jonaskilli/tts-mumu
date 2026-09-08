@@ -192,6 +192,18 @@ class TtsLogViewModel : ViewModel() {
                 roleName = m.groupValues[4],
             )
         }
+        // MDC 全空的变体（无 configId 的系统级日志）：configId/roleName 落盘为空段，
+        // 形如 time | LEVEL |  |  | message。上面的数字判别匹配不上，若掉进旧三段解析
+        // 会把空段拼进 message（用户 09-09：屏幕上出现「D | | xxx」竖杠）；单独吃掉空段
+        Regex(
+            "^(\\d{4}-\\d\\d-\\d\\d \\d\\d:\\d\\d:\\d\\d\\.\\d{3}) \\|\\s*([A-Z]+)\\s*\\|\\s*\\|\\s*\\|\\s*(.*)$"
+        ).find(line)?.let { m ->
+            return LogEntry(
+                level = m.groupValues[2].toLogLevel(),
+                time = m.groupValues[1],
+                message = m.groupValues[3],
+            )
+        }
         // 旧格式：time | LEVEL | message（message 可含 " | "，需全量重组）
         return line.split(" | ").let {
             val time = it[0]
