@@ -149,10 +149,6 @@ fun AuditionDialog(
         }
     }
 
-    val focusListener = remember {
-        android.media.AudioManager.OnAudioFocusChangeListener { }
-    }
-
     LaunchedEffect(systts) {
         error = ""
         info = ""
