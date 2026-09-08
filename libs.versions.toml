@@ -29,7 +29,7 @@ dataSaver = "v1.1.5"
 okio = "3.6.0"
 okhttp = "4.12.0"
 net = "3.7.0"
-ktor-server = "3.0.3"
+ktor-server = "3.1.3"
 coil = "3.1.0"
 apache-commons-text = "1.13.0"
 
