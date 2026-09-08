@@ -60,6 +60,7 @@ import com.github.jing332.tts_server_android.compose.MainActivity
 import com.github.jing332.tts_server_android.conf.SysTtsConfig
 import com.github.jing332.tts_server_android.constant.AppConst
 import com.github.jing332.tts_server_android.constant.SystemNotificationConst
+import com.github.jing332.tts_server_android.service.systts.help.RoleNameLookup
 import com.github.jing332.tts_server_android.service.systts.help.TextProcessor
 import com.github.jing332.tts_server_android.SysttsLogger
 import com.github.michaelbull.result.Err
@@ -737,9 +738,15 @@ class SystemTtsService : TextToSpeechService(), IEventDispatcher {
             val meta = buildString {
                 // 三段式全角逗号分隔（用户 09-08）：角色名，标签，显示名，参数——层次清晰不粘连
                 var hasPrev = false
-                config.speechInfo.tagData["role"]?.takeIf { it.isNotBlank() }?.let {
-                    // 角色名特殊标示：全角方头括号（用户 09-08：简单区分，不加粗）
-                    append("【").append(it).append("】")
+                // 角色名（用户 09-08 方案C）：优先手填 tagData["role"]（dialogue/duihua 标签），
+                // 否则按标签反查角色管理绑定文件 characterRecords.json（GENSHIN 角色标签），
+                // 多角色共用一标签时全显示用"/"连接（定稿②）；特殊标示用全角方头括号，不加粗
+                val roleNames = config.speechInfo.tagData["role"]?.takeIf { it.isNotBlank() }
+                    ?.let { listOf(it) }
+                    ?: RoleNameLookup.lookup(config.speechInfo.tagRuleId, config.speechInfo.tag)
+                        .ifEmpty { RoleNameLookup.lookup(config.speechInfo.tagRuleId, config.speechInfo.tagName) }
+                if (roleNames.isNotEmpty()) {
+                    append("【").append(roleNames.joinToString("/")).append("】")
                     hasPrev = true
                 }
                 // 标签（如"旁白"）
