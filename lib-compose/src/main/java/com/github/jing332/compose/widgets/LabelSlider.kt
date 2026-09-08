@@ -144,7 +144,7 @@ fun LabelSlider(
                 Icon(
                         Icons.Default.Remove,
                         stringResource(id = R.string.desc_seekbar_remove),
-                        modifier = Modifier.size(18.dp),
+                        modifier = Modifier.size(24.dp),
                     )
             }
 
@@ -228,7 +228,7 @@ fun LabelSlider(
                 Icon(
                         Icons.Default.Add,
                         stringResource(id = R.string.desc_seekbar_add),
-                        modifier = Modifier.size(18.dp),
+                        modifier = Modifier.size(24.dp),
                     )
             }
         }
@@ -299,7 +299,7 @@ fun LabelSlider(
                     Icon(
                         Icons.Default.Remove,
                         stringResource(id = R.string.desc_seekbar_remove),
-                        modifier = Modifier.size(18.dp),
+                        modifier = Modifier.size(24.dp),
                     )
                 }
 
@@ -374,7 +374,7 @@ fun LabelSlider(
                     Icon(
                         Icons.Default.Add,
                         stringResource(id = R.string.desc_seekbar_add),
-                        modifier = Modifier.size(18.dp),
+                        modifier = Modifier.size(24.dp),
                     )
                 }
             }
