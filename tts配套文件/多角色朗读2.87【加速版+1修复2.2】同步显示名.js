@@ -2980,7 +2980,7 @@ var SpeechRuleJS = {
   name: "多角色朗读2.87【加速版+1修复2.2】同步显示名",
   id: "mingwuyan",
   author: "命無言",
-  version: 20260808,
+  version: 20260908,
   zdfp: 1,
   
   tags: (function() {
@@ -3129,8 +3129,12 @@ var SpeechRuleJS = {
           var genderAgeSuffix = "）";
           var genderAgeWhole = genderAgeContent ? (genderAgePrefix + genderAgeContent + genderAgeSuffix) : "";
 
-          // 最终拼接
+          // 最终拼接；角色名与性别年龄均未填时回退 tags 表显示名「对话」，
+          // 否则拼出空串会被 app 侧 computeTagName 判为算名失败，回退成 ⚠️对话（选标签即现 ❗）
           var rsTag = rolePart + genderAgeWhole;
+          if (rsTag.replace(/[（）/ ]/g, "") === "") {
+              rsTag = this.tags["duihua"] || "对话";
+          }
 
           //console.log("duihua生效！生成tagName=", rsTag);
           return rsTag;
