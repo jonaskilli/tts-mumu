@@ -751,9 +751,10 @@ class SystemTtsService : TextToSpeechService(), IEventDispatcher {
                     append(config.speechInfo.tagName)
                     hasPrev = true
                 }
-                // 显示名限 6 字（用户 09-08：显示名不能太长）
+                // 显示名限 12 字（用户 09-08 定 6 字，09-09 放宽：名字自带「 ·」装饰点时
+                // 6 字额度被点号吃掉，正文只剩 4 个字看不出是谁）
                 if (hasPrev) append("，")
-                append(tag.displayName.let { if (it.length > 6) it.take(6) + "…" else it })
+                append(tag.displayName.let { if (it.length > 12) it.take(12) + "…" else it })
                 if (paramsInfo.isNotEmpty()) append("，").append(paramsInfo)
             }
             "<font color=\"" + VOICE_META_COLOR + "\">" + meta + "</font>"
