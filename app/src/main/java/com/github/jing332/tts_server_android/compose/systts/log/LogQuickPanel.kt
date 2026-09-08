@@ -156,22 +156,30 @@ fun LogQuickPanel(
         text = {
             Column(Modifier.fillMaxWidth()) {
                 // ===== 换发音人（最上方，无标题字）=====
-                // 分类 = 配置项所用朗读规则声明的标签表（speech_rules.tags），
-                // 默认选中该配置项当前使用的标签（speechRule.tagName）——不点分类即在原分类里选
-                val ruleTagNames = remember(entity.id) {
+                // 分类 = 配置项所用朗读规则的 tagName（显示名）按「汉字前缀+数字序号」拆分去重——
+                // 注意看 tagName 而非 tag（内部键），tags 表的 value 才是 tagName（双轨制）
+                val ruleCategories = remember(entity.id) {
                     val ruleId = config.speechRule.tagRuleId
-                    dbm.speechRuleDao.getAllWithoutCode()
-                        .firstOrNull { it.ruleId == ruleId }?.tags?.keys?.toList() ?: emptyList()
+                    val tagsMap = dbm.speechRuleDao.getAllWithoutCode()
+                        .firstOrNull { it.ruleId == ruleId }?.tags ?: return@remember emptyList()
+                    // 「女青年25」→「女青年」；「男主1」→「男主」；「女主」→「女主」
+                    tagsMap.values
+                        .mapNotNull { tn ->
+                            Regex("^(.*[\\u4e00-\\u9fa5])\\d{0,4}$").find(tn)?.groupValues?.getOrNull(1)
+                                ?: tn.takeIf { it.isNotBlank() }
+                        }
+                        .distinct()
                 }
                 if (source != null && voices.isNotEmpty()) {
                     var selectedCategory by remember(entity.id) {
+                        // 默认选中配置项当前标签所属分类（「女青年25」→「女青年」）——不点分类即在原分类里选
                         mutableStateOf(
-                            config.speechRule.tagName.takeIf { t ->
-                                t.isNotBlank() && ruleTagNames.contains(t)
-                            }
+                            Regex("^(.*[\\u4e00-\\u9fa5])\\d{0,4}$")
+                                .find(config.speechRule.tagName)?.groupValues?.getOrNull(1)
+                                ?.takeIf { ruleCategories.contains(it) }
                         )
                     }
-                    val categories = ruleTagNames
+                    val categories = ruleCategories
                     Row(
                         Modifier
                             .fillMaxWidth()
