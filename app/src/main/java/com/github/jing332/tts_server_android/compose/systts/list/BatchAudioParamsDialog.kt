@@ -3,6 +3,7 @@ package com.github.jing332.tts_server_android.compose.systts.list
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -44,7 +45,8 @@ fun BatchAudioParamsDialog(
     AppDialog(
         title = { Text("批量调整音频参数") },
         content = {
-            Column {
+            // 滑条 −/+ 贴边太挤（用户 09-09 定调）：内容水平 +4dp（叠加弹窗自带 12dp≈16dp），与配置项音频参数弹窗同款
+            Column(Modifier.padding(horizontal = 4.dp)) {
                 AppSpinner(
                     modifier = Modifier.fillMaxWidth(),
                     labelText = "插件",

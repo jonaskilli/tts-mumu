@@ -337,11 +337,11 @@
     <string name="systts_log_text_handle_failed">文本处理失败: %1$s</string>
     <string name="audio_params">音频参数</string>
     <string name="label_speed">速度：</string>
-    <string name="audio_params_settings">设置音频参数</string>
+    <string name="audio_params_settings">全局音频参数</string>
     <string name="unknown">未知</string>
     <string name="plugin_vars">插件变量</string>
     <string name="plugin_set_vars">设置变量</string>
-    <string name="plugin_audio_params">音频参数</string>
+    <string name="plugin_audio_params">插件音频参数</string>
     <string name="plugin_audio_params_desc">统一调节该插件下所有发音人的语速、音量、音调。最终参数 = 插件参数 × 单独参数 × 分组参数 × 全局参数</string>
     <string name="plugin_audio_params_saved">音频参数已保存</string>
     <string name="config_list">配置列表</string>

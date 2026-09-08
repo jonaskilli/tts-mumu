@@ -92,7 +92,7 @@ internal fun MenuMoreOptions(
         HorizontalDivider()
 
         DropdownMenuItem(
-            text = { Text(stringResource(id = R.string.audio_params)) },
+            text = { Text(stringResource(id = R.string.audio_params_settings)) },
             onClick = { showAudioParamsDialog = true },
             leadingIcon = {
                 Icon(Icons.Default.Speed, null)

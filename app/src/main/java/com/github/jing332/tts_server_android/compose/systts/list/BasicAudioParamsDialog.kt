@@ -3,9 +3,11 @@ package com.github.jing332.tts_server_android.compose.systts.list
 import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import com.github.jing332.tts_server_android.R
 import com.github.jing332.compose.widgets.AppDialog
@@ -54,7 +56,8 @@ fun BasicAudioParamsDialog(
     AppDialog(
         title = title,
         content = {
-            Column {
+            // 滑条 −/+ 贴边太挤（用户 09-09 定调）：内容水平 +4dp（叠加弹窗自带 12dp≈16dp），与配置项音频参数弹窗同款
+            Column(Modifier.padding(horizontal = 4.dp)) {
                 val str = stringResource(
                     id = R.string.label_speech_rate,
                     "%.2f".format(speed)
