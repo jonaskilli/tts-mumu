@@ -163,6 +163,14 @@ class TtsLogViewModel : ViewModel() {
         speechRuleLogs.clear()
         runCatching {
             FileWriter(file, false).use { it.write(CharArray(0)) }
+            // 连同其余日志文件与滚动备份一起清理（用户 09-08：删除键应清全部本地日志）
+            file.parentFile?.listFiles()?.forEach { f ->
+                if (!f.isFile) return@forEach
+                val n = f.name
+                if (n.startsWith("debug") || n.startsWith("crash") || n.startsWith("system_tts_")) {
+                    f.delete()
+                }
+            }
         }.onFailure {
             logs.add(LogEntry(level = LogLevel.ERROR, message = it.stackTraceToString()))
             Log.e(TAG, "clear: ", it)
