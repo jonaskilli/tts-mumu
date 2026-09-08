@@ -118,13 +118,13 @@ fun LabelSlider(
         Column(Modifier.padding(end = 8.dp)) {
             Text(
                 text = labelPart,
-                style = MaterialTheme.typography.bodySmall,
+                style = MaterialTheme.typography.bodyMedium,
                 maxLines = 1,
             )
             if (valuePart.isNotEmpty())
                 Text(
                     text = valuePart,
-                    style = MaterialTheme.typography.bodySmall,
+                    style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     maxLines = 1,
                 )
@@ -190,11 +190,11 @@ fun LabelSlider(
                         interactionSource = remember { MutableInteractionSource() },
                         colors = SliderDefaults.colors(),
                         enabled = enabled,
-                        thumbSize = DpSize(3.dp, 18.dp)
+                        thumbSize = DpSize(4.dp, 22.dp)
                     )
                 },
                 track = { sliderState ->
-                    // 自绘细轨道 2.5dp（用户 09-07：滑杆调细、整体和谐）
+                    // 自绘轨道 4dp（09-08 用户定稿：左侧字号与滑杆粗细加大一档；09-07 曾从 M3 默认调细至 2.5dp）
                     val colors = SliderDefaults.colors()
                     val frac = if (sliderState.valueRange.endInclusive > sliderState.valueRange.start)
                         ((sliderState.value - sliderState.valueRange.start) /
@@ -204,7 +204,7 @@ fun LabelSlider(
                     Box(
                         Modifier
                             .fillMaxWidth()
-                            .height(2.5.dp)
+                            .height(4.dp)
                             .clip(androidx.compose.foundation.shape.RoundedCornerShape(2.dp))
                     ) {
                         Box(Modifier.fillMaxSize().background(colors.inactiveTrackColor))
