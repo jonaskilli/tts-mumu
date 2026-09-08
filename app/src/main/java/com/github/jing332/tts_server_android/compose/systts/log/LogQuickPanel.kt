@@ -56,7 +56,7 @@ import kotlinx.coroutines.launch
  *   配置项音频参数（仅本条，应用含发音人）/ 插件音频参数 / 全局音频参数，
  *   各自带重置/应用，应用即落库生效不关面板。
  */
-@OptIn(ExperimentalLayoutApi::class)
+@OptIn(ExperimentalLayoutApi::class, androidx.compose.material3.ExperimentalMaterial3Api::class)
 @Composable
 fun LogQuickPanel(
     onDismissRequest: () -> Unit,
@@ -84,6 +84,40 @@ fun LogQuickPanel(
     var voice by remember(entity.id) { mutableStateOf(source?.voice ?: "") }
     var speed by remember(entity.id) { mutableStateOf(config.audioParams.speed) }
     var volume by remember(entity.id) { mutableStateOf(config.audioParams.volume) }
+
+    // 换声两段式（用户 09-08）：点候选行=暂存选中（不落库），底部「确认」键才生效——
+    // 即点即改的 Toast 反馈太弱且易误触；未确认选择在关闭面板时自然丢弃
+    var pendingVoice by remember(entity.id) { mutableStateOf<String?>(null) }
+
+    // 旁白/非多角色换声：写配置项 voice（对话绑定模式走 CharacterRecordsFile.rebind，两分支各自处理）
+    fun applyVoice(selected: String) {
+        voice = selected
+        scope.launch {
+            withIO {
+                val sourceNow =
+                    (entity.config as? TtsConfigurationDTO)?.source as? PluginTtsSource
+                if (sourceNow != null) {
+                    val newConfig = config.copy(source = sourceNow.copy(voice = selected))
+                    dbm.systemTtsV2.update(entity.copy(config = newConfig))
+                    SystemTtsService.notifyUpdateConfig()
+                }
+            }
+            Toast.makeText(
+                context,
+                context.getString(R.string.log_panel_voice_applied),
+                Toast.LENGTH_SHORT,
+            ).show()
+        }
+    }
+
+    // 绑定模式当前绑定（提升到分支外：底部确认行生效后要更新它）
+    var boundVoice by remember(entity.id) {
+        mutableStateOf(
+            CharacterRecordsFile.readCharacterVoice(
+                config.speechRule.tagRuleId, entry.roleName
+            ) ?: config.speechRule.tag
+        )
+    }
 
     // 发音人候选：插件配置走引擎 getVoices（引擎缓存，秒回）；本地引擎不提供下拉
     var voices by remember(entity.id) { mutableStateOf<List<Pair<String, String>>>(emptyList()) }
@@ -158,19 +192,26 @@ fun LogQuickPanel(
         }
     }
 
-    androidx.compose.material3.AlertDialog(
+    // 底部弹窗（用户 09-08 定稿）：内容多，sheet 比 AlertDialog 合适——占满宽、可拉高、下滑关闭；
+    // 内容与快速编辑弹窗同惯例水平 8dp
+    androidx.compose.material3.ModalBottomSheet(
         onDismissRequest = onDismissRequest,
-        // 总标题（用户 09-07 定稿）：发音人调整
-        title = { Text(stringResource(R.string.log_panel_title)) },
-        text = {
-            Column(
-                Modifier
-                    .fillMaxWidth()
-                    // 弹窗内容整体可滚（用户 09-08：屏幕装不下时下方音频参数区域看不到）；
-                    // 候选列表自带 220dp 内滚，内层优先消费手势，到边缘后外层接管，不冲突
-                    .verticalScroll(rememberScrollState())
-            ) {
-                // ===== 换发音人（最上方，无标题字）=====
+    ) {
+        Column(
+            Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 8.dp)
+                // 弹窗内容整体可滚（用户 09-08：屏幕装不下时下方音频参数区域看不到）；
+                // 候选列表自带 220dp 内滚，内层优先消费手势，到边缘后外层接管，不冲突
+                .verticalScroll(rememberScrollState())
+        ) {
+            // 总标题（用户 09-07 定稿）：发音人调整
+            Text(
+                stringResource(R.string.log_panel_title),
+                style = MaterialTheme.typography.titleLarge,
+                modifier = Modifier.padding(bottom = 8.dp),
+            )
+            // ===== 换发音人（最上方，无标题字）=====
                 // 分类定稿（用户 09-08 方案A）：14 个全称 chips（不合并男女），顺序用户拍板；
                 // 提取方式参照标签分类（剥尾部数字取汉字前缀），前缀在白名单内才可被分类筛选命中，
                 // 对话/括号/本地音效/角色名等不入分类；「全部」chip 移除（不选=不筛选）；
@@ -196,26 +237,6 @@ fun LogQuickPanel(
                 //   [其他]=按配置项名搜索（数量庞大无法分类，用户 09-08 定稿）
                 val isBindingMode = entry.roleName.isNotBlank()
                 if (source != null) {
-                    // 换配置项本体声音（旁白/其他模式共用；用户 09-07：独立保存不搭配置层应用的车）
-                    fun applyVoice(selected: String) {
-                        voice = selected
-                        scope.launch {
-                            withIO {
-                                val sourceNow =
-                                    (entity.config as? TtsConfigurationDTO)?.source as? PluginTtsSource
-                                if (sourceNow != null) {
-                                    val newConfig = config.copy(source = sourceNow.copy(voice = selected))
-                                    dbm.systemTtsV2.update(entity.copy(config = newConfig))
-                                    SystemTtsService.notifyUpdateConfig()
-                                }
-                            }
-                            Toast.makeText(
-                                context,
-                                context.getString(R.string.log_panel_voice_applied),
-                                Toast.LENGTH_SHORT,
-                            ).show()
-                        }
-                    }
                     if (isBindingMode) {
                         // ===== 绑定模式：chips 定范围 + 常驻搜索（范围内）+ 列表（行内试听）=====
                         var selectedCategory by remember(entity.id) {
@@ -255,13 +276,6 @@ fun LogQuickPanel(
                                     (it.config as? TtsConfigurationDTO)?.speechRule?.tag
                                 }
                         }
-                        var boundVoice by remember(entity.id) {
-                            mutableStateOf(
-                                CharacterRecordsFile.readCharacterVoice(
-                                    config.speechRule.tagRuleId, entry.roleName
-                                ) ?: config.speechRule.tag
-                            )
-                        }
                         val pool = CharacterRecordsFile.readVoicePool(config.speechRule.tagRuleId)
                         val filtered = pool.filter {
                             it in enabledTags &&
@@ -297,38 +311,28 @@ fun LogQuickPanel(
                             }
                             displayTags.forEach { tag ->
                                 val isCurrent = tag == boundVoice
+                                val isPending = tag == pendingVoice
                                 Row(
                                     Modifier
                                         .fillMaxWidth()
                                         .clickable {
-                                            // 点行=改绑应用（与角色管理同文件同字段）
-                                            boundVoice = tag
-                                            scope.launch {
-                                                val ok = withIO {
-                                                    CharacterRecordsFile.rebind(
-                                                        config.speechRule.tagRuleId,
-                                                        entry.roleName,
-                                                        tag,
-                                                    )
-                                                }
-                                                Toast.makeText(
-                                                    context,
-                                                    if (ok) "已将「${entry.roleName}」的发音人换为 $tag"
-                                                    else context.getString(R.string.log_panel_rebind_failed),
-                                                    Toast.LENGTH_SHORT,
-                                                ).show()
-                                            }
+                                            // 两段式（用户 09-08）：点行=暂存选中，底部「确认」才落库
+                                            pendingVoice = tag
                                         }
                                         .padding(horizontal = 10.dp, vertical = 2.dp),
                                     verticalAlignment = Alignment.CenterVertically,
                                 ) {
                                     Text(
-                                        (if (isCurrent) "✓ " else "") + tag,
+                                        (if (isCurrent) "✓ " else "") +
+                                            (if (isPending && !isCurrent) "● " else "") + tag,
                                         modifier = Modifier.weight(1f),
                                         style = MaterialTheme.typography.bodyMedium,
                                         maxLines = 1,
-                                        color = if (isCurrent) MaterialTheme.colorScheme.primary
-                                        else MaterialTheme.colorScheme.onSurface,
+                                        color = when {
+                                            isPending -> MaterialTheme.colorScheme.primary
+                                            isCurrent -> MaterialTheme.colorScheme.onSurface
+                                            else -> MaterialTheme.colorScheme.onSurface
+                                        },
                                     )
                                     TextButton(onClick = {
                                         // 行内试听：播放该标签对应启用配置的声音，不应用
@@ -433,20 +437,27 @@ fun LogQuickPanel(
                             }
                             candidateConfigs.forEach { (v, name, tagName) ->
                                 val isCurrent = v == voice && voice.isNotEmpty()
+                                val isPending = v == pendingVoice
                                 Row(
                                     Modifier
                                         .fillMaxWidth()
-                                        .clickable { applyVoice(v) }
+                                        .clickable {
+                                            // 两段式（用户 09-08）：点行=暂存选中，底部「确认」才写配置项 voice
+                                            pendingVoice = v
+                                        }
                                         .padding(horizontal = 10.dp, vertical = 2.dp),
                                     verticalAlignment = Alignment.CenterVertically,
                                 ) {
                                     Text(
-                                        (if (isCurrent) "✓ " else "") + name +
-                                            (if (tagName.isNotBlank()) " · " + tagName else ""),
+                                        // 分类(标签)在前、配置项名在后（用户 09-08 调换，原为 配置项名 · 标签）
+                                        (if (isCurrent) "✓ " else "") +
+                                            (if (isPending && !isCurrent) "● " else "") +
+                                            (if (tagName.isNotBlank()) tagName + " · " else "") + name,
                                         modifier = Modifier.weight(1f),
                                         style = MaterialTheme.typography.bodyMedium,
                                         maxLines = 1,
-                                        color = if (isCurrent) MaterialTheme.colorScheme.primary
+                                        color = if (isPending && !isCurrent) MaterialTheme.colorScheme.primary
+                                        else if (isCurrent) MaterialTheme.colorScheme.primary
                                         else MaterialTheme.colorScheme.onSurface,
                                     )
                                     TextButton(onClick = {
@@ -641,12 +652,55 @@ fun LogQuickPanel(
                         Text((if (globalDirty) "● " else "") + stringResource(R.string.audio_params_apply))
                     }
                 }
+
+            // ===== 底部操作行：换声两段式确认（用户 09-08，即点即改反馈弱且易误触）+ 取消 =====
+            Row(
+                Modifier
+                    .fillMaxWidth()
+                    .padding(top = 8.dp, bottom = 12.dp),
+                horizontalArrangement = Arrangement.End,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                TextButton(onClick = onDismissRequest) { Text(stringResource(R.string.cancel)) }
+                TextButton(
+                    enabled = pendingVoice != null,
+                    onClick = {
+                        val selected = pendingVoice ?: return@TextButton
+                        if (isBindingMode) {
+                            // 绑定模式：改写 characterRecords.json（与角色管理同文件同字段）
+                            if (selected == boundVoice) {
+                                pendingVoice = null
+                                return@TextButton
+                            }
+                            scope.launch {
+                                val ok = withIO {
+                                    CharacterRecordsFile.rebind(
+                                        config.speechRule.tagRuleId,
+                                        entry.roleName,
+                                        selected,
+                                    )
+                                }
+                                if (ok) boundVoice = selected
+                                pendingVoice = null
+                                Toast.makeText(
+                                    context,
+                                    if (ok) "已将「${entry.roleName}」的发音人换为 $selected"
+                                    else context.getString(R.string.log_panel_rebind_failed),
+                                    Toast.LENGTH_SHORT,
+                                ).show()
+                            }
+                        } else {
+                            // 旁白/其他：写配置项 voice
+                            applyVoice(selected)
+                            pendingVoice = null
+                        }
+                    },
+                ) {
+                    Text((if (pendingVoice != null) "● " else "") + stringResource(R.string.confirm))
+                }
             }
-        },
-        confirmButton = {
-            TextButton(onClick = onDismissRequest) { Text(stringResource(R.string.cancel)) }
-        },
-    )
+        }
+    }
 }
 
 /** 单次 LaunchedEffect 简写：key 变化时只执行一次 */
