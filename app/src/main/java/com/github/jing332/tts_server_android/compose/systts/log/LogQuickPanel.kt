@@ -375,7 +375,7 @@ fun LogQuickPanel(
                         ) {
                             androidx.compose.material3.FilterChip(
                                 selected = narrationScope == ownCategory,
-                                onClick = { narrationScope = ownCategory },
+                                onClick = { narrationScope = ownCategory ?: "全部" },
                                 label = { Text(ownCategory ?: "旁白") },
                             )
                             androidx.compose.material3.FilterChip(
