@@ -237,7 +237,7 @@ fun Group(
 
             // 移动子分组：仅含子分组的一级分组显示，移动子分组到其他一级分组
             if (hasSubGroups) {
-                DropdownMenuItem(text = { Text("移动子分组") },
+                DropdownMenuItem(text = { Text("移动子分组到其他一级分组") },
                     onClick = {
                         dismiss()
                         onMoveSubGroups()
@@ -248,9 +248,9 @@ fun Group(
                 )
             }
 
-            // 转为一级分组：仅含子分组的一级分组显示，多选子分组各自转为独立一级分组
+            // 子分组转为一级分组：仅含子分组的一级分组显示，多选子分组各自转为独立一级分组
             if (hasSubGroups) {
-                DropdownMenuItem(text = { Text("转为一级分组") },
+                DropdownMenuItem(text = { Text("子分组转为一级分组") },
                     onClick = {
                         dismiss()
                         onConvertSubGroupsToTopLevel()
