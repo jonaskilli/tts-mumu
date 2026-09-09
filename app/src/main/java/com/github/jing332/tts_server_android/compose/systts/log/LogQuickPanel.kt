@@ -31,8 +31,10 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.core.text.HtmlCompat
 import com.drake.net.utils.withIO
 import com.github.jing332.common.LogEntry
+import com.github.jing332.compose.ComposeExtensions.toAnnotatedString
 import com.github.jing332.compose.widgets.AppDialog
 import com.github.jing332.compose.widgets.AppSpinner
 import com.github.jing332.compose.widgets.LabelSlider
@@ -586,6 +588,43 @@ fun LogQuickPanel(
                 },
                 modifier = Modifier.align(Alignment.CenterHorizontally),
             )
+
+            // ===== 三层现值总览（用户 09-10 提案）：配置项卡片参数行同款格式——
+            // 维度固定顺序 配置→插件→全局，≠1.0 的层值 ×连接带小号层标，全 1.0 维度省略，
+            // 三维全默认显示「无设置」；分段一次只显示一层，靠这行总览三层现值，
+            // 滑动/应用后实时跟随草稿更新（音高无滑杆，照卡片口径列现值）=====
+            val tagCfg = stringResource(R.string.audio_params_tag_config)
+            val tagPlugin = stringResource(R.string.audio_params_tag_plugin)
+            val tagGlobal = stringResource(R.string.audio_params_tag_global)
+            fun dimSummary(label: String, c: Float, p: Float, g: Float): String? {
+                if (kotlin.math.abs(c - 1f) <= 0.005f && kotlin.math.abs(p - 1f) <= 0.005f
+                    && kotlin.math.abs(g - 1f) <= 0.005f
+                ) return null
+                val parts = buildList {
+                    if (kotlin.math.abs(c - 1f) > 0.005f) add("%.2f".format(c) + "<small>($tagCfg)</small>")
+                    if (plugin != null && kotlin.math.abs(p - 1f) > 0.005f)
+                        add("%.2f".format(p) + "<small>($tagPlugin)</small>")
+                    if (kotlin.math.abs(g - 1f) > 0.005f) add("%.2f".format(g) + "<small>($tagGlobal)</small>")
+                }
+                return "$label: " + parts.joinToString("×")
+            }
+            val pluginPitchVal = plugin?.audioParams?.pitch ?: 1f
+            val globalPitchVal = com.github.jing332.tts_server_android.conf.SysTtsConfig.audioParamsPitch
+            val summaryLine = listOfNotNull(
+                dimSummary("语速", speed, pluginSpeed, globalSpeed),
+                dimSummary("音量", volume, pluginVolume, globalVolume),
+                dimSummary("音高", config.audioParams.pitch, pluginPitchVal, globalPitchVal),
+            ).joinToString(" | ")
+            val summaryDisplay = if (summaryLine.isEmpty())
+                stringResource(R.string.audio_params_none) else summaryLine
+            Text(
+                text = HtmlCompat.fromHtml(summaryDisplay, HtmlCompat.FROM_HTML_MODE_COMPACT)
+                    .toAnnotatedString(),
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(top = 6.dp),
+            )
+
             if (paramLayer == 0) {
             // ===== 配置项音频参数（仅本条）=====
             Text(
