@@ -6,15 +6,19 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.material3.FilterChip
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
@@ -25,7 +29,10 @@ import com.github.jing332.database.entities.systts.AudioParams
 import com.github.jing332.database.entities.systts.SystemTtsV2
 import com.github.jing332.database.entities.systts.TtsConfigurationDTO
 import com.github.jing332.database.entities.systts.source.PluginTtsSource
+import com.github.jing332.tts.PreviewState
+import com.github.jing332.tts.TaggedTtsPreviewPlayer
 import com.github.jing332.tts_server_android.R
+import com.github.jing332.tts_server_android.conf.AppConfig
 import com.github.jing332.tts_server_android.conf.SysTtsConfig
 import com.github.jing332.tts_server_android.service.systts.SystemTtsService
 import kotlinx.coroutines.launch
@@ -37,6 +44,8 @@ import kotlinx.coroutines.launch
  * - [AudioParamsDimDialog]：单维弹窗——标题即维度名，内容=该维 配置→插件→全局 三层滑杆
  *   （无插件源自动只有 配置/全局 两层）+ 重置/应用；应用=该维三层一起落库
  *   （配置层双写页面内存防旧值覆盖），立即生效不关弹窗；
+ *   左下角 ▶试听键（用户 09-10 补定）：念试听文本、用该维配置层草稿直接合成——
+ *   调完滑杆不用先应用就能听（▶→…→■，再点停止，播完自动复位）；
  * - 卡片⋮菜单「音频参数」入口不受影响，仍打开 AudioParamsDialog 折叠手风琴总弹窗。
  *
  * 维度下标：0=语速 1=音量 2=音高。
@@ -140,6 +149,16 @@ fun AudioParamsDimDialog(
     // 脏标记：任一层滑杆改动置 true，应用成功清除
     var dirty by remember(systemTts.id, dim) { mutableStateOf(false) }
 
+    // ▶试听状态机（同旧总弹窗：▶ →(点击)… →(出声)■ →(播完复位)▶）
+    val previewState by TaggedTtsPreviewPlayer.state.collectAsState()
+    var previewing by remember(systemTts.id, dim) { mutableStateOf(false) }
+    LaunchedEffect(previewState) { if (previewState == PreviewState.IDLE) previewing = false }
+
+    /** 试听实体=本配置项+该维配置层草稿（其他维/插件层/全局层取已存值）：不点应用也能先听效果 */
+    fun draftEntity(): SystemTtsV2 = systemTts.copy(
+        config = config.copy(audioParams = dimCopy(config.audioParams, dim, snap(cfgVal)))
+    )
+
     /** 应用：该维三层一起落库——配置层双写（库+页面内存），插件/全局层照常写入；立即生效不关弹窗 */
     fun apply() {
         scope.launch {
@@ -208,8 +227,37 @@ fun AudioParamsDimDialog(
             }
         },
         buttons = {
-            TextButton(onClick = onDismissRequest) {
-                Text(stringResource(R.string.cancel))
+            Row(
+                Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+            ) {
+                // ▶试听：念试听文本、用草稿参数合成（不用先应用）；播放中/合成中再点=停止复位
+                TextButton(onClick = {
+                    if (previewing && previewState != PreviewState.IDLE) {
+                        TaggedTtsPreviewPlayer.stop()
+                        previewing = false
+                        return@TextButton
+                    }
+                    previewing = true
+                    scope.launch {
+                        // 文本被清空时回落默认句，避免合成空串
+                        val auditionText = AppConfig.testSampleText.value
+                            .ifBlank { "你好，这是试听语音。" }
+                        TaggedTtsPreviewPlayer.play(context, draftEntity(), auditionText)
+                    }
+                }) {
+                    Text(
+                        when {
+                            previewing && previewState == PreviewState.PLAYING -> "■ 停止"
+                            previewing -> "… 合成中"
+                            else -> "▶ 试听"
+                        },
+                        color = if (previewing) MaterialTheme.colorScheme.tertiary else Color.Unspecified,
+                    )
+                }
+                TextButton(onClick = onDismissRequest) {
+                    Text(stringResource(R.string.cancel))
+                }
             }
         },
     )
