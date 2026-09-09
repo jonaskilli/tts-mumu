@@ -2,13 +2,11 @@ package com.github.jing332.tts_server_android.compose.systts.list.ui.widgets
 
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowDropDown
@@ -16,7 +14,6 @@ import androidx.compose.material.icons.automirrored.filled.HelpOutline
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.SelectAll
 import androidx.compose.material.icons.filled.Tag
-import androidx.compose.material3.Checkbox
 import com.github.jing332.compose.widgets.AppDropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.FilterChip
@@ -31,7 +28,6 @@ import androidx.compose.material3.SegmentedButtonDefaults
 import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.minimumInteractiveComponentSize
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -41,12 +37,10 @@ import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.dp
 import com.github.jing332.common.utils.ClipboardUtils
 import com.github.jing332.common.utils.StringUtils
@@ -135,65 +129,19 @@ fun SpeechRuleEditScreen(
         true
     }
 
-    var showStandbyHelpDialog by remember { mutableStateOf(false) }
-    if (showStandbyHelpDialog)
-        AppDialog(
-            title = { Text(stringResource(id = R.string.systts_as_standby_help)) },
-            content = {
-                Text(
-                    stringResource(id = R.string.systts_standby_help_msg)
-                )
-            },
-            buttons = {
-                TextButton(onClick = { showStandbyHelpDialog = false }) {
-                    Text(stringResource(id = R.string.confirm))
-                }
-            },
-            onDismissRequest = { showStandbyHelpDialog = false }
-        )
-
     // 「音频参数」入口已于 09-10 从此处摘除（用户定稿）：改挂到试听文本行右侧⚡
     // （AuditionTextField），与🎧试听同框形成"改文本→调参数→立刻听"闭环。
     // 摘除后本组件的另两个使用方同步变化：
     //   完整编辑页(TtsEditContainerScreen) → 由 PluginTtsUI/LocalTtsUI 的试听文本行补上；
     //   快捷编辑面板(QuickEditBottomSheet) → 不再提供音频参数入口（用户确认：直接去掉）。
     // 其余入口不受影响：卡片⋮菜单「音频参数」保留。
+    // 「作为备用引擎(isStandby)」也于同日挪入基本信息卡（BasicInfoEditScreen），
+    // 与分组/显示名等属性同区——原顶部行随音频参数按钮摘除后只剩备用键，不再独占一行。
 
     if (showSpeechTarget)
         Column(modifier.fillMaxWidth()) {
             // 第6项: 子分组(categoryPath)编辑已统一由 BasicInfoEditScreen 的分组树选择器负责,
             // 此处不再重复提供子分组输入,避免同一编辑流程出现两个 categoryPath 编辑入口。
-
-            Row(
-                Modifier
-                    .align(Alignment.CenterHorizontally)
-                    .horizontalScroll(rememberScrollState())
-            ) {
-                Row(
-                    Modifier
-                        .minimumInteractiveComponentSize()
-                        .clip(MaterialTheme.shapes.medium)
-                        .clickable(role = Role.Checkbox) {
-                            onSysttsChange(
-                                systts.copy(
-                                    config = config.copy(
-                                        speechRule = config.speechRule.copy(isStandby = !config.speechRule.isStandby)
-                                    )
-                                )
-                            )
-                        },
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Checkbox(checked = config.speechRule.isStandby, onCheckedChange = null)
-                    Text(stringResource(id = R.string.as_standby))
-                    IconButton(onClick = { showStandbyHelpDialog = true }) {
-                        Icon(
-                            Icons.AutoMirrored.Filled.HelpOutline,
-                            stringResource(id = R.string.systts_as_standby_help)
-                        )
-                    }
-                }
-            }
 
             var showTagClearDialog by remember { mutableStateOf(false) }
             if (showTagClearDialog) {
