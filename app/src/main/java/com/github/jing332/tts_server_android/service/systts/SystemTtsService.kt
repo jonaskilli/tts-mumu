@@ -729,7 +729,7 @@ class SystemTtsService : TextToSpeechService(), IEventDispatcher {
         val paramsInfo = buildList {
             if (kotlin.math.abs(p.speed - 1f) > 0.005f) add("语速${p.speed.toParamText()}")
             if (kotlin.math.abs(p.volume - 1f) > 0.005f) add("音量${p.volume.toParamText()}")
-            if (kotlin.math.abs(p.pitch - 1f) > 0.005f) add("音调${p.pitch.toParamText()}")
+            if (kotlin.math.abs(p.pitch - 1f) > 0.005f) add("音高${p.pitch.toParamText()}")
         }.joinToString("，")
 
         // 声音配置信息/语速音量等为次级信息，用哨兵色标记，

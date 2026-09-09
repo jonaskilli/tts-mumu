@@ -54,7 +54,7 @@ fun PluginAudioParamsDialog(
                     step = 0.05f,
                     valueFormatter = { "%.2f".format(it) }
                 )
-                // 音调
+                // 音高
                 FloatSlider(
                     label = "音高",
                     value = pitch,

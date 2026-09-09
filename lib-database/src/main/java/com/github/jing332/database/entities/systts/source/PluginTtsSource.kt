@@ -14,7 +14,7 @@ data class PluginTtsSource(
     override val locale: String = "",
     override val voice: String = "",
     val pluginId: String = "",
-    // 仅界面模式：隐藏语音专属 chrome(语言/发音人/语速音量音调/试听)，
+    // 仅界面模式：隐藏语音专属 chrome(语言/发音人/语速音量音高/试听)，
     // 只显示插件 onLoadUI 自定义界面。用于非发音人的工具型插件。
     val isUiOnly: Boolean = false,
     val speed: Float = 1f,

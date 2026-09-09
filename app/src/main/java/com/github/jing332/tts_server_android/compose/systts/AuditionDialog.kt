@@ -173,7 +173,7 @@ fun AuditionDialog(
                         val paramsInfo = buildList {
                             if (kotlin.math.abs(p.speed - 1f) > 0.005f) add("语速${p.speed.toParamText()}")
                             if (kotlin.math.abs(p.volume - 1f) > 0.005f) add("音量${p.volume.toParamText()}")
-                            if (kotlin.math.abs(p.pitch - 1f) > 0.005f) add("音调${p.pitch.toParamText()}")
+                            if (kotlin.math.abs(p.pitch - 1f) > 0.005f) add("音高${p.pitch.toParamText()}")
                         }.joinToString("，")
                         info = context.getString(
                             R.string.systts_test_success_info, audio.size.toLong().sizeToReadable(),
