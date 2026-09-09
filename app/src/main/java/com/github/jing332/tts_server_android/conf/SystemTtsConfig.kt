@@ -249,4 +249,15 @@ object SystemTtsConfig {
         key = "isInnerThoughtAiEnabled",
         initialValue = false
     )
+
+    /**
+     * 日志栏是否显示 DEBUG(D) 级日志（用户 09-10 定稿）：默认**开启**——插件开发要用
+     * console.debug 调试；嫌吵的普通用户可在日志筛选里关掉，关后 D 级完全不进列表。
+     * 持久化保存，避免每次启动都要重关一次。
+     */
+    val isDebugLogEnabled = mutableDataSaverStateOf(
+        dataSaverInterface = dataSaverPref,
+        key = "isDebugLogEnabled",
+        initialValue = true
+    )
 }

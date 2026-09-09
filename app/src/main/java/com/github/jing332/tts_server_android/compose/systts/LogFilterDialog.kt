@@ -37,6 +37,8 @@ fun LogFilterDialog(
     onSpeechRuleLogsToggle: () -> Unit,
     autoScrollToBottom: Boolean,
     onAutoScrollToggle: () -> Unit,
+    showDebugLogs: Boolean,
+    onDebugLogsToggle: () -> Unit,
     onDismiss: () -> Unit
 ) {
     AlertDialog(
@@ -117,6 +119,25 @@ fun LogFilterDialog(
                         label = { Text("朗读规则日志") },
                         leadingIcon = {
                             if (showSpeechRuleLogs) {
+                                Icon(
+                                    imageVector = Icons.Default.Check,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(18.dp)
+                                )
+                            }
+                        },
+                        colors = FilterChipDefaults.filterChipColors(
+                            selectedContainerColor = MaterialTheme.colorScheme.tertiaryContainer
+                        )
+                    )
+
+                    // DEBUG 日志开关（默认开启，插件调试用；关后 D 级完全不进列表）
+                    FilterChip(
+                        selected = showDebugLogs,
+                        onClick = { onDebugLogsToggle() },
+                        label = { Text("DEBUG 日志") },
+                        leadingIcon = {
+                            if (showDebugLogs) {
                                 Icon(
                                     imageVector = Icons.Default.Check,
                                     contentDescription = null,

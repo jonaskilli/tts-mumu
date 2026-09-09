@@ -180,4 +180,11 @@ object SysTtsConfig {
         set(value) {
             SystemTtsConfig.timeoutWatchdogSeconds.value = value
         }
+
+    /** 日志栏是否显示 DEBUG 级（默认开，插件调试用；关后 D 级不进列表） */
+    var isDebugLogEnabled: Boolean
+        get() = SystemTtsConfig.isDebugLogEnabled.value
+        set(value) {
+            SystemTtsConfig.isDebugLogEnabled.value = value
+        }
 }

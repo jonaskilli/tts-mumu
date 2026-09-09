@@ -76,6 +76,10 @@ class TtsLogViewModel : ViewModel() {
     // 实时滚动开关 - 勾选后新日志自动滚动到底部（默认不勾选）
     val autoScrollToBottom = mutableStateOf(false)
 
+    // DEBUG(D) 级开关（用户 09-10 定稿）：**默认开启**——插件开发靠 console.debug 调试；
+    // 嫌吵的用户在筛选里关掉后 D 级完全不进列表。持久化到配置，避免每次启动重关。
+    val showDebugLogs = com.github.jing332.tts_server_android.conf.SystemTtsConfig.isDebugLogEnabled
+
     // 与系统日志同款时间戳格式：合并排序按字符串比较即可保持时序（等宽、字典序=时间序）
     private val auxTimeFormatter =
         java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss.SSS", java.util.Locale.US)
@@ -88,6 +92,11 @@ class TtsLogViewModel : ViewModel() {
             val showPlugin = showPluginLogs.value
             val showRule = showSpeechRuleLogs.value
             val levels = selectedLevels
+            // DEBUG 开关关闭时：不区分来源，主列表与插件/规则缓冲的 D 级一并隐藏
+            val showDebug = showDebugLogs.value
+            fun keep(e: LogEntry) =
+                (levels.isEmpty() || e.level in levels) && (showDebug || e.level != LogLevel.DEBUG)
+
             val pluginPart =
                 if (showPlugin) pluginLogs
                 else pluginLogs.filter { it.level == LogLevel.ERROR || it.level == LogLevel.WARN }
@@ -97,7 +106,7 @@ class TtsLogViewModel : ViewModel() {
 
             // 都不勾且无旁路条目：纯主列表直通，不建列表不排序
             if (pluginPart.isEmpty() && rulePart.isEmpty() && !showPlugin && !showRule)
-                return logs.filter { levels.isEmpty() || it.level in levels }
+                return logs.filter { keep(it) }
 
             val source = ArrayList<LogEntry>(logs.size + pluginPart.size + rulePart.size)
             source.addAll(logs)
@@ -105,7 +114,7 @@ class TtsLogViewModel : ViewModel() {
             source.addAll(rulePart)
             // 稳定排序：同毫秒内保持各缓冲内的到达顺序
             val merged = source.sortedBy { it.time }
-            return merged.filter { levels.isEmpty() || it.level in levels }
+            return merged.filter { keep(it) }
             // 注：搜索词不做过滤——搜索是定位(跳转+高亮)，由 TtsLogScreen/LogScreen 处理，
             // 保留完整列表便于查看匹配项的前后文
         }

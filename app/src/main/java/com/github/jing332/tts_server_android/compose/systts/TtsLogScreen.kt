@@ -393,6 +393,8 @@ internal fun TtsLogScreen(vm: TtsLogViewModel = viewModel()) {
             onSpeechRuleLogsToggle = { vm.showSpeechRuleLogs.value = !vm.showSpeechRuleLogs.value },
             autoScrollToBottom = vm.autoScrollToBottom.value,
             onAutoScrollToggle = { vm.autoScrollToBottom.value = !vm.autoScrollToBottom.value },
+            showDebugLogs = vm.showDebugLogs.value,
+            onDebugLogsToggle = { vm.showDebugLogs.value = !vm.showDebugLogs.value },
             onDismiss = { vm.showFilterDialog.value = false }
         )
     }
