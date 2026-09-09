@@ -31,13 +31,11 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
-import androidx.core.text.HtmlCompat
 import com.drake.net.utils.withIO
+import com.drake.net.utils.withMain
 import com.github.jing332.common.LogEntry
-import com.github.jing332.compose.ComposeExtensions.toAnnotatedString
 import com.github.jing332.compose.widgets.AppDialog
 import com.github.jing332.compose.widgets.AppSpinner
-import com.github.jing332.compose.widgets.LabelSlider
 import com.github.jing332.database.dbm
 import com.github.jing332.database.entities.systts.SystemTtsV2
 import com.github.jing332.database.entities.systts.TtsConfigurationDTO
@@ -48,6 +46,8 @@ import com.github.jing332.tts_server_android.R
 import com.github.jing332.tts_server_android.compose.SegmentedTextToggle
 import com.github.jing332.tts_server_android.compose.SharedViewModel
 import com.github.jing332.tts_server_android.compose.systts.list.ui.PluginDescriptor
+import com.github.jing332.tts_server_android.compose.systts.list.ui.widgets.AudioParamsDimensionSection
+import com.github.jing332.tts_server_android.conf.SysTtsConfig
 import com.github.jing332.tts_server_android.service.systts.SystemTtsService
 import com.github.jing332.tts_server_android.service.systts.help.CharacterRecordsFile
 import kotlinx.coroutines.launch
@@ -61,8 +61,10 @@ import kotlinx.coroutines.launch
  *   旁白模式=直接列旁白分类候选（标签是「旁白」的配置项，无下拉/搜索）；
  *   行内试听 ▶/…/■ 状态机参照角色管理v10；换声两段式：点行=暂存(●)，底部「确认」落库，
  *   旁白落库后主列表自动定位高亮被改项（sharedVM.pendingLocateConfigId）。
- *   [音频参数] 配置项音频参数（仅本条）/ 插件音频参数 / 全局音频参数，
- *   各自带重置/应用，应用即落库生效不关面板。
+ *   [音频参数]（09-10 按维度改版）：语速/音量/音高第二级分段，每维三层滑杆同屏，
+ *   重置/应用按维度一组（应用=该维三层一起落库，不关面板）；
+ *   参数跟随所选发音人（用户 09-10）：绑定模式=绑定(含暂存)标签的启用配置项，
+ *   旁白=暂存候选的配置项，无暂存=本配置项，目标切换时三层草稿整体重载。
  */
 @OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
 @Composable
@@ -112,42 +114,16 @@ fun LogQuickPanel(
     //（09-09 CI教训：content 槽内声明的局部状态对 buttons 槽不可见）
     var panelTab by remember(entity.id) { mutableStateOf(0) }
 
-    // 音频参数区内的层级分段（用户 09-10 反馈：三层全展开超出屏幕底部，重置/应用被裁）：
-    // 0=配置项 1=插件 2=全局，一次只显示一层
-    var paramLayer by remember(entity.id) { mutableStateOf(0) }
-
-    // ===== 本地编辑草稿：各块应用才落库 =====
+    // ===== 本地编辑草稿：各维度「应用」才落库 =====
     var displayName by remember(entity.id) { mutableStateOf(entity.displayName) }
     var voice by remember(entity.id) { mutableStateOf(source?.voice ?: "") }
     var speed by remember(entity.id) { mutableStateOf(config.audioParams.speed) }
     var volume by remember(entity.id) { mutableStateOf(config.audioParams.volume) }
+    var pitch by remember(entity.id) { mutableStateOf(config.audioParams.pitch) }
 
     // 换声两段式（用户 09-08）：点候选行=暂存选中（不落库），底部「确认」键才生效——
     // 即点即改的 Toast 反馈太弱且易误触；未确认选择在关闭面板时自然丢弃
     var pendingVoice by remember(entity.id) { mutableStateOf<String?>(null) }
-
-    // 旁白/非多角色换声：写配置项 voice（对话绑定模式走 CharacterRecordsFile.rebind，两分支各自处理）
-    fun applyVoice(selected: String) {
-        voice = selected
-        scope.launch {
-            withIO {
-                val sourceNow =
-                    (entity.config as? TtsConfigurationDTO)?.source as? PluginTtsSource
-                if (sourceNow != null) {
-                    val newConfig = config.copy(source = sourceNow.copy(voice = selected))
-                    dbm.systemTtsV2.update(entity.copy(config = newConfig))
-                    SystemTtsService.notifyUpdateConfig()
-                }
-            }
-            // 主界面定位（用户 09-09）：换完旁白发音人，主列表滚动到被改的配置项并短暂高亮
-            sharedVM.pendingLocateConfigId.value = entity.id
-            Toast.makeText(
-                context,
-                context.getString(R.string.log_panel_voice_applied),
-                Toast.LENGTH_SHORT,
-            ).show()
-        }
-    }
 
     // 绑定模式当前绑定（提升到分支外：底部确认行生效后要更新它）
     var boundVoice by remember(entity.id) {
@@ -158,32 +134,120 @@ fun LogQuickPanel(
         )
     }
 
-    // 插件元数据（轻量）：插件层草稿初值 + 终值路由判断用
+    // 全部配置项（换声候选 / 参数跟随目标查找共用）
+    val allConfigs = remember(entity.id) {
+        dbm.systemTtsV2.getAllGroupWithTts().flatMap { it.list }
+    }
+
+    /** 按标签查启用配置项（试听/当前发音人名/候选行displayName共用） */
+    fun enabledConfigEntityByTag(tag: String): SystemTtsV2? =
+        allConfigs.firstOrNull {
+            it.isEnabled &&
+                (it.config as? TtsConfigurationDTO)?.speechRule?.tag == tag
+        }
+
+    /** 按发音人ID查配置项（旁白暂存候选的参数跟随目标） */
+    fun narrationEntityByVoice(v: String): SystemTtsV2? =
+        allConfigs.firstOrNull {
+            ((it.config as? TtsConfigurationDTO)?.source as? PluginTtsSource)?.voice == v
+        }
+
+    // ===== 参数跟随目标（用户 09-10）：选择发音人后，音频参数区/终值/顶部试听全部
+    // 跟随所选发音人对应的配置项——绑定模式=绑定(含暂存)标签的启用配置项；
+    // 旁白=暂存候选的配置项；无暂存=本配置项。目标切换时三层草稿整体重载。=====
+    var paramsTarget by remember(entity.id) { mutableStateOf(entity) }
+
+    // 旁白/非多角色换声（对话绑定模式走 CharacterRecordsFile.rebind，两分支各自处理）：
+    // 09-10 起连同当前参数草稿（=跟随所选发音人得来的值）一并写入本配置项，
+    // 保证「确认」前后看到/听到的参数与实际生效一致
+    fun applyVoice(selected: String) {
+        voice = selected
+        val sourceNow = (entity.config as? TtsConfigurationDTO)?.source as? PluginTtsSource
+        val newConfig = sourceNow?.let { sn ->
+            config.copy(
+                source = sn.copy(voice = selected),
+                audioParams = config.audioParams.copy(
+                    speed = snapParam(speed), volume = snapParam(volume), pitch = snapParam(pitch),
+                ),
+            )
+        }
+        scope.launch {
+            if (newConfig != null) withIO {
+                dbm.systemTtsV2.update(entity.copy(config = newConfig))
+                SystemTtsService.notifyUpdateConfig()
+            }
+            // 参数跟随目标回到本配置项（已带新参数），后续调整继续作用于本条
+            if (newConfig != null) paramsTarget = entity.copy(config = newConfig)
+            // 主界面定位（用户 09-09）：换完旁白发音人，主列表滚动到被改的配置项并短暂高亮
+            sharedVM.pendingLocateConfigId.value = entity.id
+            Toast.makeText(
+                context,
+                context.getString(R.string.log_panel_voice_applied),
+                Toast.LENGTH_SHORT,
+            ).show()
+        }
+    }
+
+    // 插件元数据（轻量）：插件层草稿初值 + 终值路由判断用（随参数跟随目标走）
     var plugin by remember(entity.id) {
         mutableStateOf(source?.let { dbm.pluginDao.getMetaByPluginId(it.pluginId) })
     }
     var pluginSpeed by remember(entity.id) { mutableStateOf(1f) }
     var pluginVolume by remember(entity.id) { mutableStateOf(1f) }
+    var pluginPitch by remember(entity.id) { mutableStateOf(1f) }
     LaunchedEffectOnce(entity.id) {
         source?.let { s ->
             runCatching {
                 val loaded = dbm.pluginDao.getByPluginId(s.pluginId) ?: return@runCatching
-                com.drake.net.utils.withMain {
+                withMain {
                     plugin = loaded
                     pluginSpeed = snapParam(loaded.audioParams.speed)
                     pluginVolume = snapParam(loaded.audioParams.volume)
+                    pluginPitch = snapParam(loaded.audioParams.pitch)
                 }
             }
         }
     }
 
-    var globalSpeed by remember { mutableStateOf(com.github.jing332.tts_server_android.conf.SysTtsConfig.audioParamsSpeed) }
-    var globalVolume by remember { mutableStateOf(com.github.jing332.tts_server_android.conf.SysTtsConfig.audioParamsVolume) }
+    var globalSpeed by remember { mutableStateOf(SysTtsConfig.audioParamsSpeed) }
+    var globalVolume by remember { mutableStateOf(SysTtsConfig.audioParamsVolume) }
+    var globalPitch by remember { mutableStateOf(SysTtsConfig.audioParamsPitch) }
 
-    // 未保存标记：滑杆被改动后置 true，该块「应用」成功后清除（按钮高亮提示哪块有待保存）
-    var configDirty by remember(entity.id) { mutableStateOf(false) }
-    var pluginDirty by remember(entity.id) { mutableStateOf(false) }
-    var globalDirty by remember { mutableStateOf(false) }
+    // 按维度脏标记（09-10 ②A）：该维任一层滑杆改动置 true，应用成功清除（按钮 ● 提示）
+    var speedDirty by remember(entity.id) { mutableStateOf(false) }
+    var volumeDirty by remember(entity.id) { mutableStateOf(false) }
+    var pitchDirty by remember(entity.id) { mutableStateOf(false) }
+
+    // 暂存选择 → 参数跟随目标切换（含确认后/取消暂存的回退；初始运行顺带校正绑定模式目标）
+    androidx.compose.runtime.LaunchedEffect(pendingVoice) {
+        val pv = pendingVoice
+        val target = when {
+            isBindingMode -> enabledConfigEntityByTag(pv ?: boundVoice)
+            pv != null -> narrationEntityByVoice(pv)
+            else -> null
+        } ?: return@LaunchedEffect
+        if (target.id != paramsTarget.id) paramsTarget = target
+    }
+
+    // 目标切换：整体重载三层草稿（插件层随目标的插件走），脏标记复位
+    androidx.compose.runtime.LaunchedEffect(paramsTarget.id) {
+        if (paramsTarget.id == entity.id) return@LaunchedEffect
+        val dto = paramsTarget.config as? TtsConfigurationDTO ?: return@LaunchedEffect
+        val src = dto.source as? PluginTtsSource
+        val loaded = src?.let { runCatching { dbm.pluginDao.getByPluginId(it.pluginId) }.getOrNull() }
+        withMain {
+            speed = snapParam(dto.audioParams.speed)
+            volume = snapParam(dto.audioParams.volume)
+            pitch = snapParam(dto.audioParams.pitch)
+            plugin = loaded
+            pluginSpeed = snapParam(loaded?.audioParams?.speed ?: 1f)
+            pluginVolume = snapParam(loaded?.audioParams?.volume ?: 1f)
+            pluginPitch = snapParam(loaded?.audioParams?.pitch ?: 1f)
+            speedDirty = false
+            volumeDirty = false
+            pitchDirty = false
+        }
+    }
 
     /** 用当前草稿构造临时实体试听：未保存候选也先听，走统一试听链 */
     fun draftEntity(candidateVoice: String? = null): SystemTtsV2 {
@@ -192,40 +256,80 @@ fun LogQuickPanel(
         return entity.copy(
             displayName = renamed,
             config = config.copy(
-                audioParams = config.audioParams.copy(speed = speed, volume = volume),
+                audioParams = config.audioParams.copy(speed = speed, volume = volume, pitch = pitch),
                 source = source?.copy(voice = v) ?: config.source,
             ),
         )
     }
 
-    /** 配置层应用：只保存本块语速/音量（发音人独立即选即存，不在此处捎带），即时生效不关面板 */
-    fun applyConfigLayer() {
+    /** 参数跟随目标+当前草稿构造试听实体（绑定模式顶部试听用） */
+    fun draftParamsTarget(): SystemTtsV2 {
+        val dto = paramsTarget.config as? TtsConfigurationDTO ?: return paramsTarget
+        return paramsTarget.copy(
+            config = dto.copy(
+                audioParams = dto.audioParams.copy(
+                    speed = speed, volume = volume, pitch = pitch,
+                )
+            )
+        )
+    }
+
+    /** 维度应用（09-10 ②A）：该维三层一起落库——配置层写参数跟随目标，
+     *  插件层写其插件，全局层写系统配置；插件接管的维度只落配置层（插件/全局不参与叠加） */
+    fun applyDim(dim: Int) {
+        val targetDto = paramsTarget.config as? TtsConfigurationDTO ?: return
+        val targetSource = targetDto.source as? PluginTtsSource
+        val handlesDim = targetSource != null && when (dim) {
+            0 -> plugin?.pluginHandlesSpeed == true
+            1 -> plugin?.pluginHandlesVolume == true
+            else -> plugin?.pluginHandlesPitch == true
+        }
         scope.launch {
             withIO {
-                val newConfig = config.copy(
-                    audioParams = config.audioParams.copy(
-                        speed = snapParam(speed),
-                        volume = snapParam(volume),
-                    ),
+                val newConfig = targetDto.copy(
+                    audioParams = targetDto.audioParams.copy(
+                        speed = if (dim == 0) snapParam(speed) else targetDto.audioParams.speed,
+                        volume = if (dim == 1) snapParam(volume) else targetDto.audioParams.volume,
+                        pitch = if (dim == 2) snapParam(pitch) else targetDto.audioParams.pitch,
+                    )
                 )
-                dbm.systemTtsV2.update(entity.copy(config = newConfig))
+                dbm.systemTtsV2.update(paramsTarget.copy(config = newConfig))
+                if (!handlesDim) {
+                    if (targetSource != null) {
+                        dbm.pluginDao.getByPluginId(targetSource.pluginId)?.let { p ->
+                            dbm.pluginDao.update(
+                                p.copy(
+                                    audioParams = p.audioParams.copy(
+                                        speed = if (dim == 0) snapParam(pluginSpeed) else p.audioParams.speed,
+                                        volume = if (dim == 1) snapParam(pluginVolume) else p.audioParams.volume,
+                                        pitch = if (dim == 2) snapParam(pluginPitch) else p.audioParams.pitch,
+                                    )
+                                )
+                            )
+                            // 卡片"插件语速/音量"显示缓存失效
+                            PluginDescriptor.invalidatePluginParamsCache(p.pluginId)
+                        }
+                    }
+                    when (dim) {
+                        0 -> SysTtsConfig.audioParamsSpeed = snapParam(globalSpeed)
+                        1 -> SysTtsConfig.audioParamsVolume = snapParam(globalVolume)
+                        else -> SysTtsConfig.audioParamsPitch = snapParam(globalPitch)
+                    }
+                }
                 SystemTtsService.notifyUpdateConfig()
+            }
+            when (dim) {
+                0 -> speedDirty = false
+                1 -> volumeDirty = false
+                else -> pitchDirty = false
             }
             Toast.makeText(
                 context,
-                context.getString(R.string.audio_params_apply_config_toast),
+                context.getString(R.string.audio_params_apply_dim_toast),
                 Toast.LENGTH_SHORT,
             ).show()
         }
     }
-
-    /** 按标签查启用配置项（试听/当前发音人名/候选行displayName共用） */
-    fun enabledConfigEntityByTag(tag: String): SystemTtsV2? =
-        dbm.systemTtsV2.getAllGroupWithTts().flatMap { it.list }
-            .firstOrNull {
-                it.isEnabled &&
-                    (it.config as? TtsConfigurationDTO)?.speechRule?.tag == tag
-            }
 
     // 居中弹窗（用户 09-09：底部弹窗全面撤回，恢复 AppDialog 中弹窗形态；标题即面板名）
     AppDialog(
@@ -242,10 +346,18 @@ fun LogQuickPanel(
                     .verticalScroll(rememberScrollState())
             ) {
             // ===== 顶部块（用户 09-09 重排）：当前发音人 + 试听 + 终值 =====
-            val boundConfigName = remember(entity.id, boundVoice) {
-                if (isBindingMode) enabledConfigEntityByTag(boundVoice)?.displayName ?: boundVoice else ""
+            // 发音人名跟随暂存选择（09-10 参数跟随）：暂存了候选就先显示候选对应的配置项名
+            val boundConfigName = remember(entity.id, boundVoice, pendingVoice) {
+                if (isBindingMode) {
+                    val tag = pendingVoice ?: boundVoice
+                    enabledConfigEntityByTag(tag)?.displayName ?: tag
+                } else ""
             }
-            val currentVoiceName = if (isBindingMode) boundConfigName else entity.displayName
+            val pendingName = pendingVoice
+                ?.takeIf { !isBindingMode }
+                ?.let { narrationEntityByVoice(it)?.displayName }
+            val currentVoiceName = if (isBindingMode) boundConfigName
+            else pendingName ?: entity.displayName
             Row(
                 Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically,
@@ -263,8 +375,8 @@ fun LogQuickPanel(
                     )
                 }
                 TextButton(onClick = {
-                    // 试听当前声音：绑定模式=当前绑定标签对应启用配置；旁白=本配置项（含草稿语速音量）；
-                    // 播放中/合成中再点=停止复位（角色管理同款交互）
+                    // 试听当前声音（09-10 参数跟随）：绑定模式=跟随目标+草稿；
+                    // 旁白=本配置项+暂存voice+草稿；播放中/合成中再点=停止复位（角色管理同款交互）
                     if (previewingKey == PREVIEW_KEY_CURRENT && previewState != PreviewState.IDLE) {
                         TaggedTtsPreviewPlayer.stop()
                         previewingKey = null
@@ -272,9 +384,8 @@ fun LogQuickPanel(
                     }
                     previewingKey = PREVIEW_KEY_CURRENT
                     scope.launch {
-                        val target = if (isBindingMode) withIO { enabledConfigEntityByTag(boundVoice) }
-                        else null
-                        TaggedTtsPreviewPlayer.play(context, target ?: draftEntity(), "你好，这是试听语音。")
+                        val target = if (isBindingMode) draftParamsTarget() else null
+                        TaggedTtsPreviewPlayer.play(context, target ?: draftEntity(pendingVoice), "你好，这是试听语音。")
                     }
                 }) {
                     Text(
@@ -285,15 +396,13 @@ fun LogQuickPanel(
             }
 
             // ===== 终值（播放链同源三层乘积；值为 1.0 的维度不显示）=====
-            // 最终值恒为 配置×插件×全局（弹窗有无音高滑杆不影响计算）
+            // 最终值恒为 配置×插件×全局（三层草稿实时跟随；音高 09-10 起同规格走草稿）
             val handlesSpeed = plugin?.pluginHandlesSpeed == true
             val handlesVolume = plugin?.pluginHandlesVolume == true
             val handlesPitch = plugin?.pluginHandlesPitch == true
             val finalSpeed = if (handlesSpeed) speed else speed * pluginSpeed * globalSpeed
             val finalVolume = if (handlesVolume) volume else volume * pluginVolume * globalVolume
-            val finalPitch = if (handlesPitch) config.audioParams.pitch
-            else config.audioParams.pitch * (plugin?.audioParams?.pitch ?: 1f) *
-                com.github.jing332.tts_server_android.conf.SysTtsConfig.audioParamsPitch
+            val finalPitch = if (handlesPitch) pitch else pitch * pluginPitch * globalPitch
             val finalDims = buildList {
                 if (kotlin.math.abs(finalSpeed - 1f) > 0.005f) add("语速%.2fx".format(finalSpeed))
                 if (kotlin.math.abs(finalVolume - 1f) > 0.005f) add("音量%.2fx".format(finalVolume))
@@ -481,9 +590,6 @@ fun LogQuickPanel(
                     // 旁白分类只认标签本身是「旁白」的配置项（用户 09-09：标签是旁白才是旁白分类），
                     // 不按名字前缀归桶；点行=暂存选中，底部「确认」写本配置项 voice，
                     // 落库后主列表自动定位高亮被改项（sharedVM.pendingLocateConfigId）
-                    val allConfigs = remember(entity.id) {
-                        dbm.systemTtsV2.getAllGroupWithTts().flatMap { it.list }
-                    }
                     val narrationCandidates = remember(entity.id) {
                         allConfigs.mapNotNull { c ->
                             val dto = c.config as? TtsConfigurationDTO ?: return@mapNotNull null
@@ -562,215 +668,48 @@ fun LogQuickPanel(
                 }
             }
 
-            // ===== 音频参数大区（分段第二区；内部三块以分隔线区分）=====
+            // ===== 音频参数大区（分段第二区；用户 09-10 改按维度：一次调一个维度的三层）=====
             if (panelTab == 1) {
-            // 水平再让 4dp（叠加弹窗自带 12dp）：滑条 −/+ 贴边太挤（用户 09-09，与音频参数弹窗同款）；
-            // 底部无按钮行，补 4dp 底边距与左右一致收尾
-            Column(
-                Modifier
-                    .padding(horizontal = 4.dp)
-                    .padding(bottom = 4.dp)
-            ) {
-            HorizontalDivider(Modifier.padding(vertical = 4.dp))
-            // ===== 层级分段（用户 09-10 反馈：三层全展开超出屏幕底部，重置/应用两行被裁）：
-            // 一次只显示一层，整块收进屏幕；无插件源时只有 配置项/全局 两项 =====
-            val hasPluginLayer = source != null
-            SegmentedTextToggle(
-                options = if (hasPluginLayer) listOf("配置项", "插件", "全局")
-                else listOf("配置项", "全局"),
-                selectedIndex = when {
-                    hasPluginLayer -> paramLayer
-                    paramLayer == 2 -> 1
-                    else -> 0
-                },
-                onSelect = { idx ->
-                    paramLayer = if (hasPluginLayer) idx else if (idx == 1) 2 else 0
-                },
-                modifier = Modifier.align(Alignment.CenterHorizontally),
-            )
-
-            // ===== 三层现值总览（用户 09-10 提案）：配置项卡片参数行同款格式——
-            // 维度固定顺序 配置→插件→全局，≠1.0 的层值 ×连接带小号层标，全 1.0 维度省略，
-            // 三维全默认显示「无设置」；分段一次只显示一层，靠这行总览三层现值，
-            // 滑动/应用后实时跟随草稿更新（音高无滑杆，照卡片口径列现值）=====
-            val tagCfg = stringResource(R.string.audio_params_tag_config)
-            val tagPlugin = stringResource(R.string.audio_params_tag_plugin)
-            val tagGlobal = stringResource(R.string.audio_params_tag_global)
-            fun dimSummary(label: String, c: Float, p: Float, g: Float): String? {
-                if (kotlin.math.abs(c - 1f) <= 0.005f && kotlin.math.abs(p - 1f) <= 0.005f
-                    && kotlin.math.abs(g - 1f) <= 0.005f
-                ) return null
-                val parts = buildList {
-                    if (kotlin.math.abs(c - 1f) > 0.005f) add("%.2f".format(c) + "<small>($tagCfg)</small>")
-                    if (plugin != null && kotlin.math.abs(p - 1f) > 0.005f)
-                        add("%.2f".format(p) + "<small>($tagPlugin)</small>")
-                    if (kotlin.math.abs(g - 1f) > 0.005f) add("%.2f".format(g) + "<small>($tagGlobal)</small>")
-                }
-                return "$label: " + parts.joinToString("×")
-            }
-            val pluginPitchVal = plugin?.audioParams?.pitch ?: 1f
-            val globalPitchVal = com.github.jing332.tts_server_android.conf.SysTtsConfig.audioParamsPitch
-            val summaryLine = listOfNotNull(
-                dimSummary("语速", speed, pluginSpeed, globalSpeed),
-                dimSummary("音量", volume, pluginVolume, globalVolume),
-                dimSummary("音高", config.audioParams.pitch, pluginPitchVal, globalPitchVal),
-            ).joinToString(" | ")
-            val summaryDisplay = if (summaryLine.isEmpty())
-                stringResource(R.string.audio_params_none) else summaryLine
-            Text(
-                text = HtmlCompat.fromHtml(summaryDisplay, HtmlCompat.FROM_HTML_MODE_COMPACT)
-                    .toAnnotatedString(),
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(top = 6.dp),
-            )
-
-            if (paramLayer == 0) {
-            // ===== 配置项音频参数（仅本条）=====
-            Text(
-                stringResource(R.string.audio_params_config_layer),
-                style = MaterialTheme.typography.titleSmall,
-                modifier = Modifier.padding(bottom = 4.dp),
-            )
-            LabelSlider(
-                modifier = Modifier.fillMaxWidth(),
-                text = stringResource(R.string.label_speech_rate, "%.2f".format(speed)),
-                value = speed,
-                onValueChange = { speed = it; configDirty = true },
-                valueRange = 0.1f..3f,
-                step = 0.05f,
-            )
-            LabelSlider(
-                modifier = Modifier.fillMaxWidth(),
-                text = stringResource(R.string.label_speech_volume, "%.2f".format(volume)),
-                value = volume,
-                onValueChange = { volume = it; configDirty = true },
-                valueRange = 0.1f..3f,
-                step = 0.05f,
-            )
-            Row(
-                Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.End,
-            ) {
-                TextButton(onClick = { speed = 1f; volume = 1f }) {
-                    Text(stringResource(R.string.reset))
-                }
-                TextButton(onClick = { applyConfigLayer(); configDirty = false }) {
-                    Text((if (configDirty) "● " else "") + stringResource(R.string.audio_params_apply))
-                }
-            }
-            } // paramLayer == 0（配置项层）
-            if (paramLayer == 1 && source != null) {
-            // ===== 插件音频参数（影响该插件全部配置项）=====
-                Text(
-                    stringResource(R.string.audio_params_plugin_layer),
-                    style = MaterialTheme.typography.titleSmall,
-                    modifier = Modifier.padding(bottom = 4.dp),
-                )
-                LabelSlider(
-                    modifier = Modifier.fillMaxWidth(),
-                    text = stringResource(R.string.label_speech_rate, "%.2f".format(pluginSpeed)),
-                    value = pluginSpeed,
-                    onValueChange = { pluginSpeed = it; pluginDirty = true },
-                    valueRange = 0.1f..3f,
-                    step = 0.05f,
-                )
-                LabelSlider(
-                    modifier = Modifier.fillMaxWidth(),
-                    text = stringResource(R.string.label_speech_volume, "%.2f".format(pluginVolume)),
-                    value = pluginVolume,
-                    onValueChange = { pluginVolume = it; pluginDirty = true },
-                    valueRange = 0.1f..3f,
-                    step = 0.05f,
-                )
-                Row(
-                    Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.End,
+                // 水平再让 4dp（叠加弹窗自带 12dp）：滑条 −/+ 贴边太挤（用户 09-09，与音频参数弹窗同款）；
+                // 底部无按钮行，补 4dp 底边距与左右一致收尾
+                Column(
+                    Modifier
+                        .padding(horizontal = 4.dp)
+                        .padding(bottom = 4.dp)
                 ) {
-                    TextButton(onClick = { pluginSpeed = 1f; pluginVolume = 1f }) {
-                        Text(stringResource(R.string.reset))
-                    }
-                    TextButton(onClick = {
-                        val p = plugin ?: return@TextButton
-                        scope.launch {
-                            withIO {
-                                dbm.pluginDao.update(
-                                    p.copy(
-                                        audioParams = p.audioParams.copy(
-                                            speed = snapParam(pluginSpeed),
-                                            volume = snapParam(pluginVolume),
-                                        )
-                                    )
-                                )
-                                // 卡片"插件语速/音量"显示缓存失效
-                                PluginDescriptor.invalidatePluginParamsCache(p.pluginId)
-                                SystemTtsService.notifyUpdateConfig()
+                    HorizontalDivider(Modifier.padding(vertical = 4.dp))
+                    // 三层现值总览行已撤（用户 09-10 ④）：顶部终值行足够，每维三层滑杆同屏可见；
+                    // 按维度分段（语速/音量/音高，共用组件），滑杆层标签=配置/插件/全局，
+                    // 插件接管的维度自动隐藏插件/全局滑杆换说明行（09-10 ③）
+                    val targetDto = paramsTarget.config as? TtsConfigurationDTO
+                    val hasPluginLayer = (targetDto?.source as? PluginTtsSource) != null
+                    AudioParamsDimensionSection(
+                        hasPluginLayer = hasPluginLayer,
+                        handlesSpeed = hasPluginLayer && plugin?.pluginHandlesSpeed == true,
+                        handlesVolume = hasPluginLayer && plugin?.pluginHandlesVolume == true,
+                        handlesPitch = hasPluginLayer && plugin?.pluginHandlesPitch == true,
+                        cfgSpeed = speed, onCfgSpeed = { speed = it; speedDirty = true },
+                        cfgVolume = volume, onCfgVolume = { volume = it; volumeDirty = true },
+                        cfgPitch = pitch, onCfgPitch = { pitch = it; pitchDirty = true },
+                        pluginSpeed = pluginSpeed, onPluginSpeed = { pluginSpeed = it; speedDirty = true },
+                        pluginVolume = pluginVolume, onPluginVolume = { pluginVolume = it; volumeDirty = true },
+                        pluginPitch = pluginPitch, onPluginPitch = { pluginPitch = it; pitchDirty = true },
+                        globalSpeed = globalSpeed, onGlobalSpeed = { globalSpeed = it; speedDirty = true },
+                        globalVolume = globalVolume, onGlobalVolume = { globalVolume = it; volumeDirty = true },
+                        globalPitch = globalPitch, onGlobalPitch = { globalPitch = it; pitchDirty = true },
+                        isDirty = { when (it) { 0 -> speedDirty; 1 -> volumeDirty; else -> pitchDirty } },
+                        onResetDim = { dim ->
+                            when (dim) {
+                                0 -> { speed = 1f; pluginSpeed = 1f; globalSpeed = 1f }
+                                1 -> { volume = 1f; pluginVolume = 1f; globalVolume = 1f }
+                                else -> { pitch = 1f; pluginPitch = 1f; globalPitch = 1f }
                             }
-                            pluginDirty = false
-                            Toast.makeText(
-                                context,
-                                context.getString(R.string.audio_params_apply_plugin_toast),
-                                Toast.LENGTH_SHORT,
-                            ).show()
-                        }
-                    }) {
-                        Text((if (pluginDirty) "● " else "") + stringResource(R.string.audio_params_apply))
-                    }
+                        },
+                        onApplyDim = { applyDim(it) },
+                    )
                 }
             }
-            } // paramLayer == 1（插件层）
-            if (paramLayer == 2) {
-            // ===== 全局音频参数（影响全部配置项·谨慎）=====
-            Text(
-                stringResource(R.string.audio_params_global_layer),
-                style = MaterialTheme.typography.titleSmall,
-                modifier = Modifier.padding(bottom = 4.dp),
-            )
-            LabelSlider(
-                modifier = Modifier.fillMaxWidth(),
-                text = stringResource(R.string.label_speech_rate, "%.2f".format(globalSpeed)),
-                value = globalSpeed,
-                onValueChange = { globalSpeed = it; globalDirty = true },
-                valueRange = 0.1f..3f,
-                step = 0.05f,
-            )
-            LabelSlider(
-                modifier = Modifier.fillMaxWidth(),
-                text = stringResource(R.string.label_speech_volume, "%.2f".format(globalVolume)),
-                value = globalVolume,
-                onValueChange = { globalVolume = it; globalDirty = true },
-                valueRange = 0.1f..3f,
-                step = 0.05f,
-            )
-            Row(
-                Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.End,
-            ) {
-                TextButton(onClick = { globalSpeed = 1f; globalVolume = 1f }) {
-                    Text(stringResource(R.string.reset))
-                }
-                TextButton(onClick = {
-                    scope.launch {
-                        com.github.jing332.tts_server_android.conf.SysTtsConfig.audioParamsSpeed =
-                            snapParam(globalSpeed)
-                        com.github.jing332.tts_server_android.conf.SysTtsConfig.audioParamsVolume =
-                            snapParam(globalVolume)
-                        SystemTtsService.notifyUpdateConfig()
-                        globalDirty = false
-                        Toast.makeText(
-                            context,
-                            context.getString(R.string.audio_params_apply_global_toast),
-                            Toast.LENGTH_SHORT,
-                        ).show()
-                    }
-                }) {
-                    Text((if (globalDirty) "● " else "") + stringResource(R.string.audio_params_apply))
-                }
-            }
-            } // paramLayer == 2（全局层）
-            } // Column（水平边距）
-            } // panelTab == 1（音频参数区）
-            }
+            } // 外层内容 Column 收尾
         },
         buttons = {
             // 底部操作行仅更换发音人区显示（用户 09-09：音频参数区各块自带重置/应用，
