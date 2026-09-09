@@ -41,10 +41,9 @@ class PluginDescriptor(
     override val name: String = systemTts.displayName
 
     // 卡片行2：voice id（限一行，超20字符截断防换行，用户定稿）；行3=参数行（bodyMedium 同字号）。
-    // 参数行规律(用户定稿 09-07 晚)：维度内固定顺序(配置→插件→全局)，×连接，值=1.0 省略，
-    // ≠1.0 带 (配置)/(插件)/(全局) 层标；三维全 1.0 时显示「无设置」占位行。
-    // 纯文本无加粗无着色（用户 09-07：数值也不加粗）；层标用 <small> 缩小一号（09-08 用户定稿，
-    // HtmlText 渲染链支持 RelativeSizeSpan，与 span 颜色发蓝问题无关）
+    // 参数行规律（用户 09-10 拍板，退回 09-07 之前的格式）：三维始终全显，数字 <b> 加粗与
+    // 标签同字号，管道 | 分隔，1 位小数；无「无设置」占位行；层标后缀彻底消失。
+    // 终值=配置×插件×全局（pluginHandles 路由只在弹窗 applyDim 生效，卡片只展示已知层）。
     override val desc: String
         get() {
             val p = cfg.audioParams
@@ -62,40 +61,16 @@ class PluginDescriptor(
             val pluginPitch = pluginParams?.pitch ?: 1f
             val globalSpeed = com.github.jing332.tts_server_android.conf.SysTtsConfig.audioParamsSpeed
             val globalVolume = com.github.jing332.tts_server_android.conf.SysTtsConfig.audioParamsVolume
+            val globalPitch = com.github.jing332.tts_server_android.conf.SysTtsConfig.audioParamsPitch
 
-            fun dimensionText(configVal: Float, pluginVal: Float, globalVal: Float): String? {
-                // 该维度全部=1.0 时省略不显示
-                if (kotlin.math.abs(configVal - 1f) <= 0.005f &&
-                    kotlin.math.abs(pluginVal - 1f) <= 0.005f &&
-                    kotlin.math.abs(globalVal - 1f) <= 0.005f
-                ) return null
-                val layerConfig = context.getString(R.string.audio_params_tag_config)
-                val layerPlugin = context.getString(R.string.audio_params_tag_plugin)
-                val layerGlobal = context.getString(R.string.audio_params_tag_global)
-                val parts = buildList {
-                    if (kotlin.math.abs(configVal - 1f) > 0.005f)
-                        add("${configVal.toScale(2)}<small>($layerConfig)</small>")
-                    if (pluginParams != null && kotlin.math.abs(pluginVal - 1f) > 0.005f)
-                        add("${pluginVal.toScale(2)}<small>($layerPlugin)</small>")
-                    if (kotlin.math.abs(globalVal - 1f) > 0.005f)
-                        add("${globalVal.toScale(2)}<small>($layerGlobal)</small>")
-                }
-                return parts.joinToString("×")
-            }
-
-            val speedText = dimensionText(p.speed, pluginSpeed, globalSpeed)
-            val volumeText = dimensionText(p.volume, pluginVolume, globalVolume)
-            val pitchText = dimensionText(p.pitch, pluginPitch, 1f)
-
-            val paramsLine = if (speedText == null && volumeText == null && pitchText == null) {
-                context.getString(R.string.audio_params_none)
-            } else {
-                listOfNotNull(
-                    speedText?.let { "语速: $it" },
-                    volumeText?.let { "音量: $it" },
-                    pitchText?.let { "音高: $it" },
-                ).joinToString(" | ")
-            }
+            // 三维恒显+加粗+同字号+管道分隔+1 位小数（退回 09-07 之前的卡片格式）；
+            // 后缀格式 `语速/音量/音高: 值` 由 HtmlCompat + <b> 渲染（SpanStyle.Bold），
+            // 字号与标签一致（无 <small>），与配置项编辑页参数行口径统一
+            val paramsLine = "语速:<b>%.1f</b> | 音量:<b>%.1f</b> | 音高:<b>%.1f</b>".format(
+                p.speed * pluginSpeed * globalSpeed,
+                p.volume * pluginVolume * globalVolume,
+                p.pitch * pluginPitch * globalPitch,
+            )
 
             return source.voice.limitLength(20, "…") + "<br>$paramsLine"
         }

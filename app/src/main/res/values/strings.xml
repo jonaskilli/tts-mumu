@@ -407,9 +407,9 @@
     <string name="audio_params_plugin_layer">插件音频参数（影响该插件全部配置项）</string>
     <string name="audio_params_global_layer">全局音频参数（影响全部配置项·谨慎）</string>
     <string name="audio_params_final">最终：语速%1$.2fx，音量%2$.2fx，音高%3$.2fx</string>
-    <string name="audio_params_card_hint">点击调整：配置项 / 插件 / 全局 三处音频参数</string>
+    <string name="audio_params_card_hint">点击调整：发音人 / 插件 / 全局 三处音频参数</string>
     <string name="audio_params_none">语速、音量、音高未设置</string>
-    <string name="audio_params_tag_config">配置</string>
+    <string name="audio_params_tag_config">发音人</string>
     <string name="audio_params_tag_plugin">插件</string>
     <string name="audio_params_tag_global">全局</string>
     <string name="audio_params_plugin_speed">插件语速%1$s</string>
@@ -482,7 +482,7 @@
     <string name="audio_params_apply">应用</string>
     <string name="audio_params_apply_plugin_toast">已应用，影响该插件全部配置项</string>
     <string name="audio_params_apply_global_toast">已应用，影响全部配置项</string>
-    <string name="audio_params_apply_config_toast">已应用，仅影响本配置项</string>
+    <string name="audio_params_apply_config_toast">已应用，仅影响该发音人</string>
     <string name="audio_params_apply_dim_toast">已应用（该维度三层已保存）</string>
     <string name="log_panel_title">发音人调整</string>
     <string name="log_panel_voice_applied">发音人已更换并保存</string>
