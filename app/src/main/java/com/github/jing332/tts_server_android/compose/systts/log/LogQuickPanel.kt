@@ -110,6 +110,10 @@ fun LogQuickPanel(
     //（09-09 CI教训：content 槽内声明的局部状态对 buttons 槽不可见）
     var panelTab by remember(entity.id) { mutableStateOf(0) }
 
+    // 音频参数区内的层级分段（用户 09-10 反馈：三层全展开超出屏幕底部，重置/应用被裁）：
+    // 0=配置项 1=插件 2=全局，一次只显示一层
+    var paramLayer by remember(entity.id) { mutableStateOf(0) }
+
     // ===== 本地编辑草稿：各块应用才落库 =====
     var displayName by remember(entity.id) { mutableStateOf(entity.displayName) }
     var voice by remember(entity.id) { mutableStateOf(source?.voice ?: "") }
@@ -229,7 +233,9 @@ fun LogQuickPanel(
             Column(
                 Modifier
                     .fillMaxWidth()
-                    .heightIn(max = 600.dp)
+                    // 上限跟随屏幕（85%）：固定 600dp 在矮屏上会把弹窗顶出屏幕外（用户 09-10 截图），
+                    // 内容超出上限时由 verticalScroll 接管
+                    .heightIn(max = (androidx.compose.ui.platform.LocalConfiguration.current.screenHeightDp * 0.85f).dp)
                     // 内容整体可滚：候选列表自带内滚，内层优先消费手势，到边缘后外层接管，不冲突
                     .verticalScroll(rememberScrollState())
             ) {
@@ -564,6 +570,23 @@ fun LogQuickPanel(
                     .padding(bottom = 4.dp)
             ) {
             HorizontalDivider(Modifier.padding(vertical = 4.dp))
+            // ===== 层级分段（用户 09-10 反馈：三层全展开超出屏幕底部，重置/应用两行被裁）：
+            // 一次只显示一层，整块收进屏幕；无插件源时只有 配置项/全局 两项 =====
+            val hasPluginLayer = source != null
+            SegmentedTextToggle(
+                options = if (hasPluginLayer) listOf("配置项", "插件", "全局")
+                else listOf("配置项", "全局"),
+                selectedIndex = when {
+                    hasPluginLayer -> paramLayer
+                    paramLayer == 2 -> 1
+                    else -> 0
+                },
+                onSelect = { idx ->
+                    paramLayer = if (hasPluginLayer) idx else if (idx == 1) 2 else 0
+                },
+                modifier = Modifier.align(Alignment.CenterHorizontally),
+            )
+            if (paramLayer == 0) {
             // ===== 配置项音频参数（仅本条）=====
             Text(
                 stringResource(R.string.audio_params_config_layer),
@@ -597,10 +620,9 @@ fun LogQuickPanel(
                     Text((if (configDirty) "● " else "") + stringResource(R.string.audio_params_apply))
                 }
             }
-
+            } // paramLayer == 0（配置项层）
+            if (paramLayer == 1 && source != null) {
             // ===== 插件音频参数（影响该插件全部配置项）=====
-            HorizontalDivider(Modifier.padding(vertical = 4.dp))
-            if (source != null) {
                 Text(
                     stringResource(R.string.audio_params_plugin_layer),
                     style = MaterialTheme.typography.titleSmall,
@@ -657,9 +679,9 @@ fun LogQuickPanel(
                     }
                 }
             }
-
+            } // paramLayer == 1（插件层）
+            if (paramLayer == 2) {
             // ===== 全局音频参数（影响全部配置项·谨慎）=====
-            HorizontalDivider(Modifier.padding(vertical = 4.dp))
             Text(
                 stringResource(R.string.audio_params_global_layer),
                 style = MaterialTheme.typography.titleSmall,
@@ -706,6 +728,7 @@ fun LogQuickPanel(
                     Text((if (globalDirty) "● " else "") + stringResource(R.string.audio_params_apply))
                 }
             }
+            } // paramLayer == 2（全局层）
             } // Column（水平边距）
             } // panelTab == 1（音频参数区）
             }
