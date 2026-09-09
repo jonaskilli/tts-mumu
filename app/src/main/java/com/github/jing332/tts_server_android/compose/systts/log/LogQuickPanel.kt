@@ -213,19 +213,13 @@ fun LogQuickPanel(
         }
     }
 
-    /** 按标签查启用配置项（试听/当前发音人名共用） */
+    /** 按标签查启用配置项（试听/当前发音人名/候选行displayName共用） */
     fun enabledConfigEntityByTag(tag: String): SystemTtsV2? =
         dbm.systemTtsV2.getAllGroupWithTts().flatMap { it.list }
             .firstOrNull {
                 it.isEnabled &&
                     (it.config as? TtsConfigurationDTO)?.speechRule?.tag == tag
             }
-
-    /** 按 tag 查任意配置项（不限 isEnabled），仅用于候选行取 displayName 拼接显示——
-     * 候选标签池含未启用项的 tag，enabled 查询会返回 null 拿不到 displayName */
-    fun configEntityByTag(tag: String): SystemTtsV2? =
-        dbm.systemTtsV2.getAllGroupWithTts().flatMap { it.list }
-            .firstOrNull { (it.config as? TtsConfigurationDTO)?.speechRule?.tag == tag }
 
     // 居中弹窗（用户 09-09：底部弹窗全面撤回，恢复 AppDialog 中弹窗形态；标题即面板名）
     AppDialog(
@@ -418,9 +412,9 @@ fun LogQuickPanel(
                         displayTags.forEach { tag ->
                             val isCurrent = tag == boundVoice
                             val isPending = tag == pendingVoice
-                            // 候选行显示「标签名+配置项名」（用户 09-09：原 displayName·tag 反过来去点，
-                            // 不限 isEnabled 查配置项名——候选含未启用项的 tag）
-                            val cfgName = configEntityByTag(tag)?.displayName.orEmpty()
+                            // 候选行显示「标签名+配置项名」（用户 09-09：原 displayName·tag 反过来去点）
+                            // 候选池已筛 fayinren.json∩启用配置，用 enabledConfigEntityByTag 即可取到 displayName
+                            val cfgName = enabledConfigEntityByTag(tag)?.displayName.orEmpty()
                             val displayText = tag + cfgName
                             Row(
                                 Modifier
