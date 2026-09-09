@@ -55,7 +55,7 @@ fun AudioParamsDimensionSection(
     val tagCfg = stringResource(R.string.audio_params_tag_config)
     val tagPlugin = stringResource(R.string.audio_params_tag_plugin)
     val tagGlobal = stringResource(R.string.audio_params_tag_global)
-    val dimNames = listOf("语速", "音量", "音高")
+    val dimNames = audioParamsDimNames
 
     // 该维三层滑杆 + 重置/应用（两种形态共用）
     val DimContent: @Composable (Int) -> Unit = { dim ->
@@ -130,9 +130,12 @@ fun AudioParamsDimensionSection(
     }
 }
 
+/** 维度名（0=语速 1=音量 2=音高），编辑页三键直出 chips 与单维弹窗标题共用（用户 09-10 定稿） */
+internal val audioParamsDimNames = listOf("语速", "音量", "音高")
+
 /** 层滑杆：标签=层名（配置/插件/全局），维度已由分段表达，滑杆只标层与当前值 */
 @Composable
-private fun LayerSlider(label: String, value: Float, onValueChange: (Float) -> Unit) {
+internal fun LayerSlider(label: String, value: Float, onValueChange: (Float) -> Unit) {
     LabelSlider(
         modifier = Modifier.fillMaxWidth(),
         text = "$label：%.2f".format(value),

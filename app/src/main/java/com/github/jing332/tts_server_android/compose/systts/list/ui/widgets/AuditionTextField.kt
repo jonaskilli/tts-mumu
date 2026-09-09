@@ -1,9 +1,7 @@
 package com.github.jing332.tts_server_android.compose.systts.list.ui.widgets
 
-import androidx.compose.foundation.layout.Row
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Headset
-import androidx.compose.material.icons.filled.Speed
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.OutlinedTextField
@@ -17,18 +15,16 @@ import com.github.jing332.tts_server_android.R
 import com.github.jing332.tts_server_android.conf.AppConfig
 
 /**
- * 试听文本输入行：🎧=用这句文本试听，⚡=打开三层音频参数弹窗。
+ * 试听文本输入行：🎧=用这句文本试听。
  *
- * 两者同框（用户 09-10 定稿）：调参与试听在同一行形成闭环——改文本→调参数→立刻用这句听，
- * 取代原先挂在朗读标签卡顶部、离试听两 cards 远的独立「音频参数」按钮。
- *
- * @param onAudioParams 传 null 则不显示参数入口（调用方无三层参数可调时）
+ * ⚡音频参数入口已删（用户 09-10 三键直出定稿）：音频参数键改为直接列在试听文本下方
+ * （[AudioParamsDimChipsRow]，点语速/音量/音高开单维弹窗 [AudioParamsDimDialog]），
+ * 不再需要行内入口。
  */
 @Composable
 fun AuditionTextField(
     modifier: Modifier,
     onAudition: (String) -> Unit,
-    onAudioParams: (() -> Unit)? = null,
 ) {
     var text by remember { AppConfig.testSampleText }
     OutlinedTextField(
@@ -37,14 +33,8 @@ fun AuditionTextField(
         value = text,
         onValueChange = { text = it },
         trailingIcon = {
-            Row {
-                IconButton(onClick = { onAudition(text) }) {
-                    Icon(Icons.Default.Headset, stringResource(id = R.string.audition))
-                }
-                if (onAudioParams != null)
-                    IconButton(onClick = onAudioParams) {
-                        Icon(Icons.Default.Speed, stringResource(id = R.string.audio_params))
-                    }
+            IconButton(onClick = { onAudition(text) }) {
+                Icon(Icons.Default.Headset, stringResource(id = R.string.audition))
             }
         }
     )

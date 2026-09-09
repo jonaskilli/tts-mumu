@@ -51,6 +51,7 @@ import com.github.jing332.tts_server_android.R
 import com.github.jing332.tts_server_android.compose.systts.AuditionDialog
 import com.github.jing332.tts_server_android.constant.SpeechTarget
 import com.github.jing332.tts_server_android.compose.systts.list.ui.widgets.AuditionTextField
+import com.github.jing332.tts_server_android.compose.systts.list.ui.widgets.AudioParamsDimChipsRow
 import com.github.jing332.tts_server_android.compose.systts.list.ui.widgets.BasicInfoEditScreen
 import com.github.jing332.tts_server_android.compose.systts.list.ui.widgets.SaveActionHandler
 import com.github.jing332.tts_server_android.compose.systts.list.ui.widgets.SectionCard
@@ -263,21 +264,23 @@ class LocalTtsUI() : IConfigUI() {
 
         var showAuditionDialog by remember { mutableStateOf(false) }
         var auditionSystts by remember { mutableStateOf<SystemTtsV2?>(null) }
-        // 试听文本行⚡的三层音频参数弹窗（用户 09-10 定稿：顶部按钮摘除，入口改挂试听文本旁；
-        // 本地 TTS 无插件层，弹窗自动只显示 配置项+全局 两层）
-        var showAudioParams by remember { mutableStateOf(false) }
+        // 单维音频参数弹窗（用户 09-10 三键直出定稿：试听文本下方直接列 语速/音量/音高，
+        // 点哪个开哪个维度的弹窗；⚡总弹窗入口已删。本地 TTS 无插件层，弹窗自动只有 配置项+全局 两层）
+        var showAudioParamsDim by remember { mutableStateOf<Int?>(null) }
         if (showAuditionDialog && auditionSystts != null)
             AuditionDialog(systts = auditionSystts!!) {
                 showAuditionDialog = false
             }
 
-        // 三层音频参数弹窗（试听文本行⚡触发）；本地无插件层，弹窗自动只显示 配置项+全局
-        if (showAudioParams)
-            com.github.jing332.tts_server_android.compose.systts.list.ui.widgets.AudioParamsDialog(
-                onDismissRequest = { showAudioParams = false },
+        // 单维音频参数弹窗（试听文本下方三键直出触发，用户 09-10 定稿）
+        showAudioParamsDim?.let { dim ->
+            com.github.jing332.tts_server_android.compose.systts.list.ui.widgets.AudioParamsDimDialog(
+                dim = dim,
+                onDismissRequest = { showAudioParamsDim = null },
                 systemTts = systts,
                 onSysttsChange = onSysttsChange,
             )
+        }
 
         Column(modifier) {
             // 基本信息标题恢复显示（用户 09-10：与标签态正文卡的「ℹ️基本信息」标题对称）
@@ -298,7 +301,7 @@ class LocalTtsUI() : IConfigUI() {
                         onSystemTtsChange = onSysttsChange,
                     )
 
-                    // 试听文本 + 🎧 + ⚡音频参数（用户 09-10 定稿：放基本信息卡末尾，调完属性即可试听）
+                    // 试听文本 + 🎧；下方三键直出音频参数（用户 09-10 定稿：放基本信息卡末尾，调完属性即可试听）
                     AuditionTextField(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -307,8 +310,14 @@ class LocalTtsUI() : IConfigUI() {
                             // 强制创建新的对象副本，确保 Compose 检测到变化并重新触发试听
                             auditionSystts = systts.copy()
                             showAuditionDialog = true
-                        },
-                        onAudioParams = { showAudioParams = true }
+                        }
+                    )
+                    AudioParamsDimChipsRow(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(top = 4.dp),
+                        systemTts = systts,
+                        onSelectDim = { showAudioParamsDim = it },
                     )
                 }
 
