@@ -280,12 +280,12 @@ class LocalTtsUI() : IConfigUI() {
             )
 
         Column(modifier) {
-            // 基本信息：保留分区壳但不出标题（同 PluginTtsUI 用户定稿）
+            // 基本信息标题恢复显示（用户 09-10：与标签态正文卡的「ℹ️基本信息」标题对称）
             if (showBasicInfo)
                 SectionCard(
                     title = "基本信息",
                     icon = Icons.Default.Info,
-                    showHeader = false,
+                    showHeader = true,
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(horizontal = 8.dp, vertical = 4.dp),

@@ -283,12 +283,12 @@ class PluginTtsUI : IConfigUI() {
                     dbm.pluginDao.getByPluginId(tts.pluginId)?.name?.contains("角色管理") == true
             }
             // 分区卡片化：基本信息 / 音色来源 /（朗读与标签由 FullEditScreen 渲染）/ 音频参数
-            // 基本信息：保留分区壳但不出标题（用户定稿：分区保留、标题删除）
+            // 基本信息标题恢复显示（用户 09-10：与标签态正文卡的「ℹ️基本信息」标题对称）
             if (showBasicInfo)
                 SectionCard(
                     title = "基本信息",
                     icon = Icons.Default.Info,
-                    showHeader = false,
+                    showHeader = true,
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(horizontal = 8.dp, vertical = 4.dp),
