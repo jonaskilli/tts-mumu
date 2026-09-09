@@ -39,8 +39,6 @@
     <string name="label_volume">Volume: </string>
     <string name="label_rate">Rate: </string>
     <string name="label_pitch">Pitch: </string>
-    <string name="label_play_speed">Play speed: </string>
-    <string name="label_play_pitch">Play pitch: </string>
     <string name="label_result">Result: </string>
     <string name="label_audio_sample_rate">Audio sample rate(hz): </string>
     <string name="label_port">Port: </string>
@@ -350,6 +348,8 @@
     <string name="unknown">Unknown</string>
     <string name="plugin_vars">Plugin Variables</string>
     <string name="plugin_set_vars">Set Variables</string>
+    <string name="plugin_audio_params">Plugin audio params</string>
+    <string name="plugin_audio_params_saved">Audio params saved</string>
     <string name="config_list">Config list</string>
     <string name="plugin">Plugin</string>
     <string name="batch_select_plugin">Batch Select Plugin</string>
@@ -361,11 +361,6 @@
     <string name="invalid_items_count_bracket">(%1$d)</string>
     <string name="switch_to_other_plugin">Switch plugin</string>
     <string name="invalid_items_warning">View invalid config items</string>
-    <string name="plugin_handles_params_title">Params handled by plugin</string>
-    <string name="plugin_handles_params_desc">When checked, the app won\'t apply this param locally—handled by the plugin to avoid double effect. Audition unaffected.</string>
-    <string name="plugin_handles_speed">Speed</string>
-    <string name="plugin_handles_volume">Volume</string>
-    <string name="plugin_handles_pitch">Pitch</string>
     <string name="replace_rule">Replace Rule</string>
     <string name="speech_rule">Speech Rule</string>
     <string name="backup_webdav">WebDAV settings</string>
