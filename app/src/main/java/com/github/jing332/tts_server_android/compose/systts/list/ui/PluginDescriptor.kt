@@ -2,7 +2,7 @@ package com.github.jing332.tts_server_android.compose.systts.list.ui
 
 import android.content.Context
 import com.github.jing332.common.utils.StringUtils.limitLength
-import com.github.jing332.common.utils.toScale
+import com.github.jing332.common.utils.toParamText
 import com.github.jing332.database.dbm
 import com.github.jing332.database.entities.systts.AudioParams
 import com.github.jing332.database.entities.systts.SystemTtsV2
@@ -41,8 +41,9 @@ class PluginDescriptor(
     override val name: String = systemTts.displayName
 
     // 卡片行2：voice id（限一行，超20字符截断防换行，用户定稿）；行3=参数行（bodyMedium 同字号）。
-    // 参数行规律（用户 09-10 拍板，退回 09-07 之前的格式）：三维始终全显，数字 <b> 加粗与
-    // 标签同字号，管道 | 分隔，1 位小数；无「无设置」占位行；层标后缀彻底消失。
+    // 参数行规律（用户 09-10 二稿 B 案）：与音频参数弹窗/日志快捷面板/编辑页内嵌终值行
+    // **完全统一**——「最终：」前缀 + 全角逗号分隔 + 不加粗 + 按实际精度（1.00→1.0、0.97→0.97）；
+    // 三维始终全显，无「无设置」占位行，层标后缀彻底消失。
     // 终值=配置×插件×全局（pluginHandles 路由只在弹窗 applyDim 生效，卡片只展示已知层）。
     override val desc: String
         get() {
@@ -63,14 +64,15 @@ class PluginDescriptor(
             val globalVolume = com.github.jing332.tts_server_android.conf.SysTtsConfig.audioParamsVolume
             val globalPitch = com.github.jing332.tts_server_android.conf.SysTtsConfig.audioParamsPitch
 
-            // 三维恒显+加粗+同字号+管道分隔+1 位小数（退回 09-07 之前的卡片格式）；
-            // 后缀格式 `语速/音量/音高: 值` 由 HtmlCompat + <b> 渲染（SpanStyle.Bold），
-            // 字号与标签一致（无 <small>）。无前缀——卡片无分层滑杆对照，
-            // 与弹窗/面板/编辑页「最终：」逗号+2位+无后缀口径刻意不同（用户 09-10 二稿"反过来统一"）
-            val paramsLine = "语速:<b>%.1f</b> | 音量:<b>%.1f</b> | 音高:<b>%.1f</b>".format(
-                p.speed * pluginSpeed * globalSpeed,
-                p.volume * pluginVolume * globalVolume,
-                p.pitch * pluginPitch * globalPitch,
+            // 与音频参数弹窗/日志快捷面板/编辑页内嵌终值行**完全统一**（用户 09-10 二稿 B 案）：
+            // 「最终：」前缀 + 全角逗号分隔 + 按实际精度显示（1.00→1.0、0.97→0.97）+ 不加粗；
+            // 卡片原「管道分隔+数字加粗」的差异化样式撤除，四处处处同款一眼可辨。
+            // 值恒为 配置×插件×全局 乘积（尊重 pluginHandles 路由由 resolve 侧处理）
+            val paramsLine = context.getString(
+                R.string.audio_params_final,
+                (p.speed * pluginSpeed * globalSpeed).toParamText(),
+                (p.volume * pluginVolume * globalVolume).toParamText(),
+                (p.pitch * pluginPitch * globalPitch).toParamText(),
             )
 
             return source.voice.limitLength(20, "…") + "<br>$paramsLine"

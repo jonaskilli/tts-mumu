@@ -35,6 +35,7 @@ import androidx.compose.ui.unit.sp
 import com.drake.net.utils.withMain
 import com.github.jing332.common.audio.AudioPlayer
 import com.github.jing332.common.utils.messageChain
+import com.github.jing332.common.utils.toParamText
 import com.github.jing332.common.utils.sizeToReadable
 import com.github.jing332.compose.widgets.AppDialog
 import com.github.jing332.compose.widgets.LoadingContent
@@ -165,14 +166,15 @@ fun AuditionDialog(
                     else
                         com.github.jing332.common.audio.AudioDecoder.getSampleRateAndMime(audio)
                     withMain {
-                        // 与日志一致的最终倍率展示(仅≠1的项)：试听时明确知道当前生效的叠加参数
-                        // 用户 09-10 反馈：去掉值后缀 x，避免与日志栏发音人信息/音频参数弹窗歧义
+                        // 与日志/音频参数弹窗一致的最终倍率展示(仅≠1的项)：试听时明确知道当前生效的叠加参数
+                        // 用户 09-10 定稿：去掉值后缀 x；项间改全角逗号（与日志发音人信息同款，
+                        // 原空格分隔在多项连排时易看成一项）；值按实际精度（1.00→1.0、0.97→0.97）
                         val p = config.audioParams
                         val paramsInfo = buildList {
-                            if (kotlin.math.abs(p.speed - 1f) > 0.005f) add("语速%.2f".format(p.speed))
-                            if (kotlin.math.abs(p.volume - 1f) > 0.005f) add("音量%.2f".format(p.volume))
-                            if (kotlin.math.abs(p.pitch - 1f) > 0.005f) add("音调%.2f".format(p.pitch))
-                        }.joinToString(" ")
+                            if (kotlin.math.abs(p.speed - 1f) > 0.005f) add("语速${p.speed.toParamText()}")
+                            if (kotlin.math.abs(p.volume - 1f) > 0.005f) add("音量${p.volume.toParamText()}")
+                            if (kotlin.math.abs(p.pitch - 1f) > 0.005f) add("音调${p.pitch.toParamText()}")
+                        }.joinToString("，")
                         info = context.getString(
                             R.string.systts_test_success_info, audio.size.toLong().sizeToReadable(),
                             rateAndMime.first, rateAndMime.second

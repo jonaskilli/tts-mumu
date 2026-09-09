@@ -41,6 +41,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.drake.net.utils.withIO
+import com.github.jing332.common.utils.toParamText
 import com.github.jing332.common.utils.toScale
 import com.github.jing332.common.utils.toast
 import com.github.jing332.compose.widgets.AppSpinner
@@ -195,7 +196,10 @@ class PluginTtsUI : IConfigUI() {
         Text(
             // 与卡片参数行口径不同（用户 09-10 二稿）：
             // 卡片=管道+1 位+加粗，编辑页内嵌/弹窗/面板=逗号+2 位+无后缀（删除 x 乘号）
-            text = stringResource(R.string.audio_params_final, p.speed, p.volume, p.pitch),
+            text = stringResource(
+                R.string.audio_params_final,
+                p.speed.toParamText(), p.volume.toParamText(), p.pitch.toParamText()
+            ),
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.primary,
             modifier = Modifier.padding(top = 4.dp),

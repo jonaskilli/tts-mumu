@@ -34,6 +34,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.drake.net.utils.withIO
 import com.drake.net.utils.withMain
 import com.github.jing332.common.LogEntry
+import com.github.jing332.common.utils.toParamText
 import com.github.jing332.compose.widgets.AppDialog
 import com.github.jing332.compose.widgets.AppSpinner
 import com.github.jing332.database.dbm
@@ -407,7 +408,10 @@ fun LogQuickPanel(
                 // 与卡片参数行口径不同（用户 09-10 二稿）：
                 // 卡片=管道+1 位+加粗，弹窗/面板=逗号+2 位+无后缀（删除 x 乘号，与日志/试听保持一致）
                 text = stringResource(
-                    R.string.audio_params_final, finalSpeed, finalVolume, finalPitch
+                    R.string.audio_params_final,
+                    finalSpeed.toParamText(),
+                    finalVolume.toParamText(),
+                    finalPitch.toParamText(),
                 ),
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.primary,

@@ -25,6 +25,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.drake.net.utils.withIO
+import com.github.jing332.common.utils.toParamText
 import com.github.jing332.compose.widgets.AppDialog
 import com.github.jing332.database.dbm
 import com.github.jing332.database.entities.systts.AudioParams
@@ -217,7 +218,10 @@ fun AudioParamsDialog(
                     // 与卡片参数行口径不同（用户 09-10 二稿）：
                     // 卡片=管道+1 位+加粗，弹窗=逗号+2 位+无后缀（删除 x 乘号，与日志/试听保持一致）
                     text = stringResource(
-                        R.string.audio_params_final, finalParams.speed, finalParams.volume, finalParams.pitch
+                        R.string.audio_params_final,
+                        finalParams.speed.toParamText(),
+                        finalParams.volume.toParamText(),
+                        finalParams.pitch.toParamText(),
                     ),
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.primary,

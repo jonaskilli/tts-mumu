@@ -30,6 +30,7 @@ import com.github.jing332.common.utils.limitLength
 import com.github.jing332.common.utils.longToast
 import com.github.jing332.common.utils.registerGlobalReceiver
 import com.github.jing332.common.utils.runOnUI
+import com.github.jing332.common.utils.toParamText
 import com.github.jing332.common.utils.sizeToReadable
 import com.github.jing332.common.utils.startForegroundCompat
 import com.github.jing332.common.utils.toHtmlBold
@@ -720,14 +721,15 @@ class SystemTtsService : TextToSpeechService(), IEventDispatcher {
         val tag = config.tag
 
         // 三层叠加(插件×配置×全局)后的最终音频参数，
-        // 仅显示≠1的项，全部为1时不占位；如 语速2.00，音量0.80
+        // 仅显示≠1的项，全部为1时不占位；如 语速2.0，音量0.8
         // 用户定稿:中文括号+逗号简单制式,跟在发音人后不突兀；
-        // 09-10 反馈：删除值后缀 x，与音频参数弹窗/试听弹窗保持一致无歧义
+        // 09-10 定稿：删除值后缀 x，值按实际精度显示（1.00→1.0、0.97→0.97），
+        // 与音频参数弹窗/试听弹窗/卡片参数行完全一致
         val p = config.audioParams
         val paramsInfo = buildList {
-            if (kotlin.math.abs(p.speed - 1f) > 0.005f) add("语速%.2f".format(p.speed))
-            if (kotlin.math.abs(p.volume - 1f) > 0.005f) add("音量%.2f".format(p.volume))
-            if (kotlin.math.abs(p.pitch - 1f) > 0.005f) add("音调%.2f".format(p.pitch))
+            if (kotlin.math.abs(p.speed - 1f) > 0.005f) add("语速${p.speed.toParamText()}")
+            if (kotlin.math.abs(p.volume - 1f) > 0.005f) add("音量${p.volume.toParamText()}")
+            if (kotlin.math.abs(p.pitch - 1f) > 0.005f) add("音调${p.pitch.toParamText()}")
         }.joinToString("，")
 
         // 声音配置信息/语速音量等为次级信息，用哨兵色标记，
