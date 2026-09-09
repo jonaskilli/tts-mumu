@@ -57,34 +57,47 @@ class TtsLogViewModel : ViewModel() {
 
     val logs = mutableStateListOf<LogEntry>()
 
-    // 插件/朗读规则日志独立缓冲（用户 09-08 定稿）：始终记录、不混入主列表；
-    // 勾选"插件日志/朗读规则日志"= 切换显示这个缓冲（磁盘文件始终全量落盘，与此无关）
+    // 插件/朗读规则日志独立缓冲（防刷屏/防OOM，09-08 保留）：始终记录、不挤占主列表窗口；
+    // 勾选"插件日志/朗读规则日志"= 在主时间流中追加显示该缓冲（用户 09-09：恢复 09-08 改前的
+    // 混排行为——看过程必须与"请求音频/获取成功"等结果流对照，"切换显示"把两者切断了）
     val pluginLogs = mutableStateListOf<LogEntry>()
     val speechRuleLogs = mutableStateListOf<LogEntry>()
 
     // 日志级别筛选（存储选中的日志级别 Int 值）
     val selectedLevels = mutableStateListOf<Int>()
     val showFilterDialog = mutableStateOf(false)
-    
-    // 调试模式开关 - 显示/隐藏插件日志（默认隐藏，用户手动开启）
+
+    // 调试模式开关 - 在主时间流中追加/隐藏插件日志（默认隐藏，用户手动开启）
     val showPluginLogs = mutableStateOf(false)
 
-    // 调试模式开关 - 显示/隐藏朗读规则日志（默认隐藏，用户手动开启）
+    // 调试模式开关 - 在主时间流中追加/隐藏朗读规则日志（默认隐藏，用户手动开启）
     val showSpeechRuleLogs = mutableStateOf(false)
 
     // 实时滚动开关 - 勾选后新日志自动滚动到底部（默认不勾选）
     val autoScrollToBottom = mutableStateOf(false)
-    
+
+    // 与系统日志同款时间戳格式：合并排序按字符串比较即可保持时序（等宽、字典序=时间序）
+    private val auxTimeFormatter =
+        java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss.SSS", java.util.Locale.US)
+
     val filteredLogs: List<LogEntry>
         get() {
-            // 显示源随调试开关切换（用户 09-08 定稿）：插件/规则日志在独立缓冲，主列表永不被刷屏
-            val source: List<LogEntry> = when {
-                showPluginLogs.value -> pluginLogs
-                showSpeechRuleLogs.value -> speechRuleLogs
-                else -> logs
+            // 勾选=追加混排（用户 09-09）：主列表与勾选的辅助缓冲按时间戳合并，
+            // 过程（插件/规则）与结果（请求音频/获取成功）交错可见；都不勾=纯主列表
+            val showPlugin = showPluginLogs.value
+            val showRule = showSpeechRuleLogs.value
+            val merged: List<LogEntry> = if (showPlugin || showRule) {
+                val source = ArrayList<LogEntry>(logs.size + 8)
+                source.addAll(logs)
+                if (showPlugin) source.addAll(pluginLogs)
+                if (showRule) source.addAll(speechRuleLogs)
+                // 稳定排序：同毫秒内保持各缓冲内的到达顺序
+                source.sortedBy { it.time }
+            } else {
+                logs
             }
             val levels = selectedLevels
-            return source.filter {
+            return merged.filter {
                 levels.isEmpty() || it.level in levels
             }
             // 注：搜索词不做过滤——搜索是定位(跳转+高亮)，由 TtsLogScreen/LogScreen 处理，
@@ -96,15 +109,24 @@ class TtsLogViewModel : ViewModel() {
     private val pluginChars = java.util.concurrent.atomic.AtomicLong()
     private val ruleChars = java.util.concurrent.atomic.AtomicLong()
 
+    // Console 通道（插件 JS / 朗读规则 JS）的 LogEntry 不带 time，到达时补打时间戳，
+    // 供勾选后与主列表按时间混排（logback 通道的日志自带时间戳，走 else 分支不覆盖）
+    @Synchronized
+    private fun stampTime(entry: LogEntry): LogEntry =
+        if (entry.time.isEmpty())
+            entry.copy(time = auxTimeFormatter.format(System.currentTimeMillis()))
+        else entry
+
     private fun routeEntry(entry: LogEntry) {
         val isPlugin = entry.isPluginLog
         val isRule = entry.isSpeechRuleLog
         when {
             isPlugin || isRule -> {
+                val stamped = stampTime(entry)
                 val target = if (isPlugin) pluginLogs else speechRuleLogs
                 val chars = if (isPlugin) pluginChars else ruleChars
-                target.add(entry)
-                chars.addAndGet(entry.message.length.toLong())
+                target.add(stamped)
+                chars.addAndGet(stamped.message.length.toLong())
                 // 条数裁剪
                 val overflow = target.size - AUX_MAX
                 if (overflow >= AUX_PRUNE) {
