@@ -42,7 +42,6 @@ import androidx.compose.ui.viewinterop.AndroidView
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.drake.net.utils.withIO
 import com.github.jing332.common.utils.toParamText
-import com.github.jing332.common.utils.toScale
 import com.github.jing332.common.utils.toast
 import com.github.jing332.compose.widgets.AppSpinner
 import com.github.jing332.compose.widgets.LabelSlider
@@ -60,7 +59,6 @@ import com.github.jing332.tts_server_android.R
 import com.github.jing332.tts_server_android.compose.systts.AuditionDialog
 import com.github.jing332.tts_server_android.compose.systts.list.ui.widgets.AuditionTextField
 import com.github.jing332.tts_server_android.compose.systts.list.ui.widgets.BasicInfoEditScreen
-import com.github.jing332.tts_server_android.compose.systts.list.ui.widgets.RemoteAudioParamsSection
 import com.github.jing332.tts_server_android.compose.systts.list.ui.widgets.SaveActionHandler
 import com.github.jing332.tts_server_android.compose.systts.list.ui.widgets.SectionCard
 import com.github.jing332.tts_server_android.constant.SpeechTarget
@@ -155,32 +153,22 @@ class PluginTtsUI : IConfigUI() {
                 }
             }
 
-            // ===== 三层音频参数：插件层（仅插件来源）/全局层（折叠+应用确认，音高仅配置层） =====
+            // ===== 终值行（唯一保留的叠加展示）=====
+            // 插件层/全局层滑杆已于 09-10 删除：与顶部「音频参数」按钮打开的按维度弹窗功能重复，
+            // 统一走弹窗；此处只留终值行，调配置层滑杆时可看到三层叠加后的实际播放参数
             HorizontalDivider(Modifier.padding(vertical = 4.dp))
-            var appliedTick by remember { mutableStateOf(0) }
-            if (config.source is PluginTtsSource) {
-                RemoteAudioParamsSection(
-                    layer = com.github.jing332.tts_server_android.compose.systts.list.ui.widgets.Layer.PLUGIN,
-                    pluginId = (config.source as PluginTtsSource).pluginId,
-                    onApplied = { appliedTick++ },
-                )
-            }
-            RemoteAudioParamsSection(
-                layer = com.github.jing332.tts_server_android.compose.systts.list.ui.widgets.Layer.GLOBAL,
-                onApplied = { appliedTick++ },
-            )
-            ThreeLayerFinalLine(systemTts, appliedTick)
+            ThreeLayerFinalLine(systemTts)
         }
     }
 
     /**
      * 最终值行：三层乘积（经插件处理路由）。
-     * 复用播放链同一 resolveTtsPlayback()，所见即所播；配置层滑块随重组实时刷新，
-     * 插件/全局层点「应用」后由 appliedTick 触发刷新。
+     * 复用播放链同一 resolveTtsPlayback()，所见即所播；随实体变化重组实时刷新
+     * （插件/全局层改动走顶部弹窗，回到本页时实体已刷新）。
      */
     @Composable
-    private fun ThreeLayerFinalLine(entity: SystemTtsV2, appliedTick: Int = 0) {
-        val resolved = remember(entity.id, appliedTick, entity) {
+    private fun ThreeLayerFinalLine(entity: SystemTtsV2) {
+        val resolved = remember(entity.id, entity) {
             runCatching {
                 com.github.jing332.tts.resolveTtsPlayback(
                     entity,

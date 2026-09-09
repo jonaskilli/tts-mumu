@@ -125,6 +125,14 @@ private fun LayerSlider(label: String, value: Float, onValueChange: (Float) -> U
     )
 }
 
+/**
+ * 滑杆值去噪：0.01 步进对齐，避免浮点尾数（如 1.2000001）写进 JSON。
+ * 原定义在 RemoteAudioParamsSection.kt（编辑页内嵌旧滑杆区，09-10 已删），
+ * 因 AudioParamsDialog 仍依赖而随该文件一并删会断链，故迁到共用组件文件；
+ * 同包顶层函数，调用方（弹窗/面板）无需 import 直接使用。
+ */
+internal fun snap(v: Float): Float = (kotlin.math.round(v * 100f) / 100f)
+
 /** 插件接管说明（09-10 ③）：该维插件/全局层不参与叠加，调了也不生效，故隐藏滑杆只留说明 */
 @Composable
 private fun TakenOverHint(dimName: String) {
