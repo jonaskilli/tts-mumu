@@ -82,24 +82,30 @@ class TtsLogViewModel : ViewModel() {
 
     val filteredLogs: List<LogEntry>
         get() {
-            // 勾选=追加混排（用户 09-09）：主列表与勾选的辅助缓冲按时间戳合并，
-            // 过程（插件/规则）与结果（请求音频/获取成功）交错可见；都不勾=纯主列表
+            // 勾选=全量混排（用户 09-09）：主列表与勾选的辅助缓冲按时间戳合并；
+            // 不勾选时旁路放行该缓冲的 ERROR/WARN（用户 09-09 新增）：默认视图下
+            // 插件/朗读规则出问题直接红黄字可见，不用再开开关排查
             val showPlugin = showPluginLogs.value
             val showRule = showSpeechRuleLogs.value
-            val merged: List<LogEntry> = if (showPlugin || showRule) {
-                val source = ArrayList<LogEntry>(logs.size + 8)
-                source.addAll(logs)
-                if (showPlugin) source.addAll(pluginLogs)
-                if (showRule) source.addAll(speechRuleLogs)
-                // 稳定排序：同毫秒内保持各缓冲内的到达顺序
-                source.sortedBy { it.time }
-            } else {
-                logs
-            }
             val levels = selectedLevels
-            return merged.filter {
-                levels.isEmpty() || it.level in levels
-            }
+            val pluginPart =
+                if (showPlugin) pluginLogs
+                else pluginLogs.filter { it.level == LogLevel.ERROR || it.level == LogLevel.WARN }
+            val rulePart =
+                if (showRule) speechRuleLogs
+                else speechRuleLogs.filter { it.level == LogLevel.ERROR || it.level == LogLevel.WARN }
+
+            // 都不勾且无旁路条目：纯主列表直通，不建列表不排序
+            if (pluginPart.isEmpty() && rulePart.isEmpty() && !showPlugin && !showRule)
+                return logs.filter { levels.isEmpty() || it.level in levels }
+
+            val source = ArrayList<LogEntry>(logs.size + pluginPart.size + rulePart.size)
+            source.addAll(logs)
+            source.addAll(pluginPart)
+            source.addAll(rulePart)
+            // 稳定排序：同毫秒内保持各缓冲内的到达顺序
+            val merged = source.sortedBy { it.time }
+            return merged.filter { levels.isEmpty() || it.level in levels }
             // 注：搜索词不做过滤——搜索是定位(跳转+高亮)，由 TtsLogScreen/LogScreen 处理，
             // 保留完整列表便于查看匹配项的前后文
         }
@@ -117,6 +123,11 @@ class TtsLogViewModel : ViewModel() {
             entry.copy(time = auxTimeFormatter.format(System.currentTimeMillis()))
         else entry
 
+    // 折叠判别键（用户 09-09）：数字全部替换为 #，同一模式的行视为同类——
+    // 「干问音频块: len=1, total=2」与「len=3, total=5」归并，参数说明类日志同理。
+    // message 保留每串最后一条，进度值仍是最新
+    private fun collapseKey(message: String): String = message.replace(Regex("\\d+"), "#")
+
     private fun routeEntry(entry: LogEntry) {
         val isPlugin = entry.isPluginLog
         val isRule = entry.isSpeechRuleLog
@@ -125,8 +136,18 @@ class TtsLogViewModel : ViewModel() {
                 val stamped = stampTime(entry)
                 val target = if (isPlugin) pluginLogs else speechRuleLogs
                 val chars = if (isPlugin) pluginChars else ruleChars
-                target.add(stamped)
-                chars.addAndGet(stamped.message.length.toLong())
+                // 连续同模式折叠（用户 09-09）：与缓冲末条归一化后相同 → 并入末条计数，
+                // 不再新增条目（onLoadData/音频块这类逐次刷屏收敛为一条 ×N）
+                val last = target.lastOrNull()
+                if (last != null && collapseKey(last.message) == collapseKey(stamped.message)) {
+                    chars.addAndGet(-last.message.length.toLong())
+                    val merged = stamped.copy(repeatCount = last.repeatCount + 1)
+                    target[target.lastIndex] = merged
+                    chars.addAndGet(merged.message.length.toLong())
+                } else {
+                    target.add(stamped)
+                    chars.addAndGet(stamped.message.length.toLong())
+                }
                 // 条数裁剪
                 val overflow = target.size - AUX_MAX
                 if (overflow >= AUX_PRUNE) {

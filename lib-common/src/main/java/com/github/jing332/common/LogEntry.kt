@@ -18,6 +18,9 @@ data class LogEntry(
     val configId: Long = 0,
     // 朗读规则实时分析出的角色名（用户 09-08）：仅多角色对话请求有值，供快捷面板精确改绑该角色
     val roleName: String = "",
+    // 连续同模式折叠计数（用户 09-09）：插件/规则日志里连续数字归一化后相同的行合并为一条，
+    // 显示为「… ×N」，message 保留该串最后一条的内容。1=未折叠
+    val repeatCount: Int = 1,
 ) :
     Parcelable {
     fun getLevelChar(): String = level.toLogLevelChar()

@@ -87,6 +87,21 @@ private fun AnnotatedString.remapMetaColor(metaColor: Color, voiceColor: Color):
     }
 }
 
+// 功能日志来源色（用户 09-09 定稿方案二）：低调灰调，存在感介于主流程绿与石板灰之间，
+// 避开「获取成功」石板灰与发音人棕褐的色相区间。仅接管 INFO 与 DEBUG/TRACE；
+// ERROR/WARN 保持红/黄级别语义，SUCCESS 仍走石板灰
+private fun pluginLogColor(isDarkTheme: Boolean) =
+    if (isDarkTheme) Color(0xFF8FA9A3) else Color(0xFF4E6E68)    // 插件：灰青
+
+private fun ruleLogColor(isDarkTheme: Boolean) =
+    if (isDarkTheme) Color(0xFFA795B1) else Color(0xFF6E5E78)    // 朗读规则：灰紫
+
+private fun pluginDebugColor(isDarkTheme: Boolean) =
+    if (isDarkTheme) Color(0xFF75908A) else Color(0xFF829895)    // 插件 DEBUG：淡灰青
+
+private fun ruleDebugColor(isDarkTheme: Boolean) =
+    if (isDarkTheme) Color(0xFF90819F) else Color(0xFF9487A0)    // 规则 DEBUG：淡灰紫
+
 @OptIn(ExperimentalFoundationApi::class, ExperimentalMaterial3Api::class)
 @Composable
 fun LogScreen(
@@ -155,6 +170,30 @@ fun LogScreen(
                             .remapMetaColor(metaColor, voiceColor)
                     }
 
+                    // 折叠计数（用户 09-09）：连续同模式的插件/规则日志显示「… ×N」，
+                    // N 为被合并的行数；message 已是该串最后一条，内容仍是最新的
+                    val display = if (log.repeatCount > 1) buildAnnotatedString {
+                        append(spanned)
+                        append("\u2002×${log.repeatCount}")
+                    } else spanned
+
+                    // 正文着色：SUCCESS→石板灰；功能日志按来源降调（插件灰青/规则灰紫，
+                    // DEBUG 用对应淡色）；其余级别维持级别色（红/黄/绿/蓝/灰）
+                    val bodyColor = when {
+                        log.level == LogLevel.SUCCESS -> metaColor
+                        log.isPluginLog -> when (log.level) {
+                            LogLevel.INFO -> pluginLogColor(darkTheme)
+                            LogLevel.DEBUG, LogLevel.TRACE -> pluginDebugColor(darkTheme)
+                            else -> Color(log.level.toArgb(isDarkTheme = darkTheme))
+                        }
+                        log.isSpeechRuleLog -> when (log.level) {
+                            LogLevel.INFO -> ruleLogColor(darkTheme)
+                            LogLevel.DEBUG, LogLevel.TRACE -> ruleDebugColor(darkTheme)
+                            else -> Color(log.level.toArgb(isDarkTheme = darkTheme))
+                        }
+                        else -> Color(log.level.toArgb(isDarkTheme = darkTheme))
+                    }
+
                     // 搜索命中项加背景高亮；搜索是定位不是过滤，列表保持完整可上下翻看前后文
                     val isMatch = searchQuery.isNotEmpty() &&
                             (log.message.contains(searchQuery, ignoreCase = true) ||
@@ -200,11 +239,9 @@ fun LogScreen(
                             )
                         }
                         Text(
-                            text = spanned,
+                            text = display,
                             // 获取成功(SUCCESS)整行石板灰同字重(用户:冒号前后一致不加粗)；加粗仅保留请求文本正文
-                            color = if (log.level == LogLevel.SUCCESS)
-                                metaColor
-                            else Color(log.level.toArgb(isDarkTheme = darkTheme)),
+                            color = bodyColor,
                             style = style,
                             lineHeight = style.lineHeight * 0.9f,
                         )
