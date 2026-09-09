@@ -116,24 +116,6 @@ fun BasicInfoEditScreen(
 
         val dto = systemTts.config as? TtsConfigurationDTO
         if (dto != null) {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clickable {
-                        val p = dto.audioParams
-                        updateConfig(systemTts, onSystemTtsChange, p.copy(reverbEnabled = !p.reverbEnabled))
-                    },
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Checkbox(
-                    checked = dto.audioParams.reverbEnabled,
-                    onCheckedChange = {
-                        updateConfig(systemTts, onSystemTtsChange, dto.audioParams.copy(reverbEnabled = it))
-                    }
-                )
-                Text("心声混响")
-            }
-
             // 作为备用引擎（用户 09-10 定稿：从朗读标签卡顶部行挪入基本信息卡，与分组/显示名同区）
             var showStandbyHelp by remember { mutableStateOf(false) }
             if (showStandbyHelp)
@@ -148,27 +130,50 @@ fun BasicInfoEditScreen(
                     onDismissRequest = { showStandbyHelp = false }
                 )
 
+            // 心声混响 + 备用引擎合并一行（用户 09-10 定稿）：都是本条配置的播放行为布尔开关，并排省一行
             Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clickable {
-                        onSystemTtsChange(
-                            systemTts.copy(
-                                config = dto.copy(
-                                    speechRule = dto.speechRule.copy(isStandby = !dto.speechRule.isStandby)
-                                )
-                            )
-                        )
-                    },
+                modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                Checkbox(checked = dto.speechRule.isStandby, onCheckedChange = null)
-                Text(stringResource(id = R.string.as_standby))
-                IconButton(onClick = { showStandbyHelp = true }) {
-                    Icon(
-                        Icons.AutoMirrored.Filled.HelpOutline,
-                        stringResource(id = R.string.systts_as_standby_help)
+                Row(
+                    modifier = Modifier
+                        .weight(1f)
+                        .clickable {
+                            val p = dto.audioParams
+                            updateConfig(systemTts, onSystemTtsChange, p.copy(reverbEnabled = !p.reverbEnabled))
+                        },
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Checkbox(
+                        checked = dto.audioParams.reverbEnabled,
+                        onCheckedChange = {
+                            updateConfig(systemTts, onSystemTtsChange, dto.audioParams.copy(reverbEnabled = it))
+                        }
                     )
+                    Text("心声混响")
+                }
+
+                Row(
+                    modifier = Modifier
+                        .clickable {
+                            onSystemTtsChange(
+                                systemTts.copy(
+                                    config = dto.copy(
+                                        speechRule = dto.speechRule.copy(isStandby = !dto.speechRule.isStandby)
+                                    )
+                                )
+                            )
+                        },
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Checkbox(checked = dto.speechRule.isStandby, onCheckedChange = null)
+                    Text(stringResource(id = R.string.as_standby))
+                    IconButton(onClick = { showStandbyHelp = true }) {
+                        Icon(
+                            Icons.AutoMirrored.Filled.HelpOutline,
+                            stringResource(id = R.string.systts_as_standby_help)
+                        )
+                    }
                 }
             }
         }
