@@ -36,7 +36,8 @@ import kotlinx.coroutines.launch
 /**
  * 配置项「音频参数」弹窗（卡片菜单 / 编辑页试听行⚡共用）。
  * 结构（用户 09-10 折叠改版定稿）：
- * - 顶部：当前发音人 + 终值行（播放链同源三层乘积，实时跟随草稿）；
+ * - 顶部：终值行（播放链同源三层乘积，实时跟随草稿）——当前发音人不显示（用户 09-10 裁定，
+ *   弹窗从发音人卡片打开、上下文已明确，无需重复）；
  *   ▶试听键已移除——试听文本行已有 🎧，弹窗专注音频参数（卡片⋮菜单入口随之无试听途径，用户接受）；
  * - 主体：[AudioParamsDimensionSection] 折叠手风琴（collapsedAccordion=true）——
  *   默认全收起只显示 语速/音量/音高 三个键，单开展开该维三层滑杆；重置/应用按维度一组，
@@ -136,21 +137,8 @@ fun AudioParamsDialog(
                     .padding(horizontal = 4.dp)
                     .verticalScroll(rememberScrollState())
             ) {
-                // ===== 顶部：当前发音人（试听键已移除，用户 09-10 定稿：试听文本行已有 🎧，弹窗专注音频参数）=====
-                Column(Modifier.fillMaxWidth()) {
-                    Text(
-                        "当前发音人",
-                        style = MaterialTheme.typography.labelMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                    Text(
-                        systemTts.displayName,
-                        style = MaterialTheme.typography.titleMedium,
-                        maxLines = 1,
-                    )
-                }
-
-                // ===== 终值行：实时跟随三层草稿；三维恒显（用户 09-10），与卡片参数行同口径 =====
+                // ===== 终值行：实时跟随三层草稿；三维恒显（用户 09-10），与卡片参数行同口径
+                //      （当前发音人不显示，用户 09-10 裁定：弹窗由卡片/试听行打开，上下文已明确）=====
                 val finalParams = computeFinalParams(
                     snap(speed), snap(volume), snap(pitch),
                     snap(pluginSpeed), snap(pluginVolume), snap(pluginPitch),
