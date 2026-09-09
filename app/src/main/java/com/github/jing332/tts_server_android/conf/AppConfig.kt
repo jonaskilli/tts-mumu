@@ -62,7 +62,7 @@ object AppConfig {
     val isAutoCheckUpdateEnabled by lazy { mutableDataSaverStateOf(dataSaverPref, "isAutoCheckUpdateEnabled", false) }
     val isExcludeFromRecent by lazy { mutableDataSaverStateOf(dataSaverPref, "isExcludeFromRecent", false) }
     val isEdgeDnsEnabled by lazy { mutableDataSaverStateOf(dataSaverPref, "isEdgeDnsEnabled", true) }
-    val testSampleText by lazy { mutableDataSaverStateOf(dataSaverPref, "testSampleText", "单击右侧按钮即可测试并播放这段音频。如果一切正常，你应该能听到清晰的声音。") }
+    val testSampleText by lazy { mutableDataSaverStateOf(dataSaverPref, "testSampleText", "今天天气不错，我们去公园散步吧。") }
     val fragmentIndex by lazy { mutableDataSaverStateOf(dataSaverPref, "fragmentIndex", 0) }
     val spinnerMaxDropDownCount by lazy { mutableDataSaverStateOf(dataSaverPref, "spinnerMaxDropDownCount", 20) }
     val lastReadHelpDocumentVersion by lazy { mutableDataSaverStateOf(dataSaverPref, "lastReadHelpDocumentVersion", 0) }

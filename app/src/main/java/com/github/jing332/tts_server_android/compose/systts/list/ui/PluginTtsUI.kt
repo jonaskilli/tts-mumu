@@ -300,11 +300,22 @@ class PluginTtsUI : IConfigUI() {
                         systemTts = systts,
                         onSystemTtsChange = onSysttsChange
                     )
+
+                    // 试听文本 + 🎧 + ⚡音频参数（用户 09-10 定稿：放基本信息卡末尾，调完属性即可试听）
+                    if (!isUiOnly) {
+                        AuditionTextField(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(top = 8.dp),
+                            onAudition = { auditionSystts = systts },
+                            onAudioParams = { showAudioParams = true }
+                        )
+                    }
                 }
 
             // 音色来源区：ui-only（角色管理栏）时不用卡片壳，直接渲染插件自定义UI躺在 surface 上
             // （用户反馈：去掉分区底色壳≠连插件UI一起消失）；完整编辑模式才包 SectionCard
-            // （试听文本/插件选择/语言/声音都在卡内）
+            // （插件选择/语言/声音都在卡内；试听文本已移至基本信息卡末尾）
             if (isUiOnly) {
                 RoleManagementPluginContent(
                     tts = tts,
@@ -325,18 +336,6 @@ class PluginTtsUI : IConfigUI() {
                         .fillMaxWidth()
                         .padding(horizontal = 12.dp, vertical = 4.dp)
                 ) {
-                    if (!isUiOnly) {
-                        AuditionTextField(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(top = 8.dp),
-                            onAudition = {
-                                auditionSystts = systts
-                            },
-                            onAudioParams = { showAudioParams = true }
-                        )
-                    }
-
                 if (showPluginSelector && !isUiOnly) {
                     AppSpinner(
                         modifier = Modifier

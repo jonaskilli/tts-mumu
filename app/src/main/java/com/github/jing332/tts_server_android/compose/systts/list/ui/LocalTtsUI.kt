@@ -297,6 +297,19 @@ class LocalTtsUI() : IConfigUI() {
                         systemTts = systts,
                         onSystemTtsChange = onSysttsChange,
                     )
+
+                    // 试听文本 + 🎧 + ⚡音频参数（用户 09-10 定稿：放基本信息卡末尾，调完属性即可试听）
+                    AuditionTextField(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(top = 8.dp),
+                        onAudition = {
+                            // 强制创建新的对象副本，确保 Compose 检测到变化并重新触发试听
+                            auditionSystts = systts.copy()
+                            showAuditionDialog = true
+                        },
+                        onAudioParams = { showAudioParams = true }
+                    )
                 }
 
             SectionCard(
@@ -311,18 +324,7 @@ class LocalTtsUI() : IConfigUI() {
                         .fillMaxWidth()
                         .padding(horizontal = 12.dp, vertical = 4.dp)
                 ) {
-                    // 使用 rememberUpdatedState 确保获取最新的 systts
-                    val currentSystts by rememberUpdatedState(systts)
-                    AuditionTextField(modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(top = 4.dp), onAudition = {
-                        // 强制创建新的对象副本，确保 Compose 检测到变化并重新触发试听
-                        auditionSystts = currentSystts.copy()
-                        showAuditionDialog = true
-                    }, onAudioParams = {
-                        showAudioParams = true
-                    })
-
+                    // 试听文本已移至基本信息卡末尾（用户 09-10 定稿）
                     val context = LocalContext.current
                     var isLoading by remember { mutableStateOf(false) }
                 LoadingContent(isLoading = isLoading) {
