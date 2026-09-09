@@ -214,7 +214,6 @@
     <string name="toast_no_tts_engine">未找到可用的TTS引擎</string>
     <string name="toast_legado_import_failed">未安装阅读APP或导入失败</string>
 
-    <string name="systts_play_params_description">语速:%1$s | 音量:%2$s | 音高:%3$s</string>
     <string name="systts_ms_express_as_description">%1$s-%2$s | 强度:%3$s</string>
     <string name="server_log_service_running">服务已在运行中，监听地址：%1$s</string>
     <string name="server_log_tips">1. 单击启动按钮 \n2. 打开网页并选择配置 \n3. 最后生成链接导入到阅读APP  \n⚠️朗读时服务需常驻后台运行！\n⚠️本功能与系统TTS互相独立，互不干涉！</string>
@@ -507,6 +506,8 @@
     <string name="label_speech_speed">语速</string>
     <string name="label_speech_volume">音量：%1$s</string>
     <string name="label_speech_pitch">音高：%1$s</string>
+    <!-- BGM 卡片参数行：不带冒号、不加粗，与音频参数「最终：语速X，音量Y，音高Z」同款 -->
+    <string name="bgm_card_volume">音量%1$s</string>
     <string name="systts_api_edge_okhttp">微软Edge  - Java (音频流)</string>
     <string name="confirm">确定</string>
     <string name="dynamic_color_not_support">动态主题需要 安卓12及以上版本</string>
