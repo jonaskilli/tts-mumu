@@ -982,10 +982,20 @@ CharacterManager.prototype.loadRecords = function() {
           return;
       }
       this.characterRecords = JSON.parse(fileContent) || [];
+      // Sanitize 兼容旧版/残缺文件：丢弃无 name 的条目、补缺字段
+      // 避免后续 findCharacterRecord 的 record.name.trim() / record.aliases.split() NPE
+      var sanitized = [];
       for (var i = 0; i < this.characterRecords.length; i++) {
           var record = this.characterRecords[i];
-          if (!record.hasOwnProperty('aliases')) {
-              record.aliases = record.name;
+          if (!record || typeof record.name !== 'string' || record.name.trim() === '') {
+              continue; // 丢弃无 name 的残缺条目
+          }
+          record.name = record.name.trim();
+          if (typeof record.aliases !== 'string' || record.aliases.trim() === '') {
+              record.aliases = record.name; // 缺 aliases 默认等于 name（与原逻辑同）
+          }
+          if (typeof record.voice !== 'string') {
+              record.voice = '';
           }
           if (!record.voice || record.voice === "") {
               record.gender = null;
@@ -994,7 +1004,9 @@ CharacterManager.prototype.loadRecords = function() {
           if (record.voice) {
               this.usedVoices[record.voice] = true;
           }
+          sanitized.push(record);
       }
+      this.characterRecords = sanitized;
   } catch (e) {
       this.characterRecords = [];
   }
