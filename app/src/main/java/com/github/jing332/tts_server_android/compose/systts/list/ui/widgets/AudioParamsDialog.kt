@@ -2,12 +2,10 @@ package com.github.jing332.tts_server_android.compose.systts.list.ui.widgets
 
 import android.widget.Toast
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -21,10 +19,8 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.drake.net.utils.withIO
-import com.github.jing332.common.utils.toParamText
 import com.github.jing332.compose.widgets.AppDialog
 import com.github.jing332.database.dbm
-import com.github.jing332.database.entities.systts.AudioParams
 import com.github.jing332.database.entities.systts.SystemTtsV2
 import com.github.jing332.database.entities.systts.TtsConfigurationDTO
 import com.github.jing332.database.entities.systts.source.PluginTtsSource
@@ -36,9 +32,8 @@ import kotlinx.coroutines.launch
 /**
  * 配置项「音频参数」弹窗（卡片菜单 / 编辑页试听行⚡共用）。
  * 结构（用户 09-10 折叠改版定稿）：
- * - 顶部：终值行（播放链同源三层乘积，实时跟随草稿）——当前发音人不显示（用户 09-10 裁定，
- *   弹窗从发音人卡片打开、上下文已明确，无需重复）；
- *   ▶试听键已移除——试听文本行已有 🎧，弹窗专注音频参数（卡片⋮菜单入口随之无试听途径，用户接受）；
+ * - 顶部不显示当前发音人/终值行（用户 09-10 裁定：上下文已明确；终值在卡片参数行/日志仍可见）；
+ *   ▶试听键已移除——试听文本行已有 🎧，弹窗专注音频参数；
  * - 主体：[AudioParamsDimensionSection] 折叠手风琴（collapsedAccordion=true）——
  *   默认全收起只显示 语速/音量/音高 三个键，单开展开该维三层滑杆；重置/应用按维度一组，
  *   应用=该维三层一起落库（配置层双写页面内存防旧值覆盖）；
@@ -137,30 +132,10 @@ fun AudioParamsDialog(
                     .padding(horizontal = 4.dp)
                     .verticalScroll(rememberScrollState())
             ) {
-                // ===== 终值行：实时跟随三层草稿；三维恒显（用户 09-10），与卡片参数行同口径
-                //      （当前发音人不显示，用户 09-10 裁定：弹窗由卡片/试听行打开，上下文已明确）=====
-                val finalParams = computeFinalParams(
-                    snap(speed), snap(volume), snap(pitch),
-                    snap(pluginSpeed), snap(pluginVolume), snap(pluginPitch),
-                    snap(globalSpeed), snap(globalVolume), snap(globalPitch),
-                    hasPluginLayer,
-                )
-                Text(
-                    // 与卡片参数行口径不同（用户 09-10 二稿）：
-                    // 卡片=管道+1 位+加粗，弹窗=逗号+2 位+无后缀（删除 x 乘号，与日志/试听保持一致）
-                    text = stringResource(
-                        R.string.audio_params_final,
-                        finalParams.speed.toParamText(),
-                        finalParams.volume.toParamText(),
-                        finalParams.pitch.toParamText(),
-                    ),
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier.padding(top = 2.dp, bottom = 4.dp),
-                )
-
                 // ===== 按维度编辑区（09-10 折叠改版）：默认全收起只显示三个维度键，
-                //      单开手风琴——点键展开该维三层滑杆+重置/应用，再点收起，点其他键切换 =====
+                //      单开手风琴——点键展开该维三层滑杆+重置/应用，再点收起，点其他键切换
+                //      （终值行已删，用户 09-10 裁定：折叠时只显三键；终值在卡片参数行/日志仍可见；
+                //        滑杆旁本就带实时数值，信息不丢）=====
                 AudioParamsDimensionSection(
                     collapsedAccordion = true,
                     hasPluginLayer = hasPluginLayer,
@@ -193,20 +168,4 @@ fun AudioParamsDialog(
     )
 }
 
-/** 三层乘积：三维最终值恒为 配置×插件×全局（09-10 接管判定废除，无插件源插件层按 1.0 计） */
-private fun computeFinalParams(
-    cfgSpeed: Float, cfgVolume: Float, cfgPitch: Float,
-    pluginSpeed: Float, pluginVolume: Float, pluginPitch: Float,
-    globalSpeed: Float, globalVolume: Float, globalPitch: Float,
-    hasPluginLayer: Boolean,
-): AudioParams {
-    val pSpeed = if (hasPluginLayer) pluginSpeed else 1f
-    val pVolume = if (hasPluginLayer) pluginVolume else 1f
-    val pPitch = if (hasPluginLayer) pluginPitch else 1f
-    return AudioParams(
-        speed = cfgSpeed * pSpeed * globalSpeed,
-        volume = cfgVolume * pVolume * globalVolume,
-        pitch = cfgPitch * pPitch * globalPitch,
-    )
-}
 // snap() 复用同包 AudioParamsDimensionSection.kt 的顶层定义（勿在本文件重复定义，同包重名会重载歧义）
