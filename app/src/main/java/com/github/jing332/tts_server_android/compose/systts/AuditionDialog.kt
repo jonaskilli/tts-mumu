@@ -166,11 +166,12 @@ fun AuditionDialog(
                         com.github.jing332.common.audio.AudioDecoder.getSampleRateAndMime(audio)
                     withMain {
                         // 与日志一致的最终倍率展示(仅≠1的项)：试听时明确知道当前生效的叠加参数
+                        // 用户 09-10 反馈：去掉值后缀 x，避免与日志栏发音人信息/音频参数弹窗歧义
                         val p = config.audioParams
                         val paramsInfo = buildList {
-                            if (kotlin.math.abs(p.speed - 1f) > 0.005f) add("语速%.2fx".format(p.speed))
-                            if (kotlin.math.abs(p.volume - 1f) > 0.005f) add("音量%.2fx".format(p.volume))
-                            if (kotlin.math.abs(p.pitch - 1f) > 0.005f) add("音调%.2fx".format(p.pitch))
+                            if (kotlin.math.abs(p.speed - 1f) > 0.005f) add("语速%.2f".format(p.speed))
+                            if (kotlin.math.abs(p.volume - 1f) > 0.005f) add("音量%.2f".format(p.volume))
+                            if (kotlin.math.abs(p.pitch - 1f) > 0.005f) add("音调%.2f".format(p.pitch))
                         }.joinToString(" ")
                         info = context.getString(
                             R.string.systts_test_success_info, audio.size.toLong().sizeToReadable(),

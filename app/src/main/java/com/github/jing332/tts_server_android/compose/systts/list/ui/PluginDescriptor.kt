@@ -65,7 +65,8 @@ class PluginDescriptor(
 
             // 三维恒显+加粗+同字号+管道分隔+1 位小数（退回 09-07 之前的卡片格式）；
             // 后缀格式 `语速/音量/音高: 值` 由 HtmlCompat + <b> 渲染（SpanStyle.Bold），
-            // 字号与标签一致（无 <small>），与配置项编辑页参数行口径统一
+            // 字号与标签一致（无 <small>）。无前缀——卡片无分层滑杆对照，
+            // 与弹窗/面板/编辑页「最终：」逗号+2位+无后缀口径刻意不同（用户 09-10 二稿"反过来统一"）
             val paramsLine = "语速:<b>%.1f</b> | 音量:<b>%.1f</b> | 音高:<b>%.1f</b>".format(
                 p.speed * pluginSpeed * globalSpeed,
                 p.volume * pluginVolume * globalVolume,

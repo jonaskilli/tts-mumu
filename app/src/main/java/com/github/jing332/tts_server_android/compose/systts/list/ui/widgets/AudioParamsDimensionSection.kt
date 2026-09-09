@@ -16,11 +16,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.text.AnnotatedString
-import androidx.compose.ui.text.SpanStyle
-import androidx.compose.ui.text.buildAnnotatedString
-import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import com.github.jing332.compose.widgets.LabelSlider
 import com.github.jing332.tts_server_android.R
@@ -139,26 +134,4 @@ private fun TakenOverHint(dimName: String) {
         color = MaterialTheme.colorScheme.onSurfaceVariant,
         modifier = Modifier.padding(vertical = 2.dp),
     )
-}
-
-/**
- * 三维终值行文案（用户 09-10 定稿，与卡片参数行 [PluginDescriptor] desc 同口径）：
- * 三维**恒显**（不再按 ≠1.0 过滤，全 1.0 也列出）、1 位小数、管道 | 分隔、
- * 数字加粗与标签同字号；[prefix] 由调用方给（弹窗/面板各自的前缀文案）。
- *
- * 值与卡片同源：调用方传入的已是 配置×插件×全局 乘积（尊重 pluginHandles 路由）。
- */
-fun buildFinalParamsText(
-    prefix: String,
-    speed: Float,
-    volume: Float,
-    pitch: Float,
-): AnnotatedString = buildAnnotatedString {
-    append(prefix)
-    append("语速:")
-    withStyle(SpanStyle(fontWeight = FontWeight.Bold)) { append("%.1f".format(speed)) }
-    append(" | 音量:")
-    withStyle(SpanStyle(fontWeight = FontWeight.Bold)) { append("%.1f".format(volume)) }
-    append(" | 音高:")
-    withStyle(SpanStyle(fontWeight = FontWeight.Bold)) { append("%.1f".format(pitch)) }
 }

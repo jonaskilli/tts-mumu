@@ -406,7 +406,7 @@
     <string name="audio_params_config_layer">配置项音频参数（仅影响本条）</string>
     <string name="audio_params_plugin_layer">插件音频参数（影响该插件全部配置项）</string>
     <string name="audio_params_global_layer">全局音频参数（影响全部配置项·谨慎）</string>
-    <string name="audio_params_final">最终：语速%1$.2fx，音量%2$.2fx，音高%3$.2fx</string>
+    <string name="audio_params_final">最终：语速%1$.2f，音量%2$.2f，音高%3$.2f</string>
     <string name="audio_params_card_hint">点击调整：发音人 / 插件 / 全局 三处音频参数</string>
     <string name="audio_params_none">语速、音量、音高未设置</string>
     <string name="audio_params_tag_config">发音人</string>

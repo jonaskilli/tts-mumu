@@ -345,10 +345,10 @@
     <string name="audio_params_config_layer">Config item audio params (this item only)</string>
     <string name="audio_params_plugin_layer">Plugin audio params (affects all items of this plugin)</string>
     <string name="audio_params_global_layer">Global audio params (affects all items · careful)</string>
-    <string name="audio_params_final">Final: speed %1$.2fx, volume %2$.2fx, pitch %3$.2fx</string>
-    <string name="audio_params_card_hint">Tap to adjust: config item / plugin / global audio params</string>
+    <string name="audio_params_final">Final: speed %1$.2f, volume %2$.2f, pitch %3$.2f</string>
+    <string name="audio_params_card_hint">Tap to adjust: voice / plugin / global audio params</string>
     <string name="audio_params_none">No speed / volume / pitch setting</string>
-    <string name="audio_params_tag_config">C</string>
+    <string name="audio_params_tag_config">Voice</string>
     <string name="audio_params_tag_plugin">P</string>
     <string name="audio_params_tag_global">G</string>
     <string name="audio_params_plugin_speed">Plugin speed %1$s</string>

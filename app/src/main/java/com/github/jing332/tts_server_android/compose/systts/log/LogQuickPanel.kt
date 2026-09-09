@@ -47,7 +47,6 @@ import com.github.jing332.tts_server_android.compose.SegmentedTextToggle
 import com.github.jing332.tts_server_android.compose.SharedViewModel
 import com.github.jing332.tts_server_android.compose.systts.list.ui.PluginDescriptor
 import com.github.jing332.tts_server_android.compose.systts.list.ui.widgets.AudioParamsDimensionSection
-import com.github.jing332.tts_server_android.compose.systts.list.ui.widgets.buildFinalParamsText
 import com.github.jing332.tts_server_android.conf.SysTtsConfig
 import com.github.jing332.tts_server_android.service.systts.SystemTtsService
 import com.github.jing332.tts_server_android.service.systts.help.CharacterRecordsFile
@@ -405,9 +404,11 @@ fun LogQuickPanel(
             val finalVolume = if (handlesVolume) volume else volume * pluginVolume * globalVolume
             val finalPitch = if (handlesPitch) pitch else pitch * pluginPitch * globalPitch
             Text(
-                // 三维恒显+最终值（用户 09-10）：与卡片参数行同口径（1 位小数、管道分隔、数字加粗）；
-                // 不再按 ≠1.0 过滤，全 1.0 也列出，与本面板滑杆/卡片所见一致
-                text = buildFinalParamsText("最终：", finalSpeed, finalVolume, finalPitch),
+                // 与卡片参数行口径不同（用户 09-10 二稿）：
+                // 卡片=管道+1 位+加粗，弹窗/面板=逗号+2 位+无后缀（删除 x 乘号，与日志/试听保持一致）
+                text = stringResource(
+                    R.string.audio_params_final, finalSpeed, finalVolume, finalPitch
+                ),
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.primary,
                 modifier = Modifier.padding(top = 4.dp),

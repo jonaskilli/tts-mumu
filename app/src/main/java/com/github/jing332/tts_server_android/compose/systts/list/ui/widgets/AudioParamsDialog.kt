@@ -214,9 +214,10 @@ fun AudioParamsDialog(
                     hasPluginLayer,
                 )
                 Text(
-                    // 三维恒显+最终值（用户 09-10）：与卡片参数行同口径（1 位小数、管道分隔、数字加粗）
-                    text = buildFinalParamsText(
-                        "最终：", finalParams.speed, finalParams.volume, finalParams.pitch
+                    // 与卡片参数行口径不同（用户 09-10 二稿）：
+                    // 卡片=管道+1 位+加粗，弹窗=逗号+2 位+无后缀（删除 x 乘号，与日志/试听保持一致）
+                    text = stringResource(
+                        R.string.audio_params_final, finalParams.speed, finalParams.volume, finalParams.pitch
                     ),
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.primary,

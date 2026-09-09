@@ -193,9 +193,11 @@ class PluginTtsUI : IConfigUI() {
         } ?: return
         val p = resolved.configuration.audioParams
         Text(
-            text = "最终：语速%.2fx，音量%.2fx，音高%.2fx".format(p.speed, p.volume, p.pitch),
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            // 与卡片参数行口径不同（用户 09-10 二稿）：
+            // 卡片=管道+1 位+加粗，编辑页内嵌/弹窗/面板=逗号+2 位+无后缀（删除 x 乘号）
+            text = stringResource(R.string.audio_params_final, p.speed, p.volume, p.pitch),
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.primary,
             modifier = Modifier.padding(top = 4.dp),
         )
     }
