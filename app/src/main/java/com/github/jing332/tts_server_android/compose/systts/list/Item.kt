@@ -89,6 +89,9 @@ internal fun Item(
     onSwitchTag: () -> Unit = {},
     // 音频参数：卡片⋮菜单直达三层弹窗（配置项/插件/全局），不进编辑页（用户要求就地触发）
     onAudioParams: () -> Unit = {},
+    // BGM 走独立字段(BgmConfiguration.volume)，不参与 audioParams 三层体系，
+    // 弹窗对它无意义(AudioParamsDialog 对非 TtsConfigurationDTO 直接 return)，故菜单隐藏该项
+    showAudioParamsEntry: Boolean = true,
     isInSubGroup: Boolean = false,
 ) {
     val view = LocalView.current
@@ -296,16 +299,17 @@ internal fun Item(
                             }
                         )
                         // 音频参数：直达三层弹窗（配置项/插件/全局），不进编辑页
-                        DropdownMenuItem(
-                            text = { Text(stringResource(id = R.string.audio_params)) },
-                            onClick = {
-                                showOptions = false
-                                onAudioParams()
-                            },
-                            leadingIcon = {
-                                Icon(Icons.Default.Speed, stringResource(R.string.audio_params))
-                            }
-                        )
+                        if (showAudioParamsEntry)
+                            DropdownMenuItem(
+                                text = { Text(stringResource(id = R.string.audio_params)) },
+                                onClick = {
+                                    showOptions = false
+                                    onAudioParams()
+                                },
+                                leadingIcon = {
+                                    Icon(Icons.Default.Speed, stringResource(R.string.audio_params))
+                                }
+                            )
                         DropdownMenuItem(
                             text = { Text("移动到子分组") },
                             onClick = {

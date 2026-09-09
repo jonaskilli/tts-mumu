@@ -43,8 +43,6 @@ class TtsPluginUiEngineV2(context: Context, plugin: Plugin) : TtsPluginEngineV2(
 
 
     fun getSampleRate(locale: String, voice: String): Int? {
-        runtime.console.debug("getSampleRate($locale, $voice)")
-
         return engine.invokeMethod(
             editUiJsObject,
             FUNC_SAMPLE_RATE,
@@ -57,8 +55,6 @@ class TtsPluginUiEngineV2(context: Context, plugin: Plugin) : TtsPluginEngineV2(
     }
 
     fun isNeedDecode(locale: String, voice: String): Boolean {
-        runtime.console.debug("isNeedDecode($locale, $voice)")
-
         return try {
             engine.invokeMethod(editUiJsObject, FUNC_IS_NEED_DECODE, locale, voice)?.run {
                 if (this is Boolean) this
@@ -120,8 +116,6 @@ class TtsPluginUiEngineV2(context: Context, plugin: Plugin) : TtsPluginEngineV2(
     }
 
     fun onLoadData() {
-        runtime.console.debug("onLoadData()...")
-
         try {
             engine.invokeMethod(editUiJsObject, FUNC_ON_LOAD_DATA)
         } catch (_: NoSuchMethodException) {
@@ -129,7 +123,6 @@ class TtsPluginUiEngineV2(context: Context, plugin: Plugin) : TtsPluginEngineV2(
     }
 
     fun onLoadUI(context: Context, container: LinearLayout) {
-        runtime.console.debug("onLoadUI()...")
         try {
             engine.invokeMethod(
                 editUiJsObject,
@@ -142,8 +135,6 @@ class TtsPluginUiEngineV2(context: Context, plugin: Plugin) : TtsPluginEngineV2(
     }
 
     fun onVoiceChanged(locale: String, voice: String) {
-        runtime.console.debug("onVoiceChanged($locale, $voice)")
-
         try {
             engine.invokeMethod(
                 editUiJsObject,

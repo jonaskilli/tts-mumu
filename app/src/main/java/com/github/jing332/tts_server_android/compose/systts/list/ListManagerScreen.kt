@@ -3196,7 +3196,8 @@ internal fun ListManagerScreen(
                                         },
                                         onAudioParams = {
                                             showAudioParams = item
-                                        }
+                                        },
+                                        showAudioParamsEntry = item.config !is BgmConfiguration
                                     )
                                 }
                             }
@@ -3418,7 +3419,8 @@ internal fun ListManagerScreen(
                                                     },
                                                     onAudioParams = {
                                                         showAudioParams = item
-                                                    }
+                                                    },
+                                                    showAudioParamsEntry = item.config !is BgmConfiguration
                                                 )
                                             }
                                         }

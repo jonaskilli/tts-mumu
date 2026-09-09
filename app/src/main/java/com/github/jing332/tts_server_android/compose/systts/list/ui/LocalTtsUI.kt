@@ -105,21 +105,21 @@ class LocalTtsUI() : IConfigUI() {
             }, valueRange = 0.1f..3f, step = 0.05f)
 
             LabelSlider(
-                text = stringResource(R.string.label_speech_pitch, "%.2f".format(params.pitch)),
-                value = params.pitch, onValueChange = {
-                onSystemTtsChange(
-                    systemTts.copy(
-                        config = config.copy(audioParams = params.copy(pitch = it.toScale(2)))
-                    )
-                )
-            }, valueRange = 0.1f..3f, step = 0.05f)
-
-            LabelSlider(
                 text = stringResource(R.string.label_speech_volume, "%.2f".format(params.volume)),
                 value = params.volume, onValueChange = {
                 onSystemTtsChange(
                     systemTts.copy(
                         config = config.copy(audioParams = params.copy(volume = it.toScale(2)))
+                    )
+                )
+            }, valueRange = 0.1f..3f, step = 0.05f)
+
+            LabelSlider(
+                text = stringResource(R.string.label_speech_pitch, "%.2f".format(params.pitch)),
+                value = params.pitch, onValueChange = {
+                onSystemTtsChange(
+                    systemTts.copy(
+                        config = config.copy(audioParams = params.copy(pitch = it.toScale(2)))
                     )
                 )
             }, valueRange = 0.1f..3f, step = 0.05f)
