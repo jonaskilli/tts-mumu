@@ -4,6 +4,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -28,6 +29,9 @@ import com.github.jing332.tts_server_android.compose.SegmentedTextToggle
  * - 重置/应用按维度一组（09-10 ②A）：应用=该维三层一起落库（由调用方 onApplyDim 实现），
  *   草稿被改动后调用方置脏，按钮带 ● 提示该维有待保存；
  * - 值与脏状态全部由调用方持有（hoisted state），本组件无业务逻辑。
+ * - collapsedAccordion=true（09-10 弹窗折叠改版，仅 AudioParamsDialog 用）：
+ *   默认全收起只显示三个维度键，单开手风琴——点键展开该维滑杆，再点收起，点其他键切换；
+ *   展开键高亮，脏维度带 ● 提示。日志快捷面板不受影响（保持平铺）。
  *
  * 维度下标：0=语速 1=音量 2=音高。
  */
@@ -46,55 +50,82 @@ fun AudioParamsDimensionSection(
     isDirty: (Int) -> Boolean,
     onResetDim: (Int) -> Unit,
     onApplyDim: (Int) -> Unit,
+    collapsedAccordion: Boolean = false,
 ) {
-    var dim by remember { mutableStateOf(0) }
     val tagCfg = stringResource(R.string.audio_params_tag_config)
     val tagPlugin = stringResource(R.string.audio_params_tag_plugin)
     val tagGlobal = stringResource(R.string.audio_params_tag_global)
     val dimNames = listOf("语速", "音量", "音高")
 
-    Column(Modifier.fillMaxWidth()) {
-        SegmentedTextToggle(
-            options = dimNames,
-            selectedIndex = dim,
-            onSelect = { dim = it },
-            modifier = Modifier.align(Alignment.CenterHorizontally),
-        )
+    // 该维三层滑杆 + 重置/应用（两种形态共用）
+    val DimContent: @Composable (Int) -> Unit = { dim ->
+        Column {
+            when (dim) {
+                0 -> {
+                    LayerSlider(tagCfg, cfgSpeed, onCfgSpeed)
+                    if (hasPluginLayer) {
+                        LayerSlider(tagPlugin, pluginSpeed, onPluginSpeed)
+                    }
+                    LayerSlider(tagGlobal, globalSpeed, onGlobalSpeed)
+                }
+                1 -> {
+                    LayerSlider(tagCfg, cfgVolume, onCfgVolume)
+                    if (hasPluginLayer) {
+                        LayerSlider(tagPlugin, pluginVolume, onPluginVolume)
+                    }
+                    LayerSlider(tagGlobal, globalVolume, onGlobalVolume)
+                }
+                else -> {
+                    LayerSlider(tagCfg, cfgPitch, onCfgPitch)
+                    if (hasPluginLayer) {
+                        LayerSlider(tagPlugin, pluginPitch, onPluginPitch)
+                    }
+                    LayerSlider(tagGlobal, globalPitch, onGlobalPitch)
+                }
+            }
 
-        // 该维三层滑杆：配置层恒显示；无插件源→跳过插件行
-        when (dim) {
-            0 -> {
-                LayerSlider(tagCfg, cfgSpeed, onCfgSpeed)
-                if (hasPluginLayer) {
-                    LayerSlider(tagPlugin, pluginSpeed, onPluginSpeed)
+            // 重置=该维三层草稿回 1.0（不落库）；应用=该维三层一起落库
+            Row(
+                Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.End,
+            ) {
+                TextButton(onClick = { onResetDim(dim) }) { Text(stringResource(R.string.reset)) }
+                TextButton(onClick = { onApplyDim(dim) }) {
+                    Text((if (isDirty(dim)) "● " else "") + stringResource(R.string.audio_params_apply))
                 }
-                LayerSlider(tagGlobal, globalSpeed, onGlobalSpeed)
-            }
-            1 -> {
-                LayerSlider(tagCfg, cfgVolume, onCfgVolume)
-                if (hasPluginLayer) {
-                    LayerSlider(tagPlugin, pluginVolume, onPluginVolume)
-                }
-                LayerSlider(tagGlobal, globalVolume, onGlobalVolume)
-            }
-            else -> {
-                LayerSlider(tagCfg, cfgPitch, onCfgPitch)
-                if (hasPluginLayer) {
-                    LayerSlider(tagPlugin, pluginPitch, onPluginPitch)
-                }
-                LayerSlider(tagGlobal, globalPitch, onGlobalPitch)
             }
         }
+    }
 
-        // 重置=该维三层草稿回 1.0（不落库）；应用=该维三层一起落库
-        Row(
-            Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.End,
-        ) {
-            TextButton(onClick = { onResetDim(dim) }) { Text(stringResource(R.string.reset)) }
-            TextButton(onClick = { onApplyDim(dim) }) {
-                Text((if (isDirty(dim)) "● " else "") + stringResource(R.string.audio_params_apply))
+    if (collapsedAccordion) {
+        // 折叠手风琴：默认 -1 全收起；单开，点已展开键收起、点其他键切换
+        var expandedDim by remember { mutableStateOf(-1) }
+        Column(Modifier.fillMaxWidth()) {
+            Row(
+                Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                dimNames.forEachIndexed { i, name ->
+                    FilterChip(
+                        selected = expandedDim == i,
+                        onClick = { expandedDim = if (expandedDim == i) -1 else i },
+                        label = { Text((if (isDirty(i)) "● " else "") + name) },
+                        modifier = Modifier.weight(1f),
+                    )
+                }
             }
+            if (expandedDim >= 0) DimContent(expandedDim)
+        }
+    } else {
+        var dim by remember { mutableStateOf(0) }
+        Column(Modifier.fillMaxWidth()) {
+            SegmentedTextToggle(
+                options = dimNames,
+                selectedIndex = dim,
+                onSelect = { dim = it },
+                modifier = Modifier.align(Alignment.CenterHorizontally),
+            )
+            DimContent(dim)
         }
     }
 }

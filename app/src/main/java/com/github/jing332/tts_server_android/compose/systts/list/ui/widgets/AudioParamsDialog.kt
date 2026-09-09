@@ -11,16 +11,12 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
@@ -32,21 +28,19 @@ import com.github.jing332.database.entities.systts.AudioParams
 import com.github.jing332.database.entities.systts.SystemTtsV2
 import com.github.jing332.database.entities.systts.TtsConfigurationDTO
 import com.github.jing332.database.entities.systts.source.PluginTtsSource
-import com.github.jing332.tts.PreviewState
-import com.github.jing332.tts.TaggedTtsPreviewPlayer
 import com.github.jing332.tts_server_android.R
-import com.github.jing332.tts_server_android.conf.AppConfig
 import com.github.jing332.tts_server_android.conf.SysTtsConfig
 import com.github.jing332.tts_server_android.service.systts.SystemTtsService
 import kotlinx.coroutines.launch
 
 /**
- * 配置项「音频参数」弹窗（卡片菜单 / 编辑页顶部按钮共用）。
- * 结构（用户 09-10 定稿，按维度改版）：
- * - 顶部：当前发音人 + ▶试听（草稿试听，应用才落库）+ 终值行（播放链同源三层乘积，实时跟随草稿）；
- * - 主体：[AudioParamsDimensionSection] 第二级分段=语速/音量/音高，每段内三层滑杆同屏；
- *   重置/应用按维度一组，应用=该维三层一起落库（配置层双写页面内存防旧值覆盖）；
- * - 插件接管的维度只落配置层（09-10 ③）；
+ * 配置项「音频参数」弹窗（卡片菜单 / 编辑页试听行⚡共用）。
+ * 结构（用户 09-10 折叠改版定稿）：
+ * - 顶部：当前发音人 + 终值行（播放链同源三层乘积，实时跟随草稿）；
+ *   ▶试听键已移除——试听文本行已有 🎧，弹窗专注音频参数（卡片⋮菜单入口随之无试听途径，用户接受）；
+ * - 主体：[AudioParamsDimensionSection] 折叠手风琴（collapsedAccordion=true）——
+ *   默认全收起只显示 语速/音量/音高 三个键，单开展开该维三层滑杆；重置/应用按维度一组，
+ *   应用=该维三层一起落库（配置层双写页面内存防旧值覆盖）；
  * - 音高进插件/全局层（09-10 翻掉 09-07「音高不出现于插件/全局层」旧决定）。
  *
  * [onSysttsChange] 由调用方传编辑页内存回调，保证双写一致。
@@ -79,22 +73,7 @@ fun AudioParamsDialog(
     var volumeDirty by remember(systemTts.id) { mutableStateOf(false) }
     var pitchDirty by remember(systemTts.id) { mutableStateOf(false) }
 
-    // ===== 顶部试听状态机（同日志快捷面板：▶ →(点击)… →(出声)■ →(播完复位)▶）=====
-    val previewState by TaggedTtsPreviewPlayer.state.collectAsState()
-    var previewing by remember(systemTts.id) { mutableStateOf(false) }
-    LaunchedEffect(previewState) { if (previewState == PreviewState.IDLE) previewing = false }
-
     val hasPluginLayer = source != null
-
-    /** 试听实体=本配置项+配置层草稿（语速/音量/音高）：未应用也能先听效果；
-     *  插件/全局层草稿播放时取库值，试听主要反映配置层与所选声音的组合 */
-    fun draftEntity(): SystemTtsV2 = systemTts.copy(
-        config = config.copy(
-            audioParams = config.audioParams.copy(
-                speed = snap(speed), volume = snap(volume), pitch = snap(pitch)
-            )
-        )
-    )
 
     /** 维度应用（09-10 ②A）：该维三层一起落库——配置层双写（库+页面内存），
      *  插件/全局层照常写入（接管判定已废除，所有维度恒可调）；立即生效不关弹窗 */
@@ -157,48 +136,18 @@ fun AudioParamsDialog(
                     .padding(horizontal = 4.dp)
                     .verticalScroll(rememberScrollState())
             ) {
-                // ===== 顶部：当前发音人 + 试听（用户 09-10 ⑤）=====
-                Row(
-                    Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Column(Modifier.weight(1f)) {
-                        Text(
-                            "当前发音人",
-                            style = MaterialTheme.typography.labelMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                        Text(
-                            systemTts.displayName,
-                            style = MaterialTheme.typography.titleMedium,
-                            maxLines = 1,
-                        )
-                    }
-                    TextButton(onClick = {
-                        // 试听=草稿参数+当前声音；播放中/合成中再点=停止复位（同日志快捷面板）
-                        if (previewing && previewState != PreviewState.IDLE) {
-                            TaggedTtsPreviewPlayer.stop()
-                            previewing = false
-                            return@TextButton
-                        }
-                        previewing = true
-                        scope.launch {
-                            // 试听念"试听文本"（用户 09-10 定稿）：与编辑页🎧同口径，改了文本这边立刻生效；
-                            // 文本被清空时回落默认句，避免合成空串
-                            val auditionText = AppConfig.testSampleText.value
-                                .ifBlank { "你好，这是试听语音。" }
-                            TaggedTtsPreviewPlayer.play(context, draftEntity(), auditionText)
-                        }
-                    }) {
-                        Text(
-                            when {
-                                previewing && previewState == PreviewState.PLAYING -> "■"
-                                previewing -> "…"
-                                else -> "▶"
-                            },
-                            color = if (previewing) MaterialTheme.colorScheme.tertiary else Color.Unspecified,
-                        )
-                    }
+                // ===== 顶部：当前发音人（试听键已移除，用户 09-10 定稿：试听文本行已有 🎧，弹窗专注音频参数）=====
+                Column(Modifier.fillMaxWidth()) {
+                    Text(
+                        "当前发音人",
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    Text(
+                        systemTts.displayName,
+                        style = MaterialTheme.typography.titleMedium,
+                        maxLines = 1,
+                    )
                 }
 
                 // ===== 终值行：实时跟随三层草稿；三维恒显（用户 09-10），与卡片参数行同口径 =====
@@ -222,8 +171,10 @@ fun AudioParamsDialog(
                     modifier = Modifier.padding(top = 2.dp, bottom = 4.dp),
                 )
 
-                // ===== 按维度编辑区（09-10）：每维三层滑杆同屏，重置/应用按维度 =====
+                // ===== 按维度编辑区（09-10 折叠改版）：默认全收起只显示三个维度键，
+                //      单开手风琴——点键展开该维三层滑杆+重置/应用，再点收起，点其他键切换 =====
                 AudioParamsDimensionSection(
+                    collapsedAccordion = true,
                     hasPluginLayer = hasPluginLayer,
                     cfgSpeed = speed, onCfgSpeed = { speed = it; speedDirty = true },
                     cfgVolume = volume, onCfgVolume = { volume = it; volumeDirty = true },
