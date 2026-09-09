@@ -33,11 +33,14 @@ abstract class IConfigUI {
     )
 
     @Composable
-    abstract fun ParamsEditScreen(
+    /** 参数编辑区：插件 TTS 不渲染（09-07 定稿：调参统一走编辑页顶部「音频参数」按钮弹窗），
+     *  故给空默认实现，只有本地 TTS/BGM（PCM 采样率/直接播放等专属设置）才 override 渲染 */
+    open fun ParamsEditScreen(
         modifier: Modifier,
         systemTts: SystemTtsV2,
         onSystemTtsChange: (SystemTtsV2) -> Unit,
-    )
+    ) {
+    }
 
     protected fun SystemTtsV2.copySource(source: TextToSpeechSource): SystemTtsV2 {
         val config = config as TtsConfigurationDTO

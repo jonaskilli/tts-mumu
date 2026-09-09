@@ -4,7 +4,6 @@ import android.util.Log
 import android.widget.LinearLayout
 import androidx.compose.animation.animateContentSize
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -18,7 +17,6 @@ import androidx.compose.material.icons.filled.Info
 import com.github.jing332.tts_server_android.compose.systts.plugin.PluginImage
 import androidx.compose.material.icons.filled.Speed
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -41,17 +39,14 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.drake.net.utils.withIO
-import com.github.jing332.common.utils.toParamText
 import com.github.jing332.common.utils.toast
 import com.github.jing332.compose.widgets.AppSpinner
-import com.github.jing332.compose.widgets.LabelSlider
 import com.github.jing332.compose.widgets.LoadingContent
 import com.github.jing332.compose.widgets.LoadingDialog
 import com.github.jing332.database.dbm
 import com.github.jing332.database.entities.SpeechRule
 import com.github.jing332.database.entities.plugin.Plugin
 import com.github.jing332.database.entities.systts.SystemTtsGroup
-import com.github.jing332.database.entities.systts.AudioParams
 import com.github.jing332.database.entities.systts.SystemTtsV2
 import com.github.jing332.database.entities.systts.TtsConfigurationDTO
 import com.github.jing332.database.entities.systts.source.PluginTtsSource
@@ -74,125 +69,8 @@ class PluginTtsUI : IConfigUI() {
         const val TAG = "PluginTtsUI"
     }
 
-    @Composable
-    override fun ParamsEditScreen(
-        modifier: Modifier,
-        systemTts: SystemTtsV2,
-        onSystemTtsChange: (SystemTtsV2) -> Unit,
-    ) {
-        val config = systemTts.config as TtsConfigurationDTO
-        val params = config.audioParams
-        // 浮点去噪：滑块 `step=0.05f` 在某些步进处会产生 1.0999999 这种 JSON 反序列化噪声；
-        // 显示用原始 params.speed，但 onValueChange 写回时统一 round 到 0.01，
-        // 保证卡片/滑块/日志三处长期一致（1.10 显示 vs 1.0999999 噪声不会出现）。
-        fun snap(v: Float): Float = (kotlin.math.round(v * 100f) / 100f)
-        Column(modifier) {
-            LabelSlider(
-                text = stringResource(R.string.label_speech_rate, "%.2f".format(params.speed)),
-                value = params.speed,
-                onValueChange = {
-                    val v = snap(it)
-                    onSystemTtsChange(
-                        systemTts.copy(
-                            config = config.copy(
-                                audioParams = params.copy(speed = v)
-                            )
-                        )
-                    )
-                },
-                valueRange = 0.1f..3f,
-                step = 0.05f
-            )
-
-            LabelSlider(
-                text = stringResource(R.string.label_speech_volume, "%.2f".format(params.volume)),
-                value = params.volume, onValueChange = {
-                    val v = snap(it)
-                    onSystemTtsChange(
-                        systemTts.copy(
-                            config = config.copy(
-                                audioParams = params.copy(volume = v)
-                            )
-                        )
-                    )
-                }, valueRange = 0.1f..3f,
-                step = 0.05f
-            )
-
-            LabelSlider(
-                text = stringResource(R.string.label_speech_pitch, "%.2f".format(params.pitch)),
-                value = params.pitch, onValueChange = {
-                    val v = snap(it)
-                    onSystemTtsChange(
-                        systemTts.copy(
-                            config = config.copy(
-                                audioParams = params.copy(pitch = v)
-                            )
-                        )
-                    )
-                }, valueRange = 0.1f..3f,
-                step = 0.05f
-            )
-
-            Row(
-                Modifier
-                    .fillMaxWidth()
-                    .padding(top = 8.dp),
-                horizontalArrangement = Arrangement.End
-            ) {
-                TextButton(onClick = {
-                    onSystemTtsChange(
-                        systemTts.copy(
-                            config = config.copy(
-                                audioParams = params.copy(speed = 1f, volume = 1f, pitch = 1f)
-                            )
-                        )
-                    )
-                }) {
-                    Text(stringResource(id = R.string.reset))
-                }
-            }
-
-            // ===== 终值行（唯一保留的叠加展示）=====
-            // 插件层/全局层滑杆已于 09-10 删除：与顶部「音频参数」按钮打开的按维度弹窗功能重复，
-            // 统一走弹窗；此处只留终值行，调配置层滑杆时可看到三层叠加后的实际播放参数
-            HorizontalDivider(Modifier.padding(vertical = 4.dp))
-            ThreeLayerFinalLine(systemTts)
-        }
-    }
-
-    /**
-     * 最终值行：三层乘积（经插件处理路由）。
-     * 复用播放链同一 resolveTtsPlayback()，所见即所播；随实体变化重组实时刷新
-     * （插件/全局层改动走顶部弹窗，回到本页时实体已刷新）。
-     */
-    @Composable
-    private fun ThreeLayerFinalLine(entity: SystemTtsV2) {
-        val resolved = remember(entity.id, entity) {
-            runCatching {
-                com.github.jing332.tts.resolveTtsPlayback(
-                    entity,
-                    AudioParams(
-                        speed = com.github.jing332.tts_server_android.conf.SysTtsConfig.audioParamsSpeed,
-                        volume = com.github.jing332.tts_server_android.conf.SysTtsConfig.audioParamsVolume,
-                        pitch = com.github.jing332.tts_server_android.conf.SysTtsConfig.audioParamsPitch,
-                    ),
-                )
-            }.getOrNull()
-        } ?: return
-        val p = resolved.configuration.audioParams
-        Text(
-            // 与卡片参数行口径不同（用户 09-10 二稿）：
-            // 卡片=管道+1 位+加粗，编辑页内嵌/弹窗/面板=逗号+2 位+无后缀（删除 x 乘号）
-            text = stringResource(
-                R.string.audio_params_final,
-                p.speed.toParamText(), p.volume.toParamText(), p.pitch.toParamText()
-            ),
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.primary,
-            modifier = Modifier.padding(top = 4.dp),
-        )
-    }
+    // ParamsEditScreen 已删（09-10）：插件 TTS 从不渲染该区（QuickEditBottomSheet 仅 !isPluginTts 时调用），
+    // 配置层调参唯一入口=编辑页顶部「音频参数」按钮弹窗（本地 TTS/BGM 仍用各自 override 渲染专属设置）
 
     @OptIn(ExperimentalMaterial3Api::class)
     @Composable
