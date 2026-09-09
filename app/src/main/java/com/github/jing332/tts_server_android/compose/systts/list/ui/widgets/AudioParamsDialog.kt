@@ -205,7 +205,7 @@ fun AudioParamsDialog(
                     }
                 }
 
-                // ===== 终值行：实时跟随三层草稿；值为 1.0 的维度不显示，三维全默认显示「无设置」=====
+                // ===== 终值行：实时跟随三层草稿；三维恒显（用户 09-10），与卡片参数行同口径 =====
                 val finalParams = computeFinalParams(
                     snap(speed), snap(volume), snap(pitch),
                     snap(pluginSpeed), snap(pluginVolume), snap(pluginPitch),
@@ -213,17 +213,11 @@ fun AudioParamsDialog(
                     handlesSpeed, handlesVolume, handlesPitch,
                     hasPluginLayer,
                 )
-                val finalDims = buildList {
-                    if (kotlin.math.abs(finalParams.speed - 1f) > 0.005f)
-                        add("语速%.2fx".format(finalParams.speed))
-                    if (kotlin.math.abs(finalParams.volume - 1f) > 0.005f)
-                        add("音量%.2fx".format(finalParams.volume))
-                    if (kotlin.math.abs(finalParams.pitch - 1f) > 0.005f)
-                        add("音高%.2fx".format(finalParams.pitch))
-                }
                 Text(
-                    text = if (finalDims.isEmpty()) stringResource(R.string.audio_params_none)
-                    else "最终：" + finalDims.joinToString("，"),
+                    // 三维恒显+最终值（用户 09-10）：与卡片参数行同口径（1 位小数、管道分隔、数字加粗）
+                    text = buildFinalParamsText(
+                        "最终：", finalParams.speed, finalParams.volume, finalParams.pitch
+                    ),
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.primary,
                     modifier = Modifier.padding(top = 2.dp, bottom = 4.dp),

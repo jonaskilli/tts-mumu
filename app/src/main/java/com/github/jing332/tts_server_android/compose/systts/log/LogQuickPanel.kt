@@ -47,6 +47,7 @@ import com.github.jing332.tts_server_android.compose.SegmentedTextToggle
 import com.github.jing332.tts_server_android.compose.SharedViewModel
 import com.github.jing332.tts_server_android.compose.systts.list.ui.PluginDescriptor
 import com.github.jing332.tts_server_android.compose.systts.list.ui.widgets.AudioParamsDimensionSection
+import com.github.jing332.tts_server_android.compose.systts.list.ui.widgets.buildFinalParamsText
 import com.github.jing332.tts_server_android.conf.SysTtsConfig
 import com.github.jing332.tts_server_android.service.systts.SystemTtsService
 import com.github.jing332.tts_server_android.service.systts.help.CharacterRecordsFile
@@ -395,7 +396,7 @@ fun LogQuickPanel(
                 }
             }
 
-            // ===== 终值（播放链同源三层乘积；值为 1.0 的维度不显示）=====
+            // ===== 终值（播放链同源三层乘积；三维恒显，用户 09-10）=====
             // 最终值恒为 配置×插件×全局（三层草稿实时跟随；音高 09-10 起同规格走草稿）
             val handlesSpeed = plugin?.pluginHandlesSpeed == true
             val handlesVolume = plugin?.pluginHandlesVolume == true
@@ -403,14 +404,10 @@ fun LogQuickPanel(
             val finalSpeed = if (handlesSpeed) speed else speed * pluginSpeed * globalSpeed
             val finalVolume = if (handlesVolume) volume else volume * pluginVolume * globalVolume
             val finalPitch = if (handlesPitch) pitch else pitch * pluginPitch * globalPitch
-            val finalDims = buildList {
-                if (kotlin.math.abs(finalSpeed - 1f) > 0.005f) add("语速%.2fx".format(finalSpeed))
-                if (kotlin.math.abs(finalVolume - 1f) > 0.005f) add("音量%.2fx".format(finalVolume))
-                if (kotlin.math.abs(finalPitch - 1f) > 0.005f) add("音高%.2fx".format(finalPitch))
-            }
             Text(
-                text = if (finalDims.isEmpty()) stringResource(R.string.audio_params_none)
-                else "最终：" + finalDims.joinToString("，"),
+                // 三维恒显+最终值（用户 09-10）：与卡片参数行同口径（1 位小数、管道分隔、数字加粗）；
+                // 不再按 ≠1.0 过滤，全 1.0 也列出，与本面板滑杆/卡片所见一致
+                text = buildFinalParamsText("最终：", finalSpeed, finalVolume, finalPitch),
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.primary,
                 modifier = Modifier.padding(top = 4.dp),
