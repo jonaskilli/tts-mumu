@@ -191,6 +191,8 @@ class PluginTtsUI : IConfigUI() {
         var selectedVoiceIds by remember { mutableStateOf<Set<Any>>(emptySet()) }
 
         var auditionSystts by remember { mutableStateOf<SystemTtsV2?>(null) }
+        // 试听文本行⚡的三层音频参数弹窗（用户 09-10 定稿：顶部按钮摘除，入口改挂试听文本旁）
+        var showAudioParams by remember { mutableStateOf(false) }
         // 当前试听对应的发音人ID（用于分类分配回调）
         var auditionVoiceId by remember { mutableStateOf<Any?>(null) }
         // 发音人 → 分类名（分配了分类的发音人保存时走新逻辑）
@@ -266,6 +268,14 @@ class PluginTtsUI : IConfigUI() {
                 auditionVoiceId = null
             }
 
+        // 三层音频参数弹窗（试听文本行⚡触发）：终值置顶/配置项/插件/全局，配置层带应用按键
+        if (showAudioParams)
+            com.github.jing332.tts_server_android.compose.systts.list.ui.widgets.AudioParamsDialog(
+                onDismissRequest = { showAudioParams = false },
+                systemTts = systts,
+                onSysttsChange = onSysttsChange,
+            )
+
         Column(modifier) {
             // 仅界面模式开关仅对角色管理类插件显示：兼容插件换 pluginId 后按名称回退识别
             val isRoleManagementPlugin = remember(tts.pluginId) {
@@ -322,7 +332,8 @@ class PluginTtsUI : IConfigUI() {
                                 .padding(top = 8.dp),
                             onAudition = {
                                 auditionSystts = systts
-                            }
+                            },
+                            onAudioParams = { showAudioParams = true }
                         )
                     }
 

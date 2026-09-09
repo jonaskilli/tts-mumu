@@ -35,6 +35,7 @@ import com.github.jing332.database.entities.systts.source.PluginTtsSource
 import com.github.jing332.tts.PreviewState
 import com.github.jing332.tts.TaggedTtsPreviewPlayer
 import com.github.jing332.tts_server_android.R
+import com.github.jing332.tts_server_android.conf.AppConfig
 import com.github.jing332.tts_server_android.conf.SysTtsConfig
 import com.github.jing332.tts_server_android.service.systts.SystemTtsService
 import kotlinx.coroutines.launch
@@ -182,7 +183,11 @@ fun AudioParamsDialog(
                         }
                         previewing = true
                         scope.launch {
-                            TaggedTtsPreviewPlayer.play(context, draftEntity(), "你好，这是试听语音。")
+                            // 试听念"试听文本"（用户 09-10 定稿）：与编辑页🎧同口径，改了文本这边立刻生效；
+                            // 文本被清空时回落默认句，避免合成空串
+                            val auditionText = AppConfig.testSampleText.value
+                                .ifBlank { "你好，这是试听语音。" }
+                            TaggedTtsPreviewPlayer.play(context, draftEntity(), auditionText)
                         }
                     }) {
                         Text(

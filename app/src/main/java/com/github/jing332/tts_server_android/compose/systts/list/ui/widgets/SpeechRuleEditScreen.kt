@@ -15,7 +15,6 @@ import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.automirrored.filled.HelpOutline
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.SelectAll
-import androidx.compose.material.icons.filled.Speed
 import androidx.compose.material.icons.filled.Tag
 import androidx.compose.material3.Checkbox
 import com.github.jing332.compose.widgets.AppDropdownMenu
@@ -153,17 +152,12 @@ fun SpeechRuleEditScreen(
             onDismissRequest = { showStandbyHelpDialog = false }
         )
 
-    // 「音频参数」弹窗（用户 09-07 定稿：编辑页唯一音频参数入口就是顶部此按钮，
-    // 底部滑块区与底部入口卡均已删除；统一走三层弹窗：终值置顶/配置项/插件/全局，
-    // 配置层带应用按键——双写落库+回写页面内存，不随页面取消回退）
-    var showParamsDialog by remember { mutableStateOf(false) }
-    if (showParamsDialog) {
-        AudioParamsDialog(
-            onDismissRequest = { showParamsDialog = false },
-            systemTts = systts,
-            onSysttsChange = onSysttsChange,
-        )
-    }
+    // 「音频参数」入口已于 09-10 从此处摘除（用户定稿）：改挂到试听文本行右侧⚡
+    // （AuditionTextField），与🎧试听同框形成"改文本→调参数→立刻听"闭环。
+    // 摘除后本组件的另两个使用方同步变化：
+    //   完整编辑页(TtsEditContainerScreen) → 由 PluginTtsUI/LocalTtsUI 的试听文本行补上；
+    //   快捷编辑面板(QuickEditBottomSheet) → 不再提供音频参数入口（用户确认：直接去掉）。
+    // 其余入口不受影响：卡片⋮菜单「音频参数」保留。
 
     if (showSpeechTarget)
         Column(modifier.fillMaxWidth()) {
@@ -175,13 +169,6 @@ fun SpeechRuleEditScreen(
                     .align(Alignment.CenterHorizontally)
                     .horizontalScroll(rememberScrollState())
             ) {
-                TextButton(onClick = { showParamsDialog = true }) {
-                    Row {
-                        Icon(Icons.Default.Speed, stringResource(R.string.audio_params))
-                        Text(stringResource(id = R.string.audio_params))
-                    }
-                }
-
                 Row(
                     Modifier
                         .minimumInteractiveComponentSize()

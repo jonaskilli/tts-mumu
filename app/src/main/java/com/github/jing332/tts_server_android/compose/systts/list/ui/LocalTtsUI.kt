@@ -263,10 +263,21 @@ class LocalTtsUI() : IConfigUI() {
 
         var showAuditionDialog by remember { mutableStateOf(false) }
         var auditionSystts by remember { mutableStateOf<SystemTtsV2?>(null) }
+        // 试听文本行⚡的三层音频参数弹窗（用户 09-10 定稿：顶部按钮摘除，入口改挂试听文本旁；
+        // 本地 TTS 无插件层，弹窗自动只显示 配置项+全局 两层）
+        var showAudioParams by remember { mutableStateOf(false) }
         if (showAuditionDialog && auditionSystts != null)
             AuditionDialog(systts = auditionSystts!!) {
                 showAuditionDialog = false
             }
+
+        // 三层音频参数弹窗（试听文本行⚡触发）；本地无插件层，弹窗自动只显示 配置项+全局
+        if (showAudioParams)
+            com.github.jing332.tts_server_android.compose.systts.list.ui.widgets.AudioParamsDialog(
+                onDismissRequest = { showAudioParams = false },
+                systemTts = systts,
+                onSysttsChange = onSysttsChange,
+            )
 
         Column(modifier) {
             // 基本信息：保留分区壳但不出标题（同 PluginTtsUI 用户定稿）
@@ -308,6 +319,8 @@ class LocalTtsUI() : IConfigUI() {
                         // 强制创建新的对象副本，确保 Compose 检测到变化并重新触发试听
                         auditionSystts = currentSystts.copy()
                         showAuditionDialog = true
+                    }, onAudioParams = {
+                        showAudioParams = true
                     })
 
                     val context = LocalContext.current
