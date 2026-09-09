@@ -44,8 +44,8 @@ import kotlinx.coroutines.launch
  * - [AudioParamsDimDialog]：单维弹窗——标题即维度名，内容=该维 配置→插件→全局 三层滑杆
  *   （无插件源自动只有 配置/全局 两层）+ 重置/应用；应用=该维三层一起落库
  *   （配置层双写页面内存防旧值覆盖），立即生效不关弹窗；
- *   左下角 ▶试听键（用户 09-10 补定）：念试听文本、用该维配置层草稿直接合成——
- *   调完滑杆不用先应用就能听（▶→…→■，再点停止，播完自动复位）；
+ *   左下角 ▶试听键（用户 09-10 补定）：念试听文本、用该维 配置+插件+全局 三层草稿直接合成——
+ *   调完滑杆不用先应用就能听到完整终值效果（▶→…→■，再点停止，播完自动复位）；
  * - 卡片⋮菜单「音频参数」入口不受影响，仍打开 AudioParamsDialog 折叠手风琴总弹窗。
  *
  * 维度下标：0=语速 1=音量 2=音高。
@@ -243,7 +243,18 @@ fun AudioParamsDimDialog(
                         // 文本被清空时回落默认句，避免合成空串
                         val auditionText = AppConfig.testSampleText.value
                             .ifBlank { "你好，这是试听语音。" }
-                        TaggedTtsPreviewPlayer.play(context, draftEntity(), auditionText)
+                        // 三层草稿全覆盖（用户 09-10 拍板）：插件/全局层草稿未落库，
+                        // 以覆盖参数传入试听链，调滑杆→▶听即得完整三层终值效果
+                        TaggedTtsPreviewPlayer.play(
+                            context, draftEntity(), auditionText,
+                            pluginParamsOverride = plugin?.audioParams
+                                ?.let { dimCopy(it, dim, snap(pluginVal)) },
+                            globalParamsOverride = AudioParams(
+                                speed = if (dim == 0) snap(globalVal) else SysTtsConfig.audioParamsSpeed,
+                                volume = if (dim == 1) snap(globalVal) else SysTtsConfig.audioParamsVolume,
+                                pitch = if (dim == 2) snap(globalVal) else SysTtsConfig.audioParamsPitch,
+                            ),
+                        )
                     }
                 }) {
                     Text(

@@ -8,6 +8,7 @@ import androidx.media3.common.util.UnstableApi
 import com.github.jing332.common.audio.AudioDecoder
 import com.github.jing332.common.audio.AudioPlayer
 import com.github.jing332.common.audio.exo.ReverbAudioProcessor
+import com.github.jing332.database.entities.systts.AudioParams
 import com.github.jing332.database.entities.systts.SystemTtsV2
 import com.github.jing332.tts.loudness.SpeakerLoudnessManager
 import com.github.jing332.tts.speech.EngineState
@@ -61,7 +62,18 @@ object TaggedTtsPreviewPlayer {
         }
     }
 
-    fun play(context: Context, entity: SystemTtsV2, text: String) {
+    /**
+     * [pluginParamsOverride]/[globalParamsOverride]（09-10）：预览调参弹窗的三层草稿覆盖——
+     * 插件/全局层草稿未落库，传入则替代 DB 值/全局提供者参与本次试听的三层乘积，
+     * 使「调滑杆→▶听→再调」不用先点应用即得完整终值效果；不传行为与旧版完全一致。
+     */
+    fun play(
+        context: Context,
+        entity: SystemTtsV2,
+        text: String,
+        pluginParamsOverride: AudioParams? = null,
+        globalParamsOverride: AudioParams? = null,
+    ) {
         synchronized(lock) {
             job?.cancel()
             player?.stop()
@@ -74,7 +86,11 @@ object TaggedTtsPreviewPlayer {
             val session = focusSession
             job = scope.launch {
                 try {
-                    val resolved = resolveTtsPlayback(entity, TtsPreviewConfig.globalAudioParamsProvider())
+                    val resolved = resolveTtsPlayback(
+                        entity,
+                        globalParamsOverride ?: TtsPreviewConfig.globalAudioParamsProvider(),
+                        pluginParamsOverride = pluginParamsOverride,
+                    )
                     if (resolved == null) {
                         toast(context, "试听失败：配置项解析失败")
                         return@launch

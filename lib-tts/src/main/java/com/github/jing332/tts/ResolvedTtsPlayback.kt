@@ -87,13 +87,15 @@ fun resolveTtsPlayback(
     entity: SystemTtsV2,
     globalParams: AudioParams,
     pluginCache: Map<String, Plugin>? = null,
+    pluginParamsOverride: AudioParams? = null,
 ): ResolvedTtsPlayback? {
     val dto = entity.config as? TtsConfigurationDTO ?: return null
     val plugin = when (val source = dto.source as? PluginTtsSource) {
         null -> null
         else -> pluginCache?.get(source.pluginId) ?: dbm.pluginDao.getMetaByPluginId(source.pluginId)
     }
-    val pluginParams = plugin?.audioParams ?: AudioParams()
+    // 草稿覆盖（09-10）：预览时插件层草稿未落库，传入则替代 DB 值参与三层乘积
+    val pluginParams = pluginParamsOverride ?: plugin?.audioParams ?: AudioParams()
     val finalParams = AudioParams(
         speed = multiplyParam(pluginParams.speed, dto.audioParams.speed, globalParams.speed),
         volume = multiplyParam(pluginParams.volume, dto.audioParams.volume, globalParams.volume),
