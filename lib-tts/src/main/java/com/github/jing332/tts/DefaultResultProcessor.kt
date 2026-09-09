@@ -143,7 +143,8 @@ internal class DefaultResultProcessor(
                 legacyVolume = config.pluginHandlesVolume,
                 legacyPitch = config.pluginHandlesPitch,
             )
-            // 已知插件按内置能力路由；旧版未收录插件沿用已保存标志；未知默认本机。
+            // 接管路由已废除（09-10）：人工已知表已删、库标记恒 false，恒走本机处理；
+            // ≤0 视为未设置，按 1.0 处理
             val effectiveSpeed = if (route.pluginSpeed || config.audioParams.speed <= 0f) 1f else config.audioParams.speed
             val effectiveVolume = if (route.pluginVolume || config.audioParams.volume <= 0f) 1f else config.audioParams.volume
             val effectivePitch = if (route.pluginPitch || config.audioParams.pitch <= 0f) 1f else config.audioParams.pitch

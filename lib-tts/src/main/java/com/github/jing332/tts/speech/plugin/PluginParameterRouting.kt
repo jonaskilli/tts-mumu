@@ -2,8 +2,10 @@ package com.github.jing332.tts.speech.plugin
 
 /**
  * Determines which side owns each audio parameter.
- * Known plugin behavior takes precedence; legacy persisted flags remain a fallback.
- * Unknown plugins stay local so a user adjustment cannot silently disappear.
+ * Formerly carried a hand-maintained known-plugin table (only entry: qianwen volume,
+ * removed 09-10 by user decision — host-side processing is uniformly trusted now);
+ * legacy persisted flags remain the sole source and are all false in practice,
+ * so every dimension is host-owned and always user-adjustable.
  */
 data class PluginParameterRoute(
     val pluginSpeed: Boolean,
@@ -16,18 +18,8 @@ fun parameterRoute(
     legacySpeed: Boolean,
     legacyVolume: Boolean,
     legacyPitch: Boolean,
-): PluginParameterRoute {
-    return when (pluginId.trim().lowercase()) {
-        // JRead Qianwen adapter locks provider speed and does not consume numeric pitch.
-        "qianwen.tts.guagua_taozi" -> PluginParameterRoute(
-            pluginSpeed = false,
-            pluginVolume = true,
-            pluginPitch = false,
-        )
-        else -> PluginParameterRoute(
-            pluginSpeed = legacySpeed,
-            pluginVolume = legacyVolume,
-            pluginPitch = legacyPitch,
-        )
-    }
-}
+): PluginParameterRoute = PluginParameterRoute(
+    pluginSpeed = legacySpeed,
+    pluginVolume = legacyVolume,
+    pluginPitch = legacyPitch,
+)

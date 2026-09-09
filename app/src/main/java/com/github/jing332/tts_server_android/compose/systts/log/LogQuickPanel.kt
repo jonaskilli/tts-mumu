@@ -276,15 +276,10 @@ fun LogQuickPanel(
     }
 
     /** 维度应用（09-10 ②A）：该维三层一起落库——配置层写参数跟随目标，
-     *  插件层写其插件，全局层写系统配置；插件接管的维度只落配置层（插件/全局不参与叠加） */
+     *  插件层写其插件，全局层写系统配置；接管判定已废除，所有维度恒可调恒落库 */
     fun applyDim(dim: Int) {
         val targetDto = paramsTarget.config as? TtsConfigurationDTO ?: return
         val targetSource = targetDto.source as? PluginTtsSource
-        val handlesDim = targetSource != null && when (dim) {
-            0 -> plugin?.pluginHandlesSpeed == true
-            1 -> plugin?.pluginHandlesVolume == true
-            else -> plugin?.pluginHandlesPitch == true
-        }
         scope.launch {
             withIO {
                 val newConfig = targetDto.copy(
@@ -295,27 +290,25 @@ fun LogQuickPanel(
                     )
                 )
                 dbm.systemTtsV2.update(paramsTarget.copy(config = newConfig))
-                if (!handlesDim) {
-                    if (targetSource != null) {
-                        dbm.pluginDao.getByPluginId(targetSource.pluginId)?.let { p ->
-                            dbm.pluginDao.update(
-                                p.copy(
-                                    audioParams = p.audioParams.copy(
-                                        speed = if (dim == 0) snapParam(pluginSpeed) else p.audioParams.speed,
-                                        volume = if (dim == 1) snapParam(pluginVolume) else p.audioParams.volume,
-                                        pitch = if (dim == 2) snapParam(pluginPitch) else p.audioParams.pitch,
-                                    )
+                if (targetSource != null) {
+                    dbm.pluginDao.getByPluginId(targetSource.pluginId)?.let { p ->
+                        dbm.pluginDao.update(
+                            p.copy(
+                                audioParams = p.audioParams.copy(
+                                    speed = if (dim == 0) snapParam(pluginSpeed) else p.audioParams.speed,
+                                    volume = if (dim == 1) snapParam(pluginVolume) else p.audioParams.volume,
+                                    pitch = if (dim == 2) snapParam(pluginPitch) else p.audioParams.pitch,
                                 )
                             )
-                            // 卡片"插件语速/音量"显示缓存失效
-                            PluginDescriptor.invalidatePluginParamsCache(p.pluginId)
-                        }
+                        )
+                        // 卡片"插件语速/音量"显示缓存失效
+                        PluginDescriptor.invalidatePluginParamsCache(p.pluginId)
                     }
-                    when (dim) {
-                        0 -> SysTtsConfig.audioParamsSpeed = snapParam(globalSpeed)
-                        1 -> SysTtsConfig.audioParamsVolume = snapParam(globalVolume)
-                        else -> SysTtsConfig.audioParamsPitch = snapParam(globalPitch)
-                    }
+                }
+                when (dim) {
+                    0 -> SysTtsConfig.audioParamsSpeed = snapParam(globalSpeed)
+                    1 -> SysTtsConfig.audioParamsVolume = snapParam(globalVolume)
+                    else -> SysTtsConfig.audioParamsPitch = snapParam(globalPitch)
                 }
                 SystemTtsService.notifyUpdateConfig()
             }
@@ -397,13 +390,11 @@ fun LogQuickPanel(
             }
 
             // ===== 终值（播放链同源三层乘积；三维恒显，用户 09-10）=====
-            // 最终值恒为 配置×插件×全局（三层草稿实时跟随；音高 09-10 起同规格走草稿）
-            val handlesSpeed = plugin?.pluginHandlesSpeed == true
-            val handlesVolume = plugin?.pluginHandlesVolume == true
-            val handlesPitch = plugin?.pluginHandlesPitch == true
-            val finalSpeed = if (handlesSpeed) speed else speed * pluginSpeed * globalSpeed
-            val finalVolume = if (handlesVolume) volume else volume * pluginVolume * globalVolume
-            val finalPitch = if (handlesPitch) pitch else pitch * pluginPitch * globalPitch
+            // 最终值恒为 配置×插件×全局（三层草稿实时跟随；音高 09-10 起同规格走草稿；
+            // 接管判定已废除，恒乘积）
+            val finalSpeed = speed * pluginSpeed * globalSpeed
+            val finalVolume = volume * pluginVolume * globalVolume
+            val finalPitch = pitch * pluginPitch * globalPitch
             Text(
                 // 与卡片参数行口径不同（用户 09-10 二稿）：
                 // 卡片=管道+1 位+加粗，弹窗/面板=逗号+2 位+无后缀（删除 x 乘号，与日志/试听保持一致）
@@ -682,14 +673,11 @@ fun LogQuickPanel(
                     HorizontalDivider(Modifier.padding(vertical = 4.dp))
                     // 三层现值总览行已撤（用户 09-10 ④）：顶部终值行足够，每维三层滑杆同屏可见；
                     // 按维度分段（语速/音量/音高，共用组件），滑杆层标签=配置/插件/全局，
-                    // 插件接管的维度自动隐藏插件/全局滑杆换说明行（09-10 ③）
+                    // 接管判定已废除（09-10）：三层恒显示可调
                     val targetDto = paramsTarget.config as? TtsConfigurationDTO
                     val hasPluginLayer = (targetDto?.source as? PluginTtsSource) != null
                     AudioParamsDimensionSection(
                         hasPluginLayer = hasPluginLayer,
-                        handlesSpeed = hasPluginLayer && plugin?.pluginHandlesSpeed == true,
-                        handlesVolume = hasPluginLayer && plugin?.pluginHandlesVolume == true,
-                        handlesPitch = hasPluginLayer && plugin?.pluginHandlesPitch == true,
                         cfgSpeed = speed, onCfgSpeed = { speed = it; speedDirty = true },
                         cfgVolume = volume, onCfgVolume = { volume = it; volumeDirty = true },
                         cfgPitch = pitch, onCfgPitch = { pitch = it; pitchDirty = true },

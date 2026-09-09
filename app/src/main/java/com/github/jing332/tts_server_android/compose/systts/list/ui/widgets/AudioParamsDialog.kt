@@ -84,9 +84,6 @@ fun AudioParamsDialog(
     LaunchedEffect(previewState) { if (previewState == PreviewState.IDLE) previewing = false }
 
     val hasPluginLayer = source != null
-    val handlesSpeed = hasPluginLayer && plugin?.pluginHandlesSpeed == true
-    val handlesVolume = hasPluginLayer && plugin?.pluginHandlesVolume == true
-    val handlesPitch = hasPluginLayer && plugin?.pluginHandlesPitch == true
 
     /** 试听实体=本配置项+配置层草稿（语速/音量/音高）：未应用也能先听效果；
      *  插件/全局层草稿播放时取库值，试听主要反映配置层与所选声音的组合 */
@@ -99,7 +96,7 @@ fun AudioParamsDialog(
     )
 
     /** 维度应用（09-10 ②A）：该维三层一起落库——配置层双写（库+页面内存），
-     *  插件/全局层只在插件未接管该维时写入；立即生效不关弹窗 */
+     *  插件/全局层照常写入（接管判定已废除，所有维度恒可调）；立即生效不关弹窗 */
     fun applyDim(dim: Int) {
         scope.launch {
             val newConfig = withIO {
@@ -111,31 +108,24 @@ fun AudioParamsDialog(
                     )
                 )
                 dbm.systemTtsV2.update(systemTts.copy(config = nc))
-                val handlesDim = when (dim) {
-                    0 -> handlesSpeed
-                    1 -> handlesVolume
-                    else -> handlesPitch
-                }
-                if (!handlesDim) {
-                    if (plugin != null) {
-                        dbm.pluginDao.update(
-                            plugin.copy(
-                                audioParams = plugin.audioParams.copy(
-                                    speed = if (dim == 0) snap(pluginSpeed) else plugin.audioParams.speed,
-                                    volume = if (dim == 1) snap(pluginVolume) else plugin.audioParams.volume,
-                                    pitch = if (dim == 2) snap(pluginPitch) else plugin.audioParams.pitch,
-                                )
+                if (plugin != null) {
+                    dbm.pluginDao.update(
+                        plugin.copy(
+                            audioParams = plugin.audioParams.copy(
+                                speed = if (dim == 0) snap(pluginSpeed) else plugin.audioParams.speed,
+                                volume = if (dim == 1) snap(pluginVolume) else plugin.audioParams.volume,
+                                pitch = if (dim == 2) snap(pluginPitch) else plugin.audioParams.pitch,
                             )
                         )
-                        // 卡片"插件语速/音量"显示缓存失效，应用后重查
-                        com.github.jing332.tts_server_android.compose.systts.list.ui.PluginDescriptor
-                            .invalidatePluginParamsCache(plugin.pluginId)
-                    }
-                    when (dim) {
-                        0 -> SysTtsConfig.audioParamsSpeed = snap(globalSpeed)
-                        1 -> SysTtsConfig.audioParamsVolume = snap(globalVolume)
-                        else -> SysTtsConfig.audioParamsPitch = snap(globalPitch)
-                    }
+                    )
+                    // 卡片"插件语速/音量"显示缓存失效，应用后重查
+                    com.github.jing332.tts_server_android.compose.systts.list.ui.PluginDescriptor
+                        .invalidatePluginParamsCache(plugin.pluginId)
+                }
+                when (dim) {
+                    0 -> SysTtsConfig.audioParamsSpeed = snap(globalSpeed)
+                    1 -> SysTtsConfig.audioParamsVolume = snap(globalVolume)
+                    else -> SysTtsConfig.audioParamsPitch = snap(globalPitch)
                 }
                 SystemTtsService.notifyUpdateConfig()
                 nc
@@ -211,7 +201,6 @@ fun AudioParamsDialog(
                     snap(speed), snap(volume), snap(pitch),
                     snap(pluginSpeed), snap(pluginVolume), snap(pluginPitch),
                     snap(globalSpeed), snap(globalVolume), snap(globalPitch),
-                    handlesSpeed, handlesVolume, handlesPitch,
                     hasPluginLayer,
                 )
                 Text(
@@ -231,9 +220,6 @@ fun AudioParamsDialog(
                 // ===== 按维度编辑区（09-10）：每维三层滑杆同屏，重置/应用按维度 =====
                 AudioParamsDimensionSection(
                     hasPluginLayer = hasPluginLayer,
-                    handlesSpeed = handlesSpeed,
-                    handlesVolume = handlesVolume,
-                    handlesPitch = handlesPitch,
                     cfgSpeed = speed, onCfgSpeed = { speed = it; speedDirty = true },
                     cfgVolume = volume, onCfgVolume = { volume = it; volumeDirty = true },
                     cfgPitch = pitch, onCfgPitch = { pitch = it; pitchDirty = true },
@@ -263,22 +249,20 @@ fun AudioParamsDialog(
     )
 }
 
-/** 三层乘积（尊重 pluginHandles 路由：由插件处理的维度，插件/全局层不参与叠加）。
- *  三维最终值恒为 配置×插件×全局（有无滑杆不影响计算） */
+/** 三层乘积：三维最终值恒为 配置×插件×全局（09-10 接管判定废除，无插件源插件层按 1.0 计） */
 private fun computeFinalParams(
     cfgSpeed: Float, cfgVolume: Float, cfgPitch: Float,
     pluginSpeed: Float, pluginVolume: Float, pluginPitch: Float,
     globalSpeed: Float, globalVolume: Float, globalPitch: Float,
-    handlesSpeed: Boolean, handlesVolume: Boolean, handlesPitch: Boolean,
     hasPluginLayer: Boolean,
 ): AudioParams {
     val pSpeed = if (hasPluginLayer) pluginSpeed else 1f
     val pVolume = if (hasPluginLayer) pluginVolume else 1f
     val pPitch = if (hasPluginLayer) pluginPitch else 1f
     return AudioParams(
-        speed = if (handlesSpeed) cfgSpeed else cfgSpeed * pSpeed * globalSpeed,
-        volume = if (handlesVolume) cfgVolume else cfgVolume * pVolume * globalVolume,
-        pitch = if (handlesPitch) cfgPitch else cfgPitch * pPitch * globalPitch,
+        speed = cfgSpeed * pSpeed * globalSpeed,
+        volume = cfgVolume * pVolume * globalVolume,
+        pitch = cfgPitch * pPitch * globalPitch,
     )
 }
 // snap() 复用同包 AudioParamsDimensionSection.kt 的顶层定义（勿在本文件重复定义，同包重名会重载歧义）
