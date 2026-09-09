@@ -84,13 +84,9 @@ internal class TtsRepository(
                             originalTag == "特殊女" -> "duihuaB"
                         else -> "duihua"
                     }
-                    // 性别兜底是跨朗读规则的全局兜底（duihuaA/B/duihua 不挑朗读规则），
-                    // 查找只看 tag + target，不限 tagRuleId——
-                    // 原 find 带 tagRuleId == dto.speechRule.tagRuleId，
-                    // 兜底配置项的 tagRuleId 通常与原配置项不同（全局兜底不绑死某个朗读规则），
-                    // 致 find 失败、genderStandby 返回 null、不跳备用（用户 09-09 实测发现）
                     genderFallbackConfigs.find {
                         it.speechInfo.target == dto.speechRule.target &&
+                            it.speechInfo.tagRuleId == dto.speechRule.tagRuleId &&
                             it.speechInfo.tag == genderTag
                     }
                 }
