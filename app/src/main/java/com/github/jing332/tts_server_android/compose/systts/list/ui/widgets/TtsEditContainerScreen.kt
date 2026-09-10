@@ -47,22 +47,13 @@ fun TtsEditContainerScreen(
     val callbacks = rememberSaveCallBacks()
     val scope = rememberCoroutineScope()
 
-    // 标签态卡片末尾的「试听文本 + 三键直出」所需状态（用户 09-10 晚补）：
-    // 标签态此前只有 正文（规则脚本/标签）+ 基本信息，比朗读全部态少了试听文本与音频参数区，
-    // 现在两边一致——试听走 AuditionDialog，三键走共用的 AudioParamsDialog（initialDim 指定维度）。
+    // 标签态卡片末尾的「试听文本 + 音频参数值行」所需状态（用户 09-10 晚补）：
+    // 标签态此前只有 正文（规则脚本/标签）+ 基本信息，比朗读全部态少了试听文本与音频参数区，现在两边一致。
+    // 试听走 AuditionDialog；音频参数改为值行+就地展开（AudioParamsDimRows），编辑页不再需要弹窗入口。
     var auditionSystts by remember { mutableStateOf<SystemTtsV2?>(null) }
-    var audioParamsDim by remember { mutableStateOf<Int?>(null) }
 
     auditionSystts?.let { target ->
         AuditionDialog(systts = target) { auditionSystts = null }
-    }
-    audioParamsDim?.let { dim ->
-        AudioParamsDialog(
-            onDismissRequest = { audioParamsDim = null },
-            systemTts = systts,
-            onSysttsChange = onSysttsChange,
-            initialDim = dim,
-        )
     }
 
     CompositionLocalProvider(LocalSaveCallBack provides callbacks) {
@@ -94,13 +85,13 @@ fun TtsEditContainerScreen(
                                 .padding(top = 8.dp),
                             onAudition = { auditionSystts = systts }
                         )
-                        AudioParamsDimChipsRow(
+                        AudioParamsDimRows(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .padding(horizontal = 12.dp)
                                 .padding(top = 4.dp),
                             systemTts = systts,
-                            onSelectDim = { audioParamsDim = it },
+                            onSysttsChange = onSysttsChange,
                         )
                     }
                 )

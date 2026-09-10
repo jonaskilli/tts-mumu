@@ -247,17 +247,8 @@ class LocalTtsUI() : IConfigUI() {
                 showAuditionDialog = false
             }
 
-        // 音频参数弹窗（试听文本下方三键直出触发，用户 09-10 晚定稿）：
-        // 与卡片⋮入口共用同一个 AudioParamsDialog——顶部发音人+▶试听+终值行，主体维度软槽+该维三层滑杆+重置/应用；
-        // 点哪个键就以哪个维度打开（initialDim）；不再各写一套单维弹窗
-        showAudioParamsDim?.let { dim ->
-            com.github.jing332.tts_server_android.compose.systts.list.ui.widgets.AudioParamsDialog(
-                onDismissRequest = { showAudioParamsDim = null },
-                systemTts = systts,
-                onSysttsChange = onSysttsChange,
-                initialDim = dim,
-            )
-        }
+        // 编辑页音频参数入口（09-10 晚改版）：试听文本下方改为「值行 + 就地展开」（AudioParamsDimRows），
+        // 不再从这里开 AudioParamsDialog——本弹窗只服务卡片⋮入口与日志快捷面板
 
         Column(modifier) {
             // 基本信息标题恢复显示（用户 09-10：与标签态正文卡的「ℹ️基本信息」标题对称）
@@ -292,14 +283,14 @@ class LocalTtsUI() : IConfigUI() {
                             showAuditionDialog = true
                         }
                     )
-                    AudioParamsDimChipsRow(
+                    AudioParamsDimRows(
                         modifier = Modifier
                             .fillMaxWidth()
                             // 同步让 12dp，与试听文本行/其它字段一条边（用户 09-10 晚）
                             .padding(horizontal = 12.dp)
                             .padding(top = 4.dp),
                         systemTts = systts,
-                        onSelectDim = { showAudioParamsDim = it },
+                        onSysttsChange = onSysttsChange,
                     )
                 }
 
