@@ -4,6 +4,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.HelpOutline
@@ -138,6 +139,10 @@ fun BasicInfoEditScreen(
                 Row(
                     modifier = Modifier
                         .weight(1f)
+                        // 视觉偏移 -15dp 抵消 M3 Checkbox 自带的内缩（48dp 触摸区里画 18dp 方块，
+                        // 左右各缩 15dp）——让方块左边缘与上方输入框的左边框对齐（用户 09-10 晚）。
+                        // 只挪视觉位置，触摸区大小与布局宽度不变
+                        .offset(x = (-15).dp)
                         .clickable {
                             val p = dto.audioParams
                             updateConfig(systemTts, onSystemTtsChange, p.copy(reverbEnabled = !p.reverbEnabled))
@@ -168,7 +173,11 @@ fun BasicInfoEditScreen(
                 ) {
                     Checkbox(checked = dto.speechRule.isStandby, onCheckedChange = null)
                     Text(stringResource(id = R.string.as_standby))
-                    IconButton(onClick = { showStandbyHelp = true }) {
+                    // 视觉偏移 +12dp 抵消 IconButton 自带的内缩（48dp 触摸区里画 24dp 图标），
+                    // 让问号图标右边缘与上方输入框的右边框对齐（用户 09-10 晚）；触摸区大小不变
+                    IconButton(
+                        modifier = Modifier.offset(x = 12.dp),
+                        onClick = { showStandbyHelp = true }) {
                         Icon(
                             Icons.AutoMirrored.Filled.HelpOutline,
                             stringResource(id = R.string.systts_as_standby_help)
