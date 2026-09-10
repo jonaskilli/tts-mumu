@@ -50,6 +50,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.constraintlayout.compose.ConstraintLayout
 import androidx.constraintlayout.compose.Dimension
 import com.github.jing332.common.utils.StringUtils.limitLength
@@ -213,9 +214,14 @@ internal fun Item(
                 HtmlText(
                     text = desc,
                     // <small> 层标靠 RelativeSizeSpan 缩放，换算基准是 fontSize 参数；
-                    // 不传(默认 Unspecified)则相对缩放被静默丢弃、层标缩不了——必须显式传正文字号
-                    fontSize = MaterialTheme.typography.bodyMedium.fontSize,
-                    style = MaterialTheme.typography.bodyMedium.copy(color = MaterialTheme.colorScheme.onBackground),
+                    // 不传(默认 Unspecified)则相对缩放被静默丢弃、层标缩不了——必须显式传正文字号。
+                    // 字号 13sp（用户 09-10：原 bodyMedium 14sp 偏大，改小一档）：仍大于下方
+                    // 采样率/格式行 bodySmall(12sp)，两行保持一档层级差；两处 fontSize 与 style 必须同值
+                    fontSize = 13.sp,
+                    style = MaterialTheme.typography.bodyMedium.copy(
+                        fontSize = 13.sp,
+                        color = MaterialTheme.colorScheme.onBackground,
+                    ),
                 )
 
                 HtmlText(

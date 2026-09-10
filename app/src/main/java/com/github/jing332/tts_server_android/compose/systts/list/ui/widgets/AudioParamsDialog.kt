@@ -30,13 +30,16 @@ import com.github.jing332.tts_server_android.service.systts.SystemTtsService
 import kotlinx.coroutines.launch
 
 /**
- * 配置项「音频参数」弹窗（卡片菜单 / 编辑页试听行⚡共用）。
- * 结构（用户 09-10 折叠改版定稿）：
- * - 顶部不显示当前发音人/终值行（用户 09-10 裁定：上下文已明确；终值在卡片参数行/日志仍可见）；
- *   ▶试听键已移除——试听文本行已有 🎧，弹窗专注音频参数；
- * - 主体：[AudioParamsDimensionSection] 折叠手风琴（collapsedAccordion=true）——
- *   默认全收起只显示 语速/音量/音高 三个键，单开展开该维三层滑杆；重置/应用按维度一组，
+ * 配置项「音频参数」弹窗（卡片 ⋮ 菜单入口；编辑页走「三键直出 + 单维弹窗」另一条路径，不经过本弹窗）。
+ * 结构（用户 09-10 恢复平铺版，与 8220d5b 原版一致，只少了面板顶部的发音人区）：
+ * - 顶部不显示当前发音人（c817819 删）、不显示终值行（9b23435 删）、无 ▶试听键（试听归 🎧）；
+ *   上下文已明确，终值在卡片参数行/日志仍可见，滑杆旁本就带实时数值；
+ * - 主体：[AudioParamsDimensionSection] 平铺——维度分段（语速/音量/音高）+
+ *   该维 发音人→插件→全局 三层滑杆同屏；重置/应用按维度一组，
  *   应用=该维三层一起落库（配置层双写页面内存防旧值覆盖）；
+ * - 排版与日志快捷面板（LogQuickPanel）音频参数区同款，只少了面板顶部的
+ *   「当前发音人 + 更换发音人/音频参数」切换区——本弹窗入口唯一，无换声诉求；
+ *   09-10 试过的 collapsedAccordion 折叠手风琴形态已撤销（勿再引入）。
  * - 音高进插件/全局层（09-10 翻掉 09-07「音高不出现于插件/全局层」旧决定）。
  *
  * [onSysttsChange] 由调用方传编辑页内存回调，保证双写一致。
@@ -132,12 +135,10 @@ fun AudioParamsDialog(
                     .padding(horizontal = 4.dp)
                     .verticalScroll(rememberScrollState())
             ) {
-                // ===== 按维度编辑区（09-10 折叠改版）：默认全收起只显示三个维度键，
-                //      单开手风琴——点键展开该维三层滑杆+重置/应用，再点收起，点其他键切换
-                //      （终值行已删，用户 09-10 裁定：折叠时只显三键；终值在卡片参数行/日志仍可见；
-                //        滑杆旁本就带实时数值，信息不丢）=====
+                // ===== 按维度编辑区（09-10 平铺版，用户裁定恢复）：维度分段（语速/音量/音高）
+                //      + 该维三层滑杆 + 重置/应用，与日志快捷面板同款排版；
+                //      折叠手风琴形态同日撤销并删码，勿再引入 =====
                 AudioParamsDimensionSection(
-                    collapsedAccordion = true,
                     hasPluginLayer = hasPluginLayer,
                     cfgSpeed = speed, onCfgSpeed = { speed = it; speedDirty = true },
                     cfgVolume = volume, onCfgVolume = { volume = it; volumeDirty = true },
