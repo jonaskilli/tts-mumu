@@ -21,6 +21,7 @@ import com.github.jing332.database.entities.systts.SystemTtsV2
 import com.github.jing332.database.entities.systts.TtsConfigurationDTO
 import com.github.jing332.database.entities.systts.source.LocalTtsSource
 import com.github.jing332.tts_server_android.R
+import com.github.jing332.tts_server_android.compose.systts.AuditionDialog
 import com.github.jing332.tts_server_android.compose.systts.list.ui.ConfigUiFactory
 import kotlinx.coroutines.launch
 
@@ -45,6 +46,25 @@ fun TtsEditContainerScreen(
 
     val callbacks = rememberSaveCallBacks()
     val scope = rememberCoroutineScope()
+
+    // 标签态卡片末尾的「试听文本 + 三键直出」所需状态（用户 09-10 晚补）：
+    // 标签态此前只有 正文（规则脚本/标签）+ 基本信息，比朗读全部态少了试听文本与音频参数区，
+    // 现在两边一致——试听走 AuditionDialog，三键走共用的 AudioParamsDialog（initialDim 指定维度）。
+    var auditionSystts by remember { mutableStateOf<SystemTtsV2?>(null) }
+    var audioParamsDim by remember { mutableStateOf<Int?>(null) }
+
+    auditionSystts?.let { target ->
+        AuditionDialog(systts = target) { auditionSystts = null }
+    }
+    audioParamsDim?.let { dim ->
+        AudioParamsDialog(
+            onDismissRequest = { audioParamsDim = null },
+            systemTts = systts,
+            onSysttsChange = onSysttsChange,
+            initialDim = dim,
+        )
+    }
+
     CompositionLocalProvider(LocalSaveCallBack provides callbacks) {
         ui.FullEditScreen(
             modifier = modifier,
@@ -64,6 +84,23 @@ fun TtsEditContainerScreen(
                                 .padding(horizontal = 12.dp, vertical = 4.dp),
                             systemTts = systts,
                             onSystemTtsChange = onSysttsChange,
+                        )
+                        // 试听文本 + 三键直出音频参数（用户 09-10 晚：标签态漏了这两块，与朗读全部态对齐；
+                        // 横向 12dp 与卡片内其它字段同边距）
+                        AuditionTextField(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 12.dp)
+                                .padding(top = 8.dp),
+                            onAudition = { auditionSystts = systts }
+                        )
+                        AudioParamsDimChipsRow(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 12.dp)
+                                .padding(top = 4.dp),
+                            systemTts = systts,
+                            onSelectDim = { audioParamsDim = it },
                         )
                     }
                 )

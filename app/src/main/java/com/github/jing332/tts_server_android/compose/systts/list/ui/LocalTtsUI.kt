@@ -95,35 +95,10 @@ class LocalTtsUI() : IConfigUI() {
             )
 
         Column(modifier) {
-            LabelSlider(
-                text = stringResource(R.string.label_speech_rate, "%.2f".format(params.speed)),
-                value = params.speed, onValueChange = {
-                onSystemTtsChange(
-                    systemTts.copy(
-                        config = config.copy(audioParams = params.copy(speed = it.toScale(2)))
-                    )
-                )
-            }, valueRange = 0.1f..3f, step = 0.05f)
-
-            LabelSlider(
-                text = stringResource(R.string.label_speech_volume, "%.2f".format(params.volume)),
-                value = params.volume, onValueChange = {
-                onSystemTtsChange(
-                    systemTts.copy(
-                        config = config.copy(audioParams = params.copy(volume = it.toScale(2)))
-                    )
-                )
-            }, valueRange = 0.1f..3f, step = 0.05f)
-
-            LabelSlider(
-                text = stringResource(R.string.label_speech_pitch, "%.2f".format(params.pitch)),
-                value = params.pitch, onValueChange = {
-                onSystemTtsChange(
-                    systemTts.copy(
-                        config = config.copy(audioParams = params.copy(pitch = it.toScale(2)))
-                    )
-                )
-            }, valueRange = 0.1f..3f, step = 0.05f)
+            // 三个内嵌滑杆（语速/音量/音高）已删（用户 09-10 晚）：本地 TTS 的音频参数现在
+            // 与插件 TTS 同一套——编辑页基本信息卡末尾的「语速/音量/音高」三键 → 共用 AudioParamsDialog
+            // （顶部发音人+▶试听+终值行，维度软槽+该维三层滑杆+重置/应用），本条层/全局层都在那儿调，
+            // 这里再放一份滑杆是重复入口。本区只保留本地 TTS 专属设置（PCM 采样率 / 直接播放）
 
             // PCM兜底采样率：独立一行（旧版与直接播放/重置挤一行，weight拉宽+label换行
             // 疑似把整行撑出大段不可见高度，也是"参数卡尾部大片空白"的头号嫌疑）
