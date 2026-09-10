@@ -18,7 +18,10 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 
 /**
  * 文字自适应宽度的两态分段切换（Material3 SegmentedButton 的视觉同款）。
@@ -36,6 +39,12 @@ fun SegmentedTextToggle(
     onSelect: (Int) -> Unit,
     modifier: Modifier = Modifier,
     horizontalArrangement: Arrangement.Horizontal = Arrangement.Start,
+
+    // 09-10 晚新增可选尺寸（默认＝原样 14sp / 40dp，所有既有调用方零影响）。
+    // 日志面板外层「更换发音人/音频参数」传 16sp：它是分区父级，比内层维度选择器(14sp)大一档，
+    // 配合"重形态（胶囊）"与内层的"轻形态（下划线标签）"一起拉开父子层级。
+    labelFontSize: TextUnit = 14.sp,
+    minHeight: Dp = 40.dp,
 ) {
     Row(modifier, horizontalArrangement = horizontalArrangement) {
         val last = options.lastIndex
@@ -53,7 +62,7 @@ fun SegmentedTextToggle(
             val selected = index == selectedIndex
             Box(
                 Modifier
-                    .heightIn(min = 40.dp)
+                    .heightIn(min = minHeight)
                     .clip(shape)
                     .background(
                         if (selected) MaterialTheme.colorScheme.secondaryContainer
@@ -66,7 +75,7 @@ fun SegmentedTextToggle(
             ) {
                 Text(
                     label,
-                    style = MaterialTheme.typography.labelLarge,
+                    style = MaterialTheme.typography.labelLarge.copy(fontSize = labelFontSize),
                     color = if (selected) MaterialTheme.colorScheme.onSecondaryContainer
                     else MaterialTheme.colorScheme.onSurface,
                     maxLines = 1,

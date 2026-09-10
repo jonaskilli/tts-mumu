@@ -11,7 +11,6 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.DpSize
@@ -19,7 +18,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.github.jing332.compose.widgets.LabelSlider
 import com.github.jing332.tts_server_android.R
-import com.github.jing332.tts_server_android.compose.SegmentedTextToggle
+import com.github.jing332.tts_server_android.compose.UnderlineTextToggle
 
 /**
  * 音频参数「按维度」编辑区（用户 09-10 定稿，AudioParamsDialog 与日志快捷面板共用）：
@@ -98,14 +97,16 @@ fun AudioParamsDimensionSection(
         }
     }
 
-    // 维度分段（语速/音量/音高）+ 当前维三层滑杆，平铺（唯一形态，用户 09-10 恢复）
+    // 维度分段（语速/音量/音高）+ 当前维三层滑杆，平铺（唯一形态，用户 09-10 恢复）。
+    // 09-10 晚改形态：本处是**第二级（子级）**，换成下划线标签页（14sp），与日志面板外层
+    // 分区切换（第一级父级，胶囊 16sp）形成「重形态+大字 vs 轻形态+小字」的双重区分。
+    // 本组件被日志面板与配置项弹窗共用，两处一起变（编辑页单维弹窗无选择器，不受影响）
     var dim by remember { mutableStateOf(0) }
     Column(Modifier.fillMaxWidth()) {
-        SegmentedTextToggle(
+        UnderlineTextToggle(
             options = dimNames,
             selectedIndex = dim,
             onSelect = { dim = it },
-            modifier = Modifier.align(Alignment.CenterHorizontally),
         )
         DimContent(dim)
     }

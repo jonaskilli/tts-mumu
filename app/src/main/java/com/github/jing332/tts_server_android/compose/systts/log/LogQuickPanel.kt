@@ -30,6 +30,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.drake.net.utils.withIO
 import com.drake.net.utils.withMain
@@ -416,6 +417,10 @@ fun LogQuickPanel(
                 options = listOf("更换发音人", "音频参数"),
                 selectedIndex = panelTab,
                 onSelect = { panelTab = it },
+                // 09-10 晚：本排是**第一级（父级，切区）**——保持"重形态"胶囊，字号升到 16sp；
+                // 区内第二级（语速/音量/音高）已换成 UnderlineTextToggle（轻形态下划线、14sp），
+                // 形态+字号双重区分，父子不再长得一样
+                labelFontSize = 16.sp,
                 modifier = Modifier
                     .padding(top = 8.dp)
                     .align(Alignment.CenterHorizontally),
