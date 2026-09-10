@@ -51,7 +51,7 @@ import com.github.jing332.tts_server_android.R
 import com.github.jing332.tts_server_android.compose.systts.AuditionDialog
 import com.github.jing332.tts_server_android.constant.SpeechTarget
 import com.github.jing332.tts_server_android.compose.systts.list.ui.widgets.AuditionTextField
-import com.github.jing332.tts_server_android.compose.systts.list.ui.widgets.AudioParamsDimChipsRow
+import com.github.jing332.tts_server_android.compose.systts.list.ui.widgets.AudioParamsDimRows
 import com.github.jing332.tts_server_android.compose.systts.list.ui.widgets.BasicInfoEditScreen
 import com.github.jing332.tts_server_android.compose.systts.list.ui.widgets.SaveActionHandler
 import com.github.jing332.tts_server_android.compose.systts.list.ui.widgets.SectionCard
