@@ -57,9 +57,10 @@ fun AudioParamsDimensionSection(
     val tagGlobal = stringResource(R.string.audio_params_tag_global)
     val dimNames = audioParamsDimNames
 
-    // 该维三层滑杆 + 重置/应用（本组件唯一形态共用）
+    // 该维三层滑杆 + 重置/应用（本组件唯一形态共用）。
+    // 行距 4dp（用户 09-10 晚）：此前三层紧贴，± 触摸区 48dp 上下相接显得挤；重置/应用行同样获得间隔
     val DimContent: @Composable (Int) -> Unit = { dim ->
-        Column {
+        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
             when (dim) {
                 0 -> {
                     LayerSlider(tagCfg, cfgSpeed, onCfgSpeed)
@@ -120,9 +121,12 @@ internal val audioParamsDimNames = listOf("语速", "音量", "音高")
  * 编辑页单维弹窗 `AudioParamsDimDialog`——全部经本函数取滑杆，故在此统一传大一号尺寸：
  * - 标签 14sp：与上方维度选择区「语速/音量/音高」(labelLarge 14sp) 齐平，避免子项压住父项
  *   （严格按最早是 16sp，会比选择区还大且等于顶部发音人名 titleMedium，故不取）；
- * - 加减 48dp 触摸区 / 24dp 图标：恢复改造前 M3 默认（09-08 收窄版是 32dp/20dp）；
- * - 轨道 3.5dp：介于最早 4dp 与 09-08 的 3dp 之间；thumb 同步 3.5×22dp。
- * 其他界面滑杆直接调 `LabelSlider`、不传这些参数，保持原样（默认 13sp/32dp/20dp/3dp/3×20dp）。
+ * - 加减 48dp 触摸区 / **22dp 图标**：触摸区恢复改造前 M3 默认（09-08 收窄版是 32dp/20dp）；
+ *   图标取 22dp 而非改造前的 24dp——24dp 视觉重量≈20sp 的字，配 14sp 标签偏重（改造前是 24dp+16sp 配对），
+ *   22dp 与 14sp 成对更协调；
+ * - 轨道 3.5dp：介于最早 4dp 与 09-08 的 3dp 之间；thumb 同步 3.5×22dp；
+ * - 标签列 `labelMinWidth = 44.dp`：定宽后三行 −按钮与轨道对齐（见行内注释）。
+ * 其他界面滑杆直接调 `LabelSlider`、不传这些参数，保持原样（默认 13sp/32dp/20dp/3dp/3×20dp/不定宽）。
  */
 @Composable
 internal fun LayerSlider(label: String, value: Float, onValueChange: (Float) -> Unit) {
@@ -135,9 +139,12 @@ internal fun LayerSlider(label: String, value: Float, onValueChange: (Float) -> 
         step = 0.05f,
         labelFontSize = 14.sp,
         buttonSize = 48.dp,
-        iconSize = 24.dp,
+        iconSize = 22.dp,
         trackHeight = 3.5.dp,
         thumbSize = DpSize(3.5.dp, 22.dp),
+        // 三行标签字数不同（发音人 3 字 / 插件·全局 2 字），不定宽会让 −按钮与轨道左右错开约 11dp；
+        // 44dp 最小宽（+末尾 8dp 间距＝52dp）让三行左边界一条线，英文 Voice/Plugin/Global 同样对齐
+        labelMinWidth = 44.dp,
     )
 }
 

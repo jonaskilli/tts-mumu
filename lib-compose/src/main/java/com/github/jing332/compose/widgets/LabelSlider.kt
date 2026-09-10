@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
@@ -101,6 +102,10 @@ fun LabelSlider(
     iconSize: Dp = 20.dp,
     trackHeight: Dp = 3.dp,
     thumbSize: DpSize = DpSize(3.dp, 20.dp),
+    // 标签列最小宽度（0.dp = 不定宽，随文字收缩，即旧行为）。
+    // 用途：同一组滑杆的多行标签字数不同（发音人 3 字 / 插件 2 字），不定宽会让各行的
+    // −按钮与轨道左右错开；传 44dp 可让"标签+末尾 8dp 间距"一律 ≥52dp，各行左边界对齐。
+    labelMinWidth: Dp = 0.dp,
 ) {
     // 单行式布局（09-07 用户定稿，参考 JRead 图2）：左列竖排[标签/数值]小字，
     // 右侧 −/滑杆/＋ 同行。text 按首个全角/半角冒号拆分为「标签」「数值」两部分，
@@ -128,7 +133,7 @@ fun LabelSlider(
         modifier,
         verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
     ) {
-        Column(Modifier.padding(end = 8.dp)) {
+        Column(Modifier.padding(end = 8.dp).widthIn(min = labelMinWidth)) {
             Text(
                 text = labelPart,
                 style = MaterialTheme.typography.bodySmall.copy(fontSize = labelFontSize),
