@@ -21,16 +21,16 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
 /**
- * 软槽分段（用户 09-10 晚定稿）：音频参数区的**第二级**维度切换（语速/音量/音高）。
+ * 软槽分段（用户 09-10 晚定稿，09-11 选中项加浮起胶囊）：音频参数区的**第二级**维度切换（语速/音量/音高）。
  *
- * 形态＝**无描边的浅底槽**（surfaceVariant、圆角 8dp、高 36dp）+ 槽内**三等分文字**；
- * 选中项＝主色 + 中粗，未选中＝次要灰。没有描边、没有下划线、没有浮起小块——只用一块
- * 很轻的底把三个键"包裹"成一组，既暗示可点，又比上一层明显轻。
+ * 形态＝**无描边的浅底槽**（surfaceVariant、圆角 8dp、高 36dp）+ 槽内**三等分**；
+ * 选中项＝槽内浮起一枚**胶囊浮块**（primaryContainer 底 + onPrimaryContainer 粗体字），
+ * 未选中＝次要灰平躺。浮块一眼可辨（用户 09-11 指认：纯文字变色"看不出选了哪个"）。
  *
  * 与第一级（父级）的区分：父级是日志面板顶部那排 [SegmentedTextToggle]「更换发音人/音频参数」
- * ——**描边胶囊 + 16sp + 宽度随文字**；本组件是**无描边软槽 + 14sp + 等分撑满**，
- * 形态、字号、宽度行为全不同，父子一眼分家。
- * （09-10 曾短暂用过下划线标签页形态，用户否掉，改回本软槽方案，勿再改回下划线。）
+ * ——**描边胶囊 + 宽度随文字**；本组件是**无描边软槽 + 等分撑满**，
+ * 形态、宽度行为全不同，父子一眼分家（字号区分 09-11 撤销，父子统一 14sp）。
+ * （09-10 曾短暂用过下划线标签页形态，用户否掉，勿再改回下划线。）
  */
 @Composable
 fun SoftSegmentedTextToggle(
@@ -54,15 +54,23 @@ fun SoftSegmentedTextToggle(
                 Modifier
                     .weight(1f)
                     .fillMaxHeight()
+                    // 槽内四周留 4dp：浮块不顶满格子，保持"软槽里浮起一块"的层次
+                    .padding(4.dp)
+                    .then(
+                        if (selected) Modifier.background(
+                            MaterialTheme.colorScheme.primaryContainer,
+                            RoundedCornerShape(50),
+                        ) else Modifier
+                    )
                     .clickable { if (!selected) onSelect(index) },
                 contentAlignment = Alignment.Center,
             ) {
                 Text(
                     label,
                     style = MaterialTheme.typography.labelLarge.copy(fontSize = labelFontSize),
-                    color = if (selected) MaterialTheme.colorScheme.primary
+                    color = if (selected) MaterialTheme.colorScheme.onPrimaryContainer
                     else MaterialTheme.colorScheme.onSurfaceVariant,
-                    fontWeight = if (selected) FontWeight.Medium else FontWeight.Normal,
+                    fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                 )

@@ -416,10 +416,10 @@ fun LogQuickPanel(
                 options = listOf("更换发音人", "音频参数"),
                 selectedIndex = panelTab,
                 onSelect = { panelTab = it },
-                // 09-10 晚：本排是**第一级（父级，切区）**——保持"重形态"描边胶囊，字号升到 16sp；
-                // 区内第二级（语速/音量/音高）是 SoftSegmentedTextToggle（无描边浅底槽 + 三等分文字、14sp），
-                // 形态/字号/宽度行为三重区分，父子不再长得一样
-                labelFontSize = 16.sp,
+                // 09-11：本排是**第一级（父级，切区）**——保持"重形态"描边胶囊；字号降回 14sp
+                //（用户指认 16sp 太大；父子区分改靠形态：父=描边胶囊+宽度随文字，子=软槽浮块+等分撑满）
+                // 区内第二级（语速/音量/音高）是 SoftSegmentedTextToggle（无描边浅底槽 + 浮起胶囊、14sp）
+                labelFontSize = 14.sp,
                 modifier = Modifier
                     .padding(top = 8.dp)
                     .align(Alignment.CenterHorizontally),

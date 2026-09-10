@@ -212,8 +212,9 @@ fun LabelSlider(
                     )
                 },
                 track = { sliderState ->
-                    // 自绘轨道（09-08 终稿 3dp；09-10 晚改为 trackHeight 参数驱动，默认仍 3dp，
-                    // 音频参数三处经 LayerSlider 传 3.5dp——比最早 4dp 细、比 3dp 粗）
+                    // 胶囊轨道（用户 09-11 定稿：回最早 M3 观感，高度由 trackHeight 驱动收细一档）：
+                    // 圆角胶囊轨道 + 未选中段尾端小圆点（M3 stop indicator 观感），
+                    // thumb 仍为竖条（thumbSize 参数）；09-10 晚曾改纯细线画法，被用户否掉（显细又不美观）
                     val colors = SliderDefaults.colors()
                     val frac = if (sliderState.valueRange.endInclusive > sliderState.valueRange.start)
                         ((sliderState.value - sliderState.valueRange.start) /
@@ -224,10 +225,18 @@ fun LabelSlider(
                         Modifier
                             .fillMaxWidth()
                             .height(trackHeight)
-                            .clip(androidx.compose.foundation.shape.RoundedCornerShape(2.dp))
+                            .clip(androidx.compose.foundation.shape.RoundedCornerShape(trackHeight / 2))
                     ) {
                         Box(Modifier.fillMaxSize().background(colors.inactiveTrackColor))
                         Box(Modifier.fillMaxWidth(frac).fillMaxHeight().background(colors.activeTrackColor))
+                        Box(
+                            Modifier
+                                .align(androidx.compose.ui.Alignment.CenterEnd)
+                                .padding(end = trackHeight / 4)
+                                .size(trackHeight / 2)
+                                .clip(androidx.compose.foundation.shape.CircleShape)
+                                .background(MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.55f))
+                        )
                     }
                 }
             )

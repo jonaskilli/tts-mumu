@@ -131,6 +131,20 @@ fun BasicInfoEditScreen(
                     onDismissRequest = { showStandbyHelp = false }
                 )
 
+            // 心声混响问号（用户 09-11：两项开关都补上问号解说，与「作为备用」同款形态）
+            var showReverbHelp by remember { mutableStateOf(false) }
+            if (showReverbHelp)
+                AppDialog(
+                    title = { Text(stringResource(id = R.string.systts_reverb_help)) },
+                    content = { Text(stringResource(id = R.string.systts_reverb_help_msg)) },
+                    buttons = {
+                        TextButton(onClick = { showReverbHelp = false }) {
+                            Text(stringResource(id = R.string.confirm))
+                        }
+                    },
+                    onDismissRequest = { showReverbHelp = false }
+                )
+
             // 心声混响 + 备用引擎合并一行（用户 09-10 定稿）：都是本条配置的播放行为布尔开关，并排省一行
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -139,10 +153,10 @@ fun BasicInfoEditScreen(
                 Row(
                     modifier = Modifier
                         .weight(1f)
-                        // 视觉偏移 -15dp 抵消 M3 Checkbox 自带的内缩（48dp 触摸区里画 18dp 方块，
-                        // 左右各缩 15dp）——让方块左边缘与上方输入框的左边框对齐（用户 09-10 晚）。
-                        // 只挪视觉位置，触摸区大小与布局宽度不变
-                        .offset(x = (-15).dp)
+                        // 视觉偏移 -10dp 抵消 M3 Checkbox 自带的内缩（48dp 触摸区里画 18dp 方块，
+                        // 左右各缩 15dp）——方块左缘落在输入框边框内 5dp（用户 09-11：-15dp 太贴边，
+                        // "方框往右来一点点"）。只挪视觉位置，触摸区大小与布局宽度不变
+                        .offset(x = (-10).dp)
                         .clickable {
                             val p = dto.audioParams
                             updateConfig(systemTts, onSystemTtsChange, p.copy(reverbEnabled = !p.reverbEnabled))
@@ -155,7 +169,14 @@ fun BasicInfoEditScreen(
                             updateConfig(systemTts, onSystemTtsChange, dto.audioParams.copy(reverbEnabled = it))
                         }
                     )
-                    Text("心声混响")
+                    // 文字左拉近 8dp：收紧方块→文字间距（用户 09-11："离方框太远"）
+                    Text("心声混响", modifier = Modifier.offset(x = (-8).dp))
+                    IconButton(onClick = { showReverbHelp = true }) {
+                        Icon(
+                            Icons.AutoMirrored.Filled.HelpOutline,
+                            stringResource(id = R.string.systts_reverb_help)
+                        )
+                    }
                 }
 
                 Row(
@@ -173,11 +194,8 @@ fun BasicInfoEditScreen(
                 ) {
                     Checkbox(checked = dto.speechRule.isStandby, onCheckedChange = null)
                     Text(stringResource(id = R.string.as_standby))
-                    // 视觉偏移 +12dp 抵消 IconButton 自带的内缩（48dp 触摸区里画 24dp 图标），
-                    // 让问号图标右边缘与上方输入框的右边框对齐（用户 09-10 晚）；触摸区大小不变
-                    IconButton(
-                        modifier = Modifier.offset(x = 12.dp),
-                        onClick = { showStandbyHelp = true }) {
+                    // 问号紧跟文字（用户 09-11：原 +12dp 视觉偏移让问号离文字太远，撤掉）
+                    IconButton(onClick = { showStandbyHelp = true }) {
                         Icon(
                             Icons.AutoMirrored.Filled.HelpOutline,
                             stringResource(id = R.string.systts_as_standby_help)

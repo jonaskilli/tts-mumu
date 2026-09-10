@@ -276,7 +276,11 @@
     <string name="save_to_list">已保存 %1$d 个到语音列表</string>
     <string name="failed_timed_out">已超时：%1$dms</string>
     <string name="builtin_player_settings_tip_msg">启用内置播放器时，使用此处设置覆盖全局。</string>
-    <string name="systts_standby_help_msg">作为备用后，当请求失败时将会根据 [全部/旁白/对话] 使用此配置朗读。\n也就是说，可以根据朗读目标单独配置备用。\n注意：备用配置无自动重试功能，首次失败后将直接跳过朗读，所以建议使用本地TTS类型作为备用。</string>
+    <string name="systts_standby_help_msg">勾选后，朗读请求失败时会改用本配置朗读。\n注意：备用无自动重试，首次失败即跳过，建议用本地TTS类型。</string>
+    <string name="systts_reverb_help">关于【心声混响】</string>
+    <string name="systts_reverb_help_msg">为本配置的朗读声音加混响，听感更有空间感；可在试听文本行点 🎧 先听效果再决定。</string>
+    <string name="systts_inner_thought_help">关于【内心独白】</string>
+    <string name="systts_inner_thought_help_msg">勾选后，朗读中判定为内心独白的句子会改用本配置的音色；可搭配设置页「启用心声 AI 判定」提升识别。</string>
     <string name="save_as_file">另存为文件</string>
     <string name="group_move_a11y_msg">分组已从 %1$d 移动到 %2$d</string>
     <string name="list_move_a11y_msg">已从 %1$d 移动到 %2$d</string>

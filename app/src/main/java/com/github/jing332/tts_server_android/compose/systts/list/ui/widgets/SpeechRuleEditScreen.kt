@@ -284,6 +284,41 @@ fun SpeechRuleEditScreen(
             val ruleTagBody: @Composable () -> Unit = {
                 // 心声保留标签是否生效：标签下拉候选与芯片、说明文案共用
                 val isInnerThought = config.speechRule.tag == InnerThoughtClassifier.INNER_THOUGHT_TAG
+
+                // 勾选内心独白前的原标签（用户 09-11：取消勾选时还原为勾选前的标签，不再清空）。
+                // 会话内 remember——若勾选→保存→退出→重进再取消，原标签已无从得知，回落为清空（旧行为）
+                var tagBeforeMonologue by remember(systts.id) { mutableStateOf<String?>(null) }
+                var showInnerThoughtHelp by remember { mutableStateOf(false) }
+                if (showInnerThoughtHelp)
+                    AppDialog(
+                        title = { Text(stringResource(id = R.string.systts_inner_thought_help)) },
+                        content = { Text(stringResource(id = R.string.systts_inner_thought_help_msg)) },
+                        buttons = {
+                            TextButton(onClick = { showInnerThoughtHelp = false }) {
+                                Text(stringResource(id = R.string.confirm))
+                            }
+                        },
+                        onDismissRequest = { showInnerThoughtHelp = false }
+                    )
+
+                fun toggleInnerThought() {
+                    if (config.speechRule.target != SpeechTarget.TAG) return
+                    val newTag: String
+                    if (config.speechRule.tag == InnerThoughtClassifier.INNER_THOUGHT_TAG) {
+                        // 取消勾选：还原为勾选前的原标签
+                        newTag = tagBeforeMonologue ?: ""
+                        tagBeforeMonologue = null
+                    } else {
+                        // 勾选：先记住当前标签
+                        tagBeforeMonologue = config.speechRule.tag
+                        newTag = InnerThoughtClassifier.INNER_THOUGHT_TAG
+                    }
+                    onSysttsChange(
+                        systts.copy(
+                            config = config.copy(config.speechRule.copy(tag = newTag))
+                        )
+                    )
+                }
                 Row(Modifier) {
                     AppSpinner(
                         modifier = Modifier
@@ -373,48 +408,31 @@ fun SpeechRuleEditScreen(
                     }
                 }
 
-                // 内心独白（用户 09-10 晚定稿）：原是孤零零一个 FilterChip 胶囊，改为与基本信息卡
-                // 「心声混响 / 作为备用」**同款的复选框行**，位置紧贴它的归属字段「标签」——
-                // 形态合群、不再独此一份胶囊；勾选＝把本配置标签设为内置「内心独白」标签，再勾掉＝清空标签
+                // 内心独白（用户 09-10 晚定稿）：与基本信息卡「心声混响 / 作为备用」同款复选框行，
+                // 位置紧贴归属字段「标签」。勾选＝标签设为内置「内心独白」标签；
+                // 取消＝还原为勾选前的原标签（用户 09-11，不再清空）
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .clickable {
-                            if (config.speechRule.target == SpeechTarget.TAG) {
-                                val newTag =
-                                    if (isInnerThought) "" else InnerThoughtClassifier.INNER_THOUGHT_TAG
-                                onSysttsChange(
-                                    systts.copy(
-                                        config = config.copy(
-                                            speechRule = config.speechRule.copy(tag = newTag)
-                                        )
-                                    )
-                                )
-                            }
-                        }
+                        .clickable { toggleInnerThought() }
                         .padding(top = 4.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     Checkbox(
                         checked = isInnerThought,
-                        onCheckedChange = {
-                            if (config.speechRule.target == SpeechTarget.TAG) {
-                                val newTag =
-                                    if (isInnerThought) "" else InnerThoughtClassifier.INNER_THOUGHT_TAG
-                                onSysttsChange(
-                                    systts.copy(
-                                        config = config.copy(
-                                            speechRule = config.speechRule.copy(tag = newTag)
-                                        )
-                                    )
-                                )
-                            }
-                        },
-                        // 视觉偏移 -15dp 抵消 M3 Checkbox 自带内缩（48dp 触摸区画 18dp 方块），
-                        // 方块左缘与上方字段边框对齐（与基本信息卡那两行同款处理）
-                        modifier = Modifier.offset(x = (-15).dp),
+                        onCheckedChange = { toggleInnerThought() },
+                        // 视觉偏移 -10dp 抵消 M3 Checkbox 自带内缩（48dp 触摸区画 18dp 方块），
+                        // 方块左缘落在上方字段边框内 5dp（用户 09-11：-15dp 太贴边，右移一点点）
+                        modifier = Modifier.offset(x = (-10).dp),
                     )
-                    Text("内心独白")
+                    // 文字左拉近 8dp：收紧方块→文字间距（用户 09-11，与基本信息卡同款处理）
+                    Text("内心独白", modifier = Modifier.offset(x = (-8).dp))
+                    IconButton(onClick = { showInnerThoughtHelp = true }) {
+                        Icon(
+                            Icons.AutoMirrored.Filled.HelpOutline,
+                            stringResource(id = R.string.systts_inner_thought_help)
+                        )
+                    }
                 }
                 if (isInnerThought) {
                     Text(

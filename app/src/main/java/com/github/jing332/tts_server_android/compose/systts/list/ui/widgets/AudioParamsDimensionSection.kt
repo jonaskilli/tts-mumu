@@ -102,6 +102,7 @@ fun AudioParamsDimensionSection(
     // 维度分段（语速/音量/音高）+ 当前维三层滑杆，平铺（唯一形态，用户 09-10 恢复）。
     // 09-10 晚定形态：本处是**第二级（子级）**，用「无描边浅底槽 + 三等分文字」的软槽分段（14sp），
     // 与日志面板外层分区切换（第一级父级：描边胶囊 16sp、宽度随文字）在形态/字号/宽度行为上全不同。
+    // 09-11 起选中项带浮起胶囊（见 SoftSegmentedTextToggle）；槽顶 8dp 顶距，与上方内容拉开不贴脸
     // 本组件被日志面板与配置项弹窗共用，两处一起变（编辑页单维弹窗无选择器，不受影响）
     var dim by remember(initialDim) { mutableStateOf(initialDim.coerceIn(0, dimNames.lastIndex)) }
     Column(Modifier.fillMaxWidth()) {
@@ -109,26 +110,26 @@ fun AudioParamsDimensionSection(
             options = dimNames,
             selectedIndex = dim,
             onSelect = { dim = it },
+            modifier = Modifier.padding(top = 8.dp),
         )
         DimContent(dim)
     }
 }
 
-/** 维度名（0=语速 1=音量 2=音高），编辑页三键直出 chips 与单维弹窗标题共用（用户 09-10 定稿） */
+/** 维度名（0=语速 1=音量 2=音高），编辑页软槽与弹窗/日志面板共用（用户 09-10 定稿） */
 internal val audioParamsDimNames = listOf("语速", "音量", "音高")
 
 /**
- * 层滑杆：标签=层名（发音人/插件/全局，见 audio_params_tag_* 串），维度已由分段表达，滑杆只标层与当前值。
+ * 层滑杆：标签=层名（本项/插件/全局，见 audio_params_tag_* 串），维度已由分段表达，滑杆只标层与当前值。
  *
- * 尺寸（用户 09-10 晚定稿）：音频参数三处——卡片⋮弹窗 `AudioParamsDialog`、日志快捷面板 `LogQuickPanel`、
- * 编辑页单维弹窗 `AudioParamsDimDialog`——全部经本函数取滑杆，故在此统一传大一号尺寸：
- * - 标签 14sp：与上方维度选择区「语速/音量/音高」(labelLarge 14sp) 齐平，避免子项压住父项
- *   （严格按最早是 16sp，会比选择区还大且等于顶部发音人名 titleMedium，故不取）；
- * - 加减 48dp 触摸区 / **22dp 图标**：触摸区恢复改造前 M3 默认（09-08 收窄版是 32dp/20dp）；
- *   图标取 22dp 而非改造前的 24dp——24dp 视觉重量≈20sp 的字，配 14sp 标签偏重（改造前是 24dp+16sp 配对），
- *   22dp 与 14sp 成对更协调；
- * - 轨道 3.5dp：介于最早 4dp 与 09-08 的 3dp 之间；thumb 同步 3.5×22dp；
- * - 标签列 `labelMinWidth = 44.dp`：定宽后三行 −按钮与轨道对齐（见行内注释）。
+ * 尺寸（用户 09-10 晚定稿，09-11 轨道改胶囊）：
+ * 音频参数三处——卡片⋮弹窗 `AudioParamsDialog`、日志快捷面板 `LogQuickPanel`、编辑页内联展开区
+ * `AudioParamsDimRows`——全部经本函数取滑杆，故在此统一传大一号尺寸：
+ * - 标签 14sp：与上方维度选择区「语速/音量/音高」齐平，避免子项压住父项；
+ * - 加减 48dp 触摸区 / **22dp 图标**：触摸区恢复改造前 M3 默认；图标 22dp 与 14sp 标签成对；
+ * - 轨道 **10dp 胶囊画法**（用户 09-11 定稿：回最早 M3 胶囊轨道观感、高度收细一档；
+ *   09-10 晚的 3.5dp 纯细线被用户否掉——"看着差太多、不如原来美观"）；thumb 竖条 4×22dp；
+ * - 标签列 `labelMinWidth = 44.dp`：定宽后三行 −按钮与轨道对齐（三行标签均两字，天然等宽仍保留定宽）。
  * 其他界面滑杆直接调 `LabelSlider`、不传这些参数，保持原样（默认 13sp/32dp/20dp/3dp/3×20dp/不定宽）。
  */
 @Composable
@@ -143,10 +144,8 @@ internal fun LayerSlider(label: String, value: Float, onValueChange: (Float) -> 
         labelFontSize = 14.sp,
         buttonSize = 48.dp,
         iconSize = 22.dp,
-        trackHeight = 3.5.dp,
-        thumbSize = DpSize(3.5.dp, 22.dp),
-        // 三行标签字数不同（发音人 3 字 / 插件·全局 2 字），不定宽会让 −按钮与轨道左右错开约 11dp；
-        // 44dp 最小宽（+末尾 8dp 间距＝52dp）让三行左边界一条线，英文 Voice/Plugin/Global 同样对齐
+        trackHeight = 10.dp,
+        thumbSize = DpSize(4.dp, 22.dp),
         labelMinWidth = 44.dp,
     )
 }

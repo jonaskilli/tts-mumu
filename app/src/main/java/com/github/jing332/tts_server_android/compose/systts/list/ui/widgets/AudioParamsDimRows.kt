@@ -1,15 +1,11 @@
 package com.github.jing332.tts_server_android.compose.systts.list.ui.widgets
 
 import android.widget.Toast
-import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -22,8 +18,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.drake.net.utils.withIO
 import com.github.jing332.common.utils.toParamText
 import com.github.jing332.database.dbm
@@ -31,23 +27,27 @@ import com.github.jing332.database.entities.systts.SystemTtsV2
 import com.github.jing332.database.entities.systts.TtsConfigurationDTO
 import com.github.jing332.database.entities.systts.source.PluginTtsSource
 import com.github.jing332.tts_server_android.R
+import com.github.jing332.tts_server_android.compose.SoftSegmentedTextToggle
 import com.github.jing332.tts_server_android.compose.systts.list.ui.PluginDescriptor
 import com.github.jing332.tts_server_android.conf.SysTtsConfig
 import com.github.jing332.tts_server_android.service.systts.SystemTtsService
 import kotlinx.coroutines.launch
 
 /**
- * 编辑页「音频参数」区（用户 09-10 晚定稿，最终形态）：
+ * 编辑页「音频参数」区（用户 09-11 定稿，最终形态）：
  *
- * **一行三项**：`语速 1.00`　`音量 1.30`　`音高 1.00`（各带该维**终值**＝配置×插件×全局，FOLLOW 视为 1，
- * 跟随草稿实时变；展开中的那项高亮）。**点某项就地展开**该维滑杆，再点收起，同一时刻只展开一维。
+ * **软槽分段一行三项**：与卡片⋮弹窗/日志快捷面板同款 [SoftSegmentedTextToggle]（16sp），
+ * 槽内 `语速 1.0`　`音量 1.3`　`音高 1.0`（各带该维**终值**＝配置×插件×全局，FOLLOW 视为 1，
+ * 跟随草稿实时变）；选中（=正在展开）项浮起胶囊高亮。**默认展开语速、永不全收起**（方案A）：
+ * 浮块本身就是可点示范，且与弹窗"永远有一维被选中"的行为完全一致。
  *
- * **展开区只留滑条**（用户定稿）：只有 发音人/插件/全局 三层滑杆（无插件源自动只有两层）+ 重置/应用——
- * 滑条外的信息（终值行、▶试听）一律不放：值已经在上方那一项里、也在滑杆标签里，
+ * **展开区只留滑条**：该维三层滑杆（本项/插件/全局，无插件源自动只有两层）+ 重置/应用，
+ * 无底框平铺（与弹窗/日志面板展开区一致）——
+ * 滑条外的信息（终值行、▶试听）一律不放：值已经在槽里、也在滑杆标签里，
  * **试听直接用试听文本行的 🎧**（[AuditionTextField]）。
  *
  * 应用＝该维三层一起落库：配置层双写页面内存（防"应用后再保存"被旧内存覆盖）、插件层失效卡片缓存、
- * 全局写 SysTtsConfig、notifyUpdateConfig 立即生效，不收起、toast 反馈；重置＝该维三层草稿回 1.0（不落库）。
+ * 全局写 SysTtsConfig、notifyUpdateConfig 立即生效，toast 反馈；重置＝该维三层草稿回 1.0（不落库）。
  *
  * 卡片⋮入口与日志快捷面板仍走共用的 [AudioParamsDialog]（那边要发音人上下文与面板排版，是弹窗形态）。
  *
@@ -67,8 +67,8 @@ fun AudioParamsDimRows(
     val plugin = source?.let { dbm.pluginDao.getByPluginId(it.pluginId) }
     val hasPluginLayer = source != null
 
-    // 展开的维度（-1=全收起）
-    var expanded by remember(systemTts.id) { mutableStateOf(-1) }
+    // 展开的维度（用户 09-11 方案A：默认展开语速，永不全收起——浮块常驻即可点性示范）
+    var expanded by remember(systemTts.id) { mutableStateOf(0) }
 
     // 三层草稿（三维共用一份；展开哪维就调哪维）
     var speed by remember(systemTts.id) { mutableStateOf(config.audioParams.speed) }
@@ -146,44 +146,28 @@ fun AudioParamsDimRows(
     val tagGlobal = stringResource(R.string.audio_params_tag_global)
 
     Column(modifier.fillMaxWidth()) {
-        // 一行三项：语速 / 音量 / 音高（各带该维终值），点哪项就地展开哪维（再点收起）
-        Row(Modifier.fillMaxWidth()) {
-            audioParamsDimNames.forEachIndexed { dim, name ->
-                val open = expanded == dim
-                Row(
-                    Modifier
-                        .weight(1f)
-                        .clickable { expanded = if (open) -1 else dim }
-                        .padding(vertical = 12.dp),
-                    horizontalArrangement = Arrangement.Center,
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Text(
-                        // 与卡片参数行/弹窗终值行/日志面板同口径：按实际精度显示（1.00→1.0、0.97→0.97）
-                        "$name " + finalOf(dim).toParamText(),
-                        style = MaterialTheme.typography.bodyMedium,
-                        fontWeight = if (open) FontWeight.Medium else FontWeight.Normal,
-                        color = if (open) MaterialTheme.colorScheme.primary
-                        else MaterialTheme.colorScheme.onSurface,
-                    )
-                }
-            }
-        }
+        // 软槽分段（用户 09-11 定稿）：与弹窗/日志面板同款，选中项浮起胶囊；
+        // 16sp 与编辑页其他字段齐平；顶距 12dp 与上方试听文本行拉开又相融。
+        // 槽内文字=维度名+该维终值（toParamText 与卡片/弹窗/日志同口径）
+        SoftSegmentedTextToggle(
+            options = audioParamsDimNames.mapIndexed { dim, name ->
+                "$name " + finalOf(dim).toParamText()
+            },
+            selectedIndex = expanded,
+            onSelect = { expanded = it },
+            labelFontSize = 16.sp,
+            modifier = Modifier.padding(top = 12.dp),
+        )
 
-        // 展开区：只留该维三层滑杆 + 重置/应用（滑条外的信息一律不放；试听走试听文本行的 🎧）
+        // 展开区：该维三层滑杆 + 重置/应用，无底框平铺（与弹窗/日志面板一致）；
+        // 滑条外的信息一律不放；试听走试听文本行的 🎧
         val dim = expanded
-        if (dim >= 0) {
-            Column(
-                Modifier
-                    .fillMaxWidth()
-                    .padding(bottom = 4.dp)
-                    .background(
-                        MaterialTheme.colorScheme.surfaceVariant,
-                        RoundedCornerShape(8.dp),
-                    )
-                    .padding(horizontal = 10.dp, vertical = 8.dp),
-                verticalArrangement = Arrangement.spacedBy(4.dp),
-            ) {
+        Column(
+            Modifier
+                .fillMaxWidth()
+                .padding(top = 4.dp, bottom = 4.dp),
+            verticalArrangement = Arrangement.spacedBy(4.dp),
+        ) {
                 when (dim) {
                     0 -> {
                         LayerSlider(tagCfg, speed) { speed = it; speedDirty = true }
@@ -221,6 +205,5 @@ fun AudioParamsDimRows(
                     }
                 }
             }
-        }
     }
 }
