@@ -25,6 +25,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.drake.net.utils.withIO
+import com.github.jing332.common.utils.toParamText
 import com.github.jing332.database.dbm
 import com.github.jing332.database.entities.systts.SystemTtsV2
 import com.github.jing332.database.entities.systts.TtsConfigurationDTO
@@ -158,7 +159,8 @@ fun AudioParamsDimRows(
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     Text(
-                        "$name %.2f".format(finalOf(dim)),
+                        // 与卡片参数行/弹窗终值行/日志面板同口径：按实际精度显示（1.00→1.0、0.97→0.97）
+                        "$name " + finalOf(dim).toParamText(),
                         style = MaterialTheme.typography.bodyMedium,
                         fontWeight = if (open) FontWeight.Medium else FontWeight.Normal,
                         color = if (open) MaterialTheme.colorScheme.primary
