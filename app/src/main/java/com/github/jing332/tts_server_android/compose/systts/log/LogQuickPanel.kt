@@ -417,9 +417,9 @@ fun LogQuickPanel(
                 options = listOf("更换发音人", "音频参数"),
                 selectedIndex = panelTab,
                 onSelect = { panelTab = it },
-                // 09-10 晚：本排是**第一级（父级，切区）**——保持"重形态"胶囊，字号升到 16sp；
-                // 区内第二级（语速/音量/音高）已换成 UnderlineTextToggle（轻形态下划线、14sp），
-                // 形态+字号双重区分，父子不再长得一样
+                // 09-10 晚：本排是**第一级（父级，切区）**——保持"重形态"描边胶囊，字号升到 16sp；
+                // 区内第二级（语速/音量/音高）是 SoftSegmentedTextToggle（无描边浅底槽 + 三等分文字、14sp），
+                // 形态/字号/宽度行为三重区分，父子不再长得一样
                 labelFontSize = 16.sp,
                 modifier = Modifier
                     .padding(top = 8.dp)

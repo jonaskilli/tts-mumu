@@ -18,7 +18,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.github.jing332.compose.widgets.LabelSlider
 import com.github.jing332.tts_server_android.R
-import com.github.jing332.tts_server_android.compose.UnderlineTextToggle
+import com.github.jing332.tts_server_android.compose.SoftSegmentedTextToggle
 
 /**
  * 音频参数「按维度」编辑区（用户 09-10 定稿，AudioParamsDialog 与日志快捷面板共用）：
@@ -98,12 +98,12 @@ fun AudioParamsDimensionSection(
     }
 
     // 维度分段（语速/音量/音高）+ 当前维三层滑杆，平铺（唯一形态，用户 09-10 恢复）。
-    // 09-10 晚改形态：本处是**第二级（子级）**，换成下划线标签页（14sp），与日志面板外层
-    // 分区切换（第一级父级，胶囊 16sp）形成「重形态+大字 vs 轻形态+小字」的双重区分。
+    // 09-10 晚定形态：本处是**第二级（子级）**，用「无描边浅底槽 + 三等分文字」的软槽分段（14sp），
+    // 与日志面板外层分区切换（第一级父级：描边胶囊 16sp、宽度随文字）在形态/字号/宽度行为上全不同。
     // 本组件被日志面板与配置项弹窗共用，两处一起变（编辑页单维弹窗无选择器，不受影响）
     var dim by remember { mutableStateOf(0) }
     Column(Modifier.fillMaxWidth()) {
-        UnderlineTextToggle(
+        SoftSegmentedTextToggle(
             options = dimNames,
             selectedIndex = dim,
             onSelect = { dim = it },
