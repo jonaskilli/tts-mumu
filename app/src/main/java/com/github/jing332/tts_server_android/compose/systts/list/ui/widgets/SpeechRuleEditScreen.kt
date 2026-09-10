@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.material.icons.Icons
@@ -15,8 +16,8 @@ import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.SelectAll
 import androidx.compose.material.icons.filled.Tag
 import com.github.jing332.compose.widgets.AppDropdownMenu
+import androidx.compose.material3.Checkbox
 import androidx.compose.material3.DropdownMenuItem
-import androidx.compose.material3.FilterChip
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -372,28 +373,48 @@ fun SpeechRuleEditScreen(
                     }
                 }
 
+                // 内心独白（用户 09-10 晚定稿）：原是孤零零一个 FilterChip 胶囊，改为与基本信息卡
+                // 「心声混响 / 作为备用」**同款的复选框行**，位置紧贴它的归属字段「标签」——
+                // 形态合群、不再独此一份胶囊；勾选＝把本配置标签设为内置「内心独白」标签，再勾掉＝清空标签
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(top = 4.dp),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                ) {
-                    FilterChip(
-                        selected = isInnerThought,
-                        onClick = {
-                            if (config.speechRule.target != SpeechTarget.TAG) return@FilterChip
-                            val newTag =
-                                if (isInnerThought) "" else InnerThoughtClassifier.INNER_THOUGHT_TAG
-                            onSysttsChange(
-                                systts.copy(
-                                    config = config.copy(
-                                        speechRule = config.speechRule.copy(tag = newTag)
+                        .clickable {
+                            if (config.speechRule.target == SpeechTarget.TAG) {
+                                val newTag =
+                                    if (isInnerThought) "" else InnerThoughtClassifier.INNER_THOUGHT_TAG
+                                onSysttsChange(
+                                    systts.copy(
+                                        config = config.copy(
+                                            speechRule = config.speechRule.copy(tag = newTag)
+                                        )
                                     )
                                 )
-                            )
+                            }
+                        }
+                        .padding(top = 4.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Checkbox(
+                        checked = isInnerThought,
+                        onCheckedChange = {
+                            if (config.speechRule.target == SpeechTarget.TAG) {
+                                val newTag =
+                                    if (isInnerThought) "" else InnerThoughtClassifier.INNER_THOUGHT_TAG
+                                onSysttsChange(
+                                    systts.copy(
+                                        config = config.copy(
+                                            speechRule = config.speechRule.copy(tag = newTag)
+                                        )
+                                    )
+                                )
+                            }
                         },
-                        label = { Text("心声(内心独白)") }
+                        // 视觉偏移 -15dp 抵消 M3 Checkbox 自带内缩（48dp 触摸区画 18dp 方块），
+                        // 方块左缘与上方字段边框对齐（与基本信息卡那两行同款处理）
+                        modifier = Modifier.offset(x = (-15).dp),
                     )
+                    Text("内心独白")
                 }
                 if (isInnerThought) {
                     Text(
