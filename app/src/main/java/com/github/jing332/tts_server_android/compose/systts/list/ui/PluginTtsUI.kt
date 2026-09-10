@@ -270,13 +270,15 @@ class PluginTtsUI : IConfigUI() {
                 auditionVoiceId = null
             }
 
-        // 单维音频参数弹窗（试听文本下方三键直出触发，用户 09-10 定稿）
+        // 音频参数弹窗（试听文本下方三键直出触发，用户 09-10 晚定稿）：
+        // 与卡片⋮入口共用同一个 AudioParamsDialog——顶部发音人+▶试听+终值行，主体维度软槽+该维三层滑杆+重置/应用；
+        // 点哪个键就以哪个维度打开（initialDim）；不再各写一套单维弹窗
         showAudioParamsDim?.let { dim ->
-            com.github.jing332.tts_server_android.compose.systts.list.ui.widgets.AudioParamsDimDialog(
-                dim = dim,
+            com.github.jing332.tts_server_android.compose.systts.list.ui.widgets.AudioParamsDialog(
                 onDismissRequest = { showAudioParamsDim = null },
                 systemTts = systts,
                 onSysttsChange = onSysttsChange,
+                initialDim = dim,
             )
         }
 
@@ -310,12 +312,17 @@ class PluginTtsUI : IConfigUI() {
                         AuditionTextField(
                             modifier = Modifier
                                 .fillMaxWidth()
+                                // 横向 12dp 与卡片内其它字段（分组/显示名）对齐——此前缺这 12dp，
+                                // 试听文本行比其它行宽出约 24dp（用户 09-10 晚指认）
+                                .padding(horizontal = 12.dp)
                                 .padding(top = 8.dp),
                             onAudition = { auditionSystts = systts }
                         )
                         AudioParamsDimChipsRow(
                             modifier = Modifier
                                 .fillMaxWidth()
+                                // 同步让 12dp，与试听文本行/其它字段一条边（用户 09-10 晚）
+                                .padding(horizontal = 12.dp)
                                 .padding(top = 4.dp),
                             systemTts = systts,
                             onSelectDim = { showAudioParamsDim = it },

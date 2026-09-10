@@ -50,6 +50,8 @@ fun AudioParamsDimensionSection(
     isDirty: (Int) -> Boolean,
     onResetDim: (Int) -> Unit,
     onApplyDim: (Int) -> Unit,
+    // 初始选中维度（0=语速 1=音量 2=音高）：编辑页三键点哪个键就以哪个维度打开（用户 09-10 晚）
+    initialDim: Int = 0,
 ) {
     val tagCfg = stringResource(R.string.audio_params_tag_config)
     val tagPlugin = stringResource(R.string.audio_params_tag_plugin)
@@ -101,7 +103,7 @@ fun AudioParamsDimensionSection(
     // 09-10 晚定形态：本处是**第二级（子级）**，用「无描边浅底槽 + 三等分文字」的软槽分段（14sp），
     // 与日志面板外层分区切换（第一级父级：描边胶囊 16sp、宽度随文字）在形态/字号/宽度行为上全不同。
     // 本组件被日志面板与配置项弹窗共用，两处一起变（编辑页单维弹窗无选择器，不受影响）
-    var dim by remember { mutableStateOf(0) }
+    var dim by remember(initialDim) { mutableStateOf(initialDim.coerceIn(0, dimNames.lastIndex)) }
     Column(Modifier.fillMaxWidth()) {
         SoftSegmentedTextToggle(
             options = dimNames,

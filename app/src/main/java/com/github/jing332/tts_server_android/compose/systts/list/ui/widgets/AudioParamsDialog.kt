@@ -62,6 +62,9 @@ fun AudioParamsDialog(
     onDismissRequest: () -> Unit,
     systemTts: SystemTtsV2,
     onSysttsChange: (SystemTtsV2) -> Unit,
+    // 初始选中的维度（0=语速 1=音量 2=音高）：编辑页三键直出点哪个键就以哪个维度打开
+    // （用户 09-10 晚：编辑页三键与卡片⋮入口共用本弹窗，不再各写一套单维弹窗）
+    initialDim: Int = 0,
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -245,6 +248,7 @@ fun AudioParamsDialog(
                 //      折叠手风琴形态同日撤销并删码，勿再引入 =====
                 AudioParamsDimensionSection(
                     hasPluginLayer = hasPluginLayer,
+                    initialDim = initialDim,
                     cfgSpeed = speed, onCfgSpeed = { speed = it; speedDirty = true },
                     cfgVolume = volume, onCfgVolume = { volume = it; volumeDirty = true },
                     cfgPitch = pitch, onCfgPitch = { pitch = it; pitchDirty = true },
