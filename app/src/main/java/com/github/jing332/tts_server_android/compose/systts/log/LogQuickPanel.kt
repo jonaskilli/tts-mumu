@@ -12,7 +12,6 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -675,7 +674,8 @@ fun LogQuickPanel(
                         .padding(horizontal = 4.dp)
                         .padding(bottom = 4.dp)
                 ) {
-                    HorizontalDivider(Modifier.padding(vertical = 4.dp))
+                    // 顶部那条 HorizontalDivider 已撤（用户 09-10 晚）：第二级换成软槽分段后，
+                    // 分割线与"两区切换 + 软槽"的层次重复，撤掉更干净
                     // 三层现值总览行已撤（用户 09-10 ④）：顶部终值行足够，每维三层滑杆同屏可见；
                     // 按维度分段（语速/音量/音高，共用组件），滑杆层标签=配置/插件/全局，
                     // 接管判定已废除（09-10）：三层恒显示可调

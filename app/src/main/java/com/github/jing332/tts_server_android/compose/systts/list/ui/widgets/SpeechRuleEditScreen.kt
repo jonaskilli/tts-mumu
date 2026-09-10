@@ -42,6 +42,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.github.jing332.common.utils.ClipboardUtils
 import com.github.jing332.common.utils.StringUtils
 import com.github.jing332.common.utils.longToast
@@ -189,7 +190,13 @@ fun SpeechRuleEditScreen(
                     shape = SegmentedButtonDefaults.itemShape(0, 2),
                     icon = { Icon(Icons.Default.SelectAll, stringResource(R.string.ra_all)) },
                 ) {
-                    Text(stringResource(id = R.string.ra_all), maxLines = 1)
+                    // 字号 14→16sp（用户 09-10 晚）：本排是"模式切换"（父级语义），
+                    // 与日志面板外层「更换发音人/音频参数」对齐（那处也是 16sp 描边胶囊）
+                    Text(
+                        stringResource(id = R.string.ra_all),
+                        style = MaterialTheme.typography.labelLarge.copy(fontSize = 16.sp),
+                        maxLines = 1,
+                    )
                 }
 
                 SegmentedButton(
@@ -217,6 +224,7 @@ fun SpeechRuleEditScreen(
                 ) {
                     Text(
                         stringResource(id = R.string.tag),
+                        style = MaterialTheme.typography.labelLarge.copy(fontSize = 16.sp),
                         maxLines = 1,
                         modifier = Modifier.padding(start = 4.dp, end = 10.dp)
                     )
