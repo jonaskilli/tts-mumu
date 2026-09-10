@@ -49,7 +49,9 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.setProgress
 import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.DpSize
+import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.github.jing332.common.utils.performLongPress
@@ -89,6 +91,16 @@ fun LabelSlider(
 
     a11yDescription: String = "",
     text: String,
+
+    // ===== 尺寸可选参数（09-10 晚新增）=====
+    // 默认值＝09-08 d34701e 的现行「中间档」，故既有 32 处调用方零影响。
+    // 音频参数三处（卡片⋮弹窗 / 日志快捷面板 / 编辑页单维弹窗）经 LayerSlider 传大一号的值：
+    // 标签字号与上方维度选择区「语速/音量/音高」(labelLarge 14sp) 齐平，避免子项压住父项。
+    labelFontSize: TextUnit = 13.sp,
+    buttonSize: Dp = 32.dp,
+    iconSize: Dp = 20.dp,
+    trackHeight: Dp = 3.dp,
+    thumbSize: DpSize = DpSize(3.dp, 20.dp),
 ) {
     // 单行式布局（09-07 用户定稿，参考 JRead 图2）：左列竖排[标签/数值]小字，
     // 右侧 −/滑杆/＋ 同行。text 按首个全角/半角冒号拆分为「标签」「数值」两部分，
@@ -119,13 +131,13 @@ fun LabelSlider(
         Column(Modifier.padding(end = 8.dp)) {
             Text(
                 text = labelPart,
-                style = MaterialTheme.typography.bodySmall.copy(fontSize = 13.sp),
+                style = MaterialTheme.typography.bodySmall.copy(fontSize = labelFontSize),
                 maxLines = 1,
             )
             if (valuePart.isNotEmpty())
                 Text(
                     text = valuePart,
-                    style = MaterialTheme.typography.bodySmall.copy(fontSize = 13.sp),
+                    style = MaterialTheme.typography.bodySmall.copy(fontSize = labelFontSize),
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     maxLines = 1,
                 )
@@ -134,7 +146,7 @@ fun LabelSlider(
         if (showButton)
             LongClickIconButton(
                 modifier = Modifier
-                    .size(32.dp)
+                    .size(buttonSize)
                     .semantics {
                         contentDescription = a11yDescription
                     },
@@ -145,7 +157,7 @@ fun LabelSlider(
                 Icon(
                         Icons.Default.Remove,
                         stringResource(id = R.string.desc_seekbar_remove),
-                        modifier = Modifier.size(20.dp),
+                        modifier = Modifier.size(iconSize),
                     )
             }
 
@@ -191,11 +203,12 @@ fun LabelSlider(
                         interactionSource = remember { MutableInteractionSource() },
                         colors = SliderDefaults.colors(),
                         enabled = enabled,
-                        thumbSize = DpSize(3.dp, 20.dp)
+                        thumbSize = thumbSize
                     )
                 },
                 track = { sliderState ->
-                    // 自绘轨道 3dp（09-08 终稿：比 09-07 的 2.5dp 略粗、明显小于 M3 默认 4dp——中间档）
+                    // 自绘轨道（09-08 终稿 3dp；09-10 晚改为 trackHeight 参数驱动，默认仍 3dp，
+                    // 音频参数三处经 LayerSlider 传 3.5dp——比最早 4dp 细、比 3dp 粗）
                     val colors = SliderDefaults.colors()
                     val frac = if (sliderState.valueRange.endInclusive > sliderState.valueRange.start)
                         ((sliderState.value - sliderState.valueRange.start) /
@@ -205,7 +218,7 @@ fun LabelSlider(
                     Box(
                         Modifier
                             .fillMaxWidth()
-                            .height(3.dp)
+                            .height(trackHeight)
                             .clip(androidx.compose.foundation.shape.RoundedCornerShape(2.dp))
                     ) {
                         Box(Modifier.fillMaxSize().background(colors.inactiveTrackColor))
@@ -218,7 +231,7 @@ fun LabelSlider(
         if (showButton) {
             LongClickIconButton(
                 modifier = Modifier
-                    .size(32.dp)
+                    .size(buttonSize)
                     .semantics {
                         contentDescription = a11yDescription
                     },
@@ -229,7 +242,7 @@ fun LabelSlider(
                 Icon(
                         Icons.Default.Add,
                         stringResource(id = R.string.desc_seekbar_add),
-                        modifier = Modifier.size(20.dp),
+                        modifier = Modifier.size(iconSize),
                     )
             }
         }

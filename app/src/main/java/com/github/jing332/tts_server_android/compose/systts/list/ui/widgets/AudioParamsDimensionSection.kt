@@ -14,7 +14,9 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.github.jing332.compose.widgets.LabelSlider
 import com.github.jing332.tts_server_android.R
 import com.github.jing332.tts_server_android.compose.SegmentedTextToggle
@@ -111,7 +113,17 @@ fun AudioParamsDimensionSection(
 /** 维度名（0=语速 1=音量 2=音高），编辑页三键直出 chips 与单维弹窗标题共用（用户 09-10 定稿） */
 internal val audioParamsDimNames = listOf("语速", "音量", "音高")
 
-/** 层滑杆：标签=层名（发音人/插件/全局，见 audio_params_tag_* 串），维度已由分段表达，滑杆只标层与当前值 */
+/**
+ * 层滑杆：标签=层名（发音人/插件/全局，见 audio_params_tag_* 串），维度已由分段表达，滑杆只标层与当前值。
+ *
+ * 尺寸（用户 09-10 晚定稿）：音频参数三处——卡片⋮弹窗 `AudioParamsDialog`、日志快捷面板 `LogQuickPanel`、
+ * 编辑页单维弹窗 `AudioParamsDimDialog`——全部经本函数取滑杆，故在此统一传大一号尺寸：
+ * - 标签 14sp：与上方维度选择区「语速/音量/音高」(labelLarge 14sp) 齐平，避免子项压住父项
+ *   （严格按最早是 16sp，会比选择区还大且等于顶部发音人名 titleMedium，故不取）；
+ * - 加减 48dp 触摸区 / 24dp 图标：恢复改造前 M3 默认（09-08 收窄版是 32dp/20dp）；
+ * - 轨道 3.5dp：介于最早 4dp 与 09-08 的 3dp 之间；thumb 同步 3.5×22dp。
+ * 其他界面滑杆直接调 `LabelSlider`、不传这些参数，保持原样（默认 13sp/32dp/20dp/3dp/3×20dp）。
+ */
 @Composable
 internal fun LayerSlider(label: String, value: Float, onValueChange: (Float) -> Unit) {
     LabelSlider(
@@ -121,6 +133,11 @@ internal fun LayerSlider(label: String, value: Float, onValueChange: (Float) -> 
         onValueChange = onValueChange,
         valueRange = 0.1f..3f,
         step = 0.05f,
+        labelFontSize = 14.sp,
+        buttonSize = 48.dp,
+        iconSize = 24.dp,
+        trackHeight = 3.5.dp,
+        thumbSize = DpSize(3.5.dp, 22.dp),
     )
 }
 
