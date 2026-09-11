@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
@@ -42,6 +43,7 @@ import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material.icons.filled.SelectAll
 import androidx.compose.material.icons.automirrored.filled.DriveFileMove
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Switch
@@ -52,6 +54,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.ListItem
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.TextButton
@@ -1164,8 +1167,13 @@ internal fun ListManagerScreen(
         val otherGroups = remember(models, sourceGroup.id) {
             models.filter { it.group.id != sourceGroup.id }.map { it.group }
         }
+        // 用户 09-12 拍板方案B：先点圆圈选中目标分组，再按底部「合并」确认（防手滑，合并会删除源分组）
+        var mergeTargetId by remember(sourceGroup.id) { mutableStateOf<Long?>(null) }
         AlertDialog(
             onDismissRequest = { showMergeGroup = null },
+            // 用户 09-12 拍板：套列表类弹窗宽版，标题不再折行；圆角维持 MD3 官方
+            modifier = Modifier.fillMaxWidth(0.9f),
+            properties = DialogProperties(usePlatformDefaultWidth = false),
             title = { Text("合并同类配置项到其他分组") },
             text = {
                 Column {
@@ -1181,13 +1189,40 @@ internal fun ListManagerScreen(
                         Text("插入到开头", modifier = Modifier.padding(start = 4.dp))
                     }
                     otherGroups.forEach { targetGroup ->
-                        TextButton(
-                            onClick = {
-                                showMergeGroup = null
-                                showTagOrganizeLoading = true
-                                val insertFront = mergeInsertFront
-                                scope.launch {
-                                    withIO {
+                        // 用户 09-12：普通文字色 + 圆圈单选行（与「选择分组」弹窗同款），不再用主题色按钮
+                        val isTargetSelected = mergeTargetId == targetGroup.id
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .selectable(
+                                    selected = isTargetSelected,
+                                    onClick = { mergeTargetId = targetGroup.id }
+                                )
+                                .padding(top = 4.dp, bottom = 4.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            RadioButton(
+                                selected = isTargetSelected,
+                                onClick = { mergeTargetId = targetGroup.id }
+                            )
+                            Text(
+                                text = targetGroup.name,
+                                style = MaterialTheme.typography.bodyMedium,
+                                modifier = Modifier.padding(start = 4.dp)
+                            )
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        otherGroups.find { it.id == mergeTargetId }?.let { targetGroup ->
+                            showMergeGroup = null
+                            showTagOrganizeLoading = true
+                            val insertFront = mergeInsertFront
+                            scope.launch {
+                                withIO {
                                         val sourceItems = sourceGwt?.list ?: emptyList()
                                         val targetGwt = models.find { it.group.id == targetGroup.id }
                                         // 全量迁移：源分组所有配置项整体搬入目标分组；
@@ -1243,17 +1278,15 @@ internal fun ListManagerScreen(
                                             showTagOrganizeLoading = false
                                             context.toast("已合并 ${sourceItems.size} 项到「${targetGroup.name}」，空分组已删除")
                                         }
-                                    }
                                 }
-                            },
-                            modifier = Modifier.fillMaxWidth()
-                        ) {
-                            Text(targetGroup.name)
+                            }
                         }
-                    }
+                    },
+                    enabled = mergeTargetId != null
+                ) {
+                    Text("合并")
                 }
             },
-            confirmButton = {},
             dismissButton = {
                 TextButton(onClick = { showMergeGroup = null }) {
                     Text(stringResource(R.string.cancel))
@@ -2697,9 +2730,14 @@ internal fun ListManagerScreen(
                         horizontalArrangement = Arrangement.SpaceEvenly,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        TextButton(onClick = {
-                            selectedGroupIds = if (allSelected) emptySet() else displayedModels.map { it.group.id }.toSet()
-                        }) {
+                        TextButton(
+                            onClick = {
+                                selectedGroupIds =
+                                    if (allSelected) emptySet() else displayedModels.map { it.group.id }.toSet()
+                            },
+                            // 用户 09-12：底栏常规操作不用主题色，回普通灰黑（与插件管理/替换规则顶栏一致）
+                            colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.onSurfaceVariant)
+                        ) {
                             Column(horizontalAlignment = Alignment.CenterHorizontally) {
                                 Icon(
                                     if (allSelected) Icons.Default.CheckBox else Icons.Default.CheckBoxOutlineBlank,
@@ -2709,11 +2747,15 @@ internal fun ListManagerScreen(
                                 Text("全选", style = MaterialTheme.typography.labelMedium)
                             }
                         }
-                        TextButton(onClick = {
-                            if (selectedGroupIds.isNotEmpty()) {
-                                showExportSelected = true
-                            }
-                        }) {
+                        TextButton(
+                            onClick = {
+                                if (selectedGroupIds.isNotEmpty()) {
+                                    showExportSelected = true
+                                }
+                            },
+                            // 用户 09-12：同「全选」，改普通灰黑
+                            colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.onSurfaceVariant)
+                        ) {
                             Column(horizontalAlignment = Alignment.CenterHorizontally) {
                                 Icon(
                                     Icons.Default.Output,
@@ -2743,10 +2785,14 @@ internal fun ListManagerScreen(
                             }
                         }
                         if (canConvertToSubGroup) {
-                            TextButton(onClick = {
-                                convertSourcesSelected = selectedGroupIds
-                                showConvertToSubGroupMulti = true
-                            }) {
+                            TextButton(
+                                onClick = {
+                                    convertSourcesSelected = selectedGroupIds
+                                    showConvertToSubGroupMulti = true
+                                },
+                                // 用户 09-12：底栏常规操作统一普通灰黑，避免同栏里绿灰混排
+                                colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.onSurfaceVariant)
+                            ) {
                                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
                                     Icon(
                                         Icons.AutoMirrored.Filled.DriveFileMove,
