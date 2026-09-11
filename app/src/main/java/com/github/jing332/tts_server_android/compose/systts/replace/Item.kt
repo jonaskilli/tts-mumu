@@ -39,6 +39,7 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.github.jing332.tts_server_android.R
 import com.github.jing332.tts_server_android.compose.systts.ConfigDeleteDialog
 import com.github.jing332.compose.widgets.AppDropdownMenu
@@ -113,8 +114,8 @@ internal fun Item(
             }
             Text(
                 name,
-                // MD3 规范约定（2026-09-11）：原手调 15sp 撤（同插件管理列表一起回官方），回 bodyMedium 14sp
-                style = MaterialTheme.typography.bodyMedium,
+                // 特例许可（用户 2026-09-11 终裁）：回原版 15sp
+                style = MaterialTheme.typography.bodyMedium.copy(fontSize = 15.sp),
                 maxLines = 2,
                 overflow = TextOverflow.Ellipsis,
                 modifier = Modifier

@@ -44,6 +44,7 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.state.ToggleableState
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.github.jing332.tts_server_android.R
 
 
@@ -171,8 +172,8 @@ fun GroupItem(
 
         Text(
             name,
-            // MD3 规范约定（2026-09-11）：字号只用 typography token，原 titleMedium.copy(18.sp) 手调值撤
-            style = MaterialTheme.typography.titleMedium,
+            // 特例许可（用户 2026-09-11 终裁）：回原版 18sp——分组标题是列表主层级，16sp 份量不足
+            style = MaterialTheme.typography.titleMedium.copy(fontSize = 18.sp),
             modifier = Modifier
                 .align(Alignment.CenterVertically)
                 .weight(1f)
