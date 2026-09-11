@@ -41,7 +41,9 @@ fun SoftSegmentedTextToggle(
         options.forEachIndexed { index, label ->
             SegmentedButton(
                 selected = index == selectedIndex,
-                onClick = { if (index != selectedIndex) onSelect(index) },
+                // 重复点击已选中项也回调（用户 09-12：编辑页音频参数区"再点同维收起"需要）；
+                // 其余调用点均自带"值不变不动作"保护（BackupDialog 有 if 挡、其余为幂等赋值），行为不变
+                onClick = { onSelect(index) },
                 shape = SegmentedButtonDefaults.itemShape(index = index, count = options.size),
                 modifier = Modifier.weight(1f),
             ) {

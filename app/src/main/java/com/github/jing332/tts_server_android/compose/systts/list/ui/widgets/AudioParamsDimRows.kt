@@ -37,8 +37,9 @@ import kotlinx.coroutines.launch
  *
  * **软槽分段一行三项**：与卡片⋮弹窗/日志快捷面板同款 [SoftSegmentedTextToggle]（16sp），
  * 槽内 `语速 1.0`　`音量 1.3`　`音高 1.0`（各带该维**终值**＝配置×插件×全局，FOLLOW 视为 1，
- * 跟随草稿实时变）；选中（=正在展开）项浮起胶囊高亮。**默认展开语速、永不全收起**（方案A）：
- * 浮块本身就是可点示范，且与弹窗"永远有一维被选中"的行为完全一致。
+ * 跟随草稿实时变）。**默认收起（用户 09-12 反转 09-11 方案A：滑杆区太占地、看不到下方插件信息）**：
+ * 收起时三项都不显示勾选高亮（-1=无展开维），点任意项展开该维滑杆，**再点当前选中项收起**
+ * （共用组件已放开"重复点击也回调"）；仅编辑页如此，卡片⋮弹窗与日志快捷面板仍是"永远有一维选中"平铺。
  *
  * **展开区只留滑条**：该维三层滑杆（本项/插件/全局，无插件源自动只有两层）+ 重置/应用，
  * 无底框平铺（与弹窗/日志面板展开区一致）——
@@ -66,8 +67,8 @@ fun AudioParamsDimRows(
     val plugin = source?.let { dbm.pluginDao.getByPluginId(it.pluginId) }
     val hasPluginLayer = source != null
 
-    // 展开的维度（用户 09-11 方案A：默认展开语速，永不全收起——浮块常驻即可点性示范）
-    var expanded by remember(systemTts.id) { mutableStateOf(0) }
+    // 展开的维度；-1=收起（用户 09-12 反转 09-11 方案A：默认收起省地方，点项展开、再点同维收起）
+    var expanded by remember(systemTts.id) { mutableStateOf(-1) }
 
     // 三层草稿（三维共用一份；展开哪维就调哪维）
     var speed by remember(systemTts.id) { mutableStateOf(config.audioParams.speed) }
@@ -152,16 +153,16 @@ fun AudioParamsDimRows(
             options = audioParamsDimNames.mapIndexed { dim, name ->
                 "$name " + finalOf(dim).toParamText()
             },
-            selectedIndex = expanded,
-            onSelect = { expanded = it },
-            modifier = Modifier.padding(top = 12.dp),
+            selectedIndex = expanded, // -1=收起态：三项都不显示勾选高亮
+            onSelect = { dim -> expanded = if (dim == expanded) -1 else dim }, // 再点同维收起（用户 09-12）
+            modifier = Modifier.padding(top = 12.dp, bottom = if (expanded == -1) 4.dp else 0.dp),
         )
 
         // 展开区：该维三层滑杆 + 重置/应用，无底框平铺（与弹窗/日志面板一致）；
         // 滑条外的信息一律不放；试听走试听文本行的 🎧
         // 顶距 8dp / 左缩进 8dp（用户 09-11 二轮，与共用组件 AudioParamsDimensionSection 同步）
         val dim = expanded
-        Column(
+        if (dim >= 0) Column(
             Modifier
                 .fillMaxWidth()
                 .padding(top = 8.dp, bottom = 4.dp, start = 8.dp),
