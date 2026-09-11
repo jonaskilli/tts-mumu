@@ -1,6 +1,8 @@
 package com.github.jing332.tts_server_android.compose.systts.plugin
 
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Text
@@ -66,22 +68,27 @@ fun PluginAudioParamsDialog(
             }
         },
         buttons = {
-            TextButton(onClick = {
-                speed = 1f
-                volume = 1f
-                pitch = 1f
-            }) {
-                Text(stringResource(id = R.string.reset))
-            }
-            TextButton(onClick = {
-                onConfirm(
-                    AudioParams(speed = speed, volume = volume, pitch = pitch)
-                )
-            }) {
-                Text(stringResource(id = R.string.confirm))
-            }
-            TextButton(onClick = onDismissRequest) {
-                Text(stringResource(id = R.string.cancel))
+            // 按钮排布与全局弹窗统一（用户 09-11 拍板）：取消（左）｜ 重置 · 应用（右）；
+            // 「确定」改「应用」与全局/配置项弹窗同词，全 app 只剩"应用生效"一种心智
+            Row(Modifier.fillMaxWidth()) {
+                TextButton(onClick = onDismissRequest) {
+                    Text(stringResource(id = R.string.cancel))
+                }
+                Spacer(Modifier.weight(1f))
+                TextButton(onClick = {
+                    speed = 1f
+                    volume = 1f
+                    pitch = 1f
+                }) {
+                    Text(stringResource(id = R.string.reset))
+                }
+                TextButton(onClick = {
+                    onConfirm(
+                        AudioParams(speed = speed, volume = volume, pitch = pitch)
+                    )
+                }) {
+                    Text(stringResource(id = R.string.audio_params_apply))
+                }
             }
         }
     )
