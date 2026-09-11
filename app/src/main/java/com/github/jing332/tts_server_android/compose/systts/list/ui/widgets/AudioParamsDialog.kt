@@ -23,6 +23,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.drake.net.utils.withIO
 import com.github.jing332.common.utils.toParamText
@@ -167,60 +168,61 @@ fun AudioParamsDialog(
                     .verticalScroll(rememberScrollState())
             ) {
                 // ===== 顶部：当前发音人 + 试听（用户 09-10 晚要求恢复，与日志快捷面板同款）=====
-                Row(
-                    Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Column(Modifier.weight(1f)) {
-                        Text(
-                            "当前发音人",
-                            style = MaterialTheme.typography.labelMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
+                // 09-11 重排（用户拍板）：「当前发音人」小标签独占一行，▶ 键与发音人名同一行
+                //（此前 ▶ 垂直居中在两行文字块上，与名字行错位）；名字加省略号防长名硬裁
+                Column(Modifier.fillMaxWidth()) {
+                    Text(
+                        "当前发音人",
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    Row(verticalAlignment = Alignment.CenterVertically) {
                         Text(
                             systemTts.displayName,
                             style = MaterialTheme.typography.titleMedium,
                             maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier.weight(1f),
                         )
-                    }
-                    TextButton(onClick = {
-                        // 试听=三层草稿+当前声音，念试听文本（与编辑页🎧/日志面板同口径）；
-                        // 播放中/合成中再点=停止复位（同日志快捷面板）
-                        if (previewing && previewState != PreviewState.IDLE) {
-                            TaggedTtsPreviewPlayer.stop()
-                            previewing = false
-                            return@TextButton
-                        }
-                        previewing = true
-                        scope.launch {
-                            // 文本被清空时回落默认句，避免合成空串
-                            val auditionText = AppConfig.testSampleText.value
-                                .ifBlank { "你好，这是试听语音。" }
-                            // 三层草稿全覆盖（用户 09-10 拍板）：插件/全局层草稿未落库，
-                            // 以覆盖参数传入试听链，调滑杆→▶听即得完整三层终值效果
-                            TaggedTtsPreviewPlayer.play(
-                                context, draftEntity(), auditionText,
-                                pluginParamsOverride = plugin?.audioParams?.copy(
-                                    speed = snap(pluginSpeed),
-                                    volume = snap(pluginVolume),
-                                    pitch = snap(pluginPitch),
-                                ),
-                                globalParamsOverride = AudioParams(
-                                    speed = snap(globalSpeed),
-                                    volume = snap(globalVolume),
-                                    pitch = snap(globalPitch),
-                                ),
+                        TextButton(onClick = {
+                            // 试听=三层草稿+当前声音，念试听文本（与编辑页🎧/日志面板同口径）；
+                            // 播放中/合成中再点=停止复位（同日志快捷面板）
+                            if (previewing && previewState != PreviewState.IDLE) {
+                                TaggedTtsPreviewPlayer.stop()
+                                previewing = false
+                                return@TextButton
+                            }
+                            previewing = true
+                            scope.launch {
+                                // 文本被清空时回落默认句，避免合成空串
+                                val auditionText = AppConfig.testSampleText.value
+                                    .ifBlank { "你好，这是试听语音。" }
+                                // 三层草稿全覆盖（用户 09-10 拍板）：插件/全局层草稿未落库，
+                                // 以覆盖参数传入试听链，调滑杆→▶听即得完整三层终值效果
+                                TaggedTtsPreviewPlayer.play(
+                                    context, draftEntity(), auditionText,
+                                    pluginParamsOverride = plugin?.audioParams?.copy(
+                                        speed = snap(pluginSpeed),
+                                        volume = snap(pluginVolume),
+                                        pitch = snap(pluginPitch),
+                                    ),
+                                    globalParamsOverride = AudioParams(
+                                        speed = snap(globalSpeed),
+                                        volume = snap(globalVolume),
+                                        pitch = snap(globalPitch),
+                                    ),
+                                )
+                            }
+                        }) {
+                            Text(
+                                when {
+                                    previewing && previewState == PreviewState.PLAYING -> "■"
+                                    previewing -> "…"
+                                    else -> "▶"
+                                },
+                                color = if (previewing) MaterialTheme.colorScheme.tertiary else Color.Unspecified,
                             )
                         }
-                    }) {
-                        Text(
-                            when {
-                                previewing && previewState == PreviewState.PLAYING -> "■"
-                                previewing -> "…"
-                                else -> "▶"
-                            },
-                            color = if (previewing) MaterialTheme.colorScheme.tertiary else Color.Unspecified,
-                        )
                     }
                 }
 

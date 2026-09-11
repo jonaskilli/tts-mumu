@@ -28,6 +28,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -355,40 +356,41 @@ fun LogQuickPanel(
                 ?.let { narrationEntityByVoice(it)?.displayName }
             val currentVoiceName = if (isBindingMode) boundConfigName
             else pendingName ?: entity.displayName
-            Row(
-                Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Column(Modifier.weight(1f)) {
-                    Text(
-                        "当前发音人",
-                        style = MaterialTheme.typography.labelMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
+            // 09-11 重排（用户拍板）：「当前发音人」小标签独占一行，▶ 键与发音人名同一行
+            //（此前 ▶ 垂直居中在两行文字块上，与名字行错位）；名字加省略号防长名硬裁
+            Column(Modifier.fillMaxWidth()) {
+                Text(
+                    "当前发音人",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                Row(verticalAlignment = Alignment.CenterVertically) {
                     Text(
                         currentVoiceName,
                         style = MaterialTheme.typography.titleMedium,
                         maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.weight(1f),
                     )
-                }
-                TextButton(onClick = {
-                    // 试听当前声音（09-10 参数跟随）：绑定模式=跟随目标+草稿；
-                    // 旁白=本配置项+暂存voice+草稿；播放中/合成中再点=停止复位（角色管理同款交互）
-                    if (previewingKey == PREVIEW_KEY_CURRENT && previewState != PreviewState.IDLE) {
-                        TaggedTtsPreviewPlayer.stop()
-                        previewingKey = null
-                        return@TextButton
+                    TextButton(onClick = {
+                        // 试听当前声音（09-10 参数跟随）：绑定模式=跟随目标+草稿；
+                        // 旁白=本配置项+暂存voice+草稿；播放中/合成中再点=停止复位（角色管理同款交互）
+                        if (previewingKey == PREVIEW_KEY_CURRENT && previewState != PreviewState.IDLE) {
+                            TaggedTtsPreviewPlayer.stop()
+                            previewingKey = null
+                            return@TextButton
+                        }
+                        previewingKey = PREVIEW_KEY_CURRENT
+                        scope.launch {
+                            val target = if (isBindingMode) draftParamsTarget() else null
+                            TaggedTtsPreviewPlayer.play(context, target ?: draftEntity(pendingVoice), "你好，这是试听语音。")
+                        }
+                    }) {
+                        Text(
+                            previewLabel(PREVIEW_KEY_CURRENT),
+                            color = previewLabelColor(PREVIEW_KEY_CURRENT),
+                        )
                     }
-                    previewingKey = PREVIEW_KEY_CURRENT
-                    scope.launch {
-                        val target = if (isBindingMode) draftParamsTarget() else null
-                        TaggedTtsPreviewPlayer.play(context, target ?: draftEntity(pendingVoice), "你好，这是试听语音。")
-                    }
-                }) {
-                    Text(
-                        previewLabel(PREVIEW_KEY_CURRENT),
-                        color = previewLabelColor(PREVIEW_KEY_CURRENT),
-                    )
                 }
             }
 

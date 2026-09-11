@@ -134,7 +134,8 @@ internal val audioParamsDimNames = listOf("语速", "音量", "音高")
  * - 加减 48dp 触摸区 / **22dp 图标**：触摸区恢复改造前 M3 默认；图标 22dp 与 14sp 标签成对；
  * - 轨道 **10dp 胶囊画法**（用户 09-11 定稿：回最早 M3 胶囊轨道观感、高度收细一档；
  *   09-10 晚的 3.5dp 纯细线被用户否掉——"看着差太多、不如原来美观"）；thumb 竖条 4×22dp；
- * - 标签列 `labelMinWidth = 44.dp`：定宽后三行 −按钮与轨道对齐（三行标签均两字，天然等宽仍保留定宽）。
+ * - 标签列不定宽（09-11 撤 44dp 定宽）：层名改「本项」后三行均 2 字、数值均 4 字符，天然对齐；
+ *   旧定宽是 3 字「发音人」时代的遗留，白占约 16dp 死空间。
  * 其他界面滑杆直接调 `LabelSlider`、不传这些参数，保持原样（默认 13sp/32dp/20dp/3dp/3×20dp/不定宽）。
  */
 @Composable
@@ -151,7 +152,8 @@ internal fun LayerSlider(label: String, value: Float, onValueChange: (Float) -> 
         iconSize = 22.dp,
         trackHeight = 10.dp,
         thumbSize = DpSize(4.dp, 22.dp),
-        labelMinWidth = 44.dp,
+        // 标签列不定宽：44dp 定宽是层名还是 3 字「发音人」时代为对齐加的；
+        // 改「本项」后三行均 2 字、数值均 4 字符天然等宽，定宽反留约 16dp 死空间——09-11 撤（用户拍板）
     )
 }
 
