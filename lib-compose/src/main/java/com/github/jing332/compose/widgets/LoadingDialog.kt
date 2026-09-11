@@ -15,7 +15,9 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.DialogProperties
@@ -46,10 +48,12 @@ fun LoadingDialog(
         properties = DialogProperties(dismissOnBackPress = dismissOnBackPress),
         confirmButton = {},
         text = {
+            // 用户 2026-09-11 反馈：进度与提示文字应居中（原左上角排布观感差）
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(vertical = 8.dp)
+                    .padding(vertical = 8.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
             ) {
                 if (progress == null) {
                     CircularProgressIndicator()
@@ -57,7 +61,9 @@ fun LoadingDialog(
                 Spacer(modifier = Modifier.height(16.dp))
                 Text(
                     text = text ?: "加载中",
-                    style = MaterialTheme.typography.bodyMedium
+                    style = MaterialTheme.typography.bodyMedium,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.fillMaxWidth()
                 )
                 if (progress != null) {
                     Spacer(modifier = Modifier.height(12.dp))

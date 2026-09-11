@@ -3,6 +3,7 @@ package com.github.jing332.tts_server_android.compose.systts.list
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxHeight
@@ -190,11 +191,14 @@ internal fun Item(
                 style = MaterialTheme.typography.titleMedium,
                 maxLines = 1,
                 textAlign = TextAlign.Start,
-                overflow = TextOverflow.Clip,
+                // 省略号截断（原 Clip 硬裁）；右边界收到标签左侧，长标题不再穿到标签底下
+                overflow = TextOverflow.Ellipsis,
                 modifier = Modifier
                     .constrainAs(nameRef) {
                         start.linkTo(checkRef.end)
+                        end.linkTo(targetRef.start)
                         top.linkTo(parent.top)
+                        width = Dimension.fillToConstraints
                     }
                     .padding(bottom = 4.dp)
             )
@@ -231,17 +235,21 @@ internal fun Item(
             val limitedTagName = remember(tagName, limitLen) {
                 if (limitLen == 0) tagName else tagName.limitLength(limitLen)
             }
-            if (limitedTagName.isNotEmpty())
-                TagScreen(
-                    Modifier
-                        .constrainAs(targetRef) {
-                            top.linkTo(nameRef.top)
-                            end.linkTo(parent.end)
-                        }
-                        .padding(end = 4.dp)
-                        .clickable { onSwitchTag() },
-                    tag = limitedTagName,
-                )
+            // 标签锚点常驻（无标签时 Box 为 0 宽），保证标题 end.linkTo(targetRef.start) 约束稳定
+            Box(
+                Modifier
+                    .constrainAs(targetRef) {
+                        top.linkTo(nameRef.top)
+                        end.linkTo(parent.end)
+                    }
+                    .padding(end = 4.dp)
+            ) {
+                if (limitedTagName.isNotEmpty())
+                    TagScreen(
+                        Modifier.clickable { onSwitchTag() },
+                        tag = limitedTagName,
+                    )
+            }
 
             Row(modifier = Modifier.constrainAs(buttonsRef) {
                 top.linkTo(parent.top)

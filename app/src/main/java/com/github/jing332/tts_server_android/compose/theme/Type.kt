@@ -14,6 +14,15 @@ val Typography = Typography(
         fontSize = 16.sp,
         lineHeight = 24.sp,
         letterSpacing = 0.5.sp
+    ),
+    // 特例许可（用户 2026-09-11 终裁）：titleMedium 字重回官方默认 500 → 700（原版观感）。
+    // 仅调字重，字号/行高/字距维持 MD3 官方值（16/24/0.15）；主题层一处改全局，避免逐处硬编码 Bold
+    titleMedium = TextStyle(
+        fontFamily = FontFamily.Default,
+        fontWeight = FontWeight.Bold,
+        fontSize = 16.sp,
+        lineHeight = 24.sp,
+        letterSpacing = 0.15.sp
     )
     /* Other default text styles to override
     titleLarge = TextStyle(
