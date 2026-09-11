@@ -151,7 +151,11 @@ fun TagPickerDialog(
                                         text = if (group.items.size > 1)
                                             "${group.prefix}（${group.items.size}项）"
                                         else group.prefix,
-                                        style = MaterialTheme.typography.bodyLarge,
+                                        // bodyMedium 14sp（用户 09-11 静态扫查定案）：AlertDialog 正文槽
+                                        // LocalTextStyle=bodyMedium，弹窗内选择列表与字段值同档对齐，
+                                        // 与 AppSelectionDialog（61dab68）同处方；原 bodyLarge 16sp 与
+                                        // 环境 14sp 错位一圈
+                                        style = MaterialTheme.typography.bodyMedium,
                                         fontWeight = if (isCurrent) FontWeight.Bold else FontWeight.Normal,
                                         color = if (isCurrent)
                                             MaterialTheme.colorScheme.primary
@@ -189,7 +193,11 @@ fun TagPickerDialog(
                                 ) {
                                     Text(
                                         text = tagItem.tagName,
-                                        style = MaterialTheme.typography.bodyLarge,
+                                        // bodyMedium 14sp（用户 09-11 静态扫查定案）：AlertDialog 正文槽
+                                        // LocalTextStyle=bodyMedium，弹窗内选择列表与字段值同档对齐，
+                                        // 与 AppSelectionDialog（61dab68）同处方；原 bodyLarge 16sp 与
+                                        // 环境 14sp 错位一圈
+                                        style = MaterialTheme.typography.bodyMedium,
                                         fontWeight = if (isCurrent) FontWeight.Bold else FontWeight.Normal,
                                         color = if (isCurrent)
                                             MaterialTheme.colorScheme.primary
