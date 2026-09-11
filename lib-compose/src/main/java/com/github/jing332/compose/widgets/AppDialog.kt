@@ -101,12 +101,17 @@ fun AppDialog(
         }
     },
     confirmButton = {
-        // FlowRow 包一层保留按钮过多时的换行能力（原生按钮行不换行）；MD3 自动靠右排布
-        AppDialogFlowRow(
-            mainAxisSpacing = ButtonsMainAxisSpacing,
-            crossAxisSpacing = ButtonsCrossAxisSpacing
-        ) {
-            buttons()
+        // FlowRow 包一层保留按钮过多时的换行能力（原生按钮行不换行）；MD3 自动靠右排布。
+        // buttons 的签名是 BoxScope 接收者：FlowRow 的内容 lambda 没有该接收者，
+        // 用 Box 捕获一个 BoxScope 实例显式传入（CI 34562109527 编译失败修复）
+        Box {
+            val boxScope = this
+            AppDialogFlowRow(
+                mainAxisSpacing = ButtonsMainAxisSpacing,
+                crossAxisSpacing = ButtonsCrossAxisSpacing
+            ) {
+                boxScope.buttons()
+            }
         }
     },
 )
