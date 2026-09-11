@@ -4,7 +4,6 @@ import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Column
@@ -3131,7 +3130,7 @@ internal fun ListManagerScreen(
                                     Item(reorderState = reorderState,
                                         modifier = (if (locatedConfigId == item.id) Modifier.background(
                                             MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.5f),
-                                            RoundedCornerShape(8.dp),
+                                            MaterialTheme.shapes.small,
                                         ) else Modifier
                                         ).then(
                                             if (searchKeyword.isNotEmpty() || selectionMode) Modifier
@@ -3354,7 +3353,7 @@ internal fun ListManagerScreen(
                                                     reorderState = reorderState,
                                                     modifier = (if (locatedConfigId == item.id) Modifier.background(
                                                         MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.5f),
-                                                        RoundedCornerShape(8.dp),
+                                                        MaterialTheme.shapes.small,
                                                     ) else Modifier
                                                     ).then(itemDragModifier).padding(
                                                         // 配置项卡片随所属子分组层级缩进，与子分组头对齐

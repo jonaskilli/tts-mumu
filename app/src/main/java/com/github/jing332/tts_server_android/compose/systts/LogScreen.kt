@@ -22,7 +22,6 @@ import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.KeyboardDoubleArrowDown
@@ -217,7 +216,7 @@ fun LogScreen(
                             )
                             .then(
                                 if (isMatch) Modifier
-                                    .clip(RoundedCornerShape(6.dp))
+                                    .clip(MaterialTheme.shapes.extraSmall)
                                     .background(
                                         MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.5f)
                                     )
