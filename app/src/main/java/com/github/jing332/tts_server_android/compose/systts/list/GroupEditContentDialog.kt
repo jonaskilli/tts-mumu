@@ -84,7 +84,7 @@ fun GroupEditContentDialog(
         properties = DialogProperties(usePlatformDefaultWidth = false),
         title = {
             Text(
-                text = "${stringResource(R.string.edit_group_content)} - ${group.name}",
+                text = "${stringResource(R.string.edit_group_content)}到「${group.name}」",
             )
         },
         text = {
