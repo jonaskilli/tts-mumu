@@ -7,8 +7,9 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.DeleteForever
-import androidx.compose.material.icons.filled.DoneAll
+import androidx.compose.material.icons.filled.Deselect
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.SelectAll
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -114,9 +115,7 @@ fun GroupEditContentDialog(
                     onClick = { searchType = GroupSearchType.PLUGIN }
                 )
                     
-                    Spacer(modifier = Modifier.weight(1f))
-                    
-                    // 全选/取消全选按钮
+                // 全选/取消全选按钮
                     val allSelected = filteredConfigs.isNotEmpty() && filteredConfigs.all { it in selectedConfigs }
                     IconButton(
                         onClick = {
@@ -131,7 +130,7 @@ fun GroupEditContentDialog(
                         enabled = filteredConfigs.isNotEmpty()
                     ) {
                         Icon(
-                            imageVector = if (allSelected) Icons.Default.Clear else Icons.Default.DoneAll,
+                            imageVector = if (allSelected) Icons.Default.Deselect else Icons.Default.SelectAll,
                             contentDescription = if (allSelected) stringResource(R.string.clear) else stringResource(R.string.select_all)
                         )
                     }
