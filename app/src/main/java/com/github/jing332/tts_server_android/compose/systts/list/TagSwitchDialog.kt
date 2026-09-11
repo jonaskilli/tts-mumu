@@ -166,7 +166,6 @@ fun TagPickerDialog(
                                             "当前",
                                             style = MaterialTheme.typography.labelSmall,
                                             color = MaterialTheme.colorScheme.primary,
-                                            fontWeight = FontWeight.Bold,
                                         )
                                     }
                                 }
@@ -204,7 +203,6 @@ fun TagPickerDialog(
                                             "当前",
                                             style = MaterialTheme.typography.labelSmall,
                                             color = MaterialTheme.colorScheme.primary,
-                                            fontWeight = FontWeight.Bold,
                                         )
                                     }
                                 }

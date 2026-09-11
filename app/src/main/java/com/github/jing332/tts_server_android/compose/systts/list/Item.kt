@@ -190,7 +190,6 @@ internal fun Item(
                 style = MaterialTheme.typography.titleMedium,
                 maxLines = 1,
                 textAlign = TextAlign.Start,
-                fontWeight = FontWeight.Bold,
                 overflow = TextOverflow.Clip,
                 modifier = Modifier
                     .constrainAs(nameRef) {
@@ -369,7 +368,6 @@ internal fun Item(
                         text = stringResource(id = R.string.systts_standby),
                         style = MaterialTheme.typography.labelMedium,
                         color = MaterialTheme.colorScheme.tertiary,
-                        fontWeight = FontWeight.Bold,
                     )
                 }
 
@@ -392,7 +390,7 @@ internal fun Item(
 
 @Composable
 private fun TagScreen(modifier: Modifier = Modifier, tag: String) {
-    // small(8dp)对齐M3 chip默认圆角；Medium字重与旁边Bold的显示名拉开层级
+    // small(8dp)对齐M3 chip默认圆角；Medium(官方500字重)与正文默认字重拉开层级
     OutlinedCard(shape = MaterialTheme.shapes.small, modifier = modifier) {
         Text(
             text = tag,
