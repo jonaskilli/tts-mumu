@@ -248,6 +248,8 @@ fun GroupTreePickerDialog(
                                 value = newSubGroupName,
                                 onValueChange = { newSubGroupName = it },
                                 label = { Text("子分组名称") },
+                                // 多级提示从无到有补齐（与 CreateSubGroupDialog 同款，用户 09-12 统一）
+                                supportingText = { Text("名称含 / 时一次建多级，如 中文/男声") },
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .padding(start = 64.dp, top = 4.dp),

@@ -69,7 +69,10 @@ fun CreateSubGroupDialog(
                 TextField(
                     value = subGroupName,
                     onValueChange = { subGroupName = it },
-                    label = { Text("子分组名称 (支持 中文/男声 多级)") },
+                    label = { Text("子分组名称") },
+                    // 多级提示从标签挪到 supportingText（用户 09-12：括号塞标签里难懂又挤成两行；
+                    // 功能保留线索：名称含 / 时按 categoryPath 一次建多级）
+                    supportingText = { Text("名称含 / 时一次建多级，如 中文/男声") },
                     modifier = Modifier.fillMaxWidth(),
                     singleLine = true
                 )

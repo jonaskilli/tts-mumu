@@ -120,7 +120,9 @@ fun MoveToSubGroupDialog(
                     TextField(
                         value = newPath,
                         onValueChange = { newPath = it },
-                        label = { Text("子分组名称 (支持 中文/男声 多级)") },
+                        label = { Text("子分组名称") },
+                        // 多级提示从标签挪到 supportingText（用户 09-12，与 CreateSubGroupDialog 同款）
+                        supportingText = { Text("名称含 / 时一次建多级，如 中文/男声") },
                         modifier = Modifier
                             .fillMaxWidth()
                             .padding(start = 48.dp, top = 4.dp),
