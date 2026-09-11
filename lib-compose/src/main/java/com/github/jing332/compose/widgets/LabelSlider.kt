@@ -2,6 +2,7 @@
 package com.github.jing332.compose.widgets
 
 import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.Column
@@ -10,6 +11,7 @@ import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
@@ -91,6 +93,10 @@ fun LabelSlider(
     // LayerSlider 不传尺寸，一处默认全 app 生效。
     buttonSize: Dp = 48.dp,
     iconSize: Dp = 24.dp,
+    // 竖条手柄高度（用户 09-11 晚终裁：官方 44dp 比粗轨道上下高出太多，降到 24dp）。
+    // 官方 Slider 不暴露手柄尺寸参数，此处为最小自绘（仅尺寸；形状圆角/颜色随主题沿用官方画法），
+    // 全 app 一处默认统一。轨道仍走官方 SliderDefaults 粗轨道，不自定义。
+    thumbHeight: Dp = 24.dp,
     // 标签列最小宽度（0.dp = 不定宽，随文字收缩，即旧行为）。
     // 用途：同一组滑杆的多行标签字数不同（发音人 3 字 / 插件 2 字），不定宽会让各行的
     // −按钮与轨道左右错开；传 44dp 可让"标签+末尾 8dp 间距"一律 ≥52dp，各行左边界对齐。
@@ -125,13 +131,14 @@ fun LabelSlider(
         Column(Modifier.padding(end = 8.dp).widthIn(min = labelMinWidth)) {
             Text(
                 text = labelPart,
-                style = MaterialTheme.typography.bodySmall,
+                // 标签/数值 14sp（用户 09-11 晚终裁：12sp 偏小，升一档，全 app 滑杆统一）
+                style = MaterialTheme.typography.bodyMedium,
                 maxLines = 1,
             )
             if (valuePart.isNotEmpty())
                 Text(
                     text = valuePart,
-                    style = MaterialTheme.typography.bodySmall,
+                    style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     maxLines = 1,
                 )
@@ -192,9 +199,19 @@ fun LabelSlider(
                 valueRange = valueRange,
                 steps = 0,
                 onValueChangeFinished = onValueChangeFinished,
-                // 官方 MD3 默认（用户 09-11 下午终裁）：不传 thumb/track，全走 SliderDefaults
-                // （粗轨道+选中/未选中段缺口+末端停止圆点+官方手柄，颜色随主题）。
-                // 09-11 深夜的胶囊轨道自绘画法已随「完全 MD3 版」整体撤销，勿再改回。
+                // 官方 MD3 默认（用户 09-11 下午终裁）：轨道不传，走 SliderDefaults 粗轨道。
+                // 手柄竖条高度降为 24dp（用户 09-11 晚终裁：官方 44dp 过高）；形状/颜色沿用官方画法
+                thumb = {
+                    Box(
+                        modifier = Modifier
+                            .size(width = 4.dp, height = thumbHeight)
+                            .background(
+                                if (enabled) MaterialTheme.colorScheme.primary
+                                else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f),
+                                RoundedCornerShape(2.dp)
+                            )
+                    )
+                },
             )
         }
 
@@ -333,7 +350,18 @@ fun LabelSlider(
                     valueRange = valueRange,
                     steps = 0,
                     onValueChangeFinished = onValueChangeFinished,
-                    // 官方 MD3 默认 thumb（用户 09-11 下午终裁），撤 4×24 竖条自定义
+                    // 手柄竖条同样降为 24dp（用户 09-11 晚终裁，与主重载统一，全 app 一致）
+                    thumb = {
+                        Box(
+                            modifier = Modifier
+                                .size(width = 4.dp, height = 24.dp)
+                                .background(
+                                    if (enabled) MaterialTheme.colorScheme.primary
+                                    else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f),
+                                    RoundedCornerShape(2.dp)
+                                )
+                        )
+                    },
                 )
             }
 

@@ -415,12 +415,12 @@ fun LogQuickPanel(
 
             // 分段两区（用户 09-11 下午「完全 MD3 版」终裁：官方 SegmentedButton 全 app 统一）：
             // 0=更换发音人 1=音频参数；当前发音人+终值两区共用，固定在分段之上。
-            // equalWidth=false=宽度随文字不均分（用户 09-09：两项文字长度差很多，均分浪费），居中放置
+            // 09-11 晚：官方 SegmentedButton 不支持"宽度随文字收缩"（文字被压成省略号），
+            // 撤 equalWidth=false，随组件默认均分撑满
             SoftSegmentedTextToggle(
                 options = listOf("更换发音人", "音频参数"),
                 selectedIndex = panelTab,
                 onSelect = { panelTab = it },
-                equalWidth = false,
                 modifier = Modifier
                     .padding(top = 8.dp)
                     .align(Alignment.CenterHorizontally),

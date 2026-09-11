@@ -17,10 +17,15 @@ import androidx.compose.ui.text.style.TextOverflow
  * labelLarge 排版、官方高度/间距），**不再有任何自绘样式**——
  * 旧的「无描边浅底软槽 + 浮起胶囊」画法（09-10 晚定稿、09-11 加浮块）已整体撤销，勿再改回。
  *
- * 保持原函数名与参数不变，三处调用点自动同步换装：
+ * 布局恒为**均分撑满**（每项 Modifier.weight(1f)）——官方 SegmentedButton 内部 label 用
+ * weight 布局，只支持定宽/均分，"宽度随文字收缩"不在官方支持范围（曾试过，文字被压成省略号，
+ * 用户 09-11 晚终裁撤收缩模式，equalWidth 参数随之删除，勿再加回）。
+ *
+ * 三处调用点自动同步换装：
  * - 卡片⋮弹窗与日志快捷面板共用的 [com.github.jing332.tts_server_android.compose.systts.list.ui.widgets.AudioParamsDimensionSection]
  * - 编辑页 [com.github.jing332.tts_server_android.compose.systts.list.ui.widgets.AudioParamsDimRows]
  * - 备份弹窗 BackupDialog（模式切换）
+ * - 日志快捷面板顶部父级「更换发音人/音频参数」（09-11 晚起同款均分）
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -29,20 +34,16 @@ fun SoftSegmentedTextToggle(
     selectedIndex: Int,
     onSelect: (Int) -> Unit,
     modifier: Modifier = Modifier,
-    // true（默认）=三等分撑满容器（音频参数维度切换/备份弹窗，与旧软槽行为一致）；
-    // false=宽度随文字收缩（日志面板顶部父级「更换发音人/音频参数」，两项文字长度差很多，
-    // 均分浪费；官方 SegmentedButton 不加 weight 时本就随内容收缩，正好保住原"宽度随文字"行为）
-    equalWidth: Boolean = true,
 ) {
     SingleChoiceSegmentedButtonRow(
-        modifier = if (equalWidth) modifier.fillMaxWidth() else modifier
+        modifier = modifier.fillMaxWidth()
     ) {
         options.forEachIndexed { index, label ->
             SegmentedButton(
                 selected = index == selectedIndex,
                 onClick = { if (index != selectedIndex) onSelect(index) },
                 shape = SegmentedButtonDefaults.itemShape(index = index, count = options.size),
-                modifier = if (equalWidth) Modifier.weight(1f) else Modifier,
+                modifier = Modifier.weight(1f),
             ) {
                 Text(label, maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
