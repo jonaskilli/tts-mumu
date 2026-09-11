@@ -329,6 +329,11 @@ fun LogQuickPanel(
         onDismissRequest = onDismissRequest,
         title = { Text(stringResource(R.string.log_panel_title)) },
         content = {
+            // 候选列表高度上限统一按屏高 40% 自适应（用户 09-11 晚拍板）：原先绑定模式 220dp、
+            // 旁白模式 300dp 两个手调固定值，矮屏撑不出、大屏又浪费；40% 随屏缩放，配合外层
+            // 85% 屏高上限天然不越界（800dp 屏约 320dp ≈ 13 行）。
+            val maxListHeight =
+                (androidx.compose.ui.platform.LocalConfiguration.current.screenHeightDp * 0.4f).dp
             Column(
                 Modifier
                     .fillMaxWidth()
@@ -522,7 +527,7 @@ fun LogQuickPanel(
                         Modifier
                             .fillMaxWidth()
                             .padding(top = 6.dp)
-                            .heightIn(max = 220.dp)
+                            .heightIn(max = maxListHeight)
                             .verticalScroll(rememberScrollState())
                             .border(
                                 0.5.dp,
@@ -615,7 +620,7 @@ fun LogQuickPanel(
                         Modifier
                             .fillMaxWidth()
                             .padding(top = 6.dp)
-                            .heightIn(max = 300.dp)
+                            .heightIn(max = maxListHeight)
                             .verticalScroll(rememberScrollState())
                             .border(
                                 0.5.dp,
