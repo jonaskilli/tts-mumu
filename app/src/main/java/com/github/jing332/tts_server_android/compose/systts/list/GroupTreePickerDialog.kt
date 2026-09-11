@@ -32,6 +32,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.window.DialogProperties
 import com.github.jing332.database.dbm
 
 /**
@@ -92,8 +93,9 @@ fun GroupTreePickerDialog(
 
     AlertDialog(
         onDismissRequest = onDismissRequest,
-        // 官方 MD3 默认壳（09-11 裁定全 app 弹窗统一）：旧白底+16dp 圆角+0.9 宽自定义已撤，
-        // 旧注释"与 AppDialog 白底统一"是白底定制时代的话，AppDialog 早已回归 MD3 默认。
+        // 用户 09-11 晚终裁：列表类弹窗宽度回宽版（0.9 屏宽，原版观感）；圆角维持 MD3 官方
+        modifier = Modifier.fillMaxWidth(0.9f),
+        properties = DialogProperties(usePlatformDefaultWidth = false),
         title = { Text("选择分组") },
         text = {
             Column(modifier = Modifier

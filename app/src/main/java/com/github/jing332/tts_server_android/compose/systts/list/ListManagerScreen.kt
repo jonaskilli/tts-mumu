@@ -88,6 +88,7 @@ import androidx.compose.ui.platform.LocalViewConfiguration
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.window.DialogProperties
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.drake.net.utils.withIO
@@ -1683,6 +1684,9 @@ internal fun ListManagerScreen(
 
         AlertDialog(
             onDismissRequest = { showMoveEnabledDialog = null },
+            // 用户 09-11 晚终裁：列表类弹窗宽度回宽版（0.92 屏宽，原版观感）；圆角维持 MD3 官方
+            modifier = Modifier.fillMaxWidth(0.92f),
+            properties = DialogProperties(usePlatformDefaultWidth = false),
             title = { Text("移动启用配置 (${enabledItems.size}个)") },
             text = {
                 Column(modifier = Modifier
@@ -1814,6 +1818,9 @@ internal fun ListManagerScreen(
 
         AlertDialog(
             onDismissRequest = { showMoveSubGroupsDialog = null },
+            // 用户 09-11 晚终裁：列表类弹窗宽度回宽版（0.92 屏宽，原版观感）；圆角维持 MD3 官方
+            modifier = Modifier.fillMaxWidth(0.92f),
+            properties = DialogProperties(usePlatformDefaultWidth = false),
             title = { Text("移动子分组 (${selectedPaths.size}/${subPaths.size})") },
             text = {
                 if (subPaths.isEmpty()) {
@@ -1941,6 +1948,9 @@ internal fun ListManagerScreen(
         val otherGroups = models.filter { it.group.id != sourceGroup.id }.map { it.group }
         AlertDialog(
             onDismissRequest = { showMoveSingleSubGroupDialog = null },
+            // 用户 09-11 晚终裁：列表类弹窗宽度回宽版（0.92 屏宽，原版观感）；圆角维持 MD3 官方
+            modifier = Modifier.fillMaxWidth(0.92f),
+            properties = DialogProperties(usePlatformDefaultWidth = false),
             title = { Text("移动子分组「$subPath」到其他一级分组") },
             text = {
                 Column(modifier = Modifier
@@ -2015,6 +2025,9 @@ internal fun ListManagerScreen(
 
         AlertDialog(
             onDismissRequest = { showConvertSubGroupsToTopLevel = null },
+            // 用户 09-11 晚终裁：列表类弹窗宽度回宽版（0.92 屏宽，原版观感）；圆角维持 MD3 官方
+            modifier = Modifier.fillMaxWidth(0.92f),
+            properties = DialogProperties(usePlatformDefaultWidth = false),
             title = { Text("转为一级分组") },
             text = {
                 Column(modifier = Modifier.fillMaxWidth()) {

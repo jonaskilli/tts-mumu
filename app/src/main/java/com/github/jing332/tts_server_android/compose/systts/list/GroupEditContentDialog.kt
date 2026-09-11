@@ -15,6 +15,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.window.DialogProperties
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.github.jing332.database.dbm
@@ -77,7 +78,9 @@ fun GroupEditContentDialog(
 
     AlertDialog(
         onDismissRequest = onDismissRequest,
-        // 官方 MD3 默认壳（09-11 裁定）：旧 usePlatformDefaultWidth=false + 0.9 宽 + 16dp 圆角已撤
+        // 用户 09-11 晚终裁：列表类弹窗宽度回宽版（0.9 屏宽，原版观感）；圆角维持 MD3 官方
+        modifier = Modifier.fillMaxWidth(0.9f),
+        properties = DialogProperties(usePlatformDefaultWidth = false),
         title = {
             Text(
                 text = "${stringResource(R.string.edit_group_content)} - ${group.name}",
