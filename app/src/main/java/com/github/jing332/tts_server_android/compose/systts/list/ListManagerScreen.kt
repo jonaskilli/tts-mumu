@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxHeight
@@ -3130,7 +3131,7 @@ internal fun ListManagerScreen(
                                     Item(reorderState = reorderState,
                                         modifier = (if (locatedConfigId == item.id) Modifier.background(
                                             MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.5f),
-                                            MaterialTheme.shapes.small,
+                                            RoundedCornerShape(8.dp),
                                         ) else Modifier
                                         ).then(
                                             if (searchKeyword.isNotEmpty() || selectionMode) Modifier
@@ -3353,7 +3354,7 @@ internal fun ListManagerScreen(
                                                     reorderState = reorderState,
                                                     modifier = (if (locatedConfigId == item.id) Modifier.background(
                                                         MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.5f),
-                                                        MaterialTheme.shapes.small,
+                                                        RoundedCornerShape(8.dp),
                                                     ) else Modifier
                                                     ).then(itemDragModifier).padding(
                                                         // 配置项卡片随所属子分组层级缩进，与子分组头对齐

@@ -19,6 +19,7 @@ import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
@@ -216,7 +217,7 @@ fun LogScreen(
                             )
                             .then(
                                 if (isMatch) Modifier
-                                    .clip(MaterialTheme.shapes.extraSmall)
+                                    .clip(RoundedCornerShape(6.dp))
                                     .background(
                                         MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.5f)
                                     )

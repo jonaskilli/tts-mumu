@@ -164,7 +164,7 @@ fun GroupItem(
                     .padding(end = 6.dp)
                     .background(
                         MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f),
-                        MaterialTheme.shapes.extraSmall
+                        androidx.compose.foundation.shape.RoundedCornerShape(4.dp)
                     )
                     .padding(horizontal = 6.dp, vertical = 2.dp)
             )

@@ -25,8 +25,8 @@ fun ConfigDeleteDialog(
         text = {
             Text(
                 content,
-                style = MaterialTheme.typography.titleMedium
-                // 加粗由主题层承担（Type.kt titleMedium=700），不重复硬编码
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold
             )
         },
         confirmButton = {

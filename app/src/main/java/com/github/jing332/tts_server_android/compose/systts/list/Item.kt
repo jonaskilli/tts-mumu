@@ -190,10 +190,10 @@ internal fun Item(
             Text(
                 limitedName,
                 style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold,
                 maxLines = 1,
                 textAlign = TextAlign.Start,
                 // 省略号截断（原 Clip 硬裁）；右边界收到标签左侧，长标题不再穿到标签底下
-                // 加粗由主题层承担（Type.kt titleMedium=700，用户 09-11 终裁回原版观感），不再硬编码
                 overflow = TextOverflow.Ellipsis,
                 modifier = Modifier
                     .constrainAs(nameRef) {
