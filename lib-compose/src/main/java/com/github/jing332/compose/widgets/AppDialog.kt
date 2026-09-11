@@ -3,17 +3,12 @@ package com.github.jing332.compose.widgets
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
-import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.BasicAlertDialog
-import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.LocalTextStyle
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -22,7 +17,6 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.layout.Layout
 import androidx.compose.ui.layout.Placeable
@@ -30,11 +24,27 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.DialogProperties
 import com.github.jing332.compose.R
 import kotlin.math.max
 
+/**
+ * 全 app 弹窗外壳（用户 09-11 终裁：回归 MD3 标准观感）。
+ *
+ * 历史：本组件曾是自绘外壳（白底+零海拔+居中 18sp 标题），是用户 09-03/09-04 反馈"弹窗过深/发绿"
+ * 后的定制产物；09-11 用户对比两套壳后裁定回归 MD3 标准——组件**签名不变**、内部换成 material3
+ * 原生 [AlertDialog]，29 个调用方一处改全部生效，观感/圆角/色调海拔/标题样式全部回到官方规范，
+ * 零维护；git revert 本提交即可整体回退。
+ *
+ * 细节映射：
+ * - title/text 走 AlertDialog 原生槽位，样式由 MD3 规范接管（headlineSmall 标题 / bodyMedium 正文）；
+ * - content 原为 BoxScope 接收者，包一层 Box 保持调用方兼容；
+ * - buttons 原样塞进 confirmButton 槽，外面包 [AppDialogFlowRow] 保留换行能力（原生 Row 不换行）；
+ * - dialogContentPadding 默认改为 0：MD3 自带规范内边距（24dp），调用方无需再补；
+ *   仅 AuditionDialog 显式传自定义值，行为不变；
+ * - 曾有的"白底+零海拔防染绿"随 MD3 一起废弃：MD3 弹窗色调海拔 3dp，绿色混色肉眼无感
+ *   （用户 09-11 核实确认，勿再引用"原生壳发绿"旧结论）。
+ */
 @Preview
 @Composable
 fun PreviewAppDialog() {
@@ -43,11 +53,7 @@ fun PreviewAppDialog() {
         AppDialog(title = {
             Text("Title")
         }, content = {
-            Column(Modifier.verticalScroll(rememberScrollState())) {
-                for (i in 0..50) {
-                    Text("Content")
-                }
-            }
+            Text("Content")
         }, buttons = {
             TextButton(onClick = {
                 show = false
@@ -66,7 +72,6 @@ fun PreviewAppDialog() {
 
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AppDialog(
     modifier: Modifier = Modifier,
@@ -74,63 +79,37 @@ fun AppDialog(
     properties: DialogProperties = DialogProperties(),
     title: @Composable () -> Unit,
     content: @Composable BoxScope.() -> Unit,
-    dialogContentPadding: PaddingValues = PaddingValues(12.dp),
+    dialogContentPadding: PaddingValues = PaddingValues(0.dp),
     buttons: @Composable BoxScope.() -> Unit = {
         TextButton(onClick = onDismissRequest) { Text(stringResource(id = R.string.close)) }
     },
-) = BasicAlertDialog(
+) = AlertDialog(
     modifier = modifier,
     onDismissRequest = onDismissRequest,
-    properties = properties
-) {
-    Surface(
-        // 显式 surface 白底+零色调海拔：豆绿主题下 surfaceTint(绿)会随 tonalElevation 染进弹窗底，
-        // 8dp 派生让弹窗发绿(用户指认遗留绿)；白底+阴影保留浮起感，全弹窗统一
-        color = MaterialTheme.colorScheme.surface,
-        tonalElevation = 0.dp, shadowElevation = 8.dp, shape = MaterialTheme.shapes.extraLarge
-    ) {
-        Column(
-            modifier = Modifier
+    properties = properties,
+    title = { title() },
+    text = {
+        // content 的接收者是 BoxScope：包一层 Box 保持旧签名兼容（调用方可无视，语义不变）
+        Box(
+            Modifier
                 .fillMaxWidth()
-                .padding(dialogContentPadding),
-            verticalArrangement = Arrangement.Center,
-            horizontalAlignment = Alignment.CenterHorizontally
+                .padding(dialogContentPadding)
         ) {
-            Box(modifier = Modifier.align(Alignment.CenterHorizontally)) {
-                // 标题 18sp（用户 09-11 终裁：22sp 太大→16sp 不显眼→折中 18sp；titleMedium 加大一号，
-                // 全 app 弹窗共用本组件一处生效，层级靠"标题居中+内容左对齐"区分）
-                CompositionLocalProvider(
-                    LocalTextStyle provides MaterialTheme.typography.titleMedium.copy(fontSize = 18.sp)
-                ) {
-                    title()
-                }
-            }
-
-            Box(
-                Modifier
-                    .weight(weight = 1f, fill = false)
-                    .align(Alignment.Start)
-                    // 标题→内容 8dp（用户 09-11：原先 0dp 贴死，备份弹窗顶部即分段控件最明显；
-                    // 全弹窗共性，共用组件一处生效）
-                    .padding(top = 8.dp)
-            ) {
-                CompositionLocalProvider(LocalTextStyle provides MaterialTheme.typography.titleMedium) {
-                    content()
-                }
-            }
-
-
-            Box(modifier = Modifier.align(Alignment.End)) {
-                AppDialogFlowRow(
-                    mainAxisSpacing = ButtonsMainAxisSpacing,
-                    crossAxisSpacing = ButtonsCrossAxisSpacing
-                ) {
-                    buttons()
-                }
+            CompositionLocalProvider(LocalTextStyle provides MaterialTheme.typography.bodyMedium) {
+                content()
             }
         }
-    }
-}
+    },
+    confirmButton = {
+        // FlowRow 包一层保留按钮过多时的换行能力（原生按钮行不换行）；MD3 自动靠右排布
+        AppDialogFlowRow(
+            mainAxisSpacing = ButtonsMainAxisSpacing,
+            crossAxisSpacing = ButtonsCrossAxisSpacing
+        ) {
+            buttons()
+        }
+    },
+)
 
 
 @Composable
