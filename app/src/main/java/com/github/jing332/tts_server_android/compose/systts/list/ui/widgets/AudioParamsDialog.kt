@@ -240,7 +240,8 @@ fun AudioParamsDialog(
                     ),
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier.padding(top = 2.dp, bottom = 4.dp),
+                    // 上下各 4dp（用户 09-11 与日志快捷面板统一，消掉 2dp 差）
+                    modifier = Modifier.padding(top = 4.dp, bottom = 4.dp),
                 )
 
                 // ===== 按维度编辑区（09-10 平铺版，用户裁定恢复）：维度分段（语速/音量/音高）

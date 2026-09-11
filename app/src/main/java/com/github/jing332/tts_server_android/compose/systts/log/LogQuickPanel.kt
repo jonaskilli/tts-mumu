@@ -333,6 +333,9 @@ fun LogQuickPanel(
             Column(
                 Modifier
                     .fillMaxWidth()
+                    // 左右统一 16dp（用户 09-11）：此前只有音频参数区让 4dp，顶部/换声区是 12dp，
+                    // 同一弹窗两种左边线；整体加 4dp（叠加 AppDialog 自带 12dp）后全面板一条边
+                    .padding(horizontal = 4.dp)
                     // 上限跟随屏幕（85%）：固定 600dp 在矮屏上会把弹窗顶出屏幕外（用户 09-10 截图），
                     // 内容超出上限时由 verticalScroll 接管
                     .heightIn(max = (androidx.compose.ui.platform.LocalConfiguration.current.screenHeightDp * 0.85f).dp)
@@ -406,7 +409,8 @@ fun LogQuickPanel(
                 ),
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.primary,
-                modifier = Modifier.padding(top = 4.dp),
+                // 上下各 4dp（用户 09-11 与音频参数弹窗统一，消掉 2dp 差）
+                modifier = Modifier.padding(top = 4.dp, bottom = 4.dp),
             )
 
             // 分段两区（用户 09-09：同配置项编辑页「朗读全部/标签」SegmentedButton 样式）：
@@ -667,11 +671,10 @@ fun LogQuickPanel(
 
             // ===== 音频参数大区（分段第二区；用户 09-10 改按维度：一次调一个维度的三层）=====
             if (panelTab == 1) {
-                // 水平再让 4dp（叠加弹窗自带 12dp）：滑条 −/+ 贴边太挤（用户 09-09，与音频参数弹窗同款）；
+                // 左右 4dp 已上移到整个内容 Column（用户 09-11：全面板统一 16dp）；
                 // 底部无按钮行，补 4dp 底边距与左右一致收尾
                 Column(
                     Modifier
-                        .padding(horizontal = 4.dp)
                         .padding(bottom = 4.dp)
                 ) {
                     // 顶部那条 HorizontalDivider 已撤（用户 09-10 晚）：第二级换成软槽分段后，
