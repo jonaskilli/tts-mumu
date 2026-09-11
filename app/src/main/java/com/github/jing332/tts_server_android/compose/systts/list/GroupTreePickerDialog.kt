@@ -1,6 +1,7 @@
 package com.github.jing332.tts_server_android.compose.systts.list
 
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -18,7 +19,6 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -30,7 +30,10 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.rotate
-import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.DialogProperties
 import com.github.jing332.database.dbm
@@ -42,6 +45,13 @@ import com.github.jing332.database.dbm
  * - 组内切换: 同一大分组下选择已有子分组，或新建子分组；
  * - 组外切换: 选择别的大分组，再选其子分组或新建子分组；
  * - 识别当前层级: 顶部摘要展示当前已选位置，默认展开并选中当前所在大分组/子分组。
+ *
+ * 选中态（"高亮版"，用户 09-12 终裁，替代旧"全员单选圈"方案）：
+ * - 一级分组行=纯容器（箭头+组名+配置项数），不放任何选择控件，点行=展开/收起（手风琴）；
+ *   病根：旧版给容器发单选圈，含子分组时父行圈恒禁用=满屏灰圈像全没选，且圈偏大；
+ * - 目的地行（子分组/根目录/新建）不放圈，选中=整行铺 primaryContainer 底色+文字主题色
+ *   （MD3 选中容器色标准用法）；
+ * - 折叠定位：某组内含当前选择而该组被折叠时，组名染主题色，一眼看出选中藏在哪。
  *
  * 选中结果通过 onConfirm(groupId, categoryPath) 回调。
  * categoryPath 为空字符串表示放在该大分组根目录(不设子分组)。
@@ -64,6 +74,10 @@ fun GroupTreePickerDialog(
                 .map { it.categoryPath }
                 .distinct()
         }
+    }
+    // 每组配置项数（容器行右侧计数，与主界面 GroupItem "(N)" 同口径）
+    val itemCountByGroup = remember(groups) {
+        groups.associate { it.id to dbm.systemTtsV2.getByGroup(it.id).size }
     }
 
     var selectedGroupId by remember { mutableStateOf(currentGroupId) }
@@ -124,29 +138,20 @@ fun GroupTreePickerDialog(
                 groups.forEach { group ->
                     val paths = subPathsByGroup[group.id] ?: emptyList()
                     val isExpanded = group.id in expandedGroups
-                    // 含子分组的大分组禁止选择根目录（避免配置项与子分组混放），只能选子分组或新建
-                    val canSelectRoot = paths.isEmpty()
-                    val isGroupRootSelected = selectedGroupId == group.id &&
-                        !isCreatingNew && selectedCategoryPath.isBlank()
+                    // 该组内含当前选择（选中的是它的子分组/正在它下面新建）：
+                    // 折叠时组名染主题色，折叠也一眼看出选中藏在哪（用户 09-12）
+                    val holdsSelection = selectedGroupId == group.id && !isCreatingNewGroup &&
+                        (isCreatingNew || selectedCategoryPath.isNotBlank())
 
-                    // 大分组标题行: 含子分组时点击行=展开/收起(与点图标一致);
-                    // 无子分组时点击行=选中根目录并展开
+                    // 一级分组行：纯容器（高亮版，用户 09-12 终裁）——不放选择控件，点行=展开/收起
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
                             .clickable {
-                                if (canSelectRoot) {
-                                    selectedGroupId = group.id
-                                    selectedCategoryPath = ""
-                                    isCreatingNew = false
-                                    newSubGroupName = ""
-                                    isCreatingNewGroup = false
-                                    expandedGroups = setOf(group.id)
-                                } else {
-                                    isCreatingNewGroup = false
-                                    expandedGroups = if (isExpanded) expandedGroups - group.id
-                                    else setOf(group.id)
-                                }
+                                isCreatingNewGroup = false
+                                // 手风琴: 同时只展开一个一级分组
+                                expandedGroups = if (isExpanded) expandedGroups - group.id
+                                else setOf(group.id)
                             }
                             .padding(vertical = 4.dp),
                         verticalAlignment = Alignment.CenterVertically
@@ -161,146 +166,83 @@ fun GroupTreePickerDialog(
                             tint = MaterialTheme.colorScheme.onSurfaceVariant,
                             modifier = Modifier
                                 .clickable {
-                                    // 手风琴: 同时只展开一个一级分组
                                     expandedGroups = if (isExpanded) expandedGroups - group.id
                                     else setOf(group.id)
                                 }
                                 .rotate(rotationAngle)
                         )
-                        RadioButton(
-                            selected = isGroupRootSelected,
-                            enabled = canSelectRoot,
-                            onClick = {
-                                selectedGroupId = group.id
-                                selectedCategoryPath = ""
-                                isCreatingNew = false
-                                newSubGroupName = ""
-                                isCreatingNewGroup = false
-                                expandedGroups = setOf(group.id)
-                            }
-                        )
                         Text(
                             text = group.name.ifBlank { "默认分组" },
                             style = MaterialTheme.typography.titleMedium,
+                            color = if (!isExpanded && holdsSelection) MaterialTheme.colorScheme.primary
+                            else Color.Unspecified,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier
+                                .padding(start = 4.dp)
+                                .weight(1f)
+                        )
+                        // 组内配置项数（与主界面 GroupItem "(N)" 同口径）
+                        Text(
+                            "(${itemCountByGroup[group.id] ?: 0})",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
                             modifier = Modifier.padding(start = 4.dp)
                         )
                     }
 
                     if (isExpanded) {
-                        // 根目录选项(该大分组本身, 不设子分组): 仅当该大分组无子分组时才显示
-                        if (canSelectRoot) {
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .selectable(
-                                        selected = isGroupRootSelected,
-                                        onClick = {
-                                            selectedGroupId = group.id
-                                            selectedCategoryPath = ""
-                                            isCreatingNew = false
-                                            newSubGroupName = ""
-                                            isCreatingNewGroup = false
-                                        }
-                                    )
-                                    .padding(start = 64.dp, top = 2.dp, bottom = 2.dp),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                RadioButton(
-                                    selected = isGroupRootSelected,
-                                    onClick = {
-                                        selectedGroupId = group.id
-                                        selectedCategoryPath = ""
-                                        isCreatingNew = false
-                                        newSubGroupName = ""
-                                        isCreatingNewGroup = false
-                                    }
-                                )
-                                Text(
-                                    text = "（根目录，不设子分组）",
-                                    style = MaterialTheme.typography.bodyMedium,
-                                    modifier = Modifier.padding(start = 4.dp)
-                                )
-                            }
-                        }
-
-                        // 已有子分组
-                        paths.forEach { path ->
-                            val isPathSelected = selectedGroupId == group.id &&
-                                !isCreatingNew && selectedCategoryPath == path
-                            // 层级越深(路径中 / 越多)，向右缩进越多，树状层级更明显
-                            val pathDepth = path.count { it == '/' }
-                            val subIndent = 64.dp + 20.dp * pathDepth
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .selectable(
-                                        selected = isPathSelected,
-                                        onClick = {
-                                            selectedGroupId = group.id
-                                            selectedCategoryPath = path
-                                            isCreatingNew = false
-                                            newSubGroupName = ""
-                                            isCreatingNewGroup = false
-                                        }
-                                    )
-                                    .padding(start = subIndent, top = 2.dp, bottom = 2.dp),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                RadioButton(
-                                    selected = isPathSelected,
-                                    onClick = {
-                                        selectedGroupId = group.id
-                                        selectedCategoryPath = path
-                                        isCreatingNew = false
-                                        newSubGroupName = ""
-                                        isCreatingNewGroup = false
-                                    }
-                                )
-                                Text(
-                                    text = path.replace("/", " / "),
-                                    style = MaterialTheme.typography.bodyMedium,
-                                    modifier = Modifier.padding(start = 4.dp)
-                                )
-                            }
-                        }
-
-                        // 新建子分组
-                        val isCreateSelected = isCreatingNew && selectedGroupId == group.id
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .selectable(
-                                    selected = isCreateSelected,
-                                    onClick = {
-                                        selectedGroupId = group.id
-                                        isCreatingNew = true
-                                        isCreatingNewGroup = false
-                                        selectedCategoryPath = ""
-                                    }
-                                )
-                                .padding(start = 64.dp, top = 2.dp, bottom = 2.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            RadioButton(
-                                selected = isCreateSelected,
+                        // 根目录目的地行: 仅当该大分组无子分组时才有（含子分组禁止回根目录，防混放——业务规则不变）
+                        if (paths.isEmpty()) {
+                            val isGroupRootSelected = selectedGroupId == group.id &&
+                                !isCreatingNew && !isCreatingNewGroup && selectedCategoryPath.isBlank()
+                            DestinationRow(
+                                selected = isGroupRootSelected,
+                                text = "（根目录，不设子分组）",
+                                indent = 64.dp,
                                 onClick = {
                                     selectedGroupId = group.id
-                                    isCreatingNew = true
-                                    isCreatingNewGroup = false
                                     selectedCategoryPath = ""
+                                    isCreatingNew = false
+                                    newSubGroupName = ""
+                                    isCreatingNewGroup = false
                                 }
                             )
-                            Icon(
-                                Icons.Default.CreateNewFolder,
-                                contentDescription = null,
-                                modifier = Modifier.padding(start = 4.dp)
-                            )
-                            Text(
-                                text = "新建子分组",
-                                style = MaterialTheme.typography.bodyMedium,
-                                modifier = Modifier.padding(start = 4.dp)
+                        }
+
+                        // 已有子分组：层级越深(路径中 / 越多)，向右缩进越多
+                        paths.forEach { path ->
+                            val isPathSelected = selectedGroupId == group.id &&
+                                !isCreatingNew && !isCreatingNewGroup && selectedCategoryPath == path
+                            val pathDepth = path.count { it == '/' }
+                            DestinationRow(
+                                selected = isPathSelected,
+                                text = path.replace("/", " / "),
+                                indent = 64.dp + 20.dp * pathDepth,
+                                onClick = {
+                                    selectedGroupId = group.id
+                                    selectedCategoryPath = path
+                                    isCreatingNew = false
+                                    newSubGroupName = ""
+                                    isCreatingNewGroup = false
+                                }
                             )
                         }
+
+                        // 新建子分组（目的地之一）
+                        val isCreateSelected = isCreatingNew && selectedGroupId == group.id
+                        DestinationRow(
+                            selected = isCreateSelected,
+                            text = "新建子分组",
+                            indent = 64.dp,
+                            leadingIcon = Icons.Default.CreateNewFolder,
+                            onClick = {
+                                selectedGroupId = group.id
+                                isCreatingNew = true
+                                isCreatingNewGroup = false
+                                selectedCategoryPath = ""
+                            }
+                        )
                         if (isCreateSelected) {
                             OutlinedTextField(
                                 value = newSubGroupName,
@@ -320,39 +262,17 @@ fun GroupTreePickerDialog(
                 // 新建一级分组：独立于所有已有大分组的尾部入口，确认时落库并选中
                 HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
                 val isCreateGroupSelected = isCreatingNewGroup
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .selectable(
-                            selected = isCreateGroupSelected,
-                            onClick = {
-                                isCreatingNewGroup = true
-                                isCreatingNew = false
-                                selectedCategoryPath = ""
-                            }
-                        )
-                        .padding(vertical = 4.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    RadioButton(
-                        selected = isCreateGroupSelected,
-                        onClick = {
-                            isCreatingNewGroup = true
-                            isCreatingNew = false
-                            selectedCategoryPath = ""
-                        }
-                    )
-                    Icon(
-                        Icons.Default.CreateNewFolder,
-                        contentDescription = null,
-                        modifier = Modifier.padding(start = 4.dp)
-                    )
-                    Text(
-                        text = "新建分组",
-                        style = MaterialTheme.typography.titleMedium,
-                        modifier = Modifier.padding(start = 4.dp)
-                    )
-                }
+                DestinationRow(
+                    selected = isCreateGroupSelected,
+                    text = "新建分组",
+                    indent = 16.dp,
+                    leadingIcon = Icons.Default.CreateNewFolder,
+                    onClick = {
+                        isCreatingNewGroup = true
+                        isCreatingNew = false
+                        selectedCategoryPath = ""
+                    }
+                )
                 if (isCreateGroupSelected) {
                     OutlinedTextField(
                         value = newGroupName,
@@ -397,4 +317,43 @@ fun GroupTreePickerDialog(
             }
         }
     )
+}
+
+/**
+ * 目的地行（高亮版，用户 09-12 终裁）：不放单选圈。
+ * 选中态 = 整行铺 primaryContainer 底色 + 文字 onPrimaryContainer（MD3 选中容器色标准用法）；
+ * 未选中 = 透明底、默认文字色。
+ * [indent] 控制树状缩进（子分组按路径深度递增）。
+ */
+@Composable
+private fun DestinationRow(
+    selected: Boolean,
+    text: String,
+    indent: Dp,
+    onClick: () -> Unit,
+    leadingIcon: ImageVector? = null,
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .selectable(selected = selected, onClick = onClick)
+            .background(if (selected) MaterialTheme.colorScheme.primaryContainer else Color.Transparent)
+            .padding(start = indent, end = 12.dp, top = 6.dp, bottom = 6.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        if (leadingIcon != null) {
+            Icon(
+                leadingIcon,
+                contentDescription = null,
+                modifier = Modifier.padding(end = 4.dp)
+            )
+        }
+        Text(
+            text = text,
+            style = MaterialTheme.typography.bodyMedium,
+            color = if (selected) MaterialTheme.colorScheme.onPrimaryContainer else Color.Unspecified,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+        )
+    }
 }
