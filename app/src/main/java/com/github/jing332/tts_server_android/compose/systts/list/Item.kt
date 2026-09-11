@@ -324,7 +324,9 @@ internal fun Item(
                                 }
                             )
                         DropdownMenuItem(
-                            text = { Text("移动到子分组") },
+                            // 「其他分组」统称：选择器支持 同组换子分组/跨大分组/新建/回根目录，
+                            // 原名「移动到子分组」漏了跨大分组与根目录（用户 09-12 拍板改名）
+                            text = { Text("移动到其他分组") },
                             onClick = {
                                 showOptions = false
                                 onMoveToSubGroup()
