@@ -39,7 +39,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.state.ToggleableState
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import androidx.compose.foundation.ExperimentalFoundationApi
 import com.github.jing332.compose.widgets.AppDropdownMenu
 
@@ -122,10 +121,11 @@ fun SubGroupHeader(
 
         Text(
             text = name,
+            // MD3 规范约定（2026-09-11）：字号只用 typography token，原 17/16/16 手调值撤，层级靠 token 天然差
             style = when (level) {
-                0 -> MaterialTheme.typography.titleMedium.copy(fontSize = 17.sp)
-                1 -> MaterialTheme.typography.titleSmall.copy(fontSize = 16.sp)
-                else -> MaterialTheme.typography.bodyLarge.copy(fontSize = 16.sp)
+                0 -> MaterialTheme.typography.titleMedium
+                1 -> MaterialTheme.typography.titleSmall
+                else -> MaterialTheme.typography.bodyLarge
             },
             color = MaterialTheme.colorScheme.onSurface,
             modifier = Modifier

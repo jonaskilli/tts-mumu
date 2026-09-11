@@ -35,7 +35,6 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import com.github.jing332.compose.widgets.AppDropdownMenu
 import com.github.jing332.compose.widgets.AppDialog
 import com.github.jing332.compose.widgets.LabelSlider
@@ -186,8 +185,8 @@ internal fun BasePreferenceWidget(
             }
 
             // 副标题弱化为 onSurfaceVariant：与标题拉开主次，长描述不再糊成一团
+            // （MD3 规范约定：原 bodyMedium.copy(15.sp) 手调值撤，回 bodyMedium 官方 14sp）
             CompositionLocalProvider(LocalTextStyle provides MaterialTheme.typography.bodyMedium.copy(
-                fontSize = 15.sp,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )) {
                 subTitle()

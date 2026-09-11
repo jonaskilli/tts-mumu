@@ -93,7 +93,6 @@ import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.github.jing332.common.utils.longToast
 import com.github.jing332.compose.rememberLazyListReorderCache
@@ -962,11 +961,10 @@ private fun Item(
                         .padding(start = 8.dp)
                         .fillMaxWidth(),
                 ) {
-                    // 字号让一让换更多内容:名称15sp限两行(用户定稿),desc等次要信息12sp
+                    // MD3 规范约定（2026-09-11）：原手调 15sp 撤，回 bodyMedium 14sp 官方 token，仍限两行
                     Text(
                         text = name,
                         style = MaterialTheme.typography.bodyMedium,
-                        fontSize = 15.sp,
                         maxLines = 2,
                         overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
                     )
@@ -1113,9 +1111,8 @@ private fun Item(
                 Text(
                     text = stringResource(id = R.string.systts_plugin_please_set_vars),
                     modifier = Modifier.align(Alignment.CenterHorizontally),
-                    // 与插件名称同字号15sp(用户定稿)，primary高亮色保留提示作用
+                    // MD3 规范约定（2026-09-11）：原手调 15sp 撤，回 bodyMedium 14sp；primary 高亮保留
                     style = MaterialTheme.typography.bodyMedium,
-                    fontSize = 15.sp,
                     color = MaterialTheme.colorScheme.primary
                 )
 

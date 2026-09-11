@@ -42,7 +42,6 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import com.github.jing332.common.utils.ClipboardUtils
 import com.github.jing332.common.utils.StringUtils
 import com.github.jing332.common.utils.longToast
@@ -194,7 +193,7 @@ fun SpeechRuleEditScreen(
                     // 但日志面板已降回 14sp，此处降回后全 app 分段控件字号统一 14sp）
                     Text(
                         stringResource(id = R.string.ra_all),
-                        style = MaterialTheme.typography.labelLarge.copy(fontSize = 14.sp),
+                        style = MaterialTheme.typography.labelLarge,
                         maxLines = 1,
                     )
                 }
@@ -224,7 +223,7 @@ fun SpeechRuleEditScreen(
                 ) {
                     Text(
                         stringResource(id = R.string.tag),
-                        style = MaterialTheme.typography.labelLarge.copy(fontSize = 14.sp),
+                        style = MaterialTheme.typography.labelLarge,
                         maxLines = 1,
                         modifier = Modifier.padding(start = 4.dp, end = 10.dp)
                     )

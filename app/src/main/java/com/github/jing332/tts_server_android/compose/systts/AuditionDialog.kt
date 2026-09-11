@@ -30,7 +30,6 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import com.drake.net.utils.withMain
 import com.github.jing332.common.audio.AudioPlayer
 import com.github.jing332.common.utils.messageChain
@@ -306,7 +305,8 @@ fun AuditionDialog(
                                                 if (category == assignedCategory) null else category
                                             )
                                         },
-                                        label = { Text(category, fontSize = 12.sp) }
+                                        // MD3 规范约定（2026-09-11）：撤 fontSize=12.sp 覆盖，回 FilterChip 官方 labelLarge 14sp
+                                        label = { Text(category) }
                                     )
                                 }
                             }

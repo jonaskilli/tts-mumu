@@ -44,9 +44,7 @@ import androidx.compose.ui.semantics.setProgress
 import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.Dp
-import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import com.github.jing332.common.utils.performLongPress
 import com.github.jing332.compose.R
 import kotlin.math.max
@@ -88,9 +86,9 @@ fun LabelSlider(
     // ===== 尺寸默认值（用户 09-11 下午终裁：自定义观感不好，滑条回归官方 MD3 默认）=====
     // 撤自绘胶囊轨道/竖条 thumb（trackHeight/thumbSize 参数一并删除），Slider 直接用
     // SliderDefaults 官方默认画法（粗轨道+缺口+端点圆点+官方手柄，颜色随主题，零自定义）。
-    // 标签 12sp=官方 bodySmall；± 键 48dp 触摸区/24dp 图标=官方尺寸。± 键是功能结构，
-    // 用户拍板保留（长按快调不受影响）。LayerSlider 不传尺寸，一处默认全 app 生效。
-    labelFontSize: TextUnit = 12.sp,
+    // 标签走官方 bodySmall（原 labelFontSize 手调参数已撤，MD3 规范约定：字号只用 typography token）；
+    // ± 键 48dp 触摸区/24dp 图标=官方尺寸。± 键是功能结构，用户拍板保留（长按快调不受影响）。
+    // LayerSlider 不传尺寸，一处默认全 app 生效。
     buttonSize: Dp = 48.dp,
     iconSize: Dp = 24.dp,
     // 标签列最小宽度（0.dp = 不定宽，随文字收缩，即旧行为）。
@@ -127,13 +125,13 @@ fun LabelSlider(
         Column(Modifier.padding(end = 8.dp).widthIn(min = labelMinWidth)) {
             Text(
                 text = labelPart,
-                style = MaterialTheme.typography.bodySmall.copy(fontSize = labelFontSize),
+                style = MaterialTheme.typography.bodySmall,
                 maxLines = 1,
             )
             if (valuePart.isNotEmpty())
                 Text(
                     text = valuePart,
-                    style = MaterialTheme.typography.bodySmall.copy(fontSize = labelFontSize),
+                    style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     maxLines = 1,
                 )

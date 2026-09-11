@@ -44,7 +44,6 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.state.ToggleableState
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import com.github.jing332.tts_server_android.R
 
 
@@ -172,7 +171,8 @@ fun GroupItem(
 
         Text(
             name,
-            style = MaterialTheme.typography.titleMedium.copy(fontSize = 18.sp),
+            // MD3 规范约定（2026-09-11）：字号只用 typography token，原 titleMedium.copy(18.sp) 手调值撤
+            style = MaterialTheme.typography.titleMedium,
             modifier = Modifier
                 .align(Alignment.CenterVertically)
                 .weight(1f)
