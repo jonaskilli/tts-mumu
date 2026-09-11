@@ -270,14 +270,18 @@ fun AudioParamsDialog(
                         }
                     },
                     onApplyDim = { applyDim(it) },
+                    // 取消改由维度区按钮行最左承载：与「重置·应用」同一行，
+                    // 全 app 统一「取消（左）｜ 重置 · 应用（右）」（同 GlobalAudioParamsDialog；用户 09-11 夜要求）
+                    leadingAction = {
+                        TextButton(onClick = onDismissRequest) {
+                            Text(stringResource(R.string.cancel))
+                        }
+                    },
                 )
             }
         },
-        buttons = {
-            TextButton(onClick = onDismissRequest) {
-                Text(stringResource(R.string.cancel))
-            }
-        },
+        // 取消已移入内容区按钮行最左；buttons 槽留空（MD3 confirmButton 必填槽，传空不渲染按钮）
+        buttons = {},
     )
 }
 

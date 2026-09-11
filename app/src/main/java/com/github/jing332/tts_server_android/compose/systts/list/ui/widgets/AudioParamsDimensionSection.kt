@@ -3,6 +3,7 @@ package com.github.jing332.tts_server_android.compose.systts.list.ui.widgets
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Text
@@ -52,6 +53,10 @@ fun AudioParamsDimensionSection(
     onApplyDim: (Int) -> Unit,
     // 初始选中维度（0=语速 1=音量 2=音高）：编辑页三键点哪个键就以哪个维度打开（用户 09-10 晚）
     initialDim: Int = 0,
+    // 重置/应用按钮行最左侧的自定义按钮（可选）。仅配置项音频参数弹窗传入「取消」，
+    // 实现全 app 统一排布「取消（左）｜ 重置 · 应用（右）」（见 GlobalAudioParamsDialog 同款约定）；
+    // 日志快捷面板不传 → 参数为 null，按钮行维持纯右对齐不受影响。用户 09-11 夜要求取消置最左。
+    leadingAction: (@Composable () -> Unit)? = null,
 ) {
     val tagCfg = stringResource(R.string.audio_params_tag_config)
     val tagPlugin = stringResource(R.string.audio_params_tag_plugin)
@@ -92,10 +97,15 @@ fun AudioParamsDimensionSection(
             }
 
             // 重置=该维三层草稿回 1.0（不落库）；应用=该维三层一起落库
+            // leadingAction（配置项弹窗传「取消」）占最左，weight Spacer 把重置/应用顶到最右
             Row(
                 Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.End,
             ) {
+                if (leadingAction != null) {
+                    leadingAction()
+                    Spacer(Modifier.weight(1f))
+                }
                 TextButton(onClick = { onResetDim(dim) }) { Text(stringResource(R.string.reset)) }
                 TextButton(onClick = { onApplyDim(dim) }) {
                     // 绿点脏标记已撤（用户 09-11：应用前不放圆点）
