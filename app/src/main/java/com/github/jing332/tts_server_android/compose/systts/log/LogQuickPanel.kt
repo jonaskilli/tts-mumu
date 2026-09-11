@@ -496,18 +496,24 @@ fun LogQuickPanel(
                         // 设为 bodyMedium 14sp，字段值/分类框/候选行全是 14sp，而 label 空置中态官方写死
                         // bodyLarge 16sp，观感比旁边内容大一圈；placeholder 吃正文槽 14sp 恰好对齐，
                         // 代价是输入后提示消失（搜索框可接受）
-                        placeholder = { Text("搜索标签名（当前范围内）") },
+                        placeholder = { Text("搜索标签名/名字（当前范围内）") },
                         value = tagSearch,
                         onValueChange = { tagSearch = it },
                         singleLine = true,
                     )
-                    val filtered = poolEnabled.filter {
-                        (selectedCategory == null || voiceCategoryOf(it) == selectedCategory) &&
-                            (tagSearch.isBlank() || it.contains(tagSearch))
+                    // 搜索词同时匹配「标签名」与「配置项名」（用户 09-11 晚：记忆里是"女青年01晓晓"，
+                    // 原先只匹配标签名，搜"晓晓"搜不到）。候选行展示的正是这两段，搜索范围须与展示一致。
+                    val filtered = poolEnabled.filter { tag ->
+                        (selectedCategory == null || voiceCategoryOf(tag) == selectedCategory) &&
+                            (tagSearch.isBlank() ||
+                                tag.contains(tagSearch) ||
+                                enabledConfigEntityByTag(tag)?.displayName?.contains(tagSearch) == true)
                     }
-                    // 当前绑定不在候选时补在顶部，防丢值
+                    // 当前绑定不在候选时补在顶部，防丢值；搜索态不补（否则顶部挂着不匹配项，破坏搜索语义）
                     val displayTags =
-                        if (boundVoice.isNotEmpty() && filtered.none { it == boundVoice }) {
+                        if (tagSearch.isBlank() && boundVoice.isNotEmpty() &&
+                            filtered.none { it == boundVoice }
+                        ) {
                             listOf(boundVoice) + filtered
                         } else filtered
 
