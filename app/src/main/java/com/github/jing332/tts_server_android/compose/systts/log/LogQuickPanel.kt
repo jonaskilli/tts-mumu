@@ -411,8 +411,8 @@ fun LogQuickPanel(
                 ),
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.primary,
-                // 上下各 4dp（用户 09-11 与音频参数弹窗统一，消掉 2dp 差）
-                modifier = Modifier.padding(top = 4.dp, bottom = 4.dp),
+                // 上下各 2dp（用户 09-11：顶部三行是紧密信息，行距收小，与音频参数弹窗同步）
+                modifier = Modifier.padding(top = 2.dp, bottom = 2.dp),
             )
 
             // 分段两区（用户 09-09：同配置项编辑页「朗读全部/标签」SegmentedButton 样式）：

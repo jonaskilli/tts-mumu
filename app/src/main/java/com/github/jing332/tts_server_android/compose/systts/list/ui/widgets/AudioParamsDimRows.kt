@@ -161,11 +161,12 @@ fun AudioParamsDimRows(
 
         // 展开区：该维三层滑杆 + 重置/应用，无底框平铺（与弹窗/日志面板一致）；
         // 滑条外的信息一律不放；试听走试听文本行的 🎧
+        // 顶距 8dp / 左缩进 8dp（用户 09-11 二轮，与共用组件 AudioParamsDimensionSection 同步）
         val dim = expanded
         Column(
             Modifier
                 .fillMaxWidth()
-                .padding(top = 4.dp, bottom = 4.dp),
+                .padding(top = 8.dp, bottom = 4.dp, start = 8.dp),
             verticalArrangement = Arrangement.spacedBy(4.dp),
         ) {
                 when (dim) {

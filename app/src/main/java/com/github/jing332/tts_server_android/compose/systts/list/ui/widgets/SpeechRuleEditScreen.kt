@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.offset
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.material.icons.Icons
@@ -191,11 +192,11 @@ fun SpeechRuleEditScreen(
                     shape = SegmentedButtonDefaults.itemShape(0, 2),
                     icon = { Icon(Icons.Default.SelectAll, stringResource(R.string.ra_all)) },
                 ) {
-                    // 字号 14→16sp（用户 09-10 晚）：本排是"模式切换"（父级语义），
-                    // 与日志面板外层「更换发音人/音频参数」对齐（那处也是 16sp 描边胶囊）
+                    // 字号 14sp（用户 09-11：16sp 太大；此前升 16sp 是为对齐日志面板父级，
+                    // 但日志面板已降回 14sp，此处降回后全 app 分段控件字号统一 14sp）
                     Text(
                         stringResource(id = R.string.ra_all),
-                        style = MaterialTheme.typography.labelLarge.copy(fontSize = 16.sp),
+                        style = MaterialTheme.typography.labelLarge.copy(fontSize = 14.sp),
                         maxLines = 1,
                     )
                 }
@@ -225,7 +226,7 @@ fun SpeechRuleEditScreen(
                 ) {
                     Text(
                         stringResource(id = R.string.tag),
-                        style = MaterialTheme.typography.labelLarge.copy(fontSize = 16.sp),
+                        style = MaterialTheme.typography.labelLarge.copy(fontSize = 14.sp),
                         maxLines = 1,
                         modifier = Modifier.padding(start = 4.dp, end = 10.dp)
                     )
@@ -425,9 +426,17 @@ fun SpeechRuleEditScreen(
                         // 方块左缘落在上方字段边框内 5dp（用户 09-11：-15dp 太贴边，右移一点点）
                         modifier = Modifier.offset(x = (-10).dp),
                     )
-                    // 文字左拉近 8dp：收紧方块→文字间距（用户 09-11，与基本信息卡同款处理）
-                    Text("内心独白", modifier = Modifier.offset(x = (-8).dp))
-                    IconButton(onClick = { showInnerThoughtHelp = true }) {
+                    // 文字距方块约 3dp（用户 09-11 三行复选框行统一："不要留空"，与基本信息卡同款）
+                    Text(
+                        "心声标签",
+                        modifier = Modifier.offset(x = (-12).dp)
+                    )
+                    // 问号 32dp 触摸区（24dp 图标只留 4dp 内缩）：紧跟文字不留空（用户 09-11 三行统一；
+                    // 默认 48dp 会有 12dp 空隙）
+                    IconButton(
+                        onClick = { showInnerThoughtHelp = true },
+                        modifier = Modifier.size(32.dp),
+                    ) {
                         Icon(
                             Icons.AutoMirrored.Filled.HelpOutline,
                             stringResource(id = R.string.systts_inner_thought_help)

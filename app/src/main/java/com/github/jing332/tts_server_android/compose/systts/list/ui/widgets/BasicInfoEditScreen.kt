@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.HelpOutline
 import androidx.compose.material.icons.filled.ChevronRight
@@ -169,9 +170,13 @@ fun BasicInfoEditScreen(
                             updateConfig(systemTts, onSystemTtsChange, dto.audioParams.copy(reverbEnabled = it))
                         }
                     )
-                    // 文字左拉近 8dp：收紧方块→文字间距（用户 09-11："离方框太远"）
-                    Text("心声混响", modifier = Modifier.offset(x = (-8).dp))
-                    IconButton(onClick = { showReverbHelp = true }) {
+                    // 文字距方块约 3dp（用户 09-11 三行复选框行统一："不要留空"）
+                    Text("心声混响", modifier = Modifier.offset(x = (-12).dp))
+                    // 问号 32dp 触摸区：紧跟文字不留空（与心声标签行同款）
+                    IconButton(
+                        onClick = { showReverbHelp = true },
+                        modifier = Modifier.size(32.dp),
+                    ) {
                         Icon(
                             Icons.AutoMirrored.Filled.HelpOutline,
                             stringResource(id = R.string.systts_reverb_help)
@@ -193,9 +198,13 @@ fun BasicInfoEditScreen(
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     Checkbox(checked = dto.speechRule.isStandby, onCheckedChange = null)
-                    Text(stringResource(id = R.string.as_standby))
-                    // 问号紧跟文字（用户 09-11：原 +12dp 视觉偏移让问号离文字太远，撤掉）
-                    IconButton(onClick = { showStandbyHelp = true }) {
+                    // 文字距方块约 3dp（用户 09-11 三行复选框行统一："不要留空"）
+                    Text(stringResource(id = R.string.as_standby), modifier = Modifier.offset(x = (-12).dp))
+                    // 问号 32dp 触摸区：紧跟文字不留空（与心声标签行同款）
+                    IconButton(
+                        onClick = { showStandbyHelp = true },
+                        modifier = Modifier.size(32.dp),
+                    ) {
                         Icon(
                             Icons.AutoMirrored.Filled.HelpOutline,
                             stringResource(id = R.string.systts_as_standby_help)

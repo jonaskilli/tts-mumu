@@ -62,10 +62,10 @@ fun AudioParamsDimensionSection(
     // 该维三层滑杆 + 重置/应用（本组件唯一形态共用）。
     // 行距 4dp（用户 09-10 晚）：此前三层紧贴，± 触摸区 48dp 上下相接显得挤；重置/应用行同样获得间隔
     val DimContent: @Composable (Int) -> Unit = { dim ->
-        // 顶距 4dp（用户 09-11 拍板）：软槽与第一行滑杆此前 0dp 贴死，与编辑页同位置（4dp）不一致；
-        // 本组件被弹窗/日志面板共用，此处一改三处同步
+        // 顶距 8dp（用户 09-11 二轮：4dp 仍显近，软槽与滑杆区分开一点）；
+        // 左缩进 8dp（用户 09-11：三排滑杆离弹窗左缘太近，整体右移一点，± 键与轨道一起动）
         Column(
-            Modifier.padding(top = 4.dp),
+            Modifier.padding(top = 8.dp, start = 8.dp),
             verticalArrangement = Arrangement.spacedBy(4.dp),
         ) {
             when (dim) {
@@ -131,8 +131,8 @@ internal val audioParamsDimNames = listOf("语速", "音量", "音高")
  * 尺寸（用户 09-10 晚定稿，09-11 轨道改胶囊）：
  * 音频参数三处——卡片⋮弹窗 `AudioParamsDialog`、日志快捷面板 `LogQuickPanel`、编辑页内联展开区
  * `AudioParamsDimRows`——全部经本函数取滑杆，故在此统一传大一号尺寸：
- * - 标签 14sp：与上方维度选择区「语速/音量/音高」齐平，避免子项压住父项；
- * - 加减 48dp 触摸区 / **22dp 图标**：触摸区恢复改造前 M3 默认；图标 22dp 与 14sp 标签成对；
+ * - 标签 12sp（用户 09-11 二轮：14sp 有点大；比上方维度选择区 14sp 低一级，数值同行同字号）；
+ * - 加减 48dp 触摸区 / **22dp 图标**：触摸区恢复改造前 M3 默认；图标 22dp 与标签成对；
  * - 轨道 **10dp 胶囊画法**（用户 09-11 定稿：回最早 M3 胶囊轨道观感、高度收细一档；
  *   09-10 晚的 3.5dp 纯细线被用户否掉——"看着差太多、不如原来美观"）；thumb 竖条 4×22dp；
  * - 标签列不定宽（09-11 撤 44dp 定宽）：层名改「本项」后三行均 2 字、数值均 4 字符，天然对齐；
@@ -148,7 +148,7 @@ internal fun LayerSlider(label: String, value: Float, onValueChange: (Float) -> 
         onValueChange = onValueChange,
         valueRange = 0.1f..3f,
         step = 0.05f,
-        labelFontSize = 14.sp,
+        labelFontSize = 12.sp,
         buttonSize = 48.dp,
         iconSize = 22.dp,
         trackHeight = 10.dp,
