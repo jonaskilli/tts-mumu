@@ -122,7 +122,7 @@ fun MoveToSubGroupDialog(
                         onValueChange = { newPath = it },
                         label = { Text("子分组名称") },
                         // 多级提示从标签挪到 supportingText（用户 09-12，与 CreateSubGroupDialog 同款）
-                        supportingText = { Text("名称含 / 时一次建多级，如 中文/男声") },
+                        supportingText = { Text("名称含 / 时一次建多级，如 讯飞/女青年") },
                         modifier = Modifier
                             .fillMaxWidth()
                             .padding(start = 48.dp, top = 4.dp),
