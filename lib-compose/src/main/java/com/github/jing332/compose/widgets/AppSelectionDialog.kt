@@ -115,7 +115,10 @@ fun AppSelectionDialog(
             )
         Text(
             entry,
-            style = MaterialTheme.typography.bodyLarge,
+            // bodyMedium 14sp（用户 09-11）：AlertDialog 正文槽 LocalTextStyle=bodyMedium，
+            // 触发它的字段值全是 14sp，列表条目原显式 bodyLarge 16sp 与字段错位一圈；
+            // 降到 14sp 后全 app 选择弹窗（插件/分组/分类）字段与列表对齐，长列表也更紧凑
+            style = MaterialTheme.typography.bodyMedium,
             modifier = Modifier
                 .weight(1f)
                 .padding(horizontal = 16.dp, vertical = 12.dp),
