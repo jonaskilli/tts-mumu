@@ -61,7 +61,12 @@ fun AudioParamsDimensionSection(
     // 该维三层滑杆 + 重置/应用（本组件唯一形态共用）。
     // 行距 4dp（用户 09-10 晚）：此前三层紧贴，± 触摸区 48dp 上下相接显得挤；重置/应用行同样获得间隔
     val DimContent: @Composable (Int) -> Unit = { dim ->
-        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        // 顶距 4dp（用户 09-11 拍板）：软槽与第一行滑杆此前 0dp 贴死，与编辑页同位置（4dp）不一致；
+        // 本组件被弹窗/日志面板共用，此处一改三处同步
+        Column(
+            Modifier.padding(top = 4.dp),
+            verticalArrangement = Arrangement.spacedBy(4.dp),
+        ) {
             when (dim) {
                 0 -> {
                     LayerSlider(tagCfg, cfgSpeed, onCfgSpeed)
