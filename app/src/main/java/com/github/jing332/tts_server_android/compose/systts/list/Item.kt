@@ -51,6 +51,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.constraintlayout.compose.ConstraintLayout
 import androidx.constraintlayout.compose.Dimension
 import com.github.jing332.common.utils.StringUtils.limitLength
@@ -218,10 +219,10 @@ internal fun Item(
                     text = desc,
                     // <small> 层标靠 RelativeSizeSpan 缩放，换算基准是 fontSize 参数；
                     // 不传(默认 Unspecified)则相对缩放被静默丢弃、层标缩不了——必须显式传正文字号。
-                    // MD3 规范约定（2026-09-11）：原手调 13sp 撤（网格外值），回 bodySmall 12sp 官方 token；
-                    // 与下方采样率行的主次差改用颜色（本行 onBackground / 下行 onSurfaceVariant）表达
-                    fontSize = MaterialTheme.typography.bodySmall.fontSize,
-                    style = MaterialTheme.typography.bodySmall.copy(
+                    // 特例许可（用户 2026-09-11 终裁）：回原版 13sp，与参数行 bodySmall 12sp 拉开一档
+                    fontSize = 13.sp,
+                    style = MaterialTheme.typography.bodyMedium.copy(
+                        fontSize = 13.sp,
                         color = MaterialTheme.colorScheme.onBackground,
                     ),
                 )
