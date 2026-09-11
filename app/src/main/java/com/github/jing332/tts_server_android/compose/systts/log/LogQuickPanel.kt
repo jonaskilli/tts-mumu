@@ -445,10 +445,8 @@ fun LogQuickPanel(
                     }
                 }
 
-                // 候选键：""=全部（不筛选）；展示名运行时追加「（N项）」（用户 09-09，同标签选择器样式），
-                // 键保持纯分类名
-                val categoryOptions: List<Pair<String, String>> =
-                    listOf("" to "全部") + voiceCategories.map { it to it }
+                // 候选键：""=全部（不筛选）；选项与展示名在绑定模式内按当前范围动态生成
+                //（09-11 晚起 0 项分类被隐藏，见下），此处不再静态定义。
 
                 if (isBindingMode) {
                     // ===== 绑定模式：下拉定范围 + 常驻搜索（范围内）+ 列表（行内试听）=====
@@ -468,11 +466,17 @@ fun LogQuickPanel(
                     val poolEnabled = CharacterRecordsFile.readVoicePool(config.speechRule.tagRuleId)
                         .filter { it in enabledTags }
                     // 下拉项带括号项数（不含搜索过滤，选分类前就知道各范围有多少可选）；
-                    // 0 项的分类不带括号，避免一排「（0项）」噪音
+                    // 0 项分类直接隐藏（用户 09-11 晚改，替代 09-09「不标数量」——不标会被误读成
+                    // 信息缺失，没货的分类干脆不列）；「全部」恒在首位。
+                    // 当前选中分类若恰好 0 项，AppSpinner 会自动回落到「全部」（values 不含当前值时
+                    // 回调第一项），与既有「九类外标签→全部」语义一致，不会留下幽灵值。
                     val categoryCounts = poolEnabled.groupingBy { voiceCategoryOf(it) }.eachCount()
+                    val categoryOptions: List<Pair<String, String>> =
+                        listOf("" to "全部") +
+                            voiceCategories.filter { (categoryCounts[it] ?: 0) > 0 }.map { it to it }
                     val categoryEntries = categoryOptions.map { (key, label) ->
                         val n = if (key.isEmpty()) poolEnabled.size else categoryCounts[key] ?: 0
-                        if (n > 0) "$label（${n}项）" else label
+                        "$label（${n}项）"
                     }
                     AppSpinner(
                         modifier = Modifier.fillMaxWidth(),
