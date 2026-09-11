@@ -9,7 +9,6 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.selection.selectable
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ExpandMore
@@ -33,7 +32,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.window.DialogProperties
 import com.github.jing332.database.dbm
 
 /**
@@ -94,11 +92,8 @@ fun GroupTreePickerDialog(
 
     AlertDialog(
         onDismissRequest = onDismissRequest,
-        // 与 AppDialog 白底统一：M3 默认容器 surfaceContainerHigh 在豆绿主题下泛灰绿
-        containerColor = MaterialTheme.colorScheme.surface,
-        modifier = Modifier.fillMaxWidth(0.9f),
-        shape = RoundedCornerShape(16.dp),
-        properties = DialogProperties(usePlatformDefaultWidth = false),
+        // 官方 MD3 默认壳（09-11 裁定全 app 弹窗统一）：旧白底+16dp 圆角+0.9 宽自定义已撤，
+        // 旧注释"与 AppDialog 白底统一"是白底定制时代的话，AppDialog 早已回归 MD3 默认。
         title = { Text("选择分组") },
         text = {
             Column(modifier = Modifier

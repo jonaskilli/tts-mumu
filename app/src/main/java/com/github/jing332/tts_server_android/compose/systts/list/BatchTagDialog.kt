@@ -4,7 +4,6 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.DoneAll
@@ -14,7 +13,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.window.DialogProperties
 import com.github.jing332.database.dbm
 import com.github.jing332.database.entities.SpeechRule
 import com.github.jing332.database.entities.systts.SystemTtsV2
@@ -82,9 +80,7 @@ fun BatchTagDialog(
 
     AlertDialog(
         onDismissRequest = onDismissRequest,
-        properties = DialogProperties(usePlatformDefaultWidth = false),
-        modifier = Modifier.fillMaxWidth(0.92f),
-        shape = RoundedCornerShape(16.dp),
+        // 官方 MD3 默认壳（09-11 裁定）：旧 usePlatformDefaultWidth=false + 0.92 宽 + 16dp 圆角已撤
         title = {
             Text(
                 text = stringResource(R.string.batch_assign_tags),

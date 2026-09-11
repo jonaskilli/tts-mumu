@@ -88,8 +88,6 @@ import androidx.compose.ui.platform.LocalViewConfiguration
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.window.Dialog
-import androidx.compose.ui.window.DialogProperties
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.drake.net.utils.withIO
@@ -1423,69 +1421,58 @@ internal fun ListManagerScreen(
         }
         val targetGroups = models.filter { it.group.id !in convertSourcesSelected }.map { it.group }
         val screenHeight = LocalConfiguration.current.screenHeightDp.dp
-        Dialog(
+        // 官方 MD3 默认壳（09-11 裁定）：原 Dialog+Surface 自绘壳（M2 风格：20dp padding、
+        // titleLarge 自绘标题、底部自绘取消按钮行）已换成官方 AlertDialog，与全 app 弹窗统一
+        AlertDialog(
             onDismissRequest = { showConvertToSubGroupMulti = false },
-            properties = DialogProperties(usePlatformDefaultWidth = false)
-        ) {
-            Surface(
-                shape = MaterialTheme.shapes.large,
-                tonalElevation = 6.dp,
-                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp)
-            ) {
-                Column(Modifier.padding(20.dp)) {
-                    Text("转为子分组", style = MaterialTheme.typography.titleLarge)
-                    Spacer(Modifier.height(12.dp))
-                    Column(
-                        modifier = Modifier
-                            .heightIn(max = screenHeight * 0.7f)
-                            .verticalScroll(rememberScrollState())
-                    ) {
-                        if (convertibleSources.isEmpty()) {
-                            Text("没有可转换的分组（所选分组均含子分组）。")
-                        } else {
-                            Text("将以下分组转为子分组：", modifier = Modifier.padding(bottom = 8.dp))
-                            convertibleSources.forEach { gwt ->
-                                Text("  • ${gwt.group.name}", style = MaterialTheme.typography.bodyMedium)
-                            }
-                            HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
-                            Text("选择目标一级分组：", modifier = Modifier.padding(bottom = 8.dp))
-                            targetGroups.forEach { target ->
-                                TextButton(
-                                    onClick = {
-                                        showConvertToSubGroupMulti = false
-                                        showTagOrganizeLoading = true
-                                        scope.launch {
-                                            performConvertToSubGroup(target, convertibleSources)
-                                            showTagOrganizeLoading = false
-                                            selectionMode = false
-                                            selectedGroupIds = emptySet()
-                                        }
-                                    },
-                                    modifier = Modifier.fillMaxWidth()
-                                ) { Text(target.name) }
-                            }
-                            HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
+            title = { Text("转为子分组") },
+            text = {
+                Column(
+                    modifier = Modifier
+                        .heightIn(max = screenHeight * 0.7f)
+                        .verticalScroll(rememberScrollState())
+                ) {
+                    if (convertibleSources.isEmpty()) {
+                        Text("没有可转换的分组（所选分组均含子分组）。")
+                    } else {
+                        Text("将以下分组转为子分组：", modifier = Modifier.padding(bottom = 8.dp))
+                        convertibleSources.forEach { gwt ->
+                            Text("  • ${gwt.group.name}", style = MaterialTheme.typography.bodyMedium)
+                        }
+                        HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
+                        Text("选择目标一级分组：", modifier = Modifier.padding(bottom = 8.dp))
+                        targetGroups.forEach { target ->
                             TextButton(
                                 onClick = {
-                                    newGroupNameForConvertMulti = ""
-                                    showNewGroupForConvertMulti = true
+                                    showConvertToSubGroupMulti = false
+                                    showTagOrganizeLoading = true
+                                    scope.launch {
+                                        performConvertToSubGroup(target, convertibleSources)
+                                        showTagOrganizeLoading = false
+                                        selectionMode = false
+                                        selectedGroupIds = emptySet()
+                                    }
                                 },
                                 modifier = Modifier.fillMaxWidth()
-                            ) { Text("新建一级分组") }
+                            ) { Text(target.name) }
                         }
-                    }
-                    Spacer(Modifier.height(8.dp))
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.End
-                    ) {
-                        TextButton(onClick = { showConvertToSubGroupMulti = false }) {
-                            Text(stringResource(R.string.cancel))
-                        }
+                        HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
+                        TextButton(
+                            onClick = {
+                                newGroupNameForConvertMulti = ""
+                                showNewGroupForConvertMulti = true
+                            },
+                            modifier = Modifier.fillMaxWidth()
+                        ) { Text("新建一级分组") }
                     }
                 }
+            },
+            dismissButton = {
+                TextButton(onClick = { showConvertToSubGroupMulti = false }) {
+                    Text(stringResource(R.string.cancel))
+                }
             }
-        }
+        )
     }
 
     // 多选转为子分组：新建一级分组作为目标
@@ -1694,8 +1681,6 @@ internal fun ListManagerScreen(
 
         AlertDialog(
             onDismissRequest = { showMoveEnabledDialog = null },
-            properties = androidx.compose.ui.window.DialogProperties(usePlatformDefaultWidth = false),
-            modifier = Modifier.fillMaxWidth(0.92f),
             title = { Text("移动启用配置 (${enabledItems.size}个)") },
             text = {
                 Column(modifier = Modifier
@@ -1827,8 +1812,6 @@ internal fun ListManagerScreen(
 
         AlertDialog(
             onDismissRequest = { showMoveSubGroupsDialog = null },
-            properties = androidx.compose.ui.window.DialogProperties(usePlatformDefaultWidth = false),
-            modifier = Modifier.fillMaxWidth(0.92f),
             title = { Text("移动子分组 (${selectedPaths.size}/${subPaths.size})") },
             text = {
                 if (subPaths.isEmpty()) {
@@ -1956,8 +1939,6 @@ internal fun ListManagerScreen(
         val otherGroups = models.filter { it.group.id != sourceGroup.id }.map { it.group }
         AlertDialog(
             onDismissRequest = { showMoveSingleSubGroupDialog = null },
-            properties = androidx.compose.ui.window.DialogProperties(usePlatformDefaultWidth = false),
-            modifier = Modifier.fillMaxWidth(0.92f),
             title = { Text("移动子分组「$subPath」到其他一级分组") },
             text = {
                 Column(modifier = Modifier
@@ -2032,8 +2013,6 @@ internal fun ListManagerScreen(
 
         AlertDialog(
             onDismissRequest = { showConvertSubGroupsToTopLevel = null },
-            properties = androidx.compose.ui.window.DialogProperties(usePlatformDefaultWidth = false),
-            modifier = Modifier.fillMaxWidth(0.92f),
             title = { Text("转为一级分组") },
             text = {
                 Column(modifier = Modifier.fillMaxWidth()) {

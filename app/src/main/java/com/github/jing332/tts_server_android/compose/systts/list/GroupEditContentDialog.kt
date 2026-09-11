@@ -4,7 +4,6 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.DeleteForever
@@ -16,7 +15,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.window.DialogProperties
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.github.jing332.database.dbm
@@ -79,9 +77,7 @@ fun GroupEditContentDialog(
 
     AlertDialog(
         onDismissRequest = onDismissRequest,
-        properties = DialogProperties(usePlatformDefaultWidth = false),
-        modifier = Modifier.fillMaxWidth(0.9f),
-        shape = RoundedCornerShape(16.dp),
+        // 官方 MD3 默认壳（09-11 裁定）：旧 usePlatformDefaultWidth=false + 0.9 宽 + 16dp 圆角已撤
         title = {
             Text(
                 text = "${stringResource(R.string.edit_group_content)} - ${group.name}",
