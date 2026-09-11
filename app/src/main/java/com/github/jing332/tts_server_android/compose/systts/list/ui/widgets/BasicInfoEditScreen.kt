@@ -4,7 +4,6 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.Icons
@@ -154,24 +153,24 @@ fun BasicInfoEditScreen(
                 Row(
                     modifier = Modifier
                         .weight(1f)
-                        // 视觉偏移 -10dp 抵消 M3 Checkbox 自带的内缩（48dp 触摸区里画 18dp 方块，
-                        // 左右各缩 15dp）——方块左缘落在输入框边框内 5dp（用户 09-11：-15dp 太贴边，
-                        // "方框往右来一点点"）。只挪视觉位置，触摸区大小与布局宽度不变
-                        .offset(x = (-10).dp)
                         .clickable {
                             val p = dto.audioParams
                             updateConfig(systemTts, onSystemTtsChange, p.copy(reverbEnabled = !p.reverbEnabled))
                         },
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
+                    // 复选框 32dp 触摸区（用户 09-11 终裁根治）：M3 默认 48dp 里画 18dp 方块、
+                    // 两侧各空 15dp，靠文字负偏移补偿属于魔法数字互相打架（文字被压到方块上）。
+                    // 改为收触摸区这一处旋钮：方块两侧自然只剩 7dp，文字放自然位置即紧凑，
+                    // 无任何 offset，结构上不可能再重叠。三行复选框行（心声标签/心声混响/作为备用）同款
                     Checkbox(
                         checked = dto.audioParams.reverbEnabled,
                         onCheckedChange = {
                             updateConfig(systemTts, onSystemTtsChange, dto.audioParams.copy(reverbEnabled = it))
-                        }
+                        },
+                        modifier = Modifier.size(32.dp),
                     )
-                    // 文字距方块约 3dp（用户 09-11 三行复选框行统一："不要留空"）
-                    Text("心声混响", modifier = Modifier.offset(x = (-12).dp))
+                    Text("心声混响")
                     // 问号 32dp 触摸区：紧跟文字不留空（与心声标签行同款）
                     IconButton(
                         onClick = { showReverbHelp = true },
@@ -197,9 +196,12 @@ fun BasicInfoEditScreen(
                         },
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    Checkbox(checked = dto.speechRule.isStandby, onCheckedChange = null)
-                    // 文字距方块约 3dp（用户 09-11 三行复选框行统一："不要留空"）
-                    Text(stringResource(id = R.string.as_standby), modifier = Modifier.offset(x = (-12).dp))
+                    Checkbox(
+                        checked = dto.speechRule.isStandby,
+                        onCheckedChange = null,
+                        modifier = Modifier.size(32.dp),
+                    )
+                    Text(stringResource(id = R.string.as_standby))
                     // 问号 32dp 触摸区：紧跟文字不留空（与心声标签行同款）
                     IconButton(
                         onClick = { showStandbyHelp = true },

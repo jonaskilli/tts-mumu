@@ -6,7 +6,6 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.Arrangement
@@ -419,18 +418,14 @@ fun SpeechRuleEditScreen(
                         .padding(top = 4.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
+                    // 复选框 32dp 触摸区（用户 09-11 终裁根治）：撤所有 offset 魔法数字，
+                    // 方块两侧自然剩 7dp，文字自然位置即紧凑；与基本信息卡两行同款（详见彼处注释）
                     Checkbox(
                         checked = isInnerThought,
                         onCheckedChange = { toggleInnerThought() },
-                        // 视觉偏移 -10dp 抵消 M3 Checkbox 自带内缩（48dp 触摸区画 18dp 方块），
-                        // 方块左缘落在上方字段边框内 5dp（用户 09-11：-15dp 太贴边，右移一点点）
-                        modifier = Modifier.offset(x = (-10).dp),
+                        modifier = Modifier.size(32.dp),
                     )
-                    // 文字距方块约 3dp（用户 09-11 三行复选框行统一："不要留空"，与基本信息卡同款）
-                    Text(
-                        "心声标签",
-                        modifier = Modifier.offset(x = (-12).dp)
-                    )
+                    Text("心声标签")
                     // 问号 32dp 触摸区（24dp 图标只留 4dp 内缩）：紧跟文字不留空（用户 09-11 三行统一；
                     // 默认 48dp 会有 12dp 空隙）
                     IconButton(
