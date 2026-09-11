@@ -1,5 +1,6 @@
 package com.github.jing332.tts_server_android.compose.systts
 
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
@@ -18,7 +19,6 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
@@ -51,21 +51,25 @@ fun ListSortSettingsDialog(
         onDismissRequest = onDismissRequest,
         title = { Text(stringResource(id = R.string.sort)) },
         content = {
-            LoadingContent(Modifier.padding(vertical = 8.dp), isLoading = sorting) {
+            LoadingContent(Modifier.padding(vertical = 4.dp), isLoading = sorting) {
                 Column(Modifier.fillMaxWidth()) {
+                    // 数量小字（用户 09-12：原孤零零居中大数字太空旷，降为辅助行说明对多少项排序）
                     Text(
-                        name,
-                        modifier = Modifier
-                            .align(Alignment.CenterHorizontally)
-                            .padding(vertical = 4.dp),
-                        style = MaterialTheme.typography.titleMedium
+                        "共 $name 项",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(bottom = 4.dp)
                     )
-                    FlowRow(Modifier.align(Alignment.CenterHorizontally)) {
+                    // 左对齐 + 固定间距（原居中 FlowRow 缩在中间、上下留白观感空旷）
+                    FlowRow(
+                        Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalArrangement = Arrangement.spacedBy(4.dp),
+                    ) {
                         entries.forEachIndexed { i, s ->
                             val selected = i == index
                             FilterChip(
                                 selected,
-                                modifier = Modifier.padding(horizontal = 4.dp),
                                 onClick = { onIndexChange(i) },
                                 label = {
                                     Text(
