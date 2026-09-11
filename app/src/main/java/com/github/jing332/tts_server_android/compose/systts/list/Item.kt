@@ -192,6 +192,7 @@ internal fun Item(
                 maxLines = 1,
                 textAlign = TextAlign.Start,
                 // 省略号截断（原 Clip 硬裁）；右边界收到标签左侧，长标题不再穿到标签底下
+                // 加粗由主题层承担（Type.kt titleMedium=700，用户 09-11 终裁回原版观感），不再硬编码
                 overflow = TextOverflow.Ellipsis,
                 modifier = Modifier
                     .constrainAs(nameRef) {
@@ -376,6 +377,7 @@ internal fun Item(
                         text = stringResource(id = R.string.systts_standby),
                         style = MaterialTheme.typography.labelMedium,
                         color = MaterialTheme.colorScheme.tertiary,
+                        fontWeight = FontWeight.Bold,
                     )
                 }
 
@@ -398,7 +400,7 @@ internal fun Item(
 
 @Composable
 private fun TagScreen(modifier: Modifier = Modifier, tag: String) {
-    // small(8dp)对齐M3 chip默认圆角；Medium(官方500字重)与正文默认字重拉开层级
+    // small(8dp)对齐M3 chip默认圆角；Medium字重与旁边Bold的显示名拉开层级
     OutlinedCard(shape = MaterialTheme.shapes.small, modifier = modifier) {
         Text(
             text = tag,

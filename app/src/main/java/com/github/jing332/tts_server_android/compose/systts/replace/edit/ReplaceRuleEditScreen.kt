@@ -63,6 +63,7 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.text
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.TextRange
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
@@ -492,6 +493,7 @@ private fun PinyinDialog(onDismissRequest: () -> Unit, onInput: (text: String) -
                                     onClick = { onInput.invoke(it[0].toString()) }) {
                                     Text(
                                         text = it[0].toString(),
+                                        fontWeight = FontWeight.Bold,
                                         style = MaterialTheme.typography.titleMedium
                                     )
                                 }

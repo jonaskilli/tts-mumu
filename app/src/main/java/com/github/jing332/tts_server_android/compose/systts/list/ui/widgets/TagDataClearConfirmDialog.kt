@@ -5,6 +5,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.font.FontWeight
 import com.github.jing332.tts_server_android.R
 import com.github.jing332.compose.widgets.AppDialog
 
@@ -24,6 +25,7 @@ fun TagDataClearConfirmDialog(
             TextButton(onClick = onConfirm) {
                 Text(
                     stringResource(id = R.string.delete),
+                    fontWeight = FontWeight.Bold,
                     color = MaterialTheme.colorScheme.error
                 )
             }

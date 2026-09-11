@@ -9,6 +9,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.font.FontWeight
 import com.github.jing332.tts_server_android.R
 
 @Composable
@@ -25,6 +26,7 @@ fun ConfigDeleteDialog(
             Text(
                 content,
                 style = MaterialTheme.typography.titleMedium
+                // 加粗由主题层承担（Type.kt titleMedium=700），不重复硬编码
             )
         },
         confirmButton = {
@@ -33,7 +35,8 @@ fun ConfigDeleteDialog(
             }) {
                 Text(
                     stringResource(id = R.string.delete),
-                    color = MaterialTheme.colorScheme.error
+                    color = MaterialTheme.colorScheme.error,
+                    fontWeight = FontWeight.Bold
                 )
             }
         },

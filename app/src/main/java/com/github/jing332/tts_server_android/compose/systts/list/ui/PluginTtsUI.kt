@@ -354,6 +354,7 @@ class PluginTtsUI : IConfigUI() {
                             Text(
                                 "🧩 " + stringResource(R.string.plugin),
                                 color = MaterialTheme.colorScheme.primary,
+                                fontWeight = FontWeight.Bold,
                             )
                         },
                         value = tts.pluginId,
