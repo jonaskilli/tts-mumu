@@ -85,7 +85,6 @@ fun GroupEditContentDialog(
         title = {
             Text(
                 text = "${stringResource(R.string.edit_group_content)} - ${group.name}",
-                style = MaterialTheme.typography.titleMedium
             )
         },
         text = {

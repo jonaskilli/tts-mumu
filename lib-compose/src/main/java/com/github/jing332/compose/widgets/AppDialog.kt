@@ -30,6 +30,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.DialogProperties
 import com.github.jing332.compose.R
 import kotlin.math.max
@@ -96,9 +97,11 @@ fun AppDialog(
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             Box(modifier = Modifier.align(Alignment.CenterHorizontally)) {
-                // 标题 titleMedium 16sp（用户 09-11：原 titleLarge 22sp 在紧凑面板里太大；
-                // 全 app 弹窗共用本组件，一处降全部统一，层级靠"标题居中+内容左对齐"区分）
-                CompositionLocalProvider(LocalTextStyle provides MaterialTheme.typography.titleMedium) {
+                // 标题 18sp（用户 09-11 终裁：22sp 太大→16sp 不显眼→折中 18sp；titleMedium 加大一号，
+                // 全 app 弹窗共用本组件一处生效，层级靠"标题居中+内容左对齐"区分）
+                CompositionLocalProvider(
+                    LocalTextStyle provides MaterialTheme.typography.titleMedium.copy(fontSize = 18.sp)
+                ) {
                     title()
                 }
             }
@@ -107,6 +110,9 @@ fun AppDialog(
                 Modifier
                     .weight(weight = 1f, fill = false)
                     .align(Alignment.Start)
+                    // 标题→内容 8dp（用户 09-11：原先 0dp 贴死，备份弹窗顶部即分段控件最明显；
+                    // 全弹窗共性，共用组件一处生效）
+                    .padding(top = 8.dp)
             ) {
                 CompositionLocalProvider(LocalTextStyle provides MaterialTheme.typography.titleMedium) {
                     content()

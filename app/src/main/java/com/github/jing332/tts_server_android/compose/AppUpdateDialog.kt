@@ -55,7 +55,6 @@ fun AppUpdateActionDialog(onDismissRequest: () -> Unit, result: AppUpdateChecker
         Column {
             Text(
                 stringResource(id = R.string.check_update) + " (Github Actions)",
-                style = MaterialTheme.typography.titleMedium,
             )
             Text(
                 text = DateFormatConst.dateFormatSec.format(result.time * 1000),
@@ -104,7 +103,6 @@ fun AppUpdateDialog(
         title = {
             Text(
                 stringResource(id = R.string.check_update),
-                style = MaterialTheme.typography.titleMedium,
             )
         },
         content = {

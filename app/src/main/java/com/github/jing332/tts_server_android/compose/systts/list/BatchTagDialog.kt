@@ -88,7 +88,6 @@ fun BatchTagDialog(
         title = {
             Text(
                 text = stringResource(R.string.batch_assign_tags),
-                style = MaterialTheme.typography.titleMedium
             )
         },
         text = {

@@ -9,7 +9,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
-import com.github.jing332.tts_server_android.compose.SegmentedTextToggle
+import com.github.jing332.tts_server_android.compose.SoftSegmentedTextToggle
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -57,10 +57,10 @@ internal fun BackupDialog(
         title = { Text(stringResource(modeTitleRes(profile))) },
         content = {
             LazyColumn(Modifier.fillMaxWidth()) {
-                // 模式切换（用户 09-09）：RadioButton 行改分段切换（同编辑页「朗读全部/标签」样式），
-                // 宽度适配文字不均分，居中放置
+                // 模式切换（用户 09-09 分段化；09-11 换软槽）：与音频参数弹窗「语速/音量/音高」同款
+                // SoftSegmentedTextToggle——浅底槽+选中项浮起胶囊，等分撑满（原描边胶囊宽度随文字已废）
                 item {
-                    SegmentedTextToggle(
+                    SoftSegmentedTextToggle(
                         options = listOf(
                             stringResource(R.string.personal_complete_backup),
                             stringResource(R.string.share_backup),
@@ -75,7 +75,6 @@ internal fun BackupDialog(
                             }
                         },
                         modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.Center,
                     )
                     Text(
                         text = stringResource(modeWarningRes(profile)),
