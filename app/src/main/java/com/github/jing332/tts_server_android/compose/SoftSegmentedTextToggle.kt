@@ -29,14 +29,20 @@ fun SoftSegmentedTextToggle(
     selectedIndex: Int,
     onSelect: (Int) -> Unit,
     modifier: Modifier = Modifier,
+    // true（默认）=三等分撑满容器（音频参数维度切换/备份弹窗，与旧软槽行为一致）；
+    // false=宽度随文字收缩（日志面板顶部父级「更换发音人/音频参数」，两项文字长度差很多，
+    // 均分浪费；官方 SegmentedButton 不加 weight 时本就随内容收缩，正好保住原"宽度随文字"行为）
+    equalWidth: Boolean = true,
 ) {
-    SingleChoiceSegmentedButtonRow(modifier.fillMaxWidth()) {
+    SingleChoiceSegmentedButtonRow(
+        modifier = if (equalWidth) modifier.fillMaxWidth() else modifier
+    ) {
         options.forEachIndexed { index, label ->
             SegmentedButton(
                 selected = index == selectedIndex,
                 onClick = { if (index != selectedIndex) onSelect(index) },
                 shape = SegmentedButtonDefaults.itemShape(index = index, count = options.size),
-                modifier = Modifier.weight(1f),
+                modifier = if (equalWidth) Modifier.weight(1f) else Modifier,
             ) {
                 Text(label, maxLines = 1, overflow = TextOverflow.Ellipsis)
             }

@@ -24,7 +24,11 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
 /**
- * 文字自适应宽度的两态分段切换（Material3 SegmentedButton 的视觉同款）。
+ * 【已废弃，无调用方（用户 09-11 下午「完全 MD3 版」终裁）】文字自适应宽度的两态分段切换。
+ *
+ * 曾用于日志快捷面板顶部「更换发音人/音频参数」父级切换；09-11 下午裁定全 app 分段控件
+ * 统一走官方 SegmentedButton（见 [SoftSegmentedTextToggle]，equalWidth=false 即宽度随文字），
+ * 本组件撤销自绘描边胶囊画法，仅留文件占位（勿 git rm，勿再引用）。
  *
  * m3 1.4-alpha 的 SegmentedButton 是 SingleChoiceSegmentedButtonRowScope 扩展且内部
  * 强制 weight 均分，两项文字长度差很多时会浪费空间（用户 09-09 要求宽度适配文字），

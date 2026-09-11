@@ -30,7 +30,6 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.drake.net.utils.withIO
 import com.drake.net.utils.withMain
@@ -45,8 +44,8 @@ import com.github.jing332.database.entities.systts.source.PluginTtsSource
 import com.github.jing332.tts.PreviewState
 import com.github.jing332.tts.TaggedTtsPreviewPlayer
 import com.github.jing332.tts_server_android.R
-import com.github.jing332.tts_server_android.compose.SegmentedTextToggle
 import com.github.jing332.tts_server_android.compose.SharedViewModel
+import com.github.jing332.tts_server_android.compose.SoftSegmentedTextToggle
 import com.github.jing332.tts_server_android.compose.systts.list.ui.PluginDescriptor
 import com.github.jing332.tts_server_android.compose.systts.list.ui.widgets.AudioParamsDimensionSection
 import com.github.jing332.tts_server_android.conf.SysTtsConfig
@@ -415,18 +414,14 @@ fun LogQuickPanel(
                 modifier = Modifier.padding(top = 2.dp, bottom = 2.dp),
             )
 
-            // 分段两区（用户 09-09：同配置项编辑页「朗读全部/标签」SegmentedButton 样式）：
+            // 分段两区（用户 09-11 下午「完全 MD3 版」终裁：官方 SegmentedButton 全 app 统一）：
             // 0=更换发音人 1=音频参数；当前发音人+终值两区共用，固定在分段之上。
-            // 宽度适配文字不均分（用户 09-09：两项文字长度差很多，均分浪费），居中放置
-            SegmentedTextToggle(
+            // equalWidth=false=宽度随文字不均分（用户 09-09：两项文字长度差很多，均分浪费），居中放置
+            SoftSegmentedTextToggle(
                 options = listOf("更换发音人", "音频参数"),
                 selectedIndex = panelTab,
                 onSelect = { panelTab = it },
-                // 09-11：本排是**第一级（父级，切区）**——保持"重形态"描边胶囊；字号降回 14sp
-                //（用户指认 16sp 太大；父子区分改靠形态：父=描边胶囊+宽度随文字，子=软槽浮块+等分撑满）
-                // 区内第二级（语速/音量/音高）是 SoftSegmentedTextToggle
-                //（09-11 下午「完全 MD3 版」起内部=官方 SegmentedButton，自绘软槽已撤）
-                labelFontSize = 14.sp,
+                equalWidth = false,
                 modifier = Modifier
                     .padding(top = 8.dp)
                     .align(Alignment.CenterHorizontally),
