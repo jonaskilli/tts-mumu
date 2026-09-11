@@ -1467,7 +1467,9 @@ internal fun ListManagerScreen(
                     }
                 }
             },
-            dismissButton = {
+            // 本弹窗无正向确认操作（点目标分组即执行），MD3 AlertDialog 的 confirmButton
+            // 为必选槽，取消键放此槽（dismissButton 槽可省）
+            confirmButton = {
                 TextButton(onClick = { showConvertToSubGroupMulti = false }) {
                     Text(stringResource(R.string.cancel))
                 }
