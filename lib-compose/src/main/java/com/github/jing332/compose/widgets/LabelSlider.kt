@@ -93,15 +93,16 @@ fun LabelSlider(
     a11yDescription: String = "",
     text: String,
 
-    // ===== 尺寸可选参数（09-10 晚新增）=====
-    // 默认值＝09-08 d34701e 的现行「中间档」，故既有 32 处调用方零影响。
-    // 音频参数三处（卡片⋮弹窗 / 日志快捷面板 / 编辑页单维弹窗）经 LayerSlider 传大一号的值：
-    // 标签字号与上方维度选择区「语速/音量/音高」(labelLarge 14sp) 齐平，避免子项压住父项。
-    labelFontSize: TextUnit = 13.sp,
-    buttonSize: Dp = 32.dp,
-    iconSize: Dp = 20.dp,
-    trackHeight: Dp = 3.dp,
-    thumbSize: DpSize = DpSize(3.dp, 20.dp),
+    // ===== 尺寸默认值（用户 09-11 终裁：全 app 滑条统一为音频参数同款）=====
+    // 09-10 曾定「默认值保持中间档、只让音频参数经 LayerSlider 传大一号」；09-11 用户要求
+    // 「其他地方用到滑条的也全统一（设置/背景音乐/内播/批量等）」，规则反转——
+    // 默认值即统一值：胶囊轨道 10dp + 竖条 thumb 4×22 + ± 48dp 触摸区/22dp 图标 + 标签 12sp。
+    // LayerSlider 不再传尺寸，一处默认全 app 生效。
+    labelFontSize: TextUnit = 12.sp,
+    buttonSize: Dp = 48.dp,
+    iconSize: Dp = 22.dp,
+    trackHeight: Dp = 10.dp,
+    thumbSize: DpSize = DpSize(4.dp, 22.dp),
     // 标签列最小宽度（0.dp = 不定宽，随文字收缩，即旧行为）。
     // 用途：同一组滑杆的多行标签字数不同（发音人 3 字 / 插件 2 字），不定宽会让各行的
     // −按钮与轨道左右错开；传 44dp 可让"标签+末尾 8dp 间距"一律 ≥52dp，各行左边界对齐。

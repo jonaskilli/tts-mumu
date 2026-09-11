@@ -81,7 +81,7 @@ fun AudioParamsDimRows(
     var globalVolume by remember { mutableStateOf(SysTtsConfig.audioParamsVolume) }
     var globalPitch by remember { mutableStateOf(SysTtsConfig.audioParamsPitch) }
 
-    // 按维度脏标记：该维任一层滑杆改动置 true，应用成功清除（应用键带 ●）
+    // 按维度脏标记：该维任一层滑杆改动置 true，应用成功清除（● 前缀渲染已撤，标记仅保留流水）
     var speedDirty by remember(systemTts.id) { mutableStateOf(false) }
     var volumeDirty by remember(systemTts.id) { mutableStateOf(false) }
     var pitchDirty by remember(systemTts.id) { mutableStateOf(false) }
@@ -202,7 +202,8 @@ fun AudioParamsDimRows(
                         }
                     }) { Text(stringResource(R.string.reset)) }
                     TextButton(onClick = { applyDim(dim) }) {
-                        Text((if (isDirty(dim)) "● " else "") + stringResource(R.string.audio_params_apply))
+                        // 绿点脏标记已撤（用户 09-11：应用前不放圆点，与共用组件同步）
+                        Text(stringResource(R.string.audio_params_apply))
                     }
                 }
             }

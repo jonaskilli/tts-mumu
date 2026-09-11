@@ -27,8 +27,8 @@ import com.github.jing332.tts_server_android.compose.SoftSegmentedTextToggle
  * - 无插件源（系统TTS直连）只有 配置/全局 两行；
  * - 插件接管判定已废除（09-10 用户拍板：判定机制不真实——人工表已删、库标记恒 false），
  *   三层恒显示可调，调节不生效时以实际听感为准；
- * - 重置/应用按维度一组（09-10 ②A）：应用=该维三层一起落库（由调用方 onApplyDim 实现），
- *   草稿被改动后调用方置脏，按钮带 ● 提示该维有待保存；
+ * - 重置/应用按维度一组（09-10 ②A）：应用=该维三层一起落库（由调用方 onApplyDim 实现）；
+ *   按钮前的 ● 脏标记已撤（09-11 用户：应用前不放圆点），isDirty 入参保留但不再用于渲染;
  * - 值与脏状态全部由调用方持有（hoisted state），本组件无业务逻辑。
  * - 形态只有一种：维度分段选择器（语速/音量/音高）+ 当前维三层滑杆，平铺展示。
  *   09-10 曾试过 collapsedAccordion 折叠手风琴形态供配置项弹窗用，同日用户裁定撤销
@@ -99,7 +99,8 @@ fun AudioParamsDimensionSection(
             ) {
                 TextButton(onClick = { onResetDim(dim) }) { Text(stringResource(R.string.reset)) }
                 TextButton(onClick = { onApplyDim(dim) }) {
-                    Text((if (isDirty(dim)) "● " else "") + stringResource(R.string.audio_params_apply))
+                    // 绿点脏标记已撤（用户 09-11：应用前不放圆点）
+                    Text(stringResource(R.string.audio_params_apply))
                 }
             }
         }
@@ -128,16 +129,11 @@ internal val audioParamsDimNames = listOf("语速", "音量", "音高")
 /**
  * 层滑杆：标签=层名（本项/插件/全局，见 audio_params_tag_* 串），维度已由分段表达，滑杆只标层与当前值。
  *
- * 尺寸（用户 09-10 晚定稿，09-11 轨道改胶囊）：
- * 音频参数三处——卡片⋮弹窗 `AudioParamsDialog`、日志快捷面板 `LogQuickPanel`、编辑页内联展开区
- * `AudioParamsDimRows`——全部经本函数取滑杆，故在此统一传大一号尺寸：
- * - 标签 12sp（用户 09-11 二轮：14sp 有点大；比上方维度选择区 14sp 低一级，数值同行同字号）；
- * - 加减 48dp 触摸区 / **22dp 图标**：触摸区恢复改造前 M3 默认；图标 22dp 与标签成对；
- * - 轨道 **10dp 胶囊画法**（用户 09-11 定稿：回最早 M3 胶囊轨道观感、高度收细一档；
- *   09-10 晚的 3.5dp 纯细线被用户否掉——"看着差太多、不如原来美观"）；thumb 竖条 4×22dp；
- * - 标签列不定宽（09-11 撤 44dp 定宽）：层名改「本项」后三行均 2 字、数值均 4 字符，天然对齐；
- *   旧定宽是 3 字「发音人」时代的遗留，白占约 16dp 死空间。
- * 其他界面滑杆直接调 `LabelSlider`、不传这些参数，保持原样（默认 13sp/32dp/20dp/3dp/3×20dp/不定宽）。
+ * 尺寸（用户 09-11 终裁）：不再单独传尺寸——`LabelSlider` 默认值已改为音频参数同款
+ * （标签 12sp / ± 48dp 触摸区 22dp 图标 / 胶囊轨道 10dp / 竖条 thumb 4×22 / 标签列不定宽），
+ * 全 app 滑条一并统一；本包装只负责标签文案与取值范围/步进。
+ * 轨道胶囊画法（09-11 定稿：回最早 M3 胶囊观感收细一档；09-10 晚 3.5dp 纯细线被否）。
+ * 标签列不定宽（09-11 撤 44dp 定宽）：层名改「本项」后三行均 2 字、数值均 4 字符，天然对齐。
  */
 @Composable
 internal fun LayerSlider(label: String, value: Float, onValueChange: (Float) -> Unit) {
@@ -148,13 +144,6 @@ internal fun LayerSlider(label: String, value: Float, onValueChange: (Float) -> 
         onValueChange = onValueChange,
         valueRange = 0.1f..3f,
         step = 0.05f,
-        labelFontSize = 12.sp,
-        buttonSize = 48.dp,
-        iconSize = 22.dp,
-        trackHeight = 10.dp,
-        thumbSize = DpSize(4.dp, 22.dp),
-        // 标签列不定宽：44dp 定宽是层名还是 3 字「发音人」时代为对齐加的；
-        // 改「本项」后三行均 2 字、数值均 4 字符天然等宽，定宽反留约 16dp 死空间——09-11 撤（用户拍板）
     )
 }
 

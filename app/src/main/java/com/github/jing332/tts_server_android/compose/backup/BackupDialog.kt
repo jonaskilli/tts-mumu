@@ -54,7 +54,9 @@ internal fun BackupDialog(
 
     AppDialog(
         onDismissRequest = onDismissRequest,
-        title = { Text(stringResource(modeTitleRes(profile))) },
+        // 标题固定「备份」（用户 09-11：原先随模式在 完整备份/分享备份 间切换，
+        // 与正下方的模式分段控件文字重复；模式含义由分段表达，标题不必跟）
+        title = { Text(stringResource(R.string.backup)) },
         content = {
             LazyColumn(Modifier.fillMaxWidth()) {
                 // 模式切换（用户 09-09 分段化；09-11 换软槽）：与音频参数弹窗「语速/音量/音高」同款
@@ -167,11 +169,6 @@ private fun availableTypes(profile: BackupProfile): List<Type> = when (profile) 
 }
 
 private fun defaultTypes(profile: BackupProfile): List<Type> = availableTypes(profile)
-
-private fun modeTitleRes(profile: BackupProfile): Int = when (profile) {
-    BackupProfile.PERSONAL_FULL -> R.string.personal_complete_backup
-    BackupProfile.SHARE_SANITIZED -> R.string.share_backup
-}
 
 private fun modeWarningRes(profile: BackupProfile): Int = when (profile) {
     BackupProfile.PERSONAL_FULL -> R.string.personal_backup_sensitive_warning
