@@ -147,15 +147,15 @@ fun AudioParamsDimRows(
 
     Column(modifier.fillMaxWidth()) {
         // 软槽分段（用户 09-11 定稿）：与弹窗/日志面板同款，选中项浮起胶囊；
-        // 16sp 与编辑页其他字段齐平；顶距 12dp 与上方试听文本行拉开又相融。
-        // 槽内文字=维度名+该维终值（toParamText 与卡片/弹窗/日志同口径）
+        // 14sp 与弹窗/日志面板一模一样（用户 09-11 二轮：16sp 撤，三处统一）；
+        // 顶距 12dp 与上方试听文本行拉开又相融。槽内文字=维度名+该维终值（toParamText 同口径）
         SoftSegmentedTextToggle(
             options = audioParamsDimNames.mapIndexed { dim, name ->
                 "$name " + finalOf(dim).toParamText()
             },
             selectedIndex = expanded,
             onSelect = { expanded = it },
-            labelFontSize = 16.sp,
+            labelFontSize = 14.sp,
             modifier = Modifier.padding(top = 12.dp),
         )
 

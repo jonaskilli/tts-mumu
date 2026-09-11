@@ -96,7 +96,9 @@ fun AppDialog(
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             Box(modifier = Modifier.align(Alignment.CenterHorizontally)) {
-                CompositionLocalProvider(LocalTextStyle provides MaterialTheme.typography.titleLarge) {
+                // 标题 titleMedium 16sp（用户 09-11：原 titleLarge 22sp 在紧凑面板里太大；
+                // 全 app 弹窗共用本组件，一处降全部统一，层级靠"标题居中+内容左对齐"区分）
+                CompositionLocalProvider(LocalTextStyle provides MaterialTheme.typography.titleMedium) {
                     title()
                 }
             }
