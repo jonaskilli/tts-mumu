@@ -19,7 +19,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import com.drake.net.utils.withIO
 import com.github.jing332.common.utils.toParamText
 import com.github.jing332.database.dbm
@@ -155,7 +154,6 @@ fun AudioParamsDimRows(
             },
             selectedIndex = expanded,
             onSelect = { expanded = it },
-            labelFontSize = 14.sp,
             modifier = Modifier.padding(top = 12.dp),
         )
 

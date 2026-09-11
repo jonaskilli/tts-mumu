@@ -1,80 +1,44 @@
 package com.github.jing332.tts_server_android.compose
 
-import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.fillMaxHeight
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.MaterialTheme
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.SegmentedButton
+import androidx.compose.material3.SegmentedButtonDefaults
+import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.unit.Dp
-import androidx.compose.ui.unit.TextUnit
-import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 
 /**
- * 软槽分段（用户 09-10 晚定稿，09-11 选中项加浮起胶囊）：音频参数区的**第二级**维度切换（语速/音量/音高）。
+ * 分组分段切换（用户 09-11 下午终裁：自定义观感不好，回归官方 MD3 组件）。
  *
- * 形态＝**无描边的浅底槽**（surfaceVariant、圆角 8dp、高 36dp）+ 槽内**三等分**；
- * 选中项＝槽内浮起一枚**胶囊浮块**（primaryContainer 底 + onPrimaryContainer 粗体字），
- * 未选中＝次要灰平躺。浮块一眼可辨（用户 09-11 指认：纯文字变色"看不出选了哪个"）。
+ * 内部即官方 [SegmentedButton]（描边连通、选中项 secondaryContainer 底色 + 勾选图标、
+ * labelLarge 排版、官方高度/间距），**不再有任何自绘样式**——
+ * 旧的「无描边浅底软槽 + 浮起胶囊」画法（09-10 晚定稿、09-11 加浮块）已整体撤销，勿再改回。
  *
- * 与第一级（父级）的区分：父级是日志面板顶部那排 [SegmentedTextToggle]「更换发音人/音频参数」
- * ——**描边胶囊 + 宽度随文字**；本组件是**无描边软槽 + 等分撑满**，
- * 形态、宽度行为全不同，父子一眼分家（字号区分 09-11 撤销，父子统一 14sp）。
- * （09-10 曾短暂用过下划线标签页形态，用户否掉，勿再改回下划线。）
+ * 保持原函数名与参数不变，三处调用点自动同步换装：
+ * - 卡片⋮弹窗与日志快捷面板共用的 [com.github.jing332.tts_server_android.compose.systts.list.ui.widgets.AudioParamsDimensionSection]
+ * - 编辑页 [com.github.jing332.tts_server_android.compose.systts.list.ui.widgets.AudioParamsDimRows]
+ * - 备份弹窗 BackupDialog（模式切换）
  */
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SoftSegmentedTextToggle(
     options: List<String>,
     selectedIndex: Int,
     onSelect: (Int) -> Unit,
     modifier: Modifier = Modifier,
-    labelFontSize: TextUnit = 14.sp,
-    containerHeight: Dp = 36.dp,
 ) {
-    Row(
-        modifier
-            .clip(RoundedCornerShape(8.dp))
-            .background(MaterialTheme.colorScheme.surfaceVariant)
-            .height(containerHeight),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
+    SingleChoiceSegmentedButtonRow(modifier.fillMaxWidth()) {
         options.forEachIndexed { index, label ->
-            val selected = index == selectedIndex
-            Box(
-                Modifier
-                    .weight(1f)
-                    .fillMaxHeight()
-                    // 槽内四周留 4dp：浮块不顶满格子，保持"软槽里浮起一块"的层次
-                    .padding(4.dp)
-                    .then(
-                        if (selected) Modifier.background(
-                            MaterialTheme.colorScheme.primaryContainer,
-                            RoundedCornerShape(50),
-                        ) else Modifier
-                    )
-                    .clickable { if (!selected) onSelect(index) },
-                contentAlignment = Alignment.Center,
+            SegmentedButton(
+                selected = index == selectedIndex,
+                onClick = { if (index != selectedIndex) onSelect(index) },
+                shape = SegmentedButtonDefaults.itemShape(index = index, count = options.size),
+                modifier = Modifier.weight(1f),
             ) {
-                Text(
-                    label,
-                    style = MaterialTheme.typography.labelLarge.copy(fontSize = labelFontSize),
-                    color = if (selected) MaterialTheme.colorScheme.onPrimaryContainer
-                    else MaterialTheme.colorScheme.onSurfaceVariant,
-                    fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
+                Text(label, maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
         }
     }

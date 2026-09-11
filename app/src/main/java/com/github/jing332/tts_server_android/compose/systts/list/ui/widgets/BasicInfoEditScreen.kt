@@ -5,7 +5,6 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.HelpOutline
 import androidx.compose.material.icons.filled.ChevronRight
@@ -159,22 +158,19 @@ fun BasicInfoEditScreen(
                         },
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    // 复选框 32dp 触摸区（用户 09-11 终裁根治）：M3 默认 48dp 里画 18dp 方块、
-                    // 两侧各空 15dp，靠文字负偏移补偿属于魔法数字互相打架（文字被压到方块上）。
-                    // 改为收触摸区这一处旋钮：方块两侧自然只剩 7dp，文字放自然位置即紧凑，
-                    // 无任何 offset，结构上不可能再重叠。三行复选框行（心声标签/心声混响/作为备用）同款
+                    // 官方 MD3 默认（用户 09-11 下午终裁「自定义的并不好，按官方来」）：
+                    // 不收触摸区、零 offset，48dp 触摸区与文字间距全由组件自管；
+                    // 09-11 上午的 32dp 触摸区方案已随「完全 MD3 版」撤销
                     Checkbox(
                         checked = dto.audioParams.reverbEnabled,
                         onCheckedChange = {
                             updateConfig(systemTts, onSystemTtsChange, dto.audioParams.copy(reverbEnabled = it))
                         },
-                        modifier = Modifier.size(32.dp),
                     )
                     Text("心声混响")
-                    // 问号 32dp 触摸区：紧跟文字不留空（与心声标签行同款）
+                    // 问号 IconButton 官方默认 48dp 触摸区（同上终裁）
                     IconButton(
                         onClick = { showReverbHelp = true },
-                        modifier = Modifier.size(32.dp),
                     ) {
                         Icon(
                             Icons.AutoMirrored.Filled.HelpOutline,
@@ -196,16 +192,15 @@ fun BasicInfoEditScreen(
                         },
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
+                    // 官方 MD3 默认（同上终裁），撤 32dp 触摸区
                     Checkbox(
                         checked = dto.speechRule.isStandby,
                         onCheckedChange = null,
-                        modifier = Modifier.size(32.dp),
                     )
                     Text(stringResource(id = R.string.as_standby))
-                    // 问号 32dp 触摸区：紧跟文字不留空（与心声标签行同款）
+                    // 问号 IconButton 官方默认 48dp 触摸区（同上终裁）
                     IconButton(
                         onClick = { showStandbyHelp = true },
-                        modifier = Modifier.size(32.dp),
                     ) {
                         Icon(
                             Icons.AutoMirrored.Filled.HelpOutline,

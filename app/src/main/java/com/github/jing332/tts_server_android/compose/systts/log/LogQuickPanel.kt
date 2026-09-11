@@ -424,7 +424,8 @@ fun LogQuickPanel(
                 onSelect = { panelTab = it },
                 // 09-11：本排是**第一级（父级，切区）**——保持"重形态"描边胶囊；字号降回 14sp
                 //（用户指认 16sp 太大；父子区分改靠形态：父=描边胶囊+宽度随文字，子=软槽浮块+等分撑满）
-                // 区内第二级（语速/音量/音高）是 SoftSegmentedTextToggle（无描边浅底槽 + 浮起胶囊、14sp）
+                // 区内第二级（语速/音量/音高）是 SoftSegmentedTextToggle
+                //（09-11 下午「完全 MD3 版」起内部=官方 SegmentedButton，自绘软槽已撤）
                 labelFontSize = 14.sp,
                 modifier = Modifier
                     .padding(top = 8.dp)
