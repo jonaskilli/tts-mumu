@@ -8,13 +8,19 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.OutlinedTextField
@@ -30,7 +36,6 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
@@ -154,8 +159,9 @@ fun LogQuickPanel(
     // 标记写 voice_marks.json（与角色管理 v10 同文件同字段，按标签 id 多选 toggle，❤️🚶😈）；
     // marksVersion 自增触发候选行标记重读（文件通道无观察者，靠版本号刷新）
     var marksVersion by remember(entity.id) { mutableStateOf(0) }
-    // 待删除确认的标签（非空时弹确认弹窗）
-    var deleteConfirmTag by remember(entity.id) { mutableStateOf<String?>(null) }
+    // 待删除确认的配置项（非空时弹确认弹窗）；second=池子清理键是否用 voice
+    //（绑定行=false 用 tag；非绑定行=true 用 voice——同一 tag 下多条靠 voice 区分，见 ⋮ 菜单注释）
+    var deleteConfirmTarget by remember(entity.id) { mutableStateOf<Pair<SystemTtsV2, Boolean>?>(null) }
 
     // 全部配置项（换声候选 / 参数跟随目标查找共用）
     val allConfigs = remember(entity.id) {
@@ -233,11 +239,15 @@ fun LogQuickPanel(
         }
     }
 
-    // 删除刚试听的那一条配置项（用户 09-12 晚纠正：只删听过的这条，同标签其他配置不动）：
-    // ① 删该配置项（清理失效引擎缓存）② 仅当该标签已无其他启用配置时才从 fayinren.json 移除标签
-    // （发音人还在就必须保留池子条目）；角色绑定不清，规则下次朗读自动为受影响角色重分配
-    fun deletePreviewedConfig(target: SystemTtsV2) {
+    // 从 ⋮ 菜单删除这条配置项（用户 09-12 晚：只删你点的那一条，同标签其他配置不动）：
+    // ① 删该配置项（清理失效引擎缓存）② 仅当该"发音人"已无其他启用配置时才从 fayinren.json 移除
+    //（发音人还在就必须保留池子条目）；角色绑定不清，规则下次朗读自动为受影响角色重分配。
+    // [poolByVoice]：池子清理键的口径——绑定行（false）用 tag；非绑定行（true）用 voice
+    //（同一 tag 下多条配置靠 voice 区分；若池子里没有该值，removeFromPool 自然 no-op，不会误删）
+    fun deletePreviewedConfig(target: SystemTtsV2, poolByVoice: Boolean = false) {
         val targetDto = target.config as? TtsConfigurationDTO ?: return
+        fun keyOf(d: TtsConfigurationDTO): String =
+            if (poolByVoice) (d.source as? PluginTtsSource)?.voice.orEmpty() else d.speechRule.tag
         scope.launch {
             var tagNowEmpty = false
             val deletedSelf = withIO {
@@ -246,12 +256,12 @@ fun LogQuickPanel(
                 val stillEnabled = dbm.systemTtsV2.allEnabled.any { item ->
                     val d = item.config as? TtsConfigurationDTO ?: return@any false
                     d.speechRule.tagRuleId == targetDto.speechRule.tagRuleId &&
-                        d.speechRule.tag == targetDto.speechRule.tag
+                        keyOf(d) == keyOf(targetDto)
                 }
                 if (!stillEnabled) {
                     tagNowEmpty = true
                     CharacterRecordsFile.removeFromPool(
-                        targetDto.speechRule.tagRuleId, targetDto.speechRule.tag,
+                        targetDto.speechRule.tagRuleId, keyOf(targetDto),
                     )
                 }
                 target.id == entity.id
@@ -262,14 +272,14 @@ fun LogQuickPanel(
                 Toast.makeText(context, "已删除配置项「${target.displayName}」", Toast.LENGTH_SHORT).show()
                 onDismissRequest()
             } else {
-                // 当前绑定恰是被删空标签：回落到本配置项自己的 tag（同初始化兜底）
-                if (tagNowEmpty && boundVoice == targetDto.speechRule.tag) {
+                // 当前绑定恰是被删空标签：回落到本配置项自己的 tag（同初始化兜底；仅绑定分支有意义）
+                if (tagNowEmpty && !poolByVoice && boundVoice == targetDto.speechRule.tag) {
                     boundVoice = config.speechRule.tag
                 }
                 if (tagNowEmpty) {
                     Toast.makeText(
                         context,
-                        "已删除「${target.displayName}」，该标签已无配置项，一并从标签池移除",
+                        "已删除「${target.displayName}」，该发音人已无配置项，一并从标签池移除",
                         Toast.LENGTH_LONG,
                     ).show()
                 } else {
@@ -450,6 +460,13 @@ fun LogQuickPanel(
                 ?.let { narrationEntityByVoice(it)?.displayName }
             val currentVoiceName = if (isBindingMode) boundConfigName
             else pendingName ?: appliedDisplayName ?: entity.displayName
+            // 顶部当前发音人：点亮标记 emoji 跟在名字后（用户 09-12 晚拍板"放后面"）——
+            // 键与候选行同口径：绑定=绑定/暂存的 tag，非绑定=当前 voice；未点亮不占位
+            val topMarkKey = if (isBindingMode) (pendingVoice ?: boundVoice) else voice
+            val topMarks = remember(topMarkKey, marksVersion) {
+                if (topMarkKey.isBlank()) emptyList()
+                else VoiceMarksFile.get(config.speechRule.tagRuleId, topMarkKey)
+            }
             // 09-11 重排（用户拍板）：「当前发音人」小标签独占一行，▶ 键与发音人名同一行
             //（此前 ▶ 垂直居中在两行文字块上，与名字行错位）；名字加省略号防长名硬裁
             Column(Modifier.fillMaxWidth()) {
@@ -459,13 +476,27 @@ fun LogQuickPanel(
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(
-                        currentVoiceName,
-                        style = MaterialTheme.typography.titleMedium,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
+                    // 名字+标记包一层 weight(1f)：名字左对齐可省略、▶ 仍钉在行尾（不因标记数量漂移）
+                    Row(
                         modifier = Modifier.weight(1f),
-                    )
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Text(
+                            currentVoiceName,
+                            style = MaterialTheme.typography.titleMedium,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier.weight(1f, fill = false),
+                        )
+                        val topEmoji = VoiceMarksFile.emojiOf(topMarks)
+                        if (topEmoji.isNotEmpty()) {
+                            Text(
+                                topEmoji,
+                                modifier = Modifier.padding(start = 4.dp),
+                                style = MaterialTheme.typography.labelMedium,
+                            )
+                        }
+                    }
                     TextButton(onClick = {
                         // 试听当前声音（09-10 参数跟随）：绑定模式=跟随目标+草稿；
                         // 旁白=本配置项+暂存voice+草稿；播放中/合成中再点=停止复位（角色管理同款交互）
@@ -643,96 +674,61 @@ fun LogQuickPanel(
                             // 候选行显示「标签名+配置项名」（用户 09-09：原 displayName·tag 反过来去点）
                             // 候选池已筛 fayinren.json∩启用配置（tag id 口径），用 enabledConfigEntityByTag 即可取到 displayName
                             val cfgName = enabledConfigEntityByTag(tag)?.displayName.orEmpty()
-                            // 行尾平铺标记按钮（❤️🚶😈），点亮态由按钮自身 alpha 表达，文案不再追加
+                            // 标记/删除收进 ⋮ 菜单（用户 09-12 晚定稿紧凑化：行内塞 5 键把名字挤没）；
+                            // 点亮标记由 CandidateRow 渲染在名字后
                             val rowMarks = remember(tag, marksVersion) {
                                 VoiceMarksFile.get(config.speechRule.tagRuleId, tag)
                             }
-                            val displayText = tag + cfgName
-                            Row(
-                                Modifier
-                                    .fillMaxWidth()
-                                    .clickable {
-                                        // 两段式（用户 09-08）：点行=暂存选中，底部「确认」才落库
-                                        pendingVoice = tag
-                                    }
-                                    .padding(horizontal = 10.dp, vertical = 2.dp),
-                                verticalAlignment = Alignment.CenterVertically,
-                            ) {
-                                Text(
-                                    (if (isCurrent) "✓ " else "") +
-                                        (if (isPending && !isCurrent) "● " else "") + displayText,
-                                    modifier = Modifier.weight(1f),
-                                    style = MaterialTheme.typography.bodyMedium,
-                                    maxLines = 1,
-                                    // 行尾平铺 4 个操作键后文字空间变小，长名硬裁改省略号（顶部发音人行同款）
-                                    overflow = TextOverflow.Ellipsis,
-                                    color = when {
-                                        isPending -> MaterialTheme.colorScheme.primary
-                                        isCurrent -> MaterialTheme.colorScheme.onSurface
-                                        else -> MaterialTheme.colorScheme.onSurface
-                                    },
-                                )
-                                TextButton(onClick = {
+                            CandidateRow(
+                                text = tag + cfgName,
+                                isCurrent = isCurrent,
+                                isPending = isPending,
+                                nameColor = if (isPending) MaterialTheme.colorScheme.primary
+                                else MaterialTheme.colorScheme.onSurface,
+                                onClick = {
+                                    // 两段式（用户 09-08）：点行=暂存选中，底部「确认」才落库
+                                    pendingVoice = tag
+                                },
+                                previewText = previewLabel(tag),
+                                previewColor = previewLabelColor(tag),
+                                onPreview = {
                                     // 行内试听：播放该标签对应启用配置的声音，不应用
                                     if (previewingKey == tag && previewState != PreviewState.IDLE) {
                                         TaggedTtsPreviewPlayer.stop()
                                         previewingKey = null
-                                        return@TextButton
-                                    }
-                                    previewingKey = tag
-                                    scope.launch {
-                                        val target = withIO { enabledConfigEntityByTag(tag) }
-                                        if (target != null) {
-                                            TaggedTtsPreviewPlayer.play(context, target, "你好，这是试听语音。")
-                                        } else {
-                                            previewingKey = null
-                                            Toast.makeText(
-                                                context,
-                                                context.getString(R.string.log_panel_rebind_no_config),
-                                                Toast.LENGTH_SHORT,
-                                            ).show()
+                                    } else {
+                                        previewingKey = tag
+                                        scope.launch {
+                                            val target = withIO { enabledConfigEntityByTag(tag) }
+                                            if (target != null) {
+                                                TaggedTtsPreviewPlayer.play(
+                                                    context, target, "你好，这是试听语音。"
+                                                )
+                                            } else {
+                                                previewingKey = null
+                                                Toast.makeText(
+                                                    context,
+                                                    context.getString(R.string.log_panel_rebind_no_config),
+                                                    Toast.LENGTH_SHORT,
+                                                ).show()
+                                            }
                                         }
                                     }
-                                }) {
-                                    Text(
-                                        previewLabel(tag),
-                                        color = previewLabelColor(tag),
-                                    )
-                                }
-                                // 标记+删除直接平铺在行内（用户 09-12 晚：面板空间大，不用菜单收起）；
-                                // 功能与角色管理 v10「管理发音人」一致：三标记多选 toggle（已点亮→取消，
-                                // 未点亮→添加）+ 删除配置项；换声入口就是行本身，不重复加。
-                                // emoji 是彩色字形染不上色，点亮/熄灭用 alpha 表达（IconButton 官方默认形态，
-                                // alpha 为表达点亮态的必要手段）
-                                listOf(
-                                    "like" to "❤️",
-                                    "neutral" to "🚶",
-                                    "bad" to "😈",
-                                ).forEach { (mark, emoji) ->
-                                    IconButton(
-                                        onClick = {
-                                            if (VoiceMarksFile.toggle(config.speechRule.tagRuleId, tag, mark)) {
-                                                marksVersion++
-                                            }
-                                        },
-                                        modifier = Modifier.alpha(if (mark in rowMarks) 1f else 0.35f),
-                                    ) {
-                                        Text(emoji)
+                                },
+                                marks = rowMarks,
+                                onToggleMark = { mark ->
+                                    if (VoiceMarksFile.toggle(config.speechRule.tagRuleId, tag, mark)) {
+                                        marksVersion++
+                                        // 主列表标记显示同步刷新（文件通道无观察者，靠版本号驱动重组）
+                                        sharedVM.voiceMarksVersion.value += 1
                                     }
-                                }
-                                // 删除（红色=破坏性操作，有确认弹窗兜底防误触）：
-                                // 只删试听指向的那条启用配置；该标签无启用配置时无物可删，置灰
-                                IconButton(
-                                    onClick = { deleteConfirmTag = tag },
-                                    enabled = cfgName.isNotEmpty(),
-                                ) {
-                                    Icon(
-                                        Icons.Filled.Delete,
-                                        contentDescription = "删除配置项",
-                                        tint = MaterialTheme.colorScheme.error,
-                                    )
-                                }
-                            }
+                                },
+                                // 删除：只删该标签的启用配置（无启用配置时置灰）；池子清理键=tag
+                                deleteEnabled = cfgName.isNotEmpty(),
+                                onDelete = {
+                                    deleteConfirmTarget = enabledConfigEntityByTag(tag)?.let { it to false }
+                                },
+                            )
                         }
                     }
                 } else {
@@ -751,7 +747,8 @@ fun LogQuickPanel(
                             if (dto.speechRule.tag != currentTagId) return@mapNotNull null
                             val v = (dto.source as? PluginTtsSource)?.voice
                                 ?.takeIf { it.isNotEmpty() } ?: return@mapNotNull null
-                            Pair(v, c.displayName)
+                            // 带实体出列：候选行要用它的 displayName / 试听 / 删除（09-12 全分类补齐）
+                            Pair(v, c)
                         }.distinctBy { it.first }
                     }
                     Column(
@@ -775,50 +772,49 @@ fun LogQuickPanel(
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                             )
                         }
-                        narrationCandidates.forEach { (v, name) ->
+                        narrationCandidates.forEach { (v, cfgEntity) ->
                             val isCurrent = v == voice && voice.isNotEmpty()
                             val isPending = v == pendingVoice
-                            Row(
-                                Modifier
-                                    .fillMaxWidth()
-                                    .clickable {
-                                        // 两段式（用户 09-08）：点行=暂存选中，底部「确认」才写配置项 voice
-                                        pendingVoice = v
-                                    }
-                                    .padding(horizontal = 10.dp, vertical = 2.dp),
-                                verticalAlignment = Alignment.CenterVertically,
-                            ) {
-                                Text(
-                                    (if (isCurrent) "✓ " else "") +
-                                        (if (isPending && !isCurrent) "● " else "") + name,
-                                    modifier = Modifier.weight(1f),
-                                    style = MaterialTheme.typography.bodyMedium,
-                                    maxLines = 1,
-                                    color = if (isPending && !isCurrent) MaterialTheme.colorScheme.primary
-                                    else if (isCurrent) MaterialTheme.colorScheme.primary
-                                    else MaterialTheme.colorScheme.onSurface,
-                                )
-                                TextButton(onClick = {
+                            // 标记键=voice（同一 tag 下多条配置靠 voice 区分；与角色行 tag 键同口径）
+                            val rowMarks = remember(v, marksVersion) {
+                                VoiceMarksFile.get(config.speechRule.tagRuleId, v)
+                            }
+                            CandidateRow(
+                                text = cfgEntity.displayName,
+                                isCurrent = isCurrent,
+                                isPending = isPending,
+                                nameColor = if (isPending && !isCurrent) MaterialTheme.colorScheme.primary
+                                else if (isCurrent) MaterialTheme.colorScheme.primary
+                                else MaterialTheme.colorScheme.onSurface,
+                                onClick = {
+                                    // 两段式（用户 09-08）：点行=暂存选中，底部「确认」才写配置项 voice
+                                    pendingVoice = v
+                                },
+                                previewText = previewLabel(v),
+                                previewColor = previewLabelColor(v),
+                                onPreview = {
                                     if (previewingKey == v && previewState != PreviewState.IDLE) {
                                         TaggedTtsPreviewPlayer.stop()
                                         previewingKey = null
-                                        return@TextButton
-                                    }
-                                    val target = allConfigs.firstOrNull {
-                                        (it.config as? TtsConfigurationDTO)?.source
-                                            ?.let { s -> (s as? PluginTtsSource)?.voice } == v
-                                    }
-                                    if (target != null) {
+                                    } else {
                                         previewingKey = v
-                                        TaggedTtsPreviewPlayer.play(context, target, "你好，这是试听语音。")
+                                        TaggedTtsPreviewPlayer.play(
+                                            context, cfgEntity, "你好，这是试听语音。"
+                                        )
                                     }
-                                }) {
-                                    Text(
-                                        previewLabel(v),
-                                        color = previewLabelColor(v),
-                                    )
-                                }
-                            }
+                                },
+                                marks = rowMarks,
+                                onToggleMark = { mark ->
+                                    if (VoiceMarksFile.toggle(config.speechRule.tagRuleId, v, mark)) {
+                                        marksVersion++
+                                        // 主列表标记显示同步刷新（文件通道无观察者，靠版本号驱动重组）
+                                        sharedVM.voiceMarksVersion.value += 1
+                                    }
+                                },
+                                // 非绑定行本身就是一条配置：直接删它（含禁用态）；池子清理键=voice
+                                deleteEnabled = true,
+                                onDelete = { deleteConfirmTarget = cfgEntity to true },
+                            )
                         }
                     }
                 }
@@ -916,30 +912,28 @@ fun LogQuickPanel(
         },
     )
 
-    // 删除确认弹窗（行内 🗑 入口）：只删试听指向的那一条配置项（标签下第一条启用配置），
-    // 同标签其他配置不受影响；删空时该标签一并从标签池移除，受影响角色由规则自动重分配
-    deleteConfirmTag?.let { delTag ->
-        val delTarget = enabledConfigEntityByTag(delTag)
+    // 删除确认弹窗（⋮ 菜单 🗑 入口）：只删菜单指向的那一条配置项，同发音人其他配置不受影响；
+    // 该发音人已无启用配置时，一并从标签池移除条目，受影响角色由规则下次朗读自动重分配
+    deleteConfirmTarget?.let { (delTarget, poolByVoice) ->
         AlertDialog(
-            onDismissRequest = { deleteConfirmTag = null },
+            onDismissRequest = { deleteConfirmTarget = null },
             title = { Text("删除确认") },
             text = {
                 Text(
-                    "确认删除配置项【" + (delTarget?.displayName ?: delTag) + "】？\n\n" +
+                    "确认删除配置项【" + delTarget.displayName + "】？\n\n" +
                         "只删这一条，同标签其他配置不受影响；删空时该标签会一并从标签池移除。",
                 )
             },
             confirmButton = {
                 TextButton(
                     onClick = {
-                        deleteConfirmTag = null
-                        if (delTarget != null) deletePreviewedConfig(delTarget)
+                        deleteConfirmTarget = null
+                        deletePreviewedConfig(delTarget, poolByVoice)
                     },
-                    enabled = delTarget != null,
                 ) { Text("确认删除") }
             },
             dismissButton = {
-                TextButton(onClick = { deleteConfirmTag = null }) { Text(stringResource(R.string.cancel)) }
+                TextButton(onClick = { deleteConfirmTarget = null }) { Text(stringResource(R.string.cancel)) }
             },
         )
     }
@@ -955,3 +949,97 @@ private fun LaunchedEffectOnce(key: Any?, block: suspend kotlinx.coroutines.Coro
 }
 
 private fun snapParam(v: Float): Float = (kotlin.math.round(v * 100f) / 100f)
+
+/**
+ * 候选行（绑定/非绑定共用；用户 09-12 晚定稿紧凑化——原行内塞 ▶+3 标记+🗑 五键，窄屏把名字挤没）：
+ * - 行内常驻：名字 + 点亮标记 emoji（跟在名字后）+ ▶ 试听 + ⋮；
+ * - ⋮ 菜单：❤️喜欢 / 🚶路人 / 😈坏人（多选 toggle，点亮行尾打勾）+ 分隔线 + 🗑 删除配置项；
+ *   emoji 是彩色字形染不上色（角色管理 v10 也是靠描边/勾表达点亮，非染色），故点亮态交给行尾勾，
+ *   行内则只显示已点亮的 emoji；
+ * - 抽共用组件的原因：两侧只差"标记键/删除目标"，行形态必须一致，免得以后同步维护两处。
+ *   [nameColor] 由调用方给：绑定行与旁白行的选中色语义略有差异。
+ */
+@Composable
+private fun CandidateRow(
+    text: String,
+    isCurrent: Boolean,
+    isPending: Boolean,
+    nameColor: Color,
+    onClick: () -> Unit,
+    previewText: String,
+    previewColor: Color,
+    onPreview: () -> Unit,
+    marks: List<String>,
+    onToggleMark: (String) -> Unit,
+    deleteEnabled: Boolean,
+    onDelete: () -> Unit,
+) {
+    var menuOpen by remember { mutableStateOf(false) }
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick)
+            .padding(horizontal = 10.dp, vertical = 2.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        // 名字+标记包一层 weight(1f)：操作键钉在行尾，不随标记数量漂移
+        Row(
+            modifier = Modifier.weight(1f),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(
+                (if (isCurrent) "✓ " else "") + (if (isPending && !isCurrent) "● " else "") + text,
+                modifier = Modifier.weight(1f, fill = false),
+                style = MaterialTheme.typography.bodyMedium,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                color = nameColor,
+            )
+            val emoji = VoiceMarksFile.emojiOf(marks)
+            if (emoji.isNotEmpty()) {
+                Text(
+                    emoji,
+                    modifier = Modifier.padding(start = 4.dp),
+                    style = MaterialTheme.typography.labelMedium,
+                )
+            }
+        }
+        TextButton(onClick = onPreview) {
+            Text(previewText, color = previewColor)
+        }
+        Box {
+            IconButton(onClick = { menuOpen = true }) {
+                Icon(Icons.Filled.MoreVert, contentDescription = "更多操作")
+            }
+            DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
+                VoiceMarksFile.MARK_ITEMS.forEach { (mark, emojiText, label) ->
+                    DropdownMenuItem(
+                        text = { Text(label) },
+                        leadingIcon = { Text(emojiText) },
+                        trailingIcon = {
+                            if (mark in marks) Icon(Icons.Filled.Check, contentDescription = "已点亮")
+                        },
+                        // 多选：点一次切一次，菜单不关（可连点几个）；点亮态即时反映到行内 emoji
+                        onClick = { onToggleMark(mark) },
+                    )
+                }
+                HorizontalDivider()
+                DropdownMenuItem(
+                    text = { Text("删除配置项", color = MaterialTheme.colorScheme.error) },
+                    leadingIcon = {
+                        Icon(
+                            Icons.Filled.Delete,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.error,
+                        )
+                    },
+                    enabled = deleteEnabled,
+                    onClick = {
+                        menuOpen = false
+                        onDelete()
+                    },
+                )
+            }
+        }
+    }
+}

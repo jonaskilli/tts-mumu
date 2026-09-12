@@ -117,6 +117,7 @@ import com.github.jing332.database.entities.systts.AudioParams
 import com.github.jing332.database.entities.systts.SystemTtsGroup
 import com.github.jing332.database.entities.systts.SystemTtsV2
 import com.github.jing332.database.entities.systts.TtsConfigurationDTO
+import com.github.jing332.tts_server_android.service.systts.help.VoiceMarksFile
 import com.github.jing332.database.entities.systts.source.LocalTtsSource
 import com.github.jing332.database.entities.systts.source.PluginTtsSource
 import com.github.jing332.database.entities.SpeechRule
@@ -257,6 +258,18 @@ internal fun ListManagerScreen(
     val invalidItems by vm.invalidItems.collectAsStateWithLifecycle()
     val pluginNameCache by vm.pluginNameCache.collectAsStateWithLifecycle()
     val isInitialized by vm.isInitialized.collectAsStateWithLifecycle()
+
+    // 发音人标记（voice_marks.json，用户 09-12 晚）：卡片名字后显示点亮的 ❤️🚶😈。
+    // 文件通道无观察者，靠日志面板 toggle 后自增的版本号驱动重组；查找键=voice 优先、tag 兜底
+    val voiceMarksVersion by sharedVM.voiceMarksVersion.collectAsStateWithLifecycle()
+    fun marksOf(item: SystemTtsV2): List<String> {
+        val dto = item.config as? TtsConfigurationDTO ?: return emptyList()
+        return VoiceMarksFile.marksFor(
+            dto.speechRule.tagRuleId,
+            dto.speechRule.tag,
+            (dto.source as? PluginTtsSource)?.voice.orEmpty(),
+        )
+    }
 
     var isSearchMode by rememberSaveable { mutableStateOf(false) }
 
@@ -3455,6 +3468,7 @@ internal fun ListManagerScreen(
                                             vertical = 4.dp
                                         ),
                                         name = item.displayName,
+                                        marks = remember(item, voiceMarksVersion) { marksOf(item) },
                                         tagName = descriptor.tagName,
                                         type = descriptor.type,
                                         standby = descriptor.standby,
@@ -3678,6 +3692,7 @@ internal fun ListManagerScreen(
                                                         bottom = 4.dp
                                                     ),
                                                     name = item.displayName,
+                                                    marks = remember(item, voiceMarksVersion) { marksOf(item) },
                                                     tagName = descriptor.tagName,
                                                     type = descriptor.type,
                                                     standby = descriptor.standby,

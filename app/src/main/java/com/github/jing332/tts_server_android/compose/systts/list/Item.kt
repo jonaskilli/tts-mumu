@@ -60,6 +60,7 @@ import com.github.jing332.compose.widgets.LongClickIconButton
 import com.github.jing332.compose.widgets.htmlcompose.HtmlText
 import com.github.jing332.tts_server_android.R
 import com.github.jing332.tts_server_android.conf.AppConfig
+import com.github.jing332.tts_server_android.service.systts.help.VoiceMarksFile
 import org.burnoutcrew.reorderable.ReorderableLazyListState
 import org.burnoutcrew.reorderable.detectReorder
 
@@ -69,6 +70,8 @@ import org.burnoutcrew.reorderable.detectReorder
 internal fun Item(
     modifier: Modifier,
     name: String,
+    // 点亮的发音人标记 emoji（用户 09-12 晚：与日志面板同源 voice_marks.json，跟在名字后显示）
+    marks: List<String> = emptyList(),
     tagName: String,
     type: String,
     desc: String,
@@ -102,6 +105,10 @@ internal fun Item(
     val limitedName = remember(name, limitNameLen) {
         if (limitNameLen == 0) name else name.limitLength(limitNameLen)
     }
+    // 点亮的标记 emoji 拼在名字后（未点亮不占位；顺序固定 喜欢→路人→坏人，见 VoiceMarksFile.MARK_ITEMS）。
+    // 名字超长被省略号吃掉时标记可能一并裁掉——与日志面板同取舍：名字优先，不额外占一行
+    val markEmoji = VoiceMarksFile.emojiOf(marks)
+    val nameWithMarks = if (markEmoji.isEmpty()) limitedName else "$limitedName $markEmoji"
 
     ElevatedCard(
         modifier = modifier
@@ -167,7 +174,7 @@ internal fun Item(
                 )
             }
             Text(
-                limitedName,
+                nameWithMarks,
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.Bold,
                 maxLines = 1,

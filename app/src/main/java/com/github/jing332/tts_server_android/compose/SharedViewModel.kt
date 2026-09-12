@@ -31,4 +31,10 @@ class SharedViewModel : ViewModel() {
      * 消费即清空；null=无待定位项。
      */
     val pendingLocateConfigId = MutableStateFlow<Long?>(null)
+
+    /**
+     * 发音人标记版本号（用户 09-12 晚）：标记存在 voice_marks.json（文件通道，无观察者），
+     * 日志面板 ⋮ 菜单里 toggle 后自增，主列表据此重组、把点亮的 ❤️🚶😈 显示在配置项名后。
+     */
+    val voiceMarksVersion = MutableStateFlow(0)
 }

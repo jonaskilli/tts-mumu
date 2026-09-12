@@ -70,4 +70,28 @@ object VoiceMarksFile {
             false
         }
     }
+
+    /**
+     * 标记三选（顺序固定；文案沿用角色管理 v10「管理发音人」）。
+     * 放在这里统一口径：日志面板 ⋮ 菜单与主列表标记显示都从这里取，避免两处各写一份走歪。
+     */
+    val MARK_ITEMS = listOf(
+        Triple("like", "❤️", "喜欢"),
+        Triple("neutral", "🚶", "路人"),
+        Triple("bad", "😈", "坏人"),
+    )
+
+    /** 已点亮标记的 emoji 串（固定顺序拼接；未点亮不占位，调用方据此决定是否渲染） */
+    fun emojiOf(marks: List<String>): String =
+        MARK_ITEMS.filter { it.first in marks }.joinToString("") { it.second }
+
+    /**
+     * 某配置项的标记查找键：**voice 优先、tag 兜底**（用户 09-12 定「一标签一启用」）。
+     * 角色类配置（tag=女青年01 这类）标记挂在 tag 上；旁白类配置 tag 全是 "narration"、
+     * 同 tag 下靠 voice（言情旁白/武侠旁白…）区分，故必须先按 voice 查。
+     */
+    fun marksFor(tagRuleId: String, tag: String, voice: String): List<String> {
+        val byVoice = if (voice.isBlank()) emptyList() else get(tagRuleId, voice)
+        return byVoice.ifEmpty { if (tag.isBlank()) emptyList() else get(tagRuleId, tag) }
+    }
 }
