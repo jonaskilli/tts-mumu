@@ -1,11 +1,11 @@
 package com.github.jing332.tts_server_android.compose.backup
 
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
@@ -91,23 +91,30 @@ internal fun BackupDialog(
                     )
                 }
 
-                items(availableTypes(profile)) { type ->
-                    TextCheckBox(
-                        modifier = Modifier.fillMaxWidth(),
-                        text = { Text(stringResource(type.nameStrId)) },
-                        checked = type in checkedTypes,
-                        onCheckedChange = { checked ->
-                            if (checked) {
-                                checkedTypes.add(type)
-                            } else {
-                                // 取消"插件"时连带取消"插件变量"
-                                if (type == Type.Plugin) checkedTypes.remove(Type.PluginVars)
-                                if (type == Type.Preference) checkedTypes.remove(Type.WebDav)
-                                checkedTypes.remove(type)
-                            }
-                        },
-                        horizontalArrangement = Arrangement.Start,
-                    )
+                // 内容项两列排布（用户 09-13 定）：7 项 7 行压成 4 行，省约 145dp，
+                // 整页一屏放得下、不再溢出到「保存到」区；长标签项「WebDAV 设置」单独占整行，
+                // 避免在半宽里折行被 48dp 行高裁掉
+                item {
+                    FlowRow(Modifier.fillMaxWidth()) {
+                        availableTypes(profile).forEach { type ->
+                            TextCheckBox(
+                                modifier = Modifier.fillMaxWidth(if (type == Type.WebDav) 1f else 0.5f),
+                                text = { Text(stringResource(type.nameStrId)) },
+                                checked = type in checkedTypes,
+                                onCheckedChange = { checked ->
+                                    if (checked) {
+                                        checkedTypes.add(type)
+                                    } else {
+                                        // 取消"插件"时连带取消"插件变量"
+                                        if (type == Type.Plugin) checkedTypes.remove(Type.PluginVars)
+                                        if (type == Type.Preference) checkedTypes.remove(Type.WebDav)
+                                        checkedTypes.remove(type)
+                                    }
+                                },
+                                horizontalArrangement = Arrangement.Start,
+                            )
+                        }
+                    }
                 }
 
                 // 保存到：本地默认 + WebDAV 可选，可同时
