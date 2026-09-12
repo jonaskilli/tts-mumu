@@ -2522,20 +2522,42 @@ internal fun ListManagerScreen(
     // 「来源插件」切换待确认计划（用户 09-12：切换前按 voice 校验，只切能匹配的）
     var pendingSourceSwitch by remember { mutableStateOf<PendingSourceSwitch?>(null) }
 
-    // 批量修改配置：采样率 + 来源插件切换（原「启用状态」一行由用户 09-12 拍板删除）
+    // 批量配置操作（用户 09-12 晚拍板：原「批量修改配置」与「批量删除插件配置项」合并为一个弹窗）：
+    // 插件筛选 + 采样率 + 来源插件切换 + 清单（按分组折叠，可整组删除）
     var showBatchSourceFields by remember { mutableStateOf(false) }
+    // 待确认的批量删除计划（删除类一律先确认再落库）
+    var pendingBatchDelete by remember { mutableStateOf<PendingBatchDelete?>(null) }
     if (showBatchSourceFields) {
         val scopeItems = models.flatMap { it.list }
         // 来源插件切换候选=全部已安装插件（含停用，改名后旧 pluginId 也能对上显示名）
         val targetPluginOptions = remember(pluginNameCache) {
             pluginNameCache.entries.map { it.key to it.value }.sortedBy { it.second }
         }
+        // 清单条目：归到「实际分组」（大分组，或 大分组 › 子分组），弹窗内按所选插件折叠展示
+        val batchEntries = remember(models) {
+            models.flatMap { gwt ->
+                gwt.list.mapNotNull { tts ->
+                    val src = (tts.config as? TtsConfigurationDTO)?.source as? PluginTtsSource
+                        ?: return@mapNotNull null
+                    val sub = tts.categoryPath
+                    BatchConfigEntry(
+                        pluginId = src.pluginId,
+                        groupLabel = if (sub.isBlank()) gwt.group.name else "${gwt.group.name} › $sub",
+                        name = tts.displayName,
+                        configId = tts.id,
+                    )
+                }
+            }
+        }
         BatchSourceFieldsDialog(
-            scopeDesc = if (searchKeyword.isNotBlank()) "搜索结果" else "当前池全部配置项",
+            // 作用域恒为当前池全部配置项：清单与匹配数都取自全部 models，不随搜索框变化
+            //（避免"提示范围"与"实际作用范围"不一致）
+            scopeDesc = "当前池全部配置项",
             pluginOptions = remember(scopeItems, pluginNameCache) { batchPluginOptions(scopeItems, pluginNameCache) },
             pluginItemCounts = remember(scopeItems) { batchPluginItemCounts(scopeItems) },
             sampleRateOptions = listOf(16000, 22050, 24000, 32000, 44100, 48000),
             targetPluginOptions = targetPluginOptions,
+            entries = batchEntries,
             onDismissRequest = { showBatchSourceFields = false },
             onApply = { pluginId, sampleRate, targetPluginId ->
                 showBatchSourceFields = false
@@ -2549,6 +2571,25 @@ internal fun ListManagerScreen(
                     )
                 } else {
                     applySourceFieldsRate(targets, sampleRate)
+                }
+            },
+            onDelete = { pluginId, groupLabel ->
+                // 待删目标由清单反查（清单即数据源，避免再写一套分组算法走歪）
+                val ids = batchEntries
+                    .filter {
+                        it.pluginId == pluginId &&
+                            (groupLabel == null || it.groupLabel == groupLabel)
+                    }
+                    .map { it.configId }
+                    .toSet()
+                val targets = scopeItems.filter { it.id in ids }
+                if (targets.isNotEmpty()) {
+                    // 不直接删：先弹二次确认（用户 09-12 晚定）
+                    pendingBatchDelete = PendingBatchDelete(
+                        items = targets,
+                        label = if (groupLabel == null) "插件「${pluginNameCache[pluginId] ?: pluginId}」"
+                        else "分组「$groupLabel」",
+                    )
                 }
             },
         )
@@ -2577,47 +2618,21 @@ internal fun ListManagerScreen(
         )
     }
 
-    // 批量删除插件配置项（用户 09-12 拍板新增）：按来源插件筛出一批整体删除
-    var showBatchDeleteConfigs by remember { mutableStateOf(false) }
-    if (showBatchDeleteConfigs) {
-        val scopeItems = models.flatMap { it.list }
-        // 清单条目：归到「实际分组」（大分组，或大分组 › 子分组），弹窗内按所选插件折叠展示
-        val deleteEntries = remember(models) {
-            models.flatMap { gwt ->
-                gwt.list.mapNotNull { tts ->
-                    val src = (tts.config as? TtsConfigurationDTO)?.source as? PluginTtsSource
-                        ?: return@mapNotNull null
-                    val sub = tts.categoryPath
-                    BatchDeleteEntry(
-                        pluginId = src.pluginId,
-                        groupLabel = if (sub.isBlank()) gwt.group.name
-                        else "${gwt.group.name} › $sub",
-                        name = tts.displayName,
-                        voice = src.voice
-                    )
-                }
-            }
-        }
-        BatchDeleteConfigDialog(
-            // 作用域恒为当前池全部配置项：清单本就取自全部 models，不随搜索框变化（避免"提示范围"与"实际删除范围"不一致）
-            scopeDesc = "当前池全部配置项",
-            // 用户 09-12 拍板：不含「全部（不按插件筛选）」，避免一手滑把整个池子删空
-            pluginOptions = remember(scopeItems, pluginNameCache) {
-                batchPluginOptions(scopeItems, pluginNameCache).filter { it.first.isNotEmpty() }
-            },
-            entries = deleteEntries,
-            onDismissRequest = { showBatchDeleteConfigs = false },
-            onDelete = { pluginId ->
-                showBatchDeleteConfigs = false
-                val targets = scopeItems.filterByPluginId(pluginId)
-                if (targets.isNotEmpty()) {
-                    scope.launch {
-                        withIO {
-                            dbm.systemTtsV2.delete(*targets.toTypedArray())
-                        }
-                        SystemTtsService.notifyUpdateConfig()
-                        context.toast("已删除 ${targets.size} 项")
+    // 批量删除二次确认（用户 09-12 晚定：破坏性操作先确认再落库）
+    pendingBatchDelete?.let { plan ->
+        BatchDeleteConfirmDialog(
+            label = plan.label,
+            count = plan.items.size,
+            onDismiss = { pendingBatchDelete = null },
+            onConfirm = {
+                pendingBatchDelete = null
+                showBatchSourceFields = false
+                scope.launch {
+                    withIO {
+                        dbm.systemTtsV2.delete(*plan.items.toTypedArray())
                     }
+                    SystemTtsService.notifyUpdateConfig()
+                    context.toast("已删除 ${plan.items.size} 项")
                 }
             },
         )
@@ -2967,8 +2982,7 @@ internal fun ListManagerScreen(
                                 onDismissRequest = { showOptions = false },
                                 onExportAll = { showGroupExportSheet = models },
                                 onBatchAudioParams = { showBatchAudioParams = true },
-                                onBatchSourceFields = { showBatchSourceFields = true },
-                                onBatchDeleteConfigs = { showBatchDeleteConfigs = true }
+                                onBatchSourceFields = { showBatchSourceFields = true }
                             )
                         }
                     }
@@ -3829,9 +3843,15 @@ private fun List<SystemTtsV2>.filterByPluginId(pluginId: String?): List<SystemTt
     }
 }
 
-/** 「批量修改配置 → 来源插件」的待确认计划：先按 voice 校验，确认后才落库（用户 09-12） */
+/** 「批量配置操作 → 来源插件」的待确认计划：先按 voice 校验，确认后才落库（用户 09-12） */
 private data class PendingSourceSwitch(
     val items: List<SystemTtsV2>,
     val newPluginId: String,
     val sampleRate: Int?,
+)
+
+/** 「批量配置操作 → 删除」的待确认计划（用户 09-12 晚定）：确认后才落库 */
+private data class PendingBatchDelete(
+    val items: List<SystemTtsV2>,
+    val label: String,
 )

@@ -7,7 +7,6 @@ import androidx.compose.material.icons.automirrored.filled.MenuBook
 import androidx.compose.material.icons.filled.Audiotrack
 import androidx.compose.material.icons.filled.Build
 import androidx.compose.material.icons.filled.ContentCut
-import androidx.compose.material.icons.filled.DeleteForever
 import androidx.compose.material.icons.filled.GraphicEq
 import androidx.compose.material.icons.filled.Group
 import androidx.compose.material.icons.filled.Output
@@ -43,7 +42,6 @@ internal fun MenuMoreOptions(
     onExportAll: () -> Unit,
     onBatchAudioParams: () -> Unit = {},
     onBatchSourceFields: () -> Unit = {},
-    onBatchDeleteConfigs: () -> Unit = {},
 ) {
     var showBgmSettingsDialog  by remember { mutableStateOf(false) }
     if (showBgmSettingsDialog)
@@ -113,29 +111,6 @@ internal fun MenuMoreOptions(
         )
 
         DropdownMenuItem(
-            text = { Text("批量修改配置") },
-            onClick = {
-                onDismissRequest()
-                onBatchSourceFields()
-            },
-            leadingIcon = {
-                Icon(Icons.Default.Build, null)
-            }
-        )
-
-        // 批量删除插件配置项（用户 09-12 拍板新增）：按来源插件筛出一批整体删除
-        DropdownMenuItem(
-            text = { Text("批量删除插件配置项") },
-            onClick = {
-                onDismissRequest()
-                onBatchDeleteConfigs()
-            },
-            leadingIcon = {
-                Icon(Icons.Default.DeleteForever, null)
-            }
-        )
-
-        DropdownMenuItem(
             text = { Text(stringResource(id = R.string.bgm_settings)) },
             onClick = { showBgmSettingsDialog = true },
             leadingIcon = {
@@ -200,5 +175,19 @@ internal fun MenuMoreOptions(
         }, leadingIcon = {
             Icon(Icons.Default.Output, null)
         })
+
+        HorizontalDivider()
+        // 批量配置操作（用户 09-12 晚拍板：原「批量修改配置」+「批量删除插件配置项」合并为一项）。
+        // 用户 09-12 晚要求放菜单最后：属低频维护操作，一般不常动。
+        DropdownMenuItem(
+            text = { Text("批量配置操作") },
+            onClick = {
+                onDismissRequest()
+                onBatchSourceFields()
+            },
+            leadingIcon = {
+                Icon(Icons.Default.Build, null)
+            }
+        )
     }
 }
