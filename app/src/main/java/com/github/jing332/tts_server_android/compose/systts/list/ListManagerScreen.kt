@@ -2486,8 +2486,8 @@ internal fun ListManagerScreen(
     }
 
     // 采样率落库（rate=-1=「自动识别」：先归零让播放链按音频头探测）。
-    // sampleRate=null 表示「不修改」，直接短路，避免空跑一次读写（用户 09-12 晚：采样率并入
-    // 「批量配置操作 → 音频参数」页，与语速/音量/音高同页提交但走各自的落库链）
+    // sampleRate=null 表示「不修改」，直接短路，避免空跑一次读写（用户 09-12 晚：采样率在
+    // 「批量配置操作」里单独成页，走音频格式链，与音频参数页的语速/音量/音高各写各的字段）
     val applySourceFieldsRate: (List<SystemTtsV2>, Int?) -> Unit = { targets, sampleRate ->
         if (sampleRate != null) {
             val rate = if (sampleRate == -1) null else sampleRate
@@ -2505,7 +2505,8 @@ internal fun ListManagerScreen(
     var pendingSourceSwitch by remember { mutableStateOf<PendingSourceSwitch?>(null) }
 
     // 批量配置操作（用户 09-12 晚定稿：原「批量修改配置」「批量删除插件配置项」「批量调整音频参数」
-    // 三个弹窗合并为一个）：弹窗内胶囊分三段——音频参数 / 换插件 / 删除项，每段各带插件筛选
+    // 三个弹窗合并为一个）：弹窗内胶囊分三段——音频参数 / 采样率 / 配置项（配置项页含换插件与批量删除），
+    // 每段各带插件筛选
     var showBatchConfig by remember { mutableStateOf(false) }
     // 待确认的批量删除计划（删除类一律先确认再落库）
     var pendingBatchDelete by remember { mutableStateOf<PendingBatchDelete?>(null) }
@@ -2541,18 +2542,19 @@ internal fun ListManagerScreen(
             targetPluginOptions = targetPluginOptions,
             entries = batchEntries,
             onDismissRequest = { showBatchConfig = false },
-            // 音频参数页：语速/音量/音高走参数链，采样率走音频格式链（两条链各写各的字段，互不覆盖）
-            onApplyParams = { pluginId, sampleRate, speed, volume, pitch ->
+            // 音频参数页：语速/音量/音高走参数链（null = 未拖动、保持原值）
+            onApplyParams = { pluginId, speed, volume, pitch ->
                 showBatchConfig = false
-                val targets = scopeItems.filterByPluginId(pluginId)
-                vm.updateAudioParamsBatch(targets, speed, volume, pitch) { n ->
-                    if (n > 0) context.toast("已更新 $n 项音频参数")
-                    else if (sampleRate != null) context.toast("已更新采样率")
-                    else context.toast("没有需要修改的项")
+                vm.updateAudioParamsBatch(scopeItems.filterByPluginId(pluginId), speed, volume, pitch) { n ->
+                    context.toast(if (n > 0) "已更新 $n 项音频参数" else "没有需要修改的项")
                 }
-                applySourceFieldsRate(targets, sampleRate)
             },
-            // 换插件页：与采样率已解耦（采样率归音频参数页），只过校验弹窗，确认后才落库
+            // 采样率页：走音频格式链（rate=-1「自动识别」由 applySourceFieldsRate 解释）
+            onApplySampleRate = { pluginId, sampleRate ->
+                showBatchConfig = false
+                applySourceFieldsRate(scopeItems.filterByPluginId(pluginId), sampleRate)
+            },
+            // 配置项页·换插件：与采样率已解耦，只过校验弹窗，确认后才落库
             onApplySource = { pluginId, targetPluginId ->
                 showBatchConfig = false
                 pendingSourceSwitch = PendingSourceSwitch(
@@ -2594,7 +2596,7 @@ internal fun ListManagerScreen(
             onDismiss = { pendingSourceSwitch = null },
             onConfirm = { matched ->
                 pendingSourceSwitch = null
-                // 采样率已归「音频参数」页，换插件不再搭车提交；此处只切音色命中的项
+                // 采样率已独立成页，换插件不再搭车提交；此处只切音色命中的项
                 if (matched.isNotEmpty()) {
                     vm.updateSourcePluginBatch(matched, plan.newPluginId) {
                         context.toast("已把 $it 项来源切换为「$switchTargetName」")
@@ -3828,8 +3830,8 @@ private fun List<SystemTtsV2>.filterByPluginId(pluginId: String?): List<SystemTt
     }
 }
 
-/** 「批量配置操作 → 换插件」的待确认计划：先按 voice 校验，确认后才落库（用户 09-12）。
- *  采样率已独立到「音频参数」页（09-12 晚三段定稿），不再随换插件一起提交 */
+/** 「批量配置操作 → 配置项」的换插件待确认计划：先按 voice 校验，确认后才落库（用户 09-12）。
+ *  采样率已独立成页（09-12 深夜三段定稿：音频参数 / 采样率 / 配置项），不再随换插件一起提交 */
 private data class PendingSourceSwitch(
     val items: List<SystemTtsV2>,
     val newPluginId: String,
