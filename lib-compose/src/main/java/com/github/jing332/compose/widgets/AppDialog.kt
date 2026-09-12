@@ -1,7 +1,9 @@
 package com.github.jing332.compose.widgets
 
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Text
@@ -14,6 +16,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.DialogProperties
 import com.github.jing332.compose.R
 
@@ -84,8 +87,11 @@ fun AppDialog(
         }
     },
     // buttons 的签名是 BoxScope 接收者：confirmButton 槽是 RowScope，用 Box 捕获接收者传入。
-    // 直接走 MD3 原生按钮排布（靠右）
+    // 按钮本体必须横排（Row + 8dp 间距，MD3 官方按钮行做法）——09-12 修复：直接 Box 会把
+    // 多个按钮层叠渲染（插件管理多选删除弹窗「取消/删除」文字重叠实锤），Row 换横排、签名不动。
     confirmButton = {
-        Box { buttons() }
+        Box {
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) { buttons() }
+        }
     },
 )
