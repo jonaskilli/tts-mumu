@@ -78,8 +78,8 @@ internal class TtsRepository(
                     val originalTag = dto.speechRule.tag
                     if (originalTag in setOf("duihuaA", "duihuaB", "duihua")) return@run null
                     // 性别兜底：男*→duihuaA、女*→duihuaB；性别未知原投中性 duihua——
-                    // 用户 09-12 拍板：duihua 逐步弃用，中性备用改投 duihuaA（tagName=男）；
-                    // 找不到 duihuaA 配置时回落 duihua，以前只用 duihua 的老用户不断声
+                    // 用户 09-12 拍板：duihua 弃用，中性备用改投 duihuaA（tagName=男），
+                    // 不留 duihua 回落（目目：不用留兼容尾巴）
                     val genderTag = when {
                         originalTag.startsWith("男") || originalTag.startsWith("少年") ||
                             originalTag == "特殊男" -> "duihuaA"
@@ -91,10 +91,6 @@ internal class TtsRepository(
                         it.speechInfo.target == dto.speechRule.target &&
                             it.speechInfo.tagRuleId == dto.speechRule.tagRuleId &&
                             it.speechInfo.tag == genderTag
-                    } ?: genderFallbackConfigs.find {
-                        it.speechInfo.target == dto.speechRule.target &&
-                            it.speechInfo.tagRuleId == dto.speechRule.tagRuleId &&
-                            it.speechInfo.tag == "duihua"
                     }
                 }
                 val isFallbackTag = dto.speechRule.tag in setOf("duihua", "duihuaA", "duihuaB")
