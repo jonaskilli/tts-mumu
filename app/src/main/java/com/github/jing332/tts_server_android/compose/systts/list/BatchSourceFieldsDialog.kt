@@ -216,17 +216,21 @@ fun BatchSourceFieldsDialog(
             }
         },
         buttons = {
-            Row {
+            // 按钮排布与「音频参数设置」弹窗统一（用户 09-12 晚拍板）：取消（左）｜ 删除 · 应用（右）。
+            // 删除键文案精简为「删除」——作用对象与数量由二次确认弹窗说明，不在按钮上堆"全部 N 项"
+            Row(Modifier.fillMaxWidth()) {
                 TextButton(onClick = onDismissRequest) {
                     Text(stringResource(R.string.cancel))
                 }
-                // 删除该插件匹配的全部项（低频破坏性操作，红色 + 二次确认）
+                Spacer(Modifier.weight(1f))
+                // 删除该插件匹配的全部项（破坏性操作，红色 + 二次确认）；
+                // 选中「全部（不按插件筛选）」时置灰，防一手滑把池子删空
                 TextButton(
                     onClick = { onDelete(selectedPluginId, null) },
                     enabled = deletableCount > 0
                 ) {
                     Text(
-                        "删除全部 $deletableCount 项",
+                        stringResource(R.string.delete),
                         color = if (deletableCount > 0) MaterialTheme.colorScheme.error
                         else MaterialTheme.colorScheme.onSurfaceVariant
                     )

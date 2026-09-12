@@ -110,6 +110,20 @@ internal fun MenuMoreOptions(
             }
         )
 
+        // 批量配置操作（用户 09-12 晚拍板：原「批量修改配置」+「批量删除插件配置项」合并为一项）。
+        // 入口保持原位、与「批量调整音频参数」相邻（09-12 晚二次修正：用户说的"放最后"指弹窗内的删除块，
+        // 不是菜单入口，故不挪到菜单末尾）
+        DropdownMenuItem(
+            text = { Text("批量配置操作") },
+            onClick = {
+                onDismissRequest()
+                onBatchSourceFields()
+            },
+            leadingIcon = {
+                Icon(Icons.Default.Build, null)
+            }
+        )
+
         DropdownMenuItem(
             text = { Text(stringResource(id = R.string.bgm_settings)) },
             onClick = { showBgmSettingsDialog = true },
@@ -175,19 +189,5 @@ internal fun MenuMoreOptions(
         }, leadingIcon = {
             Icon(Icons.Default.Output, null)
         })
-
-        HorizontalDivider()
-        // 批量配置操作（用户 09-12 晚拍板：原「批量修改配置」+「批量删除插件配置项」合并为一项）。
-        // 用户 09-12 晚要求放菜单最后：属低频维护操作，一般不常动。
-        DropdownMenuItem(
-            text = { Text("批量配置操作") },
-            onClick = {
-                onDismissRequest()
-                onBatchSourceFields()
-            },
-            leadingIcon = {
-                Icon(Icons.Default.Build, null)
-            }
-        )
     }
 }
