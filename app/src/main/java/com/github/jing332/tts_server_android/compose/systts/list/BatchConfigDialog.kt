@@ -1,7 +1,10 @@
 package com.github.jing332.tts_server_android.compose.systts.list
 
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -12,6 +15,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ExpandMore
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -33,7 +37,6 @@ import com.github.jing332.compose.widgets.AppDialog
 import com.github.jing332.compose.widgets.AppSpinner
 import com.github.jing332.compose.widgets.LabelSlider
 import com.github.jing332.tts_server_android.R
-import com.github.jing332.tts_server_android.compose.SoftSegmentedTextToggle
 
 /**
  * 清单条目：来源插件 + 所属**实际分组**（大分组，或「大分组 › 子分组」）+ 项名 + 配置项 id。
@@ -50,42 +53,53 @@ data class BatchConfigEntry(
  * 批量配置操作（用户 09-12 晚拍板并定稿：「批量修改配置」「批量删除插件配置项」
  * 「批量调整音频参数」三个弹窗合并为一个）。
  *
- * 结构 = **胶囊分区**（官方分段按钮，与音频参数弹窗同款）：一次只显示一页，
- * 弹窗高度取最长的一页，而不是把三块内容叠在一起。
+ * ## 分区：胶囊组（用户 09-13 定：分段按钮换成可换行的 FilterChip 组）
+ * 原用官方分段按钮（SoftSegmentedTextToggle），但它恒为**均分撑满 + 文字单行省略**，
+ * 四段在窄屏会被压成「删除…」——段数被顶死在 3 段以内。
+ * 用户 09-13 提议换成日志筛选弹窗（LogFilterDialog）里那套 **FilterChip + FlowRow**：
+ * 宽度随文字、一行放不下自动折行，分区数不再受限。
+ * 注意这与 09-11 撤销的「分段按钮的宽度收缩变体」不是一回事——那是改同一个连体控件，
+ * 这里是换组件（同一套 chip 日志筛选弹窗已在用，风格一致）。
  *
- * 三段及顺序（用户 09-12 深夜定稿）：
- * 1. **音频参数**：语速/音量/音高
- * 2. **采样率**：单独成页（不再与音频三维同页）
- * 3. **配置项**：清单（按实际分组折叠，可整组删）+ 更换来源插件 + 按插件全删
- *    ——用户原话「配置项含有更换插件和批量删除的功能」，两者作用对象同为配置项，故合在一页
+ * **chip 不带 leadingIcon 勾号**：FilterChip 在 MD3 里本是"可多选的开关"语义（日志页那组就是），
+ * 这里当单选页签用，靠"点了立刻切页、无需确认"让用户自行感知单选，去掉勾号避免误读成开关。
  *
- * 为什么删除不排第一：打开弹窗默认落在第一段，破坏性操作放最后是通行惯例
- * （用户对菜单入口即持「低频的放最后」偏好）。现在默认页是音频参数，天然安全。
+ * ## 四页与顺序（用户 09-13 定：删除垫底）
+ * 1. **音频参数**：语速/音量/音高 —— 页脚 取消 / 重置 / 确定
+ * 2. **采样率**：采样率 —— 页脚 取消 / 确定
+ * 3. **更换插件**：目标插件 —— 页脚 取消 / 确定（未选目标插件时禁用）
+ * 4. **删除配置项**：清单（可整组删）—— 页脚 取消 / **删除全部 N 项**（红色）
  *
- * 为什么是三段不是四段：[SoftSegmentedTextToggle] 恒为均分撑满 + 文字单行省略，
- * 四段在窄屏上会被截成「音频…」「更换…」（组件注释已记有"曾试收缩、文字被压成省略号"的结论）。
+ * 删除排最后：打开弹窗默认落在第一页（音频参数），破坏性操作垫底是通行惯例
+ * （用户对菜单入口即持「低频的放最后」偏好）。
  *
- * 每页**各自带插件筛选器、状态互不影响**（用户原话：「这不是针对某一个插件的三项操作，
- * 每项都有选择插件的自由」）。分页后一次只渲染一页，所以各带一份并不比共用多占高度，
- * 却避免了「在 A 页选插件时顺手把 B 页（尤其删除）的范围也改掉」的串联风险。
- * 「配置项」页的插件筛选为**换插件与删除共用**——同页两个操作本就该作用在同一范围上。
+ * 每页**只干一件事**，页脚主操作自然各归其位——上一版把删除与换插件挤在同一页时，
+ * 用户看到页脚的「确定」与「删除全部」并排，问「这几个按钮是什么」（09-12 深夜），
+ * 故拆页；页脚不再出现"一个确定管哪个操作"的歧义。
  *
- * [scopeDesc] 作用域描述（「当前池全部配置项」），逐页随该页插件筛选一并显示。
+ * ## 插件筛选：全页通用（用户 09-13 定）
+ * 四页共用一个插件筛选（filterKey），排在胶囊组下方，形如"本弹窗当前作用的插件范围"。
+ * 早期曾让各页各持一份以防串联，但拆成四页后那样会变成"每页都要重选一次插件"，
+ * 用户定：全页通用，一处选定四页可见（同一批对象，范围本就该一致）。
+ *
+ * 「作用域：当前池全部配置项」那行已删除：调用方写死传入、永不变化，零信息量；
+ * 真正有用的是「匹配 N 项」，保留。
+ *
  * [pluginOptions] 插件筛选候选：pluginId（""=全部，不按插件筛选）→ 显示名，仅含作用域内实际出现的插件。
  * [pluginItemCounts] pluginId → 作用域内配置项数（""=总数），供选择后实时显示影响范围。
  * [sampleRateOptions] 「采样率自动识别」=-1 语义由调用方解释。
- * [targetPluginOptions] 「配置项 → 更换插件」的目标插件候选：全部已安装插件 pluginId → 显示名。
- * [entries] 「配置项」页清单数据源，按该页所选插件过滤后折叠展示**项名**（不显示音色id，用户 09-12 晚定）。
+ * [targetPluginOptions] 「更换插件」的目标插件候选：全部已安装插件 pluginId → 显示名。
+ * [entries] 「删除配置项」页清单数据源，按所选插件过滤后折叠展示**项名**（不显示音色id，用户 09-12 晚定）。
  * [onApplyParams] 音频参数页应用：speed/volume/pitch = null 表示该项保持原值（滑条未拖动），
  *   非 null 为设定值。
  * [onApplySampleRate] 采样率页应用：null = 不修改 / -1 = 自动识别 / 其余为具体 Hz。
- * [onApplySource] 「配置项」页更换插件（[targetPluginId] 必非空——未选目标插件时按钮不提交）。
+ * [onApplySource] 「更换插件」提交（targetPluginId 必非空——未选目标插件时按钮不提交）。
  * [onDelete] 删除请求：groupLabel=null 表示删所选插件的**全部**匹配项，非空表示只删该分组。
  *   弹窗内不落库——调用方弹二次确认后才删（破坏性操作必须有确认，用户 09-12 晚定）。
  */
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun BatchConfigDialog(
-    scopeDesc: String,
     pluginOptions: List<Pair<String, String>>,
     pluginItemCounts: Map<String, Int>,
     sampleRateOptions: List<Int>,
@@ -102,13 +116,10 @@ fun BatchConfigDialog(
     onApplySource: (pluginId: String?, targetPluginId: String) -> Unit,
     onDelete: (pluginId: String, groupLabel: String?) -> Unit,
 ) {
-    // 0=音频参数 1=采样率 2=配置项（换插件 + 批量删除）
+    // 0=音频参数 1=采样率 2=更换插件 3=删除配置项（用户 09-13 定：删除垫底）
     var tab by remember { mutableStateOf(0) }
-    // 三页各自的插件筛选（互不影响）
-    var paramsFilterKey by remember { mutableStateOf<Any>("") }
-    var rateFilterKey by remember { mutableStateOf<Any>("") }
-    // 「配置项」页的插件筛选：换插件与删除共用同一范围（同页两个操作作用于同一批配置项）
-    var itemFilterKey by remember { mutableStateOf<Any>("") }
+    // 插件筛选：全页通用（用户 09-13 定），一处选定四页可见
+    var filterKey by remember { mutableStateOf<Any>("") }
     // AppSpinner 的 value 需非空 Any：用 "none"/"auto"/Int/"具体pluginId" 作为哨兵
     var rateSelKey by remember { mutableStateOf<Any>("none") }
     var targetPluginKey by remember { mutableStateOf<Any>("none") }
@@ -121,44 +132,61 @@ fun BatchConfigDialog(
     // 分组展开状态：默认全收起，点分组行才展开
     var expandedGroups by remember { mutableStateOf<Set<String>>(emptySet()) }
 
-    // 「配置项」页的筛选键（空串="全部"，此时删除键禁用）
-    val itemPluginId = itemFilterKey as? String ?: ""
-    val itemBuckets = entries.filter { it.pluginId == itemPluginId }
+    // 全页通用的插件筛选键（空串="全部"）。删除页要求具体插件，理由见 deletableCount
+    val pluginId = filterKey as? String ?: ""
+    val itemBuckets = entries.filter { it.pluginId == pluginId }
         .groupBy { it.groupLabel }
         .toList()
     // 删除只对**具体插件**开放：选中「全部（不按插件筛选）」时为 0，按钮禁用，
     // 避免一手滑把整个池子删空（沿用用户 09-12 拍板口径）
-    val deletableCount = if (itemPluginId.isEmpty()) 0 else itemBuckets.sumOf { it.second.size }
+    val deletableCount = if (pluginId.isEmpty()) 0 else itemBuckets.sumOf { it.second.size }
     val targetPluginId = (targetPluginKey as? String)?.takeIf { it != "none" }
-    // 分段标题走资源字符串（中文在 values-zh、英文在 values-en），不再硬编码中文；
-    // 段数固定 3 段，理由见类注释（官方的分段按钮恒为均分 + 单行省略，4 段窄屏会被截断）
+    // 分区标签走资源字符串（中文在 values-zh、英文在 values-en），不再硬编码中文
     val tabTitles = listOf(
         stringResource(R.string.batch_cfg_tab_audio_params),
         stringResource(R.string.batch_cfg_sample_rate),
-        stringResource(R.string.batch_cfg_tab_items),
+        stringResource(R.string.batch_cfg_tab_change_plugin),
+        stringResource(R.string.batch_cfg_tab_delete_items),
     )
 
     AppDialog(
         title = { Text(stringResource(R.string.batch_cfg_title)) },
         content = {
             Column {
-                SoftSegmentedTextToggle(
-                    options = tabTitles,
-                    selectedIndex = tab,
-                    onSelect = { tab = it },
+                // 分区选择：可换行 chip 组（宽度随文字，能放四段以上）
+                FlowRow(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    tabTitles.forEachIndexed { index, title ->
+                        FilterChip(
+                            selected = tab == index,
+                            onClick = { tab = index },
+                            label = { Text(title) }
+                        )
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(12.dp))
+                HorizontalDivider()
+                Spacer(modifier = Modifier.height(8.dp))
+
+                // 全页通用：本弹窗当前作用的插件范围（四页共用一份选中值）
+                ScopePluginPicker(
+                    selectedKey = filterKey,
+                    onSelect = { key ->
+                        filterKey = key
+                        // 换插件后清单整批变样，展开状态一并重置
+                        expandedGroups = emptySet()
+                    },
+                    pluginOptions = pluginOptions,
+                    pluginItemCounts = pluginItemCounts,
                 )
 
                 when (tab) {
-                    // ── 音频参数：语速/音量/音高 ──
-                    0 -> Column(Modifier.padding(horizontal = 4.dp)) {
-                        ScopePluginPicker(
-                            selectedKey = paramsFilterKey,
-                            onSelect = { paramsFilterKey = it },
-                            pluginOptions = pluginOptions,
-                            pluginItemCounts = pluginItemCounts,
-                            scopeDesc = scopeDesc,
-                        )
-                        Spacer(modifier = Modifier.height(8.dp))
+                    // ── 1. 音频参数：语速/音量/音高 ──
+                    0 -> {
                         LabelSlider(
                             value = speed ?: 1f,
                             onValueChange = { speed = it.toScale(2) },
@@ -191,16 +219,8 @@ fun BatchConfigDialog(
                         )
                     }
 
-                    // ── 采样率：单独一页 ──
-                    1 -> Column(Modifier.padding(horizontal = 4.dp)) {
-                        ScopePluginPicker(
-                            selectedKey = rateFilterKey,
-                            onSelect = { rateFilterKey = it },
-                            pluginOptions = pluginOptions,
-                            pluginItemCounts = pluginItemCounts,
-                            scopeDesc = scopeDesc,
-                        )
-                        Spacer(modifier = Modifier.height(8.dp))
+                    // ── 2. 采样率 ──
+                    1 -> {
                         val rateValues: List<Any> = listOf("none", "auto") + sampleRateOptions
                         AppSpinner(
                             modifier = Modifier.fillMaxWidth(),
@@ -215,21 +235,29 @@ fun BatchConfigDialog(
                         )
                     }
 
-                    // ── 配置项：清单（可整组删）+ 更换来源插件（合并在同一页）──
-                    else -> Column(Modifier.padding(horizontal = 4.dp)) {
-                        ScopePluginPicker(
-                            selectedKey = itemFilterKey,
-                            onSelect = { key ->
-                                itemFilterKey = key
-                                // 换插件后清单整批变样，展开状态一并重置
-                                expandedGroups = emptySet()
-                            },
-                            pluginOptions = pluginOptions,
-                            pluginItemCounts = pluginItemCounts,
-                            scopeDesc = scopeDesc,
-                        )
-                        Spacer(modifier = Modifier.height(2.dp))
-                        // 清单区：本页的删除对象预览；越高越挤，把上限压到 150dp 给下方换插件留位
+                    // ── 3. 更换插件 ──
+                    2 -> AppSpinner(
+                        modifier = Modifier.fillMaxWidth(),
+                        labelText = stringResource(R.string.batch_cfg_change_plugin_to),
+                        value = targetPluginKey,
+                        values = listOf<Any>("none") + targetPluginOptions.map { it.first },
+                        entries = listOf(stringResource(R.string.batch_cfg_keep_unchanged)) +
+                            targetPluginOptions.map { it.second },
+                        onSelectedChange = { key, _ -> targetPluginKey = key }
+                    )
+
+                    // ── 4. 删除配置项：清单（可整组删）──
+                    else -> {
+                        if (itemBuckets.isEmpty()) {
+                            // 空态只可能是"没选具体插件"：筛选候选只含实际出现的插件，
+                            // 选中任一插件就必然有项。删除必须指定插件，故提示先选。
+                            Text(
+                                stringResource(R.string.batch_cfg_delete_pick_plugin_hint),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.padding(vertical = 8.dp)
+                            )
+                        }
                         LazyColumn(
                             modifier = Modifier
                                 .fillMaxWidth()
@@ -274,7 +302,7 @@ fun BatchConfigDialog(
                                             color = MaterialTheme.colorScheme.onSurfaceVariant
                                         )
                                         // 整组删除（用户 09-12 晚要求）：删该分组下全部项，确认后才落库
-                                        TextButton(onClick = { onDelete(itemPluginId, groupLabel) }) {
+                                        TextButton(onClick = { onDelete(pluginId, groupLabel) }) {
                                             Text(
                                                 stringResource(R.string.delete),
                                                 color = MaterialTheme.colorScheme.error
@@ -298,18 +326,6 @@ fun BatchConfigDialog(
                                 }
                             }
                         }
-                        // 上「删」下「改」：清单属删除，换插件另起一区，用分隔线断开避免误读成同一件事
-                        HorizontalDivider(modifier = Modifier.padding(top = 6.dp))
-                        Spacer(modifier = Modifier.height(6.dp))
-                        AppSpinner(
-                            modifier = Modifier.fillMaxWidth(),
-                            labelText = stringResource(R.string.batch_cfg_change_plugin_to),
-                            value = targetPluginKey,
-                            values = listOf<Any>("none") + targetPluginOptions.map { it.first },
-                            entries = listOf(stringResource(R.string.batch_cfg_keep_unchanged)) +
-                                targetPluginOptions.map { it.second },
-                            onSelectedChange = { key, _ -> targetPluginKey = key }
-                        )
                     }
                 }
             }
@@ -319,12 +335,13 @@ fun BatchConfigDialog(
                 TextButton(onClick = onDismissRequest) {
                     Text(stringResource(R.string.cancel))
                 }
-                // 页脚主操作随当前页变化：音频参数=重置/应用，采样率=应用，配置项=删除全部 N 项/应用（换插件）
+                // 每页只干一件事，页脚主操作各归其位（用户 09-13 拆页的初衷）
                 when (tab) {
+                    // 音频参数：重置（显式把三维设回 1.00）+ 确定
                     0 -> {
                         TextButton(onClick = {
-                            // 重置 = 显式把音频三维设为 1.00（与"拖动过才算改动"互补：没拖过是保持原值，
-                            // 点重置才是"整批恢复默认"）；仍需点「应用」才落库
+                            // 与"拖动过才算改动"互补：没拖过是保持原值，点重置才是"整批恢复默认"；
+                            // 仍需点「确定」才落库
                             speed = 1f
                             volume = 1f
                             pitch = 1f
@@ -332,19 +349,17 @@ fun BatchConfigDialog(
                             Text(stringResource(R.string.reset))
                         }
                         TextButton(onClick = {
-                            onApplyParams(
-                                (paramsFilterKey as? String)?.takeIf { it.isNotEmpty() },
-                                speed, volume, pitch
-                            )
+                            onApplyParams(pluginId.takeIf { it.isNotEmpty() }, speed, volume, pitch)
                         }) {
                             Text(stringResource(R.string.confirm))
                         }
                     }
 
+                    // 采样率：确定
                     1 -> TextButton(
                         onClick = {
                             onApplySampleRate(
-                                (rateFilterKey as? String)?.takeIf { it.isNotEmpty() },
+                                pluginId.takeIf { it.isNotEmpty() },
                                 when (val k = rateSelKey) {
                                     "none" -> null
                                     "auto" -> -1
@@ -356,30 +371,28 @@ fun BatchConfigDialog(
                         Text(stringResource(R.string.confirm))
                     }
 
-                    else -> {
-                        TextButton(
-                            onClick = { onDelete(itemPluginId, null) },
-                            enabled = deletableCount > 0
-                        ) {
-                            Text(
-                                stringResource(R.string.batch_cfg_delete_all, deletableCount),
-                                color = if (deletableCount > 0) MaterialTheme.colorScheme.error
-                                else MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
-                        TextButton(
-                            onClick = {
-                                targetPluginId?.let {
-                                    onApplySource(
-                                        (itemFilterKey as? String)?.takeIf { it.isNotEmpty() },
-                                        it
-                                    )
-                                }
-                            },
-                            enabled = targetPluginId != null
-                        ) {
-                            Text(stringResource(R.string.confirm))
-                        }
+                    // 更换插件：确定（未选目标插件时禁用）
+                    2 -> TextButton(
+                        onClick = {
+                            targetPluginId?.let {
+                                onApplySource(pluginId.takeIf { it.isNotEmpty() }, it)
+                            }
+                        },
+                        enabled = targetPluginId != null
+                    ) {
+                        Text(stringResource(R.string.confirm))
+                    }
+
+                    // 删除配置项：删除全部 N 项（红色；未选具体插件时为 0、禁用）
+                    else -> TextButton(
+                        onClick = { onDelete(pluginId, null) },
+                        enabled = deletableCount > 0
+                    ) {
+                        Text(
+                            stringResource(R.string.batch_cfg_delete_all, deletableCount),
+                            color = if (deletableCount > 0) MaterialTheme.colorScheme.error
+                            else MaterialTheme.colorScheme.onSurfaceVariant
+                        )
                     }
                 }
             }
@@ -389,8 +402,7 @@ fun BatchConfigDialog(
 }
 
 /**
- * 逐页共用的「插件筛选 + 影响范围」块：插件选择器 + 匹配项数 + 作用域。
- * 三页各持一份选中值（由调用方即弹窗本体保管），互不影响。
+ * 「插件筛选 + 影响范围」块：插件选择器 + 匹配项数，全页通用（一处选定四页可见）。
  */
 @Composable
 private fun ScopePluginPicker(
@@ -398,7 +410,6 @@ private fun ScopePluginPicker(
     onSelect: (Any) -> Unit,
     pluginOptions: List<Pair<String, String>>,
     pluginItemCounts: Map<String, Int>,
-    scopeDesc: String,
 ) {
     Column(Modifier.fillMaxWidth()) {
         AppSpinner(
@@ -409,18 +420,13 @@ private fun ScopePluginPicker(
             entries = pluginOptions.map { it.second },
             onSelectedChange = { key, _ -> onSelect(key) }
         )
-        // 数字在插件框正下方（它说的是"当前选中的插件有多少项"），作用域另起一句。
+        // 数字在插件框正下方（它说的是"当前选中的插件有多少项"）。
         // 键转 String：AppSpinner 的 key 是 Any（哨兵值），而计数表的键是 pluginId
         Text(
             stringResource(
                 R.string.batch_cfg_matched,
                 pluginItemCounts[(selectedKey as? String).orEmpty()] ?: 0
             ),
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
-        )
-        Text(
-            stringResource(R.string.batch_cfg_scope, scopeDesc),
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )

@@ -2535,9 +2535,8 @@ internal fun ListManagerScreen(
             }
         }
         BatchConfigDialog(
-            // 作用域恒为当前池全部配置项：清单与匹配数都取自全部 models，不随搜索框变化
-            //（避免"提示范围"与"实际作用范围"不一致）
-            scopeDesc = stringResource(R.string.batch_cfg_scope_all_pool),
+            // 弹窗数据源恒为当前池全部配置项：清单与匹配数都取自全部 models，不随搜索框变化
+            //（避免"提示范围"与"实际作用范围"不一致；作用域提示行 09-13 已按用户要求删除）
             pluginOptions = remember(scopeItems, pluginNameCache, allPluginsLabel) {
                 batchPluginOptions(scopeItems, pluginNameCache, allPluginsLabel)
             },

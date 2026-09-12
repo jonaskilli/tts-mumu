@@ -524,15 +524,15 @@
     <!-- Batch config actions dialog (BatchConfigDialog) -->
     <string name="batch_cfg_title">Batch config actions</string>
     <string name="batch_cfg_tab_audio_params">Audio params</string>
-    <string name="batch_cfg_tab_items">Configs</string>
+    <string name="batch_cfg_tab_change_plugin">Change plugin</string>
+    <string name="batch_cfg_tab_delete_items">Delete configs</string>
     <string name="batch_cfg_sample_rate">Sample rate</string>
     <string name="batch_cfg_matched">%1$d matched</string>
-    <string name="batch_cfg_scope">Scope: %1$s</string>
-    <string name="batch_cfg_scope_all_pool">All configs in the current pool</string>
     <string name="batch_cfg_all_plugins">All (no plugin filter)</string>
     <string name="batch_cfg_keep_unchanged">No change</string>
     <string name="batch_cfg_change_plugin_to">Change plugin to</string>
     <string name="batch_cfg_untouched_hint">Untouched parameters keep their current values</string>
+    <string name="batch_cfg_delete_pick_plugin_hint">Select a plugin above first</string>
     <string name="batch_cfg_delete_all">Delete all %1$d</string>
     <string name="batch_cfg_expand">Expand</string>
     <string name="batch_cfg_collapse">Collapse</string>
