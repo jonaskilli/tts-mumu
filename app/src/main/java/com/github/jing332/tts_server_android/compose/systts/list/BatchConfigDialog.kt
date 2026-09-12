@@ -434,21 +434,27 @@ private fun ScopePluginPicker(
 }
 
 /**
- * 批量删除二次确认（用户 09-12 晚定：破坏性操作必须有确认，原删除弹窗点一下就直接删）。
+ * 删除二次确认（用户 09-12 晚定：破坏性操作必须有确认，原删除弹窗点一下就直接删）。
  * [label] 删除对象：如「插件「剪映最新官方中文774_免登」」或「分组「旁白 › 通用旁白」」。
  * [count] 待删配置项数。
+ * [messageOverride] 覆盖默认正文：默认模板「将删除%1$s 下的 %2$d 项配置」句式固定，
+ *   不适用时（顶栏失效配置项清理）直接传整句，见 invalid_delete_confirm_msg_all / _source。
  */
 @Composable
 fun BatchDeleteConfirmDialog(
-    label: String,
-    count: Int,
+    label: String = "",
+    count: Int = 0,
     onDismiss: () -> Unit,
     onConfirm: () -> Unit,
+    messageOverride: String? = null,
 ) {
     AppDialog(
         title = { Text(stringResource(R.string.batch_cfg_delete_confirm_title)) },
         content = {
-            Text(stringResource(R.string.batch_cfg_delete_confirm_msg, label, count))
+            Text(
+                messageOverride
+                    ?: stringResource(R.string.batch_cfg_delete_confirm_msg, label, count)
+            )
         },
         buttons = {
             Row {

@@ -2666,6 +2666,8 @@ internal fun ListManagerScreen(
     var showInvalidDetail by remember { mutableStateOf(false) }
     // 弹窗内逐源展开状态：记录已展开的来源 pluginId
     var expandedSources by remember { mutableStateOf<Set<String>>(emptySet()) }
+    // 失效项删除的待确认目标（用户 09-13：底栏「清理全部」与各来源「删除」原先点一下就删）
+    var pendingInvalidDelete by remember { mutableStateOf<PendingInvalidDelete?>(null) }
     if (showInvalidDetail && invalidSourceCounts.isNotEmpty()) {
         AlertDialog(
             onDismissRequest = {
@@ -2745,8 +2747,8 @@ internal fun ListManagerScreen(
                                     Text(stringResource(id = R.string.switch_to_other_plugin))
                                 }
                                 TextButton(onClick = {
-                                    vm.batchDeleteInvalidItems(sourceId)
-                                    showInvalidDetail = false
+                                    // 破坏性操作先确认再落库（用户 09-13）
+                                    pendingInvalidDelete = PendingInvalidDelete(sourceId, count)
                                 }) {
                                     Text(
                                         stringResource(id = R.string.delete),
@@ -2785,15 +2787,13 @@ internal fun ListManagerScreen(
                 }
             },
             // 用户 09-12 拍板：底栏左下「清理全部失效配置项」（不分来源，一次清完）、右下「关闭」
+            // 用户 09-13：点击先弹二次确认，确认后才落库
             confirmButton = {
                 TextButton(onClick = {
-                    vm.batchDeleteInvalidItems(null)
-                    showInvalidDetail = false
-                    expandedSources = emptySet()
-                    context.toast("已清理 $invalidCount 项失效配置项")
+                    pendingInvalidDelete = PendingInvalidDelete(null, invalidCount)
                 }) {
                     Text(
-                        "清理全部失效配置项",
+                        stringResource(R.string.invalid_delete_all_btn),
                         color = MaterialTheme.colorScheme.error
                     )
                 }
@@ -2806,6 +2806,32 @@ internal fun ListManagerScreen(
                     Text(stringResource(id = R.string.close))
                 }
             }
+        )
+    }
+    // 失效项删除二次确认（用户 09-13）：底栏「清理全部」按无效数、单来源「删除」按该来源数，
+    // 各走各的文案；确认后才真正删
+    pendingInvalidDelete?.let { target ->
+        val sourceId = target.sourceId
+        val message = if (sourceId == null) {
+            stringResource(R.string.invalid_delete_confirm_msg_all, target.count)
+        } else {
+            stringResource(
+                R.string.invalid_delete_confirm_msg_source,
+                pluginNameCache[sourceId] ?: sourceId,
+                target.count
+            )
+        }
+        BatchDeleteConfirmDialog(
+            count = target.count,
+            messageOverride = message,
+            onDismiss = { pendingInvalidDelete = null },
+            onConfirm = {
+                pendingInvalidDelete = null
+                showInvalidDetail = false
+                expandedSources = emptySet()
+                vm.batchDeleteInvalidItems(sourceId)
+                context.toast(context.getString(R.string.invalid_toast_cleared, target.count))
+            },
         )
     }
     // 目标插件选择（由失效详情中点击“切换为其他插件”触发）
@@ -3853,4 +3879,10 @@ private data class PendingSourceSwitch(
 private data class PendingBatchDelete(
     val items: List<SystemTtsV2>,
     val label: String,
+)
+
+/** 顶栏「失效配置项」弹窗的删除待确认目标（用户 09-13）：sourceId=null 表示清理全部失效项 */
+private data class PendingInvalidDelete(
+    val sourceId: String?,
+    val count: Int,
 )

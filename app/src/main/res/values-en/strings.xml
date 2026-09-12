@@ -538,6 +538,10 @@
     <string name="batch_cfg_collapse">Collapse</string>
     <string name="batch_cfg_delete_confirm_title">Confirm deletion</string>
     <string name="batch_cfg_delete_confirm_msg">This deletes %2$d configs under %1$s.\n\nThis cannot be undone.</string>
+    <string name="invalid_delete_all_btn">Clear all invalid configs</string>
+    <string name="invalid_delete_confirm_msg_all">Delete all %1$d invalid config items.\n\nThis cannot be undone.</string>
+    <string name="invalid_delete_confirm_msg_source">Delete the %2$d invalid config items under plugin \"%1$s\".\n\nThis cannot be undone.</string>
+    <string name="invalid_toast_cleared">Cleared %1$d invalid config items</string>
     <string name="batch_cfg_target_plugin">plugin "%1$s"</string>
     <string name="batch_cfg_target_group">group "%1$s"</string>
 </resources>

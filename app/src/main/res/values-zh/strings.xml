@@ -596,6 +596,10 @@
     <string name="batch_cfg_collapse">收起</string>
     <string name="batch_cfg_delete_confirm_title">删除确认</string>
     <string name="batch_cfg_delete_confirm_msg">将删除%1$s 下的 %2$d 项配置。\n\n此操作不可恢复。</string>
+    <string name="invalid_delete_all_btn">清理全部失效配置项</string>
+    <string name="invalid_delete_confirm_msg_all">将删除全部 %1$d 项失效配置项。\n\n此操作不可恢复。</string>
+    <string name="invalid_delete_confirm_msg_source">将删除插件「%1$s」的 %2$d 项失效配置项。\n\n此操作不可恢复。</string>
+    <string name="invalid_toast_cleared">已清理 %1$d 项失效配置项</string>
     <string name="batch_cfg_target_plugin">插件「%1$s」</string>
     <string name="batch_cfg_target_group">分组「%1$s」</string>
 </resources>
