@@ -48,12 +48,15 @@ internal class ReplaceRuleManagerViewModel : ViewModel() {
         type: SearchType = searchType,
         src: List<GroupWithReplaceRule> = allList
     ) {
-        if (src.isEmpty() || text.isBlank()) {
-            _list.value = src
+        // 用户 09-12：默认分组按主界面同款口径处理（简化版——替换规则无子分组、无移动类功能）：
+        // 空的默认分组不显示（免得"突然冒出来"让人困惑），库里仍保留兜底（init 已确保存在）
+        val visible = src.filter { it.group.id != DEFAULT_GROUP_ID || it.list.isNotEmpty() }
+        if (visible.isEmpty() || text.isBlank()) {
+            _list.value = visible
             return
         }
         val resultList = mutableListOf<GroupWithReplaceRule>()
-        src.forEach {
+        visible.forEach {
             val subList = mutableListOf<ReplaceRule>()
             val groupWithRules = GroupWithReplaceRule(it.group, subList)
             resultList.add(groupWithRules)
