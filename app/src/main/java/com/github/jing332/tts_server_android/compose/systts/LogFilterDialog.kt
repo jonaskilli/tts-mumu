@@ -93,11 +93,11 @@ fun LogFilterDialog(
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                     verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    // 插件日志开关
+                    // 插件日志开关（09-13 目目要求：文案去掉「日志」二字省宽度）
                     FilterChip(
                         selected = showPluginLogs,
                         onClick = { onPluginLogsToggle() },
-                        label = { Text("插件日志") },
+                        label = { Text("插件") },
                         leadingIcon = {
                             if (showPluginLogs) {
                                 Icon(
@@ -116,7 +116,7 @@ fun LogFilterDialog(
                     FilterChip(
                         selected = showSpeechRuleLogs,
                         onClick = { onSpeechRuleLogsToggle() },
-                        label = { Text("朗读规则日志") },
+                        label = { Text("朗读规则") },
                         leadingIcon = {
                             if (showSpeechRuleLogs) {
                                 Icon(
@@ -135,7 +135,7 @@ fun LogFilterDialog(
                     FilterChip(
                         selected = showDebugLogs,
                         onClick = { onDebugLogsToggle() },
-                        label = { Text("DEBUG 日志") },
+                        label = { Text("DEBUG") },
                         leadingIcon = {
                             if (showDebugLogs) {
                                 Icon(
