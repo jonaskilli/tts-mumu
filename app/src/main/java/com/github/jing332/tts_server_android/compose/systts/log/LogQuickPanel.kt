@@ -132,11 +132,13 @@ fun LogQuickPanel(
     var pendingVoice by remember(entity.id) { mutableStateOf<String?>(null) }
 
     // 绑定模式当前绑定（提升到分支外：底部确认行生效后要更新它）
+    // 绑定值=标签 id（fayinren.json/characterRecords 里存的都是 tag id，JS 侧 tags[voiceTag]=显示名仅用于回显）；
+    // 无绑定记录时回落本配置项自己的 tag
     var boundVoice by remember(entity.id) {
         mutableStateOf(
             CharacterRecordsFile.readCharacterVoice(
                 config.speechRule.tagRuleId, bindingKey
-            ) ?: (source?.voice ?: "")
+            ) ?: config.speechRule.tag
         )
     }
 
@@ -145,16 +147,16 @@ fun LogQuickPanel(
         dbm.systemTtsV2.getAllGroupWithTts().flatMap { it.list }
     }
 
-    /** 按底层 voice 查启用配置项（试听/当前发音人名/候选行displayName/参数跟随共用）——
-     *  用户 09-12 拍板：绑定值（池子 fayinren.json / characterRecords 里存的）一律按 **voice** 匹配，
-     *  voice 每配置唯一、最权威最底层；方案B 下标签位 travel 的就是 voice 值
-     *  （见技术文档《字段关联架构》§6.1），tag/tagName 不再参与面板匹配 */
-    fun enabledConfigEntityByVoice(voice: String): SystemTtsV2? {
-        if (voice.isEmpty()) return null
+    /** 按标签键查启用配置项（试听/当前发音人名/候选行displayName/参数跟随共用）——
+     *  用户 09-12 定稿：匹配键=**tag（id）**，tagName 任一兼容（两者绑定关系固定、id 英文/拼音
+     *  与中文显示名不会撞车）。一个 tag 下挂多个配置（多个 voice），运行时同 tag 随机——
+     *  「一个标签绑定多个发音人、可随时切换」（见技术文档《字段关联架构》匹配层第2步） */
+    fun enabledConfigEntityByTagKey(key: String): SystemTtsV2? {
+        if (key.isEmpty()) return null
         return allConfigs.firstOrNull { item ->
             if (!item.isEnabled) return@firstOrNull false
-            val src = (item.config as? TtsConfigurationDTO)?.source
-            src is PluginTtsSource && src.voice == voice
+            val rule = (item.config as? TtsConfigurationDTO)?.speechRule
+            rule?.tag == key || rule?.tagName == key
         }
     }
 
@@ -234,7 +236,7 @@ fun LogQuickPanel(
     androidx.compose.runtime.LaunchedEffect(pendingVoice) {
         val pv = pendingVoice
         val target = when {
-            isBindingMode -> enabledConfigEntityByVoice(pv ?: boundVoice)
+            isBindingMode -> enabledConfigEntityByTagKey(pv ?: boundVoice)
             pv != null -> narrationEntityByVoice(pv)
             else -> null
         } ?: return@LaunchedEffect
@@ -363,7 +365,7 @@ fun LogQuickPanel(
             val boundConfigName = remember(entity.id, boundVoice, pendingVoice) {
                 if (isBindingMode) {
                     val tag = pendingVoice ?: boundVoice
-                    enabledConfigEntityByVoice(tag)?.displayName ?: tag
+                    enabledConfigEntityByTagKey(tag)?.displayName ?: tag
                 } else ""
             }
             val pendingName = pendingVoice
@@ -473,18 +475,21 @@ fun LogQuickPanel(
                     }
                     var tagSearch by remember(entity.id) { mutableStateOf("") }
                     // 改绑到无启用配置的标签会掉进随机兜底，读声不可控，必须排除
-                    // （用户 09-12：候选匹配一律按底层 voice——池子/记录存的是 voice 值（方案B），
-                    //   voice 每配置唯一、最权威；tag/tagName 不再参与）
-                    val enabledVoices = remember(entity.id) {
+                    // （用户 09-12 定稿：候选/绑定匹配键=tag（id），tagName 兼容——
+                    //   池子/记录存的是 tag id，故启用标签集合按两字段并集收集）
+                    val enabledTagKeys = remember(entity.id) {
                         dbm.systemTtsV2.getAllGroupWithTts().flatMap { it.list }
                             .filter { it.isEnabled }
-                            .mapNotNull {
-                                ((it.config as? TtsConfigurationDTO)?.source as? PluginTtsSource)
-                                    ?.voice?.takeIf { v -> v.isNotEmpty() }
+                            .flatMap {
+                                val rule = (it.config as? TtsConfigurationDTO)?.speechRule
+                                listOfNotNull(
+                                    rule?.tag?.takeIf { t -> t.isNotEmpty() },
+                                    rule?.tagName?.takeIf { t -> t.isNotEmpty() },
+                                )
                             }.toMutableSet()
                     }
                     val poolEnabled = CharacterRecordsFile.readVoicePool(config.speechRule.tagRuleId)
-                        .filter { it in enabledVoices }
+                        .filter { it in enabledTagKeys }
                     // 下拉项带括号项数（不含搜索过滤，选分类前就知道各范围有多少可选）；
                     // 0 项分类直接隐藏（用户 09-11 晚改，替代 09-09「不标数量」——不标会被误读成
                     // 信息缺失，没货的分类干脆不列）；「全部」恒在首位。
@@ -527,7 +532,7 @@ fun LogQuickPanel(
                         (selectedCategory == null || voiceCategoryOf(tag) == selectedCategory) &&
                             (tagSearch.isBlank() ||
                                 tag.contains(tagSearch) ||
-                                enabledConfigEntityByVoice(tag)?.displayName?.contains(tagSearch) == true)
+                                enabledConfigEntityByTagKey(tag)?.displayName?.contains(tagSearch) == true)
                     }
                     // 当前绑定不在候选时补在顶部，防丢值；搜索态不补（否则顶部挂着不匹配项，破坏搜索语义）
                     val displayTags =
@@ -562,8 +567,8 @@ fun LogQuickPanel(
                             val isCurrent = tag == boundVoice
                             val isPending = tag == pendingVoice
                             // 候选行显示「标签名+配置项名」（用户 09-09：原 displayName·tag 反过来去点）
-                            // 候选池已筛 fayinren.json∩启用配置（voice 口径），用 enabledConfigEntityByVoice 即可取到 displayName
-                            val cfgName = enabledConfigEntityByVoice(tag)?.displayName.orEmpty()
+                            // 候选池已筛 fayinren.json∩启用配置（tag id 口径），用 enabledConfigEntityByTagKey 即可取到 displayName
+                            val cfgName = enabledConfigEntityByTagKey(tag)?.displayName.orEmpty()
                             val displayText = tag + cfgName
                             Row(
                                 Modifier
@@ -596,7 +601,7 @@ fun LogQuickPanel(
                                     }
                                     previewingKey = tag
                                     scope.launch {
-                                        val target = withIO { enabledConfigEntityByVoice(tag) }
+                                        val target = withIO { enabledConfigEntityByTagKey(tag) }
                                         if (target != null) {
                                             TaggedTtsPreviewPlayer.play(context, target, "你好，这是试听语音。")
                                         } else {
@@ -618,25 +623,18 @@ fun LogQuickPanel(
                         }
                     }
                 } else {
-                    // ===== 非绑定分类（用户 09-12 从"旁白"推广）：按本配置项的 tagName 列同分类候选 =====
-                    // 旁白/括号发音人/对话男女等都是"同 tagName 一批，选一个把 voice 写进本配置项"；
-                    // 本地音效槽位不进此分支（tagName 带序号，已在上面走绑定模式）。
-                    // 修复（用户 09-12）：按 tagName（显示名，列表角标同源）筛——原比 tag id 永不命中；
+                    // ===== 非绑定换声（用户 09-12 定稿）：按本配置项的 **tag（id）** 列同标签候选 =====
+                    // 一个 tag 挂多个配置（多个 voice）、运行时同 tag 随机（"一个标签绑定多个发音人，
+                    // 可随时切换"）——旁白/对话(duihua)/括号/本地音效全部天然按此归组，无需特殊分支；
+                    // 最早那版报"旁白分类没有可用的配置项"，根因是拿显示名"旁白"去比 id（narration）。
                     // 点行=暂存选中，底部「确认」写本配置项 voice，
                     // 落库后主列表自动定位高亮被改项（sharedVM.pendingLocateConfigId）
+                    val currentTagId = config.speechRule.tag
                     val currentTagName = config.speechRule.tagName
-                    // 对话类判定（用户 09-12 修正，规则 mingwuyan：tags 表 duihua→对话）：
-                    // **仅 tag=="duihua"** 的配置算对话类（duihuaA/duihuaB 是另两类，不掺）——
-                    // 这批配置 genderAge 各不相同（男/少年、女/女青年…共十来种），tagName 条条不同，
-                    // 不能按 tagName 细分；运行时随机挑一个，故候选=全部 tag==duihua 的配置、保证有得选
-                    val isDialogueTag = config.speechRule.tag == "duihua"
-                    val narrationCandidates = remember(entity.id, currentTagName, isDialogueTag) {
+                    val narrationCandidates = remember(entity.id, currentTagId) {
                         allConfigs.mapNotNull { c ->
                             val dto = c.config as? TtsConfigurationDTO ?: return@mapNotNull null
-                            val rule = dto.speechRule
-                            val inClass = if (isDialogueTag) rule.tag == "duihua"
-                            else rule.tagName == currentTagName
-                            if (!inClass) return@mapNotNull null
+                            if (dto.speechRule.tag != currentTagId) return@mapNotNull null
                             val v = (dto.source as? PluginTtsSource)?.voice
                                 ?.takeIf { it.isNotEmpty() } ?: return@mapNotNull null
                             Pair(v, c.displayName)
@@ -656,11 +654,8 @@ fun LogQuickPanel(
                     ) {
                         if (narrationCandidates.isEmpty()) {
                             Text(
-                                when {
-                                    isDialogueTag -> "对话分类没有可用的配置项"
-                                    currentTagName.isBlank() -> "该分类没有可用的配置项"
-                                    else -> "「$currentTagName」分类没有可用的配置项"
-                                },
+                                if (currentTagName.isBlank()) "该标签下没有可用的配置项"
+                                else "「$currentTagName」标签下没有可用的配置项",
                                 modifier = Modifier.padding(10.dp),
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
