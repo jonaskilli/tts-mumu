@@ -2533,13 +2533,31 @@ internal fun ListManagerScreen(
     var showBatchDeleteConfigs by remember { mutableStateOf(false) }
     if (showBatchDeleteConfigs) {
         val scopeItems = models.flatMap { it.list }
+        // 清单条目：归到「实际分组」（大分组，或大分组 › 子分组），弹窗内按所选插件折叠展示
+        val deleteEntries = remember(models) {
+            models.flatMap { gwt ->
+                gwt.list.mapNotNull { tts ->
+                    val src = (tts.config as? TtsConfigurationDTO)?.source as? PluginTtsSource
+                        ?: return@mapNotNull null
+                    val sub = tts.categoryPath
+                    BatchDeleteEntry(
+                        pluginId = src.pluginId,
+                        groupLabel = if (sub.isBlank()) gwt.group.name
+                        else "${gwt.group.name} › $sub",
+                        name = tts.displayName,
+                        voice = src.voice
+                    )
+                }
+            }
+        }
         BatchDeleteConfigDialog(
-            scopeDesc = if (searchKeyword.isNotBlank()) "搜索结果" else "当前池全部配置项",
+            // 作用域恒为当前池全部配置项：清单本就取自全部 models，不随搜索框变化（避免"提示范围"与"实际删除范围"不一致）
+            scopeDesc = "当前池全部配置项",
             // 用户 09-12 拍板：不含「全部（不按插件筛选）」，避免一手滑把整个池子删空
             pluginOptions = remember(scopeItems, pluginNameCache) {
                 batchPluginOptions(scopeItems, pluginNameCache).filter { it.first.isNotEmpty() }
             },
-            pluginItemCounts = remember(scopeItems) { batchPluginItemCounts(scopeItems) },
+            entries = deleteEntries,
             onDismissRequest = { showBatchDeleteConfigs = false },
             onDelete = { pluginId ->
                 showBatchDeleteConfigs = false
@@ -2705,7 +2723,21 @@ internal fun ListManagerScreen(
                     }
                 }
             },
+            // 用户 09-12 拍板：底栏左下「清理全部失效配置项」（不分来源，一次清完）、右下「关闭」
             confirmButton = {
+                TextButton(onClick = {
+                    vm.batchDeleteInvalidItems(null)
+                    showInvalidDetail = false
+                    expandedSources = emptySet()
+                    context.toast("已清理 $invalidCount 项失效配置项")
+                }) {
+                    Text(
+                        "清理全部失效配置项",
+                        color = MaterialTheme.colorScheme.error
+                    )
+                }
+            },
+            dismissButton = {
                 TextButton(onClick = {
                     showInvalidDetail = false
                     expandedSources = emptySet()
