@@ -1099,6 +1099,8 @@ internal fun ListManagerScreen(
                 }
             )
         } else {
+            // 用户 09-12：选项列表统一为圆圈单选 + 底部确认（与「合并同类配置项」同款）
+            var convertTargetId by remember { mutableStateOf<Long?>(null) }
             AlertDialog(
                 onDismissRequest = { showConvertToSubGroup = null },
                 title = { Text("转为子分组") },
@@ -1110,8 +1112,34 @@ internal fun ListManagerScreen(
                             Text("选择目标分组，当前分组将作为其子分组：", modifier = Modifier.padding(bottom = 8.dp))
                         }
                         otherGroups.forEach { otherGroup ->
-                            TextButton(
-                                onClick = {
+                            val isTargetSelected = convertTargetId == otherGroup.id
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .selectable(
+                                        selected = isTargetSelected,
+                                        onClick = { convertTargetId = otherGroup.id }
+                                    )
+                                    .padding(top = 4.dp, bottom = 4.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                RadioButton(
+                                    selected = isTargetSelected,
+                                    onClick = { convertTargetId = otherGroup.id }
+                                )
+                                Text(
+                                    text = otherGroup.name,
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    modifier = Modifier.padding(start = 4.dp)
+                                )
+                            }
+                        }
+                    }
+                },
+                confirmButton = {
+                    TextButton(
+                        onClick = {
+                            otherGroups.find { it.id == convertTargetId }?.let { otherGroup ->
                                     // 立即关闭弹窗 + 显示加载遮罩
                                     showConvertToSubGroup = null
                                     showTagOrganizeLoading = true
@@ -1139,15 +1167,13 @@ internal fun ListManagerScreen(
                                         }
                                         showTagOrganizeLoading = false
                                     }
-                                },
-                                modifier = Modifier.fillMaxWidth()
-                            ) {
-                                Text(otherGroup.name)
                             }
-                        }
+                        },
+                        enabled = convertTargetId != null
+                    ) {
+                        Text("转为子分组")
                     }
                 },
-                confirmButton = {},
                 dismissButton = {
                     TextButton(onClick = { showConvertToSubGroup = null }) {
                         Text(stringResource(R.string.cancel))
@@ -1457,6 +1483,8 @@ internal fun ListManagerScreen(
         val screenHeight = LocalConfiguration.current.screenHeightDp.dp
         // 官方 MD3 默认壳（09-11 裁定）：原 Dialog+Surface 自绘壳（M2 风格：20dp padding、
         // titleLarge 自绘标题、底部自绘取消按钮行）已换成官方 AlertDialog，与全 app 弹窗统一
+        // 用户 09-12：选项列表统一为圆圈单选 + 底部确认（与「合并同类配置项」同款）
+        var convertMultiTargetId by remember { mutableStateOf<Long?>(null) }
         AlertDialog(
             onDismissRequest = { showConvertToSubGroupMulti = false },
             title = { Text("转为子分组") },
@@ -1476,19 +1504,27 @@ internal fun ListManagerScreen(
                         HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
                         Text("选择目标一级分组：", modifier = Modifier.padding(bottom = 8.dp))
                         targetGroups.forEach { target ->
-                            TextButton(
-                                onClick = {
-                                    showConvertToSubGroupMulti = false
-                                    showTagOrganizeLoading = true
-                                    scope.launch {
-                                        performConvertToSubGroup(target, convertibleSources)
-                                        showTagOrganizeLoading = false
-                                        selectionMode = false
-                                        selectedGroupIds = emptySet()
-                                    }
-                                },
-                                modifier = Modifier.fillMaxWidth()
-                            ) { Text(target.name) }
+                            val isTargetSelected = convertMultiTargetId == target.id
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .selectable(
+                                        selected = isTargetSelected,
+                                        onClick = { convertMultiTargetId = target.id }
+                                    )
+                                    .padding(top = 4.dp, bottom = 4.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                RadioButton(
+                                    selected = isTargetSelected,
+                                    onClick = { convertMultiTargetId = target.id }
+                                )
+                                Text(
+                                    text = target.name,
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    modifier = Modifier.padding(start = 4.dp)
+                                )
+                            }
                         }
                         HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
                         TextButton(
@@ -1501,9 +1537,26 @@ internal fun ListManagerScreen(
                     }
                 }
             },
-            // 本弹窗无正向确认操作（点目标分组即执行），MD3 AlertDialog 的 confirmButton
-            // 为必选槽，取消键放此槽（dismissButton 槽可省）
             confirmButton = {
+                TextButton(
+                    onClick = {
+                        targetGroups.find { it.id == convertMultiTargetId }?.let { target ->
+                            showConvertToSubGroupMulti = false
+                            showTagOrganizeLoading = true
+                            scope.launch {
+                                performConvertToSubGroup(target, convertibleSources)
+                                showTagOrganizeLoading = false
+                                selectionMode = false
+                                selectedGroupIds = emptySet()
+                            }
+                        }
+                    },
+                    enabled = convertMultiTargetId != null
+                ) {
+                    Text("转为子分组")
+                }
+            },
+            dismissButton = {
                 TextButton(onClick = { showConvertToSubGroupMulti = false }) {
                     Text(stringResource(R.string.cancel))
                 }
@@ -1584,6 +1637,8 @@ internal fun ListManagerScreen(
                 ?.sorted()
                 ?: emptyList()
         }
+        // 用户 09-12：选项列表统一为圆圈单选 + 底部确认（与「合并同类配置项」同款）
+        var extractPath by remember(targetGroup.id) { mutableStateOf<String?>(null) }
         AlertDialog(
             onDismissRequest = { showExtractSubGroup = null },
             title = { Text("移动子分组") },
@@ -1595,8 +1650,36 @@ internal fun ListManagerScreen(
                         Text("移动子分组到其他一级分组，注意区域可上下滑动", modifier = Modifier.padding(bottom = 8.dp))
                         Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
                             subPaths.forEach { path ->
-                                TextButton(
-                                    onClick = {
+                                val isPathSelected = extractPath == path
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .selectable(
+                                            selected = isPathSelected,
+                                            onClick = { extractPath = path }
+                                        )
+                                        .padding(top = 4.dp, bottom = 4.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    RadioButton(
+                                        selected = isPathSelected,
+                                        onClick = { extractPath = path }
+                                    )
+                                    Text(
+                                        text = path,
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        modifier = Modifier.padding(start = 4.dp)
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        extractPath?.let { path ->
                                         // 立即关闭弹窗 + 显示加载遮罩
                                         showExtractSubGroup = null
                                         showTagOrganizeLoading = true
@@ -1637,17 +1720,13 @@ internal fun ListManagerScreen(
                                             }
                                             showTagOrganizeLoading = false
                                         }
-                                    },
-                                    modifier = Modifier.fillMaxWidth()
-                                ) {
-                                    Text(path)
-                                }
-                            }
                         }
-                    }
+                    },
+                    enabled = extractPath != null
+                ) {
+                    Text("移动")
                 }
             },
-            confirmButton = {},
             dismissButton = {
                 TextButton(onClick = { showExtractSubGroup = null }) {
                     Text(stringResource(R.string.cancel))
@@ -1715,6 +1794,9 @@ internal fun ListManagerScreen(
         // 展开的大分组ID集合
         var expandedMoveGroups by remember { mutableStateOf<Set<Long>>(emptySet()) }
 
+        // 用户 09-12：选项列表统一为圆圈单选 + 底部确认（与「合并同类配置项」同款）
+        // 选中项 = 目标一级分组(路径为空) 或 其下某个子分组(带路径)
+        var moveEnabledTarget by remember { mutableStateOf<Pair<Long, String>?>(null) }
         AlertDialog(
             onDismissRequest = { showMoveEnabledDialog = null },
             // 用户 09-11 晚终裁：列表类弹窗宽度回宽版（0.92 屏宽，原版观感）；圆角维持 MD3 官方
@@ -1752,63 +1834,52 @@ internal fun ListManagerScreen(
                             } else {
                                 Spacer(Modifier.size(48.dp))
                             }
-                            TextButton(
-                                onClick = {
-                                    scope.launch {
-                                        showMoveEnabledDialog = null
-                                        showTagOrganizeLoading = true
-                                        val maxOrder = gwt.list.maxOfOrNull { it.order } ?: -1
-                                        withIO {
-                                            if (enabledItems.isNotEmpty()) {
-                                                dbm.systemTtsV2.update(
-                                                    *enabledItems.mapIndexed { idx, item ->
-                                                        item.copy(
-                                                            groupId = grp.id,
-                                                            categoryPath = "",
-                                                            order = maxOrder + 1 + idx
-                                                        )
-                                                    }.toTypedArray()
-                                                )
-                                            }
-                                        }
-                                        showTagOrganizeLoading = false
-                                        SystemTtsService.notifyUpdateConfig()
-                                    }
-                                },
-                                modifier = Modifier.weight(1f)
-                            ) { Text(grp.name) }
+                            val isGroupRootSelected = moveEnabledTarget == (grp.id to "")
+                            Row(
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .selectable(
+                                        selected = isGroupRootSelected,
+                                        onClick = { moveEnabledTarget = grp.id to "" }
+                                    )
+                                    .padding(top = 4.dp, bottom = 4.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                RadioButton(
+                                    selected = isGroupRootSelected,
+                                    onClick = { moveEnabledTarget = grp.id to "" }
+                                )
+                                Text(
+                                    text = grp.name,
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    modifier = Modifier.padding(start = 4.dp)
+                                )
+                            }
                         }
 
                         if (isExpanded) {
                             subPaths.forEach { path ->
-                                TextButton(
-                                    onClick = {
-                                        scope.launch {
-                                            showMoveEnabledDialog = null
-                                            showTagOrganizeLoading = true
-                                            val subItems = gwt.list.filter { it.categoryPath == path }
-                                            val maxOrder = subItems.maxOfOrNull { it.order } ?: -1
-                                            withIO {
-                                                if (enabledItems.isNotEmpty()) {
-                                                    dbm.systemTtsV2.update(
-                                                        *enabledItems.mapIndexed { idx, item ->
-                                                            item.copy(
-                                                                groupId = grp.id,
-                                                                categoryPath = path,
-                                                                order = maxOrder + 1 + idx
-                                                            )
-                                                        }.toTypedArray()
-                                                    )
-                                                }
-                                            }
-                                            showTagOrganizeLoading = false
-                                            SystemTtsService.notifyUpdateConfig()
-                                        }
-                                    },
+                                val isPathSelected = moveEnabledTarget == (grp.id to path)
+                                Row(
                                     modifier = Modifier
                                         .fillMaxWidth()
-                                        .padding(start = 56.dp)
-                                ) { Text(path) }
+                                        .selectable(
+                                            selected = isPathSelected,
+                                            onClick = { moveEnabledTarget = grp.id to path }
+                                        )
+                                        .padding(start = 56.dp, top = 4.dp, bottom = 4.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    RadioButton(
+                                        selected = isPathSelected,
+                                        onClick = { moveEnabledTarget = grp.id to path }
+                                    )
+                                    Text(
+                                        text = path,
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        modifier = Modifier.padding(start = 4.dp)
+                                    )
+                                }
                             }
                         }
                     }
@@ -1822,7 +1893,41 @@ internal fun ListManagerScreen(
                     ) { Text("新建一级分组") }
                 }
             },
-            confirmButton = {},
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        moveEnabledTarget?.let { (targetGroupId, targetPath) ->
+                            scope.launch {
+                                showMoveEnabledDialog = null
+                                showTagOrganizeLoading = true
+                                val targetGwt = models.find { it.group.id == targetGroupId }
+                                val maxOrder = if (targetPath.isBlank())
+                                    (targetGwt?.list?.maxOfOrNull { it.order } ?: -1)
+                                else
+                                    (targetGwt?.list?.filter { it.categoryPath == targetPath }?.maxOfOrNull { it.order } ?: -1)
+                                withIO {
+                                    if (enabledItems.isNotEmpty()) {
+                                        dbm.systemTtsV2.update(
+                                            *enabledItems.mapIndexed { idx, item ->
+                                                item.copy(
+                                                    groupId = targetGroupId,
+                                                    categoryPath = targetPath,
+                                                    order = maxOrder + 1 + idx
+                                                )
+                                            }.toTypedArray()
+                                        )
+                                    }
+                                }
+                                showTagOrganizeLoading = false
+                                SystemTtsService.notifyUpdateConfig()
+                            }
+                        }
+                    },
+                    enabled = moveEnabledTarget != null
+                ) {
+                    Text("移动")
+                }
+            },
             dismissButton = {
                 TextButton(onClick = { showMoveEnabledDialog = null }) {
                     Text(stringResource(R.string.cancel))
@@ -1849,6 +1954,8 @@ internal fun ListManagerScreen(
             models.filter { it.group.id != sourceGroup.id }.map { it.group }
         }
 
+        // 用户 09-12：目标分组列表统一为圆圈单选 + 底部确认（源子分组仍为多选勾选）
+        var moveSubGroupsTargetId by remember { mutableStateOf<Long?>(null) }
         AlertDialog(
             onDismissRequest = { showMoveSubGroupsDialog = null },
             // 用户 09-11 晚终裁：列表类弹窗宽度回宽版（0.92 屏宽，原版观感）；圆角维持 MD3 官方
@@ -1935,23 +2042,27 @@ internal fun ListManagerScreen(
                                     .verticalScroll(rememberScrollState())
                             ) {
                                 otherGroups.forEach { targetGroup ->
-                                    TextButton(
-                                        onClick = {
-                                            scope.launch {
-                                                showMoveSubGroupsDialog = null
-                                                showTagOrganizeLoading = true
-                                                withIO {
-                                                    moveSubGroupsToGroup(
-                                                        sourceGroup = sourceGroup,
-                                                        paths = selectedPaths,
-                                                        targetGroup = targetGroup
-                                                    )
-                                                }
-                                                showTagOrganizeLoading = false
-                                            }
-                                        },
-                                        modifier = Modifier.fillMaxWidth()
-                                    ) { Text(targetGroup.name) }
+                                    val isTargetSelected = moveSubGroupsTargetId == targetGroup.id
+                                    Row(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .selectable(
+                                                selected = isTargetSelected,
+                                                onClick = { moveSubGroupsTargetId = targetGroup.id }
+                                            )
+                                            .padding(top = 4.dp, bottom = 4.dp),
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        RadioButton(
+                                            selected = isTargetSelected,
+                                            onClick = { moveSubGroupsTargetId = targetGroup.id }
+                                        )
+                                        Text(
+                                            text = targetGroup.name,
+                                            style = MaterialTheme.typography.bodyMedium,
+                                            modifier = Modifier.padding(start = 4.dp)
+                                        )
+                                    }
                                 }
                                 TextButton(
                                     onClick = {
@@ -1965,7 +2076,29 @@ internal fun ListManagerScreen(
                     }
                 }
             },
-            confirmButton = {},
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        otherGroups.find { it.id == moveSubGroupsTargetId }?.let { targetGroup ->
+                            scope.launch {
+                                showMoveSubGroupsDialog = null
+                                showTagOrganizeLoading = true
+                                withIO {
+                                    moveSubGroupsToGroup(
+                                        sourceGroup = sourceGroup,
+                                        paths = selectedPaths,
+                                        targetGroup = targetGroup
+                                    )
+                                }
+                                showTagOrganizeLoading = false
+                            }
+                        }
+                    },
+                    enabled = moveSubGroupsTargetId != null
+                ) {
+                    Text("移动")
+                }
+            },
             dismissButton = {
                 TextButton(onClick = { showMoveSubGroupsDialog = null }) {
                     Text(stringResource(R.string.cancel))
@@ -1979,6 +2112,8 @@ internal fun ListManagerScreen(
         val sourceGroup = showMoveSingleSubGroupDialog!!.first
         val subPath = showMoveSingleSubGroupDialog!!.second
         val otherGroups = models.filter { it.group.id != sourceGroup.id }.map { it.group }
+        // 用户 09-12：目标分组列表统一为圆圈单选 + 底部确认（与「合并同类配置项」同款）
+        var moveSingleTargetId by remember { mutableStateOf<Long?>(null) }
         AlertDialog(
             onDismissRequest = { showMoveSingleSubGroupDialog = null },
             // 用户 09-11 晚终裁：列表类弹窗宽度回宽版（0.92 屏宽，原版观感）；圆角维持 MD3 官方
@@ -2002,23 +2137,27 @@ internal fun ListManagerScreen(
                             .verticalScroll(rememberScrollState())
                     )
                     otherGroups.forEach { targetGroup ->
-                        TextButton(
-                            onClick = {
-                                scope.launch {
-                                    showMoveSingleSubGroupDialog = null
-                                    showTagOrganizeLoading = true
-                                    withIO {
-                                        moveSubGroupsToGroup(
-                                            sourceGroup = sourceGroup,
-                                            paths = setOf(subPath),
-                                            targetGroup = targetGroup
-                                        )
-                                    }
-                                    showTagOrganizeLoading = false
-                                }
-                            },
-                            modifier = Modifier.fillMaxWidth()
-                        ) { Text(targetGroup.name) }
+                        val isTargetSelected = moveSingleTargetId == targetGroup.id
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .selectable(
+                                    selected = isTargetSelected,
+                                    onClick = { moveSingleTargetId = targetGroup.id }
+                                )
+                                .padding(top = 4.dp, bottom = 4.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            RadioButton(
+                                selected = isTargetSelected,
+                                onClick = { moveSingleTargetId = targetGroup.id }
+                            )
+                            Text(
+                                text = targetGroup.name,
+                                style = MaterialTheme.typography.bodyMedium,
+                                modifier = Modifier.padding(start = 4.dp)
+                            )
+                        }
                     }
                     HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
                     TextButton(
@@ -2030,7 +2169,29 @@ internal fun ListManagerScreen(
                     ) { Text("新建一级分组") }
                 }
             },
-            confirmButton = {},
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        otherGroups.find { it.id == moveSingleTargetId }?.let { targetGroup ->
+                            scope.launch {
+                                showMoveSingleSubGroupDialog = null
+                                showTagOrganizeLoading = true
+                                withIO {
+                                    moveSubGroupsToGroup(
+                                        sourceGroup = sourceGroup,
+                                        paths = setOf(subPath),
+                                        targetGroup = targetGroup
+                                    )
+                                }
+                                showTagOrganizeLoading = false
+                            }
+                        }
+                    },
+                    enabled = moveSingleTargetId != null
+                ) {
+                    Text("移动")
+                }
+            },
             dismissButton = {
                 TextButton(onClick = { showMoveSingleSubGroupDialog = null }) {
                     Text(stringResource(R.string.cancel))
