@@ -163,8 +163,9 @@ fun LogQuickPanel(
     }
 
     /** 按标签（tag id）查启用配置项（试听/当前发音人名/候选行displayName/参数跟随共用）——
-     *  用户 09-12 定稿：匹配键=**tag（id）**，fayinren.json/characterRecords 存的都是 tag id，
-     *  同 tag 下多配置（多 voice）运行时随机（一个标签绑定多个发音人、可随时切换）；
+     *  用户 09-12 定稿：匹配键=**tag（id）**，fayinren.json/characterRecords 存的都是 tag id。
+     *  正常配置=**一个标签只启用一条**（目目 09-12 定）：换声即改写这条启用配置，该标签后续
+     *  片段确定全换；「同 tag 多配置随机轮播」属误操作，引擎侧 random 只是兜底，勿当设计意图；
      *  tagName 是显示名不参与匹配（09-12 晚：tagName 兜底也移除，全链只认 tag） */
     fun enabledConfigEntityByTag(tag: String): SystemTtsV2? {
         if (tag.isEmpty()) return null
@@ -736,10 +737,11 @@ fun LogQuickPanel(
                     }
                 } else {
                     // ===== 非绑定换声（用户 09-12 定稿）：按本配置项的 **tag（id）** 列同标签候选 =====
-                    // 一个 tag 挂多个配置（多个 voice）、运行时同 tag 随机（"一个标签绑定多个发音人，
-                    // 可随时切换"）——旁白/对话(duihua)/括号/本地音效全部天然按此归组，无需特殊分支；
+                    // 候选**故意列全量配置（含禁用）**——目目 09-12 定：正常配置一个标签只启用一条，
+                    // 禁用条只是"可借用的发音人来源"；点行=暂存选中，底部「确认」改写**那一条启用配置**
+                    // 的 voice → 该标签后续片段确定全换（引擎侧同 tag 随机只是兜底，非设计意图）；
+                    // 旁白/对话(duihua)/括号/本地音效全部天然按此归组，无需特殊分支；
                     // 最早那版报"旁白分类没有可用的配置项"，根因是拿显示名"旁白"去比 id（narration）。
-                    // 点行=暂存选中，底部「确认」写本配置项 voice，
                     // 落库后主列表自动定位高亮被改项（sharedVM.pendingLocateConfigId）
                     val currentTagId = config.speechRule.tag
                     val currentTagName = config.speechRule.tagName

@@ -155,6 +155,8 @@ class TextProcessor : ITextProcessor {
                             sameTagList.find { it.speechInfo.configId == txtWithTag.id }
 
                         // Exact match ID > random match in tag > match by voice(方案B) > random match in all
+                        // 注（目目 09-12 定）：正常配置=一个标签只启用一条，sameTagList 常态仅 1 项，
+                        // randomOrNull 只是多配置误操作时的兜底，非"随机轮播"设计意图，勿据此做交互
                         val config = configFromId
                             ?: sameTagList.randomOrNull(random)
                             ?: configs.filter {
