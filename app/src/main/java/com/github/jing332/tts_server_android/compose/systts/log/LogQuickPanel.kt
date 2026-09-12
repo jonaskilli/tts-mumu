@@ -185,12 +185,23 @@ fun LogQuickPanel(
     // 旁白=暂存候选的配置项；无暂存=本配置项。目标切换时三层草稿整体重载。=====
     var paramsTarget by remember(entity.id) { mutableStateOf(entity) }
 
+    // 09-12：非绑定换声落库后的新显示名——确定后弹窗不关，entity 是 remember 的库内旧快照，
+    // 头部「当前发音人」靠它立即跟上；重开弹窗重新读库，此覆盖自然失效
+    var appliedDisplayName by remember(entity.id) { mutableStateOf<String?>(null) }
+
     // 旁白/非多角色换声（对话绑定模式走 CharacterRecordsFile.rebind，两分支各自处理）：
     // 09-10 起连同当前参数草稿（=跟随所选发音人得来的值）一并写入本配置项，
     // 保证「确认」前后看到/听到的参数与实际生效一致
     fun applyVoice(selected: String) {
         voice = selected
         val sourceNow = (entity.config as? TtsConfigurationDTO)?.source as? PluginTtsSource
+        // 09-12 修复（装机反馈"声音变了名字还是旧的"）：displayName 一并同步成目标发音人的
+        // 配置项名——日志"显示名"段/主界面列表/弹窗头部全读 displayName，只写 voice 会出现
+        // 「声音换了、日志和主界面还挂原发音人」。取名口径与弹窗头部一致（同 voice 的候选配置项名）
+        val targetDisplayName = allConfigs.firstOrNull { c ->
+            c.id != entity.id &&
+                ((c.config as? TtsConfigurationDTO)?.source as? PluginTtsSource)?.voice == selected
+        }?.displayName?.takeIf { it.isNotBlank() }
         val newConfig = sourceNow?.let { sn ->
             config.copy(
                 source = sn.copy(voice = selected),
@@ -201,11 +212,16 @@ fun LogQuickPanel(
         }
         scope.launch {
             if (newConfig != null) withIO {
-                dbm.systemTtsV2.update(entity.copy(config = newConfig))
+                dbm.systemTtsV2.update(
+                    entity.copy(config = newConfig, displayName = targetDisplayName ?: entity.displayName)
+                )
                 SystemTtsService.notifyUpdateConfig()
             }
+            // 弹窗头部即时跟上新名字（库已落，重开弹窗走库值）
+            appliedDisplayName = targetDisplayName
             // 参数跟随目标回到本配置项（已带新参数），后续调整继续作用于本条
-            if (newConfig != null) paramsTarget = entity.copy(config = newConfig)
+            if (newConfig != null) paramsTarget =
+                entity.copy(config = newConfig, displayName = targetDisplayName ?: entity.displayName)
             // 主界面定位（用户 09-09）：换完旁白发音人，主列表滚动到被改的配置项并短暂高亮
             sharedVM.pendingLocateConfigId.value = entity.id
             Toast.makeText(
@@ -432,7 +448,7 @@ fun LogQuickPanel(
                 ?.takeIf { !isBindingMode }
                 ?.let { narrationEntityByVoice(it)?.displayName }
             val currentVoiceName = if (isBindingMode) boundConfigName
-            else pendingName ?: entity.displayName
+            else pendingName ?: appliedDisplayName ?: entity.displayName
             // 09-11 重排（用户拍板）：「当前发音人」小标签独占一行，▶ 键与发音人名同一行
             //（此前 ▶ 垂直居中在两行文字块上，与名字行错位）；名字加省略号防长名硬裁
             Column(Modifier.fillMaxWidth()) {
