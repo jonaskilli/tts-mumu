@@ -626,7 +626,7 @@ fun LogQuickPanel(
                         // 设为 bodyMedium 14sp，字段值/分类框/候选行全是 14sp，而 label 空置中态官方写死
                         // bodyLarge 16sp，观感比旁边内容大一圈；placeholder 吃正文槽 14sp 恰好对齐，
                         // 代价是输入后提示消失（搜索框可接受）
-                        placeholder = { Text("搜索标签名/名字（当前范围内）") },
+                        placeholder = { Text("搜索标签名/名字") },
                         value = tagSearch,
                         onValueChange = { tagSearch = it },
                         singleLine = true,
