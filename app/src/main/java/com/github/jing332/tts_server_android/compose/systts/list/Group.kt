@@ -6,6 +6,8 @@ import androidx.compose.material.icons.filled.DeleteForever
 import androidx.compose.material.icons.automirrored.filled.DriveFileMove
 import androidx.compose.material.icons.filled.DriveFileRenameOutline
 import androidx.compose.material.icons.filled.AccountTree
+import androidx.compose.material.icons.filled.CallMerge
+import androidx.compose.material.icons.filled.MoveToInbox
 import androidx.compose.material.icons.automirrored.filled.ExitToApp
 import androidx.compose.material.icons.filled.AutoFixHigh
 import androidx.compose.material.icons.filled.Speed
@@ -296,21 +298,23 @@ fun Group(
                     showEditContentDialog = true
                 },
                 leadingIcon = {
-                    Icon(Icons.AutoMirrored.Filled.DriveFileMove, null)
+                    // 用户 09-12：与「移动子分组」「合并同类」原本同图标易混，改「移入」语义
+                    Icon(Icons.Default.MoveToInbox, null)
                 }
             )
 
             // 合并同类配置项到其他分组：将本分组的配置项按 categoryPath 匹配归入目标分组；空分组（无配置项）无意义，隐藏
             if (onMergeGroup != null && itemCount > 0) {
-                DropdownMenuItem(text = { Text("合并同类配置项到其他分组") },
-                    onClick = {
-                        dismiss()
-                        onMergeGroup!!()
-                    },
-                    leadingIcon = {
-                        Icon(Icons.AutoMirrored.Filled.DriveFileMove, null)
-                    }
-                )
+            DropdownMenuItem(text = { Text("合并同类配置项到其他分组") },
+                onClick = {
+                    dismiss()
+                    onMergeGroup!!()
+                },
+                leadingIcon = {
+                    // 用户 09-12：与「移动子分组」「移入配置」原本同图标易混，改「合并」语义
+                    Icon(Icons.Default.CallMerge, null)
+                }
+            )
             }
         }
     )

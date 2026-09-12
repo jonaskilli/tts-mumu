@@ -20,7 +20,6 @@ import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Speed
 import androidx.compose.material.icons.filled.Output
 import androidx.compose.material3.Checkbox
-import androidx.compose.material3.RadioButton
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ElevatedCard
 import androidx.compose.material3.HorizontalDivider
@@ -147,45 +146,25 @@ internal fun Item(
                         height = Dimension.fillToConstraints
                     }
                     .detectReorder(reorderState)) {
-                if (isInSubGroup) {
-                    RadioButton(
-                        modifier = Modifier
-                            .fillMaxHeight()
-                            .semantics {
-                                role = Role.Switch
-                                context
-                                    .getString(
-                                        if (enabled) R.string.config_enabled_desc else R.string.config_disabled_desc,
-                                        limitedName
-                                    )
-                                    .let {
-                                        contentDescription = it
-                                        stateDescription = it
-                                    }
-                            },
-                        selected = enabled,
-                        onClick = { onEnabledChange(!enabled) },
-                    )
-                } else {
-                    Checkbox(
-                        modifier = Modifier
-                            .fillMaxHeight()
-                            .semantics {
-                                role = Role.Switch
-                                context
-                                    .getString(
-                                        if (enabled) R.string.config_enabled_desc else R.string.config_disabled_desc,
-                                        limitedName
-                                    )
-                                    .let {
-                                        contentDescription = it
-                                        stateDescription = it
-                                    }
-                            },
-                        checked = enabled,
-                        onCheckedChange = onEnabledChange,
-                    )
-                }
+                // 用户 09-12：启用开关统一用方框（原来子分组里是圆圈当开关用，与分组行/一级项不一致）
+                Checkbox(
+                    modifier = Modifier
+                        .fillMaxHeight()
+                        .semantics {
+                            role = Role.Switch
+                            context
+                                .getString(
+                                    if (enabled) R.string.config_enabled_desc else R.string.config_disabled_desc,
+                                    limitedName
+                                )
+                                .let {
+                                    contentDescription = it
+                                    stateDescription = it
+                                }
+                        },
+                    checked = enabled,
+                    onCheckedChange = onEnabledChange,
+                )
             }
             Text(
                 limitedName,

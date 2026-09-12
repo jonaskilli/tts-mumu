@@ -5,9 +5,9 @@ import android.util.Log
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.EditNote
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.TextFields
+import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
@@ -218,7 +218,8 @@ internal fun PluginEditorScreen(
                 showVarsDialog = true
             },
             leadingIcon = {
-                Icon(Icons.Default.EditNote, stringResource(R.string.plugin_set_vars))
+                // 用户 09-12：「设置变量」全 app 统一用 Tune（与列表菜单同款）
+                Icon(Icons.Default.Tune, stringResource(R.string.plugin_set_vars))
             }
         )
     }

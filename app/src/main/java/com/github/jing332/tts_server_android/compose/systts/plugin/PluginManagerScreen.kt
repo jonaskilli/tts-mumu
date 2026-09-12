@@ -35,6 +35,8 @@ import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.DeleteForever
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.EditNote
+import androidx.compose.material.icons.filled.LibraryAdd
+import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Output
 import androidx.compose.material.icons.filled.PlayArrow
@@ -1015,6 +1017,7 @@ private fun Item(
                             }
 
                             // 设置变量：插件声明了可设置变量时显示
+                            // （用户 09-12：与相邻的「修改插件信息」原同用 EditNote 易混，改 Tune 调节旋钮）
                             if (hasDefVars)
                                 DropdownMenuItem(
                                     text = { Text(stringResource(id = R.string.plugin_set_vars)) },
@@ -1023,7 +1026,7 @@ private fun Item(
                                         onSetVars()
                                     },
                                     leadingIcon = {
-                                        Icon(Icons.Default.EditNote, stringResource(R.string.plugin_set_vars))
+                                        Icon(Icons.Default.Tune, stringResource(R.string.plugin_set_vars))
                                     }
                                 )
 
@@ -1048,7 +1051,8 @@ private fun Item(
                                         showImportByCategory = true
                                     },
                                     leadingIcon = {
-                                        Icon(Icons.AutoMirrored.Filled.Input, "按插件音色分类入库")
+                                        // 用户 09-12：原 Input 与「导出 Output」同菜单易混，改「入库」语义
+                                        Icon(Icons.Default.LibraryAdd, "按插件音色分类入库")
                                     }
                                 )
 
