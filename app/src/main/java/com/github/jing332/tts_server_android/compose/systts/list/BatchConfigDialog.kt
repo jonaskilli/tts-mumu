@@ -144,7 +144,7 @@ fun BatchConfigDialog(
     val itemBuckets = entries.filter { it.pluginId == pluginId }
         .groupBy { it.groupLabel }
         .toList()
-    // 删除只对**具体插件**开放：选中「全部（不按插件筛选）」时为 0，按钮禁用，
+    // 删除只对**具体插件**开放：选中「全部」时为 0，按钮禁用，
     // 避免一手滑把整个池子删空（沿用用户 09-12 拍板口径）
     val deletableCount = if (pluginId.isEmpty()) 0 else itemBuckets.sumOf { it.second.size }
     val targetPluginId = (targetPluginKey as? String)?.takeIf { it != "none" }

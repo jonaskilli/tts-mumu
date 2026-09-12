@@ -588,7 +588,7 @@
     <string name="batch_cfg_tab_delete_items">删除配置项</string>
     <string name="batch_cfg_sample_rate">采样率</string>
     <string name="batch_cfg_matched">匹配 %1$d 项</string>
-    <string name="batch_cfg_all_plugins">全部（不按插件筛选）</string>
+    <string name="batch_cfg_all_plugins">全部</string>
     <string name="batch_cfg_keep_unchanged">不修改</string>
     <string name="batch_cfg_change_plugin_to">更换插件为</string>
     <string name="batch_cfg_delete_pick_plugin_hint">请先在上方选择一个插件</string>
