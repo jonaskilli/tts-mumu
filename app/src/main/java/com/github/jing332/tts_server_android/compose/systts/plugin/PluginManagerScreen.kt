@@ -304,7 +304,7 @@ fun PluginManagerScreen(sharedVM: SharedViewModel, onFinishActivity: () -> Unit)
         }
         AppDialog(
             onDismissRequest = { showSwitchPluginRefsDialog = null },
-            title = { Text("切换引用配置到其他插件") },
+            title = { Text("切换引用配置项至其他插件") },
             content = {
                 Column {
                     Text(
@@ -422,7 +422,7 @@ fun PluginManagerScreen(sharedVM: SharedViewModel, onFinishActivity: () -> Unit)
         val (done, total) = switchProgress!!
         AppDialog(
             onDismissRequest = {},
-            title = { Text("正在切换引用配置…") },
+            title = { Text("正在切换引用配置项…") },
             content = {
                 Column(
                     modifier = Modifier.fillMaxWidth(),
@@ -437,7 +437,7 @@ fun PluginManagerScreen(sharedVM: SharedViewModel, onFinishActivity: () -> Unit)
         )
     }
 
-    // 编辑元数据弹窗：name/pluginId/author/version + 同步JS + pluginId变更检测
+    // 修改插件信息弹窗（原「编辑元数据」09-12 改名）：name/pluginId/author/version + 同步JS + pluginId变更检测
     var showEditMetadataDialog by remember { mutableStateOf<Plugin?>(null) }
     // pluginId 变更后，提示一键更新引用旧 id 的配置项
     var pendingPluginIdUpdate by remember { mutableStateOf<Triple<String, String, Int>?>(null) }
@@ -449,7 +449,7 @@ fun PluginManagerScreen(sharedVM: SharedViewModel, onFinishActivity: () -> Unit)
         var editVersion by remember(cur.id) { mutableStateOf(cur.version.toString()) }
         AppDialog(
             onDismissRequest = { showEditMetadataDialog = null },
-            title = { Text("编辑元数据") },
+            title = { Text("修改插件信息") },
             content = {
                 Column(Modifier.verticalScroll(rememberScrollState())) {
                     OutlinedTextField(
@@ -898,12 +898,12 @@ private fun Item(
     isSelectionMode: Boolean = false,
     isSelected: Boolean = false,
     onToggleSelection: () -> Unit = {},
-    // 第11项: 列表项内联展开编辑元数据
+    // 第11项: 列表项内联展开修改插件信息
     plugin: Plugin? = null,
     onUpdatePlugin: ((Plugin) -> Unit)? = null,
     // 切换引用配置：把所有引用当前插件id的配置项批量改为目标插件id
     onSwitchPluginRefs: (() -> Unit)? = null,
-    // 编辑元数据（弹窗）：name/pluginId/author/version + 同步JS
+    // 修改插件信息（弹窗）：name/pluginId/author/version + 同步JS
     onEditMetadata: (() -> Unit)? = null,
 ) {
     val context = LocalContext.current
@@ -1006,16 +1006,16 @@ private fun Item(
                                     }
                                 )
 
-                            // 编辑元数据（弹窗）：name/pluginId/author/version + 同步JS
+                            // 修改插件信息（弹窗，原「编辑元数据」09-12 改名）：name/pluginId/author/version + 同步JS
                             if (onEditMetadata != null) {
                                 DropdownMenuItem(
-                                    text = { Text("编辑元数据") },
+                                    text = { Text("修改插件信息") },
                                     onClick = {
                                         showOptions = false
                                         onEditMetadata()
                                     },
                                     leadingIcon = {
-                                        Icon(Icons.Default.EditNote, "编辑元数据")
+                                        Icon(Icons.Default.EditNote, "修改插件信息")
                                     }
                                 )
                             }
@@ -1045,16 +1045,16 @@ private fun Item(
                                     }
                                 )
 
-                            // 切换引用配置：把所有引用当前插件id的配置项改为目标插件id（用户 09-12 拍板：提到上栏、导出前）
+                            // 切换引用配置项至其他插件（09-12 改名）：把所有引用当前插件id的配置项改为目标插件id（用户 09-12 拍板：提到上栏、导出前）
                             if (onSwitchPluginRefs != null) {
                                 DropdownMenuItem(
-                                    text = { Text("切换引用配置") },
+                                    text = { Text("切换引用配置项至其他插件") },
                                     onClick = {
                                         showOptions = false
                                         onSwitchPluginRefs()
                                     },
                                     leadingIcon = {
-                                        Icon(Icons.Default.SwapHoriz, "切换引用配置")
+                                        Icon(Icons.Default.SwapHoriz, "切换引用配置项至其他插件")
                                     }
                                 )
                             }

@@ -7,6 +7,7 @@ import androidx.compose.material.icons.automirrored.filled.MenuBook
 import androidx.compose.material.icons.filled.Audiotrack
 import androidx.compose.material.icons.filled.Build
 import androidx.compose.material.icons.filled.ContentCut
+import androidx.compose.material.icons.filled.DeleteForever
 import androidx.compose.material.icons.filled.GraphicEq
 import androidx.compose.material.icons.filled.Group
 import androidx.compose.material.icons.filled.Output
@@ -42,6 +43,7 @@ internal fun MenuMoreOptions(
     onExportAll: () -> Unit,
     onBatchAudioParams: () -> Unit = {},
     onBatchSourceFields: () -> Unit = {},
+    onBatchDeleteConfigs: () -> Unit = {},
 ) {
     var showBgmSettingsDialog  by remember { mutableStateOf(false) }
     if (showBgmSettingsDialog)
@@ -118,6 +120,18 @@ internal fun MenuMoreOptions(
             },
             leadingIcon = {
                 Icon(Icons.Default.Build, null)
+            }
+        )
+
+        // 批量删除配置项（用户 09-12 拍板新增）：按来源插件筛出一批整体删除
+        DropdownMenuItem(
+            text = { Text("批量删除配置项") },
+            onClick = {
+                onDismissRequest()
+                onBatchDeleteConfigs()
+            },
+            leadingIcon = {
+                Icon(Icons.Default.DeleteForever, null)
             }
         )
 

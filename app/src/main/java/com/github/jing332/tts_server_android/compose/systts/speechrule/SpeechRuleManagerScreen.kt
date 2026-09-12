@@ -144,7 +144,7 @@ fun SpeechRuleManagerScreen(sharedVM: SharedViewModel, finish: () -> Unit) {
             showDeleteDialog = null
         }
 
-    // 编辑元数据弹窗：name/ruleId/author/version + 同步JS
+    // 修改朗读规则信息弹窗（原「编辑元数据」09-12 改名）：name/ruleId/author/version + 同步JS
     var showEditMetadataDialog by remember { mutableStateOf<SpeechRule?>(null) }
     if (showEditMetadataDialog != null) {
         val cur = showEditMetadataDialog!!
@@ -154,7 +154,7 @@ fun SpeechRuleManagerScreen(sharedVM: SharedViewModel, finish: () -> Unit) {
         var editVersion by remember(cur.id) { mutableStateOf(cur.version.toString()) }
         AppDialog(
             onDismissRequest = { showEditMetadataDialog = null },
-            title = { Text("编辑元数据") },
+            title = { Text("修改朗读规则信息") },
             content = {
                 Column(Modifier.verticalScroll(rememberScrollState())) {
                     OutlinedTextField(
@@ -436,10 +436,10 @@ internal fun Item(
     isSelectionMode: Boolean = false,
     isSelected: Boolean = false,
     onToggleSelection: () -> Unit = {},
-    // 第11项: 列表项内联展开编辑元数据
+    // 第11项: 列表项内联展开修改朗读规则信息
     rule: SpeechRule? = null,
     onUpdateRule: ((SpeechRule) -> Unit)? = null,
-    // 编辑元数据（弹窗）：name/ruleId/author/version + 同步JS
+    // 修改朗读规则信息（弹窗）：name/ruleId/author/version + 同步JS
     onEditMetadata: (() -> Unit)? = null,
 ) {
     val context = LocalContext.current
@@ -496,16 +496,16 @@ internal fun Item(
                             expanded = showOptions,
                             onDismissRequest = { showOptions = false }) {
 
-                            // 编辑元数据（弹窗）：name/ruleId/author/version + 同步JS
+                            // 修改朗读规则信息（弹窗，原「编辑元数据」09-12 改名）：name/ruleId/author/version + 同步JS
                             if (onEditMetadata != null) {
                                 DropdownMenuItem(
-                                    text = { Text("编辑元数据") },
+                                    text = { Text("修改朗读规则信息") },
                                     onClick = {
                                         showOptions = false
                                         onEditMetadata()
                                     },
                                     leadingIcon = {
-                                        Icon(Icons.Default.EditNote, "编辑元数据")
+                                        Icon(Icons.Default.EditNote, "修改朗读规则信息")
                                     }
                                 )
                             }

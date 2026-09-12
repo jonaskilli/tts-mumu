@@ -2529,6 +2529,34 @@ internal fun ListManagerScreen(
         )
     }
 
+    // 批量删除配置项（用户 09-12 拍板新增）：按来源插件筛出一批整体删除
+    var showBatchDeleteConfigs by remember { mutableStateOf(false) }
+    if (showBatchDeleteConfigs) {
+        val scopeItems = models.flatMap { it.list }
+        BatchDeleteConfigDialog(
+            scopeDesc = if (searchKeyword.isNotBlank()) "搜索结果" else "当前池全部配置项",
+            // 用户 09-12 拍板：不含「全部（不按插件筛选）」，避免一手滑把整个池子删空
+            pluginOptions = remember(scopeItems, pluginNameCache) {
+                batchPluginOptions(scopeItems, pluginNameCache).filter { it.first.isNotEmpty() }
+            },
+            pluginItemCounts = remember(scopeItems) { batchPluginItemCounts(scopeItems) },
+            onDismissRequest = { showBatchDeleteConfigs = false },
+            onDelete = { pluginId ->
+                showBatchDeleteConfigs = false
+                val targets = scopeItems.filterByPluginId(pluginId)
+                if (targets.isNotEmpty()) {
+                    scope.launch {
+                        withIO {
+                            dbm.systemTtsV2.delete(*targets.toTypedArray())
+                        }
+                        SystemTtsService.notifyUpdateConfig()
+                        context.toast("已删除 ${targets.size} 项")
+                    }
+                }
+            },
+        )
+    }
+
     // 多选模式下导出选中的分组
     var showExportSelected by remember { mutableStateOf(false) }
     if (showExportSelected) {
@@ -2856,7 +2884,8 @@ internal fun ListManagerScreen(
                                 onDismissRequest = { showOptions = false },
                                 onExportAll = { showGroupExportSheet = models },
                                 onBatchAudioParams = { showBatchAudioParams = true },
-                                onBatchSourceFields = { showBatchSourceFields = true }
+                                onBatchSourceFields = { showBatchSourceFields = true },
+                                onBatchDeleteConfigs = { showBatchDeleteConfigs = true }
                             )
                         }
                     }
