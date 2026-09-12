@@ -89,8 +89,8 @@ data class BatchConfigEntry(
  * 09-13 装机反馈四项调整：
  * 1. 删除页清单上限由写死 150dp 改为按屏幕高度推算（150dp 在实机只露 3 行，用户要求尽量显示完整）；
  * 2. 「匹配 N 项」补与插件框的间距（原先零间距，视觉上"夹"在字段与清单之间显得挤）；
- * 3. 删「未拖动的参数保持原值」提示行，该语义并入音频参数页副标题（不额外占行）；
- * 4. 每页新增一行副标题说明该操作做什么，位置固定在 chip 组下方，随切页变化。
+ * 3. 删「未拖动的参数保持原值」提示行（用户要求，该提示独占一行）；
+ * 4. 每页新增副标题说明该操作——09-13 01:5x 用户看过后要求去掉，已回退，此项不做。
  *
  * [pluginOptions] 插件筛选候选：pluginId（""=全部，不按插件筛选）→ 显示名，仅含作用域内实际出现的插件。
  * [pluginItemCounts] pluginId → 作用域内配置项数（""=总数），供选择后实时显示影响范围。
@@ -155,18 +155,12 @@ fun BatchConfigDialog(
         stringResource(R.string.batch_cfg_tab_change_plugin),
         stringResource(R.string.batch_cfg_tab_delete_items),
     )
-    // 每页一行副标题（用户 09-13 要求：讲解该操作做什么）。控制在单行以内，避免挤占清单空间
-    val tabSubtitles = listOf(
-        stringResource(R.string.batch_cfg_desc_audio_params),
-        stringResource(R.string.batch_cfg_desc_sample_rate),
-        stringResource(R.string.batch_cfg_desc_change_plugin),
-        stringResource(R.string.batch_cfg_desc_delete_items),
-    )
     // 删除页清单高度上限（用户 09-13：尽量显示完整）。写死 150dp 在实机只露 3 行；
-    // 改为按屏幕高度推算剩余空间——弹窗固定部分（标题 + chip 两行 + 副标题 + 分隔 +
-    // 插件筛选 + 匹配行 + 按钮行）约 360dp，剩给清单的即为可滚区，下限 180dp 保住小屏，
+    // 改为按屏幕高度推算剩余空间——弹窗固定部分（标题 + chip 两行 + 分隔 +
+    // 插件筛选 + 匹配行 + 按钮行）约 330dp（09-13 撤副标题后由 360 收紧，
+    // 腾出的空间回给清单），剩给清单的即为可滚区，下限 180dp 保住小屏，
     // 上限 420dp 防大屏上弹窗过分拉长
-    val listMaxHeight = (LocalConfiguration.current.screenHeightDp - 360).coerceIn(180, 420).dp
+    val listMaxHeight = (LocalConfiguration.current.screenHeightDp - 330).coerceIn(180, 420).dp
 
     AppDialog(
         title = { Text(stringResource(R.string.batch_cfg_title)) },
@@ -186,14 +180,6 @@ fun BatchConfigDialog(
                         )
                     }
                 }
-
-                // 当前分区的副标题：位置固定在 chip 组下方，切页只换文字、不跳动
-                Text(
-                    tabSubtitles[tab],
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(top = 8.dp)
-                )
 
                 Spacer(modifier = Modifier.height(12.dp))
                 HorizontalDivider()
@@ -238,8 +224,8 @@ fun BatchConfigDialog(
                             buttonLongSteps = 0.05f,
                             text = stringResource(id = R.string.label_speech_pitch, "%.2f".format(pitch ?: 1f))
                         )
-                        // 「未拖动的参数保持原值」提示行已删（用户 09-13）：显示 1.00 会被理解成
-                        // "把全部项设成 1.00"的问题，改由本页副标题说明（batch_cfg_desc_audio_params）
+                        // 「未拖动的参数保持原值」提示行已删（用户 09-13，独占一行）：
+                        // 未拖动即不提交、保持原值，由下方 Float? 草稿状态保证，不再单独出提示
                     }
 
                     // ── 2. 采样率 ──

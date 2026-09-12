@@ -591,10 +591,6 @@
     <string name="batch_cfg_all_plugins">全部（不按插件筛选）</string>
     <string name="batch_cfg_keep_unchanged">不修改</string>
     <string name="batch_cfg_change_plugin_to">更换插件为</string>
-    <string name="batch_cfg_desc_audio_params">只改拖动过的项，未拖动的保持原值</string>
-    <string name="batch_cfg_desc_sample_rate">统一修改所选项的采样率</string>
-    <string name="batch_cfg_desc_change_plugin">把所选配置项换到另一个插件</string>
-    <string name="batch_cfg_desc_delete_items">列出所选插件下的全部配置项</string>
     <string name="batch_cfg_delete_pick_plugin_hint">请先在上方选择一个插件</string>
     <string name="batch_cfg_delete_all">删除全部 %1$d 项</string>
     <string name="batch_cfg_expand">展开</string>
