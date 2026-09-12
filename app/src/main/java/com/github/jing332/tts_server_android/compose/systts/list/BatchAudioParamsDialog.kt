@@ -56,9 +56,14 @@ fun BatchAudioParamsDialog(
                     entries = pluginOptions.map { it.second },
                     onSelectedChange = { key, _ -> selectedPluginKey = key }
                 )
+                // 用户 09-12：数字挪到插件框正下方（它说的是"当前选中的插件有多少项"），作用域只留一句
                 Text(
-                    "作用域：$scopeDesc，选中范围内共 $targetCount 项\n" +
-                            "修改后这些配置项的单条语速/音量/音高将被统一替换。",
+                    "匹配 $targetCount 项",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Text(
+                    "作用域：$scopeDesc",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -93,7 +98,7 @@ fun BatchAudioParamsDialog(
                 TextButton(onClick = {
                     onApply((selectedPluginKey as? String)?.takeIf { it.isNotEmpty() }, 1f, 1f, 1f)
                 }) {
-                    Text("重置为 1.0")
+                    Text("重置")
                 }
                 TextButton(onClick = {
                     onApply((selectedPluginKey as? String)?.takeIf { it.isNotEmpty() }, speed, volume, pitch)
