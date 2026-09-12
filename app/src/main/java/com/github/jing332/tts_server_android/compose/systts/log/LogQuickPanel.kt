@@ -619,15 +619,16 @@ fun LogQuickPanel(
                     // 点行=暂存选中，底部「确认」写本配置项 voice，
                     // 落库后主列表自动定位高亮被改项（sharedVM.pendingLocateConfigId）
                     val currentTagName = config.speechRule.tagName
-                    // 对话类判定（用户 09-12，规则 mingwuyan：tags 表 duihua→对话/duihuaA→男/duihuaB→女）：
-                    // tag id 以 duihua 开头即对话类——其 tagName=角色关键词+（性别/年龄）、条条不同，
-                    // 不能按 tagName 细分；运行时同性别年龄组随机挑一个，故候选=对话大类互通、保证有得选
-                    val isDialogueTag = config.speechRule.tag.startsWith("duihua")
+                    // 对话类判定（用户 09-12 修正，规则 mingwuyan：tags 表 duihua→对话）：
+                    // **仅 tag=="duihua"** 的配置算对话类（duihuaA/duihuaB 是另两类，不掺）——
+                    // 这批配置 genderAge 各不相同（男/少年、女/女青年…共十来种），tagName 条条不同，
+                    // 不能按 tagName 细分；运行时随机挑一个，故候选=全部 tag==duihua 的配置、保证有得选
+                    val isDialogueTag = config.speechRule.tag == "duihua"
                     val narrationCandidates = remember(entity.id, currentTagName, isDialogueTag) {
                         allConfigs.mapNotNull { c ->
                             val dto = c.config as? TtsConfigurationDTO ?: return@mapNotNull null
                             val rule = dto.speechRule
-                            val inClass = if (isDialogueTag) rule.tag.startsWith("duihua")
+                            val inClass = if (isDialogueTag) rule.tag == "duihua"
                             else rule.tagName == currentTagName
                             if (!inClass) return@mapNotNull null
                             val v = (dto.source as? PluginTtsSource)?.voice
