@@ -12,10 +12,11 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
-import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -29,6 +30,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
@@ -612,20 +614,11 @@ fun LogQuickPanel(
                             // 候选行显示「标签名+配置项名」（用户 09-09：原 displayName·tag 反过来去点）
                             // 候选池已筛 fayinren.json∩启用配置（tag id 口径），用 enabledConfigEntityByTag 即可取到 displayName
                             val cfgName = enabledConfigEntityByTag(tag)?.displayName.orEmpty()
-                            // 行上点亮已打标记（❤️🚶😈）：与角色管理 v10 同源读 voice_marks.json（按标签 id）
+                            // 行尾平铺标记按钮（❤️🚶😈），点亮态由按钮自身 alpha 表达，文案不再追加
                             val rowMarks = remember(tag, marksVersion) {
                                 VoiceMarksFile.get(config.speechRule.tagRuleId, tag)
                             }
-                            val markText = rowMarks.mapNotNull { m ->
-                                when (m) {
-                                    "like" -> "❤️"
-                                    "neutral" -> "🚶"
-                                    "bad" -> "😈"
-                                    else -> null
-                                }
-                            }.joinToString("")
-                            val displayText = tag + cfgName +
-                                (if (markText.isNotEmpty()) " " + markText else "")
+                            val displayText = tag + cfgName
                             Row(
                                 Modifier
                                     .fillMaxWidth()
@@ -642,6 +635,8 @@ fun LogQuickPanel(
                                     modifier = Modifier.weight(1f),
                                     style = MaterialTheme.typography.bodyMedium,
                                     maxLines = 1,
+                                    // 行尾平铺 4 个操作键后文字空间变小，长名硬裁改省略号（顶部发音人行同款）
+                                    overflow = TextOverflow.Ellipsis,
                                     color = when {
                                         isPending -> MaterialTheme.colorScheme.primary
                                         isCurrent -> MaterialTheme.colorScheme.onSurface
@@ -675,41 +670,33 @@ fun LogQuickPanel(
                                         color = previewLabelColor(tag),
                                     )
                                 }
-                                // ⋮ 菜单（用户 09-12）：发音人标记（与角色管理 v10 互通，多选 toggle）+ 删除配置项；
-                                // 换声入口就是行本身，不重复加
-                                var menuExpanded by remember(tag) { mutableStateOf(false) }
-                                TextButton(onClick = { menuExpanded = true }) { Text("⋮") }
-                                DropdownMenu(
-                                    expanded = menuExpanded,
-                                    onDismissRequest = { menuExpanded = false },
-                                ) {
-                                    listOf(
-                                        "like" to "❤️ 喜欢",
-                                        "neutral" to "🚶 路人",
-                                        "bad" to "😈 坏人",
-                                    ).forEach { (mark, label) ->
-                                        DropdownMenuItem(
-                                            text = { Text(label) },
-                                            trailingIcon = {
-                                                if (mark in rowMarks) {
-                                                    Text("✓", style = MaterialTheme.typography.labelLarge)
-                                                }
-                                            },
-                                            onClick = {
-                                                menuExpanded = false
-                                                if (VoiceMarksFile.toggle(config.speechRule.tagRuleId, tag, mark)) {
-                                                    marksVersion++
-                                                }
-                                            },
-                                        )
-                                    }
-                                    HorizontalDivider()
-                                    DropdownMenuItem(
-                                        text = { Text("删除配置项") },
+                                // 标记+删除直接平铺在行内（用户 09-12 晚：面板空间大，不用菜单收起）；
+                                // 功能与角色管理 v10「管理发音人」一致：三标记多选 toggle（已点亮→取消，
+                                // 未点亮→添加）+ 删除配置项；换声入口就是行本身，不重复加。
+                                // emoji 是彩色字形染不上色，点亮/熄灭用 alpha 表达（IconButton 官方默认形态，
+                                // alpha 为表达点亮态的必要手段）
+                                listOf(
+                                    "like" to "❤️",
+                                    "neutral" to "🚶",
+                                    "bad" to "😈",
+                                ).forEach { (mark, emoji) ->
+                                    IconButton(
                                         onClick = {
-                                            menuExpanded = false
-                                            deleteConfirmTag = tag
+                                            if (VoiceMarksFile.toggle(config.speechRule.tagRuleId, tag, mark)) {
+                                                marksVersion++
+                                            }
                                         },
+                                        modifier = Modifier.alpha(if (mark in rowMarks) 1f else 0.35f),
+                                    ) {
+                                        Text(emoji)
+                                    }
+                                }
+                                // 删除（红色=破坏性操作，与批量删除同口径；有确认弹窗兜底防误触）
+                                IconButton(onClick = { deleteConfirmTag = tag }) {
+                                    Icon(
+                                        Icons.Filled.Delete,
+                                        contentDescription = "删除配置项",
+                                        tint = MaterialTheme.colorScheme.error,
                                     )
                                 }
                             }

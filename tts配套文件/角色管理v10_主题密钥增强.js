@@ -6338,7 +6338,9 @@ var EditorJS = {
         var _voiceMarksCache = null; // null=未加载
 
         function loadVoiceMarks() {
-            if (_voiceMarksCache !== null) return _voiceMarksCache;
+            // 2026-09-12：去掉会话级缓存早退（日志快捷面板也会写 voice_marks.json，
+            // 缓存不失效会拿旧数据、setVoiceMark 时把面板新标记覆盖掉）；改为每次读文件，
+            // _voiceMarksCache 仅作 setVoiceMark 写回的工作副本同步刷新
             try {
                 var raw = ttsrv.readTxtFile("voice_marks.json");
                 if (raw && raw.trim() !== "") {
