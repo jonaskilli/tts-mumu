@@ -61,6 +61,7 @@ object CharacterRecordsFile {
      * 与角色管理「更换发音人」写同一文件同一字段。成功返回 true。
      */
     fun rebind(tagRuleId: String, characterName: String, newVoiceTag: String): Boolean {
+        val dir = File(BASE_DIR, tagRuleId)
         val f = recordsFile(tagRuleId)
         if (!f.exists() || characterName.isBlank() || newVoiceTag.isBlank()) return false
         return try {
@@ -76,7 +77,13 @@ object CharacterRecordsFile {
             }
             if (changed == 0) return false
             f.writeText(arr.toString(2))
-            Log.i(TAG, "rebind: $characterName -> $newVoiceTag ($changed records)")
+            // 用户 09-12 互通修复：规则每次朗读开头会消费 gengxin.json（整体替换内存角色表后删除该文件），
+            // 角色管理换绑后必写它；面板只写 characterRecords.json 时规则内存不刷新，
+            // 下次 saveRecords 还会用旧内存数据把面板的修改覆盖掉——故此处同步写 gengxin.json
+            runCatching {
+                File(dir, "gengxin.json").writeText(arr.toString(2))
+            }
+            Log.i(TAG, "rebind: $characterName -> $newVoiceTag ($changed records, gengxin.json synced)")
             true
         } catch (e: Exception) {
             Log.w(TAG, "rebind failed: ${e.message}")
