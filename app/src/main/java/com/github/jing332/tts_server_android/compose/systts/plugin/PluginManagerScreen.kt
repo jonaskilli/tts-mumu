@@ -993,20 +993,8 @@ private fun Item(
                             expanded = showOptions,
                             onDismissRequest = { showOptions = false }) {
 
-                            // 设置变量（用户 09-12 拍板：排第一）
-                            if (hasDefVars)
-                                DropdownMenuItem(
-                                    text = { Text(stringResource(id = R.string.plugin_set_vars)) },
-                                    onClick = {
-                                        showOptions = false
-                                        onSetVars()
-                                    },
-                                    leadingIcon = {
-                                        Icon(Icons.Default.EditNote, stringResource(R.string.plugin_set_vars))
-                                    }
-                                )
-
                             // 修改插件信息（弹窗，原「编辑元数据」09-12 改名）：name/pluginId/author/version + 同步JS
+                            // 用户 09-12 追加：排在「设置变量」之前
                             if (onEditMetadata != null) {
                                 DropdownMenuItem(
                                     text = { Text("修改插件信息") },
@@ -1019,6 +1007,19 @@ private fun Item(
                                     }
                                 )
                             }
+
+                            // 设置变量：插件声明了可设置变量时显示
+                            if (hasDefVars)
+                                DropdownMenuItem(
+                                    text = { Text(stringResource(id = R.string.plugin_set_vars)) },
+                                    onClick = {
+                                        showOptions = false
+                                        onSetVars()
+                                    },
+                                    leadingIcon = {
+                                        Icon(Icons.Default.EditNote, stringResource(R.string.plugin_set_vars))
+                                    }
+                                )
 
                             // 插件音频参数（用户 09-12 拍板：紧跟编辑类，有「设置变量」时为第3、否则第2）
                             DropdownMenuItem(

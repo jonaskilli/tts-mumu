@@ -3,7 +3,6 @@ package com.github.jing332.tts_server_android.compose.systts.list
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -14,13 +13,12 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.unit.dp
 import com.github.jing332.compose.widgets.AppDialog
 import com.github.jing332.compose.widgets.AppSpinner
 import com.github.jing332.tts_server_android.R
 
 /**
- * 批量删除配置项（用户 09-12 拍板新增）：按来源插件筛出一批配置项，确认后整体删除。
+ * 批量删除插件配置项（用户 09-12 拍板新增）：按来源插件筛出一批配置项，确认后整体删除。
  *
  * [pluginOptions] **只含具体插件**（调用方需过滤掉「全部（不按插件筛选）」一项）——
  * 用户 09-12 拍板：删除下拉不提供「全部」，避免一手滑把整个池子删空。
@@ -42,7 +40,7 @@ fun BatchDeleteConfigDialog(
     val targetCount = pluginItemCounts[selectedPluginKey] ?: 0
 
     AppDialog(
-        title = { Text("批量删除配置项") },
+        title = { Text("批量删除插件配置项") },
         content = {
             Column {
                 AppSpinner(
@@ -62,12 +60,6 @@ fun BatchDeleteConfigDialog(
                     "作用域：$scopeDesc",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-                Text(
-                    "删除后不可恢复",
-                    style = MaterialTheme.typography.labelMedium,
-                    color = MaterialTheme.colorScheme.error,
-                    modifier = Modifier.padding(top = 8.dp)
                 )
             }
         },

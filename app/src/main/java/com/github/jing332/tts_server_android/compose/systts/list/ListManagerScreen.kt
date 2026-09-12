@@ -2529,7 +2529,7 @@ internal fun ListManagerScreen(
         )
     }
 
-    // 批量删除配置项（用户 09-12 拍板新增）：按来源插件筛出一批整体删除
+    // 批量删除插件配置项（用户 09-12 拍板新增）：按来源插件筛出一批整体删除
     var showBatchDeleteConfigs by remember { mutableStateOf(false) }
     if (showBatchDeleteConfigs) {
         val scopeItems = models.flatMap { it.list }

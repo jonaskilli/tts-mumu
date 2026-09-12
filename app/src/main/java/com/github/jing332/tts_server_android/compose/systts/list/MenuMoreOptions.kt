@@ -123,9 +123,9 @@ internal fun MenuMoreOptions(
             }
         )
 
-        // 批量删除配置项（用户 09-12 拍板新增）：按来源插件筛出一批整体删除
+        // 批量删除插件配置项（用户 09-12 拍板新增）：按来源插件筛出一批整体删除
         DropdownMenuItem(
-            text = { Text("批量删除配置项") },
+            text = { Text("批量删除插件配置项") },
             onClick = {
                 onDismissRequest()
                 onBatchDeleteConfigs()
