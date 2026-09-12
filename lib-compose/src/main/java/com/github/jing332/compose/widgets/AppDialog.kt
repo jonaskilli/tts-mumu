@@ -89,9 +89,13 @@ fun AppDialog(
     // buttons 的签名是 BoxScope 接收者：confirmButton 槽是 RowScope，用 Box 捕获接收者传入。
     // 按钮本体必须横排（Row + 8dp 间距，MD3 官方按钮行做法）——09-12 修复：直接 Box 会把
     // 多个按钮层叠渲染（插件管理多选删除弹窗「取消/删除」文字重叠实锤），Row 换横排、签名不动。
+    // 09-13 修编译错：Row 的 content 自带 RowScope，与外层 BoxScope 并存时 Kotlin 拒绝隐式
+    // 调用 buttons()（'cannot be called in this context with an implicit receiver'），
+    // 故显式捕获外层 BoxScope 作为 receiver。
     confirmButton = {
         Box {
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) { buttons() }
+            val boxScope: BoxScope = this
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) { boxScope.buttons() }
         }
     },
 )
