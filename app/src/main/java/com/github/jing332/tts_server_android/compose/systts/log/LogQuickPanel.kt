@@ -12,6 +12,10 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -43,6 +47,7 @@ import com.github.jing332.database.entities.systts.TtsConfigurationDTO
 import com.github.jing332.database.entities.systts.source.PluginTtsSource
 import com.github.jing332.tts.PreviewState
 import com.github.jing332.tts.TaggedTtsPreviewPlayer
+import com.github.jing332.tts.CachedEngineManager
 import com.github.jing332.tts_server_android.R
 import com.github.jing332.tts_server_android.compose.SharedViewModel
 import com.github.jing332.tts_server_android.compose.SoftSegmentedTextToggle
@@ -51,6 +56,7 @@ import com.github.jing332.tts_server_android.compose.systts.list.ui.widgets.Audi
 import com.github.jing332.tts_server_android.conf.SysTtsConfig
 import com.github.jing332.tts_server_android.service.systts.SystemTtsService
 import com.github.jing332.tts_server_android.service.systts.help.CharacterRecordsFile
+import com.github.jing332.tts_server_android.service.systts.help.VoiceMarksFile
 import kotlinx.coroutines.launch
 
 /**
@@ -142,6 +148,13 @@ fun LogQuickPanel(
         )
     }
 
+    // ===== 角色管理互通（用户 09-12）：候选行 ⋮ 菜单=发音人标记 + 删除配置项 =====
+    // 标记写 voice_marks.json（与角色管理 v10 同文件同字段，按标签 id 多选 toggle，❤️🚶😈）；
+    // marksVersion 自增触发候选行标记重读（文件通道无观察者，靠版本号刷新）
+    var marksVersion by remember(entity.id) { mutableStateOf(0) }
+    // 待删除确认的标签（非空时弹确认弹窗）
+    var deleteConfirmTag by remember(entity.id) { mutableStateOf<String?>(null) }
+
     // 全部配置项（换声候选 / 参数跟随目标查找共用）
     val allConfigs = remember(entity.id) {
         dbm.systemTtsV2.getAllGroupWithTts().flatMap { it.list }
@@ -198,6 +211,40 @@ fun LogQuickPanel(
                 context.getString(R.string.log_panel_voice_applied),
                 Toast.LENGTH_SHORT,
             ).show()
+        }
+    }
+
+    // 删除某标签的配置项（候选行 ⋮ 菜单，与角色管理 v10 删除发音人同源）：
+    // ① 删 tagRuleId+tag 匹配的全部配置项（含失效引擎缓存清理）
+    // ② 从 fayinren.json 移除该标签（防规则下次运行重新生成）
+    // 不清角色绑定、不调规则——朗读规则下次朗读时自动为受影响角色重分配（v10 同款约定）
+    fun deleteTagConfigs(tag: String) {
+        scope.launch {
+            val deletedSelf = withIO {
+                val ruleId = config.speechRule.tagRuleId
+                val toDelete = allConfigs.filter { item ->
+                    val dto = item.config as? TtsConfigurationDTO ?: return@filter false
+                    dto.speechRule.tagRuleId == ruleId && dto.speechRule.tag == tag
+                }
+                toDelete.forEach { item ->
+                    dbm.systemTtsV2.delete(item)
+                    (item.config as? TtsConfigurationDTO)?.source?.let {
+                        runCatching { CachedEngineManager.removeEngine(it) }
+                    }
+                }
+                CharacterRecordsFile.removeFromPool(ruleId, tag)
+                toDelete.any { it.id == entity.id }
+            }
+            SystemTtsService.notifyUpdateConfig()
+            if (deletedSelf) {
+                // 本配置项自身被删：外层 LogEntry 的 configId 已失效，提示后关闭面板
+                Toast.makeText(context, "已删除「$tag」的配置项", Toast.LENGTH_SHORT).show()
+                onDismissRequest()
+            } else {
+                // 当前绑定恰是被删标签：回落到本配置项自己的 tag（同初始化兜底）
+                if (boundVoice == tag) boundVoice = config.speechRule.tag
+                Toast.makeText(context, "已删除「$tag」的配置项，下次朗读时规则会自动重分配受影响角色", Toast.LENGTH_LONG).show()
+            }
         }
     }
 
@@ -565,7 +612,20 @@ fun LogQuickPanel(
                             // 候选行显示「标签名+配置项名」（用户 09-09：原 displayName·tag 反过来去点）
                             // 候选池已筛 fayinren.json∩启用配置（tag id 口径），用 enabledConfigEntityByTag 即可取到 displayName
                             val cfgName = enabledConfigEntityByTag(tag)?.displayName.orEmpty()
-                            val displayText = tag + cfgName
+                            // 行上点亮已打标记（❤️🚶😈）：与角色管理 v10 同源读 voice_marks.json（按标签 id）
+                            val rowMarks = remember(tag, marksVersion) {
+                                VoiceMarksFile.get(config.speechRule.tagRuleId, tag)
+                            }
+                            val markText = rowMarks.mapNotNull { m ->
+                                when (m) {
+                                    "like" -> "❤️"
+                                    "neutral" -> "🚶"
+                                    "bad" -> "😈"
+                                    else -> null
+                                }
+                            }.joinToString("")
+                            val displayText = tag + cfgName +
+                                (if (markText.isNotEmpty()) " " + markText else "")
                             Row(
                                 Modifier
                                     .fillMaxWidth()
@@ -613,6 +673,43 @@ fun LogQuickPanel(
                                     Text(
                                         previewLabel(tag),
                                         color = previewLabelColor(tag),
+                                    )
+                                }
+                                // ⋮ 菜单（用户 09-12）：发音人标记（与角色管理 v10 互通，多选 toggle）+ 删除配置项；
+                                // 换声入口就是行本身，不重复加
+                                var menuExpanded by remember(tag) { mutableStateOf(false) }
+                                TextButton(onClick = { menuExpanded = true }) { Text("⋮") }
+                                DropdownMenu(
+                                    expanded = menuExpanded,
+                                    onDismissRequest = { menuExpanded = false },
+                                ) {
+                                    listOf(
+                                        "like" to "❤️ 喜欢",
+                                        "neutral" to "🚶 路人",
+                                        "bad" to "😈 坏人",
+                                    ).forEach { (mark, label) ->
+                                        DropdownMenuItem(
+                                            text = { Text(label) },
+                                            trailingIcon = {
+                                                if (mark in rowMarks) {
+                                                    Text("✓", style = MaterialTheme.typography.labelLarge)
+                                                }
+                                            },
+                                            onClick = {
+                                                menuExpanded = false
+                                                if (VoiceMarksFile.toggle(config.speechRule.tagRuleId, tag, mark)) {
+                                                    marksVersion++
+                                                }
+                                            },
+                                        )
+                                    }
+                                    HorizontalDivider()
+                                    DropdownMenuItem(
+                                        text = { Text("删除配置项") },
+                                        onClick = {
+                                            menuExpanded = false
+                                            deleteConfirmTag = tag
+                                        },
                                     )
                                 }
                             }
@@ -797,6 +894,32 @@ fun LogQuickPanel(
             }
         },
     )
+
+    // 删除确认弹窗（⋮ 菜单「删除配置项」入口；文案与角色管理 v10 同口径：只说后果，
+    // 规则下次朗读自动重分配，不需要手动清绑定）
+    deleteConfirmTag?.let { delTag ->
+        val delName = enabledConfigEntityByTag(delTag)?.displayName.orEmpty()
+        AlertDialog(
+            onDismissRequest = { deleteConfirmTag = null },
+            title = { Text("删除确认") },
+            text = {
+                Text(
+                    "确认删除发音人【$delTag" +
+                        (if (delName.isNotEmpty()) " - $delName" else "") + "】？\n\n" +
+                        "删除后将从标签池移除，下次朗读时规则会自动为受影响角色重分配。",
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    deleteConfirmTag = null
+                    deleteTagConfigs(delTag)
+                }) { Text("确认删除") }
+            },
+            dismissButton = {
+                TextButton(onClick = { deleteConfirmTag = null }) { Text(stringResource(R.string.cancel)) }
+            },
+        )
+    }
 }
 
 /** 顶部「当前发音人」试听键的 previewingKey 哨兵（行键为 tag/voice 字符串，避撞） */

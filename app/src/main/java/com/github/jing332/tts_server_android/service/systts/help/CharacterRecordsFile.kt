@@ -57,6 +57,29 @@ object CharacterRecordsFile {
     }
 
     /**
+     * 从发音人标签池（fayinren.json）移除某标签，避免规则下次运行时重新生成该配置项
+     *（与角色管理 v10 doDeleteVoiceInternal 第二步同源）。文件缺失/移除后为空也返回 true。
+     */
+    fun removeFromPool(tagRuleId: String, tag: String): Boolean {
+        val f = poolFile(tagRuleId)
+        if (!f.exists() || tag.isBlank()) return true
+        return try {
+            val arr = JSONArray(f.readText())
+            val kept = JSONArray()
+            for (i in 0 until arr.length()) {
+                val v = arr.optString(i)
+                if (v != tag) kept.put(v)
+            }
+            f.writeText(kept.toString(2))
+            Log.i(TAG, "removeFromPool: $tag (remaining ${kept.length()})")
+            true
+        } catch (e: Exception) {
+            Log.w(TAG, "removeFromPool failed: ${e.message}")
+            false
+        }
+    }
+
+    /**
      * 把角色 [characterName] 的绑定改到 [newVoiceTag]（同名记录全部改，含别名合并的重复项），
      * 与角色管理「更换发音人」写同一文件同一字段。成功返回 true。
      */
