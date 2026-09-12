@@ -2512,6 +2512,8 @@ internal fun ListManagerScreen(
     var pendingBatchDelete by remember { mutableStateOf<PendingBatchDelete?>(null) }
     if (showBatchConfig) {
         val scopeItems = models.flatMap { it.list }
+        // 插件筛选里的「全部」项显示名（走资源串，见 batch_cfg_all_plugins）
+        val allPluginsLabel = stringResource(R.string.batch_cfg_all_plugins)
         // 来源插件切换候选=全部已安装插件（含停用，改名后旧 pluginId 也能对上显示名）
         val targetPluginOptions = remember(pluginNameCache) {
             pluginNameCache.entries.map { it.key to it.value }.sortedBy { it.second }
@@ -2535,8 +2537,10 @@ internal fun ListManagerScreen(
         BatchConfigDialog(
             // 作用域恒为当前池全部配置项：清单与匹配数都取自全部 models，不随搜索框变化
             //（避免"提示范围"与"实际作用范围"不一致）
-            scopeDesc = "当前池全部配置项",
-            pluginOptions = remember(scopeItems, pluginNameCache) { batchPluginOptions(scopeItems, pluginNameCache) },
+            scopeDesc = stringResource(R.string.batch_cfg_scope_all_pool),
+            pluginOptions = remember(scopeItems, pluginNameCache, allPluginsLabel) {
+                batchPluginOptions(scopeItems, pluginNameCache, allPluginsLabel)
+            },
             pluginItemCounts = remember(scopeItems) { batchPluginItemCounts(scopeItems) },
             sampleRateOptions = listOf(16000, 22050, 24000, 32000, 44100, 48000),
             targetPluginOptions = targetPluginOptions,
@@ -2573,11 +2577,18 @@ internal fun ListManagerScreen(
                     .toSet()
                 val targets = scopeItems.filter { it.id in ids }
                 if (targets.isNotEmpty()) {
-                    // 不直接删：先弹二次确认（用户 09-12 晚定）
+                    // 不直接删：先弹二次确认（用户 09-12 晚定）。
+                    // label 走资源串（此处非 composable 作用域，用 context.getString）
                     pendingBatchDelete = PendingBatchDelete(
                         items = targets,
-                        label = if (groupLabel == null) "插件「${pluginNameCache[pluginId] ?: pluginId}」"
-                        else "分组「$groupLabel」",
+                        label = if (groupLabel == null) {
+                            context.getString(
+                                R.string.batch_cfg_target_plugin,
+                                pluginNameCache[pluginId] ?: pluginId
+                            )
+                        } else {
+                            context.getString(R.string.batch_cfg_target_group, groupLabel)
+                        },
                     )
                 }
             },
@@ -3799,15 +3810,17 @@ internal fun ListManagerScreen(
 
 // —— 批量弹窗（音频参数/来源字段）共用的插件筛选工具 ——
 
-/** 插件筛选候选：""=全部（不按插件筛选），仅列出作用域内实际出现的插件，显示名优先用响应式映射 */
+/** 插件筛选候选：""=该页的「全部」项（显示名由调用方传资源串 [allLabel]，见 R.string.batch_cfg_all_plugins），
+ *  仅列出作用域内实际出现的插件，显示名优先用响应式映射 */
 private fun batchPluginOptions(
     items: List<SystemTtsV2>,
     nameMap: Map<String, String>,
+    allLabel: String,
 ): List<Pair<String, String>> {
     val ids = items.mapNotNull {
         (it.config as? TtsConfigurationDTO)?.source as? PluginTtsSource
     }.map { it.pluginId }.distinct()
-    return listOf("" to "全部（不按插件筛选）") + ids.map { id -> id to (nameMap[id] ?: id) }
+    return listOf("" to allLabel) + ids.map { id -> id to (nameMap[id] ?: id) }
 }
 
 /** pluginId → 作用域内配置项数（""=总数，含本地TTS），供弹窗选择插件后实时显示影响范围 */

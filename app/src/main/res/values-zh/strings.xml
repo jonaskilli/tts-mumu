@@ -579,4 +579,23 @@
     <string name="pixel_keep_alive_started">像素保活已启动</string>
     <string name="pixel_keep_alive_stopped">像素保活已停止</string>
 
+    <!-- 批量配置操作弹窗（BatchConfigDialog） -->
+    <string name="batch_cfg_title">批量配置操作</string>
+    <string name="batch_cfg_tab_audio_params">音频参数</string>
+    <string name="batch_cfg_tab_items">配置项</string>
+    <string name="batch_cfg_sample_rate">采样率</string>
+    <string name="batch_cfg_matched">匹配 %1$d 项</string>
+    <string name="batch_cfg_scope">作用域：%1$s</string>
+    <string name="batch_cfg_scope_all_pool">当前池全部配置项</string>
+    <string name="batch_cfg_all_plugins">全部（不按插件筛选）</string>
+    <string name="batch_cfg_keep_unchanged">不修改</string>
+    <string name="batch_cfg_change_plugin_to">更换插件为</string>
+    <string name="batch_cfg_untouched_hint">未拖动的参数保持原值</string>
+    <string name="batch_cfg_delete_all">删除全部 %1$d 项</string>
+    <string name="batch_cfg_expand">展开</string>
+    <string name="batch_cfg_collapse">收起</string>
+    <string name="batch_cfg_delete_confirm_title">删除确认</string>
+    <string name="batch_cfg_delete_confirm_msg">将删除%1$s 下的 %2$d 项配置。\n\n此操作不可恢复。</string>
+    <string name="batch_cfg_target_plugin">插件「%1$s」</string>
+    <string name="batch_cfg_target_group">分组「%1$s」</string>
 </resources>

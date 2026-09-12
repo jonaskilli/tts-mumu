@@ -130,13 +130,20 @@ fun BatchConfigDialog(
     // 避免一手滑把整个池子删空（沿用用户 09-12 拍板口径）
     val deletableCount = if (itemPluginId.isEmpty()) 0 else itemBuckets.sumOf { it.second.size }
     val targetPluginId = (targetPluginKey as? String)?.takeIf { it != "none" }
+    // 分段标题走资源字符串（中文在 values-zh、英文在 values-en），不再硬编码中文；
+    // 段数固定 3 段，理由见类注释（官方的分段按钮恒为均分 + 单行省略，4 段窄屏会被截断）
+    val tabTitles = listOf(
+        stringResource(R.string.batch_cfg_tab_audio_params),
+        stringResource(R.string.batch_cfg_sample_rate),
+        stringResource(R.string.batch_cfg_tab_items),
+    )
 
     AppDialog(
-        title = { Text("批量配置操作") },
+        title = { Text(stringResource(R.string.batch_cfg_title)) },
         content = {
             Column {
                 SoftSegmentedTextToggle(
-                    options = listOf("音频参数", "采样率", "配置项"),
+                    options = tabTitles,
                     selectedIndex = tab,
                     onSelect = { tab = it },
                 )
@@ -178,7 +185,7 @@ fun BatchConfigDialog(
                         )
                         // 说明「未拖动=不改」这条规则，否则显示 1.00 会被理解成"会把所有项设成 1.00"
                         Text(
-                            "未拖动的参数保持原值",
+                            stringResource(R.string.batch_cfg_untouched_hint),
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -197,10 +204,13 @@ fun BatchConfigDialog(
                         val rateValues: List<Any> = listOf("none", "auto") + sampleRateOptions
                         AppSpinner(
                             modifier = Modifier.fillMaxWidth(),
-                            labelText = "采样率",
+                            labelText = stringResource(R.string.batch_cfg_sample_rate),
                             value = rateSelKey,
                             values = rateValues,
-                            entries = listOf("不修改", "采样率自动识别") + sampleRateOptions.map { "$it Hz" },
+                            entries = listOf(
+                                stringResource(R.string.batch_cfg_keep_unchanged),
+                                stringResource(R.string.systts_auto_detect_audio_format),
+                            ) + sampleRateOptions.map { "$it Hz" },
                             onSelectedChange = { key, _ -> rateSelKey = key }
                         )
                     }
@@ -242,7 +252,10 @@ fun BatchConfigDialog(
                                     ) {
                                         Icon(
                                             imageVector = Icons.Default.ExpandMore,
-                                            contentDescription = if (expanded) "收起" else "展开",
+                                            contentDescription = stringResource(
+                                                if (expanded) R.string.batch_cfg_collapse
+                                                else R.string.batch_cfg_expand
+                                            ),
                                             modifier = Modifier
                                                 .padding(end = 8.dp)
                                                 .rotate(if (expanded) 0f else -90f),
@@ -290,10 +303,11 @@ fun BatchConfigDialog(
                         Spacer(modifier = Modifier.height(6.dp))
                         AppSpinner(
                             modifier = Modifier.fillMaxWidth(),
-                            labelText = "更换插件为",
+                            labelText = stringResource(R.string.batch_cfg_change_plugin_to),
                             value = targetPluginKey,
                             values = listOf<Any>("none") + targetPluginOptions.map { it.first },
-                            entries = listOf("不修改") + targetPluginOptions.map { it.second },
+                            entries = listOf(stringResource(R.string.batch_cfg_keep_unchanged)) +
+                                targetPluginOptions.map { it.second },
                             onSelectedChange = { key, _ -> targetPluginKey = key }
                         )
                     }
@@ -315,7 +329,7 @@ fun BatchConfigDialog(
                             volume = 1f
                             pitch = 1f
                         }) {
-                            Text("重置")
+                            Text(stringResource(R.string.reset))
                         }
                         TextButton(onClick = {
                             onApplyParams(
@@ -323,21 +337,23 @@ fun BatchConfigDialog(
                                 speed, volume, pitch
                             )
                         }) {
-                            Text("应用")
+                            Text(stringResource(R.string.confirm))
                         }
                     }
 
-                    1 -> TextButton(onClick = {
-                        onApplySampleRate(
-                            (rateFilterKey as? String)?.takeIf { it.isNotEmpty() },
-                            when (val k = rateSelKey) {
-                                "none" -> null
-                                "auto" -> -1
-                                else -> k as? Int
-                            }
-                        )
-                    }) {
-                        Text("应用")
+                    1 -> TextButton(
+                        onClick = {
+                            onApplySampleRate(
+                                (rateFilterKey as? String)?.takeIf { it.isNotEmpty() },
+                                when (val k = rateSelKey) {
+                                    "none" -> null
+                                    "auto" -> -1
+                                    else -> k as? Int
+                                }
+                            )
+                        }
+                    ) {
+                        Text(stringResource(R.string.confirm))
                     }
 
                     else -> {
@@ -346,7 +362,7 @@ fun BatchConfigDialog(
                             enabled = deletableCount > 0
                         ) {
                             Text(
-                                "删除全部 $deletableCount 项",
+                                stringResource(R.string.batch_cfg_delete_all, deletableCount),
                                 color = if (deletableCount > 0) MaterialTheme.colorScheme.error
                                 else MaterialTheme.colorScheme.onSurfaceVariant
                             )
@@ -362,7 +378,7 @@ fun BatchConfigDialog(
                             },
                             enabled = targetPluginId != null
                         ) {
-                            Text("应用")
+                            Text(stringResource(R.string.confirm))
                         }
                     }
                 }
@@ -387,7 +403,7 @@ private fun ScopePluginPicker(
     Column(Modifier.fillMaxWidth()) {
         AppSpinner(
             modifier = Modifier.fillMaxWidth(),
-            labelText = "插件",
+            labelText = stringResource(R.string.plugin),
             value = selectedKey,
             values = pluginOptions.map { it.first },
             entries = pluginOptions.map { it.second },
@@ -396,12 +412,15 @@ private fun ScopePluginPicker(
         // 数字在插件框正下方（它说的是"当前选中的插件有多少项"），作用域另起一句。
         // 键转 String：AppSpinner 的 key 是 Any（哨兵值），而计数表的键是 pluginId
         Text(
-            "匹配 ${pluginItemCounts[(selectedKey as? String).orEmpty()] ?: 0} 项",
+            stringResource(
+                R.string.batch_cfg_matched,
+                pluginItemCounts[(selectedKey as? String).orEmpty()] ?: 0
+            ),
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
         Text(
-            "作用域：$scopeDesc",
+            stringResource(R.string.batch_cfg_scope, scopeDesc),
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
@@ -421,9 +440,9 @@ fun BatchDeleteConfirmDialog(
     onConfirm: () -> Unit,
 ) {
     AppDialog(
-        title = { Text("删除确认") },
+        title = { Text(stringResource(R.string.batch_cfg_delete_confirm_title)) },
         content = {
-            Text("将删除$label 下的 $count 项配置。\n\n此操作不可恢复。")
+            Text(stringResource(R.string.batch_cfg_delete_confirm_msg, label, count))
         },
         buttons = {
             Row {
