@@ -2,6 +2,7 @@ package com.github.jing332.tts_server_android.compose.backup
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -32,6 +33,7 @@ import com.github.jing332.tts_server_android.R
  * 单入口备份弹窗：顶部完整/分享模式单选，内容项按模式给默认勾选且可自由取消，
  * 底部"保存到"区：本地默认勾选 + WebDAV 可选，两者可同时勾选。
  */
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 internal fun BackupDialog(
     onDismissRequest: () -> Unit,
