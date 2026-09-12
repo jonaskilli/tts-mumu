@@ -216,36 +216,48 @@ fun LogQuickPanel(
         }
     }
 
-    // 删除某标签的配置项（候选行 ⋮ 菜单，与角色管理 v10 删除发音人同源）：
-    // ① 删 tagRuleId+tag 匹配的全部配置项（含失效引擎缓存清理）
-    // ② 从 fayinren.json 移除该标签（防规则下次运行重新生成）
-    // 不清角色绑定、不调规则——朗读规则下次朗读时自动为受影响角色重分配（v10 同款约定）
-    fun deleteTagConfigs(tag: String) {
+    // 删除刚试听的那一条配置项（用户 09-12 晚纠正：只删听过的这条，同标签其他配置不动）：
+    // ① 删该配置项（清理失效引擎缓存）② 仅当该标签已无其他启用配置时才从 fayinren.json 移除标签
+    // （发音人还在就必须保留池子条目）；角色绑定不清，规则下次朗读自动为受影响角色重分配
+    fun deletePreviewedConfig(target: SystemTtsV2) {
+        val targetDto = target.config as? TtsConfigurationDTO ?: return
         scope.launch {
+            var tagNowEmpty = false
             val deletedSelf = withIO {
-                val ruleId = config.speechRule.tagRuleId
-                val toDelete = allConfigs.filter { item ->
-                    val dto = item.config as? TtsConfigurationDTO ?: return@filter false
-                    dto.speechRule.tagRuleId == ruleId && dto.speechRule.tag == tag
+                dbm.systemTtsV2.delete(target)
+                targetDto.source.let { runCatching { CachedEngineManager.removeEngine(it) } }
+                val stillEnabled = dbm.systemTtsV2.allEnabled.any { item ->
+                    val d = item.config as? TtsConfigurationDTO ?: return@any false
+                    d.speechRule.tagRuleId == targetDto.speechRule.tagRuleId &&
+                        d.speechRule.tag == targetDto.speechRule.tag
                 }
-                toDelete.forEach { item ->
-                    dbm.systemTtsV2.delete(item)
-                    (item.config as? TtsConfigurationDTO)?.source?.let {
-                        runCatching { CachedEngineManager.removeEngine(it) }
-                    }
+                if (!stillEnabled) {
+                    tagNowEmpty = true
+                    CharacterRecordsFile.removeFromPool(
+                        targetDto.speechRule.tagRuleId, targetDto.speechRule.tag,
+                    )
                 }
-                CharacterRecordsFile.removeFromPool(ruleId, tag)
-                toDelete.any { it.id == entity.id }
+                target.id == entity.id
             }
             SystemTtsService.notifyUpdateConfig()
             if (deletedSelf) {
                 // 本配置项自身被删：外层 LogEntry 的 configId 已失效，提示后关闭面板
-                Toast.makeText(context, "已删除「$tag」的配置项", Toast.LENGTH_SHORT).show()
+                Toast.makeText(context, "已删除配置项「${target.displayName}」", Toast.LENGTH_SHORT).show()
                 onDismissRequest()
             } else {
-                // 当前绑定恰是被删标签：回落到本配置项自己的 tag（同初始化兜底）
-                if (boundVoice == tag) boundVoice = config.speechRule.tag
-                Toast.makeText(context, "已删除「$tag」的配置项，下次朗读时规则会自动重分配受影响角色", Toast.LENGTH_LONG).show()
+                // 当前绑定恰是被删空标签：回落到本配置项自己的 tag（同初始化兜底）
+                if (tagNowEmpty && boundVoice == targetDto.speechRule.tag) {
+                    boundVoice = config.speechRule.tag
+                }
+                if (tagNowEmpty) {
+                    Toast.makeText(
+                        context,
+                        "已删除「${target.displayName}」，该标签已无配置项，一并从标签池移除",
+                        Toast.LENGTH_LONG,
+                    ).show()
+                } else {
+                    Toast.makeText(context, "已删除配置项「${target.displayName}」", Toast.LENGTH_SHORT).show()
+                }
             }
         }
     }
@@ -691,8 +703,12 @@ fun LogQuickPanel(
                                         Text(emoji)
                                     }
                                 }
-                                // 删除（红色=破坏性操作，与批量删除同口径；有确认弹窗兜底防误触）
-                                IconButton(onClick = { deleteConfirmTag = tag }) {
+                                // 删除（红色=破坏性操作，有确认弹窗兜底防误触）：
+                                // 只删试听指向的那条启用配置；该标签无启用配置时无物可删，置灰
+                                IconButton(
+                                    onClick = { deleteConfirmTag = tag },
+                                    enabled = cfgName.isNotEmpty(),
+                                ) {
                                     Icon(
                                         Icons.Filled.Delete,
                                         contentDescription = "删除配置项",
@@ -882,25 +898,27 @@ fun LogQuickPanel(
         },
     )
 
-    // 删除确认弹窗（⋮ 菜单「删除配置项」入口；文案与角色管理 v10 同口径：只说后果，
-    // 规则下次朗读自动重分配，不需要手动清绑定）
+    // 删除确认弹窗（行内 🗑 入口）：只删试听指向的那一条配置项（标签下第一条启用配置），
+    // 同标签其他配置不受影响；删空时该标签一并从标签池移除，受影响角色由规则自动重分配
     deleteConfirmTag?.let { delTag ->
-        val delName = enabledConfigEntityByTag(delTag)?.displayName.orEmpty()
+        val delTarget = enabledConfigEntityByTag(delTag)
         AlertDialog(
             onDismissRequest = { deleteConfirmTag = null },
             title = { Text("删除确认") },
             text = {
                 Text(
-                    "确认删除发音人【$delTag" +
-                        (if (delName.isNotEmpty()) " - $delName" else "") + "】？\n\n" +
-                        "删除后将从标签池移除，下次朗读时规则会自动为受影响角色重分配。",
+                    "确认删除配置项【" + (delTarget?.displayName ?: delTag) + "】？\n\n" +
+                        "只删这一条，同标签其他配置不受影响；删空时该标签会一并从标签池移除。",
                 )
             },
             confirmButton = {
-                TextButton(onClick = {
-                    deleteConfirmTag = null
-                    deleteTagConfigs(delTag)
-                }) { Text("确认删除") }
+                TextButton(
+                    onClick = {
+                        deleteConfirmTag = null
+                        if (delTarget != null) deletePreviewedConfig(delTarget)
+                    },
+                    enabled = delTarget != null,
+                ) { Text("确认删除") }
             },
             dismissButton = {
                 TextButton(onClick = { deleteConfirmTag = null }) { Text(stringResource(R.string.cancel)) }
