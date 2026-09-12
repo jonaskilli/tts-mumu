@@ -111,7 +111,7 @@ internal fun MenuMoreOptions(
         )
 
         DropdownMenuItem(
-            text = { Text("批量修改来源字段") },
+            text = { Text("批量修改配置") },
             onClick = {
                 onDismissRequest()
                 onBatchSourceFields()

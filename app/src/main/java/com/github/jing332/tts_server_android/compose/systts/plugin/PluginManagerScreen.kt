@@ -993,6 +993,19 @@ private fun Item(
                             expanded = showOptions,
                             onDismissRequest = { showOptions = false }) {
 
+                            // 设置变量（用户 09-12 拍板：排第一）
+                            if (hasDefVars)
+                                DropdownMenuItem(
+                                    text = { Text(stringResource(id = R.string.plugin_set_vars)) },
+                                    onClick = {
+                                        showOptions = false
+                                        onSetVars()
+                                    },
+                                    leadingIcon = {
+                                        Icon(Icons.Default.EditNote, stringResource(R.string.plugin_set_vars))
+                                    }
+                                )
+
                             // 编辑元数据（弹窗）：name/pluginId/author/version + 同步JS
                             if (onEditMetadata != null) {
                                 DropdownMenuItem(
@@ -1007,17 +1020,17 @@ private fun Item(
                                 )
                             }
 
-                            if (hasDefVars)
-                                DropdownMenuItem(
-                                    text = { Text(stringResource(id = R.string.plugin_set_vars)) },
-                                    onClick = {
-                                        showOptions = false
-                                        onSetVars()
-                                    },
-                                    leadingIcon = {
-                                        Icon(Icons.Default.EditNote, stringResource(R.string.plugin_set_vars))
-                                    }
-                                )
+                            // 插件音频参数（用户 09-12 拍板：紧跟编辑类，有「设置变量」时为第3、否则第2）
+                            DropdownMenuItem(
+                                text = { Text(stringResource(id = R.string.plugin_audio_params)) },
+                                onClick = {
+                                    showOptions = false
+                                    onAudioParams()
+                                },
+                                leadingIcon = {
+                                    Icon(Icons.Default.VolumeUp, stringResource(R.string.plugin_audio_params))
+                                }
+                            )
 
                             // 按插件音色分类入库：遍历插件的全部音色分类，将各分类下音色批量导入所选分组
                             if (plugin != null)
@@ -1032,32 +1045,7 @@ private fun Item(
                                     }
                                 )
 
-                            DropdownMenuItem(
-                                text = { Text(stringResource(id = R.string.export_config)) },
-                                onClick = {
-                                    showOptions = false
-                                    onExport()
-                                },
-                                leadingIcon = {
-                                    Icon(Icons.Default.Output, stringResource(R.string.export_config))
-                                }
-                            )
-
-                            // 音频参数菜单项（位于导出下方）
-                            DropdownMenuItem(
-                                text = { Text(stringResource(id = R.string.plugin_audio_params)) },
-                                onClick = {
-                                    showOptions = false
-                                    onAudioParams()
-                                },
-                                leadingIcon = {
-                                    Icon(Icons.Default.VolumeUp, stringResource(R.string.plugin_audio_params))
-                                }
-                            )
-
-                            HorizontalDivider()
-
-                            // 切换引用配置：把所有引用当前插件id的配置项改为目标插件id
+                            // 切换引用配置：把所有引用当前插件id的配置项改为目标插件id（用户 09-12 拍板：提到上栏、导出前）
                             if (onSwitchPluginRefs != null) {
                                 DropdownMenuItem(
                                     text = { Text("切换引用配置") },
@@ -1070,6 +1058,20 @@ private fun Item(
                                     }
                                 )
                             }
+
+                            // 导出（用户 09-12 拍板：上栏最后一格）
+                            DropdownMenuItem(
+                                text = { Text(stringResource(id = R.string.export_config)) },
+                                onClick = {
+                                    showOptions = false
+                                    onExport()
+                                },
+                                leadingIcon = {
+                                    Icon(Icons.Default.Output, stringResource(R.string.export_config))
+                                }
+                            )
+
+                            HorizontalDivider()
 
                             DropdownMenuItem(
                                 text = { Text(stringResource(R.string.clear_cache)) },

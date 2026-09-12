@@ -2488,7 +2488,7 @@ internal fun ListManagerScreen(
         )
     }
 
-    // 批量修改来源字段：启用/停用 + 采样率 + 来源插件切换
+    // 批量修改配置：采样率 + 来源插件切换（原「启用状态」一行由用户 09-12 拍板删除）
     var showBatchSourceFields by remember { mutableStateOf(false) }
     if (showBatchSourceFields) {
         val scopeItems = models.flatMap { it.list }
@@ -2503,14 +2503,9 @@ internal fun ListManagerScreen(
             sampleRateOptions = listOf(16000, 22050, 24000, 32000, 44100, 48000),
             targetPluginOptions = targetPluginOptions,
             onDismissRequest = { showBatchSourceFields = false },
-            onApply = { pluginId, enabled, sampleRate, targetPluginId ->
+            onApply = { pluginId, sampleRate, targetPluginId ->
                 showBatchSourceFields = false
                 val targets = scopeItems.filterByPluginId(pluginId)
-                if (enabled != null) {
-                    vm.updateEnabledBatch(targets, enabled) {
-                        context.toast("已更新 $it 项启用状态")
-                    }
-                }
                 // rate=-1 表示「采样率自动识别」：恢复 shouldDecode 由音频头探测
                 val rate = when (sampleRate) {
                     null -> null
