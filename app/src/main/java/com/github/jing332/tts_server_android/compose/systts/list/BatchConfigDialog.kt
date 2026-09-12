@@ -29,6 +29,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.rotate
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -84,6 +85,12 @@ data class BatchConfigEntry(
  *
  * 「作用域：当前池全部配置项」那行已删除：调用方写死传入、永不变化，零信息量；
  * 真正有用的是「匹配 N 项」，保留。
+ *
+ * 09-13 装机反馈四项调整：
+ * 1. 删除页清单上限由写死 150dp 改为按屏幕高度推算（150dp 在实机只露 3 行，用户要求尽量显示完整）；
+ * 2. 「匹配 N 项」补与插件框的间距（原先零间距，视觉上"夹"在字段与清单之间显得挤）；
+ * 3. 删「未拖动的参数保持原值」提示行，该语义并入音频参数页副标题（不额外占行）；
+ * 4. 每页新增一行副标题说明该操作做什么，位置固定在 chip 组下方，随切页变化。
  *
  * [pluginOptions] 插件筛选候选：pluginId（""=全部，不按插件筛选）→ 显示名，仅含作用域内实际出现的插件。
  * [pluginItemCounts] pluginId → 作用域内配置项数（""=总数），供选择后实时显示影响范围。
@@ -148,6 +155,18 @@ fun BatchConfigDialog(
         stringResource(R.string.batch_cfg_tab_change_plugin),
         stringResource(R.string.batch_cfg_tab_delete_items),
     )
+    // 每页一行副标题（用户 09-13 要求：讲解该操作做什么）。控制在单行以内，避免挤占清单空间
+    val tabSubtitles = listOf(
+        stringResource(R.string.batch_cfg_desc_audio_params),
+        stringResource(R.string.batch_cfg_desc_sample_rate),
+        stringResource(R.string.batch_cfg_desc_change_plugin),
+        stringResource(R.string.batch_cfg_desc_delete_items),
+    )
+    // 删除页清单高度上限（用户 09-13：尽量显示完整）。写死 150dp 在实机只露 3 行；
+    // 改为按屏幕高度推算剩余空间——弹窗固定部分（标题 + chip 两行 + 副标题 + 分隔 +
+    // 插件筛选 + 匹配行 + 按钮行）约 360dp，剩给清单的即为可滚区，下限 180dp 保住小屏，
+    // 上限 420dp 防大屏上弹窗过分拉长
+    val listMaxHeight = (LocalConfiguration.current.screenHeightDp - 360).coerceIn(180, 420).dp
 
     AppDialog(
         title = { Text(stringResource(R.string.batch_cfg_title)) },
@@ -167,6 +186,14 @@ fun BatchConfigDialog(
                         )
                     }
                 }
+
+                // 当前分区的副标题：位置固定在 chip 组下方，切页只换文字、不跳动
+                Text(
+                    tabSubtitles[tab],
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(top = 8.dp)
+                )
 
                 Spacer(modifier = Modifier.height(12.dp))
                 HorizontalDivider()
@@ -211,12 +238,8 @@ fun BatchConfigDialog(
                             buttonLongSteps = 0.05f,
                             text = stringResource(id = R.string.label_speech_pitch, "%.2f".format(pitch ?: 1f))
                         )
-                        // 说明「未拖动=不改」这条规则，否则显示 1.00 会被理解成"会把所有项设成 1.00"
-                        Text(
-                            stringResource(R.string.batch_cfg_untouched_hint),
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
+                        // 「未拖动的参数保持原值」提示行已删（用户 09-13）：显示 1.00 会被理解成
+                        // "把全部项设成 1.00"的问题，改由本页副标题说明（batch_cfg_desc_audio_params）
                     }
 
                     // ── 2. 采样率 ──
@@ -251,17 +274,19 @@ fun BatchConfigDialog(
                         if (itemBuckets.isEmpty()) {
                             // 空态只可能是"没选具体插件"：筛选候选只含实际出现的插件，
                             // 选中任一插件就必然有项。删除必须指定插件，故提示先选。
+                            // 空态提示换主题色（用户 09-13：原次要灰太不起眼，这条是"现在还不能删"的
+                            // 行动指引，需要一眼看到）
                             Text(
                                 stringResource(R.string.batch_cfg_delete_pick_plugin_hint),
                                 style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                color = MaterialTheme.colorScheme.primary,
                                 modifier = Modifier.padding(vertical = 8.dp)
                             )
                         }
                         LazyColumn(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .heightIn(max = 150.dp)
+                                .heightIn(max = listMaxHeight)
                         ) {
                             items(itemBuckets, key = { it.first }) { (groupLabel, groupItems) ->
                                 val expanded = groupLabel in expandedGroups
@@ -275,7 +300,7 @@ fun BatchConfigDialog(
                                                 else
                                                     expandedGroups + groupLabel
                                             }
-                                            .padding(vertical = 6.dp),
+                                            .padding(vertical = 4.dp),
                                         verticalAlignment = Alignment.CenterVertically
                                     ) {
                                         Icon(
@@ -319,7 +344,7 @@ fun BatchConfigDialog(
                                                 overflow = TextOverflow.Ellipsis,
                                                 modifier = Modifier
                                                     .fillMaxWidth()
-                                                    .padding(start = 28.dp, top = 6.dp)
+                                                    .padding(start = 28.dp, top = 4.dp)
                                             )
                                         }
                                     }
@@ -428,7 +453,9 @@ private fun ScopePluginPicker(
                 pluginItemCounts[(selectedKey as? String).orEmpty()] ?: 0
             ),
             style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            // 与插件框留出间距：原先紧贴字段下沿，视觉上"夹"在字段与清单之间（用户 09-13）
+            modifier = Modifier.padding(top = 6.dp, bottom = 2.dp)
         )
     }
 }

@@ -531,7 +531,10 @@
     <string name="batch_cfg_all_plugins">All (no plugin filter)</string>
     <string name="batch_cfg_keep_unchanged">No change</string>
     <string name="batch_cfg_change_plugin_to">Change plugin to</string>
-    <string name="batch_cfg_untouched_hint">Untouched parameters keep their current values</string>
+    <string name="batch_cfg_desc_audio_params">Only dragged parameters are changed</string>
+    <string name="batch_cfg_desc_sample_rate">Set one sample rate for the selected items</string>
+    <string name="batch_cfg_desc_change_plugin">Move the selected configs to another plugin</string>
+    <string name="batch_cfg_desc_delete_items">List every config under the selected plugin</string>
     <string name="batch_cfg_delete_pick_plugin_hint">Select a plugin above first</string>
     <string name="batch_cfg_delete_all">Delete all %1$d</string>
     <string name="batch_cfg_expand">Expand</string>
