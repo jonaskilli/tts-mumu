@@ -74,6 +74,10 @@ class ListManagerViewModel : ViewModel() {
     private val _invalidSourceItems = MutableStateFlow<Map<String, List<String>>>(emptyMap())
     val invalidSourceItems: StateFlow<Map<String, List<String>>> get() = _invalidSourceItems
 
+    // 失效配置项实体全量（不受搜索/分页影响）：供「切换为其他插件」前按 voice 校验用（用户 09-12）
+    private val _invalidItems = MutableStateFlow<List<SystemTtsV2>>(emptyList())
+    val invalidItems: StateFlow<List<SystemTtsV2>> get() = _invalidItems
+
     init {
         migrateExpandedGroupIds()
         // 有缓存先立即显示，不等数据库冷启动
@@ -114,12 +118,14 @@ class ListManagerViewModel : ViewModel() {
                         // 计算失效项数量与按源插件的分组统计
                         val srcCounts = mutableMapOf<String, Int>()
                         val srcItems = mutableMapOf<String, MutableList<String>>()
+                        val invalidList = mutableListOf<SystemTtsV2>()
                         var invalid = 0
                         list.forEach { groupWithTts ->
                             groupWithTts.list.forEach { item ->
                                 val src = (item.config as? TtsConfigurationDTO)?.source
                                 if (src is PluginTtsSource && src.pluginId !in enabledIds) {
                                     invalid++
+                                    invalidList.add(item)
                                     srcCounts[src.pluginId] = (srcCounts[src.pluginId] ?: 0) + 1
                                     srcItems.getOrPut(src.pluginId) { mutableListOf() }
                                         .add(item.displayName.ifBlank { "(#${item.id})" })
@@ -129,6 +135,7 @@ class ListManagerViewModel : ViewModel() {
                         _invalidCount.value = invalid
                         _invalidSourceCounts.value = srcCounts
                         _invalidSourceItems.value = srcItems
+                        _invalidItems.value = invalidList
                         // 默认分组（id=1）只在其中有配置项时显示：它永远留在库里做兜底，
                         // 但空着的时候列出来只会"突然冒出来"让人困惑；其余分组空壳照常保留
                         val visible = list.filter { it.group.id != DEFAULT_GROUP_ID || it.list.isNotEmpty() }
@@ -245,7 +252,11 @@ class ListManagerViewModel : ViewModel() {
      * @param newPluginId 目标插件id
      * @param sourcePluginId 源插件id；null=修复全部失效项（单来源场景），指定=只修复引用该插件的项
      */
-    fun batchFixInvalidItems(newPluginId: String, sourcePluginId: String? = null) =
+    fun batchFixInvalidItems(
+        newPluginId: String,
+        sourcePluginId: String? = null,
+        onlyIds: Set<Long>? = null,
+    ) =
         viewModelScope.launch(Dispatchers.IO) {
             val enabledIds = _enabledPluginIds.value
             val allItems = dbm.systemTtsV2.getAllGroupWithTts().flatMap { it.list }
@@ -255,7 +266,9 @@ class ListManagerViewModel : ViewModel() {
                 val src = config.source
                 val isInvalid = src is PluginTtsSource && src.pluginId !in enabledIds
                 val matchSource = sourcePluginId == null || (src as? PluginTtsSource)?.pluginId == sourcePluginId
-                if (isInvalid && matchSource) {
+                // 用户 09-12：只切音色能在目标插件里命中的项（校验在 UI 层做，这里按 id 白名单收窄）
+                val matchId = onlyIds == null || item.id in onlyIds
+                if (isInvalid && matchSource && matchId) {
                     item.copy(config = config.copy(source = src.copy(pluginId = newPluginId)))
                 } else null
             }

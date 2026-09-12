@@ -16,7 +16,6 @@ import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -105,6 +104,7 @@ import com.github.jing332.database.entities.plugin.Plugin
 import com.github.jing332.database.entities.systts.TtsConfigurationDTO
 import com.github.jing332.database.entities.systts.source.PluginTtsSource
 import com.github.jing332.database.entities.systts.SystemTtsV2
+import com.github.jing332.tts_server_android.compose.systts.list.SourceSwitchCheckDialog
 import com.github.jing332.script.JsMetadataSyncer
 import com.github.jing332.tts.speech.plugin.engine.TtsPluginUiEngineV2
 import com.github.jing332.tts_server_android.R
@@ -298,24 +298,19 @@ fun PluginManagerScreen(sharedVM: SharedViewModel, onFinishActivity: () -> Unit)
     var pendingSwitch by remember { mutableStateOf<Pair<Plugin, Plugin>?>(null) }
     // 切换进度：null=未在切换，Pair(已处理, 总数)=切换中
     var switchProgress by remember { mutableStateOf<Pair<Int, Int>?>(null) }
-    // 切换前校验（用户 09-12 拍板按 voice 比对）：待切换项 + 目标插件音色id集合（null=还在查）
+    // 待切换项（用户 09-12：音色校验在共用的 SourceSwitchCheckDialog 里做，这里只负责扫出范围）
     var switchCandidates by remember { mutableStateOf<List<SystemTtsV2>>(emptyList()) }
-    var switchVoiceIds by remember { mutableStateOf<Set<String>?>(null) }
     if (pendingSwitch != null) {
-        val (scanSource, scanTarget) = pendingSwitch!!
+        val scanSourceId = pendingSwitch!!.first.pluginId
         LaunchedEffect(pendingSwitch) {
-            switchVoiceIds = null
             switchCandidates = emptyList()
-            val scan = withIO {
-                val items = dbm.systemTtsV2.getAllGroupWithTts().flatMap { it.list }
+            switchCandidates = withIO {
+                dbm.systemTtsV2.getAllGroupWithTts().flatMap { it.list }
                     .filter { tts ->
                         val src = (tts.config as? TtsConfigurationDTO)?.source
-                        src is PluginTtsSource && src.pluginId == scanSource.pluginId
+                        src is PluginTtsSource && src.pluginId == scanSourceId
                     }
-                items to runCatching { loadPluginVoiceIds(context, scanTarget) }.getOrElse { emptySet() }
             }
-            switchCandidates = scan.first
-            switchVoiceIds = scan.second
         }
     }
     if (showSwitchPluginRefsDialog != null) {
@@ -381,123 +376,50 @@ fun PluginManagerScreen(sharedVM: SharedViewModel, onFinishActivity: () -> Unit)
         )
     }
 
-    // 二次确认 + 执行批量切换（用户 09-12：先按 voice 校验目标插件有没有这些声音，再让用户决定怎么切）
+    // 二次确认 + 执行批量切换（用户 09-12：切换前按 voice 严格校验，只切目标插件确实有的音色；
+    // 不做名字兜底、不留强制全切口子；校验弹窗三处共用 = SourceSwitchCheckDialog）
     if (pendingSwitch != null) {
         val (sourcePlugin, target) = pendingSwitch!!
-        val voiceIds = switchVoiceIds
-        val matchedItems = if (voiceIds == null) emptyList()
-        else switchCandidates.filter { voiceIdOf(it) in voiceIds }
-        val unmatchedItems = if (voiceIds == null) emptyList()
-        else switchCandidates.filterNot { voiceIdOf(it) in voiceIds }
-        // 执行切换：只处理传入的项；单事务批量更新（逐条 update 会 N 次触发列表 Flow 重发射）
-        val doSwitch: (List<SystemTtsV2>) -> Unit = { items ->
-            val newId = target.pluginId
-            pendingSwitch = null
-            scope.launch {
-                withIO {
-                    val toUpdate = items.mapNotNull { tts ->
-                        val config = tts.config
-                        if (config is TtsConfigurationDTO) {
-                            val src = config.source
-                            if (src is PluginTtsSource)
-                                tts.copy(config = config.copy(source = src.copy(pluginId = newId)))
-                            else null
-                        } else null
-                    }
-                    switchProgress = 0 to toUpdate.size
-                    if (toUpdate.isNotEmpty()) {
-                        dbm.runInTransaction {
-                            dbm.systemTtsV2.update(*toUpdate.toTypedArray())
-                        }
-                    }
-                    switchProgress = null
-                }
-                SystemTtsService.notifyUpdateConfig()
-                val msg = if (items.isEmpty())
-                    "没有可切换的配置项"
-                else
-                    "已切换 ${items.size} 项配置到「${target.name}」"
-                snackbarHostState.showSnackbar(msg, duration = SnackbarDuration.Long)
-            }
-        }
-        AppDialog(
-            onDismissRequest = { pendingSwitch = null },
-            title = { Text("确认切换") },
-            content = {
-                Column {
-                    Text(
-                        "将把引用插件「${sourcePlugin.name}」的配置项改用「${target.name}」。\n" +
-                            "源插件本身不会被修改或删除。"
-                    )
-                    Spacer(Modifier.height(8.dp))
-                    if (voiceIds == null) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            CircularProgressIndicator(
-                                modifier = Modifier.size(18.dp),
-                                strokeWidth = 2.dp
-                            )
-                            Spacer(Modifier.width(8.dp))
-                            Text(
-                                "正在检查目标插件有没有这些音色…",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
-                    } else {
-                        Text(
-                            "能匹配上：${matchedItems.size} 项",
-                            color = MaterialTheme.colorScheme.primary
-                        )
-                        if (unmatchedItems.isNotEmpty()) {
-                            Text(
-                                "匹配不上：${unmatchedItems.size} 项（目标插件没有这些音色，保持原样）",
-                                color = MaterialTheme.colorScheme.error
-                            )
-                            LazyColumn(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .heightIn(max = 120.dp)
-                            ) {
-                                items(unmatchedItems, { it.id }) { tts ->
-                                    val voice = voiceIdOf(tts)
-                                    Text(
-                                        text = if (voice.isBlank()) tts.displayName
-                                        else "${tts.displayName}　·　$voice",
-                                        style = MaterialTheme.typography.bodySmall,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                        maxLines = 1,
-                                        overflow = TextOverflow.Ellipsis,
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .padding(vertical = 4.dp)
-                                    )
+        SourceSwitchCheckDialog(
+            title = "确认切换",
+            message = "将把引用插件「${sourcePlugin.name}」的配置项改用「${target.name}」。\n" +
+                "源插件本身不会被修改或删除。",
+            items = switchCandidates,
+            targetPluginId = target.pluginId,
+            targetPluginName = target.name,
+            onDismiss = { pendingSwitch = null },
+            onConfirm = { matched ->
+                pendingSwitch = null
+                if (matched.isNotEmpty()) {
+                    val newId = target.pluginId
+                    scope.launch {
+                        withIO {
+                            // 单事务批量更新（逐条 update 会 N 次触发列表 Flow 重发射）
+                            val toUpdate = matched.mapNotNull { tts ->
+                                val config = tts.config
+                                if (config is TtsConfigurationDTO) {
+                                    val src = config.source
+                                    if (src is PluginTtsSource)
+                                        tts.copy(config = config.copy(source = src.copy(pluginId = newId)))
+                                    else null
+                                } else null
+                            }
+                            switchProgress = 0 to toUpdate.size
+                            if (toUpdate.isNotEmpty()) {
+                                dbm.runInTransaction {
+                                    dbm.systemTtsV2.update(*toUpdate.toTypedArray())
                                 }
                             }
+                            switchProgress = null
                         }
+                        SystemTtsService.notifyUpdateConfig()
+                        snackbarHostState.showSnackbar(
+                            "已切换 ${matched.size} 项配置到「${target.name}」",
+                            duration = SnackbarDuration.Long
+                        )
                     }
                 }
             },
-            buttons = {
-                Row {
-                    TextButton(onClick = { pendingSwitch = null }) {
-                        Text(stringResource(id = R.string.cancel))
-                    }
-                    if (voiceIds != null) {
-                        // 兜底口子（用户 09-12 拍板保留）：跨厂商音色id体系不同→可能整批匹配不上，仍需能硬切
-                        if (unmatchedItems.isNotEmpty()) {
-                            TextButton(onClick = { doSwitch(switchCandidates) }) {
-                                Text("仍然全部切换")
-                            }
-                        }
-                        TextButton(
-                            onClick = { doSwitch(matchedItems) },
-                            enabled = matchedItems.isNotEmpty()
-                        ) {
-                            Text("只切换能匹配的 ${matchedItems.size} 项")
-                        }
-                    }
-                }
-            }
         )
     }
 
@@ -1377,30 +1299,5 @@ private fun CheckRow(
                 .weight(1f)
         )
         trailing?.invoke()
-    }
-}
-
-/** 配置项的音色 id（voice）；非插件来源返回空串 */
-private fun voiceIdOf(tts: SystemTtsV2): String =
-    ((tts.config as? TtsConfigurationDTO)?.source as? PluginTtsSource)?.voice.orEmpty()
-
-/**
- * 拉取目标插件的**全部音色 id**（遍历其所有池子），用于「切换引用配置项」前的
- * 「目标插件到底有没有这个声音」校验（用户 09-12 拍板：按 voice 比对，比按名字可靠）。
- * 引擎为纯脚本执行（同「按插件音色分类入库」的用法），必须在 IO 线程调用。
- */
-private fun loadPluginVoiceIds(context: Context, plugin: Plugin): Set<String> {
-    val engine = TtsPluginUiEngineV2(context, plugin)
-    return try {
-        engine.eval()
-        engine.onLoad()
-        buildSet {
-            engine.getLocales().keys.forEach { poolId ->
-                runCatching { engine.getVoices(poolId) }.getOrNull().orEmpty()
-                    .forEach { voice -> if (voice.id.isNotBlank()) add(voice.id) }
-            }
-        }
-    } finally {
-        runCatching { engine.destroy() }
     }
 }

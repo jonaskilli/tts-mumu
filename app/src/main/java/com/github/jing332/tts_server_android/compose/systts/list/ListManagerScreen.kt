@@ -253,6 +253,8 @@ internal fun ListManagerScreen(
     val invalidCount by vm.invalidCount.collectAsStateWithLifecycle()
     val invalidSourceCounts by vm.invalidSourceCounts.collectAsStateWithLifecycle()
     val invalidSourceItems by vm.invalidSourceItems.collectAsStateWithLifecycle()
+    // 失效项实体（切换为其他插件前按 voice 校验用）
+    val invalidItems by vm.invalidItems.collectAsStateWithLifecycle()
     val pluginNameCache by vm.pluginNameCache.collectAsStateWithLifecycle()
     val isInitialized by vm.isInitialized.collectAsStateWithLifecycle()
 
@@ -2488,6 +2490,25 @@ internal fun ListManagerScreen(
         )
     }
 
+    // 采样率落库（rate=-1=「自动识别」：先归零让播放链按音频头探测）
+    val applySourceFieldsRate: (List<SystemTtsV2>, Int?) -> Unit = { targets, sampleRate ->
+        val rate = when (sampleRate) {
+            null -> null
+            -1 -> null
+            else -> sampleRate
+        }
+        val restoreAuto = sampleRate == -1
+        vm.updateSourceFieldsBatch(targets, rate) {
+            if (restoreAuto) {
+                // 自动识别：把采样率语义交还音频头（shouldDecode=true 由插件声明层决定，
+                // 这里只把明显占位值归零让播放链按头探测）
+                vm.updateSourceFieldsBatch(targets, 0) { }
+            }
+        }
+    }
+    // 「来源插件」切换待确认计划（用户 09-12：切换前按 voice 校验，只切能匹配的）
+    var pendingSourceSwitch by remember { mutableStateOf<PendingSourceSwitch?>(null) }
+
     // 批量修改配置：采样率 + 来源插件切换（原「启用状态」一行由用户 09-12 拍板删除）
     var showBatchSourceFields by remember { mutableStateOf(false) }
     if (showBatchSourceFields) {
@@ -2506,23 +2527,37 @@ internal fun ListManagerScreen(
             onApply = { pluginId, sampleRate, targetPluginId ->
                 showBatchSourceFields = false
                 val targets = scopeItems.filterByPluginId(pluginId)
-                // rate=-1 表示「采样率自动识别」：恢复 shouldDecode 由音频头探测
-                val rate = when (sampleRate) {
-                    null -> null
-                    -1 -> null
-                    else -> sampleRate
-                }
-                val restoreAuto = sampleRate == -1
-                vm.updateSourceFieldsBatch(targets, rate) { n ->
-                    if (restoreAuto) {
-                        // 自动识别：把采样率语义交还音频头（shouldDecode=true 由插件声明层决定，
-                        // 这里只把明显占位值归零让播放链按头探测）
-                        vm.updateSourceFieldsBatch(targets, 0) { }
-                    }
-                }
                 if (targetPluginId != null) {
-                    vm.updateSourcePluginBatch(targets, targetPluginId) {
-                        context.toast("已把 $it 项来源切换为「${pluginNameCache[targetPluginId] ?: targetPluginId}」")
+                    // 用户 09-12：选了「来源插件」就先过校验弹窗，确认后才落库（采样率一并等确认后生效）
+                    pendingSourceSwitch = PendingSourceSwitch(
+                        items = targets,
+                        newPluginId = targetPluginId,
+                        sampleRate = sampleRate
+                    )
+                } else {
+                    applySourceFieldsRate(targets, sampleRate)
+                }
+            },
+        )
+    }
+
+    if (pendingSourceSwitch != null) {
+        val plan = pendingSourceSwitch!!
+        val switchTargetName = pluginNameCache[plan.newPluginId] ?: plan.newPluginId
+        SourceSwitchCheckDialog(
+            title = "确认切换",
+            message = "将把 ${plan.items.size} 项配置的来源插件改为「$switchTargetName」。",
+            items = plan.items,
+            targetPluginId = plan.newPluginId,
+            targetPluginName = switchTargetName,
+            onDismiss = { pendingSourceSwitch = null },
+            onConfirm = { matched ->
+                pendingSourceSwitch = null
+                // 采样率与「切换来源插件」互相独立：采样率对整批生效，切换只作用于音色命中的项
+                applySourceFieldsRate(plan.items, plan.sampleRate)
+                if (matched.isNotEmpty()) {
+                    vm.updateSourcePluginBatch(matched, plan.newPluginId) {
+                        context.toast("已把 $it 项来源切换为「$switchTargetName」")
                     }
                 }
             },
@@ -2762,35 +2797,38 @@ internal fun ListManagerScreen(
     }
     if (pendingPlugin != null) {
         val plugin = pendingPlugin!!
-        // 确认文案：指定来源时显示该来源的项数，否则显示总失效数
-        val fixCount = fixSourcePluginId?.let { invalidSourceCounts[it] } ?: invalidCount
-        AlertDialog(
-            onDismissRequest = {
+        // 待修复的失效项（指定来源时只取该来源）；用户 09-12：切换前按 voice 校验、只切能匹配的
+        val fixItems = remember(pendingPlugin, fixSourcePluginId, invalidItems) {
+            invalidItems.filter { tts ->
+                val src = (tts.config as? TtsConfigurationDTO)?.source as? PluginTtsSource
+                src != null && (fixSourcePluginId == null || src.pluginId == fixSourcePluginId)
+            }
+        }
+        SourceSwitchCheckDialog(
+            title = "确认切换",
+            message = "将把 ${fixItems.size} 个失效配置项的插件替换为「${plugin.name}」。\n" +
+                "源插件本身不会被修改或删除。",
+            items = fixItems,
+            targetPluginId = plugin.pluginId,
+            targetPluginName = plugin.name,
+            onDismiss = {
                 pendingPlugin = null
                 fixSourcePluginId = null
             },
-            title = { Text(stringResource(id = R.string.batch_select_plugin)) },
-            text = {
-                Text(stringResource(id = R.string.batch_fix_confirm, fixCount, plugin.name))
-            },
-            confirmButton = {
-                TextButton(onClick = {
-                    val pluginId = plugin.pluginId
-                    val sourceId = fixSourcePluginId
-                    pendingPlugin = null
-                    vm.batchFixInvalidItems(pluginId, sourceId)
-                }) {
-                    Text(stringResource(id = R.string.confirm))
+            onConfirm = { matched ->
+                val pluginId = plugin.pluginId
+                val sourceId = fixSourcePluginId
+                pendingPlugin = null
+                fixSourcePluginId = null
+                if (matched.isNotEmpty()) {
+                    vm.batchFixInvalidItems(
+                        newPluginId = pluginId,
+                        sourcePluginId = sourceId,
+                        onlyIds = matched.map { it.id }.toSet()
+                    )
+                    context.toast("已切换 ${matched.size} 项失效配置项到「${plugin.name}」")
                 }
             },
-            dismissButton = {
-                TextButton(onClick = {
-                    pendingPlugin = null
-                    fixSourcePluginId = null
-                }) {
-                    Text(stringResource(id = R.string.cancel))
-                }
-            }
         )
     }
 
@@ -3775,3 +3813,10 @@ private fun List<SystemTtsV2>.filterByPluginId(pluginId: String?): List<SystemTt
         src != null && src.pluginId == pluginId
     }
 }
+
+/** 「批量修改配置 → 来源插件」的待确认计划：先按 voice 校验，确认后才落库（用户 09-12） */
+private data class PendingSourceSwitch(
+    val items: List<SystemTtsV2>,
+    val newPluginId: String,
+    val sampleRate: Int?,
+)
