@@ -611,7 +611,11 @@ fun LogQuickPanel(
                     val narrationCandidates = remember(entity.id) {
                         allConfigs.mapNotNull { c ->
                             val dto = c.config as? TtsConfigurationDTO ?: return@mapNotNull null
-                            if (dto.speechRule.tag != "旁白") return@mapNotNull null
+                            // 修复（用户 09-12）：标签存两个字段——tag=id、tagName=显示名（列表角标读的是它）。
+                            // 原来只比 tag=="旁白"，数据里 id 与显示名不同时整列为空，误报"没有可用的配置项"；
+                            // 现两者任一命中即算旁白
+                            if (dto.speechRule.tag != "旁白" && dto.speechRule.tagName != "旁白")
+                                return@mapNotNull null
                             val v = (dto.source as? PluginTtsSource)?.voice
                                 ?.takeIf { it.isNotEmpty() } ?: return@mapNotNull null
                             Pair(v, c.displayName)
