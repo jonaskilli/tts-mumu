@@ -7,7 +7,6 @@ import androidx.compose.material.icons.automirrored.filled.MenuBook
 import androidx.compose.material.icons.filled.Audiotrack
 import androidx.compose.material.icons.filled.Build
 import androidx.compose.material.icons.filled.ContentCut
-import androidx.compose.material.icons.filled.GraphicEq
 import androidx.compose.material.icons.filled.Group
 import androidx.compose.material.icons.filled.Output
 import androidx.compose.material.icons.filled.Speed
@@ -40,8 +39,7 @@ internal fun MenuMoreOptions(
     expanded: Boolean,
     onDismissRequest: () -> Unit,
     onExportAll: () -> Unit,
-    onBatchAudioParams: () -> Unit = {},
-    onBatchSourceFields: () -> Unit = {},
+    onBatchConfig: () -> Unit = {},
 ) {
     var showBgmSettingsDialog  by remember { mutableStateOf(false) }
     if (showBgmSettingsDialog)
@@ -99,25 +97,13 @@ internal fun MenuMoreOptions(
             }
         )
 
-        DropdownMenuItem(
-            text = { Text("批量调整音频参数") },
-            onClick = {
-                onDismissRequest()
-                onBatchAudioParams()
-            },
-            leadingIcon = {
-                Icon(Icons.Default.GraphicEq, null)
-            }
-        )
-
-        // 批量配置操作（用户 09-12 晚拍板：原「批量修改配置」+「批量删除插件配置项」合并为一项）。
-        // 入口保持原位、与「批量调整音频参数」相邻（09-12 晚二次修正：用户说的"放最后"指弹窗内的删除块，
-        // 不是菜单入口，故不挪到菜单末尾）
+        // 批量配置操作（用户 09-12 晚定稿：原「批量修改配置」「批量删除插件配置项」「批量调整音频参数」
+        // 三个弹窗合并为本项，弹窗内胶囊分三段——音频参数 / 换插件 / 删除项；菜单入口随之只留这一个）
         DropdownMenuItem(
             text = { Text("批量配置操作") },
             onClick = {
                 onDismissRequest()
-                onBatchSourceFields()
+                onBatchConfig()
             },
             leadingIcon = {
                 Icon(Icons.Default.Build, null)
