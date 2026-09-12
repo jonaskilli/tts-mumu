@@ -91,7 +91,12 @@ fun LogQuickPanel(
         return
     }
     val source = config.source as? PluginTtsSource
-    val isBindingMode = entry.roleName.isNotBlank()
+    // 绑定键：多角色日志=角色名；「本地音效N」槽位=槽位名（目目 09-12：本地音效 tagName 带序号，
+    // 按角色那种处理——改绑同样走 characterRecords.json 同一机制），两者共用绑定分支
+    val bindingKey = entry.roleName.ifBlank {
+        if (config.speechRule.tagName.matches(Regex("本地音效\\d*"))) config.speechRule.tagName else ""
+    }
+    val isBindingMode = bindingKey.isNotBlank()
 
     // ===== 行内试听状态（参照角色管理v9/v10试听状态机：▶ →(点击)… →(真正出声)■ →(播完复位)▶）=====
     // 播放器全局单实例（同一时刻只有一个试听），previewingKey 记当前行（顶部=current，绑定=tag，旁白=voice）；
@@ -130,7 +135,7 @@ fun LogQuickPanel(
     var boundVoice by remember(entity.id) {
         mutableStateOf(
             CharacterRecordsFile.readCharacterVoice(
-                config.speechRule.tagRuleId, entry.roleName
+                config.speechRule.tagRuleId, bindingKey
             ) ?: config.speechRule.tag
         )
     }
@@ -604,17 +609,17 @@ fun LogQuickPanel(
                         }
                     }
                 } else {
-                    // ===== 旁白/非多角色（用户 09-09 简化）：直接列旁白分类候选，无下拉/搜索 =====
-                    // 旁白分类只认标签本身是「旁白」的配置项（用户 09-09：标签是旁白才是旁白分类），
-                    // 不按名字前缀归桶；点行=暂存选中，底部「确认」写本配置项 voice，
+                    // ===== 非绑定分类（用户 09-12 从"旁白"推广）：按本配置项的 tagName 列同分类候选 =====
+                    // 旁白/括号发音人/对话男女等都是"同 tagName 一批，选一个把 voice 写进本配置项"；
+                    // 本地音效槽位不进此分支（tagName 带序号，已在上面走绑定模式）。
+                    // 修复（用户 09-12）：按 tagName（显示名，列表角标同源）筛——原比 tag id 永不命中；
+                    // 点行=暂存选中，底部「确认」写本配置项 voice，
                     // 落库后主列表自动定位高亮被改项（sharedVM.pendingLocateConfigId）
-                    val narrationCandidates = remember(entity.id) {
+                    val currentTagName = config.speechRule.tagName
+                    val narrationCandidates = remember(entity.id, currentTagName) {
                         allConfigs.mapNotNull { c ->
                             val dto = c.config as? TtsConfigurationDTO ?: return@mapNotNull null
-                            // 修复（用户 09-12）：标签存两个字段——tag=id（旁白的 id 是英文 narration）、
-                            // tagName=显示名（列表角标读的就是它）。原过滤只比 tag=="旁白"，
-                            // 拿显示名去比 id 永远不命中 → 整列为空误报；目目拍板：只按 tagName 筛
-                            if (dto.speechRule.tagName != "旁白") return@mapNotNull null
+                            if (dto.speechRule.tagName != currentTagName) return@mapNotNull null
                             val v = (dto.source as? PluginTtsSource)?.voice
                                 ?.takeIf { it.isNotEmpty() } ?: return@mapNotNull null
                             Pair(v, c.displayName)
@@ -634,7 +639,8 @@ fun LogQuickPanel(
                     ) {
                         if (narrationCandidates.isEmpty()) {
                             Text(
-                                "旁白分类没有可用的配置项",
+                                if (currentTagName.isBlank()) "该分类没有可用的配置项"
+                                else "「$currentTagName」分类没有可用的配置项",
                                 modifier = Modifier.padding(10.dp),
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -754,7 +760,7 @@ fun LogQuickPanel(
                                     val ok = withIO {
                                         CharacterRecordsFile.rebind(
                                             config.speechRule.tagRuleId,
-                                            entry.roleName,
+                                            bindingKey,
                                             selected,
                                         )
                                     }
@@ -762,7 +768,7 @@ fun LogQuickPanel(
                                     pendingVoice = null
                                     Toast.makeText(
                                         context,
-                                        if (ok) "已将「${entry.roleName}」的发音人换为 $selected"
+                                        if (ok) "已将「$bindingKey」的发音人换为 $selected"
                                         else context.getString(R.string.log_panel_rebind_failed),
                                         Toast.LENGTH_SHORT,
                                     ).show()
