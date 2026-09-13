@@ -90,6 +90,10 @@ private val releaseDotColors = listOf(
     0xFF66BB6A, 0xFFEC407A, 0xFFFF7043, 0xFF42A5F5,
 )
 
+/** 「管理发音人」标记按钮选中态配色（照插件：浅绿底 + 深绿字/勾） */
+private val MarkOnBg = Color(0xFFB7EFC5)
+private val MarkOnFg = Color(0xFF1B5E20)
+
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
 fun RoleListScreen(
@@ -1057,12 +1061,16 @@ private fun VoiceManageDialog(
                         R.string.role_voice_manage_info,
                         tag,
                         displayName,
-                        curMarks.mapNotNull { key -> VoiceMarksFile.MARK_ITEMS.firstOrNull { m -> m.first == key }?.third }
-                            .joinToString(" ").ifEmpty { stringResource(R.string.role_voice_unmarked) }
+                        // 照插件 getVoiceMarkLabel：按已存标记的先后顺序列举，未标记回落「未标记」
+                        curMarks.mapNotNull { key ->
+                            VoiceMarksFile.MARK_ITEMS.firstOrNull { it.first == key }?.third
+                        }.joinToString(" ").ifEmpty { stringResource(R.string.role_voice_unmarked) }
                     ),
-                    style = MaterialTheme.typography.bodyMedium
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
-                Spacer(Modifier.height(12.dp))
+                Spacer(Modifier.height(14.dp))
+                // 标记按钮（照插件「管理发音人」：emoji+文字 一体；选中=浅绿底+深绿字+✓，未选=描边）
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     VoiceMarksFile.MARK_ITEMS.forEach { (key, emoji, label) ->
                         val selected = key in curMarks
@@ -1074,22 +1082,29 @@ private fun VoiceManageDialog(
                                     onMarksChanged(mapOf(tag to curMarks))
                                 }
                             },
-                            shape = RoundedCornerShape(10.dp),
-                            color = if (selected) MaterialTheme.colorScheme.primaryContainer
-                            else MaterialTheme.colorScheme.surfaceContainerHigh,
+                            shape = RoundedCornerShape(12.dp),
+                            color = if (selected) MarkOnBg else Color.Transparent,
+                            border = if (selected) null
+                            else BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
                         ) {
                             Row(
-                                Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                                Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
-                                Text(emoji)
-                                Spacer(Modifier.width(4.dp))
-                                Text(label, style = MaterialTheme.typography.bodySmall)
+                                Text(emoji, style = MaterialTheme.typography.bodyMedium)
+                                Spacer(Modifier.width(6.dp))
+                                Text(
+                                    label,
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = if (selected) MarkOnFg else MaterialTheme.colorScheme.onSurface,
+                                    maxLines = 1,
+                                )
                                 if (selected) {
-                                    Spacer(Modifier.width(4.dp))
+                                    Spacer(Modifier.width(6.dp))
                                     Icon(
                                         Icons.Default.Done, contentDescription = null,
-                                        modifier = Modifier.size(14.dp)
+                                        tint = MarkOnFg,
+                                        modifier = Modifier.size(16.dp)
                                     )
                                 }
                             }
