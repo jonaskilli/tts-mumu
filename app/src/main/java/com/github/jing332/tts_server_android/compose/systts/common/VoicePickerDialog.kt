@@ -43,6 +43,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.window.DialogProperties
 import com.drake.net.utils.withIO
 import com.drake.net.utils.withMain
 import com.github.jing332.common.utils.toParamText
@@ -474,8 +475,14 @@ fun VoicePickerDialog(
     }
 
     // 居中弹窗（用户 09-09：底部弹窗全面撤回，恢复 AppDialog 中弹窗形态；标题即面板名）
+    // 宽度（目目 09-13）：MD3 AlertDialog 默认平台宽度偏窄（比旧角色管理自绘弹窗窄一截），
+    // 解锁 usePlatformDefaultWidth 后按屏宽 92% 铺——候选行名+徽章+试听键的行内空间跟着松；
+    // 只作用本弹窗（日志面板/插件桥共用），AppDialog 其余调用方不受影响
     AppDialog(
         onDismissRequest = onDismissRequest,
+        properties = DialogProperties(usePlatformDefaultWidth = false),
+        modifier = Modifier
+            .fillMaxWidth(0.92f)
         title = {
             // 角色名放大放标题右侧（目目 09-13 提案）：标题行右侧本来空着，角色名提到这里
             // 主色放大更醒目、不占正文高度；小标签行随之瘦回「当前发音人」。
