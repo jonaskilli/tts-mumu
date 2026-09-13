@@ -7,6 +7,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -21,10 +22,10 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.AlertDialog
+import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -41,6 +42,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
@@ -65,8 +67,8 @@ import kotlinx.coroutines.launch
  * 点击名字=勾选（选中背景高亮）；长按名字=操作菜单（合并+跟随/合并+选发音人（标记≥2）、
  * 释放删除已合并角色（有别名）、修改角色名（单选）、删除角色、设为主角）。
  * 发音人标签框点击=换声弹窗（与日志弹窗同款，桥接已通过）。
- * 顶部：书籍栏（书名/切换/修改书名）+ 密钥管理与备份恢复按钮；列表下方「+ 添加角色」。
- * 主题🎨按钮不搬（原生即 MD3 主题）。
+ * 顶部：书籍栏（书名/切换/修改书名）；密钥管理与备份恢复入口在宿主顶栏（目目 09-14：给角色区留空）。
+ * 列表下方「+ 添加角色」。主题🎨按钮不搬（原生即 MD3 主题）。
  */
 
 /** 性别圆点色（照插件：少年/男=青蓝，女=粉红，其余=灰） */
@@ -166,29 +168,10 @@ fun RoleListScreen(
     var mergeVoiceTarget by remember { mutableStateOf<String?>(null) } // 合并+选择发音人：目标角色
     var pickerFor by remember { mutableStateOf<CharacterRecordsFile.RoleRecord?>(null) } // 换声（标签框点击）
     var showBookDialog by remember { mutableStateOf(false) }
-    var showKeyManager by remember { mutableStateOf(false) }
-    var showBackupCenter by remember { mutableStateOf(false) }
-    var backupVersion by remember { mutableIntStateOf(0) } // 恢复/导入等大动作后强制刷
+    // 密钥管理/备份恢复入口已上移到宿主顶栏（目目 09-14：给角色区留空），
+    // 弹窗状态与渲染都在 RoleManagementScreen，本页不再持有
 
     Column(modifier) {
-        // ===== 密钥/备份 按钮行（照插件：主按钮行在书籍栏上方，48dp 高 + 加粗 + 均分；🎨主题按钮不搬=原生即 MD3）=====
-        Row(
-            Modifier.fillMaxWidth().padding(horizontal = 8.dp),
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            OutlinedButton(
-                onClick = { showKeyManager = true },
-                modifier = Modifier.weight(1f).height(48.dp)
-            ) {
-                Text("🔑  ${stringResource(R.string.role_key_title)}", fontWeight = FontWeight.Bold)
-            }
-            OutlinedButton(
-                onClick = { showBackupCenter = true },
-                modifier = Modifier.weight(1f).height(48.dp)
-            ) {
-                Text("💾  ${stringResource(R.string.backup_title)}", fontWeight = FontWeight.Bold)
-            }
-        }
         // ===== 书籍栏（照插件：圆角卡片 = 📖 + 书名 + ✎ 行内改名 + ▾ 管理；
         //      整条卡片点击即展开书籍列表弹窗（插件 showBookSwitchDialog 同入口：书名框与箭头共用））=====
         var editingBook by remember { mutableStateOf(false) }
@@ -267,17 +250,35 @@ fun RoleListScreen(
                 color = MaterialTheme.colorScheme.primary
             )
             val allSelected = markedNames.containsAll(selectableNames) && selectableNames.isNotEmpty()
-            OutlinedTextField(
-                value = keyword,
-                onValueChange = { keyword = it },
-                modifier = Modifier.weight(1f).padding(start = 8.dp),
-                singleLine = true,
-                textStyle = MaterialTheme.typography.bodyMedium,
-                placeholder = {
-                    Text(stringResource(R.string.role_search_hint), style = MaterialTheme.typography.bodyMedium)
-                },
+            // 紧凑搜索框（目目 09-14：OutlinedTextField 最小高 56dp 偏高）——
+            // Surface+BasicTextField 手搓 44dp，外观保持 12dp 圆角描边；hint 手绘、光标主色
+            Surface(
                 shape = RoundedCornerShape(12.dp),
-                suffix = {
+                color = Color.Transparent,
+                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline),
+                modifier = Modifier.weight(1f).padding(start = 8.dp).height(44.dp)
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    BasicTextField(
+                        value = keyword,
+                        onValueChange = { keyword = it },
+                        singleLine = true,
+                        textStyle = MaterialTheme.typography.bodyMedium.copy(
+                            color = MaterialTheme.colorScheme.onSurface
+                        ),
+                        cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
+                        modifier = Modifier.weight(1f).padding(start = 12.dp),
+                        decorationBox = { inner ->
+                            Box {
+                                if (keyword.isBlank()) Text(
+                                    stringResource(R.string.role_search_hint),
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                                inner()
+                            }
+                        }
+                    )
                     // 照插件 selectAllBtn：8dp 圆角描边胶囊，全选=主色系 / 取消全选=警示色系
                     Surface(
                         onClick = {
@@ -301,8 +302,8 @@ fun RoleListScreen(
                             modifier = Modifier.padding(horizontal = 10.dp, vertical = 2.dp)
                         )
                     }
-                },
-            )
+                }
+            }
         }
         // 操作提示行（照插件 longPressHint）
         Text(
@@ -608,19 +609,6 @@ fun RoleListScreen(
         )
     }
     // 修改书名：已改为书籍栏 ✎ 行内编辑（照插件），弹窗通道退役
-
-    // ===== 密钥管理 / 备份恢复 =====
-    if (showKeyManager) {
-        KeyManagerDialog(tagRuleId = tagRuleId, onDismiss = { showKeyManager = false })
-    }
-    if (showBackupCenter) {
-        BackupCenterDialog(
-            tagRuleId = tagRuleId,
-            version = backupVersion,
-            onDismiss = { showBackupCenter = false },
-            onRestored = { backupVersion++; reload() },
-        )
-    }
 }
 
 /** 菜单动作行（彩色圆点 + 文字，照插件 showFirstDialog 行样式） */

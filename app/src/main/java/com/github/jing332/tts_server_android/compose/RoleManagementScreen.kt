@@ -14,9 +14,12 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AccountCircle
+import androidx.compose.material.icons.filled.Save
+import androidx.compose.material.icons.filled.VpnKey
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
@@ -50,6 +53,8 @@ import com.github.jing332.tts_server_android.R
 import com.github.jing332.tts_server_android.compose.nav.NavTopAppBar
 import com.github.jing332.tts_server_android.compose.systts.list.expandSpeechRuleTagsIfNeeded
 import com.github.jing332.tts_server_android.compose.systts.list.ui.PluginTtsUI
+import com.github.jing332.tts_server_android.compose.systts.role.BackupCenterDialog
+import com.github.jing332.tts_server_android.compose.systts.role.KeyManagerDialog
 import com.github.jing332.tts_server_android.compose.systts.role.RoleListScreen
 import com.github.jing332.tts_server_android.conf.SpeechRuleConfig
 import com.github.jing332.tts_server_android.model.rhino.speech_rule.SpeechRuleEngine
@@ -192,12 +197,31 @@ fun RoleManagementScreen(sharedVM: SharedViewModel, pagerState: PagerState) {
     }
 
     val scrollBehavior = TopAppBarDefaults.pinnedScrollBehavior()
+    // 密钥/备份弹窗（目目 09-14：入口从页内按钮行上移顶栏，给角色区留空；弹窗状态由宿主持有）
+    var showKeyManager by remember { mutableStateOf(false) }
+    var showBackupCenter by remember { mutableStateOf(false) }
+    var backupVersion by remember { mutableIntStateOf(0) } // 恢复/导入等大动作后强制内置列表重读
     Scaffold(
         modifier = Modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
         topBar = {
             NavTopAppBar(
-                title = { Text(stringResource(R.string.role_management)) }
-                // 照插件：顶栏只有标题。密钥/备份入口在页面内按钮行，书籍入口在书籍卡（▾管理）
+                title = { Text(stringResource(R.string.role_management)) },
+                actions = {
+                    // 🔑 密钥管理 / 💾 备份恢复（原页内 48dp 按钮行已退役）
+                    IconButton(onClick = { showKeyManager = true }) {
+                        Icon(
+                            Icons.Default.VpnKey,
+                            contentDescription = stringResource(R.string.role_key_title)
+                        )
+                    }
+                    IconButton(onClick = { showBackupCenter = true }) {
+                        Icon(
+                            Icons.Default.Save,
+                            contentDescription = stringResource(R.string.backup_title)
+                        )
+                    }
+                }
+                // 书籍入口仍在书籍卡（▾管理）
             )
         }
     ) { paddingValues ->
@@ -286,7 +310,18 @@ fun RoleManagementScreen(sharedVM: SharedViewModel, pagerState: PagerState) {
         }
     }
 
-    // 密钥/备份/书籍入口已全部内置于 RoleListScreen（照插件：按钮行+书籍卡），顶栏弹窗通道退役
+    // ===== 密钥管理 / 备份恢复弹窗（入口=顶栏图标；onRestored 走 reloadKey++ 让 RoleListScreen 重读文件）=====
+    if (showKeyManager) {
+        KeyManagerDialog(tagRuleId = ROLE_RULE_ID, onDismiss = { showKeyManager = false })
+    }
+    if (showBackupCenter) {
+        BackupCenterDialog(
+            tagRuleId = ROLE_RULE_ID,
+            version = backupVersion,
+            onDismiss = { showBackupCenter = false },
+            onRestored = { backupVersion++; reloadKey++ },
+        )
+    }
 }
 
 /**
