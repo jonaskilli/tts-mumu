@@ -106,8 +106,11 @@ fun LogQuickPanel(
     val source = config.source as? PluginTtsSource
     // 绑定键：多角色日志=角色名；「本地音效N」槽位=槽位名（目目 09-12：本地音效 tagName 带序号，
     // 按角色那种处理——改绑同样走 characterRecords.json 同一机制），两者共用绑定分支
+    // 本地音效槽位单独标记（目目 09-13）：这类槽位的候选不能取自发音人池，见下方 poolEnabled
+    val isLocalSoundSlot =
+        entry.roleName.isBlank() && LOCAL_SOUND_TAG_NAME.matches(config.speechRule.tagName)
     val bindingKey = entry.roleName.ifBlank {
-        if (config.speechRule.tagName.matches(Regex("本地音效\\d*"))) config.speechRule.tagName else ""
+        if (isLocalSoundSlot) config.speechRule.tagName else ""
     }
     val isBindingMode = bindingKey.isNotBlank()
 
@@ -593,8 +596,17 @@ fun LogQuickPanel(
                                     ?.takeIf { t -> t.isNotEmpty() }
                             }.toMutableSet()
                     }
-                    val poolEnabled = CharacterRecordsFile.readVoicePool(config.speechRule.tagRuleId)
-                        .filter { it in enabledTags }
+                    // 候选来源分两类（目目 09-13 定）：
+                    // - 角色槽位：发音人池 fayinren.json ∩ 启用标签（池子只装 GENSHIN 音色标签）
+                    // - 本地音效槽位：**不能**用池子——规则 detectAvailableVoices 只遍历 GENSHIN_CHARACTERS
+                    //   （localSound 前缀不在其中），音效标签根本进不了池子，取出来全是 TTS 音色。
+                    //   改为直接在启用配置里枚举同族槽位（tag=localSoundN），即"本槽位可借用哪些音效槽位的配置"
+                    val poolEnabled = if (isLocalSoundSlot) {
+                        remember(entity.id) { enabledTags.filter { LOCAL_SOUND_TAG.matches(it) } }
+                    } else {
+                        CharacterRecordsFile.readVoicePool(config.speechRule.tagRuleId)
+                            .filter { it in enabledTags }
+                    }
                     // 下拉项带括号项数（不含搜索过滤，选分类前就知道各范围有多少可选）；
                     // 0 项分类直接隐藏（用户 09-11 晚改，替代 09-09「不标数量」——不标会被误读成
                     // 信息缺失，没货的分类干脆不列）；「全部」恒在首位。
@@ -674,13 +686,16 @@ fun LogQuickPanel(
                             // 候选行显示「标签名+配置项名」（用户 09-09：原 displayName·tag 反过来去点）
                             // 候选池已筛 fayinren.json∩启用配置（tag id 口径），用 enabledConfigEntityByTag 即可取到 displayName
                             val cfgName = enabledConfigEntityByTag(tag)?.displayName.orEmpty()
+                            // 本地音效槽位的 tag 是英文 localSoundN，看不出槽位号 → 显示成「本地音效N」
+                            // （与规则 tags 表 / 列表角标同口径）；其余槽位沿用 tag(id)
+                            val rowName = if (isLocalSoundSlot) localSoundSlotLabel(tag) else tag
                             // 标记/删除收进 ⋮ 菜单（用户 09-12 晚定稿紧凑化：行内塞 5 键把名字挤没）；
                             // 点亮标记由 CandidateRow 渲染在名字后
                             val rowMarks = remember(tag, marksVersion) {
                                 VoiceMarksFile.get(config.speechRule.tagRuleId, tag)
                             }
                             CandidateRow(
-                                text = tag + cfgName,
+                                text = rowName + cfgName,
                                 isCurrent = isCurrent,
                                 isPending = isPending,
                                 nameColor = if (isPending) MaterialTheme.colorScheme.primary
@@ -893,7 +908,8 @@ fun LogQuickPanel(
                                     pendingVoice = null
                                     Toast.makeText(
                                         context,
-                                        if (ok) "已将「$bindingKey」的发音人换为 $selected"
+                                        if (ok) "已将「$bindingKey」的发音人换为 " +
+                                            (if (isLocalSoundSlot) localSoundSlotLabel(selected) else selected)
                                         else context.getString(R.string.log_panel_rebind_failed),
                                         Toast.LENGTH_SHORT,
                                     ).show()
@@ -1043,3 +1059,21 @@ private fun CandidateRow(
         }
     }
 }
+
+/**
+ * 本地音效槽位的两种形态（目目 09-13 定）：
+ * - tagName：`本地音效N`（规则 tags 表把 localSoundN 映射成它）
+ * - tag(id) ：`localSound1`~`localSound100`（规则循环注册；JReadConfigMigration 的
+ *   RULE_SOUND_TAG_REGEX 同款）
+ *
+ * 为什么音效槽位不能读发音人池：池子 fayinren.json 由规则 detectAvailableVoices 生成，
+ * 它只遍历 GENSHIN_CHARACTERS（音色标签），localSound 前缀不在其中，音效标签永远进不去池子
+ * ——按池子取候选只会得到一堆 TTS 音色（09-13 目目截图实锤）。故音效槽位改从配置表枚举同族槽位。
+ */
+private val LOCAL_SOUND_TAG_NAME = Regex("本地音效\\d*")
+
+private val LOCAL_SOUND_TAG = Regex("^localSound\\d+$")
+
+/** localSound7 → 本地音效7（候选行显示用，tagName 口径与规则 tags 表一致） */
+private fun localSoundSlotLabel(tag: String): String =
+    "本地音效" + tag.removePrefix("localSound")
