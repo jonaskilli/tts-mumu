@@ -59,6 +59,7 @@ import com.github.jing332.tts_server_android.R
 import com.github.jing332.tts_server_android.compose.SharedViewModel
 import com.github.jing332.tts_server_android.compose.SoftSegmentedTextToggle
 import com.github.jing332.tts_server_android.compose.systts.list.ui.PluginDescriptor
+import com.github.jing332.tts_server_android.compose.systts.list.ui.widgets.AudioParamsDimensionSection
 import com.github.jing332.tts_server_android.conf.AppConfig
 import com.github.jing332.tts_server_android.conf.SysTtsConfig
 import com.github.jing332.tts_server_android.service.systts.SystemTtsService
