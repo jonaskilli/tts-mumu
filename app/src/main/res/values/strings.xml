@@ -845,6 +845,13 @@
     <string name="role_key_model_input_hint">输入模型名</string>
     <string name="role_key_test_ok_short">✓通</string>
     <string name="role_key_test_fail_short">✗不通</string>
+    <string name="role_key_delete_select_title">选择要删除的密钥（已选 %1$d）</string>
+    <string name="role_key_delete_n">删除(%1$d)</string>
+    <string name="role_key_delete_none">请先勾选要删除的密钥</string>
+    <string name="role_key_delete_batch_text">确定删除「%1$s」中选中的 %2$d 条密钥？不可恢复。</string>
+    <string name="role_key_deleted_toast">已删除 %1$d 条密钥</string>
+    <string name="role_key_test_batch_start">开始测试「%1$s」共 %2$d 条，完成后逐条标记</string>
+    <string name="role_key_test_batch_done">「%1$s」测试完成：%2$d 通 / %3$d 不通</string>
     <string name="backup_title">备份恢复</string>
     <string name="backup_export_book">导出当前书籍到剪贴板</string>
     <string name="backup_import_book">从剪贴板导入书籍</string>
@@ -862,6 +869,10 @@
     <string name="backup_clip_bad">格式错误：需包含 bookName（书名）和 characterData（角色数组）</string>
     <string name="backup_auto_enabled_toast">自动备份已开启（进入角色管理页时自动执行）</string>
     <string name="backup_auto_disabled_toast">自动备份已关闭</string>
+    <string name="backup_auto_enable">启用自动备份</string>
+    <string name="backup_auto_state_title">当前自动备份：%1$s（选择操作）</string>
+    <string name="backup_auto_turn_on">开启自动备份</string>
+    <string name="backup_auto_turn_off">关闭自动备份</string>
     <string name="batch_cfg_delete_all">删除全部 %1$d 项</string>
     <string name="batch_cfg_expand">展开</string>
     <string name="batch_cfg_collapse">收起</string>

@@ -670,6 +670,13 @@ Add %3$d, skip %4$d duplicates</string>
     <string name="role_key_model_input_hint">Model name</string>
     <string name="role_key_test_ok_short">✓OK</string>
     <string name="role_key_test_fail_short">✗Fail</string>
+    <string name="role_key_delete_select_title">Select keys to delete (%1$d selected)</string>
+    <string name="role_key_delete_n">Delete (%1$d)</string>
+    <string name="role_key_delete_none">Select at least one key first</string>
+    <string name="role_key_delete_batch_text">Delete the %2$d selected key(s) under "%1$s"? This cannot be undone.</string>
+    <string name="role_key_deleted_toast">Deleted %1$d key(s)</string>
+    <string name="role_key_test_batch_start">Testing %2$d key(s) under "%1$s"…</string>
+    <string name="role_key_test_batch_done">"%1$s" test done: %2$d ok / %3$d failed</string>
     <string name="backup_title">Backup &amp; Restore</string>
     <string name="backup_export_book">Export current book to clipboard</string>
     <string name="backup_import_book">Import book from clipboard</string>
@@ -687,6 +694,10 @@ Add %3$d, skip %4$d duplicates</string>
     <string name="backup_clip_bad">Bad format: needs bookName and characterData</string>
     <string name="backup_auto_enabled_toast">Auto backup on (runs when entering role page)</string>
     <string name="backup_auto_disabled_toast">Auto backup off</string>
+    <string name="backup_auto_enable">Enable auto backup</string>
+    <string name="backup_auto_state_title">Auto backup: %1$s (choose an action)</string>
+    <string name="backup_auto_turn_on">Turn on auto backup</string>
+    <string name="backup_auto_turn_off">Turn off auto backup</string>
     <string name="batch_cfg_delete_all">Delete all %1$d</string>
     <string name="batch_cfg_expand">Expand</string>
     <string name="batch_cfg_collapse">Collapse</string>

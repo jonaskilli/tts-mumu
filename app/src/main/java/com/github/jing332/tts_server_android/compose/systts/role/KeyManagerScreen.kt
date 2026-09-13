@@ -10,7 +10,6 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
@@ -25,13 +24,9 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.DeleteOutline
-import androidx.compose.material.icons.filled.Done
-import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -82,7 +77,11 @@ import kotlinx.coroutines.launch
  */
 
 /** 分组后的密钥组（照插件 buildKeyGroups：接口组 + 未分组 + 直连密钥） */
-private class KeyGroup(val title: String, val entries: List<KeyListFile.KeyEntry>)
+private class KeyGroup(
+    val title: String,
+    val entries: List<KeyListFile.KeyEntry>,
+    val ifc: KeyListFile.ApiInterface? = null,
+)
 
 private fun buildKeyGroups(keys: List<KeyListFile.KeyEntry>, ifaces: List<KeyListFile.ApiInterface>): List<KeyGroup> {
     val groups = mutableListOf<KeyGroup>()
@@ -90,7 +89,7 @@ private fun buildKeyGroups(keys: List<KeyListFile.KeyEntry>, ifaces: List<KeyLis
     ifaces.forEach { ifc ->
         val entries = keys.filter { KeyListFile.keyBelongsTo(it, ifc) }
         if (entries.isNotEmpty()) {
-            groups.add(KeyGroup(ifc.name, entries))
+            groups.add(KeyGroup(ifc.name, entries, ifc))
             entries.forEach { assigned.add(it.name) }
         }
     }
@@ -102,6 +101,129 @@ private fun buildKeyGroups(keys: List<KeyListFile.KeyEntry>, ifaces: List<KeyLis
     if (ungrouped.isNotEmpty()) groups.add(KeyGroup("未分组", ungrouped))
     if (direct.isNotEmpty()) groups.add(KeyGroup("直连密钥", direct))
     return groups
+}
+
+/** 小圆角描边 chip（照插件 createSmallButton：透明底 + 彩色描边 + 彩色文字） */
+@Composable
+private fun SmallChipButton(text: String, color: Color, onClick: () -> Unit) {
+    Surface(
+        shape = RoundedCornerShape(6.dp),
+        color = Color.Transparent,
+        border = BorderStroke(1.dp, color),
+        modifier = Modifier
+            .padding(start = 5.dp)
+            .heightIn(min = 30.dp)
+            .clickable(onClick = onClick)
+    ) {
+        Row(Modifier.padding(horizontal = 6.dp), verticalAlignment = Alignment.CenterVertically) {
+            Text(text, style = MaterialTheme.typography.labelMedium, color = color)
+        }
+    }
+}
+
+/** 等宽描边按钮（照插件 createBottomBtn：白底 + 1dp 描边 + 10dp 圆角 + 居中彩色文字） */
+@Composable
+private fun WideOutlineButton(
+    text: String,
+    color: Color,
+    modifier: Modifier = Modifier,
+    onClick: () -> Unit,
+) {
+    Surface(
+        shape = RoundedCornerShape(10.dp),
+        color = MaterialTheme.colorScheme.surface,
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+        modifier = modifier.heightIn(min = 46.dp).clickable(onClick = onClick)
+    ) {
+        Row(
+            Modifier.fillMaxWidth().heightIn(min = 46.dp).padding(horizontal = 8.dp),
+            horizontalArrangement = Arrangement.Center,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                text,
+                style = MaterialTheme.typography.labelLarge,
+                color = color,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+        }
+    }
+}
+
+/** 密钥条目行（照插件密钥行：圆角卡片 + ✓/彩色圆点 + 名称点击切换 + ⚡ 测试 + ✏️ 编辑） */
+@Composable
+private fun KeyEntryRow(
+    entry: KeyListFile.KeyEntry,
+    isCurrent: Boolean,
+    dotColor: Color,
+    testOk: Boolean?,
+    testing: Boolean,
+    deleteMode: Boolean,
+    checked: Boolean,
+    onToggleCheck: () -> Unit,
+    onSwitch: () -> Unit,
+    onTest: () -> Unit,
+    onEdit: () -> Unit,
+) {
+    Surface(
+        shape = RoundedCornerShape(10.dp),
+        color = if (isCurrent) MaterialTheme.colorScheme.primaryContainer
+        else MaterialTheme.colorScheme.surface,
+        border = BorderStroke(
+            width = if (isCurrent) 1.5.dp else 1.dp,
+            color = if (isCurrent) MaterialTheme.colorScheme.primary
+            else MaterialTheme.colorScheme.outlineVariant
+        ),
+        modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)
+    ) {
+        Row(
+            Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 12.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            if (deleteMode) {
+                Checkbox(checked = checked, onCheckedChange = { onToggleCheck() })
+            }
+            if (isCurrent) {
+                Text(
+                    "✓",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.primary
+                )
+                Spacer(Modifier.width(8.dp))
+            } else {
+                Spacer(Modifier.size(7.dp).background(dotColor, CircleShape))
+                Spacer(Modifier.width(8.dp))
+            }
+            Text(
+                entry.name,
+                style = MaterialTheme.typography.bodyLarge,
+                color = MaterialTheme.colorScheme.onSurface,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.weight(1f).clickable { onSwitch() }
+            )
+            testOk?.let { ok ->
+                Text(
+                    stringResource(
+                        if (ok) R.string.role_key_test_ok_short else R.string.role_key_test_fail_short
+                    ),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = if (ok) Color(0xFF2E7D32) else MaterialTheme.colorScheme.error
+                )
+                Spacer(Modifier.width(4.dp))
+            }
+            if (testing) {
+                CircularProgressIndicator(Modifier.size(16.dp), strokeWidth = 2.dp)
+                Spacer(Modifier.width(4.dp))
+            }
+            if (!deleteMode) {
+                SmallChipButton("⚡", Color(0xFF455A64)) { onTest() }
+                SmallChipButton("✏️", MaterialTheme.colorScheme.primary) { onEdit() }
+            }
+        }
+    }
 }
 
 @Composable
@@ -116,8 +238,13 @@ fun KeyManagerDialog(tagRuleId: String, onDismiss: () -> Unit) {
     var testResults by remember { mutableStateOf<Map<String, Boolean>>(emptyMap()) }
     // 组折叠状态
     var collapsed by remember { mutableStateOf<Set<String>>(emptySet()) }
-    // 测试中
+    // 测试中（单条 / 整组批量）
     var testingName by remember { mutableStateOf<String?>(null) }
+    var testingGroup by remember { mutableStateOf<String?>(null) }
+    // 删除选择模式（照插件 deleteMode：组头变红字 + 全选/取消/删除(N)，条目行前勾选框）
+    var deleteModeGroup by remember { mutableStateOf<String?>(null) }
+    var deleteChecked by remember { mutableStateOf<Set<String>>(emptySet()) }
+    var deleteConfirmGroup by remember { mutableStateOf<String?>(null) }
 
     LaunchedEffect(version) {
         val loaded = withIO {
@@ -185,191 +312,244 @@ fun KeyManagerDialog(tagRuleId: String, onDismiss: () -> Unit) {
             )
         }
     }
+    // 整组测试（照插件组头 ⚡：逐条测完逐条标记）
+    fun testGroup(grp: KeyGroup) {
+        val targets = grp.entries.filter {
+            val p = KeyListFile.parseKeyValue(it.value)
+            p != null && !p.isDirect && it.value.isNotBlank()
+        }
+        if (targets.isEmpty()) {
+            toast(R.string.role_key_test_direct)
+            return
+        }
+        scope.launch {
+            testingGroup = grp.title
+            toast(R.string.role_key_test_batch_start, grp.title, targets.size)
+            var okCount = 0
+            targets.forEach { e ->
+                val p = KeyListFile.parseKeyValue(e.value) ?: return@forEach
+                val r = withIO { KeyListFile.testKey(p.url, p.key, p.model) }
+                testResults = testResults + (e.name to r.first)
+                if (r.first) okCount++
+            }
+            testingGroup = null
+            toast(R.string.role_key_test_batch_done, grp.title, okCount, targets.size - okCount)
+        }
+    }
+    // 批量删除（照插件 deleteMultipleBooks：删当前密钥时自动切到剩余第一条）
+    fun deleteNames(names: List<String>) {
+        if (names.isEmpty()) return
+        val nameSet = names.toSet()
+        val remaining = keys.filter { it.name !in nameSet }
+        val curWasRemoved = keys.any { it.name in nameSet && it.value.trim() == currentRaw }
+        val next = remaining.firstOrNull()
+        scope.launch {
+            withIO { KeyListFile.saveKeys(tagRuleId, remaining) }
+            if (curWasRemoved) {
+                withIO {
+                    KeyListFile.saveCurrentRaw(
+                        tagRuleId,
+                        next?.value?.takeIf { it.isNotBlank() }.orEmpty()
+                    )
+                }
+            }
+            toast(R.string.role_key_deleted_toast, names.size)
+            version++
+        }
+    }
 
     // 弹窗状态
     var showAdd by remember { mutableStateOf(false) }
     var renameFor by remember { mutableStateOf<KeyListFile.KeyEntry?>(null) }
     var overwriteFor by remember { mutableStateOf<Pair<String, String>?>(null) } // (新名, 值) 覆盖确认
     var deleteFor by remember { mutableStateOf<KeyListFile.KeyEntry?>(null) }
-    var menuFor by remember { mutableStateOf<KeyListFile.KeyEntry?>(null) }
     var ifcFormFor by remember { mutableStateOf<KeyListFile.ApiInterface?>(null) } // null+showIfcNew=true=新建
     var showIfcNew by remember { mutableStateOf(false) }
     var showPullModels by remember { mutableStateOf(false) }
+    var pullForIfc by remember { mutableStateOf<String?>(null) } // 组头 🔍 预选接口
     var showImport by remember { mutableStateOf(false) }
 
     Dialog(
         onDismissRequest = onDismiss,
         properties = DialogProperties(usePlatformDefaultWidth = false)
     ) {
-        Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.surface) {
-            Column(Modifier.fillMaxSize().statusBarsPadding().navigationBarsPadding()) {
-                // 头部
-                Row(
-                    Modifier.fillMaxWidth().padding(start = 16.dp, end = 8.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
+        Surface(
+            shape = RoundedCornerShape(28.dp),
+            color = MaterialTheme.colorScheme.surfaceContainerHigh,
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 24.dp)
+        ) {
+            Column(
+                Modifier
+                    .padding(start = 20.dp, end = 20.dp, top = 20.dp, bottom = 12.dp)
+                    .heightIn(max = (LocalConfiguration.current.screenHeightDp * 0.78f).dp)
+            ) {
+                // 标题行：密钥管理 + 导入/导出（低调小按钮）+ 关闭（MD3 兜底）
+                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                     Text(
                         stringResource(R.string.role_key_title),
                         style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.Bold,
                         modifier = Modifier.weight(1f)
                     )
-                    IconButton(onClick = onDismiss) {
-                        Icon(Icons.Default.Close, contentDescription = null)
-                    }
-                }
-                // 动作行：新增密钥 / 新建接口 / 拉取模型 / 导入导出（照插件操作行移至列表上方）
-                Row(
-                    Modifier.fillMaxWidth().padding(horizontal = 12.dp),
-                    horizontalArrangement = Arrangement.spacedBy(4.dp)
-                ) {
-                    TextButton(onClick = { showAdd = true }) { Text(stringResource(R.string.role_key_add)) }
-                    TextButton(onClick = { showIfcNew = true }) { Text(stringResource(R.string.role_key_interface_new)) }
-                    TextButton(onClick = { showPullModels = true }) { Text(stringResource(R.string.role_key_fetch)) }
-                    TextButton(onClick = { showImport = true }) { Text(stringResource(R.string.role_key_import)) }
-                    TextButton(onClick = {
+                    SmallChipButton(
+                        "📥 " + stringResource(R.string.role_key_import), Color(0xFF757575)
+                    ) { showImport = true }
+                    SmallChipButton(
+                        "📤 " + stringResource(R.string.role_key_export), Color(0xFF757575)
+                    ) {
                         scope.launch {
                             val name = withIO { KeyListFile.exportKeys(tagRuleId, keys) }
                             if (name != null) toast(R.string.role_key_exported, keys.size, name)
                             else toast(R.string.role_list_failed)
                         }
-                    }) { Text(stringResource(R.string.role_key_export)) }
-                }
-                if (keys.isEmpty()) {
-                    Column(
-                        Modifier.fillMaxSize().padding(24.dp),
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                        verticalArrangement = Arrangement.Center
-                    ) {
-                        Text(
-                            stringResource(R.string.role_key_empty),
-                            style = MaterialTheme.typography.bodyLarge,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                    }
+                    IconButton(onClick = onDismiss, modifier = Modifier.size(36.dp)) {
+                        Icon(
+                            Icons.Default.Close,
+                            contentDescription = stringResource(R.string.cancel),
+                            modifier = Modifier.size(20.dp)
                         )
                     }
+                }
+                // 操作行：＋ 新增密钥 / 🔍 拉取模型（照插件等宽并排，放列表上方）
+                Row(
+                    Modifier.fillMaxWidth().padding(top = 10.dp, bottom = 6.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    WideOutlineButton(
+                        "＋ " + stringResource(R.string.role_key_add),
+                        MaterialTheme.colorScheme.primary,
+                        Modifier.weight(1f)
+                    ) { showAdd = true }
+                    WideOutlineButton(
+                        "🔍 " + stringResource(R.string.role_key_fetch),
+                        Color(0xFF6A1B9A),
+                        Modifier.weight(1f)
+                    ) { showPullModels = true }
+                }
+                if (keys.isEmpty()) {
+                    Text(
+                        stringResource(R.string.role_key_empty),
+                        style = MaterialTheme.typography.bodyLarge,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.fillMaxWidth().padding(vertical = 24.dp)
+                    )
                 } else {
                     val groups = buildKeyGroups(keys, ifaces)
-                    LazyColumn(Modifier.weight(1f)) {
+                    LazyColumn(Modifier.weight(1f, fill = false)) {
                         groups.forEach { grp ->
                             val isCollapsed = grp.title in collapsed
+                            val isDeleting = deleteModeGroup == grp.title
+                            val grpHasCurrent = currentRaw.isNotEmpty() &&
+                                    grp.entries.any { it.value.trim() == currentRaw }
+                            val selCount = grp.entries.count { it.name in deleteChecked }
                             item(key = "grp_${grp.title}") {
-                                // 组头（点击折叠/展开）
-                                Row(
-                                    Modifier.fillMaxWidth()
-                                        .clickable {
-                                            collapsed = if (isCollapsed) collapsed - grp.title else collapsed + grp.title
+                                Column(Modifier.fillMaxWidth().padding(vertical = 6.dp)) {
+                                    Row(
+                                        Modifier.fillMaxWidth(),
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        if (isDeleting) {
+                                            Text(
+                                                stringResource(R.string.role_key_delete_select_title, selCount),
+                                                style = MaterialTheme.typography.bodyMedium,
+                                                fontWeight = FontWeight.Bold,
+                                                color = MaterialTheme.colorScheme.error,
+                                                maxLines = 1,
+                                                overflow = TextOverflow.Ellipsis,
+                                                modifier = Modifier.weight(1f)
+                                            )
+                                            SmallChipButton(stringResource(R.string.select_all), Color(0xFF757575)) {
+                                                val allSel = grp.entries.all { it.name in deleteChecked }
+                                                val names = grp.entries.map { it.name }.toSet()
+                                                deleteChecked = if (allSel) deleteChecked - names
+                                                else deleteChecked + names
+                                            }
+                                            SmallChipButton(stringResource(R.string.cancel), Color(0xFF757575)) {
+                                                deleteModeGroup = null
+                                                deleteChecked = emptySet()
+                                            }
+                                            SmallChipButton(
+                                                stringResource(R.string.role_key_delete_n, selCount),
+                                                MaterialTheme.colorScheme.error
+                                            ) {
+                                                if (selCount == 0) toast(R.string.role_key_delete_none)
+                                                else deleteConfirmGroup = grp.title
+                                            }
+                                        } else {
+                                            Text(
+                                                (if (isCollapsed) "▸ " else "▾ ") +
+                                                        (if (grpHasCurrent) "✓" else "") +
+                                                        grp.title + "（" + grp.entries.size + "）",
+                                                style = MaterialTheme.typography.bodyMedium,
+                                                fontWeight = FontWeight.Bold,
+                                                color = if (grp.ifc != null) MaterialTheme.colorScheme.primary
+                                                else MaterialTheme.colorScheme.onSurfaceVariant,
+                                                maxLines = 1,
+                                                overflow = TextOverflow.Ellipsis,
+                                                modifier = Modifier
+                                                    .weight(1f)
+                                                    .clickable {
+                                                        collapsed = if (isCollapsed) collapsed - grp.title
+                                                        else collapsed + grp.title
+                                                    }
+                                            )
+                                            grp.ifc?.let { ifc ->
+                                                SmallChipButton("✏️", MaterialTheme.colorScheme.primary) {
+                                                    ifcFormFor = ifc
+                                                }
+                                                SmallChipButton("🔍", MaterialTheme.colorScheme.primary) {
+                                                    pullForIfc = ifc.name
+                                                    showPullModels = true
+                                                }
+                                                SmallChipButton(
+                                                    if (testingGroup == grp.title) "…" else "⚡",
+                                                    MaterialTheme.colorScheme.primary
+                                                ) { testGroup(grp) }
+                                            }
+                                            SmallChipButton("🗑️", Color(0xFFC62828)) {
+                                                deleteModeGroup = grp.title
+                                                deleteChecked = emptySet()
+                                                collapsed = collapsed - grp.title
+                                            }
                                         }
-                                        .padding(horizontal = 16.dp, vertical = 10.dp),
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    Text(
-                                        (if (isCollapsed) "▸ " else "▾ ") + grp.title,
-                                        style = MaterialTheme.typography.titleSmall,
-                                        fontWeight = FontWeight.SemiBold,
-                                        modifier = Modifier.weight(1f)
-                                    )
-                                    Text(
-                                        "${grp.entries.size}",
-                                        style = MaterialTheme.typography.bodySmall,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                                    )
+                                    }
+                                    // 第二行：接口地址 + Key 尾4（组头专用灰字，照插件）
+                                    if (!isDeleting) {
+                                        grp.ifc?.let { ifc ->
+                                            Text(
+                                                ifc.baseUrl + "  *尾" + ifc.apiKey.takeLast(4),
+                                                style = MaterialTheme.typography.bodySmall,
+                                                color = Color(0xFF9E9E9E),
+                                                maxLines = 1,
+                                                overflow = TextOverflow.Ellipsis
+                                            )
+                                        }
+                                    }
                                 }
-                                HorizontalDivider()
                             }
                             if (!isCollapsed) {
-                                grp.entries.forEach { entry ->
-                                    val isCurrent = entry.value.trim() == currentRaw && currentRaw.isNotEmpty()
+                                grp.entries.forEachIndexed { idx, entry ->
+                                    val isCurrent = currentRaw.isNotEmpty() &&
+                                            entry.value.trim() == currentRaw
                                     item(key = "k_${grp.title}_${entry.name}") {
-                                        Row(
-                                            Modifier.fillMaxWidth()
-                                                .clickable { menuFor = entry }
-                                                .padding(start = 24.dp, end = 8.dp, top = 6.dp, bottom = 6.dp),
-                                            verticalAlignment = Alignment.CenterVertically
-                                        ) {
-                                            Column(Modifier.weight(1f)) {
-                                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                                    Text(
-                                                        entry.name,
-                                                        style = MaterialTheme.typography.bodyLarge,
-                                                        fontWeight = if (isCurrent) FontWeight.SemiBold else FontWeight.Normal,
-                                                        maxLines = 1,
-                                                        overflow = TextOverflow.Ellipsis
-                                                    )
-                                                    // 测试结果记忆 ✓通/✗不通
-                                                    testResults[entry.name]?.let { ok ->
-                                                        Spacer(Modifier.width(6.dp))
-                                                        Text(
-                                                            stringResource(
-                                                                if (ok) R.string.role_key_test_ok_short
-                                                                else R.string.role_key_test_fail_short
-                                                            ),
-                                                            style = MaterialTheme.typography.bodySmall,
-                                                            color = if (ok) Color(0xFF2E7D32) else MaterialTheme.colorScheme.error
-                                                        )
-                                                    }
-                                                    if (isCurrent) {
-                                                        Spacer(Modifier.width(8.dp))
-                                                        Surface(
-                                                            shape = RoundedCornerShape(8.dp),
-                                                            color = MaterialTheme.colorScheme.primaryContainer
-                                                        ) {
-                                                            Text(
-                                                                stringResource(R.string.role_key_current),
-                                                                style = MaterialTheme.typography.labelSmall,
-                                                                color = MaterialTheme.colorScheme.onPrimaryContainer,
-                                                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
-                                                            )
-                                                        }
-                                                    }
-                                                }
-                                                if (entry.brief().isNotEmpty()) {
-                                                    Text(
-                                                        entry.brief(),
-                                                        style = MaterialTheme.typography.bodySmall,
-                                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                                        maxLines = 1,
-                                                        overflow = TextOverflow.Ellipsis
-                                                    )
-                                                }
-                                            }
-                                            if (testingName == entry.name) {
-                                                CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp)
-                                                Spacer(Modifier.width(8.dp))
-                                            }
-                                            IconButton(onClick = { menuFor = entry }) {
-                                                Icon(Icons.Default.MoreVert, contentDescription = null)
-                                            }
-                                            DropdownMenu(
-                                                expanded = menuFor == entry,
-                                                onDismissRequest = { menuFor = null }
-                                            ) {
-                                                DropdownMenuItem(
-                                                    text = { Text(stringResource(R.string.role_key_set_current)) },
-                                                    enabled = !isCurrent,
-                                                    onClick = { menuFor = null; switchTo(entry) },
-                                                    trailingIcon = if (isCurrent) {
-                                                        { Icon(Icons.Default.Done, contentDescription = null) }
-                                                    } else null
-                                                )
-                                                DropdownMenuItem(
-                                                    text = { Text(stringResource(R.string.role_key_rename)) },
-                                                    onClick = { menuFor = null; renameFor = entry }
-                                                )
-                                                DropdownMenuItem(
-                                                    text = { Text(stringResource(R.string.role_key_test)) },
-                                                    onClick = { menuFor = null; testKey(entry) }
-                                                )
-                                                DropdownMenuItem(
-                                                    text = {
-                                                        Text(
-                                                            stringResource(R.string.delete),
-                                                            color = MaterialTheme.colorScheme.error
-                                                        )
-                                                    },
-                                                    onClick = { menuFor = null; deleteFor = entry }
-                                                )
-                                            }
-                                        }
-                                        HorizontalDivider(Modifier.padding(horizontal = 16.dp))
+                                        KeyEntryRow(
+                                            entry = entry,
+                                            isCurrent = isCurrent,
+                                            dotColor = BOOK_DOT_COLORS[idx % BOOK_DOT_COLORS.size],
+                                            testOk = testResults[entry.name],
+                                            testing = testingName == entry.name,
+                                            deleteMode = isDeleting,
+                                            checked = entry.name in deleteChecked,
+                                            onToggleCheck = {
+                                                deleteChecked = if (entry.name in deleteChecked)
+                                                    deleteChecked - entry.name
+                                                else deleteChecked + entry.name
+                                            },
+                                            onSwitch = { switchTo(entry) },
+                                            onTest = { testKey(entry) },
+                                            onEdit = { renameFor = entry }
+                                        )
                                     }
                                 }
                             }
@@ -378,6 +558,30 @@ fun KeyManagerDialog(tagRuleId: String, onDismiss: () -> Unit) {
                 }
             }
         }
+    }
+
+    // 批量删除确认（照插件：组内选中 N 条 → 二次确认，不可恢复）
+    deleteConfirmGroup?.let { gTitle ->
+        val grp = buildKeyGroups(keys, ifaces).firstOrNull { it.title == gTitle }
+        val targets = grp?.entries?.filter { it.name in deleteChecked }?.map { it.name }.orEmpty()
+        AlertDialog(
+            onDismissRequest = { deleteConfirmGroup = null },
+            title = { Text(stringResource(R.string.role_key_delete_title)) },
+            text = { Text(stringResource(R.string.role_key_delete_batch_text, gTitle, targets.size)) },
+            confirmButton = {
+                TextButton(onClick = {
+                    deleteConfirmGroup = null
+                    deleteModeGroup = null
+                    deleteChecked = emptySet()
+                    deleteNames(targets)
+                }) { Text(stringResource(R.string.delete)) }
+            },
+            dismissButton = {
+                TextButton(onClick = { deleteConfirmGroup = null }) {
+                    Text(stringResource(R.string.cancel))
+                }
+            }
+        )
     }
 
     // 新增（名称留空自动生成；重名→覆盖确认；保存即启用为当前，照插件 showAddKeyDialog）
@@ -405,6 +609,7 @@ fun KeyManagerDialog(tagRuleId: String, onDismiss: () -> Unit) {
             initial = entry,
             existingNames = keys.map { it.name }.toSet(),
             onDismiss = { renameFor = null },
+            onDelete = { renameFor = null; deleteFor = entry },
             onConfirm = { name, value, overwrite ->
                 renameFor = null
                 if (overwrite && name != entry.name) {
@@ -474,7 +679,8 @@ fun KeyManagerDialog(tagRuleId: String, onDismiss: () -> Unit) {
         ModelPullDialog(
             tagRuleId = tagRuleId,
             existingNames = keys.map { it.name }.toSet(),
-            onDismiss = { showPullModels = false },
+            initialIfcName = pullForIfc,
+            onDismiss = { showPullModels = false; pullForIfc = null },
             onConfirm = { entries ->
                 showPullModels = false
                 val merged = entries.fold(keys) { acc, e ->
@@ -500,6 +706,7 @@ private fun KeyEditDialog(
     initial: KeyListFile.KeyEntry?,
     existingNames: Set<String>,
     onDismiss: () -> Unit,
+    onDelete: (() -> Unit)? = null,
     onConfirm: (String, String, Boolean) -> Unit,
 ) {
     var name by remember { mutableStateOf(initial?.name.orEmpty()) }
@@ -537,6 +744,13 @@ private fun KeyEditDialog(
                     singleLine = true,
                     textStyle = MaterialTheme.typography.bodyMedium,
                 )
+                // 照插件条目 ✏️ 弹窗：删除入口留在编辑弹窗内
+                if (onDelete != null) {
+                    Spacer(Modifier.height(8.dp))
+                    TextButton(onClick = onDelete) {
+                        Text(stringResource(R.string.delete), color = MaterialTheme.colorScheme.error)
+                    }
+                }
             }
         },
         confirmButton = {
@@ -676,6 +890,7 @@ private fun InterfaceFormDialog(
 private fun ModelPullDialog(
     tagRuleId: String,
     existingNames: Set<String>,
+    initialIfcName: String? = null,
     onDismiss: () -> Unit,
     onConfirm: (List<KeyListFile.KeyEntry>) -> Unit,
 ) {
@@ -688,11 +903,13 @@ private fun ModelPullDialog(
     var error by remember { mutableStateOf("") }
     var filter by remember { mutableStateOf("") }
     var manualVisible by remember { mutableStateOf(false) }
+    var ifcNewVisible by remember { mutableStateOf(false) }
 
     LaunchedEffect(Unit) {
         val list = withIO { KeyListFile.readInterfaces(tagRuleId) }
         ifaces = list
-        pickedName = list.firstOrNull()?.name.orEmpty()
+        pickedName = initialIfcName?.takeIf { n -> list.any { it.name == n } }
+            ?: list.firstOrNull()?.name.orEmpty()
     }
     fun fetch() {
         val p = ifaces.firstOrNull { it.name == pickedName } ?: return
@@ -727,6 +944,10 @@ private fun ModelPullDialog(
                         RadioButton(selected = pickedName == ifc.name, onClick = { pickedName = ifc.name })
                         Text(ifc.name, style = MaterialTheme.typography.bodyMedium)
                     }
+                }
+                // 新建接口（照插件：接口挂在拉取流程上，主弹窗只留两个按钮）
+                TextButton(onClick = { ifcNewVisible = true }) {
+                    Text("＋ " + stringResource(R.string.role_key_interface_new))
                 }
                 // 操作行：拉取 / 手动添加
                 Row(verticalAlignment = Alignment.CenterVertically) {
@@ -857,6 +1078,24 @@ private fun ModelPullDialog(
             }
         )
     }
+    // 新建接口（照插件 showNewInterfaceDialog：建档后回到本弹窗继续拉取）
+    if (ifcNewVisible) {
+        InterfaceFormDialog(
+            tagRuleId = tagRuleId,
+            initial = null,
+            onDismiss = { ifcNewVisible = false },
+            onSaved = {
+                ifcNewVisible = false
+                scope.launch {
+                    val list = withIO { KeyListFile.readInterfaces(tagRuleId) }
+                    ifaces = list
+                    if (pickedName.isEmpty() || list.none { it.name == pickedName }) {
+                        pickedName = list.lastOrNull()?.name ?: list.firstOrNull()?.name.orEmpty()
+                    }
+                }
+            }
+        )
+    }
 }
 
 /** 导入密钥（照插件 importKeysDialog：选 密钥导出_*.json → 确认新增/跳过 → 导入） */
@@ -964,6 +1203,7 @@ fun BackupCenterDialog(
     var autoOn by remember { mutableStateOf(false) }
     var inputVisible by remember { mutableStateOf(false) }
     var inputText by remember { mutableStateOf("") }
+    var autoSettingVisible by remember { mutableStateOf(false) }
 
     LaunchedEffect(version) {
         autoOn = withIO { CharacterRecordsFile.readAutoBackupEnabled(tagRuleId) }
@@ -973,16 +1213,23 @@ fun BackupCenterDialog(
             context, context.getString(resId, *args), android.widget.Toast.LENGTH_SHORT
         ).show()
     }
-    Dialog(onDismissRequest = onDismiss) {
+    Dialog(
+        onDismissRequest = onDismiss,
+        properties = DialogProperties(usePlatformDefaultWidth = false)
+    ) {
         Surface(
-            shape = RoundedCornerShape(24.dp),
+            shape = RoundedCornerShape(28.dp),
             color = MaterialTheme.colorScheme.surfaceContainerHigh,
-            modifier = Modifier.fillMaxWidth()
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 24.dp)
         ) {
-            Column(Modifier.padding(16.dp)) {
-                Text(stringResource(R.string.backup_title), style = MaterialTheme.typography.titleLarge)
-                Spacer(Modifier.height(8.dp))
-                MenuActionRow2(stringResource(R.string.backup_export_book), MaterialTheme.colorScheme.primary) {
+            Column(Modifier.padding(start = 20.dp, end = 20.dp, top = 20.dp, bottom = 12.dp)) {
+                Text(
+                    stringResource(R.string.backup_title),
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.Bold
+                )
+                Spacer(Modifier.height(12.dp))
+                BackupOptionRow(stringResource(R.string.backup_export_book), MaterialTheme.colorScheme.primary) {
                     scope.launch {
                         val recs = withIO { CharacterRecordsFile.readRecords(tagRuleId) }
                         val book = withIO { CharacterRecordsFile.readCurrentBook(tagRuleId) }
@@ -995,17 +1242,17 @@ fun BackupCenterDialog(
                         toast(R.string.backup_clip_ok)
                     }
                 }
-                MenuActionRow2(stringResource(R.string.backup_import_book), Color(0xFF00838F)) {
+                BackupOptionRow(stringResource(R.string.backup_import_book), Color(0xFF00838F)) {
                     inputText = ""
                     inputVisible = true
                 }
-                MenuActionRow2(stringResource(R.string.backup_export_all), Color(0xFF2E7D32)) {
+                BackupOptionRow(stringResource(R.string.backup_export_all), Color(0xFF2E7D32)) {
                     scope.launch {
                         val n = withIO { CharacterRecordsFile.backupAllFiles(tagRuleId) }
                         toast(if (n > 0) R.string.backup_done else R.string.role_list_failed, n)
                     }
                 }
-                MenuActionRow2(stringResource(R.string.backup_restore_all), Color(0xFFF57F17)) {
+                BackupOptionRow(stringResource(R.string.backup_restore_all), Color(0xFFF57F17)) {
                     scope.launch {
                         val n = withIO { CharacterRecordsFile.restoreAllFiles(tagRuleId) }
                         toast(
@@ -1018,26 +1265,55 @@ fun BackupCenterDialog(
                         if (n > 0) onRestored()
                     }
                 }
-                MenuActionRow2(
-                    stringResource(
-                        R.string.backup_auto_state,
-                        stringResource(if (autoOn) R.string.backup_auto_on else R.string.backup_auto_off)
-                    ), Color(0xFF7B1FA2)
-                ) {
-                    scope.launch {
-                        val newState = !autoOn
-                        withIO { CharacterRecordsFile.writeAutoBackupEnabled(tagRuleId, newState) }
-                        autoOn = newState
-                        toast(
-                            if (newState) R.string.backup_auto_enabled_toast
-                            else R.string.backup_auto_disabled_toast
-                        )
-                    }
+                BackupOptionRow(
+                    stringResource(R.string.backup_auto_enable), Color(0xFF7B1FA2)
+                ) { autoSettingVisible = true }
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+                    TextButton(onClick = onDismiss) { Text(stringResource(R.string.cancel)) }
                 }
-                TextButton(onClick = onDismiss) { Text(stringResource(R.string.cancel)) }
             }
         }
     }
+    // 自动备份设置（照插件 showAutoBackupSettingDialog：标题显当前状态 → 开启/关闭）
+    if (autoSettingVisible) {
+        AlertDialog(
+            onDismissRequest = { autoSettingVisible = false },
+            title = {
+                Text(
+                    stringResource(
+                        R.string.backup_auto_state_title,
+                        stringResource(if (autoOn) R.string.backup_auto_on else R.string.backup_auto_off)
+                    )
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    autoSettingVisible = false
+                    scope.launch {
+                        withIO { CharacterRecordsFile.writeAutoBackupEnabled(tagRuleId, true) }
+                        autoOn = true
+                        toast(R.string.backup_auto_enabled_toast)
+                    }
+                }) { Text(stringResource(R.string.backup_auto_turn_on)) }
+            },
+            dismissButton = {
+                Row {
+                    TextButton(onClick = {
+                        autoSettingVisible = false
+                        scope.launch {
+                            withIO { CharacterRecordsFile.writeAutoBackupEnabled(tagRuleId, false) }
+                            autoOn = false
+                            toast(R.string.backup_auto_disabled_toast)
+                        }
+                    }) { Text(stringResource(R.string.backup_auto_turn_off)) }
+                    TextButton(onClick = { autoSettingVisible = false }) {
+                        Text(stringResource(R.string.cancel))
+                    }
+                }
+            }
+        )
+    }
+
     // 从剪贴板/文本导入书籍（照插件 restoreFromText：{bookName, characterData} → 建档并切换）
     if (inputVisible) {
         AlertDialog(
@@ -1093,19 +1369,26 @@ fun BackupCenterDialog(
     }
 }
 
-/** 备份中心菜单行（复用样式） */
+/** 备份恢复选项行（照插件 showBackupRestoreDialog：圆角卡片 + 彩色圆点 + 15sp 文字） */
 @Composable
-private fun MenuActionRow2(text: String, dotColor: Color, onClick: () -> Unit) {
-    Row(
-        Modifier
-            .fillMaxWidth()
-            .clickable(onClick = onClick)
-            .padding(horizontal = 4.dp, vertical = 12.dp),
-        verticalAlignment = Alignment.CenterVertically
+private fun BackupOptionRow(text: String, dotColor: Color, onClick: () -> Unit) {
+    Surface(
+        shape = RoundedCornerShape(10.dp),
+        color = MaterialTheme.colorScheme.surface,
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+        modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
     ) {
-        Spacer(Modifier.size(7.dp).background(dotColor, CircleShape))
-        Spacer(Modifier.width(12.dp))
-        Text(text, style = MaterialTheme.typography.bodyLarge)
+        Row(
+            Modifier
+                .fillMaxWidth()
+                .clickable(onClick = onClick)
+                .padding(horizontal = 14.dp, vertical = 12.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Spacer(Modifier.size(7.dp).background(dotColor, CircleShape))
+            Spacer(Modifier.width(8.dp))
+            Text(text, style = MaterialTheme.typography.bodyLarge)
+        }
     }
 }
 
