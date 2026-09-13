@@ -317,6 +317,7 @@ internal fun TtsLogScreen(vm: TtsLogViewModel = viewModel()) {
     if (showLogFilesDialog) {
         val logFiles = remember {
             File(vm.logDir()).listFiles()
+                ?.filter { it.isFile }
                 ?.sortedByDescending { it.lastModified() } ?: emptyList()
         }
         val timeFmt = remember {
@@ -424,7 +425,9 @@ private fun getLevelColor(level: Int): Color {
 }
 
 // 用外部查看器打开文件/目录（text/plain 优先，通用类型兜底）
+// 目录必须走 */*（text/plain 会把目录 URI 丢给文本编辑器，打不开）
 private fun openLogFileWithViewer(context: android.content.Context, file: java.io.File) {
+    val mime = if (file.isDirectory) "*/*" else "text/plain"
     kotlin.runCatching {
         val uri = FileProvider.getUriForFile(
             context,
@@ -433,7 +436,7 @@ private fun openLogFileWithViewer(context: android.content.Context, file: java.i
         )
         context.startActivity(
             android.content.Intent(android.content.Intent.ACTION_VIEW).apply {
-                setDataAndType(uri, "text/plain")
+                setDataAndType(uri, mime)
                 flags = android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION or
                         android.content.Intent.FLAG_ACTIVITY_NEW_TASK
             }

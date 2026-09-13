@@ -267,8 +267,11 @@ class TtsLogViewModel : ViewModel() {
         }
     }
 
+    // 日志目录路径。注意：成员 file 是日志文件本身（.../cache/log/system_tts.log），
+    // 上游此处直接返回 file.absolutePath，导致调用方 File(logDir()).listFiles() 恒为 null
+    // （listFiles 对非目录返回 null）→ 日志文件列表永远显示"日志目录为空"（用户 09-13 报）
     fun logDir(): String {
-        return file.absolutePath
+        return file.parentFile?.absolutePath ?: file.absolutePath
     }
 
     init {
