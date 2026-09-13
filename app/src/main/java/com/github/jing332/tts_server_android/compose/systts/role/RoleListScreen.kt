@@ -5,6 +5,7 @@ import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -683,10 +684,17 @@ private fun RoleRow(
             verticalAlignment = Alignment.CenterVertically
         ) {
             // 名字列
+            // 选中态只由整行 Surface 一处表达（目目 09-13 方案 B「整行一块」）：
+            // 这里必须关掉按压反馈波纹，否则名字列自己的涟漪会叠成第二块灰。
             Column(
                 Modifier
                     .weight(1f)
-                    .combinedClickable(onClick = onNameClick, onLongClick = onNameLongClick)
+                    .combinedClickable(
+                        onClick = onNameClick,
+                        onLongClick = onNameLongClick,
+                        indication = null,
+                        interactionSource = remember { MutableInteractionSource() },
+                    )
                     .heightIn(min = 44.dp),
             ) {
                 nameList.forEachIndexed { idx, name ->
