@@ -106,6 +106,10 @@ fun RoleListScreen(
             val nameMap = LinkedHashMap<String, String>()
             groups.forEach { g ->
                 g.list.forEach { item ->
+                    // 只认**启用**配置（与角色管理 v10 getVoiceByTag 查 allEnabled 同口径）：
+                    // 某标签一条启用项都查不到 → 角色行显示「标签 + ⚠」失效态
+                    // （目目 09-13：删掉启用项后标签就该变成失效态，这是以前的逻辑）
+                    if (!item.isEnabled) return@forEach
                     val cfg = item.config as? TtsConfigurationDTO ?: return@forEach
                     val tag = cfg.speechRule?.tag?.trim().orEmpty()
                     if (tag.isEmpty()) return@forEach
