@@ -22,7 +22,6 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Done
-import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
@@ -51,6 +50,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.drake.net.utils.withIO
 import com.github.jing332.database.dbm
 import com.github.jing332.database.entities.systts.SystemTtsV2
@@ -201,6 +201,24 @@ fun RoleListScreen(
     var backupVersion by remember { mutableIntStateOf(0) } // 恢复/导入等大动作后强制刷
 
     Column(modifier) {
+        // ===== 密钥/备份 按钮行（照插件：主按钮行在书籍栏上方，48dp 高 + 加粗 + 均分；🎨主题按钮不搬=原生即 MD3）=====
+        Row(
+            Modifier.fillMaxWidth().padding(horizontal = 8.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            OutlinedButton(
+                onClick = { showKeyManager = true },
+                modifier = Modifier.weight(1f).height(48.dp)
+            ) {
+                Text("🔑  ${stringResource(R.string.role_key_title)}", fontWeight = FontWeight.Bold)
+            }
+            OutlinedButton(
+                onClick = { showBackupCenter = true },
+                modifier = Modifier.weight(1f).height(48.dp)
+            ) {
+                Text("💾  ${stringResource(R.string.backup_title)}", fontWeight = FontWeight.Bold)
+            }
+        }
         // ===== 书籍栏（照插件：圆角卡片 = 📖 + 书名 + ✎ 行内改名 + ▾ 管理；
         //      点书名与▾管理都开书籍管理弹窗（插件 showBookSwitchDialog 同入口））=====
         var editingBook by remember { mutableStateOf(false) }
@@ -264,29 +282,19 @@ fun RoleListScreen(
                 }
             }
         }
-        // ===== 密钥/备份 按钮行（照插件顶部按钮行；主题按钮不搬=原生即 MD3）=====
+        // ===== 角色区头（照插件：14sp 加粗主题色标题 + 搜索框（12dp圆角、hint自带🔍、无放大镜图标），
+        //      全选描边小胶囊内嵌搜索框右端，选中态换警示色显「取消全选」）=====
         Row(
-            Modifier.fillMaxWidth().padding(horizontal = 12.dp),
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            OutlinedButton(onClick = { showKeyManager = true }, modifier = Modifier.weight(1f)) {
-                Text("🔑 ${stringResource(R.string.role_key_title)}")
-            }
-            OutlinedButton(onClick = { showBackupCenter = true }, modifier = Modifier.weight(1f)) {
-                Text("💾 ${stringResource(R.string.backup_title)}")
-            }
-        }
-        // ===== 角色区头：标题 + 搜索 + 全选 =====
-        Row(
-            Modifier.fillMaxWidth().padding(start = 12.dp, end = 4.dp, top = 6.dp),
+            Modifier.fillMaxWidth().padding(start = 8.dp, end = 8.dp, top = 6.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             Text(
                 stringResource(R.string.role_list_title),
                 style = MaterialTheme.typography.titleSmall,
-                fontWeight = FontWeight.SemiBold,
+                fontWeight = FontWeight.Bold,
                 color = MaterialTheme.colorScheme.primary
             )
+            val allSelected = markedNames.containsAll(selectableNames) && selectableNames.isNotEmpty()
             OutlinedTextField(
                 value = keyword,
                 onValueChange = { keyword = it },
@@ -296,18 +304,33 @@ fun RoleListScreen(
                 placeholder = {
                     Text(stringResource(R.string.role_search_hint), style = MaterialTheme.typography.bodyMedium)
                 },
-                leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
-                shape = RoundedCornerShape(24.dp),
+                shape = RoundedCornerShape(12.dp),
+                suffix = {
+                    // 照插件 selectAllBtn：8dp 圆角描边胶囊，全选=主色系 / 取消全选=警示色系
+                    Surface(
+                        onClick = {
+                            markedNames = if (allSelected) emptySet() else selectableNames
+                        },
+                        shape = RoundedCornerShape(8.dp),
+                        color = if (allSelected) MaterialTheme.colorScheme.errorContainer
+                                else MaterialTheme.colorScheme.primaryContainer,
+                        border = BorderStroke(
+                            1.dp,
+                            if (allSelected) MaterialTheme.colorScheme.error
+                            else MaterialTheme.colorScheme.primary
+                        ),
+                        modifier = Modifier.padding(end = 4.dp).heightIn(min = 26.dp),
+                    ) {
+                        Text(
+                            stringResource(if (allSelected) R.string.role_select_all_cancel else R.string.role_list_select_all),
+                            style = MaterialTheme.typography.labelMedium,
+                            color = if (allSelected) MaterialTheme.colorScheme.onErrorContainer
+                                    else MaterialTheme.colorScheme.onPrimaryContainer,
+                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 2.dp)
+                        )
+                    }
+                },
             )
-            TextButton(onClick = {
-                markedNames = if (markedNames.containsAll(selectableNames)) emptySet() else selectableNames
-            }) {
-                Text(
-                    if (markedNames.containsAll(selectableNames) && selectableNames.isNotEmpty())
-                        stringResource(R.string.role_select_all_cancel)
-                    else stringResource(R.string.role_list_select_all)
-                )
-            }
         }
         // 操作提示行（照插件 longPressHint）
         Text(
@@ -734,7 +757,7 @@ private fun RoleRow(
                                 if (isFav) append("【$name】") else append(name)
                                 if (idx == 0 && isProtagonist) append(" 👑")
                             },
-                            style = MaterialTheme.typography.bodyLarge,
+                            style = MaterialTheme.typography.bodyLarge.copy(fontSize = 15.sp),
                             color = MaterialTheme.colorScheme.onSurface,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis,
@@ -756,7 +779,7 @@ private fun RoleRow(
                         ) {
                             Text(
                                 (voiceName ?: rec.voice) + if (voiceName == null) " ⚠" else "",
-                                style = MaterialTheme.typography.bodySmall,
+                                style = MaterialTheme.typography.bodySmall.copy(fontSize = 13.sp),
                                 color = MaterialTheme.colorScheme.onSecondaryContainer,
                                 maxLines = 1,
                                 overflow = TextOverflow.Ellipsis,

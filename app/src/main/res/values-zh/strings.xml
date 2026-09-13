@@ -658,9 +658,9 @@
     <string name="role_book_cannot_delete_current">当前书籍不可删除</string>
     <string name="role_book_empty">暂无其他书籍</string>
     <string name="role_list_title">👤 角色列表:</string>
-    <string name="role_search_hint">搜索角色</string>
+    <string name="role_search_hint">🔍 搜索角色</string>
     <string name="role_select_all_cancel">取消全选</string>
-    <string name="role_hint_line">👉 点击角色名选中 · 长按角色名操作 · 点击发音人标签更换发音人</string>
+    <string name="role_hint_line">👉 点击角色名选中 · 长按角色名操作 · 🔊 点击发音人标签更换发音人</string>
     <string name="role_add_character">＋ 添加角色</string>
     <string name="role_menu_title">选择操作</string>
     <string name="role_menu_merge_follow">合并+跟随角色</string>
