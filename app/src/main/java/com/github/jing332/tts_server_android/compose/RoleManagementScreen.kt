@@ -50,10 +50,22 @@ import com.github.jing332.tts_server_android.R
 import com.github.jing332.tts_server_android.compose.nav.NavTopAppBar
 import com.github.jing332.tts_server_android.compose.systts.list.expandSpeechRuleTagsIfNeeded
 import com.github.jing332.tts_server_android.compose.systts.list.ui.PluginTtsUI
+import com.github.jing332.tts_server_android.compose.systts.role.RoleListScreen
 import com.github.jing332.tts_server_android.conf.SpeechRuleConfig
 import com.github.jing332.tts_server_android.model.rhino.speech_rule.SpeechRuleEngine
 import com.github.jing332.tts_server_android.service.systts.SystemTtsService
 import kotlinx.coroutines.flow.conflate
+
+/** 朗读规则 id（角色数据/标签池所属规则，与插件约定一致） */
+private const val ROLE_RULE_ID = "mingwuyan"
+
+/**
+ * 内置角色列表开关（目目 09-13 拍板「内置分阶段搬」）：true=页签渲染 app 原生 MD3 列表
+ * （RoleListScreen，直读 chajian 文件，不依赖插件安装）；false=回退插件宿主旧路。
+ * 插件 JS 保留不删——回退只需把此常量改 false 重新打包。
+ * 第一阶段：列表+换声+改名/删除/设为主角/标记；合并、批量、密钥管理、书籍仍在插件（第二阶段搬）。
+ */
+private const val USE_NATIVE_ROLE_LIST = true
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -188,7 +200,27 @@ fun RoleManagementScreen(sharedVM: SharedViewModel, pagerState: PagerState) {
             )
         }
     ) { paddingValues ->
-        when {
+        if (USE_NATIVE_ROLE_LIST) {
+            // 内置原生列表：不依赖插件安装（数据文件由朗读规则运行生成），
+            // 自动刷新签名逻辑与插件路径共用（上方 LaunchedEffect(enabledSig)）
+            if (roleFilesReady && isPageVisible.value) {
+                RoleListScreen(
+                    tagRuleId = ROLE_RULE_ID,
+                    reloadKey = reloadKey,
+                    bottomPadding = paddingValues.calculateBottomPadding(),
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(top = paddingValues.calculateTopPadding()),
+                )
+            } else {
+                Box(
+                    Modifier.fillMaxSize().padding(paddingValues),
+                    contentAlignment = Alignment.Center
+                ) {
+                    CircularProgressIndicator()
+                }
+            }
+        } else when {
             plugin == null -> {
                 // 插件未安装
                 Box(

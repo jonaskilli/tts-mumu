@@ -2,6 +2,7 @@ package com.github.jing332.tts_server_android.service.systts.help
 
 import android.util.Log
 import org.json.JSONArray
+import org.json.JSONObject
 import java.io.File
 
 /**
@@ -137,5 +138,106 @@ object CharacterRecordsFile {
             Log.w(TAG, "rebind failed: ${e.message}")
             false
         }
+    }
+
+    // ==================== 内置角色列表（Phase 1，目目 09-13 拍板）====================
+    // 角色管理页签换原生渲染后，app 端直接读写同一份数据。写入口径与插件
+    // doDeleteCharacterOperation/重试路径同源：characterRecords.json + 当前书籍
+    // shuming.<书名>.json + gengxin.json + characterRecords_backup.json 四写齐落，
+    // 防止框架从备份/书籍存档把旧数据写回。
+
+    /** 角色记录轻包装：保留未知字段（写回不丢），常用键给强类型访问器 */
+    class RoleRecord internal constructor(val obj: JSONObject) {
+        val name: String get() = obj.optString("name").trim()
+        val voice: String get() = obj.optString("voice").trim()
+        val age: String get() = obj.optString("age").trim()
+        val gender: String get() = obj.optString("gender").trim()
+        val aliases: String get() = obj.optString("aliases").trim()
+        val isMain: Boolean get() = age == "主角"
+        fun setName(v: String) { obj.put("name", v) }
+    }
+
+    /** 读取全部角色记录（文件缺失/损坏返回空表）；记录顺序即文件顺序 */
+    fun readRecords(tagRuleId: String): List<RoleRecord> {
+        val f = recordsFile(tagRuleId)
+        if (!f.exists()) return emptyList()
+        return try {
+            val arr = JSONArray(f.readText())
+            (0 until arr.length()).mapNotNull { i ->
+                arr.optJSONObject(i)?.let { RoleRecord(it) }
+            }
+        } catch (e: Exception) {
+            Log.w(TAG, "readRecords failed: ${e.message}")
+            emptyList()
+        }
+    }
+
+    /** 当前书籍名（cunfang.txt；空/缺失/异常=「默认」），与插件 getCurrentBookName 同源 */
+    fun readCurrentBook(tagRuleId: String): String {
+        return try {
+            File(File(BASE_DIR, tagRuleId), "cunfang.txt").readText().trim()
+                .ifEmpty { "默认" }
+        } catch (e: Exception) {
+            "默认"
+        }
+    }
+
+    /**
+     * 全量保存：characterRecords.json + 当前书籍存档 + gengxin.json + 备份，四写齐落。
+     * （插件 saveCharacterData 同口径；rebind 属轻量改绑只写两份，不在此列。）
+     */
+    fun saveRecords(tagRuleId: String, records: List<RoleRecord>): Boolean {
+        val dir = File(BASE_DIR, tagRuleId)
+        if (!dir.exists()) return false
+        return try {
+            val arr = JSONArray()
+            records.forEach { arr.put(it.obj) }
+            val json = arr.toString(2)
+            val book = readCurrentBook(tagRuleId)
+            File(dir, "characterRecords.json").writeText(json)
+            File(dir, "shuming.$book.json").writeText(json)
+            File(dir, "gengxin.json").writeText(json)
+            File(dir, "characterRecords_backup.json").writeText(json)
+            Log.i(TAG, "saveRecords: ${records.size} records (book=$book, 4 files)")
+            true
+        } catch (e: Exception) {
+            Log.w(TAG, "saveRecords failed: ${e.message}")
+            false
+        }
+    }
+
+    /** 改名：同名记录（含别名合并出的重复项）全部改；成功返回改到的条数（0=没找到） */
+    fun renameCharacter(tagRuleId: String, oldName: String, newName: String): Int {
+        if (oldName.isBlank() || newName.isBlank() || oldName == newName) return 0
+        val records = readRecords(tagRuleId)
+        var changed = 0
+        records.forEach { if (it.name == oldName) { it.setName(newName); changed++ } }
+        if (changed > 0 && saveRecords(tagRuleId, records)) return changed
+        return 0
+    }
+
+    /** 删除角色：同名全部移除；成功返回删掉的条数 */
+    fun deleteCharacters(tagRuleId: String, names: Set<String>): Int {
+        if (names.isEmpty()) return 0
+        val records = readRecords(tagRuleId)
+        val kept = records.filter { it.name !in names }
+        val removed = records.size - kept.size
+        if (removed > 0 && saveRecords(tagRuleId, kept)) return removed
+        return 0
+    }
+
+    /** 设为主角：age="主角" + usageCount=100（与插件 setAsMainCharacter 同字段同值） */
+    fun setMainCharacter(tagRuleId: String, name: String): Boolean {
+        if (name.isBlank()) return false
+        val records = readRecords(tagRuleId)
+        var changed = false
+        records.forEach {
+            if (it.name == name) {
+                it.obj.put("age", "主角")
+                it.obj.put("usageCount", 100)
+                changed = true
+            }
+        }
+        return changed && saveRecords(tagRuleId, records)
     }
 }
