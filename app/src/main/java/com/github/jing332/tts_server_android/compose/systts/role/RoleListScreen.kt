@@ -343,7 +343,7 @@ fun RoleListScreen(
     }
     // ===== 合并+选择发音人：目标=长按角色，选完发音人后把其余标记角色并入 =====
     mergeVoiceTarget?.let { target ->
-        val others = markedNames.filter { it != target }
+        val others = markedNames.filter { it != target }.toSet()
         VoicePickerDialog(
             anchorConfigId = null,
             anchorTag = records.firstOrNull { it.name == target }?.voice.orEmpty(),
@@ -969,7 +969,7 @@ private fun EditNamesDialog(
                     }
                 }
                 TextButton(onClick = {
-                    names.value = names.value + ""
+                    names.value = (names.value + "").toMutableList()
                 }) { Text(stringResource(R.string.role_edit_names_add)) }
             }
         },

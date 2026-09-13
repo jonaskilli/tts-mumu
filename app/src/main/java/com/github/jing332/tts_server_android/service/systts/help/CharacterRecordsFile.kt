@@ -515,7 +515,7 @@ object CharacterRecordsFile {
      */
     fun releaseAndFix(tagRuleId: String, ownerName: String, name: String, keyword: String): Boolean {
         if (ownerName.isBlank() || name.isBlank() || keyword.isBlank()) return false
-        val records = readRecords(tagRuleId)
+        val records = readRecords(tagRuleId).toMutableList()
         val ownerIdx = records.indexOfFirst { norm(it.name) == norm(ownerName) }
         if (ownerIdx < 0) return false
         val owner = records[ownerIdx]
@@ -553,7 +553,7 @@ object CharacterRecordsFile {
 
     /** 删除名字（照插件 doReleaseOperation「删除」）：从主名/别名移除，记录空了删除整个记录 */
     fun removeNameFromRecord(tagRuleId: String, ownerName: String, name: String): Boolean {
-        val records = readRecords(tagRuleId)
+        val records = readRecords(tagRuleId).toMutableList()
         val ownerIdx = records.indexOfFirst { norm(it.name) == norm(ownerName) }
         if (ownerIdx < 0) return false
         val owner = records[ownerIdx]

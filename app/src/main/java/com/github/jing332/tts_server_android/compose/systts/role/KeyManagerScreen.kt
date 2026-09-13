@@ -1,6 +1,7 @@
 package com.github.jing332.tts_server_android.compose.systts.role
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -1098,7 +1099,7 @@ private fun MenuActionRow2(text: String, dotColor: Color, onClick: () -> Unit) {
             .padding(horizontal = 4.dp, vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Spacer(Modifier.size(7.dp).background(dotColor, androidx.compose.foundation.CircleShape))
+        Spacer(Modifier.size(7.dp).background(dotColor, CircleShape))
         Spacer(Modifier.width(12.dp))
         Text(text, style = MaterialTheme.typography.bodyLarge)
     }
