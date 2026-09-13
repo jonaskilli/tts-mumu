@@ -40,6 +40,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -484,22 +486,29 @@ fun VoicePickerDialog(
         modifier = Modifier
             .fillMaxWidth(0.92f)
         title = {
-            // 角色名放大放标题右侧（目目 09-13 提案）：标题行右侧本来空着，角色名提到这里
-            // 主色放大更醒目、不占正文高度；小标签行随之瘦回「当前发音人」。
-            // Box 吃剩余宽度、名字右对齐：超长名省略号截断，标题永不被挤
-            Row(Modifier.fillMaxWidth()) {
+            // 角色卡形态（目目 09-13 终版，三易其稿：标题右侧→小字行→标题本身）：
+            // 带角色名时标题直接改叫「角色卡（角色名）」——「角色卡」明说身份，名字绿色加粗
+            // 与「最终」行呼应；无角色名（旁白/本地音效槽位等）维持原面板名。
+            // 超长省略号截断，标题槽单行不被挤
+            if (titleBadge.isNotBlank()) {
+                Text(
+                    buildAnnotatedString {
+                        append("角色卡（")
+                        pushSpanStyle(
+                            SpanStyle(
+                                fontWeight = FontWeight.SemiBold,
+                                color = MaterialTheme.colorScheme.primary,
+                            )
+                        )
+                        append(titleBadge)
+                        pop()
+                        append("）")
+                    },
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            } else {
                 Text(titleText)
-                Box(Modifier.weight(1f)) {
-                    if (titleBadge.isNotBlank()) Text(
-                        titleBadge,
-                        modifier = Modifier.align(Alignment.CenterEnd),
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.SemiBold,
-                        color = MaterialTheme.colorScheme.primary,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                    )
-                }
             }
         },
         content = {
@@ -544,7 +553,7 @@ fun VoicePickerDialog(
             //（此前 ▶ 垂直居中在两行文字块上，与名字行错位）；名字加省略号防长名硬裁
             Column(Modifier.fillMaxWidth()) {
                 Text(
-                    // 角色名已提到标题右侧（目目 09-13），小标签行瘦回原字样
+                    // 标题已改叫「角色卡（角色名）」（目目 09-13 终版），本行回归纯「当前发音人」
                     "当前发音人",
                     style = MaterialTheme.typography.labelMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
