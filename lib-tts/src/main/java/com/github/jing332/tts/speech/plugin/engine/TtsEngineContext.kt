@@ -30,6 +30,44 @@ data class TtsEngineContext(
         private const val TAG = "TtsEngineContext"
     }
 
+    /** 引擎层注入的 JS 回调通道（TtsPluginEngineV2 创建后注入）：(PluginJS 函数名, 参数列表)。
+     *  通用换声弹窗桥（showVoicePickerDialog）用它把弹窗内变化回喊插件 JS；非构造属性，
+     *  不参与 data class equals/hashCode */
+    var jsInvoker: ((String, List<Any?>) -> Unit)? = null
+
+    /**
+     * 通用换声弹窗桥（用户 09-13「完全同源」定稿）：请求弹出 app 端与日志快捷面板**同款**的
+     * 「更换发音人 + 音频参数」Compose 弹窗（VoicePickerDialog）。
+     *
+     * 请求进 [VoicePickerBus]，由挂在插件 UI 宿主组合（PluginTtsUI.EditContentScreen）的
+     * 观察者真正渲染弹窗（Compose 弹窗必须长在组合里，桥只投递请求）。
+     *
+     * 弹窗内变化经 [VoicePickerBus.notifyMutated] 回喊 [callbackName]（PluginJS 上的函数，
+     * 主线程执行）：换声落库→{"event":"applied","tag":..}、删除配置项→{"event":"deleted",..}、
+     * 标记变化→{"event":"marked",..}。插件收到后刷新自己的角色列表即可（换声本身已由
+     * 弹窗内部写 characterRecords.json + gengxin.json，与角色管理插件同文件同字段）。
+     *
+     * @param optionsJson {"bindingKey":"角色名","anchorTag":"女青年01","title":"更换发音人"}
+     *        bindingKey 空=非绑定模式（与日志面板分支同语义）；anchorTag=角色当前绑定 tag
+     * @param callbackName PluginJS 对象上的回调函数名
+     */
+    @ScriptInterface
+    fun showVoicePickerDialog(optionsJson: String, callbackName: String) {
+        try {
+            val o = org.json.JSONObject(optionsJson)
+            VoicePickerBus.submit(
+                VoicePickerRequest(
+                    bindingKey = o.optString("bindingKey"),
+                    anchorTag = o.optString("anchorTag"),
+                    title = o.optString("title").ifBlank { "更换发音人" },
+                ),
+                jsInvoker, callbackName,
+            )
+        } catch (e: Exception) {
+            Log.w(TAG, "showVoicePickerDialog failed: ${e.message}")
+        }
+    }
+
     /**
      * 通过标签(tag)试听绑定的TTS配置项，由 app 统一播放。
      *

@@ -25,6 +25,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.Switch
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
@@ -50,8 +51,10 @@ import com.github.jing332.database.entities.systts.SystemTtsGroup
 import com.github.jing332.database.entities.systts.SystemTtsV2
 import com.github.jing332.database.entities.systts.TtsConfigurationDTO
 import com.github.jing332.database.entities.systts.source.PluginTtsSource
+import com.github.jing332.tts.speech.plugin.engine.VoicePickerBus
 import com.github.jing332.tts_server_android.R
 import com.github.jing332.tts_server_android.compose.systts.AuditionDialog
+import com.github.jing332.tts_server_android.compose.systts.common.VoicePickerDialog
 import com.github.jing332.tts_server_android.compose.systts.list.ui.widgets.AuditionTextField
 import com.github.jing332.tts_server_android.compose.systts.list.ui.widgets.isLocalSoundTagName
 import com.github.jing332.tts_server_android.conf.AppConfig
@@ -136,6 +139,25 @@ class PluginTtsUI : IConfigUI() {
         val isUiOnly = tts.isUiOnly
         val context = LocalContext.current
         val scope = rememberCoroutineScope()
+
+        // ===== 通用换声弹窗桥宿主（用户 09-13「完全同源」定稿）=====
+        // 角色管理插件经 ttsrv.showVoicePickerDialog 提交请求（VoicePickerBus），
+        // 在此渲染与日志快捷面板**同款**的 VoicePickerDialog（更换发音人+音频参数两分段）。
+        // 弹窗内换声落库/删除配置项/标记变化经 VoicePickerBus.notifyMutated 回喊插件 JS
+        // （PluginJS 回调，主线程）；弹窗关闭清槽。挂在 EditContentScreen——角色管理栏与
+        // 插件编辑页都经过这里，任一宿主在场都能响应请求。
+        val bridgeRequest by VoicePickerBus.request.collectAsState()
+        bridgeRequest?.let { req ->
+            VoicePickerDialog(
+                anchorConfigId = null,
+                anchorTag = req.anchorTag,
+                bindingKey = req.bindingKey,
+                titleText = req.title,
+                titleBadge = req.bindingKey,
+                onChanged = { event, tag -> VoicePickerBus.notifyMutated(event, tag) },
+                onDismissRequest = { VoicePickerBus.clear() },
+            )
+        }
 
         LaunchedEffect(Unit) {
             vm.loadPluginList()

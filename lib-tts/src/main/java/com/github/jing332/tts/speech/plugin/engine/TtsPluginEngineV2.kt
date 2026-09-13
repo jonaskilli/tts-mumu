@@ -106,6 +106,17 @@ open class TtsPluginEngineV2(val context: Context, var plugin: Plugin) {
         engine.destroy()
     }
 
+    init {
+        // 注入 JS 回调通道：通用换声弹窗桥（showVoicePickerDialog）用它回喊 PluginJS 上的
+        // 回调函数（见 VoicePickerBus.notifyMutated——已在主线程，Rhino 直接调）。
+        // pluginJsObj 在 eval() 前不存在，此处只存 lambda 不取对象，调用时才解析
+        ttsrv.jsInvoker = { name, args ->
+            val result = engine.invokeMethod(pluginJsObj, name, *args.toTypedArray())
+            Log.d("TtsPluginEngineV2", "jsInvoker $name -> $result")
+            result
+        }
+    }
+
     private fun handleAudioResult(result: Any?, timeoutMs: Long): InputStream? {
         if (result == null || result is Undefined) return null
         return when (result) {
