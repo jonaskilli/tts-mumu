@@ -684,10 +684,12 @@ fun LogQuickPanel(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .padding(top = 4.dp),
-                            // 提示用 placeholder 不用 label（用户 09-11）：AlertDialog 正文槽把 LocalTextStyle
-                            // 设为 bodyMedium 14sp，字段值/分类框/候选行全是 14sp，而 label 空置中态官方写死
-                            // bodyLarge 16sp，观感比旁边内容大一圈；placeholder 吃正文槽 14sp 恰好对齐，
-                            // 代价是输入后提示消失（搜索框可接受）
+                            // 提示用 placeholder 不用 label（用户 09-11）：label 中态官方写死
+                            // bodyLarge 16sp，观感比旁边内容大一圈；代价是输入后提示消失（可接受）
+                            // 字号显式钉 bodyMedium 14sp（用户 09-13）：依赖 LocalTextStyle 继承时
+                            // 此框落到 16sp、比上方 AppSpinner 值(14sp)大一号（老问题复发：面板弹窗
+                            // 正文槽并非恒 14sp），显式指定与下拉框对齐
+                            textStyle = MaterialTheme.typography.bodyMedium,
                             placeholder = { Text("搜索标签名/名字") },
                             value = tagSearch,
                             onValueChange = { tagSearch = it },
