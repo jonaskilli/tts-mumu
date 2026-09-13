@@ -377,17 +377,18 @@ fun RoleListScreen(
             }
             // 「+ 添加角色」行（照插件：列表下方）
             item(key = "add_row") {
+                // 照插件 addCharacterRow：低调灰色小字（12sp #9E9E9E 居中），刻意不抢眼
                 Text(
                     stringResource(R.string.role_add_character),
-                    style = MaterialTheme.typography.bodyLarge,
-                    color = MaterialTheme.colorScheme.primary,
+                    style = MaterialTheme.typography.bodySmall.copy(fontSize = 12.sp),
+                    color = Color(0xFF9E9E9E),
                     modifier = Modifier
                         .fillMaxWidth()
                         .clickable {
                             addCharName = ""
                             addKeywordPick = false // false=先弹名字输入
                         }
-                        .padding(16.dp),
+                        .padding(horizontal = 8.dp, vertical = 6.dp),
                     textAlign = androidx.compose.ui.text.style.TextAlign.Center,
                 )
             }
@@ -738,7 +739,8 @@ private fun RoleRow(
         modifier = Modifier.fillMaxWidth()
     ) {
         Row(
-            Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 8.dp),
+            // 照插件 createListRow：内边距 14dp 横 / 10dp 纵（行高 ≥44dp 保证点击区域）
+            Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 10.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             // 名字列
@@ -757,7 +759,7 @@ private fun RoleRow(
                                 if (isFav) append("【$name】") else append(name)
                                 if (idx == 0 && isProtagonist) append(" 👑")
                             },
-                            style = MaterialTheme.typography.bodyLarge.copy(fontSize = 15.sp),
+                            style = MaterialTheme.typography.bodyLarge.copy(fontSize = 16.sp),
                             color = MaterialTheme.colorScheme.onSurface,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis,

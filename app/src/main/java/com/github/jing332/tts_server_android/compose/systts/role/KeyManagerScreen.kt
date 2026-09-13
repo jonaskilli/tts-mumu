@@ -13,21 +13,16 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
-import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.DeleteOutline
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -711,6 +706,8 @@ private fun KeyEditDialog(
 ) {
     var name by remember { mutableStateOf(initial?.name.orEmpty()) }
     var value by remember { mutableStateOf(initial?.value.orEmpty()) }
+    val context = LocalContext.current
+    val clipboard = LocalClipboardManager.current
     AlertDialog(
         onDismissRequest = onDismiss,
         title = {
@@ -754,18 +751,31 @@ private fun KeyEditDialog(
             }
         },
         confirmButton = {
-            TextButton(
-                enabled = value.isNotBlank(),
-                onClick = {
-                    val finalName = name.trim().ifEmpty {
-                        // 留空自动生成（照插件 defaultName=模型或 key01）
-                        KeyListFile.parseKeyValue(value.trim())?.let { p ->
-                            if (!p.isDirect && p.model.isNotEmpty()) p.model else "key" + (existingNames.size + 1)
-                        } ?: "key" + (existingNames.size + 1)
+            Row {
+                // 照插件密钥详情弹窗的「复制」键：把当前密钥内容一键送剪贴板
+                TextButton(
+                    enabled = value.isNotBlank(),
+                    onClick = {
+                        clipboard.setText(AnnotatedString(value.trim()))
+                        android.widget.Toast.makeText(
+                            context, context.getString(R.string.copied),
+                            android.widget.Toast.LENGTH_SHORT
+                        ).show()
                     }
-                    onConfirm(finalName, value.trim(), finalName in existingNames && finalName != initial?.name)
-                }
-            ) { Text(stringResource(R.string.confirm)) }
+                ) { Text(stringResource(R.string.copy)) }
+                TextButton(
+                    enabled = value.isNotBlank(),
+                    onClick = {
+                        val finalName = name.trim().ifEmpty {
+                            // 留空自动生成（照插件 defaultName=模型或 key01）
+                            KeyListFile.parseKeyValue(value.trim())?.let { p ->
+                                if (!p.isDirect && p.model.isNotEmpty()) p.model else "key" + (existingNames.size + 1)
+                            } ?: "key" + (existingNames.size + 1)
+                        }
+                        onConfirm(finalName, value.trim(), finalName in existingNames && finalName != initial?.name)
+                    }
+                ) { Text(stringResource(R.string.confirm)) }
+            }
         },
         dismissButton = {
             TextButton(onClick = onDismiss) { Text(stringResource(R.string.cancel)) }
