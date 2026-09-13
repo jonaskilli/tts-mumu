@@ -116,7 +116,10 @@ fun LogQuickPanel(
             dbm.speechRuleDao.getByRuleIdAll(config.speechRule.tagRuleId)?.tags
         }
     }
-    // 大分类=显示名剥尾部数字（音效1→音效、女青年01→女青年）；规则未加载时回落 tagName 快照
+    // 大分类口径（目目 09-13 定）：分类以 tag id 查 rule.tags 得显示名——显示名带尾序号的
+    // 合并成一类（女青年01→女青年、本地音效1→本地音效），不带序号的每种各自独立
+    // （旁白、男、女、【】括号发音人、「」括号发音人、『』括号发音人、在线音效——括号系不合并）。
+    // 规则未加载时回落 tagName 快照
     val displayCategory = extractTagCategory(
         ruleTags?.get(config.speechRule.tag) ?: config.speechRule.tagName
     )
@@ -1160,7 +1163,8 @@ private fun localSoundSlotLabel(tag: String): String =
     "本地音效" + tag.removePrefix("localSound")
 
 /**
- * 大分类=标签显示名剥尾部数字（音效1→音效、女青年01→女青年、旁白→旁白）。
+ * 大分类=标签显示名剥尾部数字（女青年01→女青年、本地音效1→本地音效）；
+ * 显示名不带尾序号的整名独立成类（旁白、男、女、【】括号发音人等，括号系不合并——目目 09-13 定）。
  * 与列表页标签两层弹窗的大分类同口径同来源（rule.tags 查显示名后剥尾号）。
  */
 private fun extractTagCategory(name: String): String {
