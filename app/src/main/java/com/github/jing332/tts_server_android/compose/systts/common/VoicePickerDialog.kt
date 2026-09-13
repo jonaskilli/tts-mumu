@@ -92,8 +92,8 @@ import kotlinx.coroutines.launch
  * @param anchorTag      无具体配置项时按 tag 解析锚点（插件桥传角色当前绑定 tag）；也为非绑定候选归组键
  * @param bindingKey     绑定键：多角色日志=角色名、「本地音效N」槽位=槽位名；空=非绑定模式
  * @param isLocalSoundSlot 本地音效槽位：候选枚举同族 localSoundN（不读池子）、隐藏分类下拉/搜索
- * @param titleText      弹窗标题
- * @param titleBadge     标题右侧角色名（主色放大，空=不显示）
+ * @param titleBadge     角色名（目目 09-13：非空=标题显示「角色卡（名字）」）；空=标题显示「信息卡」
+ *                       ——调用方自传标题已废除（曾出现「发音人调整/更换发音人」两套乱名）
  * @param sharedVM       主界面共享状态（日志面板专用：换声后主列表定位高亮、标记版本联动）；null=跳过
  * @param onChanged      变化回调 (event, tag)：applied=换声落库 / deleted=配置项删除 / marked=标记变化；
  *                       插件桥宿主接它回喊 JS；日志面板传 null
@@ -105,7 +105,6 @@ fun VoicePickerDialog(
     anchorConfigId: Long?,
     anchorTag: String,
     bindingKey: String,
-    titleText: String,
     titleBadge: String = "",
     isLocalSoundSlot: Boolean = false,
     sharedVM: SharedViewModel? = null,
@@ -487,9 +486,9 @@ fun VoicePickerDialog(
             .fillMaxWidth(0.92f)
         title = {
             // 角色卡形态（目目 09-13 终版，三易其稿：标题右侧→小字行→标题本身）：
-            // 带角色名时标题直接改叫「角色卡（角色名）」——「角色卡」明说身份，名字绿色加粗
-            // 与「最终」行呼应；无角色名（旁白/本地音效槽位等）维持原面板名。
-            // 超长省略号截断，标题槽单行不被挤
+            // 带角色名时标题显示「角色卡（角色名）」——「角色卡」明说身份，名字绿色加粗
+            // 与「最终」行呼应；无角色名（旁白/本地音效槽位等）统一叫「信息卡」，与角色卡成对。
+            // 调用方自传标题已废除；超长省略号截断，标题槽单行不被挤
             if (titleBadge.isNotBlank()) {
                 Text(
                     buildAnnotatedString {
@@ -508,7 +507,7 @@ fun VoicePickerDialog(
                     overflow = TextOverflow.Ellipsis,
                 )
             } else {
-                Text(titleText)
+                Text("信息卡")
             }
         },
         content = {

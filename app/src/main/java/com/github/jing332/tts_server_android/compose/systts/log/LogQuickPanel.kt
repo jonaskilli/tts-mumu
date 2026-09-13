@@ -2,12 +2,10 @@ package com.github.jing332.tts_server_android.compose.systts.log
 
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
-import androidx.compose.ui.res.stringResource
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.github.jing332.common.LogEntry
 import com.github.jing332.database.dbm
 import com.github.jing332.database.entities.systts.TtsConfigurationDTO
-import com.github.jing332.tts_server_android.R
 import com.github.jing332.tts_server_android.compose.SharedViewModel
 import com.github.jing332.tts_server_android.compose.systts.common.VoicePickerDialog
 import com.github.jing332.tts_server_android.compose.systts.common.LOCAL_SOUND_TAG_NAME
@@ -46,7 +44,6 @@ fun LogQuickPanel(
         anchorConfigId = entry.configId,
         anchorTag = config?.speechRule?.tag.orEmpty(),
         bindingKey = bindingKey,
-        titleText = stringResource(R.string.log_panel_title),
         titleBadge = entry.roleName,
         isLocalSoundSlot = isLocalSoundSlot,
         sharedVM = sharedVM,

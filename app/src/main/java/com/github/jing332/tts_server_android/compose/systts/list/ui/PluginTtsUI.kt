@@ -152,7 +152,6 @@ class PluginTtsUI : IConfigUI() {
                 anchorConfigId = null,
                 anchorTag = req.anchorTag,
                 bindingKey = req.bindingKey,
-                titleText = req.title,
                 titleBadge = req.bindingKey,
                 onChanged = { event, tag -> VoicePickerBus.notifyMutated(event, tag) },
                 onDismissRequest = { VoicePickerBus.clear() },
