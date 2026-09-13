@@ -407,7 +407,7 @@ fun RoleListScreen(
                             val ok = withIO { CharacterRecordsFile.setMainCharacter(tagRuleId, row.rec!!.name) }
                             toast(
                                 if (ok) R.string.role_list_set_main_toast else R.string.role_list_failed,
-                                row.rec.name
+                                row.rec!!.name
                             )
                             if (ok) version++
                         }
@@ -673,6 +673,7 @@ private fun RenameDialog(
 }
 
 /** 合并目标选择：单选保留哪个角色名（其余并入其 aliases 后删除） */
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun MergeTargetDialog(
     candidates: List<String>,
