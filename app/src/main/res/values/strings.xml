@@ -792,7 +792,9 @@
     <string name="role_add_char_ok">新增角色成功：%1$s（发音人：%2$s）</string>
     <string name="role_add_char_exists">角色名已存在</string>
     <string name="role_voice_manage_title">管理发音人</string>
-    <string name="role_voice_manage_info">标签：%1$s 显示名：%2$s 标记：%3$s</string>
+    <string name="role_voice_manage_info">标签：%1$s
+显示名：%2$s
+标记：%3$s</string>
     <string name="role_voice_unmarked">未标记</string>
     <string name="role_voice_manage_delete">删除该发音人配置</string>
     <string name="role_voice_unbind_toast">已解绑 %1$d 个角色，下次朗读重新分配</string>

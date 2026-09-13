@@ -9,7 +9,6 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
@@ -20,12 +19,9 @@ import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Done
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
-import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
@@ -45,6 +41,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
@@ -89,10 +87,6 @@ private val releaseDotColors = listOf(
     0xFF7E57C2, 0xFF5C6BC0, 0xFF26A69A, 0xFF8D6E63,
     0xFF66BB6A, 0xFFEC407A, 0xFFFF7043, 0xFF42A5F5,
 )
-
-/** 「管理发音人」标记按钮选中态配色（照插件：浅绿底 + 深绿字/勾） */
-private val MarkOnBg = Color(0xFFB7EFC5)
-private val MarkOnFg = Color(0xFF1B5E20)
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
@@ -1051,6 +1045,8 @@ private fun VoiceManageDialog(
 ) {
     val scope = rememberCoroutineScope()
     var curMarks by remember(tag) { mutableStateOf(marks) }
+    // ✕ 删除键的读屏描述（纯 emoji 按钮对读屏不友好）
+    val deleteDesc = stringResource(R.string.role_voice_manage_delete)
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text(stringResource(R.string.role_voice_manage_title)) },
@@ -1066,12 +1062,17 @@ private fun VoiceManageDialog(
                             VoiceMarksFile.MARK_ITEMS.firstOrNull { it.first == key }?.third
                         }.joinToString(" ").ifEmpty { stringResource(R.string.role_voice_unmarked) }
                     ),
-                    style = MaterialTheme.typography.bodyMedium,
+                    style = MaterialTheme.typography.bodySmall.copy(fontSize = 13.sp),
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
-                Spacer(Modifier.height(14.dp))
-                // 标记按钮（照插件「管理发音人」：emoji+文字 一体；选中=浅绿底+深绿字+✓，未选=描边）
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Spacer(Modifier.height(16.dp))
+                // 标记胶囊（照插件 showVoiceManageDialog markOptions：纯 emoji、多选不互斥；
+                // 选中=粗描边、未选=细描边；末位 ✕ = 浅红底删除该发音人配置）
+                Row(
+                    Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
                     VoiceMarksFile.MARK_ITEMS.forEach { (key, emoji, label) ->
                         val selected = key in curMarks
                         Surface(
@@ -1082,44 +1083,42 @@ private fun VoiceManageDialog(
                                     onMarksChanged(mapOf(tag to curMarks))
                                 }
                             },
-                            shape = RoundedCornerShape(12.dp),
-                            color = if (selected) MarkOnBg else Color.Transparent,
-                            border = if (selected) null
-                            else BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+                            shape = RoundedCornerShape(20.dp),
+                            color = Color.Transparent,
+                            border = BorderStroke(
+                                if (selected) 2.dp else 1.dp,
+                                if (selected) MaterialTheme.colorScheme.outline
+                                else MaterialTheme.colorScheme.outlineVariant
+                            ),
+                            modifier = Modifier.semantics { contentDescription = label },
                         ) {
-                            Row(
-                                Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Text(emoji, style = MaterialTheme.typography.bodyMedium)
-                                Spacer(Modifier.width(6.dp))
-                                Text(
-                                    label,
-                                    style = MaterialTheme.typography.bodyMedium,
-                                    color = if (selected) MarkOnFg else MaterialTheme.colorScheme.onSurface,
-                                    maxLines = 1,
-                                )
-                                if (selected) {
-                                    Spacer(Modifier.width(6.dp))
-                                    Icon(
-                                        Icons.Default.Done, contentDescription = null,
-                                        tint = MarkOnFg,
-                                        modifier = Modifier.size(16.dp)
-                                    )
-                                }
-                            }
+                            Text(
+                                emoji,
+                                modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp),
+                                fontSize = 16.sp,
+                            )
                         }
+                    }
+                    Surface(
+                        onClick = onDelete,
+                        shape = RoundedCornerShape(20.dp),
+                        color = Color(0xFFFFEBEE),
+                        border = BorderStroke(1.dp, Color(0xFFFFCDD2)),
+                        modifier = Modifier.semantics { contentDescription = deleteDesc },
+                    ) {
+                        Text(
+                            "✕",
+                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp),
+                            fontSize = 16.sp,
+                            color = Color(0xFFE53935),
+                        )
                     }
                 }
             }
         },
+        // 图一无底部按钮（插件系统弹窗靠返回键关窗）；MD3 补一个「关闭」兜底
         confirmButton = {
-            TextButton(onClick = onDelete) {
-                Text(stringResource(R.string.role_voice_manage_delete), color = MaterialTheme.colorScheme.error)
-            }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) { Text(stringResource(R.string.cancel)) }
+            TextButton(onClick = onDismiss) { Text(stringResource(R.string.close)) }
         }
     )
 }

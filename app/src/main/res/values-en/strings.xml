@@ -617,7 +617,9 @@
     <string name="role_add_char_ok">Added: %1$s (voice: %2$s)</string>
     <string name="role_add_char_exists">Character already exists</string>
     <string name="role_voice_manage_title">Manage voice</string>
-    <string name="role_voice_manage_info">Tag: %1$s Display: %2$s Marks: %3$s</string>
+    <string name="role_voice_manage_info">Tag: %1$s
+Display: %2$s
+Marks: %3$s</string>
     <string name="role_voice_unmarked">none</string>
     <string name="role_voice_manage_delete">Delete this voice config</string>
     <string name="role_voice_unbind_toast">Unbound %1$d role(s), reassigned on next run</string>
