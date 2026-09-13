@@ -1,5 +1,6 @@
 package com.github.jing332.tts_server_android.compose.systts.role
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
@@ -11,6 +12,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
@@ -23,6 +25,8 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.AlertDialog
 import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
@@ -41,12 +45,16 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -176,6 +184,27 @@ fun RoleListScreen(
         //      整条卡片点击即展开书籍列表弹窗（插件 showBookSwitchDialog 同入口：书名框与箭头共用））=====
         var editingBook by remember { mutableStateOf(false) }
         var bookEditName by remember { mutableStateOf("") }
+        // 书名编辑收尾（照插件 v10 endBookEdit 口径，所有退出路径共用）：
+        // 空名回滚原书名、与原书名相同直接退出、真改了才写文件
+        fun endBookEdit(save: Boolean) {
+            if (!editingBook) return
+            val target = bookEditName.trim()
+            editingBook = false
+            bookEditName = currentBook
+            if (!save || target.isEmpty() || target == currentBook) return
+            scope.launch {
+                val ok = withIO { CharacterRecordsFile.renameCurrentBook(tagRuleId, target) }
+                toast(if (ok) R.string.role_book_renamed else R.string.role_list_failed, target)
+                if (ok) reload()
+            }
+        }
+        // 返回键先退编辑态（目目 09-14：编辑态原本只有 ✓ 一个出口，✓ 一旦不可用就困在里面）
+        BackHandler(enabled = editingBook) { endBookEdit(save = false) }
+        // 进编辑态即聚焦（照插件 v10：requestFocus + 弹软键盘，省得再点一下输入框）
+        val bookFocus = remember { FocusRequester() }
+        LaunchedEffect(editingBook) {
+            if (editingBook) runCatching { bookFocus.requestFocus() }
+        }
         Surface(
             shape = RoundedCornerShape(12.dp),
             color = MaterialTheme.colorScheme.secondaryContainer,
@@ -193,28 +222,51 @@ fun RoleListScreen(
                 Text("📖", style = MaterialTheme.typography.titleMedium)
                 Spacer(Modifier.width(8.dp))
                 if (editingBook) {
-                    // 行内编辑（照插件 editBookBtn：✎ → 书名框可编辑 + ✓ 结束；不做5秒超时，点✓即存）
-                    OutlinedTextField(
-                        value = bookEditName,
-                        onValueChange = { bookEditName = it },
-                        singleLine = true,
-                        textStyle = MaterialTheme.typography.titleSmall,
-                        modifier = Modifier.weight(1f),
-                        trailingIcon = {
-                            TextButton(
-                                enabled = bookEditName.trim().isNotEmpty() && bookEditName.trim() != currentBook,
-                                onClick = {
-                                    val target = bookEditName.trim()
-                                    editingBook = false
-                                    scope.launch {
-                                        val ok = withIO { CharacterRecordsFile.renameCurrentBook(tagRuleId, target) }
-                                        toast(if (ok) R.string.role_book_renamed else R.string.role_list_failed, target)
-                                        if (ok) reload()
-                                    }
+                    // 紧凑行内编辑（目目 09-14：原 OutlinedTextField 最小高 56dp 且自带描边，
+                    // 行高骤涨像"方块"；改成与搜索框同一套 40dp Surface+BasicTextField；
+                    // 出口三个：✓ / ✕ / 键盘回车，空名回滚由 endBookEdit 兜底）
+                    Surface(
+                        shape = RoundedCornerShape(10.dp),
+                        color = MaterialTheme.colorScheme.surface,
+                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline),
+                        modifier = Modifier.weight(1f).height(40.dp)
+                    ) {
+                        BasicTextField(
+                            value = bookEditName,
+                            onValueChange = { bookEditName = it },
+                            singleLine = true,
+                            textStyle = MaterialTheme.typography.bodyMedium.copy(
+                                color = MaterialTheme.colorScheme.onSurface
+                            ),
+                            cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
+                            keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
+                            keyboardActions = KeyboardActions(onDone = { endBookEdit(save = true) }),
+                            modifier = Modifier.fillMaxSize().padding(horizontal = 10.dp)
+                                .focusRequester(bookFocus),
+                            decorationBox = { inner ->
+                                Box(contentAlignment = Alignment.CenterStart) {
+                                    if (bookEditName.isBlank()) Text(
+                                        stringResource(R.string.role_book_name),
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                    inner()
                                 }
-                            ) { Text("✓") }
-                        },
-                    )
+                            }
+                        )
+                    }
+                    Box(
+                        Modifier.size(40.dp).clip(CircleShape).clickable { endBookEdit(save = true) },
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text("✓", color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold)
+                    }
+                    Box(
+                        Modifier.size(40.dp).clip(CircleShape).clickable { endBookEdit(save = false) },
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text("✕", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
                 } else {
                     Text(
                         currentBook,

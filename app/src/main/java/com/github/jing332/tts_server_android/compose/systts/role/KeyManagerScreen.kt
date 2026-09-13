@@ -1572,12 +1572,15 @@ fun BookManagerDialog(
                     fontWeight = FontWeight.Bold,
                 )
                 Spacer(Modifier.height(12.dp))
-                // 清单上限按屏高推算（不写死 dp）
-                Column(
-                    Modifier.fillMaxWidth(),
-                    verticalArrangement = Arrangement.spacedBy(8.dp),
-                ) {
+                // 清单上限按屏高推算（不写死 dp）；行间靠 0.6dp 浅分隔线分区（首行不加，同密钥弹窗）
+                Column(Modifier.fillMaxWidth()) {
                     books.forEachIndexed { idx, book ->
+                        if (idx > 0) {
+                            HorizontalDivider(
+                                thickness = 0.6.dp,
+                                color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f)
+                            )
+                        }
                         val isCurrent = book == current
                         BookRow(
                             name = book,
@@ -1667,53 +1670,49 @@ fun BookManagerDialog(
                         fontWeight = FontWeight.Bold,
                     )
                     Spacer(Modifier.height(12.dp))
-                    Column(
-                        Modifier.fillMaxWidth(),
-                        verticalArrangement = Arrangement.spacedBy(8.dp),
-                    ) {
-                        books.forEach { book ->
+                    Column(Modifier.fillMaxWidth()) {
+                        books.forEachIndexed { idx, book ->
+                            if (idx > 0) {
+                                HorizontalDivider(
+                                    thickness = 0.6.dp,
+                                    color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f)
+                                )
+                            }
                             val isCurrent = book == current
-                            Surface(
-                                shape = RoundedCornerShape(8.dp),
-                                color = if (isCurrent) MaterialTheme.colorScheme.primaryContainer
-                                else MaterialTheme.colorScheme.surface,
-                                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
-                                modifier = Modifier
+                            Row(
+                                Modifier
                                     .fillMaxWidth()
                                     .clickable {
                                         checked = if (book in checked) checked - book else checked + book
-                                    },
+                                    }
+                                    .padding(horizontal = 6.dp, vertical = 6.dp),
+                                verticalAlignment = Alignment.CenterVertically,
                             ) {
-                                Row(
-                                    Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 4.dp),
-                                    verticalAlignment = Alignment.CenterVertically,
-                                ) {
-                                    Checkbox(
-                                        checked = book in checked,
-                                        onCheckedChange = {
-                                            checked = if (it) checked + book else checked - book
-                                        },
-                                    )
-                                    Text(
-                                        book,
-                                        style = MaterialTheme.typography.bodyLarge,
-                                        fontWeight = FontWeight.SemiBold,
-                                        maxLines = 1,
-                                        overflow = TextOverflow.Ellipsis,
-                                        modifier = Modifier.weight(1f),
-                                    )
-                                    if (isCurrent) {
-                                        Surface(
-                                            shape = RoundedCornerShape(10.dp),
-                                            color = MaterialTheme.colorScheme.primary,
-                                        ) {
-                                            Text(
-                                                stringResource(R.string.role_key_current),
-                                                style = MaterialTheme.typography.labelSmall,
-                                                color = MaterialTheme.colorScheme.onPrimary,
-                                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp),
-                                            )
-                                        }
+                                Checkbox(
+                                    checked = book in checked,
+                                    onCheckedChange = {
+                                        checked = if (it) checked + book else checked - book
+                                    },
+                                )
+                                Text(
+                                    book,
+                                    style = MaterialTheme.typography.bodyLarge,
+                                    fontWeight = FontWeight.SemiBold,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis,
+                                    modifier = Modifier.weight(1f),
+                                )
+                                if (isCurrent) {
+                                    Surface(
+                                        shape = RoundedCornerShape(10.dp),
+                                        color = MaterialTheme.colorScheme.primary,
+                                    ) {
+                                        Text(
+                                            stringResource(R.string.role_key_current),
+                                            style = MaterialTheme.typography.labelSmall,
+                                            color = MaterialTheme.colorScheme.onPrimary,
+                                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp),
+                                        )
                                     }
                                 }
                             }
@@ -1795,7 +1794,7 @@ fun BookManagerDialog(
     }
 }
 
-/** 书籍卡片行（照插件 showBookSwitchDialog 行样式：圆角卡片 + ✓/彩色圆点 + 书名 + ✕） */
+/** 书籍列表行（目目 09-14：去描边卡片改无框行，与密钥条目行同一套口径） */
 @Composable
 private fun BookRow(
     name: String,
@@ -1805,53 +1804,40 @@ private fun BookRow(
     onClick: () -> Unit,
     onDelete: () -> Unit,
 ) {
-    Surface(
-        shape = RoundedCornerShape(10.dp),
-        color = if (isCurrent) MaterialTheme.colorScheme.primaryContainer
-        else MaterialTheme.colorScheme.surface,
-        border = BorderStroke(
-            width = if (isCurrent) 1.5.dp else 1.dp,
-            color = if (isCurrent) MaterialTheme.colorScheme.primary
-            else MaterialTheme.colorScheme.outlineVariant,
-        ),
-        modifier = Modifier.fillMaxWidth(),
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick)
+            .padding(horizontal = 6.dp, vertical = 9.dp),
+        verticalAlignment = Alignment.CenterVertically,
     ) {
-        Row(
-            Modifier
-                .fillMaxWidth()
-                .clickable(onClick = onClick)
-                .padding(start = 14.dp, end = 4.dp, top = 8.dp, bottom = 8.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
+        // 行首标记位固定 16dp：当前书=主色竖条 / 其余=彩色圆点 → 书名左缘始终对齐
+        Box(Modifier.width(16.dp), contentAlignment = Alignment.CenterStart) {
             if (isCurrent) {
-                Text(
-                    "✓",
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.primary,
+                Box(
+                    Modifier
+                        .width(3.dp)
+                        .height(18.dp)
+                        .background(MaterialTheme.colorScheme.primary, RoundedCornerShape(2.dp))
                 )
-                Spacer(Modifier.width(8.dp))
             } else {
-                Spacer(Modifier.size(7.dp).background(dotColor, CircleShape))
-                Spacer(Modifier.width(8.dp))
+                Box(Modifier.size(7.dp).background(dotColor, CircleShape))
             }
-            Text(
-                name,
-                style = MaterialTheme.typography.bodyLarge,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-                color = MaterialTheme.colorScheme.onSurface,
-                modifier = Modifier.weight(1f),
-            )
-            if (deletable) {
-                IconButton(onClick = onDelete, modifier = Modifier.size(40.dp)) {
-                    Icon(
-                        Icons.Default.Close,
-                        contentDescription = stringResource(R.string.delete),
-                        tint = MaterialTheme.colorScheme.error,
-                        modifier = Modifier.size(18.dp),
-                    )
-                }
+        }
+        Text(
+            name,
+            style = MaterialTheme.typography.bodyLarge,
+            fontWeight = if (isCurrent) FontWeight.SemiBold else null,
+            color = if (isCurrent) MaterialTheme.colorScheme.primary
+            else MaterialTheme.colorScheme.onSurface,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.weight(1f),
+        )
+        if (deletable) {
+            // 扁平灰叉（进批量删除弹窗才用红色表达）
+            FlatIconAction(Icons.Default.Close, contentDescription = stringResource(R.string.delete)) {
+                onDelete()
             }
         }
     }

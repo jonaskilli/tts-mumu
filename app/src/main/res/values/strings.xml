@@ -814,7 +814,7 @@
     <string name="role_book_multi_delete">删除所选(%1$d)</string>
     <string name="role_book_multi_delete_mode">多选删除</string>
     <string name="role_book_added_switch">已新增并切换到【%1$s】</string>
-    <string name="role_book_list_title">书籍列表（点击切换 · 点✕删除）</string>
+    <string name="role_book_list_title">书籍列表</string>
     <string name="role_book_del_confirm_current">删除后将切换到默认书籍</string>
     <string name="role_book_del_confirm_other">当前书籍不受影响</string>
     <string name="role_book_multi_title">批量删除书籍</string>
