@@ -713,7 +713,9 @@ fun LogQuickPanel(
                                 text = rowName + cfgName,
                                 isCurrent = isCurrent,
                                 isPending = isPending,
-                                nameColor = if (isPending) MaterialTheme.colorScheme.primary
+                                // 当前项染主色与候选行同口径（用户 09-13：图二绑定行当前项是黑的、
+                                // 图一非绑定行是绿的，两处不一致 → 统一 current/pending 都主色）
+                                nameColor = if (isPending || isCurrent) MaterialTheme.colorScheme.primary
                                 else MaterialTheme.colorScheme.onSurface,
                                 onClick = {
                                     // 两段式（用户 09-08）：点行=暂存选中，底部「确认」才落库
@@ -1014,7 +1016,8 @@ private fun CandidateRow(
         Modifier
             .fillMaxWidth()
             .clickable(onClick = onClick)
-            .padding(horizontal = 10.dp, vertical = 2.dp),
+            // 水平 10→6dp（用户 09-13 方案A：行宽紧，省 8dp 给名字）
+            .padding(horizontal = 6.dp, vertical = 2.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         // 名字+标记包一层 weight(1f)：操作键钉在行尾，不随标记数量漂移
@@ -1039,9 +1042,17 @@ private fun CandidateRow(
                 )
             }
         }
-        TextButton(onClick = onPreview) {
-            Text(previewText, color = previewColor)
-        }
+        // ▶ 用裸字符可点替代 TextButton（用户 09-13 方案A）：TextButton 单字符却占 58dp
+        // 按钮底座，缩成「16dp 字形+两侧 12dp」≈40dp 宽、上下 12dp 凑满 48dp 触控高；
+        // 颜色沿用调用方（播放中=tertiary，默认走 LocalContentColor）
+        Text(
+            previewText,
+            color = previewColor,
+            style = MaterialTheme.typography.titleMedium,
+            modifier = Modifier
+                .clickable(onClick = onPreview)
+                .padding(horizontal = 12.dp, vertical = 12.dp),
+        )
         Box {
             IconButton(onClick = { menuOpen = true }) {
                 Icon(Icons.Filled.MoreVert, contentDescription = "更多操作")
