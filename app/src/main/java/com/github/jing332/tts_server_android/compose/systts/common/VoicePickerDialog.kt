@@ -289,48 +289,45 @@ fun VoicePickerDialog(
         }
     }
 
-    // 从 ⋮ 菜单删除这条配置项（目目 09-13 夜定：**只删你点的那一条配置项，标签要保留**）：
-    // 例：删「晓晓」这条配置 → 只删该配置项，标签「女青年01」本身保留（可继续绑定/待重配）。
-    // ① 删该配置项 + 清失效引擎缓存；② **不动 fayinren.json 标签池**——池子是规则每次朗读按
-    // 「启用配置集合」重建的镜像（detectAvailableVoices），若该标签确实再无启用配置，池子条目
-    // 届时由规则自然收敛，不由本处代劳抢先删；③ 角色绑定不清，规则下次朗读自动为受影响角色重分配。
+    // 删除该发音人（目目 09-13 深夜定稿：**标签 + 配置项一体删除**）：
+    // 前台一个发音人 = 「标签 + 它名下的配置项」，删就一起删，不留半截。
+    // 照插件 doDeleteVoiceInternal 的合成语义（宿主 deleteConfigByTag 删配置 + 从 fayinren.json 删 tag）：
+    // ① 删该标签下**全部**配置项（含禁用残留）并逐个清引擎缓存——这样规则下次朗读重建发音人池时，
+    //    该标签不会再被灌回（池子 = 启用配置集合的镜像，见 detectAvailableVoices 整份覆写）；
+    // ② 从 fayinren.json 移除该标签（否则规则会把它当「已失效发音人」保留显示）；
+    // ③ 角色绑定不清：规则下次朗读自动为受影响角色重新分配（照插件，不自作主张改记录）。
     fun deletePreviewedConfig(target: SystemTtsV2) {
         val targetDto = target.config as? TtsConfigurationDTO ?: return
         val targetTag = targetDto.speechRule.tag
+        val tagRuleId = targetDto.speechRule.tagRuleId
+        // 删的是整个标签：本弹窗宿主（entity）只要属于同一标签就会被一并删掉，
+        // 故「是否删到自己」按 tag 比较，不能只比 id（旁白等非绑定行的候选行可能不是 entity 本身）
+        val removesSelf =
+            (entity.config as? TtsConfigurationDTO)?.speechRule?.tag == targetTag
         scope.launch {
-            var tagHasConfig = true
-            val deletedSelf = withIO {
-                dbm.systemTtsV2.delete(target)
-                targetDto.source.let { runCatching { CachedEngineManager.removeEngine(it) } }
-                // 该标签是否还有别的启用配置（决定提示文案；池子一律不动）
-                tagHasConfig = dbm.systemTtsV2.allEnabled.any { item ->
-                    val d = item.config as? TtsConfigurationDTO ?: return@any false
-                    d.speechRule.tagRuleId == targetDto.speechRule.tagRuleId &&
-                        d.speechRule.tag == targetTag
-                }
-                target.id == entity.id
+            withIO {
+                dbm.systemTtsV2.all
+                    .filter { item ->
+                        val d = item.config as? TtsConfigurationDTO ?: return@filter false
+                        d.speechRule.tagRuleId == tagRuleId && d.speechRule.tag == targetTag
+                    }
+                    .forEach { item ->
+                        dbm.systemTtsV2.delete(item)
+                        (item.config as? TtsConfigurationDTO)?.source?.let { src ->
+                            runCatching { CachedEngineManager.removeEngine(src) }
+                        }
+                    }
+                CharacterRecordsFile.removeFromPool(tagRuleId, targetTag)
             }
             SystemTtsService.notifyUpdateConfig()
             onChanged?.invoke("deleted", targetTag)
-            if (deletedSelf) {
-                // 本配置项自身被删：外层宿主已失效，提示后关闭面板
-                Toast.makeText(
-                    context,
-                    context.getString(R.string.role_voice_del_toast, target.displayName),
-                    Toast.LENGTH_SHORT,
-                ).show()
-                onDismissRequest()
-            } else {
-                Toast.makeText(
-                    context,
-                    context.getString(
-                        if (tagHasConfig) R.string.role_voice_del_toast
-                        else R.string.role_voice_del_toast_empty,
-                        target.displayName, targetTag,
-                    ),
-                    Toast.LENGTH_LONG,
-                ).show()
-            }
+            Toast.makeText(
+                context,
+                context.getString(R.string.role_voice_del_toast, target.displayName),
+                Toast.LENGTH_SHORT,
+            ).show()
+            // 连宿主自己一起被删：外层面板已失效，提示后关闭
+            if (removesSelf) onDismissRequest()
         }
     }
 
@@ -877,7 +874,7 @@ fun VoicePickerDialog(
                                         if (sharedVM != null) sharedVM.voiceMarksVersion.value += 1
                                     }
                                 },
-                                // 删除：只删该标签的启用配置（无启用配置时置灰）；标签池不动
+                                // 删除：删该标签（发音人）全部配置项 + 从标签池移除（无启用配置时置灰）
                                 deleteEnabled = cfgName.isNotEmpty(),
                                 onDelete = {
                                     deleteConfirmTarget = enabledConfigEntityByTag(tag)
@@ -977,7 +974,7 @@ fun VoicePickerDialog(
                                         if (sharedVM != null) sharedVM.voiceMarksVersion.value += 1
                                     }
                                 },
-                                // 非绑定行本身就是一条配置：直接删它（含禁用态）
+                                // 删除：同上，删该标签（发音人）全部配置项 + 从标签池移除
                                 deleteEnabled = true,
                                 onDelete = { deleteConfirmTarget = cfgEntity },
                             )
@@ -1091,8 +1088,9 @@ fun VoicePickerDialog(
         },
     )
 
-    // 删除确认弹窗（⋮ 菜单 🗑 入口；目目 09-13 夜定文案，照插件 doDeleteVoiceAndReassign 口径，
-    // 只把「发音人」改成「配置项」）：标题行=【tag - 显示名】，正文按该标签**是否已被角色占用**二选一。
+    // 删除确认弹窗（⋮ 菜单 🗑 入口；目目 09-13 深夜定稿：删除的粒度就是「该发音人（标签）」，
+    // 文案照插件 doDeleteVoiceAndReassign 口径、把「发音人」统一成「配置项」）：标题行=【tag - 显示名】，
+    // 正文按该标签**是否已被角色占用**二选一。
     // 「已被分配」判定与候选行「已用」徽章同源（characterRecords.json 的 voice→角色名表）。
     deleteConfirmTarget?.let { delTarget ->
         val delDto = delTarget.config as? TtsConfigurationDTO

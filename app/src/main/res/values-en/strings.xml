@@ -625,11 +625,10 @@ Marks: %3$s</string>
     <string name="role_voice_unbind_toast">Unbound %1$d role(s), reassigned on next run</string>
     <string name="role_voice_del_title">Delete</string>
     <string name="role_voice_del_msg_title">Delete this config [%1$s - %2$s]?</string>
-    <string name="role_voice_del_msg_used">This voice is assigned; affected roles will be reassigned, reading is not affected.</string>
-    <string name="role_voice_del_msg_unused">This voice is not assigned, safe to delete.</string>
+    <string name="role_voice_del_msg_used">This config is assigned; affected roles will be reassigned, reading is not affected.</string>
+    <string name="role_voice_del_msg_unused">This config is not assigned, safe to delete.</string>
     <string name="role_voice_del_confirm">Delete</string>
     <string name="role_voice_del_toast">Deleted config %1$s</string>
-    <string name="role_voice_del_toast_empty">Deleted config %1$s; tag %2$s has no config left, affected roles will be reassigned on next read</string>
     <string name="role_keyword_title">Pick keyword</string>
     <string name="role_keyword_custom">Custom keywords</string>
     <string name="role_keyword_add">＋ Add</string>
