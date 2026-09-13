@@ -144,7 +144,8 @@ fun SpeechRuleManagerScreen(sharedVM: SharedViewModel, finish: () -> Unit) {
             showDeleteDialog = null
         }
 
-    // 修改朗读规则信息弹窗（原「编辑元数据」09-12 改名）：name/ruleId/author/version + 同步JS
+    // 编辑元数据弹窗（09-12 曾改名「修改朗读规则信息」，09-13 目目定：换回「编辑元数据」，
+    // 与插件页统一叫法）：name/ruleId/author/version + 同步JS
     var showEditMetadataDialog by remember { mutableStateOf<SpeechRule?>(null) }
     if (showEditMetadataDialog != null) {
         val cur = showEditMetadataDialog!!
@@ -154,36 +155,34 @@ fun SpeechRuleManagerScreen(sharedVM: SharedViewModel, finish: () -> Unit) {
         var editVersion by remember(cur.id) { mutableStateOf(cur.version.toString()) }
         AppDialog(
             onDismissRequest = { showEditMetadataDialog = null },
-            title = { Text("修改朗读规则信息") },
+            title = { Text("编辑元数据") },
             content = {
                 Column(Modifier.verticalScroll(rememberScrollState())) {
+                    // 四框均不锁单行（目目 09-13，与插件页编辑元数据一致）：长文本自动换行完整显示，
+                    // 弹窗内容区本身可竖向滚动
                     OutlinedTextField(
                         label = { Text("name") },
                         value = editName,
                         onValueChange = { editName = it },
-                        modifier = Modifier.fillMaxWidth(),
-                        singleLine = true
+                        modifier = Modifier.fillMaxWidth()
                     )
                     OutlinedTextField(
                         label = { Text("ruleId (JS: id)") },
                         value = editRuleId,
                         onValueChange = { editRuleId = it },
-                        modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
-                        singleLine = true
+                        modifier = Modifier.fillMaxWidth().padding(top = 4.dp)
                     )
                     OutlinedTextField(
                         label = { Text("author") },
                         value = editAuthor,
                         onValueChange = { editAuthor = it },
-                        modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
-                        singleLine = true
+                        modifier = Modifier.fillMaxWidth().padding(top = 4.dp)
                     )
                     OutlinedTextField(
                         label = { Text("version") },
                         value = editVersion,
                         onValueChange = { editVersion = it.filter { c -> c.isDigit() } },
-                        modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
-                        singleLine = true
+                        modifier = Modifier.fillMaxWidth().padding(top = 4.dp)
                     )
                 }
             },
@@ -436,10 +435,10 @@ internal fun Item(
     isSelectionMode: Boolean = false,
     isSelected: Boolean = false,
     onToggleSelection: () -> Unit = {},
-    // 第11项: 列表项内联展开修改朗读规则信息
+    // 第11项: 列表项内联展开编辑元数据
     rule: SpeechRule? = null,
     onUpdateRule: ((SpeechRule) -> Unit)? = null,
-    // 修改朗读规则信息（弹窗）：name/ruleId/author/version + 同步JS
+    // 编辑元数据（弹窗）：name/ruleId/author/version + 同步JS
     onEditMetadata: (() -> Unit)? = null,
 ) {
     val context = LocalContext.current
@@ -496,16 +495,16 @@ internal fun Item(
                             expanded = showOptions,
                             onDismissRequest = { showOptions = false }) {
 
-                            // 修改朗读规则信息（弹窗，原「编辑元数据」09-12 改名）：name/ruleId/author/version + 同步JS
+                            // 编辑元数据（弹窗）：name/ruleId/author/version + 同步JS
                             if (onEditMetadata != null) {
                                 DropdownMenuItem(
-                                    text = { Text("修改朗读规则信息") },
+                                    text = { Text("编辑元数据") },
                                     onClick = {
                                         showOptions = false
                                         onEditMetadata()
                                     },
                                     leadingIcon = {
-                                        Icon(Icons.Default.EditNote, "修改朗读规则信息")
+                                        Icon(Icons.Default.EditNote, "编辑元数据")
                                     }
                                 )
                             }

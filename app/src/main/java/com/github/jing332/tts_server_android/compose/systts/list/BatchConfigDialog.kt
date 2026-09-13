@@ -186,6 +186,7 @@ fun BatchConfigDialog(
                 Spacer(modifier = Modifier.height(8.dp))
 
                 // 全页通用：本弹窗当前作用的插件范围（四页共用一份选中值）
+                // 更换插件/删除两页 restricted：下拉无「全部」、未选显示提示（目目 09-13）
                 ScopePluginPicker(
                     selectedKey = filterKey,
                     onSelect = { key ->
@@ -195,6 +196,7 @@ fun BatchConfigDialog(
                     },
                     pluginOptions = pluginOptions,
                     pluginItemCounts = pluginItemCounts,
+                    restricted = tab == 2 || tab == 3,
                 )
 
                 when (tab) {
@@ -382,14 +384,15 @@ fun BatchConfigDialog(
                         Text(stringResource(R.string.confirm))
                     }
 
-                    // 更换插件：确定（未选目标插件时禁用）
+                    // 更换插件：确定（未选目标插件、或插件范围还是空时禁用——
+                    // 范围空=「全部」全量改写 1344 项的风险，目目 09-13 定：必须先选具体插件）
                     2 -> TextButton(
                         onClick = {
                             targetPluginId?.let {
                                 onApplySource(pluginId.takeIf { it.isNotEmpty() }, it)
                             }
                         },
-                        enabled = targetPluginId != null
+                        enabled = targetPluginId != null && pluginId.isNotEmpty()
                     ) {
                         Text(stringResource(R.string.confirm))
                     }
@@ -421,28 +424,53 @@ private fun ScopePluginPicker(
     onSelect: (Any) -> Unit,
     pluginOptions: List<Pair<String, String>>,
     pluginItemCounts: Map<String, Int>,
+    // 更换插件/删除页要求具体插件（目目 09-13）：这两页下拉不再提供「全部」，
+    // 未选时显示「选择插件」提示（哨兵 "none"，不算已选、不可提交）
+    restricted: Boolean = false,
 ) {
     Column(Modifier.fillMaxWidth()) {
+        val concreteOptions = pluginOptions.filter { it.first.isNotEmpty() }
+        val unselected = restricted && (selectedKey as? String).isNullOrEmpty()
+        val scopeValues: List<Any> = when {
+            !restricted -> pluginOptions.map { it.first }
+            unselected -> listOf<Any>("none") + concreteOptions.map { it.first }
+            else -> concreteOptions.map { it.first }
+        }
+        val scopeEntries = when {
+            !restricted -> pluginOptions.map { it.second }
+            unselected -> listOf(stringResource(R.string.select_plugin)) + concreteOptions.map { it.second }
+            else -> concreteOptions.map { it.second }
+        }
         AppSpinner(
             modifier = Modifier.fillMaxWidth(),
             labelText = stringResource(R.string.plugin),
-            value = selectedKey,
-            values = pluginOptions.map { it.first },
-            entries = pluginOptions.map { it.second },
-            onSelectedChange = { key, _ -> onSelect(key) }
+            value = if (unselected) "none" else selectedKey,
+            values = scopeValues,
+            entries = scopeEntries,
+            onSelectedChange = { key, _ -> if (key != "none") onSelect(key) }
         )
-        // 数字在插件框正下方（它说的是"当前选中的插件有多少项"）。
-        // 键转 String：AppSpinner 的 key 是 Any（哨兵值），而计数表的键是 pluginId
-        Text(
-            stringResource(
-                R.string.batch_cfg_matched,
-                pluginItemCounts[(selectedKey as? String).orEmpty()] ?: 0
-            ),
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            // 与插件框留出间距：原先紧贴字段下沿，视觉上"夹"在字段与清单之间（用户 09-13）
-            modifier = Modifier.padding(top = 6.dp, bottom = 2.dp)
-        )
+        // 未选具体插件时给行动指引（替代无意义的「匹配 0 项」）；选定后回到计数行
+        if (unselected) {
+            Text(
+                stringResource(R.string.batch_cfg_delete_pick_plugin_hint),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.padding(top = 6.dp, bottom = 2.dp)
+            )
+        } else {
+            // 数字在插件框正下方（它说的是"当前选中的插件有多少项"）。
+            // 键转 String：AppSpinner 的 key 是 Any（哨兵值），而计数表的键是 pluginId
+            Text(
+                stringResource(
+                    R.string.batch_cfg_matched,
+                    pluginItemCounts[(selectedKey as? String).orEmpty()] ?: 0
+                ),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                // 与插件框留出间距：原先紧贴字段下沿，视觉上"夹"在字段与清单之间（用户 09-13）
+                modifier = Modifier.padding(top = 6.dp, bottom = 2.dp)
+            )
+        }
     }
 }
 
