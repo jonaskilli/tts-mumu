@@ -376,7 +376,8 @@ fun KeyManagerDialog(tagRuleId: String, onDismiss: () -> Unit) {
             Column(
                 Modifier
                     .padding(start = 20.dp, end = 20.dp, top = 20.dp, bottom = 12.dp)
-                    .heightIn(max = (LocalConfiguration.current.screenHeightDp * 0.78f).dp)
+                    .heightIn(max = (LocalConfiguration.current.screenHeightDp * 0.85f).dp)
+                    .verticalScroll(rememberScrollState())
             ) {
                 // 标题行：密钥管理 + 导入/导出（低调小按钮）+ 关闭（MD3 兜底）
                 Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
@@ -431,122 +432,116 @@ fun KeyManagerDialog(tagRuleId: String, onDismiss: () -> Unit) {
                     )
                 } else {
                     val groups = buildKeyGroups(keys, ifaces)
-                    LazyColumn(Modifier.weight(1f, fill = false)) {
-                        groups.forEach { grp ->
-                            val isCollapsed = grp.title in collapsed
-                            val isDeleting = deleteModeGroup == grp.title
-                            val grpHasCurrent = currentRaw.isNotEmpty() &&
-                                    grp.entries.any { it.value.trim() == currentRaw }
-                            val selCount = grp.entries.count { it.name in deleteChecked }
-                            item(key = "grp_${grp.title}") {
-                                Column(Modifier.fillMaxWidth().padding(vertical = 6.dp)) {
-                                    Row(
-                                        Modifier.fillMaxWidth(),
-                                        verticalAlignment = Alignment.CenterVertically
-                                    ) {
-                                        if (isDeleting) {
-                                            Text(
-                                                stringResource(R.string.role_key_delete_select_title, selCount),
-                                                style = MaterialTheme.typography.bodyMedium,
-                                                fontWeight = FontWeight.Bold,
-                                                color = MaterialTheme.colorScheme.error,
-                                                maxLines = 1,
-                                                overflow = TextOverflow.Ellipsis,
-                                                modifier = Modifier.weight(1f)
-                                            )
-                                            SmallChipButton(stringResource(R.string.select_all), Color(0xFF757575)) {
-                                                val allSel = grp.entries.all { it.name in deleteChecked }
-                                                val names = grp.entries.map { it.name }.toSet()
-                                                deleteChecked = if (allSel) deleteChecked - names
-                                                else deleteChecked + names
-                                            }
-                                            SmallChipButton(stringResource(R.string.cancel), Color(0xFF757575)) {
-                                                deleteModeGroup = null
-                                                deleteChecked = emptySet()
-                                            }
-                                            SmallChipButton(
-                                                stringResource(R.string.role_key_delete_n, selCount),
-                                                MaterialTheme.colorScheme.error
-                                            ) {
-                                                if (selCount == 0) toast(R.string.role_key_delete_none)
-                                                else deleteConfirmGroup = grp.title
-                                            }
-                                        } else {
-                                            Text(
-                                                (if (isCollapsed) "▸ " else "▾ ") +
-                                                        (if (grpHasCurrent) "✓" else "") +
-                                                        grp.title + "（" + grp.entries.size + "）",
-                                                style = MaterialTheme.typography.bodyMedium,
-                                                fontWeight = FontWeight.Bold,
-                                                color = if (grp.ifc != null) MaterialTheme.colorScheme.primary
-                                                else MaterialTheme.colorScheme.onSurfaceVariant,
-                                                maxLines = 1,
-                                                overflow = TextOverflow.Ellipsis,
-                                                modifier = Modifier
-                                                    .weight(1f)
-                                                    .clickable {
-                                                        collapsed = if (isCollapsed) collapsed - grp.title
-                                                        else collapsed + grp.title
-                                                    }
-                                            )
-                                            grp.ifc?.let { ifc ->
-                                                SmallChipButton("✏️", MaterialTheme.colorScheme.primary) {
-                                                    ifcFormFor = ifc
-                                                }
-                                                SmallChipButton("🔍", MaterialTheme.colorScheme.primary) {
-                                                    pullForIfc = ifc.name
-                                                    showPullModels = true
-                                                }
-                                                SmallChipButton(
-                                                    if (testingGroup == grp.title) "…" else "⚡",
-                                                    MaterialTheme.colorScheme.primary
-                                                ) { testGroup(grp) }
-                                            }
-                                            SmallChipButton("🗑️", Color(0xFFC62828)) {
-                                                deleteModeGroup = grp.title
-                                                deleteChecked = emptySet()
-                                                collapsed = collapsed - grp.title
-                                            }
-                                        }
+                    groups.forEach { grp ->
+                        val isCollapsed = grp.title in collapsed
+                        val isDeleting = deleteModeGroup == grp.title
+                        val grpHasCurrent = currentRaw.isNotEmpty() &&
+                                grp.entries.any { it.value.trim() == currentRaw }
+                        val selCount = grp.entries.count { it.name in deleteChecked }
+                        Column(Modifier.fillMaxWidth().padding(vertical = 6.dp)) {
+                            Row(
+                                Modifier.fillMaxWidth(),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                if (isDeleting) {
+                                    Text(
+                                        stringResource(R.string.role_key_delete_select_title, selCount),
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        fontWeight = FontWeight.Bold,
+                                        color = MaterialTheme.colorScheme.error,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis,
+                                        modifier = Modifier.weight(1f)
+                                    )
+                                    SmallChipButton(stringResource(R.string.select_all), Color(0xFF757575)) {
+                                        val allSel = grp.entries.all { it.name in deleteChecked }
+                                        val names = grp.entries.map { it.name }.toSet()
+                                        deleteChecked = if (allSel) deleteChecked - names
+                                        else deleteChecked + names
                                     }
-                                    // 第二行：接口地址 + Key 尾4（组头专用灰字，照插件）
-                                    if (!isDeleting) {
-                                        grp.ifc?.let { ifc ->
-                                            Text(
-                                                ifc.baseUrl + "  *尾" + ifc.apiKey.takeLast(4),
-                                                style = MaterialTheme.typography.bodySmall,
-                                                color = Color(0xFF9E9E9E),
-                                                maxLines = 1,
-                                                overflow = TextOverflow.Ellipsis
-                                            )
+                                    SmallChipButton(stringResource(R.string.cancel), Color(0xFF757575)) {
+                                        deleteModeGroup = null
+                                        deleteChecked = emptySet()
+                                    }
+                                    SmallChipButton(
+                                        stringResource(R.string.role_key_delete_n, selCount),
+                                        MaterialTheme.colorScheme.error
+                                    ) {
+                                        if (selCount == 0) toast(R.string.role_key_delete_none)
+                                        else deleteConfirmGroup = grp.title
+                                    }
+                                } else {
+                                    Text(
+                                        (if (isCollapsed) "▸ " else "▾ ") +
+                                                (if (grpHasCurrent) "✓" else "") +
+                                                grp.title + "（" + grp.entries.size + "）",
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        fontWeight = FontWeight.Bold,
+                                        color = if (grp.ifc != null) MaterialTheme.colorScheme.primary
+                                        else MaterialTheme.colorScheme.onSurfaceVariant,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis,
+                                        modifier = Modifier
+                                            .weight(1f)
+                                            .clickable {
+                                                collapsed = if (isCollapsed) collapsed - grp.title
+                                                else collapsed + grp.title
+                                            }
+                                    )
+                                    grp.ifc?.let { ifc ->
+                                        SmallChipButton("✏️", MaterialTheme.colorScheme.primary) {
+                                            ifcFormFor = ifc
                                         }
+                                        SmallChipButton("🔍", MaterialTheme.colorScheme.primary) {
+                                            pullForIfc = ifc.name
+                                            showPullModels = true
+                                        }
+                                        SmallChipButton(
+                                            if (testingGroup == grp.title) "…" else "⚡",
+                                            MaterialTheme.colorScheme.primary
+                                        ) { testGroup(grp) }
+                                    }
+                                    SmallChipButton("🗑️", Color(0xFFC62828)) {
+                                        deleteModeGroup = grp.title
+                                        deleteChecked = emptySet()
+                                        collapsed = collapsed - grp.title
                                     }
                                 }
                             }
-                            if (!isCollapsed) {
-                                grp.entries.forEachIndexed { idx, entry ->
-                                    val isCurrent = currentRaw.isNotEmpty() &&
-                                            entry.value.trim() == currentRaw
-                                    item(key = "k_${grp.title}_${entry.name}") {
-                                        KeyEntryRow(
-                                            entry = entry,
-                                            isCurrent = isCurrent,
-                                            dotColor = BOOK_DOT_COLORS[idx % BOOK_DOT_COLORS.size],
-                                            testOk = testResults[entry.name],
-                                            testing = testingName == entry.name,
-                                            deleteMode = isDeleting,
-                                            checked = entry.name in deleteChecked,
-                                            onToggleCheck = {
-                                                deleteChecked = if (entry.name in deleteChecked)
-                                                    deleteChecked - entry.name
-                                                else deleteChecked + entry.name
-                                            },
-                                            onSwitch = { switchTo(entry) },
-                                            onTest = { testKey(entry) },
-                                            onEdit = { renameFor = entry }
-                                        )
-                                    }
+                            // 第二行：接口地址 + Key 尾4（组头专用灰字，照插件）
+                            if (!isDeleting) {
+                                grp.ifc?.let { ifc ->
+                                    Text(
+                                        ifc.baseUrl + "  *尾" + ifc.apiKey.takeLast(4),
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = Color(0xFF9E9E9E),
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
                                 }
+                            }
+                        }
+                        if (!isCollapsed) {
+                            grp.entries.forEachIndexed { idx, entry ->
+                                val isCurrent = currentRaw.isNotEmpty() &&
+                                        entry.value.trim() == currentRaw
+                                KeyEntryRow(
+                                    entry = entry,
+                                    isCurrent = isCurrent,
+                                    dotColor = BOOK_DOT_COLORS[idx % BOOK_DOT_COLORS.size],
+                                    testOk = testResults[entry.name],
+                                    testing = testingName == entry.name,
+                                    deleteMode = isDeleting,
+                                    checked = entry.name in deleteChecked,
+                                    onToggleCheck = {
+                                        deleteChecked = if (entry.name in deleteChecked)
+                                            deleteChecked - entry.name
+                                        else deleteChecked + entry.name
+                                    },
+                                    onSwitch = { switchTo(entry) },
+                                    onTest = { testKey(entry) },
+                                    onEdit = { renameFor = entry }
+                                )
                             }
                         }
                     }
@@ -1475,7 +1470,12 @@ fun BookManagerDialog(
             color = MaterialTheme.colorScheme.surfaceContainerHigh,
             modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 24.dp),
         ) {
-            Column(Modifier.padding(start = 20.dp, end = 20.dp, top = 20.dp, bottom = 8.dp)) {
+            Column(
+                Modifier
+                    .padding(start = 20.dp, end = 20.dp, top = 20.dp, bottom = 8.dp)
+                    .heightIn(max = (LocalConfiguration.current.screenHeightDp * 0.85f).dp)
+                    .verticalScroll(rememberScrollState())
+            ) {
                 Text(
                     stringResource(R.string.role_book_list_title),
                     style = MaterialTheme.typography.titleLarge,
@@ -1484,9 +1484,7 @@ fun BookManagerDialog(
                 Spacer(Modifier.height(12.dp))
                 // 清单上限按屏高推算（不写死 dp）
                 Column(
-                    Modifier
-                        .heightIn(max = (LocalConfiguration.current.screenHeightDp * 0.5f).dp)
-                        .verticalScroll(rememberScrollState()),
+                    Modifier.fillMaxWidth(),
                     verticalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
                     books.forEachIndexed { idx, book ->
@@ -1567,7 +1565,12 @@ fun BookManagerDialog(
                 color = MaterialTheme.colorScheme.surfaceContainerHigh,
                 modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 24.dp),
             ) {
-                Column(Modifier.padding(start = 20.dp, end = 20.dp, top = 20.dp, bottom = 8.dp)) {
+                Column(
+                    Modifier
+                        .padding(start = 20.dp, end = 20.dp, top = 20.dp, bottom = 8.dp)
+                        .heightIn(max = (LocalConfiguration.current.screenHeightDp * 0.85f).dp)
+                        .verticalScroll(rememberScrollState())
+                ) {
                     Text(
                         stringResource(R.string.role_book_multi_title),
                         style = MaterialTheme.typography.titleLarge,
@@ -1575,9 +1578,7 @@ fun BookManagerDialog(
                     )
                     Spacer(Modifier.height(12.dp))
                     Column(
-                        Modifier
-                            .heightIn(max = (LocalConfiguration.current.screenHeightDp * 0.5f).dp)
-                            .verticalScroll(rememberScrollState()),
+                        Modifier.fillMaxWidth(),
                         verticalArrangement = Arrangement.spacedBy(8.dp),
                     ) {
                         books.forEach { book ->
