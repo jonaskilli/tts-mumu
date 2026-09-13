@@ -642,7 +642,8 @@ private fun voiceTagText(tag: String, nameMap: Map<String, String>): String? {
 }
 
 /**
- * 角色行（照插件 createListRow）：左名字列（主名+别名各一行、性别圆点、收藏【】、主角👑），
+ * 角色行（照插件 createListRow / v9 排布）：左名字列竖排（主名第一行，别名从第二行起各占一行，
+ * 每行 = 性别圆点 + 名称 + 收藏【】 + 主角👑），整列垂直居中 → 右侧标签框对这一列上下居中；
  * 右动作列只留发音人标签框（目目 09-13 定：原行内 ⋮ / ▶ 退役，一切操作点标签进换声弹窗），
  * 标签后接该发音人已点亮的标记 emoji（❤️🚶😈，与换声弹窗同源 voice_marks.json）。
  */
@@ -659,6 +660,7 @@ private fun RoleRow(
 ) {
     val isFav = rec.obj.optInt("usageCount", 0) == 50
     val isProtagonist = rec.isMain
+    // 名字列竖排的全部名称（照 v9：第一行主名，别名从第二行起各占一行）
     val nameList = (listOf(rec.name) + CharacterRecordsFile.splitAliases(rec.aliases))
         .distinctBy { it.trim() }
     Surface(
@@ -684,7 +686,12 @@ private fun RoleRow(
                         interactionSource = remember { MutableInteractionSource() },
                     )
                     .heightIn(min = 44.dp),
+                // 名字列整体垂直居中（目目 09-14 修：Column 默认 Top 排列会把 16sp 单行文字顶在
+                // min 44dp 的上沿，而右侧标签框是居中于整行的 → 标签框比名字低约 10dp 显歪。
+                // 名字列多行（主名 + 别名竖排）时，右侧标签框同样对这整列上下居中）
+                verticalArrangement = Arrangement.Center,
             ) {
+                // 照 v9 排布：主名第一行，别名从第二行起逐个竖排，每行都带性别色圆点
                 nameList.forEachIndexed { idx, name ->
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Spacer(Modifier.size(4.dp).background(genderDotColor(rec.voice), CircleShape))
