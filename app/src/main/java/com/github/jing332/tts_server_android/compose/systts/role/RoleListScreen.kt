@@ -30,7 +30,6 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -41,7 +40,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
@@ -51,13 +49,9 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.drake.net.utils.withIO
 import com.github.jing332.database.dbm
-import com.github.jing332.database.entities.systts.SystemTtsV2
 import com.github.jing332.database.entities.systts.TtsConfigurationDTO
-import com.github.jing332.tts.TaggedTtsPreviewPlayer
-import com.github.jing332.tts.PreviewState
 import com.github.jing332.tts_server_android.R
 import com.github.jing332.tts_server_android.compose.systts.common.VoicePickerDialog
-import com.github.jing332.tts_server_android.conf.AppConfig
 import com.github.jing332.tts_server_android.service.systts.help.CharacterRecordsFile
 import com.github.jing332.tts_server_android.service.systts.help.VoiceMarksFile
 import kotlinx.coroutines.launch
@@ -105,32 +99,25 @@ fun RoleListScreen(
     var marks by remember { mutableStateOf<Map<String, List<String>>>(emptyMap()) }
     var voiceNames by remember { mutableStateOf<Map<String, String>>(emptyMap()) }
     var currentBook by remember { mutableStateOf("") }
-    // tag → 可试听的启用配置项（▶ 用）；键=speechRule.tag
-    var previewTargets by remember { mutableStateOf<Map<String, SystemTtsV2>>(emptyMap()) }
-
     LaunchedEffect(version, reloadKey) {
         val loaded = withIO {
             val recs = CharacterRecordsFile.readRecords(tagRuleId)
             val groups = dbm.systemTtsV2.getAllGroupWithTts()
             val nameMap = LinkedHashMap<String, String>()
-            val targets = LinkedHashMap<String, SystemTtsV2>()
             groups.forEach { g ->
                 g.list.forEach { item ->
                     val cfg = item.config as? TtsConfigurationDTO ?: return@forEach
                     val tag = cfg.speechRule?.tag?.trim().orEmpty()
                     if (tag.isEmpty()) return@forEach
                     if (tag !in nameMap) nameMap[tag] = item.displayName
-                    if (item.isEnabled && tag !in targets) targets[tag] = item
                 }
             }
-            listOf(recs, nameMap, targets)
+            listOf(recs, nameMap)
         }
         @Suppress("UNCHECKED_CAST")
         records = loaded[0] as List<CharacterRecordsFile.RoleRecord>
         @Suppress("UNCHECKED_CAST")
         voiceNames = loaded[1] as Map<String, String>
-        @Suppress("UNCHECKED_CAST")
-        previewTargets = loaded[2] as Map<String, SystemTtsV2>
         marks = VoiceMarksFile.readAll(tagRuleId)
         currentBook = CharacterRecordsFile.readCurrentBook(tagRuleId)
     }
@@ -162,25 +149,6 @@ fun RoleListScreen(
     }
     val selectableNames = filtered.map { it.name }.toSet()
 
-    // ===== 试听 =====
-    val previewState by TaggedTtsPreviewPlayer.state.collectAsState()
-    var previewingTag by remember { mutableStateOf<String?>(null) }
-    fun previewLabel(tag: String): String = when {
-        previewingTag != tag -> "▶"
-        previewState == PreviewState.PLAYING -> "■"
-        previewState == PreviewState.SYNTHESIZING -> "…"
-        else -> "▶"
-    }
-    fun startPreview(tag: String) {
-        val entity = previewTargets[tag]
-        if (entity == null) {
-            toast(R.string.role_list_preview_missing)
-            return
-        }
-        previewingTag = tag
-        TaggedTtsPreviewPlayer.play(context, entity, AppConfig.testSampleText.value)
-    }
-
     // ===== 弹窗状态 =====
     var menuFor by remember { mutableStateOf<CharacterRecordsFile.RoleRecord?>(null) }
     var deleteNames by remember { mutableStateOf<Set<String>?>(null) }
@@ -191,7 +159,6 @@ fun RoleListScreen(
     var addCharName by remember { mutableStateOf("") }
     var mergeFollowFor by remember { mutableStateOf<List<String>?>(null) } // 标记的角色名列表，选目标
     var mergeVoiceTarget by remember { mutableStateOf<String?>(null) } // 合并+选择发音人：目标角色
-    var manageVoiceTag by remember { mutableStateOf<String?>(null) }
     var pickerFor by remember { mutableStateOf<CharacterRecordsFile.RoleRecord?>(null) } // 换声（标签框点击）
     var showBookDialog by remember { mutableStateOf(false) }
     var showKeyManager by remember { mutableStateOf(false) }
@@ -364,13 +331,11 @@ fun RoleListScreen(
                     RoleRow(
                         rec = rec,
                         voiceName = voiceTagText(rec.voice, voiceNames),
+                        marks = marks[rec.voice].orEmpty(),
                         marked = rec.name in markedNames,
-                        previewLabel = if (rec.voice.isBlank()) "▶" else previewLabel(rec.voice),
                         onNameClick = { toggleMark(rec.name) },
                         onNameLongClick = { menuFor = rec },
                         onTagClick = { pickerFor = rec },
-                        onManageClick = { if (rec.voice.isNotBlank()) manageVoiceTag = rec.voice },
-                        onPreviewClick = { if (rec.voice.isNotBlank()) startPreview(rec.voice) },
                     )
                     HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f))
                 }
@@ -629,29 +594,6 @@ fun RoleListScreen(
         )
     }
 
-    // ===== 行 ⋮：发音人管理（标记 + 删除该发音人）=====
-    manageVoiceTag?.let { tag ->
-        VoiceManageDialog(
-            tagRuleId = tagRuleId,
-            tag = tag,
-            displayName = voiceNames[tag] ?: tag,
-            marks = marks[tag].orEmpty(),
-            onMarksChanged = { marks = it },
-            onDismiss = { manageVoiceTag = null },
-            onDelete = {
-                scope.launch {
-                    val n = withIO { CharacterRecordsFile.unbindVoice(tagRuleId, tag) }
-                    toast(
-                        if (n >= 0) R.string.role_voice_unbind_toast else R.string.role_list_failed,
-                        n
-                    )
-                    manageVoiceTag = null
-                    if (n >= 0) reload()
-                }
-            },
-        )
-    }
-
     // ===== 书籍管理弹窗（切换/✕删除/新增/多选删除）=====
     if (showBookDialog) {
         BookManagerDialog(
@@ -695,12 +637,6 @@ private fun MenuActionRow(text: String, dotColor: Color, onClick: () -> Unit) {
 }
 
 /**
- * 角色行（照插件 createListRow）：
- * 左=名字列（主名+别名每行 [4dp 性别色圆点 + 名字]；收藏【】、主名主角👑）；
- * 右=发音人标签框（点击换声）+ ⋮（发音人管理）+ ▶（试听）。
- * 点击名字区=勾选（背景高亮），长按=操作菜单。
- */
-/**
  * 发音人标签文本（照插件 generateVoiceTag 口径）：tag 前缀 + 显示名连写
  * （目目定稿「男主1晓伊」式）；显示名以 tag 开头时不重复拼（防"男主1男主1"）；
  * 显示名超 12 字截断加省略号；查不到配置返回 null（RoleRow 回落 tag + ⚠）。
@@ -714,20 +650,19 @@ private fun voiceTagText(tag: String, nameMap: Map<String, String>): String? {
 
 /**
  * 角色行（照插件 createListRow）：左名字列（主名+别名各一行、性别圆点、收藏【】、主角👑），
- * 右动作列（发音人标签框 / ⋮ 发音人管理 / ▶ 试听）。
+ * 右动作列只留发音人标签框（目目 09-13 定：原行内 ⋮ / ▶ 退役，一切操作点标签进换声弹窗），
+ * 标签后接该发音人已点亮的标记 emoji（❤️🚶😈，与换声弹窗同源 voice_marks.json）。
  */
 @OptIn(ExperimentalFoundationApi::class, ExperimentalMaterial3Api::class)
 @Composable
 private fun RoleRow(
     rec: CharacterRecordsFile.RoleRecord,
     voiceName: String?,
+    marks: List<String>,
     marked: Boolean,
-    previewLabel: String,
     onNameClick: () -> Unit,
     onNameLongClick: () -> Unit,
     onTagClick: () -> Unit,
-    onManageClick: () -> Unit,
-    onPreviewClick: () -> Unit,
 ) {
     val isFav = rec.obj.optInt("usageCount", 0) == 50
     val isProtagonist = rec.isMain
@@ -768,34 +703,35 @@ private fun RoleRow(
                     if (idx < nameList.lastIndex) Spacer(Modifier.height(2.dp))
                 }
             }
-            // 右侧动作列（voice 空不渲染，照插件）
+            // 右侧动作列：只剩发音人标签框（voice 空不渲染，照插件）；
+            // 标签后接已点亮的标记 emoji（顺序同管理弹窗 getVoiceMarkLabel，未点亮不渲染）
             if (rec.voice.isNotBlank()) {
                 Spacer(Modifier.width(10.dp))
-                Column(horizontalAlignment = Alignment.End) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        // 发音人标签框（失效标签加 ⚠）
-                        Surface(
-                            onClick = onTagClick,
-                            shape = RoundedCornerShape(8.dp),
-                            color = MaterialTheme.colorScheme.secondaryContainer,
-                        ) {
-                            Text(
-                                (voiceName ?: rec.voice) + if (voiceName == null) " ⚠" else "",
-                                style = MaterialTheme.typography.bodySmall.copy(fontSize = 13.sp),
-                                color = MaterialTheme.colorScheme.onSecondaryContainer,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis,
-                                modifier = Modifier
-                                    .padding(horizontal = 10.dp, vertical = 5.dp)
-                                    .widthIn(max = 180.dp)
-                            )
-                        }
-                        TextButton(onClick = onManageClick) {
-                            Text("⋮", style = MaterialTheme.typography.titleMedium)
-                        }
-                        TextButton(onClick = onPreviewClick) {
-                            Text(previewLabel, style = MaterialTheme.typography.titleMedium)
-                        }
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    // 发音人标签框（失效标签加 ⚠）；点它=换声弹窗（标记 / 删除配置项都在里面）
+                    Surface(
+                        onClick = onTagClick,
+                        shape = RoundedCornerShape(8.dp),
+                        color = MaterialTheme.colorScheme.secondaryContainer,
+                    ) {
+                        Text(
+                            (voiceName ?: rec.voice) + if (voiceName == null) " ⚠" else "",
+                            style = MaterialTheme.typography.bodySmall.copy(fontSize = 13.sp),
+                            color = MaterialTheme.colorScheme.onSecondaryContainer,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier
+                                .padding(horizontal = 10.dp, vertical = 5.dp)
+                                .widthIn(max = 180.dp)
+                        )
+                    }
+                    val litEmoji = VoiceMarksFile.emojiOf(marks)
+                    if (litEmoji.isNotEmpty()) {
+                        Text(
+                            litEmoji,
+                            fontSize = 13.sp,
+                            modifier = Modifier.padding(start = 3.dp),
+                        )
                     }
                 }
             }
@@ -1031,98 +967,6 @@ private fun EditNamesDialog(
         },
         dismissButton = {
             TextButton(onClick = onDismiss) { Text(stringResource(R.string.cancel)) }
-        }
-    )
-}
-
-/** 发音人管理弹窗（照插件 showVoiceManageDialog：信息 + 多选标记 + 删除该发音人） */
-@Composable
-@OptIn(ExperimentalMaterial3Api::class)
-private fun VoiceManageDialog(
-    tagRuleId: String,
-    tag: String,
-    displayName: String,
-    marks: List<String>,
-    onMarksChanged: (Map<String, List<String>>) -> Unit,
-    onDismiss: () -> Unit,
-    onDelete: () -> Unit,
-) {
-    val scope = rememberCoroutineScope()
-    var curMarks by remember(tag) { mutableStateOf(marks) }
-    // ✕ 删除键的读屏描述（纯 emoji 按钮对读屏不友好）
-    val deleteDesc = stringResource(R.string.role_voice_manage_delete)
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text(stringResource(R.string.role_voice_manage_title)) },
-        text = {
-            Column {
-                Text(
-                    stringResource(
-                        R.string.role_voice_manage_info,
-                        tag,
-                        displayName,
-                        // 照插件 getVoiceMarkLabel：按已存标记的先后顺序列举，未标记回落「未标记」
-                        curMarks.mapNotNull { key ->
-                            VoiceMarksFile.MARK_ITEMS.firstOrNull { it.first == key }?.third
-                        }.joinToString(" ").ifEmpty { stringResource(R.string.role_voice_unmarked) }
-                    ),
-                    style = MaterialTheme.typography.bodySmall.copy(fontSize = 13.sp),
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-                Spacer(Modifier.height(16.dp))
-                // 标记胶囊（照插件 showVoiceManageDialog markOptions：纯 emoji、多选不互斥；
-                // 选中=粗描边、未选=细描边；末位 ✕ = 浅红底删除该发音人配置）
-                Row(
-                    Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(10.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    VoiceMarksFile.MARK_ITEMS.forEach { (key, emoji, label) ->
-                        val selected = key in curMarks
-                        Surface(
-                            onClick = {
-                                scope.launch {
-                                    withIO { VoiceMarksFile.toggle(tagRuleId, tag, key) }
-                                    curMarks = withIO { VoiceMarksFile.get(tagRuleId, tag) }
-                                    onMarksChanged(mapOf(tag to curMarks))
-                                }
-                            },
-                            shape = RoundedCornerShape(20.dp),
-                            color = Color.Transparent,
-                            border = BorderStroke(
-                                if (selected) 2.dp else 1.dp,
-                                if (selected) MaterialTheme.colorScheme.outline
-                                else MaterialTheme.colorScheme.outlineVariant
-                            ),
-                            modifier = Modifier.semantics { contentDescription = label },
-                        ) {
-                            Text(
-                                emoji,
-                                modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp),
-                                fontSize = 16.sp,
-                            )
-                        }
-                    }
-                    Surface(
-                        onClick = onDelete,
-                        shape = RoundedCornerShape(20.dp),
-                        color = Color(0xFFFFEBEE),
-                        border = BorderStroke(1.dp, Color(0xFFFFCDD2)),
-                        modifier = Modifier.semantics { contentDescription = deleteDesc },
-                    ) {
-                        Text(
-                            "✕",
-                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp),
-                            fontSize = 16.sp,
-                            color = Color(0xFFE53935),
-                        )
-                    }
-                }
-            }
-        },
-        // 图一无底部按钮（插件系统弹窗靠返回键关窗）；MD3 补一个「关闭」兜底
-        confirmButton = {
-            TextButton(onClick = onDismiss) { Text(stringResource(R.string.close)) }
         }
     )
 }
