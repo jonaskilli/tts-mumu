@@ -299,7 +299,7 @@ fun RoleListScreen(
                 item(key = key) {
                     RoleRow(
                         rec = rec,
-                        voiceName = voiceNames[rec.voice],
+                        voiceName = voiceTagText(rec.voice, voiceNames),
                         marked = rec.name in markedNames,
                         previewLabel = if (rec.voice.isBlank()) "▶" else previewLabel(rec.voice),
                         onNameClick = { toggleMark(rec.name) },
@@ -667,6 +667,22 @@ private fun MenuActionRow(text: String, dotColor: Color, onClick: () -> Unit) {
  * 左=名字列（主名+别名每行 [4dp 性别色圆点 + 名字]；收藏【】、主名主角👑）；
  * 右=发音人标签框（点击换声）+ ⋮（发音人管理）+ ▶（试听）。
  * 点击名字区=勾选（背景高亮），长按=操作菜单。
+ */
+/**
+ * 发音人标签文本（照插件 generateVoiceTag 口径）：tag 前缀 + 显示名连写
+ * （目目定稿「男主1晓伊」式）；显示名以 tag 开头时不重复拼（防"男主1男主1"）；
+ * 显示名超 12 字截断加省略号；查不到配置返回 null（RoleRow 回落 tag + ⚠）。
+ */
+private fun voiceTagText(tag: String, nameMap: Map<String, String>): String? {
+    val disp = nameMap[tag] ?: return null
+    val prefix = if (disp.startsWith(tag)) "" else tag
+    val shown = if (disp.length > 12) disp.take(12) + "…" else disp
+    return prefix + shown
+}
+
+/**
+ * 角色行（照插件 createListRow）：左名字列（主名+别名各一行、性别圆点、收藏【】、主角👑），
+ * 右动作列（发音人标签框 / ⋮ 发音人管理 / ▶ 试听）。
  */
 @OptIn(ExperimentalFoundationApi::class, ExperimentalMaterial3Api::class)
 @Composable
