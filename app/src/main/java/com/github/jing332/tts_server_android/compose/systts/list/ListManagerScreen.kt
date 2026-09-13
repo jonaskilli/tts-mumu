@@ -124,6 +124,7 @@ import com.github.jing332.database.entities.SpeechRule
 import com.github.jing332.tts_server_android.AppLocale
 import com.github.jing332.tts_server_android.R
 import com.github.jing332.tts_server_android.compose.AppDefaultProperties
+import com.github.jing332.tts_server_android.compose.systts.list.ui.widgets.isLocalSoundTagName
 import com.github.jing332.tts_server_android.conf.AppConfig
 import com.github.jing332.tts_server_android.compose.LocalBottomBarBehavior
 import com.github.jing332.tts_server_android.compose.LocalNavController
@@ -2885,8 +2886,17 @@ internal fun ListManagerScreen(
     }
 
     var showAuditionDialog by remember { mutableStateOf<SystemTtsV2?>(null) }
-    if (showAuditionDialog != null) AuditionDialog(systts = showAuditionDialog!!) {
-        showAuditionDialog = null
+    if (showAuditionDialog != null) {
+        // 本地音效配置（tagName=本地音效N）用专用试听文本，与全局文本互不影响（用户 09-13）
+        val isLocalSound = isLocalSoundTagName(
+            (showAuditionDialog!!.config as TtsConfigurationDTO).speechRule.tagName
+        )
+        AuditionDialog(
+            systts = showAuditionDialog!!,
+            text = if (isLocalSound) AppConfig.localSoundSampleText.value else AppConfig.testSampleText.value,
+        ) {
+            showAuditionDialog = null
+        }
     }
 
     var showTagSwitch by remember { mutableStateOf<SystemTtsV2?>(null) }

@@ -195,7 +195,10 @@ fun AudioParamsDialog(
                             previewing = true
                             scope.launch {
                                 // 文本被清空时回落默认句，避免合成空串
-                                val auditionText = AppConfig.testSampleText.value
+                                // 本地音效配置（tagName=本地音效N）用专用试听文本，与全局文本互不影响（用户 09-13）
+                                val auditionText = (if (isLocalSoundTagName(config.speechRule.tagName))
+                                    AppConfig.localSoundSampleText.value
+                                else AppConfig.testSampleText.value)
                                     .ifBlank { "你好，这是试听语音。" }
                                 // 三层草稿全覆盖（用户 09-10 拍板）：插件/全局层草稿未落库，
                                 // 以覆盖参数传入试听链，调滑杆→▶听即得完整三层终值效果

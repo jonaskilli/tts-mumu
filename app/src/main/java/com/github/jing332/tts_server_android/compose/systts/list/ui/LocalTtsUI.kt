@@ -51,6 +51,8 @@ import com.github.jing332.tts_server_android.R
 import com.github.jing332.tts_server_android.compose.systts.AuditionDialog
 import com.github.jing332.tts_server_android.constant.SpeechTarget
 import com.github.jing332.tts_server_android.compose.systts.list.ui.widgets.AuditionTextField
+import com.github.jing332.tts_server_android.compose.systts.list.ui.widgets.isLocalSoundTagName
+import com.github.jing332.tts_server_android.conf.AppConfig
 import com.github.jing332.tts_server_android.compose.systts.list.ui.widgets.AudioParamsDimRows
 import com.github.jing332.tts_server_android.compose.systts.list.ui.widgets.BasicInfoEditScreen
 import com.github.jing332.tts_server_android.compose.systts.list.ui.widgets.SaveActionHandler
@@ -242,8 +244,13 @@ class LocalTtsUI() : IConfigUI() {
         // 单维音频参数弹窗（用户 09-10 三键直出定稿：试听文本下方直接列 语速/音量/音高，
         // 点哪个开哪个维度的弹窗；⚡总弹窗入口已删。本地 TTS 无插件层，弹窗自动只有 配置项+全局 两层）
         var showAudioParamsDim by remember { mutableStateOf<Int?>(null) }
+        // 本地音效配置（tagName=本地音效N）用专用试听文本，与全局文本互不影响（用户 09-13）
+        val isLocalSound = isLocalSoundTagName((systts.config as TtsConfigurationDTO).speechRule.tagName)
         if (showAuditionDialog && auditionSystts != null)
-            AuditionDialog(systts = auditionSystts!!) {
+            AuditionDialog(
+                systts = auditionSystts!!,
+                text = if (isLocalSound) AppConfig.localSoundSampleText.value else AppConfig.testSampleText.value,
+            ) {
                 showAuditionDialog = false
             }
 
@@ -281,7 +288,8 @@ class LocalTtsUI() : IConfigUI() {
                             // 强制创建新的对象副本，确保 Compose 检测到变化并重新触发试听
                             auditionSystts = systts.copy()
                             showAuditionDialog = true
-                        }
+                        },
+                        isLocalSound = isLocalSound,
                     )
                     AudioParamsDimRows(
                         modifier = Modifier

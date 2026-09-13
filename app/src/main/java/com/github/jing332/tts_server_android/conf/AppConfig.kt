@@ -63,6 +63,10 @@ object AppConfig {
     val isExcludeFromRecent by lazy { mutableDataSaverStateOf(dataSaverPref, "isExcludeFromRecent", false) }
     val isEdgeDnsEnabled by lazy { mutableDataSaverStateOf(dataSaverPref, "isEdgeDnsEnabled", true) }
     val testSampleText by lazy { mutableDataSaverStateOf(dataSaverPref, "testSampleText", "单击右侧按钮即可测试并播放这段音频。") }
+
+    // 本地音效专用试听文本（用户 09-13：与全局 testSampleText 分离，互不影响）——
+    // 音效插件按文本正则取音效，全局句匹配不上；单独一份可填音效名直接试听
+    val localSoundSampleText by lazy { mutableDataSaverStateOf(dataSaverPref, "localSoundSampleText", "你好，这是试听语音。") }
     val fragmentIndex by lazy { mutableDataSaverStateOf(dataSaverPref, "fragmentIndex", 0) }
     val spinnerMaxDropDownCount by lazy { mutableDataSaverStateOf(dataSaverPref, "spinnerMaxDropDownCount", 20) }
     val lastReadHelpDocumentVersion by lazy { mutableDataSaverStateOf(dataSaverPref, "lastReadHelpDocumentVersion", 0) }

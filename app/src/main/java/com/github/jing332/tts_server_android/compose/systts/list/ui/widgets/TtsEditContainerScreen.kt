@@ -23,6 +23,7 @@ import com.github.jing332.database.entities.systts.source.LocalTtsSource
 import com.github.jing332.tts_server_android.R
 import com.github.jing332.tts_server_android.compose.systts.AuditionDialog
 import com.github.jing332.tts_server_android.compose.systts.list.ui.ConfigUiFactory
+import com.github.jing332.tts_server_android.conf.AppConfig
 import kotlinx.coroutines.launch
 
 @Composable
@@ -52,8 +53,14 @@ fun TtsEditContainerScreen(
     // 试听走 AuditionDialog；音频参数改为值行+就地展开（AudioParamsDimRows），编辑页不再需要弹窗入口。
     var auditionSystts by remember { mutableStateOf<SystemTtsV2?>(null) }
 
+    // 本地音效配置（tagName=本地音效N）用专用试听文本，与全局文本互不影响（用户 09-13）
+    val isLocalSound = isLocalSoundTagName((systts.config as TtsConfigurationDTO).speechRule.tagName)
+
     auditionSystts?.let { target ->
-        AuditionDialog(systts = target) { auditionSystts = null }
+        AuditionDialog(
+            systts = target,
+            text = if (isLocalSound) AppConfig.localSoundSampleText.value else AppConfig.testSampleText.value,
+        ) { auditionSystts = null }
     }
 
     CompositionLocalProvider(LocalSaveCallBack provides callbacks) {
@@ -83,7 +90,8 @@ fun TtsEditContainerScreen(
                                 .fillMaxWidth()
                                 .padding(horizontal = 12.dp)
                                 .padding(top = 8.dp),
-                            onAudition = { auditionSystts = systts }
+                            onAudition = { auditionSystts = systts },
+                            isLocalSound = isLocalSound,
                         )
                         AudioParamsDimRows(
                             modifier = Modifier

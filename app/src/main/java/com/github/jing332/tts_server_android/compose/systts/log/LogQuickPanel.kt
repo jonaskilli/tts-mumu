@@ -60,6 +60,7 @@ import com.github.jing332.tts_server_android.compose.SharedViewModel
 import com.github.jing332.tts_server_android.compose.SoftSegmentedTextToggle
 import com.github.jing332.tts_server_android.compose.systts.list.ui.PluginDescriptor
 import com.github.jing332.tts_server_android.compose.systts.list.ui.widgets.AudioParamsDimensionSection
+import com.github.jing332.tts_server_android.conf.AppConfig
 import com.github.jing332.tts_server_android.conf.SysTtsConfig
 import com.github.jing332.tts_server_android.service.systts.SystemTtsService
 import com.github.jing332.tts_server_android.service.systts.help.CharacterRecordsFile
@@ -511,7 +512,11 @@ fun LogQuickPanel(
                         previewingKey = PREVIEW_KEY_CURRENT
                         scope.launch {
                             val target = if (isBindingMode) draftParamsTarget() else null
-                            TaggedTtsPreviewPlayer.play(context, target ?: draftEntity(pendingVoice), "你好，这是试听语音。")
+                            // 音效槽位用专用试听文本（与全局/编辑页音效文本同源，用户 09-13）；其余照旧固定句
+                            val text = if (isLocalSoundSlot)
+                                AppConfig.localSoundSampleText.value.ifBlank { "你好，这是试听语音。" }
+                            else "你好，这是试听语音。"
+                            TaggedTtsPreviewPlayer.play(context, target ?: draftEntity(pendingVoice), text)
                         }
                     }) {
                         Text(

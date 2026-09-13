@@ -53,6 +53,8 @@ import com.github.jing332.database.entities.systts.source.PluginTtsSource
 import com.github.jing332.tts_server_android.R
 import com.github.jing332.tts_server_android.compose.systts.AuditionDialog
 import com.github.jing332.tts_server_android.compose.systts.list.ui.widgets.AuditionTextField
+import com.github.jing332.tts_server_android.compose.systts.list.ui.widgets.isLocalSoundTagName
+import com.github.jing332.tts_server_android.conf.AppConfig
 import com.github.jing332.tts_server_android.compose.systts.list.ui.widgets.AudioParamsDimRows
 import com.github.jing332.tts_server_android.compose.systts.list.ui.widgets.BasicInfoEditScreen
 import com.github.jing332.tts_server_android.compose.systts.list.ui.widgets.SaveActionHandler
@@ -223,9 +225,12 @@ class PluginTtsUI : IConfigUI() {
         }
 
         @Suppress("UNCHECKED_CAST")
+        // 本地音效配置（tagName=本地音效N）用专用试听文本，与全局文本互不影响（用户 09-13）
+        val isLocalSound = isLocalSoundTagName((systts.config as TtsConfigurationDTO).speechRule.tagName)
         if (auditionSystts != null)
             AuditionDialog(
                 systts = auditionSystts!!,
+                text = if (isLocalSound) AppConfig.localSoundSampleText.value else AppConfig.testSampleText.value,
                 engine = if (plugin == null) null else vm.service(),
                 voiceId = auditionVoiceId,
                 // 带分类回调（批量试听分类场景）时，播放完成不自动关闭弹窗，
@@ -307,7 +312,8 @@ class PluginTtsUI : IConfigUI() {
                                 // 试听文本行比其它行宽出约 24dp（用户 09-10 晚指认）
                                 .padding(horizontal = 12.dp)
                                 .padding(top = 8.dp),
-                            onAudition = { auditionSystts = systts }
+                            onAudition = { auditionSystts = systts },
+                            isLocalSound = isLocalSound,
                         )
                         AudioParamsDimRows(
                             modifier = Modifier
