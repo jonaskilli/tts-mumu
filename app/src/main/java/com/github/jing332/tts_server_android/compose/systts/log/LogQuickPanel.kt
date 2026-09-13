@@ -1,6 +1,7 @@
 package com.github.jing332.tts_server_android.compose.systts.log
 
 import android.widget.Toast
+import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.clickable
@@ -737,6 +738,12 @@ fun LogQuickPanel(
                             enabledConfigEntityByTag(t)?.displayName?.ifEmpty { null }
                                 ?: if (isLocalSoundSlot) localSoundSlotLabel(t) else t
                         }.eachCount()
+                        // 占用表（目目 09-13 定方案A）：characterRecords.json 里 voice→角色名列表，
+                        // 与角色管理插件「已分配」徽章同源同口径；排除自己（bindingKey）——
+                        // 自己当前绑定的那行已有 ✓ 主色，不重复标
+                        val voiceOwners = remember(entity.id) {
+                            CharacterRecordsFile.readVoiceOwnerMap(config.speechRule.tagRuleId)
+                        }
                         displayTags.forEach { tag ->
                             val isCurrent = tag == boundVoice
                             val isPending = tag == pendingVoice
@@ -752,10 +759,13 @@ fun LogQuickPanel(
                             val rowMarks = remember(tag, marksVersion) {
                                 VoiceMarksFile.get(config.speechRule.tagRuleId, tag)
                             }
+                            // 已被其他角色占用 → 行内「已用」徽章（占用≠禁用，仍可点选改绑）
+                            val usedByOthers = voiceOwners[tag].orEmpty().any { it != bindingKey }
                             CandidateRow(
                                 text = rowText,
                                 isCurrent = isCurrent,
                                 isPending = isPending,
+                                usedBadge = usedByOthers,
                                 // 当前项染主色与候选行同口径（用户 09-13：图二绑定行当前项是黑的、
                                 // 图一非绑定行是绿的，两处不一致 → 统一 current/pending 都主色）
                                 nameColor = if (isPending || isCurrent) MaterialTheme.colorScheme.primary
@@ -1064,6 +1074,9 @@ private fun CandidateRow(
     onToggleMark: (String) -> Unit,
     deleteEnabled: Boolean,
     onDelete: () -> Unit,
+    // 该标签已被其他角色占用（目目 09-13 定方案A）：名字后标「已用」小徽章；
+    // 仅绑定分支传 true，非绑定分支走默认 false 不显示
+    usedBadge: Boolean = false,
 ) {
     var menuOpen by remember { mutableStateOf(false) }
     Row(
@@ -1087,6 +1100,23 @@ private fun CandidateRow(
                 overflow = TextOverflow.Ellipsis,
                 color = nameColor,
             )
+            if (usedBadge) {
+                // 「已用」徽章（目目 09-13 定方案A）：主色淡底圆角 chip，10sp，与角色管理
+                // 插件「已分配」徽章同语义；占用≠禁用，行仍可点选改绑
+                Text(
+                    "已用",
+                    modifier = Modifier
+                        .padding(start = 4.dp)
+                        .background(
+                            MaterialTheme.colorScheme.primary.copy(alpha = 0.14f),
+                            RoundedCornerShape(9.dp),
+                        )
+                        .padding(horizontal = 6.dp, vertical = 2.dp),
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.primary,
+                    maxLines = 1,
+                )
+            }
             val emoji = VoiceMarksFile.emojiOf(marks)
             if (emoji.isNotEmpty()) {
                 Text(

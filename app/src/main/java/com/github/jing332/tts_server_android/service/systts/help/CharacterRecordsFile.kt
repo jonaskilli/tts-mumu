@@ -57,6 +57,31 @@ object CharacterRecordsFile {
     }
 
     /**
+     * 占用表：voice 标签 → 占用它的角色名列表（与角色管理 v10 getVoiceAssignedCount 同源同口径，
+     * 读同一份 characterRecords.json）。文件缺失/损坏返回空表。
+     * 日志面板候选行据此标「已用」徽章（目目 09-13 定，方案A）。
+     */
+    fun readVoiceOwnerMap(tagRuleId: String): Map<String, List<String>> {
+        val f = recordsFile(tagRuleId)
+        if (!f.exists()) return emptyMap()
+        return try {
+            val arr = JSONArray(f.readText())
+            val map = LinkedHashMap<String, MutableList<String>>()
+            for (i in 0 until arr.length()) {
+                val o = arr.optJSONObject(i) ?: continue
+                val voice = o.optString("voice").trim()
+                val name = o.optString("name").trim()
+                if (voice.isEmpty() || name.isEmpty()) continue
+                map.getOrPut(voice) { mutableListOf() }.add(name)
+            }
+            map
+        } catch (e: Exception) {
+            Log.w(TAG, "readVoiceOwnerMap failed: ${e.message}")
+            emptyMap()
+        }
+    }
+
+    /**
      * 从发音人标签池（fayinren.json）移除某标签，避免规则下次运行时重新生成该配置项
      *（与角色管理 v10 doDeleteVoiceInternal 第二步同源）。文件缺失/移除后为空也返回 true。
      */
