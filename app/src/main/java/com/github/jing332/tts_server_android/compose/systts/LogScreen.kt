@@ -87,20 +87,20 @@ private fun AnnotatedString.remapMetaColor(metaColor: Color, voiceColor: Color):
     }
 }
 
-// 功能日志来源色（09-13 目目换色调：原灰青/灰紫嫌闷，选定靛蓝×琥珀金 F 组）。
+// 功能日志来源色（09-13 二次换色：琥珀金被目目否了嫌屎黄，改莓紫组）。
 // 仅接管 INFO 与 DEBUG/TRACE；ERROR/WARN 保持红/黄级别语义，SUCCESS 仍走石板灰。
-// 琥珀金与 WARN 的橙黄相比更暗更棕，实际可区分；与「请求音频」主流程绿、发音人棕褐均拉开色相
+// 莓紫与插件靛蓝色相差约 60°，与「请求音频」主流程绿、发音人棕褐均拉开色相
 private fun pluginLogColor(isDarkTheme: Boolean) =
     if (isDarkTheme) Color(0xFF93A5E8) else Color(0xFF3F57B5)    // 插件：靛蓝
 
 private fun ruleLogColor(isDarkTheme: Boolean) =
-    if (isDarkTheme) Color(0xFFD9A85C) else Color(0xFFB0762A)    // 朗读规则：琥珀金
+    if (isDarkTheme) Color(0xFFDE9BC8) else Color(0xFFA83A6E)    // 朗读规则：莓紫
 
 private fun pluginDebugColor(isDarkTheme: Boolean) =
     if (isDarkTheme) Color(0xFF6F7FC7) else Color(0xFF8C9AE0)    // 插件 DEBUG：淡靛蓝（比正文淡一档）
 
 private fun ruleDebugColor(isDarkTheme: Boolean) =
-    if (isDarkTheme) Color(0xFF97763F) else Color(0xFFD4AF74)    // 规则 DEBUG：淡琥珀（比正文淡一档）
+    if (isDarkTheme) Color(0xFFA96A8F) else Color(0xFFD891B8)    // 规则 DEBUG：淡莓紫（比正文淡一档）
 
 @OptIn(ExperimentalFoundationApi::class, ExperimentalMaterial3Api::class)
 @Composable

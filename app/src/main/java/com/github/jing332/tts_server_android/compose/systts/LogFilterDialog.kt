@@ -8,14 +8,10 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Check
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.HorizontalDivider
-import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -94,57 +90,31 @@ fun LogFilterDialog(
                     verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     // 插件日志开关（09-13 目目要求：文案去掉「日志」二字省宽度）
+                    // 09-13 目目：选中不要打对勾，容器色已足够表达选中态
                     FilterChip(
                         selected = showPluginLogs,
                         onClick = { onPluginLogsToggle() },
                         label = { Text("插件") },
-                        leadingIcon = {
-                            if (showPluginLogs) {
-                                Icon(
-                                    imageVector = Icons.Default.Check,
-                                    contentDescription = null,
-                                    modifier = Modifier.size(18.dp)
-                                )
-                            }
-                        },
-                        colors = FilterChipDefaults.filterChipColors(
-                            selectedContainerColor = MaterialTheme.colorScheme.tertiaryContainer
-                        )
-                    )
-                    
-                    // 朗读规则日志开关
-                    FilterChip(
-                        selected = showSpeechRuleLogs,
-                        onClick = { onSpeechRuleLogsToggle() },
-                        label = { Text("朗读规则") },
-                        leadingIcon = {
-                            if (showSpeechRuleLogs) {
-                                Icon(
-                                    imageVector = Icons.Default.Check,
-                                    contentDescription = null,
-                                    modifier = Modifier.size(18.dp)
-                                )
-                            }
-                        },
                         colors = FilterChipDefaults.filterChipColors(
                             selectedContainerColor = MaterialTheme.colorScheme.tertiaryContainer
                         )
                     )
 
-                    // DEBUG 日志开关（默认开启，插件调试用；关后 D 级完全不进列表）
+                    // 朗读规则日志开关
+                    FilterChip(
+                        selected = showSpeechRuleLogs,
+                        onClick = { onSpeechRuleLogsToggle() },
+                        label = { Text("朗读规则") },
+                        colors = FilterChipDefaults.filterChipColors(
+                            selectedContainerColor = MaterialTheme.colorScheme.tertiaryContainer
+                        )
+                    )
+
+                    // DEBUG 日志开关（默认关闭；关后 D 级完全不进列表）
                     FilterChip(
                         selected = showDebugLogs,
                         onClick = { onDebugLogsToggle() },
                         label = { Text("DEBUG") },
-                        leadingIcon = {
-                            if (showDebugLogs) {
-                                Icon(
-                                    imageVector = Icons.Default.Check,
-                                    contentDescription = null,
-                                    modifier = Modifier.size(18.dp)
-                                )
-                            }
-                        },
                         colors = FilterChipDefaults.filterChipColors(
                             selectedContainerColor = MaterialTheme.colorScheme.tertiaryContainer
                         )
@@ -155,15 +125,6 @@ fun LogFilterDialog(
                         selected = autoScrollToBottom,
                         onClick = { onAutoScrollToggle() },
                         label = { Text("实时显示最新日志") },
-                        leadingIcon = {
-                            if (autoScrollToBottom) {
-                                Icon(
-                                    imageVector = Icons.Default.Check,
-                                    contentDescription = null,
-                                    modifier = Modifier.size(18.dp)
-                                )
-                            }
-                        },
                         colors = FilterChipDefaults.filterChipColors(
                             selectedContainerColor = MaterialTheme.colorScheme.primaryContainer
                         )

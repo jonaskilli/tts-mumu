@@ -743,9 +743,9 @@ class SystemTtsService : TextToSpeechService(), IEventDispatcher {
                 // 角色名（用户 09-08 终版定稿）：只认朗读规则实时分析出的角色名
                 // （handleText 条目 name 字段随片段透传到此），不做任何反推；
                 // 旁白/非多角色/旧规则片段无角色名 → 不显示【】段。
-                // 特殊标示用全角方头括号，不加粗
+                // 特殊标示用全角方头括号；09-13 目目指认角色名不突出 → 加 <b> 加粗（与"请求音频"正文同风格）
                 if (roleName.isNotBlank()) {
-                    append("【").append(roleName).append("】")
+                    append("<b>【").append(roleName).append("】</b>")
                     hasPrev = true
                 }
                 // 标签（如"旁白"）
