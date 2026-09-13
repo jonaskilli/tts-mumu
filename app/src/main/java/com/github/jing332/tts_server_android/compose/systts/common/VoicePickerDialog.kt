@@ -44,6 +44,7 @@ import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.DialogProperties
 import com.drake.net.utils.withIO
@@ -490,24 +491,28 @@ fun VoicePickerDialog(
             // 与「最终」行呼应；无角色名（旁白/本地音效槽位等）统一叫「信息卡」，与角色卡成对。
             // 调用方自传标题已废除；超长省略号截断，标题槽单行不被挤
             if (titleBadge.isNotBlank()) {
+                // 模板走 R.string（三处同写），名字段做主色加粗 span
+                val tpl = stringResource(R.string.voice_picker_role_card)
+                val open = tpl.substringBefore("%1\$s")
+                val close = tpl.substringAfter("%1\$s")
                 Text(
                     buildAnnotatedString {
-                        append("角色卡（")
-                        pushSpanStyle(
+                        append(open)
+                        withStyle(
                             SpanStyle(
                                 fontWeight = FontWeight.SemiBold,
                                 color = MaterialTheme.colorScheme.primary,
                             )
-                        )
-                        append(titleBadge)
-                        pop()
-                        append("）")
+                        ) {
+                            append(titleBadge)
+                        }
+                        append(close)
                     },
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                 )
             } else {
-                Text("信息卡")
+                Text(stringResource(R.string.voice_picker_info_card))
             }
         },
         content = {
