@@ -633,6 +633,10 @@ Marks: %3$s</string>
     <string name="role_book_multi_delete">Delete selected (%1$d)</string>
     <string name="role_book_multi_delete_mode">Multi-select</string>
     <string name="role_book_added_switch">Added and switched to "%1$s"</string>
+    <string name="role_book_list_title">Books (tap to switch · tap ✕ to delete)</string>
+    <string name="role_book_del_confirm_current">The current book will switch to Default</string>
+    <string name="role_book_del_confirm_other">The current book is unaffected</string>
+    <string name="role_book_multi_title">Delete multiple books</string>
     <string name="role_key_rename">Rename key</string>
     <string name="role_key_name_auto">Name (auto-generated if empty)</string>
     <string name="role_key_value_empty">Key content is empty</string>

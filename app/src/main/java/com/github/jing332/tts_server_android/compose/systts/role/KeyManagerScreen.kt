@@ -1,8 +1,11 @@
 package com.github.jing332.tts_server_android.compose.systts.role
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -50,6 +53,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.res.stringResource
@@ -1105,9 +1109,22 @@ private fun MenuActionRow2(text: String, dotColor: Color, onClick: () -> Unit) {
     }
 }
 
+/** 书籍行左侧圆点配色（照插件 switchColors：8 色循环） */
+private val BOOK_DOT_COLORS = listOf(
+    Color(0xFF7E57C2), Color(0xFF5C6BC0), Color(0xFF26A69A), Color(0xFF8D6E63),
+    Color(0xFF66BB6A), Color(0xFFEC407A), Color(0xFFFF7043), Color(0xFF42A5F5),
+)
+
+/** 「多选删除」文字色（照插件 #EF6C00 橙） */
+private val BOOK_MULTI_DELETE_COLOR = Color(0xFFEF6C00)
+
+/** 默认书籍名：不可删除（与 CharacterRecordsFile 同源） */
+private const val DEFAULT_BOOK_NAME = "默认"
+
 /**
- * 书籍管理弹窗·1:1（照插件 showBookSwitchDialog）：
- * 「点击切换 · 点✕删除」+ 当前书在前 + 新增（建档并切换）+ 多选删除；当前书也可删（删后切默认）。
+ * 书籍列表弹窗·1:1（照插件 showBookSwitchDialog，图一样式）：
+ * 紧凑弹窗；每本书 = 圆角卡片行（当前书 = 主题浅底 + 主题描边 + ✓；其他 = 浅底 + 描边 + 彩色圆点）；
+ * 仅非「默认」书显示 ✕（二次确认，删当前书后切默认）；底部「+ 新增书籍 / 多选删除」。
  */
 @Composable
 fun BookManagerDialog(
@@ -1120,9 +1137,9 @@ fun BookManagerDialog(
     var version by remember { mutableIntStateOf(0) }
     var books by remember { mutableStateOf<List<String>>(emptyList()) }
     var current by remember { mutableStateOf("") }
-    var multiMode by remember { mutableStateOf(false) }
-    var checked by remember { mutableStateOf<Set<String>>(emptySet()) }
     var addBookVisible by remember { mutableStateOf(false) }
+    var multiVisible by remember { mutableStateOf(false) }
+    var pendingDelete by remember { mutableStateOf<String?>(null) }
 
     LaunchedEffect(version) {
         val loaded = withIO {
@@ -1150,7 +1167,6 @@ fun BookManagerDialog(
                 if (n > 0) R.string.role_book_deleted_toast else R.string.role_list_failed, n
             )
             if (n > 0) {
-                checked = emptySet()
                 version++
                 if (currentDeleted) onSwitched()
             }
@@ -1161,118 +1177,201 @@ fun BookManagerDialog(
         onDismissRequest = onDismiss,
         properties = DialogProperties(usePlatformDefaultWidth = false)
     ) {
-        Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.surface) {
-            Column(Modifier.fillMaxSize().statusBarsPadding().navigationBarsPadding()) {
-                Row(
-                    Modifier.fillMaxWidth().padding(start = 16.dp, end = 8.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(
-                        stringResource(R.string.role_book_title),
-                        style = MaterialTheme.typography.titleLarge,
-                        modifier = Modifier.weight(1f)
-                    )
-                    IconButton(onClick = onDismiss) {
-                        Icon(Icons.Default.Close, contentDescription = null)
-                    }
-                }
+        Surface(
+            shape = RoundedCornerShape(28.dp),
+            color = MaterialTheme.colorScheme.surfaceContainerHigh,
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 24.dp),
+        ) {
+            Column(Modifier.padding(start = 20.dp, end = 20.dp, top = 20.dp, bottom = 8.dp)) {
                 Text(
-                    stringResource(R.string.role_book_hint),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(horizontal = 16.dp)
+                    stringResource(R.string.role_book_list_title),
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.Bold,
                 )
-                LazyColumn(Modifier.weight(1f)) {
-                    books.forEach { book ->
+                Spacer(Modifier.height(12.dp))
+                // 清单上限按屏高推算（不写死 dp）
+                Column(
+                    Modifier
+                        .heightIn(max = (LocalConfiguration.current.screenHeightDp * 0.5f).dp)
+                        .verticalScroll(rememberScrollState()),
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    books.forEachIndexed { idx, book ->
                         val isCurrent = book == current
-                        item(key = book) {
-                            Row(
-                                Modifier.fillMaxWidth()
-                                    .clickable {
-                                        if (multiMode) {
-                                            checked = if (book in checked) checked - book else checked + book
-                                        } else if (!isCurrent) switchTo(book)
-                                    }
-                                    .padding(start = 16.dp, end = 8.dp, top = 6.dp, bottom = 6.dp),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                if (multiMode) {
-                                    Checkbox(
-                                        checked = book in checked,
-                                        onCheckedChange = {
-                                            checked = if (it) checked + book else checked - book
-                                        }
-                                    )
-                                }
-                                Text(
-                                    book,
-                                    style = MaterialTheme.typography.bodyLarge,
-                                    fontWeight = if (isCurrent) FontWeight.SemiBold else FontWeight.Normal,
-                                    color = if (isCurrent) MaterialTheme.colorScheme.primary
-                                    else MaterialTheme.colorScheme.onSurface,
-                                    maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis,
-                                    modifier = Modifier.weight(1f)
-                                )
-                                if (isCurrent && !multiMode) {
-                                    Surface(
-                                        shape = RoundedCornerShape(8.dp),
-                                        color = MaterialTheme.colorScheme.primaryContainer
-                                    ) {
-                                        Text(
-                                            stringResource(R.string.role_key_current),
-                                            style = MaterialTheme.typography.labelSmall,
-                                            color = MaterialTheme.colorScheme.onPrimaryContainer,
-                                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
-                                        )
-                                    }
-                                }
-                                if (!multiMode) {
-                                    TextButton(onClick = {
-                                        // 当前书也可删：提示删后切默认（照插件）
-                                        scope.launch {
-                                            withIO { CharacterRecordsFile.deleteBooks(tagRuleId, setOf(book)) }
-                                            toast(R.string.role_book_deleted_toast, 1)
-                                            version++
-                                            if (isCurrent) onSwitched()
-                                        }
-                                    }) {
-                                        Text("✕", color = MaterialTheme.colorScheme.error)
-                                    }
-                                }
-                            }
-                            HorizontalDivider(Modifier.padding(horizontal = 16.dp))
-                        }
-                    }
-                }
-                // 页脚：新增 + 多选删除
-                Row(Modifier.fillMaxWidth().padding(12.dp)) {
-                    TextButton(onClick = { addBookVisible = true }, modifier = Modifier.weight(1f)) {
-                        Icon(Icons.Default.Add, contentDescription = null, Modifier.size(18.dp))
-                        Spacer(Modifier.width(4.dp))
-                        Text(stringResource(R.string.role_book_add))
-                    }
-                    TextButton(
-                        enabled = checked.isNotEmpty(),
-                        onClick = { deleteBooks(checked) }
-                    ) {
-                        Text(
-                            stringResource(R.string.role_book_multi_delete, checked.size),
-                            color = MaterialTheme.colorScheme.error
+                        BookRow(
+                            name = book,
+                            isCurrent = isCurrent,
+                            dotColor = BOOK_DOT_COLORS[idx % BOOK_DOT_COLORS.size],
+                            deletable = book != DEFAULT_BOOK_NAME,
+                            onClick = { if (!isCurrent) switchTo(book) },
+                            onDelete = { pendingDelete = book },
                         )
                     }
-                    TextButton(onClick = {
-                        if (multiMode) { multiMode = false; checked = emptySet() } else multiMode = true
-                    }) {
+                }
+                Spacer(Modifier.height(4.dp))
+                // 底部操作行：+ 新增书籍 / 多选删除（照插件居中双按钮）
+                Row(
+                    Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.Center,
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    TextButton(onClick = { addBookVisible = true }) {
                         Text(
-                            if (multiMode) stringResource(R.string.cancel)
-                            else stringResource(R.string.role_book_multi_delete_mode)
+                            "+  " + stringResource(R.string.role_book_add),
+                            color = MaterialTheme.colorScheme.primary,
+                            fontWeight = FontWeight.Bold,
+                        )
+                    }
+                    Spacer(Modifier.width(12.dp))
+                    TextButton(onClick = { multiVisible = true }) {
+                        Text(
+                            stringResource(R.string.role_book_multi_delete_mode),
+                            color = BOOK_MULTI_DELETE_COLOR,
+                            fontWeight = FontWeight.Bold,
                         )
                     }
                 }
             }
         }
     }
+
+    // 单本删除二次确认（照插件：提示删当前书会切默认）
+    pendingDelete?.let { name ->
+        AlertDialog(
+            onDismissRequest = { pendingDelete = null },
+            title = { Text(stringResource(R.string.role_book_delete_title)) },
+            text = {
+                Text(
+                    stringResource(R.string.role_book_delete_text, name) + "\n" +
+                            stringResource(
+                                if (name == current) R.string.role_book_del_confirm_current
+                                else R.string.role_book_del_confirm_other
+                            )
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    pendingDelete = null
+                    deleteBooks(setOf(name))
+                }) { Text(stringResource(R.string.delete)) }
+            },
+            dismissButton = {
+                TextButton(onClick = { pendingDelete = null }) { Text(stringResource(R.string.cancel)) }
+            },
+        )
+    }
+
+    // 批量删除（照插件 showMultiSelectBookDialog：卡片行 + 复选框 + 当前徽章）
+    if (multiVisible) {
+        var checked by remember { mutableStateOf<Set<String>>(emptySet()) }
+        val allChecked = books.isNotEmpty() && checked.size == books.size
+        Dialog(
+            onDismissRequest = { multiVisible = false },
+            properties = DialogProperties(usePlatformDefaultWidth = false)
+        ) {
+            Surface(
+                shape = RoundedCornerShape(28.dp),
+                color = MaterialTheme.colorScheme.surfaceContainerHigh,
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 24.dp),
+            ) {
+                Column(Modifier.padding(start = 20.dp, end = 20.dp, top = 20.dp, bottom = 8.dp)) {
+                    Text(
+                        stringResource(R.string.role_book_multi_title),
+                        style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.Bold,
+                    )
+                    Spacer(Modifier.height(12.dp))
+                    Column(
+                        Modifier
+                            .heightIn(max = (LocalConfiguration.current.screenHeightDp * 0.5f).dp)
+                            .verticalScroll(rememberScrollState()),
+                        verticalArrangement = Arrangement.spacedBy(8.dp),
+                    ) {
+                        books.forEach { book ->
+                            val isCurrent = book == current
+                            Surface(
+                                shape = RoundedCornerShape(8.dp),
+                                color = if (isCurrent) MaterialTheme.colorScheme.primaryContainer
+                                else MaterialTheme.colorScheme.surface,
+                                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clickable {
+                                        checked = if (book in checked) checked - book else checked + book
+                                    },
+                            ) {
+                                Row(
+                                    Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 4.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                ) {
+                                    Checkbox(
+                                        checked = book in checked,
+                                        onCheckedChange = {
+                                            checked = if (it) checked + book else checked - book
+                                        },
+                                    )
+                                    Text(
+                                        book,
+                                        style = MaterialTheme.typography.bodyLarge,
+                                        fontWeight = FontWeight.SemiBold,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis,
+                                        modifier = Modifier.weight(1f),
+                                    )
+                                    if (isCurrent) {
+                                        Surface(
+                                            shape = RoundedCornerShape(10.dp),
+                                            color = MaterialTheme.colorScheme.primary,
+                                        ) {
+                                            Text(
+                                                stringResource(R.string.role_key_current),
+                                                style = MaterialTheme.typography.labelSmall,
+                                                color = MaterialTheme.colorScheme.onPrimary,
+                                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp),
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    Spacer(Modifier.height(4.dp))
+                    Row(
+                        Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.End,
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        TextButton(onClick = {
+                            checked = if (allChecked) emptySet() else books.toSet()
+                        }) {
+                            Text(
+                                stringResource(
+                                    if (allChecked) R.string.deselect_all else R.string.select_all
+                                )
+                            )
+                        }
+                        TextButton(onClick = { multiVisible = false }) {
+                            Text(stringResource(R.string.cancel))
+                        }
+                        TextButton(
+                            enabled = checked.isNotEmpty(),
+                            onClick = {
+                                val target = checked
+                                multiVisible = false
+                                deleteBooks(target)
+                            },
+                        ) {
+                            Text(
+                                stringResource(R.string.role_book_multi_delete, checked.size),
+                                color = MaterialTheme.colorScheme.error,
+                            )
+                        }
+                    }
+                }
+            }
+        }
+    }
+
     // 新增书籍（照插件：输入书名 → 建档并直接切换）
     if (addBookVisible) {
         var bookName by remember { mutableStateOf("") }
@@ -1309,5 +1408,67 @@ fun BookManagerDialog(
                 TextButton(onClick = { addBookVisible = false }) { Text(stringResource(R.string.cancel)) }
             }
         )
+    }
+}
+
+/** 书籍卡片行（照插件 showBookSwitchDialog 行样式：圆角卡片 + ✓/彩色圆点 + 书名 + ✕） */
+@Composable
+private fun BookRow(
+    name: String,
+    isCurrent: Boolean,
+    dotColor: Color,
+    deletable: Boolean,
+    onClick: () -> Unit,
+    onDelete: () -> Unit,
+) {
+    Surface(
+        shape = RoundedCornerShape(10.dp),
+        color = if (isCurrent) MaterialTheme.colorScheme.primaryContainer
+        else MaterialTheme.colorScheme.surface,
+        border = BorderStroke(
+            width = if (isCurrent) 1.5.dp else 1.dp,
+            color = if (isCurrent) MaterialTheme.colorScheme.primary
+            else MaterialTheme.colorScheme.outlineVariant,
+        ),
+        modifier = Modifier.fillMaxWidth(),
+    ) {
+        Row(
+            Modifier
+                .fillMaxWidth()
+                .clickable(onClick = onClick)
+                .padding(start = 14.dp, end = 4.dp, top = 8.dp, bottom = 8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            if (isCurrent) {
+                Text(
+                    "✓",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.primary,
+                )
+                Spacer(Modifier.width(8.dp))
+            } else {
+                Spacer(Modifier.size(7.dp).background(dotColor, CircleShape))
+                Spacer(Modifier.width(8.dp))
+            }
+            Text(
+                name,
+                style = MaterialTheme.typography.bodyLarge,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                color = MaterialTheme.colorScheme.onSurface,
+                modifier = Modifier.weight(1f),
+            )
+            if (deletable) {
+                IconButton(onClick = onDelete, modifier = Modifier.size(40.dp)) {
+                    Icon(
+                        Icons.Default.Close,
+                        contentDescription = stringResource(R.string.delete),
+                        tint = MaterialTheme.colorScheme.error,
+                        modifier = Modifier.size(18.dp),
+                    )
+                }
+            }
+        }
     }
 }

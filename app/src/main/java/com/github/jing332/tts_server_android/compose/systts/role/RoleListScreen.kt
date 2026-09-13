@@ -218,14 +218,18 @@ fun RoleListScreen(
             }
         }
         // ===== 书籍栏（照插件：圆角卡片 = 📖 + 书名 + ✎ 行内改名 + ▾ 管理；
-        //      点书名与▾管理都开书籍管理弹窗（插件 showBookSwitchDialog 同入口））=====
+        //      整条卡片点击即展开书籍列表弹窗（插件 showBookSwitchDialog 同入口：书名框与箭头共用））=====
         var editingBook by remember { mutableStateOf(false) }
         var bookEditName by remember { mutableStateOf("") }
         Surface(
             shape = RoundedCornerShape(12.dp),
             color = MaterialTheme.colorScheme.secondaryContainer,
             border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
-            modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 4.dp),
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 8.dp, vertical = 4.dp)
+                // 编辑态不触发展开，避免打断改名输入
+                .clickable(enabled = !editingBook) { showBookDialog = true },
         ) {
             Row(
                 Modifier.fillMaxWidth().padding(start = 10.dp, end = 2.dp, top = 4.dp, bottom = 4.dp),
@@ -264,9 +268,7 @@ fun RoleListScreen(
                         maxLines = 2,
                         overflow = TextOverflow.Ellipsis,
                         color = MaterialTheme.colorScheme.onSecondaryContainer,
-                        modifier = Modifier
-                            .weight(1f)
-                            .clickable { showBookDialog = true },
+                        modifier = Modifier.weight(1f),
                     )
                     TextButton(onClick = { bookEditName = currentBook; editingBook = true }) {
                         Text("✎", color = MaterialTheme.colorScheme.onSecondaryContainer)
