@@ -719,8 +719,8 @@ fun LogQuickPanel(
                                     // 两段式（用户 09-08）：点行=暂存选中，底部「确认」才落库
                                     pendingVoice = tag
                                 },
-                                // 音效槽位不渲染试听键（理由见 CandidateRow.showPreview）
-                                showPreview = !isLocalSoundSlot,
+                                // 音效槽位也渲染试听键（目目 09-13 晚加回：也有自定义配置项的本地音效，
+                                // 试听文本走 localSoundSampleText 专用轨，与顶部 ▶ 同源）
                                 previewText = previewLabel(tag),
                                 previewColor = previewLabelColor(tag),
                                 onPreview = {
@@ -733,9 +733,11 @@ fun LogQuickPanel(
                                         scope.launch {
                                             val target = withIO { enabledConfigEntityByTag(tag) }
                                             if (target != null) {
-                                                TaggedTtsPreviewPlayer.play(
-                                                    context, target, "你好，这是试听语音。"
-                                                )
+                                                // 音效槽位用专用试听文本（双轨，用户 09-13）；其余固定句
+                                                val text = if (isLocalSoundSlot)
+                                                    AppConfig.localSoundSampleText.value.ifBlank { "你好，这是试听语音。" }
+                                                else "你好，这是试听语音。"
+                                                TaggedTtsPreviewPlayer.play(context, target, text)
                                             } else {
                                                 previewingKey = null
                                                 Toast.makeText(
@@ -1006,9 +1008,6 @@ private fun CandidateRow(
     onToggleMark: (String) -> Unit,
     deleteEnabled: Boolean,
     onDelete: () -> Unit,
-    // 音效槽位不提供行内试听（目目 09-13）：试听喂的是固定句「你好，这是试听语音。」，
-    // 而音效插件按正则匹配文本取音效 → 匹配不上多半不出声，索性藏键；非音效槽位恒 true
-    showPreview: Boolean = true,
 ) {
     var menuOpen by remember { mutableStateOf(false) }
     Row(
@@ -1040,10 +1039,8 @@ private fun CandidateRow(
                 )
             }
         }
-        if (showPreview) {
-            TextButton(onClick = onPreview) {
-                Text(previewText, color = previewColor)
-            }
+        TextButton(onClick = onPreview) {
+            Text(previewText, color = previewColor)
         }
         Box {
             IconButton(onClick = { menuOpen = true }) {
