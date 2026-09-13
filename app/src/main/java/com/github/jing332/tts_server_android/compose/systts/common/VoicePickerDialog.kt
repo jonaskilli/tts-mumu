@@ -483,7 +483,7 @@ fun VoicePickerDialog(
         onDismissRequest = onDismissRequest,
         properties = DialogProperties(usePlatformDefaultWidth = false),
         modifier = Modifier
-            .fillMaxWidth(0.92f)
+            .fillMaxWidth(0.92f),
         title = {
             // 角色卡形态（目目 09-13 终版，三易其稿：标题右侧→小字行→标题本身）：
             // 带角色名时标题显示「角色卡（角色名）」——「角色卡」明说身份，名字绿色加粗
