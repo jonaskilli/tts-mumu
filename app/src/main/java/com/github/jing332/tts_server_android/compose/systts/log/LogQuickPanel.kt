@@ -475,7 +475,10 @@ fun LogQuickPanel(
             //（此前 ▶ 垂直居中在两行文字块上，与名字行错位）；名字加省略号防长名硬裁
             Column(Modifier.fillMaxWidth()) {
                 Text(
-                    "当前发音人",
+                    // 角色名借顶部小标签行展示（目目 09-13：面板顶部要有角色名，又不加高度）；
+                    // 非角色条目（旁白/音效槽位）维持原字样
+                    if (entry.roleName.isBlank()) "当前发音人"
+                    else entry.roleName + " · 当前发音人",
                     style = MaterialTheme.typography.labelMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
@@ -501,29 +504,31 @@ fun LogQuickPanel(
                             )
                         }
                     }
-                    TextButton(onClick = {
-                        // 试听当前声音（09-10 参数跟随）：绑定模式=跟随目标+草稿；
-                        // 旁白=本配置项+暂存voice+草稿；播放中/合成中再点=停止复位（角色管理同款交互）
-                        if (previewingKey == PREVIEW_KEY_CURRENT && previewState != PreviewState.IDLE) {
-                            TaggedTtsPreviewPlayer.stop()
-                            previewingKey = null
-                            return@TextButton
-                        }
-                        previewingKey = PREVIEW_KEY_CURRENT
-                        scope.launch {
-                            val target = if (isBindingMode) draftParamsTarget() else null
-                            // 音效槽位用专用试听文本（与全局/编辑页音效文本同源，用户 09-13）；其余照旧固定句
-                            val text = if (isLocalSoundSlot)
-                                AppConfig.localSoundSampleText.value.ifBlank { "你好，这是试听语音。" }
-                            else "你好，这是试听语音。"
-                            TaggedTtsPreviewPlayer.play(context, target ?: draftEntity(pendingVoice), text)
-                        }
-                    }) {
-                        Text(
-                            previewLabel(PREVIEW_KEY_CURRENT),
-                            color = previewLabelColor(PREVIEW_KEY_CURRENT),
-                        )
-                    }
+                    // ▶ 同候选行方案A：裸字符可点替代 TextButton（单字符占 58dp 底座，顶栏紧巴巴），
+                    // 16dp 字形+两侧 12dp ≈40dp，上下 12dp 凑满 48dp 触控高（目目 09-13）
+                    Text(
+                        previewLabel(PREVIEW_KEY_CURRENT),
+                        color = previewLabelColor(PREVIEW_KEY_CURRENT),
+                        style = MaterialTheme.typography.titleMedium,
+                        modifier = Modifier.clickable {
+                            // 试听当前声音（09-10 参数跟随）：绑定模式=跟随目标+草稿；
+                            // 旁白=本配置项+暂存voice+草稿；播放中/合成中再点=停止复位（角色管理同款交互）
+                            if (previewingKey == PREVIEW_KEY_CURRENT && previewState != PreviewState.IDLE) {
+                                TaggedTtsPreviewPlayer.stop()
+                                previewingKey = null
+                                return@clickable
+                            }
+                            previewingKey = PREVIEW_KEY_CURRENT
+                            scope.launch {
+                                val target = if (isBindingMode) draftParamsTarget() else null
+                                // 音效槽位用专用试听文本（与全局/编辑页音效文本同源，用户 09-13）；其余照旧固定句
+                                val text = if (isLocalSoundSlot)
+                                    AppConfig.localSoundSampleText.value.ifBlank { "你好，这是试听语音。" }
+                                else "你好，这是试听语音。"
+                                TaggedTtsPreviewPlayer.play(context, target ?: draftEntity(pendingVoice), text)
+                            }
+                        },
+                    )
                 }
             }
 
@@ -652,10 +657,22 @@ fun LogQuickPanel(
                             onValueChange = { tagSearch = it },
                             singleLine = true,
                         )
+                    } else {
+                        // 纯显示分类框（目目 09-13：所有槽位都要有分类框，但只有可切大类的地方才给
+                        // 切换功能）：音效槽位大类恒为「本地音效」，只读不可切、无搜索
+                        OutlinedTextField(
+                            modifier = Modifier.fillMaxWidth(),
+                            value = "本地音效",
+                            onValueChange = {},
+                            readOnly = true,
+                            label = { Text("分类") },
+                            singleLine = true,
+                        )
                     }
                     // 搜索词同时匹配「标签名」与「配置项名」（用户 09-11 晚：记忆里是"女青年01晓晓"，
-                    // 原先只匹配标签名，搜"晓晓"搜不到）。候选行展示的正是这两段，搜索范围须与展示一致。
-                    // 音效槽位没有分类/搜索控件（上方已隐藏），直接全量出列
+                    // 原先只匹配标签名，搜"晓晓"搜不到）。候选行现在只显示配置项名（09-13 去序号），
+                    // 但按标签名搜仍应命中，故匹配范围保持两者并集。
+                    // 音效槽位没有搜索控件（上方已隐藏），直接全量出列
                     val filtered = if (isLocalSoundSlot) {
                         poolEnabled
                     } else {
@@ -695,22 +712,29 @@ fun LogQuickPanel(
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                             )
                         }
+                        // 重名兜底（目目 09-13 去序号后）：显示名在本轮候选里撞车才括号补回标签，
+                        // 正常情况一个字不多（一标签一启用，显示名基本不重）
+                        val dupNames = displayTags.groupingBy { t ->
+                            enabledConfigEntityByTag(t)?.displayName?.ifEmpty { null }
+                                ?: if (isLocalSoundSlot) localSoundSlotLabel(t) else t
+                        }.eachCount()
                         displayTags.forEach { tag ->
                             val isCurrent = tag == boundVoice
                             val isPending = tag == pendingVoice
-                            // 候选行显示「标签名+配置项名」（用户 09-09：原 displayName·tag 反过来去点）
+                            // 候选行=纯配置项显示名（目目 09-13 定稿：序号/标签不进行内，
+                            // 大类由上方分类框表达）；无显示名回落：音效槽位→「本地音效N」，其余→tag
                             // 候选池已筛 fayinren.json∩启用配置（tag id 口径），用 enabledConfigEntityByTag 即可取到 displayName
                             val cfgName = enabledConfigEntityByTag(tag)?.displayName.orEmpty()
-                            // 本地音效槽位的 tag 是英文 localSoundN，看不出槽位号 → 显示成「本地音效N」
-                            // （与规则 tags 表 / 列表角标同口径）；其余槽位沿用 tag(id)
                             val rowName = if (isLocalSoundSlot) localSoundSlotLabel(tag) else tag
+                            val rowText = if (dupNames.getOrDefault(cfgName.ifEmpty { rowName }, 0) > 1)
+                                "${cfgName.ifEmpty { rowName }}（$rowName）" else cfgName.ifEmpty { rowName }
                             // 标记/删除收进 ⋮ 菜单（用户 09-12 晚定稿紧凑化：行内塞 5 键把名字挤没）；
                             // 点亮标记由 CandidateRow 渲染在名字后
                             val rowMarks = remember(tag, marksVersion) {
                                 VoiceMarksFile.get(config.speechRule.tagRuleId, tag)
                             }
                             CandidateRow(
-                                text = rowName + cfgName,
+                                text = rowText,
                                 isCurrent = isCurrent,
                                 isPending = isPending,
                                 // 当前项染主色与候选行同口径（用户 09-13：图二绑定行当前项是黑的、
@@ -777,6 +801,20 @@ fun LogQuickPanel(
                     // 落库后主列表自动定位高亮被改项（sharedVM.pendingLocateConfigId）
                     val currentTagId = config.speechRule.tag
                     val currentTagName = config.speechRule.tagName
+                    // 纯显示分类框（目目 09-13）：非绑定类（旁白/对话/括号…）没有大类下拉，
+                    // 但分类框要有——展示本配置项所属大类（tagName 剥尾部数字，如 括号1→括号），
+                    // 只读不可切；候选行因此不再重复带标签前缀
+                    val displayCategory = Regex("^(.*[\\u4e00-\\u9fa5])\\d{0,4}$")
+                        .find(currentTagName)?.groupValues?.getOrNull(1)
+                        ?.ifEmpty { null } ?: currentTagName
+                    OutlinedTextField(
+                        modifier = Modifier.fillMaxWidth(),
+                        value = displayCategory,
+                        onValueChange = {},
+                        readOnly = true,
+                        label = { Text("分类") },
+                        singleLine = true,
+                    )
                     val narrationCandidates = remember(entity.id, currentTagId) {
                         allConfigs.mapNotNull { c ->
                             val dto = c.config as? TtsConfigurationDTO ?: return@mapNotNull null
