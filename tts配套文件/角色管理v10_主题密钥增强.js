@@ -20,7 +20,7 @@ var PluginJS = {
 
     'author': "命無言",
     'iconUrl': 'https://img.picui.cn/free/2025/02/24/67bc5a1bac4cf.png',
-    'version': 20260905,
+    'version': 20260913,
   
     // 【核心修改：新增http开头文本的直接下载逻辑】
     'getAudio': function (text, locale, voice, speed, volume, pitch) {
@@ -7373,159 +7373,39 @@ var EditorJS = {
             }
         }
 
-        // 更换发音人时直接弹出搜索弹窗
+        // 更换发音人（目目 09-13「完全同源」改版）：不再走自绘三级弹窗（筛选关键词→搜索→
+        // 候选列表），直接调 app 桥 ttsrv.showVoicePickerDialog 弹出与日志快捷面板**同款**的
+        // 「更换发音人+音频参数」弹窗——分类下拉/搜索/行内试听(▶…■)/已用徽章/emoji标记/
+        // 删除配置项/音频参数三层滑杆全由 app 端渲染，与日志面板共用同一组件（VoicePickerDialog）。
+        // 换声确认后 app 直接写 characterRecords.json+gengxin.json（与插件同文件同字段），
+        // 并经 PluginJS.onVoicePickedFromApp（onLoadUI 内注册）回喊本插件重读磁盘刷新列表。
+        // 合并流程暂留原关键词弹窗（showKeywordSelectionDialog 保留），后续如需再统一。
         function showVoiceSelectionDialogForFix() {
-            if (longPressedIndex === -1 || !characterRecords[longPressedIndex]) {
-                showKeywordSelectionDialog(function(selectedVoice) {
-                    doFixVoiceOperation(selectedVoice);
-                });
-                return;
-            }
-            
-            var character = characterRecords[longPressedIndex];
-            var currentVoice = (character.voice || "").trim();
-            
-            // 如果没有当前发音人，直接进关键词选择弹窗
-            if (!currentVoice) {
-                showKeywordSelectionDialog(function(selectedVoice) {
-                    doFixVoiceOperation(selectedVoice);
-                });
-                return;
-            }
-            
-            // 检查当前发音人是否匹配某个预设关键词
-            var matchedKeyword = null;
-            var allKeywords = PRESET_KEYWORDS_ROW1.concat(PRESET_KEYWORDS_ROW2)
-                .concat(PRESET_KEYWORDS_ROW3).concat(PRESET_KEYWORDS_ROW4)
-                .concat(PRESET_KEYWORDS_ROW5).concat(PRESET_KEYWORDS_ROW6);
-            for (var ki = 0; ki < allKeywords.length; ki++) {
-                if (currentVoice.indexOf(allKeywords[ki]) !== -1) {
-                    matchedKeyword = allKeywords[ki];
-                    break;
+            try {
+                if (longPressedIndex === -1 || !characterRecords[longPressedIndex]) {
+                    showKeywordSelectionDialog(function(selectedVoice) {
+                        doFixVoiceOperation(selectedVoice);
+                    });
+                    return;
                 }
-            }
-            
-            // 如果没匹配到关键词，直接进关键词选择弹窗
-            if (!matchedKeyword) {
-                showKeywordSelectionDialog(function(selectedVoice) {
-                    doFixVoiceOperation(selectedVoice);
+                var character = characterRecords[longPressedIndex];
+                var currentVoice = (character.voice || "").trim();
+                // 无当前发音人：无法解析锚点配置项（弹窗需要参数基准），保留原关键词弹窗兜底
+                if (!currentVoice) {
+                    showKeywordSelectionDialog(function(selectedVoice) {
+                        doFixVoiceOperation(selectedVoice);
+                    });
+                    return;
+                }
+                var opts = JSON.stringify({
+                    bindingKey: safeGetName(character),
+                    anchorTag: currentVoice,
+                    title: "更换发音人"
                 });
-                return;
+                ttsrv.showVoicePickerDialog(opts, "onVoicePickedFromApp");
+            } catch (e) {
+                _logErr("更换发音人桥调用异常", e, true);
             }
-            
-            // 弹出选择：用当前关键词筛选 or 搜索其他
-            var fixContainer = new android.widget.LinearLayout(ctx);
-            fixContainer.setOrientation(android.widget.LinearLayout.VERTICAL);
-            fixContainer.setPadding(dipToPx(16), dipToPx(12), dipToPx(16), dipToPx(32));
-            
-            // 小标题
-            fixContainer.addView(createDialogTitle("更换发音人"));
-            
-            // 当前发音人提示（不显示匹配关键词）
-            var hintView = new android.widget.TextView(ctx);
-            hintView.setText("当前发音人：" + currentVoice);
-            hintView.setTextSize(13);
-            hintView.setTextColor(android.graphics.Color.parseColor("#757575"));
-            hintView.setGravity(android.view.Gravity.CENTER);
-            var hintParams = new android.widget.LinearLayout.LayoutParams(
-                android.widget.LinearLayout.LayoutParams.MATCH_PARENT,
-                android.widget.LinearLayout.LayoutParams.WRAP_CONTENT
-            );
-            hintParams.setMargins(0, 0, 0, dipToPx(12));
-            hintView.setLayoutParams(hintParams);
-            fixContainer.addView(hintView);
-            
-            // 选项配置
-            var fixOptions = [
-                { text: "筛选「" + matchedKeyword + "」类发音人", color: "#43A047", icon: "" },
-                { text: "搜索其他关键词", color: RMTHEME.cur.main, icon: "" }
-            ];
-            
-            for (var fi = 0; fi < fixOptions.length; fi++) {
-                (function(cfg) {
-                    var row = new android.widget.LinearLayout(ctx);
-                    row.setOrientation(android.widget.LinearLayout.HORIZONTAL);
-                    row.setGravity(android.view.Gravity.CENTER);
-                    var rowParams = new android.widget.LinearLayout.LayoutParams(
-                        android.widget.LinearLayout.LayoutParams.MATCH_PARENT,
-                        android.widget.LinearLayout.LayoutParams.WRAP_CONTENT
-                    );
-                    rowParams.setMargins(0, dipToPx(4), 0, dipToPx(4));
-                    row.setLayoutParams(rowParams);
-                    
-                    var bg = new android.graphics.drawable.GradientDrawable();
-                    bg.setShape(android.graphics.drawable.GradientDrawable.RECTANGLE);
-                    bg.setCornerRadius(dipToPx(10));
-                    bg.setColor(android.graphics.Color.parseColor("#FFFFFF"));
-                    bg.setStroke(dipToPx(1), android.graphics.Color.parseColor("#10000000"));
-                    row.setBackground(bg);
-                    row.setPadding(dipToPx(14), dipToPx(12), dipToPx(14), dipToPx(12));
-                    row.setClickable(true);
-                    
-                    // 简约彩色圆点点缀
-                    var accentDot = new android.view.View(ctx);
-                    var dotParams = new android.widget.LinearLayout.LayoutParams(dipToPx(7), dipToPx(7));
-                    dotParams.setMargins(0, 0, dipToPx(8), 0);
-                    accentDot.setLayoutParams(dotParams);
-                    var dotBg = new android.graphics.drawable.GradientDrawable();
-                    dotBg.setShape(android.graphics.drawable.GradientDrawable.OVAL);
-                    dotBg.setColor(android.graphics.Color.parseColor(cfg.color));
-                    accentDot.setBackground(dotBg);
-                    row.addView(accentDot);
-                    
-                    var iconView = new android.widget.TextView(ctx);
-                    iconView.setText(cfg.icon);
-                    iconView.setTextSize(16);
-                    iconView.setTextColor(android.graphics.Color.parseColor("#333333"));
-                    var iconParams = new android.widget.LinearLayout.LayoutParams(
-                        android.widget.LinearLayout.LayoutParams.WRAP_CONTENT,
-                        android.widget.LinearLayout.LayoutParams.WRAP_CONTENT
-                    );
-                    iconParams.setMargins(0, 0, dipToPx(12), 0);
-                    iconView.setLayoutParams(iconParams);
-                    row.addView(iconView);
-                    
-                    var textView = new android.widget.TextView(ctx);
-                    textView.setText(cfg.text);
-                    textView.setTextSize(15);
-                    textView.setTextColor(android.graphics.Color.parseColor("#333333"));
-                    textView.setGravity(android.view.Gravity.CENTER);
-                    var textParams = new android.widget.LinearLayout.LayoutParams(
-                        0, android.widget.LinearLayout.LayoutParams.WRAP_CONTENT, 1
-                    );
-                    textView.setLayoutParams(textParams);
-                    row.addView(textView);
-                    
-                    row.setOnClickListener(new android.view.View.OnClickListener({
-                        onClick: function(view) {
-                            fixChoiceDialog.dismiss();
-                            if (cfg.text.indexOf("筛选") === 0) {
-                                // 用当前关键词直接筛选
-                                filterAndShowVoiceList(matchedKeyword, function(selectedVoice) {
-                                    doFixVoiceOperation(selectedVoice);
-                                });
-                            } else {
-                                // 进关键词选择弹窗
-                                showKeywordSelectionDialog(function(selectedVoice) {
-                                    doFixVoiceOperation(selectedVoice);
-                                });
-                            }
-                        }
-                    }));
-                    
-                    fixContainer.addView(row);
-                })(fixOptions[fi]);
-            }
-            
-            var fixBuilder = new android.app.AlertDialog.Builder(ctx);
-            fixBuilder.setView(fixContainer);
-            
-            var fixChoiceDialog = fixBuilder.create();
-            // 开新弹窗前先 dismiss 旧的，确保任意时刻只有一个弹窗
-            try { if (_currentVoiceDialog != null && _currentVoiceDialog.isShowing()) _currentVoiceDialog.dismiss(); } catch (eOld) {}
-            _currentVoiceDialog = fixChoiceDialog;
-            fixChoiceDialog.show();
-            applyDialogRoundCorner(fixChoiceDialog);
         }
         
         
@@ -8200,6 +8080,24 @@ var EditorJS = {
         // 将 refreshCharacterList 暴露给模块级回调（onVoiceChanged 等），
         // 因其定义在 onLoadUI 闭包内，模块级方法无法直接访问。
         _refreshCharacterListFn = refreshCharacterList;
+
+        // 注册通用换声弹窗桥回调（目目 09-13「完全同源」改版）：角色管理点发音人标签后，
+        // app 端弹出与日志快捷面板同款的 VoicePickerDialog；弹窗内换声落库（app 直接写
+        // characterRecords.json+gengxin.json，与插件同文件同字段）/删除配置项/标记变化后，
+        // 经 PluginJS.onVoicePickedFromApp 回喊这里——重读磁盘数据并刷新列表。
+        // payload={"event":"applied|deleted|marked","tag":".."}
+        PluginJS.onVoicePickedFromApp = function (payloadJson) {
+            try {
+                _clogKey("换声弹窗回调: " + payloadJson);
+                var payload = {};
+                try { payload = JSON.parse(payloadJson) || {}; } catch (eP) {}
+                // 关掉插件侧可能开着的弹窗（避免叠窗）
+                try { if (_currentVoiceDialog != null && _currentVoiceDialog.isShowing()) _currentVoiceDialog.dismiss(); } catch (eD) {}
+                refreshCharacterData();
+            } catch (e) {
+                _logErr("换声弹窗回调异常", e, true);
+            }
+        };
 
         // 更新列表外观（标记/选中状态可视化）
         

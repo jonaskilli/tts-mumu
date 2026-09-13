@@ -77,3 +77,11 @@
   - `90c71f3`：卡片第二块（音色 id + 最终参数行）字号 bodyMedium 14sp→**13sp**（仍大于下方采样率/格式行 bodySmall 12sp）；配置项音频参数弹窗撤折叠手风琴恢复平铺。
   - `9dbf0e1`：弹窗顶部**恢复**当前发音人 + ▶试听 + 终值行（09-10 一度裁撤，用户要求恢复），▶ 走三层草稿覆盖。
   - `9dcd115`：音频参数三处层滑杆尺寸统一（标签 14sp / 加减 48dp·24dp / 轨道 3.5dp / thumb 3.5×22dp），经 `LabelSlider` 可选参数实现。
+
+
+---
+
+## 入口 4：角色管理通用换声弹窗（2026-09-13）
+
+- 角色管理插件经桥 `ttsrv.showVoicePickerDialog` 弹出的 `VoicePickerDialog`（与日志快捷面板同款组件）自带**音频参数第二分段**：按维度三层滑杆+重置/应用+草稿试听，参数跟随所选发音人，与日志面板完全一致——角色管理从此具备调音频参数能力（此前缺失）。
+- 实现链：`TtsEngineContext.showVoicePickerDialog` → `VoicePickerBus`（lib-tts）→ `PluginTtsUI.EditContentScreen` 宿主观察渲染；`TtsPluginEngineV2` init 注入 `jsInvoker`（Rhino 回调通道）。
