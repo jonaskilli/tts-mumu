@@ -601,7 +601,7 @@ function voteNameAnalyzeResult(successResults, dialogTextMap) {
       }
     }
 
-    // 无有效结果兜底：性别留空，由调用方走中性 duihuaA（男），避免随机男女声误导
+    // 无有效结果兜底：性别留空，由调用方走中性 括号4（『对话旁白』），避免随机男女声误导
     if (seqAllResults.length === 0) {
       finalResult[currentSeq] = {
         name: "未知",
@@ -2003,15 +2003,15 @@ CharacterManager.prototype.processCharacter = function (fullText, characterId, a
     if (record) targetMainRecord = record;
   }
   if (newCharacterName === "未知") {
-    // 判断不出角色名时，按已识别的性别走兜底：男→duihuaA，女→duihuaB，性别未知→duihuaA
-    var fallbackTag = analysis.gender === "男" ? "duihuaA" : analysis.gender === "女" ? "duihuaB" : "duihuaA";
+    // 判断不出角色名时，按已识别的性别走兜底：男→duihuaA，女→duihuaB，性别未知→括号4（用户 09-13：中性兜底改投『对话旁白』）
+    var fallbackTag = analysis.gender === "男" ? "duihuaA" : analysis.gender === "女" ? "duihuaB" : "括号4";
     console.log("【兜底分配】角色无法识别(性别:" + (analysis.gender || "未知") + ")→" + fallbackTag + " | 文本:" + cleanText.substring(0, 20));
     return { text: cleanText, tag: fallbackTag };
   }
   if (!targetMainRecord) {
     var voice = this.assignVoice(analysis.gender, analysis.age);
     if (!voice) {
-      var fbTag1 = analysis.gender === "男" ? "duihuaA" : analysis.gender === "女" ? "duihuaB" : "duihuaA";
+      var fbTag1 = analysis.gender === "男" ? "duihuaA" : analysis.gender === "女" ? "duihuaB" : "括号4";
       console.log("【兜底分配】无可用发音人(角色:" + newCharacterName + ",性别:" + (analysis.gender || "未知") + ")→" + fbTag1);
       return { text: cleanText, tag: fbTag1 };
     }
@@ -2038,7 +2038,7 @@ CharacterManager.prototype.processCharacter = function (fullText, characterId, a
         targetMainRecord.age = analysis.age;
         this.saveRecords();
       } else {
-        var fbTag2 = analysis.gender === "男" ? "duihuaA" : analysis.gender === "女" ? "duihuaB" : "duihuaA";
+        var fbTag2 = analysis.gender === "男" ? "duihuaA" : analysis.gender === "女" ? "duihuaB" : "括号4";
         console.log("【兜底分配】发音人失效且无可用(角色:" + newCharacterName + ",性别:" + (analysis.gender || "未知") + ")→" + fbTag2);
         targetMainRecord.voice = fbTag2;
       }
@@ -2069,7 +2069,7 @@ CharacterManager.prototype.processCharacter = function (fullText, characterId, a
     if (!targetMainRecord.voice || targetMainRecord.voice === "") {
       targetMainRecord.voice = this.assignVoice(analysis.gender, analysis.age);
       if (!targetMainRecord.voice) {
-        var fbTag3 = analysis.gender === "男" ? "duihuaA" : analysis.gender === "女" ? "duihuaB" : "duihuaA";
+        var fbTag3 = analysis.gender === "男" ? "duihuaA" : analysis.gender === "女" ? "duihuaB" : "括号4";
         console.log("【兜底分配】角色voice为空且无可用(角色:" + newCharacterName + ",性别:" + (analysis.gender || "未知") + ")→" + fbTag3);
         return { text: cleanText, tag: fbTag3 };
       }
@@ -2887,7 +2887,7 @@ function matchDialogFromCache(currentDialogText) {
 
 
 CharacterManager.prototype.analyzeCharacterFallback = function(fullText, characterId) {
-  // 密钥失效/分析失败时的降级兜底：性别留空，由调用方走中性 duihuaA（男），避免随机男女声误导
+  // 密钥失效/分析失败时的降级兜底：性别留空，由调用方走中性 括号4（『对话旁白』），避免随机男女声误导
   return { name: "未知", gender: "", age: "" };
 };
 
@@ -4838,13 +4838,13 @@ text = text.replace(/(^|[^a-zA-Z\u4e00-\u9fa5])(嗝|嗝儿)(?![a-zA-Z\u4e00-\u9f
                     } else {
                       originalItem = { 
                         text: restoredText.replace(/^(“?)【\d+】/, "$1").toString(), 
-                        tag: "duihuaA" 
+                        tag: "括号4" 
                       };
                     }
                   } else {
                     originalItem = { 
                       text: restoredText.replace(/^(“?)【\d+】/, "$1").toString(), 
-                      tag: "duihuaA" 
+                      tag: "括号4" 
                     };
                   }
                 }

@@ -57,7 +57,7 @@ internal class TtsRepository(
             .filter { it.isEnabled }
             .filter {
                 (it.config as? TtsConfigurationDTO)?.speechRule?.tag in
-                    setOf("duihuaA", "duihuaB", "duihua")
+                    setOf("duihuaA", "duihuaB", "duihua", "括号4")
             }
             .mapNotNull(::configurationFor)
             .toList()
@@ -76,16 +76,18 @@ internal class TtsRepository(
                 }
                 val genderStandby = run {
                     val originalTag = dto.speechRule.tag
-                    if (originalTag in setOf("duihuaA", "duihuaB", "duihua")) return@run null
+                    if (originalTag in setOf("duihuaA", "duihuaB", "duihua", "括号4")) return@run null
                     // 性别兜底：男*→duihuaA、女*→duihuaB；性别未知原投中性 duihua——
-                    // 用户 09-12 拍板：duihua 弃用，中性备用改投 duihuaA（tagName=男），
-                    // 不留 duihua 回落（目目：不用留兼容尾巴）
+                    // 用户 09-12 拍板：duihua 弃用，中性备用改投 duihuaA（tagName=男）；
+                    // 用户 09-13 改定：中性兜底改投 括号4（tagName=『对话旁白』，新闻腔旁白女声，
+                    // 比男声贴合叙述类文本）。括号4 本职是『』括号发音人，仅借用其配置当中性兜底，
+                    // 其同标签备用/失败报错口径不变（不在 isFallbackTag 名单，防自引用见上方排除）
                     val genderTag = when {
                         originalTag.startsWith("男") || originalTag.startsWith("少年") ||
                             originalTag == "特殊男" -> "duihuaA"
                         originalTag.startsWith("女") || originalTag.startsWith("少女") ||
                             originalTag == "特殊女" -> "duihuaB"
-                        else -> "duihuaA"
+                        else -> "括号4"
                     }
                     genderFallbackConfigs.find {
                         it.speechInfo.target == dto.speechRule.target &&
