@@ -10,6 +10,7 @@ import androidx.compose.material.icons.filled.CallMerge
 import androidx.compose.material.icons.filled.MoveToInbox
 import androidx.compose.material.icons.automirrored.filled.ExitToApp
 import androidx.compose.material.icons.filled.AutoFixHigh
+import androidx.compose.material.icons.filled.TextFields
 import androidx.compose.material.icons.filled.Speed
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
@@ -254,6 +255,7 @@ fun Group(
             }
 
             // 修改子分组前缀：批量替换子分组名开头文字(加/去/换前缀)；无子分组时无意义，隐藏
+            // 图标用 TextFields（目目 09-13：原 DriveFileRenameOutline 与顶部「重命名」同款铅笔，分不清）
             if (onRenameSubPrefix != null && hasSubGroups) {
                 DropdownMenuItem(text = { Text("修改子分组前缀") },
                     onClick = {
@@ -261,7 +263,7 @@ fun Group(
                         onRenameSubPrefix!!()
                     },
                     leadingIcon = {
-                        Icon(Icons.Default.DriveFileRenameOutline, null)
+                        Icon(Icons.Default.TextFields, null)
                     }
                 )
             }

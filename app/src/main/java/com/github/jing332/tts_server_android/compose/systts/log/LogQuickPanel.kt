@@ -136,16 +136,19 @@ fun LogQuickPanel(
     val isBindingMode = bindingKey.isNotBlank()
 
     // ===== 行内试听状态（参照角色管理v9/v10试听状态机：▶ →(点击)… →(真正出声)■ →(播完复位)▶）=====
-    // 播放器全局单实例（同一时刻只有一个试听），previewingKey 记当前行（顶部=current，绑定=tag，旁白=voice）；
-    // 状态由 TaggedTtsPreviewPlayer.state 驱动，播完/失败/被顶替回到 IDLE 时复位行标记
+    // 播放器全局单实例（同一时刻只有一个试听），previewingKey 记当前行（顶部=current，绑定=tag，旁白=voice）
     val previewState by TaggedTtsPreviewPlayer.state.collectAsState()
     var previewingKey by remember(entity.id) { mutableStateOf<Any?>(null) }
-    androidx.compose.runtime.LaunchedEffect(previewState) {
-        if (previewState == PreviewState.IDLE) previewingKey = null
-    }
+    // 标签纯由 previewingKey+previewState 推导，**不用 LaunchedEffect 在 IDLE 时清 key**——
+    // 那条复位路会把「上一条试听刚结束/失败的 IDLE 广播」落进新点击与 play() 置 SYNTHESIZING
+    // 的窗口里（绑定分支要经 withIO 查库才有 play，窗口更宽），刚写入的新 key 被抹掉、
+    // play 照常出声 → 该行全程 ▶ 无反馈（目目 09-13：「第一行有反馈、后面的行点了不动」实锤）。
+    // 改状态推导后 IDLE 恒显 ▶、key 残留无害（所有消费点都有 state!=IDLE 守卫），与角色管理
+    // 插件的轮询复位语义完全一致
     fun previewLabel(key: Any?): String = when {
-        previewingKey == key && previewState == PreviewState.PLAYING -> "■"
-        previewingKey == key -> "…"
+        previewingKey != key -> "▶"
+        previewState == PreviewState.PLAYING -> "■"
+        previewState == PreviewState.SYNTHESIZING -> "…"
         else -> "▶"
     }
 
@@ -690,7 +693,7 @@ fun LogQuickPanel(
                             // 此框落到 16sp、比上方 AppSpinner 值(14sp)大一号（老问题复发：面板弹窗
                             // 正文槽并非恒 14sp），显式指定与下拉框对齐
                             textStyle = MaterialTheme.typography.bodyMedium,
-                            placeholder = { Text("搜索标签名/名字") },
+                            placeholder = { Text("搜索标签/显示名") },
                             value = tagSearch,
                             onValueChange = { tagSearch = it },
                             singleLine = true,
