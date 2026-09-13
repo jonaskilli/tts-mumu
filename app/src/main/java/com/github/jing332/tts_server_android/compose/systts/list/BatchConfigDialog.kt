@@ -259,18 +259,9 @@ fun BatchConfigDialog(
 
                     // ── 4. 删除配置项：清单（可整组删）──
                     else -> {
-                        if (itemBuckets.isEmpty()) {
-                            // 空态只可能是"没选具体插件"：筛选候选只含实际出现的插件，
-                            // 选中任一插件就必然有项。删除必须指定插件，故提示先选。
-                            // 空态提示换主题色（用户 09-13：原次要灰太不起眼，这条是"现在还不能删"的
-                            // 行动指引，需要一眼看到）
-                            Text(
-                                stringResource(R.string.batch_cfg_delete_pick_plugin_hint),
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.primary,
-                                modifier = Modifier.padding(vertical = 8.dp)
-                            )
-                        }
+                        // 空态提示由 ScopePluginPicker(restricted=true) 负责（未选插件时
+                        // 它在下拉框下方出「请先在上方选择一个插件」），此处不再重复出提示
+                        // （用户 09-13：两条一模一样的提示叠着显示）
                         LazyColumn(
                             modifier = Modifier
                                 .fillMaxWidth()

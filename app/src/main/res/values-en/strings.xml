@@ -532,6 +532,7 @@
     <string name="batch_cfg_keep_unchanged">No change</string>
     <string name="batch_cfg_change_plugin_to">Change plugin to</string>
     <string name="batch_cfg_delete_pick_plugin_hint">Select a plugin above first</string>
+    <string name="search_tag_or_display_name">Search tags / display names</string>
     <string name="batch_cfg_delete_all">Delete all %1$d</string>
     <string name="batch_cfg_expand">Expand</string>
     <string name="batch_cfg_collapse">Collapse</string>

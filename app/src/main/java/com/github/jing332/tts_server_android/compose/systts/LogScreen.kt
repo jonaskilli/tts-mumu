@@ -162,16 +162,11 @@ fun LogScreen(
                         append("\u2002×${log.repeatCount}")
                     } else spanned
 
-                    // 正文着色（09-13 定案：插件/规则日志正文一律回归正文色，不再用彩色区分来源——
-                    // 彩色方案两轮被否（琥珀金"屎黄"、莓紫"丑"），来源区分交给日志筛选 chip；
-                    // DEBUG/TRACE 用 onSurfaceVariant 淡一档保层次；ERROR/WARN 维持级别色，SUCCESS 走石板灰
+                    // 正文着色（09-13 终版：插件/规则日志与「请求音频」等普通 INFO 完全同色——
+                    // 即级别色 INFO=绿；此前 onSurface/彩色方案两轮被否后仍不齐，目目指认
+                    // 要"跟请求音频一模一样"，直接取消特判。SUCCESS 维持石板灰）
                     val bodyColor = when {
                         log.level == LogLevel.SUCCESS -> metaColor
-                        log.isPluginLog || log.isSpeechRuleLog -> when (log.level) {
-                            LogLevel.INFO -> MaterialTheme.colorScheme.onSurface
-                            LogLevel.DEBUG, LogLevel.TRACE -> MaterialTheme.colorScheme.onSurfaceVariant
-                            else -> Color(log.level.toArgb(isDarkTheme = darkTheme))
-                        }
                         else -> Color(log.level.toArgb(isDarkTheme = darkTheme))
                     }
 

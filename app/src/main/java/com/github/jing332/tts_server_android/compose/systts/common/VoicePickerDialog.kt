@@ -712,9 +712,16 @@ fun VoicePickerDialog(
                             // bodyLarge 16sp，观感比旁边内容大一圈；代价是输入后提示消失（可接受）
                             // 字号显式钉 bodyMedium 14sp（用户 09-13）：依赖 LocalTextStyle 继承时
                             // 此框落到 16sp、比上方 AppSpinner 值(14sp)大一号（老问题复发：面板弹窗
-                            // 正文槽并非恒 14sp），显式指定与下拉框对齐
+                            // 正文槽并非恒 14sp），显式指定与下拉框对齐。
+                            // 09-13 二次修：textStyle 只作用于输入文字，placeholder 的 Text 不吃它、
+                            // 仍走 LocalTextStyle(16sp)，必须给 placeholder 单独钉 style
                             textStyle = MaterialTheme.typography.bodyMedium,
-                            placeholder = { Text("搜索标签/显示名") },
+                            placeholder = {
+                                Text(
+                                    stringResource(R.string.search_tag_or_display_name),
+                                    style = MaterialTheme.typography.bodyMedium
+                                )
+                            },
                             value = tagSearch,
                             onValueChange = { tagSearch = it },
                             singleLine = true,
