@@ -6608,7 +6608,7 @@ var EditorJS = {
 
             for (var vi = 0; vi < voiceOptions.length; vi++) {
                 (function(vopt, vidx) {
-                    // vrow 纵向：上行=名+操作组，下行（可选）=已点亮emoji+已分配
+// vrow 单行：圆点 + 名 + [已分配徽章] + [已点亮emoji] + ⋮ + ▶（目目 09-13 压单行）
                     var vrow = new android.widget.LinearLayout(ctx);
                     vrow.setOrientation(android.widget.LinearLayout.VERTICAL);
                     vrow.setGravity(android.view.Gravity.CENTER_VERTICAL);
@@ -6713,6 +6713,61 @@ var EditorJS = {
                             } catch (e) { _logErr("搜索弹窗⋮弹窗异常", e, true); }
                         }
                     }));
+                    // 单行化（目目 09-13）：「已分配」徽章与已点亮 emoji 挪进上行名字后，
+                    // 不再单占一行，行高恒定（原来下行只有有标记/已分配的行才出现，观感参差）
+                    if (_hasAssigned) {
+                        var assignedTag = new android.widget.TextView(ctx);
+                        assignedTag.setText("已分配");
+                        assignedTag.setTextSize(10);
+                        assignedTag.setTextColor(android.graphics.Color.parseColor(RMTHEME.cur.main));
+                        assignedTag.setSingleLine(true);
+                        assignedTag.setGravity(android.view.Gravity.CENTER);
+                        assignedTag.setPadding(dipToPx(6), dipToPx(2), dipToPx(6), dipToPx(2));
+                        var assignedBg = new android.graphics.drawable.GradientDrawable();
+                        assignedBg.setShape(android.graphics.drawable.GradientDrawable.RECTANGLE);
+                        assignedBg.setCornerRadius(dipToPx(8));
+                        assignedBg.setColor(android.graphics.Color.parseColor(RMTHEME.cur.tint));
+                        assignedTag.setBackground(assignedBg);
+                        var assignedLp = new android.widget.LinearLayout.LayoutParams(
+                            android.widget.LinearLayout.LayoutParams.WRAP_CONTENT,
+                            android.widget.LinearLayout.LayoutParams.WRAP_CONTENT
+                        );
+                        assignedLp.setMargins(0, 0, dipToPx(2), 0);
+                        assignedTag.setLayoutParams(assignedLp);
+                        vRow1.addView(assignedTag);
+                    }
+
+                    if (_hasEmoji) {
+                        // 遍历已点亮的标记，每个生成一个 emoji（多选时显示多个）
+                        for (var _vi = 0; _vi < _curMarks2.length; _vi++) {
+                            var _oneM2 = _curMarks2[_vi];
+                            if (!_vMarkEmojiMap[_oneM2]) continue;
+                            var _litVE = new android.widget.TextView(ctx);
+                            _litVE.setText(_vMarkEmojiMap[_oneM2]);
+                            _litVE.setTextSize(16);
+                            _litVE.setSingleLine(true);
+                            _litVE.setGravity(android.view.Gravity.CENTER);
+                            _litVE.setPadding(dipToPx(2), dipToPx(4), dipToPx(2), dipToPx(4));
+                            // 闭包捕获当前 mark，点击取消该单个标记
+                            (function(_cancelM2) {
+                                _litVE.setOnClickListener(new android.view.View.OnClickListener({
+                                    onClick: function(v) {
+                                        try {
+                                            setVoiceMark(_markTag2, _cancelM2);
+                                            // 局部移除被点击的 emoji，不重建整个弹窗（避免批量重查+重建卡顿）
+                                            try {
+                                                var parent = (v.getParent && v.getParent()) || vRow1;
+                                                parent.removeView(v);
+                                            } catch (eRm2) {}
+                                            Toast.makeText(ctx, "已取消标记", Toast.LENGTH_SHORT).show();
+                                        } catch (e) { _logErr("搜索弹窗取消标记异常", e, true); }
+                                    }
+                                }));
+                            })(_oneM2);
+                            vRow1.addView(_litVE);
+                        }
+                    }
+
                     vRow1.addView(vMgBtn);
 
                     var pvBtn = new android.widget.TextView(ctx);
@@ -6738,73 +6793,6 @@ var EditorJS = {
 
                     vrow.addView(vRow1);
 
-                    // 下行（可选）：已点亮emoji + 已分配标签（任一存在才显示）
-                    if (_hasEmoji || _hasAssigned) {
-                        var vRow2 = new android.widget.LinearLayout(ctx);
-                        vRow2.setOrientation(android.widget.LinearLayout.HORIZONTAL);
-                        vRow2.setGravity(android.view.Gravity.CENTER_VERTICAL);
-                        var vRow2Lp = new android.widget.LinearLayout.LayoutParams(
-                            android.widget.LinearLayout.LayoutParams.WRAP_CONTENT,
-                            android.widget.LinearLayout.LayoutParams.WRAP_CONTENT
-                        );
-                        vRow2Lp.setMargins(dipToPx(15), dipToPx(4), 0, 0);
-                        vRow2.setLayoutParams(vRow2Lp);
-
-                        if (_hasAssigned) {
-                            var assignedTag = new android.widget.TextView(ctx);
-                            assignedTag.setText("已分配");
-                            assignedTag.setTextSize(10);
-                            assignedTag.setTextColor(android.graphics.Color.parseColor(RMTHEME.cur.main));
-                            assignedTag.setSingleLine(true);
-                            assignedTag.setGravity(android.view.Gravity.CENTER);
-                            assignedTag.setPadding(dipToPx(6), dipToPx(2), dipToPx(6), dipToPx(2));
-                            var assignedBg = new android.graphics.drawable.GradientDrawable();
-                            assignedBg.setShape(android.graphics.drawable.GradientDrawable.RECTANGLE);
-                            assignedBg.setCornerRadius(dipToPx(8));
-                            assignedBg.setColor(android.graphics.Color.parseColor(RMTHEME.cur.tint));
-                            assignedTag.setBackground(assignedBg);
-                            var assignedLp = new android.widget.LinearLayout.LayoutParams(
-                                android.widget.LinearLayout.LayoutParams.WRAP_CONTENT,
-                                android.widget.LinearLayout.LayoutParams.WRAP_CONTENT
-                            );
-                            assignedLp.setMargins(0, 0, dipToPx(6), 0);
-                            assignedTag.setLayoutParams(assignedLp);
-                            vRow2.addView(assignedTag);
-                        }
-
-                        if (_hasEmoji) {
-                            // 遍历已点亮的标记，每个生成一个 emoji（多选时显示多个）
-                            for (var _vi = 0; _vi < _curMarks2.length; _vi++) {
-                                var _oneM2 = _curMarks2[_vi];
-                                if (!_vMarkEmojiMap[_oneM2]) continue;
-                                var _litVE = new android.widget.TextView(ctx);
-                                _litVE.setText(_vMarkEmojiMap[_oneM2]);
-                                _litVE.setTextSize(16);
-                                _litVE.setSingleLine(true);
-                                _litVE.setGravity(android.view.Gravity.CENTER);
-                                _litVE.setPadding(dipToPx(2), dipToPx(4), dipToPx(2), dipToPx(4));
-                                // 闭包捕获当前 mark，点击取消该单个标记
-                                (function(_cancelM2) {
-                                    _litVE.setOnClickListener(new android.view.View.OnClickListener({
-                                        onClick: function(v) {
-                                            try {
-                                                setVoiceMark(_markTag2, _cancelM2);
-                                                // 局部移除被点击的 emoji，不重建整个弹窗（避免批量重查+重建卡顿）
-                                                try {
-                                                    var parent = (v.getParent && v.getParent()) || vRow2;
-                                                    parent.removeView(v);
-                                                } catch (eRm2) {}
-                                                Toast.makeText(ctx, "已取消标记", Toast.LENGTH_SHORT).show();
-                                            } catch (e) { _logErr("搜索弹窗取消标记异常", e, true); }
-                                        }
-                                    }));
-                                })(_oneM2);
-                                vRow2.addView(_litVE);
-                            }
-                        }
-
-                        vrow.addView(vRow2);
-                    }
 
                     voiceContainer.addView(vrow);
                 })(voiceOptions[vi], vi);
