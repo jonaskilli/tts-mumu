@@ -209,9 +209,8 @@ fun VoicePickerDialog(
     // 标记写 voice_marks.json（与角色管理 v10 同文件同字段，按标签 id 多选 toggle，❤️🚶😈）；
     // marksVersion 自增触发候选行标记重读（文件通道无观察者，靠版本号刷新）
     var marksVersion by remember(entity.id) { mutableStateOf(0) }
-    // 待删除确认的配置项（非空时弹确认弹窗）；second=池子清理键是否用 voice
-    //（绑定行=false 用 tag；非绑定行=true 用 voice——同一 tag 下多条靠 voice 区分，见 ⋮ 菜单注释）
-    var deleteConfirmTarget by remember(entity.id) { mutableStateOf<Pair<SystemTtsV2, Boolean>?>(null) }
+    // 待删除确认的配置项（非空时弹确认弹窗）
+    var deleteConfirmTarget by remember(entity.id) { mutableStateOf<SystemTtsV2?>(null) }
 
     // 全部配置项（换声候选 / 参数跟随目标查找共用）
     val allConfigs = remember(entity.id) {
@@ -290,53 +289,47 @@ fun VoicePickerDialog(
         }
     }
 
-    // 从 ⋮ 菜单删除这条配置项（用户 09-12 晚：只删你点的那一条，同标签其他配置不动）：
-    // ① 删该配置项（清理失效引擎缓存）② 仅当该"发音人"已无其他启用配置时才从 fayinren.json 移除
-    //（发音人还在就必须保留池子条目）；角色绑定不清，规则下次朗读自动为受影响角色重分配。
-    // [poolByVoice]：池子清理键的口径——绑定行（false）用 tag；非绑定行（true）用 voice
-    //（同一 tag 下多条配置靠 voice 区分；若池子里没有该值，removeFromPool 自然 no-op，不会误删）
-    fun deletePreviewedConfig(target: SystemTtsV2, poolByVoice: Boolean = false) {
+    // 从 ⋮ 菜单删除这条配置项（目目 09-13 夜定：**只删你点的那一条配置项，标签要保留**）：
+    // 例：删「晓晓」这条配置 → 只删该配置项，标签「女青年01」本身保留（可继续绑定/待重配）。
+    // ① 删该配置项 + 清失效引擎缓存；② **不动 fayinren.json 标签池**——池子是规则每次朗读按
+    // 「启用配置集合」重建的镜像（detectAvailableVoices），若该标签确实再无启用配置，池子条目
+    // 届时由规则自然收敛，不由本处代劳抢先删；③ 角色绑定不清，规则下次朗读自动为受影响角色重分配。
+    fun deletePreviewedConfig(target: SystemTtsV2) {
         val targetDto = target.config as? TtsConfigurationDTO ?: return
-        fun keyOf(d: TtsConfigurationDTO): String =
-            if (poolByVoice) (d.source as? PluginTtsSource)?.voice.orEmpty() else d.speechRule.tag
+        val targetTag = targetDto.speechRule.tag
         scope.launch {
-            var tagNowEmpty = false
+            var tagHasConfig = true
             val deletedSelf = withIO {
                 dbm.systemTtsV2.delete(target)
                 targetDto.source.let { runCatching { CachedEngineManager.removeEngine(it) } }
-                val stillEnabled = dbm.systemTtsV2.allEnabled.any { item ->
+                // 该标签是否还有别的启用配置（决定提示文案；池子一律不动）
+                tagHasConfig = dbm.systemTtsV2.allEnabled.any { item ->
                     val d = item.config as? TtsConfigurationDTO ?: return@any false
                     d.speechRule.tagRuleId == targetDto.speechRule.tagRuleId &&
-                        keyOf(d) == keyOf(targetDto)
-                }
-                if (!stillEnabled) {
-                    tagNowEmpty = true
-                    CharacterRecordsFile.removeFromPool(
-                        targetDto.speechRule.tagRuleId, keyOf(targetDto),
-                    )
+                        d.speechRule.tag == targetTag
                 }
                 target.id == entity.id
             }
             SystemTtsService.notifyUpdateConfig()
+            onChanged?.invoke("deleted", targetTag)
             if (deletedSelf) {
                 // 本配置项自身被删：外层宿主已失效，提示后关闭面板
-                Toast.makeText(context, "已删除配置项「${target.displayName}」", Toast.LENGTH_SHORT).show()
+                Toast.makeText(
+                    context,
+                    context.getString(R.string.role_voice_del_toast, target.displayName),
+                    Toast.LENGTH_SHORT,
+                ).show()
                 onDismissRequest()
             } else {
-                onChanged?.invoke("deleted", keyOf(targetDto))
-                // 当前绑定恰是被删空标签：回落到本配置项自己的 tag（同初始化兜底；仅绑定分支有意义）
-                if (tagNowEmpty && !poolByVoice && boundVoice == targetDto.speechRule.tag) {
-                    boundVoice = config.speechRule.tag
-                }
-                if (tagNowEmpty) {
-                    Toast.makeText(
-                        context,
-                        "已删除「${target.displayName}」，该发音人已无配置项，一并从标签池移除",
-                        Toast.LENGTH_LONG,
-                    ).show()
-                } else {
-                    Toast.makeText(context, "已删除配置项「${target.displayName}」", Toast.LENGTH_SHORT).show()
-                }
+                Toast.makeText(
+                    context,
+                    context.getString(
+                        if (tagHasConfig) R.string.role_voice_del_toast
+                        else R.string.role_voice_del_toast_empty,
+                        target.displayName, targetTag,
+                    ),
+                    Toast.LENGTH_LONG,
+                ).show()
             }
         }
     }
@@ -884,10 +877,10 @@ fun VoicePickerDialog(
                                         if (sharedVM != null) sharedVM.voiceMarksVersion.value += 1
                                     }
                                 },
-                                // 删除：只删该标签的启用配置（无启用配置时置灰）；池子清理键=tag
+                                // 删除：只删该标签的启用配置（无启用配置时置灰）；标签池不动
                                 deleteEnabled = cfgName.isNotEmpty(),
                                 onDelete = {
-                                    deleteConfirmTarget = enabledConfigEntityByTag(tag)?.let { it to false }
+                                    deleteConfirmTarget = enabledConfigEntityByTag(tag)
                                 },
                             )
                         }
@@ -984,9 +977,9 @@ fun VoicePickerDialog(
                                         if (sharedVM != null) sharedVM.voiceMarksVersion.value += 1
                                     }
                                 },
-                                // 非绑定行本身就是一条配置：直接删它（含禁用态）；池子清理键=voice
+                                // 非绑定行本身就是一条配置：直接删它（含禁用态）
                                 deleteEnabled = true,
-                                onDelete = { deleteConfirmTarget = cfgEntity to true },
+                                onDelete = { deleteConfirmTarget = cfgEntity },
                             )
                         }
                     }
@@ -1098,25 +1091,38 @@ fun VoicePickerDialog(
         },
     )
 
-    // 删除确认弹窗（⋮ 菜单 🗑 入口）：只删菜单指向的那一条配置项，同发音人其他配置不受影响；
-    // 该发音人已无启用配置时，一并从标签池移除条目，受影响角色由规则下次朗读自动重分配
-    deleteConfirmTarget?.let { (delTarget, poolByVoice) ->
+    // 删除确认弹窗（⋮ 菜单 🗑 入口；目目 09-13 夜定文案，照插件 doDeleteVoiceAndReassign 口径，
+    // 只把「发音人」改成「配置项」）：标题行=【tag - 显示名】，正文按该标签**是否已被角色占用**二选一。
+    // 「已被分配」判定与候选行「已用」徽章同源（characterRecords.json 的 voice→角色名表）。
+    deleteConfirmTarget?.let { delTarget ->
+        val delDto = delTarget.config as? TtsConfigurationDTO
+        val delTag = delDto?.speechRule?.tag.orEmpty()
+        val tagLabel = ruleTags?.get(delTag) ?: delDto?.speechRule?.tagName.orEmpty()
+        val tagShown = tagLabel.ifBlank { delTag }
+        val assigned = remember(delTarget.id) {
+            CharacterRecordsFile.readVoiceOwnerMap(config.speechRule.tagRuleId)[delTag]
+                .orEmpty().isNotEmpty()
+        }
         AlertDialog(
             onDismissRequest = { deleteConfirmTarget = null },
-            title = { Text("删除确认") },
+            title = { Text(stringResource(R.string.role_voice_del_title)) },
             text = {
                 Text(
-                    "确认删除配置项【" + delTarget.displayName + "】？\n\n" +
-                        "只删这一条，同标签其他配置不受影响；删空时该标签会一并从标签池移除。",
+                    stringResource(R.string.role_voice_del_msg_title, tagShown, delTarget.displayName) +
+                        "\n\n" +
+                        stringResource(
+                            if (assigned) R.string.role_voice_del_msg_used
+                            else R.string.role_voice_del_msg_unused
+                        ),
                 )
             },
             confirmButton = {
                 TextButton(
                     onClick = {
                         deleteConfirmTarget = null
-                        deletePreviewedConfig(delTarget, poolByVoice)
+                        deletePreviewedConfig(delTarget)
                     },
-                ) { Text("确认删除") }
+                ) { Text(stringResource(R.string.role_voice_del_confirm)) }
             },
             dismissButton = {
                 TextButton(onClick = { deleteConfirmTarget = null }) { Text(stringResource(R.string.cancel)) }

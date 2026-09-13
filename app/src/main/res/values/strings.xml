@@ -798,6 +798,13 @@
     <string name="role_voice_unmarked">未标记</string>
     <string name="role_voice_manage_delete">删除该发音人配置</string>
     <string name="role_voice_unbind_toast">已解绑 %1$d 个角色，下次朗读重新分配</string>
+    <string name="role_voice_del_title">删除确认</string>
+    <string name="role_voice_del_msg_title">确认删除该配置项【%1$s - %2$s】？</string>
+    <string name="role_voice_del_msg_used">该发音人已被分配，删除后相关角色将被重新分配，不影响朗读。</string>
+    <string name="role_voice_del_msg_unused">该发音人未被分配，可删除。</string>
+    <string name="role_voice_del_confirm">确认删除</string>
+    <string name="role_voice_del_toast">已删除配置项「%1$s」</string>
+    <string name="role_voice_del_toast_empty">已删除配置项「%1$s」；标签「%2$s」已无配置项，相关角色将在下次朗读时重新分配</string>
     <string name="role_keyword_title">选择关键词</string>
     <string name="role_keyword_custom">自定义关键词</string>
     <string name="role_keyword_add">＋ 添加</string>
