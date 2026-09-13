@@ -9,7 +9,6 @@ import com.github.jing332.database.dbm
 import com.github.jing332.database.entities.SpeechRule
 import com.github.jing332.database.entities.systts.TtsConfigurationDTO
 import com.github.jing332.script.runtime.console.Console
-import com.github.jing332.tts_server_android.constant.SpeechTarget
 import com.github.jing332.tts_server_android.model.rhino.speech_rule.SpeechRuleEngine
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -56,9 +55,20 @@ class SpeechRuleEditViewModel(val app: Application) : AndroidViewModel(app) {
             kotlin.runCatching {
                 getConsole().info("handleText()...")
 
-                val rules =
-                    dbm.systemTtsV2.getEnabledListForSort(SpeechTarget.TAG).map {
-                        (it.config as TtsConfigurationDTO).speechRule.apply { configId = it.id }
+                // 与朗读链 TtsRepository.getAllTts() 同口径：**全部启用项**（不限 target、含备用）。
+                // 曾用 getEnabledListForSort(TAG)（仅自定义标签且非备用）→ 点一次「运行/调试」
+                // 就会把 fayinren.json 整份覆写成该子集，发音人池当场塌房。字段也照朗读链补齐。
+                val rules = dbm.systemTtsV2.getAllGroupWithTts()
+                    .flatMap { it.list.sortedBy { t -> t.order } }
+                    .filter { it.isEnabled }
+                    .mapNotNull { systts ->
+                        val cfg = systts.config as? TtsConfigurationDTO
+                            ?: return@mapNotNull null
+                        cfg.speechRule.apply {
+                            configId = systts.id
+                            voice = cfg.source.voice
+                            displayName = systts.displayName
+                        }
                     }
                 val list = mRuleEngine.handleText(text, rules)
                 try {

@@ -51,7 +51,6 @@ import com.github.jing332.tts_server_android.compose.nav.NavTopAppBar
 import com.github.jing332.tts_server_android.compose.systts.list.expandSpeechRuleTagsIfNeeded
 import com.github.jing332.tts_server_android.compose.systts.list.ui.PluginTtsUI
 import com.github.jing332.tts_server_android.conf.SpeechRuleConfig
-import com.github.jing332.tts_server_android.constant.SpeechTarget
 import com.github.jing332.tts_server_android.model.rhino.speech_rule.SpeechRuleEngine
 import com.github.jing332.tts_server_android.service.systts.SystemTtsService
 import kotlinx.coroutines.flow.conflate
@@ -123,14 +122,22 @@ fun RoleManagementScreen(sharedVM: SharedViewModel, pagerState: PagerState) {
                     if (rule != null) {
                         val engine = SpeechRuleEngine(context, rule)
                         engine.eval()
-                        val rules = dbm.systemTtsV2.getEnabledListForSort(SpeechTarget.TAG).map { systts ->
-                            val cfg = systts.config as TtsConfigurationDTO
-                            cfg.speechRule.apply {
-                                configId = systts.id
-                                voice = cfg.source.voice
-                                displayName = systts.displayName
+                        // 口径必须与朗读链 TtsRepository.getAllTts() 完全一致：**全部启用项**
+                        // （不限 target、含备用）。曾用 getEnabledListForSort(TAG)——即"仅自定义标签
+                        // 且非备用"——规则会把 fayinren.json 整份覆写成该子集，发音人池当场塌房，
+                        // 表现为「停止朗读/进本页后候选只剩几条」。顺序同样照朗读链：分组 order → 组内 order。
+                        val rules = dbm.systemTtsV2.getAllGroupWithTts()
+                            .flatMap { it.list.sortedBy { t -> t.order } }
+                            .filter { it.isEnabled }
+                            .mapNotNull { systts ->
+                                val cfg = systts.config as? TtsConfigurationDTO
+                                    ?: return@mapNotNull null
+                                cfg.speechRule.apply {
+                                    configId = systts.id
+                                    voice = cfg.source.voice
+                                    displayName = systts.displayName
+                                }
                             }
-                        }
                         // 标签扩容：扫描所有配置项（不限启用），补齐超出基础数量的标签
                         expandSpeechRuleTagsIfNeeded(rule, effectiveGroups.flatMap { it.list })
                         engine.handleText(SpeechRuleConfig.textParam.value, rules)
