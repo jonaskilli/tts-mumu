@@ -51,7 +51,6 @@ import com.drake.net.utils.withIO
 import com.github.jing332.database.dbm
 import com.github.jing332.database.entities.systts.SystemTtsV2
 import com.github.jing332.database.entities.systts.TtsConfigurationDTO
-import com.github.jing332.database.entities.systts.source.PluginTtsSource
 import com.github.jing332.tts.TaggedTtsPreviewPlayer
 import com.github.jing332.tts.PreviewState
 import com.github.jing332.tts_server_android.R
@@ -98,10 +97,13 @@ fun RoleListScreen(
             groups.forEach { g ->
                 g.list.forEach { item ->
                     val cfg = item.config as? TtsConfigurationDTO ?: return@forEach
-                    val voice = (cfg.source as? PluginTtsSource)?.voice?.trim().orEmpty()
-                    if (voice.isEmpty() || voice in nameMap) return@forEach
-                    nameMap[voice] = item.displayName
-                    if (item.isEnabled) targets[voice] = item
+                    // 键=规则标签 tag id（characterRecords 的 voice 存的就是它，全链只认 tag；
+                    // PluginTtsSource.voice 是音色 ID 不是 tag，用它当键永远查不到——首版试听全灭的根因）
+                    val tag = cfg.speechRule?.tag?.trim().orEmpty()
+                    if (tag.isEmpty()) return@forEach
+                    if (tag !in nameMap) nameMap[tag] = item.displayName
+                    // 试听目标只收启用项（禁用条不进；同 tag 多条时首个启用生效）
+                    if (item.isEnabled && tag !in targets) targets[tag] = item
                 }
             }
             // 大分类=tag 查 rule.tags 剥尾序号（旁白/女青年01→女青年；括号系不合并）
