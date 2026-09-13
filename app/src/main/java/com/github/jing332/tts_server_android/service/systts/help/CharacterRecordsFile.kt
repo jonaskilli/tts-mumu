@@ -240,4 +240,146 @@ object CharacterRecordsFile {
         }
         return changed && saveRecords(tagRuleId, records)
     }
+
+    // ==================== 合并 / 释放（与插件 mergeCharacter/releaseAlias 同字段口径）====================
+    // 合并的表示：被并入角色的名字追加进目标记录的 aliases（'|' 分隔），被并入记录删除。
+
+    /** 拆别名（与插件 splitAliases 同口径：半角|和全角｜都算分隔符） */
+    fun splitAliases(aliasesStr: String): List<String> =
+        aliasesStr.split('|', '｜').map { it.trim() }.filter { it.isNotEmpty() }
+
+    /**
+     * 合并：把 [mergeNames] 各角色的名字并入 [targetName] 的 aliases 并删除其记录。
+     * 目标不存在返回 false；同名多记录全部并入。返回并入的名字数。
+     */
+    fun mergeCharacters(tagRuleId: String, targetName: String, mergeNames: Set<String>): Int {
+        if (targetName.isBlank() || mergeNames.isEmpty() || targetName in mergeNames) return 0
+        val records = readRecords(tagRuleId)
+        val target = records.firstOrNull { it.name == targetName } ?: return 0
+        val merged = mutableSetOf<String>()
+        splitAliases(target.aliases).forEach { merged.add(it) }
+        mergeNames.forEach { n -> merged.add(n) }
+        target.obj.put("aliases", merged.joinToString("|"))
+        val kept = records.filter { it.name !in mergeNames || it.name == targetName }
+        val added = mergeNames.size
+        return if (saveRecords(tagRuleId, kept)) added else 0
+    }
+
+    /**
+     * 释放别名：把 [aliasName] 从 [ownerName] 的 aliases 移出，新建独立记录
+     * （继承 owner 的 voice/gender/age 基础字段，紧跟 owner 之后插入，与插件顺序一致）。
+     */
+    fun releaseAlias(tagRuleId: String, ownerName: String, aliasName: String): Boolean {
+        if (ownerName.isBlank() || aliasName.isBlank()) return false
+        val records = readRecords(tagRuleId)
+        val ownerIdx = records.indexOfFirst { it.name == ownerName }
+        if (ownerIdx < 0) return false
+        val owner = records[ownerIdx]
+        val rest = splitAliases(owner.aliases).filter { it != aliasName }
+        if (rest.size == splitAliases(owner.aliases).size) return false // 别名不存在
+        owner.obj.put("aliases", rest.joinToString("|"))
+        val fresh = JSONObject()
+        fresh.put("name", aliasName)
+        fresh.put("voice", owner.voice)
+        if (owner.gender.isNotBlank()) fresh.put("gender", owner.gender)
+        if (owner.age.isNotBlank()) fresh.put("age", owner.age)
+        fresh.put("aliases", "")
+        val out = records.toMutableList()
+        out.add(ownerIdx + 1, RoleRecord(fresh))
+        return saveRecords(tagRuleId, out)
+    }
+
+    /** 仅把别名从所属记录移除（不新建记录，批量删除别名用）；成功返回 true */
+    fun removeAlias(tagRuleId: String, ownerName: String, aliasName: String): Boolean {
+        if (ownerName.isBlank() || aliasName.isBlank()) return false
+        val records = readRecords(tagRuleId)
+        val owner = records.firstOrNull { it.name == ownerName } ?: return false
+        val rest = splitAliases(owner.aliases).filter { it != aliasName }
+        if (rest.size == splitAliases(owner.aliases).size) return false
+        owner.obj.put("aliases", rest.joinToString("|"))
+        return saveRecords(tagRuleId, records)
+    }
+
+    // ==================== 书籍管理（liebiao.json / cunfang.txt / shuming.<书>.json）====================
+
+    private fun dir(tagRuleId: String) = File(BASE_DIR, tagRuleId)
+    private fun bookListFile(tagRuleId: String) = File(dir(tagRuleId), "liebiao.json")
+    private fun currentBookFile(tagRuleId: String) = File(dir(tagRuleId), "cunfang.txt")
+
+    /** 书籍列表（liebiao.json；缺失/损坏回落 [当前书]） */
+    fun readBookList(tagRuleId: String): List<String> {
+        val current = readCurrentBook(tagRuleId)
+        return try {
+            val f = bookListFile(tagRuleId)
+            if (!f.exists()) return listOf(current)
+            val arr = JSONArray(f.readText())
+            val out = (0 until arr.length()).mapNotNull { i -> arr.optString(i).trim().takeIf { it.isNotEmpty() } }
+            if (current in out) out else listOf(current) + out
+        } catch (e: Exception) {
+            listOf(current)
+        }
+    }
+
+    private fun saveBookList(tagRuleId: String, books: List<String>): Boolean = try {
+        val arr = JSONArray()
+        books.forEach { arr.put(it) }
+        bookListFile(tagRuleId).writeText(arr.toString(2))
+        true
+    } catch (e: Exception) {
+        Log.w(TAG, "saveBookList failed: ${e.message}")
+        false
+    }
+
+    /**
+     * 切换书籍（与插件 switchBook 同流程）：
+     * 当前记录先落盘（saveRecords 四写）→ 读 shuming.<新书>.json（无存档=空表）→
+     * 写 characterRecords/gengxin/backup 三份 → cunfang.txt=新书 → liebiao.json 补录新书。
+     */
+    fun switchBook(tagRuleId: String, newBook: String): Boolean {
+        if (newBook.isBlank()) return false
+        val d = dir(tagRuleId)
+        if (!d.exists()) return false
+        return try {
+            val oldBook = readCurrentBook(tagRuleId)
+            if (oldBook == newBook) return true
+            // 当前记录先按旧书名归档（四写）
+            saveRecords(tagRuleId, readRecords(tagRuleId))
+            // 读新书存档（缺失=空表）
+            val data = runCatching { File(d, "shuming.$newBook.json").readText() }.getOrNull()
+            val arr = if (data.isNullOrBlank() || data.trim() == "[]") JSONArray() else JSONArray(data)
+            val json = arr.toString(2)
+            File(d, "characterRecords.json").writeText(json)
+            File(d, "gengxin.json").writeText(json)
+            File(d, "characterRecords_backup.json").writeText(json)
+            currentBookFile(tagRuleId).writeText(newBook)
+            val books = readBookList(tagRuleId).toMutableList()
+            if (newBook !in books) books.add(0, newBook)
+            saveBookList(tagRuleId, books)
+            Log.i(TAG, "switchBook: $oldBook -> $newBook (${arr.length()} records)")
+            true
+        } catch (e: Exception) {
+            Log.w(TAG, "switchBook failed: ${e.message}")
+            false
+        }
+    }
+
+    /** 新增书籍：liebiao.json 补录 + 建空存档；重名返回 false */
+    fun addBook(tagRuleId: String, name: String): Boolean {
+        val n = name.trim()
+        if (n.isEmpty()) return false
+        val books = readBookList(tagRuleId)
+        if (n in books) return false
+        if (!saveBookList(tagRuleId, books + n)) return false
+        runCatching { File(dir(tagRuleId), "shuming.$n.json").writeText("[]") }
+        return true
+    }
+
+    /** 删除书籍（存档文件+清单移除）；当前书不可删，返回 false */
+    fun deleteBook(tagRuleId: String, name: String): Boolean {
+        if (name == readCurrentBook(tagRuleId)) return false
+        val books = readBookList(tagRuleId).filter { it != name }
+        if (!saveBookList(tagRuleId, books)) return false
+        runCatching { File(dir(tagRuleId), "shuming.$name.json").delete() }
+        return true
+    }
 }

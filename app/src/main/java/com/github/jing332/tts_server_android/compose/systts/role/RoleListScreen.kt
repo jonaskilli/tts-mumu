@@ -19,14 +19,17 @@ import androidx.compose.material.icons.filled.Done
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Checkbox
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilterChipDefaults
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -61,12 +64,25 @@ import com.github.jing332.tts_server_android.service.systts.help.VoiceMarksFile
 import kotlinx.coroutines.launch
 
 /**
- * 内置角色列表（目目 09-13 拍板「角色管理内置，分阶段搬」第一阶段）：
- * 原生 MD3 渲染角色列表，直读 characterRecords.json / voice_marks.json（与角色管理插件
- * 同源同文件，数据互通）；点发音人标签弹**现成**的 VoicePickerDialog（角色卡+音频参数）；
- * 长按/⋮ 菜单 = 标记/改名/设为主角/删除（写入口径四文件齐落，见 CharacterRecordsFile.saveRecords）。
- * 合并、批量分配、密钥管理、书籍切换留插件，第二阶段再搬。
+ * 内置角色列表·全套版（目目 09-13 拍板「干脆全套改好」）：
+ * **按发音人分组**（同旧插件骨架，MD3 化）——组=同一发音人标签，组头=标签 chip+▶+⋮（组级），
+ * 组员=绑定该标签的角色名列表（主名+展开的别名）。点标签=整组换声（角色卡弹窗，
+ * groupBindingKeys 逐个 rebind）；点主名=单角色角色卡；长按主名=改名/设为主角/删除；
+ * 长按别名=移出合并；组头 ⋮=标记/整组删除。搜索框右侧「全选」进多选模式：
+ * 底部操作条 合并（选中≥2，别名并入目标 aliases）/ 删除所选。
+ * 密钥管理与书籍切换在顶栏（KeyManagerScreen / BookManageDialog），数据与插件同文件互通。
  */
+
+/** 组员行：主名记录或别名（别名依附 owner 记录存在） */
+private class MemberRow(val rec: CharacterRecordsFile.RoleRecord?, val aliasName: String, val owner: CharacterRecordsFile.RoleRecord?) {
+    val displayName: String get() = rec?.name ?: aliasName
+    val isAlias: Boolean get() = rec == null
+    val voice: String get() = rec?.voice ?: owner?.voice.orEmpty()
+}
+
+/** 发音人组：同 tag 的全部主名+别名，rows 保持文件顺序 */
+private class VoiceGroup(val tag: String, val rows: List<MemberRow>)
+
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
 fun RoleListScreen(
@@ -82,14 +98,14 @@ fun RoleListScreen(
     var version by remember { mutableIntStateOf(0) }
     var records by remember { mutableStateOf<List<CharacterRecordsFile.RoleRecord>>(emptyList()) }
     var marks by remember { mutableStateOf<Map<String, List<String>>>(emptyMap()) }
-    // voice(tag) → 发音人显示名；tag → 大分类显示名（rule.tags 现查，与换声弹窗同口径）
+    // tag → 发音人显示名；tag → 大分类显示名（rule.tags 现查，与换声弹窗同口径）
     var voiceNames by remember { mutableStateOf<Map<String, String>>(emptyMap()) }
     var categories by remember { mutableStateOf<Map<String, String>>(emptyMap()) }
-    // voice(tag) → 可试听的启用配置项（▶ 用）
+    // tag → 可试听的启用配置项（▶ 用）；键=speechRule.tag（勿用 PluginTtsSource.voice，两码事）
     var previewTargets by remember { mutableStateOf<Map<String, SystemTtsV2>>(emptyMap()) }
 
     LaunchedEffect(version, reloadKey) {
-        val (recs, nameMap, catMap, targets) = withIO {
+        val loaded = withIO {
             val recs = CharacterRecordsFile.readRecords(tagRuleId)
             val groups = dbm.systemTtsV2.getAllGroupWithTts()
             val nameMap = LinkedHashMap<String, String>()
@@ -97,8 +113,6 @@ fun RoleListScreen(
             groups.forEach { g ->
                 g.list.forEach { item ->
                     val cfg = item.config as? TtsConfigurationDTO ?: return@forEach
-                    // 键=规则标签 tag id（characterRecords 的 voice 存的就是它，全链只认 tag；
-                    // PluginTtsSource.voice 是音色 ID 不是 tag，用它当键永远查不到——首版试听全灭的根因）
                     val tag = cfg.speechRule?.tag?.trim().orEmpty()
                     if (tag.isEmpty()) return@forEach
                     if (tag !in nameMap) nameMap[tag] = item.displayName
@@ -106,7 +120,7 @@ fun RoleListScreen(
                     if (item.isEnabled && tag !in targets) targets[tag] = item
                 }
             }
-            // 大分类=tag 查 rule.tags 剥尾序号（旁白/女青年01→女青年；括号系不合并）
+            // 大分类=tag 查 rule.tags 剥尾序号（女青年01→女青年；括号系不合并）
             val ruleTags = dbm.speechRuleDao.getByRuleIdAll(tagRuleId)?.tags ?: emptyMap()
             val catMap = HashMap<String, String>()
             (recs.map { it.voice } + ruleTags.keys).forEach { tag ->
@@ -116,30 +130,42 @@ fun RoleListScreen(
             listOf(recs, nameMap, catMap, targets)
         }
         @Suppress("UNCHECKED_CAST")
-        records = recs as List<CharacterRecordsFile.RoleRecord>
+        records = loaded[0] as List<CharacterRecordsFile.RoleRecord>
         @Suppress("UNCHECKED_CAST")
-        voiceNames = nameMap as Map<String, String>
+        voiceNames = loaded[1] as Map<String, String>
         @Suppress("UNCHECKED_CAST")
-        categories = catMap as Map<String, String>
+        categories = loaded[2] as Map<String, String>
         @Suppress("UNCHECKED_CAST")
-        previewTargets = targets as Map<String, SystemTtsV2>
+        previewTargets = loaded[3] as Map<String, SystemTtsV2>
         marks = VoiceMarksFile.readAll(tagRuleId)
     }
 
-    // ===== 筛选 + 搜索 =====
+    // ===== 分组构建：voice 相同的记录+别名归一组（"" 组=未分配） =====
+    fun buildGroups(): List<VoiceGroup> {
+        val map = LinkedHashMap<String, MutableList<MemberRow>>()
+        records.forEach { rec ->
+            val list = map.getOrPut(rec.voice) { mutableListOf() }
+            list.add(MemberRow(rec, "", null))
+            CharacterRecordsFile.splitAliases(rec.aliases).forEach { alias ->
+                list.add(MemberRow(null, alias, rec))
+            }
+        }
+        return map.map { (tag, rows) -> VoiceGroup(tag, rows) }
+    }
+
+    // ===== 筛选 + 搜索（行级过滤：命中的组员所在组保留，只显示命中行） =====
     var filter by rememberSaveable { mutableIntStateOf(0) } // 0=全部 1=已分配 2=标记
     var keyword by rememberSaveable { mutableStateOf("") }
-    val filtered = records.filter { rec ->
-        when (filter) {
-            1 -> rec.voice.isNotBlank()
-            2 -> VoiceMarksFile.emojiOf(marks[rec.voice].orEmpty()).isNotEmpty()
-            else -> true
-        } && (keyword.isBlank()
-                || rec.name.contains(keyword, ignoreCase = true)
-                || rec.aliases.contains(keyword, ignoreCase = true))
+    val allGroups = buildGroups()
+    val groups = allGroups.mapNotNull { g ->
+        if (filter == 1 && g.tag.isBlank()) return@mapNotNull null
+        if (filter == 2 && VoiceMarksFile.emojiOf(marks[g.tag].orEmpty()).isEmpty()) return@mapNotNull null
+        val rows = if (keyword.isBlank()) g.rows
+        else g.rows.filter { it.displayName.contains(keyword, ignoreCase = true) }
+        if (rows.isEmpty()) null else VoiceGroup(g.tag, rows)
     }
-    val assignedCount = records.count { it.voice.isNotBlank() }
-    val markedCount = records.count { VoiceMarksFile.emojiOf(marks[it.voice].orEmpty()).isNotEmpty() }
+    val assignedCount = allGroups.count { it.tag.isNotBlank() }
+    val markedCount = allGroups.count { VoiceMarksFile.emojiOf(marks[it.tag].orEmpty()).isNotEmpty() }
 
     // ===== 试听状态（纯状态推导，与换声弹窗/日志面板同款：IDLE 恒▶，禁 LaunchedEffect 抹 key） =====
     val previewState by TaggedTtsPreviewPlayer.state.collectAsState()
@@ -150,42 +176,77 @@ fun RoleListScreen(
         previewState == PreviewState.SYNTHESIZING -> "…"
         else -> "▶"
     }
-    fun startPreview(rec: CharacterRecordsFile.RoleRecord) {
-        val entity = previewTargets[rec.voice]
+    fun startPreview(tag: String) {
+        val entity = previewTargets[tag]
         if (entity == null) {
             android.widget.Toast.makeText(
                 context, context.getString(R.string.role_list_preview_missing), android.widget.Toast.LENGTH_SHORT
             ).show()
             return
         }
-        previewingKey = rec.voice
+        previewingKey = tag
         TaggedTtsPreviewPlayer.play(context, entity, AppConfig.testSampleText.value)
+    }
+
+    // ===== 多选（主名记录参与；别名依附记录不单选） =====
+    var selectMode by remember { mutableStateOf(false) }
+    val selectedNames = remember { mutableStateOf<Set<String>>(emptySet()) }
+    fun toggleSelect(name: String) {
+        selectedNames.value = selectedNames.value.toMutableSet().apply {
+            if (!add(name)) remove(name)
+        }
     }
 
     // ===== 弹窗状态 =====
     var pickerFor by remember { mutableStateOf<CharacterRecordsFile.RoleRecord?>(null) }
-    var renameFor by remember { mutableStateOf<CharacterRecordsFile.RoleRecord?>(null) }
-    var deleteFor by remember { mutableStateOf<CharacterRecordsFile.RoleRecord?>(null) }
+    var groupPickerTag by remember { mutableStateOf<String?>(null) } // 整组换声：tag+组内主名
+    var groupPickerKeys by remember { mutableStateOf<List<String>>(emptyList()) }
+    var menuFor by remember { mutableStateOf<MemberRow?>(null) }
+    var menuForGroup by remember { mutableStateOf<VoiceGroup?>(null) }
+    var renameFor by remember { mutableStateOf<String?>(null) }
+    var deleteNames by remember { mutableStateOf<Set<String>?>(null) }
+    var mergeCandidates by remember { mutableStateOf<List<String>?>(null) }
+
+    fun toast(resId: Int, vararg args: Any) {
+        android.widget.Toast.makeText(context, context.getString(resId, *args), android.widget.Toast.LENGTH_SHORT).show()
+    }
 
     Column(modifier) {
-        // 搜索框
-        OutlinedTextField(
-            value = keyword,
-            onValueChange = { keyword = it },
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 12.dp),
-            singleLine = true,
-            textStyle = MaterialTheme.typography.bodyMedium,
-            placeholder = {
+        // 搜索框 + 全选（同一行，全选贴右）
+        Row(
+            Modifier.fillMaxWidth().padding(start = 12.dp, end = 4.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            OutlinedTextField(
+                value = keyword,
+                onValueChange = { keyword = it },
+                modifier = Modifier.weight(1f),
+                singleLine = true,
+                textStyle = MaterialTheme.typography.bodyMedium,
+                placeholder = {
+                    Text(
+                        stringResource(R.string.role_list_search_hint),
+                        style = MaterialTheme.typography.bodyMedium
+                    )
+                },
+                leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
+                shape = RoundedCornerShape(24.dp),
+            )
+            TextButton(onClick = {
+                if (selectMode) {
+                    selectMode = false
+                    selectedNames.value = emptySet()
+                } else {
+                    selectMode = true
+                    selectedNames.value = groups.flatMap { g -> g.rows.mapNotNull { it.rec?.name } }.toSet()
+                }
+            }) {
                 Text(
-                    stringResource(R.string.role_list_search_hint),
-                    style = MaterialTheme.typography.bodyMedium
+                    if (selectMode) stringResource(R.string.cancel)
+                    else stringResource(R.string.role_list_select_all)
                 )
-            },
-            leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
-            shape = RoundedCornerShape(24.dp),
-        )
+            }
+        }
         // 筛选 chips
         Row(
             Modifier
@@ -196,14 +257,14 @@ fun RoleListScreen(
             FilterChipRow(
                 selected = filter, onSelect = { filter = it },
                 items = listOf(
-                    Triple(0, stringResource(R.string.role_list_filter_all), records.size),
+                    Triple(0, stringResource(R.string.role_list_filter_all), allGroups.size),
                     Triple(1, stringResource(R.string.role_list_filter_assigned), assignedCount),
                     Triple(2, stringResource(R.string.role_list_filter_marked), markedCount),
                 )
             )
         }
 
-        if (filtered.isEmpty()) {
+        if (groups.isEmpty()) {
             Column(
                 Modifier
                     .fillMaxSize()
@@ -219,49 +280,80 @@ fun RoleListScreen(
             }
         } else {
             LazyColumn(
-                Modifier.fillMaxSize(),
+                Modifier.weight(1f),
                 contentPadding = androidx.compose.foundation.layout.PaddingValues(
-                    start = 12.dp, end = 12.dp, top = 2.dp, bottom = bottomPadding + 8.dp
+                    start = 12.dp, end = 12.dp, top = 2.dp, bottom = bottomPadding + 96.dp
                 ),
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                // key 带 index：合并产生的同名同声记录不罕见（index 防重复 key 崩溃）
-                itemsIndexed(filtered) { index, rec ->
-                    RoleRow(
-                        rec = rec,
-                        marksEmoji = VoiceMarksFile.emojiOf(marks[rec.voice].orEmpty()),
-                        category = categories[rec.voice].orEmpty(),
-                        voiceName = voiceNames[rec.voice],
-                        previewLabel = previewLabel(rec.voice),
-                        onPreview = { startPreview(rec) },
-                        onOpenPicker = { pickerFor = rec },
-                        onRename = { renameFor = rec },
-                        onDelete = { deleteFor = rec },
-                        onSetMain = {
-                            scope.launch {
-                                val ok = withIO { CharacterRecordsFile.setMainCharacter(tagRuleId, rec.name) }
-                                android.widget.Toast.makeText(
-                                    context,
-                                    if (ok) context.getString(R.string.role_list_set_main_toast, rec.name)
-                                    else context.getString(R.string.role_list_failed),
-                                    android.widget.Toast.LENGTH_SHORT
-                                ).show()
-                                if (ok) version++
-                            }
-                        },
-                        onToggleMark = { mark ->
-                            scope.launch {
-                                withIO { VoiceMarksFile.toggle(tagRuleId, rec.voice, mark) }
-                                marks = VoiceMarksFile.readAll(tagRuleId)
-                            }
-                        },
+                groups.forEach { group ->
+                    // key 带组序位置（index）：同名同声记录不罕见，name 键会撞——用 item(index) 结构
+                    item(key = "grp_${group.tag}_${group.rows.firstOrNull()?.displayName.orEmpty()}_${group.rows.size}") {
+                        GroupCard(
+                            group = group,
+                            tagName = if (group.tag.isBlank()) stringResource(R.string.role_list_unassigned)
+                            else buildString {
+                                categories[group.tag]?.let { if (it.isNotBlank()) append("$it · ") }
+                                append(voiceNames[group.tag] ?: group.tag)
+                            },
+                            marksEmoji = VoiceMarksFile.emojiOf(marks[group.tag].orEmpty()),
+                            previewLabel = previewLabel(group.tag),
+                            selectMode = selectMode,
+                            selectedNames = selectedNames.value,
+                            onPreview = { startPreview(group.tag) },
+                            onGroupPicker = {
+                                if (group.tag.isNotBlank()) {
+                                    groupPickerTag = group.tag
+                                    groupPickerKeys = group.rows.mapNotNull { it.rec?.name }.distinct()
+                                }
+                            },
+                            onGroupMenu = { menuForGroup = group },
+                            onRowClick = { row ->
+                                when {
+                                    selectMode && !row.isAlias -> toggleSelect(row.rec!!.name)
+                                    row.isAlias -> menuFor = row
+                                    else -> pickerFor = row.rec
+                                }
+                            },
+                            onRowLongClick = { row -> if (!selectMode) menuFor = row },
+                        )
+                    }
+                }
+            }
+        }
+
+        // 多选操作条
+        if (selectMode) {
+            Surface(tonalElevation = 3.dp, modifier = Modifier.fillMaxWidth()) {
+                Row(
+                    Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 6.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Text(
+                        stringResource(R.string.role_list_selected_count, selectedNames.value.size),
+                        style = MaterialTheme.typography.bodyMedium,
+                        modifier = Modifier.weight(1f)
                     )
+                    TextButton(
+                        enabled = selectedNames.value.size >= 2,
+                        onClick = { mergeCandidates = selectedNames.value.toList() }
+                    ) { Text(stringResource(R.string.role_list_merge)) }
+                    TextButton(
+                        enabled = selectedNames.value.isNotEmpty(),
+                        onClick = { deleteNames = selectedNames.value }
+                    ) {
+                        Text(
+                            stringResource(R.string.role_list_delete_selected),
+                            color = MaterialTheme.colorScheme.error
+                        )
+                    }
                 }
             }
         }
     }
 
-    // 换声弹窗：与日志面板/插件桥同一组件（角色卡标题 + 音频参数分段）
+    // ===== 单角色换声（角色卡） =====
     pickerFor?.let { rec ->
         VoicePickerDialog(
             anchorConfigId = null,
@@ -272,20 +364,110 @@ fun RoleListScreen(
             onDismissRequest = { pickerFor = null },
         )
     }
+    // ===== 整组换声（组头标签/组菜单；groupBindingKeys 逐个 rebind） =====
+    groupPickerTag?.let { tag ->
+        VoicePickerDialog(
+            anchorConfigId = null,
+            anchorTag = tag,
+            bindingKey = groupPickerKeys.firstOrNull().orEmpty(),
+            titleBadge = "", // 整组无单一角色名 → 「信息卡」
+            groupBindingKeys = groupPickerKeys,
+            onChanged = { _, _ -> version++ },
+            onDismissRequest = { groupPickerTag = null },
+        )
+    }
 
-    renameFor?.let { rec ->
+    // ===== 组员长按/点击菜单（主名：改名/设为主角/删除；别名：移出合并） =====
+    menuFor?.let { row ->
+        DropdownMenu(expanded = true, onDismissRequest = { menuFor = null }) {
+            if (row.isAlias) {
+                DropdownMenuItem(
+                    text = { Text(stringResource(R.string.role_list_release_alias)) },
+                    onClick = {
+                        menuFor = null
+                        scope.launch {
+                            val ok = withIO {
+                                CharacterRecordsFile.releaseAlias(tagRuleId, row.owner!!.name, row.aliasName)
+                            }
+                            toast(if (ok) R.string.role_list_release_toast else R.string.role_list_failed, row.aliasName)
+                            if (ok) version++
+                        }
+                    }
+                )
+            } else {
+                DropdownMenuItem(
+                    text = { Text(stringResource(R.string.role_list_menu_rename)) },
+                    onClick = { menuFor = null; renameFor = row.rec!!.name }
+                )
+                DropdownMenuItem(
+                    text = { Text(stringResource(R.string.role_list_menu_set_main)) },
+                    onClick = {
+                        menuFor = null
+                        scope.launch {
+                            val ok = withIO { CharacterRecordsFile.setMainCharacter(tagRuleId, row.rec!!.name) }
+                            toast(
+                                if (ok) R.string.role_list_set_main_toast else R.string.role_list_failed,
+                                row.rec.name
+                            )
+                            if (ok) version++
+                        }
+                    }
+                )
+                DropdownMenuItem(
+                    text = { Text(stringResource(R.string.role_list_menu_delete), color = MaterialTheme.colorScheme.error) },
+                    onClick = { menuFor = null; deleteNames = setOf(row.rec!!.name) }
+                )
+            }
+        }
+    }
+    // ===== 组头 ⋮ 菜单（标记 + 整组删除 + 整组换声） =====
+    menuForGroup?.let { group ->
+        DropdownMenu(expanded = true, onDismissRequest = { menuForGroup = null }) {
+            if (group.tag.isNotBlank()) {
+                VoiceMarksFile.MARK_ITEMS.forEach { (key, emoji, label) ->
+                    DropdownMenuItem(
+                        text = { Text("$emoji $label") },
+                        onClick = {
+                            menuForGroup = null
+                            scope.launch {
+                                withIO { VoiceMarksFile.toggle(tagRuleId, group.tag, key) }
+                                marks = VoiceMarksFile.readAll(tagRuleId)
+                            }
+                        },
+                        trailingIcon = if (emoji in VoiceMarksFile.emojiOf(marks[group.tag].orEmpty())) {
+                            { Icon(Icons.Default.Done, contentDescription = null) }
+                        } else null,
+                    )
+                }
+                HorizontalDivider()
+                DropdownMenuItem(
+                    text = { Text(stringResource(R.string.role_list_group_rebind)) },
+                    onClick = {
+                        menuForGroup = null
+                        groupPickerTag = group.tag
+                        groupPickerKeys = group.rows.mapNotNull { it.rec?.name }.distinct()
+                    }
+                )
+            }
+            DropdownMenuItem(
+                text = { Text(stringResource(R.string.role_list_group_delete), color = MaterialTheme.colorScheme.error) },
+                onClick = {
+                    menuForGroup = null
+                    deleteNames = group.rows.mapNotNull { it.rec?.name }.toSet()
+                }
+            )
+        }
+    }
+
+    // ===== 改名 =====
+    renameFor?.let { oldName ->
         RenameDialog(
-            initial = rec.name,
+            initial = oldName,
             onDismiss = { renameFor = null },
             onConfirm = { newName ->
                 scope.launch {
-                    val ok = withIO { CharacterRecordsFile.renameCharacter(tagRuleId, rec.name, newName) > 0 }
-                    android.widget.Toast.makeText(
-                        context,
-                        if (ok) context.getString(R.string.role_list_rename_toast)
-                        else context.getString(R.string.role_list_failed),
-                        android.widget.Toast.LENGTH_SHORT
-                    ).show()
+                    val ok = withIO { CharacterRecordsFile.renameCharacter(tagRuleId, oldName, newName) > 0 }
+                    toast(if (ok) R.string.role_list_rename_toast else R.string.role_list_failed)
                     renameFor = null
                     if (ok) version++
                 }
@@ -293,28 +475,44 @@ fun RoleListScreen(
         )
     }
 
-    deleteFor?.let { rec ->
+    // ===== 删除（单个/组/批量共用） =====
+    deleteNames?.let { names ->
         AlertDialog(
-            onDismissRequest = { deleteFor = null },
+            onDismissRequest = { deleteNames = null },
             title = { Text(stringResource(R.string.role_list_delete_title)) },
-            text = { Text(stringResource(R.string.role_list_delete_text, rec.name)) },
+            text = { Text(stringResource(R.string.role_list_delete_text, names.size, names.take(5).joinToString("、"))) },
             confirmButton = {
                 TextButton(onClick = {
                     scope.launch {
-                        val n = withIO { CharacterRecordsFile.deleteCharacters(tagRuleId, setOf(rec.name)) }
-                        android.widget.Toast.makeText(
-                            context,
-                            if (n > 0) context.getString(R.string.role_list_delete_toast, n)
-                            else context.getString(R.string.role_list_failed),
-                            android.widget.Toast.LENGTH_SHORT
-                        ).show()
-                        deleteFor = null
+                        val n = withIO { CharacterRecordsFile.deleteCharacters(tagRuleId, names) }
+                        toast(if (n > 0) R.string.role_list_delete_toast else R.string.role_list_failed, n)
+                        deleteNames = null
+                        selectedNames.value = emptySet()
                         if (n > 0) version++
                     }
                 }) { Text(stringResource(R.string.delete)) }
             },
             dismissButton = {
-                TextButton(onClick = { deleteFor = null }) { Text(stringResource(R.string.cancel)) }
+                TextButton(onClick = { deleteNames = null }) { Text(stringResource(R.string.cancel)) }
+            }
+        )
+    }
+
+    // ===== 合并：选保留名 =====
+    mergeCandidates?.let { candidates ->
+        MergeTargetDialog(
+            candidates = candidates,
+            onDismiss = { mergeCandidates = null },
+            onConfirm = { target ->
+                scope.launch {
+                    val others = candidates.filter { it != target }.toSet()
+                    val n = withIO { CharacterRecordsFile.mergeCharacters(tagRuleId, target, others) }
+                    toast(if (n > 0) R.string.role_list_merge_toast else R.string.role_list_failed, n)
+                    mergeCandidates = null
+                    selectedNames.value = emptySet()
+                    selectMode = false
+                    if (n > 0) version++
+                }
             }
         )
     }
@@ -341,117 +539,104 @@ private fun FilterChipRow(
     }
 }
 
+/** 发音人组卡片：组头（标签 chip+▶+⋮）+ 组员列表（主名/别名） */
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
-private fun RoleRow(
-    rec: CharacterRecordsFile.RoleRecord,
+private fun GroupCard(
+    group: VoiceGroup,
+    tagName: String,
     marksEmoji: String,
-    category: String,
-    voiceName: String?,
     previewLabel: String,
+    selectMode: Boolean,
+    selectedNames: Set<String>,
     onPreview: () -> Unit,
-    onOpenPicker: () -> Unit,
-    onRename: () -> Unit,
-    onDelete: () -> Unit,
-    onSetMain: () -> Unit,
-    onToggleMark: (String) -> Unit,
+    onGroupPicker: () -> Unit,
+    onGroupMenu: () -> Unit,
+    onRowClick: (MemberRow) -> Unit,
+    onRowLongClick: (MemberRow) -> Unit,
 ) {
-    var menuOpen by remember { mutableStateOf(false) }
     Surface(
-        shape = RoundedCornerShape(14.dp),
+        shape = RoundedCornerShape(16.dp),
         color = MaterialTheme.colorScheme.surfaceContainerLow,
         tonalElevation = 1.dp,
-        modifier = Modifier
-            .fillMaxWidth()
-            .combinedClickable(
-                onClick = onOpenPicker,
-                onLongClick = { menuOpen = true },
-            )
+        modifier = Modifier.fillMaxWidth()
     ) {
-        Row(
-            Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Column(Modifier.weight(1f)) {
-                // 角色名行：名字加粗 + 主角👑 + 已点亮标记 emoji
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(
-                        rec.name,
-                        style = MaterialTheme.typography.bodyLarge,
-                        fontWeight = FontWeight.SemiBold,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                        modifier = Modifier.weight(1f, fill = false),
-                    )
-                    if (rec.isMain) {
-                        Spacer(Modifier.width(4.dp))
-                        Text("👑", style = MaterialTheme.typography.bodyMedium)
-                    }
-                    if (marksEmoji.isNotEmpty()) {
-                        Spacer(Modifier.width(6.dp))
-                        Text(marksEmoji, style = MaterialTheme.typography.bodyMedium)
-                    }
-                }
-                Spacer(Modifier.height(2.dp))
-                // 发音人行：分类·显示名（点它=换声弹窗入口），未分配灰显
-                Text(
-                    if (rec.voice.isBlank()) stringResource(R.string.role_list_unassigned)
-                    else buildString {
-                        if (category.isNotBlank()) append("$category · ")
-                        append(voiceName ?: rec.voice)
-                    },
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = if (rec.voice.isBlank()) MaterialTheme.colorScheme.onSurfaceVariant
-                    else MaterialTheme.colorScheme.onSurface,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.combinedClickable(onClick = onOpenPicker),
-                )
-            }
-            Spacer(Modifier.width(8.dp))
-            // ▶ 试听
-            TextButton(onClick = onPreview, enabled = rec.voice.isNotBlank()) {
-                Text(
-                    previewLabel,
-                    style = MaterialTheme.typography.titleMedium,
-                )
-            }
-            Spacer(Modifier.width(4.dp))
-            // ⋮ 菜单（长按行同款）
-            androidx.compose.material3.IconButton(onClick = { menuOpen = true }) {
-                Icon(Icons.Default.MoreVert, contentDescription = null)
-            }
-            DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
-                VoiceMarksFile.MARK_ITEMS.forEach { (key, emoji, label) ->
-                    DropdownMenuItem(
-                        text = { Text("$emoji $label") },
-                        onClick = {
-                            menuOpen = false
-                            onToggleMark(key)
-                        },
-                        trailingIcon = if (emoji in marksEmoji) {
-                            { Icon(Icons.Default.Done, contentDescription = null) }
-                        } else null,
-                    )
-                }
-                androidx.compose.material3.HorizontalDivider()
-                DropdownMenuItem(
-                    text = { Text(stringResource(R.string.role_list_menu_rename)) },
-                    onClick = { menuOpen = false; onRename() }
-                )
-                DropdownMenuItem(
-                    text = { Text(stringResource(R.string.role_list_menu_set_main)) },
-                    onClick = { menuOpen = false; onSetMain() }
-                )
-                DropdownMenuItem(
-                    text = {
+        Column(Modifier.padding(vertical = 8.dp)) {
+            // 组头：标签 chip + ▶ + ⋮
+            Row(
+                Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 4.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Surface(
+                    onClick = onGroupPicker,
+                    enabled = group.tag.isNotBlank(),
+                    shape = RoundedCornerShape(10.dp),
+                    color = if (group.tag.isBlank()) MaterialTheme.colorScheme.surfaceContainerHighest
+                    else MaterialTheme.colorScheme.secondaryContainer,
+                    modifier = Modifier.weight(1f, fill = false)
+                ) {
+                    Row(
+                        Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
                         Text(
-                            stringResource(R.string.role_list_menu_delete),
-                            color = MaterialTheme.colorScheme.error
+                            tagName,
+                            style = MaterialTheme.typography.bodyMedium,
+                            fontWeight = FontWeight.SemiBold,
+                            color = if (group.tag.isBlank()) MaterialTheme.colorScheme.onSurfaceVariant
+                            else MaterialTheme.colorScheme.onSecondaryContainer,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
                         )
-                    },
-                    onClick = { menuOpen = false; onDelete() }
-                )
+                        if (marksEmoji.isNotEmpty()) {
+                            Spacer(Modifier.width(6.dp))
+                            Text(marksEmoji, style = MaterialTheme.typography.bodySmall)
+                        }
+                    }
+                }
+                Spacer(Modifier.width(4.dp))
+                TextButton(onClick = onPreview, enabled = group.tag.isNotBlank()) {
+                    Text(previewLabel, style = MaterialTheme.typography.titleMedium)
+                }
+                androidx.compose.material3.IconButton(onClick = onGroupMenu) {
+                    Icon(Icons.Default.MoreVert, contentDescription = null)
+                }
+            }
+            HorizontalDivider(Modifier.padding(horizontal = 12.dp))
+            // 组员：角色名列表（主名加粗/别名常规淡色；多选模式主名行前 checkbox）
+            group.rows.forEach { row ->
+                val selected = !row.isAlias && row.rec!!.name in selectedNames
+                Row(
+                    Modifier
+                        .fillMaxWidth()
+                        .combinedClickable(
+                            onClick = { onRowClick(row) },
+                            onLongClick = { onRowLongClick(row) },
+                        )
+                        .padding(start = 16.dp, end = 12.dp, top = 2.dp, bottom = 2.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    if (selectMode && !row.isAlias) {
+                        Checkbox(checked = selected, onCheckedChange = { onRowClick(row) })
+                    } else {
+                        Spacer(Modifier.width(8.dp))
+                        Text("•", color = MaterialTheme.colorScheme.primary)
+                    }
+                    Spacer(Modifier.width(8.dp))
+                    Text(
+                        row.displayName,
+                        style = if (row.isAlias) MaterialTheme.typography.bodyMedium else MaterialTheme.typography.bodyLarge,
+                        fontWeight = if (row.isAlias) FontWeight.Normal else FontWeight.SemiBold,
+                        color = if (row.isAlias) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.onSurface,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.weight(1f)
+                    )
+                    if (!row.isAlias && row.rec!!.isMain) {
+                        Text("👑", style = MaterialTheme.typography.bodyMedium)
+                        Spacer(Modifier.width(4.dp))
+                    }
+                }
             }
         }
     }
@@ -480,6 +665,45 @@ private fun RenameDialog(
                 enabled = text.isNotBlank() && text.trim() != initial,
                 onClick = { onConfirm(text.trim()) }
             ) { Text(stringResource(R.string.confirm)) }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text(stringResource(R.string.cancel)) }
+        }
+    )
+}
+
+/** 合并目标选择：单选保留哪个角色名（其余并入其 aliases 后删除） */
+@Composable
+private fun MergeTargetDialog(
+    candidates: List<String>,
+    onDismiss: () -> Unit,
+    onConfirm: (String) -> Unit,
+) {
+    var picked by remember { mutableStateOf(candidates.first()) }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(stringResource(R.string.role_list_merge_target_title)) },
+        text = {
+            Column {
+                Text(
+                    stringResource(R.string.role_list_merge_target_hint),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Spacer(Modifier.height(8.dp))
+                candidates.forEach { name ->
+                    Row(
+                        Modifier.fillMaxWidth().combinedClickable(onClick = { picked = name }),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        RadioButton(selected = picked == name, onClick = { picked = name })
+                        Text(name, style = MaterialTheme.typography.bodyLarge)
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = { onConfirm(picked) }) { Text(stringResource(R.string.confirm)) }
         },
         dismissButton = {
             TextButton(onClick = onDismiss) { Text(stringResource(R.string.cancel)) }

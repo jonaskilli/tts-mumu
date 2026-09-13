@@ -14,9 +14,12 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AccountCircle
+import androidx.compose.material.icons.filled.AutoStories
+import androidx.compose.material.icons.filled.VpnKey
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
@@ -50,6 +53,8 @@ import com.github.jing332.tts_server_android.R
 import com.github.jing332.tts_server_android.compose.nav.NavTopAppBar
 import com.github.jing332.tts_server_android.compose.systts.list.expandSpeechRuleTagsIfNeeded
 import com.github.jing332.tts_server_android.compose.systts.list.ui.PluginTtsUI
+import com.github.jing332.tts_server_android.compose.systts.role.BookManagerDialog
+import com.github.jing332.tts_server_android.compose.systts.role.KeyManagerDialog
 import com.github.jing332.tts_server_android.compose.systts.role.RoleListScreen
 import com.github.jing332.tts_server_android.conf.SpeechRuleConfig
 import com.github.jing332.tts_server_android.model.rhino.speech_rule.SpeechRuleEngine
@@ -192,11 +197,24 @@ fun RoleManagementScreen(sharedVM: SharedViewModel, pagerState: PagerState) {
     }
 
     val scrollBehavior = TopAppBarDefaults.pinnedScrollBehavior()
+    // 顶栏入口：密钥管理 / 书籍管理（目目 09-13「全套一次到位」）
+    var showKeyManager by remember { mutableStateOf(false) }
+    var showBookManager by remember { mutableStateOf(false) }
+    // 换书成功后 ++，随 reloadKey 传入 RoleListScreen 触发角色重读（书切了记录整表换）
+    var bookVersion by remember { mutableIntStateOf(0) }
     Scaffold(
         modifier = Modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
         topBar = {
             NavTopAppBar(
                 title = { Text(stringResource(R.string.role_management)) },
+                actions = {
+                    IconButton(onClick = { showBookManager = true }) {
+                        Icon(Icons.Default.AutoStories, contentDescription = stringResource(R.string.role_book_title))
+                    }
+                    IconButton(onClick = { showKeyManager = true }) {
+                        Icon(Icons.Default.VpnKey, contentDescription = stringResource(R.string.role_key_title))
+                    }
+                }
             )
         }
     ) { paddingValues ->
@@ -206,7 +224,7 @@ fun RoleManagementScreen(sharedVM: SharedViewModel, pagerState: PagerState) {
             if (roleFilesReady && isPageVisible.value) {
                 RoleListScreen(
                     tagRuleId = ROLE_RULE_ID,
-                    reloadKey = reloadKey,
+                    reloadKey = reloadKey + bookVersion,
                     bottomPadding = paddingValues.calculateBottomPadding(),
                     modifier = Modifier
                         .fillMaxSize()
@@ -283,6 +301,21 @@ fun RoleManagementScreen(sharedVM: SharedViewModel, pagerState: PagerState) {
                 }
             }
         }
+    }
+
+    // ===== 顶栏弹窗：密钥管理 / 书籍管理（数据与插件同文件互通） =====
+    if (showKeyManager) {
+        KeyManagerDialog(
+            tagRuleId = ROLE_RULE_ID,
+            onDismiss = { showKeyManager = false },
+        )
+    }
+    if (showBookManager) {
+        BookManagerDialog(
+            tagRuleId = ROLE_RULE_ID,
+            onDismiss = { showBookManager = false },
+            onSwitched = { bookVersion++ },
+        )
     }
 }
 

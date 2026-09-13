@@ -108,6 +108,7 @@ fun VoicePickerDialog(
     bindingKey: String,
     titleBadge: String = "",
     isLocalSoundSlot: Boolean = false,
+    groupBindingKeys: List<String> = emptyList(),
     sharedVM: SharedViewModel? = null,
     onChanged: ((event: String, tag: String) -> Unit)? = null,
     onDismissRequest: () -> Unit,
@@ -1048,19 +1049,24 @@ fun VoicePickerDialog(
                         onClick = {
                             val selected = pendingVoice ?: return@TextButton
                             if (isBindingMode) {
-                                // 绑定模式：改写 characterRecords.json（与角色管理同文件同字段）
+                                // 绑定模式：改写 characterRecords.json（与角色管理同文件同字段）；
+                                // groupBindingKeys 非空=整组换声（内置角色列表组头入口，逐个 rebind 组内角色）
                                 if (selected == boundVoice) {
                                     pendingVoice = null
                                     return@TextButton
                                 }
+                                val targets = if (groupBindingKeys.isNotEmpty()) groupBindingKeys else listOf(bindingKey)
                                 scope.launch {
-                                    val ok = withIO {
-                                        CharacterRecordsFile.rebind(
-                                            config.speechRule.tagRuleId,
-                                            bindingKey,
-                                            selected,
-                                        )
+                                    var okCount = 0
+                                    withIO {
+                                        targets.forEach { name ->
+                                            if (CharacterRecordsFile.rebind(
+                                                    config.speechRule.tagRuleId, name, selected,
+                                                )
+                                            ) okCount++
+                                        }
                                     }
+                                    val ok = okCount > 0
                                     if (ok) {
                                         boundVoice = selected
                                         onChanged?.invoke("applied", selected)
@@ -1068,9 +1074,13 @@ fun VoicePickerDialog(
                                     pendingVoice = null
                                     Toast.makeText(
                                         context,
-                                        if (ok) "已将「$bindingKey」的发音人换为 " +
-                                            (if (isLocalSoundSlot) localSoundSlotLabel(selected) else selected)
-                                        else context.getString(R.string.log_panel_rebind_failed),
+                                        when {
+                                            !ok -> context.getString(R.string.log_panel_rebind_failed)
+                                            targets.size > 1 -> "已将 ${okCount}/${targets.size} 个角色换为 " +
+                                                (if (isLocalSoundSlot) localSoundSlotLabel(selected) else selected)
+                                            else -> "已将「$bindingKey」的发音人换为 " +
+                                                (if (isLocalSoundSlot) localSoundSlotLabel(selected) else selected)
+                                        },
                                         Toast.LENGTH_SHORT,
                                     ).show()
                                 }
