@@ -763,10 +763,10 @@
     <string name="role_key_saved">已保存</string>
     <string name="role_key_current_toast">已切换当前密钥</string>
     <string name="role_book_title">书籍管理</string>
+    <string name="role_book_manage">管理</string>
     <string name="role_book_current">当前书籍：%1$s</string>
     <string name="role_book_add">新增书籍</string>
     <string name="role_book_name">书名</string>
-    <string name="role_book_switch">切换</string>
     <string name="role_book_switch_confirm">切换到「%1$s」？当前角色数据会先存档。</string>
     <string name="role_book_delete_title">删除书籍</string>
     <string name="role_book_delete_text">确定删除书籍「%1$s」及其存档？</string>
@@ -802,8 +802,6 @@
     <string name="role_keyword_custom">自定义关键词</string>
     <string name="role_keyword_add">＋ 添加</string>
     <string name="role_keyword_input_hint">输入自定义关键词</string>
-    <string name="role_book_bar_rename">修改书名</string>
-    <string name="role_book_rename_title">修改书名</string>
     <string name="role_book_renamed">已重命名为「%1$s」</string>
     <string name="role_book_hint">点击切换 · 点✕删除</string>
     <string name="role_book_deleted_toast">已删除 %1$d 本书</string>

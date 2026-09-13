@@ -1,6 +1,7 @@
 package com.github.jing332.tts_server_android.compose.systts.role
 
 import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
@@ -195,32 +196,72 @@ fun RoleListScreen(
     var manageVoiceTag by remember { mutableStateOf<String?>(null) }
     var pickerFor by remember { mutableStateOf<CharacterRecordsFile.RoleRecord?>(null) } // 换声（标签框点击）
     var showBookDialog by remember { mutableStateOf(false) }
-    var renameBookFor by remember { mutableStateOf<Boolean?>(null) }
     var showKeyManager by remember { mutableStateOf(false) }
     var showBackupCenter by remember { mutableStateOf(false) }
     var backupVersion by remember { mutableIntStateOf(0) } // 恢复/导入等大动作后强制刷
 
     Column(modifier) {
-        // ===== 书籍栏（照插件：书名框 + 切换 + 修改书名）=====
-        Row(
-            Modifier.fillMaxWidth().padding(start = 12.dp, end = 8.dp, top = 4.dp),
-            verticalAlignment = Alignment.CenterVertically
+        // ===== 书籍栏（照插件：圆角卡片 = 📖 + 书名 + ✎ 行内改名 + ▾ 管理；
+        //      点书名与▾管理都开书籍管理弹窗（插件 showBookSwitchDialog 同入口））=====
+        var editingBook by remember { mutableStateOf(false) }
+        var bookEditName by remember { mutableStateOf("") }
+        Surface(
+            shape = RoundedCornerShape(12.dp),
+            color = MaterialTheme.colorScheme.secondaryContainer,
+            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 4.dp),
         ) {
-            Text("📖", style = MaterialTheme.typography.titleMedium)
-            Spacer(Modifier.width(8.dp))
-            Text(
-                currentBook,
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.SemiBold,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.weight(1f)
-            )
-            TextButton(onClick = { showBookDialog = true }) {
-                Text(stringResource(R.string.role_book_switch))
-            }
-            TextButton(onClick = { renameBookFor = true }) {
-                Text(stringResource(R.string.role_book_bar_rename))
+            Row(
+                Modifier.fillMaxWidth().padding(start = 10.dp, end = 2.dp, top = 4.dp, bottom = 4.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text("📖", style = MaterialTheme.typography.titleMedium)
+                Spacer(Modifier.width(8.dp))
+                if (editingBook) {
+                    // 行内编辑（照插件 editBookBtn：✎ → 书名框可编辑 + ✓ 结束；不做5秒超时，点✓即存）
+                    OutlinedTextField(
+                        value = bookEditName,
+                        onValueChange = { bookEditName = it },
+                        singleLine = true,
+                        textStyle = MaterialTheme.typography.titleSmall,
+                        modifier = Modifier.weight(1f),
+                        trailingIcon = {
+                            TextButton(
+                                enabled = bookEditName.trim().isNotEmpty() && bookEditName.trim() != currentBook,
+                                onClick = {
+                                    val target = bookEditName.trim()
+                                    editingBook = false
+                                    scope.launch {
+                                        val ok = withIO { CharacterRecordsFile.renameCurrentBook(tagRuleId, target) }
+                                        toast(if (ok) R.string.role_book_renamed else R.string.role_list_failed, target)
+                                        if (ok) reload()
+                                    }
+                                }
+                            ) { Text("✓") }
+                        },
+                    )
+                } else {
+                    Text(
+                        currentBook,
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.SemiBold,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis,
+                        color = MaterialTheme.colorScheme.onSecondaryContainer,
+                        modifier = Modifier
+                            .weight(1f)
+                            .clickable { showBookDialog = true },
+                    )
+                    TextButton(onClick = { bookEditName = currentBook; editingBook = true }) {
+                        Text("✎", color = MaterialTheme.colorScheme.onSecondaryContainer)
+                    }
+                    TextButton(onClick = { showBookDialog = true }) {
+                        Text(
+                            "▾ ${stringResource(R.string.role_book_manage)}",
+                            color = MaterialTheme.colorScheme.onSecondaryContainer
+                        )
+                    }
+                }
             }
         }
         // ===== 密钥/备份 按钮行（照插件顶部按钮行；主题按钮不搬=原生即 MD3）=====
@@ -595,40 +636,7 @@ fun RoleListScreen(
             onSwitched = { reload() },
         )
     }
-    // 修改书名（书籍栏「修改书名」）
-    renameBookFor?.let {
-        var newName by remember { mutableStateOf(currentBook) }
-        AlertDialog(
-            onDismissRequest = { renameBookFor = null },
-            title = { Text(stringResource(R.string.role_book_rename_title)) },
-            text = {
-                OutlinedTextField(
-                    value = newName,
-                    onValueChange = { newName = it },
-                    label = { Text(stringResource(R.string.role_book_name)) },
-                    singleLine = true,
-                    textStyle = MaterialTheme.typography.bodyMedium,
-                )
-            },
-            confirmButton = {
-                TextButton(
-                    enabled = newName.trim().isNotEmpty() && newName.trim() != currentBook,
-                    onClick = {
-                        val target = newName.trim()
-                        scope.launch {
-                            val ok = withIO { CharacterRecordsFile.renameCurrentBook(tagRuleId, target) }
-                            toast(if (ok) R.string.role_book_renamed else R.string.role_list_failed, target)
-                            renameBookFor = null
-                            if (ok) reload()
-                        }
-                    }
-                ) { Text(stringResource(R.string.confirm)) }
-            },
-            dismissButton = {
-                TextButton(onClick = { renameBookFor = null }) { Text(stringResource(R.string.cancel)) }
-            }
-        )
-    }
+    // 修改书名：已改为书籍栏 ✎ 行内编辑（照插件），弹窗通道退役
 
     // ===== 密钥管理 / 备份恢复 =====
     if (showKeyManager) {

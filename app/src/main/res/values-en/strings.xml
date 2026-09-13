@@ -588,10 +588,10 @@
     <string name="role_key_saved">Saved</string>
     <string name="role_key_current_toast">Current key switched</string>
     <string name="role_book_title">Books</string>
+    <string name="role_book_manage">Manage</string>
     <string name="role_book_current">Current book: %1$s</string>
     <string name="role_book_add">Add book</string>
     <string name="role_book_name">Book name</string>
-    <string name="role_book_switch">Switch</string>
     <string name="role_book_switch_confirm">Switch to "%1$s"? Current role data will be archived first.</string>
     <string name="role_book_delete_title">Delete book</string>
     <string name="role_book_delete_text">Delete book "%1$s" and its archive?</string>
@@ -627,8 +627,6 @@ Marks: %3$s</string>
     <string name="role_keyword_custom">Custom keywords</string>
     <string name="role_keyword_add">＋ Add</string>
     <string name="role_keyword_input_hint">Enter custom keyword</string>
-    <string name="role_book_bar_rename">Rename book</string>
-    <string name="role_book_rename_title">Rename book</string>
     <string name="role_book_renamed">Renamed to "%1$s"</string>
     <string name="role_book_hint">Tap to switch · Tap ✕ to delete</string>
     <string name="role_book_deleted_toast">Deleted %1$d book(s)</string>
