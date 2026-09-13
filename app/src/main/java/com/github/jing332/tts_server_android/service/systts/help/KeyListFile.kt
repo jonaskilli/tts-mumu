@@ -292,4 +292,117 @@ object KeyListFile {
         return if (chat.ok) true to "HTTP ${chat.code}，对话可用"
         else false to "HTTP ${chat.code}，${briefBody(chat.body)}"
     }
+
+    // ==================== 1:1 复刻补充（对照 角色管理v10 插件函数）====================
+
+    /** 同站判断（照插件 sameApiSite：归一化后 base 一致算同站） */
+    fun sameApiSite(a: String, b: String): Boolean {
+        val na = normalizeBaseUrl(a)
+        val nb = normalizeBaseUrl(b)
+        if (na == nb) return true
+        return openAiBaseUrl(na) == openAiBaseUrl(nb)
+    }
+
+    /** 密钥是否属于某接口（照插件 keyBelongsTo：value 的网址段同站即归属；纯 Key=直连不归属） */
+    fun keyBelongsTo(entry: KeyEntry, ifc: ApiInterface): Boolean {
+        val p = parseKeyValue(entry.value) ?: return false
+        return !p.isDirect && p.url.isNotEmpty() && sameApiSite(p.url, ifc.baseUrl)
+    }
+
+    /** 删除接口连同其下所有密钥条目（照插件接口表单🗑）；返回 (新密钥表, 删除的密钥数) */
+    fun deleteInterfaceCascade(tagRuleId: String, ifc: ApiInterface, keys: List<KeyEntry>): Pair<List<KeyEntry>, Int> {
+        val kept = keys.filter { !keyBelongsTo(it, ifc) }
+        val removed = keys.size - kept.size
+        val ifaces = readInterfaces(tagRuleId).filter { it.name != ifc.name }
+        saveInterfaces(tagRuleId, ifaces)
+        return kept to removed
+    }
+
+    /** 导出全部密钥到 密钥导出_yyyyMMdd.json（照插件 exportKeysDialog 格式：[[名字,{keyCode,value}],...]）；返回文件名 */
+    fun exportKeys(tagRuleId: String, keys: List<KeyEntry>): String? {
+        val date = java.text.SimpleDateFormat("yyyyMMdd", java.util.Locale.US).format(java.util.Date())
+        val fileName = "密钥导出_$date.json"
+        return try {
+            val arr = JSONArray()
+            keys.forEach { k ->
+                val obj = JSONObject()
+                obj.put("keyCode", k.keyCode)
+                obj.put("value", k.value)
+                val pair = JSONArray()
+                pair.put(k.name)
+                pair.put(obj)
+                arr.put(pair)
+            }
+            val d = dir(tagRuleId)
+            if (!d.exists()) d.mkdirs()
+            File(d, fileName).writeText(arr.toString(2))
+            fileName
+        } catch (e: Exception) {
+            Log.w(TAG, "exportKeys failed: ${e.message}")
+            null
+        }
+    }
+
+    /** 找现存导出文件（密钥导出_*.json，按名倒序=新在前） */
+    fun listExportFiles(tagRuleId: String): List<String> = try {
+        dir(tagRuleId).listFiles()
+            ?.filter { it.name.startsWith("密钥导出_") && it.name.endsWith(".json") }
+            ?.map { it.name }?.sortedDescending() ?: emptyList()
+    } catch (e: Exception) {
+        emptyList()
+    }
+
+    /** 读导出文件为条目列表；损坏返回 null */
+    fun readExportFile(tagRuleId: String, fileName: String): List<KeyEntry>? = try {
+        val f = File(dir(tagRuleId), fileName)
+        if (!f.exists()) null
+        else {
+            val arr = JSONArray(f.readText())
+            val out = mutableListOf<KeyEntry>()
+            for (i in 0 until arr.length()) {
+                val pair = arr.optJSONArray(i) ?: continue
+                val name = pair.optString(0).trim()
+                val obj = pair.optJSONObject(1) ?: continue
+                if (name.isNotEmpty()) out.add(KeyEntry(name, obj.optString("keyCode"), obj.optString("value")))
+            }
+            out
+        }
+    } catch (e: Exception) {
+        Log.w(TAG, "readExportFile failed: ${e.message}")
+        null
+    }
+
+    /**
+     * 导入合并（照插件 doImport）：重名跳过；返回 (新增数, 跳过数)。
+     * 注意：与 saveKeys 不同，此操作**不写备份**（导入是增量合并）。
+     */
+    fun importKeys(tagRuleId: String, incoming: List<KeyEntry>): Pair<Int, Int> {
+        val existing = readKeys(tagRuleId)
+        val nameSet = existing.map { it.name }.toMutableSet()
+        var added = 0
+        var skipped = 0
+        val merged = existing.toMutableList()
+        incoming.forEach { item ->
+            if (item.name in nameSet) {
+                skipped++
+            } else {
+                nameSet.add(item.name)
+                merged.add(item.copy(keyCode = item.keyCode.ifEmpty { nextKeyCode(merged) }))
+                added++
+            }
+        }
+        return if (saveKeys(tagRuleId, merged)) added to skipped else 0 to incoming.size
+    }
+
+    /** 模型分类（照插件 classifyModel：按模型名关键词分五类） */
+    fun classifyModel(modelName: String): String {
+        val m = modelName.lowercase()
+        return when {
+            "embed" in m || "bge" in m || "vector" in m -> "向量"
+            Regex("dall|flux|image|sd|stable|draw|paint").containsMatchIn(m) -> "图像"
+            Regex("video|sora|kling|runway").containsMatchIn(m) -> "视频"
+            Regex("tts|audio|whisper|speech|asr|voice").containsMatchIn(m) -> "音频"
+            else -> "文本"
+        }
+    }
 }

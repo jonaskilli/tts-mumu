@@ -382,4 +382,322 @@ object CharacterRecordsFile {
         runCatching { File(dir(tagRuleId), "shuming.$name.json").delete() }
         return true
     }
+
+    // ==================== 1:1 复刻补充（对照 角色管理v10 插件函数）====================
+
+    /** 规范化比较（照插件 normalizeString：去首尾空白；大小写原样，中文场景够用） */
+    private fun norm(s: String): String = s.trim()
+
+    /**
+     * 修改当前书名（照插件 renameCurrentBook 三阶段）：
+     * ①cunfang.txt=新书名 + liebiao.json 原书名项替换（保序，确保「默认」在列表）
+     * ②shuming.旧.json → shuming.新.json 迁移（旧文件删除，失败覆写空）
+     * ③characterRecords.json + characterRecords_backup.json 重写为新书数据
+     */
+    fun renameCurrentBook(tagRuleId: String, newBookName: String): Boolean {
+        val n = newBookName.trim()
+        if (n.isEmpty()) return false
+        val d = dir(tagRuleId)
+        if (!d.exists()) return false
+        val current = readCurrentBook(tagRuleId)
+        if (n == current) return true
+        return try {
+            // ① cunfang + liebiao
+            currentBookFile(tagRuleId).writeText(n)
+            val books = readBookList(tagRuleId).toMutableList()
+            val idx = books.indexOfFirst { norm(it) == norm(current) }
+            if (idx >= 0) books[idx] = n else books.add(0, n)
+            if (books.none { norm(it) == "默认" }) books.add("默认")
+            saveBookList(tagRuleId, books)
+            // ② 存档迁移
+            val bookData = runCatching { File(d, "shuming.$current.json").readText() }.getOrNull()
+            if (bookData != null) {
+                File(d, "shuming.$n.json").writeText(bookData)
+                if (!File(d, "shuming.$current.json").delete()) {
+                    runCatching { File(d, "shuming.$current.json").writeText("[]") }
+                }
+            }
+            // ③ 主文件重写
+            val data = bookData ?: "[]"
+            File(d, "characterRecords.json").writeText(data)
+            File(d, "characterRecords_backup.json").writeText(data)
+            Log.i(TAG, "renameCurrentBook: $current -> $n")
+            true
+        } catch (e: Exception) {
+            Log.w(TAG, "renameCurrentBook failed: ${e.message}")
+            false
+        }
+    }
+
+    /**
+     * 多选删除书籍（照插件 deleteMultipleBooks）：清单移除 + 存档删除（失败覆写空）；
+     * 若删除含当前书 → cunfang=默认 + 载入默认存档写回 characterRecords/gengxin。
+     * 返回 (成功删除数, 当前书是否被删)
+     */
+    fun deleteBooks(tagRuleId: String, books: Set<String>): Pair<Int, Boolean> {
+        if (books.isEmpty()) return 0 to false
+        val d = dir(tagRuleId)
+        if (!d.exists()) return 0 to false
+        return try {
+            val current = readCurrentBook(tagRuleId)
+            val currentDeleted = books.any { norm(it) == norm(current) }
+            // 清单移除
+            val remain = readBookList(tagRuleId).filter { b -> books.none { norm(it) == norm(b) } }
+            saveBookList(tagRuleId, remain)
+            // 当前书被删 → 切默认并载入默认存档
+            if (currentDeleted) {
+                currentBookFile(tagRuleId).writeText("默认")
+                val defData = runCatching { File(d, "shuming.默认.json").readText() }.getOrNull()
+                val payload = if (defData.isNullOrBlank()) "[]" else defData
+                File(d, "characterRecords.json").writeText(payload)
+                File(d, "gengxin.json").writeText(payload)
+            }
+            // 删存档
+            var deleted = 0
+            books.forEach { b ->
+                val f = File(d, "shuming.$b.json")
+                if (f.exists() && f.delete()) deleted++ else runCatching { f.writeText("[]") }
+                deleted // 计数以清单移除为准，这里只兜底
+            }
+            Log.i(TAG, "deleteBooks: $books (currentDeleted=$currentDeleted)")
+            books.size to currentDeleted
+        } catch (e: Exception) {
+            Log.w(TAG, "deleteBooks failed: ${e.message}")
+            0 to false
+        }
+    }
+
+    /** 手动添加角色（照插件添加角色 handler）：关键词意向做 voice，性别年龄未知 */
+    fun addCharacter(tagRuleId: String, name: String, voiceKeyword: String): Boolean {
+        val n = name.trim()
+        if (n.isEmpty() || voiceKeyword.isBlank()) return false
+        val records = readRecords(tagRuleId)
+        if (records.any { norm(it.name) == norm(n) }) return false
+        val fresh = JSONObject()
+        fresh.put("name", n)
+        fresh.put("aliases", "")
+        fresh.put("voice", voiceKeyword.trim())
+        fresh.put("usageCount", 100)
+        fresh.put("gender", "未知")
+        fresh.put("age", "未知")
+        val out = records.toMutableList()
+        out.add(RoleRecord(fresh))
+        return saveRecords(tagRuleId, out)
+    }
+
+    /**
+     * 多行名称编辑保存（照插件 showEditCharacterDialog）：names[0]=主名，其余=aliases。
+     * 主名与其他记录重名返回 false（插件同校验）。同名多记录（合并产物）一并改。
+     */
+    fun editCharacterNames(tagRuleId: String, oldName: String, names: List<String>): Boolean {
+        val cleaned = names.map { it.trim() }.filter { it.isNotEmpty() }
+        if (cleaned.isEmpty()) return false
+        val records = readRecords(tagRuleId)
+        val mainName = cleaned[0]
+        // 主名与其他记录冲突（排除同名旧记录——合并出的多条同名记录一起改）
+        if (records.any { norm(it.name) != norm(oldName) && norm(it.name) == norm(mainName) }) return false
+        var changed = false
+        records.forEach {
+            if (norm(it.name) == norm(oldName)) {
+                it.setName(mainName)
+                it.obj.put("aliases", cleaned.drop(1).joinToString("|"))
+                changed = true
+            }
+        }
+        return changed && saveRecords(tagRuleId, records)
+    }
+
+    /**
+     * 释放并固定单个名字（照插件 doReleaseOperation「释放并固定」）：
+     * 从 [ownerName] 移除该名字（主名被移除时 aliases 首个顶上，记录空了则删除）；
+     * 已存在同名记录 → voice=keyword + usageCount=100；否则紧随原记录位置新建
+     * {name, aliases:"", voice:keyword, gender:"", age:"", usageCount:100}。
+     */
+    fun releaseAndFix(tagRuleId: String, ownerName: String, name: String, keyword: String): Boolean {
+        if (ownerName.isBlank() || name.isBlank() || keyword.isBlank()) return false
+        val records = readRecords(tagRuleId)
+        val ownerIdx = records.indexOfFirst { norm(it.name) == norm(ownerName) }
+        if (ownerIdx < 0) return false
+        val owner = records[ownerIdx]
+        var charRemoved = false
+        if (norm(name) == norm(owner.name)) {
+            val liveAliases = splitAliases(owner.aliases).filter { norm(it) != norm(name) }.distinct()
+            if (liveAliases.isNotEmpty()) {
+                owner.setName(liveAliases[0])
+                owner.obj.put("aliases", liveAliases.joinToString("|"))
+            } else {
+                records.removeAt(ownerIdx)
+                charRemoved = true
+            }
+        } else {
+            val rest = splitAliases(owner.aliases).filter { norm(it) != norm(name) }.distinct()
+            owner.obj.put("aliases", rest.joinToString("|"))
+        }
+        // 已存在同名独立记录 → 固定其发音人；否则新建
+        val existIdx = records.indexOfFirst { norm(it.name) == norm(name) }
+        if (existIdx >= 0) {
+            records[existIdx].obj.put("voice", keyword.trim())
+            records[existIdx].obj.put("usageCount", 100)
+        } else {
+            val fresh = JSONObject()
+            fresh.put("name", name)
+            fresh.put("aliases", "")
+            fresh.put("voice", keyword.trim())
+            fresh.put("gender", "")
+            fresh.put("age", "")
+            fresh.put("usageCount", 100)
+            records.add(if (charRemoved) ownerIdx.coerceAtMost(records.size) else ownerIdx + 1, RoleRecord(fresh))
+        }
+        return saveRecords(tagRuleId, records)
+    }
+
+    /** 删除名字（照插件 doReleaseOperation「删除」）：从主名/别名移除，记录空了删除整个记录 */
+    fun removeNameFromRecord(tagRuleId: String, ownerName: String, name: String): Boolean {
+        val records = readRecords(tagRuleId)
+        val ownerIdx = records.indexOfFirst { norm(it.name) == norm(ownerName) }
+        if (ownerIdx < 0) return false
+        val owner = records[ownerIdx]
+        if (norm(name) == norm(owner.name)) {
+            val liveAliases = splitAliases(owner.aliases).filter { norm(it) != norm(name) }.distinct()
+            if (liveAliases.isNotEmpty()) {
+                owner.setName(liveAliases[0])
+                owner.obj.put("aliases", liveAliases.joinToString("|"))
+            } else {
+                records.removeAt(ownerIdx)
+            }
+        } else {
+            val rest = splitAliases(owner.aliases).filter { norm(it) != norm(name) }.distinct()
+            if (rest.size == splitAliases(owner.aliases).size) return false
+            owner.obj.put("aliases", rest.joinToString("|"))
+        }
+        return saveRecords(tagRuleId, records)
+    }
+
+    /**
+     * 删除发音人=解绑重分配（照插件 doDeleteVoiceAndReassign 的用户可见效果）：
+     * 所有 voice=tag 的角色 voice 置空（下次朗读按性别年龄重新分配）；
+     * 池子尽力同步移除（朗读链会按启用配置重建，配置仍启用时标签会回来——native 架构差异）。
+     * 返回解绑的角色数。
+     */
+    fun unbindVoice(tagRuleId: String, tag: String): Int {
+        if (tag.isBlank()) return 0
+        val records = readRecords(tagRuleId)
+        var n = 0
+        records.forEach {
+            if (it.voice == tag) {
+                it.obj.put("voice", "")
+                n++
+            }
+        }
+        if (n > 0 && !saveRecords(tagRuleId, records)) return -1
+        removeFromPool(tagRuleId, tag)
+        return n
+    }
+
+    // ==================== 全量备份/恢复（照插件 backupAllFilesToData / restoreAllFilesFromData）====================
+    // 插件把备份存 ttsrv.tts.data.backupTest（插件数据域）；native 版存同目录 fullBackup.json。
+    // 自动备份开关存 autoBackupEnable.txt（"1"/"0"），进角色页时执行（对应插件 onLoadUI 初始化）。
+
+    private fun backupFile(tagRuleId: String) = File(dir(tagRuleId), "fullBackup.json")
+    private fun autoBackupFlagFile(tagRuleId: String) = File(dir(tagRuleId), "autoBackupEnable.txt")
+
+    /** 自动备份开关读取（"1"=开） */
+    fun readAutoBackupEnabled(tagRuleId: String): Boolean = try {
+        autoBackupFlagFile(tagRuleId).readText().trim() == "1"
+    } catch (e: Exception) {
+        false
+    }
+
+    /** 自动备份开关写入 */
+    fun writeAutoBackupEnabled(tagRuleId: String, enabled: Boolean): Boolean = try {
+        val d = dir(tagRuleId)
+        if (!d.exists()) d.mkdirs()
+        autoBackupFlagFile(tagRuleId).writeText(if (enabled) "1" else "0")
+        true
+    } catch (e: Exception) {
+        Log.w(TAG, "writeAutoBackupEnabled failed: ${e.message}")
+        false
+    }
+
+    /** 备份全部文件到 fullBackup.json（核心文件+全部书籍存档），返回文件数 */
+    fun backupAllFiles(tagRuleId: String): Int {
+        val d = dir(tagRuleId)
+        if (!d.exists()) return 0
+        return try {
+            val map = JSONObject()
+            // 核心文件（运行时同步副本 gengxin/backup 不入备份，与插件口径一致）
+            listOf("characterRecords.json", "liebiao.json", "cunfang.txt", "fayinren.json",
+                "key_list.json", "miyue.txt", "api_center.json").forEach { fn ->
+                val f = File(d, fn)
+                if (f.exists()) map.put(fn, f.readText())
+            }
+            // 全部书籍存档
+            d.listFiles()?.filter { it.name.startsWith("shuming.") && it.name.endsWith(".json") }?.forEach { f ->
+                map.put(f.name, f.readText())
+            }
+            backupFile(tagRuleId).writeText(map.toString())
+            map.length()
+        } catch (e: Exception) {
+            Log.w(TAG, "backupAllFiles failed: ${e.message}")
+            0
+        }
+    }
+
+    /** 从 fullBackup.json 完整还原；返回恢复文件数（无备份=-1） */
+    fun restoreAllFiles(tagRuleId: String): Int {
+        val d = dir(tagRuleId)
+        val f = backupFile(tagRuleId)
+        if (!d.exists() || !f.exists()) return -1
+        return try {
+            val map = JSONObject(f.readText())
+            var n = 0
+            map.keys().forEach { fn ->
+                if (!fn.startsWith("__")) {
+                    runCatching { File(d, fn).writeText(map.optString(fn)) }.onSuccess { n++ }
+                }
+            }
+            // characterRecords 恢复后同步 gengxin（插件同款兜底）
+            val rec = map.optString("characterRecords.json")
+            if (rec.isNotEmpty()) runCatching { File(d, "gengxin.json").writeText(rec) }
+            Log.i(TAG, "restoreAllFiles: $n files")
+            n
+        } catch (e: Exception) {
+            Log.w(TAG, "restoreAllFiles failed: ${e.message}")
+            0
+        }
+    }
+
+    // ==================== 自定义关键词（照插件 CUSTOM_KEYWORDS_FILE=custom_keywords.json，同文件互通）====================
+
+    private fun customKeywordsFile(tagRuleId: String) = File(dir(tagRuleId), "custom_keywords.json")
+
+    /** 读自定义关键词列表（缺失/损坏返回空表） */
+    fun readCustomKeywords(tagRuleId: String): List<String> {
+        val f = customKeywordsFile(tagRuleId)
+        if (!f.exists()) return emptyList()
+        return try {
+            val arr = JSONArray(f.readText())
+            (0 until arr.length()).mapNotNull { i -> arr.optString(i).trim().takeIf { it.isNotEmpty() } }
+        } catch (e: Exception) {
+            Log.w(TAG, "readCustomKeywords failed: ${e.message}")
+            emptyList()
+        }
+    }
+
+    /** 添加自定义关键词（重名不重复加）；返回更新后的列表 */
+    fun saveCustomKeyword(tagRuleId: String, keyword: String): List<String> {
+        val cur = readCustomKeywords(tagRuleId).toMutableList()
+        if (keyword.trim().isNotEmpty() && keyword.trim() !in cur) {
+            cur.add(keyword.trim())
+            runCatching { customKeywordsFile(tagRuleId).writeText(JSONArray(cur).toString(2)) }
+        }
+        return cur
+    }
+
+    /** 移除自定义关键词；返回更新后的列表 */
+    fun removeCustomKeyword(tagRuleId: String, keyword: String): List<String> {
+        val cur = readCustomKeywords(tagRuleId).filter { it != keyword }
+        runCatching { customKeywordsFile(tagRuleId).writeText(JSONArray(cur).toString(2)) }
+        return cur
+    }
 }
