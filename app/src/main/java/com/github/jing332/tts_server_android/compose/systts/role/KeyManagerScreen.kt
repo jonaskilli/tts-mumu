@@ -7,6 +7,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -19,7 +20,11 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Bolt
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.DeleteOutline
+import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CircularProgressIndicator
@@ -42,7 +47,9 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalClipboardManager
@@ -69,6 +76,11 @@ import kotlinx.coroutines.launch
  * 拉取模型（五类分组/搜索过滤/默认不勾选/全选只作用可见项/手动添加模型）。
  * 备份恢复：导出当前书籍到剪贴板/从剪贴板导入/备份全部文件/完整还原/自动备份开关。
  * 书籍：点击切换 · 点✕删除（当前书删后切默认）· 新增（建档并切换）· 多选删除 · 修改书名。
+ *
+ * 密钥弹窗外观（目目 09-14 改版「减噪 + 分层」，非插件原貌）：
+ * 条目**无方框无底色**靠浅分隔线分区；当前密钥 = 行首 3dp 主色竖条 + 名称主色加粗；
+ * 组级/条目级操作图标统一扁平灰（onSurfaceVariant、18dp、36dp 热区，无常驻描边），
+ * 三级层级 = 弹窗标题 16sp 黑 > 条目 14sp 深色 > 组头 12sp 灰 + 计数徽章。
  */
 
 /** 分组后的密钥组（照插件 buildKeyGroups：接口组 + 未分组 + 直连密钥） */
@@ -116,6 +128,44 @@ private fun SmallChipButton(text: String, color: Color, onClick: () -> Unit) {
     }
 }
 
+/**
+ * 扁平图标动作（目目 09-14 定案「图标要低调」）：**无描边、无底色**，统一 18dp、
+ * `onSurfaceVariant` 灰（危险动作也默认同灰，进入删除模式才随组头转红）；
+ * 热区仍 36dp 不缩水，按下反馈靠涟漪。
+ */
+@Composable
+private fun FlatIconAction(
+    icon: ImageVector,
+    contentDescription: String,
+    tint: Color = MaterialTheme.colorScheme.onSurfaceVariant,
+    onClick: () -> Unit,
+) {
+    Box(
+        Modifier.size(36.dp).clip(CircleShape).clickable(onClick = onClick),
+        contentAlignment = Alignment.Center
+    ) {
+        Icon(icon, contentDescription = contentDescription, tint = tint, modifier = Modifier.size(18.dp))
+    }
+}
+
+/** 扁平文字动作（标题行的导入/导出：去描边 chip，纯灰字，只靠边距分隔） */
+@Composable
+private fun FlatTextAction(
+    text: String,
+    color: Color = MaterialTheme.colorScheme.onSurfaceVariant,
+    onClick: () -> Unit,
+) {
+    Text(
+        text,
+        style = MaterialTheme.typography.labelLarge,
+        color = color,
+        modifier = Modifier
+            .clip(RoundedCornerShape(8.dp))
+            .clickable(onClick = onClick)
+            .padding(horizontal = 8.dp, vertical = 6.dp)
+    )
+}
+
 /** 等宽描边按钮（照插件 createBottomBtn：白底 + 1dp 描边 + 10dp 圆角 + 居中彩色文字） */
 @Composable
 private fun WideOutlineButton(
@@ -146,7 +196,11 @@ private fun WideOutlineButton(
     }
 }
 
-/** 密钥条目行（照插件密钥行：圆角卡片 + ✓/彩色圆点 + 名称点击切换 + ⚡ 测试 + ✏️ 编辑） */
+/**
+ * 密钥条目行（目目 09-14 改版）：**无方框、无底色**，靠上一行的浅分隔线分区；
+ * 当前密钥 = 行首 3dp 主色竖条 + 名称主色加粗（不再整块染色+描边）；
+ * 操作图标扁平灰（⚡ 测试 / ✏️ 编辑），热区 36dp。
+ */
 @Composable
 private fun KeyEntryRow(
     entry: KeyListFile.KeyEntry,
@@ -161,62 +215,53 @@ private fun KeyEntryRow(
     onTest: () -> Unit,
     onEdit: () -> Unit,
 ) {
-    Surface(
-        shape = RoundedCornerShape(10.dp),
-        color = if (isCurrent) MaterialTheme.colorScheme.primaryContainer
-        else MaterialTheme.colorScheme.surface,
-        border = BorderStroke(
-            width = if (isCurrent) 1.5.dp else 1.dp,
-            color = if (isCurrent) MaterialTheme.colorScheme.primary
-            else MaterialTheme.colorScheme.outlineVariant
-        ),
-        modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)
+    Row(
+        Modifier.fillMaxWidth().padding(horizontal = 6.dp, vertical = 9.dp),
+        verticalAlignment = Alignment.CenterVertically
     ) {
-        Row(
-            Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 12.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            if (deleteMode) {
-                Checkbox(checked = checked, onCheckedChange = { onToggleCheck() })
-            }
+        if (deleteMode) {
+            Checkbox(checked = checked, onCheckedChange = { onToggleCheck() })
+        }
+        // 行首标记位固定 16dp：当前=主色竖条 / 其余=彩色圆点 → 名字左缘始终对齐
+        Box(Modifier.width(16.dp), contentAlignment = Alignment.CenterStart) {
             if (isCurrent) {
-                Text(
-                    "✓",
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.primary
+                Box(
+                    Modifier
+                        .width(3.dp)
+                        .height(18.dp)
+                        .background(MaterialTheme.colorScheme.primary, RoundedCornerShape(2.dp))
                 )
-                Spacer(Modifier.width(8.dp))
             } else {
-                Spacer(Modifier.size(7.dp).background(dotColor, CircleShape))
-                Spacer(Modifier.width(8.dp))
+                Box(Modifier.size(7.dp).background(dotColor, CircleShape))
             }
+        }
+        Text(
+            entry.name,
+            style = MaterialTheme.typography.bodyLarge,
+            fontWeight = if (isCurrent) FontWeight.SemiBold else null,
+            color = if (isCurrent) MaterialTheme.colorScheme.primary
+            else MaterialTheme.colorScheme.onSurface,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.weight(1f).clickable { onSwitch() }
+        )
+        testOk?.let { ok ->
             Text(
-                entry.name,
-                style = MaterialTheme.typography.bodyLarge,
-                color = MaterialTheme.colorScheme.onSurface,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.weight(1f).clickable { onSwitch() }
+                stringResource(
+                    if (ok) R.string.role_key_test_ok_short else R.string.role_key_test_fail_short
+                ),
+                style = MaterialTheme.typography.bodySmall,
+                color = if (ok) Color(0xFF2E7D32) else MaterialTheme.colorScheme.error
             )
-            testOk?.let { ok ->
-                Text(
-                    stringResource(
-                        if (ok) R.string.role_key_test_ok_short else R.string.role_key_test_fail_short
-                    ),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = if (ok) Color(0xFF2E7D32) else MaterialTheme.colorScheme.error
-                )
-                Spacer(Modifier.width(4.dp))
-            }
-            if (testing) {
-                CircularProgressIndicator(Modifier.size(16.dp), strokeWidth = 2.dp)
-                Spacer(Modifier.width(4.dp))
-            }
-            if (!deleteMode) {
-                SmallChipButton("⚡", Color(0xFF455A64)) { onTest() }
-                SmallChipButton("✏️", MaterialTheme.colorScheme.primary) { onEdit() }
-            }
+            Spacer(Modifier.width(2.dp))
+        }
+        if (testing) {
+            CircularProgressIndicator(Modifier.size(16.dp), strokeWidth = 2.dp)
+            Spacer(Modifier.width(2.dp))
+        }
+        if (!deleteMode) {
+            FlatIconAction(Icons.Default.Bolt, stringResource(R.string.role_key_test)) { onTest() }
+            FlatIconAction(Icons.Default.Edit, stringResource(R.string.role_key_edit)) { onEdit() }
         }
     }
 }
@@ -387,12 +432,8 @@ fun KeyManagerDialog(tagRuleId: String, onDismiss: () -> Unit) {
                         fontWeight = FontWeight.Bold,
                         modifier = Modifier.weight(1f)
                     )
-                    SmallChipButton(
-                        "📥 " + stringResource(R.string.role_key_import), Color(0xFF757575)
-                    ) { showImport = true }
-                    SmallChipButton(
-                        "📤 " + stringResource(R.string.role_key_export), Color(0xFF757575)
-                    ) {
+                    FlatTextAction(stringResource(R.string.role_key_import)) { showImport = true }
+                    FlatTextAction(stringResource(R.string.role_key_export)) {
                         scope.launch {
                             val name = withIO { KeyListFile.exportKeys(tagRuleId, keys) }
                             if (name != null) toast(R.string.role_key_exported, keys.size, name)
@@ -438,7 +479,8 @@ fun KeyManagerDialog(tagRuleId: String, onDismiss: () -> Unit) {
                         val grpHasCurrent = currentRaw.isNotEmpty() &&
                                 grp.entries.any { it.value.trim() == currentRaw }
                         val selCount = grp.entries.count { it.name in deleteChecked }
-                        Column(Modifier.fillMaxWidth().padding(vertical = 6.dp)) {
+                        // 组间距拉开：组头靠上方留白与前一组区隔，组内条目紧凑
+                        Column(Modifier.fillMaxWidth().padding(top = 14.dp, bottom = 2.dp)) {
                             Row(
                                 Modifier.fillMaxWidth(),
                                 verticalAlignment = Alignment.CenterVertically
@@ -471,52 +513,93 @@ fun KeyManagerDialog(tagRuleId: String, onDismiss: () -> Unit) {
                                         else deleteConfirmGroup = grp.title
                                     }
                                 } else {
-                                    Text(
-                                        (if (isCollapsed) "▸ " else "▾ ") +
-                                                (if (grpHasCurrent) "✓" else "") +
-                                                grp.title + "（" + grp.entries.size + "）",
-                                        style = MaterialTheme.typography.bodyMedium,
-                                        fontWeight = FontWeight.Bold,
-                                        color = if (grp.ifc != null) MaterialTheme.colorScheme.primary
-                                        else MaterialTheme.colorScheme.onSurfaceVariant,
-                                        maxLines = 1,
-                                        overflow = TextOverflow.Ellipsis,
-                                        modifier = Modifier
+                                    // 组头（目目 09-14 三级层级的最轻一级）：12sp 灰字 + 计数徽章，
+                                    // 不再用主色加粗标题；接口信息交给下方灰字地址行承载
+                                    Row(
+                                        Modifier
                                             .weight(1f)
+                                            .clip(RoundedCornerShape(8.dp))
                                             .clickable {
                                                 collapsed = if (isCollapsed) collapsed - grp.title
                                                 else collapsed + grp.title
-                                            }
-                                    )
-                                    grp.ifc?.let { ifc ->
-                                        SmallChipButton("✏️", MaterialTheme.colorScheme.primary) {
-                                            ifcFormFor = ifc
+                                            },
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Text(
+                                            (if (isCollapsed) "▸ " else "▾ ") + grp.title,
+                                            style = MaterialTheme.typography.labelLarge,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                            maxLines = 1,
+                                            overflow = TextOverflow.Ellipsis
+                                        )
+                                        Spacer(Modifier.width(5.dp))
+                                        Surface(
+                                            shape = RoundedCornerShape(7.dp),
+                                            color = MaterialTheme.colorScheme.secondaryContainer
+                                        ) {
+                                            Text(
+                                                grp.entries.size.toString(),
+                                                style = MaterialTheme.typography.labelSmall,
+                                                color = MaterialTheme.colorScheme.onSecondaryContainer,
+                                                modifier = Modifier.padding(horizontal = 5.dp, vertical = 1.dp)
+                                            )
                                         }
-                                        SmallChipButton("🔍", MaterialTheme.colorScheme.primary) {
+                                        if (grpHasCurrent) {
+                                            Spacer(Modifier.width(4.dp))
+                                            Text(
+                                                "✓",
+                                                style = MaterialTheme.typography.labelMedium,
+                                                color = MaterialTheme.colorScheme.primary
+                                            )
+                                        }
+                                    }
+                                    // 组级图标：扁平灰（编辑接口 / 拉取模型 / 整组测试）
+                                    // 仅接口组有这三个动作——未分组/直连组点了也只是白弹提示
+                                    grp.ifc?.let { ifc ->
+                                        FlatIconAction(
+                                            Icons.Default.Edit,
+                                            stringResource(R.string.role_key_interface_edit)
+                                        ) { ifcFormFor = ifc }
+                                        FlatIconAction(
+                                            Icons.Default.Search,
+                                            stringResource(R.string.role_key_fetch)
+                                        ) {
                                             pullForIfc = ifc.name
                                             showPullModels = true
                                         }
-                                        SmallChipButton(
-                                            if (testingGroup == grp.title) "…" else "⚡",
-                                            MaterialTheme.colorScheme.primary
-                                        ) { testGroup(grp) }
+                                        if (testingGroup == grp.title) {
+                                            Box(Modifier.size(36.dp), contentAlignment = Alignment.Center) {
+                                                CircularProgressIndicator(
+                                                    Modifier.size(18.dp), strokeWidth = 2.dp
+                                                )
+                                            }
+                                        } else {
+                                            FlatIconAction(
+                                                Icons.Default.Bolt,
+                                                stringResource(R.string.role_key_test)
+                                            ) { testGroup(grp) }
+                                        }
                                     }
-                                    SmallChipButton("🗑️", Color(0xFFC62828)) {
+                                    FlatIconAction(
+                                        Icons.Default.DeleteOutline,
+                                        stringResource(R.string.delete)
+                                    ) {
                                         deleteModeGroup = grp.title
                                         deleteChecked = emptySet()
                                         collapsed = collapsed - grp.title
                                     }
                                 }
                             }
-                            // 第二行：接口地址 + Key 尾4（组头专用灰字，照插件）
+                            // 第二行：接口地址 + Key 尾4（最淡一级灰字，缩进对齐组名）
                             if (!isDeleting) {
                                 grp.ifc?.let { ifc ->
                                     Text(
                                         ifc.baseUrl + "  *尾" + ifc.apiKey.takeLast(4),
                                         style = MaterialTheme.typography.bodySmall,
-                                        color = Color(0xFF9E9E9E),
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
                                         maxLines = 1,
-                                        overflow = TextOverflow.Ellipsis
+                                        overflow = TextOverflow.Ellipsis,
+                                        modifier = Modifier.padding(start = 14.dp, bottom = 2.dp)
                                     )
                                 }
                             }
@@ -525,6 +608,13 @@ fun KeyManagerDialog(tagRuleId: String, onDismiss: () -> Unit) {
                             grp.entries.forEachIndexed { idx, entry ->
                                 val isCurrent = currentRaw.isNotEmpty() &&
                                         entry.value.trim() == currentRaw
+                                // 条目去方框后靠浅分隔线分区；首条不加，避免紧贴组头地址行
+                                if (idx > 0) {
+                                    HorizontalDivider(
+                                        thickness = 0.6.dp,
+                                        color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f)
+                                    )
+                                }
                                 KeyEntryRow(
                                     entry = entry,
                                     isCurrent = isCurrent,
