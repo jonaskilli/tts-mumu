@@ -40,6 +40,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -451,7 +452,25 @@ fun LogQuickPanel(
     // 居中弹窗（用户 09-09：底部弹窗全面撤回，恢复 AppDialog 中弹窗形态；标题即面板名）
     AppDialog(
         onDismissRequest = onDismissRequest,
-        title = { Text(stringResource(R.string.log_panel_title)) },
+        title = {
+            // 角色名放大放标题右侧（目目 09-13 提案）：标题行右侧本来空着，角色名提到这里
+            // 主色放大更醒目、不占正文高度；小标签行随之瘦回「当前发音人」。
+            // Box 吃剩余宽度、名字右对齐：超长名省略号截断，标题永不被挤
+            Row(Modifier.fillMaxWidth()) {
+                Text(stringResource(R.string.log_panel_title))
+                Box(Modifier.weight(1f)) {
+                    if (entry.roleName.isNotBlank()) Text(
+                        entry.roleName,
+                        modifier = Modifier.align(Alignment.CenterEnd),
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.SemiBold,
+                        color = MaterialTheme.colorScheme.primary,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
+            }
+        },
         content = {
             // 候选列表高度上限统一按屏高 40% 自适应（用户 09-11 晚拍板）：原先绑定模式 220dp、
             // 旁白模式 300dp 两个手调固定值，矮屏撑不出、大屏又浪费；40% 随屏缩放，配合外层
@@ -494,10 +513,8 @@ fun LogQuickPanel(
             //（此前 ▶ 垂直居中在两行文字块上，与名字行错位）；名字加省略号防长名硬裁
             Column(Modifier.fillMaxWidth()) {
                 Text(
-                    // 角色名借顶部小标签行展示（目目 09-13：面板顶部要有角色名，又不加高度）；
-                    // 非角色条目（旁白/音效槽位）维持原字样
-                    if (entry.roleName.isBlank()) "当前发音人"
-                    else entry.roleName + " · 当前发音人",
+                    // 角色名已提到标题右侧（目目 09-13），小标签行瘦回原字样
+                    "当前发音人",
                     style = MaterialTheme.typography.labelMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
