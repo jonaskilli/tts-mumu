@@ -87,21 +87,6 @@ private fun AnnotatedString.remapMetaColor(metaColor: Color, voiceColor: Color):
     }
 }
 
-// 功能日志来源色（09-13 二次换色：琥珀金被目目否了嫌屎黄，改莓紫组）。
-// 仅接管 INFO 与 DEBUG/TRACE；ERROR/WARN 保持红/黄级别语义，SUCCESS 仍走石板灰。
-// 莓紫与插件靛蓝色相差约 60°，与「请求音频」主流程绿、发音人棕褐均拉开色相
-private fun pluginLogColor(isDarkTheme: Boolean) =
-    if (isDarkTheme) Color(0xFF93A5E8) else Color(0xFF3F57B5)    // 插件：靛蓝
-
-private fun ruleLogColor(isDarkTheme: Boolean) =
-    if (isDarkTheme) Color(0xFFDE9BC8) else Color(0xFFA83A6E)    // 朗读规则：莓紫
-
-private fun pluginDebugColor(isDarkTheme: Boolean) =
-    if (isDarkTheme) Color(0xFF6F7FC7) else Color(0xFF8C9AE0)    // 插件 DEBUG：淡靛蓝（比正文淡一档）
-
-private fun ruleDebugColor(isDarkTheme: Boolean) =
-    if (isDarkTheme) Color(0xFFA96A8F) else Color(0xFFD891B8)    // 规则 DEBUG：淡莓紫（比正文淡一档）
-
 @OptIn(ExperimentalFoundationApi::class, ExperimentalMaterial3Api::class)
 @Composable
 fun LogScreen(
@@ -177,18 +162,14 @@ fun LogScreen(
                         append("\u2002×${log.repeatCount}")
                     } else spanned
 
-                    // 正文着色：SUCCESS→石板灰；功能日志按来源降调（插件灰青/规则灰紫，
-                    // DEBUG 用对应淡色）；其余级别维持级别色（红/黄/绿/蓝/灰）
+                    // 正文着色（09-13 定案：插件/规则日志正文一律回归正文色，不再用彩色区分来源——
+                    // 彩色方案两轮被否（琥珀金"屎黄"、莓紫"丑"），来源区分交给日志筛选 chip；
+                    // DEBUG/TRACE 用 onSurfaceVariant 淡一档保层次；ERROR/WARN 维持级别色，SUCCESS 走石板灰
                     val bodyColor = when {
                         log.level == LogLevel.SUCCESS -> metaColor
-                        log.isPluginLog -> when (log.level) {
-                            LogLevel.INFO -> pluginLogColor(darkTheme)
-                            LogLevel.DEBUG, LogLevel.TRACE -> pluginDebugColor(darkTheme)
-                            else -> Color(log.level.toArgb(isDarkTheme = darkTheme))
-                        }
-                        log.isSpeechRuleLog -> when (log.level) {
-                            LogLevel.INFO -> ruleLogColor(darkTheme)
-                            LogLevel.DEBUG, LogLevel.TRACE -> ruleDebugColor(darkTheme)
+                        log.isPluginLog || log.isSpeechRuleLog -> when (log.level) {
+                            LogLevel.INFO -> MaterialTheme.colorScheme.onSurface
+                            LogLevel.DEBUG, LogLevel.TRACE -> MaterialTheme.colorScheme.onSurfaceVariant
                             else -> Color(log.level.toArgb(isDarkTheme = darkTheme))
                         }
                         else -> Color(log.level.toArgb(isDarkTheme = darkTheme))
