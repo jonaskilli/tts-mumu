@@ -49,6 +49,7 @@ import com.github.jing332.common.utils.toParamText
 import com.github.jing332.compose.widgets.AppDialog
 import com.github.jing332.compose.widgets.AppSpinner
 import com.github.jing332.database.dbm
+import com.github.jing332.database.entities.SpeechRule
 import com.github.jing332.database.entities.systts.SystemTtsV2
 import com.github.jing332.database.entities.systts.TtsConfigurationDTO
 import com.github.jing332.database.entities.systts.source.PluginTtsSource
@@ -105,6 +106,20 @@ fun LogQuickPanel(
         return
     }
     val source = config.source as? PluginTtsSource
+    // 规则 tags 表（tag id→显示名）：大分类显示的权威来源（与编辑页标签两层弹窗同源）。
+    // config.speechRule.tagName 只是绑定时的快照，规则改版后会过期——目目 09-13 实测
+    // 非绑定分类显示不对，改从 rule.tags 现查
+    var ruleTags by remember(entity.id) { mutableStateOf<Map<String, String>?>(null) }
+    LaunchedEffectOnce(entity.id) {
+        // getByRuleIdAll 不带 isEnabled 过滤（getByRuleId 对禁用规则返回 null → 只能拿旧快照）
+        ruleTags = withIO {
+            dbm.speechRuleDao.getByRuleIdAll(config.speechRule.tagRuleId)?.tags
+        }
+    }
+    // 大分类=显示名剥尾部数字（音效1→音效、女青年01→女青年）；规则未加载时回落 tagName 快照
+    val displayCategory = extractTagCategory(
+        ruleTags?.get(config.speechRule.tag) ?: config.speechRule.tagName
+    )
     // 绑定键：多角色日志=角色名；「本地音效N」槽位=槽位名（目目 09-12：本地音效 tagName 带序号，
     // 按角色那种处理——改绑同样走 characterRecords.json 同一机制），两者共用绑定分支
     // 本地音效槽位单独标记（目目 09-13）：这类槽位的候选不能取自发音人池，见下方 poolEnabled
@@ -659,10 +674,11 @@ fun LogQuickPanel(
                         )
                     } else {
                         // 纯显示分类框（目目 09-13：所有槽位都要有分类框，但只有可切大类的地方才给
-                        // 切换功能）：音效槽位大类恒为「本地音效」，只读不可切、无搜索
+                        // 切换功能）：音效槽位大分类取 rule.tags 现查（剥尾号→「本地音效」），
+                        // 只读不可切、无搜索
                         OutlinedTextField(
                             modifier = Modifier.fillMaxWidth(),
-                            value = "本地音效",
+                            value = displayCategory,
                             onValueChange = {},
                             readOnly = true,
                             label = { Text("分类") },
@@ -802,11 +818,8 @@ fun LogQuickPanel(
                     val currentTagId = config.speechRule.tag
                     val currentTagName = config.speechRule.tagName
                     // 纯显示分类框（目目 09-13）：非绑定类（旁白/对话/括号…）没有大类下拉，
-                    // 但分类框要有——展示本配置项所属大类（tagName 剥尾部数字，如 括号1→括号），
+                    // 但分类框要有——大分类取 rule.tags 现查（面板顶部 displayCategory，剥尾号），
                     // 只读不可切；候选行因此不再重复带标签前缀
-                    val displayCategory = Regex("^(.*[\\u4e00-\\u9fa5])\\d{0,4}$")
-                        .find(currentTagName)?.groupValues?.getOrNull(1)
-                        ?.ifEmpty { null } ?: currentTagName
                     OutlinedTextField(
                         modifier = Modifier.fillMaxWidth(),
                         value = displayCategory,
@@ -1145,3 +1158,12 @@ private val LOCAL_SOUND_TAG = Regex("^localSound\\d+$")
 /** localSound7 → 本地音效7（候选行显示用，tagName 口径与规则 tags 表一致） */
 private fun localSoundSlotLabel(tag: String): String =
     "本地音效" + tag.removePrefix("localSound")
+
+/**
+ * 大分类=标签显示名剥尾部数字（音效1→音效、女青年01→女青年、旁白→旁白）。
+ * 与列表页标签两层弹窗的大分类同口径同来源（rule.tags 查显示名后剥尾号）。
+ */
+private fun extractTagCategory(name: String): String {
+    val m = Regex("^(.+?)(\\d+)$").find(name)
+    return m?.groupValues?.get(1) ?: name
+}
