@@ -820,8 +820,10 @@ fun VoicePickerDialog(
                     // 音色分类与搜索都无意义（分类表里音效恒落 null → 只有「全部（N项）」一项）
                     // → 下拉与搜索框整块隐藏，列表直接铺满
                     if (!isLocalSoundSlot) {
-                        // 分类 chip + 搜索框并作一行（目目 09-14）：原来分类条与搜索框纵向各占
-                        // 一行（48 + 56dp），白吃一行高度；并排后一行 56dp 收住，分类名也仍在视野里
+                        // 分类字段 + 搜索框并作一行（目目 09-14）：原来分类条与搜索框纵向各占
+                        // 一行（48 + 56dp），白吃一行高度；并排后一行 56dp 收住，分类名也仍在视野里。
+                        // 两者**同高（56dp）、同语境（都是字段）**：左=筛选条件、右=输入；分类灰底无框、
+                        // 搜索描边无底，靠"填色 / 描边"这一对区分"选"与"输"，不靠形状家族硬区分
                         var categoryPickerOpen by remember(entity.id) { mutableStateOf(false) }
                         if (categoryPickerOpen) {
                             AppSelectionDialog(
@@ -871,8 +873,8 @@ fun VoicePickerDialog(
                             )
                         }
                     } else {
-                        // 只读 chip（目目 09-14）：音效槽位大分类取 rule.tags 现查
-                        //（剥尾号→「本地音效」），不可切、无搜索 → 不带箭头，一眼看出不可改
+                        // 只读态（目目 09-14）：音效槽位大分类取 rule.tags 现查（剥尾号→「本地音效」），
+                        // 不可切、无搜索 → 无底无框无箭头，纯文字信息，不会被当成可点项
                         CategoryChip(value = displayCategory)
                     }
                     // 搜索词同时匹配「标签名」与「配置项名」（用户 09-11 晚：记忆里是"女青年01晓晓"，
@@ -1013,8 +1015,8 @@ fun VoicePickerDialog(
                     // 落库后主列表自动定位高亮被改项（sharedVM.pendingLocateConfigId）
                     val currentTagId = config.speechRule.tag
                     val currentTagName = config.speechRule.tagName
-                    // 只读 chip（目目 09-14）：非绑定类（旁白/对话/括号…）没有大类可切，
-                    // 分类取 rule.tags 现查（面板顶部 displayCategory，剥尾号）——无箭头、不可点；
+                    // 只读态（目目 09-14）：非绑定类（旁白/对话/括号…）没有大类可切，分类取 rule.tags
+                    // 现查（面板顶部 displayCategory，剥尾号）——无底无框无箭头、纯文字信息；
                     // 候选行因此不再重复带标签前缀
                     CategoryChip(value = displayCategory)
                     val narrationCandidates = remember(entity.id, currentTagId) {
@@ -1409,11 +1411,17 @@ private fun localSoundSlotLabel(tag: String): String =
  * 与列表页标签两层弹窗的大分类同口径同来源（rule.tags 查显示名后剥尾号）。
  */
 /**
- * 分类 chip（目目 09-14 终版，形态三易：输入框轮廓 → 全宽状态条 → chip）：分类是**当前状态**、
- * 不是待输入项，故不用 OutlinedTextField 轮廓（跟旁边搜索框同形，分不出哪块是分类）；
- * 又因要与搜索框并作一行、不能再占满宽，收成 chip：18dp 图标 + 分类名（titleSmall + primary）。
- * switchable=true：尾部带下拉箭头（可切，点击弹 AppSelectionDialog），容器色 secondaryContainer；
- * false：不带箭头（只读），容器色 surfaceContainerHighest，一眼看出不可改。
+ * 分类字段（目目 09-14 终版，形态四易：输入框轮廓 → 全宽状态条 → 填色胶囊 → **灰底字段**）。
+ *
+ * 分类是**当前状态**、不是待输入项，故不用 OutlinedTextField 轮廓（跟旁边搜索框同形，分不出哪块
+ * 是分类）；也不能用 `secondaryContainer` 填充——那个色在 MD3 里是 **SegmentedButton 选中态**的
+ * 官方指定色，上面的「更换发音人/音频参数」正在用，分类再填就变成"第三个已选中的分段项"，
+ * 与分段平级、层级被压平（目目 09-14 察觉"都是胶囊形状、分类还填色，会不会混"）。
+ * 故取**填色以外**的一种：`surfaceContainerHighest` 灰底 + 8dp 方角 + **56dp 与同行的搜索框等高**
+ * ——读成"一对字段"（左=筛选条件，右=输入），填色在面板里只保留"分段选中"一个含义。
+ *
+ * switchable=true：尾部带下拉箭头（可切，点击弹 AppSelectionDialog），灰底字段形态；
+ * false：**无底、无框、48dp 行高**（只读），纯文字信息，彻底不像 chip、不会被当成可点项。
  * 三处调用同源：绑定模式角色槽位（可切，与搜索框同行）、绑定模式音效槽位（只读）、
  * 旁白/对话/括号等非绑定类（只读）。
  */
@@ -1426,9 +1434,13 @@ private fun CategoryChip(
 ) {
     Surface(
         modifier = modifier
-            // 最小 104dp：容得下 3 字分类名 + 图标 + 箭头；比它长的名字自然撑开
-            .widthIn(min = 104.dp)
-            .height(48.dp)
+            // 最小 104dp（仅可切版）：容得下 3 字分类名 + 图标 + 箭头，比它长的名字自然撑开；
+            // 只读版无底无框、就是个文字标签，不需要最小宽（否则内容会被居中在一片看不见的
+            // 104dp 里、凭空多出一段缩进）
+            .then(if (switchable) Modifier.widthIn(min = 104.dp) else Modifier)
+            // 可切版 56dp：与同一行的搜索框（M3 OutlinedTextField 默认 56dp）齐平，两件读成
+            // "一对字段"；只读版 48dp 行高（与其他信息行同节奏）
+            .height(if (switchable) 56.dp else 48.dp)
             .then(
                 if (switchable && onClick != null) {
                     Modifier.clickable(
@@ -1437,12 +1449,15 @@ private fun CategoryChip(
                     ) { onClick() }
                 } else Modifier
             ),
-        shape = RoundedCornerShape(24.dp),
-        color = if (switchable) MaterialTheme.colorScheme.secondaryContainer
-        else MaterialTheme.colorScheme.surfaceContainerHighest,
+        // 8dp 方角 = 字段语汇，与上面的胶囊分段、下面的搜索框（4dp 描边）都不同族
+        shape = RoundedCornerShape(8.dp),
+        // 可切=灰底字段；只读=透明（Surface 画不出东西 → 视觉上就是一行纯文字）
+        color = if (switchable) MaterialTheme.colorScheme.surfaceContainerHighest
+        else Color.Transparent,
     ) {
         Row(
-            modifier = Modifier.padding(horizontal = 12.dp),
+            // 可切版文字在灰底字段内左右各留 12dp；只读版是纯文字标签，与下方候选行同一条左缘
+            modifier = Modifier.padding(horizontal = if (switchable) 12.dp else 0.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.Center,
         ) {
