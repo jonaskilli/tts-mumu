@@ -310,14 +310,15 @@ fun KeyManagerScreen(tagRuleId: String, onBack: () -> Unit) {
         }
     }
     fun testKey(entry: KeyListFile.KeyEntry) {
-        val parsed = KeyListFile.parseKeyValue(entry.value)
-        if (parsed == null || parsed.isDirect) {
-            toast(R.string.role_key_test_direct)
+        if (entry.value.isBlank()) {
+            toast(R.string.role_key_value_empty)
             return
         }
         scope.launch {
             testingName = entry.name
-            val r = withIO { KeyListFile.testKey(parsed.url, parsed.key, parsed.model) }
+            // 传**原始值**：@@串走对话端点、纯 Key 走智谱 /models（照插件 testModelKey 的两个分支）。
+            // 旧版在这里就把纯 Key 挡掉了，直连条目一直没有可用性检验入口。
+            val r = withIO { KeyListFile.testKey(entry.value) }
             testingName = null
             testResults = testResults + (entry.name to r.first)
             toast(
@@ -326,14 +327,11 @@ fun KeyManagerScreen(tagRuleId: String, onBack: () -> Unit) {
             )
         }
     }
-    // 整组测试（照插件组头 ⚡：逐条测完逐条标记）
+    // 整组测试（照插件组头 ⚡：逐条测完逐条标记；直连组同样可测）
     fun testGroup(grp: KeyGroup) {
-        val targets = grp.entries.filter {
-            val p = KeyListFile.parseKeyValue(it.value)
-            p != null && !p.isDirect && it.value.isNotBlank()
-        }
+        val targets = grp.entries.filter { it.value.isNotBlank() }
         if (targets.isEmpty()) {
-            toast(R.string.role_key_test_direct)
+            toast(R.string.role_key_test_none)
             return
         }
         scope.launch {
@@ -341,8 +339,7 @@ fun KeyManagerScreen(tagRuleId: String, onBack: () -> Unit) {
             toast(R.string.role_key_test_batch_start, grp.title, targets.size)
             var okCount = 0
             targets.forEach { e ->
-                val p = KeyListFile.parseKeyValue(e.value) ?: return@forEach
-                val r = withIO { KeyListFile.testKey(p.url, p.key, p.model) }
+                val r = withIO { KeyListFile.testKey(e.value) }
                 testResults = testResults + (e.name to r.first)
                 if (r.first) okCount++
             }
@@ -711,8 +708,15 @@ fun KeyManagerScreen(tagRuleId: String, onBack: () -> Unit) {
                 } else {
                     showAdd = false
                     save(keys + KeyListFile.KeyEntry(name = name, keyCode = KeyListFile.nextKeyCode(keys), value = value))
-                    scope.launch { withIO { KeyListFile.saveCurrentRaw(tagRuleId, value) }; version++ }
-                    toast(R.string.role_key_add_first, name)
+                    // 照插件 showAddKeyDialog：**只有当前密钥为空**时才把它设为当前。
+                    // ⚠️ 旧版无条件三写 miyue/gengxin/miyue_backup ⇒ 正在用 A 朗读时新增 B，
+                    //    当前密钥被静默切走（朗读时用的密钥换了都不知道）。
+                    if (currentRaw.isBlank()) {
+                        scope.launch { withIO { KeyListFile.saveCurrentRaw(tagRuleId, value) }; version++ }
+                        toast(R.string.role_key_add_first, name)
+                    } else {
+                        toast(R.string.role_key_saved)
+                    }
                 }
             }
         )
@@ -730,6 +734,14 @@ fun KeyManagerScreen(tagRuleId: String, onBack: () -> Unit) {
                     overwriteFor = name to value
                 } else {
                     save(keys.map { if (it.name == entry.name) it.copy(name = name, value = value) else it })
+                    // 照插件密钥详情页「保存」：改的正是当前密钥 → 同步 miyue 三写。
+                    // ⚠️ 旧版只写 key_list.json，miyue.txt 留旧值 —— 重进页面即被兜底切到第一条。
+                    if (entry.value.trim() == currentRaw && value.isNotBlank()) {
+                        scope.launch {
+                            withIO { KeyListFile.saveCurrentRaw(tagRuleId, value) }
+                            version++
+                        }
+                    }
                 }
             }
         )
@@ -745,7 +757,11 @@ fun KeyManagerScreen(tagRuleId: String, onBack: () -> Unit) {
                     overwriteFor = null
                     val old = keys.firstOrNull { it.name == name }
                     save(keys.map { if (it.name == name) it.copy(value = value) else it })
-                    scope.launch { withIO { KeyListFile.saveCurrentRaw(tagRuleId, value) }; version++ }
+                    // 覆盖**当前密钥**本身 → 同步 miyue；否则照插件「仅当前为空才启用」的口径处理
+                    val wasCurrent = old != null && old.value.trim() == currentRaw
+                    if (wasCurrent || currentRaw.isBlank()) {
+                        scope.launch { withIO { KeyListFile.saveCurrentRaw(tagRuleId, value) }; version++ }
+                    }
                     if (old != null) toast(R.string.role_key_saved)
                 }) { Text(stringResource(R.string.role_key_overwrite_btn)) }
             },
@@ -763,7 +779,9 @@ fun KeyManagerScreen(tagRuleId: String, onBack: () -> Unit) {
             confirmButton = {
                 TextButton(onClick = {
                     deleteFor = null
-                    save(keys.filter { it.name != entry.name })
+                    // 与批量删除同一条路（照插件 deleteMultipleBooks：删掉当前密钥 → 自动切到剩余第一条）。
+                    // ⚠️ 旧版只 save(filter)：miyue.txt 仍指向已删掉的 key，重进页面被兜底切走。
+                    deleteNames(listOf(entry.name))
                 }) { Text(stringResource(R.string.delete)) }
             },
             dismissButton = {
@@ -989,7 +1007,9 @@ private fun InterfaceFormDialog(
                     if (k.isEmpty()) { toast(R.string.role_key_ifc_key_empty); return@TextButton }
                     scope.launch {
                         val ifaces = withIO { KeyListFile.readInterfaces(tagRuleId) }
-                        if (initial == null && ifaces.any { it.name == n }) {
+                        // 重名校验：新建必查；编辑也不许改成**别的**接口已有的名字（照插件 showEditInterfaceDialog）
+                        val dup = ifaces.any { it.name == n && (initial == null || it.name != initial.name) }
+                        if (dup) {
                             toast(R.string.role_key_ifc_name_dup)
                             return@launch
                         }
@@ -999,6 +1019,26 @@ private fun InterfaceFormDialog(
                             ifaces.map { if (it.name == initial.name) KeyListFile.ApiInterface(n, u, k, it.models) else it }
                         }
                         withIO { KeyListFile.saveInterfaces(tagRuleId, updated) }
+                        // 照插件 showEditInterfaceDialog：网址/密钥变了，把**组内**（同站 && 同旧 key）
+                        // 的密钥条目 value 一起改写（模型名不变）。
+                        // ⚠️ 旧版只改 api_center.json：旧条目仍指旧地址/旧 key，整组掉进「未分组」，
+                        //    用户还得逐条手改。
+                        if (initial != null) {
+                            val oldUrl = initial.baseUrl
+                            val oldKey = initial.apiKey
+                            val entryList = withIO { KeyListFile.readKeys(tagRuleId) }
+                            var changed = false
+                            val rewritten = entryList.map { e ->
+                                val p = KeyListFile.parseKeyValue(e.value)
+                                if (p != null && !p.isDirect && p.key == oldKey &&
+                                    KeyListFile.sameApiSite(p.url, oldUrl)
+                                ) {
+                                    changed = true
+                                    e.copy(value = "$u@@${p.model}@@$k")
+                                } else e
+                            }
+                            if (changed) withIO { KeyListFile.saveKeys(tagRuleId, rewritten) }
+                        }
                         toast(R.string.role_key_saved)
                         onSaved()
                     }
@@ -1469,14 +1509,12 @@ fun BackupCenterDialog(
                                     val data = obj.optJSONArray("characterData")
                                         ?: throw IllegalArgumentException("bad format")
                                     require(bookName.isNotEmpty()) { "empty book" }
-                                    val d = java.io.File(
-                                        "/storage/emulated/0/Download/chajian", tagRuleId
-                                    )
-                                    val json = data.toString(2)
-                                    java.io.File(d, "cunfang.txt").writeText(bookName)
-                                    java.io.File(d, "characterRecords.json").writeText(json)
-                                    java.io.File(d, "shuming.$bookName.json").writeText(json)
-                                    true
+                                    // 统一入口（照插件 restoreFromText）：①书名补进 liebiao.json
+                                    // ②cunfang ③characterRecords ④shuming.<书> ⑤gengxin.json。
+                                    // ⚠️ 旧版只写 3 个文件：书切走再回来会从书架消失；不写 gengxin.json
+                                    //    则朗读规则内存仍是旧角色表，下次朗读把导入数据覆盖回去（导入白做）。
+                                    //    那段还硬编码了绝对路径，没走 BASE_DIR。
+                                    CharacterRecordsFile.importBook(tagRuleId, bookName, data.toString())
                                 }.getOrDefault(false)
                             }
                             if (ok) {

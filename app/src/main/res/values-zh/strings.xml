@@ -643,7 +643,7 @@
     <string name="role_key_delete_text">确定删除密钥「%1$s」？</string>
     <string name="role_key_empty">暂无密钥</string>
     <string name="role_key_test">测试</string>
-    <string name="role_key_test_direct">纯 Key 直连，无法测试</string>
+    <string name="role_key_test_none">没有可测试的密钥</string>
     <string name="role_key_test_ok_toast">「%1$s」可用：%2$s</string>
     <string name="role_key_test_fail_toast">「%1$s」不可用：%2$s</string>
     <string name="role_key_from_interface">从接口中心拉取</string>

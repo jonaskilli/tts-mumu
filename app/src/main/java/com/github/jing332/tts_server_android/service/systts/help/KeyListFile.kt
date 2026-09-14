@@ -117,10 +117,22 @@ object KeyListFile {
 
     // ==================== 当前密钥（miyue/gengxin/backup 三写）====================
 
-    fun readCurrentRaw(tagRuleId: String): String = try {
-        currentFile(tagRuleId).readText().trim()
-    } catch (e: Exception) {
-        ""
+    /**
+     * 当前生效密钥的原始值（照插件 showKeyManageDialog：miyue.txt → gengxin.txt → miyue_backup.txt
+     * 依次找**第一个非空**）。旧版只读 miyue.txt：它空而 backup 有值时会被误判"没有当前密钥"，
+     * 进而被下面的兜底自动覆写成列表第一条（用户看到"当前密钥自己跳了"）。
+     */
+    fun readCurrentRaw(tagRuleId: String): String {
+        val d = File(BASE_DIR, tagRuleId)
+        for (n in arrayOf("miyue.txt", "gengxin.txt", "miyue_backup.txt")) {
+            val v = try {
+                File(d, n).readText().trim()
+            } catch (e: Exception) {
+                ""
+            }
+            if (v.isNotEmpty()) return v
+        }
+        return ""
     }
 
     /** 设为当前：miyue.txt + gengxin.txt + miyue_backup.txt 三写（与插件 saveKeyToLocal 同口径） */
@@ -208,7 +220,7 @@ object KeyListFile {
         return u
     }
 
-    /** OpenAI 兼容 base：剥掉末尾端点段；无版本段（/v1、/v4…）自动补 /v1 */
+    /** OpenAI 兼容 base（照插件 getOpenAiBaseUrl）：剥掉末尾端点段；无版本段（/v1、/v4…）自动补 /v1 */
     fun openAiBaseUrl(url: String): String {
         var u = normalizeBaseUrl(url)
         for (suffix in arrayOf("/chat/completions", "/completions", "/models")) {
@@ -221,9 +233,16 @@ object KeyListFile {
         return u
     }
 
-    private fun chatUrl(url: String): String {
+    /**
+     * 对话端点（照插件 getOpenAiChatUrl）：已是 /chat/completions 直接返回，
+     * 其余在补过版本段的 base 后拼 /chat/completions。
+     * （插件对不带版本段的裸地址走的是 `u + "/chat/completions"`、不补 /v1；这里统一走 base，
+     *   比原版自洽——原版那种写法在 "http://x/models" 上会拼成 "/models/chat/completions"。）
+     */
+    private fun openAiChatUrl(url: String): String {
         val u = normalizeBaseUrl(url)
-        return if (u.endsWith("/chat/completions")) u else openAiBaseUrl(u) + "/chat/completions"
+        if (u.endsWith("/chat/completions")) return u
+        return openAiBaseUrl(u) + "/chat/completions"
     }
 
     // ==================== HTTP（HttpURLConnection，与插件 httpJsonRequest 同实现）====================
@@ -261,52 +280,168 @@ object KeyListFile {
         return if (compact.length > 180) compact.take(180) + "..." else compact.ifEmpty { "无响应内容" }
     }
 
-    /** 拉取模型清单：GET {base}/models → data[].id；失败返回 null+错误描述 */
+    /**
+     * 拉取模型清单（照插件）：GET {base}/models → 取 `data[].id`（兼容 data 里的裸字符串 /
+     * `models` 字段 / 顶层数组）。保持接口返回顺序（插件不排序）。
+     *
+     * ⚠️ 旧版用 `JSONArray.optString(i)` 取元素：标准 `{"data":[{"id":"gpt-4o"}]}` 下 optString
+     * 会把**整个对象 toString** 当模型名 ⇒ 写进密钥后那段 value 直接作废。
+     */
     fun fetchModels(baseUrl: String, apiKey: String): Pair<List<String>?, String> {
         val resp = httpJson(openAiBaseUrl(baseUrl) + "/models", "GET", apiKey, null)
         if (!resp.ok) return null to "HTTP ${resp.code}，${briefBody(resp.body)}"
-        return try {
-            val arr = JSONObject(resp.body).optJSONArray("data")
-            val models = mutableListOf<String>()
-            arr?.let { for (i in 0 until it.length()) it.optString(i).takeIf { m -> m.isNotEmpty() }?.let { m -> models.add(m) } }
-            models.sorted() to ""
-        } catch (e: Exception) {
-            null to "响应解析失败：${e.message}"
+        return parseModelList(resp.body) to ""
+    }
+
+    /** 从 /models 响应体取模型名（data[].id / 裸字符串 / models 字段 / 顶层数组） */
+    private fun parseModelList(body: String): List<String> {
+        val out = mutableListOf<String>()
+        fun collect(arr: JSONArray?) {
+            if (arr == null) return
+            for (i in 0 until arr.length()) {
+                when (val v = arr.opt(i)) {
+                    is JSONObject -> v.optString("id").trim().takeIf { it.isNotEmpty() }?.let { out.add(it) }
+                    is String -> v.trim().takeIf { it.isNotEmpty() }?.let { out.add(it) }
+                }
+            }
         }
+        try {
+            val o = JSONObject(body)
+            collect(o.optJSONArray("data") ?: o.optJSONArray("models"))
+        } catch (e: Exception) {
+            runCatching { collect(JSONArray(body)) }
+        }
+        return out
+    }
+
+    /** 测试目标（照插件 parseKeyForTest 的返回形状） */
+    private class TestTarget(
+        val isDirect: Boolean,           // true = 纯 Key（走智谱 /models）
+        val baseUrl: String,
+        val chatUrl: String,
+        val model: String,
+        val apiKey: String,
+    )
+
+    /** 测试前解析密钥值（照插件 parseKeyForTest）：@@串→openai；纯 key→智谱分支；非法给出原因 */
+    private fun parseForTest(raw: String): Pair<TestTarget?, String> {
+        val text = raw.trim()
+        if (text.isEmpty()) return null to "密钥内容为空"
+        val parts = text.split("@@")
+        if (parts.size >= 3) {
+            val apiKey = parts.drop(2).joinToString("@@").trim()
+            val rawUrl = normalizeBaseUrl(parts[0].trim())
+            val base = openAiBaseUrl(rawUrl)
+            val chat = openAiChatUrl(rawUrl)
+            val model = parts[1].trim()
+            if (base.isEmpty()) return null to "URL 不能为空"
+            if (!base.startsWith("http://") && !base.startsWith("https://")) {
+                return null to "URL 必须以 http:// 或 https:// 开头"
+            }
+            if (model.isEmpty()) return null to "模型名不能为空"
+            if (apiKey.isEmpty()) return null to "API Key 不能为空"
+            return TestTarget(false, base, chat, model, apiKey) to ""
+        }
+        if (parts.size > 1) return null to "格式不完整，应为 URL@@模型名@@API Key"
+        return TestTarget(true, "", "", "", text) to ""
+    }
+
+    /** 构造对话请求体（照插件：只回复 pong + max_tokens 16 + temperature 0 + stream false） */
+    private fun chatPayload(model: String, content: String, maxTokens: Int?, temperature: Int?): String =
+        JSONObject().apply {
+            put("model", model)
+            put("messages", JSONArray().put(JSONObject().put("role", "user").put("content", content)))
+            if (maxTokens != null) put("max_tokens", maxTokens)
+            if (temperature != null) put("temperature", temperature)
+            put("stream", false)
+        }.toString()
+
+    /** 对话响应业务校验（照插件 chatReplyOk）：HTTP 2xx ≠ 可用——带 error 一律否 */
+    private fun chatReplyOk(body: String): Boolean = try {
+        val j = JSONObject(body)
+        when {
+            j.has("error") && !j.isNull("error") -> false
+            (j.optJSONArray("choices")?.length() ?: 0) > 0 -> true
+            else -> j.has("content") || j.has("output") || j.has("data")
+        }
+    } catch (e: Exception) {
+        false
+    }
+
+    /** 模型清单业务校验（照插件 modelListOk）：data/models/顶层是数组才算通 */
+    private fun modelListOk(body: String): Boolean = try {
+        val j = JSONObject(body)
+        if (j.has("error") && !j.isNull("error")) false
+        else j.optJSONArray("data") != null || j.optJSONArray("models") != null
+    } catch (e: Exception) {
+        runCatching { JSONArray(body); true }.getOrDefault(false)
     }
 
     /**
-     * 密钥通断测试（与插件 testModelKey 同策略）：先 GET /models（不依赖模型名），
-     * 失败再用 chat/completions 发一条 1 token 请求兜底；返回 成功与否+简述。
+     * 密钥通断测试（照插件 testModelKey）：
+     * - @@串（openai）：**先打真实对话端点** `/chat/completions` 并校验响应体；失败再降级重试一次
+     *   （部分推理模型不接受 max_tokens/temperature）；`/models` 只在失败后附作**参考**——
+     *   插件注释写得很明白：多数中转站 /models 不校验密钥、任何 key 都返回 200，不能说明可用。
+     * - 纯 Key：走智谱 `https://open.bigmodel.cn/api/paas/v4/models`（旧版直接拒测 ⇒ 直连条目没有检验入口）。
+     *
+     * ⚠️ 旧版策略是反的：先 GET /models、`resp.ok` 就判成功 ⇒ 错的密钥也显示"可用"。
+     * 返回 (是否可用, 简述)。
      */
-    fun testKey(baseUrl: String, apiKey: String, model: String): Pair<Boolean, String> {
-        val modelsResp = httpJson(openAiBaseUrl(baseUrl) + "/models", "GET", apiKey, null)
-        if (modelsResp.ok) return true to "HTTP ${modelsResp.code}，模型清单可读"
-        if (model.isBlank()) return false to "HTTP ${modelsResp.code}，${briefBody(modelsResp.body)}"
-        val payload = JSONObject().apply {
-            put("model", model)
-            put("messages", JSONArray().put(JSONObject().put("role", "user").put("content", "hi")))
-            put("max_tokens", 1)
-        }.toString()
-        val chat = httpJson(chatUrl(baseUrl), "POST", apiKey, payload)
-        return if (chat.ok) true to "HTTP ${chat.code}，对话可用"
-        else false to "HTTP ${chat.code}，${briefBody(chat.body)}"
+    fun testKey(rawValue: String): Pair<Boolean, String> {
+        val (t, err) = parseForTest(rawValue)
+        if (t == null) return false to err
+        if (t.isDirect) {
+            val t0 = System.currentTimeMillis()
+            val r = httpJson("https://open.bigmodel.cn/api/paas/v4/models", "GET", t.apiKey, null)
+            if (r.ok && modelListOk(r.body)) {
+                return true to "智谱 /models 验证成功，${System.currentTimeMillis() - t0}ms"
+            }
+            if (r.code == 401 || r.code == 403) return false to "密钥无效或无权限（HTTP ${r.code}）"
+            return false to "智谱 /models 验证失败：HTTP ${r.code}，${briefBody(r.body)}"
+        }
+        val t0 = System.currentTimeMillis()
+        var resp = httpJson(t.chatUrl, "POST", t.apiKey, chatPayload(t.model, "只回复 pong", 16, 0))
+        if (!(resp.ok && chatReplyOk(resp.body))) {
+            val retry = httpJson(t.chatUrl, "POST", t.apiKey, chatPayload(t.model, "ping", null, null))
+            if (retry.ok && chatReplyOk(retry.body)) resp = retry
+        }
+        if (resp.ok && chatReplyOk(resp.body)) {
+            return true to "测试成功，${System.currentTimeMillis() - t0}ms"
+        }
+        val msg = when {
+            resp.ok -> "接口返回异常：HTTP 状态正常但内容不是有效的对话响应。HTTP ${resp.code}，${briefBody(resp.body)}"
+            resp.code == 401 || resp.code == 403 -> "密钥无效或无权限（HTTP ${resp.code}）：${briefBody(resp.body)}"
+            resp.code == 404 -> "对话端点不存在（HTTP 404），请检查接口地址结尾/模型名：${briefBody(resp.body)}"
+            resp.code == 400 -> "请求被拒绝（HTTP 400，常见原因：模型名不存在或参数不支持）：${briefBody(resp.body)}"
+            else -> "chat/completions 验证失败：HTTP ${resp.code}，${briefBody(resp.body)}"
+        }
+        val models = httpJson(t.baseUrl + "/models", "GET", t.apiKey, null)
+        return false to (
+            if (models.ok) "$msg\n(参考：/models 可访问——该端点多数站点不校验密钥，不能说明密钥可用)"
+            else msg
+            )
     }
 
     // ==================== 1:1 复刻补充（对照 角色管理v10 插件函数）====================
 
-    /** 同站判断（照插件 sameApiSite：归一化后 base 一致算同站） */
-    fun sameApiSite(a: String, b: String): Boolean {
-        val na = normalizeBaseUrl(a)
-        val nb = normalizeBaseUrl(b)
-        if (na == nb) return true
-        return openAiBaseUrl(na) == openAiBaseUrl(nb)
+    /** 同站判断（照插件 sameApiSite：两边 base（剥端点、补版本段）一致算同站；异常回退原文比较） */
+    fun sameApiSite(a: String, b: String): Boolean = try {
+        openAiBaseUrl(a) == openAiBaseUrl(b)
+    } catch (e: Exception) {
+        normalizeBaseUrl(a) == normalizeBaseUrl(b)
     }
 
-    /** 密钥是否属于某接口（照插件 keyBelongsTo：value 的网址段同站即归属；纯 Key=直连不归属） */
+    /**
+     * 密钥是否属于某接口（照插件 keyBelongsTo：value 的网址段**同站** **且 key 相同**；
+     * 纯 Key=直连不归属）。
+     *
+     * ⚠️ 旧版把 `&& key 相同` 这一半丢了：同一站点下挂两把不同 key 时，
+     * 删除接口 A 会级联把属于 B 的密钥一起删掉，分组也会把 B 归进 A。
+     */
     fun keyBelongsTo(entry: KeyEntry, ifc: ApiInterface): Boolean {
         val p = parseKeyValue(entry.value) ?: return false
-        return !p.isDirect && p.url.isNotEmpty() && sameApiSite(p.url, ifc.baseUrl)
+        if (p.isDirect || p.url.isEmpty()) return false
+        return sameApiSite(p.url, ifc.baseUrl) && p.key == ifc.apiKey.trim()
     }
 
     /** 删除接口连同其下所有密钥条目（照插件接口表单🗑）；返回 (新密钥表, 删除的密钥数) */
@@ -318,9 +453,13 @@ object KeyListFile {
         return kept to removed
     }
 
-    /** 导出全部密钥到 密钥导出_yyyyMMdd.json（照插件 exportKeysDialog 格式：[[名字,{keyCode,value}],...]）；返回文件名 */
+    /**
+     * 导出全部密钥到 密钥导出_yyMMdd.json（照插件 exportKeysDialog 格式：[[名字,{keyCode,value}],...]）。
+     * ⚠️ 日期**必须用 yyMMdd**（插件写死 `密钥导出_` + 两位年，且导入侧按同样格式往前探测 365 天）；
+     * 旧版用 yyyyMMdd ⇒ 插件时代导出的文件 App 靠通配还能读，反过来 App 导出的插件**探测不到**。
+     */
     fun exportKeys(tagRuleId: String, keys: List<KeyEntry>): String? {
-        val date = java.text.SimpleDateFormat("yyyyMMdd", java.util.Locale.US).format(java.util.Date())
+        val date = java.text.SimpleDateFormat("yyMMdd", java.util.Locale.US).format(java.util.Date())
         val fileName = "密钥导出_$date.json"
         return try {
             val arr = JSONArray()
@@ -383,7 +522,11 @@ object KeyListFile {
         var skipped = 0
         val merged = existing.toMutableList()
         incoming.forEach { item ->
-            if (item.name in nameSet) {
+            // 照插件 doImport：`name && item.value` 为真才处理——空名/空 value 的条目直接忽略
+            // （旧版空 value 也入库，导入出一堆点不动的空密钥）
+            if (item.name.isBlank() || item.value.isBlank()) {
+                // 忽略，不计入新增也不计入跳过（与插件一致）
+            } else if (item.name in nameSet) {
                 skipped++
             } else {
                 nameSet.add(item.name)
@@ -394,14 +537,19 @@ object KeyListFile {
         return if (saveKeys(tagRuleId, merged)) added to skipped else 0 to incoming.size
     }
 
-    /** 模型分类（照插件 classifyModel：按模型名关键词分五类） */
+    /**
+     * 模型分类（照插件 classifyModel 的五类词表，逐项对齐——旧版自造的
+     * `bge/draw/paint/stable/sd/runway` 让 rerank、midjourney 等落进"文本"，
+     * 而插件词表里的 `babbage/rerank/diffusion/cogview/kolors/janus/vidu/cogvideo/transcri/cosyvoice` 全缺）。
+     */
     fun classifyModel(modelName: String): String {
-        val m = modelName.lowercase()
+        val n = modelName.lowercase()
+        fun has(vararg ks: String) = ks.any { it in n }
         return when {
-            "embed" in m || "bge" in m || "vector" in m -> "向量"
-            Regex("dall|flux|image|sd|stable|draw|paint").containsMatchIn(m) -> "图像"
-            Regex("video|sora|kling|runway").containsMatchIn(m) -> "视频"
-            Regex("tts|audio|whisper|speech|asr|voice").containsMatchIn(m) -> "音频"
+            has("embed", "babbage", "rerank") -> "向量"
+            has("dall-e", "image", "diffusion", "midjourney", "flux", "sdxl", "sd3", "cogview", "kolors", "janus") -> "图像"
+            has("video", "sora", "kling", "vidu", "cogvideo") -> "视频"
+            has("whisper", "tts", "audio", "speech", "voice", "asr", "transcri", "cosyvoice") -> "音频"
             else -> "文本"
         }
     }

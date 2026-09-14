@@ -125,14 +125,27 @@ object CharacterRecordsFile {
                 }
             }
             if (changed == 0) return false
-            f.writeText(arr.toString(2))
-            // 用户 09-12 互通修复：规则每次朗读开头会消费 gengxin.json（整体替换内存角色表后删除该文件），
-            // 角色管理换绑后必写它；面板只写 characterRecords.json 时规则内存不刷新，
-            // 下次 saveRecords 还会用旧内存数据把面板的修改覆盖掉——故此处同步写 gengxin.json
-            runCatching {
-                File(dir, "gengxin.json").writeText(arr.toString(2))
+            // 落盘走白名单，与 saveRecords 同形态
+            val out = JSONArray()
+            for (i in 0 until arr.length()) {
+                val o = arr.optJSONObject(i) ?: continue
+                out.put(storedRecord(o))
             }
-            Log.i(TAG, "rebind: $characterName -> $newVoiceTag ($changed records, gengxin.json synced)")
+            val json = out.toString(2)
+            f.writeText(json)
+            // 照插件 doFixVoiceForIndex → saveCharacterData 的**四写**：characterRecords +
+            // shuming.<当前书> + gengxin + characterRecords_backup 一起落。
+            // ① gengxin.json：规则每次朗读开头消费它（整体替换内存角色表后删文件），角色管理换绑后
+            //    必写；只写主文件时规则内存不刷新，下次 saveRecords 会用旧内存数据把改的覆盖掉。
+            // ② characterRecords_backup.json：旧版没写，备份里仍是**旧发音**，框架一旦从备份回退
+            //    就把刚换的发音顶回去——正是本函数 KDoc 早先警告过的隐患，这次补上。
+            val book = readCurrentBook(tagRuleId)
+            runCatching {
+                File(dir, "shuming.$book.json").writeText(json)
+                File(dir, "gengxin.json").writeText(json)
+                File(dir, "characterRecords_backup.json").writeText(json)
+            }
+            Log.i(TAG, "rebind: $characterName -> $newVoiceTag ($changed records, 4 files)")
             true
         } catch (e: Exception) {
             Log.w(TAG, "rebind failed: ${e.message}")
@@ -183,15 +196,41 @@ object CharacterRecordsFile {
     }
 
     /**
+     * 落盘字段白名单（照插件 saveCharacterData / createGengxinFile：逐个手动复制这 7 个键，
+     * 记录里的其他字段不会进文件）。`genderAgeHistory` 是框架侧的历史缓存，插件也保留。
+     */
+    private val STORED_FIELDS = listOf(
+        "name", "aliases", "voice", "gender", "age", "usageCount", "genderAgeHistory"
+    )
+
+    /**
+     * 按插件口径构造落盘对象：只保留白名单字段；`voice` **恒写**、缺省为空串
+     * （插件 `voice: char.voice || ""`）；其余键源里没有就不写（JS 的 JSON.stringify 会丢掉
+     * 值为 undefined 的键，键本身都不出现）。旧版整份序列化原始 JSONObject ⇒ 记录里夹带的
+     * 任何字段都会被写回，与插件落盘形态不一致。
+     */
+    private fun storedRecord(src: JSONObject): JSONObject {
+        val out = JSONObject()
+        STORED_FIELDS.forEach { k ->
+            if (k == "voice") {
+                out.put(k, src.optString("voice"))
+            } else if (src.has(k) && !src.isNull(k)) {
+                out.put(k, src.get(k))
+            }
+        }
+        return out
+    }
+
+    /**
      * 全量保存：characterRecords.json + 当前书籍存档 + gengxin.json + 备份，四写齐落。
-     * （插件 saveCharacterData 同口径；rebind 属轻量改绑只写两份，不在此列。）
+     * （插件 saveCharacterData 同口径；落盘内容走 storedRecord 白名单。）
      */
     fun saveRecords(tagRuleId: String, records: List<RoleRecord>): Boolean {
         val dir = File(BASE_DIR, tagRuleId)
         if (!dir.exists()) return false
         return try {
             val arr = JSONArray()
-            records.forEach { arr.put(it.obj) }
+            records.forEach { arr.put(storedRecord(it.obj)) }
             val json = arr.toString(2)
             val book = readCurrentBook(tagRuleId)
             File(dir, "characterRecords.json").writeText(json)
@@ -206,39 +245,33 @@ object CharacterRecordsFile {
         }
     }
 
-    /** 改名：同名记录（含别名合并出的重复项）全部改；成功返回改到的条数（0=没找到） */
-    fun renameCharacter(tagRuleId: String, oldName: String, newName: String): Int {
-        if (oldName.isBlank() || newName.isBlank() || oldName == newName) return 0
+    /**
+     * 删除角色——**按文件下标**（照插件 doDeleteCharacterOperation：遍历 `characterRecords`、
+     * 只保留未被标记的 index）。
+     *
+     * ⚠️ 旧版按**名字**删（`filter { it.name !in names }`）：文件里存在同名两条时，
+     * 想删其一结果两条一起没了（插件侧 `+添加角色` 不查重、框架 AI 规则回写记录都可能造出同名）。
+     * 成功返回删掉的条数。
+     */
+    fun deleteRecordsAt(tagRuleId: String, indices: Set<Int>): Int {
+        if (indices.isEmpty()) return 0
         val records = readRecords(tagRuleId)
-        var changed = 0
-        records.forEach { if (it.name == oldName) { it.setName(newName); changed++ } }
-        if (changed > 0 && saveRecords(tagRuleId, records)) return changed
-        return 0
-    }
-
-    /** 删除角色：同名全部移除；成功返回删掉的条数 */
-    fun deleteCharacters(tagRuleId: String, names: Set<String>): Int {
-        if (names.isEmpty()) return 0
-        val records = readRecords(tagRuleId)
-        val kept = records.filter { it.name !in names }
+        val kept = records.filterIndexed { i, _ -> i !in indices }
         val removed = records.size - kept.size
         if (removed > 0 && saveRecords(tagRuleId, kept)) return removed
         return 0
     }
 
-    /** 设为主角：age="主角" + usageCount=100（与插件 setAsMainCharacter 同字段同值） */
-    fun setMainCharacter(tagRuleId: String, name: String): Boolean {
-        if (name.isBlank()) return false
+    /**
+     * 设为主角——**只改标记的那一条**（照插件 setAsMainCharacter：`characterRecords[longPressedIndex]`
+     * 单个对象；旧版按名字改、同名两条会一起变主角）。age="主角" + usageCount=100 同字段同值。
+     */
+    fun setMainCharacterAt(tagRuleId: String, index: Int): Boolean {
         val records = readRecords(tagRuleId)
-        var changed = false
-        records.forEach {
-            if (it.name == name) {
-                it.obj.put("age", "主角")
-                it.obj.put("usageCount", 100)
-                changed = true
-            }
-        }
-        return changed && saveRecords(tagRuleId, records)
+        val rec = records.getOrNull(index) ?: return false
+        rec.obj.put("age", "主角")
+        rec.obj.put("usageCount", 100)
+        return saveRecords(tagRuleId, records)
     }
 
     // ==================== 合并 / 释放（与插件 mergeCharacter/releaseAlias 同字段口径）====================
@@ -249,19 +282,32 @@ object CharacterRecordsFile {
         aliasesStr.split('|', '｜').map { it.trim() }.filter { it.isNotEmpty() }
 
     /**
-     * 合并：把 [mergeNames] 各角色的名字并入 [targetName] 的 aliases 并删除其记录。
-     * 目标不存在返回 false；同名多记录全部并入。返回并入的名字数。
+     * 合并：把被并角色并入 [targetName]（收进它的 aliases，被并记录删除）。
+     *
+     * 别名集合照插件 doMergeOperation 逐条收集：**目标有 aliases 就收它的 aliases、没有才退回它自己的主名**；
+     * 每个被并记录同样「有别名收别名、没别名退回自己的主名」。收集后按 norm 去重、`|` 连接
+     * （插件用对象键去重，顺序=首次出现）。
+     *
+     * ⚠️ 旧版只收目标的别名 + 被并记录的**名字**，完全不读被并记录自己的 aliases：
+     * 把「带别名 a1、a2 的角色」并进去之后，按 a1 朗读匹配/搜索都找不到目标了（别名丢了）。
+     * 目标不存在返回 0；返回被并掉的记录数。
      */
     fun mergeCharacters(tagRuleId: String, targetName: String, mergeNames: Set<String>): Int {
-        if (targetName.isBlank() || mergeNames.isEmpty() || targetName in mergeNames) return 0
+        if (targetName.isBlank() || mergeNames.isEmpty()) return 0
         val records = readRecords(tagRuleId)
         val target = records.firstOrNull { it.name == targetName } ?: return 0
-        val merged = mutableSetOf<String>()
-        splitAliases(target.aliases).forEach { merged.add(it) }
-        mergeNames.forEach { n -> merged.add(n) }
+        val merged = LinkedHashSet<String>()
+        val targetAliases = splitAliases(target.aliases)
+        if (targetAliases.isNotEmpty()) targetAliases.forEach { merged.add(norm(it)) }
+        else merged.add(norm(target.name))
+        records.forEach { r ->
+            if (r === target || r.name !in mergeNames) return@forEach
+            val a = splitAliases(r.aliases)
+            if (a.isNotEmpty()) a.forEach { merged.add(norm(it)) } else merged.add(norm(r.name))
+        }
         target.obj.put("aliases", merged.joinToString("|"))
-        val kept = records.filter { it.name !in mergeNames || it.name == targetName }
-        val added = mergeNames.size
+        val kept = records.filter { r -> r === target || r.name !in mergeNames }
+        val added = records.size - kept.size
         return if (saveRecords(tagRuleId, kept)) added else 0
     }
 
@@ -306,23 +352,72 @@ object CharacterRecordsFile {
     private fun bookListFile(tagRuleId: String) = File(dir(tagRuleId), "liebiao.json")
     private fun currentBookFile(tagRuleId: String) = File(dir(tagRuleId), "cunfang.txt")
 
+    /** 原样读 liebiao.json（trim、丢空项，**不去重不兜底**）；缺失/损坏返回空表 */
+    private fun rawBookList(tagRuleId: String): List<String> = try {
+        val f = bookListFile(tagRuleId)
+        if (!f.exists()) emptyList() else {
+            val arr = JSONArray(f.readText())
+            (0 until arr.length()).map { arr.optString(it).trim() }.filter { it.isNotEmpty() }
+        }
+    } catch (e: Exception) {
+        emptyList()
+    }
+
     /**
-     * 书籍列表（liebiao.json；缺失/损坏回落 [当前书]）。
-     * `distinct()` 保序去重照插件 removeDuplicateBooks：历史遗留的重复项（旧版改名
-     * 会把新名写两遍、旧名残留）在**读**的时候就自愈，不必等下一次改名才清掉。
+     * 书籍列表（照插件 getBookList：**直读 liebiao.json**；缺失/损坏回落 ["默认"]）。
+     * 去重照 removeDuplicateBooks：按 norm 判重、保留首次出现（历史脏数据在读取时自愈）。
+     *
+     * ⚠️ 这里**不做**「当前书不在列表就补上」的注入——插件 getBookList 就是直读文件，
+     * 那条兜底是旧版自加的（且是**头插**、读时不留痕），正是书籍改名出现重复的土壤。
+     * 当前书的登记交给 initializeFileSystem（进角色页时一次，**追加到末尾并落盘**）。
      */
     fun readBookList(tagRuleId: String): List<String> {
-        val current = readCurrentBook(tagRuleId)
+        val raw = rawBookList(tagRuleId)
+        if (raw.isEmpty()) return listOf("默认")
+        val seen = LinkedHashSet<String>()
+        val out = ArrayList<String>(raw.size)
+        raw.forEach { if (seen.add(norm(it))) out.add(it) }
+        return out
+    }
+
+    /**
+     * 启动自愈（照插件 initializeFileSystem，进入角色页时执行一次）：
+     * ① cunfang.txt 为空 → 写「默认」；当前书名一律以 cunfang 为准
+     * ② characterRecords.json 有内容 → 同步进 `shuming.<当前书>.json`（框架切换书籍后存档要跟上）
+     * ③ liebiao.json：当前书不在列表 → **追加到末尾**；保证「默认」在列表；去重；
+     *    **仅在有变更时**写回（插件 needSave 口径）
+     * ④ 不清理「没有 shuming 文件的书名」（插件同款注释：AI 规则生成的书名可能还没存档，
+     *    按文件存在性清理会把多本书误删成一本）
+     * 返回是否写回了 liebiao.json。
+     */
+    fun initializeFileSystem(tagRuleId: String): Boolean {
+        val d = File(BASE_DIR, tagRuleId)
+        if (!d.exists()) return false
         return try {
-            val f = bookListFile(tagRuleId)
-            if (!f.exists()) return listOf(current)
-            val arr = JSONArray(f.readText())
-            val out = (0 until arr.length())
-                .mapNotNull { i -> arr.optString(i).trim().takeIf { it.isNotEmpty() } }
-                .distinct()
-            if (current in out) out else listOf(current) + out
+            // ① cunfang
+            val raw = runCatching { currentBookFile(tagRuleId).readText() }.getOrDefault("").trim()
+            val current = raw.ifEmpty { "默认" }
+            if (raw.isEmpty()) runCatching { currentBookFile(tagRuleId).writeText("默认") }
+            // ② characterRecords → shuming.<当前书>
+            runCatching {
+                val cd = File(d, "characterRecords.json")
+                if (cd.exists()) {
+                    val txt = cd.readText()
+                    if (txt.isNotBlank()) File(d, "shuming.$current.json").writeText(txt)
+                }
+            }
+            // ③ liebiao 补全
+            val rawBooks = rawBookList(tagRuleId)
+            val books = readBookList(tagRuleId).toMutableList()
+            var need = books.size != rawBooks.size            // 读时有重复被折叠 → 需要落盘自愈
+            if (current != "默认" && books.none { norm(it) == norm(current) }) { books.add(current); need = true }
+            if (books.none { norm(it) == "默认" }) { books.add("默认"); need = true }
+            if (need) saveBookList(tagRuleId, books)
+            Log.i(TAG, "initializeFileSystem: book=$current, needSave=$need, list=$books")
+            need
         } catch (e: Exception) {
-            listOf(current)
+            Log.w(TAG, "initializeFileSystem failed: ${e.message}")
+            false
         }
     }
 
@@ -358,8 +453,9 @@ object CharacterRecordsFile {
             File(d, "gengxin.json").writeText(json)
             File(d, "characterRecords_backup.json").writeText(json)
             currentBookFile(tagRuleId).writeText(newBook)
+            // 补录用**追加**（照插件 updateBookList 的 push；旧版头插，与插件顺序不一致）
             val books = readBookList(tagRuleId).toMutableList()
-            if (newBook !in books) books.add(0, newBook)
+            if (books.none { norm(it) == norm(newBook) }) books.add(newBook)
             saveBookList(tagRuleId, books)
             Log.i(TAG, "switchBook: $oldBook -> $newBook (${arr.length()} records)")
             true
@@ -391,8 +487,14 @@ object CharacterRecordsFile {
 
     // ==================== 1:1 复刻补充（对照 角色管理v10 插件函数）====================
 
-    /** 规范化比较（照插件 normalizeString：去首尾空白；大小写原样，中文场景够用） */
-    private fun norm(s: String): String = s.trim()
+    /**
+     * 规范化比较（照插件 normalizeString：**去零宽字符 + 去首尾空白 + 转小写**）。
+     * 零宽字符（\u200B-\u200D、\uFEFF）常被输入法悄悄插进名字/书名，肉眼和 `==` 都看不出来；
+     * 只差大小写的拉丁文名也会被判成两个不同的人。这两条在中文场景下不会误合并，故按原版对齐
+     * （影响面很广：改名、删除、去重、成员比较都用它）。
+     */
+    private fun norm(s: String): String =
+        s.replace(Regex("[\u200B-\u200D\uFEFF]"), "").trim().lowercase()
 
     /**
      * 修改当前书名（照插件 renameCurrentBook 三阶段）：
@@ -401,11 +503,13 @@ object CharacterRecordsFile {
      * ②shuming.旧.json → shuming.新.json 迁移（旧文件删除，失败覆写空）
      * ③characterRecords.json + characterRecords_backup.json 重写为新书数据
      *
-     * ⚠️ 读写顺序是本次修复的关键（目目 09-14：「改了书名点列表出现一个修改后的、一个
-     * 修改前的，再修改一次又出来个新名」）：readBookList 带「当前书不在列表 → 补到头部」
-     * 的兜底，旧版**先把 cunfang 写成新名再读列表**，新名于是被当成"当前书但不在列表"
-     * 补了一次，随后又把旧名项换成新名 ⇒ 新名出现两遍；且旧版 indexOfFirst 只换第一处，
-     * 旧名一旦有多条就永远留在列表里 —— 每改一次名字列表就长一条。
+     * ⚠️ 本次修复的两点（目目 09-14：「改了书名点列表出现一个修改后的、一个修改前的，
+     * 再修改一次又出来个新名」）：
+     * ① 旧版 readBookList 带「当前书不在列表 → 补到头部」的兜底，而旧版**先把 cunfang 写
+     *    成新名再读列表** ⇒ 新名被当成"当前书但不在列表"补了一次，随后又把旧名项换成新名
+     *    ⇒ 新名出现两遍（该兜底已删除，见 readBookList KDoc）；
+     * ② 旧版 indexOfFirst 只换第一处，旧名一旦有多条就永远留在列表里 —— 每改一次名字列表
+     *    就长一条。
      * 插件原版是「过滤掉全部旧名 + 全部新名 → push 新名」，不依赖 cunfang 读取，故无此问题。
      */
     fun renameCurrentBook(tagRuleId: String, newBookName: String): Boolean {
@@ -497,7 +601,9 @@ object CharacterRecordsFile {
      * 新建角色记录。voice 传什么存什么：
      * - 添加角色绑定链路（目目 09-14 定）传**标签 id**，与换声/rebind 同口径；
      * - 旧插件关键词意向（releaseAndFix 等）传关键词。
-     * 同名记录已存在返回 false。 */
+     * 字段与插入位置照插件 `+添加角色`（5288-5299）：`{name, aliases:"", voice, usageCount:100,
+     * gender:"未知", age:"未知"}` 并 `unshift` 到**列表头部**（旧版 add 到尾部，新角色会掉到最底）。
+     * 同名记录已存在返回 false（插件不查重，这条是本 App 自加的防呆，配 role_add_char_exists 提示）。 */
     fun addCharacter(tagRuleId: String, name: String, voice: String): Boolean {
         val n = name.trim()
         if (n.isEmpty() || voice.isBlank()) return false
@@ -511,30 +617,29 @@ object CharacterRecordsFile {
         fresh.put("gender", "未知")
         fresh.put("age", "未知")
         val out = records.toMutableList()
-        out.add(RoleRecord(fresh))
+        out.add(0, RoleRecord(fresh))
         return saveRecords(tagRuleId, out)
     }
 
     /**
      * 多行名称编辑保存（照插件 showEditCharacterDialog）：names[0]=主名，其余=aliases。
-     * 主名与其他记录重名返回 false（插件同校验）。同名多记录（合并产物）一并改。
+     * - names 先 trim 去空、**再去重**（插件 `names.indexOf(txt) === -1` 才 push；旧版不去重，
+     *   同一个名字录两遍会写进 aliases 两条）
+     * - **只改 [index] 那一条**（插件按 position 定位；旧版按名字改，同名两条会一起被改）
+     * - 主名与其他记录重名（排除自己这条）返回 false
      */
-    fun editCharacterNames(tagRuleId: String, oldName: String, names: List<String>): Boolean {
-        val cleaned = names.map { it.trim() }.filter { it.isNotEmpty() }
+    fun editCharacterNamesAt(tagRuleId: String, index: Int, names: List<String>): Boolean {
+        val cleaned = names.map { it.trim() }.filter { it.isNotEmpty() }.distinct()
         if (cleaned.isEmpty()) return false
         val records = readRecords(tagRuleId)
+        val rec = records.getOrNull(index) ?: return false
         val mainName = cleaned[0]
-        // 主名与其他记录冲突（排除同名旧记录——合并出的多条同名记录一起改）
-        if (records.any { norm(it.name) != norm(oldName) && norm(it.name) == norm(mainName) }) return false
-        var changed = false
-        records.forEach {
-            if (norm(it.name) == norm(oldName)) {
-                it.setName(mainName)
-                it.obj.put("aliases", cleaned.drop(1).joinToString("|"))
-                changed = true
-            }
+        for (i in records.indices) {
+            if (i != index && norm(records[i].name) == norm(mainName)) return false
         }
-        return changed && saveRecords(tagRuleId, records)
+        rec.setName(mainName)
+        rec.obj.put("aliases", cleaned.drop(1).joinToString("|"))
+        return saveRecords(tagRuleId, records)
     }
 
     /**
@@ -649,17 +754,42 @@ object CharacterRecordsFile {
         false
     }
 
+    /** 备份用：逐条去掉 genderAgeHistory 再序列化（照插件 backupAllFilesToData 的过滤 + 紧凑 JSON） */
+    private fun stripGenderAgeHistory(json: String): String = try {
+        val arr = JSONArray(json)
+        val out = JSONArray()
+        for (i in 0 until arr.length()) {
+            val o = arr.optJSONObject(i) ?: continue
+            o.remove("genderAgeHistory")
+            out.put(o)
+        }
+        out.toString()
+    } catch (e: Exception) {
+        json
+    }
+
     /** 备份全部文件到 fullBackup.json（核心文件+全部书籍存档），返回文件数 */
     fun backupAllFiles(tagRuleId: String): Int {
         val d = dir(tagRuleId)
         if (!d.exists()) return 0
         return try {
             val map = JSONObject()
-            // 核心文件（运行时同步副本 gengxin/backup 不入备份，与插件口径一致）
-            listOf("characterRecords.json", "liebiao.json", "cunfang.txt", "fayinren.json",
-                "key_list.json", "miyue.txt", "api_center.json").forEach { fn ->
+            // 核心文件（照插件 backupAllFilesToData 的 8 项：运行时同步副本
+            // gengxin.json / miyue_backup.txt / characterRecords_backup.json 不入备份）。
+            // ⚠️ 旧版清单少了 voice_marks.json 与 custom_keywords.json ⇒ 备份→改动→恢复之后，
+            // ❤️🚶😈 语音标记与自定义关键词回到**现场值**而不是备份值；api_center.json 是本地
+            // 多备的（无害，恢复时接口中心一并回滚反而更自洽）。
+            listOf(
+                "characterRecords.json", "liebiao.json", "miyue.txt", "cunfang.txt",
+                "fayinren.json", "voice_marks.json", "key_list.json", "custom_keywords.json",
+                "api_center.json"
+            ).forEach { fn ->
                 val f = File(d, fn)
-                if (f.exists()) map.put(fn, f.readText())
+                if (f.exists()) {
+                    val txt = f.readText()
+                    // 角色数据按插件口径去掉 genderAgeHistory 再落备（框架侧历史缓存，备份不需要）
+                    map.put(fn, if (fn == "characterRecords.json") stripGenderAgeHistory(txt) else txt)
+                }
             }
             // 全部书籍存档
             d.listFiles()?.filter { it.name.startsWith("shuming.") && it.name.endsWith(".json") }?.forEach { f ->
@@ -694,6 +824,43 @@ object CharacterRecordsFile {
         } catch (e: Exception) {
             Log.w(TAG, "restoreAllFiles failed: ${e.message}")
             0
+        }
+    }
+
+    /**
+     * 从文本导入书籍（照插件 restoreFromText）：`{bookName, characterData}` →
+     * ①书名补进 liebiao.json（不在列表才追加末尾）②cunfang.txt=书名 ③characterRecords.json=数据
+     * ④`shuming.<书名>.json`=数据 ⑤**gengxin.json=数据**。
+     *
+     * ⚠️ 旧版只写 3 个文件（cunfang/characterRecords/shuming）：
+     * ①该书从未进 liebiao.json ⇒ 切走再回来，书从书架消失（当时 readBookList 只兜当前书）；
+     * ②不写 gengxin.json ⇒ 朗读规则内存里仍是旧角色表，**下次朗读会把导入的数据覆盖回去，
+     *   导入白做**（gengxin.json 正是"内存 ← 文件"的单向通道，见 rebind）。
+     * 另：旧版这段还硬编码了绝对路径，没走 BASE_DIR。
+     * 返回是否成功。
+     */
+    fun importBook(tagRuleId: String, bookName: String, characterData: String): Boolean {
+        val n = bookName.trim()
+        if (n.isEmpty()) return false
+        val d = dir(tagRuleId)
+        if (!d.exists() && !d.mkdirs()) return false
+        return try {
+            val json = JSONArray(characterData).toString(2)   // 顺带校验是数组
+            val books = readBookList(tagRuleId).toMutableList()
+            if (books.none { norm(it) == norm(n) }) {
+                books.add(n)
+                if (books.none { norm(it) == "默认" }) books.add("默认")
+                saveBookList(tagRuleId, books)
+            }
+            currentBookFile(tagRuleId).writeText(n)
+            File(d, "characterRecords.json").writeText(json)
+            File(d, "shuming.$n.json").writeText(json)
+            File(d, "gengxin.json").writeText(json)
+            Log.i(TAG, "importBook: $n (${JSONArray(json).length()} records)")
+            true
+        } catch (e: Exception) {
+            Log.w(TAG, "importBook failed: ${e.message}")
+            false
         }
     }
 

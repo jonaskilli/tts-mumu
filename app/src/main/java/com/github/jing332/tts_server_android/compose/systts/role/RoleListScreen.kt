@@ -142,9 +142,12 @@ fun RoleListScreen(
 
     fun reload() { version++ }
 
-    // 自动备份（照插件 onLoadUI：进入页面且开关开启时执行一次）
+    // 照插件 onLoadUI：①先跑 initializeFileSystem 自愈（cunfang 空→「默认」、角色数据同步进
+    // shuming.<当前书>、当前书补进 liebiao.json 末尾、保证「默认」在列表、去重后落盘）
+    // ②再按自动备份开关执行一次备份
     LaunchedEffect(reloadKey) {
         withIO {
+            CharacterRecordsFile.initializeFileSystem(tagRuleId)
             if (CharacterRecordsFile.readAutoBackupEnabled(tagRuleId)) {
                 CharacterRecordsFile.backupAllFiles(tagRuleId)
             }
@@ -157,20 +160,23 @@ fun RoleListScreen(
 
     // ===== 搜索 + 多选标记 =====
     var keyword by rememberSaveable { mutableStateOf("") }
-    var markedNames by remember { mutableStateOf<Set<String>>(emptySet()) }
-    fun toggleMark(name: String) {
-        markedNames = if (name in markedNames) markedNames - name else markedNames + name
+    // 标记用**文件下标**（照插件 markedIndices）：同名两条记录能分别标记/删除。
+    // 旧版标记的是名字，同名记录只能一起操作——「删一条结果两条都没了」就是这么来的。
+    var markedIdx by remember { mutableStateOf<Set<Int>>(emptySet()) }
+    fun toggleMark(idx: Int) {
+        markedIdx = if (idx in markedIdx) markedIdx - idx else markedIdx + idx
     }
-    val filtered = records.filter { rec ->
+    // 带文件下标的筛选结果：列表行 key / 标记 / 删除 / 改名 / 设主角全部用下标做身份，名字不再承担身份
+    val filtered = records.withIndex().filter { (_, rec) ->
         keyword.isBlank() || rec.name.contains(keyword, true) ||
             CharacterRecordsFile.splitAliases(rec.aliases).any { it.contains(keyword, true) }
     }
-    val selectableNames = filtered.map { it.name }.toSet()
+    val selectableIdx = filtered.map { it.index }.toSet()
 
     // ===== 弹窗状态 =====
-    var menuFor by remember { mutableStateOf<CharacterRecordsFile.RoleRecord?>(null) }
-    var deleteNames by remember { mutableStateOf<Set<String>?>(null) }
-    var editFor by remember { mutableStateOf<CharacterRecordsFile.RoleRecord?>(null) }
+    var menuFor by remember { mutableStateOf<Pair<Int, CharacterRecordsFile.RoleRecord>?>(null) }
+    var deleteIdx by remember { mutableStateOf<Set<Int>?>(null) }
+    var editFor by remember { mutableStateOf<Pair<Int, CharacterRecordsFile.RoleRecord>?>(null) }
     var releaseFor by remember { mutableStateOf<CharacterRecordsFile.RoleRecord?>(null) }
     var keywordPickFor by remember { mutableStateOf<Pair<String, String>?>(null) } // (ownerName, releaseName) 释放并固定选关键词
     // 添加角色（目目 09-14 终版）：直接开绑定类换声弹窗，顶部内嵌角色名填写框，
@@ -306,7 +312,7 @@ fun RoleListScreen(
             Modifier.fillMaxWidth().padding(start = 8.dp, end = 8.dp, top = 6.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            val allSelected = markedNames.containsAll(selectableNames) && selectableNames.isNotEmpty()
+            val allSelected = markedIdx.containsAll(selectableIdx) && selectableIdx.isNotEmpty()
             // 紧凑搜索框（目目 09-14：OutlinedTextField 最小高 56dp 偏高）——
             // Surface+BasicTextField 手搓 44dp，外观保持 12dp 圆角描边；hint 手绘、光标主色
             Surface(
@@ -354,7 +360,7 @@ fun RoleListScreen(
                                 interactionSource = remember { MutableInteractionSource() },
                                 indication = null,
                             ) {
-                                markedNames = if (allSelected) emptySet() else selectableNames
+                                markedIdx = if (allSelected) emptySet() else selectableIdx
                             }
                             .padding(horizontal = 12.dp, vertical = 6.dp)
                     )
@@ -391,16 +397,17 @@ fun RoleListScreen(
                     )
                 }
             }
-            filtered.forEachIndexed { idx, rec ->
-                val key = "row_${rec.name}_${rec.voice}"
+            filtered.forEach { (idx, rec) ->
+                // 行 key 用下标：同名两条记录（合并产物 / 框架回写）不会再撞 key（旧版 name+voice 撞了会崩）
+                val key = "row_$idx"
                 item(key = key) {
                     RoleRow(
                         rec = rec,
                         voiceName = voiceTagText(rec.voice, voiceNames),
                         marks = marks[rec.voice].orEmpty(),
-                        marked = rec.name in markedNames,
-                        onNameClick = { toggleMark(rec.name) },
-                        onNameLongClick = { menuFor = rec },
+                        marked = idx in markedIdx,
+                        onNameClick = { toggleMark(idx) },
+                        onNameLongClick = { menuFor = idx to rec },
                         onTagClick = { pickerFor = rec },
                     )
                     HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f))
@@ -436,7 +443,7 @@ fun RoleListScreen(
     }
     // ===== 合并+选择发音人：目标=长按角色，选完发音人后把其余标记角色并入 =====
     mergeVoiceTarget?.let { target ->
-        val others = markedNames.filter { it != target }.toSet()
+        val others = markedIdx.mapNotNull { records.getOrNull(it)?.name }.filter { it != target }.toSet()
         VoicePickerDialog(
             anchorConfigId = null,
             anchorTag = records.firstOrNull { it.name == target }?.voice.orEmpty(),
@@ -446,7 +453,7 @@ fun RoleListScreen(
                 scope.launch {
                     val n = withIO { CharacterRecordsFile.mergeCharacters(tagRuleId, target, others) }
                     toast(if (n > 0) R.string.role_list_merge_toast else R.string.role_list_failed, n)
-                    markedNames = emptySet()
+                    markedIdx = emptySet()
                     reload()
                 }
             },
@@ -455,8 +462,8 @@ fun RoleListScreen(
     }
 
     // ===== 长按操作菜单（照插件 showFirstDialog 动态项）=====
-    menuFor?.let { rec ->
-        val markCount = markedNames.size + if (rec.name in markedNames) 0 else 1
+    menuFor?.let { (idx, rec) ->
+        val markCount = markedIdx.size + if (idx in markedIdx) 0 else 1
         val hasMerged = CharacterRecordsFile.splitAliases(rec.aliases)
             .any { it.trim() != rec.name.trim() }
         AlertDialog(
@@ -467,11 +474,11 @@ fun RoleListScreen(
                     if (markCount >= 2) {
                         MenuActionRow(stringResource(R.string.role_menu_merge_follow), MaterialTheme.colorScheme.primary) {
                             menuFor = null
-                            mergeFollowFor = (markedNames + rec.name).toList()
+                            mergeFollowFor = (markedIdx + idx).mapNotNull { records.getOrNull(it)?.name }
                         }
                         MenuActionRow(stringResource(R.string.role_menu_merge_voice), Color(0xFF7E57C2)) {
                             menuFor = null
-                            markedNames = markedNames + rec.name
+                            markedIdx = markedIdx + idx
                             mergeVoiceTarget = rec.name
                         }
                     }
@@ -484,17 +491,19 @@ fun RoleListScreen(
                     if (markCount < 2) {
                         MenuActionRow(stringResource(R.string.role_list_menu_rename), Color(0xFF00838F)) {
                             menuFor = null
-                            editFor = rec
+                            editFor = idx to rec
                         }
                     }
                     MenuActionRow(stringResource(R.string.role_list_menu_delete), MaterialTheme.colorScheme.error) {
                         menuFor = null
-                        deleteNames = markedNames + rec.name
+                        deleteIdx = markedIdx + idx
                     }
                     MenuActionRow(stringResource(R.string.role_list_menu_set_main), Color(0xFFF57F17)) {
                         menuFor = null
                         scope.launch {
-                            val ok = withIO { CharacterRecordsFile.setMainCharacter(tagRuleId, rec.name) }
+                            // 按下标改（照插件 setAsMainCharacter：`characterRecords[longPressedIndex]`
+                            // 只动长按的那一条；旧版按名字改，同名两条会一起变主角）
+                            val ok = withIO { CharacterRecordsFile.setMainCharacterAt(tagRuleId, idx) }
                             toast(
                                 if (ok) R.string.role_list_set_main_toast else R.string.role_list_failed,
                                 rec.name
@@ -524,7 +533,7 @@ fun RoleListScreen(
                             scope.launch {
                                 val n = withIO { CharacterRecordsFile.mergeCharacters(tagRuleId, name, others) }
                                 toast(if (n > 0) R.string.role_list_merge_toast else R.string.role_list_failed, n)
-                                markedNames = emptySet()
+                                markedIdx = emptySet()
                                 reload()
                             }
                         }
@@ -575,13 +584,15 @@ fun RoleListScreen(
     }
 
     // ===== 修改角色名（多行名称编辑器：主名+别名）=====
-    editFor?.let { rec ->
+    editFor?.let { (idx, rec) ->
         EditNamesDialog(
             initialNames = listOf(rec.name) + CharacterRecordsFile.splitAliases(rec.aliases).filter { it != rec.name },
             onDismiss = { editFor = null },
             onConfirm = { names ->
                 scope.launch {
-                    val ok = withIO { CharacterRecordsFile.editCharacterNames(tagRuleId, rec.name, names) }
+                    // 按下标改（照插件 showEditCharacterDialog 用 position 定位、names 去重）：
+                    // 旧版按名字改，同名两条会一起被改，且重复名会被写进 aliases 两条
+                    val ok = withIO { CharacterRecordsFile.editCharacterNamesAt(tagRuleId, idx, names) }
                     toast(if (ok) R.string.role_list_rename_toast else R.string.role_list_failed)
                     editFor = null
                     if (ok) reload()
@@ -591,24 +602,27 @@ fun RoleListScreen(
     }
 
     // ===== 删除角色（单/多共用，对全部标记生效）=====
-    deleteNames?.let { names ->
+    deleteIdx?.let { targets ->
+        val names = targets.mapNotNull { records.getOrNull(it)?.name }
         AlertDialog(
-            onDismissRequest = { deleteNames = null },
+            onDismissRequest = { deleteIdx = null },
             title = { Text(stringResource(R.string.role_list_delete_title)) },
             text = { Text(stringResource(R.string.role_list_delete_text, names.size, names.take(5).joinToString("、"))) },
             confirmButton = {
                 TextButton(onClick = {
                     scope.launch {
-                        val n = withIO { CharacterRecordsFile.deleteCharacters(tagRuleId, names) }
+                        // 按下标删（照插件 doDeleteCharacterOperation 只保留未标记 index）：
+                        // 旧版按名字删，文件里同名两条会一起没
+                        val n = withIO { CharacterRecordsFile.deleteRecordsAt(tagRuleId, targets) }
                         toast(if (n > 0) R.string.role_list_delete_toast else R.string.role_list_failed, n)
-                        deleteNames = null
-                        markedNames = emptySet()
+                        deleteIdx = null
+                        markedIdx = emptySet()
                         if (n > 0) reload()
                     }
                 }) { Text(stringResource(R.string.delete)) }
             },
             dismissButton = {
-                TextButton(onClick = { deleteNames = null }) { Text(stringResource(R.string.cancel)) }
+                TextButton(onClick = { deleteIdx = null }) { Text(stringResource(R.string.cancel)) }
             }
         )
     }
