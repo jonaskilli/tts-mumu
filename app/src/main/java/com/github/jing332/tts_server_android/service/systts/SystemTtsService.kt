@@ -822,6 +822,19 @@ class SystemTtsService : TextToSpeechService(), IEventDispatcher {
                         if (e.request.roleName.isNotBlank())
                             org.slf4j.MDC.put("roleName", e.request.roleName)
                         logI("请求音频：" + e.request.text())
+                        // 降级兜底提示（目目 09-14）：规则 JS 分析失败会把文本直接投给兜底标签，
+                        // 请求行与正常请求无异、看不出是兜底。可靠判定：括号4 本职是『』括号发音人，
+                        // 正常请求文本必含『』；非『』文本投给括号4 = 降级兜底（分析失败直投或
+                        // 中性兜底 09-13 起同投括号4）。性别兜底走重试切备用链路，已有
+                        // 「使用备用TTS」提示，不在此列。W 级子行挂在请求行下，不写持久化文件
+                        if (e.request.config.speechInfo.tag == "括号4"
+                            && !e.request.text.contains('『')
+                        ) {
+                            logChild(
+                                LogLevel.WARN,
+                                getString(R.string.systts_log_fallback_suspect)
+                            )
+                        }
                     } finally {
                         org.slf4j.MDC.remove("configId")
                         org.slf4j.MDC.remove("roleName")

@@ -494,6 +494,7 @@
     <string name="audio_source_error">Source error: %1$s</string>
     <string name="stream_handle_error">Stream error: %1$s</string>
     <string name="use_standby_tts">Use fallback TTS: %1$s</string>
+    <string name="systts_log_fallback_suspect">⚠ Fallback: rule analysis failed, this line was read by the fallback voice</string>
     <string name="reach_retry_limit">Reached retry limit, skipping!</string>
     <string name="migration_data">Migrate data</string>
     <string name="systts_list_migration_desc">List data needs to be migrated to the new table structure.\nData is invaluable, please manually export the old data to prevent loss.</string>
@@ -541,7 +542,7 @@
     <string name="role_list_filter_assigned">Assigned</string>
     <string name="role_list_filter_marked">Marked</string>
     <string name="role_list_unassigned">Unassigned</string>
-    <string name="role_list_empty">No role records yet. They are generated after one read-aloud run.</string>
+    <string name="role_list_empty">No characters yet — they appear after reading aloud</string>
     <string name="role_list_preview_missing">No enabled config to preview for this tag</string>
     <string name="role_list_menu_rename">Rename character</string>
     <string name="role_list_menu_set_main">Set as protagonist</string>

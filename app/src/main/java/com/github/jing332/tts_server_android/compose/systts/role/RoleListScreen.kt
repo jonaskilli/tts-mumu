@@ -386,7 +386,9 @@ fun RoleListScreen(
                 item {
                     Text(
                         stringResource(R.string.role_list_empty),
-                        style = MaterialTheme.typography.bodyLarge,
+                        // 目目 09-14：空状态字号缩小一档（bodyLarge 16sp → bodyMedium 14sp），
+                        // 文案已精简为「暂无角色，朗读后自动生成」
+                        style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.padding(24.dp).fillMaxWidth(),
                         textAlign = androidx.compose.ui.text.style.TextAlign.Center,

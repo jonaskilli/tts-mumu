@@ -575,6 +575,7 @@
     <string name="stream_handle_error">流错误：%1$s</string>
     <string name="use_standby_tts">使用备用TTS：%1$s</string>
     <string name="use_standby_tts_with_tag">使用备用发音人：%1$s → %2$s（重试失败兜底）</string>
+    <string name="systts_log_fallback_suspect">⚠ 降级兜底：规则分析失败，本条由兜底发音人代读</string>
     <string name="functional_fallback_failed">功能标签(%1$s)兜底发音人重试失败，已跳过</string>
     <string name="reach_retry_limit">到达重试上限，跳过！</string>
     <string name="migration_data">迁移数据</string>
@@ -716,7 +717,7 @@
     <string name="role_list_filter_assigned">已分配</string>
     <string name="role_list_filter_marked">标记</string>
     <string name="role_list_unassigned">未分配</string>
-    <string name="role_list_empty">暂无角色记录，朗读一次后自动生成</string>
+    <string name="role_list_empty">暂无角色，朗读后自动生成</string>
     <string name="role_list_preview_missing">该标签没有可试听的启用配置项</string>
     <string name="role_list_menu_rename">修改角色名</string>
     <string name="role_list_menu_set_main">设为主角</string>
