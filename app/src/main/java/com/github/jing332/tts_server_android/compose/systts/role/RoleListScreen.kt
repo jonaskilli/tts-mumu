@@ -194,8 +194,8 @@ fun RoleListScreen(
     var menuFor by remember { mutableStateOf<Pair<Int, CharacterRecordsFile.RoleRecord>?>(null) }
     var deleteIdx by remember { mutableStateOf<Set<Int>?>(null) }
     var editFor by remember { mutableStateOf<Pair<Int, CharacterRecordsFile.RoleRecord>?>(null) }
-    var releaseFor by remember { mutableStateOf<CharacterRecordsFile.RoleRecord?>(null) }
-    var keywordPickFor by remember { mutableStateOf<Pair<String, String>?>(null) } // (ownerName, releaseName) 释放并固定选关键词
+    var releaseForIdx by remember { mutableStateOf<Int?>(null) }
+    var releaseTargetFor by remember { mutableStateOf<Pair<String, String>?>(null) } // (ownerName, releaseName) 释放并固定 → 换声弹窗
     // 添加角色（目目 09-14 终版）：直接开绑定类换声弹窗，顶部内嵌角色名填写框，
     // 选好发音人确认即建记录（voice=tag id）——独立名字弹窗/选关键词旧流程均废
     var addingChar by remember { mutableStateOf(false) }
@@ -502,7 +502,7 @@ fun RoleListScreen(
                     if (hasMerged) {
                         MenuActionRow(stringResource(R.string.role_menu_release), Color(0xFFFB8C00)) {
                             menuFor = null
-                            releaseFor = rec
+                            releaseForIdx = idx
                         }
                     }
                     if (markCount < 2) {
@@ -565,37 +565,45 @@ fun RoleListScreen(
     }
 
     // ===== 释放/删除已合并角色（照插件：名字列表逐行 释放并固定/删除）=====
-    releaseFor?.let { rec ->
-        ReleaseDialog(
-            rec = rec,
-            onDismiss = { releaseFor = null },
-            onFix = { owner, name ->
-                keywordPickFor = owner to name
-            },
-            onDelete = { owner, name ->
-                scope.launch {
-                    val ok = withIO { CharacterRecordsFile.removeNameFromRecord(tagRuleId, owner, name) }
-                    toast(if (ok) R.string.role_list_delete_toast else R.string.role_list_failed, 1)
-                    if (ok) reload()
-                }
-            },
-        )
+    // 存**下标**而不是记录快照：一个别名被释放之后（尤其释放的正是主名——aliases 首个顶上），
+    // 在同一个弹窗里接着释放第二个时，若拿旧快照的 ownerName 去定位会匹配不上原角色
+    // （releaseAndFix 按名字找 owner）。按下标每帧重取最新记录，连续释放才对得上。
+    releaseForIdx?.let { ridx ->
+        records.getOrNull(ridx)?.let { rec ->
+            ReleaseDialog(
+                rec = rec,
+                onDismiss = { releaseForIdx = null },
+                onFix = { owner, name ->
+                    releaseTargetFor = owner to name
+                },
+                onDelete = { owner, name ->
+                    scope.launch {
+                        val ok = withIO { CharacterRecordsFile.removeNameFromRecord(tagRuleId, owner, name) }
+                        toast(if (ok) R.string.role_list_delete_toast else R.string.role_list_failed, 1)
+                        if (ok) reload()
+                    }
+                },
+            )
+        }
     }
-    // 释放并固定 → 选关键词
-    keywordPickFor?.let { (owner, name) ->
-        KeywordPickerDialog(
-            onDismiss = { keywordPickFor = null },
-            onPicked = { kw ->
-                keywordPickFor = null
-                scope.launch {
-                    val ok = withIO { CharacterRecordsFile.releaseAndFix(tagRuleId, owner, name, kw) }
-                    toast(
-                        if (ok) R.string.role_release_fixed_toast else R.string.role_list_failed,
-                        name, kw
-                    )
-                    if (ok) reload()
-                }
-            },
+    // 释放并固定 → 直接开换声弹窗（目目 09-14：这一步本质＝「解绑别名 + 另立门户换发音人」，
+    // 先选一个关键词、再拿关键词当发音人是多余一跳）。落库仍走 releaseAndFix，其余链路
+    // （候选 / 试听 / 确认键 / Toast）与「+ 添加角色」完全同源——只有一处实现。
+    // 顺带修正口径：原先写进 voice 的是裸关键词（「女青年」），现在是 tag id（「女青年01」），
+    // 与本 App「voice=tag id」的数据链一致——旧写法朗读时根本匹配不上发音人。
+    releaseTargetFor?.let { (owner, name) ->
+        val anchorTag = records.firstOrNull { it.voice.isNotBlank() }?.voice
+            ?: CharacterRecordsFile.readVoicePool(tagRuleId).firstOrNull().orEmpty()
+        VoicePickerDialog(
+            anchorConfigId = null,
+            anchorTag = anchorTag,
+            bindingKey = "",
+            titleBadge = "",
+            createIfMissing = true,
+            releaseOwnerName = owner,
+            releaseName = name,
+            onChanged = { _, _ -> reload() },
+            onDismissRequest = { releaseTargetFor = null },
         )
     }
 
@@ -896,7 +904,12 @@ private fun ReleaseDialog(
                             modifier = Modifier.weight(1f)
                         )
                         if (!done) {
-                            TextButton(onClick = { onFix(rec.name, name) }) {
+                            TextButton(onClick = {
+                                // 点了就标 ✓（与删除按钮同款）：换声弹窗关掉后回到本弹窗，
+                                // 该名字不再显示按钮，避免同一个名字在本次弹窗里被释放两遍
+                                processed.value = processed.value + name
+                                onFix(rec.name, name)
+                            }) {
                                 Text(stringResource(R.string.role_release_fix), color = Color(0xFF2E7D32))
                             }
                             TextButton(onClick = {
@@ -915,56 +928,6 @@ private fun ReleaseDialog(
         },
     )
 }
-
-/**
- * 关键词选择弹窗（照插件 showKeywordSelectionDialog）：固定 12 关键词。
- *
- * 自定义关键词（custom_keywords.json 的添加 / 管理 / 删除）09-14 目目拍板下线——
- * 该功能在 Kotlin 侧只剩「释放并固定」单路可达，维护成本大于收益。
- * 目录里的 custom_keywords.json 不再由本 App 读写（插件侧若仍在用，互不影响）。
- */
-@Composable
-@OptIn(ExperimentalMaterial3Api::class)
-private fun KeywordPickerDialog(
-    onDismiss: () -> Unit,
-    onPicked: (String) -> Unit,
-) {
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text(stringResource(R.string.role_keyword_title)) },
-        text = {
-            Column {
-                listOf("女童", "男童", "少女", "少年", "女青年", "男青年", "女中年", "男中年", "女老年", "男老年", "女主", "男主")
-                    .chunked(2)
-                    .forEach { pair ->
-                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            pair.forEach { kw ->
-                                Surface(
-                                    onClick = { onPicked(kw) },
-                                    shape = RoundedCornerShape(10.dp),
-                                    color = MaterialTheme.colorScheme.secondaryContainer,
-                                    modifier = Modifier.weight(1f)
-                                ) {
-                                    Text(
-                                        kw,
-                                        style = MaterialTheme.typography.bodyMedium,
-                                        color = MaterialTheme.colorScheme.onSecondaryContainer,
-                                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp)
-                                    )
-                                }
-                            }
-                            if (pair.size == 1) Spacer(Modifier.weight(1f))
-                        }
-                        Spacer(Modifier.height(4.dp))
-                    }
-            }
-        },
-        confirmButton = {
-            TextButton(onClick = onDismiss) { Text(stringResource(R.string.cancel)) }
-        },
-    )
-}
-
 
 /** 修改角色名称：多行名称编辑器（第1个=主名，其余=别名） */
 @Composable

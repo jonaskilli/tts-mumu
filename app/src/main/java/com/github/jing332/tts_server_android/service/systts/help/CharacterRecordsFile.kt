@@ -556,7 +556,7 @@ object CharacterRecordsFile {
     /**
      * 新建角色记录。voice 传什么存什么：
      * - 添加角色绑定链路（目目 09-14 定）传**标签 id**，与换声/rebind 同口径；
-     * - 旧插件关键词意向（releaseAndFix 等）传关键词。
+     * - 「释放并固定」（从已有角色解绑别名、另立门户）不走本函数，见下方 releaseAndFix。
      * 字段与插入位置照插件 `+添加角色`（5288-5299）：`{name, aliases:"", voice, usageCount:100,
      * gender:"未知", age:"未知"}` 并 `unshift` 到**列表头部**（旧版 add 到尾部，新角色会掉到最底）。
      * 同名记录已存在返回 false（插件不查重，这条是本 App 自加的防呆，配 role_add_char_exists 提示）。 */
@@ -601,11 +601,15 @@ object CharacterRecordsFile {
     /**
      * 释放并固定单个名字（照插件 doReleaseOperation「释放并固定」）：
      * 从 [ownerName] 移除该名字（主名被移除时 aliases 首个顶上，记录空了则删除）；
-     * 已存在同名记录 → voice=keyword + usageCount=100；否则紧随原记录位置新建
-     * {name, aliases:"", voice:keyword, gender:"", age:"", usageCount:100}。
+     * 已存在同名记录 → voice=voiceTag + usageCount=100；否则紧随原记录位置新建
+     * {name, aliases:"", voice=voiceTag, gender:"", age:"", usageCount:100}。
+     *
+     * [voiceTag] 传**发音人标签 id**（如「女青年01」）：目目 09-14 起由换声弹窗直接选发音人。
+     * 早期走关键词弹窗时传的是裸关键词（如「女青年」），与本 App「voice=tag id」口径不符、
+     * 朗读时匹配不上，已随关键词弹窗一并下线。
      */
-    fun releaseAndFix(tagRuleId: String, ownerName: String, name: String, keyword: String): Boolean {
-        if (ownerName.isBlank() || name.isBlank() || keyword.isBlank()) return false
+    fun releaseAndFix(tagRuleId: String, ownerName: String, name: String, voiceTag: String): Boolean {
+        if (ownerName.isBlank() || name.isBlank() || voiceTag.isBlank()) return false
         val records = readRecords(tagRuleId).toMutableList()
         val ownerIdx = records.indexOfFirst { norm(it.name) == norm(ownerName) }
         if (ownerIdx < 0) return false
@@ -627,13 +631,13 @@ object CharacterRecordsFile {
         // 已存在同名独立记录 → 固定其发音人；否则新建
         val existIdx = records.indexOfFirst { norm(it.name) == norm(name) }
         if (existIdx >= 0) {
-            records[existIdx].obj.put("voice", keyword.trim())
+            records[existIdx].obj.put("voice", voiceTag.trim())
             records[existIdx].obj.put("usageCount", 100)
         } else {
             val fresh = JSONObject()
             fresh.put("name", name)
             fresh.put("aliases", "")
-            fresh.put("voice", keyword.trim())
+            fresh.put("voice", voiceTag.trim())
             fresh.put("gender", "")
             fresh.put("age", "")
             fresh.put("usageCount", 100)

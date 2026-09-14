@@ -811,7 +811,6 @@
     <string name="role_voice_del_msg_unused">该配置项未被分配，可删除。</string>
     <string name="role_voice_del_confirm">确认删除</string>
     <string name="role_voice_del_toast">已删除配置项「%1$s」</string>
-    <string name="role_keyword_title">选择关键词</string>
     <string name="role_book_renamed">已重命名为「%1$s」</string>
     <string name="role_book_hint">点击切换 · 点✕删除</string>
     <string name="role_book_deleted_toast">已删除 %1$d 本书</string>

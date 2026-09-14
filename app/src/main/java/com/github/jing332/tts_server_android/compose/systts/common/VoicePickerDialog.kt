@@ -132,6 +132,11 @@ import kotlinx.coroutines.launch
  *                       （新角色无当前绑定，候选行自带试听），标题随输入实时显「角色卡（名字）」；
  *                       确认键=建记录并写入所选 tag id，成功后自动关弹窗。锚点仍需有效
  *                       （调用方保证），bindingKey/titleBadge 传空即可
+ * @param releaseOwnerName 释放模式（目目 09-14）：非空=「释放并固定」链路——把 [releaseName]
+ *                       从该角色名下解绑、另立一条记录并写入所选 tag id（落库走 releaseAndFix）。
+ *                       不显示顶部名字输入框（名字已定，标题即「角色卡（名字）」），其余
+ *                       候选链路 / 试听 / 确认键与添加角色完全同源
+ * @param releaseName     释放模式预填名字（= 被释放的别名）
  * @param titleBadge     角色名（目目 09-13：非空=标题显示「角色卡（名字）」）；空=标题显示「信息卡」
  *                       ——调用方自传标题已废除（曾出现「发音人调整/更换发音人」两套乱名）
  * @param sharedVM       主界面共享状态（日志面板专用：换声后主列表定位高亮、标记版本联动）；null=跳过
@@ -154,6 +159,8 @@ fun VoicePickerDialog(
     isLocalSoundSlot: Boolean = false,
     groupBindingKeys: List<String> = emptyList(),
     createIfMissing: Boolean = false,
+    releaseOwnerName: String = "",
+    releaseName: String = "",
     sharedVM: SharedViewModel? = null,
     onChanged: ((event: String, tag: String) -> Unit)? = null,
     onDismissRequest: () -> Unit,
@@ -201,8 +208,9 @@ fun VoicePickerDialog(
     val displayCategory = extractTagCategory(
         ruleTags?.get(config.speechRule.tag) ?: config.speechRule.tagName
     )
-    // 添加角色模式也走绑定候选链路（分类下拉+池子∩启用候选），只是落库分支不同
-    val isBindingMode = bindingKey.isNotBlank() || createIfMissing
+    // 添加角色 / 释放并固定两种模式都走绑定候选链路（分类下拉+池子∩启用候选），只是落库分支不同
+    val addMode = createIfMissing || releaseOwnerName.isNotBlank()
+    val isBindingMode = bindingKey.isNotBlank() || addMode
 
     // ===== 行内试听状态（参照角色管理v9/v10试听状态机：▶ →(点击)… →(真正出声)■ →(播完复位)▶）=====
     // 播放器全局单实例（同一时刻只有一个试听），previewingKey 记当前行（顶部=current，绑定=tag，旁白=voice）
@@ -241,8 +249,9 @@ fun VoicePickerDialog(
     // 即点即改的 Toast 反馈太弱且易误触；未确认选择在关闭面板时自然丢弃
     var pendingVoice by remember(entity.id) { mutableStateOf<String?>(null) }
     // 添加角色模式：角色名在弹窗内填写（目目 09-14 终版：不弹独立名字窗），
-    // 标题实时跟随；确认时非空才可点
-    var inputName by remember(entity.id) { mutableStateOf("") }
+    // 标题实时跟随；确认时非空才可点。
+    // 释放模式：名字已定（= 被释放的别名），这里只作预填、不显示输入框
+    var inputName by remember(entity.id) { mutableStateOf(releaseName) }
 
     // 绑定模式当前绑定（提升到分支外：底部确认行生效后要更新它）
     // 绑定值=标签 id（fayinren.json/characterRecords 里存的都是 tag id，JS 侧 tags[voiceTag]=显示名仅用于回显）；
@@ -254,7 +263,7 @@ fun VoicePickerDialog(
             // 标签会被「与当前绑定相同」守卫吞掉，新角色永远建不出来）
             CharacterRecordsFile.readCharacterVoice(
                 config.speechRule.tagRuleId, bindingKey
-            ) ?: if (createIfMissing) "" else config.speechRule.tag
+            ) ?: if (addMode) "" else config.speechRule.tag
         )
     }
 
@@ -623,7 +632,7 @@ fun VoicePickerDialog(
                             // 添加角色模式：名字来自弹窗内填写框实时跟随，未输入时显示「添加角色」
                             val titleBadgeLive = when {
                                 titleBadge.isNotBlank() -> titleBadge
-                                createIfMissing && inputName.isNotBlank() -> inputName.trim()
+                                addMode && inputName.isNotBlank() -> inputName.trim()
                                 else -> ""
                             }
                             if (titleBadgeLive.isNotBlank()) {
@@ -647,7 +656,7 @@ fun VoicePickerDialog(
                                     maxLines = 1,
                                     overflow = TextOverflow.Ellipsis,
                                 )
-                            } else if (createIfMissing) {
+                            } else if (addMode) {
                                 Text(stringResource(R.string.role_add_char_title))
                             } else {
                                 Text(stringResource(R.string.voice_picker_info_card))
@@ -682,7 +691,8 @@ fun VoicePickerDialog(
                     // 用 weight(1f) 吃满剩余高度并自带内滚，头部四层永远在视野里。
             ) {
             // 添加角色模式：顶部第一行=角色名填写框（描边=可输入，与搜索框同语汇）
-            if (createIfMissing) {
+            // 释放模式不显示（名字已定，标题「角色卡（名字）」已表明释放对象）
+            if (addMode && releaseOwnerName.isBlank()) {
                 OutlinedTextField(
                     value = inputName,
                     onValueChange = { inputName = it },
@@ -715,7 +725,7 @@ fun VoicePickerDialog(
             }
             // 09-11 重排（用户拍板）：「当前发音人」小标签独占一行，▶ 键与发音人名同一行
             //（此前 ▶ 垂直居中在两行文字块上，与名字行错位）；名字加省略号防长名硬裁
-            if (!createIfMissing) {
+            if (!addMode) {
             Column(Modifier.fillMaxWidth()) {
                 Text(
                     // 标题已改叫「角色卡（角色名）」（目目 09-13 终版），本行回归纯「当前发音人」
@@ -793,7 +803,7 @@ fun VoicePickerDialog(
                 // 上下各 2dp（用户 09-11：顶部三行是紧密信息，行距收小，与音频参数弹窗同步）
                 modifier = Modifier.padding(top = 2.dp, bottom = 2.dp),
             )
-            } // if (!createIfMissing) 顶部块收尾
+            } // if (!addMode) 顶部块收尾
 
             // 分段两区（用户 09-11 下午「完全 MD3 版」终裁：官方 SegmentedButton 全 app 统一）：
             // 0=更换发音人 1=音频参数；当前发音人+终值两区共用，固定在分段之上。
@@ -1318,7 +1328,7 @@ fun VoicePickerDialog(
                                 ).show()
                                 return@TextButton
                             }
-                            if (createIfMissing && inputName.isBlank()) {
+                            if (addMode && inputName.isBlank()) {
                                 Toast.makeText(
                                     context,
                                     context.getString(R.string.voice_picker_need_name),
@@ -1327,17 +1337,23 @@ fun VoicePickerDialog(
                                 return@TextButton
                             }
                             when {
-                                // 添加角色模式：建记录（voice=tag id），成功后自动关弹窗；
-                                // 同名已存在 addCharacter 返回 false（确认键已拦空名）
-                                createIfMissing -> {
+                                // 添加角色 / 释放并固定：都要在 characterRecords.json 里落一条
+                                // voice=所选 tag id 的记录，成功后自动关弹窗。
+                                // - 添加：addCharacter 建新记录，同名已存在返回 false（确认键已拦空名）
+                                // - 释放并固定（目目 09-14）：releaseAndFix 先把该名字从原角色解绑、
+                                //   再另立门户写记录；名字已定（不显示输入框），用户只需选发音人
+                                addMode -> {
                                     val n = inputName.trim()
+                                    val isRelease = releaseOwnerName.isNotBlank()
                                     // 发音人显示名口径与弹窗头部/候选行一致（同 tag 的启用配置项名）：
                                     // 不在 Toast 里抛 tag id（目目 09-14：文案一律走 R.string 三处同写，
                                     // 这里原来硬编码中文、且原样打印 tag id）
                                     val shown = enabledConfigEntityByTag(selected)?.displayName ?: selected
                                     scope.launch {
                                         val ok = withIO {
-                                            CharacterRecordsFile.addCharacter(
+                                            if (isRelease) CharacterRecordsFile.releaseAndFix(
+                                                config.speechRule.tagRuleId, releaseOwnerName, n, selected,
+                                            ) else CharacterRecordsFile.addCharacter(
                                                 config.speechRule.tagRuleId, n, selected,
                                             )
                                         }
@@ -1348,12 +1364,17 @@ fun VoicePickerDialog(
                                         pendingVoice = null
                                         Toast.makeText(
                                             context,
-                                            // 成功=新增角色成功：名（发音人）；失败=角色名已存在
-                                            context.getString(
-                                                if (ok) R.string.role_add_char_ok
-                                                else R.string.role_add_char_exists,
-                                                n, shown,
-                                            ),
+                                            when {
+                                                // 释放成功=「已释放并固定：名，发音人：X」
+                                                ok && isRelease -> context.getString(
+                                                    R.string.role_release_fixed_toast, n, shown,
+                                                )
+                                                // 新增成功=「角色卡（名）已换为 X」
+                                                ok -> context.getString(R.string.role_add_char_ok, n, shown)
+                                                // 释放失败（原角色/名字对不上）=通用失败；新增失败=角色名已存在
+                                                isRelease -> context.getString(R.string.role_list_failed)
+                                                else -> context.getString(R.string.role_add_char_exists, n, shown)
+                                            },
                                             Toast.LENGTH_SHORT,
                                         ).show()
                                     }
