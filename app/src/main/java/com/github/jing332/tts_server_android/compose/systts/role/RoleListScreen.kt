@@ -641,7 +641,11 @@ fun RoleListScreen(
     // 修改书名：已改为书籍栏 ✎ 行内编辑（照插件），弹窗通道退役
 }
 
-/** 菜单动作行（彩色圆点 + 文字，照插件 showFirstDialog 行样式） */
+/**
+ * 菜单动作行（彩色圆点 + 文字，照插件 showFirstDialog 行样式）。
+ * 字号口径（目目 09-14 定：弹窗标题与字号全部对齐主界面实际弹窗 —— 即 M3 AlertDialog 默认档）：
+ * 行文字用 bodyMedium 14sp（原 bodyLarge 16sp 比主界面弹窗正文大一号，如「转为子分组」的选项行）。
+ */
 @Composable
 private fun MenuActionRow(text: String, dotColor: Color, onClick: () -> Unit) {
     Row(
@@ -655,7 +659,7 @@ private fun MenuActionRow(text: String, dotColor: Color, onClick: () -> Unit) {
             Modifier.size(7.dp).background(dotColor, CircleShape)
         )
         Spacer(Modifier.width(12.dp))
-        Text(text, style = MaterialTheme.typography.bodyLarge)
+        Text(text, style = MaterialTheme.typography.bodyMedium)
     }
 }
 

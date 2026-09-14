@@ -1061,7 +1061,7 @@ private fun ModelPullDialog(
             Column(Modifier.padding(16.dp)) {
                 Text(
                     stringResource(R.string.role_key_fetch),
-                    style = MaterialTheme.typography.titleLarge
+                    style = MaterialTheme.typography.headlineSmall
                 )
                 Spacer(Modifier.height(8.dp))
                 // 接口单选
@@ -1251,7 +1251,7 @@ private fun ImportKeysDialog(
             modifier = Modifier.fillMaxWidth().heightIn(max = 480.dp)
         ) {
             Column(Modifier.padding(16.dp)) {
-                Text(stringResource(R.string.role_key_import), style = MaterialTheme.typography.titleLarge)
+                Text(stringResource(R.string.role_key_import), style = MaterialTheme.typography.headlineSmall)
                 Spacer(Modifier.height(8.dp))
                 if (files.isEmpty()) {
                     Text(
@@ -1354,8 +1354,7 @@ fun BackupCenterDialog(
             Column(Modifier.padding(start = 20.dp, end = 20.dp, top = 20.dp, bottom = 12.dp)) {
                 Text(
                     stringResource(R.string.backup_title),
-                    style = MaterialTheme.typography.titleLarge,
-                    fontWeight = FontWeight.Bold
+                    style = MaterialTheme.typography.headlineSmall
                 )
                 Spacer(Modifier.height(12.dp))
                 BackupOptionRow(Icons.Default.ContentCopy, stringResource(R.string.backup_export_book)) {
@@ -1522,7 +1521,7 @@ private fun BackupOptionRow(icon: ImageVector, text: String, onClick: () -> Unit
             modifier = Modifier.size(18.dp)
         )
         Spacer(Modifier.width(14.dp))
-        Text(text, style = MaterialTheme.typography.bodyLarge)
+        Text(text, style = MaterialTheme.typography.bodyMedium)
     }
 }
 
@@ -1607,8 +1606,7 @@ fun BookManagerDialog(
             ) {
                 Text(
                     stringResource(R.string.role_book_list_title),
-                    style = MaterialTheme.typography.titleLarge,
-                    fontWeight = FontWeight.Bold,
+                    style = MaterialTheme.typography.headlineSmall,
                 )
                 Spacer(Modifier.height(12.dp))
                 // 清单上限按屏高推算（不写死 dp）；行间靠 0.6dp 浅分隔线分区（首行不加，同密钥弹窗）
@@ -1642,7 +1640,6 @@ fun BookManagerDialog(
                         Text(
                             "+  " + stringResource(R.string.role_book_add),
                             color = MaterialTheme.colorScheme.primary,
-                            fontWeight = FontWeight.Bold,
                         )
                     }
                     Spacer(Modifier.width(12.dp))
@@ -1650,7 +1647,6 @@ fun BookManagerDialog(
                         Text(
                             stringResource(R.string.role_book_multi_delete_mode),
                             color = BOOK_MULTI_DELETE_COLOR,
-                            fontWeight = FontWeight.Bold,
                         )
                     }
                 }
@@ -1705,8 +1701,7 @@ fun BookManagerDialog(
                 ) {
                     Text(
                         stringResource(R.string.role_book_multi_title),
-                        style = MaterialTheme.typography.titleLarge,
-                        fontWeight = FontWeight.Bold,
+                        style = MaterialTheme.typography.headlineSmall,
                     )
                     Spacer(Modifier.height(12.dp))
                     Column(Modifier.fillMaxWidth()) {
@@ -1735,8 +1730,7 @@ fun BookManagerDialog(
                                 )
                                 Text(
                                     book,
-                                    style = MaterialTheme.typography.bodyLarge,
-                                    fontWeight = FontWeight.SemiBold,
+                                    style = MaterialTheme.typography.bodyMedium,
                                     maxLines = 1,
                                     overflow = TextOverflow.Ellipsis,
                                     modifier = Modifier.weight(1f),
@@ -1865,7 +1859,7 @@ private fun BookRow(
         }
         Text(
             name,
-            style = MaterialTheme.typography.bodyLarge,
+            style = MaterialTheme.typography.bodyMedium,
             fontWeight = if (isCurrent) FontWeight.SemiBold else null,
             color = if (isCurrent) MaterialTheme.colorScheme.primary
             else MaterialTheme.colorScheme.onSurface,
