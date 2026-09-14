@@ -584,7 +584,6 @@ fun RoleListScreen(
     // 释放并固定 → 选关键词
     keywordPickFor?.let { (owner, name) ->
         KeywordPickerDialog(
-            tagRuleId = tagRuleId,
             onDismiss = { keywordPickFor = null },
             onPicked = { kw ->
                 keywordPickFor = null
@@ -918,23 +917,18 @@ private fun ReleaseDialog(
 }
 
 /**
- * 关键词选择弹窗（照插件 showKeywordSelectionDialog）：
- * 固定 12 关键词 + 自定义关键词（添加/管理，存 custom_keywords.json 与插件互通）。
+ * 关键词选择弹窗（照插件 showKeywordSelectionDialog）：固定 12 关键词。
+ *
+ * 自定义关键词（custom_keywords.json 的添加 / 管理 / 删除）09-14 目目拍板下线——
+ * 该功能在 Kotlin 侧只剩「释放并固定」单路可达，维护成本大于收益。
+ * 目录里的 custom_keywords.json 不再由本 App 读写（插件侧若仍在用，互不影响）。
  */
 @Composable
 @OptIn(ExperimentalMaterial3Api::class)
 private fun KeywordPickerDialog(
-    tagRuleId: String,
     onDismiss: () -> Unit,
     onPicked: (String) -> Unit,
 ) {
-    val scope = rememberCoroutineScope()
-    var custom by remember { mutableStateOf<List<String>>(emptyList()) }
-    var customInputVisible by remember { mutableStateOf(false) }
-    LaunchedEffect(Unit) {
-        custom = withIO { CharacterRecordsFile.readCustomKeywords(tagRuleId) }
-    }
-    fun pick(kw: String) { onPicked(kw) }
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text(stringResource(R.string.role_keyword_title)) },
@@ -946,7 +940,7 @@ private fun KeywordPickerDialog(
                         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                             pair.forEach { kw ->
                                 Surface(
-                                    onClick = { pick(kw) },
+                                    onClick = { onPicked(kw) },
                                     shape = RoundedCornerShape(10.dp),
                                     color = MaterialTheme.colorScheme.secondaryContainer,
                                     modifier = Modifier.weight(1f)
@@ -963,75 +957,12 @@ private fun KeywordPickerDialog(
                         }
                         Spacer(Modifier.height(4.dp))
                     }
-                HorizontalDivider(Modifier.padding(vertical = 6.dp))
-                Text(
-                    stringResource(R.string.role_keyword_custom),
-                    style = MaterialTheme.typography.titleSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-                Spacer(Modifier.height(4.dp))
-                custom.forEach { kw ->
-                    Row(
-                        Modifier.fillMaxWidth().clickable { pick(kw) },
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text(kw, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f))
-                        TextButton(onClick = {
-                            scope.launch {
-                                custom = withIO { CharacterRecordsFile.removeCustomKeyword(tagRuleId, kw) }
-                            }
-                        }) { Text(stringResource(R.string.delete), color = MaterialTheme.colorScheme.error) }
-                    }
-                }
-                TextButton(onClick = {
-                    scope.launch {
-                        // 简化输入：复用系统对话框不可行，直接用输入弹窗状态
-                        customInputVisible = true
-                    }
-                }) { Text(stringResource(R.string.role_keyword_add)) }
             }
         },
         confirmButton = {
             TextButton(onClick = onDismiss) { Text(stringResource(R.string.cancel)) }
         },
     )
-    // 自定义关键词输入
-    if (customInputVisible) {
-        var text by remember { mutableStateOf("") }
-        AlertDialog(
-            onDismissRequest = { customInputVisible = false },
-            title = { Text(stringResource(R.string.role_keyword_add)) },
-            text = {
-                OutlinedTextField(
-                    value = text,
-                    onValueChange = { text = it },
-                    label = { Text(stringResource(R.string.role_keyword_input_hint)) },
-                    singleLine = true,
-                    textStyle = MaterialTheme.typography.bodyMedium,
-                )
-            },
-            confirmButton = {
-                TextButton(
-                    enabled = text.trim().isNotEmpty(),
-                    onClick = {
-                        val kw = text.trim()
-                        scope.launch {
-                            val (list, ok) = withIO {
-                                val cur = CharacterRecordsFile.readCustomKeywords(tagRuleId)
-                                if (kw in cur) cur to false
-                                else CharacterRecordsFile.saveCustomKeyword(tagRuleId, kw) to true
-                            }
-                            custom = list
-                            customInputVisible = false
-                        }
-                    }
-                ) { Text(stringResource(R.string.confirm)) }
-            },
-            dismissButton = {
-                TextButton(onClick = { customInputVisible = false }) { Text(stringResource(R.string.cancel)) }
-            }
-        )
-    }
 }
 
 

@@ -22,17 +22,7 @@ object KeyListFile {
     private const val BASE_DIR = "/storage/emulated/0/Download/chajian"
 
     /** 密钥条目（保序） */
-    data class KeyEntry(val name: String, val keyCode: String, val value: String) {
-        /** 展示用摘要：@@ 串显示 model（或网址），纯 key 显示尾 6 位 */
-        fun brief(): String {
-            val p = parseKeyValue(value)
-            return when {
-                p == null -> ""
-                p.isDirect -> "••••" + p.key.takeLast(6)
-                else -> p.model.ifEmpty { p.url }
-            }
-        }
-    }
+    data class KeyEntry(val name: String, val keyCode: String, val value: String)
 
     /** 接口（接口中心条目） */
     data class ApiInterface(
@@ -48,7 +38,6 @@ object KeyListFile {
     private fun keyFile(tagRuleId: String) = File(dir(tagRuleId), "key_list.json")
     private fun keyBackupFile(tagRuleId: String) = File(dir(tagRuleId), "key_list.backup.json")
     private fun centerFile(tagRuleId: String) = File(dir(tagRuleId), "api_center.json")
-    private fun currentFile(tagRuleId: String) = File(dir(tagRuleId), "miyue.txt")
 
     // ==================== key_list.json ====================
 

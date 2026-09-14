@@ -637,9 +637,6 @@ Marks: %3$s</string>
     <string name="role_voice_del_confirm">Delete</string>
     <string name="role_voice_del_toast">Deleted config %1$s</string>
     <string name="role_keyword_title">Pick keyword</string>
-    <string name="role_keyword_custom">Custom keywords</string>
-    <string name="role_keyword_add">＋ Add</string>
-    <string name="role_keyword_input_hint">Enter custom keyword</string>
     <string name="role_book_renamed">Renamed to "%1$s"</string>
     <string name="role_book_hint">Tap to switch · Tap ✕ to delete</string>
     <string name="role_book_deleted_toast">Deleted %1$d book(s)</string>
