@@ -655,6 +655,8 @@ Marks: %3$s</string>
     <string name="role_key_overwrite_btn">Overwrite</string>
     <string name="role_key_export">Export keys</string>
     <string name="role_key_import">Import keys</string>
+    <string name="role_key_action_export">Export</string>
+    <string name="role_key_action_import">Import</string>
     <string name="role_key_exported">Exported %1$d keys to %2$s</string>
     <string name="role_key_no_export">No export file found, export first</string>
     <string name="role_key_import_confirm_title">Import</string>
@@ -685,6 +687,8 @@ Add %3$d, skip %4$d duplicates</string>
     <string name="role_key_test_batch_start">Testing %2$d key(s) under "%1$s"…</string>
     <string name="role_key_test_batch_done">"%1$s" test done: %2$d ok / %3$d failed</string>
     <string name="backup_title">Backup &amp; Restore</string>
+    <string name="role_entry_key">Keys</string>
+    <string name="role_entry_backup">Backup</string>
     <string name="backup_export_book">Export current book to clipboard</string>
     <string name="backup_import_book">Import book from clipboard</string>
     <string name="backup_export_all">Back up all files</string>

@@ -30,8 +30,6 @@ import androidx.compose.material.icons.filled.ContentPaste
 import androidx.compose.material.icons.filled.DeleteOutline
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.ExpandMore
-import androidx.compose.material.icons.filled.FileDownload
-import androidx.compose.material.icons.filled.FileUpload
 import androidx.compose.material.icons.filled.Restore
 import androidx.compose.material.icons.filled.Save
 import androidx.compose.material.icons.filled.Schedule
@@ -47,6 +45,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -98,7 +97,7 @@ import kotlinx.coroutines.launch
  * **承载 = 独立全屏页面**（KeyManagerActivity，原 Dialog 左右各留 24dp、内容区仅约 272dp 太窄）；
  * 条目**无方框无底色**靠浅分隔线分区，缩进 20dp 与组名左缘对齐；当前密钥 = 行首 3dp 主色竖条 + 名称主色加粗；
  * 组级/条目级操作图标统一扁平灰（onSurfaceVariant、18dp、36dp 热区，无常驻描边）；
- * 层级 = 组头「淡底分组条 surfaceContainerHighest + 22dp 折叠箭头（展开↓/折叠→ 旋转动画）+ 组名 14sp」
+ * 层级 = 组头「无底：22dp 折叠箭头（展开↓/折叠→ 旋转动画）+ 组名 16sp SemiBold + (N) 灰字」
  * > 条目 14sp 深色 > 接口地址 11sp 灰。
  */
 
@@ -164,36 +163,6 @@ private fun FlatIconAction(
         contentAlignment = Alignment.Center
     ) {
         Icon(icon, contentDescription = contentDescription, tint = tint, modifier = Modifier.size(18.dp))
-    }
-}
-
-/** 等宽描边按钮（照插件 createBottomBtn：白底 + 1dp 描边 + 10dp 圆角 + 居中彩色文字） */
-@Composable
-private fun WideOutlineButton(
-    text: String,
-    color: Color,
-    modifier: Modifier = Modifier,
-    onClick: () -> Unit,
-) {
-    Surface(
-        shape = RoundedCornerShape(10.dp),
-        color = MaterialTheme.colorScheme.surface,
-        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
-        modifier = modifier.heightIn(min = 46.dp).clickable(onClick = onClick)
-    ) {
-        Row(
-            Modifier.fillMaxWidth().heightIn(min = 46.dp).padding(horizontal = 8.dp),
-            horizontalArrangement = Arrangement.Center,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Text(
-                text,
-                style = MaterialTheme.typography.labelLarge,
-                color = color,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis
-            )
-        }
     }
 }
 
@@ -428,25 +397,39 @@ fun KeyManagerScreen(tagRuleId: String, onBack: () -> Unit) {
                         )
                     }
                 },
-                // 导入/导出改图标（目目 09-14：文字按钮各占约 48dp 宽，把「密钥管理」标题挤窄；
-                // 原 📥/📤 语义 → FileDownload / FileUpload，热区 48dp 与左侧返回键同规格）
+                // 导入/导出（目目 09-14 二次定稿）：emoji + 文字，回归角色管理 v10 插件顶栏语汇
+                // ——纯图标 FileDownload/FileUpload 被否（不喜欢 + 两枚 48dp 热区挤）。
+                // 用紧凑 Text 动作（热区仍 ≥48dp 高），不用 IconButton/TextButton（自带
+                // 最小宽会把标题挤窄）。emoji 写在代码侧拼接，文案本体仍走 R.string。
                 actions = {
-                    IconButton(onClick = { showImport = true }) {
-                        Icon(
-                            Icons.Default.FileDownload,
-                            contentDescription = stringResource(R.string.role_key_import)
+                    Box(
+                        Modifier
+                            .heightIn(min = 48.dp)
+                            .clickable { showImport = true }
+                            .padding(horizontal = 8.dp),
+                        contentAlignment = Alignment.CenterStart
+                    ) {
+                        Text(
+                            "📥 " + stringResource(R.string.role_key_action_import),
+                            style = MaterialTheme.typography.labelLarge
                         )
                     }
-                    IconButton(onClick = {
-                        scope.launch {
-                            val name = withIO { KeyListFile.exportKeys(tagRuleId, keys) }
-                            if (name != null) toast(R.string.role_key_exported, keys.size, name)
-                            else toast(R.string.role_list_failed)
-                        }
-                    }) {
-                        Icon(
-                            Icons.Default.FileUpload,
-                            contentDescription = stringResource(R.string.role_key_export)
+                    Box(
+                        Modifier
+                            .heightIn(min = 48.dp)
+                            .clickable {
+                                scope.launch {
+                                    val name = withIO { KeyListFile.exportKeys(tagRuleId, keys) }
+                                    if (name != null) toast(R.string.role_key_exported, keys.size, name)
+                                    else toast(R.string.role_list_failed)
+                                }
+                            }
+                            .padding(horizontal = 8.dp),
+                        contentAlignment = Alignment.CenterStart
+                    ) {
+                        Text(
+                            "📤 " + stringResource(R.string.role_key_action_export),
+                            style = MaterialTheme.typography.labelLarge
                         )
                     }
                 },
@@ -461,21 +444,24 @@ fun KeyManagerScreen(tagRuleId: String, onBack: () -> Unit) {
                 .padding(start = 16.dp, end = 16.dp, top = 4.dp, bottom = 12.dp)
                 .verticalScroll(rememberScrollState())
         ) {
-                // 操作行：＋ 新增密钥 / 🔍 拉取模型（照插件等宽并排，放列表上方）
+                // 操作行：新增密钥 / 拉取模型（目目 09-14 定稿 MD3 化：官方 OutlinedButton，
+                // 去掉文字里的 ＋/🔍 emoji 与硬编码紫色，颜色统一 primary）
                 Row(
                     Modifier.fillMaxWidth().padding(top = 10.dp, bottom = 6.dp),
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    WideOutlineButton(
-                        "＋ " + stringResource(R.string.role_key_add),
-                        MaterialTheme.colorScheme.primary,
-                        Modifier.weight(1f)
-                    ) { showAdd = true }
-                    WideOutlineButton(
-                        "🔍 " + stringResource(R.string.role_key_fetch),
-                        Color(0xFF6A1B9A),
-                        Modifier.weight(1f)
-                    ) { showPullModels = true }
+                    OutlinedButton(
+                        onClick = { showAdd = true },
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Text(stringResource(R.string.role_key_add))
+                    }
+                    OutlinedButton(
+                        onClick = { showPullModels = true },
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Text(stringResource(R.string.role_key_fetch))
+                    }
                 }
                 if (keys.isEmpty()) {
                     Text(
@@ -494,17 +480,12 @@ fun KeyManagerScreen(tagRuleId: String, onBack: () -> Unit) {
                         val selCount = grp.entries.count { it.name in deleteChecked }
                         // 组间距拉开：组头靠上方留白与前一组区隔，组内条目紧凑
                         Column(Modifier.fillMaxWidth().padding(top = 14.dp, bottom = 2.dp)) {
-                            // 组头行：照主界面 GroupItem 口径 —— 淡底「分组条」（surfaceContainerHighest
-                            // + 8dp 圆角 + 内边距），与前一组靠上方留白区隔；删除选择模式为瞬时态，不加底色
+                            // 组头行（目目 09-14 二次定稿：**去底**，照主界面 GroupItem 真实口径——
+                            // 主界面组头本就是白底上「箭头 + 组名 + (N) 灰字」，a485442 当时说的
+                            // 「照主界面口径」其实照错了，灰条是那轮新加的；灰底条上再叠可点区
+                            // 圆角还出现了「灰条叠灰条」。去底后两层灰连根消失，组间靠留白分隔）
                             Row(
-                                Modifier
-                                    .fillMaxWidth()
-                                    .clip(RoundedCornerShape(8.dp))
-                                    .background(
-                                        if (isDeleting) Color.Transparent
-                                        else MaterialTheme.colorScheme.surfaceContainerHighest
-                                    )
-                                    .padding(horizontal = 6.dp, vertical = 3.dp),
+                                Modifier.fillMaxWidth().padding(vertical = 4.dp),
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
                                 if (isDeleting) {
@@ -535,9 +516,9 @@ fun KeyManagerScreen(tagRuleId: String, onBack: () -> Unit) {
                                         else deleteConfirmGroup = grp.title
                                     }
                                 } else {
-                                    // 组头可点区（目目 09-14 照主界面口径改版）：大号折叠箭头 +
-                                    // 组名 14sp，替换原「10dp 文本三角 + 12sp 灰字」的弱形态；
-                                    // 层次靠「组头淡底条 + 字号」双重区分，不再只靠字号
+                                    // 组头可点区：大号折叠箭头 + 组名 16sp SemiBold（照主界面
+                                    // titleMedium 档位，14sp 份量不足——原灰条承担的层级改由字号承担）；
+                                    // 折叠态 = 箭头旋转朝右，与主界面折叠分组同一语汇
                                     Row(
                                         Modifier
                                             .weight(1f)
@@ -564,24 +545,20 @@ fun KeyManagerScreen(tagRuleId: String, onBack: () -> Unit) {
                                         Spacer(Modifier.width(6.dp))
                                         Text(
                                             grp.title,
-                                            style = MaterialTheme.typography.titleSmall,
+                                            style = MaterialTheme.typography.titleMedium,
                                             fontWeight = FontWeight.SemiBold,
                                             color = MaterialTheme.colorScheme.onSurface,
                                             maxLines = 1,
                                             overflow = TextOverflow.Ellipsis
                                         )
-                                        Spacer(Modifier.width(6.dp))
-                                        Surface(
-                                            shape = RoundedCornerShape(4.dp),
-                                            color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f)
-                                        ) {
-                                            Text(
-                                                grp.entries.size.toString(),
-                                                style = MaterialTheme.typography.labelSmall,
-                                                color = MaterialTheme.colorScheme.onPrimaryContainer,
-                                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 1.dp)
-                                            )
-                                        }
+                                        Spacer(Modifier.width(4.dp))
+                                        // 计数照主界面 GroupItem 口径 = "(N)" 灰字（原 teal 底徽章
+                                        // 是插件语汇，且压在灰条上——灰条已去，一并归位）
+                                        Text(
+                                            "(${grp.entries.size})",
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
                                         if (grpHasCurrent) {
                                             Spacer(Modifier.width(4.dp))
                                             Text(
@@ -628,7 +605,8 @@ fun KeyManagerScreen(tagRuleId: String, onBack: () -> Unit) {
                                     }
                                 }
                             }
-                            // 第二行：接口地址 + Key 尾4（最淡一级灰字，缩进对齐组名）
+                            // 第二行：接口地址 + Key 尾4（最淡一级灰字，缩进对齐组名——
+                            // 组名左缘 = 箭头 22 + 间距 6 = 28dp，原灰条横向内边距已随去底移除）
                             if (!isDeleting) {
                                 grp.ifc?.let { ifc ->
                                     Text(
@@ -637,7 +615,7 @@ fun KeyManagerScreen(tagRuleId: String, onBack: () -> Unit) {
                                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                                         maxLines = 1,
                                         overflow = TextOverflow.Ellipsis,
-                                        modifier = Modifier.padding(start = 34.dp, end = 6.dp, bottom = 2.dp)
+                                        modifier = Modifier.padding(start = 28.dp, end = 6.dp, bottom = 2.dp)
                                     )
                                 }
                             }

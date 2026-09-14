@@ -1,5 +1,6 @@
 package com.github.jing332.tts_server_android.compose
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -7,6 +8,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.pager.PagerState
@@ -14,12 +16,9 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AccountCircle
-import androidx.compose.material.icons.filled.Save
-import androidx.compose.material.icons.filled.VpnKey
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
@@ -206,17 +205,31 @@ fun RoleManagementScreen(sharedVM: SharedViewModel, pagerState: PagerState) {
             NavTopAppBar(
                 title = { Text(stringResource(R.string.role_management)) },
                 actions = {
-                    // 🔑 密钥管理 / 💾 备份恢复（原页内 48dp 按钮行已退役）
-                    IconButton(onClick = { KeyManagerActivity.start(context, ROLE_RULE_ID) }) {
-                        Icon(
-                            Icons.Default.VpnKey,
-                            contentDescription = stringResource(R.string.role_key_title)
+                    // 🔑 密钥 / 💾 备份（目目 09-14 二次定稿：emoji + 文字，回归 v10 插件顶栏语汇
+                    // ——纯图标 VpnKey/Save 与密钥页同病：挤 + 语义靠猜。紧凑 Text 动作，
+                    // 热区 ≥48dp 高；原页内 48dp 按钮行已退役）
+                    Box(
+                        Modifier
+                            .heightIn(min = 48.dp)
+                            .clickable { KeyManagerActivity.start(context, ROLE_RULE_ID) }
+                            .padding(horizontal = 8.dp),
+                        contentAlignment = Alignment.CenterStart
+                    ) {
+                        Text(
+                            "🔑 " + stringResource(R.string.role_entry_key),
+                            style = MaterialTheme.typography.labelLarge
                         )
                     }
-                    IconButton(onClick = { showBackupCenter = true }) {
-                        Icon(
-                            Icons.Default.Save,
-                            contentDescription = stringResource(R.string.backup_title)
+                    Box(
+                        Modifier
+                            .heightIn(min = 48.dp)
+                            .clickable { showBackupCenter = true }
+                            .padding(horizontal = 8.dp),
+                        contentAlignment = Alignment.CenterStart
+                    ) {
+                        Text(
+                            "💾 " + stringResource(R.string.role_entry_backup),
+                            style = MaterialTheme.typography.labelLarge
                         )
                     }
                 }

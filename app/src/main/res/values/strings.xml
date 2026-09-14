@@ -830,6 +830,8 @@
     <string name="role_key_overwrite_btn">覆盖</string>
     <string name="role_key_export">导出密钥</string>
     <string name="role_key_import">导入密钥</string>
+    <string name="role_key_action_export">导出</string>
+    <string name="role_key_action_import">导入</string>
     <string name="role_key_exported">已导出 %1$d 个密钥到 %2$s</string>
     <string name="role_key_no_export">未找到密钥导出文件，请先导出</string>
     <string name="role_key_import_confirm_title">导入确认</string>
@@ -860,6 +862,8 @@
     <string name="role_key_test_batch_start">开始测试「%1$s」共 %2$d 条，完成后逐条标记</string>
     <string name="role_key_test_batch_done">「%1$s」测试完成：%2$d 通 / %3$d 不通</string>
     <string name="backup_title">备份恢复</string>
+    <string name="role_entry_key">密钥</string>
+    <string name="role_entry_backup">备份</string>
     <string name="backup_export_book">导出当前书籍到剪贴板</string>
     <string name="backup_import_book">从剪贴板导入书籍</string>
     <string name="backup_export_all">备份全部书籍</string>
