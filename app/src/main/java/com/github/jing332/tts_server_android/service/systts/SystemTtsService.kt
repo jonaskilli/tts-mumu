@@ -726,15 +726,15 @@ class SystemTtsService : TextToSpeechService(), IEventDispatcher {
         val tag = config.tag
 
         // 三层叠加(插件×配置×全局)后的最终音频参数，
-        // 仅显示≠1的项，全部为1时不占位；如 语速2.0 · 音量0.8
-        // 用户 09-14 定稿：四项连接均不用逗号——身份段直连，参数段中点分隔；
+        // 仅显示≠1的项，全部为1时不占位；如 语速2.0，音量0.8
+        // 用户 09-14 二次定稿：参数段用全角逗号（中点试过被否），身份段仍直连不用逗号；
         // 值按实际精度显示（1.00→1.0、0.97→0.97），与音频参数弹窗/试听弹窗/卡片参数行完全一致
         val p = config.audioParams
         val paramsInfo = buildList {
             if (kotlin.math.abs(p.speed - 1f) > 0.005f) add("语速${p.speed.toParamText()}")
             if (kotlin.math.abs(p.volume - 1f) > 0.005f) add("音量${p.volume.toParamText()}")
             if (kotlin.math.abs(p.pitch - 1f) > 0.005f) add("音高${p.pitch.toParamText()}")
-        }.joinToString(" · ")
+        }.joinToString("，")
 
         // 声音配置信息/语速音量等为次级信息，用哨兵色标记，
         // 渲染时(LogScreen)按主题重映射为次级色，避免与正文一起全是绿色而看不清；
@@ -744,7 +744,7 @@ class SystemTtsService : TextToSpeechService(), IEventDispatcher {
             val meta = buildString {
                 // 连写式（用户 09-14 终版）：【角色名】+ 标签与显示名直连（「男主1晓伊」式，
                 // 与角色行标签框同口径；显示名常自带「·」装饰点，中间再插分隔点会分不清边界，
-                // 故不加分隔符），参数中点分隔（四项均不用逗号）：语速2.0 · 音量0.8。
+                // 故不加分隔符），参数段全角逗号跟随：语速2.0，音量0.8。
                 // 角色名只认朗读规则实时分析出的角色名（handleText 透传），旁白等无角色名不显【】段；
                 // 09-13 目目指认角色名不突出 → <b> 加粗（与“请求音频”正文同风格）
                 if (roleName.isNotBlank()) {
@@ -763,7 +763,7 @@ class SystemTtsService : TextToSpeechService(), IEventDispatcher {
                         append(disp)
                     }
                 }
-                if (paramsInfo.isNotEmpty()) append(" · ").append(paramsInfo)
+                if (paramsInfo.isNotEmpty()) append("，").append(paramsInfo)
             }
             "<font color=\"" + VOICE_META_COLOR + "\">" + meta + "</font>"
         } else ""

@@ -729,7 +729,11 @@ private fun RoleRow(
     val nameList = (listOf(rec.name) + CharacterRecordsFile.splitAliases(rec.aliases))
         .distinctBy { it.trim() }
     Surface(
-        color = if (marked) MaterialTheme.colorScheme.surfaceContainerHighest
+        // 选中态（用户 09-14 二次修）：整行染色保留，但加 12dp 圆角、
+        // 色阶从 surfaceContainerHighest 降到 surfaceContainerHigh 浅一档——
+        // 目目指认原先是「一整块直角淡紫」很丑；行内容 padding 不变，选中不跳位
+        shape = RoundedCornerShape(12.dp),
+        color = if (marked) MaterialTheme.colorScheme.surfaceContainerHigh
         else Color.Transparent,
         modifier = Modifier.fillMaxWidth()
     ) {
