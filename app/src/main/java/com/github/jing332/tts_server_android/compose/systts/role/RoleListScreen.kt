@@ -235,15 +235,11 @@ fun RoleListScreen(
                 )
                 Spacer(Modifier.width(8.dp))
                 if (editingBook) {
-                    // 紧凑行内编辑（目目 09-14：原 OutlinedTextField 最小高 56dp 且自带描边，
-                    // 行高骤涨像"方块"；改成与搜索框同一套 40dp Surface+BasicTextField；
+                    // 紧凑行内编辑（目目 09-14 二次修：去内层描边/填色——书栏卡本身已是
+                    // 灰底块，里面再套一个描边输入框成「框套框」；改无框裸 BasicTextField
+                    // 直躺卡上，光标即编辑态，✓✕ 收尾不变。
                     // 出口三个：✓ / ✕ / 键盘回车，空名回滚由 endBookEdit 兜底）
-                    Surface(
-                        shape = RoundedCornerShape(10.dp),
-                        color = MaterialTheme.colorScheme.surface,
-                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline),
-                        modifier = Modifier.weight(1f).height(40.dp)
-                    ) {
+                    Box(Modifier.weight(1f).height(40.dp)) {
                         BasicTextField(
                             value = bookEditName,
                             onValueChange = { bookEditName = it },
