@@ -834,6 +834,7 @@
     <string name="role_key_overwrite_title">覆盖确认</string>
     <string name="role_key_overwrite">【%1$s】已存在，是否覆盖？</string>
     <string name="role_key_overwrite_btn">覆盖</string>
+    <string name="role_key_name_dup">名称【%1$s】已存在</string>
     <string name="role_key_export">导出密钥</string>
     <string name="role_key_import">导入密钥</string>
     <string name="role_key_action_export">导出</string>

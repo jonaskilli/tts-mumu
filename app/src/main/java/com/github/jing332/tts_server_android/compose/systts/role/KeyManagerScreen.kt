@@ -731,7 +731,10 @@ fun KeyManagerScreen(tagRuleId: String, onBack: () -> Unit) {
             onConfirm = { name, value, overwrite ->
                 renameFor = null
                 if (overwrite && name != entry.name) {
-                    overwriteFor = name to value
+                    // 照插件密钥详情页「保存」(1625-1628)：改成**已存在**的名字 → 直接拒绝。
+                    // ⚠️ 旧版走「覆盖」分支：只覆盖那个同名条目、**旧名条目没被删** ⇒ 列表里两条并存，
+                    //    再改一次又多一条（与书籍改名同一类坑：改名没把旧名清掉）。
+                    toast(R.string.role_key_name_dup, name)
                 } else {
                     save(keys.map { if (it.name == entry.name) it.copy(name = name, value = value) else it })
                     // 照插件密钥详情页「保存」：改的正是当前密钥 → 同步 miyue 三写。

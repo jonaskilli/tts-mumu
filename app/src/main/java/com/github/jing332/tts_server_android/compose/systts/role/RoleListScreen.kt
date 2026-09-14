@@ -166,10 +166,16 @@ fun RoleListScreen(
     fun toggleMark(idx: Int) {
         markedIdx = if (idx in markedIdx) markedIdx - idx else markedIdx + idx
     }
-    // 带文件下标的筛选结果：列表行 key / 标记 / 删除 / 改名 / 设主角全部用下标做身份，名字不再承担身份
+    // 带文件下标的筛选结果：列表行 key / 标记 / 删除 / 改名 / 设主角全部用下标做身份，名字不再承担身份。
+    // 搜索字段照插件 filterCharacterList(8019-8031)：**name / aliases / gender / age / voice 五字段**，
+    // 任一命中即显示（旧版只看 name + aliases —— 按「男主」「男青年01」这类性别/年龄/发音人查会以为没这个角色）。
     val filtered = records.withIndex().filter { (_, rec) ->
-        keyword.isBlank() || rec.name.contains(keyword, true) ||
-            CharacterRecordsFile.splitAliases(rec.aliases).any { it.contains(keyword, true) }
+        keyword.isBlank() ||
+            rec.name.contains(keyword, true) ||
+            CharacterRecordsFile.splitAliases(rec.aliases).any { it.contains(keyword, true) } ||
+            rec.gender.contains(keyword, true) ||
+            rec.age.contains(keyword, true) ||
+            rec.voice.contains(keyword, true)
     }
     val selectableIdx = filtered.map { it.index }.toSet()
 

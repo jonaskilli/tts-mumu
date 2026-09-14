@@ -220,17 +220,20 @@ object KeyListFile {
         return u
     }
 
-    /** OpenAI 兼容 base（照插件 getOpenAiBaseUrl）：剥掉末尾端点段；无版本段（/v1、/v4…）自动补 /v1 */
+    /**
+     * OpenAI 兼容 base（照插件 getOpenAiBaseUrl 1:1）：命中末尾端点段就**剥掉后直接返回**、
+     * 不再补 /v1；只有地址本身不带端点段时，才走「无版本段（/v1、/v4…）自动补 /v1」。
+     *
+     * ⚠️ 旧版把两个分支串成一条流水线：先剥后缀、再统一补 /v1 ⇒ `http://x/chat/completions`
+     * 得到 `http://x/v1`（原版是 `http://x`），`sameApiSite` 的判同站口径因此被放宽，
+     * 与插件侧的密钥分组 / 级联删除结果对不上。
+     */
     fun openAiBaseUrl(url: String): String {
-        var u = normalizeBaseUrl(url)
+        val u = normalizeBaseUrl(url)
         for (suffix in arrayOf("/chat/completions", "/completions", "/models")) {
-            if (u.endsWith(suffix)) {
-                u = u.dropLast(suffix.length)
-                break
-            }
+            if (u.endsWith(suffix)) return u.dropLast(suffix.length)
         }
-        if (!Regex("/v\\d+[a-z]*").containsMatchIn(u)) u += "/v1"
-        return u
+        return if (!Regex("/v\\d+[a-z]*").containsMatchIn(u)) "$u/v1" else u
     }
 
     /**
