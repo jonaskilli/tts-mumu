@@ -666,14 +666,39 @@ private fun MenuActionRow(text: String, dotColor: Color, onClick: () -> Unit) {
 /**
  * 发音人标签文本（照插件 generateVoiceTag 口径）：tag 前缀 + 显示名连写
  * （目目定稿「男主1晓伊」式）；显示名以 tag 开头时不重复拼（防"男主1男主1"）；
- * 显示名限 20 字（用户 09-14：12 字太少，与日志行两处同改）截断加省略号；
  * 查不到配置返回 null（RoleRow 回落 tag + ⚠）。
+ *
+ * 09-14 晚（目目：「列表的标签太长截断了，不要省略号」＋「超过这个字数直接截断呐，
+ * 不用显示全」）：标签框上限 220dp、字号 13sp，单行只装得下约 15 个全角字，多出来的
+ * 字交给 Text 的 Ellipsis 就会吐「…」——他不接受省略号。故改在**文本层**先按框宽折算
+ * 做一次权重字数截断（全角 1.0 / 半角 0.55，预算 14.5 字），截掉就是截掉、末尾不补任何
+ * 符号。旧的「显示名限 20 字 + …」被这条预算覆盖（20 字本来就装不进 220dp），一并撤掉。
  */
 private fun voiceTagText(tag: String, nameMap: Map<String, String>): String? {
     val disp = nameMap[tag] ?: return null
     val prefix = if (disp.startsWith(tag)) "" else tag
-    val shown = if (disp.length > 20) disp.take(20) + "…" else disp
-    return prefix + shown
+    return cutToTagBoxWidth(prefix + disp)
+}
+
+/**
+ * 标签框权重字数预算：全角字 1.0 / 半角 0.55（数字、字母、半角符号）。
+ * 14.5 字 ≈ 13sp × 14.5 ≈ 188.5dp 文本宽 + 左右各 10dp 内边距 ≈ 208.5dp，
+ * 落在标签框 220dp 上限之内，并留约 1 个全角字的安全余量
+ * （不同字体下数字/字母的实际字宽有出入，留余量保证 Clip 永不切到半个字）。
+ */
+private const val TAG_BOX_CHAR_BUDGET = 14.5f
+
+/** 按标签框可用宽度截断文本：只截不补符号（目目 09-14：不要省略号） */
+private fun cutToTagBoxWidth(text: String, budget: Float = TAG_BOX_CHAR_BUDGET): String {
+    var used = 0f
+    val out = StringBuilder()
+    for (ch in text) {
+        val w = if (ch.code < 0x2E80) 0.55f else 1.0f
+        if (used + w > budget) break
+        used += w
+        out.append(ch)
+    }
+    return out.toString()
 }
 
 /**
@@ -754,6 +779,11 @@ private fun RoleRow(
             if (rec.voice.isNotBlank()) {
                 Spacer(Modifier.width(10.dp))
                 Row(verticalAlignment = Alignment.CenterVertically) {
+                    // 标签文本：正常态由 voiceTagText 按框宽截好；失效态（查不到配置）
+                    // 回落 tag + ⚠——⚠ 本身也占宽，故先让出 2 字预算再拼，
+                    // 否则尾巴又会被框挤掉（目目 09-14：框里不要出现「…」）
+                    val tagLabel = voiceName
+                        ?: (cutToTagBoxWidth(rec.voice, TAG_BOX_CHAR_BUDGET - 2f) + " ⚠")
                     // 发音人标签框（失效标签加 ⚠）；点它=换声弹窗（标记 / 删除配置项都在里面）
                     Surface(
                         onClick = onTagClick,
@@ -761,11 +791,14 @@ private fun RoleRow(
                         color = MaterialTheme.colorScheme.secondaryContainer,
                     ) {
                         Text(
-                            (voiceName ?: rec.voice) + if (voiceName == null) " ⚠" else "",
+                            tagLabel,
                             style = MaterialTheme.typography.bodySmall.copy(fontSize = 13.sp),
                             color = MaterialTheme.colorScheme.onSecondaryContainer,
                             maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
+                            // 文本已在 voiceTagText 里按框宽收口，正常不会溢出；这里用
+                            // Clip 而不是 Ellipsis——万一字体比我估的宽，也绝不吐「…」
+                            // （目目 09-14：不要省略号；预算留了约 1 个全角字的余量兜底）
+                            overflow = TextOverflow.Clip,
                             modifier = Modifier
                                 .padding(horizontal = 10.dp, vertical = 5.dp)
                                 .widthIn(max = 220.dp)
