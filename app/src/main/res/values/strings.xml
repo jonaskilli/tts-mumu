@@ -757,6 +757,9 @@
     <string name="role_key_delete_title">删除密钥</string>
     <string name="role_key_delete_text">确定删除密钥「%1$s」？</string>
     <string name="role_key_empty">暂无密钥</string>
+    <string name="role_key_tail">*尾%1$s</string>
+    <string name="role_key_group_ungrouped_hint">未绑定接口的散装密钥</string>
+    <string name="role_key_group_direct_hint">直连密钥（纯 Key，不带 @@ 接口串）</string>
     <string name="role_key_test">测试</string>
     <string name="role_key_test_none">没有可测试的密钥</string>
     <string name="role_key_test_ok_toast">「%1$s」可用：%2$s</string>
@@ -855,8 +858,6 @@
     <string name="role_key_manual_model">手动添加模型</string>
     <string name="role_key_model_filter">🔍 搜索过滤模型</string>
     <string name="role_key_model_input_hint">输入模型名</string>
-    <string name="role_key_test_ok_short">✓通</string>
-    <string name="role_key_test_fail_short">✗不通</string>
     <string name="role_key_delete_select_title">选择要删除的密钥（已选 %1$d）</string>
     <string name="role_key_delete_n">删除(%1$d)</string>
     <string name="role_key_delete_none">请先勾选要删除的密钥</string>

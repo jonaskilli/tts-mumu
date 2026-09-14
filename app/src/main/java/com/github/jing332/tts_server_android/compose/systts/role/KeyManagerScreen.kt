@@ -3,6 +3,7 @@ package com.github.jing332.tts_server_android.compose.systts.role
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.clickable
@@ -97,12 +98,21 @@ import kotlinx.coroutines.launch
  * 备份恢复：导出当前书籍到剪贴板/从剪贴板导入/备份全部文件/完整还原/自动备份开关。
  * 书籍：点击切换 · 点✕删除（当前书删后切默认）· 新增（建档并切换）· 多选删除 · 修改书名。
  *
- * 密钥页外观（目目 09-14「减噪 + 分层 + 全屏」，非插件原貌）：
+ * 密钥页外观（目目 09-15「卡片分组」改版定稿，非插件原貌）：
  * **承载 = 独立全屏页面**（KeyManagerActivity，原 Dialog 左右各留 24dp、内容区仅约 272dp 太窄）；
- * 条目**无方框无底色**靠浅分隔线分区，缩进 20dp 与组名左缘对齐；当前密钥 = 行首 3dp 主色竖条 + 名称主色加粗；
- * 组级/条目级操作图标统一扁平灰（onSurfaceVariant、18dp、36dp 热区，无常驻描边）；
- * 层级 = 组头「无底：22dp 折叠箭头（展开↓/折叠→ 旋转动画）+ 组名 16sp SemiBold + (N) 灰字」
- * > 条目 14sp 深色 > 接口地址 11sp 灰。
+ * **分组 = 卡片**：一个接口一张 surfaceContainer(#F2F2EA) 圆角 12 卡，未分组 / 直连密钥各一张，
+ *   卡片边界即分组边界；组内条目靠浅分隔线分区，条目缩进与组名左缘对齐（无搜索框，目目 09-15 ①）；
+ * 组头 = 22dp 折叠箭头（展开↓/折叠→ 旋转）+ 组名 16sp SemiBold + (N) 灰字 + ✓（本组含当前密钥）；
+ *   组级四图标（编辑接口 / 拉取模型 / 测本组 / 删除）**全部常驻**（目目定：不收进 ⋮），
+ *   仅接口组有前三个（未分组 / 直连点了只是白弹提示）；
+ * 元信息行 = 接口组「网址（放不下换行，不再单行省略）+ 尾号独立小块」；
+ *   未分组 / 直连组 = 一句身份说明（原该行为空）；
+ * 当前密钥 = 行首**状态点**染主题强调色 + 名称同色加粗。强调色取 `scheme.secondary` 而**不是 primary**：
+ *   10 个手写主题的 primary 全是各自的 *_seed（默认档 #7B8B70，很淡），浅底染色等于没染——这正是
+ *   改版前「当前密钥找不出来」的根因；secondary 各主题都是中深档（默认档 #55624C），读得出来。
+ * 状态点四态：当前=主题色实心 / 绿=测通 / 红=测不通 / 空心=未测（取代原先按序取色的装饰圆点）；
+ * 条目行 = 状态点 + 名称（放不下**换行**，不再单行省略）+ ⚡测试 / ✏️编辑（两个都常驻）；
+ * 组级/条目级图标统一扁平灰（onSurfaceVariant、18dp、36dp 热区，无常驻描边）。
  */
 
 /** 分组后的密钥组（照插件 buildKeyGroups：接口组 + 未分组 + 直连密钥） */
@@ -110,6 +120,8 @@ private class KeyGroup(
     val title: String,
     val entries: List<KeyListFile.KeyEntry>,
     val ifc: KeyListFile.ApiInterface? = null,
+    /** 未分组 / 直连组的身份说明（接口组的元信息行让给网址，不需要） */
+    val hintRes: Int? = null,
 )
 
 private fun buildKeyGroups(keys: List<KeyListFile.KeyEntry>, ifaces: List<KeyListFile.ApiInterface>): List<KeyGroup> {
@@ -127,8 +139,12 @@ private fun buildKeyGroups(keys: List<KeyListFile.KeyEntry>, ifaces: List<KeyLis
         p != null && p.isDirect && k.name !in assigned
     }
     val ungrouped = keys.filter { it.name !in assigned && it !in direct }
-    if (ungrouped.isNotEmpty()) groups.add(KeyGroup("未分组", ungrouped))
-    if (direct.isNotEmpty()) groups.add(KeyGroup("直连密钥", direct))
+    if (ungrouped.isNotEmpty()) groups.add(
+        KeyGroup("未分组", ungrouped, hintRes = R.string.role_key_group_ungrouped_hint)
+    )
+    if (direct.isNotEmpty()) groups.add(
+        KeyGroup("直连密钥", direct, hintRes = R.string.role_key_group_direct_hint)
+    )
     return groups
 }
 
@@ -171,15 +187,17 @@ private fun FlatIconAction(
 }
 
 /**
- * 密钥条目行（目目 09-14 改版）：**无方框、无底色**，靠上一行的浅分隔线分区；
- * 当前密钥 = 行首 3dp 主色竖条 + 名称主色加粗（不再整块染色+描边）；
+ * 密钥条目行（目目 09-15 卡片改版）：行内无框，边界由所属卡片承担；
+ * 行首 **状态点**取代原「按序号取色」的装饰圆点（那是纯噪音，同接口下每条颜色都不同）：
+ *   当前 = 主题强调色实心 / 测通 = 绿实心 / 测不通 = 红实心 / 未测 = 空心圆环。
+ * 名字放不下就**换行**（原为单行省略号，`nex-agi/nex-n2.5-mini` 这类长模型名直接被截）；
  * 操作图标扁平灰（⚡ 测试 / ✏️ 编辑），热区 36dp。
  */
 @Composable
 private fun KeyEntryRow(
     entry: KeyListFile.KeyEntry,
     isCurrent: Boolean,
-    dotColor: Color,
+    accent: Color,
     testOk: Boolean?,
     testing: Boolean,
     deleteMode: Boolean,
@@ -190,51 +208,46 @@ private fun KeyEntryRow(
     onEdit: () -> Unit,
 ) {
     Row(
-        // 条目缩进 20dp（+行首 16dp 标记位 = 36dp），与组头组名 34dp 左缘基本对齐 → 从属关系一眼可见
-        Modifier.fillMaxWidth().padding(start = 20.dp, end = 6.dp, top = 9.dp, bottom = 9.dp),
+        // 卡片内边距 10dp + 状态点 14dp + 间距 8dp ⇒ 名字左缘 32dp，
+        // 与组名左缘（组头起 6 + 箭头 22 + 间距 6 = 34dp）基本对齐 → 从属关系一眼可见
+        Modifier.fillMaxWidth().padding(start = 10.dp, end = 6.dp, top = 8.dp, bottom = 8.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         if (deleteMode) {
             Checkbox(checked = checked, onCheckedChange = { onToggleCheck() })
         }
-        // 行首标记位固定 16dp：当前=主色竖条 / 其余=彩色圆点 → 名字左缘始终对齐
-        Box(Modifier.width(16.dp), contentAlignment = Alignment.CenterStart) {
-            if (isCurrent) {
-                Box(
-                    Modifier
-                        .width(3.dp)
-                        .height(18.dp)
-                        .background(MaterialTheme.colorScheme.primary, RoundedCornerShape(2.dp))
-                )
+        // 状态点固定 14dp 位宽：名字左缘始终对齐
+        Box(Modifier.width(14.dp), contentAlignment = Alignment.CenterStart) {
+            val dot = when {
+                isCurrent -> accent
+                testOk == true -> Color(0xFF2E7D32)
+                testOk == false -> MaterialTheme.colorScheme.error
+                else -> MaterialTheme.colorScheme.outlineVariant
+            }
+            if (isCurrent || testOk != null) {
+                Box(Modifier.size(8.dp).background(dot, CircleShape))
             } else {
-                Box(Modifier.size(7.dp).background(dotColor, CircleShape))
+                // 未测 = 空心圆环（描边），一眼区分「没测过」与「测过但红/绿」
+                Box(Modifier.size(8.dp).border(1.dp, dot, CircleShape))
             }
         }
+        Spacer(Modifier.width(8.dp))
         Text(
             entry.name,
             style = MaterialTheme.typography.bodyLarge,
             fontWeight = if (isCurrent) FontWeight.SemiBold else null,
-            color = if (isCurrent) MaterialTheme.colorScheme.primary
-            else MaterialTheme.colorScheme.onSurface,
-            maxLines = 1,
+            color = if (isCurrent) accent else MaterialTheme.colorScheme.onSurface,
+            // 目目 09-15：一栏放不下就换行（原单行省略号会把长名字吃掉）
+            maxLines = 2,
             overflow = TextOverflow.Ellipsis,
             modifier = Modifier.weight(1f).clickable { onSwitch() }
         )
-        testOk?.let { ok ->
-            Text(
-                stringResource(
-                    if (ok) R.string.role_key_test_ok_short else R.string.role_key_test_fail_short
-                ),
-                style = MaterialTheme.typography.bodySmall,
-                color = if (ok) Color(0xFF2E7D32) else MaterialTheme.colorScheme.error
-            )
-            Spacer(Modifier.width(2.dp))
-        }
         if (testing) {
             CircularProgressIndicator(Modifier.size(16.dp), strokeWidth = 2.dp)
             Spacer(Modifier.width(2.dp))
         }
         if (!deleteMode) {
+            // ⚡✏️ 两个都留（目目 09-15 ①定稿）；测通/测不通不再用文字复述，状态点已经说明
             FlatIconAction(Icons.Default.Bolt, stringResource(R.string.role_key_test)) { onTest() }
             FlatIconAction(Icons.Default.Edit, stringResource(R.string.role_key_edit)) { onEdit() }
         }
@@ -490,182 +503,223 @@ fun KeyManagerScreen(tagRuleId: String, onBack: () -> Unit) {
                     )
                 } else {
                     val groups = buildKeyGroups(keys, ifaces)
+                    // 当前密钥强调色（目目 09-15 ②「你想换就换吧」）：用 scheme.secondary。
+                    // MD3 里 secondary 就是「次强调」的定位，各主题都是中深档（默认档 #55624C）→ 浅底读得出。
+                    // 不能用 primary：10 个手写主题的 primary 全是各自的 *_seed（默认档 #7B8B70，很淡），
+                    // 染色等于没染，这正是改版前「当前密钥找不出来」的根因。
+                    val accent = MaterialTheme.colorScheme.secondary
                     groups.forEach { grp ->
                         val isCollapsed = grp.title in collapsed
                         val isDeleting = deleteModeGroup == grp.title
                         val grpHasCurrent = currentRaw.isNotEmpty() &&
                                 grp.entries.any { it.value.trim() == currentRaw }
                         val selCount = grp.entries.count { it.name in deleteChecked }
-                        // 组间距拉开：组头靠上方留白与前一组区隔，组内条目紧凑
-                        Column(Modifier.fillMaxWidth().padding(top = 14.dp, bottom = 2.dp)) {
-                            // 组头行（目目 09-14 二次定稿：**去底**，照主界面 GroupItem 真实口径——
-                            // 主界面组头本就是白底上「箭头 + 组名 + (N) 灰字」，a485442 当时说的
-                            // 「照主界面口径」其实照错了，灰条是那轮新加的；灰底条上再叠可点区
-                            // 圆角还出现了「灰条叠灰条」。去底后两层灰连根消失，组间靠留白分隔）
-                            Row(
-                                Modifier.fillMaxWidth().padding(vertical = 4.dp),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                if (isDeleting) {
-                                    Text(
-                                        stringResource(R.string.role_key_delete_select_title, selCount),
-                                        style = MaterialTheme.typography.bodyMedium,
-                                        fontWeight = FontWeight.Bold,
-                                        color = MaterialTheme.colorScheme.error,
-                                        maxLines = 1,
-                                        overflow = TextOverflow.Ellipsis,
-                                        modifier = Modifier.weight(1f)
-                                    )
-                                    SmallChipButton(stringResource(R.string.select_all), Color(0xFF757575)) {
-                                        val allSel = grp.entries.all { it.name in deleteChecked }
-                                        val names = grp.entries.map { it.name }.toSet()
-                                        deleteChecked = if (allSel) deleteChecked - names
-                                        else deleteChecked + names
-                                    }
-                                    SmallChipButton(stringResource(R.string.cancel), Color(0xFF757575)) {
-                                        deleteModeGroup = null
-                                        deleteChecked = emptySet()
-                                    }
-                                    SmallChipButton(
-                                        stringResource(R.string.role_key_delete_n, selCount),
-                                        MaterialTheme.colorScheme.error
-                                    ) {
-                                        if (selCount == 0) toast(R.string.role_key_delete_none)
-                                        else deleteConfirmGroup = grp.title
-                                    }
-                                } else {
-                                    // 组头可点区：大号折叠箭头 + 组名 16sp SemiBold（照主界面
-                                    // titleMedium 档位，14sp 份量不足——原灰条承担的层级改由字号承担）；
-                                    // 折叠态 = 箭头旋转朝右，与主界面折叠分组同一语汇
-                                    Row(
-                                        Modifier
-                                            .weight(1f)
-                                            .clip(RoundedCornerShape(6.dp))
-                                            .clickable {
-                                                collapsed = if (isCollapsed) collapsed - grp.title
-                                                else collapsed + grp.title
-                                            },
-                                        verticalAlignment = Alignment.CenterVertically
-                                    ) {
-                                        // 展开朝下 0° / 折叠朝右 -90°（同主界面 GroupItem 的旋转动画）
-                                        val arrowAngle by animateFloatAsState(
-                                            targetValue = if (isCollapsed) -90f else 0f, label = ""
-                                        )
-                                        Icon(
-                                            Icons.Default.ExpandMore,
-                                            contentDescription = stringResource(
-                                                if (isCollapsed) R.string.desc_expand_group
-                                                else R.string.desc_collapse_group, grp.title
-                                            ),
-                                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                                            modifier = Modifier.size(22.dp).rotate(arrowAngle)
-                                        )
-                                        Spacer(Modifier.width(6.dp))
+                        // 卡片分组（目目 09-15 ①定稿）：一个接口一张浅底卡（surfaceContainer + 圆角 12），
+                        // 卡片边界 = 分组边界；未分组 / 直连密钥各一张。组间 10dp 留白区隔、组内条目紧凑。
+                        Surface(
+                            shape = RoundedCornerShape(12.dp),
+                            color = MaterialTheme.colorScheme.surfaceContainer,
+                            modifier = Modifier.fillMaxWidth().padding(top = 10.dp)
+                        ) {
+                            Column(Modifier.padding(vertical = 4.dp)) {
+                                // ———— 组头 ————
+                                Row(
+                                    Modifier.fillMaxWidth()
+                                        .padding(start = 6.dp, end = 6.dp, top = 2.dp, bottom = 2.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    if (isDeleting) {
                                         Text(
-                                            grp.title,
-                                            style = MaterialTheme.typography.titleMedium,
-                                            fontWeight = FontWeight.SemiBold,
-                                            color = MaterialTheme.colorScheme.onSurface,
+                                            stringResource(R.string.role_key_delete_select_title, selCount),
+                                            style = MaterialTheme.typography.bodyMedium,
+                                            fontWeight = FontWeight.Bold,
+                                            color = MaterialTheme.colorScheme.error,
                                             maxLines = 1,
-                                            overflow = TextOverflow.Ellipsis
+                                            overflow = TextOverflow.Ellipsis,
+                                            modifier = Modifier.weight(1f)
                                         )
-                                        Spacer(Modifier.width(4.dp))
-                                        // 计数照主界面 GroupItem 口径 = "(N)" 灰字（原 teal 底徽章
-                                        // 是插件语汇，且压在灰条上——灰条已去，一并归位）
-                                        Text(
-                                            "(${grp.entries.size})",
-                                            style = MaterialTheme.typography.bodySmall,
-                                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                                        )
-                                        if (grpHasCurrent) {
+                                        SmallChipButton(stringResource(R.string.select_all), Color(0xFF757575)) {
+                                            val allSel = grp.entries.all { it.name in deleteChecked }
+                                            val names = grp.entries.map { it.name }.toSet()
+                                            deleteChecked = if (allSel) deleteChecked - names
+                                            else deleteChecked + names
+                                        }
+                                        SmallChipButton(stringResource(R.string.cancel), Color(0xFF757575)) {
+                                            deleteModeGroup = null
+                                            deleteChecked = emptySet()
+                                        }
+                                        SmallChipButton(
+                                            stringResource(R.string.role_key_delete_n, selCount),
+                                            MaterialTheme.colorScheme.error
+                                        ) {
+                                            if (selCount == 0) toast(R.string.role_key_delete_none)
+                                            else deleteConfirmGroup = grp.title
+                                        }
+                                    } else {
+                                        // 组头可点区：折叠箭头 + 组名 16sp SemiBold + (N) 灰字；
+                                        // 折叠态 = 箭头旋转朝右，与主界面折叠分组同一语汇
+                                        Row(
+                                            Modifier
+                                                .weight(1f)
+                                                .clip(RoundedCornerShape(6.dp))
+                                                .clickable {
+                                                    collapsed = if (isCollapsed) collapsed - grp.title
+                                                    else collapsed + grp.title
+                                                },
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            val arrowAngle by animateFloatAsState(
+                                                targetValue = if (isCollapsed) -90f else 0f, label = ""
+                                            )
+                                            Icon(
+                                                Icons.Default.ExpandMore,
+                                                contentDescription = stringResource(
+                                                    if (isCollapsed) R.string.desc_expand_group
+                                                    else R.string.desc_collapse_group, grp.title
+                                                ),
+                                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                                modifier = Modifier.size(22.dp).rotate(arrowAngle)
+                                            )
+                                            Spacer(Modifier.width(6.dp))
+                                            Text(
+                                                grp.title,
+                                                style = MaterialTheme.typography.titleMedium,
+                                                fontWeight = FontWeight.SemiBold,
+                                                color = MaterialTheme.colorScheme.onSurface,
+                                                maxLines = 1,
+                                                overflow = TextOverflow.Ellipsis
+                                            )
                                             Spacer(Modifier.width(4.dp))
                                             Text(
-                                                "✓",
-                                                style = MaterialTheme.typography.labelMedium,
-                                                color = MaterialTheme.colorScheme.primary
+                                                "(${grp.entries.size})",
+                                                style = MaterialTheme.typography.bodySmall,
+                                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                                            )
+                                            if (grpHasCurrent) {
+                                                Spacer(Modifier.width(4.dp))
+                                                Text(
+                                                    "✓",
+                                                    style = MaterialTheme.typography.labelMedium,
+                                                    color = accent
+                                                )
+                                            }
+                                        }
+                                        // 组级图标（目目 09-15 ①第三条：四个**全部保留在外**，不收进 ⋮）。
+                                        // 仅接口组有前三个动作——未分组 / 直连组点了也只是白弹提示。
+                                        grp.ifc?.let { ifc ->
+                                            FlatIconAction(
+                                                Icons.Default.Edit,
+                                                stringResource(R.string.role_key_interface_edit)
+                                            ) { ifcFormFor = ifc }
+                                            FlatIconAction(
+                                                Icons.Default.Search,
+                                                stringResource(R.string.role_key_fetch)
+                                            ) {
+                                                pullForIfc = ifc.name
+                                                showPullModels = true
+                                            }
+                                            if (testingGroup == grp.title) {
+                                                Box(Modifier.size(36.dp), contentAlignment = Alignment.Center) {
+                                                    CircularProgressIndicator(
+                                                        Modifier.size(18.dp), strokeWidth = 2.dp
+                                                    )
+                                                }
+                                            } else {
+                                                FlatIconAction(
+                                                    Icons.Default.Bolt,
+                                                    stringResource(R.string.role_key_test)
+                                                ) { testGroup(grp) }
+                                            }
+                                        }
+                                        FlatIconAction(
+                                            Icons.Default.DeleteOutline,
+                                            stringResource(R.string.delete)
+                                        ) {
+                                            deleteModeGroup = grp.title
+                                            deleteChecked = emptySet()
+                                            collapsed = collapsed - grp.title
+                                        }
+                                    }
+                                }
+                                // ———— 元信息行 ————
+                                // 接口组 = 网址（放不下就换行）+ 尾号独立小块；未分组 / 直连组 = 一句身份说明。
+                                if (!isDeleting) {
+                                    val ifc = grp.ifc
+                                    if (ifc != null) {
+                                        Row(
+                                            Modifier.fillMaxWidth()
+                                                .padding(start = 34.dp, end = 10.dp, bottom = 6.dp),
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            Text(
+                                                ifc.baseUrl,
+                                                style = MaterialTheme.typography.bodySmall,
+                                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                                // 目目 09-15：一栏放不下就换行（原先单行省略号，长网址会被吃掉）
+                                                maxLines = 2,
+                                                overflow = TextOverflow.Ellipsis,
+                                                modifier = Modifier.weight(1f)
+                                            )
+                                            Spacer(Modifier.width(8.dp))
+                                            // 尾号做成独立小块：原先挤在网址尾巴上，网址一长尾号先进省略号
+                                            Surface(
+                                                shape = RoundedCornerShape(4.dp),
+                                                color = MaterialTheme.colorScheme.surfaceContainerHighest
+                                            ) {
+                                                Text(
+                                                    stringResource(
+                                                        R.string.role_key_tail, ifc.apiKey.takeLast(4)
+                                                    ),
+                                                    style = MaterialTheme.typography.labelSmall,
+                                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                                    modifier = Modifier.padding(horizontal = 5.dp, vertical = 1.dp)
+                                                )
+                                            }
+                                        }
+                                    } else {
+                                        grp.hintRes?.let { hint ->
+                                            Text(
+                                                stringResource(hint),
+                                                style = MaterialTheme.typography.bodySmall,
+                                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                                maxLines = 2,
+                                                overflow = TextOverflow.Ellipsis,
+                                                modifier = Modifier.padding(start = 34.dp, end = 10.dp, bottom = 6.dp)
                                             )
                                         }
                                     }
-                                    // 组级图标：扁平灰（编辑接口 / 拉取模型 / 整组测试）
-                                    // 仅接口组有这三个动作——未分组/直连组点了也只是白弹提示
-                                    grp.ifc?.let { ifc ->
-                                        FlatIconAction(
-                                            Icons.Default.Edit,
-                                            stringResource(R.string.role_key_interface_edit)
-                                        ) { ifcFormFor = ifc }
-                                        FlatIconAction(
-                                            Icons.Default.Search,
-                                            stringResource(R.string.role_key_fetch)
-                                        ) {
-                                            pullForIfc = ifc.name
-                                            showPullModels = true
+                                }
+                                if (!isCollapsed) {
+                                    grp.entries.forEachIndexed { idx, entry ->
+                                        val isCurrent = currentRaw.isNotEmpty() &&
+                                                entry.value.trim() == currentRaw
+                                        // 条目靠卡内浅分隔线分区；首条不加，避免紧贴元信息行
+                                        if (idx > 0) {
+                                            HorizontalDivider(
+                                                thickness = 0.6.dp,
+                                                color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f),
+                                                modifier = Modifier.padding(horizontal = 10.dp)
+                                            )
                                         }
-                                        if (testingGroup == grp.title) {
-                                            Box(Modifier.size(36.dp), contentAlignment = Alignment.Center) {
-                                                CircularProgressIndicator(
-                                                    Modifier.size(18.dp), strokeWidth = 2.dp
-                                                )
-                                            }
-                                        } else {
-                                            FlatIconAction(
-                                                Icons.Default.Bolt,
-                                                stringResource(R.string.role_key_test)
-                                            ) { testGroup(grp) }
-                                        }
-                                    }
-                                    FlatIconAction(
-                                        Icons.Default.DeleteOutline,
-                                        stringResource(R.string.delete)
-                                    ) {
-                                        deleteModeGroup = grp.title
-                                        deleteChecked = emptySet()
-                                        collapsed = collapsed - grp.title
+                                        KeyEntryRow(
+                                            entry = entry,
+                                            isCurrent = isCurrent,
+                                            accent = accent,
+                                            testOk = testResults[entry.name],
+                                            testing = testingName == entry.name,
+                                            deleteMode = isDeleting,
+                                            checked = entry.name in deleteChecked,
+                                            onToggleCheck = {
+                                                deleteChecked = if (entry.name in deleteChecked)
+                                                    deleteChecked - entry.name
+                                                else deleteChecked + entry.name
+                                            },
+                                            onSwitch = { switchTo(entry) },
+                                            onTest = { testKey(entry) },
+                                            onEdit = { renameFor = entry }
+                                        )
                                     }
                                 }
-                            }
-                            // 第二行：接口地址 + Key 尾4（最淡一级灰字，缩进对齐组名——
-                            // 组名左缘 = 箭头 22 + 间距 6 = 28dp，原灰条横向内边距已随去底移除）
-                            if (!isDeleting) {
-                                grp.ifc?.let { ifc ->
-                                    Text(
-                                        ifc.baseUrl + "  *尾" + ifc.apiKey.takeLast(4),
-                                        style = MaterialTheme.typography.bodySmall,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                        maxLines = 1,
-                                        overflow = TextOverflow.Ellipsis,
-                                        modifier = Modifier.padding(start = 28.dp, end = 6.dp, bottom = 2.dp)
-                                    )
-                                }
-                            }
-                        }
-                        if (!isCollapsed) {
-                            grp.entries.forEachIndexed { idx, entry ->
-                                val isCurrent = currentRaw.isNotEmpty() &&
-                                        entry.value.trim() == currentRaw
-                                // 条目去方框后靠浅分隔线分区；首条不加，避免紧贴组头地址行
-                                if (idx > 0) {
-                                    HorizontalDivider(
-                                        thickness = 0.6.dp,
-                                        color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f)
-                                    )
-                                }
-                                KeyEntryRow(
-                                    entry = entry,
-                                    isCurrent = isCurrent,
-                                    dotColor = BOOK_DOT_COLORS[idx % BOOK_DOT_COLORS.size],
-                                    testOk = testResults[entry.name],
-                                    testing = testingName == entry.name,
-                                    deleteMode = isDeleting,
-                                    checked = entry.name in deleteChecked,
-                                    onToggleCheck = {
-                                        deleteChecked = if (entry.name in deleteChecked)
-                                            deleteChecked - entry.name
-                                        else deleteChecked + entry.name
-                                    },
-                                    onSwitch = { switchTo(entry) },
-                                    onTest = { testKey(entry) },
-                                    onEdit = { renameFor = entry }
-                                )
                             }
                         }
                     }
@@ -879,12 +933,17 @@ private fun KeyEditDialog(
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
+                // 密钥串（网址@@模型@@Key）很长，一栏放不下就换行（目目 09-15；原 singleLine
+                // 会把中段吞掉，只能左右横拖）
                 OutlinedTextField(
                     value = value,
                     onValueChange = { value = it },
                     placeholder = { Text(stringResource(R.string.role_key_value_hint)) },
-                    singleLine = true,
+                    singleLine = false,
+                    minLines = 2,
+                    maxLines = 4,
                     textStyle = MaterialTheme.typography.bodyMedium,
+                    modifier = Modifier.fillMaxWidth(),
                 )
                 // 照插件条目 ✏️ 弹窗：删除入口留在编辑弹窗内
                 if (onDelete != null) {
@@ -970,9 +1029,12 @@ private fun InterfaceFormDialog(
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
+                // 接口地址可能很长，一栏放不下就换行（目目 09-15）
                 OutlinedTextField(
                     value = url, onValueChange = { url = it },
-                    singleLine = true, textStyle = MaterialTheme.typography.bodyMedium,
+                    singleLine = false, minLines = 1, maxLines = 3,
+                    textStyle = MaterialTheme.typography.bodyMedium,
+                    modifier = Modifier.fillMaxWidth(),
                 )
                 Spacer(Modifier.height(6.dp))
                 Text(
@@ -980,9 +1042,12 @@ private fun InterfaceFormDialog(
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
+                // Key 可能很长，一栏放不下就换行（目目 09-15）
                 OutlinedTextField(
                     value = key, onValueChange = { key = it },
-                    singleLine = true, textStyle = MaterialTheme.typography.bodyMedium,
+                    singleLine = false, minLines = 1, maxLines = 3,
+                    textStyle = MaterialTheme.typography.bodyMedium,
+                    modifier = Modifier.fillMaxWidth(),
                 )
                 if (initial != null) {
                     TextButton(onClick = {

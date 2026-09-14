@@ -582,6 +582,9 @@
     <string name="role_key_delete_title">Delete key</string>
     <string name="role_key_delete_text">Delete key "%1$s"?</string>
     <string name="role_key_empty">No API keys yet</string>
+    <string name="role_key_tail">…%1$s</string>
+    <string name="role_key_group_ungrouped_hint">Keys not bound to any interface</string>
+    <string name="role_key_group_direct_hint">Direct keys (plain key, no @@ prefix)</string>
     <string name="role_key_test">Test</string>
     <string name="role_key_test_none">No key available to test</string>
     <string name="role_key_test_ok_toast">"%1$s" works: %2$s</string>
@@ -680,8 +683,6 @@ Add %3$d, skip %4$d duplicates</string>
     <string name="role_key_manual_model">Add model manually</string>
     <string name="role_key_model_filter">🔍 Filter models</string>
     <string name="role_key_model_input_hint">Model name</string>
-    <string name="role_key_test_ok_short">✓OK</string>
-    <string name="role_key_test_fail_short">✗Fail</string>
     <string name="role_key_delete_select_title">Select keys to delete (%1$d selected)</string>
     <string name="role_key_delete_n">Delete (%1$d)</string>
     <string name="role_key_delete_none">Select at least one key first</string>
