@@ -28,6 +28,8 @@ import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.DeleteOutline
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.ExpandMore
+import androidx.compose.material.icons.filled.FileDownload
+import androidx.compose.material.icons.filled.FileUpload
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Checkbox
@@ -158,24 +160,6 @@ private fun FlatIconAction(
     ) {
         Icon(icon, contentDescription = contentDescription, tint = tint, modifier = Modifier.size(18.dp))
     }
-}
-
-/** 扁平文字动作（标题行的导入/导出：去描边 chip，纯灰字，只靠边距分隔） */
-@Composable
-private fun FlatTextAction(
-    text: String,
-    color: Color = MaterialTheme.colorScheme.onSurfaceVariant,
-    onClick: () -> Unit,
-) {
-    Text(
-        text,
-        style = MaterialTheme.typography.labelLarge,
-        color = color,
-        modifier = Modifier
-            .clip(RoundedCornerShape(8.dp))
-            .clickable(onClick = onClick)
-            .padding(horizontal = 8.dp, vertical = 6.dp)
-    )
 }
 
 /** 等宽描边按钮（照插件 createBottomBtn：白底 + 1dp 描边 + 10dp 圆角 + 居中彩色文字） */
@@ -439,14 +423,26 @@ fun KeyManagerScreen(tagRuleId: String, onBack: () -> Unit) {
                         )
                     }
                 },
+                // 导入/导出改图标（目目 09-14：文字按钮各占约 48dp 宽，把「密钥管理」标题挤窄；
+                // 原 📥/📤 语义 → FileDownload / FileUpload，热区 48dp 与左侧返回键同规格）
                 actions = {
-                    FlatTextAction(stringResource(R.string.role_key_import)) { showImport = true }
-                    FlatTextAction(stringResource(R.string.role_key_export)) {
+                    IconButton(onClick = { showImport = true }) {
+                        Icon(
+                            Icons.Default.FileDownload,
+                            contentDescription = stringResource(R.string.role_key_import)
+                        )
+                    }
+                    IconButton(onClick = {
                         scope.launch {
                             val name = withIO { KeyListFile.exportKeys(tagRuleId, keys) }
                             if (name != null) toast(R.string.role_key_exported, keys.size, name)
                             else toast(R.string.role_list_failed)
                         }
+                    }) {
+                        Icon(
+                            Icons.Default.FileUpload,
+                            contentDescription = stringResource(R.string.role_key_export)
+                        )
                     }
                 },
                 scrollBehavior = scrollBehavior,
