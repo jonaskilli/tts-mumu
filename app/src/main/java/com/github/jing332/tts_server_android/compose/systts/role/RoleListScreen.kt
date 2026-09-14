@@ -82,12 +82,27 @@ import kotlinx.coroutines.launch
  * 列表下方「+ 添加角色」。主题🎨按钮不搬（原生即 MD3 主题）。
  */
 
-/** 性别圆点色（照插件：少年/男=青蓝，女=粉红，其余=灰） */
-private fun genderDotColor(tag: String): Color = when {
-    tag.contains("少年") -> Color(0xFF1976D2)
-    tag.contains("女") -> Color(0xFFE91E63)
-    tag.contains("男") -> Color(0xFF1976D2)
-    else -> Color(0xFF9E9E9E)
+/**
+ * 性别圆点色：男/少年 = 青蓝，女/少女 = 粉红，判不出 = 灰。
+ *
+ * **取词优先级**：先看记录自己的 `gender` 字段，为空才回落到发音人标签（目目 09-14：
+ * 「哪个好用哪个」）。理由：性别是**角色**的属性，而发音人标签是**声音**的属性——
+ * 少年角色配了女声时，只认标签会把圆点染成粉红。
+ *
+ * ⚠️「少年 / 少女」必须点名处理，不能只匹配「男 / 女」：
+ * - `少年` 里**没有「男」字**（少年 = 少 + 年），只按 男/女 匹配会落进 else 变成灰；
+ * - `少女` 里**有「女」字**但同样是年龄词，显式点名可避免以后调整关键词顺序时被带偏。
+ * 故顺序固定为：少女 → 少年 → 女 → 男（先点名这一对，再走通用词）。
+ */
+private fun genderDotColor(gender: String, voiceTag: String): Color {
+    val s = gender.trim().ifBlank { voiceTag.trim() }
+    return when {
+        s.contains("少女") -> Color(0xFFE91E63)
+        s.contains("少年") -> Color(0xFF1976D2)
+        s.contains("女") -> Color(0xFFE91E63)
+        s.contains("男") -> Color(0xFF1976D2)
+        else -> Color(0xFF9E9E9E)
+    }
 }
 
 /** 释放并固定的彩色圆点阵（照插件 releaseDotColors 顺序） */
@@ -788,7 +803,8 @@ private fun RoleRow(
                 // 照 v9 排布：主名第一行，别名从第二行起逐个竖排，每行都带性别色圆点
                 nameList.forEachIndexed { idx, name ->
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Spacer(Modifier.size(4.dp).background(genderDotColor(rec.voice), CircleShape))
+                        // 性别色圆点：记录 gender 优先、为空回落发音人标签（见 genderDotColor 注释）
+                        Spacer(Modifier.size(4.dp).background(genderDotColor(rec.gender, rec.voice), CircleShape))
                         Spacer(Modifier.width(8.dp))
                         Text(
                             text = buildString {
