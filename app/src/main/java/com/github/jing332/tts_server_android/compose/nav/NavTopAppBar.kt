@@ -18,7 +18,9 @@ fun NavTopAppBar(
     modifier: Modifier = Modifier,
     title: @Composable () -> Unit,
 //    drawerState: DrawerState = LocalDrawerState.current,
-//    navigationIcon: @Composable() (() -> Unit)? = null,
+    // 返回/导航图标（可空=不占位）。09-14 从密钥弹窗改独立页面时启用，
+    // 内部套一层 Surface 会改变顶栏高度，故直接透传给 M3 TopAppBar
+    navigationIcon: @Composable (() -> Unit)? = null,
     actions: @Composable RowScope.() -> Unit = {},
     windowInsets: WindowInsets = TopAppBarDefaults.windowInsets,
     // 默认固定 surface 底色、滚动不变色：M3 默认的 scrolledContainerColor 会在内容滚动时
@@ -33,6 +35,7 @@ fun NavTopAppBar(
     TopAppBar(
         title = title,
         modifier = modifier,
+        navigationIcon = navigationIcon ?: {},
         actions = actions,
         windowInsets = windowInsets,
         colors = colors,

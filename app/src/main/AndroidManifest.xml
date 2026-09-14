@@ -52,6 +52,10 @@
             android:exported="true"
             android:label="@string/replace_rule_manager" />
         <activity
+            android:name=".compose.systts.role.KeyManagerActivity"
+            android:exported="false"
+            android:label="@string/role_key_title" />
+        <activity
             android:name=".compose.systts.directlink.LinkUploadRuleActivity"
             android:exported="true"
             android:label="@string/direct_link_settings" />

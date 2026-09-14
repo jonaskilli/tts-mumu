@@ -1,5 +1,6 @@
 package com.github.jing332.tts_server_android.compose.systts.role
 
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.rememberScrollState
@@ -11,6 +12,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
@@ -20,23 +22,28 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Bolt
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.DeleteOutline
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.RadioButton
+import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -48,8 +55,10 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalClipboardManager
@@ -64,23 +73,26 @@ import com.drake.net.utils.withIO
 import org.json.JSONArray
 import org.json.JSONObject
 import com.github.jing332.tts_server_android.R
+import com.github.jing332.tts_server_android.compose.nav.NavTopAppBar
 import com.github.jing332.tts_server_android.service.systts.help.CharacterRecordsFile
 import com.github.jing332.tts_server_android.service.systts.help.KeyListFile
 import kotlinx.coroutines.launch
 
 /**
  * 密钥管理 + 备份恢复 + 书籍管理·1:1 复刻（对照 角色管理v10_主题密钥增强.js）：
- * 密钥弹窗：按接口分组（未分组/直连密钥）+ 组折叠 + 当前密钥 ✓（反向匹配 miyue 内容，
+ * 密钥页：按接口分组（未分组/直连密钥）+ 组折叠 + 当前密钥 ✓（反向匹配 miyue 内容，
  * 无匹配自动启用第一个）+ 测试结果记忆 ✓通/✗不通 + 新增（名称留空自动生成、重名覆盖确认、
  * 保存即启用）+ 改名 + 导出/导入（密钥导出_日期.json）+ 接口表单（新建/编辑/级联删除）+
  * 拉取模型（五类分组/搜索过滤/默认不勾选/全选只作用可见项/手动添加模型）。
  * 备份恢复：导出当前书籍到剪贴板/从剪贴板导入/备份全部文件/完整还原/自动备份开关。
  * 书籍：点击切换 · 点✕删除（当前书删后切默认）· 新增（建档并切换）· 多选删除 · 修改书名。
  *
- * 密钥弹窗外观（目目 09-14 改版「减噪 + 分层」，非插件原貌）：
- * 条目**无方框无底色**靠浅分隔线分区；当前密钥 = 行首 3dp 主色竖条 + 名称主色加粗；
- * 组级/条目级操作图标统一扁平灰（onSurfaceVariant、18dp、36dp 热区，无常驻描边），
- * 三级层级 = 弹窗标题 16sp 黑 > 条目 14sp 深色 > 组头 12sp 灰 + 计数徽章。
+ * 密钥页外观（目目 09-14「减噪 + 分层 + 全屏」，非插件原貌）：
+ * **承载 = 独立全屏页面**（KeyManagerActivity，原 Dialog 左右各留 24dp、内容区仅约 272dp 太窄）；
+ * 条目**无方框无底色**靠浅分隔线分区，缩进 20dp 与组名左缘对齐；当前密钥 = 行首 3dp 主色竖条 + 名称主色加粗；
+ * 组级/条目级操作图标统一扁平灰（onSurfaceVariant、18dp、36dp 热区，无常驻描边）；
+ * 层级 = 组头「淡底分组条 surfaceContainerHighest + 22dp 折叠箭头（展开↓/折叠→ 旋转动画）+ 组名 14sp」
+ * > 条目 14sp 深色 > 接口地址 11sp 灰。
  */
 
 /** 分组后的密钥组（照插件 buildKeyGroups：接口组 + 未分组 + 直连密钥） */
@@ -216,7 +228,8 @@ private fun KeyEntryRow(
     onEdit: () -> Unit,
 ) {
     Row(
-        Modifier.fillMaxWidth().padding(horizontal = 6.dp, vertical = 9.dp),
+        // 条目缩进 20dp（+行首 16dp 标记位 = 36dp），与组头组名 34dp 左缘基本对齐 → 从属关系一眼可见
+        Modifier.fillMaxWidth().padding(start = 20.dp, end = 6.dp, vertical = 9.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         if (deleteMode) {
@@ -266,8 +279,9 @@ private fun KeyEntryRow(
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun KeyManagerDialog(tagRuleId: String, onDismiss: () -> Unit) {
+fun KeyManagerScreen(tagRuleId: String, onBack: () -> Unit) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     var version by remember { mutableIntStateOf(0) }
@@ -409,29 +423,23 @@ fun KeyManagerDialog(tagRuleId: String, onDismiss: () -> Unit) {
     var pullForIfc by remember { mutableStateOf<String?>(null) } // 组头 🔍 预选接口
     var showImport by remember { mutableStateOf(false) }
 
-    Dialog(
-        onDismissRequest = onDismiss,
-        properties = DialogProperties(usePlatformDefaultWidth = false)
-    ) {
-        Surface(
-            shape = RoundedCornerShape(28.dp),
-            color = MaterialTheme.colorScheme.surfaceContainerHigh,
-            modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 24.dp)
-        ) {
-            Column(
-                Modifier
-                    .padding(start = 20.dp, end = 20.dp, top = 20.dp, bottom = 12.dp)
-                    .heightIn(max = (LocalConfiguration.current.screenHeightDp * 0.85f).dp)
-                    .verticalScroll(rememberScrollState())
-            ) {
-                // 标题行：密钥管理 + 导入/导出（低调小按钮）+ 关闭（MD3 兜底）
-                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                    Text(
-                        stringResource(R.string.role_key_title),
-                        style = MaterialTheme.typography.titleLarge,
-                        fontWeight = FontWeight.Bold,
-                        modifier = Modifier.weight(1f)
-                    )
+    // 目目 09-14：由「窄弹窗」改为独立全屏页面（照替换管理/插件管理/LibrariesActivity 模式），
+    // 内容区 272dp → 328dp，返回键自然退页；导入/导出上顶栏，不再占标题行
+    val scrollBehavior = TopAppBarDefaults.pinnedScrollBehavior()
+    Scaffold(
+        modifier = Modifier.fillMaxSize().nestedScroll(scrollBehavior.nestedScrollConnection),
+        topBar = {
+            NavTopAppBar(
+                title = { Text(stringResource(R.string.role_key_title)) },
+                navigationIcon = {
+                    IconButton(onClick = onBack) {
+                        Icon(
+                            Icons.AutoMirrored.Filled.ArrowBack,
+                            contentDescription = stringResource(R.string.nav_back)
+                        )
+                    }
+                },
+                actions = {
                     FlatTextAction(stringResource(R.string.role_key_import)) { showImport = true }
                     FlatTextAction(stringResource(R.string.role_key_export)) {
                         scope.launch {
@@ -440,14 +448,18 @@ fun KeyManagerDialog(tagRuleId: String, onDismiss: () -> Unit) {
                             else toast(R.string.role_list_failed)
                         }
                     }
-                    IconButton(onClick = onDismiss, modifier = Modifier.size(36.dp)) {
-                        Icon(
-                            Icons.Default.Close,
-                            contentDescription = stringResource(R.string.cancel),
-                            modifier = Modifier.size(20.dp)
-                        )
-                    }
-                }
+                },
+                scrollBehavior = scrollBehavior,
+            )
+        }
+    ) { paddingValues ->
+        Column(
+            Modifier
+                .fillMaxSize()
+                .padding(paddingValues)
+                .padding(start = 16.dp, end = 16.dp, top = 4.dp, bottom = 12.dp)
+                .verticalScroll(rememberScrollState())
+        ) {
                 // 操作行：＋ 新增密钥 / 🔍 拉取模型（照插件等宽并排，放列表上方）
                 Row(
                     Modifier.fillMaxWidth().padding(top = 10.dp, bottom = 6.dp),
@@ -481,8 +493,17 @@ fun KeyManagerDialog(tagRuleId: String, onDismiss: () -> Unit) {
                         val selCount = grp.entries.count { it.name in deleteChecked }
                         // 组间距拉开：组头靠上方留白与前一组区隔，组内条目紧凑
                         Column(Modifier.fillMaxWidth().padding(top = 14.dp, bottom = 2.dp)) {
+                            // 组头行：照主界面 GroupItem 口径 —— 淡底「分组条」（surfaceContainerHighest
+                            // + 8dp 圆角 + 内边距），与前一组靠上方留白区隔；删除选择模式为瞬时态，不加底色
                             Row(
-                                Modifier.fillMaxWidth(),
+                                Modifier
+                                    .fillMaxWidth()
+                                    .clip(RoundedCornerShape(8.dp))
+                                    .background(
+                                        if (isDeleting) Color.Transparent
+                                        else MaterialTheme.colorScheme.surfaceContainerHighest
+                                    )
+                                    .padding(horizontal = 6.dp, vertical = 3.dp),
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
                                 if (isDeleting) {
@@ -513,35 +534,51 @@ fun KeyManagerDialog(tagRuleId: String, onDismiss: () -> Unit) {
                                         else deleteConfirmGroup = grp.title
                                     }
                                 } else {
-                                    // 组头（目目 09-14 三级层级的最轻一级）：12sp 灰字 + 计数徽章，
-                                    // 不再用主色加粗标题；接口信息交给下方灰字地址行承载
+                                    // 组头可点区（目目 09-14 照主界面口径改版）：大号折叠箭头 +
+                                    // 组名 14sp，替换原「10dp 文本三角 + 12sp 灰字」的弱形态；
+                                    // 层次靠「组头淡底条 + 字号」双重区分，不再只靠字号
                                     Row(
                                         Modifier
                                             .weight(1f)
-                                            .clip(RoundedCornerShape(8.dp))
+                                            .clip(RoundedCornerShape(6.dp))
                                             .clickable {
                                                 collapsed = if (isCollapsed) collapsed - grp.title
                                                 else collapsed + grp.title
                                             },
                                         verticalAlignment = Alignment.CenterVertically
                                     ) {
+                                        // 展开朝下 0° / 折叠朝右 -90°（同主界面 GroupItem 的旋转动画）
+                                        val arrowAngle by animateFloatAsState(
+                                            targetValue = if (isCollapsed) -90f else 0f, label = ""
+                                        )
+                                        Icon(
+                                            Icons.Default.ExpandMore,
+                                            contentDescription = stringResource(
+                                                if (isCollapsed) R.string.desc_expand_group
+                                                else R.string.desc_collapse_group, grp.title
+                                            ),
+                                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                            modifier = Modifier.size(22.dp).rotate(arrowAngle)
+                                        )
+                                        Spacer(Modifier.width(6.dp))
                                         Text(
-                                            (if (isCollapsed) "▸ " else "▾ ") + grp.title,
-                                            style = MaterialTheme.typography.labelLarge,
-                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                            grp.title,
+                                            style = MaterialTheme.typography.titleSmall,
+                                            fontWeight = FontWeight.SemiBold,
+                                            color = MaterialTheme.colorScheme.onSurface,
                                             maxLines = 1,
                                             overflow = TextOverflow.Ellipsis
                                         )
-                                        Spacer(Modifier.width(5.dp))
+                                        Spacer(Modifier.width(6.dp))
                                         Surface(
-                                            shape = RoundedCornerShape(7.dp),
-                                            color = MaterialTheme.colorScheme.secondaryContainer
+                                            shape = RoundedCornerShape(4.dp),
+                                            color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f)
                                         ) {
                                             Text(
                                                 grp.entries.size.toString(),
                                                 style = MaterialTheme.typography.labelSmall,
-                                                color = MaterialTheme.colorScheme.onSecondaryContainer,
-                                                modifier = Modifier.padding(horizontal = 5.dp, vertical = 1.dp)
+                                                color = MaterialTheme.colorScheme.onPrimaryContainer,
+                                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 1.dp)
                                             )
                                         }
                                         if (grpHasCurrent) {
@@ -599,7 +636,7 @@ fun KeyManagerDialog(tagRuleId: String, onDismiss: () -> Unit) {
                                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                                         maxLines = 1,
                                         overflow = TextOverflow.Ellipsis,
-                                        modifier = Modifier.padding(start = 14.dp, bottom = 2.dp)
+                                        modifier = Modifier.padding(start = 34.dp, end = 6.dp, bottom = 2.dp)
                                     )
                                 }
                             }
@@ -638,7 +675,6 @@ fun KeyManagerDialog(tagRuleId: String, onDismiss: () -> Unit) {
                 }
             }
         }
-    }
 
     // 批量删除确认（照插件：组内选中 N 条 → 二次确认，不可恢复）
     deleteConfirmGroup?.let { gTitle ->

@@ -54,7 +54,7 @@ import com.github.jing332.tts_server_android.compose.nav.NavTopAppBar
 import com.github.jing332.tts_server_android.compose.systts.list.expandSpeechRuleTagsIfNeeded
 import com.github.jing332.tts_server_android.compose.systts.list.ui.PluginTtsUI
 import com.github.jing332.tts_server_android.compose.systts.role.BackupCenterDialog
-import com.github.jing332.tts_server_android.compose.systts.role.KeyManagerDialog
+import com.github.jing332.tts_server_android.compose.systts.role.KeyManagerActivity
 import com.github.jing332.tts_server_android.compose.systts.role.RoleListScreen
 import com.github.jing332.tts_server_android.conf.SpeechRuleConfig
 import com.github.jing332.tts_server_android.model.rhino.speech_rule.SpeechRuleEngine
@@ -197,8 +197,7 @@ fun RoleManagementScreen(sharedVM: SharedViewModel, pagerState: PagerState) {
     }
 
     val scrollBehavior = TopAppBarDefaults.pinnedScrollBehavior()
-    // 密钥/备份弹窗（目目 09-14：入口从页内按钮行上移顶栏，给角色区留空；弹窗状态由宿主持有）
-    var showKeyManager by remember { mutableStateOf(false) }
+    // 密钥管理=独立全屏页面（09-14 由弹窗改页，不再需要开关状态）；备份恢复仍是弹窗
     var showBackupCenter by remember { mutableStateOf(false) }
     var backupVersion by remember { mutableIntStateOf(0) } // 恢复/导入等大动作后强制内置列表重读
     Scaffold(
@@ -208,7 +207,7 @@ fun RoleManagementScreen(sharedVM: SharedViewModel, pagerState: PagerState) {
                 title = { Text(stringResource(R.string.role_management)) },
                 actions = {
                     // 🔑 密钥管理 / 💾 备份恢复（原页内 48dp 按钮行已退役）
-                    IconButton(onClick = { showKeyManager = true }) {
+                    IconButton(onClick = { KeyManagerActivity.start(context, ROLE_RULE_ID) }) {
                         Icon(
                             Icons.Default.VpnKey,
                             contentDescription = stringResource(R.string.role_key_title)
@@ -310,10 +309,8 @@ fun RoleManagementScreen(sharedVM: SharedViewModel, pagerState: PagerState) {
         }
     }
 
-    // ===== 密钥管理 / 备份恢复弹窗（入口=顶栏图标；onRestored 走 reloadKey++ 让 RoleListScreen 重读文件）=====
-    if (showKeyManager) {
-        KeyManagerDialog(tagRuleId = ROLE_RULE_ID, onDismiss = { showKeyManager = false })
-    }
+    // ===== 备份恢复弹窗（入口=顶栏图标；onRestored 走 reloadKey++ 让 RoleListScreen 重读文件）=====
+    // 密钥管理已改独立页面（KeyManagerActivity），不在此渲染；恢复备份后角色列表重读
     if (showBackupCenter) {
         BackupCenterDialog(
             tagRuleId = ROLE_RULE_ID,
