@@ -2,10 +2,14 @@ package com.github.jing332.tts_server_android.compose.systts.common
 
 import android.widget.Toast
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Arrangement
@@ -17,11 +21,14 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Category
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Surface
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.HorizontalDivider
@@ -57,7 +64,7 @@ import androidx.compose.ui.window.DialogProperties
 import com.drake.net.utils.withIO
 import com.drake.net.utils.withMain
 import com.github.jing332.common.utils.toParamText
-import com.github.jing332.compose.widgets.AppSpinner
+import com.github.jing332.compose.widgets.AppSelectionDialog
 import com.github.jing332.database.dbm
 import com.github.jing332.database.entities.systts.SystemTtsV2
 import com.github.jing332.database.entities.systts.TtsConfigurationDTO
@@ -768,20 +775,38 @@ fun VoicePickerDialog(
                         val n = if (key.isEmpty()) poolEnabled.size else categoryCounts[key] ?: 0
                         "$label（${n}项）"
                     }
+                    // 当前选中分类若恰好 0 项（该分类已被隐藏），视同「全部」——
+                    // 原 AppSpinner 会自动回落到第一项（见下），换状态条后由这里兜底，语义不变
+                    val effectiveCategory = selectedCategory?.takeIf { key ->
+                        categoryOptions.any { it.first == key }
+                    }
                     // 音效槽位（目目 09-13）：候选只有同族 localSound 槽位（通常 1~N 条），
                     // 音色分类与搜索都无意义（分类表里音效恒落 null → 只有「全部（N项）」一项）
                     // → 下拉与搜索框整块隐藏，列表直接铺满
                     if (!isLocalSoundSlot) {
-                        AppSpinner(
-                            modifier = Modifier.fillMaxWidth(),
-                            labelText = "分类",
-                            value = selectedCategory ?: "",
-                            values = categoryOptions.map { it.first },
-                            entries = categoryEntries,
-                            onSelectedChange = { key, _ ->
-                                selectedCategory = (key as? String)?.takeIf { it.isNotEmpty() }
-                            },
+                        // 分类状态条（目目 09-14：原 AppSpinner 轮廓框与搜索框同形，
+                        // 分不出哪块是"当前分类"）→ 可切版带尾部下拉箭头，点击弹选择器
+                        var categoryPickerOpen by remember(entity.id) { mutableStateOf(false) }
+                        CategoryStatusBar(
+                            value = effectiveCategory ?: "全部",
+                            switchable = true,
+                            onClick = { categoryPickerOpen = true },
                         )
+                        if (categoryPickerOpen) {
+                            AppSelectionDialog(
+                                onDismissRequest = { categoryPickerOpen = false },
+                                title = { Text(stringResource(R.string.voice_picker_category_current)) },
+                                value = effectiveCategory ?: "",
+                                values = categoryOptions.map { it.first },
+                                entries = categoryEntries,
+                                // 分类最多十几个，不需要搜索框（默认 >5 项就带）
+                                searchEnabled = false,
+                                onClick = { key, _ ->
+                                    selectedCategory = (key as? String)?.takeIf { it.isNotEmpty() }
+                                    categoryPickerOpen = false
+                                },
+                            )
+                        }
                         OutlinedTextField(
                             modifier = Modifier
                                 .fillMaxWidth()
@@ -789,8 +814,8 @@ fun VoicePickerDialog(
                             // 提示用 placeholder 不用 label（用户 09-11）：label 中态官方写死
                             // bodyLarge 16sp，观感比旁边内容大一圈；代价是输入后提示消失（可接受）
                             // 字号显式钉 bodyMedium 14sp（用户 09-13）：依赖 LocalTextStyle 继承时
-                            // 此框落到 16sp、比上方 AppSpinner 值(14sp)大一号（老问题复发：面板弹窗
-                            // 正文槽并非恒 14sp），显式指定与下拉框对齐。
+                            // 此框落到 16sp、比上方分类条值(14sp)大一号（老问题复发：面板弹窗
+                            // 正文槽并非恒 14sp），显式指定与状态条对齐。
                             // 09-13 二次修：textStyle 只作用于输入文字，placeholder 的 Text 不吃它、
                             // 仍走 LocalTextStyle(16sp)，必须给 placeholder 单独钉 style
                             textStyle = MaterialTheme.typography.bodyMedium,
@@ -805,17 +830,9 @@ fun VoicePickerDialog(
                             singleLine = true,
                         )
                     } else {
-                        // 纯显示分类框（目目 09-13：所有槽位都要有分类框，但只有可切大类的地方才给
-                        // 切换功能）：音效槽位大分类取 rule.tags 现查（剥尾号→「本地音效」），
-                        // 只读不可切、无搜索
-                        OutlinedTextField(
-                            modifier = Modifier.fillMaxWidth(),
-                            value = displayCategory,
-                            onValueChange = {},
-                            readOnly = true,
-                            label = { Text("分类") },
-                            singleLine = true,
-                        )
+                        // 只读状态条（目目 09-14）：音效槽位大分类取 rule.tags 现查
+                        //（剥尾号→「本地音效」），不可切、无搜索 → 不带箭头，一眼看出不可改
+                        CategoryStatusBar(value = displayCategory)
                     }
                     // 搜索词同时匹配「标签名」与「配置项名」（用户 09-11 晚：记忆里是"女青年01晓晓"，
                     // 原先只匹配标签名，搜"晓晓"搜不到）。候选行现在只显示配置项名（09-13 去序号），
@@ -825,7 +842,7 @@ fun VoicePickerDialog(
                         poolEnabled
                     } else {
                         poolEnabled.filter { tag ->
-                            (selectedCategory == null || voiceCategoryOf(tag) == selectedCategory) &&
+                            (effectiveCategory == null || voiceCategoryOf(tag) == effectiveCategory) &&
                                 (tagSearch.isBlank() ||
                                     tag.contains(tagSearch) ||
                                     enabledConfigEntityByTag(tag)?.displayName?.contains(tagSearch) == true)
@@ -845,12 +862,7 @@ fun VoicePickerDialog(
                             .fillMaxWidth()
                             .padding(top = 6.dp)
                             .heightIn(max = maxListHeight)
-                            .verticalScroll(rememberScrollState())
-                            .border(
-                                0.5.dp,
-                                MaterialTheme.colorScheme.outlineVariant,
-                                RoundedCornerShape(8.dp),
-                            ),
+                            .verticalScroll(rememberScrollState()),
                     ) {
                         if (displayTags.isEmpty()) {
                             Text(
@@ -960,17 +972,10 @@ fun VoicePickerDialog(
                     // 落库后主列表自动定位高亮被改项（sharedVM.pendingLocateConfigId）
                     val currentTagId = config.speechRule.tag
                     val currentTagName = config.speechRule.tagName
-                    // 纯显示分类框（目目 09-13）：非绑定类（旁白/对话/括号…）没有大类下拉，
-                    // 但分类框要有——大分类取 rule.tags 现查（面板顶部 displayCategory，剥尾号），
-                    // 只读不可切；候选行因此不再重复带标签前缀
-                    OutlinedTextField(
-                        modifier = Modifier.fillMaxWidth(),
-                        value = displayCategory,
-                        onValueChange = {},
-                        readOnly = true,
-                        label = { Text("分类") },
-                        singleLine = true,
-                    )
+                    // 只读状态条（目目 09-14）：非绑定类（旁白/对话/括号…）没有大类可切，
+                    // 分类取 rule.tags 现查（面板顶部 displayCategory，剥尾号）——无箭头、不可点；
+                    // 候选行因此不再重复带标签前缀
+                    CategoryStatusBar(value = displayCategory)
                     val narrationCandidates = remember(entity.id, currentTagId) {
                         allConfigs.mapNotNull { c ->
                             val dto = c.config as? TtsConfigurationDTO ?: return@mapNotNull null
@@ -986,12 +991,7 @@ fun VoicePickerDialog(
                             .fillMaxWidth()
                             .padding(top = 6.dp)
                             .heightIn(max = maxListHeight)
-                            .verticalScroll(rememberScrollState())
-                            .border(
-                                0.5.dp,
-                                MaterialTheme.colorScheme.outlineVariant,
-                                RoundedCornerShape(8.dp),
-                            ),
+                            .verticalScroll(rememberScrollState()),
                     ) {
                         if (narrationCandidates.isEmpty()) {
                             Text(
@@ -1361,6 +1361,75 @@ private fun localSoundSlotLabel(tag: String): String =
  * 显示名不带尾序号的整名独立成类（旁白、男、女、【】括号发音人等，括号系不合并——目目 09-13 定）。
  * 与列表页标签两层弹窗的大分类同口径同来源（rule.tags 查显示名后剥尾号）。
  */
+/**
+ * 「当前分类」状态条（目目 09-14 定案）：分类是**当前状态**、不是待输入项，
+ * 故不再用 OutlinedTextField 轮廓——它与旁边的搜索框同形，分不出哪块是分类。
+ * 改淡底圆角条：左侧 18dp 图标 + 「当前分类」小字（onSurfaceVariant），
+ * 右侧分类名（titleSmall + primary）强调"当前生效"。
+ * switchable=true：尾部带下拉箭头（可切，点击弹 AppSelectionDialog），容器色 secondaryContainer；
+ * false：不带箭头（只读），容器色 surfaceContainerHighest，一眼看出不可改。
+ * 三处调用同源：绑定模式角色槽位（可切）、绑定模式音效槽位（只读）、旁白/对话/括号等非绑定类（只读）。
+ */
+@Composable
+private fun CategoryStatusBar(
+    value: String,
+    modifier: Modifier = Modifier,
+    switchable: Boolean = false,
+    onClick: (() -> Unit)? = null,
+) {
+    Surface(
+        modifier = modifier
+            .fillMaxWidth()
+            .height(48.dp)
+            .then(
+                if (switchable && onClick != null) {
+                    Modifier.clickable(
+                        indication = null,
+                        interactionSource = remember { MutableInteractionSource() },
+                    ) { onClick() }
+                } else Modifier
+            ),
+        shape = RoundedCornerShape(8.dp),
+        color = if (switchable) MaterialTheme.colorScheme.secondaryContainer
+        else MaterialTheme.colorScheme.surfaceContainerHighest,
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Icon(
+                Icons.Default.Category,
+                contentDescription = null,
+                modifier = Modifier.size(18.dp),
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            Spacer(Modifier.width(8.dp))
+            Text(
+                stringResource(R.string.voice_picker_category_current),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            Spacer(Modifier.weight(1f))
+            Text(
+                value.ifBlank { "—" },
+                style = MaterialTheme.typography.titleSmall,
+                color = MaterialTheme.colorScheme.primary,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+            if (switchable) {
+                Spacer(Modifier.width(4.dp))
+                Icon(
+                    Icons.Default.KeyboardArrowDown,
+                    contentDescription = null,
+                    modifier = Modifier.size(20.dp),
+                    tint = MaterialTheme.colorScheme.primary,
+                )
+            }
+        }
+    }
+}
+
 private fun extractTagCategory(name: String): String {
     val m = Regex("^(.+?)(\\d+)$").find(name)
     return m?.groupValues?.get(1) ?: name

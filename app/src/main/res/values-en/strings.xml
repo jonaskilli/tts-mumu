@@ -532,6 +532,7 @@
     <string name="batch_cfg_keep_unchanged">No change</string>
     <string name="batch_cfg_change_plugin_to">Change plugin to</string>
     <string name="batch_cfg_delete_pick_plugin_hint">Select a plugin above first</string>
+    <string name="voice_picker_category_current">Current category</string>
     <string name="search_tag_or_display_name">Search tags / display names</string>
     <string name="voice_picker_role_card">Role card (%1$s)</string>
     <string name="voice_picker_info_card">Info card</string>
