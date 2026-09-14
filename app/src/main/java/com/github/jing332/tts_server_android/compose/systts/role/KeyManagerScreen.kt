@@ -30,6 +30,8 @@ import androidx.compose.material.icons.filled.ContentPaste
 import androidx.compose.material.icons.filled.DeleteOutline
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.ExpandMore
+import androidx.compose.material.icons.filled.FileDownload
+import androidx.compose.material.icons.filled.FileUpload
 import androidx.compose.material.icons.filled.Restore
 import androidx.compose.material.icons.filled.Save
 import androidx.compose.material.icons.filled.Schedule
@@ -397,10 +399,9 @@ fun KeyManagerScreen(tagRuleId: String, onBack: () -> Unit) {
                         )
                     }
                 },
-                // 导入/导出（目目 09-14 二次定稿）：emoji + 文字，回归角色管理 v10 插件顶栏语汇
-                // ——纯图标 FileDownload/FileUpload 被否（不喜欢 + 两枚 48dp 热区挤）。
-                // 用紧凑 Text 动作（热区仍 ≥48dp 高），不用 IconButton/TextButton（自带
-                // 最小宽会把标题挤窄）。emoji 写在代码侧拼接，文案本体仍走 R.string。
+                // 导入/导出（目目 09-14 三次定稿）：emoji → FileDownload/FileUpload 单色图标
+                // + 文字（托盘竖箭头字形目目点名回归；语义「从文件取 / 存到文件」）。
+                // 紧凑动作：热区 ≥48dp 高，不用 IconButton/TextButton（自带最小宽会挤标题）。
                 actions = {
                     Box(
                         Modifier
@@ -409,10 +410,19 @@ fun KeyManagerScreen(tagRuleId: String, onBack: () -> Unit) {
                             .padding(horizontal = 8.dp),
                         contentAlignment = Alignment.CenterStart
                     ) {
-                        Text(
-                            "📥 " + stringResource(R.string.role_key_action_import),
-                            style = MaterialTheme.typography.labelLarge
-                        )
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(
+                                Icons.Default.FileDownload,
+                                contentDescription = null,
+                                modifier = Modifier.size(18.dp),
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                            Spacer(Modifier.width(4.dp))
+                            Text(
+                                stringResource(R.string.role_key_action_import),
+                                style = MaterialTheme.typography.labelLarge
+                            )
+                        }
                     }
                     Box(
                         Modifier
@@ -427,10 +437,19 @@ fun KeyManagerScreen(tagRuleId: String, onBack: () -> Unit) {
                             .padding(horizontal = 8.dp),
                         contentAlignment = Alignment.CenterStart
                     ) {
-                        Text(
-                            "📤 " + stringResource(R.string.role_key_action_export),
-                            style = MaterialTheme.typography.labelLarge
-                        )
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(
+                                Icons.Default.FileUpload,
+                                contentDescription = null,
+                                modifier = Modifier.size(18.dp),
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                            Spacer(Modifier.width(4.dp))
+                            Text(
+                                stringResource(R.string.role_key_action_export),
+                                style = MaterialTheme.typography.labelLarge
+                            )
+                        }
                     }
                 },
                 scrollBehavior = scrollBehavior,

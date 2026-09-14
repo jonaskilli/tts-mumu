@@ -23,7 +23,10 @@ import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.MenuBook
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Icon
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
@@ -219,7 +222,14 @@ fun RoleListScreen(
                 Modifier.fillMaxWidth().padding(start = 10.dp, end = 2.dp, top = 4.dp, bottom = 4.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text("📖", style = MaterialTheme.typography.titleMedium)
+                // 📖 → MenuBook 单色图标（目目 09-14：全 App 动作/入口类 emoji 清零，
+                // 与 MD3 单色体系统一；👑/❤️🚶😈 等内容语义 emoji 保留）
+                Icon(
+                    Icons.Default.MenuBook,
+                    contentDescription = null,
+                    modifier = Modifier.size(18.dp),
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant
+                )
                 Spacer(Modifier.width(8.dp))
                 if (editingBook) {
                     // 紧凑行内编辑（目目 09-14：原 OutlinedTextField 最小高 56dp 且自带描边，
