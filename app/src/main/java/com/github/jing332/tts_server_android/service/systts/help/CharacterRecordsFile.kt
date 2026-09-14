@@ -306,14 +306,20 @@ object CharacterRecordsFile {
     private fun bookListFile(tagRuleId: String) = File(dir(tagRuleId), "liebiao.json")
     private fun currentBookFile(tagRuleId: String) = File(dir(tagRuleId), "cunfang.txt")
 
-    /** 书籍列表（liebiao.json；缺失/损坏回落 [当前书]） */
+    /**
+     * 书籍列表（liebiao.json；缺失/损坏回落 [当前书]）。
+     * `distinct()` 保序去重照插件 removeDuplicateBooks：历史遗留的重复项（旧版改名
+     * 会把新名写两遍、旧名残留）在**读**的时候就自愈，不必等下一次改名才清掉。
+     */
     fun readBookList(tagRuleId: String): List<String> {
         val current = readCurrentBook(tagRuleId)
         return try {
             val f = bookListFile(tagRuleId)
             if (!f.exists()) return listOf(current)
             val arr = JSONArray(f.readText())
-            val out = (0 until arr.length()).mapNotNull { i -> arr.optString(i).trim().takeIf { it.isNotEmpty() } }
+            val out = (0 until arr.length())
+                .mapNotNull { i -> arr.optString(i).trim().takeIf { it.isNotEmpty() } }
+                .distinct()
             if (current in out) out else listOf(current) + out
         } catch (e: Exception) {
             listOf(current)
@@ -390,9 +396,17 @@ object CharacterRecordsFile {
 
     /**
      * 修改当前书名（照插件 renameCurrentBook 三阶段）：
-     * ①cunfang.txt=新书名 + liebiao.json 原书名项替换（保序，确保「默认」在列表）
+     * ①liebiao.json 重建——先读旧列表 → 过滤掉**全部**旧名与**全部**新名 → 新名落回旧名
+     *   原位置（保序，列表必含「默认」）→ **然后**才写 cunfang.txt=新书名
      * ②shuming.旧.json → shuming.新.json 迁移（旧文件删除，失败覆写空）
      * ③characterRecords.json + characterRecords_backup.json 重写为新书数据
+     *
+     * ⚠️ 读写顺序是本次修复的关键（目目 09-14：「改了书名点列表出现一个修改后的、一个
+     * 修改前的，再修改一次又出来个新名」）：readBookList 带「当前书不在列表 → 补到头部」
+     * 的兜底，旧版**先把 cunfang 写成新名再读列表**，新名于是被当成"当前书但不在列表"
+     * 补了一次，随后又把旧名项换成新名 ⇒ 新名出现两遍；且旧版 indexOfFirst 只换第一处，
+     * 旧名一旦有多条就永远留在列表里 —— 每改一次名字列表就长一条。
+     * 插件原版是「过滤掉全部旧名 + 全部新名 → push 新名」，不依赖 cunfang 读取，故无此问题。
      */
     fun renameCurrentBook(tagRuleId: String, newBookName: String): Boolean {
         val n = newBookName.trim()
@@ -402,12 +416,24 @@ object CharacterRecordsFile {
         val current = readCurrentBook(tagRuleId)
         if (n == current) return true
         return try {
-            // ① cunfang + liebiao
-            currentBookFile(tagRuleId).writeText(n)
-            val books = readBookList(tagRuleId).toMutableList()
-            val idx = books.indexOfFirst { norm(it) == norm(current) }
-            if (idx >= 0) books[idx] = n else books.add(0, n)
+            // ① liebiao 重建 + cunfang（先读列表、后写 cunfang，理由见 KDoc）
+            val old = readBookList(tagRuleId)
+            val cNorm = norm(current)
+            val nNorm = norm(n)
+            val at = old.indexOfFirst { norm(it) == cNorm }
+            val books = ArrayList<String>(old.size + 1)
+            old.forEachIndexed { i, b ->
+                val bn = norm(b)
+                if (bn == nNorm) return@forEachIndexed        // 列表已有同名项 → 丢弃，末尾统一补一条
+                if (bn == cNorm) {
+                    if (i == at) books.add(n)                 // 旧名首处就地替换为新名（保序）
+                } else {
+                    books.add(b)
+                }
+            }
+            if (books.none { norm(it) == nNorm }) books.add(n)   // 旧名不在列表（异常数据）→ 追加
             if (books.none { norm(it) == "默认" }) books.add("默认")
+            currentBookFile(tagRuleId).writeText(n)
             saveBookList(tagRuleId, books)
             // ② 存档迁移
             val bookData = runCatching { File(d, "shuming.$current.json").readText() }.getOrNull()
