@@ -25,11 +25,16 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Bolt
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.ContentCopy
+import androidx.compose.material.icons.filled.ContentPaste
 import androidx.compose.material.icons.filled.DeleteOutline
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.FileDownload
 import androidx.compose.material.icons.filled.FileUpload
+import androidx.compose.material.icons.filled.Restore
+import androidx.compose.material.icons.filled.Save
+import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Checkbox
@@ -1356,7 +1361,7 @@ fun BackupCenterDialog(
                     fontWeight = FontWeight.Bold
                 )
                 Spacer(Modifier.height(12.dp))
-                BackupOptionRow(stringResource(R.string.backup_export_book), MaterialTheme.colorScheme.primary) {
+                BackupOptionRow(Icons.Default.ContentCopy, stringResource(R.string.backup_export_book)) {
                     scope.launch {
                         val recs = withIO { CharacterRecordsFile.readRecords(tagRuleId) }
                         val book = withIO { CharacterRecordsFile.readCurrentBook(tagRuleId) }
@@ -1369,17 +1374,17 @@ fun BackupCenterDialog(
                         toast(R.string.backup_clip_ok)
                     }
                 }
-                BackupOptionRow(stringResource(R.string.backup_import_book), Color(0xFF00838F)) {
+                BackupOptionRow(Icons.Default.ContentPaste, stringResource(R.string.backup_import_book)) {
                     inputText = ""
                     inputVisible = true
                 }
-                BackupOptionRow(stringResource(R.string.backup_export_all), Color(0xFF2E7D32)) {
+                BackupOptionRow(Icons.Default.Save, stringResource(R.string.backup_export_all)) {
                     scope.launch {
                         val n = withIO { CharacterRecordsFile.backupAllFiles(tagRuleId) }
                         toast(if (n > 0) R.string.backup_done else R.string.role_list_failed, n)
                     }
                 }
-                BackupOptionRow(stringResource(R.string.backup_restore_all), Color(0xFFF57F17)) {
+                BackupOptionRow(Icons.Default.Restore, stringResource(R.string.backup_restore_all)) {
                     scope.launch {
                         val n = withIO { CharacterRecordsFile.restoreAllFiles(tagRuleId) }
                         toast(
@@ -1393,7 +1398,7 @@ fun BackupCenterDialog(
                     }
                 }
                 BackupOptionRow(
-                    stringResource(R.string.backup_auto_enable), Color(0xFF7B1FA2)
+                    Icons.Default.Schedule, stringResource(R.string.backup_auto_enable)
                 ) { autoSettingVisible = true }
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
                     TextButton(onClick = onDismiss) { Text(stringResource(R.string.cancel)) }
@@ -1496,26 +1501,31 @@ fun BackupCenterDialog(
     }
 }
 
-/** 备份恢复选项行（照插件 showBackupRestoreDialog：圆角卡片 + 彩色圆点 + 15sp 文字） */
+/**
+ * 备份恢复选项行（目目 09-14 定案：**去白卡片与描边** → 无框行 + 语义图标）。
+ * 原「圆角卡片 + 彩色圆点」是插件语汇：白卡片压在弹窗淡紫底上 = 框中框，
+ * 而彩色圆点只在卡片里才不显飘、本身又无信息量 → 换成 18dp 灰色图标（语义=这是什么操作）。
+ * 5 行是异质动作（不是同质密集条目），靠行内纵 padding 留白分段，不画分隔线。
+ */
 @Composable
-private fun BackupOptionRow(text: String, dotColor: Color, onClick: () -> Unit) {
-    Surface(
-        shape = RoundedCornerShape(10.dp),
-        color = MaterialTheme.colorScheme.surface,
-        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
-        modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+private fun BackupOptionRow(icon: ImageVector, text: String, onClick: () -> Unit) {
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .heightIn(min = 48.dp)
+            .clip(RoundedCornerShape(10.dp))
+            .clickable(onClick = onClick)
+            .padding(horizontal = 8.dp, vertical = 10.dp),
+        verticalAlignment = Alignment.CenterVertically
     ) {
-        Row(
-            Modifier
-                .fillMaxWidth()
-                .clickable(onClick = onClick)
-                .padding(horizontal = 14.dp, vertical = 12.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Spacer(Modifier.size(7.dp).background(dotColor, CircleShape))
-            Spacer(Modifier.width(8.dp))
-            Text(text, style = MaterialTheme.typography.bodyLarge)
-        }
+        Icon(
+            icon,
+            contentDescription = null,
+            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.size(18.dp)
+        )
+        Spacer(Modifier.width(14.dp))
+        Text(text, style = MaterialTheme.typography.bodyLarge)
     }
 }
 
