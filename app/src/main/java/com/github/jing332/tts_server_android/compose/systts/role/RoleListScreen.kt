@@ -304,7 +304,7 @@ fun RoleListScreen(
         }
         // ===== 角色区头（目目 09-14 精简：删「👤 角色列表:」前缀——搜索框 hint 自说明，
         //      搜索框（12dp圆角、hint自带🔍、无放大镜图标）占满整行，
-        //      全选描边小胶囊内嵌搜索框右端，选中态换警示色显「取消全选」）=====
+        //      全选=文字键嵌搜索框右端，选中态红色显「取消全选」）=====
         Row(
             Modifier.fillMaxWidth().padding(start = 8.dp, end = 8.dp, top = 6.dp),
             verticalAlignment = Alignment.CenterVertically
@@ -339,29 +339,28 @@ fun RoleListScreen(
                             }
                         }
                     )
-                    // 照插件 selectAllBtn：8dp 圆角描边胶囊，全选=主色系 / 取消全选=警示色系
-                    Surface(
-                        onClick = {
-                            markedNames = if (allSelected) emptySet() else selectableNames
-                        },
-                        shape = RoundedCornerShape(8.dp),
-                        color = if (allSelected) MaterialTheme.colorScheme.errorContainer
-                                else MaterialTheme.colorScheme.primaryContainer,
-                        border = BorderStroke(
-                            1.dp,
-                            if (allSelected) MaterialTheme.colorScheme.error
-                            else MaterialTheme.colorScheme.primary
+                    // 方案A 文字键（用户 09-14 定）：无框无底、主色文字——原「填色+描边」
+                    // 双重强调是全页唯一彩色填充控件，与「填色=区块/状态」全局语汇冲突；
+                    // 选中态=红色「取消全选」，警示语义保留（与模型拉取弹窗 TextButton 同款）；
+                    // 关涟漪防高亮叠在搜索框描边内显得脏（同名字列口径）
+                    Text(
+                        stringResource(
+                            if (allSelected) R.string.role_select_all_cancel
+                            else R.string.role_list_select_all
                         ),
-                        modifier = Modifier.padding(end = 4.dp).heightIn(min = 26.dp),
-                    ) {
-                        Text(
-                            stringResource(if (allSelected) R.string.role_select_all_cancel else R.string.role_list_select_all),
-                            style = MaterialTheme.typography.labelMedium,
-                            color = if (allSelected) MaterialTheme.colorScheme.onErrorContainer
-                                    else MaterialTheme.colorScheme.onPrimaryContainer,
-                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 2.dp)
-                        )
-                    }
+                        style = MaterialTheme.typography.labelMedium,
+                        fontWeight = FontWeight.SemiBold,
+                        color = if (allSelected) MaterialTheme.colorScheme.error
+                                else MaterialTheme.colorScheme.primary,
+                        modifier = Modifier
+                            .clickable(
+                                interactionSource = remember { MutableInteractionSource() },
+                                indication = null,
+                            ) {
+                                markedNames = if (allSelected) emptySet() else selectableNames
+                            }
+                            .padding(horizontal = 12.dp, vertical = 6.dp)
+                    )
                 }
             }
         }
