@@ -18,8 +18,8 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.ime
 import androidx.compose.foundation.layout.imePadding
-import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.WindowInsets
@@ -95,11 +95,12 @@ import kotlinx.coroutines.launch
  * - 角色管理插件（桥）：VoicePickerBus 请求 → PluginTtsUI.EditContentScreen 宿主渲染，
  *   传 anchorTag=角色当前 tag + bindingKey=角色名，变化经 [onChanged] 回喊插件 JS。
  *
- * 容器（目目 09-14 终版，两易其稿：居中弹窗 → 全屏对话框 → **底部面板 + 高度自适应**）：
- * 全屏方案的病根是“高度写死成屏高”——音频参数段内容只有半屏多，下方四成屏高空着；换声段要
- * 十几条候选才撑得满。故改底部对齐：面板高度跟着内容走，音频参数段自然缩到半屏多、换声段随
- * 候选列表撑到 92% 屏高上限（上限外由内容区 verticalScroll 兜底）。铺满宽度不变，左右各让
- * 16dp，360dp 屏上内容区仍是 328dp，比旧居中弹窗的 275dp 宽。
+ * 容器（目目 09-14 终版，三易其稿：居中弹窗 → 全屏对话框 → 底部面板+自适应 → **底部面板+统一定高**）：
+ * 全屏方案的病根是高度写死成屏高（音频参数段只占半屏多，下方四成空着）；随后试「高度跟着内容
+ * 走」，又暴露三个毛病——切 tab 面板长高/缩矮、搜索每敲一个字面板跟着缩、候选只剩一两条时面板
+ * 塌成小条。终版取固定档位：**面板恒为 72% 屏高**，两段、任意候选数都不变；音频参数段下方留
+ * 约 5% 呼吸位，换声段候选列表撑满剩余并滚动（键盘弹出时按可用高度收口）。宽度不受影响，左右
+ * 各让 16dp，360dp 屏上内容区仍是 328dp，比旧居中弹窗的 275dp 宽。
  * **仍是 Dialog 语义、不改成 Activity**——插件桥靠 VoicePickerBus 请求 + notifyMutated 回喊
  * JS，跨页面会让这条回喊链变脆。
  *
@@ -500,16 +501,16 @@ fun VoicePickerDialog(
         }
     }
 
-    // 底部面板（目目 09-14 定案，推翻同日的全屏方案）：容器高度**跟着内容走**。
-    // 全屏方案的病根是高度写死成屏高——音频参数段内容只有半屏多，下方四成屏高空着；换声段要
-    // 十几条候选才撑得满。一套容器装两种内容量，必然有一边错在留白。改底部对齐 + 高度自适应后：
-    // 音频参数段自然缩到半屏多，换声段随候选列表撑到上限，两段各得其所。
+    // 底部面板 + 统一定高（目目 09-14 终版，三易其稿：居中弹窗 → 全屏对话框 → 高度自适应 → 定高）。
+    // 高度自适应看着"不浪费"，实测有三个毛病：①两段内容量差一倍，切 tab 时面板长高/缩矮；
+    // ②搜索框每敲一个字候选就少几条，面板跟着一缩一缩；③候选只剩一两条时面板塌成小条，
+    // 像个 snackbar 不像面板。底部面板本该是个稳定的容器，故改成固定档位 72% 屏高。
     // 宽度不受影响：面板左右各让 16dp，360dp 屏上内容区仍是 328dp——与全屏方案相同，不会退回
     // 旧居中弹窗被 MD3 24dp 内边距挤成 275dp 的老毛病。
     // 仍是 Dialog 语义，**不改成 Activity**（密钥管理那条路）：角色管理插件靠 VoicePickerBus
     // 提交请求、弹窗内变化再经 notifyMutated 回喊 JS，跨页面会让这条回喊链变脆。
     // 关闭出口：✕ 或点遮罩（底部面板有 scrim，无需强制只在 ✕ 上）；确认动作仍留底部栏——
-    // 换声段它是落库出口，物理位置紧跟滚动内容（面板高度就是内容高度，不再钉在屏幕底）。
+    // 换声段它是落库出口，面板定高后它就贴在面板底缘（不再"跟着内容浮上来"）。
     Dialog(
         onDismissRequest = onDismissRequest,
         // decorFitsSystemWindows = false：弹窗窗口走 edge-to-edge（应用本体是 enableEdgeToEdge），
@@ -523,13 +524,16 @@ fun VoicePickerDialog(
         val density = LocalDensity.current
         val screenHeightDp =
             androidx.compose.ui.platform.LocalConfiguration.current.screenHeightDp
-        // 面板上限 92% 屏高（留一线遮罩，提示下面还有界面）
-        val sheetMaxHeight = (screenHeightDp * 0.92f).dp
-        val navBarBottom = with(density) { WindowInsets.navigationBars.getBottom(density).toDp() }
-        // 内容区上限 = 面板上限 − 标题行(56 + 浅线 1) − 底栏(仅换声段有，56 + 浅线 1) − 导航栏，
-        // 超出它才由内容区的 verticalScroll 接管（矮屏兜底，不会顶穿面板）
-        val contentMaxHeight =
-            sheetMaxHeight - 57.dp - navBarBottom - (if (panelTab == 0) 57.dp else 0.dp)
+        // 统一定高档位 72% 屏高（目目 09-14 定案，推翻同日的内容自适应）：内容自适应会让面板
+        // 高度随 tab / 搜索词 / 候选条数变来变去，底部面板不该这样。定高后：音频参数段（约 57%
+        // 屏高的内容）下方留约 5% 呼吸位；换声段候选列表撑满剩余高度并滚动；候选只剩一两条时
+        // 面板照旧这么高，不会塌成小条。
+        val sheetFixedHeight = (screenHeightDp * 0.72f).dp
+        // 键盘让位：底部对齐 + imePadding 会把面板整体抬到键盘之上，但固定 72% 的板子叠上键盘
+        //（合计约 110% 屏高）会放不下、顶端被顶出屏外。故按「键盘之上的可用高度」收口——键盘
+        // 一弹面板自动矮下来，内容区照旧可滚，搜索框不会被盖住。
+        val imeBottom = with(density) { WindowInsets.ime.getBottom(density).toDp() }
+        val sheetHeight = minOf(sheetFixedHeight, screenHeightDp.dp - imeBottom)
         Box(
             Modifier
                 .fillMaxSize()
@@ -552,7 +556,7 @@ fun VoicePickerDialog(
             Surface(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .heightIn(max = sheetMaxHeight),
+                    .height(sheetHeight),
                 // M3 底部面板：仅顶部两角 28dp 圆角，底边贴屏——系统栏间距交给内层 Column 的
                 // navigationBarsPadding，面板本体不缩，视觉上仍是「从底部升起」
                 shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp),
@@ -613,15 +617,17 @@ fun VoicePickerDialog(
                     HorizontalDivider(
                         color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f)
                     )
-            // 候选列表高度上限按屏高 55% 自适应（目目 09-14 定案）。仍是「随屏缩放 + 外层滚动
-            // 兜底」的口径：本段内容超出面板上限时由这层 verticalScroll 接管，不会越界。
+            // 候选列表高度上限按屏高 55% 自适应（目目 09-14 定案）：列表自带内滚，面板定高后
+            // 超出部分先由它消费手势，滚到底再由外层 verticalScroll 接管，不会越界。
             val maxListHeight =
                 (androidx.compose.ui.platform.LocalConfiguration.current.screenHeightDp * 0.55f).dp
             Column(
                 Modifier
                     .fillMaxWidth()
-                    // 面板高度随内容收缩（音频参数段自然只占半屏多）；超出上限才被卡住、转内滚
-                    .heightIn(max = contentMaxHeight)
+                    // 面板定高后内容区吃掉整块剩余高度（weight）——短内容的那片留白落在"内容区
+                    // 之内"，底栏仍贴面板底；若沿用 heightIn(max) + 内容自然高，底栏会跟着短内容
+                    // 浮到面板中间、下面空一块，比留白更难看
+                    .weight(1f)
                     // 左右统一 16dp：顶部 / 换声区 / 音频参数区共用一条左边线
                     .padding(horizontal = 16.dp)
                     // 内容整体可滚：候选列表自带内滚，内层优先消费手势，到边缘后外层接管，不冲突
