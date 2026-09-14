@@ -218,7 +218,7 @@ private fun KeyEntryRow(
 ) {
     Row(
         // 条目缩进 20dp（+行首 16dp 标记位 = 36dp），与组头组名 34dp 左缘基本对齐 → 从属关系一眼可见
-        Modifier.fillMaxWidth().padding(start = 20.dp, end = 6.dp, vertical = 9.dp),
+        Modifier.fillMaxWidth().padding(start = 20.dp, end = 6.dp, top = 9.dp, bottom = 9.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         if (deleteMode) {
