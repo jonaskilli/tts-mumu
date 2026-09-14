@@ -5,7 +5,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
-import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.Spacer
@@ -18,11 +18,9 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.ime
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Category
@@ -39,6 +37,7 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -53,7 +52,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
@@ -95,12 +93,20 @@ import kotlinx.coroutines.launch
  * - 角色管理插件（桥）：VoicePickerBus 请求 → PluginTtsUI.EditContentScreen 宿主渲染，
  *   传 anchorTag=角色当前 tag + bindingKey=角色名，变化经 [onChanged] 回喊插件 JS。
  *
- * 容器（目目 09-14 终版，三易其稿：居中弹窗 → 全屏对话框 → 底部面板+自适应 → **底部面板+统一定高**）：
+ * 容器（目目 09-14 晚定版，四易其稿：居中弹窗 → 全屏对话框 → 底部面板+自适应 → 底部面板+定高
+ * → **底部面板+定高+定头单滚动**）：
  * 全屏方案的病根是高度写死成屏高（音频参数段只占半屏多，下方四成空着）；随后试「高度跟着内容
  * 走」，又暴露三个毛病——切 tab 面板长高/缩矮、搜索每敲一个字面板跟着缩、候选只剩一两条时面板
- * 塌成小条。终版取固定档位：**面板恒为 72% 屏高**，两段、任意候选数都不变；音频参数段下方留
- * 约 5% 呼吸位，换声段候选列表撑满剩余并滚动（键盘弹出时按可用高度收口）。宽度不受影响，左右
- * 各让 16dp，360dp 屏上内容区仍是 328dp，比旧居中弹窗的 275dp 宽。
+ * 塌成小条。故取固定档位：**面板恒为可用高的 88%**，两段、任意候选数都不变。
+ * ⚠️ 两条必须在的口径（都是 09-14 晚实测踩出来的）：
+ * ① 高度基准取**弹窗窗口的真实可用高**（BoxWithConstraints 的 maxHeight），不用
+ *    Configuration.screenHeightDp——后者来自设备显示配置，偏大时面板底缘被顶出屏幕；而底栏
+ *    「取消/确认」正好在面板最下缘，表现就是「面板里看不到确认键」（目目 09-14 实锤）；
+ * ② **定头 + 单滚动**：标题行 / 分段 / 当前发音人+终值 / 分类+搜索 四层固定，只有候选列表
+ *   （或音频参数段）用 weight(1f) 吃满剩余高度并自带内滚。原先"整块内容可滚 + 列表再滚"
+ *    是双层嵌套，手势互抢——列表只分到约 5 行（「上滑空间太小」），列表滚到底后手势链到外层，
+ *    又把头部整块卷出视野（「上方的很多都隐藏了」）。
+ * 宽度不受影响，左右各让 16dp，360dp 屏上内容区仍是 328dp，比旧居中弹窗的 275dp 宽。
  * **仍是 Dialog 语义、不改成 Activity**——插件桥靠 VoicePickerBus 请求 + notifyMutated 回喊
  * JS，跨页面会让这条回喊链变脆。
  *
@@ -535,19 +541,6 @@ fun VoicePickerDialog(
             decorFitsSystemWindows = false,
         ),
     ) {
-        val density = LocalDensity.current
-        val screenHeightDp =
-            androidx.compose.ui.platform.LocalConfiguration.current.screenHeightDp
-        // 统一定高档位 72% 屏高（目目 09-14 定案，推翻同日的内容自适应）：内容自适应会让面板
-        // 高度随 tab / 搜索词 / 候选条数变来变去，底部面板不该这样。定高后：音频参数段（约 57%
-        // 屏高的内容）下方留约 5% 呼吸位；换声段候选列表撑满剩余高度并滚动；候选只剩一两条时
-        // 面板照旧这么高，不会塌成小条。
-        val sheetFixedHeight = (screenHeightDp * 0.72f).dp
-        // 键盘让位：底部对齐 + imePadding 会把面板整体抬到键盘之上，但固定 72% 的板子叠上键盘
-        //（合计约 110% 屏高）会放不下、顶端被顶出屏外。故按「键盘之上的可用高度」收口——键盘
-        // 一弹面板自动矮下来，内容区照旧可滚，搜索框不会被盖住。
-        val imeBottom = with(density) { WindowInsets.ime.getBottom(density).toDp() }
-        val sheetHeight = minOf(sheetFixedHeight, screenHeightDp.dp - imeBottom)
         Box(
             Modifier
                 .fillMaxSize()
@@ -556,6 +549,20 @@ fun VoicePickerDialog(
                 .imePadding(),
             contentAlignment = Alignment.BottomCenter,
         ) {
+            // ⚠️ 高度基准必须取「弹窗窗口的真实可用高」，**不能**用 Configuration.screenHeightDp
+            //（目目 09-14 晚实锤「面板里看不到确认键」的根因）：screenHeightDp 来自设备显示配置，
+            // 与弹窗窗口实际拿到的高度不一定相等，偏大时面板底缘被顶出屏幕——而底栏正在面板最下缘，
+            // 于是整条「取消/确认」看不见也点不到。BoxWithConstraints 拿的是本窗口的真实约束，
+            // 面板高恒由它派生，结构上不可能超出可视区。
+            BoxWithConstraints(
+                Modifier.fillMaxSize(),
+                contentAlignment = Alignment.BottomCenter,
+            ) {
+            // 统一定高档位 88% 可用高（目目 09-14 晚拍板 72%→88%）：头部四层（标题 / 分段 /
+            // 当前发音人+终值 / 分类+搜索）重构后全部固定不滚，候选列表仍能露约 8 行，
+            // 接近真·底部弹窗的体量；键盘弹出时外层 imePadding 已先把可用高收掉，
+            // 面板随之变矮，不会顶出屏幕。
+            val sheetHeight = maxHeight * 0.88f
             // 关闭热区：面板以外的区域点一下即关（全屏方案铺满时无 scrim 可点，只能靠 ✕）。
             // 不填色——压暗交给 Dialog 窗口自带的 dim（Compose Dialog 固定带，DialogProperties
             // 没有 dimAmount 可调），自绘一层会与它叠加成过暗
@@ -577,6 +584,25 @@ fun VoicePickerDialog(
                 color = MaterialTheme.colorScheme.surfaceContainerHigh,
             ) {
                 Column(Modifier.navigationBarsPadding()) {
+                    // 拖拽把（目目 09-14 晚「做成底部弹窗的样式」）：M3 底部弹窗的识别特征就是
+                    // 顶部这条 4dp×32dp 抓手。本面板是 Dialog 自绘的（插件桥靠 VoicePickerBus +
+                    // Dialog 语义回喊 JS，不能换 Activity），所以它只是形态标记、不可拖动——
+                    // 真拖拽版要换 ModalBottomSheet，留作下一轮（换了要重验那条回喊链）。
+                    Box(
+                        Modifier
+                            .fillMaxWidth()
+                            .padding(top = 8.dp),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Box(
+                            Modifier
+                                .size(width = 32.dp, height = 4.dp)
+                                .background(
+                                    MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f),
+                                    RoundedCornerShape(2.dp),
+                                )
+                        )
+                    }
                     // 紧凑标题行（目目 09-14）：一行「标题 + ✕」，宽度与内容对齐。
                     // 原 TopAppBar 是 M3 一级页面语汇（64dp 通栏 + 22sp 大标题 + 通栏分割线），
                     // 弹窗借来用会读成「App 的一个页面」，且它与底栏相距一屏、把内容夹在中间。
@@ -639,10 +665,6 @@ fun VoicePickerDialog(
                     HorizontalDivider(
                         color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f)
                     )
-            // 候选列表高度上限按屏高 55% 自适应（目目 09-14 定案）：列表自带内滚，面板定高后
-            // 超出部分先由它消费手势，滚到底再由外层 verticalScroll 接管，不会越界。
-            val maxListHeight =
-                (androidx.compose.ui.platform.LocalConfiguration.current.screenHeightDp * 0.55f).dp
             Column(
                 Modifier
                     .fillMaxWidth()
@@ -652,8 +674,12 @@ fun VoicePickerDialog(
                     .weight(1f)
                     // 左右统一 16dp：顶部 / 换声区 / 音频参数区共用一条左边线
                     .padding(horizontal = 16.dp)
-                    // 内容整体可滚：候选列表自带内滚，内层优先消费手势，到边缘后外层接管，不冲突
-                    .verticalScroll(rememberScrollState())
+                    // ⚠️ 本区**不再**整体 verticalScroll（目目 09-14 晚重构）：原来它挂着一层
+                    // verticalScroll、候选列表自己又挂一层 → 两层嵌套滚动，手势互相抢。表现是
+                    // ①上滑先滚列表，列表只有外层分给它的那点高度（约 5 行）＝「上滑空间太小」；
+                    // ②列表滚到底后手势链到外层，把标题以下的头部整块卷出视野＝「上方都隐藏了」。
+                    // 现在改成"定头 + 单滚动"：本 Column 不滚，只有候选列表（或音频参数段）
+                    // 用 weight(1f) 吃满剩余高度并自带内滚，头部四层永远在视野里。
             ) {
             // 添加角色模式：顶部第一行=角色名填写框（描边=可输入，与搜索框同语汇）
             if (createIfMissing) {
@@ -905,6 +931,14 @@ fun VoicePickerDialog(
                                 value = tagSearch,
                                 onValueChange = { tagSearch = it },
                                 singleLine = true,
+                                // 描边淡化（目目 09-14 晚）：默认未聚焦描边是 outline（与主色同族、
+                                // 比旁边那块分类灰底重一档，并排看着刺眼）。降一档到 outlineVariant，
+                                // 只留「描边=可输入」的语义、不再抢旁边的分类字段；聚焦态仍回 outline，
+                                // 保留"正在输入"的反馈（光标本身另有一层反馈）
+                                colors = OutlinedTextFieldDefaults.colors(
+                                    focusedBorderColor = MaterialTheme.colorScheme.outline,
+                                    unfocusedBorderColor = MaterialTheme.colorScheme.outlineVariant,
+                                ),
                             )
                         }
                     } else {
@@ -934,12 +968,14 @@ fun VoicePickerDialog(
                             listOf(boundVoice) + filtered
                         } else filtered
 
-                    // 候选列表：点行=暂存改绑；▶=只试听该标签对应的启用配置（不应用）
+                    // 候选列表：点行=暂存改绑；▶=只试听该标签对应的启用配置（不应用）。
+                    // weight(1f) 吃满头部以下的剩余高度并自带内滚（09-14 晚重构：原来上限写死
+                    // 55% 屏高、且整个内容区还挂着外层 verticalScroll → 列表只分到约 5 行高度）
                     Column(
                         Modifier
                             .fillMaxWidth()
+                            .weight(1f)
                             .padding(top = 6.dp)
-                            .heightIn(max = maxListHeight)
                             .verticalScroll(rememberScrollState()),
                     ) {
                         if (displayTags.isEmpty()) {
@@ -989,7 +1025,17 @@ fun VoicePickerDialog(
                                 nameColor = if (isPending || isCurrent) MaterialTheme.colorScheme.primary
                                 else MaterialTheme.colorScheme.onSurface,
                                 onClick = {
-                                    // 两段式（用户 09-08）：点行=暂存选中，底部「确认」才落库
+                                    // 两段式（用户 09-08）：点行=暂存选中，底部「确认」才落库。
+                                    // 点到当前绑定的那一行时行内 ✓ 不会变（● 只在 !isCurrent 时补），
+                                    // 看不出任何反应 → 补一句 Toast 说明，别让人以为点坏了
+                                    // （目目 09-14 晚「选了角色无法确认」的来源之一）
+                                    if (tag == boundVoice) {
+                                        Toast.makeText(
+                                            context,
+                                            context.getString(R.string.voice_picker_same_voice),
+                                            Toast.LENGTH_SHORT,
+                                        ).show()
+                                    }
                                     pendingVoice = tag
                                 },
                                 // 音效槽位也渲染试听键（目目 09-13 晚加回：也有自定义配置项的本地音效，
@@ -1064,11 +1110,13 @@ fun VoicePickerDialog(
                             Pair(v, c)
                         }.distinctBy { it.first }
                     }
+                    // 候选列表（非绑定）：weight(1f) 吃满头部以下的剩余高度并自带内滚
+                    //（09-14 晚重构：原来上限写死 55% 屏高、外层又挂着一层 scroll，列表只见约 5 行）
                     Column(
                         Modifier
                             .fillMaxWidth()
+                            .weight(1f)
                             .padding(top = 6.dp)
-                            .heightIn(max = maxListHeight)
                             .verticalScroll(rememberScrollState()),
                     ) {
                         if (narrationCandidates.isEmpty()) {
@@ -1132,9 +1180,14 @@ fun VoicePickerDialog(
             // ===== 音频参数大区（分段第二区；用户 09-10 改按维度：一次调一个维度的三层）=====
             if (panelTab == 1) {
                 // 左右 4dp 已上移到整个内容 Column（用户 09-11：全面板统一 16dp）；
-                // 底部无按钮行，补 4dp 底边距与左右一致收尾
+                // 底部无按钮行，补 4dp 底边距与左右一致收尾。
+                // 09-14 晚重构：外层内容 Column 不再整体滚动，本段必须自己吃满剩余高度并自带内滚，
+                // 否则内容一长就被裁掉（原来靠外层那层 scroll 兜着）
                 Column(
                     Modifier
+                        .fillMaxWidth()
+                        .weight(1f)
+                        .verticalScroll(rememberScrollState())
                         .padding(bottom = 4.dp)
                 ) {
                     // 顶部那条 HorizontalDivider 已撤（用户 09-10 晚）：第二级换成软槽分段后，
@@ -1167,35 +1220,55 @@ fun VoicePickerDialog(
                     )
                 }
             }
-            } // 滚动内容 Column 收尾
+            } // 内容 Column 收尾（本区不滚：只有候选列表/音频参数段自带内滚）
             // 底部动作行仅更换发音人区显示（用户 09-09：音频参数区各块自带重置/应用，
             // 取消/确定多余；删除后由内容底部边距收尾，✕ / 点遮罩即关）
-            // 09-14 改底部面板后：它紧跟滚动内容（面板高度就是内容高度），不再钉在屏幕最底——
-            // 候选列表短的时候，底栏与内容之间的距离自然收掉
+            // 09-14 晚重构后它是「定头 + 单滚动」里的固定边栏：贴在面板最下缘（面板高恒定），
+            // 上方就是会滚到底的候选列表——所以它必须永远可见可点（面板高已改由窗口真实
+            // 可用高派生，见容器注释；不会再被顶出屏幕）
             if (panelTab == 0) {
-                // 动作栏上方那条 HorizontalDivider 已撤（目目 09-14）：它和标题行下那条成对出现，
-                // 把 72% 的面板横切成三段，容易被读成「三个框」。而它要表达的"内容区到此为止"，
-                // 取消/确定 这两个靠右的主色文字按钮已经在说了——候选行是左对齐带 ▶/⋮ 的列表，
-                // 两者本就不同质，线是重复（口径同 09-10 撤掉的音频参数区那条：别的机制已在表达
-                // 同一件事时，线就该撤）。标题行下那条保留：内容区可滚、滚到一半首行会在那里被
-                // 裁断，那条线是「固定边栏 ↕ 可滚动内容」的硬边界。
-                // 代价：底栏少了 0.6dp 线后，与列表之间靠 padding 留白分隔，故 top 由 8 提到 12。
+                // 动作栏上方那条 HorizontalDivider 09-14 白天撤过、**今晚补回**：口径没变，
+                // 是场景变了。当时内容区整块可滚、底栏紧贴内容，线只是重复表达"内容到此为止"；
+                // 重构后底栏成了固定边栏，上方正是会滚到底、首行会在它下缘被裁断的候选列表——
+                // 正是标题行下那条线保留的同一个理由（「固定边栏 ↕ 可滚动内容」的硬边界）。
+                // 它顺便让底栏不再像列表的最后一行。
+                HorizontalDivider(
+                    color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f)
+                )
                 // 换声两段式确认（用户 09-08，即点即改反馈弱且易误触）+ 取消
-                // 左右 16dp 与标题行、正文共一条边线
+                // 左右 16dp 与标题行、正文共一条边线；top 由 12 回到 8（有线做边界，留白可以收）
                 Row(
                     Modifier
                         .fillMaxWidth()
                         // 四个形参同属一对（start/end/top/bottom）——不可与 horizontal/vertical 混用
-                        .padding(start = 16.dp, end = 16.dp, top = 12.dp, bottom = 8.dp),
+                        .padding(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 8.dp),
                     horizontalArrangement = Arrangement.End,
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     TextButton(onClick = onDismissRequest) { Text(stringResource(R.string.cancel)) }
+                    // ⚠️ 不再用 enabled 灰键（目目 09-14 晚「选了角色无法确认」）：灰键说不出为
+                    // 什么是灰的，选没选上都一脸懵，键在又按不动更像坏了。改成**恒可点 + 每个
+                    // 前置条件各给一句 Toast**——没选候选 / 没填角色名 / 选的还是当前那个，
+                    // 都当场说明原因，杜绝"点了没反应"
                     TextButton(
-                        enabled = pendingVoice != null &&
-                            (!createIfMissing || inputName.isNotBlank()),
                         onClick = {
-                            val selected = pendingVoice ?: return@TextButton
+                            val selected = pendingVoice
+                            if (selected == null) {
+                                Toast.makeText(
+                                    context,
+                                    context.getString(R.string.voice_picker_need_pick),
+                                    Toast.LENGTH_SHORT,
+                                ).show()
+                                return@TextButton
+                            }
+                            if (createIfMissing && inputName.isBlank()) {
+                                Toast.makeText(
+                                    context,
+                                    context.getString(R.string.voice_picker_need_name),
+                                    Toast.LENGTH_SHORT,
+                                ).show()
+                                return@TextButton
+                            }
                             when {
                                 // 添加角色模式：建记录（voice=tag id），成功后自动关弹窗；
                                 // 同名已存在 addCharacter 返回 false（确认键已拦空名）
@@ -1223,8 +1296,15 @@ fun VoicePickerDialog(
                                 isBindingMode -> {
                                 // 绑定模式：改写 characterRecords.json（与角色管理同文件同字段）；
                                 // groupBindingKeys 非空=整组换声（内置角色列表组头入口，逐个 rebind 组内角色）
+                                // 选的还是当前绑定的那条：原来静默 return（看着像点了没反应），
+                                // 改给一句 Toast 说明——角色卡第一行自带 ✓，很容易点到它
                                 if (selected == boundVoice) {
                                     pendingVoice = null
+                                    Toast.makeText(
+                                        context,
+                                        context.getString(R.string.voice_picker_same_voice),
+                                        Toast.LENGTH_SHORT,
+                                    ).show()
                                     return@TextButton
                                 }
                                 val targets = if (groupBindingKeys.isNotEmpty()) groupBindingKeys else listOf(bindingKey)
@@ -1271,6 +1351,7 @@ fun VoicePickerDialog(
             } // if (panelTab == 0) 收尾
                 } // navigationBarsPadding Column 收尾
             } // Surface 面板收尾
+            } // BoxWithConstraints（弹窗窗口真实可用高）收尾
         } // Box（遮罩 + 底部对齐）收尾
     } // Dialog 收尾
 

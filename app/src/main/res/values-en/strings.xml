@@ -540,6 +540,9 @@
     <string name="search_tag_or_display_name">Search tags / display names</string>
     <string name="voice_picker_role_card">Role card (%1$s)</string>
     <string name="voice_picker_info_card">Info card</string>
+    <string name="voice_picker_need_pick">Pick a voice first</string>
+    <string name="voice_picker_need_name">Enter a character name first</string>
+    <string name="voice_picker_same_voice">This is already the current voice</string>
     <string name="role_list_search_hint">Search roles / aliases</string>
     <string name="role_list_filter_all">All</string>
     <string name="role_list_filter_assigned">Assigned</string>
