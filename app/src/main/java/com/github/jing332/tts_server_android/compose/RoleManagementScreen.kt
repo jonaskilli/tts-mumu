@@ -4,6 +4,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -11,11 +12,14 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.pager.PagerState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AccountCircle
+import androidx.compose.material.icons.filled.Backup
+import androidx.compose.material.icons.filled.Key
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -205,9 +209,10 @@ fun RoleManagementScreen(sharedVM: SharedViewModel, pagerState: PagerState) {
             NavTopAppBar(
                 title = { Text(stringResource(R.string.role_management)) },
                 actions = {
-                    // 🔑 密钥 / 💾 备份（目目 09-14 二次定稿：emoji + 文字，回归 v10 插件顶栏语汇
-                    // ——纯图标 VpnKey/Save 与密钥页同病：挤 + 语义靠猜。紧凑 Text 动作，
-                    // 热区 ≥48dp 高；原页内 48dp 按钮行已退役）
+                    // 密钥 / 备份（目目 09-14 三次定稿：emoji → 单色图标 + 文字。Key=现代钥匙、
+                    // Backup=云+上箭头，均为 Material 官方语义字形，比旧 VpnKey/Save 贴切；
+                    // 文字保留，避免图标并排时语义靠猜。紧凑动作，热区 ≥48dp 高；
+                    // 原页内 48dp 按钮行已退役）
                     Box(
                         Modifier
                             .heightIn(min = 48.dp)
@@ -215,10 +220,19 @@ fun RoleManagementScreen(sharedVM: SharedViewModel, pagerState: PagerState) {
                             .padding(horizontal = 8.dp),
                         contentAlignment = Alignment.CenterStart
                     ) {
-                        Text(
-                            "🔑 " + stringResource(R.string.role_entry_key),
-                            style = MaterialTheme.typography.labelLarge
-                        )
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(
+                                Icons.Default.Key,
+                                contentDescription = null,
+                                modifier = Modifier.size(18.dp),
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                            Spacer(Modifier.width(4.dp))
+                            Text(
+                                stringResource(R.string.role_entry_key),
+                                style = MaterialTheme.typography.labelLarge
+                            )
+                        }
                     }
                     Box(
                         Modifier
@@ -227,10 +241,19 @@ fun RoleManagementScreen(sharedVM: SharedViewModel, pagerState: PagerState) {
                             .padding(horizontal = 8.dp),
                         contentAlignment = Alignment.CenterStart
                     ) {
-                        Text(
-                            "💾 " + stringResource(R.string.role_entry_backup),
-                            style = MaterialTheme.typography.labelLarge
-                        )
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(
+                                Icons.Default.Backup,
+                                contentDescription = null,
+                                modifier = Modifier.size(18.dp),
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                            Spacer(Modifier.width(4.dp))
+                            Text(
+                                stringResource(R.string.role_entry_backup),
+                                style = MaterialTheme.typography.labelLarge
+                            )
+                        }
                     }
                 }
                 // 书籍入口仍在书籍卡（▾管理）
