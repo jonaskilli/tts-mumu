@@ -61,6 +61,7 @@ import com.github.jing332.tts_server_android.compose.MainActivity
 import com.github.jing332.tts_server_android.conf.SysTtsConfig
 import com.github.jing332.tts_server_android.constant.AppConst
 import com.github.jing332.tts_server_android.constant.SystemNotificationConst
+import com.github.jing332.tts_server_android.service.systts.help.InnerThoughtAiClassifier
 import com.github.jing332.tts_server_android.service.systts.help.TextProcessor
 import com.github.jing332.tts_server_android.SysttsLogger
 import com.github.michaelbull.result.Err
@@ -725,16 +726,15 @@ class SystemTtsService : TextToSpeechService(), IEventDispatcher {
         val tag = config.tag
 
         // 三层叠加(插件×配置×全局)后的最终音频参数，
-        // 仅显示≠1的项，全部为1时不占位；如 语速2.0，音量0.8
-        // 用户定稿:中文括号+逗号简单制式,跟在发音人后不突兀；
-        // 09-10 定稿：删除值后缀 x，值按实际精度显示（1.00→1.0、0.97→0.97），
-        // 与音频参数弹窗/试听弹窗/卡片参数行完全一致
+        // 仅显示≠1的项，全部为1时不占位；如 语速2.0 · 音量0.8
+        // 用户 09-14 定稿：四项连接均不用逗号——身份段直连，参数段中点分隔；
+        // 值按实际精度显示（1.00→1.0、0.97→0.97），与音频参数弹窗/试听弹窗/卡片参数行完全一致
         val p = config.audioParams
         val paramsInfo = buildList {
             if (kotlin.math.abs(p.speed - 1f) > 0.005f) add("语速${p.speed.toParamText()}")
             if (kotlin.math.abs(p.volume - 1f) > 0.005f) add("音量${p.volume.toParamText()}")
             if (kotlin.math.abs(p.pitch - 1f) > 0.005f) add("音高${p.pitch.toParamText()}")
-        }.joinToString("，")
+        }.joinToString(" · ")
 
         // 声音配置信息/语速音量等为次级信息，用哨兵色标记，
         // 渲染时(LogScreen)按主题重映射为次级色，避免与正文一起全是绿色而看不清；
@@ -744,7 +744,7 @@ class SystemTtsService : TextToSpeechService(), IEventDispatcher {
             val meta = buildString {
                 // 连写式（用户 09-14 终版）：【角色名】+ 标签与显示名直连（「男主1晓伊」式，
                 // 与角色行标签框同口径；显示名常自带「·」装饰点，中间再插分隔点会分不清边界，
-                // 故不加分隔符），参数仍全角逗号跟随：音量0.8，语速0.9。
+                // 故不加分隔符），参数中点分隔（四项均不用逗号）：语速2.0 · 音量0.8。
                 // 角色名只认朗读规则实时分析出的角色名（handleText 透传），旁白等无角色名不显【】段；
                 // 09-13 目目指认角色名不突出 → <b> 加粗（与“请求音频”正文同风格）
                 if (roleName.isNotBlank()) {
@@ -763,7 +763,7 @@ class SystemTtsService : TextToSpeechService(), IEventDispatcher {
                         append(disp)
                     }
                 }
-                if (paramsInfo.isNotEmpty()) append("，").append(paramsInfo)
+                if (paramsInfo.isNotEmpty()) append(" · ").append(paramsInfo)
             }
             "<font color=\"" + VOICE_META_COLOR + "\">" + meta + "</font>"
         } else ""
@@ -832,18 +832,30 @@ class SystemTtsService : TextToSpeechService(), IEventDispatcher {
                         // 正常请求文本必含『』；非『』文本投给括号4 = 降级兜底（分析失败直投或
                         // 中性兜底 09-13 起同投括号4）。性别兜底走重试切备用链路，已有
                         // 「使用备用TTS」提示，不在此列。W 级子行挂在请求行下，不写持久化文件。
-                        // 原因说明（用户 09-14 定「继承日志」）：不反查接口/密钥，直接取最近一条
-                        // W/E 主行（朗读规则 console 报错优先——分析失败时它已在上方说明原因）
+                        // 原因说明（用户 09-14 定「继承日志」，简洁三态）：
+                        // ① 未选当前密钥（直读 miyue.txt 判定，可靠）→ 明说缺密钥；
+                        // ② 有密钥但上方原因日志含 401/403/失效等字样 → 密钥疑似失效；
+                        // ③ 其他原因 → 原样继承最近一条 W/E 主行（规则 console 报错优先）；
+                        // 都没有 → 泛化提示。不联网反查（用户已否）
                         if (e.request.config.speechInfo.tag == "括号4"
                             && !e.request.text.contains('『')
                         ) {
                             val reason = SysttsLogger.lastWarnReason()
+                            val authLike = reason != null &&
+                                Regex("(?i)401|403|失效|无效|invalid|unauthor|forbidden|denied")
+                                    .containsMatchIn(reason)
                             logChild(
                                 LogLevel.WARN,
-                                if (reason != null)
-                                    getString(R.string.systts_log_fallback_inherit, reason)
-                                else
-                                    getString(R.string.systts_log_fallback_suspect)
+                                when {
+                                    !InnerThoughtAiClassifier.hasCurrentKey() ->
+                                        getString(R.string.systts_log_fallback_no_key)
+                                    reason != null && authLike ->
+                                        getString(R.string.systts_log_fallback_key_bad, reason)
+                                    reason != null ->
+                                        getString(R.string.systts_log_fallback_inherit, reason)
+                                    else ->
+                                        getString(R.string.systts_log_fallback_suspect)
+                                }
                             )
                         }
                     } finally {

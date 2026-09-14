@@ -48,7 +48,9 @@ object SysttsLogger {
                 ?: recentReasons.lastOrNull { it.isPluginLog }
                 ?: recentReasons.lastOrNull()
         } ?: return null
-        val plain = e.message.replace(Regex("<[^>]*>"), "")
+        val plain = e.message
+            .removePrefix("[SpeechRule] ").removePrefix("[Plugin] ")
+            .replace(Regex("<[^>]*>"), "")
             .replace(Regex("\\s+"), " ").trim()
         if (plain.isEmpty()) return null
         return if (plain.length > 40) plain.take(40) + "…" else plain

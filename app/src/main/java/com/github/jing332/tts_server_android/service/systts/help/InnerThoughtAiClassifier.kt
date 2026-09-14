@@ -81,6 +81,9 @@ internal object InnerThoughtAiClassifier {
         }
     }
 
+    /** 降级兜底归因用（用户 09-14）：miyue.txt 是否有可用凭证（直读不走缓存，仅兜底发生时调用一次） */
+    fun hasCurrentKey(): Boolean = runCatching { readMiyueTxt() != null }.getOrDefault(false)
+
     /** 密钥来源探针(绕过缓存直读文件)，供设置页展示链路状态 */
     fun describeCredentialSource(): String {
         val c = readFileCredentials()

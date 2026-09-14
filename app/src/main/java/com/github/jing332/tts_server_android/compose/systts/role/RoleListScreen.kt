@@ -221,7 +221,8 @@ fun RoleListScreen(
                 .clickable(enabled = !editingBook) { showBookDialog = true },
         ) {
             Row(
-                Modifier.fillMaxWidth().padding(start = 10.dp, end = 2.dp, top = 4.dp, bottom = 4.dp),
+                // start=8：外层 8 + 内层 8 = 16dp 文字左缘，与搜索框/列表行对齐（整体化）
+                Modifier.fillMaxWidth().padding(start = 8.dp, end = 2.dp, top = 4.dp, bottom = 4.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 // 📖 → MenuBook 单色图标（目目 09-14：全 App 动作/入口类 emoji 清零，

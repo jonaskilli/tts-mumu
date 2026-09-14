@@ -495,7 +495,9 @@
     <string name="stream_handle_error">Stream error: %1$s</string>
     <string name="use_standby_tts">Use fallback TTS: %1$s</string>
     <string name="systts_log_fallback_suspect">⚠ Fallback: rule analysis failed, this line was read by the fallback voice</string>
-    <string name="systts_log_fallback_inherit">⚠ Fallback (reason above: %1$s): this line was read by the fallback voice</string>
+    <string name="systts_log_fallback_no_key">⚠ Fallback: no current key selected, rule analysis unavailable</string>
+    <string name="systts_log_fallback_key_bad">⚠ Fallback: key appears invalid (%1$s)</string>
+    <string name="systts_log_fallback_inherit">⚠ Fallback (reason above: %1$s)</string>
     <string name="reach_retry_limit">Reached retry limit, skipping!</string>
     <string name="migration_data">Migrate data</string>
     <string name="systts_list_migration_desc">List data needs to be migrated to the new table structure.\nData is invaluable, please manually export the old data to prevent loss.</string>
