@@ -106,8 +106,9 @@ import kotlinx.coroutines.launch
  *
  * 结构（用户 09-09 定稿，抽组件时未动）：
  * - 标题行（09-14 改紧凑行，取代 TopAppBar）：左「角色卡（名字）」/「信息卡」+ 右 ✕，下缘
- *   0.6dp 浅分隔线。原 TopAppBar 是 M3 一级页面语汇（64dp 通栏 + 22sp 大标题），弹窗借来用
- *   会读成「App 的一个页面」，且它与底栏相距一屏、把内容夹在中间；
+ *   0.6dp 浅分隔线——**本面板唯一一条**（动作栏上那条 09-14 撤，理由见下）。原 TopAppBar 是
+ *   M3 一级页面语汇（64dp 通栏 + 22sp 大标题），弹窗借来用会读成「App 的一个页面」，
+ *   且它与底栏相距一屏、把内容夹在中间；
  * - 顶部（两区共用）：当前发音人 + ▶试听 + 终值行（播放链同源三层乘积，值为 1.0 的维度不显示）；
  * - [更换发音人] 绑定模式=分类下拉(含全部，带N项)+搜索+候选列表；旁白模式=只读分类框+同标签全量候选；
  *   行内试听 ▶/…/■ 状态机参照角色管理v10；换声两段式：点行=暂存(●)，底部「确认」落库；
@@ -1135,16 +1136,20 @@ fun VoicePickerDialog(
             // 09-14 改底部面板后：它紧跟滚动内容（面板高度就是内容高度），不再钉在屏幕最底——
             // 候选列表短的时候，底栏与内容之间的距离自然收掉
             if (panelTab == 0) {
-                // 底栏与滚动内容的分界（同色，靠 0.6dp 浅线交代边界，与标题行下那条对称）
-                HorizontalDivider(
-                    color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f)
-                )
+                // 动作栏上方那条 HorizontalDivider 已撤（目目 09-14）：它和标题行下那条成对出现，
+                // 把 72% 的面板横切成三段，容易被读成「三个框」。而它要表达的"内容区到此为止"，
+                // 取消/确定 这两个靠右的主色文字按钮已经在说了——候选行是左对齐带 ▶/⋮ 的列表，
+                // 两者本就不同质，线是重复（口径同 09-10 撤掉的音频参数区那条：别的机制已在表达
+                // 同一件事时，线就该撤）。标题行下那条保留：内容区可滚、滚到一半首行会在那里被
+                // 裁断，那条线是「固定边栏 ↕ 可滚动内容」的硬边界。
+                // 代价：底栏少了 0.6dp 线后，与列表之间靠 padding 留白分隔，故 top 由 8 提到 12。
                 // 换声两段式确认（用户 09-08，即点即改反馈弱且易误触）+ 取消
                 // 左右 16dp 与标题行、正文共一条边线
                 Row(
                     Modifier
                         .fillMaxWidth()
-                        .padding(horizontal = 16.dp, vertical = 8.dp),
+                        // 四个形参同属一对（start/end/top/bottom）——不可与 horizontal/vertical 混用
+                        .padding(start = 16.dp, end = 16.dp, top = 12.dp, bottom = 8.dp),
                     horizontalArrangement = Arrangement.End,
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
