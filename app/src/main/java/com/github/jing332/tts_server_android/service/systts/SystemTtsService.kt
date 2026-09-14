@@ -727,7 +727,8 @@ class SystemTtsService : TextToSpeechService(), IEventDispatcher {
 
         // 三层叠加(插件×配置×全局)后的最终音频参数，
         // 仅显示≠1的项，全部为1时不占位；如 语速2.0，音量0.8
-        // 用户 09-14 二次定稿：参数段用全角逗号（中点试过被否），身份段仍直连不用逗号；
+        // 用户 09-14 三次定稿：身份段与参数段一律全角逗号（「身份段直连」口径作废——真机上
+        // 【柴叔】男老年01「白老先生-原神」-原神 糊成一串读不出边界；中点亦已否）；
         // 值按实际精度显示（1.00→1.0、0.97→0.97），与音频参数弹窗/试听弹窗/卡片参数行完全一致
         val p = config.audioParams
         val paramsInfo = buildList {
@@ -742,27 +743,27 @@ class SystemTtsService : TextToSpeechService(), IEventDispatcher {
         // voice id 技术串对用户无意义，不再进日志(用户要求)
         return if (tag is SystemTtsV2) {
             val meta = buildString {
-                // 连写式（用户 09-14 终版）：【角色名】+ 标签与显示名直连（「男主1晓伊」式，
-                // 与角色行标签框同口径；显示名常自带「·」装饰点，中间再插分隔点会分不清边界，
-                // 故不加分隔符），参数段全角逗号跟随：语速2.0，音量0.8。
-                // 角色名只认朗读规则实时分析出的角色名（handleText 透传），旁白等无角色名不显【】段；
-                // 09-13 目目指认角色名不突出 → <b> 加粗（与“请求音频”正文同风格）
-                if (roleName.isNotBlank()) {
-                    append("<b>【").append(roleName).append("】</b>")
-                }
-                // 显示名限 20 字（用户 09-14：12 字额度太少，日志行+角色行标签框两处同改）
+                // 身份段（用户 09-14 三次定稿：全回从前）——【角色名】，标签名，显示名，参数
+                // 字段间一律全角逗号（前一版「身份段直连」真机验证不过：标签与显示名中间无天然
+                // 分界，糊成一串读不出边界）；显示名限 20 字（日志行+角色行标签框两处同改）
                 val tagName = config.speechInfo.tagName.trim()
                 val dispFull = tag.displayName
                 val disp = if (dispFull.length > 20) dispFull.take(20) + "…" else dispFull
-                // 显示名以标签开头时不重复拼（防“男主1男主1”），与角色行 voiceTagText 同规则
-                when {
-                    disp.isEmpty() -> if (tagName.isNotEmpty()) append(tagName)
-                    disp.startsWith(tagName) -> append(disp)
-                    else -> {
-                        append(tagName)
-                        append(disp)
-                    }
+                // 声音部分 = 标签名 [+ 逗号 + 显示名]；显示名以标签开头时不重复拼（防“男主1男主1”），
+                // 此时二者本为一体、也就无需分隔；与角色行 voiceTagText 同规则
+                val voiceText = when {
+                    disp.isEmpty() -> tagName
+                    disp.startsWith(tagName) -> disp
+                    else -> "$tagName，$disp"
                 }
+                // 角色名只认朗读规则实时分析出的角色名（handleText 透传），旁白等无角色名不显【】段；
+                // 09-13 目目指认角色名不突出 → <b> 加粗（与“请求音频”正文同风格）；
+                // 后接逗号与其余字段同制（声音部分为空时不补悬挂逗号）
+                if (roleName.isNotBlank()) {
+                    append("<b>【").append(roleName).append("】</b>")
+                    if (voiceText.isNotEmpty()) append("，")
+                }
+                append(voiceText)
                 if (paramsInfo.isNotEmpty()) append("，").append(paramsInfo)
             }
             "<font color=\"" + VOICE_META_COLOR + "\">" + meta + "</font>"
