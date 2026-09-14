@@ -1096,10 +1096,48 @@ fun VoicePickerDialog(
                     // 落库后主列表自动定位高亮被改项（sharedVM.pendingLocateConfigId）
                     val currentTagId = config.speechRule.tag
                     val currentTagName = config.speechRule.tagName
-                    // 只读态（目目 09-14）：非绑定类（旁白/对话/括号…）没有大类可切，分类取 rule.tags
+                    // 常驻搜索（目目 09-14 晚补）：非绑定类（旁白/对话/括号…）原先只有一枚只读分类
+                    // chip、下面直接就是候选行——无搜索可筛，几十条候选只能靠手翻。同标签候选
+                    // 往往比绑定类更多（一个 tag 下每条配置项都是一个发音人），搜索必须补齐。
+                    // 语汇与绑定类完全一致：左=分类（只读，填色语义）、右=搜索（描边语义），同高 56dp
+                    var narrationSearch by remember(entity.id) { mutableStateOf("") }
+                    // 只读态（目目 09-14）：非绑定类（旁白/对话/括号…）**没有大类可切**，分类取 rule.tags
                     // 现查（面板顶部 displayCategory，剥尾号）——无底无框无箭头、纯文字信息；
                     // 候选行因此不再重复带标签前缀
-                    CategoryChip(value = displayCategory)
+                    if (!isLocalSoundSlot) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically,
+                            // chip 48dp、搜索框 56dp，spacedBy 让两者间距恒 8dp（与绑定模式同行口径）
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        ) {
+                            CategoryChip(value = displayCategory)
+                            OutlinedTextField(
+                                modifier = Modifier.weight(1f),
+                                textStyle = MaterialTheme.typography.bodyMedium,
+                                placeholder = {
+                                    // 这里用泛化「搜索」而非绑定模式那句「搜索标签/显示名」：
+                                    // 非绑定类的标签是固定的（旁白/对话/括号…），可搜的只有**配置项名**
+                                    // 与发音人 id，写「标签」会让人以为能跨标签搜
+                                    Text(
+                                        stringResource(R.string.search),
+                                        style = MaterialTheme.typography.bodyMedium
+                                    )
+                                },
+                                value = narrationSearch,
+                                onValueChange = { narrationSearch = it },
+                                singleLine = true,
+                                // 描边淡化（同绑定模式）：未聚焦 outlineVariant、聚焦回 outline
+                                colors = OutlinedTextFieldDefaults.colors(
+                                    focusedBorderColor = MaterialTheme.colorScheme.outline,
+                                    unfocusedBorderColor = MaterialTheme.colorScheme.outlineVariant,
+                                ),
+                            )
+                        }
+                    } else {
+                        // 音效槽位（同族 localSound，通常 1~N 条）：搜索无意义，与绑定模式同一口径
+                        CategoryChip(value = displayCategory)
+                    }
                     val narrationCandidates = remember(entity.id, currentTagId) {
                         allConfigs.mapNotNull { c ->
                             val dto = c.config as? TtsConfigurationDTO ?: return@mapNotNull null
@@ -1109,6 +1147,16 @@ fun VoicePickerDialog(
                             // 带实体出列：候选行要用它的 displayName / 试听 / 删除（09-12 全分类补齐）
                             Pair(v, c)
                         }.distinctBy { it.first }
+                    }
+                    // 搜索过滤（目目 09-14 晚补）：命中「配置项名」或「发音人 id」——同绑定模式
+                    // 「标签名 / 配置项名并集」的思路，只是这里一行对应一条配置项，按发音人 id 搜也应命中
+                    val narrationShown = if (narrationSearch.isBlank()) {
+                        narrationCandidates
+                    } else {
+                        narrationCandidates.filter { (v, cfg) ->
+                            v.contains(narrationSearch) ||
+                                cfg.displayName.contains(narrationSearch)
+                        }
                     }
                     // 候选列表（非绑定）：weight(1f) 吃满头部以下的剩余高度并自带内滚
                     //（09-14 晚重构：原来上限写死 55% 屏高、外层又挂着一层 scroll，列表只见约 5 行）
@@ -1127,8 +1175,17 @@ fun VoicePickerDialog(
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                             )
+                        } else if (narrationShown.isEmpty()) {
+                            // 搜出来的空态与"本标签下没有候选"要分开说：否则清空搜索前会被读成
+                            // "这个标签坏了"（本标签明明有 N 条，只是没匹配上）
+                            Text(
+                                "没有匹配「${narrationSearch.trim()}」的配置项",
+                                modifier = Modifier.padding(10.dp),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
                         }
-                        narrationCandidates.forEach { (v, cfgEntity) ->
+                        narrationShown.forEach { (v, cfgEntity) ->
                             val isCurrent = v == voice && voice.isNotEmpty()
                             val isPending = v == pendingVoice
                             // 标记键=voice（同一 tag 下多条配置靠 voice 区分；与角色行 tag 键同口径）
