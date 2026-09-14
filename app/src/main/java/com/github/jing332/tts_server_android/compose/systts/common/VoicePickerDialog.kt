@@ -1274,6 +1274,10 @@ fun VoicePickerDialog(
                                 // 同名已存在 addCharacter 返回 false（确认键已拦空名）
                                 createIfMissing -> {
                                     val n = inputName.trim()
+                                    // 发音人显示名口径与弹窗头部/候选行一致（同 tag 的启用配置项名）：
+                                    // 不在 Toast 里抛 tag id（目目 09-14：文案一律走 R.string 三处同写，
+                                    // 这里原来硬编码中文、且原样打印 tag id）
+                                    val shown = enabledConfigEntityByTag(selected)?.displayName ?: selected
                                     scope.launch {
                                         val ok = withIO {
                                             CharacterRecordsFile.addCharacter(
@@ -1287,8 +1291,12 @@ fun VoicePickerDialog(
                                         pendingVoice = null
                                         Toast.makeText(
                                             context,
-                                            if (ok) "已添加角色「$n」（$selected）"
-                                            else "添加失败：同名角色可能已存在",
+                                            // 成功=新增角色成功：名（发音人）；失败=角色名已存在
+                                            context.getString(
+                                                if (ok) R.string.role_add_char_ok
+                                                else R.string.role_add_char_exists,
+                                                n, shown,
+                                            ),
                                             Toast.LENGTH_SHORT,
                                         ).show()
                                     }
