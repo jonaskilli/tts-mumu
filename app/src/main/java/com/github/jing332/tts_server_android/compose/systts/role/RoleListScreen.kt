@@ -66,7 +66,6 @@ import com.github.jing332.database.dbm
 import com.github.jing332.database.entities.systts.TtsConfigurationDTO
 import com.github.jing332.tts_server_android.R
 import com.github.jing332.tts_server_android.compose.systts.common.VoicePickerDialog
-import com.github.jing332.tts_server_android.service.systts.DISPLAY_NAME_MAX_CHARS
 import com.github.jing332.tts_server_android.service.systts.help.CharacterRecordsFile
 import com.github.jing332.tts_server_android.service.systts.help.VoiceMarksFile
 import kotlinx.coroutines.launch
@@ -670,8 +669,10 @@ private fun MenuActionRow(text: String, dotColor: Color, onClick: () -> Unit) {
  * 查不到配置返回 null（RoleRow 回落 tag + ⚠）。
  *
  * 两级收口（目目 09-14 晚）：
- * ① **显示名本体限 8 个字**（目目原话「显示名不能超过 8 个字」，常量与日志行同源：
- *    SystemTtsService.DISPLAY_NAME_MAX_CHARS）——超了直接切到 8 字，末尾不补符号；
+ * ① **显示名本体限 8 个字**（目目 09-14 晚：「显示名不能超过 8 个字」）——超了直接切到
+ *    8 字，末尾不补符号。常量就在本文件（TAG_DISPLAY_NAME_MAX_CHARS），**与日志行的
+ *    12 字故意不同值**（目目同晚「这俩不要一样，那边也可以加省略号」：标签框是
+ *    220dp 窄框、硬切不留符号；日志行宽度富余、放 12 字且带「…」）；
  *    标签框上限 220dp、字号 13sp，装得下"tag 前缀 + 8 个全角字"
  *    （最坏 5 字前缀 + 8 字 = 13 个全角字 ≈ 169dp 文本 + 20dp 内边距 ≈ 189dp）；
  * ② 再按框宽做一次权重字数截断兜底（全角 1.0 / 半角 0.55，预算 14.5 字 ≈ 208dp）
@@ -681,15 +682,19 @@ private fun MenuActionRow(text: String, dotColor: Color, onClick: () -> Unit) {
 private fun voiceTagText(tag: String, nameMap: Map<String, String>): String? {
     val disp = nameMap[tag] ?: return null
     val prefix = if (disp.startsWith(tag)) "" else tag
-    return cutToTagBoxWidth(prefix + disp.take(DISPLAY_NAME_MAX_CHARS))
+    return cutToTagBoxWidth(prefix + disp.take(TAG_DISPLAY_NAME_MAX_CHARS))
 }
+
+/** 角色行标签框专用的显示名上限：8 字，超出直接切、**不补符号**（他不要省略号）。
+ *  与日志行的 12 字（可带「…」）**故意不同值**，勿合并。 */
+private const val TAG_DISPLAY_NAME_MAX_CHARS = 8
 
 /**
  * 标签框权重字数预算：全角字 1.0 / 半角 0.55（数字、字母、半角符号）。
  * 14.5 字 ≈ 13sp × 14.5 ≈ 188.5dp 文本宽 + 左右各 10dp 内边距 ≈ 208.5dp，
  * 落在标签框 220dp 上限之内，并留约 1 个全角字的安全余量
  * （不同字体下数字/字母的实际字宽有出入，留余量保证 Clip 永不切到半个字）。
- * 显示名已先按 8 字收口（DISPLAY_NAME_MAX_CHARS），这里只在 tag 前缀偏长时才轮到。
+ * 显示名已先按 8 字收口（TAG_DISPLAY_NAME_MAX_CHARS），这里只在 tag 前缀偏长时才轮到。
  */
 private const val TAG_BOX_CHAR_BUDGET = 14.5f
 

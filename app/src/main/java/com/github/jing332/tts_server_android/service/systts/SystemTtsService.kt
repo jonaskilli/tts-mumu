@@ -90,13 +90,16 @@ import kotlin.jvm.Throws
 import kotlin.system.exitProcess
 
 /**
- * 显示名上限（目目 09-14 晚：「显示名不能超过 8 个字」）。
- * 日志行身份段与角色行标签框（RoleListScreen.voiceTagText）两处**同源同值**：
- * 超出直接切掉、末尾不补「…」（目目明确不要省略号）。
- * 放在服务层而不是各写一份：旧口径「20 字 + …」就是在两个文件里各写了一遍数字，
- * 改一处漏一处迟早走散。
+ * 显示名上限——**日志行专用**：12 字，超出截断并补「…」。
+ *
+ * ⚠️ 与角色行标签框（RoleListScreen 的 TAG_DISPLAY_NAME_MAX_CHARS = 8）**故意不同值、
+ * 不共用常量**：目目 09-14 晚原话「日志栏显示名字数不是限 12 吗？这俩不要一样，
+ * 那边也可以加省略号」——列表标签是 220dp 窄框里的紧凑标识，硬切 8 字、
+ * 不留符号；日志行是整行文本、宽度富余，放到 12 字并允许用「…」提示“还有更多”。
+ * 沿革：6 字（09-09 前）→ 12 字（92a99eb）→ 20 字（8eea3e6）→ 12 字（本次回调）。
+ * 别再合并成一个常量，两边容器宽度根本不同。
  */
-internal const val DISPLAY_NAME_MAX_CHARS = 8
+internal const val LOG_DISPLAY_NAME_MAX_CHARS = 12
 
 
 @Suppress("DEPRECATION")
@@ -755,11 +758,13 @@ class SystemTtsService : TextToSpeechService(), IEventDispatcher {
                 // 身份段（用户 09-14 三次定稿：全回从前）——【角色名】，标签名，显示名，参数
                 // 字段间一律全角逗号（前一版「身份段直连」真机验证不过：标签与显示名中间无天然
                 // 分界，糊成一串读不出边界）。
-                // 显示名限 **8 字**（目目 09-14 晚定：「显示名不能超过 8 个字」；日志行 +
-                // 角色行标签框两处同改，超出直接切、末尾不补「…」——他明确不要省略号）
+                // 显示名限 **12 字**（目目 09-14 晚回调：与角色行标签框的 8 字**故意不同值**，
+                // 原话「这俩不要一样，那边也可以加省略号」）——超出截断并补「…」
                 val tagName = config.speechInfo.tagName.trim()
                 val dispFull = tag.displayName
-                val disp = dispFull.take(DISPLAY_NAME_MAX_CHARS)
+                val disp = if (dispFull.length > LOG_DISPLAY_NAME_MAX_CHARS)
+                    dispFull.take(LOG_DISPLAY_NAME_MAX_CHARS) + "…"
+                else dispFull
                 // 声音部分 = 标签名 [+ 逗号 + 显示名]；显示名以标签开头时不重复拼（防“男主1男主1”），
                 // 此时二者本为一体、也就无需分隔；与角色行 voiceTagText 同规则。
                 // ⚠️ 去重判断必须用**全量** dispFull：disp 已被切到 8 字，标签名本身超过 8 字时
