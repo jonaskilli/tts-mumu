@@ -12,10 +12,13 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material3.AlertDialog
@@ -26,8 +29,11 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -46,11 +52,11 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import com.drake.net.utils.withIO
 import com.drake.net.utils.withMain
 import com.github.jing332.common.utils.toParamText
-import com.github.jing332.compose.widgets.AppDialog
 import com.github.jing332.compose.widgets.AppSpinner
 import com.github.jing332.database.dbm
 import com.github.jing332.database.entities.systts.SystemTtsV2
@@ -80,7 +86,15 @@ import kotlinx.coroutines.launch
  * - 角色管理插件（桥）：VoicePickerBus 请求 → PluginTtsUI.EditContentScreen 宿主渲染，
  *   传 anchorTag=角色当前 tag + bindingKey=角色名，变化经 [onChanged] 回喊插件 JS。
  *
+ * 容器（目目 09-14 由「92% 宽 × 85% 高的居中弹窗」改**全屏对话框**）：
+ * M3 规范给全屏对话框列的判据本弹窗命中两条半——变更非即时保存（两段式）、组件内部会再开
+ * 子弹窗（候选行 ⋮ 菜单）、含需键盘输入的组件（搜索框）；故容器改 Dialog + Scaffold +
+ * TopAppBar（照 ForwarderWebDialog 同款），顶栏只有 ✕（规范：全屏对话框不用 ←），
+ * 确认动作仍留底部固定栏。**仍是 Dialog 语义、不改成 Activity**——插件桥靠 VoicePickerBus
+ * 请求 + notifyMutated 回喊 JS，跨页面会让这条回喊链变脆。
+ *
  * 结构（用户 09-09 定稿，抽组件时未动）：
+ * - 顶栏（09-14 新增）：✕ + 标题（「角色卡（名字）」/「信息卡」），下缘 0.6dp 浅分隔线；
  * - 顶部（两区共用）：当前发音人 + ▶试听 + 终值行（播放链同源三层乘积，值为 1.0 的维度不显示）；
  * - [更换发音人] 绑定模式=分类下拉(含全部，带N项)+搜索+候选列表；旁白模式=只读分类框+同标签全量候选；
  *   行内试听 ▶/…/■ 状态机参照角色管理v10；换声两段式：点行=暂存(●)，底部「确认」落库；
@@ -100,7 +114,12 @@ import kotlinx.coroutines.launch
  *                       插件桥宿主接它回喊 JS；日志面板传 null
  * @param onDismissRequest 关闭（点外部/返回键/取消；锚点配置项被删时也会触发）
  */
-@OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
+@OptIn(
+    androidx.compose.material3.ExperimentalMaterial3Api::class,
+    // decorFitsSystemWindows（全屏弹窗铺满到系统栏后面）在部分 Compose 版本仍标着实验注解。
+    // 本项目未开 warnings-as-errors，冗余 opt-in 至多是条警告，换来的是跨版本都能编过。
+    androidx.compose.ui.ExperimentalComposeUiApi::class,
+)
 @Composable
 fun VoicePickerDialog(
     anchorConfigId: Long?,
@@ -179,8 +198,9 @@ fun VoicePickerDialog(
     fun previewLabelColor(key: Any?): Color =
         if (previewingKey == key) MaterialTheme.colorScheme.tertiary else Color.Unspecified
 
-    // 面板分段：0=更换发音人 1=音频参数。声明在 AppDialog 外——buttons 槽也要读它
-    //（09-09 CI教训：content 槽内声明的局部状态对 buttons 槽不可见）
+    // 面板分段：0=更换发音人 1=音频参数。提升到容器之前声明——底部动作行也要读它
+    //（09-09 CI 教训：content 槽内声明的局部状态对 buttons 槽不可见；09-14 改全屏后虽不再有
+    //  buttons 槽，但顶栏/底栏/正文三处仍共用它，保持这个「先声明后用」的位置）
     var panelTab by remember(entity.id) { mutableStateOf(0) }
 
     // ===== 本地编辑草稿：各维度「应用」才落库 =====
@@ -468,60 +488,106 @@ fun VoicePickerDialog(
         }
     }
 
-    // 居中弹窗（用户 09-09：底部弹窗全面撤回，恢复 AppDialog 中弹窗形态；标题即面板名）
-    // 宽度（目目 09-13）：MD3 AlertDialog 默认平台宽度偏窄（比旧角色管理自绘弹窗窄一截），
-    // 解锁 usePlatformDefaultWidth 后按屏宽 92% 铺——候选行名+徽章+试听键的行内空间跟着松；
-    // 只作用本弹窗（日志面板/插件桥共用），AppDialog 其余调用方不受影响
-    AppDialog(
+    // 全屏对话框（目目 09-14 定案）：M3 规范里这类面板本就该用全屏形态——规范列的三条判据本
+    // 弹窗命中两条半：①变更非即时保存（两段式：点候选=暂存、底部确认才落库）②组件内部会再开
+    // 子弹窗（候选行 ⋮ 菜单 → 标记 / 删除配置项确认）③含需要键盘的输入组件（换声区搜索框）。
+    // 形态照 ForwarderWebDialog 同款：Dialog + Scaffold + TopAppBar + fillMaxSize。
+    //
+    // 仍是 Dialog 语义，**不改成 Activity**（密钥管理那条路）：角色管理插件靠 VoicePickerBus
+    // 提交请求、弹窗内变化再经 notifyMutated 回喊 JS，跨页面会让这条回喊链变脆。
+    // 规范要求：全屏对话框只用 ✕ 关闭（铺满后无 scrim 可点，点外部关闭自然失效）；
+    // 确认动作仍留底部固定栏（本面板两段式的落库出口，位置不动）。
+    Dialog(
         onDismissRequest = onDismissRequest,
-        properties = DialogProperties(usePlatformDefaultWidth = false),
-        modifier = Modifier
-            .fillMaxWidth(0.92f),
-        title = {
-            // 角色卡形态（目目 09-13 终版，三易其稿：标题右侧→小字行→标题本身）：
-            // 带角色名时标题显示「角色卡（角色名）」——「角色卡」明说身份，名字绿色加粗
-            // 与「最终」行呼应；无角色名（旁白/本地音效槽位等）统一叫「信息卡」，与角色卡成对。
-            // 调用方自传标题已废除；超长省略号截断，标题槽单行不被挤
-            if (titleBadge.isNotBlank()) {
-                // 模板走 R.string（三处同写），名字段做主色加粗 span
-                val tpl = stringResource(R.string.voice_picker_role_card)
-                val open = tpl.substringBefore("%1\$s")
-                val close = tpl.substringAfter("%1\$s")
-                Text(
-                    buildAnnotatedString {
-                        append(open)
-                        withStyle(
-                            SpanStyle(
-                                fontWeight = FontWeight.SemiBold,
-                                color = MaterialTheme.colorScheme.primary,
-                            )
-                        ) {
-                            append(titleBadge)
-                        }
-                        append(close)
-                    },
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
-            } else {
-                Text(stringResource(R.string.voice_picker_info_card))
-            }
-        },
-        content = {
-            // 候选列表高度上限统一按屏高 40% 自适应（用户 09-11 晚拍板）：原先绑定模式 220dp、
-            // 旁白模式 300dp 两个手调固定值，矮屏撑不出、大屏又浪费；40% 随屏缩放，配合外层
-            // 85% 屏高上限天然不越界（800dp 屏约 320dp ≈ 13 行）。
-            val maxListHeight =
-                (androidx.compose.ui.platform.LocalConfiguration.current.screenHeightDp * 0.4f).dp
+        // decorFitsSystemWindows = false：弹窗窗口也走 edge-to-edge（应用本体是 enableEdgeToEdge），
+        // 让「全屏」真的覆盖状态栏 / 导航栏区域。顶栏与底栏的系统栏间距随之由 Scaffold /
+        // TopAppBar 自带的 windowInsets 补齐；若保留默认 true，窗口会被系统栏内缩，状态栏一带
+        // 会露出被 scrim 压暗的上一个界面，像没铺满。
+        properties = DialogProperties(
+            usePlatformDefaultWidth = false,
+            decorFitsSystemWindows = false,
+        ),
+    ) {
+        Scaffold(
+            containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+            topBar = {
+                Column {
+                    TopAppBar(
+                        title = {
+                            // 角色卡形态（目目 09-13 终版，三易其稿：标题右侧→小字行→标题本身）：
+                            // 带角色名时标题显示「角色卡（角色名）」——「角色卡」明说身份，名字绿色加粗
+                            // 与「最终」行呼应；无角色名（旁白/本地音效槽位等）统一叫「信息卡」，与角色卡成对。
+                            // 调用方自传标题已废除；超长省略号截断，标题槽单行不被挤
+                            if (titleBadge.isNotBlank()) {
+                                // 模板走 R.string（三处同写），名字段做主色加粗 span
+                                val tpl = stringResource(R.string.voice_picker_role_card)
+                                val open = tpl.substringBefore("%1\$s")
+                                val close = tpl.substringAfter("%1\$s")
+                                Text(
+                                    buildAnnotatedString {
+                                        append(open)
+                                        withStyle(
+                                            SpanStyle(
+                                                fontWeight = FontWeight.SemiBold,
+                                                color = MaterialTheme.colorScheme.primary,
+                                            )
+                                        ) {
+                                            append(titleBadge)
+                                        }
+                                        append(close)
+                                    },
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis,
+                                )
+                            } else {
+                                Text(stringResource(R.string.voice_picker_info_card))
+                            }
+                        },
+                        navigationIcon = {
+                            // M3 全屏对话框规范：导航位只用 ✕（不用 ←，← 会暗示「保存后返回」）
+                            IconButton(onClick = onDismissRequest) {
+                                Icon(
+                                    Icons.Default.Close,
+                                    contentDescription = stringResource(R.string.cancel)
+                                )
+                            }
+                        },
+                        colors = TopAppBarDefaults.topAppBarColors(
+                            containerColor = MaterialTheme.colorScheme.surfaceContainerHigh
+                        ),
+                    )
+                    HorizontalDivider(
+                        color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f)
+                    )
+                }
+            },
+        ) { innerPadding ->
+            // 子布局自上而下：顶栏（Scaffold 提供）+［滚动内容 weight(1f)］+ 底部动作行（物理位置
+            // 仍在内容之后，见下方 if (panelTab == 0)）。
+            // 顶栏与底部动作行的系统栏间距由 Scaffold 的 innerPadding 兜住——本弹窗铺满全屏，
+            // 状态栏与导航栏都会压进来，不套 insets 会把 ✕ 顶到状态栏底下。
+            // 左右 16dp：正文区在 360dp 屏上拿到约 328dp（原居中弹窗受 MD3 AlertDialog 的 24dp
+            // 内边距挤压只剩约 275dp）。
             Column(
                 Modifier
+                    .fillMaxSize()
+                    .padding(innerPadding)
+                    // 键盘让位：decorFitsSystemWindows=false 后窗口不再被 IME 顶起，换声区的搜索框
+                    // 一弹键盘，候选列表下半截就会被盖住。imePadding 把内容区整体抬到键盘之上
+                    //（顶栏不受影响，它在 Scaffold 的 topBar 槽里）。
+                    .imePadding()
+            ) {
+            // 候选列表高度上限按屏高 55% 自适应（目目 09-14 定案：全屏多出来的高度主要给候选
+            // 列表，比原先 40% 多显示 2~3 行）。仍是「随屏缩放 + 外层滚动兜底」的口径：矮屏上
+            // 即便超出也由父级 verticalScroll 接管，不会越界。
+            val maxListHeight =
+                (androidx.compose.ui.platform.LocalConfiguration.current.screenHeightDp * 0.55f).dp
+            Column(
+                Modifier
+                    .weight(1f)
                     .fillMaxWidth()
-                    // 左右统一 16dp（用户 09-11）：此前只有音频参数区让 4dp，顶部/换声区是 12dp，
-                    // 同一弹窗两种左边线；整体加 4dp（叠加 AppDialog 自带 12dp）后全面板一条边
-                    .padding(horizontal = 4.dp)
-                    // 上限跟随屏幕（85%）：固定 600dp 在矮屏上会把弹窗顶出屏幕外（用户 09-10 截图），
-                    // 内容超出上限时由 verticalScroll 接管
-                    .heightIn(max = (androidx.compose.ui.platform.LocalConfiguration.current.screenHeightDp * 0.85f).dp)
+                    // 左右统一 16dp：顶部 / 换声区 / 音频参数区共用一条左边线
+                    .padding(horizontal = 16.dp)
                     // 内容整体可滚：候选列表自带内滚，内层优先消费手势，到边缘后外层接管，不冲突
                     .verticalScroll(rememberScrollState())
             ) {
@@ -1023,15 +1089,21 @@ fun VoicePickerDialog(
                     )
                 }
             }
-            } // 外层内容 Column 收尾
-        },
-        buttons = {
-            // 底部操作行仅更换发音人区显示（用户 09-09：音频参数区各块自带重置/应用，
-            // 取消/确定多余；删除后由内容底部边距收尾，弹窗点外部/返回键即关）
+            } // 滚动内容 Column 收尾
+            // 底部动作行仅更换发音人区显示（用户 09-09：音频参数区各块自带重置/应用，
+            // 取消/确定多余；删除后由内容底部边距收尾，✕ / 返回键即关）
+            // 全屏后它是固定底栏：物理位置就在滚动内容之后，靠外层 Column 的 weight(1f) 钉在底部
             if (panelTab == 0) {
+                // 底栏与滚动内容的分界（全屏后同色，靠 0.6dp 浅线交代边界，与顶栏对称）
+                HorizontalDivider(
+                    color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f)
+                )
                 // 换声两段式确认（用户 09-08，即点即改反馈弱且易误触）+ 取消
+                // 左右 16dp 与正文一条边（原先靠 AlertDialog 自带内边距，改全屏后要自己让）
                 Row(
-                    Modifier.fillMaxWidth(),
+                    Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 8.dp),
                     horizontalArrangement = Arrangement.End,
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
@@ -1086,9 +1158,10 @@ fun VoicePickerDialog(
                         Text((if (pendingVoice != null) "● " else "") + stringResource(R.string.confirm))
                     }
                 }
-            }
-        },
-    )
+            } // if (panelTab == 0) 收尾
+            } // 外层容器 Column 收尾
+        } // Scaffold content 收尾
+    } // Dialog 收尾
 
     // 删除确认弹窗（⋮ 菜单 🗑 入口；目目 09-13 深夜定稿：删除的粒度就是「你点的那一条配置项」，
     // 文案照插件 doDeleteVoiceAndReassign 口径、把「发音人」统一成「配置项」）：标题行=【tag - 显示名】，
