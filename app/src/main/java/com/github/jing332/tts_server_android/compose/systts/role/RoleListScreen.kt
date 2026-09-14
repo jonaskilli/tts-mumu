@@ -66,6 +66,7 @@ import com.github.jing332.database.dbm
 import com.github.jing332.database.entities.systts.TtsConfigurationDTO
 import com.github.jing332.tts_server_android.R
 import com.github.jing332.tts_server_android.compose.systts.common.VoicePickerDialog
+import com.github.jing332.tts_server_android.service.systts.DISPLAY_NAME_MAX_CHARS
 import com.github.jing332.tts_server_android.service.systts.help.CharacterRecordsFile
 import com.github.jing332.tts_server_android.service.systts.help.VoiceMarksFile
 import kotlinx.coroutines.launch
@@ -668,16 +669,19 @@ private fun MenuActionRow(text: String, dotColor: Color, onClick: () -> Unit) {
  * （目目定稿「男主1晓伊」式）；显示名以 tag 开头时不重复拼（防"男主1男主1"）；
  * 查不到配置返回 null（RoleRow 回落 tag + ⚠）。
  *
- * 09-14 晚（目目：「列表的标签太长截断了，不要省略号」＋「超过这个字数直接截断呐，
- * 不用显示全」）：标签框上限 220dp、字号 13sp，单行只装得下约 15 个全角字，多出来的
- * 字交给 Text 的 Ellipsis 就会吐「…」——他不接受省略号。故改在**文本层**先按框宽折算
- * 做一次权重字数截断（全角 1.0 / 半角 0.55，预算 14.5 字），截掉就是截掉、末尾不补任何
- * 符号。旧的「显示名限 20 字 + …」被这条预算覆盖（20 字本来就装不进 220dp），一并撤掉。
+ * 两级收口（目目 09-14 晚）：
+ * ① **显示名本体限 8 个字**（目目原话「显示名不能超过 8 个字」，常量与日志行同源：
+ *    SystemTtsService.DISPLAY_NAME_MAX_CHARS）——超了直接切到 8 字，末尾不补符号；
+ *    标签框上限 220dp、字号 13sp，装得下"tag 前缀 + 8 个全角字"
+ *    （最坏 5 字前缀 + 8 字 = 13 个全角字 ≈ 169dp 文本 + 20dp 内边距 ≈ 189dp）；
+ * ② 再按框宽做一次权重字数截断兜底（全角 1.0 / 半角 0.55，预算 14.5 字 ≈ 208dp）
+ *    ——tag 前缀特别长时才轮到它，保证框里既不出现「…」也不切到半个字。
+ * 旧的「显示名限 20 字 + …」规则已撤（既有 8 字硬上限，20 字也装不进 220dp）。
  */
 private fun voiceTagText(tag: String, nameMap: Map<String, String>): String? {
     val disp = nameMap[tag] ?: return null
     val prefix = if (disp.startsWith(tag)) "" else tag
-    return cutToTagBoxWidth(prefix + disp)
+    return cutToTagBoxWidth(prefix + disp.take(DISPLAY_NAME_MAX_CHARS))
 }
 
 /**
@@ -685,6 +689,7 @@ private fun voiceTagText(tag: String, nameMap: Map<String, String>): String? {
  * 14.5 字 ≈ 13sp × 14.5 ≈ 188.5dp 文本宽 + 左右各 10dp 内边距 ≈ 208.5dp，
  * 落在标签框 220dp 上限之内，并留约 1 个全角字的安全余量
  * （不同字体下数字/字母的实际字宽有出入，留余量保证 Clip 永不切到半个字）。
+ * 显示名已先按 8 字收口（DISPLAY_NAME_MAX_CHARS），这里只在 tag 前缀偏长时才轮到。
  */
 private const val TAG_BOX_CHAR_BUDGET = 14.5f
 

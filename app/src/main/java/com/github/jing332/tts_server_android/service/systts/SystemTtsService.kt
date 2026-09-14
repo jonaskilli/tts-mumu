@@ -89,6 +89,15 @@ import java.util.Locale
 import kotlin.jvm.Throws
 import kotlin.system.exitProcess
 
+/**
+ * 显示名上限（目目 09-14 晚：「显示名不能超过 8 个字」）。
+ * 日志行身份段与角色行标签框（RoleListScreen.voiceTagText）两处**同源同值**：
+ * 超出直接切掉、末尾不补「…」（目目明确不要省略号）。
+ * 放在服务层而不是各写一份：旧口径「20 字 + …」就是在两个文件里各写了一遍数字，
+ * 改一处漏一处迟早走散。
+ */
+internal const val DISPLAY_NAME_MAX_CHARS = 8
+
 
 @Suppress("DEPRECATION")
 class SystemTtsService : TextToSpeechService(), IEventDispatcher {
@@ -745,15 +754,19 @@ class SystemTtsService : TextToSpeechService(), IEventDispatcher {
             val meta = buildString {
                 // 身份段（用户 09-14 三次定稿：全回从前）——【角色名】，标签名，显示名，参数
                 // 字段间一律全角逗号（前一版「身份段直连」真机验证不过：标签与显示名中间无天然
-                // 分界，糊成一串读不出边界）；显示名限 20 字（日志行+角色行标签框两处同改）
+                // 分界，糊成一串读不出边界）。
+                // 显示名限 **8 字**（目目 09-14 晚定：「显示名不能超过 8 个字」；日志行 +
+                // 角色行标签框两处同改，超出直接切、末尾不补「…」——他明确不要省略号）
                 val tagName = config.speechInfo.tagName.trim()
                 val dispFull = tag.displayName
-                val disp = if (dispFull.length > 20) dispFull.take(20) + "…" else dispFull
+                val disp = dispFull.take(DISPLAY_NAME_MAX_CHARS)
                 // 声音部分 = 标签名 [+ 逗号 + 显示名]；显示名以标签开头时不重复拼（防“男主1男主1”），
-                // 此时二者本为一体、也就无需分隔；与角色行 voiceTagText 同规则
+                // 此时二者本为一体、也就无需分隔；与角色行 voiceTagText 同规则。
+                // ⚠️ 去重判断必须用**全量** dispFull：disp 已被切到 8 字，标签名本身超过 8 字时
+                // 拿它去 startsWith 会失配，导致前缀被重复拼一遍
                 val voiceText = when {
                     disp.isEmpty() -> tagName
-                    disp.startsWith(tagName) -> disp
+                    dispFull.startsWith(tagName) -> disp
                     else -> "$tagName，$disp"
                 }
                 // 角色名只认朗读规则实时分析出的角色名（handleText 透传），旁白等无角色名不显【】段；
