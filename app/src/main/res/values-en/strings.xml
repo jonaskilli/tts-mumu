@@ -599,10 +599,9 @@
     <string name="role_book_delete_text">Delete book "%1$s" and its archive?</string>
     <string name="role_book_cannot_delete_current">The current book cannot be deleted</string>
     <string name="role_book_empty">No other books yet</string>
-    <string name="role_list_title">👤 Character list:</string>
     <string name="role_search_hint">🔍 Search roles</string>
     <string name="role_select_all_cancel">Deselect all</string>
-    <string name="role_hint_line">👉 Tap a name to select · Long-press for actions · 🔊 Tap the voice tag to change voice</string>
+    <string name="role_hint_line">Tap to select · Long-press for actions · Tap tag to change voice</string>
     <string name="role_add_character">＋ Add character</string>
     <string name="role_menu_title">Choose action</string>
     <string name="role_menu_merge_follow">Merge + follow target</string>

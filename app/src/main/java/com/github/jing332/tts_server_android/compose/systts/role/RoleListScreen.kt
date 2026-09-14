@@ -299,18 +299,13 @@ fun RoleListScreen(
                 }
             }
         }
-        // ===== 角色区头（照插件：14sp 加粗主题色标题 + 搜索框（12dp圆角、hint自带🔍、无放大镜图标），
+        // ===== 角色区头（目目 09-14 精简：删「👤 角色列表:」前缀——搜索框 hint 自说明，
+        //      搜索框（12dp圆角、hint自带🔍、无放大镜图标）占满整行，
         //      全选描边小胶囊内嵌搜索框右端，选中态换警示色显「取消全选」）=====
         Row(
             Modifier.fillMaxWidth().padding(start = 8.dp, end = 8.dp, top = 6.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Text(
-                stringResource(R.string.role_list_title),
-                style = MaterialTheme.typography.titleSmall,
-                fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.primary
-            )
             val allSelected = markedNames.containsAll(selectableNames) && selectableNames.isNotEmpty()
             // 紧凑搜索框（目目 09-14：OutlinedTextField 最小高 56dp 偏高）——
             // Surface+BasicTextField 手搓 44dp，外观保持 12dp 圆角描边；hint 手绘、光标主色
@@ -367,11 +362,13 @@ fun RoleListScreen(
                 }
             }
         }
-        // 操作提示行（照插件 longPressHint）
+        // 操作提示行（目目 09-14：两行压一行短句、去 emoji、12sp——正文口径精简）
         Text(
             stringResource(R.string.role_hint_line),
-            style = MaterialTheme.typography.bodySmall,
+            style = MaterialTheme.typography.labelSmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
+            maxLines = 1,
+            overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
             modifier = Modifier.padding(horizontal = 12.dp, vertical = 2.dp)
         )
 
