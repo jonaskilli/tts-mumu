@@ -18,6 +18,10 @@ class Console(val source: LogSource = LogSource.PLUGIN) : LogListenerManager, Wr
         
         // 全局朗读规则日志监听器，由 app 模块设置
         var globalSpeechRuleLogListener: ((LogEntry) -> Unit)? = null
+
+        // 附加多播监听（与上面两个单值监听并存、不互相覆盖）：服务侧降级兜底「继承日志」用，
+        // 朗读规则/插件 console 的 W/E 由此汇入 SysttsLogger 的原因缓冲
+        val extraListeners = java.util.concurrent.CopyOnWriteArrayList<(LogEntry) -> Unit>()
     }
 
     private val listeners = mutableListOf<LogListener>()
@@ -54,7 +58,8 @@ class Console(val source: LogSource = LogSource.PLUGIN) : LogListenerManager, Wr
         } else if (isSpeechRuleLog) {
             globalSpeechRuleLogListener?.invoke(logEntry)
         }
-        
+
+        extraListeners.forEach { it(logEntry) }
         listeners.forEach {
             it.onNewLog(logEntry)
         }

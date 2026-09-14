@@ -148,6 +148,10 @@ class SystemTtsService : TextToSpeechService(), IEventDispatcher {
         updateNotification(getString(R.string.systts_service), "")
         mScope = CoroutineScope(Dispatchers.IO)
 
+        // 降级兜底「继承日志」：朗读规则/插件 console 的 W/E 汇入原因缓冲（幂等）。
+        // 必须在 onCreate 挂：规则分析在每轮朗读开头，晚挂会漏掉最早的原因日志
+        SysttsLogger.hookConsole()
+
         registerGlobalReceiver(
             listOf(ACTION_NOTIFY_KILL_PROCESS, ACTION_NOTIFY_CANCEL), mNotificationReceiver
         )
@@ -738,26 +742,27 @@ class SystemTtsService : TextToSpeechService(), IEventDispatcher {
         // voice id 技术串对用户无意义，不再进日志(用户要求)
         return if (tag is SystemTtsV2) {
             val meta = buildString {
-                // 三段式全角逗号分隔（用户 09-08）：角色名，标签，显示名，参数——层次清晰不粘连
-                var hasPrev = false
-                // 角色名（用户 09-08 终版定稿）：只认朗读规则实时分析出的角色名
-                // （handleText 条目 name 字段随片段透传到此），不做任何反推；
-                // 旁白/非多角色/旧规则片段无角色名 → 不显示【】段。
-                // 特殊标示用全角方头括号；09-13 目目指认角色名不突出 → 加 <b> 加粗（与"请求音频"正文同风格）
+                // 连写式（用户 09-14 终版）：【角色名】+ 标签与显示名直连（「男主1晓伊」式，
+                // 与角色行标签框同口径；显示名常自带「·」装饰点，中间再插分隔点会分不清边界，
+                // 故不加分隔符），参数仍全角逗号跟随：音量0.8，语速0.9。
+                // 角色名只认朗读规则实时分析出的角色名（handleText 透传），旁白等无角色名不显【】段；
+                // 09-13 目目指认角色名不突出 → <b> 加粗（与“请求音频”正文同风格）
                 if (roleName.isNotBlank()) {
                     append("<b>【").append(roleName).append("】</b>")
-                    hasPrev = true
                 }
-                // 标签（如"旁白"）
-                if (config.speechInfo.tagName.isNotBlank()) {
-                    if (hasPrev) append("，")
-                    append(config.speechInfo.tagName)
-                    hasPrev = true
+                // 显示名限 20 字（用户 09-14：12 字额度太少，日志行+角色行标签框两处同改）
+                val tagName = config.speechInfo.tagName.trim()
+                val dispFull = tag.displayName
+                val disp = if (dispFull.length > 20) dispFull.take(20) + "…" else dispFull
+                // 显示名以标签开头时不重复拼（防“男主1男主1”），与角色行 voiceTagText 同规则
+                when {
+                    disp.isEmpty() -> if (tagName.isNotEmpty()) append(tagName)
+                    disp.startsWith(tagName) -> append(disp)
+                    else -> {
+                        append(tagName)
+                        append(disp)
+                    }
                 }
-                // 显示名限 12 字（用户 09-08 定 6 字，09-09 放宽：名字自带「 ·」装饰点时
-                // 6 字额度被点号吃掉，正文只剩 4 个字看不出是谁）
-                if (hasPrev) append("，")
-                append(tag.displayName.let { if (it.length > 12) it.take(12) + "…" else it })
                 if (paramsInfo.isNotEmpty()) append("，").append(paramsInfo)
             }
             "<font color=\"" + VOICE_META_COLOR + "\">" + meta + "</font>"
@@ -826,13 +831,19 @@ class SystemTtsService : TextToSpeechService(), IEventDispatcher {
                         // 请求行与正常请求无异、看不出是兜底。可靠判定：括号4 本职是『』括号发音人，
                         // 正常请求文本必含『』；非『』文本投给括号4 = 降级兜底（分析失败直投或
                         // 中性兜底 09-13 起同投括号4）。性别兜底走重试切备用链路，已有
-                        // 「使用备用TTS」提示，不在此列。W 级子行挂在请求行下，不写持久化文件
+                        // 「使用备用TTS」提示，不在此列。W 级子行挂在请求行下，不写持久化文件。
+                        // 原因说明（用户 09-14 定「继承日志」）：不反查接口/密钥，直接取最近一条
+                        // W/E 主行（朗读规则 console 报错优先——分析失败时它已在上方说明原因）
                         if (e.request.config.speechInfo.tag == "括号4"
                             && !e.request.text.contains('『')
                         ) {
+                            val reason = SysttsLogger.lastWarnReason()
                             logChild(
                                 LogLevel.WARN,
-                                getString(R.string.systts_log_fallback_suspect)
+                                if (reason != null)
+                                    getString(R.string.systts_log_fallback_inherit, reason)
+                                else
+                                    getString(R.string.systts_log_fallback_suspect)
                             )
                         }
                     } finally {

@@ -210,8 +210,10 @@ fun RoleListScreen(
         }
         Surface(
             shape = RoundedCornerShape(12.dp),
-            color = MaterialTheme.colorScheme.secondaryContainer,
-            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+            // 方案C（用户 09-14 定）：中性灰底无描边——原 secondaryContainer 彩色卡片
+            // 与下方描边搜索框、素列表三种视觉语言不整体；换 surfaceContainer 中性灰
+            // 并去掉描边后与列表同色系（页面内最后一处大面积彩色填充也随之消除）
+            color = MaterialTheme.colorScheme.surfaceContainer,
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(horizontal = 8.dp, vertical = 4.dp)
@@ -284,16 +286,16 @@ fun RoleListScreen(
                         fontWeight = FontWeight.SemiBold,
                         maxLines = 2,
                         overflow = TextOverflow.Ellipsis,
-                        color = MaterialTheme.colorScheme.onSecondaryContainer,
+                        color = MaterialTheme.colorScheme.onSurface,
                         modifier = Modifier.weight(1f),
                     )
                     TextButton(onClick = { bookEditName = currentBook; editingBook = true }) {
-                        Text("✎", color = MaterialTheme.colorScheme.onSecondaryContainer)
+                        Text("✎", color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                     TextButton(onClick = { showBookDialog = true }) {
                         Text(
                             "▾ ${stringResource(R.string.role_book_manage)}",
-                            color = MaterialTheme.colorScheme.onSecondaryContainer
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
                 }
@@ -693,12 +695,13 @@ private fun MenuActionRow(text: String, dotColor: Color, onClick: () -> Unit) {
 /**
  * 发音人标签文本（照插件 generateVoiceTag 口径）：tag 前缀 + 显示名连写
  * （目目定稿「男主1晓伊」式）；显示名以 tag 开头时不重复拼（防"男主1男主1"）；
- * 显示名超 12 字截断加省略号；查不到配置返回 null（RoleRow 回落 tag + ⚠）。
+ * 显示名限 20 字（用户 09-14：12 字太少，与日志行两处同改）截断加省略号；
+ * 查不到配置返回 null（RoleRow 回落 tag + ⚠）。
  */
 private fun voiceTagText(tag: String, nameMap: Map<String, String>): String? {
     val disp = nameMap[tag] ?: return null
     val prefix = if (disp.startsWith(tag)) "" else tag
-    val shown = if (disp.length > 12) disp.take(12) + "…" else disp
+    val shown = if (disp.length > 20) disp.take(20) + "…" else disp
     return prefix + shown
 }
 
@@ -790,7 +793,7 @@ private fun RoleRow(
                             overflow = TextOverflow.Ellipsis,
                             modifier = Modifier
                                 .padding(horizontal = 10.dp, vertical = 5.dp)
-                                .widthIn(max = 180.dp)
+                                .widthIn(max = 220.dp)
                         )
                     }
                     val litEmoji = VoiceMarksFile.emojiOf(marks)
