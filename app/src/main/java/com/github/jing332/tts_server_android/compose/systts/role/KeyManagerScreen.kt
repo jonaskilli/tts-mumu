@@ -72,7 +72,9 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
@@ -844,8 +846,11 @@ private fun KeyEditDialog(
     onDelete: (() -> Unit)? = null,
     onConfirm: (String, String, Boolean) -> Unit,
 ) {
-    var name by remember { mutableStateOf(initial?.name.orEmpty()) }
-    var value by remember { mutableStateOf(initial?.value.orEmpty()) }
+    // 光标默认落在末尾（照插件 v10 密钥详情：setText 后 setSelection(len)，1486/1507）
+    val initName = initial?.name.orEmpty()
+    val initValue = initial?.value.orEmpty()
+    var name by remember { mutableStateOf(TextFieldValue(initName, TextRange(initName.length))) }
+    var value by remember { mutableStateOf(TextFieldValue(initValue, TextRange(initValue.length))) }
     val context = LocalContext.current
     val clipboard = LocalClipboardManager.current
     AlertDialog(
@@ -894,9 +899,9 @@ private fun KeyEditDialog(
             Row {
                 // 照插件密钥详情弹窗的「复制」键：把当前密钥内容一键送剪贴板
                 TextButton(
-                    enabled = value.isNotBlank(),
+                    enabled = value.text.isNotBlank(),
                     onClick = {
-                        clipboard.setText(AnnotatedString(value.trim()))
+                        clipboard.setText(AnnotatedString(value.text.trim()))
                         android.widget.Toast.makeText(
                             context, context.getString(R.string.copied),
                             android.widget.Toast.LENGTH_SHORT
@@ -904,15 +909,15 @@ private fun KeyEditDialog(
                     }
                 ) { Text(stringResource(R.string.copy)) }
                 TextButton(
-                    enabled = value.isNotBlank(),
+                    enabled = value.text.isNotBlank(),
                     onClick = {
-                        val finalName = name.trim().ifEmpty {
+                        val finalName = name.text.trim().ifEmpty {
                             // 留空自动生成（照插件 defaultName=模型或 key01）
-                            KeyListFile.parseKeyValue(value.trim())?.let { p ->
+                            KeyListFile.parseKeyValue(value.text.trim())?.let { p ->
                                 if (!p.isDirect && p.model.isNotEmpty()) p.model else "key" + (existingNames.size + 1)
                             } ?: "key" + (existingNames.size + 1)
                         }
-                        onConfirm(finalName, value.trim(), finalName in existingNames && finalName != initial?.name)
+                        onConfirm(finalName, value.text.trim(), finalName in existingNames && finalName != initial?.name)
                     }
                 ) { Text(stringResource(R.string.confirm)) }
             }

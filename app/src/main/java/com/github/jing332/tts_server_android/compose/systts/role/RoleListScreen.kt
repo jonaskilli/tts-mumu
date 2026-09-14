@@ -56,8 +56,10 @@ import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -210,14 +212,14 @@ fun RoleListScreen(
         // ===== 书籍栏（照插件：圆角卡片 = 📖 + 书名 + ✎ 行内改名 + ▾ 管理；
         //      整条卡片点击即展开书籍列表弹窗（插件 showBookSwitchDialog 同入口：书名框与箭头共用））=====
         var editingBook by remember { mutableStateOf(false) }
-        var bookEditName by remember { mutableStateOf("") }
+        var bookEditName by remember { mutableStateOf(TextFieldValue("")) }
         // 书名编辑收尾（照插件 v10 endBookEdit 口径，所有退出路径共用）：
         // 空名回滚原书名、与原书名相同直接退出、真改了才写文件
         fun endBookEdit(save: Boolean) {
             if (!editingBook) return
-            val target = bookEditName.trim()
+            val target = bookEditName.text.trim()
             editingBook = false
-            bookEditName = currentBook
+            bookEditName = TextFieldValue(currentBook, TextRange(currentBook.length))
             if (!save || target.isEmpty() || target == currentBook) return
             scope.launch {
                 val ok = withIO { CharacterRecordsFile.renameCurrentBook(tagRuleId, target) }
@@ -278,7 +280,7 @@ fun RoleListScreen(
                                 .focusRequester(bookFocus),
                             decorationBox = { inner ->
                                 Box(contentAlignment = Alignment.CenterStart) {
-                                    if (bookEditName.isBlank()) Text(
+                                    if (bookEditName.text.isBlank()) Text(
                                         stringResource(R.string.role_book_name),
                                         style = MaterialTheme.typography.bodyMedium,
                                         color = MaterialTheme.colorScheme.onSurfaceVariant
@@ -310,7 +312,10 @@ fun RoleListScreen(
                         color = MaterialTheme.colorScheme.onSurface,
                         modifier = Modifier.weight(1f),
                     )
-                    TextButton(onClick = { bookEditName = currentBook; editingBook = true }) {
+                    TextButton(onClick = {
+                        bookEditName = TextFieldValue(currentBook, TextRange(currentBook.length))
+                        editingBook = true
+                    }) {
                         Text("✎", color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                     TextButton(onClick = { showBookDialog = true }) {
@@ -936,7 +941,12 @@ private fun EditNamesDialog(
     onDismiss: () -> Unit,
     onConfirm: (List<String>) -> Unit,
 ) {
-    val names = remember { mutableStateOf(initialNames.toMutableList()) }
+    // 光标默认落在末尾（照插件 v10 showEditCharacterDialog：setText 后 setSelection(len) 8249）
+    val names = remember {
+        mutableStateOf(
+            initialNames.map { TextFieldValue(it, TextRange(it.length)) }.toMutableList()
+        )
+    }
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text(stringResource(R.string.role_list_menu_rename)) },
@@ -969,12 +979,12 @@ private fun EditNamesDialog(
                     }
                 }
                 TextButton(onClick = {
-                    names.value = (names.value + "").toMutableList()
+                    names.value = (names.value + TextFieldValue("")).toMutableList()
                 }) { Text(stringResource(R.string.role_edit_names_add)) }
             }
         },
         confirmButton = {
-            val cleaned = names.value.map { it.trim() }.filter { it.isNotEmpty() }
+            val cleaned = names.value.map { it.text.trim() }.filter { it.isNotEmpty() }
             TextButton(
                 enabled = cleaned.isNotEmpty(),
                 onClick = { onConfirm(cleaned) }
