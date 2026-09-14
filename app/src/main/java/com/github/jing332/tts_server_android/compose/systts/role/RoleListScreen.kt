@@ -173,11 +173,9 @@ fun RoleListScreen(
     var editFor by remember { mutableStateOf<CharacterRecordsFile.RoleRecord?>(null) }
     var releaseFor by remember { mutableStateOf<CharacterRecordsFile.RoleRecord?>(null) }
     var keywordPickFor by remember { mutableStateOf<Pair<String, String>?>(null) } // (ownerName, releaseName) 释放并固定选关键词
-    // 添加角色（目目 09-14 改版）：两步=输名字 → 绑定类换声弹窗选发音人（替换原「选关键词」步，
-    // 关键词意向做 voice 的旧口径废除——建记录直接写 tag id，与换声同链路）
-    var addingName by remember { mutableStateOf(false) }
-    var addVoiceFor by remember { mutableStateOf<String?>(null) }
-    var addCharName by remember { mutableStateOf("") }
+    // 添加角色（目目 09-14 终版）：直接开绑定类换声弹窗，顶部内嵌角色名填写框，
+    // 选好发音人确认即建记录（voice=tag id）——独立名字弹窗/选关键词旧流程均废
+    var addingChar by remember { mutableStateOf(false) }
     var mergeFollowFor by remember { mutableStateOf<List<String>?>(null) } // 标记的角色名列表，选目标
     var mergeVoiceTarget by remember { mutableStateOf<String?>(null) } // 合并+选择发音人：目标角色
     var pickerFor by remember { mutableStateOf<CharacterRecordsFile.RoleRecord?>(null) } // 换声（标签框点击）
@@ -417,10 +415,7 @@ fun RoleListScreen(
                     color = Color(0xFF9E9E9E),
                     modifier = Modifier
                         .fillMaxWidth()
-                        .clickable {
-                            addCharName = ""
-                            addingName = true // 第一步：输名字
-                        }
+                        .clickable { addingChar = true }
                         .padding(horizontal = 8.dp, vertical = 6.dp),
                     textAlign = androidx.compose.ui.text.style.TextAlign.Center,
                 )
@@ -618,48 +613,20 @@ fun RoleListScreen(
         )
     }
 
-    // ===== 添加角色·第一步（输名字；确定后进第二步选发音人）=====
-    if (addingName) {
-        AlertDialog(
-            onDismissRequest = { addingName = false },
-            title = { Text(stringResource(R.string.role_add_char_title)) },
-            text = {
-                OutlinedTextField(
-                    value = addCharName,
-                    onValueChange = { addCharName = it },
-                    label = { Text(stringResource(R.string.role_add_char_input)) },
-                    singleLine = true,
-                    textStyle = MaterialTheme.typography.bodyMedium,
-                )
-            },
-            confirmButton = {
-                TextButton(
-                    enabled = addCharName.trim().isNotEmpty(),
-                    onClick = {
-                        addingName = false
-                        addVoiceFor = addCharName.trim() // 第二步：绑定类换声弹窗
-                    }
-                ) { Text(stringResource(R.string.confirm)) }
-            },
-            dismissButton = {
-                TextButton(onClick = { addingName = false }) { Text(stringResource(R.string.cancel)) }
-            }
-        )
-    }
-    // ===== 添加角色·第二步（绑定类换声弹窗选发音人，确认即建记录写 tag id）=====
-    addVoiceFor?.let { newName ->
-        // 锚点只需有效（参数/显示基准）：优先取现有角色的绑定标签，无记录回落池子首个；
-        // 候选列表本身=池子∩启用标签，与锚点无关
+    // ===== 添加角色（目目 09-14 终版）：直接开绑定类换声弹窗，角色名在弹窗顶部填写，
+    // 选好发音人确认即建记录（voice=tag id）——锚点只需有效（参数/显示基准）：
+    // 优先取现有角色的绑定标签，无记录回落池子首个；候选列表=池子∩启用标签，与锚点无关 =====
+    if (addingChar) {
         val anchorTag = records.firstOrNull { it.voice.isNotBlank() }?.voice
             ?: CharacterRecordsFile.readVoicePool(tagRuleId).firstOrNull().orEmpty()
         VoicePickerDialog(
             anchorConfigId = null,
             anchorTag = anchorTag,
-            bindingKey = newName,
-            titleBadge = newName,
+            bindingKey = "",
+            titleBadge = "",
             createIfMissing = true,
             onChanged = { _, _ -> reload() },
-            onDismissRequest = { addVoiceFor = null },
+            onDismissRequest = { addingChar = false },
         )
     }
 

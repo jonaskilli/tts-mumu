@@ -121,9 +121,11 @@ import kotlinx.coroutines.launch
  * @param anchorTag      无具体配置项时按 tag 解析锚点（插件桥传角色当前绑定 tag）；也为非绑定候选归组键
  * @param bindingKey     绑定键：多角色日志=角色名、「本地音效N」槽位=槽位名；空=非绑定模式
  * @param isLocalSoundSlot 本地音效槽位：候选枚举同族 localSoundN（不读池子）、隐藏分类下拉/搜索
- * @param createIfMissing 添加角色链路（目目 09-14 定）：绑定的角色记录不存在时确认键改为**新建记录**
- *                       并直接写入所选 tag id；建完自动关弹窗（换声链路则保持开着）。锚点仍需有效
- *                       （调用方保证），仅影响落库分支与 boundVoice 回落
+ * @param createIfMissing 添加角色模式（目目 09-14 终版）：不弹独立名字窗，直接开本弹窗——
+ *                       顶部多一行角色名填写框（描边=可输入），无「当前发音人/终值」顶部块
+ *                       （新角色无当前绑定，候选行自带试听），标题随输入实时显「角色卡（名字）」；
+ *                       确认键=建记录并写入所选 tag id，成功后自动关弹窗。锚点仍需有效
+ *                       （调用方保证），bindingKey/titleBadge 传空即可
  * @param titleBadge     角色名（目目 09-13：非空=标题显示「角色卡（名字）」）；空=标题显示「信息卡」
  *                       ——调用方自传标题已废除（曾出现「发音人调整/更换发音人」两套乱名）
  * @param sharedVM       主界面共享状态（日志面板专用：换声后主列表定位高亮、标记版本联动）；null=跳过
@@ -193,7 +195,8 @@ fun VoicePickerDialog(
     val displayCategory = extractTagCategory(
         ruleTags?.get(config.speechRule.tag) ?: config.speechRule.tagName
     )
-    val isBindingMode = bindingKey.isNotBlank()
+    // 添加角色模式也走绑定候选链路（分类下拉+池子∩启用候选），只是落库分支不同
+    val isBindingMode = bindingKey.isNotBlank() || createIfMissing
 
     // ===== 行内试听状态（参照角色管理v9/v10试听状态机：▶ →(点击)… →(真正出声)■ →(播完复位)▶）=====
     // 播放器全局单实例（同一时刻只有一个试听），previewingKey 记当前行（顶部=current，绑定=tag，旁白=voice）
@@ -231,6 +234,9 @@ fun VoicePickerDialog(
     // 换声两段式（用户 09-08）：点候选行=暂存选中（不落库），底部「确认」键才生效——
     // 即点即改的 Toast 反馈太弱且易误触；未确认选择在关闭面板时自然丢弃
     var pendingVoice by remember(entity.id) { mutableStateOf<String?>(null) }
+    // 添加角色模式：角色名在弹窗内填写（目目 09-14 终版：不弹独立名字窗），
+    // 标题实时跟随；确认时非空才可点
+    var inputName by remember(entity.id) { mutableStateOf("") }
 
     // 绑定模式当前绑定（提升到分支外：底部确认行生效后要更新它）
     // 绑定值=标签 id（fayinren.json/characterRecords 里存的都是 tag id，JS 侧 tags[voiceTag]=显示名仅用于回显）；
@@ -587,8 +593,14 @@ fun VoicePickerDialog(
                             // 角色卡形态（目目 09-13 终版，三易其稿：标题右侧→小字行→标题本身）：
                             // 带角色名时标题显示「角色卡（角色名）」——「角色卡」明说身份，名字绿色加粗
                             // 与「最终」行呼应；无角色名（旁白/本地音效槽位等）统一叫「信息卡」，与角色卡成对。
-                            // 调用方自传标题已废除；超长省略号截断，标题槽单行不被挤
-                            if (titleBadge.isNotBlank()) {
+                            // 调用方自传标题已废除；超长省略号截断，标题槽单行不被挤。
+                            // 添加角色模式：名字来自弹窗内填写框实时跟随，未输入时显示「添加角色」
+                            val titleBadgeLive = when {
+                                titleBadge.isNotBlank() -> titleBadge
+                                createIfMissing && inputName.isNotBlank() -> inputName.trim()
+                                else -> ""
+                            }
+                            if (titleBadgeLive.isNotBlank()) {
                                 // 模板走 R.string（三处同写），名字段做主色加粗 span
                                 val tpl = stringResource(R.string.voice_picker_role_card)
                                 val open = tpl.substringBefore("%1\$s")
@@ -602,13 +614,15 @@ fun VoicePickerDialog(
                                                 color = MaterialTheme.colorScheme.primary,
                                             )
                                         ) {
-                                            append(titleBadge)
+                                            append(titleBadgeLive)
                                         }
                                         append(close)
                                     },
                                     maxLines = 1,
                                     overflow = TextOverflow.Ellipsis,
                                 )
+                            } else if (createIfMissing) {
+                                Text(stringResource(R.string.role_add_char_title))
                             } else {
                                 Text(stringResource(R.string.voice_picker_info_card))
                             }
@@ -641,6 +655,18 @@ fun VoicePickerDialog(
                     // 内容整体可滚：候选列表自带内滚，内层优先消费手势，到边缘后外层接管，不冲突
                     .verticalScroll(rememberScrollState())
             ) {
+            // 添加角色模式：顶部第一行=角色名填写框（描边=可输入，与搜索框同语汇）
+            if (createIfMissing) {
+                OutlinedTextField(
+                    value = inputName,
+                    onValueChange = { inputName = it },
+                    label = { Text(stringResource(R.string.role_add_char_input)) },
+                    singleLine = true,
+                    textStyle = MaterialTheme.typography.bodyMedium,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            }
+
             // ===== 顶部块（用户 09-09 重排）：当前发音人 + 试听 + 终值 =====
             // 发音人名跟随暂存选择（09-10 参数跟随）：暂存了候选就先显示候选对应的配置项名
             val boundConfigName = remember(entity.id, boundVoice, pendingVoice) {
@@ -663,6 +689,7 @@ fun VoicePickerDialog(
             }
             // 09-11 重排（用户拍板）：「当前发音人」小标签独占一行，▶ 键与发音人名同一行
             //（此前 ▶ 垂直居中在两行文字块上，与名字行错位）；名字加省略号防长名硬裁
+            if (!createIfMissing) {
             Column(Modifier.fillMaxWidth()) {
                 Text(
                     // 标题已改叫「角色卡（角色名）」（目目 09-13 终版），本行回归纯「当前发音人」
@@ -740,6 +767,7 @@ fun VoicePickerDialog(
                 // 上下各 2dp（用户 09-11：顶部三行是紧密信息，行距收小，与音频参数弹窗同步）
                 modifier = Modifier.padding(top = 2.dp, bottom = 2.dp),
             )
+            } // if (!createIfMissing) 顶部块收尾
 
             // 分段两区（用户 09-11 下午「完全 MD3 版」终裁：官方 SegmentedButton 全 app 统一）：
             // 0=更换发音人 1=音频参数；当前发音人+终值两区共用，固定在分段之上。
@@ -1164,10 +1192,35 @@ fun VoicePickerDialog(
                 ) {
                     TextButton(onClick = onDismissRequest) { Text(stringResource(R.string.cancel)) }
                     TextButton(
-                        enabled = pendingVoice != null,
+                        enabled = pendingVoice != null &&
+                            (!createIfMissing || inputName.isNotBlank()),
                         onClick = {
                             val selected = pendingVoice ?: return@TextButton
-                            if (isBindingMode) {
+                            when {
+                                // 添加角色模式：建记录（voice=tag id），成功后自动关弹窗；
+                                // 同名已存在 addCharacter 返回 false（确认键已拦空名）
+                                createIfMissing -> {
+                                    val n = inputName.trim()
+                                    scope.launch {
+                                        val ok = withIO {
+                                            CharacterRecordsFile.addCharacter(
+                                                config.speechRule.tagRuleId, n, selected,
+                                            )
+                                        }
+                                        if (ok) {
+                                            onChanged?.invoke("applied", selected)
+                                            onDismissRequest()
+                                        }
+                                        pendingVoice = null
+                                        Toast.makeText(
+                                            context,
+                                            if (ok) "已添加角色「$n」（$selected）"
+                                            else "添加失败：同名角色可能已存在",
+                                            Toast.LENGTH_SHORT,
+                                        ).show()
+                                    }
+                                }
+                                isBindingMode -> {
                                 // 绑定模式：改写 characterRecords.json（与角色管理同文件同字段）；
                                 // groupBindingKeys 非空=整组换声（内置角色列表组头入口，逐个 rebind 组内角色）
                                 if (selected == boundVoice) {
@@ -1177,40 +1230,24 @@ fun VoicePickerDialog(
                                 val targets = if (groupBindingKeys.isNotEmpty()) groupBindingKeys else listOf(bindingKey)
                                 scope.launch {
                                     var okCount = 0
-                                    var createdCount = 0
                                     withIO {
                                         targets.forEach { name ->
-                                            // 常规=rebind 改已有记录；createIfMissing 且记录不存在
-                                            // （rebind changed==0 返回 false）→ addCharacter 新建并写 tag id
-                                            val existed = CharacterRecordsFile.readCharacterVoice(
-                                                config.speechRule.tagRuleId, name,
-                                            ) != null
                                             if (CharacterRecordsFile.rebind(
                                                     config.speechRule.tagRuleId, name, selected,
-                                                ) || (createIfMissing && CharacterRecordsFile.addCharacter(
-                                                    config.speechRule.tagRuleId, name, selected,
-                                                ))
-                                            ) {
-                                                okCount++
-                                                if (!existed) createdCount++
-                                            }
+                                                )
+                                            ) okCount++
                                         }
                                     }
                                     val ok = okCount > 0
                                     if (ok) {
                                         boundVoice = selected
                                         onChanged?.invoke("applied", selected)
-                                        // 添加角色链路：建记录即完成使命，自动关弹窗（换声链路保持开着）
-                                        if (createdCount > 0) onDismissRequest()
                                     }
                                     pendingVoice = null
                                     Toast.makeText(
                                         context,
                                         when {
                                             !ok -> context.getString(R.string.log_panel_rebind_failed)
-                                            createdCount > 0 -> "已添加角色「$bindingKey」（${
-                                                if (isLocalSoundSlot) localSoundSlotLabel(selected) else selected
-                                            }）"
                                             targets.size > 1 -> "已将 ${okCount}/${targets.size} 个角色换为 " +
                                                 (if (isLocalSoundSlot) localSoundSlotLabel(selected) else selected)
                                             else -> "已将「$bindingKey」的发音人换为 " +
@@ -1219,10 +1256,12 @@ fun VoicePickerDialog(
                                         Toast.LENGTH_SHORT,
                                     ).show()
                                 }
-                            } else {
-                                // 旁白/其他：写配置项 voice
-                                applyVoice(selected)
-                                pendingVoice = null
+                                }
+                                else -> {
+                                    // 旁白/其他：写配置项 voice
+                                    applyVoice(selected)
+                                    pendingVoice = null
+                                }
                             }
                         },
                     ) {
