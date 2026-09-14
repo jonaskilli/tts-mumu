@@ -467,16 +467,20 @@ object CharacterRecordsFile {
         }
     }
 
-    /** 手动添加角色（照插件添加角色 handler）：关键词意向做 voice，性别年龄未知 */
-    fun addCharacter(tagRuleId: String, name: String, voiceKeyword: String): Boolean {
+    /**
+     * 新建角色记录。voice 传什么存什么：
+     * - 添加角色绑定链路（目目 09-14 定）传**标签 id**，与换声/rebind 同口径；
+     * - 旧插件关键词意向（releaseAndFix 等）传关键词。
+     * 同名记录已存在返回 false。 */
+    fun addCharacter(tagRuleId: String, name: String, voice: String): Boolean {
         val n = name.trim()
-        if (n.isEmpty() || voiceKeyword.isBlank()) return false
+        if (n.isEmpty() || voice.isBlank()) return false
         val records = readRecords(tagRuleId)
         if (records.any { norm(it.name) == norm(n) }) return false
         val fresh = JSONObject()
         fresh.put("name", n)
         fresh.put("aliases", "")
-        fresh.put("voice", voiceKeyword.trim())
+        fresh.put("voice", voice.trim())
         fresh.put("usageCount", 100)
         fresh.put("gender", "未知")
         fresh.put("age", "未知")

@@ -121,6 +121,9 @@ import kotlinx.coroutines.launch
  * @param anchorTag      无具体配置项时按 tag 解析锚点（插件桥传角色当前绑定 tag）；也为非绑定候选归组键
  * @param bindingKey     绑定键：多角色日志=角色名、「本地音效N」槽位=槽位名；空=非绑定模式
  * @param isLocalSoundSlot 本地音效槽位：候选枚举同族 localSoundN（不读池子）、隐藏分类下拉/搜索
+ * @param createIfMissing 添加角色链路（目目 09-14 定）：绑定的角色记录不存在时确认键改为**新建记录**
+ *                       并直接写入所选 tag id；建完自动关弹窗（换声链路则保持开着）。锚点仍需有效
+ *                       （调用方保证），仅影响落库分支与 boundVoice 回落
  * @param titleBadge     角色名（目目 09-13：非空=标题显示「角色卡（名字）」）；空=标题显示「信息卡」
  *                       ——调用方自传标题已废除（曾出现「发音人调整/更换发音人」两套乱名）
  * @param sharedVM       主界面共享状态（日志面板专用：换声后主列表定位高亮、标记版本联动）；null=跳过
@@ -142,6 +145,7 @@ fun VoicePickerDialog(
     titleBadge: String = "",
     isLocalSoundSlot: Boolean = false,
     groupBindingKeys: List<String> = emptyList(),
+    createIfMissing: Boolean = false,
     sharedVM: SharedViewModel? = null,
     onChanged: ((event: String, tag: String) -> Unit)? = null,
     onDismissRequest: () -> Unit,
@@ -233,9 +237,12 @@ fun VoicePickerDialog(
     // 无绑定记录时回落本配置项自己的 tag
     var boundVoice by remember(entity.id) {
         mutableStateOf(
+            // createIfMissing（添加角色链路）：新角色无记录也无「当前绑定」，回落空串——
+            // 这样任何候选都 ≠ boundVoice，确认键才能走到建记录分支（否则选锚点自身的
+            // 标签会被「与当前绑定相同」守卫吞掉，新角色永远建不出来）
             CharacterRecordsFile.readCharacterVoice(
                 config.speechRule.tagRuleId, bindingKey
-            ) ?: config.speechRule.tag
+            ) ?: if (createIfMissing) "" else config.speechRule.tag
         )
     }
 
@@ -1170,24 +1177,40 @@ fun VoicePickerDialog(
                                 val targets = if (groupBindingKeys.isNotEmpty()) groupBindingKeys else listOf(bindingKey)
                                 scope.launch {
                                     var okCount = 0
+                                    var createdCount = 0
                                     withIO {
                                         targets.forEach { name ->
+                                            // 常规=rebind 改已有记录；createIfMissing 且记录不存在
+                                            // （rebind changed==0 返回 false）→ addCharacter 新建并写 tag id
+                                            val existed = CharacterRecordsFile.readCharacterVoice(
+                                                config.speechRule.tagRuleId, name,
+                                            ) != null
                                             if (CharacterRecordsFile.rebind(
                                                     config.speechRule.tagRuleId, name, selected,
-                                                )
-                                            ) okCount++
+                                                ) || (createIfMissing && CharacterRecordsFile.addCharacter(
+                                                    config.speechRule.tagRuleId, name, selected,
+                                                ))
+                                            ) {
+                                                okCount++
+                                                if (!existed) createdCount++
+                                            }
                                         }
                                     }
                                     val ok = okCount > 0
                                     if (ok) {
                                         boundVoice = selected
                                         onChanged?.invoke("applied", selected)
+                                        // 添加角色链路：建记录即完成使命，自动关弹窗（换声链路保持开着）
+                                        if (createdCount > 0) onDismissRequest()
                                     }
                                     pendingVoice = null
                                     Toast.makeText(
                                         context,
                                         when {
                                             !ok -> context.getString(R.string.log_panel_rebind_failed)
+                                            createdCount > 0 -> "已添加角色「$bindingKey」（${
+                                                if (isLocalSoundSlot) localSoundSlotLabel(selected) else selected
+                                            }）"
                                             targets.size > 1 -> "已将 ${okCount}/${targets.size} 个角色换为 " +
                                                 (if (isLocalSoundSlot) localSoundSlotLabel(selected) else selected)
                                             else -> "已将「$bindingKey」的发音人换为 " +
