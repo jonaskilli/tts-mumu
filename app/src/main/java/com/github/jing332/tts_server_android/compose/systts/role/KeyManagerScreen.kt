@@ -191,8 +191,10 @@ private fun FlatIconAction(
  * 密钥条目行（目目 09-15 卡片改版）：行内无框，边界由所属卡片承担；
  * 行首 **状态点**取代原「按序号取色」的装饰圆点（那是纯噪音，同接口下每条颜色都不同）：
  *   当前 = 主题强调色实心 / 测通 = 绿实心 / 测不通 = 红实心 / 未测 = 空心圆环。
- * 名字放不下就**换行**（原为单行省略号，`nex-agi/nex-n2.5-mini` 这类长模型名直接被截）；
- * 行尾四个扁平灰图标（📋 复制 / ⚡ 测试 / ✏️ 编辑 / 🗑 删除），热区 36dp。
+ * 两行布局：
+ *   行1 = 显示名 + 「当前」徽章（点这一行 = 切为当前）；
+ *   行2 = 动作图标**居右**排：✏️ 编辑 / ⚡ 测试 / 📋 复制 / 🗑 删除，扁平灰、热区 36dp。
+ * 名字放不下就**换行**（原为单行省略号，`nex-agi/nex-n2.5-mini` 这类长模型名直接被截）。
  */
 @Composable
 private fun KeyEntryRow(
@@ -214,13 +216,16 @@ private fun KeyEntryRow(
         // 卡片内边距 10dp + 状态点 14dp + 间距 8dp ⇒ 名字左缘 32dp，
         // 与组名左缘（组头起 6 + 箭头 22 + 间距 6 = 34dp）基本对齐 → 从属关系一眼可见
         Modifier.fillMaxWidth().padding(start = 10.dp, end = 6.dp, top = 8.dp, bottom = 8.dp),
-        verticalAlignment = Alignment.CenterVertically
+        // 普通态是两行 ⇒ 必须用 Top 让状态点咬住**第一行**文字（用 CenterVertically 会掉到两行中间）；
+        // 删除多选态只剩一行，保持原来的居中
+        verticalAlignment = if (deleteMode) Alignment.CenterVertically else Alignment.Top
     ) {
         if (deleteMode) {
             Checkbox(checked = checked, onCheckedChange = { onToggleCheck() })
         }
-        // 状态点固定 14dp 位宽：名字左缘始终对齐
-        Box(Modifier.width(14.dp), contentAlignment = Alignment.CenterStart) {
+        // 状态点固定 14dp 位宽：名字左缘始终对齐；高度咬第一行（bodyLarge 行高 24sp），
+        // 这样两行态下它仍与模型名同一条水平线
+        Box(Modifier.width(14.dp).height(24.dp), contentAlignment = Alignment.CenterStart) {
             val dot = when {
                 isCurrent -> accent
                 testOk == true -> Color(0xFF2E7D32)
@@ -235,46 +240,51 @@ private fun KeyEntryRow(
             }
         }
         Spacer(Modifier.width(8.dp))
-        // 单行（目目 09-15：「模型下方不要带完整密钥了」）：
-        //   状态点 + 显示名 + 「当前」徽章 ／ 右侧 📋复制 ⚡测试 ✏️编辑 🗑删除
+        // 两行（目目 09-15）：
+        //   行1 = 显示名 + 「当前」徽章（点这行 = 切为当前），完整 @@ 串已不上列表；
+        //   行2 = 动作图标居右：✏️编辑 ⚡测试 📋复制 🗑删除。
         // 显示名取**值里的真实模型名**：条目名可能带 `@组名` 去重后缀（跨组同模型共存用），
-        // 那是内部标识、不该给人看。完整 @@ 串只在编辑弹窗里看，或用行尾 📋 一键取走。
-        Row(
-            Modifier.weight(1f).clickable { onSwitch() },
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Text(
-                KeyListFile.displayName(entry),
-                style = MaterialTheme.typography.bodyLarge,
-                fontWeight = if (isCurrent) FontWeight.SemiBold else null,
-                color = if (isCurrent) accent else MaterialTheme.colorScheme.onSurface,
-                maxLines = 2,
-                overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.weight(1f, fill = false)
-            )
-            if (isCurrent) {
-                Spacer(Modifier.width(6.dp))
-                Surface(shape = RoundedCornerShape(8.dp), color = accent.copy(alpha = 0.14f)) {
-                    Text(
-                        stringResource(R.string.role_key_current_badge),
-                        style = MaterialTheme.typography.labelSmall,
-                        color = accent,
-                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 1.dp)
-                    )
+        // 那是内部标识、不该给人看。
+        Column(Modifier.weight(1f)) {
+            Row(
+                Modifier.fillMaxWidth().clickable { onSwitch() },
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    KeyListFile.displayName(entry),
+                    style = MaterialTheme.typography.bodyLarge,
+                    fontWeight = if (isCurrent) FontWeight.SemiBold else null,
+                    color = if (isCurrent) accent else MaterialTheme.colorScheme.onSurface,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f, fill = false)
+                )
+                if (isCurrent) {
+                    Spacer(Modifier.width(6.dp))
+                    Surface(shape = RoundedCornerShape(8.dp), color = accent.copy(alpha = 0.14f)) {
+                        Text(
+                            stringResource(R.string.role_key_current_badge),
+                            style = MaterialTheme.typography.labelSmall,
+                            color = accent,
+                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 1.dp)
+                        )
+                    }
+                }
+                if (testing) {
+                    Spacer(Modifier.width(6.dp))
+                    CircularProgressIndicator(Modifier.size(16.dp), strokeWidth = 2.dp)
                 }
             }
-            if (testing) {
-                Spacer(Modifier.width(6.dp))
-                CircularProgressIndicator(Modifier.size(16.dp), strokeWidth = 2.dp)
+            if (!deleteMode) {
+                // 动作行**居右**（目目 09-15：编辑 / 测试 / 复制 / 删除）
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+                    FlatIconAction(Icons.Default.Edit, stringResource(R.string.role_key_edit)) { onEdit() }
+                    FlatIconAction(Icons.Default.Bolt, stringResource(R.string.role_key_test)) { onTest() }
+                    // 📋 复制的是**模型名**（编辑弹窗里的「复制」才复制完整密钥串，两处不一样）
+                    FlatIconAction(Icons.Default.ContentCopy, stringResource(R.string.copy)) { onCopy() }
+                    FlatIconAction(Icons.Default.DeleteOutline, stringResource(R.string.delete)) { onDelete() }
+                }
             }
-        }
-        if (!deleteMode) {
-            // 📋 复制放列表行右侧（目目 09-15：「模型我也想加个复制功能，还是放列表右侧比较好」）：
-            // 一键把该条的完整 @@ 串（网址@@模型@@密钥）送剪贴板，照插件密钥详情页「复制」的值口径。
-            FlatIconAction(Icons.Default.ContentCopy, stringResource(R.string.copy)) { onCopy() }
-            FlatIconAction(Icons.Default.Bolt, stringResource(R.string.role_key_test)) { onTest() }
-            FlatIconAction(Icons.Default.Edit, stringResource(R.string.role_key_edit)) { onEdit() }
-            FlatIconAction(Icons.Default.DeleteOutline, stringResource(R.string.delete)) { onDelete() }
         }
     }
 }
