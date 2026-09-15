@@ -293,6 +293,32 @@ object KeyListFile {
     }
 
     /**
+     * 手动往分组里加一个模型（目目 09-15）：**直接落库** —— 建一条密钥条目 + 登记进 `iface.models`。
+     *
+     * ⚠️ 与拉取弹窗里那个「手动添加模型」**不是一回事**：那个只是把名字塞进候选列表（还要再点一次
+     * 「添加选中 N」才落库，为的是不破坏「选完一批再确认」的语义）；这个在分组编辑里点确定就算数。
+     * 用途：接口的 `/models` 拉不出来（不支持 / 挂了 / 要特殊权限），但你知道模型名叫什么。
+     *
+     * 返回 (是否新增成功, 失败原因)：`exist` = 组内已有同（站点 + 密钥 + 模型），与拉取侧的
+     * 「已在组内」同口径，不重复加；`empty` / `save` 分别是空名与落盘失败。
+     */
+    fun addManualModel(tagRuleId: String, ifc: ApiInterface, model: String): Pair<Boolean, String> {
+        val m = model.trim()
+        if (m.isEmpty()) return false to "empty"
+        val keys = readKeys(tagRuleId)
+        if (hasModel(keys, ifc, m)) return false to "exist"
+        val used = keys.map { it.name }.toMutableSet()
+        val entry = KeyEntry(
+            name = dedupName(m, used),
+            keyCode = nextKeyCode(keys),
+            value = "${ifc.baseUrl}@@$m@@${ifc.apiKey}",
+        )
+        if (!saveKeys(tagRuleId, keys + entry)) return false to "save"
+        addModelsToInterface(tagRuleId, ifc.name, listOf(m))
+        return true to ""
+    }
+
+    /**
      * 确保分组存在（目目 09-15「顶部直接填网址 + Key 拉取」，照插件 showModelSelectDialog 的建档分支）：
      * 按（归一化网址 + 密钥）找分组，找到就返回它；没找到就用网址**短名**新建一个（口径见 [shortName]，
      * 重名由 [uniqueIfcName] 加序号）并落盘。

@@ -1014,6 +1014,7 @@ fun KeyManagerScreen(tagRuleId: String, onBack: () -> Unit) {
             initial = ifc,
             onDismiss = { ifcFormFor = null },
             onSaved = { ifcFormFor = null; version++ },
+            onRefresh = { version++ },
         )
     }
     // 拉取模型（目目 09-15 改版：顶部=填网址+Key 去建组/并入；分组卡 🔍=给本组拉）。
@@ -1219,6 +1220,8 @@ private fun InterfaceFormDialog(
     initial: KeyListFile.ApiInterface?,
     onDismiss: () -> Unit,
     onSaved: () -> Unit,
+    // 只刷新外面列表、不关本弹窗（手动加模型用，目目 09-15）
+    onRefresh: () -> Unit,
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -1231,19 +1234,42 @@ private fun InterfaceFormDialog(
     }
     // 名称被用户手改过就不再被网址覆盖；编辑已有分组时视为「已改」，不许动人家改过的名字
     var nameTouched by remember { mutableStateOf(initial != null) }
-    var url by remember { mutableStateOf(initial?.baseUrl.orEmpty()) }
+    // 地址框用 TextFieldValue：① 失焦补协议头后要把光标挪到末尾，String 值会把它甩回开头；
+    // ② 预填值也让光标落末尾（0fa317e 口径）
+    var url by remember {
+        val init = initial?.baseUrl.orEmpty()
+        mutableStateOf(TextFieldValue(init, TextRange(init.length)))
+    }
     var key by remember { mutableStateOf(initial?.apiKey.orEmpty()) }
+    // 手动加模型（目目 09-15）：在分组编辑里点确定**直接落库**，
+    // 不像拉取弹窗里那个「手动添加模型」只进候选列表
+    var addModelVisible by remember { mutableStateOf(false) }
+    var addModelText by remember { mutableStateOf("") }
     fun toast(resId: Int, vararg args: Any) {
         android.widget.Toast.makeText(context, context.getString(resId, *args), android.widget.Toast.LENGTH_SHORT).show()
     }
     AlertDialog(
         onDismissRequest = onDismiss,
         title = {
-            Text(
-                stringResource(
-                    if (initial == null) R.string.role_key_interface_new else R.string.role_key_interface_edit
+            // 标题行右上角＝手动加模型（目目 09-15，与拉取弹窗标题行同一手势）。
+            // 只给**编辑已有分组**时显示：新分组还没落盘，没有网址+密钥可归属，
+            // 这时候加进去的条目会掉进「未分组」。
+            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    stringResource(
+                        if (initial == null) R.string.role_key_interface_new else R.string.role_key_interface_edit
+                    ),
+                    modifier = Modifier.weight(1f)
                 )
-            )
+                if (initial != null) {
+                    TextButton(onClick = { addModelText = ""; addModelVisible = true }) {
+                        Text(
+                            "＋ " + stringResource(R.string.role_key_manual_model),
+                            style = MaterialTheme.typography.labelLarge
+                        )
+                    }
+                }
+            }
         },
         text = {
             Column {
@@ -1273,14 +1299,43 @@ private fun InterfaceFormDialog(
                         // 如 https://cavoti.com/v1 → cavoti、https://xiaoqun.lyzm.xyz/v1 → xiaoqun。
                         // 人改过（或原本就是空的）不覆盖，免得把人家的名字冲掉。
                         if (!nameTouched || name.text.isBlank()) {
-                            val s = KeyListFile.shortName(v)
+                            val s = KeyListFile.shortName(v.text)
                             name = TextFieldValue(s, TextRange(s.length))
                         }
                     },
                     singleLine = false, minLines = 1, maxLines = 3,
                     textStyle = MaterialTheme.typography.bodyMedium,
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier.fillMaxWidth()
+                        // 与拉取弹窗同口径（目目 09-15）：离开这个框就补协议头并回写到框里，
+                        // 手打 cavoti.com 也能存；已带 http(s):// 的原样不动
+                        .onFocusChanged { st ->
+                            if (!st.isFocused) {
+                                val fixed = KeyListFile.withScheme(url.text)
+                                if (fixed != url.text) {
+                                    url = TextFieldValue(fixed, TextRange(fixed.length))
+                                }
+                            }
+                        },
                 )
+                // 地址怎么填 + 实际请求哪个地址（与拉取弹窗同口径：两行互补、只显示一条）
+                val previewBase = if (url.text.isBlank()) "" else
+                    runCatching { KeyListFile.openAiBaseUrl(url.text.trim()) }.getOrDefault("")
+                if (previewBase.isEmpty()) {
+                    Text(
+                        stringResource(R.string.role_key_ifc_url_hint),
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(top = 2.dp)
+                    )
+                } else {
+                    Text(
+                        stringResource(R.string.role_key_will_request, "$previewBase/models"),
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(top = 2.dp),
+                        maxLines = 2, overflow = TextOverflow.Ellipsis
+                    )
+                }
                 Spacer(Modifier.height(6.dp))
                 Text(
                     stringResource(R.string.role_key_ifc_key),
@@ -1318,7 +1373,7 @@ private fun InterfaceFormDialog(
                 enabled = true,
                 onClick = {
                     val n = name.text.trim()
-                    val u = KeyListFile.normalizeBaseUrl(url.trim())
+                    val u = KeyListFile.normalizeBaseUrl(url.text.trim())
                     val k = key.trim()
                     if (n.isEmpty()) { toast(R.string.role_key_ifc_name_empty); return@TextButton }
                     if (!u.startsWith("http")) { toast(R.string.role_key_ifc_url_bad); return@TextButton }
@@ -1377,6 +1432,60 @@ private fun InterfaceFormDialog(
             TextButton(onClick = onDismiss) { Text(stringResource(R.string.cancel)) }
         }
     )
+    // 手动加模型（目目 09-15）：填个模型名 → 确定即落库（建密钥条目 + 登记进该组 models）。
+    // ⚠️ 与拉取弹窗标题行那个「手动添加模型」不同——那个只把名字塞进候选列表，这个点了就算数。
+    // 加完**不关这个编辑弹窗**（可能接着改名/改地址），只让外面列表刷新一下（onRefresh）。
+    if (addModelVisible) {
+        val target = initial
+        AlertDialog(
+            onDismissRequest = { addModelVisible = false },
+            title = { Text(stringResource(R.string.role_key_manual_model)) },
+            text = {
+                Column {
+                    OutlinedTextField(
+                        value = addModelText, onValueChange = { addModelText = it },
+                        label = { Text(stringResource(R.string.role_key_model_input_hint)) },
+                        singleLine = true, textStyle = MaterialTheme.typography.bodyMedium,
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                    if (target != null) {
+                        Spacer(Modifier.height(6.dp))
+                        Text(
+                            stringResource(R.string.role_key_add_model_to, target.name),
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(
+                    enabled = addModelText.trim().isNotEmpty() && target != null,
+                    onClick = {
+                        // 用局部非空变量接住再进协程：嵌套 lambda 里依赖智能转换不稳（本机不编译，只能过 CI）
+                        val t = target ?: return@TextButton
+                        val m = addModelText.trim()
+                        scope.launch {
+                            val r = withIO { KeyListFile.addManualModel(tagRuleId, t, m) }
+                            addModelVisible = false
+                            if (r.first) {
+                                toast(R.string.role_key_saved)
+                                onRefresh()
+                            } else {
+                                toast(
+                                    if (r.second == "exist") R.string.role_key_model_exist
+                                    else R.string.role_list_failed
+                                )
+                            }
+                        }
+                    }
+                ) { Text(stringResource(R.string.confirm)) }
+            },
+            dismissButton = {
+                TextButton(onClick = { addModelVisible = false }) { Text(stringResource(R.string.cancel)) }
+            }
+        )
+    }
 }
 
 /**

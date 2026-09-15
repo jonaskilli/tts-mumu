@@ -684,6 +684,8 @@ Add %3$d, skip %4$d duplicates
     <string name="role_key_new_group">New group %1$s</string>
     <string name="role_key_join_group">Merge into group %1$s</string>
     <string name="role_key_group_name_exists">Group name \"%1$s\" already exists</string>
+    <string name="role_key_model_exist">Model already in this group</string>
+    <string name="role_key_add_model_to">Add to group %1$s</string>
     <string name="role_key_ifc_delete">Delete interface (with its keys)</string>
     <string name="role_key_ifc_deleted">Interface deleted (%1$d keys removed)</string>
     <string name="role_key_ifc_name_empty">Name required</string>
