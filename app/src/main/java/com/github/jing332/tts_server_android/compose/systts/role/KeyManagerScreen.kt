@@ -24,6 +24,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.Undo
 import androidx.compose.material.icons.filled.Bolt
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.ContentCopy
@@ -1892,14 +1893,39 @@ fun BackupCenterDialog(
     var inputVisible by remember { mutableStateOf(false) }
     var inputText by remember { mutableStateOf("") }
     var autoSettingVisible by remember { mutableStateOf(false) }
+    // 备份概况与「还原前现场」都摆出来：否则你看不出这份备份是刚才的还是上个月的、有没有后悔药
+    var backupInfo by remember { mutableStateOf<CharacterRecordsFile.BackupInfo?>(null) }
+    var beforeExists by remember { mutableStateOf(false) }
+    // 待确认动作："restore"（完整还原）/ "undo"（撤销上次还原）——两者都覆盖整目录，先问一句
+    var confirmAction by remember { mutableStateOf<String?>(null) }
 
     LaunchedEffect(version) {
         autoOn = withIO { CharacterRecordsFile.readAutoBackupEnabled(tagRuleId) }
+        backupInfo = withIO { CharacterRecordsFile.readBackupInfo(tagRuleId) }
+        beforeExists = withIO { CharacterRecordsFile.hasBeforeRestore(tagRuleId) }
     }
     fun toast(resId: Int, vararg args: Any) {
         android.widget.Toast.makeText(
             context, context.getString(resId, *args), android.widget.Toast.LENGTH_SHORT
         ).show()
+    }
+    // 完整还原 / 撤销还原共用：只是数据源不同（fullBackup.json vs fullBackup.before.json）
+    fun runRestore(fromBefore: Boolean) {
+        scope.launch {
+            val n = withIO {
+                if (fromBefore) CharacterRecordsFile.restoreFromBefore(tagRuleId)
+                else CharacterRecordsFile.restoreAllFiles(tagRuleId)
+            }
+            toast(
+                when {
+                    n < 0 -> R.string.backup_none
+                    n > 0 -> if (fromBefore) R.string.backup_undo_done else R.string.backup_restore_done
+                    else -> R.string.role_list_failed
+                }, n
+            )
+            beforeExists = withIO { CharacterRecordsFile.hasBeforeRestore(tagRuleId) }
+            if (n > 0) onRestored()
+        }
     }
     Dialog(
         onDismissRequest = onDismiss,
@@ -1933,24 +1959,33 @@ fun BackupCenterDialog(
                     inputText = ""
                     inputVisible = true
                 }
-                BackupOptionRow(Icons.Default.Save, stringResource(R.string.backup_export_all)) {
+                BackupOptionRow(
+                    Icons.Default.Save,
+                    stringResource(R.string.backup_export_all),
+                    // 摆出这份备份是什么时候的、装了几个文件——只有一份、看不见时间就等于闭眼点
+                    subtitle = backupInfo?.let { info ->
+                        stringResource(
+                            R.string.backup_last_time,
+                            info.time.ifBlank { stringResource(R.string.backup_time_unknown) },
+                            info.fileCount
+                        )
+                    } ?: stringResource(R.string.backup_none_yet)
+                ) {
                     scope.launch {
                         val n = withIO { CharacterRecordsFile.backupAllFiles(tagRuleId) }
+                        backupInfo = withIO { CharacterRecordsFile.readBackupInfo(tagRuleId) }
                         toast(if (n > 0) R.string.backup_done else R.string.role_list_failed, n)
                     }
                 }
                 BackupOptionRow(Icons.Default.Restore, stringResource(R.string.backup_restore_all)) {
-                    scope.launch {
-                        val n = withIO { CharacterRecordsFile.restoreAllFiles(tagRuleId) }
-                        toast(
-                            when {
-                                n < 0 -> R.string.backup_none
-                                n > 0 -> R.string.backup_restore_done
-                                else -> R.string.role_list_failed
-                            }, n
-                        )
-                        if (n > 0) onRestored()
-                    }
+                    confirmAction = "restore"
+                }
+                // 撤销入口只在真有现场可退时才摆出来（还原过一次之后才有）
+                if (beforeExists) {
+                    BackupOptionRow(
+                        Icons.AutoMirrored.Filled.Undo,
+                        stringResource(R.string.backup_undo_restore)
+                    ) { confirmAction = "undo" }
                 }
                 BackupOptionRow(
                     Icons.Default.Schedule, stringResource(R.string.backup_auto_enable)
@@ -1960,6 +1995,40 @@ fun BackupCenterDialog(
                 }
             }
         }
+    }
+    // 覆盖整目录前的确认：把「这份备份是什么时候的」「有后悔药」一并说清
+    confirmAction?.let { action ->
+        val undo = action == "undo"
+        val unknownTime = stringResource(R.string.backup_time_unknown)
+        AlertDialog(
+            onDismissRequest = { confirmAction = null },
+            title = {
+                Text(
+                    stringResource(
+                        if (undo) R.string.backup_undo_restore else R.string.backup_restore_all
+                    )
+                )
+            },
+            text = {
+                Text(
+                    if (undo) stringResource(R.string.backup_undo_confirm)
+                    else stringResource(
+                        R.string.backup_restore_confirm,
+                        backupInfo?.time?.ifBlank { unknownTime } ?: unknownTime,
+                        backupInfo?.fileCount ?: 0
+                    )
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    confirmAction = null
+                    runRestore(fromBefore = undo)
+                }) { Text(stringResource(R.string.confirm)) }
+            },
+            dismissButton = {
+                TextButton(onClick = { confirmAction = null }) { Text(stringResource(R.string.cancel)) }
+            }
+        )
     }
     // 自动备份设置（标题显当前状态 → 开启/关闭）
     if (autoSettingVisible) {
@@ -2052,8 +2121,14 @@ fun BackupCenterDialog(
 }
 
 /** 选项行：无框行 + 语义图标（原「白卡片 + 彩色圆点」压在弹窗底上 = 框中框） */
+/** 备份中心选项行；subtitle 用来摆「上次备份于 X · N 个文件」这类事实，不解释了就换行显示 */
 @Composable
-private fun BackupOptionRow(icon: ImageVector, text: String, onClick: () -> Unit) {
+private fun BackupOptionRow(
+    icon: ImageVector,
+    text: String,
+    subtitle: String? = null,
+    onClick: () -> Unit,
+) {
     Row(
         Modifier
             .fillMaxWidth()
@@ -2070,7 +2145,18 @@ private fun BackupOptionRow(icon: ImageVector, text: String, onClick: () -> Unit
             modifier = Modifier.size(18.dp)
         )
         Spacer(Modifier.width(14.dp))
-        Text(text, style = MaterialTheme.typography.bodyMedium)
+        if (subtitle == null) {
+            Text(text, style = MaterialTheme.typography.bodyMedium)
+        } else {
+            Column(Modifier.weight(1f)) {
+                Text(text, style = MaterialTheme.typography.bodyMedium)
+                Text(
+                    subtitle,
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        }
     }
 }
 

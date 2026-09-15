@@ -673,7 +673,13 @@ object CharacterRecordsFile {
     // 自动备份开关存 autoBackupEnable.txt（"1"/"0"），进角色页时执行（对应插件 onLoadUI 初始化）。
 
     private fun backupFile(tagRuleId: String) = File(dir(tagRuleId), "fullBackup.json")
+
+    /** 还原前自动留的现场（还原是覆盖式，没有第二份可退；只留最近一次） */
+    private fun beforeRestoreFile(tagRuleId: String) = File(dir(tagRuleId), "fullBackup.before.json")
     private fun autoBackupFlagFile(tagRuleId: String) = File(dir(tagRuleId), "autoBackupEnable.txt")
+
+    /** 备份概况（界面用来摆「备份于 X · N 个文件」）；无备份或损坏返回 null */
+    data class BackupInfo(val time: String, val fileCount: Int)
 
     /** 自动备份开关读取（"1"=开） */
     fun readAutoBackupEnabled(tagRuleId: String): Boolean = try {
@@ -707,12 +713,31 @@ object CharacterRecordsFile {
         json
     }
 
-    /** 备份全部文件到 fullBackup.json（核心文件+全部书籍存档），返回文件数 */
-    fun backupAllFiles(tagRuleId: String): Int {
+    /** 备份概况读取（时间 + 文件数），界面用来摆「备份于 X · N 个文件」 */
+    fun readBackupInfo(tagRuleId: String): BackupInfo? = try {
+        val f = backupFile(tagRuleId)
+        if (!f.exists()) null else {
+            val map = JSONObject(f.readText())
+            var n = 0
+            val names = map.keys()
+            while (names.hasNext()) if (!names.next().startsWith("__")) n++
+            BackupInfo(map.optString("__exportedAt"), n)
+        }
+    } catch (e: Exception) {
+        null
+    }
+
+    /** 把当前目录的核心文件 + 全部书籍存档写进 dst，返回文件数 */
+    private fun writeBackup(tagRuleId: String, dst: File): Int {
         val d = dir(tagRuleId)
         if (!d.exists()) return 0
         return try {
             val map = JSONObject()
+            // 备份时间：界面得摆得出「这份是刚才的还是上个月的」（__ 前缀的键还原时跳过）
+            map.put(
+                "__exportedAt",
+                java.text.SimpleDateFormat("yyyy-MM-dd HH:mm", java.util.Locale.US).format(java.util.Date())
+            )
             // 核心文件（照插件 backupAllFilesToData 的 8 项：运行时同步副本
             // gengxin.json / miyue_backup.txt / characterRecords_backup.json 不入备份）。
             // ⚠️ 旧版清单少了 voice_marks.json 与 custom_keywords.json ⇒ 备份→改动→恢复之后，
@@ -736,18 +761,26 @@ object CharacterRecordsFile {
             d.listFiles()?.filter { it.name.startsWith("shuming.") && it.name.endsWith(".json") }?.forEach { f ->
                 map.put(f.name, f.readText())
             }
-            backupFile(tagRuleId).writeText(map.toString())
-            map.length()
+            dst.writeText(map.toString())
+            map.length() - 1   // 减掉 __exportedAt，对外报的就是文件数
         } catch (e: Exception) {
-            Log.w(TAG, "backupAllFiles failed: ${e.message}")
+            Log.w(TAG, "writeBackup failed: ${e.message}")
             0
         }
     }
 
-    /** 从 fullBackup.json 完整还原；返回恢复文件数（无备份=-1） */
-    fun restoreAllFiles(tagRuleId: String): Int {
+    /** 备份全部文件到 fullBackup.json（核心文件+全部书籍存档），返回文件数 */
+    fun backupAllFiles(tagRuleId: String): Int = writeBackup(tagRuleId, backupFile(tagRuleId))
+
+    /**
+     * 把一份备份写回目录（**覆盖式**）；返回写入文件数，无备份/损坏返回 -1。
+     * 写回后必须补两件事，否则会出现「界面还原了、朗读链没还原」：
+     * ① characterRecords → gengxin.json（朗读规则内存 ← 文件的唯一通道）；
+     * ② miyue.txt → miyue 三写。gengxin.txt / miyue_backup.txt 是运行时副本、不在备份清单里，
+     *    不补就留着旧值，而规则正是从 gengxin.txt 同步 apiKey 的。
+     */
+    private fun applyBackup(tagRuleId: String, f: File): Int {
         val d = dir(tagRuleId)
-        val f = backupFile(tagRuleId)
         if (!d.exists() || !f.exists()) return -1
         return try {
             val map = JSONObject(f.readText())
@@ -757,16 +790,35 @@ object CharacterRecordsFile {
                     runCatching { File(d, fn).writeText(map.optString(fn)) }.onSuccess { n++ }
                 }
             }
-            // characterRecords 恢复后同步 gengxin（插件同款兜底）
             val rec = map.optString("characterRecords.json")
             if (rec.isNotEmpty()) runCatching { File(d, "gengxin.json").writeText(rec) }
-            Log.i(TAG, "restoreAllFiles: $n files")
+            val miyue = map.optString("miyue.txt")
+            if (miyue.isNotEmpty()) runCatching { KeyListFile.saveCurrentRaw(tagRuleId, miyue) }
+            Log.i(TAG, "applyBackup ${f.name}: $n files")
             n
         } catch (e: Exception) {
-            Log.w(TAG, "restoreAllFiles failed: ${e.message}")
+            Log.w(TAG, "applyBackup failed: ${e.message}")
             0
         }
     }
+
+    /** 从 fullBackup.json 完整还原；动手前自动把当前现场留一份；返回恢复文件数（无备份=-1） */
+    fun restoreAllFiles(tagRuleId: String): Int {
+        val d = dir(tagRuleId)
+        if (!d.exists() || !backupFile(tagRuleId).exists()) return -1
+        // 覆盖式还原不可撤销 ⇒ 先把当前现场留一份（同名单份，只留最近一次）
+        runCatching { writeBackup(tagRuleId, beforeRestoreFile(tagRuleId)) }
+        return applyBackup(tagRuleId, backupFile(tagRuleId))
+    }
+
+    /** 是否存在「还原前现场」（界面据此决定要不要摆出撤销入口） */
+    fun hasBeforeRestore(tagRuleId: String): Boolean = beforeRestoreFile(tagRuleId).exists()
+
+    /**
+     * 撤销上次还原：用还原前留的现场再还原一次；返回恢复文件数（无现场=-1）。
+     * ⚠️ 这里**不再**留现场：再留会把现场本身写成"撤销前的状态"，现场就失去意义了。
+     */
+    fun restoreFromBefore(tagRuleId: String): Int = applyBackup(tagRuleId, beforeRestoreFile(tagRuleId))
 
     /**
      * 从文本导入书籍（照插件 restoreFromText）：`{bookName, characterData}` →

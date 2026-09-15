@@ -734,6 +734,13 @@ Add %3$d, skip %4$d duplicates
     <string name="backup_auto_state_title">Auto backup: %1$s (choose an action)</string>
     <string name="backup_auto_turn_on">Turn on auto backup</string>
     <string name="backup_auto_turn_off">Turn off auto backup</string>
+    <string name="backup_last_time">Last backup: %1$s · %2$d files</string>
+    <string name="backup_none_yet">No backup yet</string>
+    <string name="backup_time_unknown">Earlier (no timestamp)</string>
+    <string name="backup_restore_confirm">This overwrites all current data with this backup.\nBacked up on %1$s · %2$d files.\nThe current state is kept automatically — use Undo last restore to go back.</string>
+    <string name="backup_undo_restore">Undo last restore</string>
+    <string name="backup_undo_confirm">This returns to the state before the last restore; changes made since will be overwritten.</string>
+    <string name="backup_undo_done">Back to the pre-restore state (%1$d files)</string>
     <string name="batch_cfg_delete_all">Delete all %1$d</string>
     <string name="batch_cfg_expand">Expand</string>
     <string name="batch_cfg_collapse">Collapse</string>
