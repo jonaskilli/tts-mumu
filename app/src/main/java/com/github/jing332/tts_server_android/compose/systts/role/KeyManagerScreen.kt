@@ -1327,9 +1327,10 @@ private fun InterfaceFormDialog(
  *  - 顶部「拉取模型」= 新建模式：直接填【接口 URL + API Key】（不再列接口单选）→ 拉取；
  *    确认时按（归一化网址 + 密钥）找分组，找到就并入、没找到就用网址短名建一个（[KeyListFile.ensureGroup]）。
  *  - 分组卡 🔍 = 分组模式（[initialIfcName] 非空）：进来即以该组网址+密钥自动拉取，不用再选一次。
- * 手动添加模型保留在弹窗下方（两模式共用，目目 09-15 定）；「已在组内」只按**目标分组**
- * （同站点+同密钥+同模型）算，别的分组拉过同一个模型不算，所以同网址不同密钥的两个分组
- * 可以各拉一份同名模型（如 glm-5.3-flash）。
+ * 手动添加模型 = 标题行**右上角**的一个入口（两模式共用，目目 09-15 定；原先挤在操作行里）。
+ * 「已在组内」**只按目标分组（= 这一个接口）算**：判据 = 同站点 + 同密钥 + 同模型，别的接口拉过同一个
+ * 模型**不算**，照样能勾、能存 ⇒ 同一个模型（如 glm-5.3-flash）可以在多个接口各存一份
+ * （cavoti 一条、openrouter 一条）；只有「同接口 + 同模型」才算真重复、才挡。
  */
 @Composable
 private fun ModelPullDialog(
@@ -1389,10 +1390,21 @@ private fun ModelPullDialog(
             modifier = Modifier.fillMaxWidth().heightIn(max = 640.dp)
         ) {
             Column(Modifier.padding(16.dp)) {
-                Text(
-                    stringResource(R.string.role_key_fetch),
-                    style = MaterialTheme.typography.headlineSmall
-                )
+                // 标题行：左＝标题，右＝「手动添加模型」入口（目目 09-15：从操作行挪到右上角，
+                // 操作行只留「拉取」；[ready] 守卫照旧——没网址+密钥就不知道该归给谁，灰着）
+                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        stringResource(R.string.role_key_fetch),
+                        style = MaterialTheme.typography.headlineSmall,
+                        modifier = Modifier.weight(1f)
+                    )
+                    TextButton(onClick = { manualVisible = true }, enabled = ready) {
+                        Text(
+                            "＋ " + stringResource(R.string.role_key_manual_model),
+                            style = MaterialTheme.typography.labelLarge
+                        )
+                    }
+                }
                 Spacer(Modifier.height(8.dp))
                 if (forGroup) {
                     // 分组模式：不再让你选一次，直接把「给谁拉」摆出来（组名 · 网址）
@@ -1446,16 +1458,12 @@ private fun ModelPullDialog(
                     }
                 }
                 Spacer(Modifier.height(4.dp))
-                // 操作行：拉取（分组模式=重试；新建模式=首次拉取）/ 手动添加模型（留在弹窗下方，目目 09-15）
+                // 操作行只剩「拉取」（分组模式=重试；新建模式=首次拉取）；手动添加已挪到标题行右上角
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     TextButton(onClick = { fetch() }, enabled = !loading && ready) {
                         Text(stringResource(if (loading) R.string.role_key_fetching else R.string.role_key_fetch))
                     }
                     if (loading) CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp)
-                    Spacer(Modifier.width(8.dp))
-                    TextButton(onClick = { manualVisible = true }, enabled = ready) {
-                        Text(stringResource(R.string.role_key_manual_model))
-                    }
                 }
                 if (error.isNotEmpty()) {
                     Text(
