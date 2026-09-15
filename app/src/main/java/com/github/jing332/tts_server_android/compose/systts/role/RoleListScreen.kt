@@ -338,14 +338,12 @@ fun RoleListScreen(
                         color = BOOK_NAME_COLOR,
                         modifier = Modifier.weight(1f),
                     )
-                    // 编辑 / 管理 两个裸文本键（内边距 10/4/10/4 与 8/4/8/4、14sp）：
-                    // 原先的 TextButton 自带 58dp 最小宽 + 12dp 内边距，两个键多占约 23dp，
-                    // 书名被挤到第二行（v10 同字号一行放得下）
+                    // ✎ / 管理 两个裸文本键（内边距 12/4/12/4 与 8/4/8/4、14sp）：
+                    // 原先的 TextButton 自带 58dp 最小宽 + 12dp 内边距，两个键多占约 23dp
                     Text(
-                        // ✎ →「编辑」（目目 09-16）：与右邻「管理」配成一对文字键——一符号一文字
-                        // 节奏不齐，且 14sp 下 ✎ 笔画细、只是「笔」的隐喻；宽度账：删 ▾ 省约 12dp，
-                        // 此处多吃约 14dp，书名可用宽仍约 210dp（12 字需 192dp，一行放得下）
-                        stringResource(R.string.edit),
+                        // 「编辑」→ 回 ✎（目目 09-16 复验：汉字键「很一般」，且加粗书名字宽涨 5%、
+                        // 12 字需求 192→约 202dp，汉字键比 ✎ 宽约 10dp 正好把书名挤到第二行）
+                        "✎",
                         fontSize = 14.sp,
                         color = MaterialTheme.colorScheme.onSecondaryContainer,
                         modifier = Modifier
@@ -354,7 +352,7 @@ fun RoleListScreen(
                                 bookEditName = TextFieldValue(currentBook, TextRange(currentBook.length))
                                 editingBook = true
                             }
-                            .padding(horizontal = 10.dp, vertical = 4.dp)
+                            .padding(horizontal = 12.dp, vertical = 4.dp)
                     )
                     Spacer(Modifier.width(10.dp))
                     Text(

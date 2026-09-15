@@ -1,7 +1,6 @@
 package com.github.jing332.tts_server_android.compose.systts.role
 
 import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.rememberScrollState
@@ -43,7 +42,9 @@ import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Checkbox
+import androidx.compose.material3.ElevatedCard
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -189,8 +190,8 @@ private fun FlatIconAction(
  * 密钥条目 = 一张卡片（目目 09-16：**排布一行不动**，只把每个模型包成卡片）：
  * 状态点 + 显示名 +「当前」徽章 + 动作图标 ⚡⧉✏🗑 同行居右；显示名放不下自己换行。
  *
- * 卡片底色取 surfaceContainerLowest：比组卡（surfaceContainerLow）亮一档，卡片才浮得起来；
- * 不加描边——组卡已有描边，条目再描一道就成了双层框。
+ * ElevatedCard 照主界面 Item.kt:113 同款（M3 默认 surfaceContainerLow 底 + 1dp 阴影）；
+ * 组卡已撤（组头裸排），本卡是页面唯一容器层，阴影负责把卡片从页面底上顶出来。
  */
 @Composable
 private fun KeyEntryRow(
@@ -210,16 +211,15 @@ private fun KeyEntryRow(
 ) {
     // 勾选反馈（目目 09-16：原先整行毫无变化、只有小方块在动，看着像设置列表不像多选）——
     // 勾中整卡染 8% error 浅红，与左侧复选框一起给出「这条被选走了」。
-    // compositeOver：底色近似半透明红叠在卡面上，避免半透明直接给 Surface 透出组卡底色
+    // compositeOver：底色近似半透明红叠在卡面上，避免半透明直接给 ElevatedCard 透出页面底色
     val cardColor = if (deleteMode && checked)
         MaterialTheme.colorScheme.error.copy(alpha = 0.08f)
-            .compositeOver(MaterialTheme.colorScheme.surfaceContainerLowest)
-    else MaterialTheme.colorScheme.surfaceContainerLowest
+            .compositeOver(MaterialTheme.colorScheme.surfaceContainerLow)
+    else MaterialTheme.colorScheme.surfaceContainerLow
 
-    Surface(
-        shape = RoundedCornerShape(10.dp),
-        color = cardColor,
-        // 卡外距 6（与组卡内边距同宽）+ 卡片间距 3 ⇒ 相邻两张卡之间 6dp
+    ElevatedCard(
+        colors = CardDefaults.elevatedCardColors(containerColor = cardColor),
+        // 卡外距 6（与组头色条槽 6+3+6 对齐）+ 卡片间距 3 ⇒ 相邻两张卡之间 6dp
         modifier = Modifier.fillMaxWidth().padding(horizontal = 6.dp, vertical = 3.dp)
     ) {
         Row(
@@ -590,14 +590,12 @@ fun KeyManagerScreen(tagRuleId: String, onBack: () -> Unit) {
                         val grpHasCurrent = currentRaw.isNotEmpty() &&
                                 grp.entries.any { it.value.trim() == currentRaw }
                         val selCount = grp.entries.count { it.name in deleteChecked }
-                        // 一个接口一张卡（圆角 12 + 1dp 描边）：底色比页面深一档、再靠描边给出边界，
-                        // 免得卡片与页面同色系糊成一片（09-15 嫌整页灰扑扑）
-                        Surface(
-                            shape = RoundedCornerShape(12.dp),
-                            color = MaterialTheme.colorScheme.surfaceContainerLow,
-                            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
-                            modifier = Modifier.fillMaxWidth().padding(top = 10.dp)
-                        ) {
+                        // 组不做容器（照主界面 GroupItem.kt:98：组头 background(surface) 裸排、层级靠排版）。
+                        // 旧版组卡 surfaceContainerLow 比页面底只暗 4/255、包裹根本不成形，反而把
+                        // surfaceContainerLowest 的条目卡衬成全页最亮的「白条」（目目 09-16 质疑后查实）。
+                        // 条目 ElevatedCard 成为页面唯一容器层；归属感靠组头排版 + 组间 16dp 间距表达。
+                        // （内层 Column 保留原缩进壳，避免整块内容平移缩进）
+                        Column(Modifier.fillMaxWidth().padding(top = 16.dp)) {
                             Column(Modifier.padding(vertical = 4.dp)) {
                                 // ———— 组头 + 元信息行 ————
                                 // 色条拉长到地址那一块（目目 09-16）：把组头行与元信息行包进一层 Row——
