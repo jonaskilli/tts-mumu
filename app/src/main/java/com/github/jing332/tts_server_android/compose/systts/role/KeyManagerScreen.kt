@@ -139,21 +139,24 @@ private fun buildKeyGroups(keys: List<KeyListFile.KeyEntry>, ifaces: List<KeyLis
     return groups
 }
 
-/** 小圆角描边 chip（照插件 createSmallButton：透明底 + 彩色描边 + 彩色文字） */
+/**
+ * 裸文本动作键（目目 09-16：全选 / 取消 / 删除不要外框）。
+ *
+ * 原先照插件 createSmallButton 用「透明底 + 彩色描边」小 chip，三个并排像三枚胶囊，
+ * 与本页其余无框动作（组头图标区、条目行名字）语言不统一；去描边后只留文字 + 36dp 热区，
+ * 红色删除键靠颜色本身表意（不再靠框）。左右内边距由本函数给，调用侧只用 Spacer 控间距。
+ */
 @Composable
-private fun SmallChipButton(text: String, color: Color, onClick: () -> Unit) {
-    Surface(
-        shape = RoundedCornerShape(6.dp),
-        color = Color.Transparent,
-        border = BorderStroke(1.dp, color),
-        modifier = Modifier
-            .padding(start = 10.dp)
-            .heightIn(min = 30.dp)
+private fun FlatTextAction(text: String, color: Color, onClick: () -> Unit) {
+    Box(
+        Modifier
+            .heightIn(min = 36.dp)
+            .clip(RoundedCornerShape(8.dp))
             .clickable(onClick = onClick)
+            .padding(horizontal = 10.dp),
+        contentAlignment = Alignment.Center
     ) {
-        Row(Modifier.padding(horizontal = 6.dp), verticalAlignment = Alignment.CenterVertically) {
-            Text(text, style = MaterialTheme.typography.labelMedium, color = color)
-        }
+        Text(text, style = MaterialTheme.typography.labelLarge, color = color)
     }
 }
 
@@ -202,7 +205,15 @@ private fun KeyEntryRow(
     Row(
         // 内边距 21 + 状态点 14 + 间距 8 ⇒ 名字左缘 43dp，对齐组名左缘
         //（6 卡片内边距 + 3 色条 + 6 间距 + 22 箭头 + 6 间距）
-        Modifier.fillMaxWidth().padding(start = 21.dp, end = 6.dp, top = 8.dp, bottom = 8.dp),
+        Modifier.fillMaxWidth()
+            // 勾选反馈（目目 09-16：原先整行毫无变化、只有小方块在动，看着像设置列表不像多选）——
+            // 勾中整行染 8% error 浅红 + 8dp 圆角，与复选框一起给出「这行被选走了」
+            .background(
+                if (deleteMode && checked) MaterialTheme.colorScheme.error.copy(alpha = 0.08f)
+                else Color.Transparent,
+                RoundedCornerShape(8.dp)
+            )
+            .padding(start = 21.dp, end = 6.dp, top = 8.dp, bottom = 8.dp),
         // 名字换行成两行时图标垂直居中，不再用 Top 咬行
         verticalAlignment = Alignment.CenterVertically
     ) {
@@ -245,7 +256,9 @@ private fun KeyEntryRow(
                 color = if (isCurrent) accent else MaterialTheme.colorScheme.onSurface,
                 maxLines = 2,
                 overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.weight(1f, fill = false).clickable { onSwitch() }
+                // 删除模式下点名字也算勾选（整行即复选框的延伸，不必非要点中那个小方块）
+                modifier = Modifier.weight(1f, fill = false)
+                    .clickable { if (deleteMode) onToggleCheck() else onSwitch() }
             )
             if (isCurrent) {
                 Spacer(Modifier.width(6.dp))
@@ -802,15 +815,32 @@ fun KeyManagerScreen(tagRuleId: String, onBack: () -> Unit) {
                                     }
                                 }
                                 if (isDeleting) {
-                                    // 删除模式标题行（目目 09-15 晚：标题就该在标题位——
-                                    // 上版挪到底部和按钮挤一行被吐槽；顶部独立一行）。
-                                    // 格式对齐全 app 弹窗标题档（目目 09-16）：M3 AlertDialog
-                                    // 默认 headlineSmall——24sp 常规字重，不染色不加粗
-                                    Text(
-                                        stringResource(R.string.role_key_delete_title),
-                                        style = MaterialTheme.typography.headlineSmall,
-                                        modifier = Modifier.padding(start = 12.dp, top = 6.dp, bottom = 2.dp)
-                                    )
+                                    // 删除模式标题行（目目 09-16 定稿）：标题回到标题位（09-15 从底部
+                                    // 挪回来是对的，但上次端的是 24sp 弹窗标题架子，压得卡片头重），
+                                    // 现在降到 16sp 与右端「全选」共一行；底部只留「取消 / 删除(N)」。
+                                    // 于是动作分两条带：顶部选谁、底部执行或退出，视线不在卡片里跑两趟。
+                                    Row(
+                                        Modifier.fillMaxWidth()
+                                            .padding(start = 12.dp, end = 6.dp, top = 4.dp),
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Text(
+                                            stringResource(R.string.role_key_delete_title),
+                                            style = MaterialTheme.typography.bodyLarge,
+                                            fontWeight = FontWeight.Medium,
+                                            color = MaterialTheme.colorScheme.onSurface,
+                                            modifier = Modifier.weight(1f)
+                                        )
+                                        FlatTextAction(
+                                            stringResource(R.string.select_all),
+                                            MaterialTheme.colorScheme.onSurfaceVariant
+                                        ) {
+                                            val allSel = grp.entries.all { it.name in deleteChecked }
+                                            val names = grp.entries.map { it.name }.toSet()
+                                            deleteChecked =
+                                                if (allSel) deleteChecked - names else deleteChecked + names
+                                        }
+                                    }
                                 }
                                 if (!isCollapsed) {
                                     grp.entries.forEachIndexed { idx, entry ->
@@ -849,26 +879,24 @@ fun KeyManagerScreen(tagRuleId: String, onBack: () -> Unit) {
                                         )
                                     }
                                 }
-                                // ———— 删除模式动作行（卡片底部）————
-                                // 标题已挪回顶部独立一行；这里只放三个按钮，靠右成排
+                                // ———— 删除模式动作行（卡片底部）：只有 取消 / 删除(N) ————
+                                // 全选已并到顶部标题行（目目 09-16），此处不再重复；两个键都是
+                                // 无框文字键，下方留 4dp 让红键不贴着卡片圆角
                                 if (isDeleting) {
                                     Row(
                                         Modifier.fillMaxWidth()
-                                            .padding(start = 6.dp, end = 6.dp, top = 2.dp, bottom = 2.dp),
+                                            .padding(start = 6.dp, end = 6.dp, top = 2.dp, bottom = 4.dp),
                                         horizontalArrangement = Arrangement.End,
                                         verticalAlignment = Alignment.CenterVertically
                                     ) {
-                                        SmallChipButton(stringResource(R.string.select_all), MaterialTheme.colorScheme.onSurfaceVariant) {
-                                            val allSel = grp.entries.all { it.name in deleteChecked }
-                                            val names = grp.entries.map { it.name }.toSet()
-                                            deleteChecked = if (allSel) deleteChecked - names
-                                            else deleteChecked + names
-                                        }
-                                        SmallChipButton(stringResource(R.string.cancel), MaterialTheme.colorScheme.onSurfaceVariant) {
+                                        FlatTextAction(
+                                            stringResource(R.string.cancel),
+                                            MaterialTheme.colorScheme.onSurfaceVariant
+                                        ) {
                                             deleteModeGroup = null
                                             deleteChecked = emptySet()
                                         }
-                                        SmallChipButton(
+                                        FlatTextAction(
                                             stringResource(R.string.role_key_delete_n, selCount),
                                             MaterialTheme.colorScheme.error
                                         ) {

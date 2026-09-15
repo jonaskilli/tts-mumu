@@ -109,6 +109,15 @@ private val releaseDotColors = listOf(
 )
 
 /**
+ * 书籍栏书名的颜色：照 v10 `bookNameEditor.setTextColor("#333333")` 取同一枚深灰。
+ *
+ * 为什么硬编码不走 colorScheme：v10 里这枚色是固定的（与主题无关），目目 09-16 明确
+ * 「书名的字体和颜色参考 v10」；之前用过 primary（绿主题下书名染成绿色）已被否。
+ * 集中成常量便于日后调，不要在调用点写散色值。
+ */
+private val BOOK_NAME_COLOR = Color(0xFF333333)
+
+/**
  * 浅一档的容器色（目目 09-15 定案「方案一」）：secondaryContainer 向 background 插 40%。
  *
  * 为什么必须这么写：各主题的 secondaryContainer 深浅不一，绿主题 #D2E8D4 上整页铺满
@@ -319,13 +328,14 @@ fun RoleListScreen(
                 } else {
                     Text(
                         currentBook,
-                        // 目目 09-15 晚：书籍栏不要粗体——原 titleMedium(自带 w500)+SemiBold
-                        // 双重加粗；换 bodyLarge 同为 16sp 但常规字重。
-                        // 颜色跟主题 primary（黑字在浅蓝卡片上发闷，主色既是主题色也点出「可点」）
+                        // 目目 09-16：字体与颜色照 v10 —— bookNameEditor.setTextSize(16) +
+                        // Typeface.DEFAULT_BOLD + setTextColor("#333333") ⇒ 16sp 加粗深灰；
+                        // 这是硬编码色（与 v10 一致），不走 colorScheme
                         style = MaterialTheme.typography.bodyLarge,
+                        fontWeight = FontWeight.Bold,
                         maxLines = 2,
                         overflow = TextOverflow.Ellipsis,
-                        color = MaterialTheme.colorScheme.primary,
+                        color = BOOK_NAME_COLOR,
                         modifier = Modifier.weight(1f),
                     )
                     // ✎ / ▾管理 照 v10 用裸文本键（padding 12/4/12/4 与 8/4/8/4、14sp）：
