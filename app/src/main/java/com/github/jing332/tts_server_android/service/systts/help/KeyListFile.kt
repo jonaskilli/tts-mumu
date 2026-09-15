@@ -635,11 +635,11 @@ object KeyListFile {
         return kept to removed
     }
 
-/**
- * 导出全部密钥 + 分组 + 当前生效那条到 密钥备份_yyMMdd-HHmm.json。
- * v2 格式：{version,exportedAt,current,interfaces,keys}。
- * ⚠️ 文件名不能用 密钥导出_ 前缀：插件导入对话框扫该前缀且把顶层当数组读，会崩。
- */
+    /**
+     * 导出全部密钥 + 分组 + 当前生效那条到 密钥备份_yyMMdd-HHmm.json。
+     * v2 格式：{version,exportedAt,current,interfaces,keys}。
+     * ⚠️ 文件名不能用 密钥导出_ 前缀：插件导入对话框扫该前缀且把顶层当数组读，会崩。
+     */
     fun exportKeys(tagRuleId: String, keys: List<KeyEntry>): String? {
         val now = java.util.Date()
         // 精确到时分（09-15）：只到天时同一天导多次会互相覆盖，留不下当天多份
@@ -653,7 +653,7 @@ object KeyListFile {
                 java.text.SimpleDateFormat("yyyy-MM-dd'T'HH:mm", java.util.Locale.US).format(now)
             )
             // 当前生效那条也带上：否则导入后页面兜底（当前无匹配 ⇒ 启用第一条）会把它切到第一条
-            root.put("current", readCurrentRaw(tagRoleId))
+            root.put("current", readCurrentRaw(tagRuleId))
             val ifcArr = JSONArray()
             readInterfaces(tagRuleId).forEach { ifc ->
                 val o = JSONObject()
