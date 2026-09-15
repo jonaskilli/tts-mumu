@@ -2992,7 +2992,7 @@ var SpeechRuleJS = {
   name: "多角色朗读2.87【加速版+1修复2.2】同步显示名",
   id: "mingwuyan",
   author: "命無言",
-  version: 20260908,
+  version: 20260915,
   zdfp: 1,
   
   tags: (function() {

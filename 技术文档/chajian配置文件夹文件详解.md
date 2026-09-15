@@ -1,7 +1,7 @@
 # chajian 配置文件夹文件详解（多角色朗读 + 角色管理）
 
 > 目标：把 `/storage/emulated/0/Download/chajian/mingwuyan/` 下的每个文件讲清楚——它是什么、里面长什么样、谁写谁读、什么时候会动。
-> 依据：`多角色朗读2.87【加速版+1修复2.2】同步显示名.js`（朗读规则）与 `角色管理v10_主题密钥增强.js`（角色管理插件）源码，以及 app 端快捷栏（LogQuickPanel / CharacterRecordsFile）实现。
+> 依据：`多角色朗读2.87【加速版+1修复2.2】同步显示名-改造（直连·实时名·显示名兜底·中性括号4）.js`（朗读规则）与 `角色管理v10_主题密钥增强.js`（角色管理插件）源码，以及 app 端快捷栏（LogQuickPanel / CharacterRecordsFile）实现。
 > 整理时间：2026-09-12。
 
 ---
