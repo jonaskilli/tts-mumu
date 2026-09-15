@@ -31,7 +31,12 @@ object KeyListFile {
     data class ParsedKey(val isDirect: Boolean, val url: String, val model: String, val key: String)
 
     /** 导出/备份数据的解析结果：keys 两版通用；interfaces 只有 v2 有 */
-    data class ExportData(val keys: List<KeyEntry>, val interfaces: List<ApiInterface>)
+    /** current = 导出时「当前生效」那条的值；插件时代的老文件没有此字段，读出来是空串 */
+    data class ExportData(
+        val keys: List<KeyEntry>,
+        val interfaces: List<ApiInterface>,
+        val current: String = "",
+    )
 
     private fun dir(tagRuleId: String) = File(BASE_DIR, tagRuleId)
     private fun keyFile(tagRuleId: String) = File(dir(tagRuleId), "key_list.json")
@@ -631,7 +636,8 @@ object KeyListFile {
     }
 
 /**
- * 导出全部密钥 + 分组到 密钥备份_yyMMdd-HHmm.json。v2 格式：{version,exportedAt,interfaces,keys}。
+ * 导出全部密钥 + 分组 + 当前生效那条到 密钥备份_yyMMdd-HHmm.json。
+ * v2 格式：{version,exportedAt,current,interfaces,keys}。
  * ⚠️ 文件名不能用 密钥导出_ 前缀：插件导入对话框扫该前缀且把顶层当数组读，会崩。
  */
     fun exportKeys(tagRuleId: String, keys: List<KeyEntry>): String? {
@@ -646,6 +652,8 @@ object KeyListFile {
                 "exportedAt",
                 java.text.SimpleDateFormat("yyyy-MM-dd'T'HH:mm", java.util.Locale.US).format(now)
             )
+            // 当前生效那条也带上：否则导入后页面兜底（当前无匹配 ⇒ 启用第一条）会把它切到第一条
+            root.put("current", readCurrentRaw(tagRoleId))
             val ifcArr = JSONArray()
             readInterfaces(tagRuleId).forEach { ifc ->
                 val o = JSONObject()
@@ -732,7 +740,11 @@ object KeyListFile {
                         )
                     }
                 }
-                ExportData(root.optJSONArray("keys")?.let { parseKeyPairs(it) } ?: emptyList(), ifcs)
+                ExportData(
+                    root.optJSONArray("keys")?.let { parseKeyPairs(it) } ?: emptyList(),
+                    ifcs,
+                    root.optString("current"),
+                )
             }
         }
     } catch (e: Exception) {
@@ -775,10 +787,12 @@ object KeyListFile {
 
 /**
  * 导入（v2 含分组）：密钥走 importKeys 的合并口径（重名跳过）；接口按（站点 + 密钥）去重合并、
- * models 取并集；名字冲突自动加序号。返回 (新增密钥, 跳过密钥, 新增接口)。
+ * models 取并集；名字冲突自动加序号；「当前生效」按备份恢复（见 restoreCurrent）。
+ * 返回 (新增密钥, 跳过密钥, 新增接口)。
  */
     fun importAll(tagRuleId: String, data: ExportData): Triple<Int, Int, Int> {
         val (added, skipped) = importKeys(tagRuleId, data.keys)
+        restoreCurrent(tagRuleId, data.current)
         if (data.interfaces.isEmpty()) return Triple(added, skipped, 0)
         val existing = readInterfaces(tagRuleId)
         val names = existing.map { it.name }.toMutableSet()
@@ -810,6 +824,20 @@ object KeyListFile {
         }
         if (changed) saveInterfaces(tagRuleId, merged)
         return Triple(added, skipped, addedIfc)
+    }
+
+/**
+ * 恢复备份里的「当前生效」：只在目标当前已无匹配条目时才顶上（不抢占现有选择），
+ * 且备份那条必须真在导入后的列表里。
+ * ⚠️ 页面加载有兜底「当前无匹配 ⇒ 启用第一条」，不在这里先恢复的话备份的当前会被它顶掉。
+ */
+    private fun restoreCurrent(tagRuleId: String, fromBackup: String) {
+        val v = fromBackup.trim()
+        if (v.isEmpty()) return
+        val keys = readKeys(tagRuleId)
+        if (keys.any { it.value.trim() == readCurrentRaw(tagRuleId).trim() }) return
+        if (keys.none { it.value.trim() == v }) return
+        saveCurrentRaw(tagRuleId, v)
     }
 
 /**
