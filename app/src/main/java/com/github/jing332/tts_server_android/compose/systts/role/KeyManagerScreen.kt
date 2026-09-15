@@ -11,8 +11,10 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -73,6 +75,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.compositeOver
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalConfiguration
@@ -183,8 +186,11 @@ private fun FlatIconAction(
 }
 
 /**
- * 密钥条目行（卡片内无框、单行排完）：状态点 + 显示名 +「当前」徽章 + 动作图标 ✏️⚡📋🗑 同行居右；
- * 显示名缩小一号、放不下自己换行。
+ * 密钥条目 = 一张卡片（目目 09-16：**排布一行不动**，只把每个模型包成卡片）：
+ * 状态点 + 显示名 +「当前」徽章 + 动作图标 ⚡⧉✏🗑 同行居右；显示名放不下自己换行。
+ *
+ * 卡片底色取 surfaceContainerLowest：比组卡（surfaceContainerLow）亮一档，卡片才浮得起来；
+ * 不加描边——组卡已有描边，条目再描一道就成了双层框。
  */
 @Composable
 private fun KeyEntryRow(
@@ -202,93 +208,100 @@ private fun KeyEntryRow(
     onEdit: () -> Unit,
     onDelete: () -> Unit,
 ) {
-    Row(
-        // 内边距 21 + 状态点 14 + 间距 8 ⇒ 名字左缘 43dp，对齐组名左缘
-        //（6 卡片内边距 + 3 色条 + 6 间距 + 22 箭头 + 6 间距）
-        Modifier.fillMaxWidth()
-            // 勾选反馈（目目 09-16：原先整行毫无变化、只有小方块在动，看着像设置列表不像多选）——
-            // 勾中整行染 8% error 浅红 + 8dp 圆角，与复选框一起给出「这行被选走了」
-            .background(
-                if (deleteMode && checked) MaterialTheme.colorScheme.error.copy(alpha = 0.08f)
-                else Color.Transparent,
-                RoundedCornerShape(8.dp)
-            )
-            .padding(start = 21.dp, end = 6.dp, top = 8.dp, bottom = 8.dp),
-        // 名字换行成两行时图标垂直居中，不再用 Top 咬行
-        verticalAlignment = Alignment.CenterVertically
+    // 勾选反馈（目目 09-16：原先整行毫无变化、只有小方块在动，看着像设置列表不像多选）——
+    // 勾中整卡染 8% error 浅红，与左侧复选框一起给出「这条被选走了」。
+    // compositeOver：底色近似半透明红叠在卡面上，避免半透明直接给 Surface 透出组卡底色
+    val cardColor = if (deleteMode && checked)
+        MaterialTheme.colorScheme.error.copy(alpha = 0.08f)
+            .compositeOver(MaterialTheme.colorScheme.surfaceContainerLowest)
+    else MaterialTheme.colorScheme.surfaceContainerLowest
+
+    Surface(
+        shape = RoundedCornerShape(10.dp),
+        color = cardColor,
+        // 卡外距 6（与组卡内边距同宽）+ 卡片间距 3 ⇒ 相邻两张卡之间 6dp
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 6.dp, vertical = 3.dp)
     ) {
-        if (deleteMode) {
-            Checkbox(checked = checked, onCheckedChange = { onToggleCheck() })
-        }
-        // 删除模式不显示状态点（目目 09-15 晚：☐ 旁边再跟个 ○ 像两组选择圈打架，纯粹干扰；
-        // 「当前」徽章仍在名字后保留）
-        if (!deleteMode) {
-            // 状态点固定 14dp 位宽、24dp 高（对齐 bodyMedium 行高）
-            Box(Modifier.width(14.dp).height(24.dp), contentAlignment = Alignment.CenterStart) {
-                val dot = when {
-                    // 当前密钥 = 组头色条同款 primary（目目 09-16：跟小竖线一个颜色）；
-                    // 名字与「当前」徽章仍走 accent(secondary)，实机看着别扭再统一
-                    isCurrent -> MaterialTheme.colorScheme.primary
-                    testOk == true -> TEST_PASS_COLOR
-                    testOk == false -> MaterialTheme.colorScheme.error
-                    else -> MaterialTheme.colorScheme.outlineVariant
-                }
-                if (isCurrent || testOk != null) {
-                    Box(Modifier.size(8.dp).background(dot, CircleShape))
-                } else {
-                    // 未测 = 空心圆环，和「测过但红/绿」区分开
-                    Box(Modifier.size(8.dp).border(1.dp, dot, CircleShape))
-                }
-            }
-            Spacer(Modifier.width(8.dp))
-        }
-        // 名字区 weight(1f)：短名贴左、「当前」徽章跟在名字后，右侧空隙由固定图标区兜底
         Row(
-            Modifier.weight(1f),
+            // 卡外 6 + 卡内 9 ⇒ 状态点左缘 15dp，与组头折叠箭头左缘成列
+            Modifier.fillMaxWidth()
+                .padding(start = 9.dp, end = 9.dp, top = 8.dp, bottom = 8.dp),
+            // 名字换行成两行时图标垂直居中，不再用 Top 咬行
             verticalAlignment = Alignment.CenterVertically
         ) {
-            // 显示名取**值里的真实模型名**（条目名可能带跨组共存的去重后缀，那是内部标识）。
-            // weight(fill=false)：短名贴左侧，长名吃满剩余宽度后省略，图标不被挤出去
-            Text(
-                KeyListFile.displayName(entry),
-                style = MaterialTheme.typography.bodyMedium,
-                fontWeight = if (isCurrent) FontWeight.SemiBold else null,
-                color = if (isCurrent) accent else MaterialTheme.colorScheme.onSurface,
-                maxLines = 2,
-                overflow = TextOverflow.Ellipsis,
-                // 删除模式下点名字也算勾选（整行即复选框的延伸，不必非要点中那个小方块）
-                modifier = Modifier.weight(1f, fill = false)
-                    .clickable { if (deleteMode) onToggleCheck() else onSwitch() }
-            )
-            if (isCurrent) {
-                Spacer(Modifier.width(6.dp))
-                Surface(shape = RoundedCornerShape(8.dp), color = accent.copy(alpha = 0.14f)) {
-                    Text(
-                        stringResource(R.string.role_key_current_badge),
-                        style = MaterialTheme.typography.labelSmall,
-                        color = accent,
-                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 1.dp)
-                    )
+            if (deleteMode) {
+                Checkbox(checked = checked, onCheckedChange = { onToggleCheck() })
+            }
+            // 删除模式不显示状态点（目目 09-15 晚：☐ 旁边再跟个 ○ 像两组选择圈打架，纯粹干扰；
+            // 「当前」徽章仍在名字后保留）
+            if (!deleteMode) {
+                // 状态点固定 14dp 位宽、24dp 高（对齐 bodyMedium 行高）
+                Box(Modifier.width(14.dp).height(24.dp), contentAlignment = Alignment.CenterStart) {
+                    val dot = when {
+                        // 当前密钥 = 组头色条同款 primary（目目 09-16：跟小竖线一个颜色）；
+                        // 名字与「当前」徽章仍走 accent(secondary)，实机看着别扭再统一
+                        isCurrent -> MaterialTheme.colorScheme.primary
+                        testOk == true -> TEST_PASS_COLOR
+                        testOk == false -> MaterialTheme.colorScheme.error
+                        else -> MaterialTheme.colorScheme.outlineVariant
+                    }
+                    if (isCurrent || testOk != null) {
+                        Box(Modifier.size(8.dp).background(dot, CircleShape))
+                    } else {
+                        // 未测 = 空心圆环，和「测过但红/绿」区分开
+                        Box(Modifier.size(8.dp).border(1.dp, dot, CircleShape))
+                    }
                 }
+                Spacer(Modifier.width(8.dp))
             }
-            if (testing) {
-                Spacer(Modifier.width(6.dp))
-                CircularProgressIndicator(Modifier.size(16.dp), strokeWidth = 2.dp)
-            }
-        }
-        if (!deleteMode) {
-            // 固定宽图标区（目目 09-15 晚方案 A）：144dp=4×36dp 热区，与组头行图标垂直成列；
-            // 动作图标按使用频次（目目 09-15 方案一）：⚡测试 ⧉复制 ✏编辑 🗑删除
-            //（📋 复制的是模型名，编辑弹窗里才是完整密钥串）
+            // 名字区 weight(1f)：短名贴左、「当前」徽章跟在名字后，右侧空隙由固定图标区兜底
             Row(
-                Modifier.width(144.dp),
-                horizontalArrangement = Arrangement.End,
+                Modifier.weight(1f),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                FlatIconAction(Icons.Default.Bolt, stringResource(R.string.role_key_test)) { onTest() }
-                FlatIconAction(Icons.Default.ContentCopy, stringResource(R.string.copy)) { onCopy() }
-                FlatIconAction(Icons.Default.Edit, stringResource(R.string.role_key_edit)) { onEdit() }
-                FlatIconAction(Icons.Default.DeleteOutline, stringResource(R.string.delete)) { onDelete() }
+                // 显示名取**值里的真实模型名**（条目名可能带跨组共存的去重后缀，那是内部标识）。
+                // weight(fill=false)：短名贴左侧，长名吃满剩余宽度后省略，图标不被挤出去
+                Text(
+                    KeyListFile.displayName(entry),
+                    style = MaterialTheme.typography.bodyMedium,
+                    fontWeight = if (isCurrent) FontWeight.SemiBold else null,
+                    color = if (isCurrent) accent else MaterialTheme.colorScheme.onSurface,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                    // 删除模式下点名字也算勾选（整行即复选框的延伸，不必非要点中那个小方块）
+                    modifier = Modifier.weight(1f, fill = false)
+                        .clickable { if (deleteMode) onToggleCheck() else onSwitch() }
+                )
+                if (isCurrent) {
+                    Spacer(Modifier.width(6.dp))
+                    Surface(shape = RoundedCornerShape(8.dp), color = accent.copy(alpha = 0.14f)) {
+                        Text(
+                            stringResource(R.string.role_key_current_badge),
+                            style = MaterialTheme.typography.labelSmall,
+                            color = accent,
+                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 1.dp)
+                        )
+                    }
+                }
+                if (testing) {
+                    Spacer(Modifier.width(6.dp))
+                    CircularProgressIndicator(Modifier.size(16.dp), strokeWidth = 2.dp)
+                }
+            }
+            if (!deleteMode) {
+                // 固定宽图标区（目目 09-15 晚方案 A）：144dp=4×36dp 热区，与组头行图标垂直成列；
+                // 动作图标按使用频次（目目 09-15 方案一）：⚡测试 ⧉复制 ✏编辑 🗑删除
+                //（📋 复制的是模型名，编辑弹窗里才是完整密钥串）
+                Row(
+                    Modifier.width(144.dp),
+                    horizontalArrangement = Arrangement.End,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    FlatIconAction(Icons.Default.Bolt, stringResource(R.string.role_key_test)) { onTest() }
+                    FlatIconAction(Icons.Default.ContentCopy, stringResource(R.string.copy)) { onCopy() }
+                    FlatIconAction(Icons.Default.Edit, stringResource(R.string.role_key_edit)) { onEdit() }
+                    FlatIconAction(Icons.Default.DeleteOutline, stringResource(R.string.delete)) { onDelete() }
+                }
             }
         }
     }
@@ -586,231 +599,235 @@ fun KeyManagerScreen(tagRuleId: String, onBack: () -> Unit) {
                             modifier = Modifier.fillMaxWidth().padding(top = 10.dp)
                         ) {
                             Column(Modifier.padding(vertical = 4.dp)) {
-                                // ———— 组头 ————（删除模式不渲染：动作行挪到卡片底部，见条目之后）
-                                Row(
-                                    Modifier.fillMaxWidth()
-                                        .padding(start = 6.dp, end = 6.dp, top = 2.dp, bottom = 2.dp),
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    if (!isDeleting) {
-                                        // 组头可点区：折叠箭头 + 组名 + (N)；「本组含当前密钥」由左侧色条承担
-                                        Row(
-                                            Modifier
-                                                .weight(1f)
-                                                .clip(RoundedCornerShape(6.dp))
-                                                .clickable {
-                                                    collapsed = if (isCollapsed) collapsed - grp.title
-                                                    else collapsed + grp.title
-                                                },
-                                            verticalAlignment = Alignment.CenterVertically
-                                        ) {
-                                            // 组头色条（目目 09-15）：只有本组含当前使用中的密钥才亮——
-                                            // 色条=「这个组正在用」的信号，不是装饰；隐藏时留等宽空位
-                                            //（3+6=9dp），组名与折叠箭头的位置不漂
-                                            if (grpHasCurrent) {
-                                                Box(
-                                                    Modifier
-                                                        .width(3.dp)
-                                                        .height(16.dp)
-                                                        .background(
-                                                            MaterialTheme.colorScheme.primary,
-                                                            RoundedCornerShape(2.dp)
-                                                        )
-                                                )
-                                                Spacer(Modifier.width(6.dp))
-                                            } else {
-                                                Spacer(Modifier.width(9.dp))
-                                            }
-                                            val arrowAngle by animateFloatAsState(
-                                                targetValue = if (isCollapsed) -90f else 0f, label = ""
+                                // ———— 组头 + 元信息行 ————
+                                // 色条拉长到地址那一块（目目 09-16）：把组头行与元信息行包进一层 Row——
+                                //「[6dp] 色条 [6dp] | Column(组头行, 元信息行)」，色条与这两行同高；
+                                // IntrinsicSize.Min 先量出右侧 Column 的高度，色条才撑得住 fillMaxHeight
+                                Row(Modifier.fillMaxWidth().height(IntrinsicSize.Min)) {
+                                    Spacer(Modifier.width(6.dp))
+                                    // 色条=「本组正在用」的信号，不是装饰；不亮时同宽透明占位，箭头位置不漂
+                                    Box(
+                                        Modifier
+                                            .width(3.dp)
+                                            .fillMaxHeight()
+                                            .background(
+                                                if (grpHasCurrent && !isDeleting) MaterialTheme.colorScheme.primary
+                                                else Color.Transparent,
+                                                RoundedCornerShape(2.dp)
                                             )
-                                            Icon(
-                                                Icons.Default.ExpandMore,
-                                                contentDescription = stringResource(
-                                                    if (isCollapsed) R.string.desc_expand_group
-                                                    else R.string.desc_collapse_group, grp.title
-                                                ),
-                                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                                                modifier = Modifier.size(22.dp).rotate(arrowAngle)
-                                            )
-                                            Spacer(Modifier.width(6.dp))
-                                            Text(
-                                                grp.title,
-                                                style = MaterialTheme.typography.titleMedium,
-                                                fontWeight = FontWeight.SemiBold,
-                                                color = MaterialTheme.colorScheme.onSurface,
-                                                maxLines = 1,
-                                                overflow = TextOverflow.Ellipsis,
-                                                // weight(fill=false)：组名超长时吃满剩余宽度后省略，
-                                                // 没有它长组名会把后面的 (N) 挤成一字宽、逐字竖排
-                                                modifier = Modifier.weight(1f, fill = false)
-                                            )
-                                            Spacer(Modifier.width(4.dp))
-                                            Text(
-                                                "(${grp.entries.size})",
-                                                style = MaterialTheme.typography.bodySmall,
-                                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                                            )
-                                            // 「本组含当前密钥」不再跟 ✓（目目 09-15 晚：多余），
-                                            // 信号由组头左侧色条单独承担
-                                        }
-                                        // 固定宽图标区（目目 09-15 晚方案 A）：144dp=4×36dp 热区，组头与
-                                        // 模型行两行图标垂直成列；不足 4 键（未分组/直连组）右对齐留空
-                                        Row(
-                                            Modifier.width(144.dp),
-                                            horizontalArrangement = Arrangement.End,
-                                            verticalAlignment = Alignment.CenterVertically
-                                        ) {
-                                            // 组级四图标全部常驻；仅接口组有前三个（未分组 / 直连点了只是白弹提示）。
-                                            // 顺序按使用频次（目目 09-15 方案一）：+拉取 ⚡测组 ✏编辑接口 🗑删除
-                                            grp.ifc?.let { ifc ->
-                                                FlatIconAction(
-                                                    // 拉取模型 = 往组里加模型（目目 09-15 晚三轮：Sync 云同步也别扭，
-                                                    // 改 +「添加」语义；放大镜易与页内搜索混淆，弃）
-                                                    Icons.Default.Add,
-                                                    stringResource(R.string.role_key_fetch)
-                                                ) {
-                                                    pullForIfc = ifc.name
-                                                    showPullModels = true
-                                                }
-                                                if (testingGroup == grp.title) {
-                                                    Box(Modifier.size(36.dp), contentAlignment = Alignment.Center) {
-                                                        CircularProgressIndicator(
-                                                            Modifier.size(18.dp), strokeWidth = 2.dp
-                                                        )
-                                                    }
-                                                } else {
-                                                    FlatIconAction(
-                                                        Icons.Default.Bolt,
-                                                        stringResource(R.string.role_key_test)
-                                                    ) { testGroup(grp) }
-                                                }
-                                                FlatIconAction(
-                                                    Icons.Default.Edit,
-                                                    stringResource(R.string.role_key_interface_edit)
-                                                ) { ifcFormFor = ifc }
-                                            }
-                                            // 组头 🗑 展开两项：删除整组 / 多选删除子项
-                                            Box {
-                                                FlatIconAction(
-                                                    Icons.Default.DeleteOutline,
-                                                    stringResource(R.string.delete)
-                                                ) { menuGroup = grp.title }
-                                                DropdownMenu(
-                                                    expanded = menuGroup == grp.title,
-                                                    onDismissRequest = { menuGroup = null }
-                                                ) {
-                                                    DropdownMenuItem(
-                                                        // 警示交给红色图标承载，标题不再整行红字（原样太扎眼）
-                                                        leadingIcon = {
-                                                            Icon(
-                                                                Icons.Default.DeleteOutline,
-                                                                contentDescription = null,
-                                                                modifier = Modifier.size(18.dp),
-                                                                tint = MaterialTheme.colorScheme.error
-                                                            )
-                                                        },
-                                                        text = {
-                                                            Column {
-                                                                Text(
-                                                                    stringResource(R.string.role_key_group_delete_all),
-                                                                    style = MaterialTheme.typography.bodyMedium
-                                                                )
-                                                                Text(
-                                                                    stringResource(
-                                                                        R.string.role_key_group_delete_all_sub,
-                                                                        grp.entries.size
-                                                                    ),
-                                                                    style = MaterialTheme.typography.labelSmall,
-                                                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                                                )
-                                                            }
-                                                        },
-                                                        onClick = {
-                                                            menuGroup = null
-                                                            deleteGroupConfirm = grp.title
-                                                        }
-                                                    )
-                                                    DropdownMenuItem(
-                                                        // 两项各带一枚 18dp 前置图标，文字左缘才对得齐：
-                                                        // 删除整组=红🗑（警示），多选删除=灰🧹（组保留、非毁灭）
-                                                        leadingIcon = {
-                                                            Icon(
-                                                                Icons.Default.DeleteSweep,
-                                                                contentDescription = null,
-                                                                modifier = Modifier.size(18.dp),
-                                                                tint = MaterialTheme.colorScheme.onSurfaceVariant
-                                                            )
-                                                        },
-                                                        text = {
-                                                            Column {
-                                                                Text(
-                                                                    stringResource(R.string.role_key_group_delete_multi),
-                                                                    style = MaterialTheme.typography.bodyMedium
-                                                                )
-                                                                Text(
-                                                                    stringResource(R.string.role_key_group_delete_multi_sub),
-                                                                    style = MaterialTheme.typography.labelSmall,
-                                                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                                                )
-                                                            }
-                                                        },
-                                                        onClick = {
-                                                            menuGroup = null
-                                                            deleteModeGroup = grp.title
-                                                            deleteChecked = emptySet()
-                                                            collapsed = collapsed - grp.title
-                                                        }
-                                                    )
-                                                }
-                                            }
-                                        } // 固定宽图标区收尾
-                                    }
-                                }
-                                // 元信息行：接口组 = 网址 + 尾号小块；未分组 / 直连组 = 一句身份说明
-                                if (!isDeleting) {
-                                    val ifc = grp.ifc
-                                    if (ifc != null) {
+                                    )
+                                    Spacer(Modifier.width(6.dp))
+                                    Column(Modifier.weight(1f)) {
+                                        // ———— 组头 ————（删除模式不渲染：动作行挪到卡片底部，见条目之后）
                                         Row(
                                             Modifier.fillMaxWidth()
-                                                .padding(start = 34.dp, end = 10.dp, bottom = 6.dp),
+                                                .padding(end = 6.dp, top = 2.dp, bottom = 2.dp),
                                             verticalAlignment = Alignment.CenterVertically
                                         ) {
-                                            Text(
-                                                ifc.baseUrl,
-                                                style = MaterialTheme.typography.bodySmall,
-                                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                                // 网址放不下换行（原单行省略号会吃掉长网址）
-                                                maxLines = 2,
-                                                overflow = TextOverflow.Ellipsis,
-                                                modifier = Modifier.weight(1f)
-                                            )
-                                            Spacer(Modifier.width(8.dp))
-                                            // 尾号独立小块（原先挤在网址尾巴上，网址一长就被省略号吃掉）
-                                            Surface(
-                                                shape = RoundedCornerShape(4.dp),
-                                                color = MaterialTheme.colorScheme.surfaceContainerHighest
-                                            ) {
-                                                Text(
-                                                    stringResource(
-                                                        R.string.role_key_tail, ifc.apiKey.takeLast(4)
-                                                    ),
-                                                    style = MaterialTheme.typography.labelSmall,
-                                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                                    modifier = Modifier.padding(horizontal = 5.dp, vertical = 1.dp)
-                                                )
+                                            if (!isDeleting) {
+                                                // 组头可点区：折叠箭头 + 组名 + (N)；「本组含当前密钥」由左侧色条承担
+                                                Row(
+                                                    Modifier
+                                                        .weight(1f)
+                                                        .clip(RoundedCornerShape(6.dp))
+                                                        .clickable {
+                                                            collapsed = if (isCollapsed) collapsed - grp.title
+                                                            else collapsed + grp.title
+                                                        },
+                                                    verticalAlignment = Alignment.CenterVertically
+                                                ) {
+                                                    val arrowAngle by animateFloatAsState(
+                                                        targetValue = if (isCollapsed) -90f else 0f, label = ""
+                                                    )
+                                                    Icon(
+                                                        Icons.Default.ExpandMore,
+                                                        contentDescription = stringResource(
+                                                            if (isCollapsed) R.string.desc_expand_group
+                                                            else R.string.desc_collapse_group, grp.title
+                                                        ),
+                                                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                                        modifier = Modifier.size(22.dp).rotate(arrowAngle)
+                                                    )
+                                                    Spacer(Modifier.width(6.dp))
+                                                    Text(
+                                                        grp.title,
+                                                        style = MaterialTheme.typography.titleMedium,
+                                                        fontWeight = FontWeight.SemiBold,
+                                                        color = MaterialTheme.colorScheme.onSurface,
+                                                        maxLines = 1,
+                                                        overflow = TextOverflow.Ellipsis,
+                                                        // weight(fill=false)：组名超长时吃满剩余宽度后省略，
+                                                        // 没有它长组名会把后面的 (N) 挤成一字宽、逐字竖排
+                                                        modifier = Modifier.weight(1f, fill = false)
+                                                    )
+                                                    Spacer(Modifier.width(4.dp))
+                                                    Text(
+                                                        "(${grp.entries.size})",
+                                                        style = MaterialTheme.typography.bodySmall,
+                                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                                    )
+                                                    // 「本组含当前密钥」不再跟 ✓（目目 09-15 晚：多余），
+                                                    // 信号由组头左侧色条单独承担
+                                                }
+                                                // 固定宽图标区（目目 09-15 晚方案 A）：144dp=4×36dp 热区，组头与
+                                                // 模型行两行图标垂直成列；不足 4 键（未分组/直连组）右对齐留空
+                                                Row(
+                                                    Modifier.width(144.dp),
+                                                    horizontalArrangement = Arrangement.End,
+                                                    verticalAlignment = Alignment.CenterVertically
+                                                ) {
+                                                    // 组级四图标全部常驻；仅接口组有前三个（未分组 / 直连点了只是白弹提示）。
+                                                    // 顺序按使用频次（目目 09-15 方案一）：+拉取 ⚡测组 ✏编辑接口 🗑删除
+                                                    grp.ifc?.let { ifc ->
+                                                        FlatIconAction(
+                                                            // 拉取模型 = 往组里加模型（目目 09-15 晚三轮：Sync 云同步也别扭，
+                                                            // 改 +「添加」语义；放大镜易与页内搜索混淆，弃）
+                                                            Icons.Default.Add,
+                                                            stringResource(R.string.role_key_fetch)
+                                                        ) {
+                                                            pullForIfc = ifc.name
+                                                            showPullModels = true
+                                                        }
+                                                        if (testingGroup == grp.title) {
+                                                            Box(Modifier.size(36.dp), contentAlignment = Alignment.Center) {
+                                                                CircularProgressIndicator(
+                                                                    Modifier.size(18.dp), strokeWidth = 2.dp
+                                                                )
+                                                            }
+                                                        } else {
+                                                            FlatIconAction(
+                                                                Icons.Default.Bolt,
+                                                                stringResource(R.string.role_key_test)
+                                                            ) { testGroup(grp) }
+                                                        }
+                                                        FlatIconAction(
+                                                            Icons.Default.Edit,
+                                                            stringResource(R.string.role_key_interface_edit)
+                                                        ) { ifcFormFor = ifc }
+                                                    }
+                                                    // 组头 🗑 展开两项：删除整组 / 多选删除子项
+                                                    Box {
+                                                        FlatIconAction(
+                                                            Icons.Default.DeleteOutline,
+                                                            stringResource(R.string.delete)
+                                                        ) { menuGroup = grp.title }
+                                                        DropdownMenu(
+                                                            expanded = menuGroup == grp.title,
+                                                            onDismissRequest = { menuGroup = null }
+                                                        ) {
+                                                            DropdownMenuItem(
+                                                                // 警示交给红色图标承载，标题不再整行红字（原样太扎眼）
+                                                                leadingIcon = {
+                                                                    Icon(
+                                                                        Icons.Default.DeleteOutline,
+                                                                        contentDescription = null,
+                                                                        modifier = Modifier.size(18.dp),
+                                                                        tint = MaterialTheme.colorScheme.error
+                                                                    )
+                                                                },
+                                                                text = {
+                                                                    Column {
+                                                                        Text(
+                                                                            stringResource(R.string.role_key_group_delete_all),
+                                                                            style = MaterialTheme.typography.bodyMedium
+                                                                        )
+                                                                        Text(
+                                                                            stringResource(
+                                                                                R.string.role_key_group_delete_all_sub,
+                                                                                grp.entries.size
+                                                                            ),
+                                                                            style = MaterialTheme.typography.labelSmall,
+                                                                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                                                                        )
+                                                                    }
+                                                                },
+                                                                onClick = {
+                                                                    menuGroup = null
+                                                                    deleteGroupConfirm = grp.title
+                                                                }
+                                                            )
+                                                            DropdownMenuItem(
+                                                                // 两项各带一枚 18dp 前置图标，文字左缘才对得齐：
+                                                                // 删除整组=红🗑（警示），多选删除=灰🧹（组保留、非毁灭）
+                                                                leadingIcon = {
+                                                                    Icon(
+                                                                        Icons.Default.DeleteSweep,
+                                                                        contentDescription = null,
+                                                                        modifier = Modifier.size(18.dp),
+                                                                        tint = MaterialTheme.colorScheme.onSurfaceVariant
+                                                                    )
+                                                                },
+                                                                text = {
+                                                                    Column {
+                                                                        Text(
+                                                                            stringResource(R.string.role_key_group_delete_multi),
+                                                                            style = MaterialTheme.typography.bodyMedium
+                                                                        )
+                                                                        Text(
+                                                                            stringResource(R.string.role_key_group_delete_multi_sub),
+                                                                            style = MaterialTheme.typography.labelSmall,
+                                                                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                                                                        )
+                                                                    }
+                                                                },
+                                                                onClick = {
+                                                                    menuGroup = null
+                                                                    deleteModeGroup = grp.title
+                                                                    deleteChecked = emptySet()
+                                                                    collapsed = collapsed - grp.title
+                                                                }
+                                                            )
+                                                        }
+                                                    }
+                                                } // 固定宽图标区收尾
                                             }
                                         }
-                                    } else {
-                                        grp.hintRes?.let { hint ->
-                                            Text(
-                                                stringResource(hint),
-                                                style = MaterialTheme.typography.bodySmall,
-                                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                                maxLines = 2,
-                                                overflow = TextOverflow.Ellipsis,
-                                                modifier = Modifier.padding(start = 34.dp, end = 10.dp, bottom = 6.dp)
-                                            )
+                                        // 元信息行：接口组 = 网址 + 尾号小块；未分组 / 直连组 = 一句身份说明
+                                        if (!isDeleting) {
+                                            val ifc = grp.ifc
+                                            if (ifc != null) {
+                                                Row(
+                                                    Modifier.fillMaxWidth()
+                                                        .padding(start = 19.dp, end = 10.dp, bottom = 6.dp),
+                                                    verticalAlignment = Alignment.CenterVertically
+                                                ) {
+                                                    Text(
+                                                        ifc.baseUrl,
+                                                        style = MaterialTheme.typography.bodySmall,
+                                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                                        // 网址放不下换行（原单行省略号会吃掉长网址）
+                                                        maxLines = 2,
+                                                        overflow = TextOverflow.Ellipsis,
+                                                        modifier = Modifier.weight(1f)
+                                                    )
+                                                    Spacer(Modifier.width(8.dp))
+                                                    // 尾号独立小块（原先挤在网址尾巴上，网址一长就被省略号吃掉）
+                                                    Surface(
+                                                        shape = RoundedCornerShape(4.dp),
+                                                        color = MaterialTheme.colorScheme.surfaceContainerHighest
+                                                    ) {
+                                                        Text(
+                                                            stringResource(
+                                                                R.string.role_key_tail, ifc.apiKey.takeLast(4)
+                                                            ),
+                                                            style = MaterialTheme.typography.labelSmall,
+                                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                                            modifier = Modifier.padding(horizontal = 5.dp, vertical = 1.dp)
+                                                        )
+                                                    }
+                                                }
+                                            } else {
+                                                grp.hintRes?.let { hint ->
+                                                    Text(
+                                                        stringResource(hint),
+                                                        style = MaterialTheme.typography.bodySmall,
+                                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                                        maxLines = 2,
+                                                        overflow = TextOverflow.Ellipsis,
+                                                        modifier = Modifier.padding(start = 19.dp, end = 10.dp, bottom = 6.dp)
+                                                    )
+                                                }
+                                            }
                                         }
                                     }
                                 }
@@ -843,17 +860,11 @@ fun KeyManagerScreen(tagRuleId: String, onBack: () -> Unit) {
                                     }
                                 }
                                 if (!isCollapsed) {
-                                    grp.entries.forEachIndexed { idx, entry ->
+                                    // 条目各自成卡（目目 09-16）：条目间的浅分隔线随之删掉，
+                                    // 间距改由卡片自身的 3dp 上下外边距给出（相邻两张之间 6dp）
+                                    grp.entries.forEach { entry ->
                                         val isCurrent = currentRaw.isNotEmpty() &&
                                                 entry.value.trim() == currentRaw
-                                        // 条目靠浅分隔线分区；首条不加，避免紧贴元信息行
-                                        if (idx > 0) {
-                                            HorizontalDivider(
-                                                thickness = 0.6.dp,
-                                                color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f),
-                                                modifier = Modifier.padding(horizontal = 10.dp)
-                                            )
-                                        }
                                         KeyEntryRow(
                                             entry = entry,
                                             isCurrent = isCurrent,
