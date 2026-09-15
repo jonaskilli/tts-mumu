@@ -52,6 +52,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.platform.LocalContext
@@ -107,6 +108,22 @@ private fun genderDotColor(tag: String): Color = when {
 private val releaseDotColors = listOf(
     0xFF7E57C2, 0xFF5C6BC0, 0xFF26A69A, 0xFF8D6E63,
     0xFF66BB6A, 0xFFEC407A, 0xFFFF7043, 0xFF42A5F5,
+)
+
+/**
+ * 浅一档的容器色（目目 09-15 定案「方案一」）：secondaryContainer 向 background 插 40%。
+ *
+ * 为什么必须这么写：各主题的 secondaryContainer 深浅不一，绿主题 #D2E8D4 上整页铺满
+ * 书栏卡+标签框显得太深；直接改 Color2 的 29 槽基准会动到全 App，按主题各自的
+ * secondaryContainer→background 插值则十主题通用、只影响本页。书栏卡与角色行标签框
+ * 必须共用同一个函数（两处各算各的将来改比例就会岔色）。
+ * 文字仍用 onSecondaryContainer：背景变浅对比度只会更大，不用换。
+ */
+@Composable
+private fun softContainerColor(): Color = lerp(
+    MaterialTheme.colorScheme.secondaryContainer,
+    MaterialTheme.colorScheme.background,
+    0.4f,
 )
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
@@ -236,9 +253,9 @@ fun RoleListScreen(
         }
         Surface(
             shape = RoundedCornerShape(12.dp),
-            // 底色跟随主题色（目目 09-15 改口径）：secondaryContainer 比 primaryContainer 柔和，
-            // 十个主题都压得住；栏内文字/图标一律配 onSecondaryContainer 保对比度
-            color = MaterialTheme.colorScheme.secondaryContainer,
+            // 浅一档容器色（目目 09-15「方案一」）：secondaryContainer 原值整页铺满嫌深，
+            // 向 background 插 40%，仍带主题色相；与角色行标签框共用 softContainerColor 保同色
+            color = softContainerColor(),
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(horizontal = 8.dp, vertical = 4.dp)
@@ -841,7 +858,8 @@ private fun RoleRow(
                     Surface(
                         onClick = onTagClick,
                         shape = RoundedCornerShape(8.dp),
-                        color = MaterialTheme.colorScheme.secondaryContainer,
+                        // 浅一档容器色（目目 09-15「方案一」）：与书栏卡共用 softContainerColor 同色
+                        color = softContainerColor(),
                     ) {
                         Text(
                             tagLabel,

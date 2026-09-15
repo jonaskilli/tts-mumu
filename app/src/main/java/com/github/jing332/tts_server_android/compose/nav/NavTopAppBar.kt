@@ -23,11 +23,12 @@ fun NavTopAppBar(
     navigationIcon: @Composable (() -> Unit)? = null,
     actions: @Composable RowScope.() -> Unit = {},
     windowInsets: WindowInsets = TopAppBarDefaults.windowInsets,
-    // 默认固定 surface 底色、滚动不变色：M3 默认的 scrolledContainerColor 会在内容滚动时
-    // 把顶栏加深一档，与灰豆绿主题叠加后发灰发暗，观感差（用户明确反馈不要变色）
+    // 顶栏底色=页面底色（目目 09-15 定案）：原用 surface，但 background 与 surface 是两个值
+    // （如绿主题 FBFDF8 vs F8FAF5），顶栏和内容区之间断出一层色差；一律 background 归平。
+    // scrolledContainerColor 同值：滚动时不加深（用户此前已明确不要滚动变色）
     colors: TopAppBarColors = TopAppBarDefaults.topAppBarColors(
-        containerColor = MaterialTheme.colorScheme.surface,
-        scrolledContainerColor = MaterialTheme.colorScheme.surface,
+        containerColor = MaterialTheme.colorScheme.background,
+        scrolledContainerColor = MaterialTheme.colorScheme.background,
     ),
     scrollBehavior: TopAppBarScrollBehavior? = null,
 ) {
