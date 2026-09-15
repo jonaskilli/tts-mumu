@@ -215,7 +215,9 @@ private fun KeyEntryRow(
             // 状态点固定 14dp 位宽、24dp 高（对齐 bodyMedium 行高）
             Box(Modifier.width(14.dp).height(24.dp), contentAlignment = Alignment.CenterStart) {
                 val dot = when {
-                    isCurrent -> accent
+                    // 当前密钥 = 组头色条同款 primary（目目 09-16：跟小竖线一个颜色）；
+                    // 名字与「当前」徽章仍走 accent(secondary)，实机看着别扭再统一
+                    isCurrent -> MaterialTheme.colorScheme.primary
                     testOk == true -> TEST_PASS_COLOR
                     testOk == false -> MaterialTheme.colorScheme.error
                     else -> MaterialTheme.colorScheme.outlineVariant
@@ -801,12 +803,13 @@ fun KeyManagerScreen(tagRuleId: String, onBack: () -> Unit) {
                                 }
                                 if (isDeleting) {
                                     // 删除模式标题行（目目 09-15 晚：标题就该在标题位——
-                                    // 上版挪到底部和按钮挤一行被吐槽；顶部独立一行，红字点题）
+                                    // 上版挪到底部和按钮挤一行被吐槽；顶部独立一行）。
+                                    // 标题本身中性色（目目 09-16：红是动作语义，标题不染警示），
+                                    // 红色只留在底部「删除(N)」键上
                                     Text(
                                         stringResource(R.string.role_key_delete_title),
                                         style = MaterialTheme.typography.titleSmall,
                                         fontWeight = FontWeight.Bold,
-                                        color = MaterialTheme.colorScheme.error,
                                         modifier = Modifier.padding(start = 12.dp, top = 6.dp, bottom = 2.dp)
                                     )
                                 }
