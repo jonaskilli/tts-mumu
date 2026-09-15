@@ -1308,7 +1308,10 @@ fun VoicePickerDialog(
                     Modifier
                         .fillMaxWidth()
                         // 四个形参同属一对（start/end/top/bottom）——不可与 horizontal/vertical 混用
-                        .padding(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 8.dp),
+                        // bottom 20dp 是保底间隙（目目 09-15 实锤：Dialog 窗口常拿不到导航栏 insets，
+                        // navigationBarsPadding 返回 0，底栏贴屏幕物理底缘被手势条压住半截——
+                        // 20dp 让文字整体离开手势区，insets 正常的设备也只是留白稍大）
+                        .padding(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 20.dp),
                     horizontalArrangement = Arrangement.End,
                     verticalAlignment = Alignment.CenterVertically,
                 ) {

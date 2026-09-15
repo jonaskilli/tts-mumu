@@ -253,10 +253,11 @@ private fun KeyEntryRow(
             CircularProgressIndicator(Modifier.size(16.dp), strokeWidth = 2.dp)
         }
         if (!deleteMode) {
-            // 动作图标与名字同行：编辑 / 测试 / 复制 / 删除（📋 复制的是模型名，编辑弹窗里才是完整密钥串）
-            FlatIconAction(Icons.Default.Edit, stringResource(R.string.role_key_edit)) { onEdit() }
+            // 动作图标与名字同行，按使用频次（目目 09-15 方案一）：⚡测试 ⧉复制 ✏编辑 🗑删除
+            //（📋 复制的是模型名，编辑弹窗里才是完整密钥串）
             FlatIconAction(Icons.Default.Bolt, stringResource(R.string.role_key_test)) { onTest() }
             FlatIconAction(Icons.Default.ContentCopy, stringResource(R.string.copy)) { onCopy() }
+            FlatIconAction(Icons.Default.Edit, stringResource(R.string.role_key_edit)) { onEdit() }
             FlatIconAction(Icons.Default.DeleteOutline, stringResource(R.string.delete)) { onDelete() }
         }
     }
@@ -657,14 +658,12 @@ fun KeyManagerScreen(tagRuleId: String, onBack: () -> Unit) {
                                                 )
                                             }
                                         }
-                                        // 组级四图标全部常驻；仅接口组有前三个（未分组 / 直连点了只是白弹提示）
+                                        // 组级四图标全部常驻；仅接口组有前三个（未分组 / 直连点了只是白弹提示）。
+                                        // 顺序按使用频次（目目 09-15 方案一）：⇣拉取 ⚡测组 ✏编辑接口 🗑删除
                                         grp.ifc?.let { ifc ->
                                             FlatIconAction(
-                                                Icons.Default.Edit,
-                                                stringResource(R.string.role_key_interface_edit)
-                                            ) { ifcFormFor = ifc }
-                                            FlatIconAction(
-                                                Icons.Default.Search,
+                                                // 拉取模型语义 = 从接口下载，用 ⇣（原 🔍 是搜索语义，误导）
+                                                Icons.Default.FileDownload,
                                                 stringResource(R.string.role_key_fetch)
                                             ) {
                                                 pullForIfc = ifc.name
@@ -682,6 +681,10 @@ fun KeyManagerScreen(tagRuleId: String, onBack: () -> Unit) {
                                                     stringResource(R.string.role_key_test)
                                                 ) { testGroup(grp) }
                                             }
+                                            FlatIconAction(
+                                                Icons.Default.Edit,
+                                                stringResource(R.string.role_key_interface_edit)
+                                            ) { ifcFormFor = ifc }
                                         }
                                         // 组头 🗑 展开两项：删除整组 / 多选删除子项
                                         Box {
