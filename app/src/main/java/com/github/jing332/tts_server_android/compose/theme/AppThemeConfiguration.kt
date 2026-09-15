@@ -848,6 +848,29 @@ fun themeAnimation(targetTheme: ColorScheme): ColorScheme {
     val onSurfaceVariant by animateColorAsState(
         targetValue = targetTheme.onSurfaceVariant, animationSpec, label = "onSurfaceVariant"
     )
+    // M3 1.2 新增的 7 个中性槽：值由 Theme.kt 的 themedNeutral() 按各主题色相派生，不在这套旧 token 里。
+    // 它们原先恒定（库默认），不参与动画也看不出；现在跟随主题 ⇒ 不一起做过渡就会在切主题时跳变。
+    val surfaceContainerLow by animateColorAsState(
+        targetValue = targetTheme.surfaceContainerLow, animationSpec, label = "surfaceContainerLow"
+    )
+    val surfaceContainer by animateColorAsState(
+        targetValue = targetTheme.surfaceContainer, animationSpec, label = "surfaceContainer"
+    )
+    val surfaceContainerHigh by animateColorAsState(
+        targetValue = targetTheme.surfaceContainerHigh, animationSpec, label = "surfaceContainerHigh"
+    )
+    val surfaceContainerHighest by animateColorAsState(
+        targetValue = targetTheme.surfaceContainerHighest, animationSpec, label = "surfaceContainerHighest"
+    )
+    val surfaceDim by animateColorAsState(
+        targetValue = targetTheme.surfaceDim, animationSpec, label = "surfaceDim"
+    )
+    val surfaceBright by animateColorAsState(
+        targetValue = targetTheme.surfaceBright, animationSpec, label = "surfaceBright"
+    )
+    val surfaceContainerLowest by animateColorAsState(
+        targetValue = targetTheme.surfaceContainerLowest, animationSpec, label = "surfaceContainerLowest"
+    )
 
     return targetTheme.copy(
         primary = primary,
@@ -879,5 +902,12 @@ fun themeAnimation(targetTheme: ColorScheme): ColorScheme {
         onSurface = onSurface,
         surfaceVariant = surfaceVariant,
         onSurfaceVariant = onSurfaceVariant,
+        surfaceContainerLow = surfaceContainerLow,
+        surfaceContainer = surfaceContainer,
+        surfaceContainerHigh = surfaceContainerHigh,
+        surfaceContainerHighest = surfaceContainerHighest,
+        surfaceDim = surfaceDim,
+        surfaceBright = surfaceBright,
+        surfaceContainerLowest = surfaceContainerLowest,
     )
 }
