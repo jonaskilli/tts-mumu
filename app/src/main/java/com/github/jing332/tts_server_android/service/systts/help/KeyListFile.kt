@@ -631,12 +631,13 @@ object KeyListFile {
     }
 
 /**
- * 导出全部密钥 + 分组到 密钥备份_yyMMdd.json。v2 格式：{version,exportedAt,interfaces,keys}。
+ * 导出全部密钥 + 分组到 密钥备份_yyMMdd-HHmm.json。v2 格式：{version,exportedAt,interfaces,keys}。
  * ⚠️ 文件名不能用 密钥导出_ 前缀：插件导入对话框扫该前缀且把顶层当数组读，会崩。
  */
     fun exportKeys(tagRuleId: String, keys: List<KeyEntry>): String? {
         val now = java.util.Date()
-        val date = java.text.SimpleDateFormat("yyMMdd", java.util.Locale.US).format(now)
+        // 精确到时分（09-15）：只到天时同一天导多次会互相覆盖，留不下当天多份
+        val date = java.text.SimpleDateFormat("yyMMdd-HHmm", java.util.Locale.US).format(now)
         val fileName = "密钥备份_$date.json"
         return try {
             val root = JSONObject()
@@ -678,16 +679,27 @@ object KeyListFile {
         }
     }
 
-    /** 找现存导出/备份文件（密钥导出_* 插件时代 + 密钥备份_* 本版，按名倒序=新在前） */
+    /**
+     * 找现存导出/备份文件（密钥导出_* 插件时代 + 密钥备份_* 本版），按名内日期倒序 = 最新在前。
+     * ⚠️ 不能直接按名字倒序：中文「导」>「备」⇒ 老 密钥导出_* 永远压在 密钥备份_* 上面，
+     * 用户点第一条以为是最新备份、实际是最老的。改为抽名字里的 日期[时分] 当排序键。
+     */
     fun listExportFiles(tagRuleId: String): List<String> = try {
         dir(tagRuleId).listFiles()
             ?.filter {
                 it.name.endsWith(".json") &&
                     (it.name.startsWith("密钥导出_") || it.name.startsWith("密钥备份_"))
             }
-            ?.map { it.name }?.sortedDescending() ?: emptyList()
+            ?.sortedByDescending { exportSortKey(it.name) }
+            ?.map { it.name } ?: emptyList()
     } catch (e: Exception) {
         emptyList()
+    }
+
+    /** 排序键 = 名内 6 位日期 + 4 位时分（缺时分补 0000）；抽不出的返回空串 ⇒ 排最后 */
+    private fun exportSortKey(name: String): String {
+        val m = Regex("(\\d{6})(?:-(\\d{4}))?").find(name) ?: return ""
+        return m.groupValues[1] + m.groupValues[2].ifEmpty { "0000" }
     }
 
 /** 读导出/备份文件：顶层是数组 = 插件时代扁平格式，是对象 = 本版 v2；损坏返回 null */
