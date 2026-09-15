@@ -57,7 +57,8 @@ fun NavTopAppBar(
                     .padding(horizontal = 4.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                navigationIcon?.invoke(this)
+                // navigationIcon 与 M3 同签名为无参 lambda（不吃 RowScope），直接 invoke
+                navigationIcon?.invoke()
                 Box(
                     Modifier.weight(1f).padding(horizontal = 8.dp),
                     contentAlignment = Alignment.CenterStart
