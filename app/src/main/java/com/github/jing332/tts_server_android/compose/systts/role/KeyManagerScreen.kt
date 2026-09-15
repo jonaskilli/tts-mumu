@@ -43,6 +43,7 @@ import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -151,6 +152,12 @@ private fun SmallChipButton(text: String, color: Color, onClick: () -> Unit) {
     }
 }
 
+/**
+ * 测试通过的绿点：M3 没有 success 槽，也不能跟随主题走（红主题下「通过」会变红），
+ * 只能用固定语义绿——这里的固定是有意的，别顺手换成 colorScheme。
+ */
+private val TEST_PASS_COLOR = Color(0xFF2E7D32)
+
 /** 扁平图标动作：无描边无底色，18dp onSurfaceVariant 灰、36dp 热区；删除模式随组头转红 */
 @Composable
 private fun FlatIconAction(
@@ -188,8 +195,9 @@ private fun KeyEntryRow(
     onDelete: () -> Unit,
 ) {
     Row(
-        // 卡片内边距 10 + 状态点 14 + 间距 8 ⇒ 名字左缘 32dp，与组名左缘（34dp）对齐
-        Modifier.fillMaxWidth().padding(start = 10.dp, end = 6.dp, top = 8.dp, bottom = 8.dp),
+        // 内边距 21 + 状态点 14 + 间距 8 ⇒ 名字左缘 43dp，对齐组名左缘
+        //（6 卡片内边距 + 3 色条 + 6 间距 + 22 箭头 + 6 间距）
+        Modifier.fillMaxWidth().padding(start = 21.dp, end = 6.dp, top = 8.dp, bottom = 8.dp),
         // 两行态用 Top 让状态点咬住第一行；删除多选态只剩一行、保持居中
         verticalAlignment = if (deleteMode) Alignment.CenterVertically else Alignment.Top
     ) {
@@ -200,7 +208,7 @@ private fun KeyEntryRow(
         Box(Modifier.width(14.dp).height(24.dp), contentAlignment = Alignment.CenterStart) {
             val dot = when {
                 isCurrent -> accent
-                testOk == true -> Color(0xFF2E7D32)
+                testOk == true -> TEST_PASS_COLOR
                 testOk == false -> MaterialTheme.colorScheme.error
                 else -> MaterialTheme.colorScheme.outlineVariant
             }
@@ -503,7 +511,9 @@ fun KeyManagerScreen(tagRuleId: String, onBack: () -> Unit) {
                 .padding(start = 16.dp, end = 16.dp, top = 4.dp, bottom = 12.dp)
                 .verticalScroll(rememberScrollState())
         ) {
-                // 操作行（官方 OutlinedButton，颜色统一 primary）
+                // 操作行：一主一次——「拉取模型」是主路径（建分组必经），用 FilledTonalButton 强调，
+                // 「新增密钥」保持描边。不用实心 Button：各主题 primary 是 *_seed，
+                // 橙/pink 主题上白字对比不足，tonal 走 primaryContainer 由 M3 保证对比度。
                 Row(
                     Modifier.fillMaxWidth().padding(top = 10.dp, bottom = 6.dp),
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
@@ -514,7 +524,7 @@ fun KeyManagerScreen(tagRuleId: String, onBack: () -> Unit) {
                     ) {
                         Text(stringResource(R.string.role_key_add))
                     }
-                    OutlinedButton(
+                    FilledTonalButton(
                         onClick = { showPullModels = true },
                         modifier = Modifier.weight(1f)
                     ) {
@@ -539,10 +549,12 @@ fun KeyManagerScreen(tagRuleId: String, onBack: () -> Unit) {
                         val grpHasCurrent = currentRaw.isNotEmpty() &&
                                 grp.entries.any { it.value.trim() == currentRaw }
                         val selCount = grp.entries.count { it.name in deleteChecked }
-                        // 一个接口一张卡（surfaceContainer + 圆角 12）：卡片边界 = 分组边界
+                        // 一个接口一张卡（圆角 12 + 1dp 描边）：底色比页面深一档、再靠描边给出边界，
+                        // 免得卡片与页面同色系糊成一片（09-15 嫌整页灰扑扑）
                         Surface(
                             shape = RoundedCornerShape(12.dp),
-                            color = MaterialTheme.colorScheme.surfaceContainer,
+                            color = MaterialTheme.colorScheme.surfaceContainerLow,
+                            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
                             modifier = Modifier.fillMaxWidth().padding(top = 10.dp)
                         ) {
                             Column(Modifier.padding(vertical = 4.dp)) {
@@ -562,13 +574,13 @@ fun KeyManagerScreen(tagRuleId: String, onBack: () -> Unit) {
                                             overflow = TextOverflow.Ellipsis,
                                             modifier = Modifier.weight(1f)
                                         )
-                                        SmallChipButton(stringResource(R.string.select_all), Color(0xFF757575)) {
+                                        SmallChipButton(stringResource(R.string.select_all), MaterialTheme.colorScheme.onSurfaceVariant) {
                                             val allSel = grp.entries.all { it.name in deleteChecked }
                                             val names = grp.entries.map { it.name }.toSet()
                                             deleteChecked = if (allSel) deleteChecked - names
                                             else deleteChecked + names
                                         }
-                                        SmallChipButton(stringResource(R.string.cancel), Color(0xFF757575)) {
+                                        SmallChipButton(stringResource(R.string.cancel), MaterialTheme.colorScheme.onSurfaceVariant) {
                                             deleteModeGroup = null
                                             deleteChecked = emptySet()
                                         }
@@ -591,6 +603,17 @@ fun KeyManagerScreen(tagRuleId: String, onBack: () -> Unit) {
                                                 },
                                             verticalAlignment = Alignment.CenterVertically
                                         ) {
+                                            // 组头色条：主题色小竖条当分组锚点（子项行内边距同步 +11dp 对齐名字左缘）
+                                            Box(
+                                                Modifier
+                                                    .width(3.dp)
+                                                    .height(16.dp)
+                                                    .background(
+                                                        MaterialTheme.colorScheme.primary,
+                                                        RoundedCornerShape(2.dp)
+                                                    )
+                                            )
+                                            Spacer(Modifier.width(6.dp))
                                             val arrowAngle by animateFloatAsState(
                                                 targetValue = if (isCollapsed) -90f else 0f, label = ""
                                             )
@@ -664,12 +687,20 @@ fun KeyManagerScreen(tagRuleId: String, onBack: () -> Unit) {
                                                 onDismissRequest = { menuGroup = null }
                                             ) {
                                                 DropdownMenuItem(
+                                                    // 警示交给红色图标承载，标题不再整行红字（原样太扎眼）
+                                                    leadingIcon = {
+                                                        Icon(
+                                                            Icons.Default.DeleteOutline,
+                                                            contentDescription = null,
+                                                            modifier = Modifier.size(18.dp),
+                                                            tint = MaterialTheme.colorScheme.error
+                                                        )
+                                                    },
                                                     text = {
                                                         Column {
                                                             Text(
                                                                 stringResource(R.string.role_key_group_delete_all),
-                                                                style = MaterialTheme.typography.bodyMedium,
-                                                                color = MaterialTheme.colorScheme.error
+                                                                style = MaterialTheme.typography.bodyMedium
                                                             )
                                                             Text(
                                                                 stringResource(

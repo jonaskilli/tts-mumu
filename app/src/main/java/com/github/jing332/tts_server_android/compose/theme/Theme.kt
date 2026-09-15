@@ -37,63 +37,55 @@ fun appTheme(
         AppTheme.BROWN -> brownTheme(darkTheme)
         AppTheme.GRAY -> grayTheme(darkTheme)
     }
-    // 动态取色（Android 12+ 壁纸派生）不覆写：它的中性色本就与彩色同种子派生、整族和谐，
-    // 强行替换反而制造色相断裂；其余 10 个手写主题统一套米豆绿中性族（目目 09-14 三次定案）
-    return if (themeType == AppTheme.DYNAMIC_COLOR) base else beanNeutral(base, darkTheme)
+    // 动态取色（Android 12+ 壁纸派生）：中性色本就与彩色同种子派生、整族和谐，不覆写
+    return if (themeType == AppTheme.DYNAMIC_COLOR) base else themedNeutral(base, darkTheme)
 }
 
 /**
- * 米豆绿同族中性色（目目 09-14 三次定案）：10 个手写主题统一共用（动态取色除外）。
+ * 补齐 M3 1.2 新增、而 Color2.kt 没生成的中性容器槽（surfaceContainer 系 + surfaceDim/Bright）。
  *
- * 起因：老生成器只给各主题约 15 枚旧 token，M3 1.2 新增的 surfaceContainer 系没跟着走，
- * 统一回落库默认的淡紫白——于是「页面暖、卡片/弹窗冷紫白」一个屏幕两种色相，弹窗尤其
- * 「近乎白、与底打架」（目目指认）。这里把 neutral 家族整体对齐默认档原本那套米豆绿：
- * 页面 #FDFDF6 / 卡片 #F2F2EA / 弹窗 #ECECE4 / 描边 #C3C8BB，同族靠深浅分层；
- * 各主题只保留自己的彩色（primary/secondary/tertiary 及其容器）——换任何配色都是同一套
- * 暖米绿底，不再出现「底绿、卡片弹窗紫」的断裂。
- * 深色档同族（surface #121410 / background #1A1C18，与「默认」档 dark token 一致）。
+ * 为什么必须补：这 7 个槽缺失会回落库默认的淡紫白，跟各主题自己的暖底同屏两种色相。
+ * 取各主题的 surface 当底、再掺一点该主题 primary ⇒ 每个主题一套自己的底色。
+ * （此前是 10 个主题统一米豆绿，被目目推翻：各主题底色本就不同，不许强改成默认底色。）
  *
- * 注：此前那套「官方灰白 #FEF7FF 基线」（baselineNeutral）已作废——作底太白太亮还偏冷紫，
- * 目目否；不再区分「哪几个主题走米豆绿」，10 个主题一律走本族。
+ * ⚠️ 只补这 7 个槽，background/surface/outline/inverse* 一律透传各主题原值——
+ * 顺手覆写会把各主题自己的色相抹平，那正是要避免的。
  */
-private fun beanNeutral(scheme: ColorScheme, darkTheme: Boolean): ColorScheme =
-    if (!darkTheme) scheme.copy(
-        surface = Color(0xFFFAFAF3),
-        onSurface = Color(0xFF1A1C18),
-        surfaceVariant = Color(0xFFDFE4D7),
-        onSurfaceVariant = Color(0xFF43483E),
-        background = Color(0xFFFDFDF6),
-        onBackground = Color(0xFF1A1C18),
-        outline = Color(0xFF73796D),
-        outlineVariant = Color(0xFFC3C8BB),
-        surfaceDim = Color(0xFFDEDED6),
-        surfaceBright = Color(0xFFFAFAF3),
-        surfaceContainerLowest = Color(0xFFFFFFFF),
-        surfaceContainerLow = Color(0xFFF6F6EF),
-        surfaceContainer = Color(0xFFF2F2EA),
-        surfaceContainerHigh = Color(0xFFECECE4),
-        surfaceContainerHighest = Color(0xFFE6E6DE),
-        inverseSurface = Color(0xFF2F312D),
-        inverseOnSurface = Color(0xFFF1F1EA),
-    ) else scheme.copy(
-        surface = Color(0xFF121410),
-        onSurface = Color(0xFFC6C7C0),
-        surfaceVariant = Color(0xFF43483E),
-        onSurfaceVariant = Color(0xFFC3C8BB),
-        background = Color(0xFF1A1C18),
-        onBackground = Color(0xFFE3E3DC),
-        outline = Color(0xFF8D9287),
-        outlineVariant = Color(0xFF43483E),
-        surfaceDim = Color(0xFF121410),
-        surfaceBright = Color(0xFF383A35),
-        surfaceContainerLowest = Color(0xFF0D0F0B),
-        surfaceContainerLow = Color(0xFF1A1C18),
-        surfaceContainer = Color(0xFF1E201C),
-        surfaceContainerHigh = Color(0xFF292B26),
-        surfaceContainerHighest = Color(0xFF343631),
-        inverseSurface = Color(0xFFE3E3DC),
-        inverseOnSurface = Color(0xFF1A1C18),
+private fun themedNeutral(scheme: ColorScheme, darkTheme: Boolean): ColorScheme {
+    // 相对 surface 的通道偏移：Low / Container / High / Highest / Dim / Bright / Lowest
+    val d = if (!darkTheme) intArrayOf(-4, -8, -14, -20, -28, -2, 5)
+    else intArrayOf(8, 12, 23, 34, 0, 38, -5)
+    fun slot(i: Int) = tinted(scheme.surface, scheme.primary, d[i].toFloat())
+    return scheme.copy(
+        surfaceContainerLow = slot(0),
+        surfaceContainer = slot(1),
+        surfaceContainerHigh = slot(2),
+        surfaceContainerHighest = slot(3),
+        surfaceDim = slot(4),
+        surfaceBright = slot(5),
+        surfaceContainerLowest = slot(6),
     )
+}
+
+/** 主色掺入比例：够各主题区分色相，又不至于把中性底染成彩块 */
+private const val NEUTRAL_TINT = 0.04f
+
+/**
+ * 以 surface 为底，各通道平移 [delta] 定明度阶梯，再掺 [NEUTRAL_TINT] 比例的 primary 带上主题色相；
+ * 掺色会压暗，最后把整体亮度拉回平移后的基准，否则各槽之间的明度关系就乱了。
+ */
+private fun tinted(surface: Color, primary: Color, delta: Float): Color {
+    val s = floatArrayOf(surface.red, surface.green, surface.blue)
+    val p = floatArrayOf(primary.red, primary.green, primary.blue)
+    val base = FloatArray(3) { (s[it] * 255f + delta).coerceIn(0f, 255f) }
+    val mixed = FloatArray(3) { base[it] + (p[it] * 255f - base[it]) * NEUTRAL_TINT }
+    val back = (base.sum() - mixed.sum()) / 3f
+    return Color(
+        ((mixed[0] + back) / 255f).coerceIn(0f, 1f),
+        ((mixed[1] + back) / 255f).coerceIn(0f, 1f),
+        ((mixed[2] + back) / 255f).coerceIn(0f, 1f),
+    )
+}
 
 //全局主题状态
 private val themeTypeState: MutableState<AppTheme> by lazy(mode = LazyThreadSafetyMode.SYNCHRONIZED) {

@@ -236,10 +236,9 @@ fun RoleListScreen(
         }
         Surface(
             shape = RoundedCornerShape(12.dp),
-            // 方案C（用户 09-14 定）：中性灰底无描边——原 secondaryContainer 彩色卡片
-            // 与下方描边搜索框、素列表三种视觉语言不整体；换 surfaceContainer 中性灰
-            // 并去掉描边后与列表同色系（页面内最后一处大面积彩色填充也随之消除）
-            color = MaterialTheme.colorScheme.surfaceContainer,
+            // 底色跟随主题色（目目 09-15 改口径）：secondaryContainer 比 primaryContainer 柔和，
+            // 十个主题都压得住；栏内文字/图标一律配 onSecondaryContainer 保对比度
+            color = MaterialTheme.colorScheme.secondaryContainer,
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(horizontal = 8.dp, vertical = 4.dp)
@@ -257,7 +256,7 @@ fun RoleListScreen(
                     Icons.Default.MenuBook,
                     contentDescription = null,
                     modifier = Modifier.size(18.dp),
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant
+                    tint = MaterialTheme.colorScheme.onSecondaryContainer
                 )
                 Spacer(Modifier.width(8.dp))
                 if (editingBook) {
@@ -271,9 +270,9 @@ fun RoleListScreen(
                             onValueChange = { bookEditName = it },
                             singleLine = true,
                             textStyle = MaterialTheme.typography.bodyMedium.copy(
-                                color = MaterialTheme.colorScheme.onSurface
+                                color = MaterialTheme.colorScheme.onSecondaryContainer
                             ),
-                            cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
+                            cursorBrush = SolidColor(MaterialTheme.colorScheme.onSecondaryContainer),
                             keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
                             keyboardActions = KeyboardActions(onDone = { endBookEdit(save = true) }),
                             modifier = Modifier.fillMaxSize().padding(horizontal = 10.dp)
@@ -283,7 +282,7 @@ fun RoleListScreen(
                                     if (bookEditName.text.isBlank()) Text(
                                         stringResource(R.string.role_book_name),
                                         style = MaterialTheme.typography.bodyMedium,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                        color = MaterialTheme.colorScheme.onSecondaryContainer
                                     )
                                     inner()
                                 }
@@ -294,13 +293,13 @@ fun RoleListScreen(
                         Modifier.size(40.dp).clip(CircleShape).clickable { endBookEdit(save = true) },
                         contentAlignment = Alignment.Center
                     ) {
-                        Text("✓", color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold)
+                        Text("✓", color = MaterialTheme.colorScheme.onSecondaryContainer, fontWeight = FontWeight.Bold)
                     }
                     Box(
                         Modifier.size(40.dp).clip(CircleShape).clickable { endBookEdit(save = false) },
                         contentAlignment = Alignment.Center
                     ) {
-                        Text("✕", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text("✕", color = MaterialTheme.colorScheme.onSecondaryContainer.copy(alpha = 0.7f))
                     }
                 } else {
                     Text(
@@ -309,19 +308,19 @@ fun RoleListScreen(
                         fontWeight = FontWeight.SemiBold,
                         maxLines = 2,
                         overflow = TextOverflow.Ellipsis,
-                        color = MaterialTheme.colorScheme.onSurface,
+                        color = MaterialTheme.colorScheme.onSecondaryContainer,
                         modifier = Modifier.weight(1f),
                     )
                     TextButton(onClick = {
                         bookEditName = TextFieldValue(currentBook, TextRange(currentBook.length))
                         editingBook = true
                     }) {
-                        Text("✎", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text("✎", color = MaterialTheme.colorScheme.onSecondaryContainer)
                     }
                     TextButton(onClick = { showBookDialog = true }) {
                         Text(
                             "▾ ${stringResource(R.string.role_book_manage)}",
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                            color = MaterialTheme.colorScheme.onSecondaryContainer
                         )
                     }
                 }
