@@ -135,20 +135,55 @@ object KeyListFile {
         return "$base$n"
     }
 
-    /** 自动分组名：取网址主机名（如 api.x.com）；取不到则「接口N」 */
-    private fun autoIfcName(url: String, existing: Set<String>): String {
-        val host = try {
-            java.net.URI(normalizeBaseUrl(url)).host.orEmpty()
+    /**
+     * 组名短名（目目 09-15 定）：接口地址**掐头去尾、只留关键段**。
+     *  - 掐头：去掉协议，以及 `www.` / `api.`（可带数字，如 `api2.`）这类没信息量的前缀；
+     *  - 去尾：只取主机名的**第一段** ⇒ 域名后缀（.com/.xyz）与路径（/api/v1、/v1）全丢；
+     *  - 例：`https://cavoti.com` → `cavoti`；`https://openrouter.ai/api/v1` → `openrouter`；
+     *        `https://xiaoqun.lyzm.xyz/v1` → `xiaoqun`
+     *        （同站点下按子域区分，比 `lyzm` 好认；也避免同一家不同账号撞名）；
+     *  - 纯 IP / 无点主机（localhost）没有「第一段」可言 ⇒ 整份保留并带端口（端口就是身份）；
+     *  - 剔除 `@`：`@` 是条目名「模型@组名」的分隔符，不许混进组名；解析不出来返回空串。
+     */
+    fun shortName(url: String): String {
+        var body = normalizeBaseUrl(url)
+        if (body.isBlank()) return ""
+        // 手粘的 @@ 串常常不带协议头，补一个才能解析出 host
+        if (!body.contains("://")) body = "https://$body"
+        val host: String
+        val port: Int
+        try {
+            val u = java.net.URI(body)
+            host = u.host.orEmpty()
+            port = u.port
         } catch (e: Exception) {
-            ""
+            return ""
         }
-        return uniqueIfcName(host.ifBlank { "接口" + (existing.size + 1) }, existing)
+        if (host.isBlank()) return ""
+        val labels = host.split('.').filter { it.isNotEmpty() }
+        if (labels.isEmpty()) return ""
+        val isIp = labels.size == 4 && labels.all { v -> val n = v.toIntOrNull(); n != null && n in 0..255 }
+        val one = when {
+            isIp || labels.size == 1 -> host + if (port > 0) ":$port" else ""
+            labels.size >= 3 && Regex("^(www|api)\\d*$", RegexOption.IGNORE_CASE).matches(labels[0]) -> labels[1]
+            else -> labels[0]
+        }
+        return one.replace("@", "").trim()
+    }
+
+    /** 自动分组名：网址短名（口径见 [shortName]）；网址解析不出来才回落「接口N」（N 取第一个空位，不撞号） */
+    private fun autoIfcName(url: String, existing: Set<String>): String {
+        val s = shortName(url)
+        if (s.isNotBlank()) return uniqueIfcName(s, existing)
+        var n = existing.size + 1
+        while ("接口$n" in existing) n++
+        return "接口$n"
     }
 
     /**
      * 分组自愈（目目 09-15 ④「未分组自动收编」；照插件 ensureApiCenter 的聚合口径升级）：
      *  - 匹配不上任何接口的 @@ 条目（首次迁移 / 刚导入 / 刚手加一个 @@ 密钥）→ 按
-     *    （归一化网址 + 密钥）自动建一个新接口，名字取主机名（重复加序号），模型名登记进 models；
+     *    （归一化网址 + 密钥）自动建一个新接口，名字取网址**短名**（口径见 [shortName]，重复加序号），模型名登记进 models；
      *  - 已匹配到接口、但 models 里缺这个模型名 → 补上（models 是管理视图，供分组展示/导出复原）。
      * **纯 Key 直连条目不参与聚合**（照插件：直连留独立一组）。有变化才落盘。
      */
