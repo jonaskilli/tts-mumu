@@ -881,11 +881,11 @@ fun KeyManagerScreen(tagRuleId: String, onBack: () -> Unit) {
         )
     }
 
-    // 新增（名称留空自动生成；重名→覆盖确认；保存即启用为当前，照插件 showAddKeyDialog）
+    // 新增（名称留空自动生成；**同组**重名→覆盖确认，跨组撞名→加序号另存，照插件 showAddKeyDialog）
     if (showAdd) {
         KeyEditDialog(
             initial = null,
-            existingNames = keys.map { it.name }.toSet(),
+            existing = keys,
             onDismiss = { showAdd = false },
             onConfirm = { name, value, overwrite ->
                 if (overwrite) {
@@ -911,7 +911,7 @@ fun KeyManagerScreen(tagRuleId: String, onBack: () -> Unit) {
     renameFor?.let { entry ->
         KeyEditDialog(
             initial = entry,
-            existingNames = keys.map { it.name }.toSet(),
+            existing = keys,
             onDismiss = { renameFor = null },
             onDelete = { renameFor = null; deleteFor = entry },
             onConfirm = { name, value, overwrite ->
@@ -1036,15 +1036,16 @@ fun KeyManagerScreen(tagRuleId: String, onBack: () -> Unit) {
     }
 }
 
-/** 密钥编辑（新增/改名共用）：名称（留空自动生成）+ 值；返回 overwrite=重名待覆盖 */
+/** 密钥编辑（新增/改名共用）：名称（留空自动生成）+ 值；返回 overwrite=同组重名、待覆盖确认 */
 @Composable
 private fun KeyEditDialog(
     initial: KeyListFile.KeyEntry?,
-    existingNames: Set<String>,
+    existing: List<KeyListFile.KeyEntry>,
     onDismiss: () -> Unit,
     onDelete: (() -> Unit)? = null,
     onConfirm: (String, String, Boolean) -> Unit,
 ) {
+    val existingNames = existing.map { it.name }.toSet()
     // 光标默认落在末尾（照插件 v10 密钥详情：setText 后 setSelection(len)，1486/1507）
     val initName = initial?.name.orEmpty()
     val initValue = initial?.value.orEmpty()
@@ -1115,13 +1116,25 @@ private fun KeyEditDialog(
                 TextButton(
                     enabled = value.text.isNotBlank(),
                     onClick = {
-                        val finalName = name.text.trim().ifEmpty {
-                            // 留空自动生成（照插件 defaultName=模型或 key01）
-                            KeyListFile.parseKeyValue(value.text.trim())?.let { p ->
-                                if (!p.isDirect && p.model.isNotEmpty()) p.model else "key" + (existingNames.size + 1)
-                            } ?: "key" + (existingNames.size + 1)
-                        }
-                        onConfirm(finalName, value.text.trim(), finalName in existingNames && finalName != initial?.name)
+                        val raw = value.text.trim()
+                        // 留空自动生成（照插件 defaultName=模型或 key01）
+                        val auto = KeyListFile.parseKeyValue(raw)?.let { p ->
+                            if (!p.isDirect && p.model.isNotEmpty()) p.model else "key" + (existing.size + 1)
+                        } ?: "key" + (existing.size + 1)
+                        val wanted = name.text.trim().ifEmpty { auto }
+                        val clash = existing.firstOrNull { it.name == wanted && it.name != initial?.name }
+                        // 撞名判定（目目 09-15「跨组重名就忽略另一个组」）：
+                        //  · 新增：只有**同一分组**（同网址 + 同密钥）撞名才算真重复 ⇒ 走覆盖确认（照插件 2327/2384）；
+                        //    跨组撞名不是冲突 ⇒ 悄悄加序号另存，既不许覆盖人家的条目，也不拿别组当命名依据。
+                        //  · 改名：照插件密钥详情页保持「名字被占就用不了」（上层弹「名称已存在」），不做静默改名。
+                        val overwrite =
+                            if (initial != null) clash != null
+                            else clash != null && KeyListFile.sameGroupValue(clash.value, raw)
+                        val finalName =
+                            if (initial == null && clash != null && !overwrite)
+                                KeyListFile.dedupName(wanted, existingNames)
+                            else wanted
+                        onConfirm(finalName, raw, overwrite)
                     }
                 ) { Text(stringResource(R.string.confirm)) }
             }
@@ -1314,7 +1327,7 @@ private fun ModelPullDialog(
     onConfirm: (String, List<String>, List<KeyListFile.KeyEntry>) -> Unit,
 ) {
     val scope = rememberCoroutineScope()
-    // 跨组重名时条目内部名要加「@组名」（uniqueKeyName），所以得先知道全量已有名字
+    // 条目名按**全量已有名字**去重（撞了只加序号，不再拼「@组名」——跨组重名忽略另一个组）
     val existingNames = remember(keys) { keys.map { it.name }.toSet() }
     var ifaces by remember { mutableStateOf<List<KeyListFile.ApiInterface>>(emptyList()) }
     var pickedName by remember { mutableStateOf("") }
@@ -1503,17 +1516,18 @@ private fun ModelPullDialog(
                         enabled = selected.isNotEmpty() && pickedName.isNotEmpty(),
                         onClick = {
                             val p = ifaces.firstOrNull { it.name == pickedName } ?: return@TextButton
-                            onConfirm(
-                                pickedName,
-                                selected.sorted(),
-                                selected.sorted().map { m ->
-                                    KeyListFile.KeyEntry(
-                                        name = KeyListFile.uniqueKeyName(m, p.name, existingNames),
-                                        keyCode = "",
-                                        value = "${KeyListFile.openAiBaseUrl(p.baseUrl)}@@$m@@${p.apiKey}",
-                                    )
-                                }
-                            )
+                            // 名字逐个占位去重：同一批里也互不撞名（列表占位随取随加）
+                            val used = existingNames.toMutableSet()
+                            val entries = selected.sorted().map { m ->
+                                val n = KeyListFile.dedupName(m, used)
+                                used.add(n)
+                                KeyListFile.KeyEntry(
+                                    name = n,
+                                    keyCode = "",
+                                    value = "${KeyListFile.openAiBaseUrl(p.baseUrl)}@@$m@@${p.apiKey}",
+                                )
+                            }
+                            onConfirm(pickedName, selected.sorted(), entries)
                         }
                     ) {
                         Text(stringResource(R.string.role_key_add_selected, selected.size))

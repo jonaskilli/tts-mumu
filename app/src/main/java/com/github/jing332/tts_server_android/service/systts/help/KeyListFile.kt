@@ -97,22 +97,40 @@ object KeyListFile {
         return "key" + if (n < 10) "0$n" else n.toString()
     }
 
-    /** 重名时生成「模型@接口N」/「模型@接口N2」…（与插件 uniqueKeyName 同规则） */
-    fun uniqueKeyName(base: String, ifcName: String, existing: Set<String>): String {
+    /**
+     * 条目名去重（目目 09-15「跨组重名就忽略另一个组」）：**只按名字**占位加序号（2、3…）。
+     *
+     * ⚠️ 不再用 v10 的 uniqueKeyName（`模型@组名`）——那个写法把**另一个分组**的名字当成了本条的命名依据，
+     * 等于让别的组影响这一组。现在跨组同模型各自拿到干净的名字，真撞上了就加序号，拉取/保存照样成。
+     * （名字仍须唯一：key_list.json 是「名字→值」映射，消费端按名字收，真重名会让其中一条在插件侧消失。）
+     */
+    fun dedupName(base: String, existing: Set<String>): String {
         if (base !in existing) return base
-        val alt = "$base@$ifcName"
-        if (alt !in existing) return alt
         var n = 2
-        while ("$alt$n" in existing) n++
-        return "$alt$n"
+        while ("$base$n" in existing) n++
+        return "$base$n"
+    }
+
+    /**
+     * 同组判定（值口径）：两条目是否属于同一分组（归一化网址 + 密钥，判据同 [keyBelongsTo]）。
+     * 直连条目（纯 Key）彼此算同一个「直连」桶；直连与 @@ 条目不算同组。
+     *
+     * 用途（新增条目撞名时）：**同组撞名＝真重复**（照插件走覆盖确认）；**跨组撞名＝忽略另一个组**
+     * （不是冲突，加序号另存，既不许覆盖人家的条目，也不拿别组当命名依据）。
+     */
+    fun sameGroupValue(a: String, b: String): Boolean {
+        val pa = parseKeyValue(a) ?: return false
+        val pb = parseKeyValue(b) ?: return false
+        if (pa.isDirect || pb.isDirect) return pa.isDirect && pb.isDirect
+        return sameApiSite(pa.url, pb.url) && pa.key == pb.key
     }
 
     // ==================== 显示名 / 组内去重 / 分组自愈 ====================
 
     /**
      * 显示名（目目 09-15「同模型跨组共存」）：@@ 条目取**值里的真实模型名**——
-     * 条目名可能被 uniqueKeyName 加过 `@组名` 去重后缀，但值里的模型名永远是原始的，
-     * 所以显示层不必去猜后缀，直接读值即可（插件让名字当标签，值才是消费端真源）。
+     * 值才是消费端真源，条目名只是标签（v10 老文件里可能带 `@组名` 后缀，新写入的只会在撞名时加序号），
+     * 所以显示层不去猜名字，直接读值。
      * 直连条目（纯 Key）没有模型名，回落到条目名。
      */
     fun displayName(entry: KeyEntry): String {
@@ -127,7 +145,7 @@ object KeyListFile {
             !p.isDirect && p.model == model && p.key == ifc.apiKey.trim() && sameApiSite(p.url, ifc.baseUrl)
         }
 
-    /** 接口名去重：重名追加 2、3…（不带 @，免得和条目名 uniqueKeyName 的形态混淆） */
+    /** 接口名去重：重名追加 2、3…（不带任何分隔符，免得和条目名去重 [dedupName] 的形态混淆） */
     fun uniqueIfcName(base: String, existing: Set<String>): String {
         if (base !in existing) return base
         var n = 2
@@ -174,7 +192,7 @@ object KeyListFile {
      *        `https://open.bigmodel.cn/api/paas/v4` → `bigmodel`；`https://api-inference.modelscope.cn/v1` → `modelscope`；
      *        `https://ark.cn-beijing.volces.com/api/v3` → `ark`（比注册域 `volces` 好认）；
      *  - 纯 IP / 无点主机（localhost）没有「第一段」可言 ⇒ 整份保留并带端口（端口就是身份）；
-     *  - 剔除 `@`：`@` 是条目名「模型@组名」的分隔符，不许混进组名；解析不出来返回空串。
+     *  - 剔除 `@`：URL 主机段本不该带 `@`（userinfo 那种），清掉免得在文件名/条目名语境里串味；解析不出来返回空串。
      * ⚠️ 这是**启发式**：组名只是标签（真源是值里的模型名），取偏了在界面上改名即可，不影响朗读链。
      */
     fun shortName(url: String): String {
