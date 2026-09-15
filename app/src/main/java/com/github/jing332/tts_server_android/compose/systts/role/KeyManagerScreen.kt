@@ -78,13 +78,10 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.AnnotatedString
-import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.TextRange
-import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
@@ -1501,9 +1498,6 @@ private fun ModelPullDialog(
     val finalName = typedName.ifEmpty { autoName }
     // ⚠️ 只在要新建组时判重名（命中已有分组时这个框用不上，别误拦）
     val nameTaken = targetIfc == null && typedName.isNotEmpty() && ifaces.any { it.name == typedName }
-    // 预览：实际请求的地址（/models）+ 这批算新建还是并入
-    val previewBase = if (url.isEmpty()) "" else
-        runCatching { KeyListFile.openAiBaseUrl(url) }.getOrDefault("")
 
     fun fetch() {
         if (!ready) return
@@ -1526,7 +1520,6 @@ private fun ModelPullDialog(
     val visibleModels = models.filter { filter.isBlank() || it.contains(filter, true) }
     // 「已在组内」只按目标分组算（同站点 + 同密钥 + 同模型），别的分组拉过不算
     fun inGroup(m: String) = targetIfc != null && KeyListFile.hasModel(keys, targetIfc, m)
-    val selectableModels = visibleModels.filter { !inGroup(it) }
 
     Dialog(onDismissRequest = onDismiss) {
         Surface(
@@ -1535,27 +1528,13 @@ private fun ModelPullDialog(
             modifier = Modifier.fillMaxWidth().heightIn(max = 640.dp)
         ) {
             Column(Modifier.padding(16.dp)) {
-                // 标题行右上角 = 手动添加模型；操作行只留「拉取」
+                // 标题行右上角 = 手动添加模型；操作行只留「拉取」。
+                // 标题只留字段名（目目 09-15 晚：填写提示挪到各自字段标题后，标题后不带括号注记）
                 Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                     Text(
-                        // 提示并进标题行括号注记（目目 09-15：语言简洁官方，不再单独占一行）；
-                        // 仅新建模式带——分组模式标题下是「给谁拉」摘要，没有这两个输入框，注记无的放矢
-                        buildAnnotatedString {
-                            append(stringResource(R.string.role_key_fetch))
-                            if (!forGroup) {
-                                withStyle(
-                                    SpanStyle(
-                                        fontSize = 13.sp,
-                                        fontWeight = FontWeight.Normal,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    )
-                                ) {
-                                    append(stringResource(R.string.role_key_fetch_title_hint))
-                                }
-                            }
-                        },
+                        stringResource(R.string.role_key_fetch),
                         style = MaterialTheme.typography.headlineSmall,
-                        maxLines = 2,
+                        maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
                         modifier = Modifier.weight(1f)
                     )
@@ -1567,43 +1546,14 @@ private fun ModelPullDialog(
                     }
                 }
                 Spacer(Modifier.height(8.dp))
-                if (forGroup) {
-                    // 分组模式：把「给谁拉」摆出来（组名 · 网址）
-                    Text(
-                        stringResource(
-                            R.string.role_key_pull_group_sub,
-                            initialIfc?.name.orEmpty(), initialIfc?.baseUrl.orEmpty()
-                        ),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        maxLines = 2, overflow = TextOverflow.Ellipsis
-                    )
-                    Spacer(Modifier.height(8.dp))
-                } else if (formCollapsed && models.isNotEmpty()) {
-                    // 拉取成功后的收起态：一行摘要（分组 · 网址 · 尾号）+ ✏ 重开表单；
-                    // 不叠第二个弹窗，模型列表拿满剩余高度
-                    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                        Text(
-                            listOfNotNull(
-                                finalName.ifEmpty { null },
-                                url.ifEmpty { null },
-                                if (key.isEmpty()) null
-                                else stringResource(R.string.role_key_tail, key.takeLast(4))
-                            ).joinToString(" · "),
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            maxLines = 2, overflow = TextOverflow.Ellipsis,
-                            modifier = Modifier.weight(1f)
-                        )
-                        FlatIconAction(Icons.Default.Edit, stringResource(R.string.role_key_edit)) {
-                            formCollapsed = false
-                        }
-                    }
-                    Spacer(Modifier.height(4.dp))
-                } else {
+                // 表单只在「没拉到模型」时显示（目目 09-15 晚：拉取成功后表单直接收起，
+                // 不折摘要行——分组名/地址/尾号那行删掉，要改就取消重开；分组模式无表单）
+                if (!forGroup && !formCollapsed) {
                     // 新建模式：字段顺序 分组名 → 接口地址 → API Key
+                    // 提示跟在字段标题后（目目 09-15 晚：不放标题下、不放弹窗底部）
                     Text(
-                        stringResource(R.string.role_key_group_name_label),
+                        stringResource(R.string.role_key_group_name_label) +
+                            stringResource(R.string.role_key_group_name_hint),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -1617,7 +1567,8 @@ private fun ModelPullDialog(
                     )
                     Spacer(Modifier.height(6.dp))
                     Text(
-                        stringResource(R.string.role_key_ifc_url),
+                        stringResource(R.string.role_key_ifc_url) +
+                            stringResource(R.string.role_key_url_hint),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -1649,46 +1600,23 @@ private fun ModelPullDialog(
                         textStyle = MaterialTheme.typography.bodyMedium,
                         modifier = Modifier.fillMaxWidth(),
                     )
-                    // 预览行：实际请求的地址 + 新建还是并入；分组名撞车时整行变红
-                    Spacer(Modifier.height(6.dp))
-                    Column(Modifier.fillMaxWidth()) {
-                        if (previewBase.isNotEmpty()) {
-                            Text(
-                                stringResource(R.string.role_key_will_request, "$previewBase/models"),
-                                style = MaterialTheme.typography.labelSmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                maxLines = 2, overflow = TextOverflow.Ellipsis
-                            )
-                        }
-                        val hit = targetIfc
-                        val where = when {
-                            hit != null -> stringResource(R.string.role_key_join_group, hit.name)
-                            nameTaken -> stringResource(R.string.role_key_group_name_exists, typedName)
-                            finalName.isNotEmpty() -> stringResource(R.string.role_key_new_group, finalName)
-                            else -> ""
-                        }
-                        if (where.isNotEmpty()) {
-                            Text(
-                                where,
-                                style = MaterialTheme.typography.labelSmall,
-                                color = if (nameTaken) MaterialTheme.colorScheme.error
-                                else MaterialTheme.colorScheme.onSurfaceVariant,
-                                maxLines = 2, overflow = TextOverflow.Ellipsis
-                            )
-                        }
-                    }
+                    // 底部「请求 /models / 并入分组」预览行已删（目目 09-15 晚：没事儿别占地方）；
+                    // 手填分组名撞车仍由确认键 Toast 拦下
                 }
                 Spacer(Modifier.height(4.dp))
-                // 操作行只剩「拉取」，靠右（分组模式=重试，新建模式=首次拉取）
-                Row(
-                    Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.End,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    if (loading) CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp)
-                    Spacer(Modifier.width(8.dp))
-                    TextButton(onClick = { fetch() }, enabled = !loading && ready) {
-                        Text(stringResource(if (loading) R.string.role_key_fetching else R.string.role_key_fetch))
+                // 「拉取」按钮只在没拉到模型时显示（目目 09-15 晚：标题已有「拉取模型」四字，
+                // 列表出来了按钮就多余）；loading 转圈也在这一行——分组模式首次拉取 / 失败重试都覆盖
+                if (models.isEmpty()) {
+                    Row(
+                        Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.End,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        if (loading) CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp)
+                        Spacer(Modifier.width(8.dp))
+                        TextButton(onClick = { fetch() }, enabled = !loading && ready) {
+                            Text(stringResource(if (loading) R.string.role_key_fetching else R.string.role_key_fetch))
+                        }
                     }
                 }
                 if (error.isNotEmpty()) {
@@ -1698,7 +1626,7 @@ private fun ModelPullDialog(
                         color = MaterialTheme.colorScheme.error
                     )
                 }
-                // 搜索过滤 + 全选（只作用可见项，照插件）
+                // 搜索过滤（全选改到各分类标题行，见下方 LazyColumn）
                 if (models.isNotEmpty()) {
                     OutlinedTextField(
                         value = filter,
@@ -1708,19 +1636,6 @@ private fun ModelPullDialog(
                         textStyle = MaterialTheme.typography.bodyMedium,
                         modifier = Modifier.fillMaxWidth()
                     )
-                    TextButton(onClick = {
-                        // 全选只作用可见且可加的
-                        selected = if (selectableModels.any { it in selected }) {
-                            selected - selectableModels.toSet()
-                        } else {
-                            selected + selectableModels.toSet()
-                        }
-                    }) {
-                        Text(
-                            if (selectableModels.any { it in selected }) stringResource(R.string.role_select_all_cancel)
-                            else stringResource(R.string.role_list_select_all)
-                        )
-                    }
                 }
                 // 五类分组列表
                 LazyColumn(Modifier.weight(1f, fill = false)) {
@@ -1730,12 +1645,34 @@ private fun ModelPullDialog(
                     }
                     byCat.forEach { (cat, list) ->
                         item(key = "cat_$cat") {
-                            Text(
-                                "$cat (${list.size})",
-                                style = MaterialTheme.typography.titleSmall,
-                                color = MaterialTheme.colorScheme.primary,
-                                modifier = Modifier.padding(top = 8.dp, bottom = 2.dp)
-                            )
+                            // 全选按分类（目目 09-15 晚：全局全选「不能把所有模型都选」不对头，
+                            // 位置也浮在搜索框和列表之间没有归属）——挪进分类标题行，只作用本分类可加项
+                            Row(
+                                Modifier.fillMaxWidth(),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(
+                                    "$cat (${list.size})",
+                                    style = MaterialTheme.typography.titleSmall,
+                                    color = MaterialTheme.colorScheme.primary,
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .padding(top = 8.dp, bottom = 2.dp)
+                                )
+                                val catSelectable = list.filter { !inGroup(it) }
+                                TextButton(onClick = {
+                                    selected = if (catSelectable.any { it in selected }) {
+                                        selected - catSelectable.toSet()
+                                    } else {
+                                        selected + catSelectable.toSet()
+                                    }
+                                }) {
+                                    Text(
+                                        if (catSelectable.any { it in selected }) stringResource(R.string.role_select_all_cancel)
+                                        else stringResource(R.string.role_list_select_all)
+                                    )
+                                }
+                            }
                         }
                         list.forEach { m ->
                             item(key = "m_$m") {

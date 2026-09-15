@@ -645,7 +645,6 @@
     <string name="role_key_empty">暂无密钥</string>
     <string name="role_key_tail">*尾%1$s</string>
     <string name="role_key_model_in_group">已在组内</string>
-    <string name="role_key_pull_group_sub">分组 %1$s · %2$s</string>
     <string name="role_key_group_ungrouped_hint">未绑定接口的散装密钥</string>
     <string name="role_key_group_direct_hint">直连密钥（智谱可直填API key，不带 @@ 接口串）</string>
     <string name="role_key_test">测试</string>
@@ -740,10 +739,9 @@
     <string name="role_key_ifc_key">API Key</string>
     <string name="role_key_group_name_label">分组名</string>
     <string name="role_key_ifc_url_hint">地址填到 /v1 即可，自动补全</string>
-    <string name="role_key_fetch_title_hint">（地址填至 /v1 即可；分组名留空时自动从地址抓取）</string>
+    <string name="role_key_group_name_hint">（留空时自动从地址抓取）</string>
+    <string name="role_key_url_hint">（填至 /v1 即可）</string>
     <string name="role_key_will_request">请求 %1$s</string>
-    <string name="role_key_new_group">新建分组 %1$s</string>
-    <string name="role_key_join_group">并入分组 %1$s</string>
     <string name="role_key_group_name_exists">分组名「%1$s」已存在，请换一个</string>
     <string name="role_key_model_exist">该模型已在分组内</string>
     <string name="role_key_add_model_to">添加到分组 %1$s</string>
