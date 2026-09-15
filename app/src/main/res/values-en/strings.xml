@@ -664,7 +664,6 @@ Marks: %3$s</string>
     <string name="role_key_name_dup">Name [%1$s] already exists</string>
     <string name="role_key_export">Export keys</string>
     <string name="role_key_import">Import keys</string>
-    <string name="role_key_import_hint">Tap a file to import it</string>
     <string name="role_key_action_export">Export</string>
     <string name="role_key_action_import">Import</string>
     <string name="role_key_exported">Exported %1$d keys to %2$s</string>
@@ -680,7 +679,8 @@ Add %3$d, skip %4$d duplicates
     <string name="role_key_ifc_url">Base URL</string>
     <string name="role_key_ifc_key">API Key</string>
     <string name="role_key_group_name_label">Group name</string>
-    <string name="role_key_ifc_url_hint">Up to /v1 — rest auto-filled</string>
+    <string name="role_key_ifc_url_hint">Paste up to /v1 — rest auto-filled</string>
+    <string name="role_key_group_name_auto_hint">empty group name is taken from the URL</string>
     <string name="role_key_will_request">Request %1$s</string>
     <string name="role_key_new_group">New group %1$s</string>
     <string name="role_key_join_group">Merge into group %1$s</string>
@@ -696,7 +696,6 @@ Add %3$d, skip %4$d duplicates
     <string name="role_key_manual_model">Add model manually</string>
     <string name="role_key_model_filter">🔍 Filter models</string>
     <string name="role_key_model_input_hint">Model name</string>
-    <string name="role_key_delete_select_title">Select keys to delete (%1$d selected)</string>
     <string name="role_key_delete_n">Delete (%1$d)</string>
     <string name="role_key_delete_none">Select at least one key first</string>
     <string name="role_key_delete_batch_text">Delete the %2$d selected key(s) under "%1$s"? This cannot be undone.</string>

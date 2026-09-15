@@ -839,7 +839,6 @@
     <string name="role_key_name_dup">名称【%1$s】已存在</string>
     <string name="role_key_export">导出密钥</string>
     <string name="role_key_import">导入密钥</string>
-    <string name="role_key_import_hint">点击文件即可导入</string>
     <string name="role_key_action_export">导出</string>
     <string name="role_key_action_import">导入</string>
     <string name="role_key_exported">已导出 %1$d 个密钥到 %2$s</string>
@@ -855,7 +854,8 @@
     <string name="role_key_ifc_url">接口地址</string>
     <string name="role_key_ifc_key">API Key</string>
     <string name="role_key_group_name_label">分组名</string>
-    <string name="role_key_ifc_url_hint">填到 /v1 即可，自动补全</string>
+    <string name="role_key_ifc_url_hint">地址填到 /v1 即可，自动补全</string>
+    <string name="role_key_group_name_auto_hint">分组名留空时默认从地址抓取</string>
     <string name="role_key_will_request">请求 %1$s</string>
     <string name="role_key_new_group">新建分组 %1$s</string>
     <string name="role_key_join_group">并入分组 %1$s</string>
@@ -871,7 +871,6 @@
     <string name="role_key_manual_model">手动添加模型</string>
     <string name="role_key_model_filter">🔍 搜索过滤模型</string>
     <string name="role_key_model_input_hint">输入模型名</string>
-    <string name="role_key_delete_select_title">选择要删除的密钥（已选 %1$d）</string>
     <string name="role_key_delete_n">删除(%1$d)</string>
     <string name="role_key_delete_none">请先勾选要删除的密钥</string>
     <string name="role_key_delete_batch_text">确定删除「%1$s」中选中的 %2$d 条密钥？不可恢复。</string>

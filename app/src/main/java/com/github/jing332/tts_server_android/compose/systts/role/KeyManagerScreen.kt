@@ -40,6 +40,7 @@ import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Checkbox
+import androidx.compose.material3.RadioButton
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.CircularProgressIndicator
@@ -557,7 +558,9 @@ fun KeyManagerScreen(tagRuleId: String, onBack: () -> Unit) {
                                 ) {
                                     if (isDeleting) {
                                         Text(
-                                            stringResource(R.string.role_key_delete_select_title, selCount),
+                                            // 短标题：长句「选择要删除的密钥（N)」会被右边三个键挤成省略号，
+                                            // 已选数量在「删除(N)」键上看
+                                            stringResource(R.string.role_key_delete_title),
                                             style = MaterialTheme.typography.bodyMedium,
                                             fontWeight = FontWeight.Bold,
                                             color = MaterialTheme.colorScheme.error,
@@ -1534,6 +1537,16 @@ private fun ModelPullDialog(
                     }
                 }
                 Spacer(Modifier.height(8.dp))
+                // 新建模式：地址/分组名两条使用提示并到标题正下方（原散在各输入栏下，栏与栏间显得碎）
+                if (!forGroup) {
+                    Text(
+                        stringResource(R.string.role_key_ifc_url_hint) + "，" +
+                            stringResource(R.string.role_key_group_name_auto_hint),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Spacer(Modifier.height(6.dp))
+                }
                 if (forGroup) {
                     // 分组模式：把「给谁拉」摆出来（组名 · 网址）
                     Text(
@@ -1588,11 +1601,10 @@ private fun ModelPullDialog(
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
-                    // 地址可能很长，允许多行
+                    // 地址可能很长，允许多行；框内不放示例（使用提示在标题下那行）
                     OutlinedTextField(
                         value = urlText, onValueChange = { urlText = it },
                         singleLine = false, minLines = 1, maxLines = 3,
-                        placeholder = { Text("https://api.example.com/v1") },
                         textStyle = MaterialTheme.typography.bodyMedium,
                         modifier = Modifier.fillMaxWidth()
                             // 失焦补协议头并回写（与编辑弹窗同口径）
@@ -1605,15 +1617,6 @@ private fun ModelPullDialog(
                                 }
                             },
                     )
-                    // 提示行只在未填时占位（填了让位给预览行，弹窗高度有限）
-                    if (url.isEmpty()) {
-                        Text(
-                            stringResource(R.string.role_key_ifc_url_hint),
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.padding(top = 2.dp)
-                        )
-                    }
                     Spacer(Modifier.height(6.dp))
                     Text(
                         stringResource(R.string.role_key_ifc_key),
@@ -1656,12 +1659,17 @@ private fun ModelPullDialog(
                     }
                 }
                 Spacer(Modifier.height(4.dp))
-                // 操作行只剩「拉取」（分组模式=重试，新建模式=首次拉取）
-                Row(verticalAlignment = Alignment.CenterVertically) {
+                // 操作行只剩「拉取」，靠右（分组模式=重试，新建模式=首次拉取）
+                Row(
+                    Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.End,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    if (loading) CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp)
+                    Spacer(Modifier.width(8.dp))
                     TextButton(onClick = { fetch() }, enabled = !loading && ready) {
                         Text(stringResource(if (loading) R.string.role_key_fetching else R.string.role_key_fetch))
                     }
-                    if (loading) CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp)
                 }
                 if (error.isNotEmpty()) {
                     Text(
@@ -1750,28 +1758,31 @@ private fun ModelPullDialog(
                         }
                     }
                 }
-                // 确认时不在这里写条目：只把（网址 + 密钥 + 选中模型 + 分组名）交回上层
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
-                    TextButton(onClick = onDismiss) { Text(stringResource(R.string.cancel)) }
-                    TextButton(
-                        enabled = selected.isNotEmpty() && ready,
-                        onClick = {
-                            // 手填分组名撞已有组 ⇒ 拦住确认（不当场改字，Toast 提示）
-                            if (nameTaken) {
-                                android.widget.Toast.makeText(
-                                    context,
-                                    context.getString(R.string.role_key_group_name_exists, typedName),
-                                    android.widget.Toast.LENGTH_SHORT
-                                ).show()
-                                return@TextButton
+                // 确认时不在这里写条目：只把（网址 + 密钥 + 选中模型 + 分组名）交回上层。
+                // 取消/添加是「拉取之后」的事，没拉到模型前不占这行高度
+                if (models.isNotEmpty()) {
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+                        TextButton(onClick = onDismiss) { Text(stringResource(R.string.cancel)) }
+                        TextButton(
+                            enabled = selected.isNotEmpty() && ready,
+                            onClick = {
+                                // 手填分组名撞已有组 ⇒ 拦住确认（不当场改字，Toast 提示）
+                                if (nameTaken) {
+                                    android.widget.Toast.makeText(
+                                        context,
+                                        context.getString(R.string.role_key_group_name_exists, typedName),
+                                        android.widget.Toast.LENGTH_SHORT
+                                    ).show()
+                                    return@TextButton
+                                }
+                                val u = targetIfc?.baseUrl ?: url
+                                val k = targetIfc?.apiKey ?: key
+                                // 并入已有组 ⇒ 名字交空
+                                onConfirm(u, k, if (targetIfc != null) "" else finalName, selected.sorted())
                             }
-                            val u = targetIfc?.baseUrl ?: url
-                            val k = targetIfc?.apiKey ?: key
-                            // 并入已有组 ⇒ 名字交空
-                            onConfirm(u, k, if (targetIfc != null) "" else finalName, selected.sorted())
+                        ) {
+                            Text(stringResource(R.string.role_key_add_selected, selected.size))
                         }
-                    ) {
-                        Text(stringResource(R.string.role_key_add_selected, selected.size))
                     }
                 }
             }
@@ -1819,6 +1830,8 @@ private fun ImportKeysDialog(
     val scope = rememberCoroutineScope()
     var files by remember { mutableStateOf<List<String>>(emptyList()) }
     var pending by remember { mutableStateOf<Pair<String, KeyListFile.ExportData>?>(null) }
+    // 单选态：先勾文件再点「导入」，视觉自说明，不靠提示文案
+    var picked by remember { mutableStateOf<String?>(null) }
     LaunchedEffect(Unit) {
         files = withIO { KeyListFile.listExportFiles(tagRuleId) }
     }
@@ -1833,13 +1846,6 @@ private fun ImportKeysDialog(
         ) {
             Column(Modifier.padding(16.dp)) {
                 Text(stringResource(R.string.role_key_import), style = MaterialTheme.typography.headlineSmall)
-                Spacer(Modifier.height(4.dp))
-                // 没有这行提示，用户不知道列表里的文件名点一下就开始导入
-                Text(
-                    stringResource(R.string.role_key_import_hint),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
                 Spacer(Modifier.height(8.dp))
                 if (files.isEmpty()) {
                     Text(
@@ -1849,30 +1855,42 @@ private fun ImportKeysDialog(
                     )
                 } else {
                     LazyColumn(Modifier.weight(1f, fill = false)) {
-                        files.forEachIndexed { i, fn ->
+                        files.forEach { fn ->
                             item(key = fn) {
+                                // 单选行： RadioButton 给足「可选中」的视觉，行距拉开不再挤成一坨
                                 Row(
-                                    Modifier.fillMaxWidth().clickable {
-                                        scope.launch {
-                                            val list = withIO { KeyListFile.readExportFile(tagRuleId, fn) }
-                                            if (list == null) toast(R.string.role_list_failed)
-                                            else pending = fn to list
-                                        }
-                                    },
+                                    Modifier.fillMaxWidth()
+                                        .heightIn(min = 44.dp)
+                                        .clickable { picked = fn },
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
-                                    Text(fn, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f))
+                                    RadioButton(selected = picked == fn, onClick = null)
+                                    Spacer(Modifier.width(4.dp))
+                                    Text(
+                                        fn,
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        modifier = Modifier.weight(1f)
+                                    )
                                 }
-                                // 分隔线只夹在文件之间，末尾不挂线
-                                if (i < files.lastIndex) HorizontalDivider()
                             }
                         }
                     }
                 }
                 Spacer(Modifier.height(4.dp))
-                // 取消键靠右（对齐 M3 弹窗按钮位）
+                // 取消 / 导入 靠右（对齐 M3 弹窗按钮位）；导入先读文件，再进确认弹窗
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
                     TextButton(onClick = onDismiss) { Text(stringResource(R.string.cancel)) }
+                    TextButton(
+                        enabled = picked != null,
+                        onClick = {
+                            val fn = picked ?: return@TextButton
+                            scope.launch {
+                                val list = withIO { KeyListFile.readExportFile(tagRuleId, fn) }
+                                if (list == null) toast(R.string.role_list_failed)
+                                else pending = fn to list
+                            }
+                        }
+                    ) { Text(stringResource(R.string.role_key_import)) }
                 }
             }
         }
