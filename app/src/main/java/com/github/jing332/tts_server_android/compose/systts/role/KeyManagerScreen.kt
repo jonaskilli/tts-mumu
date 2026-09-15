@@ -804,12 +804,11 @@ fun KeyManagerScreen(tagRuleId: String, onBack: () -> Unit) {
                                 if (isDeleting) {
                                     // 删除模式标题行（目目 09-15 晚：标题就该在标题位——
                                     // 上版挪到底部和按钮挤一行被吐槽；顶部独立一行）。
-                                    // 标题本身中性色（目目 09-16：红是动作语义，标题不染警示），
-                                    // 红色只留在底部「删除(N)」键上
+                                    // 格式对齐全 app 弹窗标题档（目目 09-16）：M3 AlertDialog
+                                    // 默认 headlineSmall——24sp 常规字重，不染色不加粗
                                     Text(
                                         stringResource(R.string.role_key_delete_title),
-                                        style = MaterialTheme.typography.titleSmall,
-                                        fontWeight = FontWeight.Bold,
+                                        style = MaterialTheme.typography.headlineSmall,
                                         modifier = Modifier.padding(start = 12.dp, top = 6.dp, bottom = 2.dp)
                                     )
                                 }
