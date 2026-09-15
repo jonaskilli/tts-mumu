@@ -727,8 +727,9 @@
     <string name="role_key_no_export">未找到密钥导出文件，请先导出</string>
     <string name="role_key_import_confirm_title">导入确认</string>
     <string name="role_key_import_confirm">从 %1$s 读取 %2$d 条
-将新增 %3$d 个，跳过 %4$d 个重名</string>
-    <string name="role_key_import_done">导入完成：新增 %1$d 个，跳过 %2$d 个重名</string>
+将新增 %3$d 个，跳过 %4$d 个重名
+含 %5$d 个分组</string>
+    <string name="role_key_import_done">导入完成：新增 %1$d 个，跳过 %2$d 个重名，恢复 %3$d 个分组</string>
     <string name="role_key_interface_new">新建接口</string>
     <string name="role_key_interface_edit">编辑接口</string>
     <string name="role_key_ifc_name">接口名称（自己起，如：智谱主力 / 硅基备用）</string>
@@ -747,6 +748,15 @@
     <string name="role_key_delete_n">删除(%1$d)</string>
     <string name="role_key_delete_none">请先勾选要删除的密钥</string>
     <string name="role_key_delete_batch_text">确定删除「%1$s」中选中的 %2$d 条密钥？不可恢复。</string>
+    <string name="role_key_current_badge">当前</string>
+    <string name="role_key_group_delete_all">删除整组</string>
+    <string name="role_key_group_delete_all_sub">连带 %1$d 条子项</string>
+    <string name="role_key_group_delete_multi">多选删除子项</string>
+    <string name="role_key_group_delete_multi_sub">勾选后批量删，组保留</string>
+    <string name="role_key_delete_group_title">删除分组</string>
+    <string name="role_key_delete_group_text">将删除分组「%1$s」及其下 %2$d 条子项，此操作不可恢复。</string>
+    <string name="role_key_ifc_group_dup">该网址 + 密钥已属于分组「%1$s」，请先改网址或密钥</string>
+    <string name="role_key_pull_done">已添加 %1$d 个模型（跳过 %2$d 个已存在）</string>
     <string name="role_key_deleted_toast">已删除 %1$d 条密钥</string>
     <string name="role_key_test_batch_start">开始测试「%1$s」共 %2$d 条，完成后逐条标记</string>
     <string name="role_key_test_batch_done">「%1$s」测试完成：%2$d 通 / %3$d 不通</string>

@@ -667,8 +667,9 @@ Marks: %3$s</string>
     <string name="role_key_no_export">No export file found, export first</string>
     <string name="role_key_import_confirm_title">Import</string>
     <string name="role_key_import_confirm">Read %2$d from %1$s
-Add %3$d, skip %4$d duplicates</string>
-    <string name="role_key_import_done">Imported: %1$d added, %2$d skipped</string>
+Add %3$d, skip %4$d duplicates
+%5$d group(s) included</string>
+    <string name="role_key_import_done">Imported: %1$d added, %2$d skipped, %3$d group(s) restored</string>
     <string name="role_key_interface_new">New interface</string>
     <string name="role_key_interface_edit">Edit interface</string>
     <string name="role_key_ifc_name">Name (e.g. Zhipu main / Silicon backup)</string>
@@ -687,6 +688,15 @@ Add %3$d, skip %4$d duplicates</string>
     <string name="role_key_delete_n">Delete (%1$d)</string>
     <string name="role_key_delete_none">Select at least one key first</string>
     <string name="role_key_delete_batch_text">Delete the %2$d selected key(s) under "%1$s"? This cannot be undone.</string>
+    <string name="role_key_current_badge">Current</string>
+    <string name="role_key_group_delete_all">Delete group</string>
+    <string name="role_key_group_delete_all_sub">Also deletes %1$d item(s)</string>
+    <string name="role_key_group_delete_multi">Select items to delete</string>
+    <string name="role_key_group_delete_multi_sub">Batch delete selected; group kept</string>
+    <string name="role_key_delete_group_title">Delete group</string>
+    <string name="role_key_delete_group_text">Delete group "%1$s" and its %2$d item(s)? This cannot be undone.</string>
+    <string name="role_key_ifc_group_dup">That URL + key already belongs to group "%1$s"</string>
+    <string name="role_key_pull_done">Added %1$d model(s) (skipped %2$d existing)</string>
     <string name="role_key_deleted_toast">Deleted %1$d key(s)</string>
     <string name="role_key_test_batch_start">Testing %2$d key(s) under "%1$s"…</string>
     <string name="role_key_test_batch_done">"%1$s" test done: %2$d ok / %3$d failed</string>

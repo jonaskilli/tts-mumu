@@ -39,6 +39,8 @@ import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Checkbox
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
@@ -74,6 +76,7 @@ import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.TextRange
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.text.style.TextOverflow
@@ -127,13 +130,13 @@ private class KeyGroup(
 private fun buildKeyGroups(keys: List<KeyListFile.KeyEntry>, ifaces: List<KeyListFile.ApiInterface>): List<KeyGroup> {
     val groups = mutableListOf<KeyGroup>()
     val assigned = mutableSetOf<String>()
-    ifaces.forEach { ifc ->
-        val entries = keys.filter { KeyListFile.keyBelongsTo(it, ifc) }
-        if (entries.isNotEmpty()) {
+        ifaces.forEach { ifc ->
+            val entries = keys.filter { KeyListFile.keyBelongsTo(it, ifc) }
+            // 空分组**照样显示**（目目 09-15「先建组、再拉模型」）。旧版在这里 `if (entries.isNotEmpty())`
+            // 把空组整个滤掉 ⇒ 建完分组页面上根本不出现、点不到它的「拉取模型」——是条真断路（P0）。
             groups.add(KeyGroup(ifc.name, entries, ifc))
             entries.forEach { assigned.add(it.name) }
         }
-    }
     val direct = keys.filter { k ->
         val p = KeyListFile.parseKeyValue(k.value)
         p != null && p.isDirect && k.name !in assigned
@@ -206,6 +209,7 @@ private fun KeyEntryRow(
     onSwitch: () -> Unit,
     onTest: () -> Unit,
     onEdit: () -> Unit,
+    onDelete: () -> Unit,
 ) {
     Row(
         // 卡片内边距 10dp + 状态点 14dp + 间距 8dp ⇒ 名字左缘 32dp，
@@ -232,24 +236,52 @@ private fun KeyEntryRow(
             }
         }
         Spacer(Modifier.width(8.dp))
-        Text(
-            entry.name,
-            style = MaterialTheme.typography.bodyLarge,
-            fontWeight = if (isCurrent) FontWeight.SemiBold else null,
-            color = if (isCurrent) accent else MaterialTheme.colorScheme.onSurface,
-            // 目目 09-15：一栏放不下就换行（原单行省略号会把长名字吃掉）
-            maxLines = 2,
-            overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.weight(1f).clickable { onSwitch() }
-        )
-        if (testing) {
-            CircularProgressIndicator(Modifier.size(16.dp), strokeWidth = 2.dp)
-            Spacer(Modifier.width(2.dp))
+        // 固定两行（目目 09-15 ②）：
+        //   行1 = 状态点 + 显示名 + 「当前」徽章 + ⚡测试/✏️编辑/🗑删除
+        //   行2 = 完整 @@ 串（等宽 11sp、折行，放不下就换行、永不被省略号吃掉）
+        // 显示名取**值里的真实模型名**：条目名可能带 `@组名` 去重后缀（跨组同模型共存用），
+        // 那是内部标识、不该给人看。
+        Column(Modifier.weight(1f).clickable { onSwitch() }) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    KeyListFile.displayName(entry),
+                    style = MaterialTheme.typography.bodyLarge,
+                    fontWeight = if (isCurrent) FontWeight.SemiBold else null,
+                    color = if (isCurrent) accent else MaterialTheme.colorScheme.onSurface,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f, fill = false)
+                )
+                if (isCurrent) {
+                    Spacer(Modifier.width(6.dp))
+                    Surface(shape = RoundedCornerShape(8.dp), color = accent.copy(alpha = 0.14f)) {
+                        Text(
+                            stringResource(R.string.role_key_current_badge),
+                            style = MaterialTheme.typography.labelSmall,
+                            color = accent,
+                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 1.dp)
+                        )
+                    }
+                }
+                if (testing) {
+                    Spacer(Modifier.width(6.dp))
+                    CircularProgressIndicator(Modifier.size(16.dp), strokeWidth = 2.dp)
+                }
+            }
+            Text(
+                entry.value,
+                style = MaterialTheme.typography.labelSmall,
+                fontFamily = FontFamily.Monospace,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 4,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.padding(top = 2.dp)
+            )
         }
         if (!deleteMode) {
-            // ⚡✏️ 两个都留（目目 09-15 ①定稿）；测通/测不通不再用文字复述，状态点已经说明
             FlatIconAction(Icons.Default.Bolt, stringResource(R.string.role_key_test)) { onTest() }
             FlatIconAction(Icons.Default.Edit, stringResource(R.string.role_key_edit)) { onEdit() }
+            FlatIconAction(Icons.Default.DeleteOutline, stringResource(R.string.delete)) { onDelete() }
         }
     }
 }
@@ -274,8 +306,13 @@ fun KeyManagerScreen(tagRuleId: String, onBack: () -> Unit) {
     var deleteModeGroup by remember { mutableStateOf<String?>(null) }
     var deleteChecked by remember { mutableStateOf<Set<String>>(emptySet()) }
     var deleteConfirmGroup by remember { mutableStateOf<String?>(null) }
+    var menuGroup by remember { mutableStateOf<String?>(null) }          // 组头 🗑 展开的两项菜单
+    var deleteGroupConfirm by remember { mutableStateOf<String?>(null) } // 「删除整组」二次确认
 
     LaunchedEffect(version) {
+        // 分组自愈先跑（目目 09-15 ④「未分组自动收编」）：匹配不上任何分组的 @@ 条目
+        // 按（归一化网址 + 密钥）自动建组，这样「加一条 @@ 密钥」就自动落到合适的分组下。
+        withIO { KeyListFile.heal(tagRuleId) }
         val loaded = withIO {
             Triple(
                 KeyListFile.readKeys(tagRuleId),
@@ -311,7 +348,7 @@ fun KeyManagerScreen(tagRuleId: String, onBack: () -> Unit) {
     }
     fun switchTo(entry: KeyListFile.KeyEntry) {
         if (entry.value.trim() == currentRaw) {
-            toast(R.string.role_key_is_current, entry.name)
+            toast(R.string.role_key_is_current, KeyListFile.displayName(entry))
             return
         }
         if (entry.value.isBlank()) {
@@ -320,7 +357,7 @@ fun KeyManagerScreen(tagRuleId: String, onBack: () -> Unit) {
         }
         scope.launch {
             withIO { KeyListFile.saveCurrentRaw(tagRuleId, entry.value) }
-            toast(R.string.role_key_switched, entry.name)
+            toast(R.string.role_key_switched, KeyListFile.displayName(entry))
             version++
         }
     }
@@ -338,7 +375,7 @@ fun KeyManagerScreen(tagRuleId: String, onBack: () -> Unit) {
             testResults = testResults + (entry.name to r.first)
             toast(
                 if (r.first) R.string.role_key_test_ok_toast else R.string.role_key_test_fail_toast,
-                entry.name, r.second
+                KeyListFile.displayName(entry), r.second
             )
         }
     }
@@ -381,6 +418,24 @@ fun KeyManagerScreen(tagRuleId: String, onBack: () -> Unit) {
             }
             toast(R.string.role_key_deleted_toast, names.size)
             version++
+        }
+    }
+
+    // 删除整组（目目 09-15）：接口组 → 连 api_center.json 的该接口一起删；未分组/直连组 → 只删其下条目。
+    // 当前密钥若在被删集合里，deleteNames 会回落到剩余第一条（照插件 deleteMultipleBooks 口径）。
+    fun deleteGroupAll(grp: KeyGroup) {
+        val names = grp.entries.map { it.name }
+        val ifc = grp.ifc
+        scope.launch {
+            if (ifc != null) {
+                withIO {
+                    KeyListFile.saveInterfaces(
+                        tagRuleId,
+                        KeyListFile.readInterfaces(tagRuleId).filter { it.name != ifc.name }
+                    )
+                }
+            }
+            deleteNames(names)
         }
     }
 
@@ -494,7 +549,9 @@ fun KeyManagerScreen(tagRuleId: String, onBack: () -> Unit) {
                         Text(stringResource(R.string.role_key_fetch))
                     }
                 }
-                if (keys.isEmpty()) {
+                val groups = buildKeyGroups(keys, ifaces)
+                // 有分组（哪怕全是空组）就渲染卡片：先建组、再拉模型这条路必须走得通
+                if (groups.isEmpty()) {
                     Text(
                         stringResource(R.string.role_key_empty),
                         style = MaterialTheme.typography.bodyLarge,
@@ -502,7 +559,6 @@ fun KeyManagerScreen(tagRuleId: String, onBack: () -> Unit) {
                         modifier = Modifier.fillMaxWidth().padding(vertical = 24.dp)
                     )
                 } else {
-                    val groups = buildKeyGroups(keys, ifaces)
                     // 当前密钥强调色（目目 09-15 ②「你想换就换吧」）：用 scheme.secondary。
                     // MD3 里 secondary 就是「次强调」的定位，各主题都是中深档（默认档 #55624C）→ 浅底读得出。
                     // 不能用 primary：10 个手写主题的 primary 全是各自的 *_seed（默认档 #7B8B70，很淡），
@@ -631,13 +687,62 @@ fun KeyManagerScreen(tagRuleId: String, onBack: () -> Unit) {
                                                 ) { testGroup(grp) }
                                             }
                                         }
-                                        FlatIconAction(
-                                            Icons.Default.DeleteOutline,
-                                            stringResource(R.string.delete)
-                                        ) {
-                                            deleteModeGroup = grp.title
-                                            deleteChecked = emptySet()
-                                            collapsed = collapsed - grp.title
+                                        // 组头 🗑（目目 09-15）：点开是**两项**而非单一动作——
+                                        // 「删除整组」连带子项、「多选删除子项」只在本组范围内勾选。
+                                        Box {
+                                            FlatIconAction(
+                                                Icons.Default.DeleteOutline,
+                                                stringResource(R.string.delete)
+                                            ) { menuGroup = grp.title }
+                                            DropdownMenu(
+                                                expanded = menuGroup == grp.title,
+                                                onDismissRequest = { menuGroup = null }
+                                            ) {
+                                                DropdownMenuItem(
+                                                    text = {
+                                                        Column {
+                                                            Text(
+                                                                stringResource(R.string.role_key_group_delete_all),
+                                                                style = MaterialTheme.typography.bodyMedium,
+                                                                color = MaterialTheme.colorScheme.error
+                                                            )
+                                                            Text(
+                                                                stringResource(
+                                                                    R.string.role_key_group_delete_all_sub,
+                                                                    grp.entries.size
+                                                                ),
+                                                                style = MaterialTheme.typography.labelSmall,
+                                                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                                                            )
+                                                        }
+                                                    },
+                                                    onClick = {
+                                                        menuGroup = null
+                                                        deleteGroupConfirm = grp.title
+                                                    }
+                                                )
+                                                DropdownMenuItem(
+                                                    text = {
+                                                        Column {
+                                                            Text(
+                                                                stringResource(R.string.role_key_group_delete_multi),
+                                                                style = MaterialTheme.typography.bodyMedium
+                                                            )
+                                                            Text(
+                                                                stringResource(R.string.role_key_group_delete_multi_sub),
+                                                                style = MaterialTheme.typography.labelSmall,
+                                                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                                                            )
+                                                        }
+                                                    },
+                                                    onClick = {
+                                                        menuGroup = null
+                                                        deleteModeGroup = grp.title
+                                                        deleteChecked = emptySet()
+                                                        collapsed = collapsed - grp.title
+                                                    }
+                                                )
+                                            }
                                         }
                                     }
                                 }
@@ -716,7 +821,8 @@ fun KeyManagerScreen(tagRuleId: String, onBack: () -> Unit) {
                                             },
                                             onSwitch = { switchTo(entry) },
                                             onTest = { testKey(entry) },
-                                            onEdit = { renameFor = entry }
+                                            onEdit = { renameFor = entry },
+                                            onDelete = { deleteFor = entry }
                                         )
                                     }
                                 }
@@ -745,6 +851,30 @@ fun KeyManagerScreen(tagRuleId: String, onBack: () -> Unit) {
             },
             dismissButton = {
                 TextButton(onClick = { deleteConfirmGroup = null }) {
+                    Text(stringResource(R.string.cancel))
+                }
+            }
+        )
+    }
+
+    // 删除整组确认（目目 09-15：组头 🗑 →「删除整组」，连带子项，先确认并显示条数）
+    deleteGroupConfirm?.let { gTitle ->
+        val grp = buildKeyGroups(keys, ifaces).firstOrNull { it.title == gTitle }
+        val n = grp?.entries?.size ?: 0
+        AlertDialog(
+            onDismissRequest = { deleteGroupConfirm = null },
+            title = { Text(stringResource(R.string.role_key_delete_group_title)) },
+            text = { Text(stringResource(R.string.role_key_delete_group_text, gTitle, n)) },
+            confirmButton = {
+                TextButton(onClick = {
+                    deleteGroupConfirm = null
+                    deleteModeGroup = null
+                    deleteChecked = emptySet()
+                    if (grp != null) deleteGroupAll(grp)
+                }) { Text(stringResource(R.string.delete)) }
+            },
+            dismissButton = {
+                TextButton(onClick = { deleteGroupConfirm = null }) {
                     Text(stringResource(R.string.cancel))
                 }
             }
@@ -834,7 +964,7 @@ fun KeyManagerScreen(tagRuleId: String, onBack: () -> Unit) {
         AlertDialog(
             onDismissRequest = { deleteFor = null },
             title = { Text(stringResource(R.string.role_key_delete_title)) },
-            text = { Text(stringResource(R.string.role_key_delete_text, entry.name)) },
+            text = { Text(stringResource(R.string.role_key_delete_text, KeyListFile.displayName(entry))) },
             confirmButton = {
                 TextButton(onClick = {
                     deleteFor = null
@@ -872,12 +1002,27 @@ fun KeyManagerScreen(tagRuleId: String, onBack: () -> Unit) {
             existingNames = keys.map { it.name }.toSet(),
             initialIfcName = pullForIfc,
             onDismiss = { showPullModels = false; pullForIfc = null },
-            onConfirm = { entries ->
+            onConfirm = { ifcName, pickedModels, entries ->
                 showPullModels = false
-                val merged = entries.fold(keys) { acc, e ->
-                    acc + e.copy(keyCode = KeyListFile.nextKeyCode(acc))
+                scope.launch {
+                    val ifc = ifaces.firstOrNull { it.name == ifcName }
+                    // 组内去重（目目 09-15）：同（站点 + 密钥 + 模型）已在组里 → 不再多出一条
+                    val toAdd = if (ifc == null) entries else entries.filterNot { e ->
+                        val p = KeyListFile.parseKeyValue(e.value)
+                        p != null && !p.isDirect && KeyListFile.hasModel(keys, ifc, p.model)
+                    }
+                    val merged = toAdd.fold(keys) { acc, e ->
+                        acc + e.copy(keyCode = KeyListFile.nextKeyCode(acc))
+                    }
+                    withIO {
+                        if (toAdd.isNotEmpty()) KeyListFile.saveKeys(tagRuleId, merged)
+                        // 拉到的模型登记进分组 models（旧版从不回写 ⇒ api_center.models 恒空，
+                        // 分组下有几条模型这个信息根本没落盘）
+                        KeyListFile.addModelsToInterface(tagRuleId, ifcName, pickedModels)
+                    }
+                    toast(R.string.role_key_pull_done, toAdd.size, entries.size - toAdd.size)
+                    version++
                 }
-                save(merged)
             }
         )
     }
@@ -1086,6 +1231,16 @@ private fun InterfaceFormDialog(
                             toast(R.string.role_key_ifc_name_dup)
                             return@launch
                         }
+                        // 分组 = （归一化网址 + 密钥）唯一（目目 09-15）。改成与另一个接口完全同组
+                        // ⇒ 会凭空多出一个「同组」的分组；按目目定的「拦住报错」处理，不静默合并。
+                        val collide = ifaces.firstOrNull {
+                            it.name != (initial?.name ?: "") &&
+                                KeyListFile.sameApiSite(it.baseUrl, u) && it.apiKey.trim() == k
+                        }
+                        if (collide != null) {
+                            toast(R.string.role_key_ifc_group_dup, collide.name)
+                            return@launch
+                        }
                         val updated = if (initial == null) {
                             ifaces + KeyListFile.ApiInterface(n, u, k, emptyList())
                         } else {
@@ -1134,7 +1289,7 @@ private fun ModelPullDialog(
     existingNames: Set<String>,
     initialIfcName: String? = null,
     onDismiss: () -> Unit,
-    onConfirm: (List<KeyListFile.KeyEntry>) -> Unit,
+    onConfirm: (String, List<String>, List<KeyListFile.KeyEntry>) -> Unit,
 ) {
     val scope = rememberCoroutineScope()
     var ifaces by remember { mutableStateOf<List<KeyListFile.ApiInterface>>(emptyList()) }
@@ -1274,6 +1429,8 @@ private fun ModelPullDialog(
                         onClick = {
                             val p = ifaces.firstOrNull { it.name == pickedName } ?: return@TextButton
                             onConfirm(
+                                pickedName,
+                                selected.sorted(),
                                 selected.sorted().map { m ->
                                     KeyListFile.KeyEntry(
                                         name = KeyListFile.uniqueKeyName(m, p.name, existingNames),
@@ -1350,7 +1507,7 @@ private fun ImportKeysDialog(
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     var files by remember { mutableStateOf<List<String>>(emptyList()) }
-    var pending by remember { mutableStateOf<Pair<String, List<KeyListFile.KeyEntry>>?>(null) }
+    var pending by remember { mutableStateOf<Pair<String, KeyListFile.ExportData>?>(null) }
     LaunchedEffect(Unit) {
         files = withIO { KeyListFile.listExportFiles(tagRuleId) }
     }
@@ -1398,24 +1555,31 @@ private fun ImportKeysDialog(
         }
     }
     // 导入确认
-    pending?.let { (fn, list) ->
+    pending?.let { (fn, data) ->
         var counts by remember(fn) { mutableStateOf(0 to 0) }
         LaunchedEffect(fn) {
             val names = withIO { KeyListFile.readKeys(tagRuleId).map { it.name }.toSet() }
-            counts = list.count { it.name !in names } to list.count { it.name in names }
+            counts = data.keys.count { it.name !in names } to data.keys.count { it.name in names }
         }
         AlertDialog(
             onDismissRequest = { pending = null },
             title = { Text(stringResource(R.string.role_key_import_confirm_title)) },
             text = {
-                Text(stringResource(R.string.role_key_import_confirm, fn, list.size, counts.first, counts.second))
+                Text(
+                    stringResource(
+                        R.string.role_key_import_confirm,
+                        fn, data.keys.size, counts.first, counts.second, data.interfaces.size
+                    )
+                )
             },
             confirmButton = {
                 TextButton(onClick = {
                     pending = null
                     scope.launch {
-                        val (added, skipped) = withIO { KeyListFile.importKeys(tagRuleId, list) }
-                        toast(R.string.role_key_import_done, added, skipped)
+                        // v2 含分组 → importAll（密钥合并 + 接口按站点+密钥去重合并）；
+                        // 插件时代的扁平数组文件 interfaces 为空，等价于原来的 importKeys。
+                        val (added, skipped, addedIfc) = withIO { KeyListFile.importAll(tagRuleId, data) }
+                        toast(R.string.role_key_import_done, added, skipped, addedIfc)
                         onDone()
                     }
                 }) { Text(stringResource(R.string.confirm)) }

@@ -34,6 +34,9 @@ object KeyListFile {
 
     data class ParsedKey(val isDirect: Boolean, val url: String, val model: String, val key: String)
 
+    /** 导出/备份数据的解析结果：keys 两版通用；interfaces 只有 v2 有 */
+    data class ExportData(val keys: List<KeyEntry>, val interfaces: List<ApiInterface>)
+
     private fun dir(tagRuleId: String) = File(BASE_DIR, tagRuleId)
     private fun keyFile(tagRuleId: String) = File(dir(tagRuleId), "key_list.json")
     private fun keyBackupFile(tagRuleId: String) = File(dir(tagRuleId), "key_list.backup.json")
@@ -102,6 +105,95 @@ object KeyListFile {
         var n = 2
         while ("$alt$n" in existing) n++
         return "$alt$n"
+    }
+
+    // ==================== 显示名 / 组内去重 / 分组自愈 ====================
+
+    /**
+     * 显示名（目目 09-15「同模型跨组共存」）：@@ 条目取**值里的真实模型名**——
+     * 条目名可能被 uniqueKeyName 加过 `@组名` 去重后缀，但值里的模型名永远是原始的，
+     * 所以显示层不必去猜后缀，直接读值即可（插件让名字当标签，值才是消费端真源）。
+     * 直连条目（纯 Key）没有模型名，回落到条目名。
+     */
+    fun displayName(entry: KeyEntry): String {
+        val p = parseKeyValue(entry.value) ?: return entry.name
+        return if (!p.isDirect && p.model.isNotBlank()) p.model else entry.name
+    }
+
+    /** 该接口下是否已有同（站点 && 密钥 && 模型）的条目——组内去重用（拉两次同一模型不再多出一条） */
+    fun hasModel(keys: List<KeyEntry>, ifc: ApiInterface, model: String): Boolean =
+        keys.any { e ->
+            val p = parseKeyValue(e.value) ?: return@any false
+            !p.isDirect && p.model == model && p.key == ifc.apiKey.trim() && sameApiSite(p.url, ifc.baseUrl)
+        }
+
+    /** 接口名去重：重名追加 2、3…（不带 @，免得和条目名 uniqueKeyName 的形态混淆） */
+    fun uniqueIfcName(base: String, existing: Set<String>): String {
+        if (base !in existing) return base
+        var n = 2
+        while ("$base$n" in existing) n++
+        return "$base$n"
+    }
+
+    /** 自动分组名：取网址主机名（如 api.x.com）；取不到则「接口N」 */
+    private fun autoIfcName(url: String, existing: Set<String>): String {
+        val host = try {
+            java.net.URI(normalizeBaseUrl(url)).host.orEmpty()
+        } catch (e: Exception) {
+            ""
+        }
+        return uniqueIfcName(host.ifBlank { "接口" + (existing.size + 1) }, existing)
+    }
+
+    /**
+     * 分组自愈（目目 09-15 ④「未分组自动收编」；照插件 ensureApiCenter 的聚合口径升级）：
+     *  - 匹配不上任何接口的 @@ 条目（首次迁移 / 刚导入 / 刚手加一个 @@ 密钥）→ 按
+     *    （归一化网址 + 密钥）自动建一个新接口，名字取主机名（重复加序号），模型名登记进 models；
+     *  - 已匹配到接口、但 models 里缺这个模型名 → 补上（models 是管理视图，供分组展示/导出复原）。
+     * **纯 Key 直连条目不参与聚合**（照插件：直连留独立一组）。有变化才落盘。
+     */
+    fun heal(tagRuleId: String): Boolean {
+        val keys = readKeys(tagRuleId)
+        if (keys.isEmpty()) return false
+        var ifaces = readInterfaces(tagRuleId)
+        var changed = false
+        val names = ifaces.map { it.name }.toMutableSet()
+        keys.forEach { e ->
+            val p = parseKeyValue(e.value) ?: return@forEach
+            if (p.isDirect) return@forEach
+            val url = p.url.trim()
+            val key = p.key.trim()
+            if (url.isEmpty() || key.isEmpty()) return@forEach
+            val hit = ifaces.firstOrNull { sameApiSite(it.baseUrl, url) && it.apiKey.trim() == key }
+            if (hit == null) {
+                val nm = autoIfcName(url, names)
+                names.add(nm)
+                ifaces = ifaces + ApiInterface(
+                    name = nm,
+                    baseUrl = openAiBaseUrl(url),
+                    apiKey = key,
+                    models = if (p.model.isBlank()) emptyList() else listOf(p.model),
+                )
+                changed = true
+            } else if (p.model.isNotBlank() && p.model !in hit.models) {
+                ifaces = ifaces.map { if (it.name == hit.name) it.copy(models = it.models + p.model) else it }
+                changed = true
+            }
+        }
+        if (changed) saveInterfaces(tagRuleId, ifaces)
+        return changed
+    }
+
+    /** 拉取模型后把模型名登记进接口的 models（去重）；返回是否发生写入 */
+    fun addModelsToInterface(tagRuleId: String, ifcName: String, models: List<String>): Boolean {
+        if (ifcName.isBlank() || models.isEmpty()) return false
+        val ifaces = readInterfaces(tagRuleId)
+        val hit = ifaces.firstOrNull { it.name == ifcName } ?: return false
+        val merged = hit.models.toMutableList()
+        var changed = false
+        models.forEach { if (it !in merged) { merged.add(it); changed = true } }
+        if (!changed) return false
+        return saveInterfaces(tagRuleId, ifaces.map { if (it.name == ifcName) it.copy(models = merged) else it })
     }
 
     // ==================== 当前密钥（miyue/gengxin/backup 三写）====================
@@ -446,14 +538,34 @@ object KeyListFile {
     }
 
     /**
-     * 导出全部密钥到 密钥导出_yyMMdd.json（照插件 exportKeysDialog 格式：[[名字,{keyCode,value}],...]）。
-     * ⚠️ 日期**必须用 yyMMdd**（插件写死 `密钥导出_` + 两位年，且导入侧按同样格式往前探测 365 天）；
-     * 旧版用 yyyyMMdd ⇒ 插件时代导出的文件 App 靠通配还能读，反过来 App 导出的插件**探测不到**。
+     * 导出全部密钥 + 分组到 密钥备份_yyMMdd.json（目目 09-15 ③「导出一个文件，导入后能复原」）。
+     * v2 格式：{version, exportedAt, interfaces:[{name,baseUrl,apiKey,models}], keys:[[名,{keyCode,value}]]}
+     * ⚠️ 文件名**不能**用 `密钥导出_`：插件自己的导入对话框会扫该前缀、并把顶层当**数组**读，
+     * 撞上我们的对象结构会崩。故分两个前缀；导入侧两个都认（插件时代的老文件照样能导进来）。
      */
     fun exportKeys(tagRuleId: String, keys: List<KeyEntry>): String? {
-        val date = java.text.SimpleDateFormat("yyMMdd", java.util.Locale.US).format(java.util.Date())
-        val fileName = "密钥导出_$date.json"
+        val now = java.util.Date()
+        val date = java.text.SimpleDateFormat("yyMMdd", java.util.Locale.US).format(now)
+        val fileName = "密钥备份_$date.json"
         return try {
+            val root = JSONObject()
+            root.put("version", 2)
+            root.put(
+                "exportedAt",
+                java.text.SimpleDateFormat("yyyy-MM-dd'T'HH:mm", java.util.Locale.US).format(now)
+            )
+            val ifcArr = JSONArray()
+            readInterfaces(tagRuleId).forEach { ifc ->
+                val o = JSONObject()
+                o.put("name", ifc.name)
+                o.put("baseUrl", ifc.baseUrl)
+                o.put("apiKey", ifc.apiKey)
+                val ma = JSONArray()
+                ifc.models.forEach { ma.put(it) }
+                o.put("models", ma)
+                ifcArr.put(o)
+            }
+            root.put("interfaces", ifcArr)
             val arr = JSONArray()
             keys.forEach { k ->
                 val obj = JSONObject()
@@ -464,9 +576,10 @@ object KeyListFile {
                 pair.put(obj)
                 arr.put(pair)
             }
+            root.put("keys", arr)
             val d = dir(tagRuleId)
             if (!d.exists()) d.mkdirs()
-            File(d, fileName).writeText(arr.toString(2))
+            File(d, fileName).writeText(root.toString(2))
             fileName
         } catch (e: Exception) {
             Log.w(TAG, "exportKeys failed: ${e.message}")
@@ -474,33 +587,69 @@ object KeyListFile {
         }
     }
 
-    /** 找现存导出文件（密钥导出_*.json，按名倒序=新在前） */
+    /** 找现存导出/备份文件（密钥导出_* 插件时代 + 密钥备份_* 本版，按名倒序=新在前） */
     fun listExportFiles(tagRuleId: String): List<String> = try {
         dir(tagRuleId).listFiles()
-            ?.filter { it.name.startsWith("密钥导出_") && it.name.endsWith(".json") }
+            ?.filter {
+                it.name.endsWith(".json") &&
+                    (it.name.startsWith("密钥导出_") || it.name.startsWith("密钥备份_"))
+            }
             ?.map { it.name }?.sortedDescending() ?: emptyList()
     } catch (e: Exception) {
         emptyList()
     }
 
-    /** 读导出文件为条目列表；损坏返回 null */
-    fun readExportFile(tagRuleId: String, fileName: String): List<KeyEntry>? = try {
+    /**
+     * 读导出/备份文件；顶层是**数组** = 插件时代扁平格式，是**对象** = 本版 v2 含分组。
+     * 损坏返回 null。
+     */
+    fun readExportFile(tagRuleId: String, fileName: String): ExportData? = try {
         val f = File(dir(tagRuleId), fileName)
         if (!f.exists()) null
         else {
-            val arr = JSONArray(f.readText())
-            val out = mutableListOf<KeyEntry>()
-            for (i in 0 until arr.length()) {
-                val pair = arr.optJSONArray(i) ?: continue
-                val name = pair.optString(0).trim()
-                val obj = pair.optJSONObject(1) ?: continue
-                if (name.isNotEmpty()) out.add(KeyEntry(name, obj.optString("keyCode"), obj.optString("value")))
+            val text = f.readText().trim()
+            if (text.startsWith("[")) {
+                ExportData(parseKeyPairs(JSONArray(text)), emptyList())
+            } else {
+                val root = JSONObject(text)
+                val ifcs = mutableListOf<ApiInterface>()
+                root.optJSONArray("interfaces")?.let { ia ->
+                    for (i in 0 until ia.length()) {
+                        val o = ia.optJSONObject(i) ?: continue
+                        val models = mutableListOf<String>()
+                        o.optJSONArray("models")?.let { ma ->
+                            for (j in 0 until ma.length()) {
+                                ma.optString(j).takeIf { t -> t.isNotEmpty() }?.let { models.add(it) }
+                            }
+                        }
+                        ifcs.add(
+                            ApiInterface(
+                                name = o.optString("name"),
+                                baseUrl = o.optString("baseUrl"),
+                                apiKey = o.optString("apiKey"),
+                                models = models,
+                            )
+                        )
+                    }
+                }
+                ExportData(root.optJSONArray("keys")?.let { parseKeyPairs(it) } ?: emptyList(), ifcs)
             }
-            out
         }
     } catch (e: Exception) {
         Log.w(TAG, "readExportFile failed: ${e.message}")
         null
+    }
+
+    /** [[名字,{keyCode,value}],...] → 条目列表（空名跳过；空 value 交给导入侧过滤） */
+    private fun parseKeyPairs(arr: JSONArray): List<KeyEntry> {
+        val out = mutableListOf<KeyEntry>()
+        for (i in 0 until arr.length()) {
+            val pair = arr.optJSONArray(i) ?: continue
+            val name = pair.optString(0).trim()
+            val obj = pair.optJSONObject(1) ?: continue
+            if (name.isNotEmpty()) out.add(KeyEntry(name, obj.optString("keyCode"), obj.optString("value")))
+        }
+        return out
     }
 
     /**
@@ -527,6 +676,46 @@ object KeyListFile {
             }
         }
         return if (saveKeys(tagRuleId, merged)) added to skipped else 0 to incoming.size
+    }
+
+    /**
+     * 导入（v2 含分组）：密钥走 importKeys 的合并口径（重名跳过）；
+     * 接口按（站点 + 密钥）去重合并、models 取并集；名字冲突自动加序号。
+     * 返回 (新增密钥, 跳过密钥, 新增接口)。
+     */
+    fun importAll(tagRuleId: String, data: ExportData): Triple<Int, Int, Int> {
+        val (added, skipped) = importKeys(tagRuleId, data.keys)
+        if (data.interfaces.isEmpty()) return Triple(added, skipped, 0)
+        val existing = readInterfaces(tagRuleId)
+        val names = existing.map { it.name }.toMutableSet()
+        val merged = existing.toMutableList()
+        var addedIfc = 0
+        var changed = false
+        data.interfaces.forEach { inc ->
+            val hit = merged.firstOrNull {
+                sameApiSite(it.baseUrl, inc.baseUrl) && it.apiKey.trim() == inc.apiKey.trim()
+            }
+            if (hit == null) {
+                val nm = uniqueIfcName(inc.name.ifBlank { autoIfcName(inc.baseUrl, names) }, names)
+                names.add(nm)
+                merged.add(inc.copy(name = nm))
+                addedIfc++
+                changed = true
+            } else if (inc.models.isNotEmpty()) {
+                val mm = hit.models.toMutableList()
+                var grew = false
+                inc.models.forEach { if (it !in mm) { mm.add(it); grew = true } }
+                if (grew) {
+                    val idx = merged.indexOfFirst { it.name == hit.name }
+                    if (idx >= 0) {
+                        merged[idx] = hit.copy(models = mm)
+                        changed = true
+                    }
+                }
+            }
+        }
+        if (changed) saveInterfaces(tagRuleId, merged)
+        return Triple(added, skipped, addedIfc)
     }
 
     /**
