@@ -168,11 +168,13 @@ fun AuditionDialog(
                         // 与日志/音频参数弹窗一致的最终倍率展示(仅≠1的项)：试听时明确知道当前生效的叠加参数
                         // 用户 09-10 定稿：去掉值后缀 x；项间改全角逗号（与日志发音人信息同款，
                         // 原空格分隔在多项连排时易看成一项）；值按实际精度（1.00→1.0、0.97→0.97）
+                        // 用户 09-15 晚：本弹窗内跟「音频大小: 」等同款格式——标签后半角冒号+空格
+                        //（仅此弹窗，日志行/音频参数弹窗的「语速1.45」连排口径不动）
                         val p = config.audioParams
                         val paramsInfo = buildList {
-                            if (kotlin.math.abs(p.speed - 1f) > 0.005f) add("语速${p.speed.toParamText()}")
-                            if (kotlin.math.abs(p.volume - 1f) > 0.005f) add("音量${p.volume.toParamText()}")
-                            if (kotlin.math.abs(p.pitch - 1f) > 0.005f) add("音高${p.pitch.toParamText()}")
+                            if (kotlin.math.abs(p.speed - 1f) > 0.005f) add("语速: ${p.speed.toParamText()}")
+                            if (kotlin.math.abs(p.volume - 1f) > 0.005f) add("音量: ${p.volume.toParamText()}")
+                            if (kotlin.math.abs(p.pitch - 1f) > 0.005f) add("音高: ${p.pitch.toParamText()}")
                         }.joinToString("，")
                         info = context.getString(
                             R.string.systts_test_success_info, audio.size.toLong().sizeToReadable(),
