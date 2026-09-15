@@ -1142,7 +1142,15 @@ private fun InterfaceFormDialog(
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
-    var name by remember { mutableStateOf(initial?.name.orEmpty()) }
+    // 目目 09-15：新建分组时名称框随网址**自动填短名**（KeyListFile.shortName 的掐头去尾口径）；
+    // 人改过、或编辑已有分组时不覆盖，免得冲掉人家起的名。
+    // 名称框：预填值一律让光标落末尾（照 0fa317e 口径），否则 Compose 的 String 值会把光标置于开头
+    var name by remember {
+        val init = initial?.name.orEmpty()
+        mutableStateOf(TextFieldValue(init, TextRange(init.length)))
+    }
+    // 名称被用户手改过就不再被网址覆盖；编辑已有分组时视为「已改」，不许动人家改过的名字
+    var nameTouched by remember { mutableStateOf(initial != null) }
     var url by remember { mutableStateOf(initial?.baseUrl.orEmpty()) }
     var key by remember { mutableStateOf(initial?.apiKey.orEmpty()) }
     fun toast(resId: Int, vararg args: Any) {
@@ -1165,8 +1173,10 @@ private fun InterfaceFormDialog(
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
                 OutlinedTextField(
-                    value = name, onValueChange = { name = it },
+                    value = name,
+                    onValueChange = { name = it; nameTouched = true },
                     singleLine = true, textStyle = MaterialTheme.typography.bodyMedium,
+                    modifier = Modifier.fillMaxWidth(),
                 )
                 Spacer(Modifier.height(6.dp))
                 Text(
@@ -1176,7 +1186,17 @@ private fun InterfaceFormDialog(
                 )
                 // 接口地址可能很长，一栏放不下就换行（目目 09-15）
                 OutlinedTextField(
-                    value = url, onValueChange = { url = it },
+                    value = url,
+                    onValueChange = { v ->
+                        url = v
+                        // 新建分组时名称框跟着网址走：取「掐头去尾的短名」（口径见 KeyListFile.shortName），
+                        // 如 https://cavoti.com/v1 → cavoti、https://xiaoqun.lyzm.xyz/v1 → xiaoqun。
+                        // 人改过（或原本就是空的）不覆盖，免得把人家的名字冲掉。
+                        if (!nameTouched || name.text.isBlank()) {
+                            val s = KeyListFile.shortName(v)
+                            name = TextFieldValue(s, TextRange(s.length))
+                        }
+                    },
                     singleLine = false, minLines = 1, maxLines = 3,
                     textStyle = MaterialTheme.typography.bodyMedium,
                     modifier = Modifier.fillMaxWidth(),
@@ -1217,7 +1237,7 @@ private fun InterfaceFormDialog(
             TextButton(
                 enabled = true,
                 onClick = {
-                    val n = name.trim()
+                    val n = name.text.trim()
                     val u = KeyListFile.normalizeBaseUrl(url.trim())
                     val k = key.trim()
                     if (n.isEmpty()) { toast(R.string.role_key_ifc_name_empty); return@TextButton }

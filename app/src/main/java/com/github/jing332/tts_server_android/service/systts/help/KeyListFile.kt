@@ -135,15 +135,47 @@ object KeyListFile {
         return "$base$n"
     }
 
+    /** 通用词（放哪都没信息量的主机名前缀）：命中就顺延到下一段 */
+    private val HOST_NOISE = setOf(
+        "www", "api", "open", "aip", "chat", "ai", "llm", "studio", "endpoints", "inference",
+        "server", "service", "services", "gateway", "proxy", "relay", "panel", "admin",
+        "dashboard", "portal", "console", "beta", "dev", "test", "one", "new", "my",
+    )
+
+    /** api 家族（api / apis / apix / api2…）——比 set 更好写，单独一条 */
+    private val API_LIKE = Regex("^api[a-z]?\\d*$")
+
+    /**
+     * 这段有没有信息量（判断用，不是命名用）：
+     *  - 通用词本体：`api` / `open` / `studio`…
+     *  - 通用词 + 数字：`api2` / `open1`
+     *  - 通用词打头再挂一段：`api-inference` / `open-webui` / `chat-v2`
+     *  - `spark-api-open` 这种**头不是**通用词的，不算（留给 [shortName] 的碎块裁剪处理）
+     */
+    private fun isNoiseLabel(label: String): Boolean {
+        val l = label.lowercase()
+        val bare = l.trimEnd { it.isDigit() }
+        if (l in HOST_NOISE || API_LIKE.matches(l)) return true
+        if (bare != l && (bare in HOST_NOISE || API_LIKE.matches(bare))) return true
+        val head = l.substringBefore('-').substringBefore('_')
+        if (head == l) return false
+        return head in HOST_NOISE || API_LIKE.matches(head) || API_LIKE.matches(head.trimEnd { it.isDigit() })
+    }
+
     /**
      * 组名短名（目目 09-15 定）：接口地址**掐头去尾、只留关键段**。
-     *  - 掐头：去掉协议，以及 `www.` / `api.`（可带数字，如 `api2.`）这类没信息量的前缀；
-     *  - 去尾：只取主机名的**第一段** ⇒ 域名后缀（.com/.xyz）与路径（/api/v1、/v1）全丢；
+     *  - 掐头：去协议 + 顺延跳过没信息量的前缀（`www.` / `api.` / `open.` / `aip.` / `api-inference.`…），
+     *    **最多顺延到「只剩一段 + 后缀」**，绝不把域名本身（`.com` 前那一段）跳掉；
+     *  - 去尾：丢掉域名后缀（.com/.xyz）与路径（/api/v1、/v1）；
+     *  - 碎块裁剪：剩下的那段若两端还挂着通用碎块（`spark-api-open` → `spark`、`cavoti-ai` → `cavoti`；
+     *    `one-api` 整段都是碎块 ⇒ 保留原样），掐掉再取；
      *  - 例：`https://cavoti.com` → `cavoti`；`https://openrouter.ai/api/v1` → `openrouter`；
-     *        `https://xiaoqun.lyzm.xyz/v1` → `xiaoqun`
-     *        （同站点下按子域区分，比 `lyzm` 好认；也避免同一家不同账号撞名）；
+     *        `https://xiaoqun.lyzm.xyz/v1` → `xiaoqun`（同站点按子域区分，比 `lyzm` 好认）；
+     *        `https://open.bigmodel.cn/api/paas/v4` → `bigmodel`；`https://api-inference.modelscope.cn/v1` → `modelscope`；
+     *        `https://ark.cn-beijing.volces.com/api/v3` → `ark`（比注册域 `volces` 好认）；
      *  - 纯 IP / 无点主机（localhost）没有「第一段」可言 ⇒ 整份保留并带端口（端口就是身份）；
      *  - 剔除 `@`：`@` 是条目名「模型@组名」的分隔符，不许混进组名；解析不出来返回空串。
+     * ⚠️ 这是**启发式**：组名只是标签（真源是值里的模型名），取偏了在界面上改名即可，不影响朗读链。
      */
     fun shortName(url: String): String {
         var body = normalizeBaseUrl(url)
@@ -163,10 +195,21 @@ object KeyListFile {
         val labels = host.split('.').filter { it.isNotEmpty() }
         if (labels.isEmpty()) return ""
         val isIp = labels.size == 4 && labels.all { v -> val n = v.toIntOrNull(); n != null && n in 0..255 }
-        val one = when {
-            isIp || labels.size == 1 -> host + if (port > 0) ":$port" else ""
-            labels.size >= 3 && Regex("^(www|api)\\d*$", RegexOption.IGNORE_CASE).matches(labels[0]) -> labels[1]
-            else -> labels[0]
+        if (isIp || labels.size == 1) return (host + if (port > 0) ":$port" else "").replace("@", "").trim()
+        // 掐头：通用词前缀顺延，但至少给「域名 + 后缀」留两段
+        var i = 0
+        while (i < labels.size - 2 && isNoiseLabel(labels[i])) i++
+        var one = labels[i]
+        // 去尾（碎块裁剪）：两端挂着通用碎块就掐掉，全掐没了就保留原样
+        val parts = one.split('-', '_')
+        if (parts.size > 1) {
+            var lo = 0
+            var hi = parts.lastIndex
+            while (lo < hi && isNoiseLabel(parts[lo])) lo++
+            while (hi > lo && isNoiseLabel(parts[hi])) hi--
+            if ((lo > 0 || hi < parts.lastIndex) && parts.subList(lo, hi + 1).any { it.isNotBlank() }) {
+                one = parts.subList(lo, hi + 1).joinToString("-")
+            }
         }
         return one.replace("@", "").trim()
     }
