@@ -8,14 +8,10 @@ import java.net.HttpURLConnection
 import java.net.URL
 
 /**
- * 密钥管理本地文件通道（与角色管理 v10 同目录同格式，完全互通）：
- *  - key_list.json：有序数组 [["名字", {"keyCode":"key01","value":"网址@@模型@@Key"}], ...]
- *    （消费端唯一数据源；value 也可以是纯 Key=直连）
- *  - key_list.backup.json：写主文件前的损坏自愈备份
- *  - miyue.txt / gengxin.txt / miyue_backup.txt：当前生效密钥的原始值（朗读规则消费）
- *  - api_center.json：接口中心（管理视图）{"interfaces":[{name,baseUrl,apiKey,models:[...]}]}
- *
- * URL 归一/测试/拉模型逻辑照插件 getOpenAiBaseUrl/testModelKey 实现。
+ * 密钥管理本地文件通道（与角色管理 v10 同目录同格式，互通）：
+ *  - key_list.json：有序数组 [["名字",{keyCode,value}]]，value = 网址@@模型@@Key（纯 Key = 直连）
+ *  - key_list.backup.json / miyue.txt / gengxin.txt / miyue_backup.txt / api_center.json
+ * 数据格式、URL 归一、测试、拉模型逻辑照插件 getOpenAiBaseUrl / testModelKey 实现。
  */
 object KeyListFile {
     private const val TAG = "KeyListFile"
@@ -97,13 +93,7 @@ object KeyListFile {
         return "key" + if (n < 10) "0$n" else n.toString()
     }
 
-    /**
-     * 条目名去重（目目 09-15「跨组重名就忽略另一个组」）：**只按名字**占位加序号（2、3…）。
-     *
-     * ⚠️ 不再用 v10 的 uniqueKeyName（`模型@组名`）——那个写法把**另一个分组**的名字当成了本条的命名依据，
-     * 等于让别的组影响这一组。现在跨组同模型各自拿到干净的名字，真撞上了就加序号，拉取/保存照样成。
-     * （名字仍须唯一：key_list.json 是「名字→值」映射，消费端按名字收，真重名会让其中一条在插件侧消失。）
-     */
+/** 条目名去重：只按名字占位加序号（名字须唯一，key_list.json 是「名字→值」映射） */
     fun dedupName(base: String, existing: Set<String>): String {
         if (base !in existing) return base
         var n = 2
@@ -111,13 +101,7 @@ object KeyListFile {
         return "$base$n"
     }
 
-    /**
-     * 同组判定（值口径）：两条目是否属于同一分组（归一化网址 + 密钥，判据同 [keyBelongsTo]）。
-     * 直连条目（纯 Key）彼此算同一个「直连」桶；直连与 @@ 条目不算同组。
-     *
-     * 用途（新增条目撞名时）：**同组撞名＝真重复**（照插件走覆盖确认）；**跨组撞名＝忽略另一个组**
-     * （不是冲突，加序号另存，既不许覆盖人家的条目，也不拿别组当命名依据）。
-     */
+/** 同组判定（值口径）：归一化网址 + 密钥都相等（判据同 keyBelongsTo）；直连条目同属「直连」桶 */
     fun sameGroupValue(a: String, b: String): Boolean {
         val pa = parseKeyValue(a) ?: return false
         val pb = parseKeyValue(b) ?: return false
@@ -127,25 +111,20 @@ object KeyListFile {
 
     // ==================== 显示名 / 组内去重 / 分组自愈 ====================
 
-    /**
-     * 显示名（目目 09-15「同模型跨组共存」）：@@ 条目取**值里的真实模型名**——
-     * 值才是消费端真源，条目名只是标签（v10 老文件里可能带 `@组名` 后缀，新写入的只会在撞名时加序号），
-     * 所以显示层不去猜名字，直接读值。
-     * 直连条目（纯 Key）没有模型名，回落到条目名。
-     */
+/** 显示名：@@ 条目取值里的真实模型名（值才是消费端真源，条目名只是标签）；直连回落条目名 */
     fun displayName(entry: KeyEntry): String {
         val p = parseKeyValue(entry.value) ?: return entry.name
         return if (!p.isDirect && p.model.isNotBlank()) p.model else entry.name
     }
 
-    /** 该接口下是否已有同（站点 && 密钥 && 模型）的条目——组内去重用（拉两次同一模型不再多出一条） */
+/** 该接口下是否已有同（站点 && 密钥 && 模型）的条目——组内去重 */
     fun hasModel(keys: List<KeyEntry>, ifc: ApiInterface, model: String): Boolean =
         keys.any { e ->
             val p = parseKeyValue(e.value) ?: return@any false
             !p.isDirect && p.model == model && p.key == ifc.apiKey.trim() && sameApiSite(p.url, ifc.baseUrl)
         }
 
-    /** 接口名去重：重名追加 2、3…（不带任何分隔符，免得和条目名去重 [dedupName] 的形态混淆） */
+/** 接口名去重：重名追加 2、3…（不带分隔符，与条目名去重区分） */
     fun uniqueIfcName(base: String, existing: Set<String>): String {
         if (base !in existing) return base
         var n = 2
@@ -153,23 +132,17 @@ object KeyListFile {
         return "$base$n"
     }
 
-    /** 通用词（放哪都没信息量的主机名前缀）：命中就顺延到下一段 */
+/** 主机名通用前缀（放哪都没信息量）：命中就顺延到下一段 */
     private val HOST_NOISE = setOf(
         "www", "api", "open", "aip", "chat", "ai", "llm", "studio", "endpoints", "inference",
         "server", "service", "services", "gateway", "proxy", "relay", "panel", "admin",
         "dashboard", "portal", "console", "beta", "dev", "test", "one", "new", "my",
     )
 
-    /** api 家族（api / apis / apix / api2…）——比 set 更好写，单独一条 */
+/** api 家族（api / apis / apix / api2…） */
     private val API_LIKE = Regex("^api[a-z]?\\d*$")
 
-    /**
-     * 这段有没有信息量（判断用，不是命名用）：
-     *  - 通用词本体：`api` / `open` / `studio`…
-     *  - 通用词 + 数字：`api2` / `open1`
-     *  - 通用词打头再挂一段：`api-inference` / `open-webui` / `chat-v2`
-     *  - `spark-api-open` 这种**头不是**通用词的，不算（留给 [shortName] 的碎块裁剪处理）
-     */
+/** 这段有没有信息量（判断用）：通用词本体 / 通用词+数字 / 通用词打头的复合段 */
     private fun isNoiseLabel(label: String): Boolean {
         val l = label.lowercase()
         val bare = l.trimEnd { it.isDigit() }
@@ -180,21 +153,14 @@ object KeyListFile {
         return head in HOST_NOISE || API_LIKE.matches(head) || API_LIKE.matches(head.trimEnd { it.isDigit() })
     }
 
-    /**
-     * 组名短名（目目 09-15 定）：接口地址**掐头去尾、只留关键段**。
-     *  - 掐头：去协议 + 顺延跳过没信息量的前缀（`www.` / `api.` / `open.` / `aip.` / `api-inference.`…），
-     *    **最多顺延到「只剩一段 + 后缀」**，绝不把域名本身（`.com` 前那一段）跳掉；
-     *  - 去尾：丢掉域名后缀（.com/.xyz）与路径（/api/v1、/v1）；
-     *  - 碎块裁剪：剩下的那段若两端还挂着通用碎块（`spark-api-open` → `spark`、`cavoti-ai` → `cavoti`；
-     *    `one-api` 整段都是碎块 ⇒ 保留原样），掐掉再取；
-     *  - 例：`https://cavoti.com` → `cavoti`；`https://openrouter.ai/api/v1` → `openrouter`；
-     *        `https://xiaoqun.lyzm.xyz/v1` → `xiaoqun`（同站点按子域区分，比 `lyzm` 好认）；
-     *        `https://open.bigmodel.cn/api/paas/v4` → `bigmodel`；`https://api-inference.modelscope.cn/v1` → `modelscope`；
-     *        `https://ark.cn-beijing.volces.com/api/v3` → `ark`（比注册域 `volces` 好认）；
-     *  - 纯 IP / 无点主机（localhost）没有「第一段」可言 ⇒ 整份保留并带端口（端口就是身份）；
-     *  - 剔除 `@`：URL 主机段本不该带 `@`（userinfo 那种），清掉免得在文件名/条目名语境里串味；解析不出来返回空串。
-     * ⚠️ 这是**启发式**：组名只是标签（真源是值里的模型名），取偏了在界面上改名即可，不影响朗读链。
-     */
+/**
+ * 组名短名：接口地址掐头去尾、只留关键段。
+ *  - 掐头：去协议 + 顺延跳过通用前缀（www. / api. / open.…），最多到「只剩一段 + 后缀」
+ *  - 去尾：丢域名后缀与路径（/api/v1）；段内两端挂通用碎块也掐（spark-api-open → spark）
+ *  - 纯 IP / localhost 整份保留（带端口）；剔除 @；解析不出返回空串
+ *  - 例：cavoti.com → cavoti；openrouter.ai/api/v1 → openrouter；xiaoqun.lyzm.xyz/v1 → xiaoqun
+ * ⚠️ 启发式：组名只是标签，取偏了界面上改名即可，不影响朗读链。
+ */
     fun shortName(url: String): String {
         var body = normalizeBaseUrl(url)
         if (body.isBlank()) return ""
@@ -232,7 +198,7 @@ object KeyListFile {
         return one.replace("@", "").trim()
     }
 
-    /** 自动分组名：网址短名（口径见 [shortName]）；网址解析不出来才回落「接口N」（N 取第一个空位，不撞号） */
+/** 自动分组名：网址短名（见 shortName）；解析不出才回落「接口N」（取第一个空位） */
     private fun autoIfcName(url: String, existing: Set<String>): String {
         val s = shortName(url)
         if (s.isNotBlank()) return uniqueIfcName(s, existing)
@@ -241,13 +207,10 @@ object KeyListFile {
         return "接口$n"
     }
 
-    /**
-     * 分组自愈（目目 09-15 ④「未分组自动收编」；照插件 ensureApiCenter 的聚合口径升级）：
-     *  - 匹配不上任何接口的 @@ 条目（首次迁移 / 刚导入 / 刚手加一个 @@ 密钥）→ 按
-     *    （归一化网址 + 密钥）自动建一个新接口，名字取网址**短名**（口径见 [shortName]，重复加序号），模型名登记进 models；
-     *  - 已匹配到接口、但 models 里缺这个模型名 → 补上（models 是管理视图，供分组展示/导出复原）。
-     * **纯 Key 直连条目不参与聚合**（照插件：直连留独立一组）。有变化才落盘。
-     */
+/**
+ * 分组自愈：匹配不上任何接口的 @@ 条目 → 按（归一化网址 + 密钥）建接口（短名，重复加序号），
+ * 模型名登记进 models；已匹配但 models 缺该模型也补上，纯 Key 直连不参与。有变化才落盘。
+ */
     fun heal(tagRuleId: String): Boolean {
         val keys = readKeys(tagRuleId)
         if (keys.isEmpty()) return false
@@ -292,16 +255,11 @@ object KeyListFile {
         return saveInterfaces(tagRuleId, ifaces.map { if (it.name == ifcName) it.copy(models = merged) else it })
     }
 
-    /**
-     * 手动往分组里加一个模型（目目 09-15）：**直接落库** —— 建一条密钥条目 + 登记进 `iface.models`。
-     *
-     * ⚠️ 与拉取弹窗里那个「手动添加模型」**不是一回事**：那个只是把名字塞进候选列表（还要再点一次
-     * 「添加选中 N」才落库，为的是不破坏「选完一批再确认」的语义）；这个在分组编辑里点确定就算数。
-     * 用途：接口的 `/models` 拉不出来（不支持 / 挂了 / 要特殊权限），但你知道模型名叫什么。
-     *
-     * 返回 (是否新增成功, 失败原因)：`exist` = 组内已有同（站点 + 密钥 + 模型），与拉取侧的
-     * 「已在组内」同口径，不重复加；`empty` / `save` 分别是空名与落盘失败。
-     */
+/**
+ * 手动往分组加一个模型：直接落库（建密钥条目 + 登记 iface.models）。
+ * ⚠️ 与拉取弹窗里那个「手动添加模型」不同——那个只进候选列表，还要再点「添加选中」。
+ * 返回 (是否成功, 原因)：exist = 组内已有同（站点 + 密钥 + 模型）。
+ */
     fun addManualModel(tagRuleId: String, ifc: ApiInterface, model: String): Pair<Boolean, String> {
         val m = model.trim()
         if (m.isEmpty()) return false to "empty"
@@ -318,23 +276,17 @@ object KeyListFile {
         return true to ""
     }
 
-    /**
-     * 确保分组存在（目目 09-15「顶部直接填网址 + Key 拉取」，照插件 showModelSelectDialog 的建档分支）：
-     * 按（归一化网址 + 密钥）找分组，找到就返回它；没找到就用网址**短名**新建一个（口径见 [shortName]，
-     * 重名由 [uniqueIfcName] 加序号）并落盘。
-     *
-     * 判据与 [heal] 逐字同一套（`sameApiSite` + 密钥相等），所以「手填网址 + Key 建组」和「未分组条目收编」
-     * 会落进同一个分组，不会出现两个同网址同密钥的分组。
-     * 网址或密钥为空 → 不建组返回 null（调用方自己给提示）；落盘失败也返回 null。
-     */
+/**
+ * 确保分组存在：按（归一化网址 + 密钥）找组，找到返回、没找到用短名新建并落盘。
+ * 判据与 heal 同一套 ⇒ 不会建出两个同网址同密钥的分组；网址/密钥为空或落盘失败返回 null。
+ */
     fun ensureGroup(tagRuleId: String, url: String, apiKey: String, preferredName: String = ""): ApiInterface? {
         val u = url.trim()
         val k = apiKey.trim()
         if (u.isEmpty() || k.isEmpty()) return null
         val ifaces = readInterfaces(tagRuleId)
         ifaces.firstOrNull { sameApiSite(it.baseUrl, u) && it.apiKey.trim() == k }?.let { return it }
-        // 组名（目目 09-15 二次改版：弹窗顶部多了「分组名」框）：手填了就用它——撞名由 UI 先拦
-        // （弹「分组名已存在」，不让确认），这里再兜一次 uniqueIfcName 防漏判；留空 = 照旧取网址短名。
+        // 手填分组名优先（撞名 UI 已拦，这里再兜一次 uniqueIfcName）；留空 = 网址短名
         val nm = preferredName.trim()
         val ifc = ApiInterface(
             name = if (nm.isEmpty()) autoIfcName(u, ifaces.map { it.name }.toSet())
@@ -348,11 +300,10 @@ object KeyListFile {
 
     // ==================== 当前密钥（miyue/gengxin/backup 三写）====================
 
-    /**
-     * 当前生效密钥的原始值（照插件 showKeyManageDialog：miyue.txt → gengxin.txt → miyue_backup.txt
-     * 依次找**第一个非空**）。旧版只读 miyue.txt：它空而 backup 有值时会被误判"没有当前密钥"，
-     * 进而被下面的兜底自动覆写成列表第一条（用户看到"当前密钥自己跳了"）。
-     */
+/**
+ * 当前生效密钥原值：miyue.txt → gengxin.txt → miyue_backup.txt 取第一个非空（照插件 showKeyManageDialog）。
+ * ⚠️ 旧版只读 miyue.txt ⇒ 它空而 backup 有值时被误判「没有当前密钥」，被兜底覆写成第一条。
+ */
     fun readCurrentRaw(tagRuleId: String): String {
         val d = File(BASE_DIR, tagRuleId)
         for (n in arrayOf("miyue.txt", "gengxin.txt", "miyue_backup.txt")) {
@@ -366,7 +317,7 @@ object KeyListFile {
         return ""
     }
 
-    /** 设为当前：miyue.txt + gengxin.txt + miyue_backup.txt 三写（与插件 saveKeyToLocal 同口径） */
+/** 设为当前：miyue / gengxin / miyue_backup 三写（与插件 saveKeyToLocal 同口径） */
     fun saveCurrentRaw(tagRuleId: String, value: String): Boolean = try {
         val d = dir(tagRuleId)
         if (!d.exists()) d.mkdirs()
@@ -443,12 +394,10 @@ object KeyListFile {
 
     // ==================== URL 归一（照插件 getOpenAiBaseUrl 系列）====================
 
-    /**
-     * 补协议头（目目 09-15「输入框失焦自动补 https://」）：已经带 `://` 的原样返回，
-     * 空串原样返回（免得空框被回写成 "https://"）；手滑漏斜杠的 `http:/x` 按老口径修正，
-     * 不然后面补出来的是 `https://http:/x`。
-     * ⚠️ 只补**协议头**，不补版本段——版本段归 [openAiBaseUrl]（两件事分开，别混）。
-     */
+/**
+ * 补协议头：已带 :// 或空串原样返回；手滑的 http:/x 先修正再补（否则补成 https://http:/x）。
+ * ⚠️ 只补协议头，版本段归 openAiBaseUrl。
+ */
     fun withScheme(url: String): String {
         val u = url.trim()
         if (u.isEmpty() || u.contains("://")) return u
@@ -463,19 +412,12 @@ object KeyListFile {
         return u
     }
 
-    /**
-     * OpenAI 兼容 base（照插件 getOpenAiBaseUrl 1:1）：命中末尾端点段就**剥掉后直接返回**、
-     * 不再补 /v1；只有地址本身不带端点段时，才走「无版本段（/v1、/v4…）自动补 /v1」。
-     *
-     * ⚠️ 旧版把两个分支串成一条流水线：先剥后缀、再统一补 /v1 ⇒ `http://x/chat/completions`
-     * 得到 `http://x/v1`（原版是 `http://x`），`sameApiSite` 的判同站口径因此被放宽，
-     * 与插件侧的密钥分组 / 级联删除结果对不上。
-     *
-     * 端点段清单在插件三个（/chat/completions、/completions、/models）之外**多了 /responses**
-     * （目目 09-15）：OpenAI 新版 Responses 端点，部分中转站的文档地址直接给 `…/v1/responses`，
-     * 原版会把它当成普通路径 ⇒ 拼出 `…/v1/responses/models` 404。加进去对老数据零影响
-     * （剥的是计算用的 base，不改写你存的 value），插件那三个的行为一字未动。
-     */
+/**
+ * OpenAI 兼容 base（照插件 getOpenAiBaseUrl）：命中末尾端点段就剥掉直接返回，否则无版本段时补 /v1。
+ * 端点清单 = 插件三个（/chat/completions、/completions、/models）+ /responses（部分中转站文档直给）。
+ * ⚠️ 旧版把「剥后缀」和「补 /v1」串成一条流水线 ⇒ http://x/chat/completions 变 http://x/v1，
+ *    sameApiSite 判同站被放宽，与插件的分组 / 级联删除结果对不上。
+ */
     fun openAiBaseUrl(url: String): String {
         val u = normalizeBaseUrl(url)
         for (suffix in arrayOf("/chat/completions", "/completions", "/models", "/responses")) {
@@ -484,12 +426,7 @@ object KeyListFile {
         return if (!Regex("/v\\d+[a-z]*").containsMatchIn(u)) "$u/v1" else u
     }
 
-    /**
-     * 对话端点（照插件 getOpenAiChatUrl）：已是 /chat/completions 直接返回，
-     * 其余在补过版本段的 base 后拼 /chat/completions。
-     * （插件对不带版本段的裸地址走的是 `u + "/chat/completions"`、不补 /v1；这里统一走 base，
-     *   比原版自洽——原版那种写法在 "http://x/models" 上会拼成 "/models/chat/completions"。）
-     */
+/** 对话端点（照插件 getOpenAiChatUrl）：已是 /chat/completions 直接返回，其余在 base 后拼 */
     private fun openAiChatUrl(url: String): String {
         val u = normalizeBaseUrl(url)
         if (u.endsWith("/chat/completions")) return u
@@ -531,13 +468,10 @@ object KeyListFile {
         return if (compact.length > 180) compact.take(180) + "..." else compact.ifEmpty { "无响应内容" }
     }
 
-    /**
-     * 拉取模型清单（照插件）：GET {base}/models → 取 `data[].id`（兼容 data 里的裸字符串 /
-     * `models` 字段 / 顶层数组）。保持接口返回顺序（插件不排序）。
-     *
-     * ⚠️ 旧版用 `JSONArray.optString(i)` 取元素：标准 `{"data":[{"id":"gpt-4o"}]}` 下 optString
-     * 会把**整个对象 toString** 当模型名 ⇒ 写进密钥后那段 value 直接作废。
-     */
+/**
+ * 拉取模型清单：GET {base}/models → data[].id（兼容裸字符串 / models 字段 / 顶层数组），保持返回顺序。
+ * ⚠️ 旧版用 optString(i) 取元素 ⇒ 标准 {data:[{id}]} 会把整个对象当模型名写进密钥。
+ */
     fun fetchModels(baseUrl: String, apiKey: String): Pair<List<String>?, String> {
         val resp = httpJson(openAiBaseUrl(baseUrl) + "/models", "GET", apiKey, null)
         if (!resp.ok) return null to "HTTP ${resp.code}，${briefBody(resp.body)}"
@@ -628,16 +562,11 @@ object KeyListFile {
         runCatching { JSONArray(body); true }.getOrDefault(false)
     }
 
-    /**
-     * 密钥通断测试（照插件 testModelKey）：
-     * - @@串（openai）：**先打真实对话端点** `/chat/completions` 并校验响应体；失败再降级重试一次
-     *   （部分推理模型不接受 max_tokens/temperature）；`/models` 只在失败后附作**参考**——
-     *   插件注释写得很明白：多数中转站 /models 不校验密钥、任何 key 都返回 200，不能说明可用。
-     * - 纯 Key：走智谱 `https://open.bigmodel.cn/api/paas/v4/models`（旧版直接拒测 ⇒ 直连条目没有检验入口）。
-     *
-     * ⚠️ 旧版策略是反的：先 GET /models、`resp.ok` 就判成功 ⇒ 错的密钥也显示"可用"。
-     * 返回 (是否可用, 简述)。
-     */
+/**
+ * 密钥通断测试（照插件 testModelKey）：@@串先打 /chat/completions 并校验响应体，失败降级重试一次；
+ * /models 只作参考（多数中转站不校验密钥，任何 key 都返回 200）。纯 Key 走智谱 /models。
+ * ⚠️ 旧版策略相反：先 GET /models、2xx 就判可用 ⇒ 错的密钥也显示「可用」。
+ */
     fun testKey(rawValue: String): Pair<Boolean, String> {
         val (t, err) = parseForTest(rawValue)
         if (t == null) return false to err
@@ -682,13 +611,10 @@ object KeyListFile {
         normalizeBaseUrl(a) == normalizeBaseUrl(b)
     }
 
-    /**
-     * 密钥是否属于某接口（照插件 keyBelongsTo：value 的网址段**同站** **且 key 相同**；
-     * 纯 Key=直连不归属）。
-     *
-     * ⚠️ 旧版把 `&& key 相同` 这一半丢了：同一站点下挂两把不同 key 时，
-     * 删除接口 A 会级联把属于 B 的密钥一起删掉，分组也会把 B 归进 A。
-     */
+/**
+ * 密钥是否属于某接口（照插件 keyBelongsTo）：value 网址段同站 且 key 相同；纯 Key 不归属。
+ * ⚠️ 旧版丢了「key 相同」这半：同站点两把 key 时，删接口 A 会连带删掉 B 的密钥。
+ */
     fun keyBelongsTo(entry: KeyEntry, ifc: ApiInterface): Boolean {
         val p = parseKeyValue(entry.value) ?: return false
         if (p.isDirect || p.url.isEmpty()) return false
@@ -704,12 +630,10 @@ object KeyListFile {
         return kept to removed
     }
 
-    /**
-     * 导出全部密钥 + 分组到 密钥备份_yyMMdd.json（目目 09-15 ③「导出一个文件，导入后能复原」）。
-     * v2 格式：{version, exportedAt, interfaces:[{name,baseUrl,apiKey,models}], keys:[[名,{keyCode,value}]]}
-     * ⚠️ 文件名**不能**用 `密钥导出_`：插件自己的导入对话框会扫该前缀、并把顶层当**数组**读，
-     * 撞上我们的对象结构会崩。故分两个前缀；导入侧两个都认（插件时代的老文件照样能导进来）。
-     */
+/**
+ * 导出全部密钥 + 分组到 密钥备份_yyMMdd.json。v2 格式：{version,exportedAt,interfaces,keys}。
+ * ⚠️ 文件名不能用 密钥导出_ 前缀：插件导入对话框扫该前缀且把顶层当数组读，会崩。
+ */
     fun exportKeys(tagRuleId: String, keys: List<KeyEntry>): String? {
         val now = java.util.Date()
         val date = java.text.SimpleDateFormat("yyMMdd", java.util.Locale.US).format(now)
@@ -766,10 +690,7 @@ object KeyListFile {
         emptyList()
     }
 
-    /**
-     * 读导出/备份文件；顶层是**数组** = 插件时代扁平格式，是**对象** = 本版 v2 含分组。
-     * 损坏返回 null。
-     */
+/** 读导出/备份文件：顶层是数组 = 插件时代扁平格式，是对象 = 本版 v2；损坏返回 null */
     fun readExportFile(tagRuleId: String, fileName: String): ExportData? = try {
         val f = File(dir(tagRuleId), fileName)
         if (!f.exists()) null
@@ -819,10 +740,7 @@ object KeyListFile {
         return out
     }
 
-    /**
-     * 导入合并（照插件 doImport）：重名跳过；返回 (新增数, 跳过数)。
-     * 注意：与 saveKeys 不同，此操作**不写备份**（导入是增量合并）。
-     */
+/** 导入合并（照插件 doImport）：重名跳过；返回 (新增数, 跳过数)。不写备份（增量合并） */
     fun importKeys(tagRuleId: String, incoming: List<KeyEntry>): Pair<Int, Int> {
         val existing = readKeys(tagRuleId)
         val nameSet = existing.map { it.name }.toMutableSet()
@@ -830,10 +748,8 @@ object KeyListFile {
         var skipped = 0
         val merged = existing.toMutableList()
         incoming.forEach { item ->
-            // 照插件 doImport：`name && item.value` 为真才处理——空名/空 value 的条目直接忽略
-            // （旧版空 value 也入库，导入出一堆点不动的空密钥）
+            // 照插件 doImport：空名 / 空 value 的条目直接忽略，不计入统计
             if (item.name.isBlank() || item.value.isBlank()) {
-                // 忽略，不计入新增也不计入跳过（与插件一致）
             } else if (item.name in nameSet) {
                 skipped++
             } else {
@@ -845,11 +761,10 @@ object KeyListFile {
         return if (saveKeys(tagRuleId, merged)) added to skipped else 0 to incoming.size
     }
 
-    /**
-     * 导入（v2 含分组）：密钥走 importKeys 的合并口径（重名跳过）；
-     * 接口按（站点 + 密钥）去重合并、models 取并集；名字冲突自动加序号。
-     * 返回 (新增密钥, 跳过密钥, 新增接口)。
-     */
+/**
+ * 导入（v2 含分组）：密钥走 importKeys 的合并口径（重名跳过）；接口按（站点 + 密钥）去重合并、
+ * models 取并集；名字冲突自动加序号。返回 (新增密钥, 跳过密钥, 新增接口)。
+ */
     fun importAll(tagRuleId: String, data: ExportData): Triple<Int, Int, Int> {
         val (added, skipped) = importKeys(tagRuleId, data.keys)
         if (data.interfaces.isEmpty()) return Triple(added, skipped, 0)
@@ -885,11 +800,10 @@ object KeyListFile {
         return Triple(added, skipped, addedIfc)
     }
 
-    /**
-     * 模型分类（照插件 classifyModel 的五类词表，逐项对齐——旧版自造的
-     * `bge/draw/paint/stable/sd/runway` 让 rerank、midjourney 等落进"文本"，
-     * 而插件词表里的 `babbage/rerank/diffusion/cogview/kolors/janus/vidu/cogvideo/transcri/cosyvoice` 全缺）。
-     */
+/**
+ * 模型分类（照插件 classifyModel 五类词表）：embed/rerank → 向量、image/diffusion 系 → 图像、
+ * video/sora 系 → 视频、audio/tts 系 → 音频，其余文本。
+ */
     fun classifyModel(modelName: String): String {
         val n = modelName.lowercase()
         fun has(vararg ks: String) = ks.any { it in n }

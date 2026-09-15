@@ -735,10 +735,10 @@
     <string name="role_key_import_done">导入完成：新增 %1$d 个，跳过 %2$d 个重名，恢复 %3$d 个分组</string>
     <string name="role_key_interface_new">新建接口</string>
     <string name="role_key_interface_edit">编辑接口</string>
-    <string name="role_key_ifc_name">接口名称（自己起，如：智谱主力 / 硅基备用）</string>
+    <string name="role_key_ifc_name">接口名称（留空自动取名）</string>
     <string name="role_key_ifc_url">接口地址（可自动补 /v1）</string>
     <string name="role_key_ifc_key">API Key</string>
-    <string name="role_key_group_name_label">分组名（留空自动提取）</string>
+    <string name="role_key_group_name_label">分组名（留空自动取名）</string>
     <string name="role_key_ifc_url_hint">只要填到 /v1 就行，不用带 /chat/completions</string>
     <string name="role_key_will_request">将请求 %1$s</string>
     <string name="role_key_new_group">新建分组 %1$s</string>
@@ -748,7 +748,7 @@
     <string name="role_key_add_model_to">添加到分组 %1$s</string>
     <string name="role_key_ifc_delete">删除该接口（连同其下所有密钥条目）</string>
     <string name="role_key_ifc_deleted">接口已删除（含 %1$d 条密钥）</string>
-    <string name="role_key_ifc_name_empty">请填写接口名称</string>
+    <string name="role_key_ifc_name_empty">请填写接口地址</string>
     <string name="role_key_ifc_url_bad">请填写正确的接口地址</string>
     <string name="role_key_ifc_key_empty">请填写 API Key</string>
     <string name="role_key_ifc_name_dup">已存在同名接口，请换个名称</string>

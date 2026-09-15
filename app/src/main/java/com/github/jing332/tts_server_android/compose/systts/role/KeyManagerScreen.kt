@@ -96,29 +96,9 @@ import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.withPermit
 
 /**
- * 密钥管理 + 备份恢复 + 书籍管理·1:1 复刻（对照 角色管理v10_主题密钥增强.js）：
- * 密钥页：按接口分组（未分组/直连密钥）+ 组折叠 + 当前密钥 ✓（反向匹配 miyue 内容，
- * 无匹配自动启用第一个）+ 测试结果记忆 ✓通/✗不通 + 新增（名称留空自动生成、重名覆盖确认、
- * 保存即启用）+ 改名 + 导出/导入（密钥导出_日期.json）+ 接口表单（新建/编辑/级联删除）+
- * 拉取模型（五类分组/搜索过滤/默认不勾选/全选只作用可见项/手动添加模型）。
- * 备份恢复：导出当前书籍到剪贴板/从剪贴板导入/备份全部文件/完整还原/自动备份开关。
- * 书籍：点击切换 · 点✕删除（当前书删后切默认）· 新增（建档并切换）· 多选删除 · 修改书名。
- *
- * 密钥页外观（目目 09-15「卡片分组」改版定稿，非插件原貌）：
- * **承载 = 独立全屏页面**（KeyManagerActivity，原 Dialog 左右各留 24dp、内容区仅约 272dp 太窄）；
- * **分组 = 卡片**：一个接口一张 surfaceContainer(#F2F2EA) 圆角 12 卡，未分组 / 直连密钥各一张，
- *   卡片边界即分组边界；组内条目靠浅分隔线分区，条目缩进与组名左缘对齐（无搜索框，目目 09-15 ①）；
- * 组头 = 22dp 折叠箭头（展开↓/折叠→ 旋转）+ 组名 16sp SemiBold + (N) 灰字 + ✓（本组含当前密钥）；
- *   组级四图标（编辑接口 / 拉取模型 / 测本组 / 删除）**全部常驻**（目目定：不收进 ⋮），
- *   仅接口组有前三个（未分组 / 直连点了只是白弹提示）；
- * 元信息行 = 接口组「网址（放不下换行，不再单行省略）+ 尾号独立小块」；
- *   未分组 / 直连组 = 一句身份说明（原该行为空）；
- * 当前密钥 = 行首**状态点**染主题强调色 + 名称同色加粗。强调色取 `scheme.secondary` 而**不是 primary**：
- *   10 个手写主题的 primary 全是各自的 *_seed（默认档 #7B8B70，很淡），浅底染色等于没染——这正是
- *   改版前「当前密钥找不出来」的根因；secondary 各主题都是中深档（默认档 #55624C），读得出来。
- * 状态点四态：当前=主题色实心 / 绿=测通 / 红=测不通 / 空心=未测（取代原先按序取色的装饰圆点）；
- * 条目行 = 状态点 + 名称（放不下**换行**，不再单行省略）+ ⚡测试 / ✏️编辑（两个都常驻）；
- * 组级/条目级图标统一扁平灰（onSurfaceVariant、18dp、36dp 热区，无常驻描边）。
+ * 密钥管理页（KeyManagerActivity）：接口分组密钥列表 + 备份恢复 + 书籍管理。
+ * 分组 = 一个接口一张卡；条目两行 = 显示名/当前徽章 + 动作图标居右。
+ * 当前密钥用状态点 + scheme.secondary 强调（primary 各主题太淡，染了看不出）。
  */
 
 /** 分组后的密钥组（照插件 buildKeyGroups：接口组 + 未分组 + 直连密钥） */
@@ -126,7 +106,7 @@ private class KeyGroup(
     val title: String,
     val entries: List<KeyListFile.KeyEntry>,
     val ifc: KeyListFile.ApiInterface? = null,
-    /** 未分组 / 直连组的身份说明（接口组的元信息行让给网址，不需要） */
+    /** 未分组 / 直连组的身份说明（接口组此位置显示网址） */
     val hintRes: Int? = null,
 )
 
@@ -135,8 +115,7 @@ private fun buildKeyGroups(keys: List<KeyListFile.KeyEntry>, ifaces: List<KeyLis
     val assigned = mutableSetOf<String>()
         ifaces.forEach { ifc ->
             val entries = keys.filter { KeyListFile.keyBelongsTo(it, ifc) }
-            // 空分组**照样显示**（目目 09-15「先建组、再拉模型」）。旧版在这里 `if (entries.isNotEmpty())`
-            // 把空组整个滤掉 ⇒ 建完分组页面上根本不出现、点不到它的「拉取模型」——是条真断路（P0）。
+            // 建组即渲染：空分组也显示，否则建完组页面不出现、点不到「拉取模型」
             groups.add(KeyGroup(ifc.name, entries, ifc))
             entries.forEach { assigned.add(it.name) }
         }
@@ -172,11 +151,7 @@ private fun SmallChipButton(text: String, color: Color, onClick: () -> Unit) {
     }
 }
 
-/**
- * 扁平图标动作（目目 09-14 定案「图标要低调」）：**无描边、无底色**，统一 18dp、
- * `onSurfaceVariant` 灰（危险动作也默认同灰，进入删除模式才随组头转红）；
- * 热区仍 36dp 不缩水，按下反馈靠涟漪。
- */
+/** 扁平图标动作：无描边无底色，18dp onSurfaceVariant 灰、36dp 热区；删除模式随组头转红 */
 @Composable
 private fun FlatIconAction(
     icon: ImageVector,
@@ -193,13 +168,8 @@ private fun FlatIconAction(
 }
 
 /**
- * 密钥条目行（目目 09-15 卡片改版）：行内无框，边界由所属卡片承担；
- * 行首 **状态点**取代原「按序号取色」的装饰圆点（那是纯噪音，同接口下每条颜色都不同）：
- *   当前 = 主题强调色实心 / 测通 = 绿实心 / 测不通 = 红实心 / 未测 = 空心圆环。
- * 两行布局：
- *   行1 = 显示名 + 「当前」徽章（点这一行 = 切为当前）；
- *   行2 = 动作图标**居右**排：✏️ 编辑 / ⚡ 测试 / 📋 复制 / 🗑 删除，扁平灰、热区 36dp。
- * 名字放不下就**换行**（原为单行省略号，`nex-agi/nex-n2.5-mini` 这类长模型名直接被截）。
+ * 密钥条目行（卡片内无框）：状态点（当前/通/不通/未测）+ 显示名 +「当前」徽章，
+ * 下行动作图标居右：✏️编辑 ⚡测试 📋复制 🗑删除；名字放不下换行。
  */
 @Composable
 private fun KeyEntryRow(
@@ -218,18 +188,15 @@ private fun KeyEntryRow(
     onDelete: () -> Unit,
 ) {
     Row(
-        // 卡片内边距 10dp + 状态点 14dp + 间距 8dp ⇒ 名字左缘 32dp，
-        // 与组名左缘（组头起 6 + 箭头 22 + 间距 6 = 34dp）基本对齐 → 从属关系一眼可见
+        // 卡片内边距 10 + 状态点 14 + 间距 8 ⇒ 名字左缘 32dp，与组名左缘（34dp）对齐
         Modifier.fillMaxWidth().padding(start = 10.dp, end = 6.dp, top = 8.dp, bottom = 8.dp),
-        // 普通态是两行 ⇒ 必须用 Top 让状态点咬住**第一行**文字（用 CenterVertically 会掉到两行中间）；
-        // 删除多选态只剩一行，保持原来的居中
+        // 两行态用 Top 让状态点咬住第一行；删除多选态只剩一行、保持居中
         verticalAlignment = if (deleteMode) Alignment.CenterVertically else Alignment.Top
     ) {
         if (deleteMode) {
             Checkbox(checked = checked, onCheckedChange = { onToggleCheck() })
         }
-        // 状态点固定 14dp 位宽：名字左缘始终对齐；高度咬第一行（bodyLarge 行高 24sp），
-        // 这样两行态下它仍与模型名同一条水平线
+        // 状态点固定 14dp 位宽、24dp 高（对齐 bodyLarge 行高），两行态下与模型名同行
         Box(Modifier.width(14.dp).height(24.dp), contentAlignment = Alignment.CenterStart) {
             val dot = when {
                 isCurrent -> accent
@@ -240,16 +207,13 @@ private fun KeyEntryRow(
             if (isCurrent || testOk != null) {
                 Box(Modifier.size(8.dp).background(dot, CircleShape))
             } else {
-                // 未测 = 空心圆环（描边），一眼区分「没测过」与「测过但红/绿」
+                // 未测 = 空心圆环，和「测过但红/绿」区分开
                 Box(Modifier.size(8.dp).border(1.dp, dot, CircleShape))
             }
         }
         Spacer(Modifier.width(8.dp))
-        // 两行（目目 09-15）：
-        //   行1 = 显示名 + 「当前」徽章（点这行 = 切为当前），完整 @@ 串已不上列表；
-        //   行2 = 动作图标居右：✏️编辑 ⚡测试 📋复制 🗑删除。
-        // 显示名取**值里的真实模型名**：条目名可能带 `@组名` 去重后缀（跨组同模型共存用），
-        // 那是内部标识、不该给人看。
+        // 两行：行1 = 显示名 +「当前」徽章（点这行切当前）；行2 = 动作图标居右。
+        // 显示名取**值里的真实模型名**（条目名可能带跨组共存的去重后缀，那是内部标识）
         Column(Modifier.weight(1f)) {
             Row(
                 Modifier.fillMaxWidth().clickable { onSwitch() },
@@ -281,11 +245,11 @@ private fun KeyEntryRow(
                 }
             }
             if (!deleteMode) {
-                // 动作行**居右**（目目 09-15：编辑 / 测试 / 复制 / 删除）
+                // 动作行居右：编辑 / 测试 / 复制 / 删除
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
                     FlatIconAction(Icons.Default.Edit, stringResource(R.string.role_key_edit)) { onEdit() }
                     FlatIconAction(Icons.Default.Bolt, stringResource(R.string.role_key_test)) { onTest() }
-                    // 📋 复制的是**模型名**（编辑弹窗里的「复制」才复制完整密钥串，两处不一样）
+                    // 📋 复制模型名（编辑弹窗里的「复制」才是完整密钥串）
                     FlatIconAction(Icons.Default.ContentCopy, stringResource(R.string.copy)) { onCopy() }
                     FlatIconAction(Icons.Default.DeleteOutline, stringResource(R.string.delete)) { onDelete() }
                 }
@@ -299,20 +263,20 @@ private fun KeyEntryRow(
 fun KeyManagerScreen(tagRuleId: String, onBack: () -> Unit) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
-    // 条目行 📋 复制用（目目 09-15）
+    // 列表行 📋 复制模型名用
     val clipboard = LocalClipboardManager.current
     var version by remember { mutableIntStateOf(0) }
     var keys by remember { mutableStateOf<List<KeyListFile.KeyEntry>>(emptyList()) }
     var ifaces by remember { mutableStateOf<List<KeyListFile.ApiInterface>>(emptyList()) }
     var currentRaw by remember { mutableStateOf("") }
-    // 测试结果记忆（条目名 → 通/不通），渲染时名称旁 ✓通/✗不通
+    // 测试结果记忆（条目名 → 通/不通）
     var testResults by remember { mutableStateOf<Map<String, Boolean>>(emptyMap()) }
     // 组折叠状态
     var collapsed by remember { mutableStateOf<Set<String>>(emptySet()) }
     // 测试中（单条 / 整组批量）
     var testingName by remember { mutableStateOf<String?>(null) }
     var testingGroup by remember { mutableStateOf<String?>(null) }
-    // 删除选择模式（照插件 deleteMode：组头变红字 + 全选/取消/删除(N)，条目行前勾选框）
+    // 删除选择模式（照插件 deleteMode）：组头变红字 + 全选/取消/删除(N)
     var deleteModeGroup by remember { mutableStateOf<String?>(null) }
     var deleteChecked by remember { mutableStateOf<Set<String>>(emptySet()) }
     var deleteConfirmGroup by remember { mutableStateOf<String?>(null) }
@@ -320,8 +284,7 @@ fun KeyManagerScreen(tagRuleId: String, onBack: () -> Unit) {
     var deleteGroupConfirm by remember { mutableStateOf<String?>(null) } // 「删除整组」二次确认
 
     LaunchedEffect(version) {
-        // 分组自愈先跑（目目 09-15 ④「未分组自动收编」）：匹配不上任何分组的 @@ 条目
-        // 按（归一化网址 + 密钥）自动建组，这样「加一条 @@ 密钥」就自动落到合适的分组下。
+        // 分组自愈：匹配不上分组的 @@ 条目按（网址 + 密钥）自动建组
         withIO { KeyListFile.heal(tagRuleId) }
         val loaded = withIO {
             Triple(
@@ -378,8 +341,7 @@ fun KeyManagerScreen(tagRuleId: String, onBack: () -> Unit) {
         }
         scope.launch {
             testingName = entry.name
-            // 传**原始值**：@@串走对话端点、纯 Key 走智谱 /models（照插件 testModelKey 的两个分支）。
-            // 旧版在这里就把纯 Key 挡掉了，直连条目一直没有可用性检验入口。
+            // 传原始值：@@串走对话端点、纯 Key 走智谱 /models（照插件 testModelKey）
             val r = withIO { KeyListFile.testKey(entry.value) }
             testingName = null
             testResults = testResults + (entry.name to r.first)
@@ -389,13 +351,8 @@ fun KeyManagerScreen(tagRuleId: String, onBack: () -> Unit) {
             )
         }
     }
-    // 整组测试（目目 09-15 改为**并发 4 路**；原来是 forEach 串行 await，10 条模型得排队跑完才出结果）：
-    //  · 为什么限 4：一个接口下几把密钥通常共用站点额度，一次全发会撞 429，被我们记成「测试失败」红点
-    //    ⇒ 这叫自己把自己限流，比串行还糟。4 路约快 4 倍，且不至于触发限流。
-    //  · 为什么安全：withIO 是 Net 库的 Dispatchers.IO（多线程池，真并行，不是主线程上假装并发）；
-    //    testKey 是纯阻塞 HTTP、每次新建连接、无共享可变状态 ⇒ 并发调用不打架。
-    //  · 灯是「谁先回来谁先亮」：testResults 的写入发生在协程恢复回主线程之后，不会竞态。
-    //  · 直连组同样可测（照插件组头 ⚡）。
+    // 整组测试并发 4 路（原为串行）。限 4：同站点共用额度，全发会撞 429、被记成「测试失败」；
+    // withIO 是真并行、testKey 纯阻塞且每次新建连接 ⇒ 并发安全，灯谁先回谁先亮
     fun testGroup(grp: KeyGroup) {
         val targets = grp.entries.filter { it.value.isNotBlank() }
         if (targets.isEmpty()) {
@@ -442,8 +399,7 @@ fun KeyManagerScreen(tagRuleId: String, onBack: () -> Unit) {
         }
     }
 
-    // 删除整组（目目 09-15）：接口组 → 连 api_center.json 的该接口一起删；未分组/直连组 → 只删其下条目。
-    // 当前密钥若在被删集合里，deleteNames 会回落到剩余第一条（照插件 deleteMultipleBooks 口径）。
+    // 删除整组：接口组连 api_center.json 的接口一起删；未分组 / 直连组只删条目
     fun deleteGroupAll(grp: KeyGroup) {
         val names = grp.entries.map { it.name }
         val ifc = grp.ifc
@@ -470,8 +426,7 @@ fun KeyManagerScreen(tagRuleId: String, onBack: () -> Unit) {
     var pullForIfc by remember { mutableStateOf<String?>(null) } // 组头 🔍 预选接口
     var showImport by remember { mutableStateOf(false) }
 
-    // 目目 09-14：由「窄弹窗」改为独立全屏页面（照替换管理/插件管理/LibrariesActivity 模式），
-    // 内容区 272dp → 328dp，返回键自然退页；导入/导出上顶栏，不再占标题行
+    // 独立全屏页（照替换管理 / 插件管理模式）：返回键退页，导入/导出在顶栏
     val scrollBehavior = TopAppBarDefaults.pinnedScrollBehavior()
     Scaffold(
         modifier = Modifier.fillMaxSize().nestedScroll(scrollBehavior.nestedScrollConnection),
@@ -486,9 +441,7 @@ fun KeyManagerScreen(tagRuleId: String, onBack: () -> Unit) {
                         )
                     }
                 },
-                // 导入/导出（目目 09-14 三次定稿）：emoji → FileDownload/FileUpload 单色图标
-                // + 文字（托盘竖箭头字形目目点名回归；语义「从文件取 / 存到文件」）。
-                // 紧凑动作：热区 ≥48dp 高，不用 IconButton/TextButton（自带最小宽会挤标题）。
+                // 导入/导出：FileDownload/FileUpload 单色图标 + 文字；热区 ≥48dp（IconButton 最小宽会挤标题）
                 actions = {
                     Box(
                         Modifier
@@ -550,8 +503,7 @@ fun KeyManagerScreen(tagRuleId: String, onBack: () -> Unit) {
                 .padding(start = 16.dp, end = 16.dp, top = 4.dp, bottom = 12.dp)
                 .verticalScroll(rememberScrollState())
         ) {
-                // 操作行：新增密钥 / 拉取模型（目目 09-14 定稿 MD3 化：官方 OutlinedButton，
-                // 去掉文字里的 ＋/🔍 emoji 与硬编码紫色，颜色统一 primary）
+                // 操作行（官方 OutlinedButton，颜色统一 primary）
                 Row(
                     Modifier.fillMaxWidth().padding(top = 10.dp, bottom = 6.dp),
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
@@ -579,10 +531,7 @@ fun KeyManagerScreen(tagRuleId: String, onBack: () -> Unit) {
                         modifier = Modifier.fillMaxWidth().padding(vertical = 24.dp)
                     )
                 } else {
-                    // 当前密钥强调色（目目 09-15 ②「你想换就换吧」）：用 scheme.secondary。
-                    // MD3 里 secondary 就是「次强调」的定位，各主题都是中深档（默认档 #55624C）→ 浅底读得出。
-                    // 不能用 primary：10 个手写主题的 primary 全是各自的 *_seed（默认档 #7B8B70，很淡），
-                    // 染色等于没染，这正是改版前「当前密钥找不出来」的根因。
+                    // 当前密钥强调色用 scheme.secondary：primary 是各主题的 *_seed，浅底染了看不出
                     val accent = MaterialTheme.colorScheme.secondary
                     groups.forEach { grp ->
                         val isCollapsed = grp.title in collapsed
@@ -590,8 +539,7 @@ fun KeyManagerScreen(tagRuleId: String, onBack: () -> Unit) {
                         val grpHasCurrent = currentRaw.isNotEmpty() &&
                                 grp.entries.any { it.value.trim() == currentRaw }
                         val selCount = grp.entries.count { it.name in deleteChecked }
-                        // 卡片分组（目目 09-15 ①定稿）：一个接口一张浅底卡（surfaceContainer + 圆角 12），
-                        // 卡片边界 = 分组边界；未分组 / 直连密钥各一张。组间 10dp 留白区隔、组内条目紧凑。
+                        // 一个接口一张卡（surfaceContainer + 圆角 12）：卡片边界 = 分组边界
                         Surface(
                             shape = RoundedCornerShape(12.dp),
                             color = MaterialTheme.colorScheme.surfaceContainer,
@@ -632,8 +580,7 @@ fun KeyManagerScreen(tagRuleId: String, onBack: () -> Unit) {
                                             else deleteConfirmGroup = grp.title
                                         }
                                     } else {
-                                        // 组头可点区：折叠箭头 + 组名 16sp SemiBold + (N) 灰字；
-                                        // 折叠态 = 箭头旋转朝右，与主界面折叠分组同一语汇
+                                        // 组头可点区：折叠箭头 + 组名 + (N) + 本组含当前密钥的 ✓
                                         Row(
                                             Modifier
                                                 .weight(1f)
@@ -680,8 +627,7 @@ fun KeyManagerScreen(tagRuleId: String, onBack: () -> Unit) {
                                                 )
                                             }
                                         }
-                                        // 组级图标（目目 09-15 ①第三条：四个**全部保留在外**，不收进 ⋮）。
-                                        // 仅接口组有前三个动作——未分组 / 直连组点了也只是白弹提示。
+                                        // 组级四图标全部常驻；仅接口组有前三个（未分组 / 直连点了只是白弹提示）
                                         grp.ifc?.let { ifc ->
                                             FlatIconAction(
                                                 Icons.Default.Edit,
@@ -707,8 +653,7 @@ fun KeyManagerScreen(tagRuleId: String, onBack: () -> Unit) {
                                                 ) { testGroup(grp) }
                                             }
                                         }
-                                        // 组头 🗑（目目 09-15）：点开是**两项**而非单一动作——
-                                        // 「删除整组」连带子项、「多选删除子项」只在本组范围内勾选。
+                                        // 组头 🗑 展开两项：删除整组 / 多选删除子项
                                         Box {
                                             FlatIconAction(
                                                 Icons.Default.DeleteOutline,
@@ -766,8 +711,7 @@ fun KeyManagerScreen(tagRuleId: String, onBack: () -> Unit) {
                                         }
                                     }
                                 }
-                                // ———— 元信息行 ————
-                                // 接口组 = 网址（放不下就换行）+ 尾号独立小块；未分组 / 直连组 = 一句身份说明。
+                                // 元信息行：接口组 = 网址 + 尾号小块；未分组 / 直连组 = 一句身份说明
                                 if (!isDeleting) {
                                     val ifc = grp.ifc
                                     if (ifc != null) {
@@ -780,13 +724,13 @@ fun KeyManagerScreen(tagRuleId: String, onBack: () -> Unit) {
                                                 ifc.baseUrl,
                                                 style = MaterialTheme.typography.bodySmall,
                                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                                // 目目 09-15：一栏放不下就换行（原先单行省略号，长网址会被吃掉）
+                                                // 网址放不下换行（原单行省略号会吃掉长网址）
                                                 maxLines = 2,
                                                 overflow = TextOverflow.Ellipsis,
                                                 modifier = Modifier.weight(1f)
                                             )
                                             Spacer(Modifier.width(8.dp))
-                                            // 尾号做成独立小块：原先挤在网址尾巴上，网址一长尾号先进省略号
+                                            // 尾号独立小块（原先挤在网址尾巴上，网址一长就被省略号吃掉）
                                             Surface(
                                                 shape = RoundedCornerShape(4.dp),
                                                 color = MaterialTheme.colorScheme.surfaceContainerHighest
@@ -818,7 +762,7 @@ fun KeyManagerScreen(tagRuleId: String, onBack: () -> Unit) {
                                     grp.entries.forEachIndexed { idx, entry ->
                                         val isCurrent = currentRaw.isNotEmpty() &&
                                                 entry.value.trim() == currentRaw
-                                        // 条目靠卡内浅分隔线分区；首条不加，避免紧贴元信息行
+                                        // 条目靠浅分隔线分区；首条不加，避免紧贴元信息行
                                         if (idx > 0) {
                                             HorizontalDivider(
                                                 thickness = 0.6.dp,
@@ -840,9 +784,7 @@ fun KeyManagerScreen(tagRuleId: String, onBack: () -> Unit) {
                                                 else deleteChecked + entry.name
                                             },
                                             onSwitch = { switchTo(entry) },
-                                            // 📋 列表行复制 = **模型名**（目目 09-15：两处复制不一样，
-                                            // 列表行给模型名、编辑弹窗里复制的才是完整密钥；插件也是这么分的
-                                            // ——列表行 copyName、详情弹窗 copyValue）
+                                            // 📋 列表行复制模型名（编辑弹窗里复制的才是完整密钥串）
                                             onCopy = {
                                                 clipboard.setText(AnnotatedString(KeyListFile.displayName(entry)))
                                                 toast(R.string.role_key_copied_model)
@@ -860,7 +802,7 @@ fun KeyManagerScreen(tagRuleId: String, onBack: () -> Unit) {
             }
         }
 
-    // 批量删除确认（照插件：组内选中 N 条 → 二次确认，不可恢复）
+    // 批量删除确认（组内选中 N 条 → 二次确认）
     deleteConfirmGroup?.let { gTitle ->
         val grp = buildKeyGroups(keys, ifaces).firstOrNull { it.title == gTitle }
         val targets = grp?.entries?.filter { it.name in deleteChecked }?.map { it.name }.orEmpty()
@@ -884,7 +826,7 @@ fun KeyManagerScreen(tagRuleId: String, onBack: () -> Unit) {
         )
     }
 
-    // 删除整组确认（目目 09-15：组头 🗑 →「删除整组」，连带子项，先确认并显示条数）
+    // 删除整组确认（显示将删条数）
     deleteGroupConfirm?.let { gTitle ->
         val grp = buildKeyGroups(keys, ifaces).firstOrNull { it.title == gTitle }
         val n = grp?.entries?.size ?: 0
@@ -908,7 +850,7 @@ fun KeyManagerScreen(tagRuleId: String, onBack: () -> Unit) {
         )
     }
 
-    // 新增（名称留空自动生成；**同组**重名→覆盖确认，跨组撞名→加序号另存，照插件 showAddKeyDialog）
+    // 新增（名称留空自动生成；同组重名 → 覆盖确认，跨组撞名 → 加序号另存）
     if (showAdd) {
         KeyEditDialog(
             initial = null,
@@ -921,9 +863,8 @@ fun KeyManagerScreen(tagRuleId: String, onBack: () -> Unit) {
                 } else {
                     showAdd = false
                     save(keys + KeyListFile.KeyEntry(name = name, keyCode = KeyListFile.nextKeyCode(keys), value = value))
-                    // 照插件 showAddKeyDialog：**只有当前密钥为空**时才把它设为当前。
-                    // ⚠️ 旧版无条件三写 miyue/gengxin/miyue_backup ⇒ 正在用 A 朗读时新增 B，
-                    //    当前密钥被静默切走（朗读时用的密钥换了都不知道）。
+                    // 照插件：只有当前密钥为空时才把它设为当前
+                    // ⚠️ 旧版无条件三写 miyue ⇒ 新增 B 会把正在朗读用的密钥静默切走
                     if (currentRaw.isBlank()) {
                         scope.launch { withIO { KeyListFile.saveCurrentRaw(tagRuleId, value) }; version++ }
                         toast(R.string.role_key_add_first, name)
@@ -934,7 +875,7 @@ fun KeyManagerScreen(tagRuleId: String, onBack: () -> Unit) {
             }
         )
     }
-    // 改名（重名→覆盖确认，照插件 showKeyNameDialog）
+    // 改名（重名 → 拒绝并提示，照插件 showKeyNameDialog）
     renameFor?.let { entry ->
         KeyEditDialog(
             initial = entry,
@@ -944,14 +885,13 @@ fun KeyManagerScreen(tagRuleId: String, onBack: () -> Unit) {
             onConfirm = { name, value, overwrite ->
                 renameFor = null
                 if (overwrite && name != entry.name) {
-                    // 照插件密钥详情页「保存」(1625-1628)：改成**已存在**的名字 → 直接拒绝。
-                    // ⚠️ 旧版走「覆盖」分支：只覆盖那个同名条目、**旧名条目没被删** ⇒ 列表里两条并存，
-                    //    再改一次又多一条（与书籍改名同一类坑：改名没把旧名清掉）。
+                    // 改成已存在的名字 → 拒绝（照插件密钥详情页「保存」）
+                    // ⚠️ 旧版走覆盖分支：只覆盖同名条目、旧名条目没删 ⇒ 列表里两条并存
                     toast(R.string.role_key_name_dup, name)
                 } else {
                     save(keys.map { if (it.name == entry.name) it.copy(name = name, value = value) else it })
-                    // 照插件密钥详情页「保存」：改的正是当前密钥 → 同步 miyue 三写。
-                    // ⚠️ 旧版只写 key_list.json，miyue.txt 留旧值 —— 重进页面即被兜底切到第一条。
+                    // 改的是当前密钥 → 同步 miyue 三写
+                    // ⚠️ 旧版只写 key_list.json ⇒ miyue 留旧值，重进页面被兜底切到第一条
                     if (entry.value.trim() == currentRaw && value.isNotBlank()) {
                         scope.launch {
                             withIO { KeyListFile.saveCurrentRaw(tagRuleId, value) }
@@ -973,7 +913,7 @@ fun KeyManagerScreen(tagRuleId: String, onBack: () -> Unit) {
                     overwriteFor = null
                     val old = keys.firstOrNull { it.name == name }
                     save(keys.map { if (it.name == name) it.copy(value = value) else it })
-                    // 覆盖**当前密钥**本身 → 同步 miyue；否则照插件「仅当前为空才启用」的口径处理
+                    // 覆盖的是当前密钥 → 同步 miyue；否则照「仅当前为空才启用」
                     val wasCurrent = old != null && old.value.trim() == currentRaw
                     if (wasCurrent || currentRaw.isBlank()) {
                         scope.launch { withIO { KeyListFile.saveCurrentRaw(tagRuleId, value) }; version++ }
@@ -995,8 +935,8 @@ fun KeyManagerScreen(tagRuleId: String, onBack: () -> Unit) {
             confirmButton = {
                 TextButton(onClick = {
                     deleteFor = null
-                    // 与批量删除同一条路（照插件 deleteMultipleBooks：删掉当前密钥 → 自动切到剩余第一条）。
-                    // ⚠️ 旧版只 save(filter)：miyue.txt 仍指向已删掉的 key，重进页面被兜底切走。
+                    // 与批量删除同一条路（照插件 deleteMultipleBooks：删当前密钥后切到剩余第一条）
+                    // ⚠️ 旧版只 save(filter)，miyue 仍指向已删的 key，重进页面被兜底切走
                     deleteNames(listOf(entry.name))
                 }) { Text(stringResource(R.string.delete)) }
             },
@@ -1005,9 +945,8 @@ fun KeyManagerScreen(tagRuleId: String, onBack: () -> Unit) {
             }
         )
     }
-    // 接口表单（编辑 / 级联删除，照插件 showInterfaceFormDialog）。
-    // 「新建接口」的独立入口已撤（目目 09-15）：新建并进「拉取模型」弹窗——顶部直接填网址 + Key，
-    // 确认时由 [KeyListFile.ensureGroup] 自动建档（组名取网址短名），所以这里只剩编辑
+    // 接口表单（照插件 showInterfaceFormDialog）：名称 / 地址 / Key + 校验 + 🗑级联删除；
+    // 「新建接口」入口已并进拉取弹窗（ensureGroup 自动建档），这里只剩编辑
     ifcFormFor?.let { ifc ->
         InterfaceFormDialog(
             tagRuleId = tagRuleId,
@@ -1017,9 +956,7 @@ fun KeyManagerScreen(tagRuleId: String, onBack: () -> Unit) {
             onRefresh = { version++ },
         )
     }
-    // 拉取模型（目目 09-15 改版：顶部=填网址+Key 去建组/并入；分组卡 🔍=给本组拉）。
-    // 两个入口共用这一个弹窗，差别只在 initialIfcName；落库统一走 ensureGroup——判据与「未分组收编」
-    // 同一套（同网址 + 同密钥），所以不会建出两个同网址同密钥的分组来
+    // 拉取模型：顶部 = 填网址+Key 建组/并入；分组卡 🔍 = 给本组拉。两入口共用，落库走 ensureGroup
     if (showPullModels) {
         ModelPullDialog(
             keys = keys,
@@ -1030,13 +967,12 @@ fun KeyManagerScreen(tagRuleId: String, onBack: () -> Unit) {
                 showPullModels = false
                 pullForIfc = null
                 scope.launch {
-                    // groupName 非空 = 用户在弹窗顶部自己起了名（撞名已被弹窗拦下）；
-                    // 空 = 留空，交给 ensureGroup 按网址短名自动提取
+                    // groupName 非空 = 用户手填（撞名已被弹窗拦下）；空 = 按网址短名自动提取
                     val ifc = withIO { KeyListFile.ensureGroup(tagRuleId, url, apiKey, groupName) }
                     if (ifc == null) {
                         toast(R.string.role_list_failed)
                     } else {
-                        // 名字逐个占位去重：同一批里也互不撞名（跨组重名只加序号，忽略另一个组）
+                        // 名字逐个占位去重（跨组重名只加序号）
                         val used = keys.map { it.name }.toMutableSet()
                         val entries = pickedModels.map { m ->
                             val n = KeyListFile.dedupName(m, used)
@@ -1047,7 +983,7 @@ fun KeyManagerScreen(tagRuleId: String, onBack: () -> Unit) {
                                 value = "${ifc.baseUrl}@@$m@@${ifc.apiKey}",
                             )
                         }
-                        // 组内去重（目目 09-15）：同（站点 + 密钥 + 模型）已在组里 → 不再多出一条
+                        // 组内去重：同（站点 + 密钥 + 模型）已在组里 → 不再多出一条
                         val toAdd = entries.filterNot { e ->
                             val p = KeyListFile.parseKeyValue(e.value)
                             p != null && !p.isDirect && KeyListFile.hasModel(keys, ifc, p.model)
@@ -1057,8 +993,7 @@ fun KeyManagerScreen(tagRuleId: String, onBack: () -> Unit) {
                         }
                         withIO {
                             if (toAdd.isNotEmpty()) KeyListFile.saveKeys(tagRuleId, merged)
-                            // 拉到的模型登记进分组 models（旧版从不回写 ⇒ api_center.models 恒空，
-                            // 分组下有几条模型这个信息根本没落盘）
+                            // 拉到的模型登记进分组 models
                             KeyListFile.addModelsToInterface(tagRuleId, ifc.name, pickedModels)
                         }
                         toast(R.string.role_key_pull_done, toAdd.size, entries.size - toAdd.size)
@@ -1068,7 +1003,7 @@ fun KeyManagerScreen(tagRuleId: String, onBack: () -> Unit) {
             }
         )
     }
-    // 导入（选择密钥导出_*.json，照插件 importKeysDialog）
+    // 导入（密钥备份_*.json / 密钥导出_*.json，照插件 importKeysDialog）
     if (showImport) {
         ImportKeysDialog(
             tagRuleId = tagRuleId,
@@ -1079,13 +1014,9 @@ fun KeyManagerScreen(tagRuleId: String, onBack: () -> Unit) {
 }
 
 /**
- * 密钥编辑（条目 ✏️ / 新增共用）：第一行「模型」（留空自动从密钥串里抽模型名）、
- * 第二行「密钥」（整串 网址@@模型@@Key），底部 取消 / 删除 / 复制 / 确定；
- * 返回 overwrite=同组重名、待覆盖确认。
- *
- * **两处复制语义不同**（目目 09-15 明确）：
- *  - 列表行右侧 📋 = 复制**模型名**（第一行那个东西）；
- *  - 本弹窗里的「复制」= 复制**完整密钥**（第二行的整串 网址@@模型@@Key，照插件密钥详情页 1531）。
+ * 密钥编辑（条目 ✏️ / 新增共用）：第一行「模型」（留空从密钥串抽模型名）、
+ * 第二行「密钥」（整串 网址@@模型@@Key）；底部 取消 / 删除 / 复制 / 确定。
+ * 两处复制不同：列表行 📋 = 模型名，本弹窗「复制」= 完整密钥串。
  */
 @Composable
 private fun KeyEditDialog(
@@ -1096,9 +1027,7 @@ private fun KeyEditDialog(
     onConfirm: (String, String, Boolean) -> Unit,
 ) {
     val existingNames = existing.map { it.name }.toSet()
-    // 光标默认落在末尾（照插件 v10 密钥详情：setText 后 setSelection(len)，1486/1507）。
-    // 第一行=模型 ⇒ 预填**显示名**（值里的真实模型名），不是内部条目名——内部名可能带跨组共存
-    // 用的去重序号（glm-5.3-flash2），摆进「模型」框里只会让人以为是另一个模型（目目 09-15）
+    // 预填光标落末尾（照插件 setSelection）；「模型」框预填显示名，不是内部条目名
     val initName = initial?.let { KeyListFile.displayName(it) }.orEmpty()
     val initValue = initial?.value.orEmpty()
     var name by remember { mutableStateOf(TextFieldValue(initName, TextRange(initName.length))) }
@@ -1117,8 +1046,7 @@ private fun KeyEditDialog(
         },
         text = {
             Column {
-                // 第一行 = 模型（目目 09-15：「第一行直接叫模型」）；留空照样自动生成，
-                // 生成口径照插件 defaultName：从**完整密钥串**里抽模型名，抽不出才用 key01…
+                // 第一行「模型」：留空则从密钥串里抽模型名，抽不出用 key01
                 Text(
                     stringResource(R.string.role_key_model_label),
                     style = MaterialTheme.typography.bodySmall,
@@ -1134,14 +1062,13 @@ private fun KeyEditDialog(
                     modifier = Modifier.fillMaxWidth(),
                 )
                 Spacer(Modifier.height(8.dp))
-                // 第二行 = 密钥（整串 网址@@模型@@Key；纯 Key 为直连）
+                // 第二行「密钥」（整串 网址@@模型@@Key；纯 Key = 直连）
                 Text(
                     stringResource(R.string.role_key_value),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
-                // 密钥串（网址@@模型@@Key）很长，一栏放不下就换行（目目 09-15；原 singleLine
-                // 会把中段吞掉，只能左右横拖）
+                // 密钥串很长，允许多行（原 singleLine 会把中段吞掉）
                 OutlinedTextField(
                     value = value,
                     onValueChange = { value = it },
@@ -1155,11 +1082,9 @@ private fun KeyEditDialog(
             }
         },
         confirmButton = {
-            // 底部按钮行（目目 09-15）：取消 / 删除 / 复制 / 确定。M3 的按钮区是 AlertDialogFlowRow，
-            // 按「dismiss 槽 → confirm 槽」的顺序排，所以拆成两槽就能得到这个左右顺序；
-            // 拆槽还有个好处：每槽最多两个按钮，窄屏（360dp 下可用宽约 304dp）不会整体被挤去第二行。
+            // 底部四键定位：M3 按钮区按「dismiss 槽 → confirm 槽」排，拆两槽即得 取消/删除 + 复制/确定
             Row(verticalAlignment = Alignment.CenterVertically) {
-                // 「复制」= 第二行的**完整密钥串**（列表行右侧 📋 复制的才是模型名，两处不一样）
+                // 「复制」= 第二行的完整密钥串（列表行 📋 复制的是模型名）
                 TextButton(
                     enabled = value.text.isNotBlank(),
                     onClick = {
@@ -1171,22 +1096,19 @@ private fun KeyEditDialog(
                     enabled = value.text.isNotBlank(),
                     onClick = {
                         val raw = value.text.trim()
-                        // 留空自动生成（照插件 defaultName=模型或 key01）：从**完整密钥串**里抽模型名
+                        // 留空自动生成（照插件 defaultName）：从密钥串里抽模型名，抽不出用 key01
                         val auto = KeyListFile.parseKeyValue(raw)?.let { p ->
                             if (!p.isDirect && p.model.isNotEmpty()) p.model else "key" + (existing.size + 1)
                         } ?: "key" + (existing.size + 1)
                         val wanted = name.text.trim().ifEmpty { auto }
-                        // 编辑态「模型名没动」（含清空后自动取回模型名）⇒ 原样保留条目内部名、不触发改名判定：
-                        // 跨组共存时这个模型名可能正被另一组占着（那边没序号），白点一下会误报「名称已存在」
+                        // 编辑态模型名没动 ⇒ 保留条目内部名、不触发改名判定（跨组共存时易误报「名称已存在」）
                         if (initial != null && (wanted == initName || wanted == initial.name)) {
                             onConfirm(initial.name, raw, false)
                             return@TextButton
                         }
                         val clash = existing.firstOrNull { it.name == wanted && it.name != initial?.name }
-                        // 撞名判定（目目 09-15「跨组重名就忽略另一个组」）：
-                        //  · 新增：只有**同一分组**（同网址 + 同密钥）撞名才算真重复 ⇒ 走覆盖确认（照插件 2327/2384）；
-                        //    跨组撞名不是冲突 ⇒ 悄悄加序号另存，既不许覆盖人家的条目，也不拿别组当命名依据。
-                        //  · 改名：照插件密钥详情页保持「名字被占就用不了」（上层弹「名称已存在」），不做静默改名。
+                        // 撞名判定：新增时只有同一分组（同网址 + 同密钥）才算真重复 → 覆盖确认；
+                        // 跨组撞名加序号另存；改名照插件「名字被占就用不了」
                         val overwrite =
                             if (initial != null) clash != null
                             else clash != null && KeyListFile.sameGroupValue(clash.value, raw)
@@ -1202,7 +1124,7 @@ private fun KeyEditDialog(
         dismissButton = {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 TextButton(onClick = onDismiss) { Text(stringResource(R.string.cancel)) }
-                // 照插件条目 ✏️ 弹窗：删除入口留在编辑弹窗内（红字）
+                // 删除入口留在编辑弹窗内（红字）
                 if (onDelete != null) {
                     TextButton(onClick = onDelete) {
                         Text(stringResource(R.string.delete), color = MaterialTheme.colorScheme.error)
@@ -1220,29 +1142,25 @@ private fun InterfaceFormDialog(
     initial: KeyListFile.ApiInterface?,
     onDismiss: () -> Unit,
     onSaved: () -> Unit,
-    // 只刷新外面列表、不关本弹窗（手动加模型用，目目 09-15）
+    // 只刷新外面列表、不关本弹窗（手动加模型用）
     onRefresh: () -> Unit,
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
-    // 目目 09-15：新建分组时名称框随网址**自动填短名**（KeyListFile.shortName 的掐头去尾口径）；
-    // 人改过、或编辑已有分组时不覆盖，免得冲掉人家起的名。
-    // 名称框：预填值一律让光标落末尾（照 0fa317e 口径），否则 Compose 的 String 值会把光标置于开头
+    // 新建时名称框随网址自动填短名；人改过的不覆盖；预填值光标落末尾
     var name by remember {
         val init = initial?.name.orEmpty()
         mutableStateOf(TextFieldValue(init, TextRange(init.length)))
     }
-    // 名称被用户手改过就不再被网址覆盖；编辑已有分组时视为「已改」，不许动人家改过的名字
+    // 名称被手改过就不再被网址覆盖；编辑已有分组时视为已改
     var nameTouched by remember { mutableStateOf(initial != null) }
-    // 地址框用 TextFieldValue：① 失焦补协议头后要把光标挪到末尾，String 值会把它甩回开头；
-    // ② 预填值也让光标落末尾（0fa317e 口径）
+    // 地址框用 TextFieldValue：失焦补协议头、预填都要把光标挪到末尾
     var url by remember {
         val init = initial?.baseUrl.orEmpty()
         mutableStateOf(TextFieldValue(init, TextRange(init.length)))
     }
     var key by remember { mutableStateOf(initial?.apiKey.orEmpty()) }
-    // 手动加模型（目目 09-15）：在分组编辑里点确定**直接落库**，
-    // 不像拉取弹窗里那个「手动添加模型」只进候选列表
+    // 手动加模型：点确定直接落库（拉取弹窗里那个只进候选列表）
     var addModelVisible by remember { mutableStateOf(false) }
     var addModelText by remember { mutableStateOf("") }
     fun toast(resId: Int, vararg args: Any) {
@@ -1251,9 +1169,7 @@ private fun InterfaceFormDialog(
     AlertDialog(
         onDismissRequest = onDismiss,
         title = {
-            // 标题行右上角＝手动加模型（目目 09-15，与拉取弹窗标题行同一手势）。
-            // 只给**编辑已有分组**时显示：新分组还没落盘，没有网址+密钥可归属，
-            // 这时候加进去的条目会掉进「未分组」。
+            // 标题行右上角 = 手动加模型；只在编辑已有分组时给（新组还没落盘，条目无处归属）
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                 Text(
                     stringResource(
@@ -1290,14 +1206,12 @@ private fun InterfaceFormDialog(
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
-                // 接口地址可能很长，一栏放不下就换行（目目 09-15）
+                // 地址可能很长，允许多行
                 OutlinedTextField(
                     value = url,
                     onValueChange = { v ->
                         url = v
-                        // 新建分组时名称框跟着网址走：取「掐头去尾的短名」（口径见 KeyListFile.shortName），
-                        // 如 https://cavoti.com/v1 → cavoti、https://xiaoqun.lyzm.xyz/v1 → xiaoqun。
-                        // 人改过（或原本就是空的）不覆盖，免得把人家的名字冲掉。
+                        // 改地址时同步刷新名称（取短名）；人改过的不覆盖
                         if (!nameTouched || name.text.isBlank()) {
                             val s = KeyListFile.shortName(v.text)
                             name = TextFieldValue(s, TextRange(s.length))
@@ -1306,8 +1220,7 @@ private fun InterfaceFormDialog(
                     singleLine = false, minLines = 1, maxLines = 3,
                     textStyle = MaterialTheme.typography.bodyMedium,
                     modifier = Modifier.fillMaxWidth()
-                        // 与拉取弹窗同口径（目目 09-15）：离开这个框就补协议头并回写到框里，
-                        // 手打 cavoti.com 也能存；已带 http(s):// 的原样不动
+                        // 失焦补协议头并回写（与拉取弹窗同口径）
                         .onFocusChanged { st ->
                             if (!st.isFocused) {
                                 val fixed = KeyListFile.withScheme(url.text)
@@ -1317,7 +1230,7 @@ private fun InterfaceFormDialog(
                             }
                         },
                 )
-                // 地址怎么填 + 实际请求哪个地址（与拉取弹窗同口径：两行互补、只显示一条）
+                // 未填显示填写提示、填了显示实际请求地址（两行互补）
                 val previewBase = if (url.text.isBlank()) "" else
                     runCatching { KeyListFile.openAiBaseUrl(url.text.trim()) }.getOrDefault("")
                 if (previewBase.isEmpty()) {
@@ -1342,7 +1255,7 @@ private fun InterfaceFormDialog(
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
-                // Key 可能很长，一栏放不下就换行（目目 09-15）
+                // Key 可能很长，允许多行
                 OutlinedTextField(
                     value = key, onValueChange = { key = it },
                     singleLine = false, minLines = 1, maxLines = 3,
@@ -1372,22 +1285,24 @@ private fun InterfaceFormDialog(
             TextButton(
                 enabled = true,
                 onClick = {
-                    val n = name.text.trim()
                     val u = KeyListFile.normalizeBaseUrl(url.text.trim())
                     val k = key.trim()
+                    // 名称留空 ⇒ 按网址短名兜底（与拉取弹窗同口径）
+                    val n = name.text.trim().ifEmpty {
+                        runCatching { KeyListFile.shortName(u) }.getOrDefault("")
+                    }
                     if (n.isEmpty()) { toast(R.string.role_key_ifc_name_empty); return@TextButton }
                     if (!u.startsWith("http")) { toast(R.string.role_key_ifc_url_bad); return@TextButton }
                     if (k.isEmpty()) { toast(R.string.role_key_ifc_key_empty); return@TextButton }
                     scope.launch {
                         val ifaces = withIO { KeyListFile.readInterfaces(tagRuleId) }
-                        // 重名校验：新建必查；编辑也不许改成**别的**接口已有的名字（照插件 showEditInterfaceDialog）
+                        // 重名校验：编辑不许改成别的接口已有的名字（照插件 showEditInterfaceDialog）
                         val dup = ifaces.any { it.name == n && (initial == null || it.name != initial.name) }
                         if (dup) {
                             toast(R.string.role_key_ifc_name_dup)
                             return@launch
                         }
-                        // 分组 = （归一化网址 + 密钥）唯一（目目 09-15）。改成与另一个接口完全同组
-                        // ⇒ 会凭空多出一个「同组」的分组；按目目定的「拦住报错」处理，不静默合并。
+                        // 改成与另一个接口完全同组（同网址 + 同密钥）⇒ 拦住报错，不静默合并
                         val collide = ifaces.firstOrNull {
                             it.name != (initial?.name ?: "") &&
                                 KeyListFile.sameApiSite(it.baseUrl, u) && it.apiKey.trim() == k
@@ -1402,10 +1317,8 @@ private fun InterfaceFormDialog(
                             ifaces.map { if (it.name == initial.name) KeyListFile.ApiInterface(n, u, k, it.models) else it }
                         }
                         withIO { KeyListFile.saveInterfaces(tagRuleId, updated) }
-                        // 照插件 showEditInterfaceDialog：网址/密钥变了，把**组内**（同站 && 同旧 key）
-                        // 的密钥条目 value 一起改写（模型名不变）。
-                        // ⚠️ 旧版只改 api_center.json：旧条目仍指旧地址/旧 key，整组掉进「未分组」，
-                        //    用户还得逐条手改。
+                        // 网址/密钥变了：把组内（同站 && 同旧 key）条目的 value 一起改写（模型名不变）
+                        // ⚠️ 旧版只改 api_center.json ⇒ 旧条目仍指旧地址，整组掉进「未分组」
                         if (initial != null) {
                             val oldUrl = initial.baseUrl
                             val oldKey = initial.apiKey
@@ -1432,9 +1345,7 @@ private fun InterfaceFormDialog(
             TextButton(onClick = onDismiss) { Text(stringResource(R.string.cancel)) }
         }
     )
-    // 手动加模型（目目 09-15）：填个模型名 → 确定即落库（建密钥条目 + 登记进该组 models）。
-    // ⚠️ 与拉取弹窗标题行那个「手动添加模型」不同——那个只把名字塞进候选列表，这个点了就算数。
-    // 加完**不关这个编辑弹窗**（可能接着改名/改地址），只让外面列表刷新一下（onRefresh）。
+    // 手动加模型：填名字点确定即落库（建条目 + 登记 models）；加完不关编辑弹窗，只刷新外层列表
     if (addModelVisible) {
         val target = initial
         AlertDialog(
@@ -1462,7 +1373,7 @@ private fun InterfaceFormDialog(
                 TextButton(
                     enabled = addModelText.trim().isNotEmpty() && target != null,
                     onClick = {
-                        // 用局部非空变量接住再进协程：嵌套 lambda 里依赖智能转换不稳（本机不编译，只能过 CI）
+                        // 用局部非空变量接住再进协程（嵌套 lambda 里智能转换不稳）
                         val t = target ?: return@TextButton
                         val m = addModelText.trim()
                         scope.launch {
@@ -1489,14 +1400,9 @@ private fun InterfaceFormDialog(
 }
 
 /**
- * 拉取模型（目目 09-15 改版）：**两个入口共用这一个弹窗**。
- *  - 顶部「拉取模型」= 新建模式：直接填【接口 URL + API Key】（不再列接口单选）→ 拉取；
- *    确认时按（归一化网址 + 密钥）找分组，找到就并入、没找到就用网址短名建一个（[KeyListFile.ensureGroup]）。
- *  - 分组卡 🔍 = 分组模式（[initialIfcName] 非空）：进来即以该组网址+密钥自动拉取，不用再选一次。
- * 手动添加模型 = 标题行**右上角**的一个入口（两模式共用，目目 09-15 定；原先挤在操作行里）。
- * 「已在组内」**只按目标分组（= 这一个接口）算**：判据 = 同站点 + 同密钥 + 同模型，别的接口拉过同一个
- * 模型**不算**，照样能勾、能存 ⇒ 同一个模型（如 glm-5.3-flash）可以在多个接口各存一份
- * （cavoti 一条、openrouter 一条）；只有「同接口 + 同模型」才算真重复、才挡。
+ * 拉取模型：两个入口共用——顶部 = 新建（填网址 + Key，确认时 ensureGroup 找组 / 建组）；
+ * 分组卡 🔍 = 分组模式（进来即按该组网址+密钥自动拉）。手动添加模型在标题行右上角。
+ * 「已在组内」只按目标分组算（同站点 + 同密钥 + 同模型），别的接口拉过同一模型照样能存。
  */
 @Composable
 private fun ModelPullDialog(
@@ -1504,17 +1410,17 @@ private fun ModelPullDialog(
     ifaces: List<KeyListFile.ApiInterface>,
     initialIfcName: String? = null,
     onDismiss: () -> Unit,
-    // (网址, 密钥, 分组名, 选中的模型)：分组名留空 = 上层按网址短名自动提取（目目 09-15）
+    // onConfirm(网址, 密钥, 分组名, 选中的模型)；分组名留空 = 按网址短名自动提取
     onConfirm: (String, String, String, List<String>) -> Unit,
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
-    // 分组模式：上层给的是接口名，取回接口本体；组已被删则退回新建模式（不至于弹个空壳）
+    // 分组模式取回接口本体；组已被删则退回新建模式
     val initialIfc = remember(ifaces, initialIfcName) {
         initialIfcName?.let { n -> ifaces.firstOrNull { it.name == n } }
     }
     val forGroup = initialIfc != null
-    // 分组名（只有新建模式用得上；分组模式整框隐藏，都并进那个组了，起名没意义）
+    // 分组名框只有新建模式用（分组模式整框隐藏）
     var nameText by remember { mutableStateOf(TextFieldValue("")) }
     var urlText by remember { mutableStateOf(TextFieldValue(initialIfc?.baseUrl.orEmpty())) }
     var keyText by remember { mutableStateOf(TextFieldValue(initialIfc?.apiKey.orEmpty())) }
@@ -1527,20 +1433,18 @@ private fun ModelPullDialog(
 
     val url = urlText.text.trim()
     val key = keyText.text.trim()
-    // 目标分组：分组模式=点进来的那个；新建模式=网址+密钥命中已有分组时就并入（否则为 null，确认时才建组）
+    // 目标分组：分组模式=点进来的那个；新建模式=网址+密钥命中已有分组就并入
     val targetIfc = initialIfc ?: ifaces.firstOrNull {
         KeyListFile.sameApiSite(it.baseUrl, url) && it.apiKey.trim() == key
     }
     val ready = forGroup || (url.isNotEmpty() && key.isNotEmpty())
-    // 分组名（目目 09-15 二次改版）：框在字段区顶部，留空 ⇒ 用网址短名自动提取。
-    // 手填重名**不当场改你的字**（跟改名弹窗一个口径）：预览行变红 + 点确认时 Toast 拦下。
+    // 分组名留空 ⇒ 网址短名；手填撞名不当场改字，预览行变红 + 确认时 Toast 拦下
     val autoName = remember(url) { runCatching { KeyListFile.shortName(url) }.getOrDefault("") }
     val typedName = nameText.text.trim()
     val finalName = typedName.ifEmpty { autoName }
-    // ⚠️ 只在**要新建组**时才判重名：命中了已有分组（targetIfc != null）时这个框根本用不上
-    //    （名字会交空），不该因为你随手敲的字把确认拦下来。判据与分组改名弹窗一致（trim 后全等）
+    // ⚠️ 只在要新建组时判重名（命中已有分组时这个框用不上，别误拦）
     val nameTaken = targetIfc == null && typedName.isNotEmpty() && ifaces.any { it.name == typedName }
-    // 预览：实际会打哪个地址（拉模型打 /models）、这批算新建还是并入
+    // 预览：实际请求的地址（/models）+ 这批算新建还是并入
     val previewBase = if (url.isEmpty()) "" else
         runCatching { KeyListFile.openAiBaseUrl(url) }.getOrDefault("")
 
@@ -1556,11 +1460,10 @@ private fun ModelPullDialog(
             else { models = r.first ?: emptyList(); selected = emptySet() } // 默认不勾选
         }
     }
-    // 分组模式：进来就拉，省掉「再点一次拉取」
+    // 分组模式进来就拉
     LaunchedEffect(Unit) { if (forGroup) fetch() }
     val visibleModels = models.filter { filter.isBlank() || it.contains(filter, true) }
-    // 「已在组内」只按**目标分组**算（同站点 + 同密钥 + 同模型）：
-    // 别的分组拉过同一个模型**不算**（目目 09-15「只要网址不一样、或同网址不同密钥，就能拉同样的模型」）
+    // 「已在组内」只按目标分组算（同站点 + 同密钥 + 同模型），别的分组拉过不算
     fun inGroup(m: String) = targetIfc != null && KeyListFile.hasModel(keys, targetIfc, m)
     val selectableModels = visibleModels.filter { !inGroup(it) }
 
@@ -1571,8 +1474,7 @@ private fun ModelPullDialog(
             modifier = Modifier.fillMaxWidth().heightIn(max = 640.dp)
         ) {
             Column(Modifier.padding(16.dp)) {
-                // 标题行：左＝标题，右＝「手动添加模型」入口（目目 09-15：从操作行挪到右上角，
-                // 操作行只留「拉取」；[ready] 守卫照旧——没网址+密钥就不知道该归给谁，灰着）
+                // 标题行右上角 = 手动添加模型；操作行只留「拉取」
                 Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                     Text(
                         stringResource(R.string.role_key_fetch),
@@ -1588,7 +1490,7 @@ private fun ModelPullDialog(
                 }
                 Spacer(Modifier.height(8.dp))
                 if (forGroup) {
-                    // 分组模式：不再让你选一次，直接把「给谁拉」摆出来（组名 · 网址）
+                    // 分组模式：把「给谁拉」摆出来（组名 · 网址）
                     Text(
                         stringResource(
                             R.string.role_key_pull_group_sub,
@@ -1600,9 +1502,7 @@ private fun ModelPullDialog(
                     )
                     Spacer(Modifier.height(8.dp))
                 } else {
-                    // 新建模式（目目 09-15 二次改版）：字段顺序 分组名 → 接口地址 → API Key。
-                    // 分组名提到最上面（进来先定名字），留空 ⇒ 网址短名自动提取；
-                    // 接口地址只要填到版本段，后端缀与协议头都有人管（见下方辅助行与失焦回写）。
+                    // 新建模式：字段顺序 分组名 → 接口地址 → API Key
                     Text(
                         stringResource(R.string.role_key_group_name_label),
                         style = MaterialTheme.typography.bodySmall,
@@ -1611,7 +1511,7 @@ private fun ModelPullDialog(
                     OutlinedTextField(
                         value = nameText, onValueChange = { nameText = it },
                         singleLine = true,
-                        // 空框时直接把**将要用的短名**当占位显示出来（灰字），不用你先猜会叫什么
+                        // 空框时把将用的短名当占位显示
                         placeholder = {
                             Text(if (autoName.isEmpty()) stringResource(R.string.role_key_name_auto) else autoName)
                         },
@@ -1624,15 +1524,14 @@ private fun ModelPullDialog(
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
-                    // 地址可能很长，一栏放不下就换行（目目 09-15）
+                    // 地址可能很长，允许多行
                     OutlinedTextField(
                         value = urlText, onValueChange = { urlText = it },
                         singleLine = false, minLines = 1, maxLines = 3,
                         placeholder = { Text("https://api.example.com/v1") },
                         textStyle = MaterialTheme.typography.bodyMedium,
                         modifier = Modifier.fillMaxWidth()
-                            // 离开这个框就补协议头并**回写**（目目 09-15「自动补 https://」）：
-                            // 手打 cavoti.com / api.cavoti.com/v1 都能直接拉；已带 http(s):// 的原样不动。
+                            // 失焦补协议头并回写（与编辑弹窗同口径）
                             .onFocusChanged { st ->
                                 if (!st.isFocused) {
                                     val fixed = KeyListFile.withScheme(urlText.text)
@@ -1642,8 +1541,7 @@ private fun ModelPullDialog(
                                 }
                             },
                     )
-                    // 提示只在**还没填**时占位（填了就让位给下面的预览行）。弹窗高度有限
-                    // （heightIn max 640dp），这两行信息互补、没必要同时挤在列表上方
+                    // 提示行只在未填时占位（填了让位给预览行，弹窗高度有限）
                     if (url.isEmpty()) {
                         Text(
                             stringResource(R.string.role_key_ifc_url_hint),
@@ -1664,8 +1562,7 @@ private fun ModelPullDialog(
                         textStyle = MaterialTheme.typography.bodyMedium,
                         modifier = Modifier.fillMaxWidth(),
                     )
-                    // 预览行（目目 09-15）：把「实际请求哪个地址」+「算新建还是并入哪个组」摆出来，
-                    // 不让你猜——原来分散的那行「并入 XX 组」合并到这里。手填的分组名撞了已有组 ⇒ 这行变红。
+                    // 预览行：实际请求的地址 + 新建还是并入；分组名撞车时整行变红
                     Spacer(Modifier.height(6.dp))
                     Column(Modifier.fillMaxWidth()) {
                         if (previewBase.isNotEmpty()) {
@@ -1695,7 +1592,7 @@ private fun ModelPullDialog(
                     }
                 }
                 Spacer(Modifier.height(4.dp))
-                // 操作行只剩「拉取」（分组模式=重试；新建模式=首次拉取）；手动添加已挪到标题行右上角
+                // 操作行只剩「拉取」（分组模式=重试，新建模式=首次拉取）
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     TextButton(onClick = { fetch() }, enabled = !loading && ready) {
                         Text(stringResource(if (loading) R.string.role_key_fetching else R.string.role_key_fetch))
@@ -1720,7 +1617,7 @@ private fun ModelPullDialog(
                         modifier = Modifier.fillMaxWidth()
                     )
                     TextButton(onClick = {
-                        // 全选只作用**可见且可加**的（组内已有的、被搜索滤掉的不算）
+                        // 全选只作用可见且可加的
                         selected = if (selectableModels.any { it in selected }) {
                             selected - selectableModels.toSet()
                         } else {
@@ -1782,15 +1679,13 @@ private fun ModelPullDialog(
                         }
                     }
                 }
-                // 页脚：确认时**不在这里写条目**，只把（网址 + 密钥 + 选中的模型）交回上层——
-                // 由 [KeyListFile.ensureGroup] 定夺并入哪个分组 / 是否新建，条目名与 value 也在那一步生成
+                // 确认时不在这里写条目：只把（网址 + 密钥 + 选中模型 + 分组名）交回上层
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
                     TextButton(onClick = onDismiss) { Text(stringResource(R.string.cancel)) }
                     TextButton(
                         enabled = selected.isNotEmpty() && ready,
                         onClick = {
-                            // 手填的分组名撞了已有组 ⇒ 不让确认（目目 09-15 拍板：拒绝并提示，
-                            // 跟改名弹窗一个口径；不当场改你的字，你自己换个名再点）
+                            // 手填分组名撞已有组 ⇒ 拦住确认（不当场改字，Toast 提示）
                             if (nameTaken) {
                                 android.widget.Toast.makeText(
                                     context,
@@ -1801,7 +1696,7 @@ private fun ModelPullDialog(
                             }
                             val u = targetIfc?.baseUrl ?: url
                             val k = targetIfc?.apiKey ?: key
-                            // 并入已有组 ⇒ 名字交空（组名已是那组的，不该被这个框影响）
+                            // 并入已有组 ⇒ 名字交空
                             onConfirm(u, k, if (targetIfc != null) "" else finalName, selected.sorted())
                         }
                     ) {
@@ -1811,8 +1706,7 @@ private fun ModelPullDialog(
             }
         }
     }
-    // 手动添加模型（照插件 showManualModelDialog：输入模型名直接入库）。
-    // 归属由（网址 + 密钥）决定：分组模式=本组；新建模式=你填的那对值（[ready] 已保证两项都非空）。
+    // 手动添加模型：输入模型名进候选列表（不直接入库）；归属由（网址 + 密钥）决定
     if (manualVisible) {
         var manual by remember { mutableStateOf("") }
         AlertDialog(
@@ -1922,8 +1816,7 @@ private fun ImportKeysDialog(
                 TextButton(onClick = {
                     pending = null
                     scope.launch {
-                        // v2 含分组 → importAll（密钥合并 + 接口按站点+密钥去重合并）；
-                        // 插件时代的扁平数组文件 interfaces 为空，等价于原来的 importKeys。
+                        // v2 含分组 → importAll；插件时代的扁平数组 interfaces 为空，等价 importKeys
                         val (added, skipped, addedIfc) = withIO { KeyListFile.importAll(tagRuleId, data) }
                         toast(R.string.role_key_import_done, added, skipped, addedIfc)
                         onDone()
@@ -2025,7 +1918,7 @@ fun BackupCenterDialog(
             }
         }
     }
-    // 自动备份设置（照插件 showAutoBackupSettingDialog：标题显当前状态 → 开启/关闭）
+    // 自动备份设置（标题显当前状态 → 开启/关闭）
     if (autoSettingVisible) {
         AlertDialog(
             onDismissRequest = { autoSettingVisible = false },
@@ -2065,7 +1958,7 @@ fun BackupCenterDialog(
         )
     }
 
-    // 从剪贴板/文本导入书籍（照插件 restoreFromText：{bookName, characterData} → 建档并切换）
+    // 从剪贴板 / 文本导入书籍（照插件 restoreFromText）
     if (inputVisible) {
         AlertDialog(
             onDismissRequest = { inputVisible = false },
@@ -2092,11 +1985,8 @@ fun BackupCenterDialog(
                                     val data = obj.optJSONArray("characterData")
                                         ?: throw IllegalArgumentException("bad format")
                                     require(bookName.isNotEmpty()) { "empty book" }
-                                    // 统一入口（照插件 restoreFromText）：①书名补进 liebiao.json
-                                    // ②cunfang ③characterRecords ④shuming.<书> ⑤gengxin.json。
-                                    // ⚠️ 旧版只写 3 个文件：书切走再回来会从书架消失；不写 gengxin.json
-                                    //    则朗读规则内存仍是旧角色表，下次朗读把导入数据覆盖回去（导入白做）。
-                                    //    那段还硬编码了绝对路径，没走 BASE_DIR。
+                                    // 统一入口（照插件 restoreFromText）：liebiao / cunfang / characterRecords / shuming.<书> / gengxin 五写
+                                    // ⚠️ 旧版只写 3 个 ⇒ 书切走再回来会从书架消失；不写 gengxin 则朗读规则内存是旧角色表
                                     CharacterRecordsFile.importBook(tagRuleId, bookName, data.toString())
                                 }.getOrDefault(false)
                             }
@@ -2118,12 +2008,7 @@ fun BackupCenterDialog(
     }
 }
 
-/**
- * 备份恢复选项行（目目 09-14 定案：**去白卡片与描边** → 无框行 + 语义图标）。
- * 原「圆角卡片 + 彩色圆点」是插件语汇：白卡片压在弹窗淡紫底上 = 框中框，
- * 而彩色圆点只在卡片里才不显飘、本身又无信息量 → 换成 18dp 灰色图标（语义=这是什么操作）。
- * 5 行是异质动作（不是同质密集条目），靠行内纵 padding 留白分段，不画分隔线。
- */
+/** 选项行：无框行 + 语义图标（原「白卡片 + 彩色圆点」压在弹窗底上 = 框中框） */
 @Composable
 private fun BackupOptionRow(icon: ImageVector, text: String, onClick: () -> Unit) {
     Row(
@@ -2158,11 +2043,7 @@ private val BOOK_MULTI_DELETE_COLOR = Color(0xFFEF6C00)
 /** 默认书籍名：不可删除（与 CharacterRecordsFile 同源） */
 private const val DEFAULT_BOOK_NAME = "默认"
 
-/**
- * 书籍列表弹窗·1:1（照插件 showBookSwitchDialog，图一样式）：
- * 紧凑弹窗；每本书 = 圆角卡片行（当前书 = 主题浅底 + 主题描边 + ✓；其他 = 浅底 + 描边 + 彩色圆点）；
- * 仅非「默认」书显示 ✕（二次确认，删当前书后切默认）；底部「+ 新增书籍 / 多选删除」。
- */
+/** 书籍列表弹窗（照插件 showBookSwitchDialog）：当前书主题浅底 + 描边 + ✓，仅非「默认」书给 ✕（二次确认） */
 @Composable
 fun BookManagerDialog(
     tagRuleId: String,
@@ -2448,7 +2329,7 @@ fun BookManagerDialog(
     }
 }
 
-/** 书籍列表行（目目 09-14：去描边卡片改无框行，与密钥条目行同一套口径） */
+/** 书籍列表行（无框行，与密钥条目行同一口径） */
 @Composable
 private fun BookRow(
     name: String,
