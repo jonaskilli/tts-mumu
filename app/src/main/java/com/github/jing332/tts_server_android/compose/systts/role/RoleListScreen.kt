@@ -338,7 +338,7 @@ fun RoleListScreen(
                         color = BOOK_NAME_COLOR,
                         modifier = Modifier.weight(1f),
                     )
-                    // ✎ / ▾管理 照 v10 用裸文本键（padding 12/4/12/4 与 8/4/8/4、14sp）：
+                    // ✎ / 管理 照 v10 用裸文本键（padding 12/4/12/4 与 8/4/8/4、14sp）：
                     // 原先的 TextButton 自带 58dp 最小宽 + 12dp 内边距，两个键多占约 23dp，
                     // 书名被挤到第二行（v10 同字号一行放得下）
                     Text(
@@ -355,7 +355,9 @@ fun RoleListScreen(
                     )
                     Spacer(Modifier.width(10.dp))
                     Text(
-                        "▾ ${stringResource(R.string.role_book_manage)}",
+                        // 去「▾」前缀（目目 09-16）：箭头语义是「就地展开」，而本键打开的是书籍列表
+                        // 弹窗；且整条卡片本身可点、入口相同，箭头无信息增量，还白占约 12dp 宽
+                        stringResource(R.string.role_book_manage),
                         fontSize = 14.sp,
                         color = MaterialTheme.colorScheme.onSecondaryContainer,
                         modifier = Modifier
