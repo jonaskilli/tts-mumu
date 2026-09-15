@@ -2546,7 +2546,8 @@ private fun BookRow(
                         .background(MaterialTheme.colorScheme.primary, RoundedCornerShape(2.dp))
                 )
             } else {
-                Box(Modifier.size(7.dp).background(dotColor, CircleShape))
+                // 6dp（目目 09-16：原 7dp 嫌大压不住书名行）
+                Box(Modifier.size(6.dp).background(dotColor, CircleShape))
             }
         }
         Text(
