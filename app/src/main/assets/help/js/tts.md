@@ -4,7 +4,7 @@
 ```javascript
 let PluginJS = {
     "name": "插件名",
-    "id": "唯一的插件ID", // 同时作为fs操作文件的相对目录 /Android/data/com.github.jing332.tts_server_android/caches/插件ID
+    "id": "唯一的插件ID", // 同时作为fs操作文件的相对目录 /Android/data/com.mumutts.app/caches/插件ID
     "author": "作者",
     "iconUrl": "https://cn.bing.com/favicon.ico",
     "version": 1, // 版本号，必须为整数
