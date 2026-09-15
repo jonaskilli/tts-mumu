@@ -39,7 +39,7 @@ import androidx.compose.material.icons.filled.Restore
 import androidx.compose.material.icons.filled.Save
 import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material.icons.filled.Search
-import androidx.compose.material.icons.filled.Sync
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.RadioButton
@@ -647,11 +647,12 @@ fun KeyManagerScreen(tagRuleId: String, onBack: () -> Unit) {
                                             verticalAlignment = Alignment.CenterVertically
                                         ) {
                                             // 组级四图标全部常驻；仅接口组有前三个（未分组 / 直连点了只是白弹提示）。
-                                            // 顺序按使用频次（目目 09-15 方案一）：⇣拉取 ⚡测组 ✏编辑接口 🗑删除
+                                            // 顺序按使用频次（目目 09-15 方案一）：+拉取 ⚡测组 ✏编辑接口 🗑删除
                                             grp.ifc?.let { ifc ->
                                                 FlatIconAction(
-                                                    // 拉取模型 = 跟接口同步模型列表（目目 09-15 晚：下载语义不对），用云同步图标
-                                                    Icons.Default.Sync,
+                                                    // 拉取模型 = 往组里加模型（目目 09-15 晚三轮：Sync 云同步也别扭，
+                                                    // 改 +「添加」语义；放大镜易与页内搜索混淆，弃）
+                                                    Icons.Default.Add,
                                                     stringResource(R.string.role_key_fetch)
                                                 ) {
                                                     pullForIfc = ifc.name
@@ -2323,6 +2324,9 @@ fun BookManagerDialog(
                     TextButton(onClick = { addBookVisible = true }) {
                         Text(
                             "+  " + stringResource(R.string.role_book_add),
+                            // 目目 09-15 晚：不要粗体——TextButton 默认 labelLarge 自带 w500，
+                            // 换 bodyMedium（同为 14sp，常规字重）与弹窗正文统一
+                            style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.primary,
                         )
                     }
@@ -2330,6 +2334,7 @@ fun BookManagerDialog(
                     TextButton(onClick = { multiVisible = true }) {
                         Text(
                             stringResource(R.string.role_book_multi_delete_mode),
+                            style = MaterialTheme.typography.bodyMedium,
                             color = BOOK_MULTI_DELETE_COLOR,
                         )
                     }

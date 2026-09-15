@@ -409,7 +409,9 @@ fun RoleListScreen(
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             maxLines = 1,
             overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
-            modifier = Modifier.padding(horizontal = 12.dp, vertical = 2.dp)
+            // 目目 09-15 晚：跟下方列表行左对齐——行内容左缘 = LazyColumn 12 + RoleRow 行内 14 = 26dp，
+            // 提示行原来 12dp，比列表凸出去一截
+            modifier = Modifier.padding(start = 26.dp, end = 12.dp, vertical = 2.dp)
         )
 
         // ===== 平铺角色列表（完全展开）=====
@@ -825,7 +827,8 @@ private fun RoleRow(
                 nameList.forEachIndexed { idx, name ->
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         // 性别色圆点：只看发音人分类标签（tag 本身即「分类词+序号」，见 genderDotColor 注释）
-                        Spacer(Modifier.size(4.dp).background(genderDotColor(rec.voice), CircleShape))
+                        // 目目 09-15 晚：4dp 压不住场，加大到 8dp（与密钥页状态点/书籍列表圆点同档）
+                        Spacer(Modifier.size(8.dp).background(genderDotColor(rec.voice), CircleShape))
                         Spacer(Modifier.width(8.dp))
                         Text(
                             text = buildString {
