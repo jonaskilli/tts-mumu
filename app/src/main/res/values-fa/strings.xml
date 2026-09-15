@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources xmlns:tools="http://schemas.android.com/tools">
-    <string name="app_name">TTS Server</string>
-    <string name="app_name_dev">دی‌تی‌تی‌اس سرور</string>
+    <string name="app_name">MumuTTS</string>
+    <string name="app_name_dev">MumuTTS</string>
     <string name="app_switch">تعویض</string>
     <string name="help">کمک</string>
     <string name="warning">هشدار</string>
