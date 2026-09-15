@@ -88,7 +88,11 @@ import com.github.jing332.tts_server_android.R
 import com.github.jing332.tts_server_android.compose.nav.NavTopAppBar
 import com.github.jing332.tts_server_android.service.systts.help.CharacterRecordsFile
 import com.github.jing332.tts_server_android.service.systts.help.KeyListFile
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Semaphore
+import kotlinx.coroutines.sync.withPermit
 
 /**
  * 密钥管理 + 备份恢复 + 书籍管理·1:1 复刻（对照 角色管理v10_主题密钥增强.js）：
@@ -384,7 +388,13 @@ fun KeyManagerScreen(tagRuleId: String, onBack: () -> Unit) {
             )
         }
     }
-    // 整组测试（照插件组头 ⚡：逐条测完逐条标记；直连组同样可测）
+    // 整组测试（目目 09-15 改为**并发 4 路**；原来是 forEach 串行 await，10 条模型得排队跑完才出结果）：
+    //  · 为什么限 4：一个接口下几把密钥通常共用站点额度，一次全发会撞 429，被我们记成「测试失败」红点
+    //    ⇒ 这叫自己把自己限流，比串行还糟。4 路约快 4 倍，且不至于触发限流。
+    //  · 为什么安全：withIO 是 Net 库的 Dispatchers.IO（多线程池，真并行，不是主线程上假装并发）；
+    //    testKey 是纯阻塞 HTTP、每次新建连接、无共享可变状态 ⇒ 并发调用不打架。
+    //  · 灯是「谁先回来谁先亮」：testResults 的写入发生在协程恢复回主线程之后，不会竞态。
+    //  · 直连组同样可测（照插件组头 ⚡）。
     fun testGroup(grp: KeyGroup) {
         val targets = grp.entries.filter { it.value.isNotBlank() }
         if (targets.isEmpty()) {
@@ -394,13 +404,18 @@ fun KeyManagerScreen(tagRuleId: String, onBack: () -> Unit) {
         scope.launch {
             testingGroup = grp.title
             toast(R.string.role_key_test_batch_start, grp.title, targets.size)
-            var okCount = 0
-            targets.forEach { e ->
-                val r = withIO { KeyListFile.testKey(e.value) }
-                testResults = testResults + (e.name to r.first)
-                if (r.first) okCount++
-            }
+            val gate = Semaphore(4)
+            val results = targets.map { e ->
+                async {
+                    gate.withPermit {
+                        val r = withIO { KeyListFile.testKey(e.value) }
+                        testResults = testResults + (e.name to r.first)
+                        r.first
+                    }
+                }
+            }.awaitAll()
             testingGroup = null
+            val okCount = results.count { it }
             toast(R.string.role_key_test_batch_done, grp.title, okCount, targets.size - okCount)
         }
     }
