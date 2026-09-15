@@ -1198,6 +1198,10 @@ private fun InterfaceFormDialog(
                     value = name,
                     onValueChange = { name = it; nameTouched = true },
                     singleLine = true, textStyle = MaterialTheme.typography.bodyMedium,
+                    // 清空后灰字摆出将用的短名（替代原来标签里那句括号说明）
+                    placeholder = {
+                        Text(runCatching { KeyListFile.shortName(url.text) }.getOrDefault(""))
+                    },
                     modifier = Modifier.fillMaxWidth(),
                 )
                 Spacer(Modifier.height(6.dp))
@@ -1511,10 +1515,8 @@ private fun ModelPullDialog(
                     OutlinedTextField(
                         value = nameText, onValueChange = { nameText = it },
                         singleLine = true,
-                        // 空框时把将用的短名当占位显示
-                        placeholder = {
-                            Text(if (autoName.isEmpty()) stringResource(R.string.role_key_name_auto) else autoName)
-                        },
+                        // 空框时把将用的短名当占位显示；网址没填就空着，不写解释
+                        placeholder = { Text(autoName) },
                         textStyle = MaterialTheme.typography.bodyMedium,
                         modifier = Modifier.fillMaxWidth(),
                     )

@@ -675,12 +675,12 @@ Add %3$d, skip %4$d duplicates
     <string name="role_key_import_done">Imported: %1$d added, %2$d skipped, %3$d group(s) restored</string>
     <string name="role_key_interface_new">New interface</string>
     <string name="role_key_interface_edit">Edit interface</string>
-    <string name="role_key_ifc_name">Name (auto from URL if empty)</string>
-    <string name="role_key_ifc_url">Base URL (/v1 auto-added)</string>
+    <string name="role_key_ifc_name">Name</string>
+    <string name="role_key_ifc_url">Base URL</string>
     <string name="role_key_ifc_key">API Key</string>
-    <string name="role_key_group_name_label">Group name (auto from URL if empty)</string>
-    <string name="role_key_ifc_url_hint">Up to /v1 is enough — no /chat/completions needed</string>
-    <string name="role_key_will_request">Will request %1$s</string>
+    <string name="role_key_group_name_label">Group name</string>
+    <string name="role_key_ifc_url_hint">Up to /v1 — no /chat/completions needed</string>
+    <string name="role_key_will_request">Request %1$s</string>
     <string name="role_key_new_group">New group %1$s</string>
     <string name="role_key_join_group">Merge into group %1$s</string>
     <string name="role_key_group_name_exists">Group name \"%1$s\" already exists</string>
