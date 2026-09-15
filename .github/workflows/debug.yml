@@ -24,14 +24,30 @@ jobs:
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v4
 
-      - name: Create debug keystore
-        # app 的 debug 变体复用 signingConfigs.release，无 local.properties 时回退到 ~/.android/debug.keystore
-        # GitHub runner 默认没有该文件，先 keytool 生成，否则 validateSigningAppDebug 会失败
+      - name: Init Signature
+        # app 的 debug 变体复用 signingConfigs.release；若不注入 local.properties，它会回退到
+        # ~/.android/debug.keystore，而 runner 上该文件不存在，只能现场 keytool 生成 —— 每次构建
+        # 密钥都不同，debug 包之间无法覆盖安装（同一 applicationId 换签名 = 必须卸载重装）。
+        # 这里注入与正式版相同的密钥，让 debug 包签名固定下来。
+        # 安全上无碍：debug 变体 applicationId 带 .debug 后缀，与正式版是两个独立应用。
         run: |
-          mkdir -p ~/.android
-          keytool -genkeypair -v -keystore ~/.android/debug.keystore -storepass android \
-            -alias androiddebugkey -keypass android -keyalg RSA -keysize 2048 -validity 10000 \
-            -dname "CN=Android Debug,O=Android,C=US"
+          touch local.properties
+          echo ALIAS_NAME='${{ secrets.ALIAS_NAME }}' >> local.properties
+          echo ALIAS_PASSWORD='${{ secrets.ALIAS_PASSWORD }}' >> local.properties
+          echo KEY_PASSWORD='${{ secrets.KEY_PASSWORD }}' >> local.properties
+          echo KEY_PATH='./key.p12' >> local.properties
+          if [ -z "${{ secrets.KEY_STORE }}" ]; then
+            echo "::error::Secret KEY_STORE 未配置, 请到 Settings > Secrets > Actions 添加 key.p12 的 Base64 编码"
+            exit 1
+          fi
+          printf '%s' '${{ secrets.KEY_STORE }}' | base64 --decode > $GITHUB_WORKSPACE/app/key.p12
+          if [ ! -s $GITHUB_WORKSPACE/app/key.p12 ]; then
+            echo "::error::解码后的 key.p12 为空文件, 请检查 KEY_STORE Base64 是否正确"
+            exit 1
+          fi
+          keytool -list -keystore $GITHUB_WORKSPACE/app/key.p12 -storetype PKCS12 \
+            -storepass '${{ secrets.KEY_PASSWORD }}' -alias '${{ secrets.ALIAS_NAME }}' > /dev/null \
+            || { echo "::error::keystore 读取失败: 请核对 KEY_STORE / KEY_PASSWORD / ALIAS_NAME"; exit 1; }
 
       - name: Build with Gradle
         run: |
