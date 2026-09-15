@@ -814,14 +814,12 @@ fun KeyManagerScreen(tagRuleId: String, onBack: () -> Unit) {
                                                 else deleteChecked + entry.name
                                             },
                                             onSwitch = { switchTo(entry) },
-                                            // 📋 复制整条 @@ 串（照插件密钥详情页「复制」的值口径）
+                                            // 📋 列表行复制 = **模型名**（目目 09-15：两处复制不一样，
+                                            // 列表行给模型名、编辑弹窗里复制的才是完整密钥；插件也是这么分的
+                                            // ——列表行 copyName、详情弹窗 copyValue）
                                             onCopy = {
-                                                if (entry.value.isBlank()) {
-                                                    toast(R.string.role_key_value_empty)
-                                                } else {
-                                                    clipboard.setText(AnnotatedString(entry.value.trim()))
-                                                    toast(R.string.copied)
-                                                }
+                                                clipboard.setText(AnnotatedString(KeyListFile.displayName(entry)))
+                                                toast(R.string.role_key_copied_model)
                                             },
                                             onTest = { testKey(entry) },
                                             onEdit = { renameFor = entry },
@@ -1053,8 +1051,12 @@ fun KeyManagerScreen(tagRuleId: String, onBack: () -> Unit) {
 
 /**
  * 密钥编辑（条目 ✏️ / 新增共用）：第一行「模型」（留空自动从密钥串里抽模型名）、
- * 第二行「密钥」（整串 网址@@模型@@Key），底部 取消 / 删除 / 确定；
- * 返回 overwrite=同组重名、待覆盖确认。复制不在这里（在列表行右侧 📋）。
+ * 第二行「密钥」（整串 网址@@模型@@Key），底部 取消 / 删除 / 复制 / 确定；
+ * 返回 overwrite=同组重名、待覆盖确认。
+ *
+ * **两处复制语义不同**（目目 09-15 明确）：
+ *  - 列表行右侧 📋 = 复制**模型名**（第一行那个东西）；
+ *  - 本弹窗里的「复制」= 复制**完整密钥**（第二行的整串 网址@@模型@@Key，照插件密钥详情页 1531）。
  */
 @Composable
 private fun KeyEditDialog(
@@ -1072,6 +1074,13 @@ private fun KeyEditDialog(
     val initValue = initial?.value.orEmpty()
     var name by remember { mutableStateOf(TextFieldValue(initName, TextRange(initName.length))) }
     var value by remember { mutableStateOf(TextFieldValue(initValue, TextRange(initValue.length))) }
+    val context = LocalContext.current
+    val clipboard = LocalClipboardManager.current
+    fun toast(resId: Int) {
+        android.widget.Toast.makeText(
+            context, context.getString(resId), android.widget.Toast.LENGTH_SHORT
+        ).show()
+    }
     AlertDialog(
         onDismissRequest = onDismiss,
         title = {
@@ -1117,14 +1126,18 @@ private fun KeyEditDialog(
             }
         },
         confirmButton = {
-            // 底部按钮行（目目 09-15）：取消 / 删除 / 确定。M3 AlertDialog 里 dismiss 槽排在
-            // confirm 槽之前，所以「取消」天然落在「删除」左边。复制已挪去列表行右侧 📋。
-            Row {
-                if (onDelete != null) {
-                    TextButton(onClick = onDelete) {
-                        Text(stringResource(R.string.delete), color = MaterialTheme.colorScheme.error)
+            // 底部按钮行（目目 09-15）：取消 / 删除 / 复制 / 确定。M3 的按钮区是 AlertDialogFlowRow，
+            // 按「dismiss 槽 → confirm 槽」的顺序排，所以拆成两槽就能得到这个左右顺序；
+            // 拆槽还有个好处：每槽最多两个按钮，窄屏（360dp 下可用宽约 304dp）不会整体被挤去第二行。
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                // 「复制」= 第二行的**完整密钥串**（列表行右侧 📋 复制的才是模型名，两处不一样）
+                TextButton(
+                    enabled = value.text.isNotBlank(),
+                    onClick = {
+                        clipboard.setText(AnnotatedString(value.text.trim()))
+                        toast(R.string.copied)
                     }
-                }
+                ) { Text(stringResource(R.string.copy)) }
                 TextButton(
                     enabled = value.text.isNotBlank(),
                     onClick = {
@@ -1158,7 +1171,15 @@ private fun KeyEditDialog(
             }
         },
         dismissButton = {
-            TextButton(onClick = onDismiss) { Text(stringResource(R.string.cancel)) }
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                TextButton(onClick = onDismiss) { Text(stringResource(R.string.cancel)) }
+                // 照插件条目 ✏️ 弹窗：删除入口留在编辑弹窗内（红字）
+                if (onDelete != null) {
+                    TextButton(onClick = onDelete) {
+                        Text(stringResource(R.string.delete), color = MaterialTheme.colorScheme.error)
+                    }
+                }
+            }
         }
     )
 }
