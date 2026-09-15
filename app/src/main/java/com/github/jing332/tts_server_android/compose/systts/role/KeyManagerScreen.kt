@@ -38,6 +38,7 @@ import androidx.compose.material.icons.filled.Restore
 import androidx.compose.material.icons.filled.Save
 import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.Sync
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.RadioButton
@@ -223,39 +224,52 @@ private fun KeyEntryRow(
             }
         }
         Spacer(Modifier.width(8.dp))
-        // 显示名取**值里的真实模型名**（条目名可能带跨组共存的去重后缀，那是内部标识）。
-        // weight(fill=false)：短名贴左侧，长名吃满剩余宽度后省略，图标不被挤出去
-        Text(
-            KeyListFile.displayName(entry),
-            style = MaterialTheme.typography.bodyMedium,
-            fontWeight = if (isCurrent) FontWeight.SemiBold else null,
-            color = if (isCurrent) accent else MaterialTheme.colorScheme.onSurface,
-            maxLines = 2,
-            overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.weight(1f, fill = false).clickable { onSwitch() }
-        )
-        if (isCurrent) {
-            Spacer(Modifier.width(6.dp))
-            Surface(shape = RoundedCornerShape(8.dp), color = accent.copy(alpha = 0.14f)) {
-                Text(
-                    stringResource(R.string.role_key_current_badge),
-                    style = MaterialTheme.typography.labelSmall,
-                    color = accent,
-                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 1.dp)
-                )
+        // 名字区 weight(1f)：短名贴左、「当前」徽章跟在名字后，右侧空隙由固定图标区兜底
+        Row(
+            Modifier.weight(1f),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            // 显示名取**值里的真实模型名**（条目名可能带跨组共存的去重后缀，那是内部标识）。
+            // weight(fill=false)：短名贴左侧，长名吃满剩余宽度后省略，图标不被挤出去
+            Text(
+                KeyListFile.displayName(entry),
+                style = MaterialTheme.typography.bodyMedium,
+                fontWeight = if (isCurrent) FontWeight.SemiBold else null,
+                color = if (isCurrent) accent else MaterialTheme.colorScheme.onSurface,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.weight(1f, fill = false).clickable { onSwitch() }
+            )
+            if (isCurrent) {
+                Spacer(Modifier.width(6.dp))
+                Surface(shape = RoundedCornerShape(8.dp), color = accent.copy(alpha = 0.14f)) {
+                    Text(
+                        stringResource(R.string.role_key_current_badge),
+                        style = MaterialTheme.typography.labelSmall,
+                        color = accent,
+                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 1.dp)
+                    )
+                }
+            }
+            if (testing) {
+                Spacer(Modifier.width(6.dp))
+                CircularProgressIndicator(Modifier.size(16.dp), strokeWidth = 2.dp)
             }
         }
-        if (testing) {
-            Spacer(Modifier.width(6.dp))
-            CircularProgressIndicator(Modifier.size(16.dp), strokeWidth = 2.dp)
-        }
         if (!deleteMode) {
-            // 动作图标与名字同行，按使用频次（目目 09-15 方案一）：⚡测试 ⧉复制 ✏编辑 🗑删除
+            // 固定宽图标区（目目 09-15 晚方案 A）：144dp=4×36dp 热区，与组头行图标垂直成列；
+            // 动作图标按使用频次（目目 09-15 方案一）：⚡测试 ⧉复制 ✏编辑 🗑删除
             //（📋 复制的是模型名，编辑弹窗里才是完整密钥串）
-            FlatIconAction(Icons.Default.Bolt, stringResource(R.string.role_key_test)) { onTest() }
-            FlatIconAction(Icons.Default.ContentCopy, stringResource(R.string.copy)) { onCopy() }
-            FlatIconAction(Icons.Default.Edit, stringResource(R.string.role_key_edit)) { onEdit() }
-            FlatIconAction(Icons.Default.DeleteOutline, stringResource(R.string.delete)) { onDelete() }
+            Row(
+                Modifier.width(144.dp),
+                horizontalArrangement = Arrangement.End,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                FlatIconAction(Icons.Default.Bolt, stringResource(R.string.role_key_test)) { onTest() }
+                FlatIconAction(Icons.Default.ContentCopy, stringResource(R.string.copy)) { onCopy() }
+                FlatIconAction(Icons.Default.Edit, stringResource(R.string.role_key_edit)) { onEdit() }
+                FlatIconAction(Icons.Default.DeleteOutline, stringResource(R.string.delete)) { onDelete() }
+            }
         }
     }
 }
@@ -655,98 +669,106 @@ fun KeyManagerScreen(tagRuleId: String, onBack: () -> Unit) {
                                                 )
                                             }
                                         }
-                                        // 组级四图标全部常驻；仅接口组有前三个（未分组 / 直连点了只是白弹提示）。
-                                        // 顺序按使用频次（目目 09-15 方案一）：⇣拉取 ⚡测组 ✏编辑接口 🗑删除
-                                        grp.ifc?.let { ifc ->
-                                            FlatIconAction(
-                                                // 拉取模型语义 = 从接口下载，用 ⇣（原 🔍 是搜索语义，误导）
-                                                Icons.Default.FileDownload,
-                                                stringResource(R.string.role_key_fetch)
-                                            ) {
-                                                pullForIfc = ifc.name
-                                                showPullModels = true
+                                        // 固定宽图标区（目目 09-15 晚方案 A）：144dp=4×36dp 热区，组头与
+                                        // 模型行两行图标垂直成列；不足 4 键（未分组/直连组）右对齐留空
+                                        Row(
+                                            Modifier.width(144.dp),
+                                            horizontalArrangement = Arrangement.End,
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            // 组级四图标全部常驻；仅接口组有前三个（未分组 / 直连点了只是白弹提示）。
+                                            // 顺序按使用频次（目目 09-15 方案一）：⇣拉取 ⚡测组 ✏编辑接口 🗑删除
+                                            grp.ifc?.let { ifc ->
+                                                FlatIconAction(
+                                                    // 拉取模型 = 跟接口同步模型列表（目目 09-15 晚：下载语义不对），用云同步图标
+                                                    Icons.Default.Sync,
+                                                    stringResource(R.string.role_key_fetch)
+                                                ) {
+                                                    pullForIfc = ifc.name
+                                                    showPullModels = true
+                                                }
+                                                if (testingGroup == grp.title) {
+                                                    Box(Modifier.size(36.dp), contentAlignment = Alignment.Center) {
+                                                        CircularProgressIndicator(
+                                                            Modifier.size(18.dp), strokeWidth = 2.dp
+                                                        )
+                                                    }
+                                                } else {
+                                                    FlatIconAction(
+                                                        Icons.Default.Bolt,
+                                                        stringResource(R.string.role_key_test)
+                                                    ) { testGroup(grp) }
+                                                }
+                                                FlatIconAction(
+                                                    Icons.Default.Edit,
+                                                    stringResource(R.string.role_key_interface_edit)
+                                                ) { ifcFormFor = ifc }
                                             }
-                                            if (testingGroup == grp.title) {
-                                                Box(Modifier.size(36.dp), contentAlignment = Alignment.Center) {
-                                                    CircularProgressIndicator(
-                                                        Modifier.size(18.dp), strokeWidth = 2.dp
+                                            // 组头 🗑 展开两项：删除整组 / 多选删除子项
+                                            Box {
+                                                FlatIconAction(
+                                                    Icons.Default.DeleteOutline,
+                                                    stringResource(R.string.delete)
+                                                ) { menuGroup = grp.title }
+                                                DropdownMenu(
+                                                    expanded = menuGroup == grp.title,
+                                                    onDismissRequest = { menuGroup = null }
+                                                ) {
+                                                    DropdownMenuItem(
+                                                        // 警示交给红色图标承载，标题不再整行红字（原样太扎眼）
+                                                        leadingIcon = {
+                                                            Icon(
+                                                                Icons.Default.DeleteOutline,
+                                                                contentDescription = null,
+                                                                modifier = Modifier.size(18.dp),
+                                                                tint = MaterialTheme.colorScheme.error
+                                                            )
+                                                        },
+                                                        text = {
+                                                            Column {
+                                                                Text(
+                                                                    stringResource(R.string.role_key_group_delete_all),
+                                                                    style = MaterialTheme.typography.bodyMedium
+                                                                )
+                                                                Text(
+                                                                    stringResource(
+                                                                        R.string.role_key_group_delete_all_sub,
+                                                                        grp.entries.size
+                                                                    ),
+                                                                    style = MaterialTheme.typography.labelSmall,
+                                                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                                                )
+                                                            }
+                                                        },
+                                                        onClick = {
+                                                            menuGroup = null
+                                                            deleteGroupConfirm = grp.title
+                                                        }
+                                                    )
+                                                    DropdownMenuItem(
+                                                        text = {
+                                                            Column {
+                                                                Text(
+                                                                    stringResource(R.string.role_key_group_delete_multi),
+                                                                    style = MaterialTheme.typography.bodyMedium
+                                                                )
+                                                                Text(
+                                                                    stringResource(R.string.role_key_group_delete_multi_sub),
+                                                                    style = MaterialTheme.typography.labelSmall,
+                                                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                                                )
+                                                            }
+                                                        },
+                                                        onClick = {
+                                                            menuGroup = null
+                                                            deleteModeGroup = grp.title
+                                                            deleteChecked = emptySet()
+                                                            collapsed = collapsed - grp.title
+                                                        }
                                                     )
                                                 }
-                                            } else {
-                                                FlatIconAction(
-                                                    Icons.Default.Bolt,
-                                                    stringResource(R.string.role_key_test)
-                                                ) { testGroup(grp) }
                                             }
-                                            FlatIconAction(
-                                                Icons.Default.Edit,
-                                                stringResource(R.string.role_key_interface_edit)
-                                            ) { ifcFormFor = ifc }
-                                        }
-                                        // 组头 🗑 展开两项：删除整组 / 多选删除子项
-                                        Box {
-                                            FlatIconAction(
-                                                Icons.Default.DeleteOutline,
-                                                stringResource(R.string.delete)
-                                            ) { menuGroup = grp.title }
-                                            DropdownMenu(
-                                                expanded = menuGroup == grp.title,
-                                                onDismissRequest = { menuGroup = null }
-                                            ) {
-                                                DropdownMenuItem(
-                                                    // 警示交给红色图标承载，标题不再整行红字（原样太扎眼）
-                                                    leadingIcon = {
-                                                        Icon(
-                                                            Icons.Default.DeleteOutline,
-                                                            contentDescription = null,
-                                                            modifier = Modifier.size(18.dp),
-                                                            tint = MaterialTheme.colorScheme.error
-                                                        )
-                                                    },
-                                                    text = {
-                                                        Column {
-                                                            Text(
-                                                                stringResource(R.string.role_key_group_delete_all),
-                                                                style = MaterialTheme.typography.bodyMedium
-                                                            )
-                                                            Text(
-                                                                stringResource(
-                                                                    R.string.role_key_group_delete_all_sub,
-                                                                    grp.entries.size
-                                                                ),
-                                                                style = MaterialTheme.typography.labelSmall,
-                                                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                                                            )
-                                                        }
-                                                    },
-                                                    onClick = {
-                                                        menuGroup = null
-                                                        deleteGroupConfirm = grp.title
-                                                    }
-                                                )
-                                                DropdownMenuItem(
-                                                    text = {
-                                                        Column {
-                                                            Text(
-                                                                stringResource(R.string.role_key_group_delete_multi),
-                                                                style = MaterialTheme.typography.bodyMedium
-                                                            )
-                                                            Text(
-                                                                stringResource(R.string.role_key_group_delete_multi_sub),
-                                                                style = MaterialTheme.typography.labelSmall,
-                                                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                                                            )
-                                                        }
-                                                    },
-                                                    onClick = {
-                                                        menuGroup = null
-                                                        deleteModeGroup = grp.title
-                                                        deleteChecked = emptySet()
-                                                        collapsed = collapsed - grp.title
-                                                    }
-                                                )
-                                            }
-                                        }
+                                        } // 固定宽图标区收尾
                                     }
                                 }
                                 // 元信息行：接口组 = 网址 + 尾号小块；未分组 / 直连组 = 一句身份说明
