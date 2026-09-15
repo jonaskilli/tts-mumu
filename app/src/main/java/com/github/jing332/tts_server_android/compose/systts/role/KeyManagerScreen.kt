@@ -999,7 +999,7 @@ fun KeyManagerScreen(tagRuleId: String, onBack: () -> Unit) {
     if (showPullModels) {
         ModelPullDialog(
             tagRuleId = tagRuleId,
-            existingNames = keys.map { it.name }.toSet(),
+            keys = keys,
             initialIfcName = pullForIfc,
             onDismiss = { showPullModels = false; pullForIfc = null },
             onConfirm = { ifcName, pickedModels, entries ->
@@ -1302,16 +1302,20 @@ private fun InterfaceFormDialog(
 /**
  * 拉取模型（照插件 showModelSelectDialog）：
  * 接口单选 → 拉取 → 五类分组+搜索过滤+默认不勾选（全选只作用可见项）→ 手动添加模型 → 入库。
+ * 目目 09-15：「已在组内」只按**当前分组**（同站点+同密钥+同模型）算，别的分组拉过同一个模型不算，
+ * 所以同网址不同密钥的两个分组可以各拉一份同名模型（如 glm-5.3-flash）。
  */
 @Composable
 private fun ModelPullDialog(
     tagRuleId: String,
-    existingNames: Set<String>,
+    keys: List<KeyListFile.KeyEntry>,
     initialIfcName: String? = null,
     onDismiss: () -> Unit,
     onConfirm: (String, List<String>, List<KeyListFile.KeyEntry>) -> Unit,
 ) {
     val scope = rememberCoroutineScope()
+    // 跨组重名时条目内部名要加「@组名」（uniqueKeyName），所以得先知道全量已有名字
+    val existingNames = remember(keys) { keys.map { it.name }.toSet() }
     var ifaces by remember { mutableStateOf<List<KeyListFile.ApiInterface>>(emptyList()) }
     var pickedName by remember { mutableStateOf("") }
     var models by remember { mutableStateOf<List<String>>(emptyList()) }
@@ -1339,6 +1343,11 @@ private fun ModelPullDialog(
         }
     }
     val visibleModels = models.filter { filter.isBlank() || it.contains(filter, true) }
+    // 「已在组内」只按**当前选中分组**算（同站点 + 同密钥 + 同模型）：
+    // 别的分组拉过同一个模型**不算**（目目 09-15「只要网址不一样、或同网址不同密钥，就能拉同样的模型」）
+    val pickedIfc = ifaces.firstOrNull { it.name == pickedName }
+    fun inGroup(m: String) = pickedIfc != null && KeyListFile.hasModel(keys, pickedIfc, m)
+    val selectableModels = visibleModels.filter { !inGroup(it) }
 
     Dialog(onDismissRequest = onDismiss) {
         Surface(
@@ -1352,14 +1361,44 @@ private fun ModelPullDialog(
                     style = MaterialTheme.typography.headlineSmall
                 )
                 Spacer(Modifier.height(8.dp))
-                // 接口单选
-                ifaces.forEach { ifc ->
-                    Row(
-                        Modifier.fillMaxWidth().clickable { pickedName = ifc.name },
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        RadioButton(selected = pickedName == ifc.name, onClick = { pickedName = ifc.name })
-                        Text(ifc.name, style = MaterialTheme.typography.bodyMedium)
+                // 接口单选：分组多时整段限高内滚，免得把下面的模型列表挤出去（行是两行式，比单行高）
+                Column(
+                    Modifier.fillMaxWidth().heightIn(max = 180.dp).verticalScroll(rememberScrollState())
+                ) {
+                    ifaces.forEach { ifc ->
+                        Column(Modifier.fillMaxWidth().clickable { pickedName = ifc.name }) {
+                            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                                RadioButton(selected = pickedName == ifc.name, onClick = { pickedName = ifc.name })
+                                Text(
+                                    ifc.name,
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    maxLines = 1, overflow = TextOverflow.Ellipsis,
+                                    modifier = Modifier.weight(1f)
+                                )
+                                Spacer(Modifier.width(8.dp))
+                                // 角标=密钥尾号：同网址不同密钥=两个分组，短名会落成 cavoti / cavoti2，
+                                // 只有尾号能一眼认出谁是谁（与分组卡组头同一语汇）
+                                Surface(
+                                    shape = RoundedCornerShape(4.dp),
+                                    color = MaterialTheme.colorScheme.surfaceContainerHighest
+                                ) {
+                                    Text(
+                                        stringResource(R.string.role_key_tail, ifc.apiKey.takeLast(4)),
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        modifier = Modifier.padding(horizontal = 5.dp, vertical = 1.dp)
+                                    )
+                                }
+                            }
+                            // 第二行=网址（分组身份的另一半；长网址省略）
+                            Text(
+                                ifc.baseUrl,
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                maxLines = 1, overflow = TextOverflow.Ellipsis,
+                                modifier = Modifier.padding(start = 40.dp, bottom = 4.dp)
+                            )
+                        }
                     }
                 }
                 // 新建接口（照插件：接口挂在拉取流程上，主弹窗只留两个按钮）
@@ -1395,14 +1434,15 @@ private fun ModelPullDialog(
                         modifier = Modifier.fillMaxWidth()
                     )
                     TextButton(onClick = {
-                        selected = if (visibleModels.all { it in selected }) {
-                            selected - visibleModels.toSet()
+                        // 全选只作用**可见且可加**的（组内已有的、被搜索滤掉的不算）
+                        selected = if (selectableModels.any { it in selected }) {
+                            selected - selectableModels.toSet()
                         } else {
-                            selected + visibleModels.toSet()
+                            selected + selectableModels.toSet()
                         }
                     }) {
                         Text(
-                            if (visibleModels.all { it in selected }) stringResource(R.string.role_select_all_cancel)
+                            if (selectableModels.any { it in selected }) stringResource(R.string.role_select_all_cancel)
                             else stringResource(R.string.role_list_select_all)
                         )
                     }
@@ -1424,18 +1464,33 @@ private fun ModelPullDialog(
                         }
                         list.forEach { m ->
                             item(key = "m_$m") {
+                                val already = inGroup(m)
                                 Row(
                                     Modifier.fillMaxWidth()
-                                        .clickable {
+                                        .clickable(enabled = !already) {
                                             selected = if (m in selected) selected - m else selected + m
                                         },
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
                                     Checkbox(
                                         checked = m in selected,
+                                        enabled = !already,
                                         onCheckedChange = { selected = if (it) selected + m else selected - m }
                                     )
-                                    Text(m, style = MaterialTheme.typography.bodyMedium)
+                                    Text(
+                                        m,
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        color = if (already) MaterialTheme.colorScheme.onSurfaceVariant
+                                        else MaterialTheme.colorScheme.onSurface
+                                    )
+                                    if (already) {
+                                        Spacer(Modifier.width(8.dp))
+                                        Text(
+                                            stringResource(R.string.role_key_model_in_group),
+                                            style = MaterialTheme.typography.labelSmall,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
+                                    }
                                 }
                             }
                         }
