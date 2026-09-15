@@ -1166,6 +1166,69 @@ private fun InterfaceFormDialog(
     fun toast(resId: Int, vararg args: Any) {
         android.widget.Toast.makeText(context, context.getString(resId, *args), android.widget.Toast.LENGTH_SHORT).show()
     }
+
+    // 保存：名称留空按网址短名兜底；改网址/密钥时同步改写组内条目的 value
+    // ⚠️ 只改 api_center.json 不改条目 ⇒ 旧条目仍指旧地址，整组掉进「未分组」
+    fun doSave() {
+        val u = KeyListFile.normalizeBaseUrl(url.text.trim())
+        val k = key.trim()
+        val n = name.text.trim().ifEmpty {
+            runCatching { KeyListFile.shortName(u) }.getOrDefault("")
+        }
+        if (n.isEmpty()) { toast(R.string.role_key_ifc_name_empty); return }
+        if (!u.startsWith("http")) { toast(R.string.role_key_ifc_url_bad); return }
+        if (k.isEmpty()) { toast(R.string.role_key_ifc_key_empty); return }
+        scope.launch {
+            val ifaces = withIO { KeyListFile.readInterfaces(tagRuleId) }
+            // 不许改成别的接口已有的名字
+            val dup = ifaces.any { it.name == n && (initial == null || it.name != initial.name) }
+            if (dup) { toast(R.string.role_key_ifc_name_dup); return@launch }
+            // 改成与另一个接口完全同组（同网址 + 同密钥）⇒ 拦住报错，不静默合并
+            val collide = ifaces.firstOrNull {
+                it.name != (initial?.name ?: "") &&
+                    KeyListFile.sameApiSite(it.baseUrl, u) && it.apiKey.trim() == k
+            }
+            if (collide != null) { toast(R.string.role_key_ifc_group_dup, collide.name); return@launch }
+            val updated = if (initial == null) {
+                ifaces + KeyListFile.ApiInterface(n, u, k, emptyList())
+            } else {
+                ifaces.map { if (it.name == initial.name) KeyListFile.ApiInterface(n, u, k, it.models) else it }
+            }
+            withIO { KeyListFile.saveInterfaces(tagRuleId, updated) }
+            if (initial != null) {
+                val oldUrl = initial.baseUrl
+                val oldKey = initial.apiKey
+                val entryList = withIO { KeyListFile.readKeys(tagRuleId) }
+                var changed = false
+                val rewritten = entryList.map { e ->
+                    val p = KeyListFile.parseKeyValue(e.value)
+                    if (p != null && !p.isDirect && p.key == oldKey &&
+                        KeyListFile.sameApiSite(p.url, oldUrl)
+                    ) {
+                        changed = true
+                        e.copy(value = "$u@@${p.model}@@$k")
+                    } else e
+                }
+                if (changed) withIO { KeyListFile.saveKeys(tagRuleId, rewritten) }
+            }
+            toast(R.string.role_key_saved)
+            onSaved()
+        }
+    }
+
+    // 删除该接口和它下面的密钥条目
+    fun doDelete() {
+        val cur = initial ?: return
+        scope.launch {
+            val (kept, removed) = withIO {
+                KeyListFile.deleteInterfaceCascade(tagRuleId, cur, KeyListFile.readKeys(tagRuleId))
+            }
+            withIO { KeyListFile.saveKeys(tagRuleId, kept) }
+            toast(R.string.role_key_ifc_deleted, removed)
+            onSaved()
+        }
+    }
+
     AlertDialog(
         onDismissRequest = onDismiss,
         title = {
@@ -1266,87 +1329,34 @@ private fun InterfaceFormDialog(
                     textStyle = MaterialTheme.typography.bodyMedium,
                     modifier = Modifier.fillMaxWidth(),
                 )
-                if (initial != null) {
-                    TextButton(onClick = {
-                        scope.launch {
-                            val (kept, removed) = withIO {
-                                KeyListFile.deleteInterfaceCascade(tagRuleId, initial, KeyListFile.readKeys(tagRuleId))
-                            }
-                            withIO { KeyListFile.saveKeys(tagRuleId, kept) }
-                            toast(R.string.role_key_ifc_deleted, removed)
-                            onSaved()
-                        }
-                    }) {
-                        Text(
-                            stringResource(R.string.role_key_ifc_delete),
-                            color = MaterialTheme.colorScheme.error
-                        )
-                    }
-                }
             }
         },
         confirmButton = {
-            TextButton(
-                enabled = true,
-                onClick = {
-                    val u = KeyListFile.normalizeBaseUrl(url.text.trim())
-                    val k = key.trim()
-                    // 名称留空 ⇒ 按网址短名兜底（与拉取弹窗同口径）
-                    val n = name.text.trim().ifEmpty {
-                        runCatching { KeyListFile.shortName(u) }.getOrDefault("")
+            // 删除靠左、取消/保存靠右（同一行）；删除字数多，窄屏靠收缩+省略号保证不换行
+            Row(
+                Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                if (initial != null) {
+                    TextButton(
+                        onClick = { doDelete() },
+                        modifier = Modifier.weight(1f, fill = false)
+                    ) {
+                        Text(
+                            stringResource(R.string.role_key_ifc_delete),
+                            color = MaterialTheme.colorScheme.error,
+                            maxLines = 1, overflow = TextOverflow.Ellipsis
+                        )
                     }
-                    if (n.isEmpty()) { toast(R.string.role_key_ifc_name_empty); return@TextButton }
-                    if (!u.startsWith("http")) { toast(R.string.role_key_ifc_url_bad); return@TextButton }
-                    if (k.isEmpty()) { toast(R.string.role_key_ifc_key_empty); return@TextButton }
-                    scope.launch {
-                        val ifaces = withIO { KeyListFile.readInterfaces(tagRuleId) }
-                        // 重名校验：编辑不许改成别的接口已有的名字（照插件 showEditInterfaceDialog）
-                        val dup = ifaces.any { it.name == n && (initial == null || it.name != initial.name) }
-                        if (dup) {
-                            toast(R.string.role_key_ifc_name_dup)
-                            return@launch
-                        }
-                        // 改成与另一个接口完全同组（同网址 + 同密钥）⇒ 拦住报错，不静默合并
-                        val collide = ifaces.firstOrNull {
-                            it.name != (initial?.name ?: "") &&
-                                KeyListFile.sameApiSite(it.baseUrl, u) && it.apiKey.trim() == k
-                        }
-                        if (collide != null) {
-                            toast(R.string.role_key_ifc_group_dup, collide.name)
-                            return@launch
-                        }
-                        val updated = if (initial == null) {
-                            ifaces + KeyListFile.ApiInterface(n, u, k, emptyList())
-                        } else {
-                            ifaces.map { if (it.name == initial.name) KeyListFile.ApiInterface(n, u, k, it.models) else it }
-                        }
-                        withIO { KeyListFile.saveInterfaces(tagRuleId, updated) }
-                        // 网址/密钥变了：把组内（同站 && 同旧 key）条目的 value 一起改写（模型名不变）
-                        // ⚠️ 旧版只改 api_center.json ⇒ 旧条目仍指旧地址，整组掉进「未分组」
-                        if (initial != null) {
-                            val oldUrl = initial.baseUrl
-                            val oldKey = initial.apiKey
-                            val entryList = withIO { KeyListFile.readKeys(tagRuleId) }
-                            var changed = false
-                            val rewritten = entryList.map { e ->
-                                val p = KeyListFile.parseKeyValue(e.value)
-                                if (p != null && !p.isDirect && p.key == oldKey &&
-                                    KeyListFile.sameApiSite(p.url, oldUrl)
-                                ) {
-                                    changed = true
-                                    e.copy(value = "$u@@${p.model}@@$k")
-                                } else e
-                            }
-                            if (changed) withIO { KeyListFile.saveKeys(tagRuleId, rewritten) }
-                        }
-                        toast(R.string.role_key_saved)
-                        onSaved()
-                    }
+                } else {
+                    Spacer(Modifier)
                 }
-            ) { Text(stringResource(R.string.confirm)) }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) { Text(stringResource(R.string.cancel)) }
+                Row {
+                    TextButton(onClick = onDismiss) { Text(stringResource(R.string.cancel)) }
+                    TextButton(onClick = { doSave() }) { Text(stringResource(R.string.confirm)) }
+                }
+            }
         }
     )
     // 手动加模型：填名字点确定即落库（建条目 + 登记 models）；加完不关编辑弹窗，只刷新外层列表
