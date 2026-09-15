@@ -894,7 +894,7 @@ fun KeyManagerScreen(tagRuleId: String, onBack: () -> Unit) {
                     deleteModeGroup = null
                     deleteChecked = emptySet()
                     deleteNames(targets)
-                }) { Text(stringResource(R.string.delete)) }
+                }) { Text(stringResource(R.string.delete), color = MaterialTheme.colorScheme.error) }
             },
             dismissButton = {
                 TextButton(onClick = { deleteConfirmGroup = null }) {
@@ -918,7 +918,7 @@ fun KeyManagerScreen(tagRuleId: String, onBack: () -> Unit) {
                     deleteModeGroup = null
                     deleteChecked = emptySet()
                     if (grp != null) deleteGroupAll(grp)
-                }) { Text(stringResource(R.string.delete)) }
+                }) { Text(stringResource(R.string.delete), color = MaterialTheme.colorScheme.error) }
             },
             dismissButton = {
                 TextButton(onClick = { deleteGroupConfirm = null }) {
@@ -1016,7 +1016,7 @@ fun KeyManagerScreen(tagRuleId: String, onBack: () -> Unit) {
                     // 与批量删除同一条路（照插件 deleteMultipleBooks：删当前密钥后切到剩余第一条）
                     // ⚠️ 旧版只 save(filter)，miyue 仍指向已删的 key，重进页面被兜底切走
                     deleteNames(listOf(entry.name))
-                }) { Text(stringResource(R.string.delete)) }
+                }) { Text(stringResource(R.string.delete), color = MaterialTheme.colorScheme.error) }
             },
             dismissButton = {
                 TextButton(onClick = { deleteFor = null }) { Text(stringResource(R.string.cancel)) }
@@ -2220,9 +2220,6 @@ private val BOOK_DOT_COLORS = listOf(
     Color(0xFF66BB6A), Color(0xFFEC407A), Color(0xFFFF7043), Color(0xFF42A5F5),
 )
 
-/** 「多选删除」文字色（照插件 #EF6C00 橙） */
-private val BOOK_MULTI_DELETE_COLOR = Color(0xFFEF6C00)
-
 /** 默认书籍名：不可删除（与 CharacterRecordsFile 同源） */
 private const val DEFAULT_BOOK_NAME = "默认"
 
@@ -2335,7 +2332,9 @@ fun BookManagerDialog(
                         Text(
                             stringResource(R.string.role_book_multi_delete_mode),
                             style = MaterialTheme.typography.bodyMedium,
-                            color = BOOK_MULTI_DELETE_COLOR,
+                            // 目目 09-15 晚：删除类入口统一 error 红（照插件 #EF6C00 橙已废——
+                            // 它不随主题走，且与全 app 「删除=红」口径冲突）
+                            color = MaterialTheme.colorScheme.error,
                         )
                     }
                 }
@@ -2361,7 +2360,7 @@ fun BookManagerDialog(
                 TextButton(onClick = {
                     pendingDelete = null
                     deleteBooks(setOf(name))
-                }) { Text(stringResource(R.string.delete)) }
+                }) { Text(stringResource(R.string.delete), color = MaterialTheme.colorScheme.error) }
             },
             dismissButton = {
                 TextButton(onClick = { pendingDelete = null }) { Text(stringResource(R.string.cancel)) }

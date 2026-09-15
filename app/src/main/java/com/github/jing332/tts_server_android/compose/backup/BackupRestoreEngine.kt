@@ -3,6 +3,7 @@ package com.github.jing332.tts_server_android.compose.backup
 import android.content.Context
 import android.content.SharedPreferences
 import com.github.jing332.database.dbm
+import com.github.jing332.database.entities.AbstractListGroup.Companion.DEFAULT_GROUP_ID
 import com.github.jing332.database.entities.SpeechRule
 import com.github.jing332.database.entities.plugin.Plugin
 import com.github.jing332.database.entities.replace.GroupWithReplaceRule
@@ -239,6 +240,11 @@ internal class BackupRestoreEngine(
         val groupOrder = dbm.systemTtsV2.groupCount
         var nextOrder = groupOrder
         groups.forEach { source ->
+            // 空的默认分组不恢复（目目 09-15 晚报「恢复备份多出空默认分组」）：
+            // 兜底组的空壳是备份机 init 产物，本机 id=1 还在时它本来就被「空默认分组不显示」
+            // 过滤隐藏；本机删过 id=1 时按名字找不到会新建一个时间戳 id 的「默认分组」，
+            // 不再命中 id 过滤 → 空壳直接露脸。空组零内容，跳过不建。
+            if (source.group.id == DEFAULT_GROUP_ID && source.list.isEmpty()) return@forEach
             val groupName = source.group.name
             val existingGroup = knownGroups.firstOrNull { it.name == groupName }
             val groupId = existingGroup?.id ?: run {
@@ -304,6 +310,10 @@ internal class BackupRestoreEngine(
         }
 
         groups.forEach { source ->
+            // 同主界面：空的默认分组不恢复（替换规则页 init 只在本机重建 id=1 兜底组，
+            // 恢复时若 replace 页还没开过、id=1 尚不存在，按名字合并就会新建时间戳 id
+            // 的「默认分组」空壳；之后 init 再建 id=1 → 出现两个默认分组）
+            if (source.group.id == DEFAULT_GROUP_ID && source.list.isEmpty()) return@forEach
             val groupName = source.group.name
             val existingGroup = knownGroups[groupName]
             val groupId = existingGroup?.id ?: run {

@@ -663,7 +663,7 @@ fun RoleListScreen(
                         markedIdx = emptySet()
                         if (n > 0) reload()
                     }
-                }) { Text(stringResource(R.string.delete)) }
+                }) { Text(stringResource(R.string.delete), color = MaterialTheme.colorScheme.error) }
             },
             dismissButton = {
                 TextButton(onClick = { deleteIdx = null }) { Text(stringResource(R.string.cancel)) }
