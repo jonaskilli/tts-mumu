@@ -576,8 +576,8 @@
     <string name="role_key_set_current">Set as current</string>
     <string name="role_key_add">Add key</string>
     <string name="role_key_edit">Edit key</string>
-    <string name="role_key_name">Name</string>
-    <string name="role_key_value">Key value</string>
+    <string name="role_key_model_label">Model</string>
+    <string name="role_key_value">Key</string>
     <string name="role_key_value_hint">url@@model@@key (plain key = direct)</string>
     <string name="role_key_delete_title">Delete key</string>
     <string name="role_key_delete_text">Delete key "%1$s"?</string>
@@ -652,7 +652,7 @@ Marks: %3$s</string>
     <string name="role_book_del_confirm_other">The current book is unaffected</string>
     <string name="role_book_multi_title">Delete multiple books</string>
     <string name="role_key_rename">Rename key</string>
-    <string name="role_key_name_auto">Name (auto-generated if empty)</string>
+    <string name="role_key_name_auto">Auto-generated if empty</string>
     <string name="role_key_value_empty">Key content is empty</string>
     <string name="role_key_is_current">"%1$s" is already current</string>
     <string name="role_key_switched">Switched to "%1$s"</string>

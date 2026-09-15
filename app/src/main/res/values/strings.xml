@@ -751,8 +751,8 @@
     <string name="role_key_set_current">设为当前</string>
     <string name="role_key_add">新增密钥</string>
     <string name="role_key_edit">编辑密钥</string>
-    <string name="role_key_name">名称</string>
-    <string name="role_key_value">密钥值</string>
+    <string name="role_key_model_label">模型</string>
+    <string name="role_key_value">密钥</string>
     <string name="role_key_value_hint">网址@@模型@@Key（纯 Key 为直连）</string>
     <string name="role_key_delete_title">删除密钥</string>
     <string name="role_key_delete_text">确定删除密钥「%1$s」？</string>
@@ -827,7 +827,7 @@
     <string name="role_book_del_confirm_other">当前书籍不受影响</string>
     <string name="role_book_multi_title">批量删除书籍</string>
     <string name="role_key_rename">修改密钥名称</string>
-    <string name="role_key_name_auto">名称（留空则自动生成）</string>
+    <string name="role_key_name_auto">留空自动生成</string>
     <string name="role_key_value_empty">密钥内容为空</string>
     <string name="role_key_is_current">【%1$s】已是当前密钥</string>
     <string name="role_key_switched">已切换到【%1$s】</string>

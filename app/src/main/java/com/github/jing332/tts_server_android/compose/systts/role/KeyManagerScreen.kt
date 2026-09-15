@@ -75,7 +75,6 @@ import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.TextRange
-import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.text.style.TextOverflow
@@ -193,7 +192,7 @@ private fun FlatIconAction(
  * 行首 **状态点**取代原「按序号取色」的装饰圆点（那是纯噪音，同接口下每条颜色都不同）：
  *   当前 = 主题强调色实心 / 测通 = 绿实心 / 测不通 = 红实心 / 未测 = 空心圆环。
  * 名字放不下就**换行**（原为单行省略号，`nex-agi/nex-n2.5-mini` 这类长模型名直接被截）；
- * 操作图标扁平灰（⚡ 测试 / ✏️ 编辑），热区 36dp。
+ * 行尾四个扁平灰图标（📋 复制 / ⚡ 测试 / ✏️ 编辑 / 🗑 删除），热区 36dp。
  */
 @Composable
 private fun KeyEntryRow(
@@ -206,6 +205,7 @@ private fun KeyEntryRow(
     checked: Boolean,
     onToggleCheck: () -> Unit,
     onSwitch: () -> Unit,
+    onCopy: () -> Unit,
     onTest: () -> Unit,
     onEdit: () -> Unit,
     onDelete: () -> Unit,
@@ -235,49 +235,43 @@ private fun KeyEntryRow(
             }
         }
         Spacer(Modifier.width(8.dp))
-        // 固定两行（目目 09-15 ②）：
-        //   行1 = 状态点 + 显示名 + 「当前」徽章 + ⚡测试/✏️编辑/🗑删除
-        //   行2 = 完整 @@ 串（等宽 11sp、折行，放不下就换行、永不被省略号吃掉）
+        // 单行（目目 09-15：「模型下方不要带完整密钥了」）：
+        //   状态点 + 显示名 + 「当前」徽章 ／ 右侧 📋复制 ⚡测试 ✏️编辑 🗑删除
         // 显示名取**值里的真实模型名**：条目名可能带 `@组名` 去重后缀（跨组同模型共存用），
-        // 那是内部标识、不该给人看。
-        Column(Modifier.weight(1f).clickable { onSwitch() }) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(
-                    KeyListFile.displayName(entry),
-                    style = MaterialTheme.typography.bodyLarge,
-                    fontWeight = if (isCurrent) FontWeight.SemiBold else null,
-                    color = if (isCurrent) accent else MaterialTheme.colorScheme.onSurface,
-                    maxLines = 2,
-                    overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.weight(1f, fill = false)
-                )
-                if (isCurrent) {
-                    Spacer(Modifier.width(6.dp))
-                    Surface(shape = RoundedCornerShape(8.dp), color = accent.copy(alpha = 0.14f)) {
-                        Text(
-                            stringResource(R.string.role_key_current_badge),
-                            style = MaterialTheme.typography.labelSmall,
-                            color = accent,
-                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 1.dp)
-                        )
-                    }
-                }
-                if (testing) {
-                    Spacer(Modifier.width(6.dp))
-                    CircularProgressIndicator(Modifier.size(16.dp), strokeWidth = 2.dp)
+        // 那是内部标识、不该给人看。完整 @@ 串只在编辑弹窗里看，或用行尾 📋 一键取走。
+        Row(
+            Modifier.weight(1f).clickable { onSwitch() },
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                KeyListFile.displayName(entry),
+                style = MaterialTheme.typography.bodyLarge,
+                fontWeight = if (isCurrent) FontWeight.SemiBold else null,
+                color = if (isCurrent) accent else MaterialTheme.colorScheme.onSurface,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.weight(1f, fill = false)
+            )
+            if (isCurrent) {
+                Spacer(Modifier.width(6.dp))
+                Surface(shape = RoundedCornerShape(8.dp), color = accent.copy(alpha = 0.14f)) {
+                    Text(
+                        stringResource(R.string.role_key_current_badge),
+                        style = MaterialTheme.typography.labelSmall,
+                        color = accent,
+                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 1.dp)
+                    )
                 }
             }
-            Text(
-                entry.value,
-                style = MaterialTheme.typography.labelSmall,
-                fontFamily = FontFamily.Monospace,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                maxLines = 4,
-                overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.padding(top = 2.dp)
-            )
+            if (testing) {
+                Spacer(Modifier.width(6.dp))
+                CircularProgressIndicator(Modifier.size(16.dp), strokeWidth = 2.dp)
+            }
         }
         if (!deleteMode) {
+            // 📋 复制放列表行右侧（目目 09-15：「模型我也想加个复制功能，还是放列表右侧比较好」）：
+            // 一键把该条的完整 @@ 串（网址@@模型@@密钥）送剪贴板，照插件密钥详情页「复制」的值口径。
+            FlatIconAction(Icons.Default.ContentCopy, stringResource(R.string.copy)) { onCopy() }
             FlatIconAction(Icons.Default.Bolt, stringResource(R.string.role_key_test)) { onTest() }
             FlatIconAction(Icons.Default.Edit, stringResource(R.string.role_key_edit)) { onEdit() }
             FlatIconAction(Icons.Default.DeleteOutline, stringResource(R.string.delete)) { onDelete() }
@@ -290,6 +284,8 @@ private fun KeyEntryRow(
 fun KeyManagerScreen(tagRuleId: String, onBack: () -> Unit) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
+    // 条目行 📋 复制用（目目 09-15）
+    val clipboard = LocalClipboardManager.current
     var version by remember { mutableIntStateOf(0) }
     var keys by remember { mutableStateOf<List<KeyListFile.KeyEntry>>(emptyList()) }
     var ifaces by remember { mutableStateOf<List<KeyListFile.ApiInterface>>(emptyList()) }
@@ -818,6 +814,15 @@ fun KeyManagerScreen(tagRuleId: String, onBack: () -> Unit) {
                                                 else deleteChecked + entry.name
                                             },
                                             onSwitch = { switchTo(entry) },
+                                            // 📋 复制整条 @@ 串（照插件密钥详情页「复制」的值口径）
+                                            onCopy = {
+                                                if (entry.value.isBlank()) {
+                                                    toast(R.string.role_key_value_empty)
+                                                } else {
+                                                    clipboard.setText(AnnotatedString(entry.value.trim()))
+                                                    toast(R.string.copied)
+                                                }
+                                            },
                                             onTest = { testKey(entry) },
                                             onEdit = { renameFor = entry },
                                             onDelete = { deleteFor = entry }
@@ -1046,7 +1051,11 @@ fun KeyManagerScreen(tagRuleId: String, onBack: () -> Unit) {
     }
 }
 
-/** 密钥编辑（新增/改名共用）：名称（留空自动生成）+ 值；返回 overwrite=同组重名、待覆盖确认 */
+/**
+ * 密钥编辑（条目 ✏️ / 新增共用）：第一行「模型」（留空自动从密钥串里抽模型名）、
+ * 第二行「密钥」（整串 网址@@模型@@Key），底部 取消 / 删除 / 确定；
+ * 返回 overwrite=同组重名、待覆盖确认。复制不在这里（在列表行右侧 📋）。
+ */
 @Composable
 private fun KeyEditDialog(
     initial: KeyListFile.KeyEntry?,
@@ -1056,13 +1065,13 @@ private fun KeyEditDialog(
     onConfirm: (String, String, Boolean) -> Unit,
 ) {
     val existingNames = existing.map { it.name }.toSet()
-    // 光标默认落在末尾（照插件 v10 密钥详情：setText 后 setSelection(len)，1486/1507）
-    val initName = initial?.name.orEmpty()
+    // 光标默认落在末尾（照插件 v10 密钥详情：setText 后 setSelection(len)，1486/1507）。
+    // 第一行=模型 ⇒ 预填**显示名**（值里的真实模型名），不是内部条目名——内部名可能带跨组共存
+    // 用的去重序号（glm-5.3-flash2），摆进「模型」框里只会让人以为是另一个模型（目目 09-15）
+    val initName = initial?.let { KeyListFile.displayName(it) }.orEmpty()
     val initValue = initial?.value.orEmpty()
     var name by remember { mutableStateOf(TextFieldValue(initName, TextRange(initName.length))) }
     var value by remember { mutableStateOf(TextFieldValue(initValue, TextRange(initValue.length))) }
-    val context = LocalContext.current
-    val clipboard = LocalClipboardManager.current
     AlertDialog(
         onDismissRequest = onDismiss,
         title = {
@@ -1070,8 +1079,10 @@ private fun KeyEditDialog(
         },
         text = {
             Column {
+                // 第一行 = 模型（目目 09-15：「第一行直接叫模型」）；留空照样自动生成，
+                // 生成口径照插件 defaultName：从**完整密钥串**里抽模型名，抽不出才用 key01…
                 Text(
-                    stringResource(R.string.role_key_name_auto),
+                    stringResource(R.string.role_key_model_label),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -1079,11 +1090,13 @@ private fun KeyEditDialog(
                 OutlinedTextField(
                     value = name,
                     onValueChange = { name = it },
-                    label = { Text(stringResource(R.string.role_key_name)) },
+                    placeholder = { Text(stringResource(R.string.role_key_name_auto)) },
                     singleLine = true,
                     textStyle = MaterialTheme.typography.bodyMedium,
+                    modifier = Modifier.fillMaxWidth(),
                 )
                 Spacer(Modifier.height(8.dp))
+                // 第二行 = 密钥（整串 网址@@模型@@Key；纯 Key 为直连）
                 Text(
                     stringResource(R.string.role_key_value),
                     style = MaterialTheme.typography.bodySmall,
@@ -1101,37 +1114,32 @@ private fun KeyEditDialog(
                     textStyle = MaterialTheme.typography.bodyMedium,
                     modifier = Modifier.fillMaxWidth(),
                 )
-                // 照插件条目 ✏️ 弹窗：删除入口留在编辑弹窗内
+            }
+        },
+        confirmButton = {
+            // 底部按钮行（目目 09-15）：取消 / 删除 / 确定。M3 AlertDialog 里 dismiss 槽排在
+            // confirm 槽之前，所以「取消」天然落在「删除」左边。复制已挪去列表行右侧 📋。
+            Row {
                 if (onDelete != null) {
-                    Spacer(Modifier.height(8.dp))
                     TextButton(onClick = onDelete) {
                         Text(stringResource(R.string.delete), color = MaterialTheme.colorScheme.error)
                     }
                 }
-            }
-        },
-        confirmButton = {
-            Row {
-                // 照插件密钥详情弹窗的「复制」键：把当前密钥内容一键送剪贴板
-                TextButton(
-                    enabled = value.text.isNotBlank(),
-                    onClick = {
-                        clipboard.setText(AnnotatedString(value.text.trim()))
-                        android.widget.Toast.makeText(
-                            context, context.getString(R.string.copied),
-                            android.widget.Toast.LENGTH_SHORT
-                        ).show()
-                    }
-                ) { Text(stringResource(R.string.copy)) }
                 TextButton(
                     enabled = value.text.isNotBlank(),
                     onClick = {
                         val raw = value.text.trim()
-                        // 留空自动生成（照插件 defaultName=模型或 key01）
+                        // 留空自动生成（照插件 defaultName=模型或 key01）：从**完整密钥串**里抽模型名
                         val auto = KeyListFile.parseKeyValue(raw)?.let { p ->
                             if (!p.isDirect && p.model.isNotEmpty()) p.model else "key" + (existing.size + 1)
                         } ?: "key" + (existing.size + 1)
                         val wanted = name.text.trim().ifEmpty { auto }
+                        // 编辑态「模型名没动」（含清空后自动取回模型名）⇒ 原样保留条目内部名、不触发改名判定：
+                        // 跨组共存时这个模型名可能正被另一组占着（那边没序号），白点一下会误报「名称已存在」
+                        if (initial != null && (wanted == initName || wanted == initial.name)) {
+                            onConfirm(initial.name, raw, false)
+                            return@TextButton
+                        }
                         val clash = existing.firstOrNull { it.name == wanted && it.name != initial?.name }
                         // 撞名判定（目目 09-15「跨组重名就忽略另一个组」）：
                         //  · 新增：只有**同一分组**（同网址 + 同密钥）撞名才算真重复 ⇒ 走覆盖确认（照插件 2327/2384）；
