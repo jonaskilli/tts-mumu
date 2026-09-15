@@ -2,6 +2,8 @@ package com.github.jing332.tts_server_android.compose.nav
 
 import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.height
+import androidx.compose.ui.unit.dp
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarColors
@@ -35,7 +37,10 @@ fun NavTopAppBar(
     val scope = rememberCoroutineScope()
     TopAppBar(
         title = title,
-        modifier = modifier,
+        // 高度压到 56dp（目目 09-15 晚拍板 A）：M3 默认 64dp 偏松，微信档 56dp 更紧凑；
+        // 经 NavTopAppBar 一处生效，TTS 主页/密钥页等全部顶栏统一变矮。
+        // M3 TopAppBar 的 Layout 高度取自约束 maxHeight，height() 能真正压进去
+        modifier = modifier.height(56.dp),
         navigationIcon = navigationIcon ?: {},
         actions = actions,
         windowInsets = windowInsets,

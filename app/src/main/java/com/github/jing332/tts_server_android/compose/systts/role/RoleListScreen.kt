@@ -24,9 +24,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.MenuBook
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Icon
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
@@ -267,13 +265,11 @@ fun RoleListScreen(
                 Modifier.fillMaxWidth().padding(start = 8.dp, end = 2.dp, top = 4.dp, bottom = 4.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                // 📖 → MenuBook 单色图标（目目 09-14：全 App 动作/入口类 emoji 清零，
-                // 与 MD3 单色体系统一；👑/❤️🚶😈 等内容语义 emoji 保留）
-                Icon(
-                    Icons.Default.MenuBook,
-                    contentDescription = null,
-                    modifier = Modifier.size(18.dp),
-                    tint = MaterialTheme.colorScheme.onSecondaryContainer
+                // 彩色 📖 emoji（目目 09-15 晚拍板：书籍图标要彩色；推翻 09-14「入口类 emoji
+                // 清零」口径——那条是通用纪律，此处是用户对书籍图标的明确偏好，偏好优先）
+                Text(
+                    "📖",
+                    fontSize = 18.sp,
                 )
                 Spacer(Modifier.width(8.dp))
                 if (editingBook) {
@@ -321,8 +317,9 @@ fun RoleListScreen(
                 } else {
                     Text(
                         currentBook,
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.SemiBold,
+                        // 目目 09-15 晚：书籍栏不要粗体——原 titleMedium(自带 w500)+SemiBold
+                        // 双重加粗；换 bodyLarge 同为 16sp 但常规字重
+                        style = MaterialTheme.typography.bodyLarge,
                         maxLines = 2,
                         overflow = TextOverflow.Ellipsis,
                         color = MaterialTheme.colorScheme.onSecondaryContainer,

@@ -2544,7 +2544,7 @@ private fun BookRow(
         Text(
             name,
             style = MaterialTheme.typography.bodyMedium,
-            fontWeight = if (isCurrent) FontWeight.SemiBold else null,
+            // 当前书不再加粗（目目 09-15 晚：不喜欢粗体）——行首主色竖条 + 主色书名已够表达
             color = if (isCurrent) MaterialTheme.colorScheme.primary
             else MaterialTheme.colorScheme.onSurface,
             maxLines = 1,
