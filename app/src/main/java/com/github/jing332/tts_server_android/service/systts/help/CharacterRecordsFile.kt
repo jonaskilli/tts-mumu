@@ -713,7 +713,11 @@ object CharacterRecordsFile {
         json
     }
 
-    /** 备份概况读取（时间 + 文件数），界面用来摆「备份于 X · N 个文件」 */
+    /**
+     * 备份概况读取（时间 + 文件数），界面用来摆「备份于 X · N 个文件」。
+     * 时间取**文件自身的修改时间**，不写进备份内容——手动/自动备份因此完全同构，
+     * 备份文件里只有数据本身（`__` 开头的键仍按老口径跳过，兼容旧备份）。
+     */
     fun readBackupInfo(tagRuleId: String): BackupInfo? = try {
         val f = backupFile(tagRuleId)
         if (!f.exists()) null else {
@@ -721,7 +725,11 @@ object CharacterRecordsFile {
             var n = 0
             val names = map.keys()
             while (names.hasNext()) if (!names.next().startsWith("__")) n++
-            BackupInfo(map.optString("__exportedAt"), n)
+            val t = f.lastModified()
+            val time =
+                if (t <= 0) "" else java.text.SimpleDateFormat("yyyy-MM-dd HH:mm", java.util.Locale.US)
+                    .format(java.util.Date(t))
+            BackupInfo(time, n)
         }
     } catch (e: Exception) {
         null
@@ -732,12 +740,10 @@ object CharacterRecordsFile {
         val d = dir(tagRuleId)
         if (!d.exists()) return 0
         return try {
+            // ⚠️ 不写备份时间等元数据：文件里只有「文件名→内容」。
+            // 手动备份与自动备份因此写出的东西完全同构（同一份 fullBackup.json 互相覆盖也不出岔），
+            // 界面要的时间从文件修改时间取（见 readBackupInfo）。
             val map = JSONObject()
-            // 备份时间：界面得摆得出「这份是刚才的还是上个月的」（__ 前缀的键还原时跳过）
-            map.put(
-                "__exportedAt",
-                java.text.SimpleDateFormat("yyyy-MM-dd HH:mm", java.util.Locale.US).format(java.util.Date())
-            )
             // 核心文件（照插件 backupAllFilesToData 的 8 项：运行时同步副本
             // gengxin.json / miyue_backup.txt / characterRecords_backup.json 不入备份）。
             // ⚠️ 旧版清单少了 voice_marks.json 与 custom_keywords.json ⇒ 备份→改动→恢复之后，
@@ -762,7 +768,7 @@ object CharacterRecordsFile {
                 map.put(f.name, f.readText())
             }
             dst.writeText(map.toString())
-            map.length() - 1   // 减掉 __exportedAt，对外报的就是文件数
+            map.length()   // 对外报的就是文件数
         } catch (e: Exception) {
             Log.w(TAG, "writeBackup failed: ${e.message}")
             0
