@@ -269,7 +269,9 @@ fun RoleListScreen(
                 // 清零」口径——那条是通用纪律，此处是用户对书籍图标的明确偏好，偏好优先）
                 Text(
                     "📖",
-                    fontSize = 18.sp,
+                    // 14sp 照 v10（bookLabel.setTextSize(14)）：18sp 的 emoji 白吃约 4dp 宽，
+                    // 书名一行放不下就折第二行
+                    fontSize = 14.sp,
                 )
                 Spacer(Modifier.width(8.dp))
                 if (editingBook) {
@@ -326,18 +328,31 @@ fun RoleListScreen(
                         color = MaterialTheme.colorScheme.primary,
                         modifier = Modifier.weight(1f),
                     )
-                    TextButton(onClick = {
-                        bookEditName = TextFieldValue(currentBook, TextRange(currentBook.length))
-                        editingBook = true
-                    }) {
-                        Text("✎", color = MaterialTheme.colorScheme.onSecondaryContainer)
-                    }
-                    TextButton(onClick = { showBookDialog = true }) {
-                        Text(
-                            "▾ ${stringResource(R.string.role_book_manage)}",
-                            color = MaterialTheme.colorScheme.onSecondaryContainer
-                        )
-                    }
+                    // ✎ / ▾管理 照 v10 用裸文本键（padding 12/4/12/4 与 8/4/8/4、14sp）：
+                    // 原先的 TextButton 自带 58dp 最小宽 + 12dp 内边距，两个键多占约 23dp，
+                    // 书名被挤到第二行（v10 同字号一行放得下）
+                    Text(
+                        "✎",
+                        fontSize = 14.sp,
+                        color = MaterialTheme.colorScheme.onSecondaryContainer,
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(6.dp))
+                            .clickable {
+                                bookEditName = TextFieldValue(currentBook, TextRange(currentBook.length))
+                                editingBook = true
+                            }
+                            .padding(horizontal = 12.dp, vertical = 4.dp)
+                    )
+                    Spacer(Modifier.width(10.dp))
+                    Text(
+                        "▾ ${stringResource(R.string.role_book_manage)}",
+                        fontSize = 14.sp,
+                        color = MaterialTheme.colorScheme.onSecondaryContainer,
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(6.dp))
+                            .clickable { showBookDialog = true }
+                            .padding(horizontal = 8.dp, vertical = 4.dp)
+                    )
                 }
             }
         }
