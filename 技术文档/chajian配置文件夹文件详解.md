@@ -41,6 +41,8 @@
 |---|---|---|
 | theme.json | 角色管理的**主题选择**持久化 | 仅角色管理自己读写 |
 | custom_keywords.json | 自定义关键词（可选，初始化核心文件集合时列出） | 未使用时不出现 |
+| fullBackup.json | **全量备份**：`{文件名: 文件内容}` 的 JSON 对象（不是 zip），含 9 个核心文件 + 全部 `shuming.*.json` | 角色管理「备份全部文件」写、「从备份完整还原」读；带 `__exportedAt` 时间戳（09-15 加） |
+| fullBackup.before.json | **还原前自动留的现场**（格式同 fullBackup，只留最近一次） | 每次「完整还原」动手前自动写；界面「撤销上次还原」用它回退（09-15 加） |
 
 > 角色管理自己把 gengxin.json / miyue_backup.txt / characterRecords_backup.json 归类为"运行时自动同步的副本，不需备份"——换机迁移时可以不管这三个。
 
@@ -123,6 +125,10 @@
 - **密钥链路**：`key_list.json`（主数据）→ 接口中心 `api_center.json` 分组 → 生效密钥写 `miyue.txt`（+ `miyue_backup.txt`/`gengxin.txt` 同步）→ 朗读规则读它做 AI 角色分析。`key_list.backup.json` 与 `miyue_backup.txt` 都是自动副本。
 - **书名链路**：`cunfang.txt`（当前书名，如"默认"）→ 决定读哪个 `shuming.<书名>.json`；`liebiao.json` 是书名清单（切书菜单的来源）。
 - **密钥导出_YYMMDD.json**：手动"导出密钥"生成、手动"导入密钥"消费，运行流程不碰它。
+- **全量备份/还原（09-15）**：`fullBackup.json` 装 9 个核心文件 + 全部书籍存档（排除三个运行时副本），还原是**覆盖式**；
+  写回后 App 补两笔——角色表 → `gengxin.json`（朗读规则内存 ← 文件的唯一通道）、`miyue.txt` → miyue 三写
+  （`gengxin.txt` / `miyue_backup.txt` 不在备份清单里，不补就留着旧值，而规则是从 `gengxin.txt` 同步 apiKey 的）；
+  还原前自动把当前现场写进 `fullBackup.before.json`，界面上的「撤销上次还原」就是拿它回退。
 - **命名拼音对照**：miyue=密钥、gengxin=更新、fayinren=发音人、liebiao=列表、cunfang=存放、shuming=书名。
 
 ---
