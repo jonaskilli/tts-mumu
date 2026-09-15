@@ -147,7 +147,7 @@ private fun SmallChipButton(text: String, color: Color, onClick: () -> Unit) {
         color = Color.Transparent,
         border = BorderStroke(1.dp, color),
         modifier = Modifier
-            .padding(start = 5.dp)
+            .padding(start = 10.dp)
             .heightIn(min = 30.dp)
             .clickable(onClick = onClick)
     ) {
@@ -799,6 +799,17 @@ fun KeyManagerScreen(tagRuleId: String, onBack: () -> Unit) {
                                         }
                                     }
                                 }
+                                if (isDeleting) {
+                                    // 删除模式标题行（目目 09-15 晚：标题就该在标题位——
+                                    // 上版挪到底部和按钮挤一行被吐槽；顶部独立一行，红字点题）
+                                    Text(
+                                        stringResource(R.string.role_key_delete_title),
+                                        style = MaterialTheme.typography.titleSmall,
+                                        fontWeight = FontWeight.Bold,
+                                        color = MaterialTheme.colorScheme.error,
+                                        modifier = Modifier.padding(start = 12.dp, top = 6.dp, bottom = 2.dp)
+                                    )
+                                }
                                 if (!isCollapsed) {
                                     grp.entries.forEachIndexed { idx, entry ->
                                         val isCurrent = currentRaw.isNotEmpty() &&
@@ -837,23 +848,14 @@ fun KeyManagerScreen(tagRuleId: String, onBack: () -> Unit) {
                                     }
                                 }
                                 // ———— 删除模式动作行（卡片底部）————
-                                // 目目 09-15 晚：放顶上一行怪，挪到最后一行——先勾选，再按「删除(N)」；
-                                // 标题保持短句「删除密钥」（长句被三个键挤成省略号）
+                                // 标题已挪回顶部独立一行；这里只放三个按钮，靠右成排
                                 if (isDeleting) {
                                     Row(
                                         Modifier.fillMaxWidth()
                                             .padding(start = 6.dp, end = 6.dp, top = 2.dp, bottom = 2.dp),
+                                        horizontalArrangement = Arrangement.End,
                                         verticalAlignment = Alignment.CenterVertically
                                     ) {
-                                        Text(
-                                            stringResource(R.string.role_key_delete_title),
-                                            style = MaterialTheme.typography.bodyMedium,
-                                            fontWeight = FontWeight.Bold,
-                                            color = MaterialTheme.colorScheme.error,
-                                            maxLines = 1,
-                                            overflow = TextOverflow.Ellipsis,
-                                            modifier = Modifier.weight(1f)
-                                        )
                                         SmallChipButton(stringResource(R.string.select_all), MaterialTheme.colorScheme.onSurfaceVariant) {
                                             val allSel = grp.entries.all { it.name in deleteChecked }
                                             val names = grp.entries.map { it.name }.toSet()
@@ -1688,16 +1690,16 @@ private fun ModelPullDialog(
                             // 全选按分类（目目 09-15 晚：全局全选「不能把所有模型都选」不对头，
                             // 位置也浮在搜索框和列表之间没有归属）——挪进分类标题行，只作用本分类可加项
                             Row(
-                                Modifier.fillMaxWidth(),
+                                // 间距放整行（目目 09-15 晚：原来 top=8 只压在标题上，
+                                // 标题被顶下去而全选按钮垂直居中，两截错位不像同一行）
+                                Modifier.fillMaxWidth().padding(top = 8.dp),
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
                                 Text(
                                     "$cat (${list.size})",
                                     style = MaterialTheme.typography.titleSmall,
                                     color = MaterialTheme.colorScheme.primary,
-                                    modifier = Modifier
-                                        .weight(1f)
-                                        .padding(top = 8.dp, bottom = 2.dp)
+                                    modifier = Modifier.weight(1f)
                                 )
                                 val catSelectable = list.filter { !inGroup(it) }
                                 TextButton(onClick = {

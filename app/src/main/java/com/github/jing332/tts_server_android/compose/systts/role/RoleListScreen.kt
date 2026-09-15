@@ -318,11 +318,12 @@ fun RoleListScreen(
                     Text(
                         currentBook,
                         // 目目 09-15 晚：书籍栏不要粗体——原 titleMedium(自带 w500)+SemiBold
-                        // 双重加粗；换 bodyLarge 同为 16sp 但常规字重
+                        // 双重加粗；换 bodyLarge 同为 16sp 但常规字重。
+                        // 颜色跟主题 primary（黑字在浅蓝卡片上发闷，主色既是主题色也点出「可点」）
                         style = MaterialTheme.typography.bodyLarge,
                         maxLines = 2,
                         overflow = TextOverflow.Ellipsis,
-                        color = MaterialTheme.colorScheme.onSecondaryContainer,
+                        color = MaterialTheme.colorScheme.primary,
                         modifier = Modifier.weight(1f),
                     )
                     TextButton(onClick = {
