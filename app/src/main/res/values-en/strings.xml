@@ -680,7 +680,7 @@ Add %3$d, skip %4$d duplicates
     <string name="role_key_ifc_key">API Key</string>
     <string name="role_key_group_name_label">Group name</string>
     <string name="role_key_ifc_url_hint">Paste up to /v1 — rest auto-filled</string>
-    <string name="role_key_group_name_auto_hint">empty group name is taken from the URL</string>
+    <string name="role_key_fetch_title_hint"> (URL up to /v1; group name auto-fills from the URL if empty)</string>
     <string name="role_key_will_request">Request %1$s</string>
     <string name="role_key_new_group">New group %1$s</string>
     <string name="role_key_join_group">Merge into group %1$s</string>

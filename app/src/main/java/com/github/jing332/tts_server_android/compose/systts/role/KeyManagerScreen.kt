@@ -78,10 +78,14 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.TextRange
+import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.text.withStyle
+import androidx.compose.ui.unit.sp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
@@ -597,17 +601,23 @@ fun KeyManagerScreen(tagRuleId: String, onBack: () -> Unit) {
                                                 },
                                             verticalAlignment = Alignment.CenterVertically
                                         ) {
-                                            // 组头色条：主题色小竖条当分组锚点（子项行内边距同步 +11dp 对齐名字左缘）
-                                            Box(
-                                                Modifier
-                                                    .width(3.dp)
-                                                    .height(16.dp)
-                                                    .background(
-                                                        MaterialTheme.colorScheme.primary,
-                                                        RoundedCornerShape(2.dp)
-                                                    )
-                                            )
-                                            Spacer(Modifier.width(6.dp))
+                                            // 组头色条（目目 09-15）：只有本组含当前使用中的密钥才亮——
+                                            // 色条=「这个组正在用」的信号，不是装饰；隐藏时留等宽空位
+                                            //（3+6=9dp），组名与折叠箭头的位置不漂
+                                            if (grpHasCurrent) {
+                                                Box(
+                                                    Modifier
+                                                        .width(3.dp)
+                                                        .height(16.dp)
+                                                        .background(
+                                                            MaterialTheme.colorScheme.primary,
+                                                            RoundedCornerShape(2.dp)
+                                                        )
+                                                )
+                                                Spacer(Modifier.width(6.dp))
+                                            } else {
+                                                Spacer(Modifier.width(9.dp))
+                                            }
                                             val arrowAngle by animateFloatAsState(
                                                 targetValue = if (isCollapsed) -90f else 0f, label = ""
                                             )
@@ -1525,8 +1535,25 @@ private fun ModelPullDialog(
                 // 标题行右上角 = 手动添加模型；操作行只留「拉取」
                 Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                     Text(
-                        stringResource(R.string.role_key_fetch),
+                        // 提示并进标题行括号注记（目目 09-15：语言简洁官方，不再单独占一行）；
+                        // 仅新建模式带——分组模式标题下是「给谁拉」摘要，没有这两个输入框，注记无的放矢
+                        buildAnnotatedString {
+                            append(stringResource(R.string.role_key_fetch))
+                            if (!forGroup) {
+                                withStyle(
+                                    SpanStyle(
+                                        fontSize = 13.sp,
+                                        fontWeight = FontWeight.Normal,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    )
+                                ) {
+                                    append(stringResource(R.string.role_key_fetch_title_hint))
+                                }
+                            }
+                        },
                         style = MaterialTheme.typography.headlineSmall,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis,
                         modifier = Modifier.weight(1f)
                     )
                     TextButton(onClick = { manualVisible = true }, enabled = ready) {
@@ -1537,16 +1564,6 @@ private fun ModelPullDialog(
                     }
                 }
                 Spacer(Modifier.height(8.dp))
-                // 新建模式：地址/分组名两条使用提示并到标题正下方（原散在各输入栏下，栏与栏间显得碎）
-                if (!forGroup) {
-                    Text(
-                        stringResource(R.string.role_key_ifc_url_hint) + "，" +
-                            stringResource(R.string.role_key_group_name_auto_hint),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                    Spacer(Modifier.height(6.dp))
-                }
                 if (forGroup) {
                     // 分组模式：把「给谁拉」摆出来（组名 · 网址）
                     Text(

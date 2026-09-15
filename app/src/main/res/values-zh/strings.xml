@@ -740,7 +740,7 @@
     <string name="role_key_ifc_key">API Key</string>
     <string name="role_key_group_name_label">分组名</string>
     <string name="role_key_ifc_url_hint">地址填到 /v1 即可，自动补全</string>
-    <string name="role_key_group_name_auto_hint">分组名留空时默认从地址抓取</string>
+    <string name="role_key_fetch_title_hint">（地址填至 /v1 即可；分组名留空时自动从地址抓取）</string>
     <string name="role_key_will_request">请求 %1$s</string>
     <string name="role_key_new_group">新建分组 %1$s</string>
     <string name="role_key_join_group">并入分组 %1$s</string>
