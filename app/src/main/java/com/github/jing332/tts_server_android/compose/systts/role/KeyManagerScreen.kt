@@ -66,6 +66,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.rotate
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.nestedscroll.nestedScroll
@@ -1024,11 +1025,13 @@ fun KeyManagerScreen(tagRuleId: String, onBack: () -> Unit) {
             ifaces = ifaces,
             initialIfcName = pullForIfc,
             onDismiss = { showPullModels = false; pullForIfc = null },
-            onConfirm = { url, apiKey, pickedModels ->
+            onConfirm = { url, apiKey, groupName, pickedModels ->
                 showPullModels = false
                 pullForIfc = null
                 scope.launch {
-                    val ifc = withIO { KeyListFile.ensureGroup(tagRuleId, url, apiKey) }
+                    // groupName 非空 = 用户在弹窗顶部自己起了名（撞名已被弹窗拦下）；
+                    // 空 = 留空，交给 ensureGroup 按网址短名自动提取
+                    val ifc = withIO { KeyListFile.ensureGroup(tagRuleId, url, apiKey, groupName) }
                     if (ifc == null) {
                         toast(R.string.role_list_failed)
                     } else {
@@ -1392,14 +1395,18 @@ private fun ModelPullDialog(
     ifaces: List<KeyListFile.ApiInterface>,
     initialIfcName: String? = null,
     onDismiss: () -> Unit,
-    onConfirm: (String, String, List<String>) -> Unit,
+    // (网址, 密钥, 分组名, 选中的模型)：分组名留空 = 上层按网址短名自动提取（目目 09-15）
+    onConfirm: (String, String, String, List<String>) -> Unit,
 ) {
+    val context = LocalContext.current
     val scope = rememberCoroutineScope()
     // 分组模式：上层给的是接口名，取回接口本体；组已被删则退回新建模式（不至于弹个空壳）
     val initialIfc = remember(ifaces, initialIfcName) {
         initialIfcName?.let { n -> ifaces.firstOrNull { it.name == n } }
     }
     val forGroup = initialIfc != null
+    // 分组名（只有新建模式用得上；分组模式整框隐藏，都并进那个组了，起名没意义）
+    var nameText by remember { mutableStateOf(TextFieldValue("")) }
     var urlText by remember { mutableStateOf(TextFieldValue(initialIfc?.baseUrl.orEmpty())) }
     var keyText by remember { mutableStateOf(TextFieldValue(initialIfc?.apiKey.orEmpty())) }
     var models by remember { mutableStateOf<List<String>>(emptyList()) }
@@ -1416,6 +1423,17 @@ private fun ModelPullDialog(
         KeyListFile.sameApiSite(it.baseUrl, url) && it.apiKey.trim() == key
     }
     val ready = forGroup || (url.isNotEmpty() && key.isNotEmpty())
+    // 分组名（目目 09-15 二次改版）：框在字段区顶部，留空 ⇒ 用网址短名自动提取。
+    // 手填重名**不当场改你的字**（跟改名弹窗一个口径）：预览行变红 + 点确认时 Toast 拦下。
+    val autoName = remember(url) { runCatching { KeyListFile.shortName(url) }.getOrDefault("") }
+    val typedName = nameText.text.trim()
+    val finalName = typedName.ifEmpty { autoName }
+    // ⚠️ 只在**要新建组**时才判重名：命中了已有分组（targetIfc != null）时这个框根本用不上
+    //    （名字会交空），不该因为你随手敲的字把确认拦下来。判据与分组改名弹窗一致（trim 后全等）
+    val nameTaken = targetIfc == null && typedName.isNotEmpty() && ifaces.any { it.name == typedName }
+    // 预览：实际会打哪个地址（拉模型打 /models）、这批算新建还是并入
+    val previewBase = if (url.isEmpty()) "" else
+        runCatching { KeyListFile.openAiBaseUrl(url) }.getOrDefault("")
 
     fun fetch() {
         if (!ready) return
@@ -1473,8 +1491,25 @@ private fun ModelPullDialog(
                     )
                     Spacer(Modifier.height(8.dp))
                 } else {
-                    // 新建模式（目目 09-15「顶部就让填这两个值」）：只两个字段——接口 URL + API Key。
-                    // 组名不用你起，按网址短名自动生成（想改去组头 ✏️）。
+                    // 新建模式（目目 09-15 二次改版）：字段顺序 分组名 → 接口地址 → API Key。
+                    // 分组名提到最上面（进来先定名字），留空 ⇒ 网址短名自动提取；
+                    // 接口地址只要填到版本段，后端缀与协议头都有人管（见下方辅助行与失焦回写）。
+                    Text(
+                        stringResource(R.string.role_key_group_name_label),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    OutlinedTextField(
+                        value = nameText, onValueChange = { nameText = it },
+                        singleLine = true,
+                        // 空框时直接把**将要用的短名**当占位显示出来（灰字），不用你先猜会叫什么
+                        placeholder = {
+                            Text(if (autoName.isEmpty()) stringResource(R.string.role_key_name_auto) else autoName)
+                        },
+                        textStyle = MaterialTheme.typography.bodyMedium,
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                    Spacer(Modifier.height(6.dp))
                     Text(
                         stringResource(R.string.role_key_ifc_url),
                         style = MaterialTheme.typography.bodySmall,
@@ -1486,8 +1521,28 @@ private fun ModelPullDialog(
                         singleLine = false, minLines = 1, maxLines = 3,
                         placeholder = { Text("https://api.example.com/v1") },
                         textStyle = MaterialTheme.typography.bodyMedium,
-                        modifier = Modifier.fillMaxWidth(),
+                        modifier = Modifier.fillMaxWidth()
+                            // 离开这个框就补协议头并**回写**（目目 09-15「自动补 https://」）：
+                            // 手打 cavoti.com / api.cavoti.com/v1 都能直接拉；已带 http(s):// 的原样不动。
+                            .onFocusChanged { st ->
+                                if (!st.isFocused) {
+                                    val fixed = KeyListFile.withScheme(urlText.text)
+                                    if (fixed != urlText.text) {
+                                        urlText = TextFieldValue(fixed, TextRange(fixed.length))
+                                    }
+                                }
+                            },
                     )
+                    // 提示只在**还没填**时占位（填了就让位给下面的预览行）。弹窗高度有限
+                    // （heightIn max 640dp），这两行信息互补、没必要同时挤在列表上方
+                    if (url.isEmpty()) {
+                        Text(
+                            stringResource(R.string.role_key_ifc_url_hint),
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.padding(top = 2.dp)
+                        )
+                    }
                     Spacer(Modifier.height(6.dp))
                     Text(
                         stringResource(R.string.role_key_ifc_key),
@@ -1500,15 +1555,34 @@ private fun ModelPullDialog(
                         textStyle = MaterialTheme.typography.bodyMedium,
                         modifier = Modifier.fillMaxWidth(),
                     )
-                    // 网址 + 密钥命中已有分组 ⇒ 这批并进去，不是另起一个（摆出来，不让你猜）
-                    targetIfc?.let { hit ->
-                        Spacer(Modifier.height(4.dp))
-                        Text(
-                            stringResource(R.string.role_key_pull_group_sub, hit.name, hit.baseUrl),
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            maxLines = 2, overflow = TextOverflow.Ellipsis
-                        )
+                    // 预览行（目目 09-15）：把「实际请求哪个地址」+「算新建还是并入哪个组」摆出来，
+                    // 不让你猜——原来分散的那行「并入 XX 组」合并到这里。手填的分组名撞了已有组 ⇒ 这行变红。
+                    Spacer(Modifier.height(6.dp))
+                    Column(Modifier.fillMaxWidth()) {
+                        if (previewBase.isNotEmpty()) {
+                            Text(
+                                stringResource(R.string.role_key_will_request, "$previewBase/models"),
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                maxLines = 2, overflow = TextOverflow.Ellipsis
+                            )
+                        }
+                        val hit = targetIfc
+                        val where = when {
+                            hit != null -> stringResource(R.string.role_key_join_group, hit.name)
+                            nameTaken -> stringResource(R.string.role_key_group_name_exists, typedName)
+                            finalName.isNotEmpty() -> stringResource(R.string.role_key_new_group, finalName)
+                            else -> ""
+                        }
+                        if (where.isNotEmpty()) {
+                            Text(
+                                where,
+                                style = MaterialTheme.typography.labelSmall,
+                                color = if (nameTaken) MaterialTheme.colorScheme.error
+                                else MaterialTheme.colorScheme.onSurfaceVariant,
+                                maxLines = 2, overflow = TextOverflow.Ellipsis
+                            )
+                        }
                     }
                 }
                 Spacer(Modifier.height(4.dp))
@@ -1606,9 +1680,20 @@ private fun ModelPullDialog(
                     TextButton(
                         enabled = selected.isNotEmpty() && ready,
                         onClick = {
+                            // 手填的分组名撞了已有组 ⇒ 不让确认（目目 09-15 拍板：拒绝并提示，
+                            // 跟改名弹窗一个口径；不当场改你的字，你自己换个名再点）
+                            if (nameTaken) {
+                                android.widget.Toast.makeText(
+                                    context,
+                                    context.getString(R.string.role_key_group_name_exists, typedName),
+                                    android.widget.Toast.LENGTH_SHORT
+                                ).show()
+                                return@TextButton
+                            }
                             val u = targetIfc?.baseUrl ?: url
                             val k = targetIfc?.apiKey ?: key
-                            onConfirm(u, k, selected.sorted())
+                            // 并入已有组 ⇒ 名字交空（组名已是那组的，不该被这个框影响）
+                            onConfirm(u, k, if (targetIfc != null) "" else finalName, selected.sorted())
                         }
                     ) {
                         Text(stringResource(R.string.role_key_add_selected, selected.size))

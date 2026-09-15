@@ -301,14 +301,18 @@ object KeyListFile {
      * 会落进同一个分组，不会出现两个同网址同密钥的分组。
      * 网址或密钥为空 → 不建组返回 null（调用方自己给提示）；落盘失败也返回 null。
      */
-    fun ensureGroup(tagRuleId: String, url: String, apiKey: String): ApiInterface? {
+    fun ensureGroup(tagRuleId: String, url: String, apiKey: String, preferredName: String = ""): ApiInterface? {
         val u = url.trim()
         val k = apiKey.trim()
         if (u.isEmpty() || k.isEmpty()) return null
         val ifaces = readInterfaces(tagRuleId)
         ifaces.firstOrNull { sameApiSite(it.baseUrl, u) && it.apiKey.trim() == k }?.let { return it }
+        // 组名（目目 09-15 二次改版：弹窗顶部多了「分组名」框）：手填了就用它——撞名由 UI 先拦
+        // （弹「分组名已存在」，不让确认），这里再兜一次 uniqueIfcName 防漏判；留空 = 照旧取网址短名。
+        val nm = preferredName.trim()
         val ifc = ApiInterface(
-            name = autoIfcName(u, ifaces.map { it.name }.toSet()),
+            name = if (nm.isEmpty()) autoIfcName(u, ifaces.map { it.name }.toSet())
+            else uniqueIfcName(nm, ifaces.map { it.name }.toSet()),
             baseUrl = openAiBaseUrl(u),
             apiKey = k,
             models = emptyList(),
@@ -413,10 +417,22 @@ object KeyListFile {
 
     // ==================== URL 归一（照插件 getOpenAiBaseUrl 系列）====================
 
+    /**
+     * 补协议头（目目 09-15「输入框失焦自动补 https://」）：已经带 `://` 的原样返回，
+     * 空串原样返回（免得空框被回写成 "https://"）；手滑漏斜杠的 `http:/x` 按老口径修正，
+     * 不然后面补出来的是 `https://http:/x`。
+     * ⚠️ 只补**协议头**，不补版本段——版本段归 [openAiBaseUrl]（两件事分开，别混）。
+     */
+    fun withScheme(url: String): String {
+        val u = url.trim()
+        if (u.isEmpty() || u.contains("://")) return u
+        if (u.startsWith("http:/")) return "http://" + u.substring(6)
+        if (u.startsWith("https:/")) return "https://" + u.substring(7)
+        return "https://$u"
+    }
+
     fun normalizeBaseUrl(url: String): String {
-        var u = url.trim()
-        if (u.startsWith("http:/") && !u.startsWith("http://")) u = "http://" + u.substring(6)
-        if (u.startsWith("https:/") && !u.startsWith("https://")) u = "https://" + u.substring(7)
+        var u = withScheme(url)
         while (u.length > 1 && u.endsWith("/")) u = u.dropLast(1)
         return u
     }
@@ -428,10 +444,15 @@ object KeyListFile {
      * ⚠️ 旧版把两个分支串成一条流水线：先剥后缀、再统一补 /v1 ⇒ `http://x/chat/completions`
      * 得到 `http://x/v1`（原版是 `http://x`），`sameApiSite` 的判同站口径因此被放宽，
      * 与插件侧的密钥分组 / 级联删除结果对不上。
+     *
+     * 端点段清单在插件三个（/chat/completions、/completions、/models）之外**多了 /responses**
+     * （目目 09-15）：OpenAI 新版 Responses 端点，部分中转站的文档地址直接给 `…/v1/responses`，
+     * 原版会把它当成普通路径 ⇒ 拼出 `…/v1/responses/models` 404。加进去对老数据零影响
+     * （剥的是计算用的 base，不改写你存的 value），插件那三个的行为一字未动。
      */
     fun openAiBaseUrl(url: String): String {
         val u = normalizeBaseUrl(url)
-        for (suffix in arrayOf("/chat/completions", "/completions", "/models")) {
+        for (suffix in arrayOf("/chat/completions", "/completions", "/models", "/responses")) {
             if (u.endsWith(suffix)) return u.dropLast(suffix.length)
         }
         return if (!Regex("/v\\d+[a-z]*").containsMatchIn(u)) "$u/v1" else u

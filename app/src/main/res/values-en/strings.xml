@@ -678,6 +678,12 @@ Add %3$d, skip %4$d duplicates
     <string name="role_key_ifc_name">Name (e.g. Zhipu main / Silicon backup)</string>
     <string name="role_key_ifc_url">Base URL (/v1 auto-added)</string>
     <string name="role_key_ifc_key">API Key</string>
+    <string name="role_key_group_name_label">Group name (auto if empty)</string>
+    <string name="role_key_ifc_url_hint">Up to /v1 is enough — no /chat/completions needed</string>
+    <string name="role_key_will_request">Will request %1$s</string>
+    <string name="role_key_new_group">New group %1$s</string>
+    <string name="role_key_join_group">Merge into group %1$s</string>
+    <string name="role_key_group_name_exists">Group name \"%1$s\" already exists</string>
     <string name="role_key_ifc_delete">Delete interface (with its keys)</string>
     <string name="role_key_ifc_deleted">Interface deleted (%1$d keys removed)</string>
     <string name="role_key_ifc_name_empty">Name required</string>
