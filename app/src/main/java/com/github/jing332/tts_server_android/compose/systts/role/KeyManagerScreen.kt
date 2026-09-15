@@ -176,8 +176,8 @@ private fun FlatIconAction(
 }
 
 /**
- * 密钥条目行（卡片内无框）：状态点（当前/通/不通/未测）+ 显示名 +「当前」徽章，
- * 下行动作图标居右：✏️编辑 ⚡测试 📋复制 🗑删除；名字放不下换行。
+ * 密钥条目行（卡片内无框、单行排完）：状态点 + 显示名 +「当前」徽章 + 动作图标 ✏️⚡📋🗑 同行居右；
+ * 显示名缩小一号、放不下自己换行。
  */
 @Composable
 private fun KeyEntryRow(
@@ -199,13 +199,13 @@ private fun KeyEntryRow(
         // 内边距 21 + 状态点 14 + 间距 8 ⇒ 名字左缘 43dp，对齐组名左缘
         //（6 卡片内边距 + 3 色条 + 6 间距 + 22 箭头 + 6 间距）
         Modifier.fillMaxWidth().padding(start = 21.dp, end = 6.dp, top = 8.dp, bottom = 8.dp),
-        // 两行态用 Top 让状态点咬住第一行；删除多选态只剩一行、保持居中
-        verticalAlignment = if (deleteMode) Alignment.CenterVertically else Alignment.Top
+        // 名字换行成两行时图标垂直居中，不再用 Top 咬行
+        verticalAlignment = Alignment.CenterVertically
     ) {
         if (deleteMode) {
             Checkbox(checked = checked, onCheckedChange = { onToggleCheck() })
         }
-        // 状态点固定 14dp 位宽、24dp 高（对齐 bodyLarge 行高），两行态下与模型名同行
+        // 状态点固定 14dp 位宽、24dp 高（对齐 bodyMedium 行高）
         Box(Modifier.width(14.dp).height(24.dp), contentAlignment = Alignment.CenterStart) {
             val dot = when {
                 isCurrent -> accent
@@ -221,48 +221,38 @@ private fun KeyEntryRow(
             }
         }
         Spacer(Modifier.width(8.dp))
-        // 两行：行1 = 显示名 +「当前」徽章（点这行切当前）；行2 = 动作图标居右。
-        // 显示名取**值里的真实模型名**（条目名可能带跨组共存的去重后缀，那是内部标识）
-        Column(Modifier.weight(1f)) {
-            Row(
-                Modifier.fillMaxWidth().clickable { onSwitch() },
-                verticalAlignment = Alignment.CenterVertically
-            ) {
+        // 显示名取**值里的真实模型名**（条目名可能带跨组共存的去重后缀，那是内部标识）。
+        // weight(fill=false)：短名贴左侧，长名吃满剩余宽度后省略，图标不被挤出去
+        Text(
+            KeyListFile.displayName(entry),
+            style = MaterialTheme.typography.bodyMedium,
+            fontWeight = if (isCurrent) FontWeight.SemiBold else null,
+            color = if (isCurrent) accent else MaterialTheme.colorScheme.onSurface,
+            maxLines = 2,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.weight(1f, fill = false).clickable { onSwitch() }
+        )
+        if (isCurrent) {
+            Spacer(Modifier.width(6.dp))
+            Surface(shape = RoundedCornerShape(8.dp), color = accent.copy(alpha = 0.14f)) {
                 Text(
-                    KeyListFile.displayName(entry),
-                    style = MaterialTheme.typography.bodyLarge,
-                    fontWeight = if (isCurrent) FontWeight.SemiBold else null,
-                    color = if (isCurrent) accent else MaterialTheme.colorScheme.onSurface,
-                    maxLines = 2,
-                    overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.weight(1f, fill = false)
+                    stringResource(R.string.role_key_current_badge),
+                    style = MaterialTheme.typography.labelSmall,
+                    color = accent,
+                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 1.dp)
                 )
-                if (isCurrent) {
-                    Spacer(Modifier.width(6.dp))
-                    Surface(shape = RoundedCornerShape(8.dp), color = accent.copy(alpha = 0.14f)) {
-                        Text(
-                            stringResource(R.string.role_key_current_badge),
-                            style = MaterialTheme.typography.labelSmall,
-                            color = accent,
-                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 1.dp)
-                        )
-                    }
-                }
-                if (testing) {
-                    Spacer(Modifier.width(6.dp))
-                    CircularProgressIndicator(Modifier.size(16.dp), strokeWidth = 2.dp)
-                }
             }
-            if (!deleteMode) {
-                // 动作行居右：编辑 / 测试 / 复制 / 删除
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
-                    FlatIconAction(Icons.Default.Edit, stringResource(R.string.role_key_edit)) { onEdit() }
-                    FlatIconAction(Icons.Default.Bolt, stringResource(R.string.role_key_test)) { onTest() }
-                    // 📋 复制模型名（编辑弹窗里的「复制」才是完整密钥串）
-                    FlatIconAction(Icons.Default.ContentCopy, stringResource(R.string.copy)) { onCopy() }
-                    FlatIconAction(Icons.Default.DeleteOutline, stringResource(R.string.delete)) { onDelete() }
-                }
-            }
+        }
+        if (testing) {
+            Spacer(Modifier.width(6.dp))
+            CircularProgressIndicator(Modifier.size(16.dp), strokeWidth = 2.dp)
+        }
+        if (!deleteMode) {
+            // 动作图标与名字同行：编辑 / 测试 / 复制 / 删除（📋 复制的是模型名，编辑弹窗里才是完整密钥串）
+            FlatIconAction(Icons.Default.Edit, stringResource(R.string.role_key_edit)) { onEdit() }
+            FlatIconAction(Icons.Default.Bolt, stringResource(R.string.role_key_test)) { onTest() }
+            FlatIconAction(Icons.Default.ContentCopy, stringResource(R.string.copy)) { onCopy() }
+            FlatIconAction(Icons.Default.DeleteOutline, stringResource(R.string.delete)) { onDelete() }
         }
     }
 }
@@ -634,7 +624,10 @@ fun KeyManagerScreen(tagRuleId: String, onBack: () -> Unit) {
                                                 fontWeight = FontWeight.SemiBold,
                                                 color = MaterialTheme.colorScheme.onSurface,
                                                 maxLines = 1,
-                                                overflow = TextOverflow.Ellipsis
+                                                overflow = TextOverflow.Ellipsis,
+                                                // weight(fill=false)：组名超长时吃满剩余宽度后省略，
+                                                // 没有它长组名会把后面的 (N) 挤成一字宽、逐字竖排
+                                                modifier = Modifier.weight(1f, fill = false)
                                             )
                                             Spacer(Modifier.width(4.dp))
                                             Text(
@@ -1094,7 +1087,7 @@ private fun KeyEditDialog(
                     modifier = Modifier.fillMaxWidth(),
                 )
                 Spacer(Modifier.height(8.dp))
-                // 第二行「密钥」（整串 网址@@模型@@Key；纯 Key = 直连）
+                // 第二行「密钥」（整串 网址@@模型名@@API key；智谱可直填裸 key）
                 Text(
                     stringResource(R.string.role_key_value),
                     style = MaterialTheme.typography.bodySmall,
@@ -1476,6 +1469,8 @@ private fun ModelPullDialog(
     var error by remember { mutableStateOf("") }
     var filter by remember { mutableStateOf("") }
     var manualVisible by remember { mutableStateOf(false) }
+    // 拉取成功后把表单折成一行摘要，把高度让给模型列表；点 ✏ 重新展开可改
+    var formCollapsed by remember { mutableStateOf(false) }
 
     val url = urlText.text.trim()
     val key = keyText.text.trim()
@@ -1503,7 +1498,11 @@ private fun ModelPullDialog(
             val r = withIO { KeyListFile.fetchModels(u, k) }
             loading = false
             if (r.first == null) error = r.second
-            else { models = r.first ?: emptyList(); selected = emptySet() } // 默认不勾选
+            else {
+                models = r.first ?: emptyList()
+                selected = emptySet() // 默认不勾选
+                formCollapsed = true
+            }
         }
     }
     // 分组模式进来就拉
@@ -1547,6 +1546,27 @@ private fun ModelPullDialog(
                         maxLines = 2, overflow = TextOverflow.Ellipsis
                     )
                     Spacer(Modifier.height(8.dp))
+                } else if (formCollapsed && models.isNotEmpty()) {
+                    // 拉取成功后的收起态：一行摘要（分组 · 网址 · 尾号）+ ✏ 重开表单；
+                    // 不叠第二个弹窗，模型列表拿满剩余高度
+                    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                        Text(
+                            listOfNotNull(
+                                finalName.ifEmpty { null },
+                                url.ifEmpty { null },
+                                if (key.isEmpty()) null
+                                else stringResource(R.string.role_key_tail, key.takeLast(4))
+                            ).joinToString(" · "),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            maxLines = 2, overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier.weight(1f)
+                        )
+                        FlatIconAction(Icons.Default.Edit, stringResource(R.string.role_key_edit)) {
+                            formCollapsed = false
+                        }
+                    }
+                    Spacer(Modifier.height(4.dp))
                 } else {
                     // 新建模式：字段顺序 分组名 → 接口地址 → API Key
                     Text(
@@ -1712,11 +1732,18 @@ private fun ModelPullDialog(
                                     )
                                     if (already) {
                                         Spacer(Modifier.width(8.dp))
-                                        Text(
-                                            stringResource(R.string.role_key_model_in_group),
-                                            style = MaterialTheme.typography.labelSmall,
-                                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                                        )
+                                        // 浅 primary 底徽章（与「当前」徽章同款式）：灰字扫一眼注意不到
+                                        Surface(
+                                            shape = RoundedCornerShape(8.dp),
+                                            color = MaterialTheme.colorScheme.primary.copy(alpha = 0.14f)
+                                        ) {
+                                            Text(
+                                                stringResource(R.string.role_key_model_in_group),
+                                                style = MaterialTheme.typography.labelSmall,
+                                                color = MaterialTheme.colorScheme.primary,
+                                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 1.dp)
+                                            )
+                                        }
                                     }
                                 }
                             }
@@ -1806,6 +1833,13 @@ private fun ImportKeysDialog(
         ) {
             Column(Modifier.padding(16.dp)) {
                 Text(stringResource(R.string.role_key_import), style = MaterialTheme.typography.headlineSmall)
+                Spacer(Modifier.height(4.dp))
+                // 没有这行提示，用户不知道列表里的文件名点一下就开始导入
+                Text(
+                    stringResource(R.string.role_key_import_hint),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
                 Spacer(Modifier.height(8.dp))
                 if (files.isEmpty()) {
                     Text(
@@ -1815,7 +1849,7 @@ private fun ImportKeysDialog(
                     )
                 } else {
                     LazyColumn(Modifier.weight(1f, fill = false)) {
-                        files.forEach { fn ->
+                        files.forEachIndexed { i, fn ->
                             item(key = fn) {
                                 Row(
                                     Modifier.fillMaxWidth().clickable {
@@ -1829,12 +1863,17 @@ private fun ImportKeysDialog(
                                 ) {
                                     Text(fn, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f))
                                 }
-                                HorizontalDivider()
+                                // 分隔线只夹在文件之间，末尾不挂线
+                                if (i < files.lastIndex) HorizontalDivider()
                             }
                         }
                     }
                 }
-                TextButton(onClick = onDismiss) { Text(stringResource(R.string.cancel)) }
+                Spacer(Modifier.height(4.dp))
+                // 取消键靠右（对齐 M3 弹窗按钮位）
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+                    TextButton(onClick = onDismiss) { Text(stringResource(R.string.cancel)) }
+                }
             }
         }
     }

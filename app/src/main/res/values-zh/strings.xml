@@ -639,7 +639,7 @@
     <string name="role_key_model_label">模型</string>
     <string name="role_key_copied_model">已复制模型名</string>
     <string name="role_key_value">密钥</string>
-    <string name="role_key_value_hint">网址@@模型@@Key（纯 Key 为直连）</string>
+    <string name="role_key_value_hint">网址@@模型名@@API key（智谱可直填API key）</string>
     <string name="role_key_delete_title">删除密钥</string>
     <string name="role_key_delete_text">确定删除密钥「%1$s」？</string>
     <string name="role_key_empty">暂无密钥</string>
@@ -647,7 +647,7 @@
     <string name="role_key_model_in_group">已在组内</string>
     <string name="role_key_pull_group_sub">分组 %1$s · %2$s</string>
     <string name="role_key_group_ungrouped_hint">未绑定接口的散装密钥</string>
-    <string name="role_key_group_direct_hint">直连密钥（纯 Key，不带 @@ 接口串）</string>
+    <string name="role_key_group_direct_hint">直连密钥（智谱可直填API key，不带 @@ 接口串）</string>
     <string name="role_key_test">测试</string>
     <string name="role_key_test_none">没有可测试的密钥</string>
     <string name="role_key_test_ok_toast">「%1$s」可用：%2$s</string>
@@ -724,6 +724,7 @@
     <string name="role_key_name_dup">名称【%1$s】已存在</string>
     <string name="role_key_export">导出密钥</string>
     <string name="role_key_import">导入密钥</string>
+    <string name="role_key_import_hint">点击文件即可导入</string>
     <string name="role_key_action_export">导出</string>
     <string name="role_key_action_import">导入</string>
     <string name="role_key_exported">已导出 %1$d 个密钥到 %2$s</string>
