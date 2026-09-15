@@ -30,6 +30,7 @@ import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.ContentPaste
 import androidx.compose.material.icons.filled.DeleteOutline
+import androidx.compose.material.icons.filled.DeleteSweep
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.FileDownload
@@ -208,22 +209,26 @@ private fun KeyEntryRow(
         if (deleteMode) {
             Checkbox(checked = checked, onCheckedChange = { onToggleCheck() })
         }
-        // 状态点固定 14dp 位宽、24dp 高（对齐 bodyMedium 行高）
-        Box(Modifier.width(14.dp).height(24.dp), contentAlignment = Alignment.CenterStart) {
-            val dot = when {
-                isCurrent -> accent
-                testOk == true -> TEST_PASS_COLOR
-                testOk == false -> MaterialTheme.colorScheme.error
-                else -> MaterialTheme.colorScheme.outlineVariant
+        // 删除模式不显示状态点（目目 09-15 晚：☐ 旁边再跟个 ○ 像两组选择圈打架，纯粹干扰；
+        // 「当前」徽章仍在名字后保留）
+        if (!deleteMode) {
+            // 状态点固定 14dp 位宽、24dp 高（对齐 bodyMedium 行高）
+            Box(Modifier.width(14.dp).height(24.dp), contentAlignment = Alignment.CenterStart) {
+                val dot = when {
+                    isCurrent -> accent
+                    testOk == true -> TEST_PASS_COLOR
+                    testOk == false -> MaterialTheme.colorScheme.error
+                    else -> MaterialTheme.colorScheme.outlineVariant
+                }
+                if (isCurrent || testOk != null) {
+                    Box(Modifier.size(8.dp).background(dot, CircleShape))
+                } else {
+                    // 未测 = 空心圆环，和「测过但红/绿」区分开
+                    Box(Modifier.size(8.dp).border(1.dp, dot, CircleShape))
+                }
             }
-            if (isCurrent || testOk != null) {
-                Box(Modifier.size(8.dp).background(dot, CircleShape))
-            } else {
-                // 未测 = 空心圆环，和「测过但红/绿」区分开
-                Box(Modifier.size(8.dp).border(1.dp, dot, CircleShape))
-            }
+            Spacer(Modifier.width(8.dp))
         }
-        Spacer(Modifier.width(8.dp))
         // 名字区 weight(1f)：短名贴左、「当前」徽章跟在名字后，右侧空隙由固定图标区兜底
         Row(
             Modifier.weight(1f),
@@ -566,43 +571,14 @@ fun KeyManagerScreen(tagRuleId: String, onBack: () -> Unit) {
                             modifier = Modifier.fillMaxWidth().padding(top = 10.dp)
                         ) {
                             Column(Modifier.padding(vertical = 4.dp)) {
-                                // ———— 组头 ————
+                                // ———— 组头 ————（删除模式不渲染：动作行挪到卡片底部，见条目之后）
                                 Row(
                                     Modifier.fillMaxWidth()
                                         .padding(start = 6.dp, end = 6.dp, top = 2.dp, bottom = 2.dp),
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
-                                    if (isDeleting) {
-                                        Text(
-                                            // 短标题：长句「选择要删除的密钥（N)」会被右边三个键挤成省略号，
-                                            // 已选数量在「删除(N)」键上看
-                                            stringResource(R.string.role_key_delete_title),
-                                            style = MaterialTheme.typography.bodyMedium,
-                                            fontWeight = FontWeight.Bold,
-                                            color = MaterialTheme.colorScheme.error,
-                                            maxLines = 1,
-                                            overflow = TextOverflow.Ellipsis,
-                                            modifier = Modifier.weight(1f)
-                                        )
-                                        SmallChipButton(stringResource(R.string.select_all), MaterialTheme.colorScheme.onSurfaceVariant) {
-                                            val allSel = grp.entries.all { it.name in deleteChecked }
-                                            val names = grp.entries.map { it.name }.toSet()
-                                            deleteChecked = if (allSel) deleteChecked - names
-                                            else deleteChecked + names
-                                        }
-                                        SmallChipButton(stringResource(R.string.cancel), MaterialTheme.colorScheme.onSurfaceVariant) {
-                                            deleteModeGroup = null
-                                            deleteChecked = emptySet()
-                                        }
-                                        SmallChipButton(
-                                            stringResource(R.string.role_key_delete_n, selCount),
-                                            MaterialTheme.colorScheme.error
-                                        ) {
-                                            if (selCount == 0) toast(R.string.role_key_delete_none)
-                                            else deleteConfirmGroup = grp.title
-                                        }
-                                    } else {
-                                        // 组头可点区：折叠箭头 + 组名 + (N) + 本组含当前密钥的 ✓
+                                    if (!isDeleting) {
+                                        // 组头可点区：折叠箭头 + 组名 + (N)；「本组含当前密钥」由左侧色条承担
                                         Row(
                                             Modifier
                                                 .weight(1f)
@@ -660,14 +636,8 @@ fun KeyManagerScreen(tagRuleId: String, onBack: () -> Unit) {
                                                 style = MaterialTheme.typography.bodySmall,
                                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                                             )
-                                            if (grpHasCurrent) {
-                                                Spacer(Modifier.width(4.dp))
-                                                Text(
-                                                    "✓",
-                                                    style = MaterialTheme.typography.labelMedium,
-                                                    color = accent
-                                                )
-                                            }
+                                            // 「本组含当前密钥」不再跟 ✓（目目 09-15 晚：多余），
+                                            // 信号由组头左侧色条单独承担
                                         }
                                         // 固定宽图标区（目目 09-15 晚方案 A）：144dp=4×36dp 热区，组头与
                                         // 模型行两行图标垂直成列；不足 4 键（未分组/直连组）右对齐留空
@@ -746,6 +716,16 @@ fun KeyManagerScreen(tagRuleId: String, onBack: () -> Unit) {
                                                         }
                                                     )
                                                     DropdownMenuItem(
+                                                        // 两项各带一枚 18dp 前置图标，文字左缘才对得齐：
+                                                        // 删除整组=红🗑（警示），多选删除=灰🧹（组保留、非毁灭）
+                                                        leadingIcon = {
+                                                            Icon(
+                                                                Icons.Default.DeleteSweep,
+                                                                contentDescription = null,
+                                                                modifier = Modifier.size(18.dp),
+                                                                tint = MaterialTheme.colorScheme.onSurfaceVariant
+                                                            )
+                                                        },
                                                         text = {
                                                             Column {
                                                                 Text(
@@ -853,6 +833,43 @@ fun KeyManagerScreen(tagRuleId: String, onBack: () -> Unit) {
                                             onEdit = { renameFor = entry },
                                             onDelete = { deleteFor = entry }
                                         )
+                                    }
+                                }
+                                // ———— 删除模式动作行（卡片底部）————
+                                // 目目 09-15 晚：放顶上一行怪，挪到最后一行——先勾选，再按「删除(N)」；
+                                // 标题保持短句「删除密钥」（长句被三个键挤成省略号）
+                                if (isDeleting) {
+                                    Row(
+                                        Modifier.fillMaxWidth()
+                                            .padding(start = 6.dp, end = 6.dp, top = 2.dp, bottom = 2.dp),
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Text(
+                                            stringResource(R.string.role_key_delete_title),
+                                            style = MaterialTheme.typography.bodyMedium,
+                                            fontWeight = FontWeight.Bold,
+                                            color = MaterialTheme.colorScheme.error,
+                                            maxLines = 1,
+                                            overflow = TextOverflow.Ellipsis,
+                                            modifier = Modifier.weight(1f)
+                                        )
+                                        SmallChipButton(stringResource(R.string.select_all), MaterialTheme.colorScheme.onSurfaceVariant) {
+                                            val allSel = grp.entries.all { it.name in deleteChecked }
+                                            val names = grp.entries.map { it.name }.toSet()
+                                            deleteChecked = if (allSel) deleteChecked - names
+                                            else deleteChecked + names
+                                        }
+                                        SmallChipButton(stringResource(R.string.cancel), MaterialTheme.colorScheme.onSurfaceVariant) {
+                                            deleteModeGroup = null
+                                            deleteChecked = emptySet()
+                                        }
+                                        SmallChipButton(
+                                            stringResource(R.string.role_key_delete_n, selCount),
+                                            MaterialTheme.colorScheme.error
+                                        ) {
+                                            if (selCount == 0) toast(R.string.role_key_delete_none)
+                                            else deleteConfirmGroup = grp.title
+                                        }
                                     }
                                 }
                             }
