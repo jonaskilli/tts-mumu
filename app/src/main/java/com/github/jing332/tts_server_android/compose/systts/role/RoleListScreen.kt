@@ -411,7 +411,7 @@ fun RoleListScreen(
             overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
             // 目目 09-15 晚：跟下方列表行左对齐——行内容左缘 = LazyColumn 12 + RoleRow 行内 14 = 26dp，
             // 提示行原来 12dp，比列表凸出去一截
-            modifier = Modifier.padding(start = 26.dp, end = 12.dp, vertical = 2.dp)
+            modifier = Modifier.padding(start = 26.dp, end = 12.dp, top = 2.dp, bottom = 2.dp)
         )
 
         // ===== 平铺角色列表（完全展开）=====
