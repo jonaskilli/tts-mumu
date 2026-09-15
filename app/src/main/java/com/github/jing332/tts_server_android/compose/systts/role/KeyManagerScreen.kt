@@ -48,7 +48,6 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
@@ -444,8 +443,7 @@ fun KeyManagerScreen(tagRuleId: String, onBack: () -> Unit) {
     var renameFor by remember { mutableStateOf<KeyListFile.KeyEntry?>(null) }
     var overwriteFor by remember { mutableStateOf<Pair<String, String>?>(null) } // (新名, 值) 覆盖确认
     var deleteFor by remember { mutableStateOf<KeyListFile.KeyEntry?>(null) }
-    var ifcFormFor by remember { mutableStateOf<KeyListFile.ApiInterface?>(null) } // null+showIfcNew=true=新建
-    var showIfcNew by remember { mutableStateOf(false) }
+    var ifcFormFor by remember { mutableStateOf<KeyListFile.ApiInterface?>(null) } // 组头 ✏️ 编辑该接口
     var showPullModels by remember { mutableStateOf(false) }
     var pullForIfc by remember { mutableStateOf<String?>(null) } // 组头 🔍 预选接口
     var showImport by remember { mutableStateOf(false) }
@@ -978,15 +976,9 @@ fun KeyManagerScreen(tagRuleId: String, onBack: () -> Unit) {
             }
         )
     }
-    // 接口表单（新建/编辑/级联删除，照插件 showInterfaceFormDialog）
-    if (showIfcNew) {
-        InterfaceFormDialog(
-            tagRuleId = tagRuleId,
-            initial = null,
-            onDismiss = { showIfcNew = false },
-            onSaved = { showIfcNew = false; version++ },
-        )
-    }
+    // 接口表单（编辑 / 级联删除，照插件 showInterfaceFormDialog）。
+    // 「新建接口」的独立入口已撤（目目 09-15）：新建并进「拉取模型」弹窗——顶部直接填网址 + Key，
+    // 确认时由 [KeyListFile.ensureGroup] 自动建档（组名取网址短名），所以这里只剩编辑
     ifcFormFor?.let { ifc ->
         InterfaceFormDialog(
             tagRuleId = tagRuleId,
@@ -995,32 +987,50 @@ fun KeyManagerScreen(tagRuleId: String, onBack: () -> Unit) {
             onSaved = { ifcFormFor = null; version++ },
         )
     }
-    // 拉取模型（接口单选 → 拉取 → 分类勾选入库，照插件 showModelSelectDialog）
+    // 拉取模型（目目 09-15 改版：顶部=填网址+Key 去建组/并入；分组卡 🔍=给本组拉）。
+    // 两个入口共用这一个弹窗，差别只在 initialIfcName；落库统一走 ensureGroup——判据与「未分组收编」
+    // 同一套（同网址 + 同密钥），所以不会建出两个同网址同密钥的分组来
     if (showPullModels) {
         ModelPullDialog(
-            tagRuleId = tagRuleId,
             keys = keys,
+            ifaces = ifaces,
             initialIfcName = pullForIfc,
             onDismiss = { showPullModels = false; pullForIfc = null },
-            onConfirm = { ifcName, pickedModels, entries ->
+            onConfirm = { url, apiKey, pickedModels ->
                 showPullModels = false
+                pullForIfc = null
                 scope.launch {
-                    val ifc = ifaces.firstOrNull { it.name == ifcName }
-                    // 组内去重（目目 09-15）：同（站点 + 密钥 + 模型）已在组里 → 不再多出一条
-                    val toAdd = if (ifc == null) entries else entries.filterNot { e ->
-                        val p = KeyListFile.parseKeyValue(e.value)
-                        p != null && !p.isDirect && KeyListFile.hasModel(keys, ifc, p.model)
+                    val ifc = withIO { KeyListFile.ensureGroup(tagRuleId, url, apiKey) }
+                    if (ifc == null) {
+                        toast(R.string.role_list_failed)
+                    } else {
+                        // 名字逐个占位去重：同一批里也互不撞名（跨组重名只加序号，忽略另一个组）
+                        val used = keys.map { it.name }.toMutableSet()
+                        val entries = pickedModels.map { m ->
+                            val n = KeyListFile.dedupName(m, used)
+                            used.add(n)
+                            KeyListFile.KeyEntry(
+                                name = n,
+                                keyCode = "",
+                                value = "${ifc.baseUrl}@@$m@@${ifc.apiKey}",
+                            )
+                        }
+                        // 组内去重（目目 09-15）：同（站点 + 密钥 + 模型）已在组里 → 不再多出一条
+                        val toAdd = entries.filterNot { e ->
+                            val p = KeyListFile.parseKeyValue(e.value)
+                            p != null && !p.isDirect && KeyListFile.hasModel(keys, ifc, p.model)
+                        }
+                        val merged = toAdd.fold(keys) { acc, e ->
+                            acc + e.copy(keyCode = KeyListFile.nextKeyCode(acc))
+                        }
+                        withIO {
+                            if (toAdd.isNotEmpty()) KeyListFile.saveKeys(tagRuleId, merged)
+                            // 拉到的模型登记进分组 models（旧版从不回写 ⇒ api_center.models 恒空，
+                            // 分组下有几条模型这个信息根本没落盘）
+                            KeyListFile.addModelsToInterface(tagRuleId, ifc.name, pickedModels)
+                        }
+                        toast(R.string.role_key_pull_done, toAdd.size, entries.size - toAdd.size)
                     }
-                    val merged = toAdd.fold(keys) { acc, e ->
-                        acc + e.copy(keyCode = KeyListFile.nextKeyCode(acc))
-                    }
-                    withIO {
-                        if (toAdd.isNotEmpty()) KeyListFile.saveKeys(tagRuleId, merged)
-                        // 拉到的模型登记进分组 models（旧版从不回写 ⇒ api_center.models 恒空，
-                        // 分组下有几条模型这个信息根本没落盘）
-                        KeyListFile.addModelsToInterface(tagRuleId, ifcName, pickedModels)
-                    }
-                    toast(R.string.role_key_pull_done, toAdd.size, entries.size - toAdd.size)
                     version++
                 }
             }
@@ -1313,53 +1323,63 @@ private fun InterfaceFormDialog(
 }
 
 /**
- * 拉取模型（照插件 showModelSelectDialog）：
- * 接口单选 → 拉取 → 五类分组+搜索过滤+默认不勾选（全选只作用可见项）→ 手动添加模型 → 入库。
- * 目目 09-15：「已在组内」只按**当前分组**（同站点+同密钥+同模型）算，别的分组拉过同一个模型不算，
- * 所以同网址不同密钥的两个分组可以各拉一份同名模型（如 glm-5.3-flash）。
+ * 拉取模型（目目 09-15 改版）：**两个入口共用这一个弹窗**。
+ *  - 顶部「拉取模型」= 新建模式：直接填【接口 URL + API Key】（不再列接口单选）→ 拉取；
+ *    确认时按（归一化网址 + 密钥）找分组，找到就并入、没找到就用网址短名建一个（[KeyListFile.ensureGroup]）。
+ *  - 分组卡 🔍 = 分组模式（[initialIfcName] 非空）：进来即以该组网址+密钥自动拉取，不用再选一次。
+ * 手动添加模型保留在弹窗下方（两模式共用，目目 09-15 定）；「已在组内」只按**目标分组**
+ * （同站点+同密钥+同模型）算，别的分组拉过同一个模型不算，所以同网址不同密钥的两个分组
+ * 可以各拉一份同名模型（如 glm-5.3-flash）。
  */
 @Composable
 private fun ModelPullDialog(
-    tagRuleId: String,
     keys: List<KeyListFile.KeyEntry>,
+    ifaces: List<KeyListFile.ApiInterface>,
     initialIfcName: String? = null,
     onDismiss: () -> Unit,
-    onConfirm: (String, List<String>, List<KeyListFile.KeyEntry>) -> Unit,
+    onConfirm: (String, String, List<String>) -> Unit,
 ) {
     val scope = rememberCoroutineScope()
-    // 条目名按**全量已有名字**去重（撞了只加序号，不再拼「@组名」——跨组重名忽略另一个组）
-    val existingNames = remember(keys) { keys.map { it.name }.toSet() }
-    var ifaces by remember { mutableStateOf<List<KeyListFile.ApiInterface>>(emptyList()) }
-    var pickedName by remember { mutableStateOf("") }
+    // 分组模式：上层给的是接口名，取回接口本体；组已被删则退回新建模式（不至于弹个空壳）
+    val initialIfc = remember(ifaces, initialIfcName) {
+        initialIfcName?.let { n -> ifaces.firstOrNull { it.name == n } }
+    }
+    val forGroup = initialIfc != null
+    var urlText by remember { mutableStateOf(TextFieldValue(initialIfc?.baseUrl.orEmpty())) }
+    var keyText by remember { mutableStateOf(TextFieldValue(initialIfc?.apiKey.orEmpty())) }
     var models by remember { mutableStateOf<List<String>>(emptyList()) }
     var selected by remember { mutableStateOf<Set<String>>(emptySet()) }
     var loading by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf("") }
     var filter by remember { mutableStateOf("") }
     var manualVisible by remember { mutableStateOf(false) }
-    var ifcNewVisible by remember { mutableStateOf(false) }
 
-    LaunchedEffect(Unit) {
-        val list = withIO { KeyListFile.readInterfaces(tagRuleId) }
-        ifaces = list
-        pickedName = initialIfcName?.takeIf { n -> list.any { it.name == n } }
-            ?: list.firstOrNull()?.name.orEmpty()
+    val url = urlText.text.trim()
+    val key = keyText.text.trim()
+    // 目标分组：分组模式=点进来的那个；新建模式=网址+密钥命中已有分组时就并入（否则为 null，确认时才建组）
+    val targetIfc = initialIfc ?: ifaces.firstOrNull {
+        KeyListFile.sameApiSite(it.baseUrl, url) && it.apiKey.trim() == key
     }
+    val ready = forGroup || (url.isNotEmpty() && key.isNotEmpty())
+
     fun fetch() {
-        val p = ifaces.firstOrNull { it.name == pickedName } ?: return
+        if (!ready) return
+        val u = targetIfc?.baseUrl ?: url
+        val k = targetIfc?.apiKey ?: key
         scope.launch {
             loading = true; error = ""
-            val r = withIO { KeyListFile.fetchModels(p.baseUrl, p.apiKey) }
+            val r = withIO { KeyListFile.fetchModels(u, k) }
             loading = false
             if (r.first == null) error = r.second
             else { models = r.first ?: emptyList(); selected = emptySet() } // 默认不勾选
         }
     }
+    // 分组模式：进来就拉，省掉「再点一次拉取」
+    LaunchedEffect(Unit) { if (forGroup) fetch() }
     val visibleModels = models.filter { filter.isBlank() || it.contains(filter, true) }
-    // 「已在组内」只按**当前选中分组**算（同站点 + 同密钥 + 同模型）：
+    // 「已在组内」只按**目标分组**算（同站点 + 同密钥 + 同模型）：
     // 别的分组拉过同一个模型**不算**（目目 09-15「只要网址不一样、或同网址不同密钥，就能拉同样的模型」）
-    val pickedIfc = ifaces.firstOrNull { it.name == pickedName }
-    fun inGroup(m: String) = pickedIfc != null && KeyListFile.hasModel(keys, pickedIfc, m)
+    fun inGroup(m: String) = targetIfc != null && KeyListFile.hasModel(keys, targetIfc, m)
     val selectableModels = visibleModels.filter { !inGroup(it) }
 
     Dialog(onDismissRequest = onDismiss) {
@@ -1374,58 +1394,66 @@ private fun ModelPullDialog(
                     style = MaterialTheme.typography.headlineSmall
                 )
                 Spacer(Modifier.height(8.dp))
-                // 接口单选：分组多时整段限高内滚，免得把下面的模型列表挤出去（行是两行式，比单行高）
-                Column(
-                    Modifier.fillMaxWidth().heightIn(max = 180.dp).verticalScroll(rememberScrollState())
-                ) {
-                    ifaces.forEach { ifc ->
-                        Column(Modifier.fillMaxWidth().clickable { pickedName = ifc.name }) {
-                            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                                RadioButton(selected = pickedName == ifc.name, onClick = { pickedName = ifc.name })
-                                Text(
-                                    ifc.name,
-                                    style = MaterialTheme.typography.bodyMedium,
-                                    maxLines = 1, overflow = TextOverflow.Ellipsis,
-                                    modifier = Modifier.weight(1f)
-                                )
-                                Spacer(Modifier.width(8.dp))
-                                // 角标=密钥尾号：同网址不同密钥=两个分组，短名会落成 cavoti / cavoti2，
-                                // 只有尾号能一眼认出谁是谁（与分组卡组头同一语汇）
-                                Surface(
-                                    shape = RoundedCornerShape(4.dp),
-                                    color = MaterialTheme.colorScheme.surfaceContainerHighest
-                                ) {
-                                    Text(
-                                        stringResource(R.string.role_key_tail, ifc.apiKey.takeLast(4)),
-                                        style = MaterialTheme.typography.labelSmall,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                        modifier = Modifier.padding(horizontal = 5.dp, vertical = 1.dp)
-                                    )
-                                }
-                            }
-                            // 第二行=网址（分组身份的另一半；长网址省略）
-                            Text(
-                                ifc.baseUrl,
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                maxLines = 1, overflow = TextOverflow.Ellipsis,
-                                modifier = Modifier.padding(start = 40.dp, bottom = 4.dp)
-                            )
-                        }
+                if (forGroup) {
+                    // 分组模式：不再让你选一次，直接把「给谁拉」摆出来（组名 · 网址）
+                    Text(
+                        stringResource(
+                            R.string.role_key_pull_group_sub,
+                            initialIfc?.name.orEmpty(), initialIfc?.baseUrl.orEmpty()
+                        ),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 2, overflow = TextOverflow.Ellipsis
+                    )
+                    Spacer(Modifier.height(8.dp))
+                } else {
+                    // 新建模式（目目 09-15「顶部就让填这两个值」）：只两个字段——接口 URL + API Key。
+                    // 组名不用你起，按网址短名自动生成（想改去组头 ✏️）。
+                    Text(
+                        stringResource(R.string.role_key_ifc_url),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    // 地址可能很长，一栏放不下就换行（目目 09-15）
+                    OutlinedTextField(
+                        value = urlText, onValueChange = { urlText = it },
+                        singleLine = false, minLines = 1, maxLines = 3,
+                        placeholder = { Text("https://api.example.com/v1") },
+                        textStyle = MaterialTheme.typography.bodyMedium,
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                    Spacer(Modifier.height(6.dp))
+                    Text(
+                        stringResource(R.string.role_key_ifc_key),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    OutlinedTextField(
+                        value = keyText, onValueChange = { keyText = it },
+                        singleLine = false, minLines = 1, maxLines = 3,
+                        textStyle = MaterialTheme.typography.bodyMedium,
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                    // 网址 + 密钥命中已有分组 ⇒ 这批并进去，不是另起一个（摆出来，不让你猜）
+                    targetIfc?.let { hit ->
+                        Spacer(Modifier.height(4.dp))
+                        Text(
+                            stringResource(R.string.role_key_pull_group_sub, hit.name, hit.baseUrl),
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            maxLines = 2, overflow = TextOverflow.Ellipsis
+                        )
                     }
                 }
-                // 新建接口（照插件：接口挂在拉取流程上，主弹窗只留两个按钮）
-                TextButton(onClick = { ifcNewVisible = true }) {
-                    Text("＋ " + stringResource(R.string.role_key_interface_new))
-                }
-                // 操作行：拉取 / 手动添加
+                Spacer(Modifier.height(4.dp))
+                // 操作行：拉取（分组模式=重试；新建模式=首次拉取）/ 手动添加模型（留在弹窗下方，目目 09-15）
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    TextButton(onClick = { fetch() }, enabled = !loading && pickedName.isNotEmpty()) {
+                    TextButton(onClick = { fetch() }, enabled = !loading && ready) {
                         Text(stringResource(if (loading) R.string.role_key_fetching else R.string.role_key_fetch))
                     }
                     if (loading) CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp)
                     Spacer(Modifier.width(8.dp))
-                    TextButton(onClick = { manualVisible = true }) {
+                    TextButton(onClick = { manualVisible = true }, enabled = ready) {
                         Text(stringResource(R.string.role_key_manual_model))
                     }
                 }
@@ -1509,25 +1537,16 @@ private fun ModelPullDialog(
                         }
                     }
                 }
-                // 页脚
+                // 页脚：确认时**不在这里写条目**，只把（网址 + 密钥 + 选中的模型）交回上层——
+                // 由 [KeyListFile.ensureGroup] 定夺并入哪个分组 / 是否新建，条目名与 value 也在那一步生成
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
                     TextButton(onClick = onDismiss) { Text(stringResource(R.string.cancel)) }
                     TextButton(
-                        enabled = selected.isNotEmpty() && pickedName.isNotEmpty(),
+                        enabled = selected.isNotEmpty() && ready,
                         onClick = {
-                            val p = ifaces.firstOrNull { it.name == pickedName } ?: return@TextButton
-                            // 名字逐个占位去重：同一批里也互不撞名（列表占位随取随加）
-                            val used = existingNames.toMutableSet()
-                            val entries = selected.sorted().map { m ->
-                                val n = KeyListFile.dedupName(m, used)
-                                used.add(n)
-                                KeyListFile.KeyEntry(
-                                    name = n,
-                                    keyCode = "",
-                                    value = "${KeyListFile.openAiBaseUrl(p.baseUrl)}@@$m@@${p.apiKey}",
-                                )
-                            }
-                            onConfirm(pickedName, selected.sorted(), entries)
+                            val u = targetIfc?.baseUrl ?: url
+                            val k = targetIfc?.apiKey ?: key
+                            onConfirm(u, k, selected.sorted())
                         }
                     ) {
                         Text(stringResource(R.string.role_key_add_selected, selected.size))
@@ -1536,7 +1555,8 @@ private fun ModelPullDialog(
             }
         }
     }
-    // 手动添加模型（照插件 showManualModelDialog：输入模型名直接入库）
+    // 手动添加模型（照插件 showManualModelDialog：输入模型名直接入库）。
+    // 归属由（网址 + 密钥）决定：分组模式=本组；新建模式=你填的那对值（[ready] 已保证两项都非空）。
     if (manualVisible) {
         var manual by remember { mutableStateOf("") }
         AlertDialog(
@@ -1551,11 +1571,10 @@ private fun ModelPullDialog(
             },
             confirmButton = {
                 TextButton(
-                    enabled = manual.trim().isNotEmpty() && pickedName.isNotEmpty(),
+                    enabled = manual.trim().isNotEmpty() && ready,
                     onClick = {
                         val m = manual.trim()
                         manualVisible = false
-                        val p = ifaces.firstOrNull { it.name == pickedName } ?: return@TextButton
                         models = models + m
                         selected = selected + m
                     }
@@ -1563,24 +1582,6 @@ private fun ModelPullDialog(
             },
             dismissButton = {
                 TextButton(onClick = { manualVisible = false }) { Text(stringResource(R.string.cancel)) }
-            }
-        )
-    }
-    // 新建接口（照插件 showNewInterfaceDialog：建档后回到本弹窗继续拉取）
-    if (ifcNewVisible) {
-        InterfaceFormDialog(
-            tagRuleId = tagRuleId,
-            initial = null,
-            onDismiss = { ifcNewVisible = false },
-            onSaved = {
-                ifcNewVisible = false
-                scope.launch {
-                    val list = withIO { KeyListFile.readInterfaces(tagRuleId) }
-                    ifaces = list
-                    if (pickedName.isEmpty() || list.none { it.name == pickedName }) {
-                        pickedName = list.lastOrNull()?.name ?: list.firstOrNull()?.name.orEmpty()
-                    }
-                }
             }
         )
     }

@@ -292,6 +292,30 @@ object KeyListFile {
         return saveInterfaces(tagRuleId, ifaces.map { if (it.name == ifcName) it.copy(models = merged) else it })
     }
 
+    /**
+     * 确保分组存在（目目 09-15「顶部直接填网址 + Key 拉取」，照插件 showModelSelectDialog 的建档分支）：
+     * 按（归一化网址 + 密钥）找分组，找到就返回它；没找到就用网址**短名**新建一个（口径见 [shortName]，
+     * 重名由 [uniqueIfcName] 加序号）并落盘。
+     *
+     * 判据与 [heal] 逐字同一套（`sameApiSite` + 密钥相等），所以「手填网址 + Key 建组」和「未分组条目收编」
+     * 会落进同一个分组，不会出现两个同网址同密钥的分组。
+     * 网址或密钥为空 → 不建组返回 null（调用方自己给提示）；落盘失败也返回 null。
+     */
+    fun ensureGroup(tagRuleId: String, url: String, apiKey: String): ApiInterface? {
+        val u = url.trim()
+        val k = apiKey.trim()
+        if (u.isEmpty() || k.isEmpty()) return null
+        val ifaces = readInterfaces(tagRuleId)
+        ifaces.firstOrNull { sameApiSite(it.baseUrl, u) && it.apiKey.trim() == k }?.let { return it }
+        val ifc = ApiInterface(
+            name = autoIfcName(u, ifaces.map { it.name }.toSet()),
+            baseUrl = openAiBaseUrl(u),
+            apiKey = k,
+            models = emptyList(),
+        )
+        return if (saveInterfaces(tagRuleId, ifaces + ifc)) ifc else null
+    }
+
     // ==================== 当前密钥（miyue/gengxin/backup 三写）====================
 
     /**

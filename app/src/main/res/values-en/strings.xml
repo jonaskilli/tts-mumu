@@ -584,6 +584,7 @@
     <string name="role_key_empty">No API keys yet</string>
     <string name="role_key_tail">…%1$s</string>
     <string name="role_key_model_in_group">Already in group</string>
+    <string name="role_key_pull_group_sub">Group %1$s · %2$s</string>
     <string name="role_key_group_ungrouped_hint">Keys not bound to any interface</string>
     <string name="role_key_group_direct_hint">Direct keys (plain key, no @@ prefix)</string>
     <string name="role_key_test">Test</string>

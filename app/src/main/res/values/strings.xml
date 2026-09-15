@@ -759,6 +759,7 @@
     <string name="role_key_empty">暂无密钥</string>
     <string name="role_key_tail">*尾%1$s</string>
     <string name="role_key_model_in_group">已在组内</string>
+    <string name="role_key_pull_group_sub">分组 %1$s · %2$s</string>
     <string name="role_key_group_ungrouped_hint">未绑定接口的散装密钥</string>
     <string name="role_key_group_direct_hint">直连密钥（纯 Key，不带 @@ 接口串）</string>
     <string name="role_key_test">测试</string>
