@@ -594,6 +594,9 @@
     <string name="batch_cfg_keep_unchanged">不修改</string>
     <string name="batch_cfg_change_plugin_to">更换插件为</string>
     <string name="batch_cfg_layer_config">配置项</string>
+    <string name="batch_cfg_tab_enable_items">启用/停用</string>
+    <string name="batch_cfg_enable_n">启用 %1$d 项</string>
+    <string name="batch_cfg_disable_n">停用 %1$d 项</string>
     <string name="batch_cfg_delete_pick_plugin_hint">请先在上方选择一个插件</string>
     <string name="voice_picker_category_current">当前分类</string>
     <string name="search_tag_or_display_name">搜索标签/显示名</string>

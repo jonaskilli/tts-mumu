@@ -67,7 +67,7 @@ data class BatchConfigEntry(
  * **chip 不带 leadingIcon 勾号**：FilterChip 在 MD3 里本是"可多选的开关"语义（日志页那组就是），
  * 这里当单选页签用，靠"点了立刻切页、无需确认"让用户自行感知单选，去掉勾号避免误读成开关。
  *
- * ## 四页与顺序（用户 09-13 定：删除垫底）
+ * ## 五页与顺序（用户 09-13 定：删除垫底；09-17 插入启用/停用，排在删除之前）
  * 1. **音频参数**：层分段（配置项 / 插件）＋该层 语速/音量/音高 三个滑杆
  *    —— 页脚 取消 / 重置 / 确定。形态照配置项音频参数弹窗（AudioParamsDialog）的
  *    软槽分段胶囊 + 滑杆组，只去掉「全局」层：批量作用域是 N 个配置项，
@@ -78,7 +78,11 @@ data class BatchConfigEntry(
  *    插件下全部配置项，与配置项弹窗的插件层同语义）。
  * 2. **采样率**：采样率 —— 页脚 取消 / 确定
  * 3. **更换插件**：目标插件 —— 页脚 取消 / 确定（未选目标插件时禁用）
- * 4. **删除配置项**：清单（可整组删）—— 页脚 取消 / **删除全部 N 项**（红色）
+ * 4. **启用/停用**：配置项清单（平铺、不分分组 —— 用户 09-17：启停不需要按分组）——
+ *    页脚 取消 / **启用 N 项** · **停用 N 项**。范围允许「全部」（启停可逆，
+ *    与删除页必须锁定具体插件的口径不同）；作用对象=范围内全部配置项
+ *    （含无来源插件的本地TTS项，故清单数据源 entries 现在也带上了它们）
+ * 5. **删除配置项**：清单（可整组删）—— 页脚 取消 / **删除全部 N 项**（红色）
  *
  * 删除排最后：打开弹窗默认落在第一页（音频参数），破坏性操作垫底是通行惯例
  * （用户对菜单入口即持「低频的放最后」偏好）。
@@ -88,9 +92,9 @@ data class BatchConfigEntry(
  * 故拆页；页脚不再出现"一个确定管哪个操作"的歧义。
  *
  * ## 插件筛选：全页通用（用户 09-13 定）
- * 四页共用一个插件筛选（filterKey），排在胶囊组下方，形如"本弹窗当前作用的插件范围"。
- * 早期曾让各页各持一份以防串联，但拆成四页后那样会变成"每页都要重选一次插件"，
- * 用户定：全页通用，一处选定四页可见（同一批对象，范围本就该一致）。
+ * 五页共用一个插件筛选（filterKey），排在胶囊组下方，形如"本弹窗当前作用的插件范围"。
+ * 早期曾让各页各持一份以防串联，但拆页后那样会变成"每页都要重选一次插件"，
+ * 用户定：全页通用，一处选定全页可见（同一批对象，范围本就该一致）。
  *
  * 「作用域：当前池全部配置项」那行已删除：调用方写死传入、永不变化，零信息量；
  * 真正有用的是「匹配 N 项」，保留。
@@ -105,11 +109,16 @@ data class BatchConfigEntry(
  * [pluginItemCounts] pluginId → 作用域内配置项数（""=总数），供选择后实时显示影响范围。
  * [sampleRateOptions] 「采样率自动识别」=-1 语义由调用方解释。
  * [targetPluginOptions] 「更换插件」的目标插件候选：全部已安装插件 pluginId → 显示名。
- * [entries] 「删除配置项」页清单数据源，按所选插件过滤后折叠展示**项名**（不显示音色id，用户 09-12 晚定）。
+ * [entries] 「启用/停用」与「删除配置项」两页共用的清单数据源。按范围过滤后：
+ *   删除页折叠成「分组 → 项名」；启用/停用页平铺项名（用户 09-17）。
+ *   不显示音色id（用户 09-12 晚定）。**须含无来源插件的本地TTS项（pluginId="")**：
+ *   启停是全量操作，本地项也要能启停；删除页按具体 pluginId 过滤，本地项永不入内。
  * [onApplyParams] 音频参数页应用：六个值中 null = 该层该维保持原值（滑条未拖动），非 null 为设定值；
  *   前三个 = 配置项层（写各选中项），后三个 = 插件层（写来源插件）。
  * [onApplySampleRate] 采样率页应用：null = 不修改 / -1 = 自动识别 / 其余为具体 Hz。
  * [onApplySource] 「更换插件」提交（targetPluginId 必非空——未选目标插件时按钮不提交）。
+ * [onToggleEnabled] 启用/停用提交：pluginId=null 表示范围=「全部」（含本地TTS项）；
+ *   enabled=true 启用、false 停用。作用对象=范围内全部配置项。
  * [onDelete] 删除请求：groupLabel=null 表示删所选插件的**全部**匹配项，非空表示只删该分组。
  *   弹窗内不落库——调用方弹二次确认后才删（破坏性操作必须有确认，用户 09-12 晚定）。
  */
@@ -133,11 +142,12 @@ fun BatchConfigDialog(
     ) -> Unit,
     onApplySampleRate: (pluginId: String?, sampleRate: Int?) -> Unit,
     onApplySource: (pluginId: String?, targetPluginId: String) -> Unit,
+    onToggleEnabled: (pluginId: String?, enabled: Boolean) -> Unit,
     onDelete: (pluginId: String, groupLabel: String?) -> Unit,
 ) {
     // 0=音频参数 1=采样率 2=更换插件 3=删除配置项（用户 09-13 定：删除垫底）
     var tab by remember { mutableStateOf(0) }
-    // 插件筛选：全页通用（用户 09-13 定），一处选定四页可见
+    // 插件筛选：全页通用（用户 09-13 定），一处选定全页可见
     var filterKey by remember { mutableStateOf<Any>("") }
     // AppSpinner 的 value 需非空 Any：用 "none"/"auto"/Int/"具体pluginId" 作为哨兵
     var rateSelKey by remember { mutableStateOf<Any>("none") }
@@ -159,26 +169,30 @@ fun BatchConfigDialog(
 
     // 全页通用的插件筛选键（空串="全部"）。删除页要求具体插件，理由见 deletableCount
     val pluginId = filterKey as? String ?: ""
-    val itemBuckets = entries.filter { it.pluginId == pluginId }
-        .groupBy { it.groupLabel }
-        .toList()
-    // 删除只对**具体插件**开放：选中「全部」时为 0，按钮禁用，
-    // 避免一手滑把整个池子删空（沿用用户 09-12 拍板口径）
+    // 范围内清单：空串="全部"⇒不过滤。不能写成 filter { it.pluginId == pluginId }：
+    // 无来源插件的本地TTS项 pluginId 也是空串，「全部」会被筛成"只剩本地项"
+    val scopeEntries = if (pluginId.isEmpty()) entries else entries.filter { it.pluginId == pluginId }
+    // 删除页只认具体插件：未选（=「全部」）时清单为空、按钮禁用，避免一手滑把整个池子删空
+    //（沿用用户 09-12 拍板口径）。启用/停用页无此限制，直接用 scopeEntries
+    val itemBuckets =
+        if (pluginId.isEmpty()) emptyList() else scopeEntries.groupBy { it.groupLabel }.toList()
     val deletableCount = if (pluginId.isEmpty()) 0 else itemBuckets.sumOf { it.second.size }
     val targetPluginId = (targetPluginKey as? String)?.takeIf { it != "none" }
-    // 分区标签走资源字符串（中文在 values-zh、英文在 values-en），不再硬编码中文
+    // 分区标签走资源字符串（中文在 values-zh、英文在 values-en），不再硬编码中文。
+    // 顺序（用户 09-17 定）：启用/停用排在「删除配置项」之前，破坏性的删除仍垫底
     val tabTitles = listOf(
         stringResource(R.string.batch_cfg_tab_audio_params),
         stringResource(R.string.batch_cfg_sample_rate),
         stringResource(R.string.batch_cfg_tab_change_plugin),
+        stringResource(R.string.batch_cfg_tab_enable_items),
         stringResource(R.string.batch_cfg_tab_delete_items),
     )
-    // 删除页清单高度上限（用户 09-13：尽量显示完整）。写死 150dp 在实机只露 3 行；
+    // 清单高度上限（用户 09-13：尽量显示完整）。写死 150dp 在实机只露 3 行；
     // 改为按屏幕高度推算剩余空间——弹窗固定部分（标题 + chip 两行 + 分隔 +
-    // 插件筛选 + 匹配行 + 按钮行）约 330dp（09-13 撤副标题后由 360 收紧，
-    // 腾出的空间回给清单），剩给清单的即为可滚区，下限 180dp 保住小屏，
-    // 上限 420dp 防大屏上弹窗过分拉长
-    val listMaxHeight = (LocalConfiguration.current.screenHeightDp - 330).coerceIn(180, 420).dp
+    // 插件筛选 + 匹配行 + 按钮行）约 330dp；09-17 加第 5 个 chip（窄屏可能再占一行）
+    // 上浮到 350dp（09-13 撤副标题后曾由 360 收紧到 330），腾出的空间回给清单。
+    // 剩给清单的即为可滚区，下限 180dp 保住小屏，上限 420dp 防大屏上弹窗过分拉长
+    val listMaxHeight = (LocalConfiguration.current.screenHeightDp - 350).coerceIn(180, 420).dp
 
     AppDialog(
         title = { Text(stringResource(R.string.batch_cfg_title)) },
@@ -203,7 +217,7 @@ fun BatchConfigDialog(
                 HorizontalDivider()
                 Spacer(modifier = Modifier.height(8.dp))
 
-                // 全页通用：本弹窗当前作用的插件范围（四页共用一份选中值）
+                // 全页通用：本弹窗当前作用的插件范围（全页共用一份选中值）
                 // 更换插件/删除两页 restricted：下拉无「全部」、未选显示提示
                 ScopePluginPicker(
                     selectedKey = filterKey,
@@ -219,7 +233,7 @@ fun BatchConfigDialog(
                     },
                     pluginOptions = pluginOptions,
                     pluginItemCounts = pluginItemCounts,
-                    restricted = tab == 2 || tab == 3,
+                    restricted = tab == 2 || tab == 4,
                 )
 
                 when (tab) {
@@ -283,7 +297,31 @@ fun BatchConfigDialog(
                         onSelectedChange = { key, _ -> targetPluginKey = key }
                     )
 
-                    // ── 4. 删除配置项：清单（可整组删）──
+                    // ── 4. 启用/停用：配置项清单（平铺，不分分组）──
+                    // 用户 09-17：启停不需要按分组操作，直接列出范围内的配置项。
+                    // 只列项名，不显示当前开关状态（列的是"将被启用/停用的对象"）
+                    3 -> {
+                        LazyColumn(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .heightIn(max = listMaxHeight)
+                        ) {
+                            items(scopeEntries, key = { it.configId }) { entry ->
+                                Text(
+                                    text = entry.name,
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis,
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(vertical = 4.dp)
+                                )
+                            }
+                        }
+                    }
+
+                    // ── 5. 删除配置项：清单（可整组删）──
                     else -> {
                         // 空态提示由 ScopePluginPicker(restricted=true) 负责（未选插件时
                         // 它在下拉框下方出「请先在上方选择一个插件」），此处不再重复出提示
@@ -422,6 +460,24 @@ fun BatchConfigDialog(
                         Text(stringResource(R.string.confirm))
                     }
 
+                    // 启用/停用：启用 N 项 / 停用 N 项（N=范围内匹配项数，与「删除全部 N 项」同口径）。
+                    // 启停可逆，范围允许「全部」，不像删除页必须锁定具体插件
+                    3 -> {
+                        val n = scopeEntries.size
+                        TextButton(
+                            onClick = { onToggleEnabled(pluginId.takeIf { it.isNotEmpty() }, true) },
+                            enabled = n > 0
+                        ) {
+                            Text(stringResource(R.string.batch_cfg_enable_n, n))
+                        }
+                        TextButton(
+                            onClick = { onToggleEnabled(pluginId.takeIf { it.isNotEmpty() }, false) },
+                            enabled = n > 0
+                        ) {
+                            Text(stringResource(R.string.batch_cfg_disable_n, n))
+                        }
+                    }
+
                     // 删除配置项：删除全部 N 项（红色；未选具体插件时为 0、禁用）
                     else -> TextButton(
                         onClick = { onDelete(pluginId, null) },
@@ -441,7 +497,7 @@ fun BatchConfigDialog(
 }
 
 /**
- * 「插件筛选 + 影响范围」块：插件选择器 + 匹配项数，全页通用（一处选定四页可见）。
+ * 「插件筛选 + 影响范围」块：插件选择器 + 匹配项数，全页通用（一处选定全页可见）。
  */
 @Composable
 private fun ScopePluginPicker(

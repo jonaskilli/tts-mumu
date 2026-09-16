@@ -2519,15 +2519,16 @@ internal fun ListManagerScreen(
         val targetPluginOptions = remember(pluginNameCache) {
             pluginNameCache.entries.map { it.key to it.value }.sortedBy { it.second }
         }
-        // 清单条目：归到「实际分组」（大分组，或 大分组 › 子分组），弹窗内按所选插件折叠展示
+        // 清单条目：归到「实际分组」（大分组，或 大分组 › 子分组）——删除页折叠成「分组 → 项名」，
+        // 启用/停用页平铺项名。含无来源插件的本地TTS项（pluginId="")：启停是全量操作，
+        // 本地项也要能启停（用户 09-17）；删除页按具体 pluginId 过滤，本地项不会进入其清单
         val batchEntries = remember(models) {
             models.flatMap { gwt ->
-                gwt.list.mapNotNull { tts ->
+                gwt.list.map { tts ->
                     val src = (tts.config as? TtsConfigurationDTO)?.source as? PluginTtsSource
-                        ?: return@mapNotNull null
                     val sub = tts.categoryPath
                     BatchConfigEntry(
-                        pluginId = src.pluginId,
+                        pluginId = src?.pluginId.orEmpty(),
                         groupLabel = if (sub.isBlank()) gwt.group.name else "${gwt.group.name} › $sub",
                         name = tts.displayName,
                         configId = tts.id,
@@ -2576,6 +2577,20 @@ internal fun ListManagerScreen(
                     items = scopeItems.filterByPluginId(pluginId),
                     newPluginId = targetPluginId
                 )
+            },
+            // 启用/停用页：范围内配置项（pluginId=null ⇒ 全部，含本地TTS项）统一改 isEnabled。
+            // 启停可逆，不走二次确认（删除类才需要）
+            onToggleEnabled = { pluginId, enabled ->
+                showBatchConfig = false
+                vm.updateEnabledBatch(scopeItems.filterByPluginId(pluginId), enabled) { n ->
+                    context.toast(
+                        when {
+                            n > 0 && enabled -> "已启用 $n 项"
+                            n > 0 -> "已停用 $n 项"
+                            else -> "没有需要修改的项"
+                        }
+                    )
+                }
             },
             onDelete = { pluginId, groupLabel ->
                 // 待删目标由清单反查（清单即数据源，避免再写一套分组算法走歪）
