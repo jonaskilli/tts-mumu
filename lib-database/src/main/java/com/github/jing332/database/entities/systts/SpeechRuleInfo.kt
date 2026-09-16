@@ -16,6 +16,10 @@ data class SpeechRuleInfo(
     var target: Int = SpeechTarget.ALL,
 
     var isStandby: Boolean = false,
+    // 上游遗留，全仓无任何读写点（备用查找只按 tagName + tagRuleId 认亲）。
+    // 保留而非删除：它对应 DB 列 speechRule_specifiedStandbyId，删字段必须同步升版本 +
+    // 写 34→35 迁移，而 AutoMigration(DeleteColumn) 需要源码侧的 34.json（仓内 schemas 只到 31）。
+    // 备份/导入 JSON 里也不会出现它（恒为 null 不参与序列化），留着零成本。
     var specifiedStandbyId: Long? = null,
 
     var tag: String = "",

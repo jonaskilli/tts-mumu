@@ -277,7 +277,7 @@
     <string name="save_to_list">Saved %1$d to voice list</string>
     <string name="failed_timed_out">Timed out：%1$dms</string>
     <string name="builtin_player_settings_tip_msg">When the built-in player is enabled, use the settings here to override the global.</string>
-    <string name="systts_standby_help_msg">As a backup, when a request fails, it will be read aloud using this configuration according to [VoiceOver All Dialog]. \nThat is, standby can be configured separately depending on the read aloud target. Note: The standby configuration does not have the automatic retry function, and the reading will be skipped directly after the first failure, so it is recommended to use the local TTS type as a backup.</string>
+    <string name="systts_standby_help_msg">When checked, this configuration acts as the standby voice: it takes over once the configuration sharing the same reading rule and the same tag name has failed its retries and reached [Standby Settings].\nThe standby request is retried the same [Max Retry Count] times — it is not skipped on the first failure.</string>
     <string name="save_as_file">Save as JS file</string>
     <string name="import_from_js_file">Import from JS file (overwrite)</string>
     <string name="group_move_a11y_msg">Group: moved from %1$d to %2$d</string>
