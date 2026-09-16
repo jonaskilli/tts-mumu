@@ -84,6 +84,27 @@ class NativeResponse private constructor(val rawResponse: Response? = null) :
                     )
                 }
             )
+            // 方法式别名（与墨听/legado 的响应对象 API 对齐）：按墨听插件写法写的插件
+            // （如元宝 ws 插件）调用 response.code() / isSuccessful() / string()，
+            // 而本引擎原本只有 status / ok / text() 属性与方法，缺这三个即 ReferenceError。
+            constructor.definePrototypeMethod<NativeResponse>(
+                scope, "code", 0,
+                { _, _, thisObj, _ -> thisObj.rawResponse?.code ?: 0 }
+            )
+            constructor.definePrototypeMethod<NativeResponse>(
+                scope, "isSuccessful", 0,
+                { _, _, thisObj, _ -> thisObj.rawResponse?.isSuccessful == true }
+            )
+            constructor.definePrototypeMethod<NativeResponse>(
+                scope, "message", 0,
+                { _, _, thisObj, _ -> thisObj.rawResponse?.message ?: "" }
+            )
+            constructor.definePrototypeMethod<NativeResponse>(
+                scope, "string", 0,
+                { _, _, thisObj, args ->
+                    thisObj.js_text(ScriptRuntime.toBoolean(args.getOrNull(0)))
+                }
+            )
 
             defineProperty(scope, CLASS_NAME, constructor, DONTENUM)
             if (sealed) constructor.sealObject()

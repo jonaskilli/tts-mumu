@@ -52,12 +52,21 @@ class NativeWebSocket constructor(
             obj.exportAsJSClass(MAX_PROTOTYPE_ID, scope, sealed)
         }
 
+        // 超时口径与 jread 参考实现对齐（其 websocketClient =
+        // connect 20s / read 0 / write 20s / ping 20s）：
+        // 原先 connect/read/write/call 一律 5s，对 ws 类 TTS 插件是致命的——
+        // ① TLS 握手 + 匿名登录首包在移动网络下常超 5s，connect 即失败；
+        // ② read 5s 会把「服务端流式出字、帧间隔 >5s」的正常合成判超时；
+        // ③ callTimeout 5s 覆盖整个连接生命周期。
+        // jread 插件集里 20 个插件用 `new Websocket(url, headers)`（元宝 ws 是其一），
+        // 统一表现为试听报错。总时长由引擎层 runWithTimeout(配置超时) 兜底，
+        // 故此处不再设 read/call 上限，并补 ping 保活。
         private val client by lazy {
             OkHttpClient.Builder()
-                .writeTimeout(5, TimeUnit.SECONDS)
-                .readTimeout(5, TimeUnit.SECONDS)
-                .connectTimeout(5, TimeUnit.SECONDS)
-                .callTimeout(5, TimeUnit.SECONDS)
+                .connectTimeout(20, TimeUnit.SECONDS)
+                .writeTimeout(20, TimeUnit.SECONDS)
+                .readTimeout(0, TimeUnit.MILLISECONDS)
+                .pingInterval(20, TimeUnit.SECONDS)
                 .build()
         }
     }

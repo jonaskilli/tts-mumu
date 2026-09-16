@@ -2,11 +2,13 @@ package com.github.jing332.script.runtime
 
 import android.util.Log
 import com.drake.net.Net
+import com.drake.net.NetConfig
 import com.github.jing332.script.ensureArgumentsLength
 import com.github.jing332.script.exception.runScriptCatching
 import io.github.oshai.kotlinlogging.KotlinLogging
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.MultipartBody
+import okhttp3.OkHttpClient
 import okhttp3.Protocol
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.asRequestBody
@@ -17,6 +19,7 @@ import org.mozilla.javascript.Context
 import org.mozilla.javascript.Scriptable
 import org.mozilla.javascript.ScriptableObject
 import java.io.File
+import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.TimeUnit
 
 class GlobalHttp : ScriptableObject() {
@@ -27,6 +30,25 @@ class GlobalHttp : ScriptableObject() {
 
         private const val MAX_RETRY_COUNTS = 150
         private const val RETRY_INTERVAL_MS = 2000L
+
+        // 插件按请求传入超时毫秒（与墨听/legado 的 http.get(url, headers, timeoutMs)、
+        // http.post(url, body, headers, timeoutMs) 对齐，元宝 ws 插件即用 4 参 post）。
+        // U·TTS 全局超时由 NetConfig 定为 300s（见 App.kt），对插件过宽，
+        // 故传超时时克隆一份 client 只作用于本次请求；按毫秒缓存避免重复克隆。
+        private val timeoutClients = ConcurrentHashMap<Long, OkHttpClient>()
+
+        private fun clientWithTimeout(timeoutMs: Long): OkHttpClient =
+            timeoutClients.getOrPut(timeoutMs) {
+                NetConfig.okHttpClient.newBuilder()
+                    .connectTimeout(timeoutMs, TimeUnit.MILLISECONDS)
+                    .readTimeout(timeoutMs, TimeUnit.MILLISECONDS)
+                    .writeTimeout(timeoutMs, TimeUnit.MILLISECONDS)
+                    .callTimeout(timeoutMs, TimeUnit.MILLISECONDS)
+                    .build()
+            }
+
+        private fun timeoutArgOf(raw: Any?): Long? =
+            (raw as? Number)?.toLong()?.takeIf { it > 0 }
 
         @JvmStatic
         fun init(cx: Context, scope: Scriptable, sealed: Boolean) {
@@ -80,13 +102,15 @@ class GlobalHttp : ScriptableObject() {
 
         @Suppress("UNCHECKED_CAST")
         @JvmStatic
-        private fun get(cx: Context, scope: Scriptable, thisObj: Scriptable, args: Array<Any>): Any = ensureArgumentsLength(args, 1..2) {
+        private fun get(cx: Context, scope: Scriptable, thisObj: Scriptable, args: Array<Any>): Any = ensureArgumentsLength(args, 1..3) {
             val url = args[0] as CharSequence
             val headers = args.getOrNull(1) as? Map<CharSequence, CharSequence>
+            val timeoutMs = timeoutArgOf(args.getOrNull(2))
             runScriptCatching {
                 val resp = executeWithRetry(url.toString()) {
                     Net.get(url.toString()) {
                         headers?.forEach { setHeader(it.key.toString(), it.value.toString()) }
+                        if (timeoutMs != null) okHttpClient = clientWithTimeout(timeoutMs)
                     }.execute<Response>()
                 }
                 NativeResponse.of(cx, scope, resp)
@@ -120,10 +144,11 @@ class GlobalHttp : ScriptableObject() {
 
         @Suppress("UNCHECKED_CAST")
         @JvmStatic
-        private fun post(cx: Context, scope: Scriptable, thisObj: Scriptable, args: Array<Any>): Any = ensureArgumentsLength(args, 1..3) {
+        private fun post(cx: Context, scope: Scriptable, thisObj: Scriptable, args: Array<Any>): Any = ensureArgumentsLength(args, 1..4) {
             val url = args[0] as CharSequence
             val body = args.getOrNull(1)
             val headers = args.getOrNull(2) as? Map<CharSequence, CharSequence>
+            val timeoutMs = timeoutArgOf(args.getOrNull(3))
             val contentType = headers?.get("Content-Type")?.toString()?.toMediaType()
             runScriptCatching {
                 val resp = executeWithRetry(url.toString()) {
@@ -131,6 +156,7 @@ class GlobalHttp : ScriptableObject() {
                         headers?.forEach { setHeader(it.key.toString(), it.value.toString()) }
                         if (body is CharSequence) this.body = body.toString().toRequestBody(contentType)
                         else if (body is Map<*, *>) this.body = postMultipart("multipart/form-data", body as Map<CharSequence, Any>).build()
+                        if (timeoutMs != null) okHttpClient = clientWithTimeout(timeoutMs)
                     }.execute()
                 }
                 NativeResponse.of(cx, scope, resp)
