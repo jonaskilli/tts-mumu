@@ -220,7 +220,10 @@ private fun KeyEntryRow(
         // 缩进 = 归属关系：左缘 15dp 与组头折叠箭头同列、右缘 6dp 与组头图标区
         // 同列——上版卡左缘在 6dp（与色条同列），比组头内容还靠左，看着像与组头平级的另一行；
         // 缩进后卡片明确挂在组头之下。上下 3 ⇒ 相邻两张卡之间 6dp
-        modifier = Modifier.fillMaxWidth().padding(start = 15.dp, end = 6.dp, vertical = 3.dp)
+        // start/end 与 vertical 分属不同 padding 重载，写在一起没有匹配的候选，故分两次
+        modifier = Modifier.fillMaxWidth()
+            .padding(start = 15.dp, end = 6.dp)
+            .padding(vertical = 3.dp)
     ) {
         Row(
             // 卡内 9 ⇒ 状态点左缘 24dp（卡左缘 15 + 9），与「删除密钥」标题左缘同列
