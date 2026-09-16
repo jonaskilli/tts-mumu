@@ -71,15 +71,23 @@ fun AuditionDialog(
     systts: SystemTtsV2,
     text: String = AppConfig.testSampleText.value,
 
+    // 草稿覆盖（用户 09-17：音频参数滑杆调完即听，不必先应用）：配置层由调用方把草稿拼进
+    // [systts]（withAudioParams），插件/全局两层由这两个 override 带入（null=读库值）。
+    // 须位于 [config] 之前——config 的默认值表达式要引用它们，保证「终值行显示」与
+    // 「给引擎的合成参数」两处读到同一套草稿。
+    pluginParamsOverride: AudioParams? = null,
+    globalParamsOverride: AudioParams? = null,
+
     // 与实际朗读同源：三层叠加(插件×配置×全局)并共享插件/本机参数路由，
     // 试听听到的即为真实播放效果，分组/子分组仅组织列表、不参与倍率。
     config: TtsConfiguration = resolveTtsPlayback(
         systts,
-        AudioParams(
+        globalParamsOverride ?: AudioParams(
             speed = SysTtsConfig.audioParamsSpeed,
             volume = SysTtsConfig.audioParamsVolume,
             pitch = SysTtsConfig.audioParamsPitch
-        )
+        ),
+        pluginParamsOverride = pluginParamsOverride,
     )?.configuration ?: (systts.config as TtsConfigurationDTO).toVO(),
     engine: TextToSpeechProvider<TextToSpeechSource>? = null,
     voiceId: Any? = null,
@@ -131,11 +139,13 @@ fun AuditionDialog(
                 if (e.state != EngineState.Initialized) e.onInit()
                 val resolvedProviderParams = resolveTtsPlayback(
                     systts,
-                    AudioParams(
+                    // 与 config 默认值同源：草稿 override 带入，引擎合成参数跟终值行显示一致
+                    globalParamsOverride ?: AudioParams(
                         speed = SysTtsConfig.audioParamsSpeed,
                         volume = SysTtsConfig.audioParamsVolume,
                         pitch = SysTtsConfig.audioParamsPitch
-                    )
+                    ),
+                    pluginParamsOverride = pluginParamsOverride,
                 )?.providerParams(text, SysTtsConfig.requestTimeout.toLong()) ?: SystemParams(
                     text = text,
                     speed = config.audioParams.speed,

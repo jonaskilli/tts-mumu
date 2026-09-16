@@ -52,14 +52,20 @@ fun TtsEditContainerScreen(
     // 标签态此前只有 正文（规则脚本/标签）+ 基本信息，比朗读全部态少了试听文本与音频参数区，现在两边一致。
     // 试听走 AuditionDialog；音频参数改为值行+就地展开（AudioParamsDimRows），编辑页不再需要弹窗入口。
     var auditionSystts by remember { mutableStateOf<SystemTtsV2?>(null) }
+    // 音频参数三层草稿快照（AudioParamsDimRows 上报）：🎧 试听带未应用草稿（用户 09-17）
+    var audioDraft by remember { mutableStateOf<AudioParamsDraft?>(null) }
 
     // 本地音效配置（tagName=本地音效N）用专用试听文本，与全局文本互不影响（用户 09-13）
     val isLocalSound = isLocalSoundTagName((systts.config as TtsConfigurationDTO).speechRule.tagName)
 
     auditionSystts?.let { target ->
+        val d = audioDraft
         AuditionDialog(
-            systts = target,
+            // 配置层草稿拼进实体；插件/全局两层走 override（null=读库值）
+            systts = if (d != null) target.withAudioParams(d.config) else target,
             text = if (isLocalSound) AppConfig.localSoundSampleText.value else AppConfig.testSampleText.value,
+            pluginParamsOverride = d?.plugin,
+            globalParamsOverride = d?.global,
         ) { auditionSystts = null }
     }
 
@@ -100,6 +106,7 @@ fun TtsEditContainerScreen(
                                 .padding(top = 4.dp),
                             systemTts = systts,
                             onSysttsChange = onSysttsChange,
+                            onDraftChange = { audioDraft = it },
                         )
                     }
                 )

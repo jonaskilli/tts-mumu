@@ -54,9 +54,11 @@ import com.github.jing332.tts_server_android.compose.systts.list.ui.widgets.Audi
 import com.github.jing332.tts_server_android.compose.systts.list.ui.widgets.isLocalSoundTagName
 import com.github.jing332.tts_server_android.conf.AppConfig
 import com.github.jing332.tts_server_android.compose.systts.list.ui.widgets.AudioParamsDimRows
+import com.github.jing332.tts_server_android.compose.systts.list.ui.widgets.AudioParamsDraft
 import com.github.jing332.tts_server_android.compose.systts.list.ui.widgets.BasicInfoEditScreen
 import com.github.jing332.tts_server_android.compose.systts.list.ui.widgets.SaveActionHandler
 import com.github.jing332.tts_server_android.compose.systts.list.ui.widgets.SectionCard
+import com.github.jing332.tts_server_android.compose.systts.list.ui.widgets.withAudioParams
 import com.github.jing332.tts_server_android.ui.view.AppDialogs.displayErrorDialog
 
 class LocalTtsUI() : IConfigUI() {
@@ -241,18 +243,24 @@ class LocalTtsUI() : IConfigUI() {
 
         var showAuditionDialog by remember { mutableStateOf(false) }
         var auditionSystts by remember { mutableStateOf<SystemTtsV2?>(null) }
+        // 音频参数草稿快照（AudioParamsDimRows 上报）：🎧 试听带未应用草稿（用户 09-17）。
+        // 本地TTS 无插件层，草稿 plugin 恒为 null，override 自动走库值兜底
+        var audioDraft by remember { mutableStateOf<AudioParamsDraft?>(null) }
         // 单维音频参数弹窗（用户 09-10 三键直出定稿：试听文本下方直接列 语速/音量/音高，
         // 点哪个开哪个维度的弹窗；⚡总弹窗入口已删。本地 TTS 无插件层，弹窗自动只有 配置项+全局 两层）
         var showAudioParamsDim by remember { mutableStateOf<Int?>(null) }
         // 本地音效配置（tagName=本地音效N）用专用试听文本，与全局文本互不影响（用户 09-13）
         val isLocalSound = isLocalSoundTagName((systts.config as TtsConfigurationDTO).speechRule.tagName)
-        if (showAuditionDialog && auditionSystts != null)
+        if (showAuditionDialog && auditionSystts != null) {
+            val d = audioDraft
             AuditionDialog(
-                systts = auditionSystts!!,
+                systts = if (d != null) auditionSystts!!.withAudioParams(d.config) else auditionSystts!!,
                 text = if (isLocalSound) AppConfig.localSoundSampleText.value else AppConfig.testSampleText.value,
+                globalParamsOverride = d?.global,
             ) {
                 showAuditionDialog = false
             }
+        }
 
         // 编辑页音频参数入口（09-10 晚改版）：试听文本下方改为「值行 + 就地展开」（AudioParamsDimRows），
         // 不再从这里开 AudioParamsDialog——本弹窗只服务卡片⋮入口与日志快捷面板
@@ -299,6 +307,7 @@ class LocalTtsUI() : IConfigUI() {
                             .padding(top = 4.dp),
                         systemTts = systts,
                         onSysttsChange = onSysttsChange,
+                        onDraftChange = { audioDraft = it },
                     )
                 }
 

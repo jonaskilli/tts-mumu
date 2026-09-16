@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -22,6 +23,7 @@ import androidx.compose.ui.unit.dp
 import com.drake.net.utils.withIO
 import com.github.jing332.common.utils.toParamText
 import com.github.jing332.database.dbm
+import com.github.jing332.database.entities.systts.AudioParams
 import com.github.jing332.database.entities.systts.SystemTtsV2
 import com.github.jing332.database.entities.systts.TtsConfigurationDTO
 import com.github.jing332.database.entities.systts.source.PluginTtsSource
@@ -54,11 +56,31 @@ import kotlinx.coroutines.launch
  * 维度下标：0=语速 1=音量 2=音高。
  */
 
+/**
+ * 编辑页音频参数三层草稿快照（用户 09-17：滑杆调完 🎧 就能听，不用先点应用）。
+ * 由 [AudioParamsDimRows] 在组合与每次滑杆改动时上报给宿主；🎧 试听用它拼草稿实体 + 两层 override。
+ * [plugin] 为 null = 该配置无插件层——此时试听 override 必须传 null（传 1.0 会把真实插件参数抹掉）。
+ */
+data class AudioParamsDraft(
+    val config: AudioParams,
+    val plugin: AudioParams?,
+    val global: AudioParams,
+)
+
+/** 用配置层草稿参数拷贝实体（🎧 试听带草稿用，其余字段原样） */
+fun SystemTtsV2.withAudioParams(p: AudioParams): SystemTtsV2 {
+    val dto = config as? TtsConfigurationDTO ?: return this
+    return copy(config = dto.copy(audioParams = p))
+}
+
 @Composable
 fun AudioParamsDimRows(
     modifier: Modifier = Modifier,
     systemTts: SystemTtsV2,
     onSysttsChange: (SystemTtsV2) -> Unit,
+    // 三层草稿快照上报（用户 09-17：滑杆调完 🎧 即听草稿效果，不必先点应用）：
+    // 组合即报初值（=库值，等价无 override），此后每次滑杆改动随重组上报
+    onDraftChange: (AudioParamsDraft) -> Unit = {},
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -96,6 +118,25 @@ fun AudioParamsDimRows(
         val p = if (hasPluginLayer) when (dim) { 0 -> pluginSpeed; 1 -> pluginVolume; else -> pluginPitch } else 1f
         val g = when (dim) { 0 -> globalSpeed; 1 -> globalVolume; else -> globalPitch }
         return c * p * g
+    }
+
+    // 草稿快照上报：组合即报初值，滑杆任一层改动随重组再报（值已 snap，宿主直接可用）
+    LaunchedEffect(
+        speed, volume, pitch,
+        pluginSpeed, pluginVolume, pluginPitch,
+        globalSpeed, globalVolume, globalPitch, hasPluginLayer,
+    ) {
+        onDraftChange(
+            AudioParamsDraft(
+                config = AudioParams(speed = snap(speed), volume = snap(volume), pitch = snap(pitch)),
+                plugin = if (hasPluginLayer) AudioParams(
+                    speed = snap(pluginSpeed), volume = snap(pluginVolume), pitch = snap(pluginPitch)
+                ) else null,
+                global = AudioParams(
+                    speed = snap(globalSpeed), volume = snap(globalVolume), pitch = snap(globalPitch)
+                ),
+            )
+        )
     }
 
     /** 该维三层一起落库（与 AudioParamsDialog.applyDim 完全同源） */

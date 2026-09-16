@@ -66,6 +66,7 @@ import com.drake.net.utils.withMain
 import com.github.jing332.common.utils.toParamText
 import com.github.jing332.compose.widgets.AppSelectionDialog
 import com.github.jing332.database.dbm
+import com.github.jing332.database.entities.systts.AudioParams
 import com.github.jing332.database.entities.systts.SystemTtsV2
 import com.github.jing332.database.entities.systts.TtsConfigurationDTO
 import com.github.jing332.database.entities.systts.source.PluginTtsSource
@@ -901,7 +902,21 @@ fun VoicePickerDialog(
                                 val text = if (isLocalSoundSlot)
                                     AppConfig.localSoundSampleText.value.ifBlank { "你好，这是试听语音。" }
                                 else "你好，这是试听语音。"
-                                TaggedTtsPreviewPlayer.play(context, target ?: draftEntity(pendingVoice), text)
+                                TaggedTtsPreviewPlayer.play(
+                                    context, target ?: draftEntity(pendingVoice), text,
+                                    // 插件/全局层草稿全覆盖（用户 09-17）：调滑杆即听，
+                                    // 不必先点应用；插件无实体时传 null 保住库值不被 1.0 抹掉
+                                    pluginParamsOverride = plugin?.audioParams?.copy(
+                                        speed = snapParam(pluginSpeed),
+                                        volume = snapParam(pluginVolume),
+                                        pitch = snapParam(pluginPitch),
+                                    ),
+                                    globalParamsOverride = AudioParams(
+                                        speed = snapParam(globalSpeed),
+                                        volume = snapParam(globalVolume),
+                                        pitch = snapParam(globalPitch),
+                                    ),
+                                )
                             }
                         },
                     )

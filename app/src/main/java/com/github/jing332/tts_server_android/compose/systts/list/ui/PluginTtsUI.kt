@@ -59,9 +59,11 @@ import com.github.jing332.tts_server_android.compose.systts.list.ui.widgets.Audi
 import com.github.jing332.tts_server_android.compose.systts.list.ui.widgets.isLocalSoundTagName
 import com.github.jing332.tts_server_android.conf.AppConfig
 import com.github.jing332.tts_server_android.compose.systts.list.ui.widgets.AudioParamsDimRows
+import com.github.jing332.tts_server_android.compose.systts.list.ui.widgets.AudioParamsDraft
 import com.github.jing332.tts_server_android.compose.systts.list.ui.widgets.BasicInfoEditScreen
 import com.github.jing332.tts_server_android.compose.systts.list.ui.widgets.SaveActionHandler
 import com.github.jing332.tts_server_android.compose.systts.list.ui.widgets.SectionCard
+import com.github.jing332.tts_server_android.compose.systts.list.ui.widgets.withAudioParams
 import com.github.jing332.tts_server_android.constant.SpeechTarget
 import com.github.jing332.tts_server_android.model.rhino.speech_rule.SpeechRuleEngine
 import com.github.jing332.tts_server_android.service.systts.SystemTtsService
@@ -215,6 +217,8 @@ class PluginTtsUI : IConfigUI() {
         var selectedVoiceIds by remember { mutableStateOf<Set<Any>>(emptySet()) }
 
         var auditionSystts by remember { mutableStateOf<SystemTtsV2?>(null) }
+        // 音频参数三层草稿快照（AudioParamsDimRows 上报）：🎧 试听带未应用草稿（用户 09-17）
+        var audioDraft by remember { mutableStateOf<AudioParamsDraft?>(null) }
         // 单维音频参数弹窗（用户 09-10 三键直出定稿：试听文本下方直接列 语速/音量/音高，
         // 点哪个开哪个维度的弹窗；⚡总弹窗入口已删）
         var showAudioParamsDim by remember { mutableStateOf<Int?>(null) }
@@ -248,10 +252,16 @@ class PluginTtsUI : IConfigUI() {
         @Suppress("UNCHECKED_CAST")
         // 本地音效配置（tagName=本地音效N）用专用试听文本，与全局文本互不影响（用户 09-13）
         val isLocalSound = isLocalSoundTagName((systts.config as TtsConfigurationDTO).speechRule.tagName)
-        if (auditionSystts != null)
+        if (auditionSystts != null) {
+            val d = audioDraft
             AuditionDialog(
-                systts = auditionSystts!!,
+                // 配置层草稿拼进实体；插件/全局两层走 override（null=读库值）。
+                // 批量分类的 上一个/下一个 切换目标也带同一份草稿（同插件参数一致；
+                // 配置层草稿会拼到切换目标上——动过滑杆的语境下这正是要听的效果）
+                systts = if (d != null) auditionSystts!!.withAudioParams(d.config) else auditionSystts!!,
                 text = if (isLocalSound) AppConfig.localSoundSampleText.value else AppConfig.testSampleText.value,
+                pluginParamsOverride = d?.plugin,
+                globalParamsOverride = d?.global,
                 engine = if (plugin == null) null else vm.service(),
                 voiceId = auditionVoiceId,
                 // 带分类回调（批量试听分类场景）时，播放完成不自动关闭弹窗，
@@ -295,6 +305,7 @@ class PluginTtsUI : IConfigUI() {
                 auditionSystts = null
                 auditionVoiceId = null
             }
+        } // if (auditionSystts != null)
 
         // 编辑页音频参数入口（09-10 晚改版）：试听文本下方改为「值行 + 就地展开」（AudioParamsDimRows），
         // 不再从这里开 AudioParamsDialog——本弹窗只服务卡片⋮入口与日志快捷面板
@@ -344,6 +355,7 @@ class PluginTtsUI : IConfigUI() {
                                 .padding(top = 4.dp),
                             systemTts = systts,
                             onSysttsChange = onSysttsChange,
+                            onDraftChange = { audioDraft = it },
                         )
                     }
                 }
