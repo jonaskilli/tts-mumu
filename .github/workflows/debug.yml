@@ -64,7 +64,7 @@ jobs:
       - name: Upload APK To Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: "MumuTTS-Debug_${{ env.ver_name }}"
+          name: "U-TTS-Server-Debug_${{ env.ver_name }}"
           path: |
             ${{env.outputs_dir}}/apk/app/debug/*.apk
             ver_name_app.txt

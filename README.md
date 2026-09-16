@@ -1,4 +1,4 @@
-# MumuTTS
+# U·TTS Server
 
 > 一个深度定制的 Android TTS 应用，基于 [jing332/tts-server-android](https://github.com/jing332/tts-server-android) 二次开发。
 
@@ -9,6 +9,8 @@
 > 如果你要的是原版，请前往 [上游仓库](https://github.com/jing332/tts-server-android)。
 
 ## 这是什么
+
+**U·TTS Server**，即 **Universal TTS Server** —— "U" 取 Universal 之意：把多家在线语音服务、自定义接口与本地引擎聚合成一个系统级入口，接谁的接口都行，供什么 App 调用都行。
 
 Android 平台的系统级 TTS 应用：
 

@@ -135,9 +135,9 @@ android {
             def abiName = output.getFilter(com.android.build.OutputFile.ABI)
             def suffix = variant.flavorName == "dev" ? "_dev" : ""
             if (abiName == null)
-                output.outputFileName = "MumuTTS-v${variant.versionName}${suffix}.apk"
+                output.outputFileName = "U-TTS-Server-v${variant.versionName}${suffix}.apk"
             else
-                output.outputFileName = "MumuTTS-v${variant.versionName}${suffix}_${abiName}.apk"
+                output.outputFileName = "U-TTS-Server-v${variant.versionName}${suffix}_${abiName}.apk"
         }
     }
 

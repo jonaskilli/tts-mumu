@@ -95,7 +95,7 @@ jobs:
       - name: Upload APK To Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: "MumuTTS_${{ env.product }}_${{ env.ver_name }}"
+          name: "U-TTS-Server_${{ env.product }}_${{ env.ver_name }}"
           path: |
             ${{env.outputs_dir}}/apk/${{ env.product }}/release/*.apk
             ver_name_${{ env.product }}.txt
@@ -115,7 +115,7 @@ jobs:
 
       - name: Get version from app build
         run: |
-          VER=$(cat artifacts/MumuTTS_app_*/ver_name_app.txt)
+          VER=$(cat artifacts/U-TTS-Server_app_*/ver_name_app.txt)
           echo "ver_name=$VER" >> $GITHUB_ENV
 
       - uses: softprops/action-gh-release@v2
