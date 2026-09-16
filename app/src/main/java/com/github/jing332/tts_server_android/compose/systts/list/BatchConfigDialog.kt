@@ -72,8 +72,10 @@ data class BatchConfigEntry(
  *    —— 页脚 取消 / 重置 / 确定。形态照配置项音频参数弹窗（AudioParamsDialog）的
  *    软槽分段胶囊 + 滑杆组，只去掉「全局」层：批量作用域是 N 个配置项，
  *    全局参数由 ⋮ 菜单的「音频参数设置」单独管。
- *    配置项层写各选中项自身的 audioParams；插件层写这些项**来源插件**的 audioParams
- *    （插件级实体，一改即影响该插件下全部配置项，与配置项弹窗的插件层同语义）。
+ *    两层的目标（用户 09-17 明确）：**配置项层** = 范围（上方所选插件，或「全部」）内那些
+ *    配置项各自的 audioParams；**插件层** = 这些项**来源插件**自己的 audioParams，去重后
+ *    逐只写 —— 范围=「全部」时即把范围内涉及的插件全调一遍（插件级实体，改它等于改该
+ *    插件下全部配置项，与配置项弹窗的插件层同语义）。
  * 2. **采样率**：采样率 —— 页脚 取消 / 确定
  * 3. **更换插件**：目标插件 —— 页脚 取消 / 确定（未选目标插件时禁用）
  * 4. **删除配置项**：清单（可整组删）—— 页脚 取消 / **删除全部 N 项**（红色）
@@ -209,6 +211,11 @@ fun BatchConfigDialog(
                         filterKey = key
                         // 换插件后清单整批变样，展开状态一并重置
                         expandedGroups = emptySet()
+                        // 插件层草稿跟着失效：它记的是"当前范围涉及的那批插件"的参数，
+                        // 范围一换目标就换了一批，旧值不该落到新目标上
+                        pluginSpeed = null
+                        pluginVolume = null
+                        pluginPitch = null
                     },
                     pluginOptions = pluginOptions,
                     pluginItemCounts = pluginItemCounts,
@@ -374,6 +381,8 @@ fun BatchConfigDialog(
                             Text(stringResource(R.string.reset))
                         }
                         TextButton(onClick = {
+                            // 插件三参写作用域内涉及的全部插件（去重后逐只写；范围=「全部」时
+                            // 即范围内全部插件），见 ListManagerViewModel.updateAudioParamsBatch
                             onApplyParams(
                                 pluginId.takeIf { it.isNotEmpty() },
                                 speed, volume, pitch,
