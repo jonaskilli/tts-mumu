@@ -69,10 +69,16 @@ internal class TtsRepository(
                 val dto = tts.config as? TtsConfigurationDTO ?: continue
                 val resolved = configurationFor(tts) ?: continue
 
+                // 备用=用户显式标记「作为备用引擎」的条目，按 tagName 认亲。
+                // 同性别兜底：target 只是作用域标记（整理类操作不写它），不作硬条件；
+                // 优先同规则同 target，其次同规则，避免跨规则误配。
                 val standby = standbyConfigs.find {
-                    it.speechInfo.target == dto.speechRule.target &&
+                    it.speechInfo.tagName == dto.speechRule.tagName &&
                         it.speechInfo.tagRuleId == dto.speechRule.tagRuleId &&
-                        it.speechInfo.tagName == dto.speechRule.tagName
+                        it.speechInfo.target == dto.speechRule.target
+                } ?: standbyConfigs.find {
+                    it.speechInfo.tagName == dto.speechRule.tagName &&
+                        it.speechInfo.tagRuleId == dto.speechRule.tagRuleId
                 }
                 val genderStandby = run {
                     val originalTag = dto.speechRule.tag
@@ -89,10 +95,23 @@ internal class TtsRepository(
                             originalTag == "特殊女" -> "duihuaB"
                         else -> "括号4"
                     }
+                    // 查找口径必须与朗读匹配一致：TextProcessor 选配置只用 tag
+                    // （!isStandby && speechInfo.tag == effectiveTag），既不看 target 也不看 tagRuleId。
+                    // 而标签整理类操作（resortTags / reassignTagsWithPrefix / reassignNarrationTags /
+                    // reassignTagsForAllSubGroups）只写 tag/tagName、不写 target，会产出
+                    // 「target=全部 但带 tag」的配置：朗读照常命中，兜底查找硬比 target 则静默落空。
+                    // 09-17 实锤：旁白（tag=narration）明明有启用的 括号4 兜底项，standbyConfig 仍为 null，
+                    // 重试到上限后直接静音跳过，兜底与备用双双无入口。
+                    // 故逐级放宽、命中即止：同规则同 target > 同规则 > 仅 tag。
                     genderFallbackConfigs.find {
-                        it.speechInfo.target == dto.speechRule.target &&
+                        it.speechInfo.tag == genderTag &&
                             it.speechInfo.tagRuleId == dto.speechRule.tagRuleId &&
-                            it.speechInfo.tag == genderTag
+                            it.speechInfo.target == dto.speechRule.target
+                    } ?: genderFallbackConfigs.find {
+                        it.speechInfo.tag == genderTag &&
+                            it.speechInfo.tagRuleId == dto.speechRule.tagRuleId
+                    } ?: genderFallbackConfigs.find {
+                        it.speechInfo.tag == genderTag
                     }
                 }
                 val isFallbackTag = dto.speechRule.tag in setOf("duihua", "duihuaA", "duihuaB")
