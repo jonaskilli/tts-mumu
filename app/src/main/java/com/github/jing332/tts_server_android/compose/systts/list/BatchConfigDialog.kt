@@ -36,8 +36,10 @@ import androidx.compose.ui.unit.dp
 import com.github.jing332.common.utils.toScale
 import com.github.jing332.compose.widgets.AppDialog
 import com.github.jing332.compose.widgets.AppSpinner
-import com.github.jing332.compose.widgets.LabelSlider
 import com.github.jing332.tts_server_android.R
+import com.github.jing332.tts_server_android.compose.SoftSegmentedTextToggle
+import com.github.jing332.tts_server_android.compose.systts.list.ui.widgets.LayerSlider
+import com.github.jing332.tts_server_android.compose.systts.list.ui.widgets.audioParamsDimNames
 
 /**
  * 清单条目：来源插件 + 所属**实际分组**（大分组，或「大分组 › 子分组」）+ 项名 + 配置项 id。
@@ -66,7 +68,11 @@ data class BatchConfigEntry(
  * 这里当单选页签用，靠"点了立刻切页、无需确认"让用户自行感知单选，去掉勾号避免误读成开关。
  *
  * ## 四页与顺序（用户 09-13 定：删除垫底）
- * 1. **音频参数**：语速/音量/音高 —— 页脚 取消 / 重置 / 确定
+ * 1. **音频参数**：维度分段（语速/音量/音高）＋该维「配置项 / 插件」两层滑杆
+ *    —— 页脚 取消 / 重置 / 确定。形态照配置项音频参数弹窗（AudioParamsDialog），
+ *    只去掉「全局」层：批量作用域是 N 个配置项，全局参数由 ⋮ 菜单的「音频参数设置」单独管。
+ *    配置项层写各选中项自身的 audioParams；插件层写这些项**来源插件**的 audioParams
+ *    （插件级实体，一改即影响该插件下全部配置项，与配置项弹窗的插件层同语义）。
  * 2. **采样率**：采样率 —— 页脚 取消 / 确定
  * 3. **更换插件**：目标插件 —— 页脚 取消 / 确定（未选目标插件时禁用）
  * 4. **删除配置项**：清单（可整组删）—— 页脚 取消 / **删除全部 N 项**（红色）
@@ -97,8 +103,8 @@ data class BatchConfigEntry(
  * [sampleRateOptions] 「采样率自动识别」=-1 语义由调用方解释。
  * [targetPluginOptions] 「更换插件」的目标插件候选：全部已安装插件 pluginId → 显示名。
  * [entries] 「删除配置项」页清单数据源，按所选插件过滤后折叠展示**项名**（不显示音色id，用户 09-12 晚定）。
- * [onApplyParams] 音频参数页应用：speed/volume/pitch = null 表示该项保持原值（滑条未拖动），
- *   非 null 为设定值。
+ * [onApplyParams] 音频参数页应用：六个值中 null = 该层该维保持原值（滑条未拖动），非 null 为设定值；
+ *   前三个 = 配置项层（写各选中项），后三个 = 插件层（写来源插件）。
  * [onApplySampleRate] 采样率页应用：null = 不修改 / -1 = 自动识别 / 其余为具体 Hz。
  * [onApplySource] 「更换插件」提交（targetPluginId 必非空——未选目标插件时按钮不提交）。
  * [onDelete] 删除请求：groupLabel=null 表示删所选插件的**全部**匹配项，非空表示只删该分组。
@@ -118,6 +124,9 @@ fun BatchConfigDialog(
         speed: Float?,
         volume: Float?,
         pitch: Float?,
+        pluginSpeed: Float?,
+        pluginVolume: Float?,
+        pluginPitch: Float?,
     ) -> Unit,
     onApplySampleRate: (pluginId: String?, sampleRate: Int?) -> Unit,
     onApplySource: (pluginId: String?, targetPluginId: String) -> Unit,
@@ -130,12 +139,18 @@ fun BatchConfigDialog(
     // AppSpinner 的 value 需非空 Any：用 "none"/"auto"/Int/"具体pluginId" 作为哨兵
     var rateSelKey by remember { mutableStateOf<Any>("none") }
     var targetPluginKey by remember { mutableStateOf<Any>("none") }
-    // 音频参数页草稿值：null = 本次不修改该项。
+    // 音频参数页当前维度（0=语速 1=音量 2=音高），维度分段与配置项音频参数弹窗同款
+    var dim by remember { mutableStateOf(0) }
+    // 音频参数页配置项层草稿值：null = 本次不修改该维。
     // 若滑条按界面显示的 1.00 无条件提交，只想改某一维的人会连带把其余维度刷成 1.00。
     // 拖动过（或点了「重置」）才变成实值，未动过则提交 null，由调用方保持原值。
     var speed by remember { mutableStateOf<Float?>(null) }
     var volume by remember { mutableStateOf<Float?>(null) }
     var pitch by remember { mutableStateOf<Float?>(null) }
+    // 插件层草稿（配置项层的上一层；值语义同上）
+    var pluginSpeed by remember { mutableStateOf<Float?>(null) }
+    var pluginVolume by remember { mutableStateOf<Float?>(null) }
+    var pluginPitch by remember { mutableStateOf<Float?>(null) }
     // 分组展开状态：默认全收起，点分组行才展开
     var expandedGroups by remember { mutableStateOf<Set<String>>(emptySet()) }
 
@@ -200,34 +215,39 @@ fun BatchConfigDialog(
                 )
 
                 when (tab) {
-                    // ── 1. 音频参数：语速/音量/音高 ──
+                    // ── 1. 音频参数：维度分段 + 该维「配置项 / 插件」两层滑杆 ──
                     0 -> {
-                        LabelSlider(
-                            value = speed ?: 1f,
-                            onValueChange = { speed = it.toScale(2) },
-                            valueRange = 0.1f..3f,
-                            step = 0.05f,
-                            buttonLongSteps = 0.05f,
-                            text = stringResource(id = R.string.label_speech_rate, "%.2f".format(speed ?: 1f))
+                        // 维度分段（语速/音量/音高）：照配置项音频参数弹窗的软槽分段
+                        SoftSegmentedTextToggle(
+                            options = audioParamsDimNames,
+                            selectedIndex = dim,
+                            onSelect = { dim = it },
+                            modifier = Modifier.padding(top = 8.dp),
                         )
-                        LabelSlider(
-                            value = volume ?: 1f,
-                            onValueChange = { volume = it.toScale(2) },
-                            valueRange = 0.1f..3f,
-                            step = 0.05f,
-                            buttonLongSteps = 0.05f,
-                            text = stringResource(id = R.string.label_speech_volume, "%.2f".format(volume ?: 1f))
-                        )
-                        LabelSlider(
-                            value = pitch ?: 1f,
-                            onValueChange = { pitch = it.toScale(2) },
-                            valueRange = 0.1f..3f,
-                            step = 0.05f,
-                            buttonLongSteps = 0.05f,
-                            text = stringResource(id = R.string.label_speech_pitch, "%.2f".format(pitch ?: 1f))
-                        )
+                        val cfgLabel = stringResource(R.string.batch_cfg_layer_config)
+                        val pluginLabel = stringResource(R.string.audio_params_tag_plugin)
+                        // 左缩进 8dp、行距 4dp：与配置项弹窗的维度内容同规格
+                        Column(
+                            Modifier.padding(top = 8.dp, start = 8.dp),
+                            verticalArrangement = Arrangement.spacedBy(4.dp),
+                        ) {
+                            when (dim) {
+                                0 -> {
+                                    LayerSlider(cfgLabel, speed ?: 1f) { speed = it.toScale(2) }
+                                    LayerSlider(pluginLabel, pluginSpeed ?: 1f) { pluginSpeed = it.toScale(2) }
+                                }
+                                1 -> {
+                                    LayerSlider(cfgLabel, volume ?: 1f) { volume = it.toScale(2) }
+                                    LayerSlider(pluginLabel, pluginVolume ?: 1f) { pluginVolume = it.toScale(2) }
+                                }
+                                else -> {
+                                    LayerSlider(cfgLabel, pitch ?: 1f) { pitch = it.toScale(2) }
+                                    LayerSlider(pluginLabel, pluginPitch ?: 1f) { pluginPitch = it.toScale(2) }
+                                }
+                            }
+                        }
                         // 「未拖动的参数保持原值」提示行已删（用户 09-13，独占一行）：
-                        // 未拖动即不提交、保持原值，由下方 Float? 草稿状态保证，不再单独出提示
+                        // 未拖动即不提交、保持原值，由上面 Float? 草稿状态保证，不再单独出提示
                     }
 
                     // ── 2. 采样率 ──
@@ -341,19 +361,25 @@ fun BatchConfigDialog(
                 }
                 // 每页只干一件事，页脚主操作各归其位（用户 09-13 拆页的初衷）
                 when (tab) {
-                    // 音频参数：重置（显式把三维设回 1.00）+ 确定
+                    // 音频参数：重置（当前维两层草稿设回 1.00）+ 确定
                     0 -> {
                         TextButton(onClick = {
-                            // 与"拖动过才算改动"互补：没拖过是保持原值，点重置才是"整批恢复默认"；
-                            // 仍需点「确定」才落库
-                            speed = 1f
-                            volume = 1f
-                            pitch = 1f
+                            // 与"拖动过才算改动"互补：没拖过是保持原值，点重置才是恢复默认；
+                            // 只重置当前维（与配置项弹窗的重置同口径），仍需点「确定」才落库
+                            when (dim) {
+                                0 -> { speed = 1f; pluginSpeed = 1f }
+                                1 -> { volume = 1f; pluginVolume = 1f }
+                                else -> { pitch = 1f; pluginPitch = 1f }
+                            }
                         }) {
                             Text(stringResource(R.string.reset))
                         }
                         TextButton(onClick = {
-                            onApplyParams(pluginId.takeIf { it.isNotEmpty() }, speed, volume, pitch)
+                            onApplyParams(
+                                pluginId.takeIf { it.isNotEmpty() },
+                                speed, volume, pitch,
+                                pluginSpeed, pluginVolume, pluginPitch,
+                            )
                         }) {
                             Text(stringResource(R.string.confirm))
                         }

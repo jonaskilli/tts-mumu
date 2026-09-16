@@ -2546,11 +2546,22 @@ internal fun ListManagerScreen(
             targetPluginOptions = targetPluginOptions,
             entries = batchEntries,
             onDismissRequest = { showBatchConfig = false },
-            // 音频参数页：语速/音量/音高走参数链（null = 未拖动、保持原值）
-            onApplyParams = { pluginId, speed, volume, pitch ->
+            // 音频参数页：配置项层（写各选中项自身）+ 插件层（写来源插件）两层，
+            // 各层各维 null = 未拖动、保持原值
+            onApplyParams = { pluginId, speed, volume, pitch, pSpeed, pVolume, pPitch ->
                 showBatchConfig = false
-                vm.updateAudioParamsBatch(scopeItems.filterByPluginId(pluginId), speed, volume, pitch) { n ->
-                    context.toast(if (n > 0) "已更新 $n 项音频参数" else "没有需要修改的项")
+                vm.updateAudioParamsBatch(
+                    scopeItems.filterByPluginId(pluginId), speed, volume, pitch,
+                    pSpeed, pVolume, pPitch,
+                ) { n, p ->
+                    context.toast(
+                        when {
+                            n > 0 && p > 0 -> "已更新 $n 项音频参数（含 $p 个插件层）"
+                            n > 0 -> "已更新 $n 项音频参数"
+                            p > 0 -> "已更新 $p 个插件的音频参数"
+                            else -> "没有需要修改的项"
+                        }
+                    )
                 }
             },
             // 采样率页：走音频格式链（rate=-1「自动识别」由 applySourceFieldsRate 解释）

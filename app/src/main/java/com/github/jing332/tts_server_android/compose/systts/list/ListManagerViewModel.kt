@@ -15,6 +15,7 @@ import com.github.jing332.database.entities.systts.source.LocalTtsSource
 import com.github.jing332.database.entities.systts.source.PluginTtsSource
 import com.github.jing332.database.entities.systts.SystemTtsGroup
 import com.github.jing332.tts_server_android.R
+import com.github.jing332.tts_server_android.compose.systts.list.ui.PluginDescriptor
 import com.github.jing332.tts_server_android.conf.SystemTtsConfig
 import com.github.jing332.tts_server_android.service.systts.SystemTtsService
 import kotlinx.serialization.encodeToString
@@ -420,9 +421,12 @@ class ListManagerViewModel : ViewModel() {
     }
 
     /**
-     * 批量音频参数：把作用域内配置项的单条 audioParams 统一改为给定值。
-     * [speed]/[volume]/[pitch] 为 null 表示该维度保持原值不动；重置传 1f。
-     * 覆盖 LOCAL 与 PLUGIN 两类配置（LOCAL 滑块本来就写 audioParams）。
+     * 批量音频参数：把作用域内配置项的 audioParams 统一改为给定值。
+     * [speed]/[volume]/[pitch] = **配置项层**（写各选中项自身的 audioParams），null 表示该维保持原值不动；
+     * [pluginSpeed]/[pluginVolume]/[pluginPitch] = **插件层**（写这些项来源插件的 audioParams——
+     * 插件级实体，一改即影响该插件下全部配置项，与配置项音频参数弹窗的插件层同语义），null 表示该维不动。
+     * 配置项层覆盖 LOCAL 与 PLUGIN 两类配置（LOCAL 滑块本来就写 audioParams）；插件层只对插件型来源生效。
+     * [onDone] 回两个数：改动的配置项数、改动的插件数（只拖了插件层时前者可能为 0，故分开报）。
      * 完成后通知服务刷新；内存列表由 Room 全量重发自然更新。
      */
     fun updateAudioParamsBatch(
@@ -430,7 +434,10 @@ class ListManagerViewModel : ViewModel() {
         speed: Float?,
         volume: Float?,
         pitch: Float?,
-        onDone: (Int) -> Unit = {},
+        pluginSpeed: Float? = null,
+        pluginVolume: Float? = null,
+        pluginPitch: Float? = null,
+        onDone: (Int, Int) -> Unit = { _, _ -> },
     ) = viewModelScope.launch(Dispatchers.IO) {
         val updates = items.mapNotNull { item ->
             val c = item.config as? TtsConfigurationDTO ?: return@mapNotNull null
@@ -444,9 +451,30 @@ class ListManagerViewModel : ViewModel() {
         }
         if (updates.isNotEmpty()) {
             dbm.systemTtsV2.update(*updates.toTypedArray())
-            SystemTtsService.notifyUpdateConfig()
         }
-        withContext(Dispatchers.Main) { onDone(updates.size) }
+        // 插件层：作用域内出现过的插件（去重）逐只改写；卡片"插件语速/音量"显示缓存同步失效
+        var pluginChanged = 0
+        if (pluginSpeed != null || pluginVolume != null || pluginPitch != null) {
+            val pluginIds = items.mapNotNull {
+                ((it.config as? TtsConfigurationDTO)?.source as? PluginTtsSource)?.pluginId
+            }.distinct()
+            pluginIds.forEach { pid ->
+                val plugin = dbm.pluginDao.getByPluginId(pid) ?: return@forEach
+                val p = plugin.audioParams
+                val newParams = p.copy(
+                    speed = pluginSpeed ?: p.speed,
+                    volume = pluginVolume ?: p.volume,
+                    pitch = pluginPitch ?: p.pitch,
+                )
+                if (newParams != p) {
+                    dbm.pluginDao.update(plugin.copy(audioParams = newParams))
+                    PluginDescriptor.invalidatePluginParamsCache(pid)
+                    pluginChanged++
+                }
+            }
+        }
+        if (updates.isNotEmpty() || pluginChanged > 0) SystemTtsService.notifyUpdateConfig()
+        withContext(Dispatchers.Main) { onDone(updates.size, pluginChanged) }
     }
 
     /**
