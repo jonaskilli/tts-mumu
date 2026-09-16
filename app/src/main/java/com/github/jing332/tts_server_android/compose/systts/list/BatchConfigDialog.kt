@@ -68,9 +68,10 @@ data class BatchConfigEntry(
  * 这里当单选页签用，靠"点了立刻切页、无需确认"让用户自行感知单选，去掉勾号避免误读成开关。
  *
  * ## 四页与顺序（用户 09-13 定：删除垫底）
- * 1. **音频参数**：维度分段（语速/音量/音高）＋该维「配置项 / 插件」两层滑杆
- *    —— 页脚 取消 / 重置 / 确定。形态照配置项音频参数弹窗（AudioParamsDialog），
- *    只去掉「全局」层：批量作用域是 N 个配置项，全局参数由 ⋮ 菜单的「音频参数设置」单独管。
+ * 1. **音频参数**：层分段（配置项 / 插件）＋该层 语速/音量/音高 三个滑杆
+ *    —— 页脚 取消 / 重置 / 确定。形态照配置项音频参数弹窗（AudioParamsDialog）的
+ *    软槽分段胶囊 + 滑杆组，只去掉「全局」层：批量作用域是 N 个配置项，
+ *    全局参数由 ⋮ 菜单的「音频参数设置」单独管。
  *    配置项层写各选中项自身的 audioParams；插件层写这些项**来源插件**的 audioParams
  *    （插件级实体，一改即影响该插件下全部配置项，与配置项弹窗的插件层同语义）。
  * 2. **采样率**：采样率 —— 页脚 取消 / 确定
@@ -139,8 +140,8 @@ fun BatchConfigDialog(
     // AppSpinner 的 value 需非空 Any：用 "none"/"auto"/Int/"具体pluginId" 作为哨兵
     var rateSelKey by remember { mutableStateOf<Any>("none") }
     var targetPluginKey by remember { mutableStateOf<Any>("none") }
-    // 音频参数页当前维度（0=语速 1=音量 2=音高），维度分段与配置项音频参数弹窗同款
-    var dim by remember { mutableStateOf(0) }
+    // 音频参数页当前层（0=配置项 1=插件）：上方胶囊分段切换，下方恒为语速/音量/音高 三个滑杆
+    var layer by remember { mutableStateOf(0) }
     // 音频参数页配置项层草稿值：null = 本次不修改该维。
     // 若滑条按界面显示的 1.00 无条件提交，只想改某一维的人会连带把其余维度刷成 1.00。
     // 拖动过（或点了「重置」）才变成实值，未动过则提交 null，由调用方保持原值。
@@ -215,35 +216,33 @@ fun BatchConfigDialog(
                 )
 
                 when (tab) {
-                    // ── 1. 音频参数：维度分段 + 该维「配置项 / 插件」两层滑杆 ──
+                    // ── 1. 音频参数：层分段（配置项 / 插件）+ 该层 语速/音量/音高 三滑杆 ──
                     0 -> {
-                        // 维度分段（语速/音量/音高）：照配置项音频参数弹窗的软槽分段
+                        // 层分段（配置项 / 插件）：照配置项音频参数弹窗的软槽分段胶囊，只去掉「全局」层
                         SoftSegmentedTextToggle(
-                            options = audioParamsDimNames,
-                            selectedIndex = dim,
-                            onSelect = { dim = it },
+                            options = listOf(
+                                stringResource(R.string.batch_cfg_layer_config),
+                                stringResource(R.string.audio_params_tag_plugin),
+                            ),
+                            selectedIndex = layer,
+                            onSelect = { layer = it },
                             modifier = Modifier.padding(top = 8.dp),
                         )
-                        val cfgLabel = stringResource(R.string.batch_cfg_layer_config)
-                        val pluginLabel = stringResource(R.string.audio_params_tag_plugin)
-                        // 左缩进 8dp、行距 4dp：与配置项弹窗的维度内容同规格
+                        val dims = audioParamsDimNames
+                        // 左缩进 8dp、行距 4dp：与配置项弹窗的维度内容同规格。
+                        // 层已由上方分段表达，滑杆标签只标维度与当前值
                         Column(
                             Modifier.padding(top = 8.dp, start = 8.dp),
                             verticalArrangement = Arrangement.spacedBy(4.dp),
                         ) {
-                            when (dim) {
-                                0 -> {
-                                    LayerSlider(cfgLabel, speed ?: 1f) { speed = it.toScale(2) }
-                                    LayerSlider(pluginLabel, pluginSpeed ?: 1f) { pluginSpeed = it.toScale(2) }
-                                }
-                                1 -> {
-                                    LayerSlider(cfgLabel, volume ?: 1f) { volume = it.toScale(2) }
-                                    LayerSlider(pluginLabel, pluginVolume ?: 1f) { pluginVolume = it.toScale(2) }
-                                }
-                                else -> {
-                                    LayerSlider(cfgLabel, pitch ?: 1f) { pitch = it.toScale(2) }
-                                    LayerSlider(pluginLabel, pluginPitch ?: 1f) { pluginPitch = it.toScale(2) }
-                                }
+                            if (layer == 0) {
+                                LayerSlider(dims[0], speed ?: 1f) { speed = it.toScale(2) }
+                                LayerSlider(dims[1], volume ?: 1f) { volume = it.toScale(2) }
+                                LayerSlider(dims[2], pitch ?: 1f) { pitch = it.toScale(2) }
+                            } else {
+                                LayerSlider(dims[0], pluginSpeed ?: 1f) { pluginSpeed = it.toScale(2) }
+                                LayerSlider(dims[1], pluginVolume ?: 1f) { pluginVolume = it.toScale(2) }
+                                LayerSlider(dims[2], pluginPitch ?: 1f) { pluginPitch = it.toScale(2) }
                             }
                         }
                         // 「未拖动的参数保持原值」提示行已删（用户 09-13，独占一行）：
@@ -361,15 +360,15 @@ fun BatchConfigDialog(
                 }
                 // 每页只干一件事，页脚主操作各归其位（用户 09-13 拆页的初衷）
                 when (tab) {
-                    // 音频参数：重置（当前维两层草稿设回 1.00）+ 确定
+                    // 音频参数：重置（当前层 语速/音量/音高 三个草稿设回 1.00）+ 确定
                     0 -> {
                         TextButton(onClick = {
                             // 与"拖动过才算改动"互补：没拖过是保持原值，点重置才是恢复默认；
-                            // 只重置当前维（与配置项弹窗的重置同口径），仍需点「确定」才落库
-                            when (dim) {
-                                0 -> { speed = 1f; pluginSpeed = 1f }
-                                1 -> { volume = 1f; pluginVolume = 1f }
-                                else -> { pitch = 1f; pluginPitch = 1f }
+                            // 只重置当前层（与配置项弹窗按维度重置同口径），仍需点「确定」才落库
+                            if (layer == 0) {
+                                speed = 1f; volume = 1f; pitch = 1f
+                            } else {
+                                pluginSpeed = 1f; pluginVolume = 1f; pluginPitch = 1f
                             }
                         }) {
                             Text(stringResource(R.string.reset))
