@@ -5,6 +5,7 @@ import com.github.jing332.database.dbm
 import com.github.jing332.database.entities.SpeechRule
 import com.github.jing332.database.entities.plugin.Plugin
 import com.github.jing332.database.entities.systts.BasicAudioFormat
+import com.github.jing332.database.entities.systts.JReadConfigMigration
 import com.github.jing332.database.entities.systts.SystemTtsGroup
 import com.github.jing332.database.entities.systts.SystemTtsV2
 import com.github.jing332.database.entities.systts.TtsConfigurationDTO
@@ -40,11 +41,21 @@ object PluginCategoryImporter {
 
     /**
      * 插件分类名 → 标准人群名；不可映射返回 null（调用方原样入库且不打标签）。
-     * 先归一"女性/男性"与常见修饰后缀，再按最长关键词命中。
+     *
+     * 三步，顺序不能换：
+     * 1. 剥常见修饰后缀（通用/发音人/音色）；
+     * 2. 长名式先查 [JReadConfigMigration.LONG_TO_SHORT_PREFIX]（十组，与 jread 导入共用同一张表）。
+     *    **必须在归一化之前查**：「女性儿童」压成「女儿童」会同时丢掉「女童」的连续子串，
+     *    而「女性少年」压成「女少年」更会命中男性少的「少年」——归类直接错（用户 09-17 指出）；
+     * 3. 兜底：归一化后按最长关键词命中，覆盖带修饰的长名变体
+     *    （「女性儿童声线」→「女童声线」→ 女童）。
      */
     internal fun mapTagCategory(raw: String): String? {
-        var s = raw.trim().removeSuffix("通用").removeSuffix("发音人").removeSuffix("音色").trim()
-        s = s.replace("女性", "女").replace("男性", "男")
+        val s0 = raw.trim().removeSuffix("通用").removeSuffix("发音人").removeSuffix("音色").trim()
+        JReadConfigMigration.LONG_TO_SHORT_PREFIX[s0]?.let { return it }
+        val s = s0.replace("女性", "女").replace("男性", "男")
+            .replace("儿童", "童")      // 女儿童→女童、男儿童→男童
+            .replace("女少年", "少女")  // 语序相反："女性少年"→"女少年"→少女（"少年"=男性少）
         return TAG_KEYWORDS.filter { s.contains(it) }.maxByOrNull { it.length }
     }
 

@@ -340,7 +340,15 @@ object JReadConfigMigration {
         return tag
     }
 
-    private val LONG_TO_SHORT_PREFIX = mapOf(
+    /**
+     * 人群长名式 → 标准短名（十组）。jread 导入（[mapGroupName]）与插件的「按分类入库」
+     * （PluginCategoryImporter.mapTagCategory）**共用这一张表**，两条入库链路口径必须一致。
+     *
+     * ⚠️ 「女性少年→少女」「男性少年→少年」这两组语序与其它组相反（其余是「性别+年龄段」，
+     * 而"少女"是"少+女"）：所以绝不能在归一化（女性→女）**之后**才查表或匹配关键词，
+     * 「女性少年」压成「女少年」后会命中男性少的「少年」，直接归错人群。
+     */
+    val LONG_TO_SHORT_PREFIX = mapOf(
         "女性儿童" to "女童", "男性儿童" to "男童",
         "女性少年" to "少女", "男性少年" to "少年",
         "女性青年" to "女青年", "男性青年" to "男青年",
