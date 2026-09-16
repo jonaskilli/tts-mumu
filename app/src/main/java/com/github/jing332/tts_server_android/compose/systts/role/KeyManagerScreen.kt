@@ -2589,7 +2589,10 @@ private fun BookRow(
         }
         Text(
             name,
-            style = MaterialTheme.typography.bodyMedium,
+            // 字号统一为角色列表档（目目 09-16 定，方案 C）：bodyLarge ＋显式 16sp，与角色名同款。
+            // 原 14sp(bodyMedium) 是 M3 的「次要信息」档，而书籍名与角色名同为「列表主对象名」；
+            // 与顶部书籍栏书名（16sp 加粗）也正好同档，只差字重
+            style = MaterialTheme.typography.bodyLarge.copy(fontSize = 16.sp),
             // 当前书不再加粗（目目 09-15 晚：不喜欢粗体）——行首主色竖条 + 主色书名已够表达
             color = if (isCurrent) MaterialTheme.colorScheme.primary
             else MaterialTheme.colorScheme.onSurface,
