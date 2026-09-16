@@ -2488,7 +2488,9 @@ internal fun ListManagerScreen(
 
     // 采样率落库（rate=-1=「自动识别」：先归零让播放链按音频头探测）。
     // sampleRate=null 表示「不修改」，直接短路，避免空跑一次读写（用户 09-12 晚：采样率在
-    // 「批量配置操作」里单独成页，走音频格式链，与音频参数页的语速/音量/音高各写各的字段）
+    // 「批量配置操作」里单独成页，走音频格式链，与音频参数页的语速/音量/音高各写各的字段）。
+    // 作用对象=范围内全部配置项，**含本地TTS项**（用户 09-17 定）：本地项写的是它自己的
+    // 「PCM 兜底采样率」，与插件型同一个 audioFormat.sampleRate 字段
     val applySourceFieldsRate: (List<SystemTtsV2>, Int?) -> Unit = { targets, sampleRate ->
         if (sampleRate != null) {
             val rate = if (sampleRate == -1) null else sampleRate

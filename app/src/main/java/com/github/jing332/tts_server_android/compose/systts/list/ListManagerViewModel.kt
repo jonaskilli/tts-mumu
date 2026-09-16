@@ -495,8 +495,11 @@ class ListManagerViewModel : ViewModel() {
     }
 
     /**
-     * 批量采样率：只影响插件型配置。
-     * [sampleRate] 为 null 表示保持原值；jread 占位 16000 可批量改为真实值或自动识别标志。
+     * 批量采样率：作用域内**全部**配置项（用户 09-17 定：含本地TTS项）。
+     * 本地项跳过的旧逻辑已去掉——它同样有 audioFormat.sampleRate（编辑页里的
+     * 「PCM 兜底采样率」），批量设置写的就是同一个字段；不然「匹配 N 项」会虚高
+     * （显示范围里的总数、实际只改了插件型那部分）。
+     * [sampleRate] 为 null 表示保持原值；jread 占位 16000 可批量改为真实值或自动识别标志（0）。
      */
     fun updateSourceFieldsBatch(
         items: List<SystemTtsV2>,
@@ -505,7 +508,6 @@ class ListManagerViewModel : ViewModel() {
     ) = viewModelScope.launch(Dispatchers.IO) {
         val updates = items.mapNotNull { item ->
             val c = item.config as? TtsConfigurationDTO ?: return@mapNotNull null
-            if (c.source !is PluginTtsSource) return@mapNotNull null
             val newFormat = if (sampleRate != null)
                 c.audioFormat.copy(sampleRate = sampleRate) else c.audioFormat
             val newConfig = c.copy(audioFormat = newFormat)

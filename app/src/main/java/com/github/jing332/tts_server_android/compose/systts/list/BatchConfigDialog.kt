@@ -118,6 +118,8 @@ data class BatchConfigEntry(
  * [onApplyParams] 音频参数页应用：六个值中 null = 该层该维保持原值（滑条未拖动），非 null 为设定值；
  *   前三个 = 配置项层（写各选中项），后三个 = 插件层（写来源插件）。
  * [onApplySampleRate] 采样率页应用：null = 不修改 / -1 = 自动识别 / 其余为具体 Hz。
+ *   作用对象=范围内全部配置项，**含本地TTS项**（用户 09-17 定：本地项也写它的
+ *   audioFormat.sampleRate，即编辑页那个「PCM 兜底采样率」，不再跳过）。
  * [onApplySource] 「更换插件」提交（targetPluginId 必非空——未选目标插件时按钮不提交）。
  * [onToggleEnabled] 启用/停用提交：pluginId=null 表示范围=「全部」（含本地TTS项）；
  *   groupLabel=null 表示整批（页脚），非空表示只启停该分组（组头按钮）；
