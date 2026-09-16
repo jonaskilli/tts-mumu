@@ -828,7 +828,11 @@ class SystemTtsService : TextToSpeechService(), IEventDispatcher {
                 getString(R.string.systts_log_cause_server)
             Regex("(?i)json|unexpected token").containsMatchIn(msg) ->
                 getString(R.string.systts_log_cause_parse)
-            else -> t.javaClass.simpleName
+            // 归不到已知类型时带出异常原文：只报类名（如 IllegalStateException）无法定位，
+            // 09-17 实报「获取失败：IllegalStateException」看不出是引擎没找到还是别的
+            // 限 120 字：足够露出 PluginTtsSource 的 pluginId（前缀引擎查找失败时靠它定位）
+            msg.isEmpty() -> t.javaClass.simpleName
+            else -> t.javaClass.simpleName + "：" + msg.take(120)
         }
     }
 
@@ -847,35 +851,35 @@ class SystemTtsService : TextToSpeechService(), IEventDispatcher {
                             org.slf4j.MDC.put("roleName", e.request.roleName)
                         logI("请求音频：" + e.request.text())
                         // 降级兜底提示：规则 JS 分析失败会把文本直接投给兜底标签，
-                        // 请求行与正常请求无异、看不出是兜底。可靠判定：括号4 本职是『』括号发音人，
-                        // 正常请求文本必含『』；非『』文本投给括号4 = 降级兜底（分析失败直投或
-                        // 中性兜底 09-13 起同投括号4）。性别兜底走重试切备用链路，已有
-                        // 「使用备用TTS」提示，不在此列。W 级子行挂在请求行下，不写持久化文件。
-                        // 原因说明（用户 09-14 定「继承日志」，简洁三态）：
-                        // ① 未选当前密钥（直读 miyue.txt 判定，可靠）→ 明说缺密钥；
-                        // ② 有密钥但上方原因日志含 401/403/失效等字样 → 密钥疑似失效；
-                        // ③ 其他原因 → 原样继承最近一条 W/E 主行（规则 console 报错优先）；
-                        // 都没有 → 泛化提示。不联网反查（用户已否）
+                        // 请求行与正常请求无异、看不出是兜底。判定：括号4 本职是『』括号发音人，
+                        // 正常请求文本必含『』；非『』文本投给括号4 = 降级兜底。
+                        // ⚠ 两个必须排除的误报源（09-17 用户实报，旧版三条都中招）：
+                        // ① 重试失败切换过来的请求（failoverFromTag 非空）——旁白/正文文本本来就
+                        //    不含『』，上面已有「使用兜底发音人」说明来路，再报一次是重复且错误归因；
+                        // ② 规则自身会合法地把「特殊发音人=旁白」与章节标题投给括号4
+                        //    （规则源码：specialSpeakerType === "旁白" ? "括号4" : "括号1"），
+                        //    这类正常路由靠文本猜不出真伪 ⇒ 泛化猜测与「继承上一条原因」两档删除，
+                        //    只在能证实「分析无法进行」时提示：未选当前密钥 / 密钥疑似失效。
+                        //    W 级子行挂在请求行下，不写持久化文件。
                         if (e.request.config.speechInfo.tag == "括号4"
                             && !e.request.text.contains('『')
+                            && e.request.failoverFromTag == null
                         ) {
                             val reason = SysttsLogger.lastWarnReason()
                             val authLike = reason != null &&
                                 Regex("(?i)401|403|失效|无效|invalid|unauthor|forbidden|denied")
                                     .containsMatchIn(reason)
-                            logChild(
-                                LogLevel.WARN,
-                                when {
-                                    !InnerThoughtAiClassifier.hasCurrentKey() ->
-                                        getString(R.string.systts_log_fallback_no_key)
-                                    reason != null && authLike ->
-                                        getString(R.string.systts_log_fallback_key_bad, reason)
-                                    reason != null ->
-                                        getString(R.string.systts_log_fallback_inherit, reason)
-                                    else ->
-                                        getString(R.string.systts_log_fallback_suspect)
-                                }
-                            )
+                            when {
+                                !InnerThoughtAiClassifier.hasCurrentKey() -> logChild(
+                                    LogLevel.WARN,
+                                    getString(R.string.systts_log_fallback_no_key)
+                                )
+
+                                reason != null && authLike -> logChild(
+                                    LogLevel.WARN,
+                                    getString(R.string.systts_log_fallback_key_bad, reason)
+                                )
+                            }
                         }
                     } finally {
                         org.slf4j.MDC.remove("configId")
@@ -910,7 +914,17 @@ class SystemTtsService : TextToSpeechService(), IEventDispatcher {
 
             is NormalEvent.StandbyTts -> {
                 if (e.fromTag.isNotEmpty() || e.toTag.isNotEmpty()) {
-                    logI(getString(R.string.use_standby_tts_with_tag, e.fromTag, e.toTag))
+                    // 两条来路分开用词：备用=用户显式勾选的替补；
+                    // 兜底=按性别/中性借一个能用的嗓子顶班。
+                    // 兜底借来的往往是平时正常在用的配置（如括号4），
+                    // 一并叫「备用发音人」会让人以为日常发音人成了替补（09-17 用户实报）。
+                    logI(
+                        getString(
+                            if (e.isFallback) R.string.use_fallback_tts_with_tag
+                            else R.string.use_standby_tts_with_tag,
+                            e.fromTag, e.toTag
+                        )
+                    )
                 } else {
                     logI(getString(R.string.use_standby_tts, e.request.text()))
                 }

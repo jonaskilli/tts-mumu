@@ -20,6 +20,16 @@ data class TtsConfiguration(
     val pluginHandlesPitch: Boolean = false,
 
     val standbyConfig: TtsConfiguration? = null,
+
+    /**
+     * standbyConfig 的来路，仅当 standbyConfig != null 时有意义：
+     * true  = 性别/中性兜底（借用 duihuaA/duihuaB/括号4 的配置顶班），
+     * false = 用户显式勾选「作为备用引擎」的备用配置。
+     * 两者共用 standbyConfig 一个字段（重试切换入口只有一处），但语义不同：
+     * 兜底借来的是平时正常在用的配置（如括号4），日志若一并叫「备用发音人」，
+     * 会让人误以为日常发音人变成了替补。
+     */
+    val standbyIsFallback: Boolean = false,
 ) {
     fun shouldDecode(): Boolean {
         return source.shouldDecode(audioFormat)

@@ -115,9 +115,15 @@ internal class TtsRepository(
                     }
                 }
                 val isFallbackTag = dto.speechRule.tag in setOf("duihua", "duihuaA", "duihuaB")
-                val effectiveStandby = if (isFallbackTag) null else standby ?: genderStandby
+                // 显式备用优先，没有显式备用时才轮到性别兜底；并记下是不是兜底来的
+                // （日志要区分「备用发音人 / 兜底发音人」，见 TtsConfiguration.standbyIsFallback）
+                val explicitStandby = if (isFallbackTag) null else standby
+                val effectiveStandby = explicitStandby ?: if (isFallbackTag) null else genderStandby
 
-                result[tts.id] = resolved.copy(standbyConfig = effectiveStandby)
+                result[tts.id] = resolved.copy(
+                    standbyConfig = effectiveStandby,
+                    standbyIsFallback = explicitStandby == null && effectiveStandby != null,
+                )
             }
         }
         return result

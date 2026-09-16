@@ -25,6 +25,9 @@ sealed interface NormalEvent : Event {
         val fromTag: String = "",
         val toTag: String = "",
         val reason: String = "retry",
+
+        /** 切换到的是性别/中性兜底（而非用户显式备用），日志用词不同 */
+        val isFallback: Boolean = false,
     ) : NormalEvent
     data object RequestCountEnded : NormalEvent
 

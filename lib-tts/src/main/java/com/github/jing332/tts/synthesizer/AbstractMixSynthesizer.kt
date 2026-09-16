@@ -176,8 +176,9 @@ abstract class AbstractMixSynthesizer() : Synthesizer {
         prefetchedStream: InputStream? = null,
         prefetchedCostMs: Long = 0,
         roleName: String = "",
+        failoverFromTag: String? = null,
     ) {
-        val request = RequestPayload(params, config, roleName)
+        val request = RequestPayload(params, config, roleName, failoverFromTag)
         suspend fun retry() {
             CachedEngineManager.removeEngine(config.source)
             delay(context.cfg.retryDelay())
@@ -194,8 +195,14 @@ abstract class AbstractMixSynthesizer() : Synthesizer {
                     fromTag = fromTag,
                     toTag = toTag,
                     reason = "retry",
+                    isFallback = config.standbyIsFallback,
                 ))
-                requestAndProcess(channel, params, config.standbyConfig, 0, maxRetries, roleName = roleName)
+                // 带上「从哪个标签转来」：切换后的请求已被上面一条日志说明了来路，
+                // 服务层不能再把它当成「规则分析失败降级」重复报一次。
+                requestAndProcess(
+                    channel, params, config.standbyConfig, 0, maxRetries,
+                    roleName = roleName, failoverFromTag = fromTag,
+                )
             } else {
                 val next = retries + 1
                 // 重试时在原文末尾追加可配置的字符（次数 = 重试次数），
@@ -207,7 +214,10 @@ abstract class AbstractMixSynthesizer() : Synthesizer {
                 } else {
                     params
                 }
-                requestAndProcess(channel, retryParams, config, next, maxRetries, roleName = roleName)
+                requestAndProcess(
+                    channel, retryParams, config, next, maxRetries,
+                    roleName = roleName, failoverFromTag = failoverFromTag,
+                )
             }
         }
 
