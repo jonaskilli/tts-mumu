@@ -6608,7 +6608,7 @@ var EditorJS = {
 
             for (var vi = 0; vi < voiceOptions.length; vi++) {
                 (function(vopt, vidx) {
-// vrow 单行：圆点 + 名 + [已分配徽章] + [已点亮emoji] + ⋮ + ▶（目目 09-13 压单行）
+// vrow 单行：圆点 + 名 + [已分配徽章] + [已点亮emoji] + ⋮ + ▶（压单行）
                     var vrow = new android.widget.LinearLayout(ctx);
                     vrow.setOrientation(android.widget.LinearLayout.VERTICAL);
                     vrow.setGravity(android.view.Gravity.CENTER_VERTICAL);
@@ -6713,7 +6713,7 @@ var EditorJS = {
                             } catch (e) { _logErr("搜索弹窗⋮弹窗异常", e, true); }
                         }
                     }));
-                    // 单行化（目目 09-13）：「已分配」徽章与已点亮 emoji 挪进上行名字后，
+                    // 单行化：「已分配」徽章与已点亮 emoji 挪进上行名字后，
                     // 不再单占一行，行高恒定（原来下行只有有标记/已分配的行才出现，观感参差）
                     if (_hasAssigned) {
                         var assignedTag = new android.widget.TextView(ctx);
@@ -7373,7 +7373,7 @@ var EditorJS = {
             }
         }
 
-        // 更换发音人（目目 09-13「完全同源」改版）：不再走自绘三级弹窗（筛选关键词→搜索→
+        // 更换发音人（「完全同源」改版）：不再走自绘三级弹窗（筛选关键词→搜索→
         // 候选列表），直接调 app 桥 ttsrv.showVoicePickerDialog 弹出与日志快捷面板**同款**的
         // 「更换发音人+音频参数」弹窗——分类下拉/搜索/行内试听(▶…■)/已用徽章/emoji标记/
         // 删除配置项/音频参数三层滑杆全由 app 端渲染，与日志面板共用同一组件（VoicePickerDialog）。
@@ -8081,7 +8081,7 @@ var EditorJS = {
         // 因其定义在 onLoadUI 闭包内，模块级方法无法直接访问。
         _refreshCharacterListFn = refreshCharacterList;
 
-        // 注册通用换声弹窗桥回调（目目 09-13「完全同源」改版）：角色管理点发音人标签后，
+        // 注册通用换声弹窗桥回调（「完全同源」改版）：角色管理点发音人标签后，
         // app 端弹出与日志快捷面板同款的 VoicePickerDialog；弹窗内换声落库（app 直接写
         // characterRecords.json+gengxin.json，与插件同文件同字段）/删除配置项/标记变化后，
         // 经 PluginJS.onVoicePickedFromApp 回喊这里——重读磁盘数据并刷新列表。

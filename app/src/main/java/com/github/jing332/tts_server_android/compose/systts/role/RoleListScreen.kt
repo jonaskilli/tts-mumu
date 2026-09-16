@@ -72,21 +72,21 @@ import com.github.jing332.tts_server_android.service.systts.help.VoiceMarksFile
 import kotlinx.coroutines.launch
 
 /**
- * 角色管理·1:1 复刻（目目 09-13 拍板「照 v10 插件原样搬，之后他再改」）：
+ * 角色管理·1:1 复刻（拍板「照 v10 插件原样搬，之后他再改」）：
  * 对照 角色管理v10_主题密钥增强.js 逐函数复刻——
  * **平铺列表**（非分组）：每行=左名字列（主名+别名每行一个、性别色圆点、收藏【】、主角👑）
  * + 右侧（发音人标签框 / ⋮ 发音人管理 / ▶ 试听）。
  * 点击名字=勾选（选中背景高亮）；长按名字=操作菜单（合并+跟随/合并+选发音人（标记≥2）、
  * 释放删除已合并角色（有别名）、修改角色名（单选）、删除角色、设为主角）。
  * 发音人标签框点击=换声弹窗（与日志弹窗同款，桥接已通过）。
- * 顶部：书籍栏（书名/切换/修改书名）；密钥管理与备份恢复入口在宿主顶栏（目目 09-14：给角色区留空）。
+ * 顶部：书籍栏（书名/切换/修改书名）；密钥管理与备份恢复入口在宿主顶栏（给角色区留空）。
  * 列表下方「+ 添加角色」。主题🎨按钮不搬（原生即 MD3 主题）。
  */
 
 /**
  * 性别圆点色：男/少年 = 青蓝，女/少女 = 粉红，判不出 = 灰。
  *
- * **只看发音人分类标签**（目目 09-14：「分性别只看分类标签就够了」）——标签本身就是
+ * **只看发音人分类标签**（「分性别只看分类标签就够了」）——标签本身就是
  * 「中文分类词 + 数字序号」（如 `女青年01`、`少年01`、`少女01`），性别信息已经带在里头，
  * 不必再读记录的 `gender` 字段（那字段常为空，反而会把圆点判成灰）。
  *
@@ -111,14 +111,14 @@ private val releaseDotColors = listOf(
 /**
  * 书籍栏书名的颜色：照 v10 `bookNameEditor.setTextColor("#333333")` 取同一枚深灰。
  *
- * 为什么硬编码不走 colorScheme：v10 里这枚色是固定的（与主题无关），目目 09-16 明确
+ * 为什么硬编码不走 colorScheme：v10 里这枚色是固定的（与主题无关），
  * 「书名的字体和颜色参考 v10」；之前用过 primary（绿主题下书名染成绿色）已被否。
  * 集中成常量便于日后调，不要在调用点写散色值。
  */
 private val BOOK_NAME_COLOR = Color(0xFF333333)
 
 /**
- * 浅一档的容器色（目目 09-15 定案「方案一」）：secondaryContainer 向 background 插 40%。
+ * 浅一档的容器色（定案「方案一」）：secondaryContainer 向 background 插 40%。
  *
  * 为什么必须这么写：各主题的 secondaryContainer 深浅不一，绿主题 #D2E8D4 上整页铺满
  * 书栏卡+标签框显得太深；直接改 Color2 的 29 槽基准会动到全 App，按主题各自的
@@ -159,7 +159,7 @@ fun RoleListScreen(
                 g.list.forEach { item ->
                     // 只认**启用**配置（与角色管理 v10 getVoiceByTag 查 allEnabled 同口径）：
                     // 某标签一条启用项都查不到 → 角色行显示「标签 + ⚠」失效态
-                    // （目目 09-13：删掉启用项后标签就该变成失效态，这是以前的逻辑）
+                    // （删掉启用项后标签就该变成失效态，这是以前的逻辑）
                     if (!item.isEnabled) return@forEach
                     val cfg = item.config as? TtsConfigurationDTO ?: return@forEach
                     val tag = cfg.speechRule?.tag?.trim().orEmpty()
@@ -222,14 +222,14 @@ fun RoleListScreen(
     var editFor by remember { mutableStateOf<Pair<Int, CharacterRecordsFile.RoleRecord>?>(null) }
     var releaseForIdx by remember { mutableStateOf<Int?>(null) }
     var releaseTargetFor by remember { mutableStateOf<Pair<String, String>?>(null) } // (ownerName, releaseName) 释放并固定 → 换声弹窗
-    // 添加角色（目目 09-14 终版）：直接开绑定类换声弹窗，顶部内嵌角色名填写框，
+    // 添加角色（终版）：直接开绑定类换声弹窗，顶部内嵌角色名填写框，
     // 选好发音人确认即建记录（voice=tag id）——独立名字弹窗/选关键词旧流程均废
     var addingChar by remember { mutableStateOf(false) }
     var mergeFollowFor by remember { mutableStateOf<List<String>?>(null) } // 标记的角色名列表，选目标
     var mergeVoiceTarget by remember { mutableStateOf<String?>(null) } // 合并+选择发音人：目标角色
     var pickerFor by remember { mutableStateOf<CharacterRecordsFile.RoleRecord?>(null) } // 换声（标签框点击）
     var showBookDialog by remember { mutableStateOf(false) }
-    // 密钥管理/备份恢复入口已上移到宿主顶栏（目目 09-14：给角色区留空），
+    // 密钥管理/备份恢复入口已上移到宿主顶栏（给角色区留空），
     // 弹窗状态与渲染都在 RoleManagementScreen，本页不再持有
 
     Column(modifier) {
@@ -251,7 +251,7 @@ fun RoleListScreen(
                 if (ok) reload()
             }
         }
-        // 返回键先退编辑态（目目 09-14：编辑态原本只有 ✓ 一个出口，✓ 一旦不可用就困在里面）
+        // 返回键先退编辑态（编辑态原本只有 ✓ 一个出口，✓ 一旦不可用就困在里面）
         BackHandler(enabled = editingBook) { endBookEdit(save = false) }
         // 进编辑态即聚焦（照插件 v10：requestFocus + 弹软键盘，省得再点一下输入框）
         val bookFocus = remember { FocusRequester() }
@@ -260,7 +260,7 @@ fun RoleListScreen(
         }
         Surface(
             shape = RoundedCornerShape(12.dp),
-            // 浅一档容器色（目目 09-15「方案一」）：secondaryContainer 原值整页铺满嫌深，
+            // 浅一档容器色（「方案一」）：secondaryContainer 原值整页铺满嫌深，
             // 向 background 插 40%，仍带主题色相；与角色行标签框共用 softContainerColor 保同色
             color = softContainerColor(),
             modifier = Modifier
@@ -274,7 +274,7 @@ fun RoleListScreen(
                 Modifier.fillMaxWidth().padding(start = 8.dp, end = 2.dp, top = 4.dp, bottom = 4.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                // 彩色 📖 emoji（目目 09-15 晚拍板：书籍图标要彩色；推翻 09-14「入口类 emoji
+                // 彩色 📖 emoji（拍板：书籍图标要彩色；推翻 09-14「入口类 emoji
                 // 清零」口径——那条是通用纪律，此处是用户对书籍图标的明确偏好，偏好优先）
                 Text(
                     "📖",
@@ -284,7 +284,7 @@ fun RoleListScreen(
                 )
                 Spacer(Modifier.width(8.dp))
                 if (editingBook) {
-                    // 紧凑行内编辑（目目 09-14 二次修：去内层描边/填色——书栏卡本身已是
+                    // 紧凑行内编辑（二次修：去内层描边/填色——书栏卡本身已是
                     // 灰底块，里面再套一个描边输入框成「框套框」；改无框裸 BasicTextField
                     // 直躺卡上，光标即编辑态，✓✕ 收尾不变。
                     // 出口三个：✓ / ✕ / 键盘回车，空名回滚由 endBookEdit 兜底）
@@ -328,7 +328,7 @@ fun RoleListScreen(
                 } else {
                     Text(
                         currentBook,
-                        // 目目 09-16：字体与颜色照 v10 —— bookNameEditor.setTextSize(16) +
+                        // 字体与颜色照 v10 —— bookNameEditor.setTextSize(16) +
                         // Typeface.DEFAULT_BOLD + setTextColor("#333333") ⇒ 16sp 加粗深灰；
                         // 这是硬编码色（与 v10 一致），不走 colorScheme
                         style = MaterialTheme.typography.bodyLarge,
@@ -341,7 +341,7 @@ fun RoleListScreen(
                     // ✎ / 管理 两个裸文本键（内边距 12/4/12/4 与 8/4/8/4、14sp）：
                     // 原先的 TextButton 自带 58dp 最小宽 + 12dp 内边距，两个键多占约 23dp
                     Text(
-                        // 「编辑」→ 回 ✎（目目 09-16 复验：汉字键「很一般」，且加粗书名字宽涨 5%、
+                        // 「编辑」→ 回 ✎（复验：汉字键「很一般」，且加粗书名字宽涨 5%、
                         // 12 字需求 192→约 202dp，汉字键比 ✎ 宽约 10dp 正好把书名挤到第二行）
                         "✎",
                         fontSize = 14.sp,
@@ -356,7 +356,7 @@ fun RoleListScreen(
                     )
                     Spacer(Modifier.width(10.dp))
                     Text(
-                        // 去「▾」前缀（目目 09-16）：箭头语义是「就地展开」，而本键打开的是书籍列表
+                        // 去「▾」前缀：箭头语义是「就地展开」，而本键打开的是书籍列表
                         // 弹窗；且整条卡片本身可点、入口相同，箭头无信息增量，还白占约 12dp 宽
                         stringResource(R.string.role_book_manage),
                         fontSize = 14.sp,
@@ -369,7 +369,7 @@ fun RoleListScreen(
                 }
             }
         }
-        // ===== 角色区头（目目 09-14 精简：删「👤 角色列表:」前缀——搜索框 hint 自说明，
+        // ===== 角色区头（精简：删「👤 角色列表:」前缀——搜索框 hint 自说明，
         //      搜索框（12dp圆角、hint自带🔍、无放大镜图标）占满整行，
         //      全选=文字键嵌搜索框右端，选中态红色显「取消全选」）=====
         Row(
@@ -377,7 +377,7 @@ fun RoleListScreen(
             verticalAlignment = Alignment.CenterVertically
         ) {
             val allSelected = markedIdx.containsAll(selectableIdx) && selectableIdx.isNotEmpty()
-            // 紧凑搜索框（目目 09-14：OutlinedTextField 最小高 56dp 偏高）——
+            // 紧凑搜索框（OutlinedTextField 最小高 56dp 偏高）——
             // Surface+BasicTextField 手搓 44dp，外观保持 12dp 圆角描边；hint 手绘、光标主色
             Surface(
                 shape = RoundedCornerShape(12.dp),
@@ -431,14 +431,14 @@ fun RoleListScreen(
                 }
             }
         }
-        // 操作提示行（目目 09-14：两行压一行短句、去 emoji、12sp——正文口径精简）
+        // 操作提示行（两行压一行短句、去 emoji、12sp——正文口径精简）
         Text(
             stringResource(R.string.role_hint_line),
             style = MaterialTheme.typography.labelSmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             maxLines = 1,
             overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
-            // 目目 09-15 晚：跟下方列表行左对齐——行内容左缘 = LazyColumn 12 + RoleRow 行内 14 = 26dp，
+            // 跟下方列表行左对齐——行内容左缘 = LazyColumn 12 + RoleRow 行内 14 = 26dp，
             // 提示行原来 12dp，比列表凸出去一截
             modifier = Modifier.padding(start = 26.dp, end = 12.dp, top = 2.dp, bottom = 2.dp)
         )
@@ -454,7 +454,7 @@ fun RoleListScreen(
                 item {
                     Text(
                         stringResource(R.string.role_list_empty),
-                        // 目目 09-14：空状态字号缩小一档（bodyLarge 16sp → bodyMedium 14sp），
+                        // 空状态字号缩小一档（bodyLarge 16sp → bodyMedium 14sp），
                         // 文案已精简为「暂无角色，朗读后自动生成」
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -635,7 +635,7 @@ fun RoleListScreen(
             )
         }
     }
-    // 释放并固定 → 直接开换声弹窗（目目 09-14：这一步本质＝「解绑别名 + 另立门户换发音人」，
+    // 释放并固定 → 直接开换声弹窗（这一步本质＝「解绑别名 + 另立门户换发音人」，
     // 先选一个关键词、再拿关键词当发音人是多余一跳）。落库仍走 releaseAndFix，其余链路
     // （候选 / 试听 / 确认键 / Toast）与「+ 添加角色」完全同源——只有一处实现。
     // 顺带修正口径：原先写进 voice 的是裸关键词（「女青年」），现在是 tag id（「女青年01」），
@@ -700,7 +700,7 @@ fun RoleListScreen(
         )
     }
 
-    // ===== 添加角色（目目 09-14 终版）：直接开绑定类换声弹窗，角色名在弹窗顶部填写，
+    // ===== 添加角色（终版）：直接开绑定类换声弹窗，角色名在弹窗顶部填写，
     // 选好发音人确认即建记录（voice=tag id）——锚点只需有效（参数/显示基准）：
     // 优先取现有角色的绑定标签，无记录回落池子首个；候选列表=池子∩启用标签，与锚点无关 =====
     if (addingChar) {
@@ -730,7 +730,7 @@ fun RoleListScreen(
 
 /**
  * 菜单动作行（彩色圆点 + 文字，照插件 showFirstDialog 行样式）。
- * 字号口径（目目 09-14 定：弹窗标题与字号全部对齐主界面实际弹窗 —— 即 M3 AlertDialog 默认档）：
+ * 字号口径（弹窗标题与字号全部对齐主界面实际弹窗 —— 即 M3 AlertDialog 默认档）：
  * 行文字用 bodyMedium 14sp（原 bodyLarge 16sp 比主界面弹窗正文大一号，如「转为子分组」的选项行）。
  */
 @Composable
@@ -752,13 +752,13 @@ private fun MenuActionRow(text: String, dotColor: Color, onClick: () -> Unit) {
 
 /**
  * 发音人标签文本（照插件 generateVoiceTag 口径）：tag 前缀 + 显示名连写
- * （目目定稿「男主1晓伊」式）；显示名以 tag 开头时不重复拼（防"男主1男主1"）；
+ * （定稿「男主1晓伊」式）；显示名以 tag 开头时不重复拼（防"男主1男主1"）；
  * 查不到配置返回 null（RoleRow 回落 tag + ⚠）。
  *
- * 两级收口（目目 09-14 晚）：
- * ① **显示名本体限 8 个字**（目目 09-14 晚：「显示名不能超过 8 个字」）——超了直接切到
+ * 两级收口：
+ * ① **显示名本体限 8 个字**（「显示名不能超过 8 个字」）——超了直接切到
  *    8 字，末尾不补符号。常量就在本文件（TAG_DISPLAY_NAME_MAX_CHARS），**与日志行的
- *    12 字故意不同值**（目目同晚「这俩不要一样，那边也可以加省略号」：标签框是
+ *    12 字故意不同值**（同晚「这俩不要一样，那边也可以加省略号」：标签框是
  *    220dp 窄框、硬切不留符号；日志行宽度富余、放 12 字且带「…」）；
  *    标签框上限 220dp、字号 13sp，装得下"tag 前缀 + 8 个全角字"
  *    （最坏 5 字前缀 + 8 字 = 13 个全角字 ≈ 169dp 文本 + 20dp 内边距 ≈ 189dp）；
@@ -785,7 +785,7 @@ private const val TAG_DISPLAY_NAME_MAX_CHARS = 8
  */
 private const val TAG_BOX_CHAR_BUDGET = 14.5f
 
-/** 按标签框可用宽度截断文本：只截不补符号（目目 09-14：不要省略号） */
+/** 按标签框可用宽度截断文本：只截不补符号（不要省略号） */
 private fun cutToTagBoxWidth(text: String, budget: Float = TAG_BOX_CHAR_BUDGET): String {
     var used = 0f
     val out = StringBuilder()
@@ -801,7 +801,7 @@ private fun cutToTagBoxWidth(text: String, budget: Float = TAG_BOX_CHAR_BUDGET):
 /**
  * 角色行（照插件 createListRow / v9 排布）：左名字列竖排（主名第一行，别名从第二行起各占一行，
  * 每行 = 性别圆点 + 名称 + 收藏【】 + 主角👑），整列垂直居中 → 右侧标签框对这一列上下居中；
- * 右动作列只留发音人标签框（目目 09-13 定：原行内 ⋮ / ▶ 退役，一切操作点标签进换声弹窗），
+ * 右动作列只留发音人标签框（原行内 ⋮ / ▶ 退役，一切操作点标签进换声弹窗），
  * 标签后接该发音人已点亮的标记 emoji（❤️🚶😈，与换声弹窗同源 voice_marks.json）。
  */
 @OptIn(ExperimentalFoundationApi::class, ExperimentalMaterial3Api::class)
@@ -823,7 +823,7 @@ private fun RoleRow(
     Surface(
         // 选中态（用户 09-14 二次修）：整行染色保留，但加 12dp 圆角、
         // 色阶从 surfaceContainerHighest 降到 surfaceContainerHigh 浅一档——
-        // 目目指认原先是「一整块直角淡紫」很丑；行内容 padding 不变，选中不跳位
+        // 原先是「一整块直角淡紫」很丑；行内容 padding 不变，选中不跳位
         shape = RoundedCornerShape(12.dp),
         color = if (marked) MaterialTheme.colorScheme.surfaceContainerHigh
         else Color.Transparent,
@@ -835,7 +835,7 @@ private fun RoleRow(
             verticalAlignment = Alignment.CenterVertically
         ) {
             // 名字列
-            // 选中态只由整行 Surface 一处表达（目目 09-13 方案 B「整行一块」）：
+            // 选中态只由整行 Surface 一处表达（方案 B「整行一块」）：
             // 这里必须关掉按压反馈波纹，否则名字列自己的涟漪会叠成第二块灰。
             Column(
                 Modifier
@@ -847,7 +847,7 @@ private fun RoleRow(
                         interactionSource = remember { MutableInteractionSource() },
                     )
                     .heightIn(min = 44.dp),
-                // 名字列整体垂直居中（目目 09-14 修：Column 默认 Top 排列会把 16sp 单行文字顶在
+                // 名字列整体垂直居中（修：Column 默认 Top 排列会把 16sp 单行文字顶在
                 // min 44dp 的上沿，而右侧标签框是居中于整行的 → 标签框比名字低约 10dp 显歪。
                 // 名字列多行（主名 + 别名竖排）时，右侧标签框同样对这整列上下居中）
                 verticalArrangement = Arrangement.Center,
@@ -856,7 +856,7 @@ private fun RoleRow(
                 nameList.forEachIndexed { idx, name ->
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         // 性别色圆点：只看发音人分类标签（tag 本身即「分类词+序号」，见 genderDotColor 注释）
-                        // 目目 09-15 晚：4dp 压不住场，加大到 8dp（与密钥页状态点/书籍列表圆点同档）
+                        // 4dp 压不住场，加大到 8dp（与密钥页状态点/书籍列表圆点同档）
                         Spacer(Modifier.size(8.dp).background(genderDotColor(rec.voice), CircleShape))
                         Spacer(Modifier.width(8.dp))
                         Text(
@@ -880,14 +880,14 @@ private fun RoleRow(
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     // 标签文本：正常态由 voiceTagText 按框宽截好；失效态（查不到配置）
                     // 回落 tag + ⚠——⚠ 本身也占宽，故先让出 2 字预算再拼，
-                    // 否则尾巴又会被框挤掉（目目 09-14：框里不要出现「…」）
+                    // 否则尾巴又会被框挤掉（框里不要出现「…」）
                     val tagLabel = voiceName
                         ?: (cutToTagBoxWidth(rec.voice, TAG_BOX_CHAR_BUDGET - 2f) + " ⚠")
                     // 发音人标签框（失效标签加 ⚠）；点它=换声弹窗（标记 / 删除配置项都在里面）
                     Surface(
                         onClick = onTagClick,
                         shape = RoundedCornerShape(8.dp),
-                        // 浅一档容器色（目目 09-15「方案一」）：与书栏卡共用 softContainerColor 同色
+                        // 浅一档容器色（「方案一」）：与书栏卡共用 softContainerColor 同色
                         color = softContainerColor(),
                     ) {
                         Text(
@@ -897,7 +897,7 @@ private fun RoleRow(
                             maxLines = 1,
                             // 文本已在 voiceTagText 里按框宽收口，正常不会溢出；这里用
                             // Clip 而不是 Ellipsis——万一字体比我估的宽，也绝不吐「…」
-                            // （目目 09-14：不要省略号；预算留了约 1 个全角字的余量兜底）
+                            // （不要省略号；预算留了约 1 个全角字的余量兜底）
                             overflow = TextOverflow.Clip,
                             modifier = Modifier
                                 .padding(horizontal = 10.dp, vertical = 5.dp)

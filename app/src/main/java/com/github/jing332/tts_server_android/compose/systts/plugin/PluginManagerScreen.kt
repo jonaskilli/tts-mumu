@@ -445,7 +445,7 @@ fun PluginManagerScreen(sharedVM: SharedViewModel, onFinishActivity: () -> Unit)
         )
     }
 
-    // 编辑元数据弹窗（09-12 曾改名「修改插件信息」，09-13 目目定：两处统一换回「编辑元数据」）：name/pluginId/author/version + 同步JS + pluginId变更检测
+    // 编辑元数据弹窗（09-12 曾改名「修改插件信息」，09-13 定：两处统一换回「编辑元数据」）：name/pluginId/author/version + 同步JS + pluginId变更检测
     var showEditMetadataDialog by remember { mutableStateOf<Plugin?>(null) }
     // pluginId 变更后，提示一键更新引用旧 id 的配置项
     var pendingPluginIdUpdate by remember { mutableStateOf<Triple<String, String, Int>?>(null) }
@@ -1056,7 +1056,7 @@ private fun Item(
                                     }
                                 )
 
-                            // 切换配置项至其他插件（目目 09-13 定名，原「切换引用配置项至其他插件」）：把所有引用当前插件id的配置项改为目标插件id（用户 09-12 拍板：提到上栏、导出前）
+                            // 切换配置项至其他插件（定名，原「切换引用配置项至其他插件」）：把所有引用当前插件id的配置项改为目标插件id（用户 09-12 拍板：提到上栏、导出前）
                             if (onSwitchPluginRefs != null) {
                                 DropdownMenuItem(
                                     text = { Text("切换配置项至其他插件") },

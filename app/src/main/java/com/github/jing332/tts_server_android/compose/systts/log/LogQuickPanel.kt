@@ -14,7 +14,7 @@ import com.github.jing332.tts_server_android.compose.systts.common.LOCAL_SOUND_T
  * 日志快捷面板「发音人调整」：点带 configId 的"请求音频"主行弹出。
  *
  * 09-13 起整体实现抽到 [VoicePickerDialog]（通用换声弹窗，与角色管理插件桥共用同一弹窗，
- * 完全同源——目目 09-13 定稿），本文件只剩日志面板宿主的参数翻译：
+ * 完全同源——定稿），本文件只剩日志面板宿主的参数翻译：
  * - 锚点=日志主行 configId；
  * - bindingKey=entry.roleName（多角色日志），空且 tagName 命中「本地音效N」=本地音效槽位（同名绑定键）；
  * - sharedVM 保留主列表联动（换声后定位高亮、标记版本联动）。
@@ -32,8 +32,8 @@ fun LogQuickPanel(
     val config = remember(entry.configId) {
         (dbm.systemTtsV2.get(entry.configId)?.config as? TtsConfigurationDTO)
     }
-    // 本地音效槽位单独标记（目目 09-13）：这类槽位的候选不能取自发音人池（组件内已处理），
-    // bindingKey 落槽位名「本地音效N」（目目 09-12：tagName 带序号，按角色那种处理）
+    // 本地音效槽位单独标记：这类槽位的候选不能取自发音人池（组件内已处理），
+    // bindingKey 落槽位名「本地音效N」（tagName 带序号，按角色那种处理）
     val isLocalSoundSlot = entry.roleName.isBlank() &&
         config?.speechRule?.tagName?.let { LOCAL_SOUND_TAG_NAME.matches(it) } == true
     val bindingKey = entry.roleName.ifBlank {

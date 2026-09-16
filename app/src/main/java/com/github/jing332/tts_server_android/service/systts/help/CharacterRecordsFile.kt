@@ -60,7 +60,7 @@ object CharacterRecordsFile {
     /**
      * 占用表：voice 标签 → 占用它的角色名列表（与角色管理 v10 getVoiceAssignedCount 同源同口径，
      * 读同一份 characterRecords.json）。文件缺失/损坏返回空表。
-     * 日志面板候选行据此标「已用」徽章（目目 09-13 定，方案A）。
+     * 日志面板候选行据此标「已用」徽章（方案A）。
      */
     fun readVoiceOwnerMap(tagRuleId: String): Map<String, List<String>> {
         val f = recordsFile(tagRuleId)
@@ -153,7 +153,7 @@ object CharacterRecordsFile {
         }
     }
 
-    // ==================== 内置角色列表（Phase 1，目目 09-13 拍板）====================
+    // ==================== 内置角色列表（Phase 1，拍板）====================
     // 角色管理页签换原生渲染后，app 端直接读写同一份数据。写入口径与插件
     // doDeleteCharacterOperation/重试路径同源：characterRecords.json + 当前书籍
     // shuming.<书名>.json + gengxin.json + characterRecords_backup.json 四写齐落，
@@ -459,7 +459,7 @@ object CharacterRecordsFile {
      * ②shuming.旧.json → shuming.新.json 迁移（旧文件删除，失败覆写空）
      * ③characterRecords.json + characterRecords_backup.json 重写为新书数据
      *
-     * ⚠️ 本次修复的两点（目目 09-14：「改了书名点列表出现一个修改后的、一个修改前的，
+     * ⚠️ 本次修复的两点（「改了书名点列表出现一个修改后的、一个修改前的，
      * 再修改一次又出来个新名」）：
      * ① 旧版 readBookList 带「当前书不在列表 → 补到头部」的兜底，而旧版**先把 cunfang 写
      *    成新名再读列表** ⇒ 新名被当成"当前书但不在列表"补了一次，随后又把旧名项换成新名
@@ -555,7 +555,7 @@ object CharacterRecordsFile {
 
     /**
      * 新建角色记录。voice 传什么存什么：
-     * - 添加角色绑定链路（目目 09-14 定）传**标签 id**，与换声/rebind 同口径；
+     * - 添加角色绑定链路传**标签 id**，与换声/rebind 同口径；
      * - 「释放并固定」（从已有角色解绑别名、另立门户）不走本函数，见下方 releaseAndFix。
      * 字段与插入位置照插件 `+添加角色`（5288-5299）：`{name, aliases:"", voice, usageCount:100,
      * gender:"未知", age:"未知"}` 并 `unshift` 到**列表头部**（旧版 add 到尾部，新角色会掉到最底）。
@@ -604,7 +604,7 @@ object CharacterRecordsFile {
      * 已存在同名记录 → voice=voiceTag + usageCount=100；否则紧随原记录位置新建
      * {name, aliases:"", voice=voiceTag, gender:"", age:"", usageCount:100}。
      *
-     * [voiceTag] 传**发音人标签 id**（如「女青年01」）：目目 09-14 起由换声弹窗直接选发音人。
+     * [voiceTag] 传**发音人标签 id**（如「女青年01」）：由换声弹窗直接选发音人。
      * 早期走关键词弹窗时传的是裸关键词（如「女青年」），与本 App「voice=tag id」口径不符、
      * 朗读时匹配不上，已随关键词弹窗一并下线。
      */

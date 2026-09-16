@@ -89,8 +89,8 @@ fun LogFilterDialog(
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                     verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    // 插件日志开关（09-13 目目要求：文案去掉「日志」二字省宽度）
-                    // 09-13 目目：选中不要打对勾，容器色已足够表达选中态
+                    // 插件日志开关（09-13 要求：文案去掉「日志」二字省宽度）
+                    // 选中不要打对勾，容器色已足够表达选中态
                     FilterChip(
                         selected = showPluginLogs,
                         onClick = { onPluginLogsToggle() },

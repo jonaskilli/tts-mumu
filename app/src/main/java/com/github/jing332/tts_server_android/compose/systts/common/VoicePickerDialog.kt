@@ -93,7 +93,7 @@ import kotlinx.coroutines.launch
  * - 角色管理插件（桥）：VoicePickerBus 请求 → PluginTtsUI.EditContentScreen 宿主渲染，
  *   传 anchorTag=角色当前 tag + bindingKey=角色名，变化经 [onChanged] 回喊插件 JS。
  *
- * 容器（目目 09-14 晚定版，四易其稿：居中弹窗 → 全屏对话框 → 底部面板+自适应 → 底部面板+定高
+ * 容器（定版，四易其稿：居中弹窗 → 全屏对话框 → 底部面板+自适应 → 底部面板+定高
  * → **底部面板+定高+定头单滚动**）：
  * 全屏方案的病根是高度写死成屏高（音频参数段只占半屏多，下方四成空着）；随后试「高度跟着内容
  * 走」，又暴露三个毛病——切 tab 面板长高/缩矮、搜索每敲一个字面板跟着缩、候选只剩一两条时面板
@@ -101,7 +101,7 @@ import kotlinx.coroutines.launch
  * ⚠️ 两条必须在的口径（都是 09-14 晚实测踩出来的）：
  * ① 高度基准取**弹窗窗口的真实可用高**（BoxWithConstraints 的 maxHeight），不用
  *    Configuration.screenHeightDp——后者来自设备显示配置，偏大时面板底缘被顶出屏幕；而底栏
- *    「取消/确认」正好在面板最下缘，表现就是「面板里看不到确认键」（目目 09-14 实锤）；
+ *    「取消/确认」正好在面板最下缘，表现就是「面板里看不到确认键」（实锤）；
  * ② **定头 + 单滚动**：标题行 / 分段 / 当前发音人+终值 / 分类+搜索 四层固定，只有候选列表
  *   （或音频参数段）用 weight(1f) 吃满剩余高度并自带内滚。原先"整块内容可滚 + 列表再滚"
  *    是双层嵌套，手势互抢——列表只分到约 5 行（「上滑空间太小」），列表滚到底后手势链到外层，
@@ -127,17 +127,17 @@ import kotlinx.coroutines.launch
  * @param anchorTag      无具体配置项时按 tag 解析锚点（插件桥传角色当前绑定 tag）；也为非绑定候选归组键
  * @param bindingKey     绑定键：多角色日志=角色名、「本地音效N」槽位=槽位名；空=非绑定模式
  * @param isLocalSoundSlot 本地音效槽位：候选枚举同族 localSoundN（不读池子）、隐藏分类下拉/搜索
- * @param createIfMissing 添加角色模式（目目 09-14 终版）：不弹独立名字窗，直接开本弹窗——
+ * @param createIfMissing 添加角色模式（终版）：不弹独立名字窗，直接开本弹窗——
  *                       顶部多一行角色名填写框（描边=可输入），无「当前发音人/终值」顶部块
  *                       （新角色无当前绑定，候选行自带试听），标题随输入实时显「角色卡（名字）」；
  *                       确认键=建记录并写入所选 tag id，成功后自动关弹窗。锚点仍需有效
  *                       （调用方保证），bindingKey/titleBadge 传空即可
- * @param releaseOwnerName 释放模式（目目 09-14）：非空=「释放并固定」链路——把 [releaseName]
+ * @param releaseOwnerName 释放模式：非空=「释放并固定」链路——把 [releaseName]
  *                       从该角色名下解绑、另立一条记录并写入所选 tag id（落库走 releaseAndFix）。
  *                       不显示顶部名字输入框（名字已定，标题即「角色卡（名字）」），其余
  *                       候选链路 / 试听 / 确认键与添加角色完全同源
  * @param releaseName     释放模式预填名字（= 被释放的别名）
- * @param titleBadge     角色名（目目 09-13：非空=标题显示「角色卡（名字）」）；空=标题显示「信息卡」
+ * @param titleBadge     角色名（非空=标题显示「角色卡（名字）」）；空=标题显示「信息卡」
  *                       ——调用方自传标题已废除（曾出现「发音人调整/更换发音人」两套乱名）
  * @param sharedVM       主界面共享状态（日志面板专用：换声后主列表定位高亮、标记版本联动）；null=跳过
  * @param onChanged      变化回调 (event, tag)：applied=换声落库 / deleted=配置项删除 / marked=标记变化；
@@ -192,7 +192,7 @@ fun VoicePickerDialog(
     }
     val source = config.source as? PluginTtsSource
     // 规则 tags 表（tag id→显示名）：大分类显示的权威来源（与编辑页标签两层弹窗同源）。
-    // config.speechRule.tagName 只是绑定时的快照，规则改版后会过期——目目 09-13 实测
+    // config.speechRule.tagName 只是绑定时的快照，规则改版后会过期——实测
     // 非绑定分类显示不对，改从 rule.tags 现查
     var ruleTags by remember(entity.id) { mutableStateOf<Map<String, String>?>(null) }
     LaunchedEffectOnce(entity.id) {
@@ -201,7 +201,7 @@ fun VoicePickerDialog(
             dbm.speechRuleDao.getByRuleIdAll(config.speechRule.tagRuleId)?.tags
         }
     }
-    // 大分类口径（目目 09-13 定）：分类以 tag id 查 rule.tags 得显示名——显示名带尾序号的
+    // 大分类口径：分类以 tag id 查 rule.tags 得显示名——显示名带尾序号的
     // 合并成一类（女青年01→女青年、本地音效1→本地音效），不带序号的每种各自独立
     // （旁白、男、女、【】括号发音人、「」括号发音人、『』括号发音人、在线音效——括号系不合并）。
     // 规则未加载时回落 tagName 快照
@@ -219,7 +219,7 @@ fun VoicePickerDialog(
     // 标签纯由 previewingKey+previewState 推导，**不用 LaunchedEffect 在 IDLE 时清 key**——
     // 那条复位路会把「上一条试听刚结束/失败的 IDLE 广播」落进新点击与 play() 置 SYNTHESIZING
     // 的窗口里（绑定分支要经 withIO 查库才有 play，窗口更宽），刚写入的新 key 被抹掉、
-    // play 照常出声 → 该行全程 ▶ 无反馈（目目 09-13：「第一行有反馈、后面的行点了不动」实锤）。
+    // play 照常出声 → 该行全程 ▶ 无反馈（「第一行有反馈、后面的行点了不动」实锤）。
     // 改状态推导后 IDLE 恒显 ▶、key 残留无害（所有消费点都有 state!=IDLE 守卫），与角色管理
     // 插件的轮询复位语义完全一致
     fun previewLabel(key: Any?): String = when {
@@ -248,7 +248,7 @@ fun VoicePickerDialog(
     // 换声两段式（用户 09-08）：点候选行=暂存选中（不落库），底部「确认」键才生效——
     // 即点即改的 Toast 反馈太弱且易误触；未确认选择在关闭面板时自然丢弃
     var pendingVoice by remember(entity.id) { mutableStateOf<String?>(null) }
-    // 添加角色模式：角色名在弹窗内填写（目目 09-14 终版：不弹独立名字窗），
+    // 添加角色模式：角色名在弹窗内填写（终版：不弹独立名字窗），
     // 标题实时跟随；确认时非空才可点。
     // 释放模式：名字已定（= 被释放的别名），这里只作预填、不显示输入框
     var inputName by remember(entity.id) { mutableStateOf(releaseName) }
@@ -281,7 +281,7 @@ fun VoicePickerDialog(
 
     /** 按标签（tag id）查启用配置项（试听/当前发音人名/候选行displayName/参数跟随共用）——
      *  用户 09-12 定稿：匹配键=**tag（id）**，fayinren.json/characterRecords 存的都是 tag id。
-     *  正常配置=**一个标签只启用一条**（目目 09-12 定）：换声即改写这条启用配置，该标签后续
+     *  正常配置=**一个标签只启用一条**：换声即改写这条启用配置，该标签后续
      *  片段确定全换；「同 tag 多配置随机轮播」属误操作，引擎侧 random 只是兜底，勿当设计意图；
      *  tagName 是显示名不参与匹配（09-12 晚：tagName 兜底也移除，全链只认 tag） */
     fun enabledConfigEntityByTag(tag: String): SystemTtsV2? {
@@ -303,7 +303,7 @@ fun VoicePickerDialog(
     // 旁白=暂存候选的配置项；无暂存=本配置项。目标切换时三层草稿整体重载。=====
     var paramsTarget by remember(entity.id) { mutableStateOf(entity) }
 
-    // 09-12：非绑定换声落库后的新显示名——确定后弹窗不关，entity 是 remember 的库内旧快照，
+    // 非绑定换声落库后的新显示名——确定后弹窗不关，entity 是 remember 的库内旧快照，
     // 头部「当前发音人」靠它立即跟上；重开弹窗重新读库，此覆盖自然失效
     var appliedDisplayName by remember(entity.id) { mutableStateOf<String?>(null) }
 
@@ -351,7 +351,7 @@ fun VoicePickerDialog(
         }
     }
 
-    // 删除这条配置项（目目 09-13 深夜再纠偏：粒度=「我点的这一条」——
+    // 删除这条配置项（深夜再纠偏：粒度=「我点的这一条」——
     // 删「女青年01 - 晓晓」只删这条启用配置，同标签下没启用的残留一律不动）：
     // ① 删该配置项并清失效引擎缓存；
     // ② 仅当该标签已无其他**启用**配置时，才从 fayinren.json 移除该标签
@@ -530,7 +530,7 @@ fun VoicePickerDialog(
         }
     }
 
-    // 底部面板 + 统一定高（目目 09-14 终版，三易其稿：居中弹窗 → 全屏对话框 → 高度自适应 → 定高）。
+    // 底部面板 + 统一定高（终版，三易其稿：居中弹窗 → 全屏对话框 → 高度自适应 → 定高）。
     // 高度自适应看着"不浪费"，实测有三个毛病：①两段内容量差一倍，切 tab 时面板长高/缩矮；
     // ②搜索框每敲一个字候选就少几条，面板跟着一缩一缩；③候选只剩一两条时面板塌成小条，
     // 像个 snackbar 不像面板。底部面板本该是个稳定的容器，故改成固定档位 72% 屏高。
@@ -559,7 +559,7 @@ fun VoicePickerDialog(
             contentAlignment = Alignment.BottomCenter,
         ) {
             // ⚠️ 高度基准必须取「弹窗窗口的真实可用高」，**不能**用 Configuration.screenHeightDp
-            //（目目 09-14 晚实锤「面板里看不到确认键」的根因）：screenHeightDp 来自设备显示配置，
+            //（实锤「面板里看不到确认键」的根因）：screenHeightDp 来自设备显示配置，
             // 与弹窗窗口实际拿到的高度不一定相等，偏大时面板底缘被顶出屏幕——而底栏正在面板最下缘，
             // 于是整条「取消/确认」看不见也点不到。BoxWithConstraints 拿的是本窗口的真实约束，
             // 面板高恒由它派生，结构上不可能超出可视区。
@@ -567,7 +567,7 @@ fun VoicePickerDialog(
                 Modifier.fillMaxSize(),
                 contentAlignment = Alignment.BottomCenter,
             ) {
-            // 统一定高档位 88% 可用高（目目 09-14 晚拍板 72%→88%）：头部四层（标题 / 分段 /
+            // 统一定高档位 88% 可用高（拍板 72%→88%）：头部四层（标题 / 分段 /
             // 当前发音人+终值 / 分类+搜索）重构后全部固定不滚，候选列表仍能露约 8 行，
             // 接近真·底部弹窗的体量；键盘弹出时外层 imePadding 已先把可用高收掉，
             // 面板随之变矮，不会顶出屏幕。
@@ -593,7 +593,7 @@ fun VoicePickerDialog(
                 color = MaterialTheme.colorScheme.surfaceContainerHigh,
             ) {
                 Column(Modifier.navigationBarsPadding()) {
-                    // 拖拽把（目目 09-14 晚「做成底部弹窗的样式」）：M3 底部弹窗的识别特征就是
+                    // 拖拽把（「做成底部弹窗的样式」）：M3 底部弹窗的识别特征就是
                     // 顶部这条 4dp×32dp 抓手。本面板是 Dialog 自绘的（插件桥靠 VoicePickerBus +
                     // Dialog 语义回喊 JS，不能换 Activity），所以它只是形态标记、不可拖动——
                     // 真拖拽版要换 ModalBottomSheet，留作下一轮（换了要重验那条回喊链）。
@@ -612,7 +612,7 @@ fun VoicePickerDialog(
                                 )
                         )
                     }
-                    // 紧凑标题行（目目 09-14）：一行「标题 + ✕」，宽度与内容对齐。
+                    // 紧凑标题行：一行「标题 + ✕」，宽度与内容对齐。
                     // 原 TopAppBar 是 M3 一级页面语汇（64dp 通栏 + 22sp 大标题 + 通栏分割线），
                     // 弹窗借来用会读成「App 的一个页面」，且它与底栏相距一屏、把内容夹在中间。
                     Row(
@@ -625,7 +625,7 @@ fun VoicePickerDialog(
                             modifier = Modifier.weight(1f),
                             verticalAlignment = Alignment.CenterVertically,
                         ) {
-                            // 角色卡形态（目目 09-13 终版，三易其稿：标题右侧→小字行→标题本身）：
+                            // 角色卡形态（终版，三易其稿：标题右侧→小字行→标题本身）：
                             // 带角色名时标题显示「角色卡（角色名）」——「角色卡」明说身份，名字绿色加粗
                             // 与「最终」行呼应；无角色名（旁白/本地音效槽位等）统一叫「信息卡」，与角色卡成对。
                             // 调用方自传标题已废除；超长省略号截断，标题槽单行不被挤。
@@ -662,7 +662,7 @@ fun VoicePickerDialog(
                                 Text(stringResource(R.string.voice_picker_info_card))
                             }
                         }
-                        // 确认键挪进标题行（目目 09-15 晚拍板方案 A）：底栏贴面板底缘，Dialog 窗口
+                        // 确认键挪进标题行（拍板方案 A）：底栏贴面板底缘，Dialog 窗口
                         // 拿不到导航栏 insets，两轮修复（窗口真实可用高定高 / 20dp 保底间隙）都压不住
                         // 「确认键被裁」，顶部锚定结构性免疫。仅换声区显示（音频参数各块自带
                         // 重置/应用，不需要统一确认）；✕ / 点遮罩=取消，原底部「取消」不再重复出现
@@ -690,13 +690,13 @@ fun VoicePickerDialog(
                                         // 添加角色 / 释放并固定：都要在 characterRecords.json 里落一条
                                         // voice=所选 tag id 的记录，成功后自动关弹窗。
                                         // - 添加：addCharacter 建新记录，同名已存在返回 false（确认键已拦空名）
-                                        // - 释放并固定（目目 09-14）：releaseAndFix 先把该名字从原角色解绑、
+                                        // - 释放并固定：releaseAndFix 先把该名字从原角色解绑、
                                         //   再另立门户写记录；名字已定（不显示输入框），用户只需选发音人
                                         addMode -> {
                                             val n = inputName.trim()
                                             val isRelease = releaseOwnerName.isNotBlank()
                                             // 发音人显示名口径与弹窗头部/候选行一致（同 tag 的启用配置项名）：
-                                            // 不在 Toast 里抛 tag id（目目 09-14：文案一律走 R.string 三处同写，
+                                            // 不在 Toast 里抛 tag id（文案一律走 R.string 三处同写，
                                             // 这里原来硬编码中文、且原样打印 tag id）
                                             val shown = enabledConfigEntityByTag(selected)?.displayName ?: selected
                                             scope.launch {
@@ -781,7 +781,7 @@ fun VoicePickerDialog(
                                     }
                                 },
                             ) {
-                                // ⚠️ 不用 enabled 灰键（目目 09-14 晚「选了角色无法确认」）：灰键说不出为
+                                // ⚠️ 不用 enabled 灰键（「选了角色无法确认」）：灰键说不出为
                                 // 什么是灰的，键在又按不动更像坏了。恒可点 + 前置条件各给一句 Toast；
                                 // ● = 有暂存选择（两段式确认的视觉反馈）
                                 Text((if (pendingVoice != null) "● " else "") + stringResource(R.string.confirm))
@@ -808,7 +808,7 @@ fun VoicePickerDialog(
                     .weight(1f)
                     // 左右统一 16dp：顶部 / 换声区 / 音频参数区共用一条左边线
                     .padding(horizontal = 16.dp)
-                    // ⚠️ 本区**不再**整体 verticalScroll（目目 09-14 晚重构）：原来它挂着一层
+                    // ⚠️ 本区**不再**整体 verticalScroll（重构）：原来它挂着一层
                     // verticalScroll、候选列表自己又挂一层 → 两层嵌套滚动，手势互相抢。表现是
                     // ①上滑先滚列表，列表只有外层分给它的那点高度（约 5 行）＝「上滑空间太小」；
                     // ②列表滚到底后手势链到外层，把标题以下的头部整块卷出视野＝「上方都隐藏了」。
@@ -853,7 +853,7 @@ fun VoicePickerDialog(
             if (!addMode) {
             Column(Modifier.fillMaxWidth()) {
                 Text(
-                    // 标题已改叫「角色卡（角色名）」（目目 09-13 终版），本行回归纯「当前发音人」
+                    // 标题已改叫「角色卡（角色名）」（终版），本行回归纯「当前发音人」
                     "当前发音人",
                     style = MaterialTheme.typography.labelMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -881,7 +881,7 @@ fun VoicePickerDialog(
                         }
                     }
                     // ▶ 同候选行方案A：裸字符可点替代 TextButton（单字符占 58dp 底座，顶栏紧巴巴），
-                    // 16dp 字形+两侧 12dp ≈40dp，上下 12dp 凑满 48dp 触控高（目目 09-13）
+                    // 16dp 字形+两侧 12dp ≈40dp，上下 12dp 凑满 48dp 触控高
                     Text(
                         previewLabel(PREVIEW_KEY_CURRENT),
                         color = previewLabelColor(PREVIEW_KEY_CURRENT),
@@ -983,7 +983,7 @@ fun VoicePickerDialog(
                                     ?.takeIf { t -> t.isNotEmpty() }
                             }.toMutableSet()
                     }
-                    // 候选来源分两类（目目 09-13 定）：
+                    // 候选来源分两类：
                     // - 角色槽位：发音人池 fayinren.json ∩ 启用标签（池子只装 GENSHIN 音色标签）
                     // - 本地音效槽位：**不能**用池子——规则 detectAvailableVoices 只遍历 GENSHIN_CHARACTERS
                     //   （localSound 前缀不在其中），音效标签根本进不了池子，取出来全是 TTS 音色。
@@ -1012,11 +1012,11 @@ fun VoicePickerDialog(
                     val effectiveCategory = selectedCategory?.takeIf { key ->
                         categoryOptions.any { it.first == key }
                     }
-                    // 音效槽位（目目 09-13）：候选只有同族 localSound 槽位（通常 1~N 条），
+                    // 音效槽位：候选只有同族 localSound 槽位（通常 1~N 条），
                     // 音色分类与搜索都无意义（分类表里音效恒落 null → 只有「全部（N项）」一项）
                     // → 下拉与搜索框整块隐藏，列表直接铺满
                     if (!isLocalSoundSlot) {
-                        // 分类字段 + 搜索框并作一行（目目 09-14）：原来分类条与搜索框纵向各占
+                        // 分类字段 + 搜索框并作一行：原来分类条与搜索框纵向各占
                         // 一行（48 + 56dp），白吃一行高度；并排后一行 56dp 收住，分类名也仍在视野里。
                         // 两者**同高（56dp）、同语境（都是字段）**：左=筛选条件、右=输入；分类灰底无框、
                         // 搜索描边无底，靠"填色 / 描边"这一对区分"选"与"输"，不靠形状家族硬区分
@@ -1066,7 +1066,7 @@ fun VoicePickerDialog(
                                 value = tagSearch,
                                 onValueChange = { tagSearch = it },
                                 singleLine = true,
-                                // 描边淡化（目目 09-14 晚）：默认未聚焦描边是 outline（与主色同族、
+                                // 描边淡化：默认未聚焦描边是 outline（与主色同族、
                                 // 比旁边那块分类灰底重一档，并排看着刺眼）。降一档到 outlineVariant，
                                 // 只留「描边=可输入」的语义、不再抢旁边的分类字段；聚焦态仍回 outline，
                                 // 保留"正在输入"的反馈（光标本身另有一层反馈）
@@ -1077,7 +1077,7 @@ fun VoicePickerDialog(
                             )
                         }
                     } else {
-                        // 只读态（目目 09-14）：音效槽位大分类取 rule.tags 现查（剥尾号→「本地音效」），
+                        // 只读态：音效槽位大分类取 rule.tags 现查（剥尾号→「本地音效」），
                         // 不可切、无搜索 → 无底无框无箭头，纯文字信息，不会被当成可点项
                         CategoryChip(value = displayCategory)
                     }
@@ -1121,13 +1121,13 @@ fun VoicePickerDialog(
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                             )
                         }
-                        // 重名兜底（目目 09-13 去序号后）：显示名在本轮候选里撞车才括号补回标签，
+                        // 重名兜底（去序号后）：显示名在本轮候选里撞车才括号补回标签，
                         // 正常情况一个字不多（一标签一启用，显示名基本不重）
                         val dupNames = displayTags.groupingBy { t ->
                             enabledConfigEntityByTag(t)?.displayName?.ifEmpty { null }
                                 ?: if (isLocalSoundSlot) localSoundSlotLabel(t) else t
                         }.eachCount()
-                        // 占用表（目目 09-13 定方案A）：characterRecords.json 里 voice→角色名列表，
+                        // 占用表（方案A）：characterRecords.json 里 voice→角色名列表，
                         // 与角色管理插件「已分配」徽章同源同口径；排除自己（bindingKey）——
                         // 自己当前绑定的那行已有 ✓ 主色，不重复标
                         val voiceOwners = remember(entity.id) {
@@ -1136,7 +1136,7 @@ fun VoicePickerDialog(
                         displayTags.forEach { tag ->
                             val isCurrent = tag == boundVoice
                             val isPending = tag == pendingVoice
-                            // 候选行=纯配置项显示名（目目 09-13 定稿：序号/标签不进行内，
+                            // 候选行=纯配置项显示名（定稿：序号/标签不进行内，
                             // 大类由上方分类框表达）；无显示名回落：音效槽位→「本地音效N」，其余→tag
                             // 候选池已筛 fayinren.json∩启用配置（tag id 口径），用 enabledConfigEntityByTag 即可取到 displayName
                             val cfgName = enabledConfigEntityByTag(tag)?.displayName.orEmpty()
@@ -1163,7 +1163,7 @@ fun VoicePickerDialog(
                                     // 两段式（用户 09-08）：点行=暂存选中，底部「确认」才落库。
                                     // 点到当前绑定的那一行时行内 ✓ 不会变（● 只在 !isCurrent 时补），
                                     // 看不出任何反应 → 补一句 Toast 说明，别让人以为点坏了
-                                    // （目目 09-14 晚「选了角色无法确认」的来源之一）
+                                    // （「选了角色无法确认」的来源之一）
                                     if (tag == boundVoice) {
                                         Toast.makeText(
                                             context,
@@ -1173,7 +1173,7 @@ fun VoicePickerDialog(
                                     }
                                     pendingVoice = tag
                                 },
-                                // 音效槽位也渲染试听键（目目 09-13 晚加回：也有自定义配置项的本地音效，
+                                // 音效槽位也渲染试听键（加回：也有自定义配置项的本地音效，
                                 // 试听文本走 localSoundSampleText 专用轨，与顶部 ▶ 同源）
                                 previewText = previewLabel(tag),
                                 previewColor = previewLabelColor(tag),
@@ -1223,7 +1223,7 @@ fun VoicePickerDialog(
                     }
                 } else {
                     // ===== 非绑定换声（用户 09-12 定稿）：按本配置项的 **tag（id）** 列同标签候选 =====
-                    // 候选**故意列全量配置（含禁用）**——目目 09-12 定：正常配置一个标签只启用一条，
+                    // 候选**故意列全量配置（含禁用）**——正常配置一个标签只启用一条，
                     // 禁用条只是"可借用的发音人来源"；点行=暂存选中，底部「确认」改写**那一条启用配置**
                     // 的 voice → 该标签后续片段确定全换（引擎侧同 tag 随机只是兜底，非设计意图）；
                     // 旁白/对话(duihua)/括号/本地音效全部天然按此归组，无需特殊分支；
@@ -1231,12 +1231,12 @@ fun VoicePickerDialog(
                     // 落库后主列表自动定位高亮被改项（sharedVM.pendingLocateConfigId）
                     val currentTagId = config.speechRule.tag
                     val currentTagName = config.speechRule.tagName
-                    // 常驻搜索（目目 09-14 晚补）：非绑定类（旁白/对话/括号…）原先只有一枚只读分类
+                    // 常驻搜索（补）：非绑定类（旁白/对话/括号…）原先只有一枚只读分类
                     // chip、下面直接就是候选行——无搜索可筛，几十条候选只能靠手翻。同标签候选
                     // 往往比绑定类更多（一个 tag 下每条配置项都是一个发音人），搜索必须补齐。
                     // 语汇与绑定类完全一致：左=分类（只读，填色语义）、右=搜索（描边语义），同高 56dp
                     var narrationSearch by remember(entity.id) { mutableStateOf("") }
-                    // 只读态（目目 09-14）：非绑定类（旁白/对话/括号…）**没有大类可切**，分类取 rule.tags
+                    // 只读态：非绑定类（旁白/对话/括号…）**没有大类可切**，分类取 rule.tags
                     // 现查（面板顶部 displayCategory，剥尾号）——无底无框无箭头、纯文字信息；
                     // 候选行因此不再重复带标签前缀
                     if (!isLocalSoundSlot) {
@@ -1283,7 +1283,7 @@ fun VoicePickerDialog(
                             Pair(v, c)
                         }.distinctBy { it.first }
                     }
-                    // 搜索过滤（目目 09-14 晚补）：命中「配置项名」或「发音人 id」——同绑定模式
+                    // 搜索过滤（补）：命中「配置项名」或「发音人 id」——同绑定模式
                     // 「标签名 / 配置项名并集」的思路，只是这里一行对应一条配置项，按发音人 id 搜也应命中
                     val narrationShown = if (narrationSearch.isBlank()) {
                         narrationCandidates
@@ -1413,7 +1413,7 @@ fun VoicePickerDialog(
                 }
             }
             } // 内容 Column 收尾（本区不滚：只有候选列表/音频参数段自带内滚）
-            // 底部「取消/确定」动作行已删（目目 09-15 晚拍板方案 A）：确认键挪进标题行——
+            // 底部「取消/确定」动作行已删（拍板方案 A）：确认键挪进标题行——
             // 底栏贴面板底缘，Dialog 窗口拿不到导航栏 insets（navigationBarsPadding=0），
             // 定高/20dp 保底两轮修复都压不住「确认键被裁」；顶部锚定结构性免疫，
             // 内容区 weight(1f) 直接吃满面板底。取消语义由 ✕ / 点遮罩承担。
@@ -1423,7 +1423,7 @@ fun VoicePickerDialog(
         } // Box（遮罩 + 底部对齐）收尾
     } // Dialog 收尾
 
-    // 删除确认弹窗（⋮ 菜单 🗑 入口；目目 09-13 深夜定稿：删除的粒度就是「你点的那一条配置项」，
+    // 删除确认弹窗（⋮ 菜单 🗑 入口；深夜定稿：删除的粒度就是「你点的那一条配置项」，
     // 文案照插件 doDeleteVoiceAndReassign 口径、把「发音人」统一成「配置项」）：标题行=【tag - 显示名】，
     // 正文按该标签**是否已被角色占用**二选一。
     // 「已被分配」判定与候选行「已用」徽章同源（characterRecords.json 的 voice→角色名表）。
@@ -1498,7 +1498,7 @@ private fun CandidateRow(
     onToggleMark: (String) -> Unit,
     deleteEnabled: Boolean,
     onDelete: () -> Unit,
-    // 该标签已被其他角色占用（目目 09-13 定方案A）：名字后标「已用」小徽章；
+    // 该标签已被其他角色占用（方案A）：名字后标「已用」小徽章；
     // 仅绑定分支传 true，非绑定分支走默认 false 不显示
     usedBadge: Boolean = false,
 ) {
@@ -1525,7 +1525,7 @@ private fun CandidateRow(
                 color = nameColor,
             )
             if (usedBadge) {
-                // 「已用」徽章（目目 09-13 定方案A）：主色淡底圆角 chip，10sp，与角色管理
+                // 「已用」徽章（方案A）：主色淡底圆角 chip，10sp，与角色管理
                 // 插件「已分配」徽章同语义；占用≠禁用，行仍可点选改绑
                 Text(
                     "已用",
@@ -1599,14 +1599,14 @@ private fun CandidateRow(
 }
 
 /**
- * 本地音效槽位的两种形态（目目 09-13 定）：
+ * 本地音效槽位的两种形态：
  * - tagName：`本地音效N`（规则 tags 表把 localSoundN 映射成它）
  * - tag(id) ：`localSound1`~`localSound100`（规则循环注册；JReadConfigMigration 的
  *   RULE_SOUND_TAG_REGEX 同款）
  *
  * 为什么音效槽位不能读发音人池：池子 fayinren.json 由规则 detectAvailableVoices 生成，
  * 它只遍历 GENSHIN_CHARACTERS（音色标签），localSound 前缀不在其中，音效标签永远进不去池子
- * ——按池子取候选只会得到一堆 TTS 音色（09-13 目目截图实锤）。故音效槽位改从配置表枚举同族槽位。
+ * ——按池子取候选只会得到一堆 TTS 音色（09-13 截图实锤）。故音效槽位改从配置表枚举同族槽位。
  */
 internal val LOCAL_SOUND_TAG_NAME = Regex("本地音效\\d*")
 
@@ -1618,16 +1618,16 @@ private fun localSoundSlotLabel(tag: String): String =
 
 /**
  * 大分类=标签显示名剥尾部数字（女青年01→女青年、本地音效1→本地音效）；
- * 显示名不带尾序号的整名独立成类（旁白、男、女、【】括号发音人等，括号系不合并——目目 09-13 定）。
+ * 显示名不带尾序号的整名独立成类（旁白、男、女、【】括号发音人等，括号系不合并）。
  * 与列表页标签两层弹窗的大分类同口径同来源（rule.tags 查显示名后剥尾号）。
  */
 /**
- * 分类字段（目目 09-14 终版，形态四易：输入框轮廓 → 全宽状态条 → 填色胶囊 → **灰底字段**）。
+ * 分类字段（终版，形态四易：输入框轮廓 → 全宽状态条 → 填色胶囊 → **灰底字段**）。
  *
  * 分类是**当前状态**、不是待输入项，故不用 OutlinedTextField 轮廓（跟旁边搜索框同形，分不出哪块
  * 是分类）；也不能用 `secondaryContainer` 填充——那个色在 MD3 里是 **SegmentedButton 选中态**的
  * 官方指定色，上面的「更换发音人/音频参数」正在用，分类再填就变成"第三个已选中的分段项"，
- * 与分段平级、层级被压平（目目 09-14 察觉"都是胶囊形状、分类还填色，会不会混"）。
+ * 与分段平级、层级被压平（察觉"都是胶囊形状、分类还填色，会不会混"）。
  * 故取**填色以外**的一种：`surfaceContainerHighest` 灰底 + 8dp 方角 + **56dp 与同行的搜索框等高**
  * ——读成"一对字段"（左=筛选条件，右=输入），填色在面板里只保留"分段选中"一个含义。
  *

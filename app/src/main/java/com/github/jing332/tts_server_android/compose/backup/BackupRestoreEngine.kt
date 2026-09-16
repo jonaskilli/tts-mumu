@@ -240,7 +240,7 @@ internal class BackupRestoreEngine(
         val groupOrder = dbm.systemTtsV2.groupCount
         var nextOrder = groupOrder
         groups.forEach { source ->
-            // 空的默认分组不恢复（目目 09-15 晚报「恢复备份多出空默认分组」）：
+            // 空的默认分组不恢复（报「恢复备份多出空默认分组」）：
             // 兜底组的空壳是备份机 init 产物，本机 id=1 还在时它本来就被「空默认分组不显示」
             // 过滤隐藏；本机删过 id=1 时按名字找不到会新建一个时间戳 id 的「默认分组」，
             // 不再命中 id 过滤 → 空壳直接露脸。空组零内容，跳过不建。

@@ -47,7 +47,7 @@ open class TtsPluginEngineV2(val context: Context, var plugin: Plugin) {
         private suspend fun <T> runWithTimeout(timeoutMs: Long, block: () -> T): T {
             val deferred = CompletableDeferred<T>()
             val future = executor.submit {
-                // 进/出各清一次陈旧中断标记（目目 09-13「No data written」偶发试听失败根因）：
+                // 进/出各清一次陈旧中断标记（「No data written」偶发试听失败根因）：
                 // 上一任务被 future.cancel(true) 打断时若阻塞在不可中断 IO（OkHttp socket 等），
                 // 中断标记无人消费、随线程回池；下次试听复用该线程 → JS 网络请求刚起就被陈旧
                 // 中断打断 → 插件静默失败 0 字节 close → JsBridgeInputStream 报「No data written」，

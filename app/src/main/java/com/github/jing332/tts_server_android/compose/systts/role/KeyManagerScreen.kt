@@ -142,7 +142,7 @@ private fun buildKeyGroups(keys: List<KeyListFile.KeyEntry>, ifaces: List<KeyLis
 }
 
 /**
- * 裸文本动作键（目目 09-16：全选 / 取消 / 删除不要外框）。
+ * 裸文本动作键（全选 / 取消 / 删除不要外框）。
  *
  * 原先照插件 createSmallButton 用「透明底 + 彩色描边」小 chip，三个并排像三枚胶囊，
  * 与本页其余无框动作（组头图标区、条目行名字）语言不统一；去描边后只留文字 + 36dp 热区，
@@ -185,7 +185,7 @@ private fun FlatIconAction(
 }
 
 /**
- * 密钥条目 = 一张卡片（目目 09-16：**排布一行不动**，只把每个模型包成卡片）：
+ * 密钥条目 = 一张卡片（**排布一行不动**，只把每个模型包成卡片）：
  * 状态点 + 显示名 +「当前」徽章 + 动作图标 ⚡⧉✏🗑 同行居右；显示名放不下自己换行。
  *
  * ElevatedCard 照主界面 Item.kt:113 同款（M3 默认 surfaceContainerLow 底 + 1dp 阴影）；
@@ -207,7 +207,7 @@ private fun KeyEntryRow(
     onEdit: () -> Unit,
     onDelete: () -> Unit,
 ) {
-    // 勾选反馈（目目 09-16：原先整行毫无变化、只有小方块在动，看着像设置列表不像多选）——
+    // 勾选反馈（原先整行毫无变化、只有小方块在动，看着像设置列表不像多选）——
     // 勾中整卡染 8% error 浅红，与左侧复选框一起给出「这条被选走了」。
     // compositeOver：底色近似半透明红叠在卡面上，避免半透明直接给 ElevatedCard 透出页面底色
     val cardColor = if (deleteMode && checked)
@@ -217,7 +217,7 @@ private fun KeyEntryRow(
 
     ElevatedCard(
         colors = CardDefaults.elevatedCardColors(containerColor = cardColor),
-        // 缩进 = 归属关系（目目 09-16）：左缘 15dp 与组头折叠箭头同列、右缘 6dp 与组头图标区
+        // 缩进 = 归属关系：左缘 15dp 与组头折叠箭头同列、右缘 6dp 与组头图标区
         // 同列——上版卡左缘在 6dp（与色条同列），比组头内容还靠左，看着像与组头平级的另一行；
         // 缩进后卡片明确挂在组头之下。上下 3 ⇒ 相邻两张卡之间 6dp
         modifier = Modifier.fillMaxWidth().padding(start = 15.dp, end = 6.dp, vertical = 3.dp)
@@ -232,13 +232,13 @@ private fun KeyEntryRow(
             if (deleteMode) {
                 Checkbox(checked = checked, onCheckedChange = { onToggleCheck() })
             }
-            // 删除模式不显示状态点（目目 09-15 晚：☐ 旁边再跟个 ○ 像两组选择圈打架，纯粹干扰；
+            // 删除模式不显示状态点（☐ 旁边再跟个 ○ 像两组选择圈打架，纯粹干扰；
             // 「当前」徽章仍在名字后保留）
             if (!deleteMode) {
                 // 状态点固定 14dp 位宽、24dp 高（对齐 bodyMedium 行高）
                 Box(Modifier.width(14.dp).height(24.dp), contentAlignment = Alignment.CenterStart) {
                     val dot = when {
-                        // 当前密钥 = 组头色条同款 primary（目目 09-16：跟小竖线一个颜色）；
+                        // 当前密钥 = 组头色条同款 primary（跟小竖线一个颜色）；
                         // 名字与「当前」徽章仍走 accent(secondary)，实机看着别扭再统一
                         isCurrent -> MaterialTheme.colorScheme.primary
                         testOk == true -> TEST_PASS_COLOR
@@ -289,8 +289,8 @@ private fun KeyEntryRow(
                 }
             }
             if (!deleteMode) {
-                // 固定宽图标区（目目 09-15 晚方案 A）：144dp=4×36dp 热区，与组头行图标垂直成列；
-                // 动作图标按使用频次（目目 09-15 方案一）：⚡测试 ⧉复制 ✏编辑 🗑删除
+                // 固定宽图标区（方案 A）：144dp=4×36dp 热区，与组头行图标垂直成列；
+                // 动作图标按使用频次（方案一）：⚡测试 ⧉复制 ✏编辑 🗑删除
                 //（📋 复制的是模型名，编辑弹窗里才是完整密钥串）
                 Row(
                     Modifier.width(144.dp),
@@ -592,13 +592,13 @@ fun KeyManagerScreen(tagRuleId: String, onBack: () -> Unit) {
                         val selCount = grp.entries.count { it.name in deleteChecked }
                         // 组不做容器（照主界面 GroupItem.kt:98：组头 background(surface) 裸排、层级靠排版）。
                         // 旧版组卡 surfaceContainerLow 比页面底只暗 4/255、包裹根本不成形，反而把
-                        // surfaceContainerLowest 的条目卡衬成全页最亮的「白条」（目目 09-16 质疑后查实）。
+                        // surfaceContainerLowest 的条目卡衬成全页最亮的「白条」（质疑后查实）。
                         // 条目 ElevatedCard 成为页面唯一容器层；归属感靠组头排版 + 组间 16dp 间距表达。
                         // （内层 Column 保留原缩进壳，避免整块内容平移缩进）
                         Column(Modifier.fillMaxWidth().padding(top = 16.dp)) {
                             Column(Modifier.padding(vertical = 4.dp)) {
                                 // ———— 组头 + 元信息行 ————
-                                // 色条只跟**组头行**同高（目目 09-16 二改）：上版拉长到元信息行、
+                                // 色条只跟**组头行**同高（二改）：上版拉长到元信息行、
                                 // 用 IntrinsicSize.Min 让色条撑满两行，结果折叠箭头随两行高度垂直居中、
                                 // 从「组名左侧」坠到两行中间——箭头锚的是组名，不是整块。
                                 // 现把色条放回组头行内（3×16dp），箭头与组名恢复同行居中
@@ -610,7 +610,7 @@ fun KeyManagerScreen(tagRuleId: String, onBack: () -> Unit) {
                                         verticalAlignment = Alignment.CenterVertically
                                     ) {
                                         if (!isDeleting) {
-                                            // 组头色条（目目 09-15 定、09-16 二改回本行高）：只有本组含
+                                            // 组头色条（09-15 定、09-16 二改回本行高）：只有本组含
                                             // 当前使用中的密钥才亮——色条=「这个组正在用」的信号，不是装饰。
                                             // 16dp ≈ 组名文字高，随箭头同行居中；不亮时留等宽空位（3+6=9dp），
                                             // 组名与箭头位置不漂。放在可点区**外**：点色条不该触发折叠
@@ -666,10 +666,10 @@ fun KeyManagerScreen(tagRuleId: String, onBack: () -> Unit) {
                                                     style = MaterialTheme.typography.bodySmall,
                                                     color = MaterialTheme.colorScheme.onSurfaceVariant
                                                 )
-                                                // 「本组含当前密钥」不再跟 ✓（目目 09-15 晚：多余），
+                                                // 「本组含当前密钥」不再跟 ✓（多余），
                                                 // 信号由组头左侧色条单独承担
                                             }
-                                            // 固定宽图标区（目目 09-15 晚方案 A）：144dp=4×36dp 热区，组头与
+                                            // 固定宽图标区（方案 A）：144dp=4×36dp 热区，组头与
                                             // 模型行两行图标垂直成列；不足 4 键（未分组/直连组）右对齐留空
                                             Row(
                                                 Modifier.width(144.dp),
@@ -677,10 +677,10 @@ fun KeyManagerScreen(tagRuleId: String, onBack: () -> Unit) {
                                                 verticalAlignment = Alignment.CenterVertically
                                             ) {
                                                 // 组级四图标全部常驻；仅接口组有前三个（未分组 / 直连点了只是白弹提示）。
-                                                // 顺序按使用频次（目目 09-15 方案一）：+拉取 ⚡测组 ✏编辑接口 🗑删除
+                                                // 顺序按使用频次（方案一）：+拉取 ⚡测组 ✏编辑接口 🗑删除
                                                 grp.ifc?.let { ifc ->
                                                     FlatIconAction(
-                                                        // 拉取模型 = 往组里加模型（目目 09-15 晚三轮：Sync 云同步也别扭，
+                                                        // 拉取模型 = 往组里加模型（三轮：Sync 云同步也别扭，
                                                         // 改 +「添加」语义；放大镜易与页内搜索混淆，弃）
                                                         Icons.Default.Add,
                                                         stringResource(R.string.role_key_fetch)
@@ -831,7 +831,7 @@ fun KeyManagerScreen(tagRuleId: String, onBack: () -> Unit) {
                                     }
                                 }
                                 if (isDeleting) {
-                                    // 删除模式标题行（目目 09-16 定稿）：标题回到标题位（09-15 从底部
+                                    // 删除模式标题行（定稿）：标题回到标题位（09-15 从底部
                                     // 挪回来是对的，但上次端的是 24sp 弹窗标题架子，压得卡片头重），
                                     // 现在降到 16sp 与右端「全选」共一行；底部只留「取消 / 删除(N)」。
                                     // 于是动作分两条带：顶部选谁、底部执行或退出，视线不在卡片里跑两趟。
@@ -861,7 +861,7 @@ fun KeyManagerScreen(tagRuleId: String, onBack: () -> Unit) {
                                     }
                                 }
                                 if (!isCollapsed) {
-                                    // 条目各自成卡（目目 09-16）：条目间的浅分隔线随之删掉，
+                                    // 条目各自成卡：条目间的浅分隔线随之删掉，
                                     // 间距改由卡片自身的 3dp 上下外边距给出（相邻两张之间 6dp）
                                     grp.entries.forEach { entry ->
                                         val isCurrent = currentRaw.isNotEmpty() &&
@@ -892,7 +892,7 @@ fun KeyManagerScreen(tagRuleId: String, onBack: () -> Unit) {
                                     }
                                 }
                                 // ———— 删除模式动作行（卡片底部）：只有 取消 / 删除(N) ————
-                                // 全选已并到顶部标题行（目目 09-16），此处不再重复；两个键都是
+                                // 全选已并到顶部标题行，此处不再重复；两个键都是
                                 // 无框文字键，下方留 4dp 让红键不贴着卡片圆角；end 5 同标题行的「全选」
                                 if (isDeleting) {
                                     Row(
@@ -1613,7 +1613,7 @@ private fun ModelPullDialog(
         ) {
             Column(Modifier.padding(16.dp)) {
                 // 标题行右上角 = 手动添加模型；操作行只留「拉取」。
-                // 标题只留字段名（目目 09-15 晚：填写提示挪到各自字段标题后，标题后不带括号注记）
+                // 标题只留字段名（填写提示挪到各自字段标题后，标题后不带括号注记）
                 Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                     Text(
                         stringResource(R.string.role_key_fetch),
@@ -1630,11 +1630,11 @@ private fun ModelPullDialog(
                     }
                 }
                 Spacer(Modifier.height(8.dp))
-                // 表单只在「没拉到模型」时显示（目目 09-15 晚：拉取成功后表单直接收起，
+                // 表单只在「没拉到模型」时显示（拉取成功后表单直接收起，
                 // 不折摘要行——分组名/地址/尾号那行删掉，要改就取消重开；分组模式无表单）
                 if (!forGroup && !formCollapsed) {
                     // 新建模式：字段顺序 分组名 → 接口地址 → API Key
-                    // 提示跟在字段标题后（目目 09-15 晚：不放标题下、不放弹窗底部）
+                    // 提示跟在字段标题后（不放标题下、不放弹窗底部）
                     Text(
                         stringResource(R.string.role_key_group_name_label) +
                             stringResource(R.string.role_key_group_name_hint),
@@ -1684,11 +1684,11 @@ private fun ModelPullDialog(
                         textStyle = MaterialTheme.typography.bodyMedium,
                         modifier = Modifier.fillMaxWidth(),
                     )
-                    // 底部「请求 /models / 并入分组」预览行已删（目目 09-15 晚：没事儿别占地方）；
+                    // 底部「请求 /models / 并入分组」预览行已删（没事儿别占地方）；
                     // 手填分组名撞车仍由确认键 Toast 拦下
                 }
                 Spacer(Modifier.height(4.dp))
-                // 「拉取」按钮只在没拉到模型时显示（目目 09-15 晚：标题已有「拉取模型」四字，
+                // 「拉取」按钮只在没拉到模型时显示（标题已有「拉取模型」四字，
                 // 列表出来了按钮就多余）；loading 转圈也在这一行——分组模式首次拉取 / 失败重试都覆盖
                 if (models.isEmpty()) {
                     Row(
@@ -1729,10 +1729,10 @@ private fun ModelPullDialog(
                     }
                     byCat.forEach { (cat, list) ->
                         item(key = "cat_$cat") {
-                            // 全选按分类（目目 09-15 晚：全局全选「不能把所有模型都选」不对头，
+                            // 全选按分类（全局全选「不能把所有模型都选」不对头，
                             // 位置也浮在搜索框和列表之间没有归属）——挪进分类标题行，只作用本分类可加项
                             Row(
-                                // 间距放整行（目目 09-15 晚：原来 top=8 只压在标题上，
+                                // 间距放整行（原来 top=8 只压在标题上，
                                 // 标题被顶下去而全选按钮垂直居中，两截错位不像同一行）
                                 Modifier.fillMaxWidth().padding(top = 8.dp),
                                 verticalAlignment = Alignment.CenterVertically
@@ -2365,7 +2365,7 @@ fun BookManagerDialog(
                     TextButton(onClick = { addBookVisible = true }) {
                         Text(
                             "+  " + stringResource(R.string.role_book_add),
-                            // 目目 09-15 晚：不要粗体——TextButton 默认 labelLarge 自带 w500，
+                            // 不要粗体——TextButton 默认 labelLarge 自带 w500，
                             // 换 bodyMedium（同为 14sp，常规字重）与弹窗正文统一
                             style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.primary,
@@ -2376,7 +2376,7 @@ fun BookManagerDialog(
                         Text(
                             stringResource(R.string.role_book_multi_delete_mode),
                             style = MaterialTheme.typography.bodyMedium,
-                            // 目目 09-15 晚：删除类入口统一 error 红（照插件 #EF6C00 橙已废——
+                            // 删除类入口统一 error 红（照插件 #EF6C00 橙已废——
                             // 它不随主题走，且与全 app 「删除=红」口径冲突）
                             color = MaterialTheme.colorScheme.error,
                         )
@@ -2586,17 +2586,17 @@ private fun BookRow(
                         .background(MaterialTheme.colorScheme.primary, RoundedCornerShape(2.dp))
                 )
             } else {
-                // 6dp（目目 09-16：原 7dp 嫌大压不住书名行）
+                // 6dp（原 7dp 嫌大压不住书名行）
                 Box(Modifier.size(6.dp).background(dotColor, CircleShape))
             }
         }
         Text(
             name,
-            // 字号统一为角色列表档（目目 09-16 定，方案 C）：bodyLarge ＋显式 16sp，与角色名同款。
+            // 字号统一为角色列表档（方案 C）：bodyLarge ＋显式 16sp，与角色名同款。
             // 原 14sp(bodyMedium) 是 M3 的「次要信息」档，而书籍名与角色名同为「列表主对象名」；
             // 与顶部书籍栏书名（16sp 加粗）也正好同档，只差字重
             style = MaterialTheme.typography.bodyLarge.copy(fontSize = 16.sp),
-            // 当前书不再加粗（目目 09-15 晚：不喜欢粗体）——行首主色竖条 + 主色书名已够表达
+            // 当前书不再加粗（不喜欢粗体）——行首主色竖条 + 主色书名已够表达
             color = if (isCurrent) MaterialTheme.colorScheme.primary
             else MaterialTheme.colorScheme.onSurface,
             maxLines = 1,

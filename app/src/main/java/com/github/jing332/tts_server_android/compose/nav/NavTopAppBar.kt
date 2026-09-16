@@ -33,7 +33,7 @@ fun NavTopAppBar(
     navigationIcon: @Composable (() -> Unit)? = null,
     actions: @Composable RowScope.() -> Unit = {},
     windowInsets: WindowInsets = TopAppBarDefaults.windowInsets,
-    // 顶栏底色=页面底色（目目 09-15 定案）：原用 surface，但 background 与 surface 是两个值
+    // 顶栏底色=页面底色（定案）：原用 surface，但 background 与 surface 是两个值
     // （如绿主题 FBFDF8 vs F8FAF5），顶栏和内容区之间断出一层色差；一律 background 归平。
     // scrolledContainerColor 同值：滚动时不加深（用户此前已明确不要滚动变色）
     colors: TopAppBarColors = TopAppBarDefaults.topAppBarColors(
@@ -43,7 +43,7 @@ fun NavTopAppBar(
     // 保留参数兼容旧调用，但不再消费：滚动变色已被 colors 定死为 background
     scrollBehavior: TopAppBarScrollBehavior? = null,
 ) {
-    // 自绘顶栏（目目 09-15 晚拍板 56dp）：M3 TopAppBar 内部布局写死 64dp
+    // 自绘顶栏（拍板 56dp）：M3 TopAppBar 内部布局写死 64dp
     // （heightFrom(TopAppBarHeight)），外面套 height(56) 只会把标题裁掉半截
     // （09-15 实机实锤「系统TTS」字被切），M3 又不开放内容高度参数 → 照 M3
     // 排版自绘：状态栏 insets 单独占位 + 56dp 内容行，标题样式沿用 titleLarge。

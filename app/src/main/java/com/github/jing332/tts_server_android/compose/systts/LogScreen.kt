@@ -163,8 +163,8 @@ fun LogScreen(
                     } else spanned
 
                     // 正文着色（09-13 终版：插件/规则日志与「请求音频」等普通 INFO 完全同色——
-                    // 即级别色 INFO=绿；此前 onSurface/彩色方案两轮被否后仍不齐，目目指认
-                    // 要"跟请求音频一模一样"，直接取消特判。SUCCESS 维持石板灰）
+                    // 即级别色 INFO=绿；此前 onSurface/彩色方案两轮被否后仍不齐，
+                    // 要求"跟请求音频一模一样"，直接取消特判。SUCCESS 维持石板灰）
                     val bodyColor = when {
                         log.level == LogLevel.SUCCESS -> metaColor
                         else -> Color(log.level.toArgb(isDarkTheme = darkTheme))

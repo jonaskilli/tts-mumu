@@ -171,7 +171,7 @@ fun RoleManagementScreen(sharedVM: SharedViewModel, pagerState: PagerState) {
             NavTopAppBar(
                 title = { Text(stringResource(R.string.role_management)) },
                 actions = {
-                    // 密钥 / 备份（目目 09-14 三次定稿：emoji → 单色图标 + 文字。Key=现代钥匙、
+                    // 密钥 / 备份（三次定稿：emoji → 单色图标 + 文字。Key=现代钥匙、
                     // Backup=云+上箭头，均为 Material 官方语义字形，比旧 VpnKey/Save 贴切；
                     // 文字保留，避免图标并排时语义靠猜。紧凑动作，热区 ≥48dp 高；
                     // 原页内 48dp 按钮行已退役）
@@ -222,7 +222,7 @@ fun RoleManagementScreen(sharedVM: SharedViewModel, pagerState: PagerState) {
             )
         }
     ) { paddingValues ->
-        // 内置原生列表（目目 09-15 晚拍板清死代码：插件宿主分支与开关常量已整删，
+        // 内置原生列表（拍板清死代码：插件宿主分支与开关常量已整删，
         // 回退走 git 历史；数据文件由朗读规则运行生成，不依赖插件安装）
         if (roleFilesReady && isPageVisible.value) {
             RoleListScreen(

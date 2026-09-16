@@ -144,7 +144,7 @@ fun SpeechRuleManagerScreen(sharedVM: SharedViewModel, finish: () -> Unit) {
             showDeleteDialog = null
         }
 
-    // 编辑元数据弹窗（09-12 曾改名「修改朗读规则信息」，09-13 目目定：换回「编辑元数据」，
+    // 编辑元数据弹窗（09-12 曾改名「修改朗读规则信息」，09-13 定：换回「编辑元数据」，
     // 与插件页统一叫法）：name/ruleId/author/version + 同步JS
     var showEditMetadataDialog by remember { mutableStateOf<SpeechRule?>(null) }
     if (showEditMetadataDialog != null) {
@@ -158,7 +158,7 @@ fun SpeechRuleManagerScreen(sharedVM: SharedViewModel, finish: () -> Unit) {
             title = { Text("编辑元数据") },
             content = {
                 Column(Modifier.verticalScroll(rememberScrollState())) {
-                    // 四框均不锁单行（目目 09-13，与插件页编辑元数据一致）：长文本自动换行完整显示，
+                    // 四框均不锁单行（与插件页编辑元数据一致）：长文本自动换行完整显示，
                     // 弹窗内容区本身可竖向滚动
                     OutlinedTextField(
                         label = { Text("name") },

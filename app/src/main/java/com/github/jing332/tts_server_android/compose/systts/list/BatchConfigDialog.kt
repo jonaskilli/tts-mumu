@@ -186,7 +186,7 @@ fun BatchConfigDialog(
                 Spacer(modifier = Modifier.height(8.dp))
 
                 // 全页通用：本弹窗当前作用的插件范围（四页共用一份选中值）
-                // 更换插件/删除两页 restricted：下拉无「全部」、未选显示提示（目目 09-13）
+                // 更换插件/删除两页 restricted：下拉无「全部」、未选显示提示
                 ScopePluginPicker(
                     selectedKey = filterKey,
                     onSelect = { key ->
@@ -376,7 +376,7 @@ fun BatchConfigDialog(
                     }
 
                     // 更换插件：确定（未选目标插件、或插件范围还是空时禁用——
-                    // 范围空=「全部」全量改写 1344 项的风险，目目 09-13 定：必须先选具体插件）
+                    // 范围空=「全部」全量改写 1344 项的风险：必须先选具体插件）
                     2 -> TextButton(
                         onClick = {
                             targetPluginId?.let {
@@ -415,7 +415,7 @@ private fun ScopePluginPicker(
     onSelect: (Any) -> Unit,
     pluginOptions: List<Pair<String, String>>,
     pluginItemCounts: Map<String, Int>,
-    // 更换插件/删除页要求具体插件（目目 09-13）：这两页下拉不再提供「全部」，
+    // 更换插件/删除页要求具体插件：这两页下拉不再提供「全部」，
     // 未选时显示「选择插件」提示（哨兵 "none"，不算已选、不可提交）
     restricted: Boolean = false,
 ) {
