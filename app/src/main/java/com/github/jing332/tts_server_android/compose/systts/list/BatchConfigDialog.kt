@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -32,6 +33,7 @@ import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.github.jing332.common.utils.toScale
 import com.github.jing332.compose.widgets.AppDialog
@@ -78,10 +80,10 @@ data class BatchConfigEntry(
  *    插件下全部配置项，与配置项弹窗的插件层同语义）。
  * 2. **采样率**：采样率 —— 页脚 取消 / 确定
  * 3. **更换插件**：目标插件 —— 页脚 取消 / 确定（未选目标插件时禁用）
- * 4. **启用/停用**：配置项清单（平铺、不分分组 —— 用户 09-17：启停不需要按分组）——
- *    页脚 取消 / **启用 N 项** · **停用 N 项**。范围允许「全部」（启停可逆，
- *    与删除页必须锁定具体插件的口径不同）；作用对象=范围内全部配置项
- *    （含无来源插件的本地TTS项，故清单数据源 entries 现在也带上了它们）
+ * 4. **启用/停用**：分组折叠清单（与删除页同版式 —— 用户 09-17 晚定，早先做成平铺被纠）——
+ *    组头右侧 **启用** · **停用**（整组）；页脚 取消 / **启用 N 项** · **停用 N 项**（整批）。
+ *    范围允许「全部」（启停可逆，与删除页必须锁定具体插件的口径不同）；
+ *    作用对象=范围内全部配置项（含无来源插件的本地TTS项，故清单数据源也带上了它们）
  * 5. **删除配置项**：清单（可整组删）—— 页脚 取消 / **删除全部 N 项**（红色）
  *
  * 删除排最后：打开弹窗默认落在第一页（音频参数），破坏性操作垫底是通行惯例
@@ -109,8 +111,8 @@ data class BatchConfigEntry(
  * [pluginItemCounts] pluginId → 作用域内配置项数（""=总数），供选择后实时显示影响范围。
  * [sampleRateOptions] 「采样率自动识别」=-1 语义由调用方解释。
  * [targetPluginOptions] 「更换插件」的目标插件候选：全部已安装插件 pluginId → 显示名。
- * [entries] 「启用/停用」与「删除配置项」两页共用的清单数据源。按范围过滤后：
- *   删除页折叠成「分组 → 项名」；启用/停用页平铺项名（用户 09-17）。
+ * [entries] 「启用/停用」与「删除配置项」两页共用的清单数据源。按范围过滤后，
+ *   两页都折叠成「分组 → 项名」（共用 GroupedEntryList 一套版式），仅组头按钮不同。
  *   不显示音色id（用户 09-12 晚定）。**须含无来源插件的本地TTS项（pluginId="")**：
  *   启停是全量操作，本地项也要能启停；删除页按具体 pluginId 过滤，本地项永不入内。
  * [onApplyParams] 音频参数页应用：六个值中 null = 该层该维保持原值（滑条未拖动），非 null 为设定值；
@@ -118,6 +120,7 @@ data class BatchConfigEntry(
  * [onApplySampleRate] 采样率页应用：null = 不修改 / -1 = 自动识别 / 其余为具体 Hz。
  * [onApplySource] 「更换插件」提交（targetPluginId 必非空——未选目标插件时按钮不提交）。
  * [onToggleEnabled] 启用/停用提交：pluginId=null 表示范围=「全部」（含本地TTS项）；
+ *   groupLabel=null 表示整批（页脚），非空表示只启停该分组（组头按钮）；
  *   enabled=true 启用、false 停用。作用对象=范围内全部配置项。
  * [onDelete] 删除请求：groupLabel=null 表示删所选插件的**全部**匹配项，非空表示只删该分组。
  *   弹窗内不落库——调用方弹二次确认后才删（破坏性操作必须有确认，用户 09-12 晚定）。
@@ -142,10 +145,11 @@ fun BatchConfigDialog(
     ) -> Unit,
     onApplySampleRate: (pluginId: String?, sampleRate: Int?) -> Unit,
     onApplySource: (pluginId: String?, targetPluginId: String) -> Unit,
-    onToggleEnabled: (pluginId: String?, enabled: Boolean) -> Unit,
+    onToggleEnabled: (pluginId: String?, groupLabel: String?, enabled: Boolean) -> Unit,
     onDelete: (pluginId: String, groupLabel: String?) -> Unit,
 ) {
-    // 0=音频参数 1=采样率 2=更换插件 3=删除配置项（用户 09-13 定：删除垫底）
+    // 0=音频参数 1=采样率 2=更换插件 3=启用/停用 4=删除配置项
+    //（用户 09-13 定：删除垫底；09-17 插入启用/停用，排在其前）
     var tab by remember { mutableStateOf(0) }
     // 插件筛选：全页通用（用户 09-13 定），一处选定全页可见
     var filterKey by remember { mutableStateOf<Any>("") }
@@ -173,10 +177,14 @@ fun BatchConfigDialog(
     // 无来源插件的本地TTS项 pluginId 也是空串，「全部」会被筛成"只剩本地项"
     val scopeEntries = if (pluginId.isEmpty()) entries else entries.filter { it.pluginId == pluginId }
     // 删除页只认具体插件：未选（=「全部」）时清单为空、按钮禁用，避免一手滑把整个池子删空
-    //（沿用用户 09-12 拍板口径）。启用/停用页无此限制，直接用 scopeEntries
+    //（沿用用户 09-12 拍板口径）
     val itemBuckets =
         if (pluginId.isEmpty()) emptyList() else scopeEntries.groupBy { it.groupLabel }.toList()
     val deletableCount = if (pluginId.isEmpty()) 0 else itemBuckets.sumOf { it.second.size }
+    // 启用/停用页按同一套分组展示（用户 09-17 晚：跟删除页一样分组列出，组头也能启停），
+    // 但没有删除页那条「必须先选具体插件」的限制——启停可逆，范围=「全部」时
+    // 就是"当前池全部配置项按分组列出"，组头即该组全部项（含无来源插件的本地TTS项）
+    val enableBuckets = scopeEntries.groupBy { it.groupLabel }.toList()
     val targetPluginId = (targetPluginKey as? String)?.takeIf { it != "none" }
     // 分区标签走资源字符串（中文在 values-zh、英文在 values-en），不再硬编码中文。
     // 顺序（用户 09-17 定）：启用/停用排在「删除配置项」之前，破坏性的删除仍垫底
@@ -297,102 +305,57 @@ fun BatchConfigDialog(
                         onSelectedChange = { key, _ -> targetPluginKey = key }
                     )
 
-                    // ── 4. 启用/停用：配置项清单（平铺，不分分组）──
-                    // 用户 09-17：启停不需要按分组操作，直接列出范围内的配置项。
-                    // 只列项名，不显示当前开关状态（列的是"将被启用/停用的对象"）
-                    3 -> {
-                        LazyColumn(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .heightIn(max = listMaxHeight)
-                        ) {
-                            items(scopeEntries, key = { it.configId }) { entry ->
-                                Text(
-                                    text = entry.name,
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis,
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .padding(vertical = 4.dp)
-                                )
-                            }
+                    // ── 4. 启用/停用：分组折叠清单，组头带「启用 / 停用」──
+                    // 用户 09-17 晚：与删除页同一套版式（分组 → 项名），组头也能整组启停；
+                    // 页脚的 启用N项/停用N项 作用范围为整批（含本地TTS项，范围=「全部」即整池）
+                    3 -> GroupedEntryList(
+                        buckets = enableBuckets,
+                        expandedGroups = expandedGroups,
+                        onToggleExpand = { groupLabel ->
+                            expandedGroups = if (groupLabel in expandedGroups)
+                                expandedGroups - groupLabel
+                            else
+                                expandedGroups + groupLabel
+                        },
+                        maxHeight = listMaxHeight,
+                    ) { groupLabel, _ ->
+                        TextButton(onClick = {
+                            onToggleEnabled(
+                                pluginId.takeIf { it.isNotEmpty() }, groupLabel, true
+                            )
+                        }) {
+                            Text(stringResource(R.string.batch_cfg_enable))
+                        }
+                        TextButton(onClick = {
+                            onToggleEnabled(
+                                pluginId.takeIf { it.isNotEmpty() }, groupLabel, false
+                            )
+                        }) {
+                            Text(stringResource(R.string.batch_cfg_disable))
                         }
                     }
 
-                    // ── 5. 删除配置项：清单（可整组删）──
-                    else -> {
-                        // 空态提示由 ScopePluginPicker(restricted=true) 负责（未选插件时
-                        // 它在下拉框下方出「请先在上方选择一个插件」），此处不再重复出提示
-                        // （用户 09-13：两条一模一样的提示叠着显示）
-                        LazyColumn(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .heightIn(max = listMaxHeight)
-                        ) {
-                            items(itemBuckets, key = { it.first }) { (groupLabel, groupItems) ->
-                                val expanded = groupLabel in expandedGroups
-                                Column(modifier = Modifier.fillMaxWidth()) {
-                                    Row(
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .clickable {
-                                                expandedGroups = if (expanded)
-                                                    expandedGroups - groupLabel
-                                                else
-                                                    expandedGroups + groupLabel
-                                            }
-                                            .padding(vertical = 4.dp),
-                                        verticalAlignment = Alignment.CenterVertically
-                                    ) {
-                                        Icon(
-                                            imageVector = Icons.Default.ExpandMore,
-                                            contentDescription = stringResource(
-                                                if (expanded) R.string.batch_cfg_collapse
-                                                else R.string.batch_cfg_expand
-                                            ),
-                                            modifier = Modifier
-                                                .padding(end = 8.dp)
-                                                .rotate(if (expanded) 0f else -90f),
-                                            tint = MaterialTheme.colorScheme.onSurfaceVariant
-                                        )
-                                        Text(
-                                            text = groupLabel,
-                                            style = MaterialTheme.typography.bodyMedium,
-                                            maxLines = 1,
-                                            overflow = TextOverflow.Ellipsis,
-                                            modifier = Modifier.weight(1f)
-                                        )
-                                        Text(
-                                            text = "(${groupItems.size})",
-                                            style = MaterialTheme.typography.bodySmall,
-                                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                                        )
-                                        // 整组删除（用户 09-12 晚要求）：删该分组下全部项，确认后才落库
-                                        TextButton(onClick = { onDelete(pluginId, groupLabel) }) {
-                                            Text(
-                                                stringResource(R.string.delete),
-                                                color = MaterialTheme.colorScheme.error
-                                            )
-                                        }
-                                    }
-                                    if (expanded) {
-                                        groupItems.forEach { entry ->
-                                            Text(
-                                                text = entry.name,
-                                                style = MaterialTheme.typography.bodySmall,
-                                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                                maxLines = 1,
-                                                overflow = TextOverflow.Ellipsis,
-                                                modifier = Modifier
-                                                    .fillMaxWidth()
-                                                    .padding(start = 28.dp, top = 4.dp)
-                                            )
-                                        }
-                                    }
-                                }
-                            }
+                    // ── 5. 删除配置项：分组清单（可整组删）──
+                    // 空态提示由 ScopePluginPicker(restricted=true) 负责（未选插件时
+                    // 它在下拉框下方出「请先在上方选择一个插件」），此处不再重复出提示
+                    // （用户 09-13：两条一模一样的提示叠着显示）
+                    else -> GroupedEntryList(
+                        buckets = itemBuckets,
+                        expandedGroups = expandedGroups,
+                        onToggleExpand = { groupLabel ->
+                            expandedGroups = if (groupLabel in expandedGroups)
+                                expandedGroups - groupLabel
+                            else
+                                expandedGroups + groupLabel
+                        },
+                        maxHeight = listMaxHeight,
+                    ) { groupLabel, _ ->
+                        // 整组删除（用户 09-12 晚要求）：删该分组下全部项，确认后才落库
+                        TextButton(onClick = { onDelete(pluginId, groupLabel) }) {
+                            Text(
+                                stringResource(R.string.delete),
+                                color = MaterialTheme.colorScheme.error
+                            )
                         }
                     }
                 }
@@ -460,18 +423,23 @@ fun BatchConfigDialog(
                         Text(stringResource(R.string.confirm))
                     }
 
-                    // 启用/停用：启用 N 项 / 停用 N 项（N=范围内匹配项数，与「删除全部 N 项」同口径）。
+                    // 启用/停用：启用 N 项 / 停用 N 项（整批=groupLabel null；N=范围内匹配项数，
+                    // 与「删除全部 N 项」同口径）。组头另有按分组的启停，两处都走同一回调。
                     // 启停可逆，范围允许「全部」，不像删除页必须锁定具体插件
                     3 -> {
                         val n = scopeEntries.size
                         TextButton(
-                            onClick = { onToggleEnabled(pluginId.takeIf { it.isNotEmpty() }, true) },
+                            onClick = {
+                                onToggleEnabled(pluginId.takeIf { it.isNotEmpty() }, null, true)
+                            },
                             enabled = n > 0
                         ) {
                             Text(stringResource(R.string.batch_cfg_enable_n, n))
                         }
                         TextButton(
-                            onClick = { onToggleEnabled(pluginId.takeIf { it.isNotEmpty() }, false) },
+                            onClick = {
+                                onToggleEnabled(pluginId.takeIf { it.isNotEmpty() }, null, false)
+                            },
                             enabled = n > 0
                         ) {
                             Text(stringResource(R.string.batch_cfg_disable_n, n))
@@ -494,6 +462,82 @@ fun BatchConfigDialog(
         },
         onDismissRequest = onDismissRequest
     )
+}
+
+/**
+ * 分组折叠清单：组头（展开箭头 + 组名 + 项数 + 右侧操作按钮）＋ 展开后的项名。
+ *
+ * 「启用/停用」与「删除配置项」两页共用同一套版式（用户 09-17 晚：启停也要跟删除页一样
+ * 按分组列出，且组头能整组启停），唯一差别是组头右侧那排按钮——故由调用方经 [groupActions]
+ * 提供（接收者是 RowScope，便于按需用 weight 撑开）。点组头整行=展开/收起。
+ *
+ * [maxHeight] 上限外仍可滚动（沿用 09-13 定下的按屏幕高度推算值）。
+ */
+@Composable
+private fun GroupedEntryList(
+    buckets: List<Pair<String, List<BatchConfigEntry>>>,
+    expandedGroups: Set<String>,
+    onToggleExpand: (String) -> Unit,
+    maxHeight: Dp,
+    groupActions: @Composable RowScope.(groupLabel: String, items: List<BatchConfigEntry>) -> Unit,
+) {
+    LazyColumn(
+        modifier = Modifier
+            .fillMaxWidth()
+            .heightIn(max = maxHeight)
+    ) {
+        items(buckets, key = { it.first }) { (groupLabel, groupItems) ->
+            val expanded = groupLabel in expandedGroups
+            Column(modifier = Modifier.fillMaxWidth()) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable { onToggleExpand(groupLabel) }
+                        .padding(vertical = 4.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.ExpandMore,
+                        contentDescription = stringResource(
+                            if (expanded) R.string.batch_cfg_collapse
+                            else R.string.batch_cfg_expand
+                        ),
+                        modifier = Modifier
+                            .padding(end = 8.dp)
+                            .rotate(if (expanded) 0f else -90f),
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Text(
+                        text = groupLabel,
+                        style = MaterialTheme.typography.bodyMedium,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.weight(1f)
+                    )
+                    Text(
+                        text = "(${groupItems.size})",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    groupActions(groupLabel, groupItems)
+                }
+                if (expanded) {
+                    groupItems.forEach { entry ->
+                        Text(
+                            text = entry.name,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(start = 28.dp, top = 4.dp)
+                        )
+                    }
+                }
+            }
+        }
+    }
 }
 
 /**

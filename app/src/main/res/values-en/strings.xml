@@ -537,6 +537,8 @@
     <string name="batch_cfg_change_plugin_to">Change plugin to</string>
     <string name="batch_cfg_layer_config">Item</string>
     <string name="batch_cfg_tab_enable_items">Enable / disable</string>
+    <string name="batch_cfg_enable">Enable</string>
+    <string name="batch_cfg_disable">Disable</string>
     <string name="batch_cfg_enable_n">Enable %1$d items</string>
     <string name="batch_cfg_disable_n">Disable %1$d items</string>
     <string name="batch_cfg_delete_pick_plugin_hint">Select a plugin above first</string>

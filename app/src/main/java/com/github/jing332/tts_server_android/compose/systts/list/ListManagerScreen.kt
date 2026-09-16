@@ -2519,9 +2519,10 @@ internal fun ListManagerScreen(
         val targetPluginOptions = remember(pluginNameCache) {
             pluginNameCache.entries.map { it.key to it.value }.sortedBy { it.second }
         }
-        // 清单条目：归到「实际分组」（大分组，或 大分组 › 子分组）——删除页折叠成「分组 → 项名」，
-        // 启用/停用页平铺项名。含无来源插件的本地TTS项（pluginId="")：启停是全量操作，
-        // 本地项也要能启停（用户 09-17）；删除页按具体 pluginId 过滤，本地项不会进入其清单
+        // 清单条目：归到「实际分组」（大分组，或 大分组 › 子分组）——启用/停用与删除两页
+        // 都折叠成「分组 → 项名」（共用同一套版式）。含无来源插件的本地TTS项（pluginId="")：
+        // 启停是全量操作，本地项也要能启停（用户 09-17）；删除页按具体 pluginId 过滤，
+        // 本地项不会进入其清单
         val batchEntries = remember(models) {
             models.flatMap { gwt ->
                 gwt.list.map { tts ->
@@ -2579,10 +2580,24 @@ internal fun ListManagerScreen(
                 )
             },
             // 启用/停用页：范围内配置项（pluginId=null ⇒ 全部，含本地TTS项）统一改 isEnabled。
+            // groupLabel 非空=只启停该分组（组头按钮），为 null=整批（页脚）。
+            // 分组目标与删除页同法反查（清单即数据源，避免再写一套分组算法走歪）。
             // 启停可逆，不走二次确认（删除类才需要）
-            onToggleEnabled = { pluginId, enabled ->
+            onToggleEnabled = { pluginId, groupLabel, enabled ->
                 showBatchConfig = false
-                vm.updateEnabledBatch(scopeItems.filterByPluginId(pluginId), enabled) { n ->
+                val targets = if (groupLabel == null) {
+                    scopeItems.filterByPluginId(pluginId)
+                } else {
+                    val ids = batchEntries
+                        .filter {
+                            it.groupLabel == groupLabel &&
+                                (pluginId == null || it.pluginId == pluginId)
+                        }
+                        .map { it.configId }
+                        .toSet()
+                    scopeItems.filter { it.id in ids }
+                }
+                vm.updateEnabledBatch(targets, enabled) { n ->
                     context.toast(
                         when {
                             n > 0 && enabled -> "已启用 $n 项"
