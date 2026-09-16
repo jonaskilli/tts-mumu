@@ -169,7 +169,7 @@ fun VoicePickerDialog(
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
 
-    val entity = remember(anchorConfigId, anchorTag) {
+    fun resolveAnchor(): SystemTtsV2? =
         anchorConfigId?.takeIf { it != 0L }?.let { dbm.systemTtsV2.get(it) }
             ?: if (anchorTag.isNotBlank()) {
                 // 插件桥路径：按 tag 解析锚点（优先启用配置，禁用配置兜底——绑定候选虽然只要启用，
@@ -179,13 +179,22 @@ fun VoicePickerDialog(
                         (it.config as? TtsConfigurationDTO)?.speechRule?.tag == anchorTag
                     }
             } else null
-    }
-    if (entity == null) {
-        // 配置项已被删除/无锚点：提示后由外层关闭
+
+    val anchorFallback = remember(anchorConfigId, anchorTag) { resolveAnchor() }
+    if (anchorFallback == null) {
+        // 开面板时锚点就无效（配置项已删/无锚点）：提示后由外层关闭
         Toast.makeText(context, context.getString(R.string.log_panel_config_missing), Toast.LENGTH_SHORT).show()
         onDismissRequest()
         return
     }
+    // 锚点可被删后重解析（照角色管理 v10：删掉某个发音人后面板不关、列表继续用最新数据）。
+    // ——同标签还有别的配置项就接替（草稿/暂存随新配置项重来）；
+    // ——一个都不剩时沿用旧快照，面板保持打开（写回该配置项的动作会被拦，见确认键守卫）。
+    // 不用 LaunchedEffect 观察：DB 无观察者，删除点自增 anchorVersion 触发这里重解析。
+    var anchorVersion by remember { mutableStateOf(0) }
+    val resolvedAnchor = remember(anchorConfigId, anchorTag, anchorVersion) { resolveAnchor() }
+    val anchorMissing = resolvedAnchor == null
+    val entity = resolvedAnchor ?: anchorFallback
     val config = entity.config as? TtsConfigurationDTO ?: run {
         Toast.makeText(context, context.getString(R.string.log_panel_config_missing), Toast.LENGTH_SHORT).show()
         onDismissRequest()
@@ -272,11 +281,15 @@ fun VoicePickerDialog(
     // 标记写 voice_marks.json（与角色管理 v10 同文件同字段，按标签 id 多选 toggle，❤️🚶😈）；
     // marksVersion 自增触发候选行标记重读（文件通道无观察者，靠版本号刷新）
     var marksVersion by remember(entity.id) { mutableStateOf(0) }
+    // 配置项数据版本号：删除后自增，使下面这些库快照 remember 重读——DB 通道没有观察者，
+    // 只能靠版本号驱动重组。参照 v10：filterAndShowVoiceList 每次调用前先 refreshFayinrenList()，
+    // 所以那边删除后面板里的列表仍是实时的；这里原来只 remember(entity.id)，删完行还留着（假数据）。
+    var dataVersion by remember(entity.id) { mutableStateOf(0) }
     // 待删除确认的配置项（非空时弹确认弹窗）
     var deleteConfirmTarget by remember(entity.id) { mutableStateOf<SystemTtsV2?>(null) }
 
     // 全部配置项（换声候选 / 参数跟随目标查找共用）
-    val allConfigs = remember(entity.id) {
+    val allConfigs = remember(entity.id, dataVersion) {
         dbm.systemTtsV2.getAllGroupWithTts().flatMap { it.list }
     }
 
@@ -380,14 +393,24 @@ fun VoicePickerDialog(
             }
             SystemTtsService.notifyUpdateConfig()
             onChanged?.invoke("deleted", targetTag)
+            // 列表按最新数据重建（v10 口径：删完列表还在，而且是实时的）
+            dataVersion++
             Toast.makeText(
                 context,
                 context.getString(R.string.role_voice_del_toast, target.displayName),
                 Toast.LENGTH_SHORT,
             ).show()
-            // 本配置项自身被删：外层宿主已失效，提示后关闭面板
+            // 被删的恰是暂存选中那条、且该标签再无启用配置：清掉暂存——
+            // 否则「确认」会把这个已经查不到配置的标签写进角色记录（改绑到无启用配置的标签
+            // 会掉进随机兜底，读声不可控，候选池本来就排除这种标签）
+            if (tagNowEmpty && pendingVoice == targetTag) pendingVoice = null
+            // 参数跟随目标落在这条上：改跟回本面板的锚点，避免「应用」写进一条已不存在的配置项
+            if (paramsTarget.id == target.id) paramsTarget = entity
+            // 本配置项自身被删：面板**不关**（照 v10：删除发音人后面板留着继续挑）——
+            // 改为重解析锚点，同标签还有配置项就接替；一个都不剩则标记失效。
+            // 写回该配置项的动作由确认键守卫拦下（非绑定分支才写它，绑定分支改写角色记录，不受影响）
             if (deletedSelf) {
-                onDismissRequest()
+                anchorVersion++
             } else if (tagNowEmpty && boundVoice == targetTag) {
                 // 当前绑定恰是被删空标签：回落到本面板配置项自己的 tag（同初始化兜底；仅绑定分支有意义）
                 boundVoice = config.speechRule.tag
@@ -687,6 +710,17 @@ fun VoicePickerDialog(
                                         ).show()
                                         return@TextButton
                                     }
+                                    // 锚点配置项已被删且同标签再无配置项：非绑定分支要写回该配置项，
+                                    // 落库会打空（更新不存在的行=静默无操作，却弹「已应用」）——拦住并说清。
+                                    // 绑定/添加分支改写 characterRecords 里的角色记录，不依赖锚点，照常放行。
+                                    if (anchorMissing && !isBindingMode && !addMode) {
+                                        Toast.makeText(
+                                            context,
+                                            context.getString(R.string.voice_picker_anchor_deleted),
+                                            Toast.LENGTH_SHORT,
+                                        ).show()
+                                        return@TextButton
+                                    }
                                     when {
                                         // 添加角色 / 释放并固定：都要在 characterRecords.json 里落一条
                                         // voice=所选 tag id 的记录，成功后自动关弹窗。
@@ -831,7 +865,7 @@ fun VoicePickerDialog(
 
             // ===== 顶部块（用户 09-09 重排）：当前发音人 + 试听 + 终值 =====
             // 发音人名跟随暂存选择（09-10 参数跟随）：暂存了候选就先显示候选对应的配置项名
-            val boundConfigName = remember(entity.id, boundVoice, pendingVoice) {
+            val boundConfigName = remember(entity.id, boundVoice, pendingVoice, dataVersion) {
                 if (isBindingMode) {
                     val tag = pendingVoice ?: boundVoice
                     enabledConfigEntityByTag(tag)?.displayName ?: tag
@@ -990,7 +1024,7 @@ fun VoicePickerDialog(
                     // 改绑到无启用配置的标签会掉进随机兜底，读声不可控，必须排除
                     // （用户 09-12 定稿：池子/记录存的都是 tag id，启用标签集合只收 tag，
                     //   tagName 兜底已移除——全链只认 tag）
-                    val enabledTags = remember(entity.id) {
+                    val enabledTags = remember(entity.id, dataVersion) {
                         dbm.systemTtsV2.getAllGroupWithTts().flatMap { it.list }
                             .filter { it.isEnabled }
                             .mapNotNull {
@@ -1004,7 +1038,7 @@ fun VoicePickerDialog(
                     //   （localSound 前缀不在其中），音效标签根本进不了池子，取出来全是 TTS 音色。
                     //   改为直接在启用配置里枚举同族槽位（tag=localSoundN），即"本槽位可借用哪些音效槽位的配置"
                     val poolEnabled = if (isLocalSoundSlot) {
-                        remember(entity.id) { enabledTags.filter { LOCAL_SOUND_TAG.matches(it) } }
+                        remember(entity.id, dataVersion) { enabledTags.filter { LOCAL_SOUND_TAG.matches(it) } }
                     } else {
                         CharacterRecordsFile.readVoicePool(config.speechRule.tagRuleId)
                             .filter { it in enabledTags }
@@ -1145,7 +1179,7 @@ fun VoicePickerDialog(
                         // 占用表（方案A）：characterRecords.json 里 voice→角色名列表，
                         // 与角色管理插件「已分配」徽章同源同口径；排除自己（bindingKey）——
                         // 自己当前绑定的那行已有 ✓ 主色，不重复标
-                        val voiceOwners = remember(entity.id) {
+                        val voiceOwners = remember(entity.id, dataVersion) {
                             CharacterRecordsFile.readVoiceOwnerMap(config.speechRule.tagRuleId)
                         }
                         displayTags.forEach { tag ->
@@ -1288,7 +1322,7 @@ fun VoicePickerDialog(
                         // 音效槽位（同族 localSound，通常 1~N 条）：搜索无意义，与绑定模式同一口径
                         CategoryChip(value = displayCategory)
                     }
-                    val narrationCandidates = remember(entity.id, currentTagId) {
+                    val narrationCandidates = remember(entity.id, currentTagId, dataVersion) {
                         allConfigs.mapNotNull { c ->
                             val dto = c.config as? TtsConfigurationDTO ?: return@mapNotNull null
                             if (dto.speechRule.tag != currentTagId) return@mapNotNull null

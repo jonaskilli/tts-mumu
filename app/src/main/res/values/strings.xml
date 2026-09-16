@@ -720,6 +720,7 @@
     <string name="voice_picker_info_card">信息卡</string>
     <string name="voice_picker_need_pick">请先选择一个发音人</string>
     <string name="voice_picker_need_name">请先填写角色名</string>
+    <string name="voice_picker_anchor_deleted">当前配置项已被删除，请关闭面板后重新打开</string>
     <string name="voice_picker_same_voice">这已经是当前发音人</string>
     <string name="role_list_search_hint">搜索角色/别名</string>
     <string name="role_list_filter_all">全部</string>
