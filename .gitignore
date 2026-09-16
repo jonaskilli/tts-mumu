@@ -54,3 +54,8 @@ newapk/
 .trae/
 .trae-html-share-packages/
 
+# 本地工作文档(随项目维护, 不随仓库分发; 实体存于 E:\TTS\ 下同名目录)
+/AI工作记忆/
+/tts配套文件/
+/技术文档/
+

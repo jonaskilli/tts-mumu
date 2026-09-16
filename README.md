@@ -21,7 +21,7 @@ Android 平台的系统级 TTS 应用：
 
 ## 与上游的主要差异
 
-> 完整的用户向更新说明见 [`tts配套文件/发布日志-*.md`](tts配套文件/)
+> 各版本的用户向更新说明见本仓库的 [Releases](https://github.com/jonaskilli/tts-mumu/releases) 发布说明。
 
 - **界面**：全面 Material Design 3 化，多套主题配色，导航栏自绘
 - **密钥管理**：按「网址 + 密钥」分组统一管理模型，支持从接口一键拉取模型列表
