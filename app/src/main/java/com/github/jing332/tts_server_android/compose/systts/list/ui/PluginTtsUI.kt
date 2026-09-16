@@ -219,6 +219,9 @@ class PluginTtsUI : IConfigUI() {
         var auditionSystts by remember { mutableStateOf<SystemTtsV2?>(null) }
         // 音频参数三层草稿快照（AudioParamsDimRows 上报）：🎧 试听带未应用草稿（用户 09-17）
         var audioDraft by remember { mutableStateOf<AudioParamsDraft?>(null) }
+        // 本次试听是否带草稿：只有「🎧 试听文本行」入口带（用户 09-17 定：切走即剥离）——
+        // 上一个/下一个、行内 🎧、长按试听都是"试别的音色"，参数应走库值
+        var auditionWithDraft by remember { mutableStateOf(false) }
         // 单维音频参数弹窗（用户 09-10 三键直出定稿：试听文本下方直接列 语速/音量/音高，
         // 点哪个开哪个维度的弹窗；⚡总弹窗入口已删）
         var showAudioParamsDim by remember { mutableStateOf<Int?>(null) }
@@ -236,6 +239,8 @@ class PluginTtsUI : IConfigUI() {
         // 切换到指定发音人试听
         fun startAuditionForVoice(voice: com.github.jing332.tts.speech.plugin.engine.TtsPluginUiEngineV2.Voice) {
             auditionVoiceId = voice.id
+            // 切到别的音色=试别人，剥离草稿（用户 09-17）
+            auditionWithDraft = false
             auditionSystts = systts.copy(
                 displayName = voice.name,
                 config = (systts.config as TtsConfigurationDTO).copy(
@@ -253,11 +258,10 @@ class PluginTtsUI : IConfigUI() {
         // 本地音效配置（tagName=本地音效N）用专用试听文本，与全局文本互不影响（用户 09-13）
         val isLocalSound = isLocalSoundTagName((systts.config as TtsConfigurationDTO).speechRule.tagName)
         if (auditionSystts != null) {
-            val d = audioDraft
+            val d = if (auditionWithDraft) audioDraft else null
             AuditionDialog(
                 // 配置层草稿拼进实体；插件/全局两层走 override（null=读库值）。
-                // 批量分类的 上一个/下一个 切换目标也带同一份草稿（同插件参数一致；
-                // 配置层草稿会拼到切换目标上——动过滑杆的语境下这正是要听的效果）
+                // 草稿只在「🎧 试听文本行」入口生效：上一个/下一个/行内试听切到别的音色即剥离
                 systts = if (d != null) auditionSystts!!.withAudioParams(d.config) else auditionSystts!!,
                 text = if (isLocalSound) AppConfig.localSoundSampleText.value else AppConfig.testSampleText.value,
                 pluginParamsOverride = d?.plugin,
@@ -304,6 +308,7 @@ class PluginTtsUI : IConfigUI() {
             ) {
                 auditionSystts = null
                 auditionVoiceId = null
+                auditionWithDraft = false
             }
         } // if (auditionSystts != null)
 
@@ -344,7 +349,11 @@ class PluginTtsUI : IConfigUI() {
                                 // 试听文本行比其它行宽出约 24dp（用户 09-10 晚指认）
                                 .padding(horizontal = 12.dp)
                                 .padding(top = 8.dp),
-                            onAudition = { auditionSystts = systts },
+                            // 🎧 试听文本行=唯一带草稿的入口（用户 09-17：调完滑杆点这里听草稿效果）
+                            onAudition = {
+                                auditionWithDraft = true
+                                auditionSystts = systts
+                            },
                             isLocalSound = isLocalSound,
                         )
                         AudioParamsDimRows(
@@ -425,6 +434,7 @@ class PluginTtsUI : IConfigUI() {
                             voiceCategoryMap = emptyMap()
                             auditionSystts = null
                             auditionVoiceId = null
+                            auditionWithDraft = false
                             vm.voices.clear()
                             vm.locales.clear()
                             // 显示名跟随新插件名；非角色管理类插件需退出仅界面模式，否则编辑区被隐藏且无法恢复
@@ -517,6 +527,8 @@ class PluginTtsUI : IConfigUI() {
                                     displayName = name
                                 },
                             onEntryLongClick = { voice, name ->
+                                // 长按试听=试该音色，不带草稿（用户 09-17）
+                                auditionWithDraft = false
                                 auditionSystts = systts.copy(
                                     displayName = name,
                                     config = (systts.config as TtsConfigurationDTO).copy(
@@ -528,6 +540,8 @@ class PluginTtsUI : IConfigUI() {
                                 IconButton(onClick = {
                                     onHighlight()
                                     auditionVoiceId = voice
+                                    // 音色行内 🎧=试该音色，不带草稿（用户 09-17）
+                                    auditionWithDraft = false
                                     auditionSystts = systts.copy(
                                         displayName = name,
                                         config = (systts.config as TtsConfigurationDTO).copy(
