@@ -69,7 +69,10 @@ fun NavTopAppBar(
                         LocalTextStyle provides MaterialTheme.typography.titleLarge
                     ) { title() }
                 }
-                actions()
+                // actions 必须自成一条**宽度随内容**的 Row：DropdownMenu 的锚点是它的父布局节点，
+                // 直接挂在上面那条 fillMaxWidth 的行上，菜单会锚到整行左缘（弹出到屏幕左侧）；
+                // 套一层随内容收缩的 Row 后，锚点落在右侧动作区，与 M3 TopAppBar 行为一致
+                Row(verticalAlignment = Alignment.CenterVertically) { actions() }
             }
         }
     }

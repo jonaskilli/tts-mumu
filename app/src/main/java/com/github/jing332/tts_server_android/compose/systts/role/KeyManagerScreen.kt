@@ -2589,8 +2589,9 @@ private fun BookRow(
                         .background(MaterialTheme.colorScheme.primary, RoundedCornerShape(2.dp))
                 )
             } else {
-                // 6dp（原 7dp 嫌大压不住书名行）
-                Box(Modifier.size(6.dp).background(dotColor, CircleShape))
+                // 5dp（原 7dp→6dp 仍嫌大；取 5 不取 4——4 与「当前书」竖条 3dp 宽度太近，
+                // 两种标记的体量差会被抹平）
+                Box(Modifier.size(5.dp).background(dotColor, CircleShape))
             }
         }
         Text(
