@@ -80,6 +80,16 @@ import kotlinx.coroutines.isActive
 private const val SELECTION_SHEET_HEIGHT = 0.92f
 
 /**
+ * 分档阈值（用户 09-17 定 C 方案）：条目数超过此值才用底部大弹窗，否则维持原来的居中卡片。
+ * 底部大弹窗满宽、高度可达屏高 92%，只有「几百上千条」的声音 / 插件列表才划算；
+ * 语言、主题、音色来源这类十几个的列表用居中卡片更紧凑，不至于变成半屏空白页。
+ *
+ * 定 20 而不是 12：发音人分类是 15 项 +「默认」= 16 条，按 12 会被推进底部面板并撑满
+ * 半屏——正是用户嫌的那种「内容不多却几乎满屏」。20 让 16 条的分类留在居中卡片里。
+ */
+private const val SELECTION_SHEET_THRESHOLD = 20
+
+/**
  * 条目高度估算值，用于给面板定高（条目少则面板矮、多则撑到上限再由列表内部滚）。
  * `minimumInteractiveComponentSize` 是 48dp：条目本体 12dp 上下内边距 + 14sp 文字实测约 43dp，
  * 被这个下限兜住，故 48dp 就是绝大多数条目的真实高度。
@@ -108,10 +118,10 @@ fun AppSelectionDialog(
     itemContent: (@Composable RowScope.(Boolean, String, Any?, Any) -> Unit)? = null,
 
     extraButtons: @Composable BoxScope.() -> Unit = {},
-    buttons: @Composable BoxScope.() -> Unit = {
-        extraButtons()
-        TextButton(onClick = onDismissRequest) { Text(stringResource(id = R.string.close)) }
-    },
+    // 传 null 走默认按钮：额外按钮 +「关闭」——底部形态下不再重复给「关闭」
+    // （面板右上已有 ✕、面板外点击也能关，底部多一行按钮就少露一行列表，见 effectiveButtons）。
+    // 调用方传了自定义 buttons 则完全替换默认，不改语义
+    buttons: (@Composable BoxScope.() -> Unit)? = null,
 
     onValueSame: (Any, Any) -> Boolean = { a, b -> a == b },
     onClick: (Any, String) -> Unit,
@@ -186,12 +196,21 @@ fun AppSelectionDialog(
                         SELECTION_EMPTY_HINT_HEIGHT else 0.dp)
             ).coerceAtMost(sheetMaxHeight)
 
-    SelectionSheet(
-        onDismissRequest = onDismissRequest,
-        maxSheetHeight = sheetMaxHeight,
-        maxListHeight = listMaxHeight,
-        title = title,
-        content = {
+    // 外壳分档：判定在打开那一刻定住（按原始条数，不受搜索过滤影响），
+    // 免得开着开着列表变短、形态跟着跳
+    val useSheet = entries.size > SELECTION_SHEET_THRESHOLD
+
+    // 底部形态不再重复放「关闭」：面板右上已有 ✕、面板外点击也能关，底部多一行按钮
+    // 就少露一行列表。调用方自定义的 buttons 原样使用（null = 走这套默认）
+    val effectiveButtons: @Composable BoxScope.() -> Unit = buttons ?: {
+        extraButtons()
+        if (!useSheet) TextButton(onClick = onDismissRequest) {
+            Text(stringResource(id = R.string.close))
+        }
+    }
+
+    // 弹窗内容（开关行 / 搜索框 / 列表 / 空提示）：两种外壳共用同一份，只换外面的容器
+    val dialogContent: @Composable BoxScope.() -> Unit = {
             // 打开时定位到「当前值」那一条（09-17 与目目确认：这是预期行为——
             // 打开就落在当前声音所在的位置，不要改成从第一条开始）
             val state = rememberLazyListState()
@@ -435,9 +454,26 @@ fun AppSelectionDialog(
                     }
                 }
             }
-        },
-        buttons = buttons,
-    )
+    }
+
+    // 分档（用户 09-17 定 C 方案）：条目少 → 原来的居中卡片（紧凑，与语言 / 主题那些一致）；
+    // 条目多 → 底部大弹窗（满宽 + 上限 92% 屏高，一眼看到更多行）
+    if (useSheet)
+        SelectionSheet(
+            onDismissRequest = onDismissRequest,
+            maxSheetHeight = sheetMaxHeight,
+            maxListHeight = listMaxHeight,
+            title = title,
+            content = dialogContent,
+            buttons = effectiveButtons,
+        )
+    else
+        AppDialog(
+            onDismissRequest = onDismissRequest,
+            title = title,
+            content = dialogContent,
+            buttons = effectiveButtons,
+        )
 }
 
 /**

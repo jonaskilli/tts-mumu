@@ -8,7 +8,6 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
@@ -134,9 +133,12 @@ internal fun SelectionSheet(
                         ProvideTextStyle(
                             MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold)
                         ) {
-                            Box(Modifier.weight(1f, fill = false)) { title() }
+                            // 标题独占标题行的剩余宽度。原先写成 weight(1f, fill = false)
+                            // 且后面还跟着一个 Spacer(weight(1f))，两者各分走一半 ⇒ 长标题
+                            // 只剩半个面板宽，「🔊 声音（点击此处可试听后分类）」被折成两行
+                            // （09-17 实机）。一个 weight 就够，Spacer 是多余的那份
+                            Box(Modifier.weight(1f)) { title() }
                         }
-                        Spacer(Modifier.weight(1f))
                         IconButton(onClick = onDismissRequest) {
                             Icon(Icons.Filled.Close, stringResource(R.string.close))
                         }
