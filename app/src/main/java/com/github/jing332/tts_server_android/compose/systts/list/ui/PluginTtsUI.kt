@@ -20,6 +20,7 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.Switch
@@ -216,6 +217,9 @@ class PluginTtsUI : IConfigUI() {
         // 声音选择框中多选的发音人ID集合（用于批量保存到配置列表）
         var selectedVoiceIds by remember { mutableStateOf<Set<Any>>(emptySet()) }
 
+        // 音色广场弹窗（opt-in 协议 searchVoiceCatalog，用户 09-17 拍板做全套）
+        var showVoiceCatalog by remember { mutableStateOf(false) }
+
         var auditionSystts by remember { mutableStateOf<SystemTtsV2?>(null) }
         // 音频参数三层草稿快照（AudioParamsDimRows 上报）：🎧 试听带未应用草稿（用户 09-17）
         var audioDraft by remember { mutableStateOf<AudioParamsDraft?>(null) }
@@ -311,6 +315,46 @@ class PluginTtsUI : IConfigUI() {
                 auditionWithDraft = false
             }
         } // if (auditionSystts != null)
+
+        // 音色广场（opt-in 协议 searchVoiceCatalog）：勾选后把音色**补进声音列表并勾上**，
+        // 再由用户点现有的「保存」走分类/标签/试听那条链路入库——广场只负责"找得到音色"。
+        if (showVoiceCatalog) {
+            PluginVoiceMarketplaceDialog(
+                vm = vm,
+                locale = tts.locale,
+                onDismissRequest = { showVoiceCatalog = false },
+                onAudition = { item ->
+                    // 与行内 🎧 同源：试该音色、不带草稿。广场音色不在 vm.voices 里，
+                    // 故上一个/下一个与进度文本自然为 0（AuditionDialog 已按 index<0 兜底）
+                    auditionWithDraft = false
+                    auditionVoiceId = item.id
+                    auditionSystts = systts.copy(
+                        displayName = item.name,
+                        config = (systts.config as TtsConfigurationDTO).copy(
+                            source = tts.copy(voice = item.id)
+                        )
+                    )
+                },
+                onPick = { items ->
+                    // 广场音色不在 vm.voices 里（插件 getVoices 只回它自己的本地缓存，而缓存
+                    // 只有广场查询会写）——不补进去的话：下拉框显示空、批量保存被
+                    // `filter { it.id in selectedVoiceIds }` 整批过滤掉
+                    val known = vm.voices.map { it.id }.toHashSet()
+                    items.forEach { item ->
+                        if (item.id !in known) vm.voices.add(
+                            com.github.jing332.tts.speech.plugin.engine.TtsPluginUiEngineV2.Voice(
+                                item.id,
+                                item.name,
+                                item.icon,
+                            )
+                        )
+                    }
+                    selectedVoiceIds = selectedVoiceIds + items.map { it.id }
+                    showVoiceCatalog = false
+                    context.toast(context.getString(R.string.voice_catalog_picked, items.size))
+                },
+            )
+        }
 
         // 编辑页音频参数入口（09-10 晚改版）：试听文本下方改为「值行 + 就地展开」（AudioParamsDimRows），
         // 不再从这里开 AudioParamsDialog——本弹窗只服务卡片⋮入口与日志快捷面板
@@ -803,6 +847,20 @@ class PluginTtsUI : IConfigUI() {
                                 }
                             }
                         )
+                        // 音色广场入口（opt-in 协议 searchVoiceCatalog）：这类插件（Fish Audio 官网
+                        // 音色广场等）的 getVoices() 只回它自己写的本地缓存，而**只有
+                        // searchVoiceCatalog() 会写这个缓存** ⇒ 不给入口就一个音色都选不到
+                        // （声音下拉恒空、批量导入 0 条）。插件没声明该接口时按钮不出现。
+                        if (vm.supportsVoiceCatalog) {
+                            OutlinedButton(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(top = 4.dp),
+                                onClick = { showVoiceCatalog = true },
+                            ) {
+                                Text("🎼 " + stringResource(R.string.voice_catalog))
+                            }
+                        }
                         }
                         }
 

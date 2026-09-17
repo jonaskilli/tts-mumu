@@ -351,6 +351,31 @@
     <string name="plugin_audio_params_saved">Audio params saved</string>
     <string name="config_list">Config list</string>
     <string name="plugin">Plugin</string>
+
+    <!-- Voice catalog (opt-in protocol searchVoiceCatalog: Fish Audio official marketplace etc.) -->
+    <string name="voice_catalog">Voice catalog</string>
+    <string name="voice_catalog_search">Search voices</string>
+    <string name="voice_catalog_clear">Clear</string>
+    <string name="voice_catalog_picked">%1$d voices added</string>
+    <string name="voice_catalog_pick">Use (%1$d)</string>
+    <string name="voice_catalog_total">%1$d voices</string>
+    <string name="voice_catalog_found">%1$d loaded</string>
+    <string name="voice_catalog_loading">Loading voices…</string>
+    <string name="voice_catalog_empty">No voices found</string>
+    <string name="voice_catalog_no_more">No more</string>
+    <string name="voice_catalog_retry">Retry</string>
+    <string name="voice_catalog_usage">%1$s uses</string>
+    <string name="voice_catalog_sort_score">Recommended</string>
+    <string name="voice_catalog_sort_hot">Popular</string>
+    <string name="voice_catalog_sort_new">Newest</string>
+    <string name="voice_catalog_filter">Filter</string>
+    <string name="voice_catalog_filter_count">Filter %1$d</string>
+    <string name="voice_catalog_filter_clear">Clear all</string>
+    <string name="voice_catalog_filter_apply">Apply (%1$d)</string>
+    <string name="voice_catalog_filter_empty">This plugin provides no filters</string>
+    <string name="voice_catalog_filter_group_count">%1$d selected</string>
+    <string name="voice_catalog_filter_option_search">Search tags</string>
+    <string name="voice_catalog_filter_option_empty">No matching tags</string>
     <string name="batch_select_plugin">Batch Select Plugin</string>
     <string name="batch_fix_select_source">Select Invalid Source</string>
     <string name="batch_fix_confirm">Replace plugin for %1$d invalid config item(s) with \"%2$s\"?</string>

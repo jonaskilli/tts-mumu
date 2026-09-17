@@ -414,6 +414,31 @@
     <string name="plugin_audio_params_saved">音频参数已保存</string>
     <string name="config_list">配置列表</string>
     <string name="plugin">插件</string>
+
+    <!-- 音色广场（opt-in 协议 searchVoiceCatalog：Fish Audio 官网音色广场等插件） -->
+    <string name="voice_catalog">音色广场</string>
+    <string name="voice_catalog_search">搜索音色</string>
+    <string name="voice_catalog_clear">清除</string>
+    <string name="voice_catalog_picked">已加入 %1$d 个音色</string>
+    <string name="voice_catalog_pick">选用（%1$d）</string>
+    <string name="voice_catalog_total">共 %1$d 个音色</string>
+    <string name="voice_catalog_found">已加载 %1$d 个</string>
+    <string name="voice_catalog_loading">正在加载音色…</string>
+    <string name="voice_catalog_empty">没有找到音色</string>
+    <string name="voice_catalog_no_more">已到底</string>
+    <string name="voice_catalog_retry">重试</string>
+    <string name="voice_catalog_usage">使用 %1$s 次</string>
+    <string name="voice_catalog_sort_score">推荐</string>
+    <string name="voice_catalog_sort_hot">热门</string>
+    <string name="voice_catalog_sort_new">最新</string>
+    <string name="voice_catalog_filter">筛选</string>
+    <string name="voice_catalog_filter_count">筛选 %1$d</string>
+    <string name="voice_catalog_filter_clear">清空</string>
+    <string name="voice_catalog_filter_apply">应用（%1$d）</string>
+    <string name="voice_catalog_filter_empty">该插件没有提供筛选条件</string>
+    <string name="voice_catalog_filter_group_count">已选 %1$d</string>
+    <string name="voice_catalog_filter_option_search">搜索标签</string>
+    <string name="voice_catalog_filter_option_empty">没有匹配的标签</string>
     <string name="batch_select_plugin">批量选择插件</string>
     <string name="batch_fix_select_source">选择失效来源</string>
     <string name="batch_fix_confirm">将把 %1$d 个失效配置项的插件替换为「%2$s」，是否继续？</string>
