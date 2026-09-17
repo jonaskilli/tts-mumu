@@ -3,30 +3,39 @@ package com.github.jing332.compose.widgets
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.focusable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ProvideTextStyle
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
@@ -49,6 +58,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.selected
@@ -57,11 +67,32 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 import com.github.jing332.compose.ComposeExtensions.clickableRipple
 import com.github.jing332.compose.R
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
+
+/** 底部大弹窗占屏高比例（用户 09-17 定：**统一 92%**，与音色广场同体量） */
+private const val SELECTION_SHEET_HEIGHT = 0.92f
+
+/**
+ * 条目高度估算值，用于给面板定高（条目少则面板矮、多则撑到上限再由列表内部滚）。
+ * `minimumInteractiveComponentSize` 是 48dp：条目本体 12dp 上下内边距 + 14sp 文字实测约 43dp，
+ * 被这个下限兜住，故 48dp 就是绝大多数条目的真实高度。
+ */
+private val SELECTION_ROW_HEIGHT = 48.dp
+
+/** 列表自身的内边距（LoadingContent 上下各 16dp），估高时补上 */
+private val SELECTION_LIST_PADDING = 32.dp
+
+/** 列表之外固定区的估算高度：搜索框 / 开关行 / 空提示 */
+private val SELECTION_FIELD_HEIGHT = 72.dp
+private val SELECTION_SWITCH_ROW_HEIGHT = 56.dp
+private val SELECTION_EMPTY_HINT_HEIGHT = 48.dp
 
 @Composable
 fun AppSelectionDialog(
@@ -134,18 +165,30 @@ fun AppSelectionDialog(
 
     val focusRequester = remember { FocusRequester() }
 
-    AppDialog(
-        title = {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 8.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceBetween
-            ) {
-                Box(Modifier.weight(1f, fill = false)) { title() }
-            }
-        },
+    // 「输入中的文本」与「已生效的搜索词」提到外壳这层：外壳要按**过滤后的可见条数**估面板高度，
+    // 而可见条数取决于搜索词；500ms 轮询赋值的逻辑仍留在 content 里
+    var text by rememberSaveable { mutableStateOf("") }
+    var searchText by rememberSaveable { mutableStateOf("") }
+
+    // 面板高度按可见条数估：条目少时面板随内容收缩，条目多时撑到 92% 屏高、由列表内部滚动
+    val sheetMaxHeight = LocalConfiguration.current.screenHeightDp.dp * SELECTION_SHEET_HEIGHT
+    val visibleCount = if (searchEnabled && searchText.isNotBlank())
+        entries.count { it.contains(searchText, ignoreCase = true) } else entries.size
+    val listMaxHeight = (
+            visibleCount * SELECTION_ROW_HEIGHT +
+                    SELECTION_LIST_PADDING +
+                    (if (searchEnabled) SELECTION_FIELD_HEIGHT else 0.dp) +
+                    (if (onWaitCategorySwitchChange != null || onAutoNextSwitchChange != null)
+                        SELECTION_SWITCH_ROW_HEIGHT else 0.dp) +
+                    (if (searchEnabled && searchText.isNotBlank() && visibleCount == 0)
+                        SELECTION_EMPTY_HINT_HEIGHT else 0.dp)
+            ).coerceAtMost(sheetMaxHeight)
+
+    SelectionSheet(
+        onDismissRequest = onDismissRequest,
+        maxSheetHeight = sheetMaxHeight,
+        maxListHeight = listMaxHeight,
+        title = title,
         content = {
             val state = rememberLazyListState()
             LaunchedEffect(values) {
@@ -189,12 +232,8 @@ fun AppSelectionDialog(
                     }
                 }
 
-                var searchText by rememberSaveable { mutableStateOf("") }
-
                 if (searchEnabled) {
                     val keyboardController = LocalSoftwareKeyboardController.current
-
-                    var text by rememberSaveable { mutableStateOf("") }
 
                     // 搜索框固定在顶部常显，无需点击搜索图标再展开
                     DenseOutlinedField(
@@ -220,14 +259,15 @@ fun AppSelectionDialog(
                 }
 
                 // 用过滤后的条目数判断空，避免依赖 viewport 布局时机导致"空列表"红字闪现
-                val visibleCount by remember {
+                // （外壳那层按可见条数估高，名字用 filteredCount 以免遮蔽）
+                val filteredCount by remember {
                     derivedStateOf {
                         if (!searchEnabled || searchText.isBlank()) entries.size
                         else entries.count { it.contains(searchText, ignoreCase = true) }
                     }
                 }
 
-                if (searchText.isNotBlank() && visibleCount == 0)
+                if (searchText.isNotBlank() && filteredCount == 0)
                     Text(
                         modifier = Modifier
                             .padding(horizontal = 8.dp, vertical = 4.dp)
@@ -392,7 +432,7 @@ fun AppSelectionDialog(
                 }
             }
         },
-        buttons = buttons, onDismissRequest = onDismissRequest,
+        buttons = buttons,
     )
 }
 

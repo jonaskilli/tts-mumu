@@ -88,8 +88,8 @@ private const val CATALOG_SORT_NEW = "created_at"
 /** 输入防抖：与 jread 的 350ms 同量级——打字过程中不逐字发请求 */
 private const val CATALOG_SEARCH_DEBOUNCE_MS = 400L
 
-/** 底部大弹窗占屏高比例：与换声弹窗（0.88）对齐，视觉上是同一个体量 */
-private const val CATALOG_SHEET_HEIGHT = 0.88f
+/** 底部大弹窗占屏高比例（用户 09-17 定：**统一 92%**，与列表选择弹窗同体量） */
+private const val CATALOG_SHEET_HEIGHT = 0.92f
 
 /**
  * 音色广场弹窗（opt-in 协议 `EditorJS.searchVoiceCatalog(query)`，协议见 jread
