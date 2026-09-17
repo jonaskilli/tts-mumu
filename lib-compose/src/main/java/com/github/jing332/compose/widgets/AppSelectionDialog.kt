@@ -104,10 +104,11 @@ private val SELECTION_LIST_PADDING = 32.dp
 /**
  * 底部面板固定区的估算高度：拖拽把 + 标题行 + 按钮行 + 导航栏让位。
  * 内容区上限必须为它让位——否则长列表会把面板占满，按钮行被挤出面板可视范围
- * （目目 09-17 实机：试听分类弹窗底部看不到「保存」）。取值偏大无害，
- * 只是长列表少显两行。
+ * （目目 09-17 实机：试听分类弹窗底部看不到「保存」）。取 220dp：标题折两行
+ * （约 92dp）+ 三键导航栏（48dp）时固定区实际可达 ~204dp，200 不够；偏大无害，
+ * 只是长列表少显半行。
  */
-private val SELECTION_SHEET_CHROME_HEIGHT = 200.dp
+private val SELECTION_SHEET_CHROME_HEIGHT = 220.dp
 
 /** 列表之外固定区的估算高度：搜索框 / 开关行 / 空提示 */
 private val SELECTION_FIELD_HEIGHT = 72.dp
@@ -169,8 +170,8 @@ fun AppSelectionDialog(
     // 条目不自带左右内边距，改由 SelectionSheet 统一给 24dp（见下面 hp 的用法）
     val useSheet = entries.size > SELECTION_SHEET_THRESHOLD
 
-    // 底部形态下由面板统一给左右 32dp，内层这份横向内边距必须让位：
-    // 否则 8(搜索框)/16(条目文字) 各自叠在 32dp 之上，又变成多套左缘线
+    // 底部形态下由面板统一给左右 24dp，内层这份横向内边距必须让位：
+    // 否则 8(搜索框)/16(条目文字) 各自叠在 24dp 之上，又变成多套左缘线
     val hp = if (useSheet) 0.dp else 16.dp
 
     // null 时走默认渲染（icons 圆图+文字）；调用方可传自定义渲染（如插件选择器传 PluginImage,

@@ -12,8 +12,10 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.NavigateBefore
 import androidx.compose.material.icons.automirrored.filled.NavigateNext
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -225,7 +227,19 @@ fun AuditionDialog(
 
     AppDialog(
         onDismissRequest = onDismissRequest,
-        title = { Text(stringResource(id = R.string.audition)) },
+        // 批量分类态的退出键放顶部 ✕（目目 09-17：底部塞 上一个/下一个/关闭 三枚
+        // 会溢出，末尾那枚被挤成竖排「关/闭」；与其它弹窗 ✕ 在右上角的惯例一致）
+        title = {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    stringResource(id = R.string.audition),
+                    modifier = Modifier.weight(1f)
+                )
+                IconButton(onClick = onDismissRequest) {
+                    Icon(Icons.Default.Close, stringResource(id = R.string.close))
+                }
+            }
+        },
         content = {
             Column(Modifier.verticalScroll(rememberScrollState())) {
                 // 当前试听的声音名：分类时明确知道在给哪个发音人分配
@@ -331,13 +345,11 @@ fun AuditionDialog(
         },
         buttons = {
             if (onPrev != null || onNext != null) {
-                // 分类/批量试听：切换按钮居中。末尾必须给「关闭」作显式结束键
-                // （目目 09-17：等待分类模式下弹窗不会自动关，试听完不想继续分类
-                // 却没有出口；右上没有 ✕、点弹窗外虽能关但没有任何提示）。
-                // 间距 48→24：三枚按钮 360dp 屏放不下 48 的间距
+                // 分类/批量试听：只留切换按钮居中；退出键是右上角 ✕（见 title）——
+                // 底部三枚在弹窗实际内容宽 ~264dp 里塞不下，末尾会被挤成竖排
                 Row(
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(24.dp, Alignment.CenterHorizontally),
+                    horizontalArrangement = Arrangement.spacedBy(48.dp, Alignment.CenterHorizontally),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     if (onPrev != null) {
@@ -351,9 +363,6 @@ fun AuditionDialog(
                             Text("下一个")
                             Icon(Icons.AutoMirrored.Filled.NavigateNext, contentDescription = "下一个")
                         }
-                    }
-                    TextButton(onClick = onDismissRequest) {
-                        Text(stringResource(id = R.string.close))
                     }
                 }
             } else {
