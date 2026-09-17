@@ -279,17 +279,20 @@ fun VoicePickerDialog(
 
     // ===== 角色管理互通（用户 09-12）：候选行 ⋮ 菜单=发音人标记 + 删除配置项 =====
     // 标记写 voice_marks.json（与角色管理 v10 同文件同字段，按标签 id 多选 toggle，❤️🚶😈）；
-    // marksVersion 自增触发候选行标记重读（文件通道无观察者，靠版本号刷新）
+    // ===== 刷新分档：三把版本号钥匙（照角色管理 v10 的刷新粒度，判据=行集合是否变）=====
+    // v10 对照：refreshFayinrenList()=纯数据重读；refreshCharacterData()=重读数据+只更新行内标签、
+    // 不重建行；refreshCharacterList()=重建行。这里用三个独立 remember key 表达同一分档：
+    // Compose 只重算挂了该 key 的表达式，拆开就等于"精确到该刷的那几项"；
+    // 合成一把会连累无关重读（勾个标记不该去重查一遍 DB）。
+    // ① 标记：只动 voice_marks.json（文件通道无观察者，靠版本号刷新）→ 顶部/行内标记
     var marksVersion by remember(entity.id) { mutableStateOf(0) }
-    // 配置项数据版本号：删除后自增，使下面这些库快照 remember 重读——DB 通道没有观察者，
-    // 只能靠版本号驱动重组。参照 v10：filterAndShowVoiceList 每次调用前先 refreshFayinrenList()，
-    // 所以那边删除后面板里的列表仍是实时的；这里原来只 remember(entity.id)，删完行还留着（假数据）。
+    // ② 行集合/池子：删除配置项 ⇒ 启用标签集合与候选池都变。DB 通道同样没有观察者，
+    //    只能靠版本号驱动重组。参照 v10：filterAndShowVoiceList 每次调用前先 refreshFayinrenList()，
+    //    所以那边删除后面板里的列表仍是实时的；这里原来只 remember(entity.id)，删完行还留着（假数据）。
     var dataVersion by remember(entity.id) { mutableStateOf(0) }
-    // 行内容版本号：**行集合不变、行内文本/归属变**时自增（换声落库、标记变化）。
-    // 照 v10 的分档——refreshCharacterData()=重读数据+只更新行内标签、**不重建行**，
-    // refreshCharacterList()=重建行；判据就是**行集合是否变**：删除改行集合走 dataVersion，
-    // 换声只改某一行的显示名/发音人 id，走这里。只挂在"行内容/归属"类派生值上，
-    // 免得为一行改名把池子、启用标签集合（只随 dataVersion 变）也整份重算。
+    // ③ 行内容/归属：行集合不变、行内文本变（换声落库改的就是某行的显示名/发音人 id）。
+    //    挂它的派生值见下方 allConfigs / narrationCandidates / voiceOwners / boundConfigName；
+    //    池子与启用标签集合只挂 ②，不为一行改名整份重算。
     var rowVersion by remember(entity.id) { mutableStateOf(0) }
     // 待删除确认的配置项（非空时弹确认弹窗）
     var deleteConfirmTarget by remember(entity.id) { mutableStateOf<SystemTtsV2?>(null) }
