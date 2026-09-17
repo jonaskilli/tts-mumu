@@ -1198,13 +1198,10 @@ fun VoicePickerDialog(
                                     enabledConfigEntityByTag(tag)?.displayName?.contains(tagSearch) == true)
                         }
                     }
-                    // 当前绑定不在候选时补在顶部，防丢值；搜索态不补（否则顶部挂着不匹配项，破坏搜索语义）
-                    val displayTags =
-                        if (tagSearch.isBlank() && boundVoice.isNotEmpty() &&
-                            filtered.none { it == boundVoice }
-                        ) {
-                            listOf(boundVoice) + filtered
-                        } else filtered
+                    // 候选列表 = 候选池本身（用户 09-17）：不再把「当前绑定」补到列表顶部。
+                    // 顶栏已经展示当前发音人（含 ▶ 试听与 ⋮ 菜单），列表首位该留给候选项，
+                    // 再用一条重复信息占头部只会让人一眼看到的还是"已经在用的那个"。
+                    // 当前绑定若不在池内（标签被停用等），就只从顶栏看它、从顶栏的 ⋮ 处理
 
                     // 候选列表：点行=暂存改绑；▶=只试听该标签对应的启用配置（不应用）。
                     // weight(1f) 吃满头部以下的剩余高度并自带内滚（09-14 晚重构：原来上限写死
@@ -1216,7 +1213,7 @@ fun VoicePickerDialog(
                             .padding(top = 6.dp)
                             .verticalScroll(rememberScrollState()),
                     ) {
-                        if (displayTags.isEmpty()) {
+                        if (filtered.isEmpty()) {
                             Text(
                                 "该范围内没有可用的标签",
                                 modifier = Modifier.padding(10.dp),
@@ -1226,7 +1223,7 @@ fun VoicePickerDialog(
                         }
                         // 重名兜底（去序号后）：显示名在本轮候选里撞车才括号补回标签，
                         // 正常情况一个字不多（一标签一启用，显示名基本不重）
-                        val dupNames = displayTags.groupingBy { t ->
+                        val dupNames = filtered.groupingBy { t ->
                             enabledConfigEntityByTag(t)?.displayName?.ifEmpty { null }
                                 ?: if (isLocalSoundSlot) localSoundSlotLabel(t) else t
                         }.eachCount()
@@ -1236,7 +1233,7 @@ fun VoicePickerDialog(
                         val voiceOwners = remember(entity.id, dataVersion, rowVersion) {
                             CharacterRecordsFile.readVoiceOwnerMap(config.speechRule.tagRuleId)
                         }
-                        displayTags.forEach { tag ->
+                        filtered.forEach { tag ->
                             val isCurrent = tag == boundVoice
                             val isPending = tag == pendingVoice
                             // 候选行=纯配置项显示名（定稿：序号/标签不进行内，

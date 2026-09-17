@@ -190,6 +190,8 @@ fun AppSelectionDialog(
         maxListHeight = listMaxHeight,
         title = title,
         content = {
+            // 打开时定位到「当前值」那一条（09-17 与目目确认：这是预期行为——
+            // 打开就落在当前声音所在的位置，不要改成从第一条开始）
             val state = rememberLazyListState()
             LaunchedEffect(values) {
                 val index = values.indexOfFirst { onValueSame(it, value) }
