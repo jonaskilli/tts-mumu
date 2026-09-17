@@ -115,6 +115,15 @@ private val SELECTION_SWITCH_ROW_HEIGHT = 56.dp
 private val SELECTION_EMPTY_HINT_HEIGHT = 48.dp
 
 /**
+ * 底部形态下条目文字相对搜索框**边框**的缩进量（用户 09-17：搜索框下方的字
+ * 不该跟框左对齐）。搜索框内文字自带 12dp contentPadding，条目文字若与边框齐平，
+ * 就比「搜索」两字的起点突兀地凸出一截；补 12dp 后条目文字正好与搜索文字同一条
+ * 脊线（文字对文字，容器对容器）。居中卡片形态不缩进：那里搜索框另有 8dp 外边距，
+ * 条目文字本来就比框边凹进 8dp，关系已经成立。
+ */
+private val SELECTION_ROW_TEXT_INDENT = 12.dp
+
+/**
  * 列表条目的横向内边距，外壳按形态提供：居中卡片 16dp、底部面板 0dp
  * （面板已统一给 24dp，条目再自加就叠出第二套左缘线）。
  * 自定义 itemContent（插件选择器等）取这个值，不要写死 16dp。
@@ -190,7 +199,13 @@ fun AppSelectionDialog(
             style = MaterialTheme.typography.bodyMedium,
             modifier = Modifier
                 .weight(1f)
-                .padding(horizontal = hp, vertical = 12.dp),
+                // start 额外缩进：底部形态下与搜索框内「搜索 N」文字同一条脊线
+                // （SELECTION_ROW_TEXT_INDENT 注释）；end 不缩，行尾图标仍与框右缘齐平
+                .padding(
+                    start = hp + if (useSheet) SELECTION_ROW_TEXT_INDENT else 0.dp,
+                    end = hp,
+                    vertical = 12.dp
+                ),
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
             fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
