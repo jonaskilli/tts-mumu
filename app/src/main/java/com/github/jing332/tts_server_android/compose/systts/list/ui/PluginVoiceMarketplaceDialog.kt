@@ -19,6 +19,7 @@ import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
@@ -41,15 +42,18 @@ import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -68,12 +72,9 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.window.Dialog
-import androidx.compose.ui.window.DialogProperties
 import coil3.compose.SubcomposeAsyncImage
 import com.github.jing332.compose.widgets.CenterTextImage
 import com.github.jing332.compose.widgets.DenseOutlinedField
-import com.github.jing332.compose.widgets.PinDialogWindowToScreen
 import com.github.jing332.tts.speech.plugin.engine.VoiceCatalogFilterGroup
 import com.github.jing332.tts.speech.plugin.engine.VoiceCatalogFilterOption
 import com.github.jing332.tts.speech.plugin.engine.VoiceCatalogItem
@@ -99,7 +100,9 @@ private const val CATALOG_SHEET_HEIGHT = 0.92f
  * 为什么必须有它：这类插件（Fish Audio 官网音色广场等）的 `getVoices()` 只回吐自己写的本地缓存，
  * 而**只有 `searchVoiceCatalog()` 会写这个缓存** ⇒ 没有广场入口时声音下拉恒空、批量导入 0 条。
  *
- * 形态：**底部大弹窗**（占屏高 `CATALOG_SHEET_HEIGHT`，仅顶部两角圆角，与换声弹窗同一范式）。
+ * 形态：**M3 ModalBottomSheet 底部大面板**（占屏高 `CATALOG_SHEET_HEIGHT`，仅顶部两角圆角）。
+ * 09-17 晚实验：Compose Dialog 窗口在 iQOO Neo8（OriginOS）上被系统排版下移出屏、贴底内容被裁，
+ * 改用 M3 弹层窗口机制验证贴底动作行是否可用（选择弹窗是否跟进视实验结果定）。
  * 内容按用户 09-17 拍板的方案（两图）：搜索框（服务端搜索）+ 排序 + 「筛」；下面 quickFilters
  * 横滑 chips；再下面是结果摘要与卡片列表（圆形封面 / 名字·作者 / 使用次数 / 描述两行 / 标签）；
  * 滚到底自动续页；底部「选用（N）」把勾中的音色交给调用方回填声音列表与批量保存链路。
@@ -107,6 +110,7 @@ private const val CATALOG_SHEET_HEIGHT = 0.92f
  * @param onAudition 卡片上的 🎧 —— 交给调用方的现有试听弹窗（同一个 AuditionDialog），弹窗本身不关
  * @param onPick 点「选用」时回调勾中的音色（调用方负责并进声音列表 + 勾选，随后自行关闭本弹窗）
  */
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun PluginVoiceMarketplaceDialog(
     vm: PluginTtsViewModel,
@@ -148,56 +152,35 @@ fun PluginVoiceMarketplaceDialog(
     )
     val sortOptions = vm.catalogSortOptions.ifEmpty { fallbackSorts }
 
-    Dialog(
+    // ⚠️ 实验包（09-17 晚拍板）：Compose Dialog 窗口在本机（iQOO Neo8 / vivo OriginOS）被
+    // 系统排版下移出屏约一个导航栏高，贴屏幕底的内容必被裁、钉窗口压不住。ModalBottomSheet
+    // 走的是 M3 自己的弹层窗口机制，与自绘 Dialog 不同路——**实机若底部动作行完整可见
+    // ⇒ 底部弹窗形态复活**，选择弹窗可跟进换内核；仍被裁则认命维持居中/标题行形态。
+    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    ModalBottomSheet(
         onDismissRequest = onDismissRequest,
-        // 底部大弹窗（与换声弹窗同一范式）：窗口不再被系统栏裁掉，面板满宽、底边贴屏
-        properties = DialogProperties(
-            usePlatformDefaultWidth = false,
-            decorFitsSystemWindows = false,
-        ),
+        sheetState = sheetState,
+        // 视觉与原 Dialog 方案一致：顶部两角圆角、同色、自绘拖拽把（保持像素级不变）
+        containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+        dragHandle = null,
+        // 系统栏间距自己管（内层 Column navigationBarsPadding），避免默认 insets 叠加双份
+        contentWindowInsets = { WindowInsets(0, 0, 0, 0) },
     ) {
-        // 窗口钉成全屏+底部对齐（lib-compose PinDialogWindowToScreen）：09-17 实机
-        // 窗口被排版到屏幕下方 ~134px，贴底内容全部跟着出屏
-        PinDialogWindowToScreen()
-        Box(
+        Column(
             Modifier
-                .fillMaxSize()
-                // 键盘让位：decorFitsSystemWindows=false 后窗口不再被 IME 顶起，
-                // 搜索一弹键盘、面板又底对齐，列表下半截会被键盘盖住；imePadding 让整块浮上去
-                .imePadding(),
-            contentAlignment = Alignment.BottomCenter,
-        ) {
-            // 关闭热区：面板以外的区域点一下即关（满屏方案下没有 scrim 可点，只能靠 ✕）。
-            // 不填色——压暗交给 Dialog 窗口自带的 dim，自绘一层会与它叠加成过暗
-            Box(
-                Modifier
-                    .fillMaxSize()
-                    .clickable(
-                        indication = null,
-                        interactionSource = remember { MutableInteractionSource() },
-                    ) { onDismissRequest() }
-            )
-            Surface(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .fillMaxHeight(CATALOG_SHEET_HEIGHT),
-                // M3 底部面板：仅顶部两角 28dp 圆角、底边贴屏——系统栏间距交给内层 Column 的
-                // navigationBarsPadding，面板本体不缩，视觉上仍是「从底部升起」
-                shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp),
-                color = MaterialTheme.colorScheme.surfaceContainerHigh,
-            ) {
-                // 面板本体先吃掉落在空白处的点击：否则会穿透到下面那层关闭热区，点个缝就把窗关了；
+                .fillMaxWidth()
+                .fillMaxHeight(CATALOG_SHEET_HEIGHT)
+                .navigationBarsPadding()
+                // 键盘让位：搜索/筛选一弹键盘时内容整体浮上去
+                .imePadding()
+                // 面板本体先吃掉落在空白处的点击，防止误触 scrim 关窗；
                 // 无指示色、无动作，纯粹占位（子级自己消费过的点击不受影响）
-                Column(
-                    Modifier
-                        .fillMaxSize()
-                        .navigationBarsPadding()
-                        .clickable(
-                            indication = null,
-                            interactionSource = remember { MutableInteractionSource() },
-                        ) {}
-                ) {
-                    // 拖拽把：M3 底部弹窗的识别特征（本面板是 Dialog 自绘的，只是形态标记、不可拖动）
+                .clickable(
+                    indication = null,
+                    interactionSource = remember { MutableInteractionSource() },
+                ) {}
+        ) {
+                    // 拖拽把：M3 底部弹窗的识别特征（自绘样式标记、不可拖动）
                     Box(
                         Modifier
                             .fillMaxWidth()
@@ -239,14 +222,7 @@ fun PluginVoiceMarketplaceDialog(
                             )
                         }
                         Spacer(Modifier.weight(1f))
-                        // 动作键放标题行（09-17 晚拍板）：Dialog 窗口被系统排版下移出屏时，
-                        // 贴屏幕底的按钮行会被裁掉，顶部锚定结构性免疫；「关闭」由 ✕ 兼任
-                        TextButton(
-                            enabled = picked.isNotEmpty(),
-                            onClick = { onPick(picked.values.toList()) },
-                        ) {
-                            Text(stringResource(R.string.voice_catalog_pick, picked.size))
-                        }
+                        // 「选用(N)」在底部动作行（ModalBottomSheet 实验的核心观察点）；「关闭」由 ✕ 兼任
                         IconButton(onClick = onDismissRequest) {
                             Icon(Icons.Filled.Close, stringResource(R.string.close))
                         }
@@ -443,10 +419,26 @@ fun PluginVoiceMarketplaceDialog(
                             }
                         }
                     }
+
+                    // ---- 底部动作行：「选用（N）」——⚠️ ModalBottomSheet 实验的核心观察点，
+                    // 实机看这行是否完整可见 ----
+                    Row(
+                        Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = CATALOG_PANEL_PADDING, vertical = 6.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Spacer(Modifier.weight(1f))
+                        // 动作键一律纯文字 TextButton（目目 09-17：不要框和填充色）
+                        TextButton(
+                            enabled = picked.isNotEmpty(),
+                            onClick = { onPick(picked.values.toList()) },
+                        ) {
+                            Text(stringResource(R.string.voice_catalog_pick, picked.size))
+                        }
+                    }
                 }
             }
-        }
-    }
 
     if (filterSheetOpen) {
         CatalogFilterSheet(
@@ -475,6 +467,7 @@ private val CATALOG_PANEL_PADDING = 24.dp
  * 分组依据是协议声明，不按组名硬编：`presentation == dropdown` 或 `maxSelections == 1` 的
  * 组提顶部两列（当前 Fish Audio 插件全组都是 chips，故这一段对它是空集，但协议兼容性在）。
  */
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun CatalogFilterSheet(
     groups: List<VoiceCatalogFilterGroup>,
@@ -489,56 +482,35 @@ private fun CatalogFilterSheet(
         it.presentation.equals("dropdown", ignoreCase = true) || it.maxSelections == 1
     }
 
-    Dialog(
+    // ⚠️ 实验包（09-17 晚拍板）：Compose Dialog 窗口在本机（iQOO Neo8 / vivo OriginOS）被
+    // 系统排版下移出屏约一个导航栏高，贴屏幕底的内容必被裁、钉窗口压不住。ModalBottomSheet
+    // 走的是 M3 自己的弹层窗口机制，与自绘 Dialog 不同路——**实机若底部动作行完整可见
+    // ⇒ 底部弹窗形态复活**，选择弹窗可跟进换内核；仍被裁则认命维持居中/标题行形态。
+    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    ModalBottomSheet(
         onDismissRequest = onDismissRequest,
-        // 底部大弹窗（与换声弹窗同一范式）：窗口不再被系统栏裁掉，面板满宽、底边贴屏
-        properties = DialogProperties(
-            usePlatformDefaultWidth = false,
-            decorFitsSystemWindows = false,
-        ),
+        sheetState = sheetState,
+        // 视觉与原 Dialog 方案一致：顶部两角圆角、同色、自绘拖拽把（保持像素级不变）
+        containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+        dragHandle = null,
+        // 系统栏间距自己管（内层 Column navigationBarsPadding），避免默认 insets 叠加双份
+        contentWindowInsets = { WindowInsets(0, 0, 0, 0) },
     ) {
-        // 窗口钉成全屏+底部对齐（lib-compose PinDialogWindowToScreen）：09-17 实机
-        // 窗口被排版到屏幕下方 ~134px，贴底内容全部跟着出屏
-        PinDialogWindowToScreen()
-        Box(
+        Column(
             Modifier
-                .fillMaxSize()
-                // 键盘让位：decorFitsSystemWindows=false 后窗口不再被 IME 顶起，
-                // 搜索一弹键盘、面板又底对齐，列表下半截会被键盘盖住；imePadding 让整块浮上去
-                .imePadding(),
-            contentAlignment = Alignment.BottomCenter,
-        ) {
-            // 关闭热区：面板以外的区域点一下即关（满屏方案下没有 scrim 可点，只能靠 ✕）。
-            // 不填色——压暗交给 Dialog 窗口自带的 dim，自绘一层会与它叠加成过暗
-            Box(
-                Modifier
-                    .fillMaxSize()
-                    .clickable(
-                        indication = null,
-                        interactionSource = remember { MutableInteractionSource() },
-                    ) { onDismissRequest() }
-            )
-            Surface(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .fillMaxHeight(CATALOG_SHEET_HEIGHT),
-                // M3 底部面板：仅顶部两角 28dp 圆角、底边贴屏——系统栏间距交给内层 Column 的
-                // navigationBarsPadding，面板本体不缩，视觉上仍是「从底部升起」
-                shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp),
-                color = MaterialTheme.colorScheme.surfaceContainerHigh,
-            ) {
-                // 面板本体先吃掉落在空白处的点击：否则会穿透到下面那层关闭热区，点个缝就把窗关了；
+                .fillMaxWidth()
+                .fillMaxHeight(CATALOG_SHEET_HEIGHT)
+                .navigationBarsPadding()
+                // 键盘让位：搜索/筛选一弹键盘时内容整体浮上去
+                .imePadding()
+                // 面板本体先吃掉落在空白处的点击，防止误触 scrim 关窗；
                 // 无指示色、无动作，纯粹占位（子级自己消费过的点击不受影响）
-                Column(
-                    Modifier
-                        .fillMaxSize()
-                        .navigationBarsPadding()
-                        .clickable(
-                            indication = null,
-                            interactionSource = remember { MutableInteractionSource() },
-                        ) {}
-                ) {
-                    // 拖拽把：M3 底部弹窗的识别特征（本面板是 Dialog 自绘的，只是形态标记、不可拖动）
+                .clickable(
+                    indication = null,
+                    interactionSource = remember { MutableInteractionSource() },
+                ) {}
+        ) {
+                    // 拖拽把：M3 底部弹窗的识别特征（自绘样式标记、不可拖动）
                     Box(
                         Modifier
                             .fillMaxWidth()
@@ -571,17 +543,7 @@ private fun CatalogFilterSheet(
                             fontWeight = FontWeight.Bold,
                         )
                         Spacer(Modifier.weight(1f))
-                        // 动作键放标题行（09-17 晚拍板）：贴屏幕底的按钮行会被裁掉（窗口下移），
-                        // 顶部锚定结构性免疫
-                        TextButton(
-                            enabled = draft.isNotEmpty(),
-                            onClick = { draft = emptySet() },
-                        ) {
-                            Text(stringResource(R.string.voice_catalog_filter_clear))
-                        }
-                        TextButton(onClick = { onApply(draft) }) {
-                            Text(stringResource(R.string.voice_catalog_filter_apply, draft.size))
-                        }
+                        // 「清空/确定」在底部动作行（ModalBottomSheet 实验的核心观察点）；「关闭」由 ✕ 兼任
                         IconButton(onClick = onDismissRequest) {
                             Icon(Icons.Filled.Close, stringResource(R.string.close))
                         }
@@ -632,11 +594,30 @@ private fun CatalogFilterSheet(
                             )
                         }
                     }
+
+                    // ---- 底部动作行：清空 + 应用（N）——⚠️ ModalBottomSheet 实验的核心观察点，
+                    // 实机看这行是否完整可见 ----
+                    Row(
+                        Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = CATALOG_PANEL_PADDING, vertical = 6.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        // 动作键一律纯文字 TextButton（目目 09-17：不要框和填充色）
+                        TextButton(
+                            enabled = draft.isNotEmpty(),
+                            onClick = { draft = emptySet() },
+                        ) {
+                            Text(stringResource(R.string.voice_catalog_filter_clear))
+                        }
+                        Spacer(Modifier.weight(1f))
+                        TextButton(onClick = { onApply(draft) }) {
+                            Text(stringResource(R.string.voice_catalog_filter_apply, draft.size))
+                        }
+                    }
                 }
             }
-        }
     }
-}
 
 /** 下拉类筛选组：单选直接落值，多选（maxSelections != 1）用勾选项列表 */
 @Composable
