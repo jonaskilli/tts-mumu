@@ -485,10 +485,18 @@ class PluginTtsUI : IConfigUI() {
                                     Log.d("PluginTtsUI", "locale onSelectedChange: $locale")
                                     if (locale.toString().isBlank() || locale == tts.locale) return@AppSpinner
                                     onSysttsChange(systts.copySource(tts.copy(locale = locale.toString())))
-                                    runCatching {
-                                        scope.launch(Dispatchers.IO) {
-                                            vm.updateVoices(locale.toString())
-                                        }
+                                    // 插件 JS 的异常绝不能逃出协程：原写法把 runCatching 包在 launch **外面**
+                                    // 等于没包——launch 自己不抛，插件在协程体里 throw 时无人接，异常直接冒到
+                                    // 全局未捕获处理器把 app 打崩（09-17 呱呱官方付费插件：未填 Token 时
+                                    // getVoices 主动 throw，在编辑页切换语言即闪退）。
+                                    // 收敛在协程体内，失败弹错误弹窗——与打开页面时 load() 失败的处理一致
+                                    // （displayErrorDialog 内部自带 runOnUI，IO 线程可直接调）。
+                                    scope.launch(Dispatchers.IO) {
+                                        runCatching { vm.updateVoices(locale.toString()) }
+                                            .onFailure {
+                                                it.printStackTrace()
+                                                context.displayErrorDialog(it)
+                                            }
                                     }
                                 },
                             )
