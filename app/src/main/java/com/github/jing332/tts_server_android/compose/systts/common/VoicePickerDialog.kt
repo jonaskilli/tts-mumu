@@ -327,8 +327,9 @@ fun VoicePickerDialog(
     // 旁白=暂存候选的配置项；无暂存=本配置项。目标切换时三层草稿整体重载。=====
     var paramsTarget by remember(entity.id) { mutableStateOf(entity) }
 
-    // 非绑定换声落库后的新显示名——确定后弹窗不关，entity 是 remember 的库内旧快照，
-    // 头部「当前发音人」靠它立即跟上；重开弹窗重新读库，此覆盖自然失效
+    // 非绑定换声落库后的新显示名——entity 是 remember 的库内旧快照，头部「当前发音人」靠它
+    // 立即跟上。09-17 起确认成功即关面板，正常路径上它已看不到效果（值随后随组合一起丢弃）；
+    // 留着是因为口径改回「面板不关」时只需删掉那行 dismiss，头部取值链不用动。
     var appliedDisplayName by remember(entity.id) { mutableStateOf<String?>(null) }
 
     // 旁白/非多角色换声（对话绑定模式走 CharacterRecordsFile.rebind，两分支各自处理）：
@@ -375,6 +376,13 @@ fun VoicePickerDialog(
                 context.getString(R.string.log_panel_voice_applied),
                 Toast.LENGTH_SHORT,
             ).show()
+            // 用户 09-17：确认落库后关面板（同一处口径：确认=完成即退出）。旁白这条原来也继承
+            // 日志快捷面板的「不关」，但面板盖着主列表时，上面那行 pendingLocateConfigId 的
+            // 滚动/高亮全发生在面板背后——关掉才看得见「刚改的是哪条」。
+            // 放在协程里、withIO 落库之后关：若先关再写，rememberCoroutineScope 会随面板
+            // 一起取消，落库可能被腰斩。没落库（newConfig == null，如本地音效无插件源）则保持
+            // 打开，别用「已关闭」谎报成功。
+            if (newConfig != null) onDismissRequest()
         }
     }
 
@@ -806,6 +814,11 @@ fun VoicePickerDialog(
                                             if (ok) {
                                                 boundVoice = selected
                                                 onChanged?.invoke("applied", selected)
+                                                // 用户 09-17：确认成功即关面板。原来的「确认后不关」
+                                                // 是日志快捷面板时代（ed5a2c2 抽类时行为零变化带来的）
+                                                // ——那会儿是「边看日志边连着改声」，现在换声是主入口，
+                                                // 改完该退出去看角色列表/主列表
+                                                onDismissRequest()
                                             }
                                             pendingVoice = null
                                             Toast.makeText(
