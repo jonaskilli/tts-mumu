@@ -48,7 +48,6 @@ import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -555,9 +554,10 @@ fun KeyManagerScreen(tagRuleId: String, onBack: () -> Unit) {
                 .padding(start = 16.dp, end = 16.dp, top = 4.dp, bottom = 12.dp)
                 .verticalScroll(rememberScrollState())
         ) {
-                // 操作行：一主一次——「拉取模型」是主路径（建分组必经），用 FilledTonalButton 强调，
-                // 「新增密钥」保持描边。不用实心 Button：各主题 primary 是 *_seed，
-                // 橙/pink 主题上白字对比不足，tonal 走 primaryContainer 由 M3 保证对比度。
+                // 操作行：两个并排的描边键，**都不填色**（用户 09-17：不要框内填充色）。
+                // 原先「拉取模型」用 FilledTonalButton 强调主路径，但本页要强调的只有「当前密钥」，
+                // 操作键再填一层就有两处重点相争；且 tonal 的 primaryContainer 与各主题 *_seed
+                // 同族，橙/pink 主题上看着像被染过。改回描边后层级交给位置（在列表之上）与文案。
                 Row(
                     Modifier.fillMaxWidth().padding(top = 10.dp, bottom = 6.dp),
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
@@ -568,7 +568,7 @@ fun KeyManagerScreen(tagRuleId: String, onBack: () -> Unit) {
                     ) {
                         Text(stringResource(R.string.role_key_add))
                     }
-                    FilledTonalButton(
+                    OutlinedButton(
                         onClick = { showPullModels = true },
                         modifier = Modifier.weight(1f)
                     ) {
