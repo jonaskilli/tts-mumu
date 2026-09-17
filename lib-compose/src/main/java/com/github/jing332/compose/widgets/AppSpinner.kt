@@ -61,7 +61,8 @@ private fun TextFieldSelectionDialog(
     trailingContent: (@Composable RowScope.(itemValue: Any, entry: String, onHighlight: () -> Unit) -> Unit)? = null,
     selectedMultiValues: Set<Any> = emptySet(),
     onMultiSelectedChange: ((Set<Any>) -> Unit)? = null,
-    extraButtons: @Composable BoxScope.() -> Unit = {},
+    // null = 没有额外动作键；原样透传给 AppSelectionDialog（它据此决定底部形态是否渲染按钮行）
+    extraButtons: (@Composable BoxScope.() -> Unit)? = null,
     categoryMap: Map<Any, String> = emptyMap(),
     onCategoryChange: ((itemValue: Any, category: String?) -> Unit)? = null,
     waitCategorySwitch: Boolean = false,
@@ -183,7 +184,8 @@ fun AppSpinner(
     trailingContent: (@Composable RowScope.(itemValue: Any, entry: String, onHighlight: () -> Unit) -> Unit)? = null,
     selectedMultiValues: Set<Any> = emptySet(),
     onMultiSelectedChange: ((Set<Any>) -> Unit)? = null,
-    extraButtons: @Composable BoxScope.() -> Unit = {},
+    // null = 没有额外动作键；原样透传给 AppSelectionDialog（它据此决定底部形态是否渲染按钮行）
+    extraButtons: (@Composable BoxScope.() -> Unit)? = null,
     categoryMap: Map<Any, String> = emptyMap(),
     onCategoryChange: ((itemValue: Any, category: String?) -> Unit)? = null,
     waitCategorySwitch: Boolean = false,

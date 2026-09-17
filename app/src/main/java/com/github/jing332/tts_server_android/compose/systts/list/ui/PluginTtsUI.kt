@@ -43,6 +43,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.drake.net.utils.withIO
 import com.github.jing332.common.utils.toast
 import com.github.jing332.compose.widgets.AppSpinner
+import com.github.jing332.compose.widgets.LocalSelectionRowHorizontalPadding
 import com.github.jing332.compose.widgets.LoadingContent
 import com.github.jing332.compose.widgets.LoadingDialog
 import com.github.jing332.database.dbm
@@ -456,10 +457,15 @@ class PluginTtsUI : IConfigUI() {
                             PluginImage(model = icon, name = entry)
                             Text(
                                 entry,
-                                style = MaterialTheme.typography.bodyLarge,
+                                // bodyMedium 14sp 与默认条目渲染同款（原 bodyLarge 16sp 比其他栏大一号）
+                                style = MaterialTheme.typography.bodyMedium,
                                 modifier = Modifier
                                     .weight(1f)
-                                    .padding(horizontal = 16.dp, vertical = 12.dp),
+                                    // 横向内边距由外壳按形态提供（底部面板 0dp / 居中卡片 16dp），写死会叠出第二套左缘线
+                                    .padding(
+                                        horizontal = LocalSelectionRowHorizontalPadding.current,
+                                        vertical = 12.dp
+                                    ),
                                 maxLines = 3,
                                 overflow = TextOverflow.Ellipsis,
                                 fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,

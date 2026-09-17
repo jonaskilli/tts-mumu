@@ -44,6 +44,7 @@ import androidx.compose.material3.minimumInteractiveComponentSize
 import androidx.compose.ui.layout.ContentScale
 import coil3.compose.SubcomposeAsyncImage
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
@@ -51,6 +52,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -104,6 +106,13 @@ private val SELECTION_FIELD_HEIGHT = 72.dp
 private val SELECTION_SWITCH_ROW_HEIGHT = 56.dp
 private val SELECTION_EMPTY_HINT_HEIGHT = 48.dp
 
+/**
+ * 列表条目的横向内边距，外壳按形态提供：居中卡片 16dp、底部面板 0dp
+ * （面板已统一给 24dp，条目再自加就叠出第二套左缘线）。
+ * 自定义 itemContent（插件选择器等）取这个值，不要写死 16dp。
+ */
+val LocalSelectionRowHorizontalPadding = staticCompositionLocalOf { 16.dp }
+
 @Composable
 fun AppSelectionDialog(
     onDismissRequest: () -> Unit,
@@ -117,7 +126,9 @@ fun AppSelectionDialog(
 
     itemContent: (@Composable RowScope.(Boolean, String, Any?, Any) -> Unit)? = null,
 
-    extraButtons: @Composable BoxScope.() -> Unit = {},
+    // null = 调用方没有额外动作键（纯单选弹窗，点行即选即关）；传了（如试听分类的「保存」）
+    // 则属于功能性出口，底部形态照样渲染并补「关闭」作显式结束键（见 effectiveButtons）
+    extraButtons: (@Composable BoxScope.() -> Unit)? = null,
     // 传 null 走默认按钮：额外按钮 +「关闭」——底部形态下不再重复给「关闭」
     // （面板右上已有 ✕、面板外点击也能关，底部多一行按钮就少露一行列表，见 effectiveButtons）。
     // 调用方传了自定义 buttons 则完全替换默认，不改语义
@@ -205,13 +216,17 @@ fun AppSelectionDialog(
                         SELECTION_EMPTY_HINT_HEIGHT else 0.dp)
             ).coerceAtMost(sheetMaxHeight)
 
-    // 底部形态不再重复放「关闭」：面板右上已有 ✕、面板外点击也能关，底部多一行按钮
-    // 就少露一行列表。调用方自定义的 buttons 原样使用（null = 走这套默认）
+    // 底部形态的按钮行：纯单选弹窗（extraButtons=null）不渲染——右上 ✕、面板外点击已够关，
+    // 多一行按钮就少一行列表。调用方给了额外动作键（如试听分类的「保存」）则必须渲染：
+    // 保存只有勾选后才点亮，光靠右上 ✕ 又没有「不保存就退出」的显式出口
+    // （目目 09-17：试听完不想继续分类了没有结束键）⇒ 补一个「关闭」。
+    // 调用方自定义 buttons 时完全替换这套默认
     val effectiveButtons: @Composable BoxScope.() -> Unit = buttons ?: {
-        extraButtons()
-        if (!useSheet) TextButton(onClick = onDismissRequest) {
-            Text(stringResource(id = R.string.close))
-        }
+        extraButtons?.invoke(this)
+        if (!useSheet || extraButtons != null)
+            TextButton(onClick = onDismissRequest) {
+                Text(stringResource(id = R.string.close))
+            }
     }
 
     // 弹窗内容（开关行 / 搜索框 / 列表 / 空提示）：两种外壳共用同一份，只换外面的容器
@@ -465,23 +480,26 @@ fun AppSelectionDialog(
     }
 
     // 分档（用户 09-17 定 C 方案）：条目少 → 原来的居中卡片（紧凑，与语言 / 主题那些一致）；
-    // 条目多 → 底部大弹窗（满宽 + 上限 92% 屏高，一眼看到更多行）
-    if (useSheet)
-        SelectionSheet(
-            onDismissRequest = onDismissRequest,
-            maxSheetHeight = sheetMaxHeight,
-            maxListHeight = listMaxHeight,
-            title = title,
-            content = dialogContent,
-            buttons = effectiveButtons,
-        )
-    else
-        AppDialog(
-            onDismissRequest = onDismissRequest,
-            title = title,
-            content = dialogContent,
-            buttons = effectiveButtons,
-        )
+    // 条目多 → 底部大弹窗（满宽 + 上限 92% 屏高，一眼看到更多行）。
+    // 顺手把条目横向内边距按形态广播出去，自定义 itemContent 同步对齐
+    CompositionLocalProvider(LocalSelectionRowHorizontalPadding provides hp) {
+        if (useSheet)
+            SelectionSheet(
+                onDismissRequest = onDismissRequest,
+                maxSheetHeight = sheetMaxHeight,
+                maxListHeight = listMaxHeight,
+                title = title,
+                content = dialogContent,
+                buttons = effectiveButtons,
+            )
+        else
+            AppDialog(
+                onDismissRequest = onDismissRequest,
+                title = title,
+                content = dialogContent,
+                buttons = effectiveButtons,
+            )
+    }
 }
 
 /**
