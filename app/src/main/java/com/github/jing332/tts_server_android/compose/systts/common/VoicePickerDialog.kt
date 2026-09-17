@@ -65,6 +65,7 @@ import com.drake.net.utils.withIO
 import com.drake.net.utils.withMain
 import com.github.jing332.common.utils.toParamText
 import com.github.jing332.compose.widgets.AppSelectionDialog
+import com.github.jing332.compose.widgets.PinDialogWindowToScreen
 import com.github.jing332.database.dbm
 import com.github.jing332.database.entities.systts.AudioParams
 import com.github.jing332.database.entities.systts.SystemTtsV2
@@ -595,6 +596,9 @@ fun VoicePickerDialog(
             decorFitsSystemWindows = false,
         ),
     ) {
+        // 窗口钉成全屏+底部对齐（lib-compose PinDialogWindowToScreen）：09-17 实机
+        // 窗口被排版到屏幕下方 ~134px，底部确认键跟着出屏被裁——比例怎么改都没用的根因
+        PinDialogWindowToScreen()
         Box(
             Modifier
                 .fillMaxSize()

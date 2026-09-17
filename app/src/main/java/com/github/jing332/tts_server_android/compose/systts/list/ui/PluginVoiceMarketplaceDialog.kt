@@ -73,6 +73,7 @@ import androidx.compose.ui.window.DialogProperties
 import coil3.compose.SubcomposeAsyncImage
 import com.github.jing332.compose.widgets.CenterTextImage
 import com.github.jing332.compose.widgets.DenseOutlinedField
+import com.github.jing332.compose.widgets.PinDialogWindowToScreen
 import com.github.jing332.tts.speech.plugin.engine.VoiceCatalogFilterGroup
 import com.github.jing332.tts.speech.plugin.engine.VoiceCatalogFilterOption
 import com.github.jing332.tts.speech.plugin.engine.VoiceCatalogItem
@@ -155,6 +156,9 @@ fun PluginVoiceMarketplaceDialog(
             decorFitsSystemWindows = false,
         ),
     ) {
+        // 窗口钉成全屏+底部对齐（lib-compose PinDialogWindowToScreen）：09-17 实机
+        // 窗口被排版到屏幕下方 ~134px，贴底内容全部跟着出屏
+        PinDialogWindowToScreen()
         Box(
             Modifier
                 .fillMaxSize()
@@ -259,6 +263,9 @@ fun PluginVoiceMarketplaceDialog(
                                 Text(
                                     stringResource(R.string.voice_catalog_search),
                                     maxLines = 1,
+                                    // 只 maxLines 不给 ellipsis 会把「色」硬裁掉（09-17 实机：
+                                    // 未聚焦态 label 约束宽度比文字实际所需窄一字）
+                                    overflow = TextOverflow.Ellipsis,
                                 )
                             },
                             leadingIcon = {
@@ -503,6 +510,9 @@ private fun CatalogFilterSheet(
             decorFitsSystemWindows = false,
         ),
     ) {
+        // 窗口钉成全屏+底部对齐（lib-compose PinDialogWindowToScreen）：09-17 实机
+        // 窗口被排版到屏幕下方 ~134px，贴底内容全部跟着出屏
+        PinDialogWindowToScreen()
         Box(
             Modifier
                 .fillMaxSize()

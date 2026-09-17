@@ -97,6 +97,9 @@ internal fun SelectionSheet(
             decorFitsSystemWindows = false,
         ),
     ) {
+        // 窗口钉成全屏+底部对齐（PinDialogWindowToScreen.kt 注释：09-17 实机
+        // 窗口被排版到屏幕下方 ~134px，按钮行跟着出屏被裁——比例怎么改都没用的根因）
+        PinDialogWindowToScreen()
         Box(
             Modifier
                 .fillMaxSize()
