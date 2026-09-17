@@ -175,7 +175,9 @@ fun AppSelectionDialog(
     val visibleCount = if (searchEnabled && searchText.isNotBlank())
         entries.count { it.contains(searchText, ignoreCase = true) } else entries.size
     val listMaxHeight = (
-            visibleCount * SELECTION_ROW_HEIGHT +
+            // 写成 Dp * Int 而不是 Int * Dp：后者是 Compose 的顶层扩展 `Int.times(Dp)`，
+            // 需显式 import，否则只剩 Int 自带那几个数值重载、直接编译不过
+            SELECTION_ROW_HEIGHT * visibleCount +
                     SELECTION_LIST_PADDING +
                     (if (searchEnabled) SELECTION_FIELD_HEIGHT else 0.dp) +
                     (if (onWaitCategorySwitchChange != null || onAutoNextSwitchChange != null)
