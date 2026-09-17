@@ -788,10 +788,14 @@ fun KeyManagerScreen(tagRuleId: String, onBack: () -> Unit) {
                                     // 元信息行：接口组 = 网址 + 尾号小块；未分组 / 直连组 = 一句身份说明
                                     if (!isDeleting) {
                                         val ifc = grp.ifc
+                                        // 元信息行左缘 = 组名文字左缘（43）：卡左缘 15 + 折叠箭头 22 + 间距 6。
+                                        // 原先是 34（09-14 与组名同列），09-16 给组头加色条把组名推到 43 之后
+                                        // 这行落了单，于是组头两行文字各站一条竖线——现在共线，且零宽度代价
+                                        // （这行右边只有一个尾号小块）。不改的话卡片缩进方案又得压模型名宽度。
                                         if (ifc != null) {
                                             Row(
                                                 Modifier.fillMaxWidth()
-                                                    .padding(start = 34.dp, end = 10.dp, bottom = 6.dp),
+                                                    .padding(start = 43.dp, end = 10.dp, bottom = 6.dp),
                                                 verticalAlignment = Alignment.CenterVertically
                                             ) {
                                                 Text(
@@ -827,7 +831,8 @@ fun KeyManagerScreen(tagRuleId: String, onBack: () -> Unit) {
                                                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                                                     maxLines = 2,
                                                     overflow = TextOverflow.Ellipsis,
-                                                    modifier = Modifier.padding(start = 34.dp, end = 10.dp, bottom = 6.dp)
+                                                    // 与网址分支同列（43），两分支是同一个元素的两个形态
+                                                    modifier = Modifier.padding(start = 43.dp, end = 10.dp, bottom = 6.dp)
                                                 )
                                             }
                                         }
