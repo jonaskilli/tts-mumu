@@ -36,6 +36,15 @@ import androidx.compose.ui.window.DialogProperties
 import com.github.jing332.compose.R
 
 /**
+ * 面板内容的左右内边距：标题行 / 内容区 / 按钮行共用这一条基准。
+ *
+ * 定 24dp（目目 09-17 实机反馈「边距太窄」）：首版 16dp 沿用了换声面板的旧账，
+ * 但本面板满宽贴屏，16dp 离屏幕边太近；24dp 与居中卡片（MD3 AlertDialog 两侧各留 24dp）
+ * 同一档，360dp 屏上内容区 312dp。
+ */
+private val PANEL_HORIZONTAL_PADDING = 24.dp
+
+/**
  * 列表选择弹窗的外壳：**底部大弹窗**（用户 09-17 定，与音色广场 / 换声弹窗同一形态）。
  *
  * 原先是 MD3 居中 AlertDialog：宽度被规范限死（两侧各留 24dp）、高度也由 MD3 说了算，
@@ -46,9 +55,11 @@ import com.github.jing332.compose.R
  * 全 app 的列表型选择弹窗（插件 / 分组 / 分类 / 音色 / 规则 / 主题 / BGM…约 19 个入口）
  * 都经由本组件，改这一处即全部生效。
  *
- * 左右边距口径：**面板内容统一 16dp**（标题行 16 / 内容区 16 / 按钮行 16；✕ 的 48dp 触摸区
- * 自带 12dp 内缩，图标正好落在 16dp 右缘线上）。这是换声面板、密钥页、日志面板同一条基准，
- * 内层组件（搜索框、列表条目）在底部形态下不要再自加横向内边距。
+ * 左右边距口径：**面板内容统一 24dp**（标题行 / 内容区 / 按钮行共用 `PANEL_HORIZONTAL_PADDING`；
+ * ✕ 的 48dp 触摸区自带 12dp 内缩、标题行给 end=12，图标正好落在 24dp 右缘线上）。
+ * 24dp 与居中卡片（MD3 两侧各 24dp）同一档——首版 16dp 被目目实机否决「太窄」。
+ * 内层组件（搜索框、列表条目）在底部形态下**不要再自加横向内边距**，
+ * 由本外壳一处说了算。
  *
  * @param maxSheetHeight 面板高度上限（调用方按屏高比例算好）
  * @param maxListHeight 内容区高度上限（调用方按可见条数估好）
@@ -125,11 +136,18 @@ internal fun SelectionSheet(
                         )
                     }
 
-                    // 标题行：标题 + ✕（✕ 与底部按钮互为冗余，是底部面板的通用形态）
+                    // 标题行：标题 + ✕（✕ 与底部按钮互为冗余，是底部面板的通用形态）。
+                    // end=12 是给 ✕ 的 48dp 触摸区留的：IconButton 自带 12dp 内缩，
+                    // 12 + 12 = 24 ⇒ ✕ 图标正好落在与内容区同一条右缘线上
                     Row(
                         Modifier
                             .fillMaxWidth()
-                            .padding(start = 16.dp, end = 4.dp, top = 8.dp, bottom = 4.dp),
+                            .padding(
+                                start = PANEL_HORIZONTAL_PADDING,
+                                end = 12.dp,
+                                top = 8.dp,
+                                bottom = 4.dp
+                            ),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
                         // 标题样式跟着底部面板走：原 MD3 标题槽是 headlineSmall（24sp），
@@ -152,27 +170,27 @@ internal fun SelectionSheet(
                     // weight(fill=false) 让它只占实际需要的高度——条目少时面板跟着矮；
                     // 上限交给 maxListHeight，列表比它高时由 LazyColumn 自己滚。
                     //
-                    // 左右各 16dp 是**面板级统一内边距**（与换声面板 / 密钥页同一条基准：
-                    // 360dp 屏上内容区 328dp）。09-17 实机截图里搜索框在 8dp、条目行尾图标
-                    // 在 0dp、✕ 在 16dp——三套左右基准并存，用户一眼看出「边距没调」。
-                    // 内层（搜索框的 8dp、条目文字的 16dp）在底部形态下要撤掉，由这里一处说了算，
-                    // 否则加完还是三套线（24 / 32 / 16）。标题行不在这里面：它自带 16/4，
-                    // ✕ 的 48dp 触摸区再内缩 12dp ⇒ 图标正好落在这条 16dp 右缘线上
+                    // 左右内边距**只有这里一处说了算**（PANEL_HORIZONTAL_PADDING）：
+                    // 内层（搜索框的 8dp、条目文字的 16dp）在底部形态下必须让位
+                    // （AppSelectionDialog 的 hp / 搜索框 padding 都按 useSheet 置 0），
+                    // 否则叠出来还是多套左缘线。首版这里漏了 padding，搜索框 8dp、
+                    // 行尾图标 0dp、✕ 16dp 三套基准并存（09-17 实机「边距没调」）；
+                    // 补 16dp 后目目仍嫌窄 ⇒ 加到 24dp
                     Box(
                         Modifier
                             .weight(1f, fill = false)
                             .heightIn(max = maxListHeight)
-                            .padding(horizontal = 16.dp)
+                            .padding(horizontal = PANEL_HORIZONTAL_PADDING)
                     ) {
                         content()
                     }
 
                     // 按钮行：与 MD3 一致横排右对齐（多个按钮不层叠）。
-                    // 左右 16dp 与内容区同一条基准（换声面板底栏也是 16dp）
+                    // 左右与内容区同一条基准
                     Box(
                         Modifier
                             .fillMaxWidth()
-                            .padding(horizontal = 16.dp, vertical = 4.dp),
+                            .padding(horizontal = PANEL_HORIZONTAL_PADDING, vertical = 4.dp),
                         contentAlignment = Alignment.CenterEnd,
                     ) {
                         val boxScope: BoxScope = this

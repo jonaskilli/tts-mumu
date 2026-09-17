@@ -138,11 +138,11 @@ fun AppSelectionDialog(
 ) {
     // 外壳分档：判定在打开那一刻定住（按原始条数，不受搜索过滤影响），
     // 免得开着开着列表变短、形态跟着跳。声明放在条目渲染之前——底部形态下
-    // 条目不自带左右内边距，改由 SelectionSheet 统一给 16dp（见下面 hp 的用法）
+    // 条目不自带左右内边距，改由 SelectionSheet 统一给 24dp（见下面 hp 的用法）
     val useSheet = entries.size > SELECTION_SHEET_THRESHOLD
 
-    // 底部形态下由面板统一给左右 16dp，内层这份横向内边距必须让位：
-    // 否则 8(搜索框)/16(条目文字) 各自叠在 16dp 之上，又变成两套左缘线
+    // 底部形态下由面板统一给左右 24dp，内层这份横向内边距必须让位：
+    // 否则 8(搜索框)/16(条目文字) 各自叠在 24dp 之上，又变成多套左缘线
     val hp = if (useSheet) 0.dp else 16.dp
 
     // null 时走默认渲染（icons 圆图+文字）；调用方可传自定义渲染（如插件选择器传 PluginImage,
