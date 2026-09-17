@@ -253,7 +253,14 @@ fun PluginVoiceMarketplaceDialog(
                             onValueChange = { keyword = it },
                             singleLine = true,
                             maxLines = 1,
-                            label = { Text(stringResource(R.string.voice_catalog_search)) },
+                            // maxLines=1（目目 09-17：label 折成两行是 DecorationBox 在未聚焦态
+                            // 对 label 的宽度约束比文字实际所需更窄所致，单行后不再分两行）
+                            label = {
+                                Text(
+                                    stringResource(R.string.voice_catalog_search),
+                                    maxLines = 1,
+                                )
+                            },
                             leadingIcon = {
                                 Icon(
                                     Icons.Filled.Search,

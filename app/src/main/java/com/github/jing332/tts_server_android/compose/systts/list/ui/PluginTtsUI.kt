@@ -17,7 +17,6 @@ import androidx.compose.material.icons.filled.Info
 import com.github.jing332.tts_server_android.compose.systts.plugin.PluginImage
 import androidx.compose.material.icons.filled.Speed
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -633,10 +632,9 @@ class PluginTtsUI : IConfigUI() {
                                 context.toast(if (it) "已开启：选分类后自动试听下一个" else "已关闭：选分类后不自动切换")
                             },
                             extraButtons = {
-                                // 填充底色按钮（目目 09-17：灰字 TextButton 与面板背景融为一体，
-                                // 看上去「底部没有保存键」）——未点亮也有药丸底色，位置一眼可见；
-                                // 勾选圆圈后才点亮成主题色
-                                FilledTonalButton(
+                                // 纯文字键（目目 09-17：不要框和填充色）——按钮行位置修好后
+                                // 位置本身可见，不再靠药丸底色标识；未点亮=灰字、勾选后点亮主题色
+                                TextButton(
                                     enabled = selectedVoiceIds.isNotEmpty() && !showLoadingDialog,
                                     onClick = {
                                         val selectedVoices = vm.voices.filter { it.id in selectedVoiceIds }
@@ -644,7 +642,7 @@ class PluginTtsUI : IConfigUI() {
                                             // 勾选项不在当前声音列表（切换语言/插件后列表已刷新）：
                                             // 显式提示而非静默返回，避免"点了保存没反应"
                                             context.toast("所选声音不在当前列表中，可能已切换语言或插件，请重新选择")
-                                            return@FilledTonalButton
+                                            return@TextButton
                                         }
                                         // 主线程先捕获状态快照，IO 协程内不再读取 Compose 状态
                                         val categoryMapSnapshot = voiceCategoryMap

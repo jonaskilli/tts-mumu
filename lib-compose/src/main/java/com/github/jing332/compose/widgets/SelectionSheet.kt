@@ -6,13 +6,12 @@ import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
-import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
@@ -47,10 +46,15 @@ import com.github.jing332.compose.R
 private val PANEL_HORIZONTAL_PADDING = 24.dp
 
 /**
- * 面板高 = 弹窗窗口真实高度 × 此比例（用户 09-17 定 92%）。
+ * 面板高 = 弹窗窗口真实可用高 × 此比例（用户 09-17 定 92%）。
  * ⚠️ 不能用 `LocalConfiguration.screenHeightDp`：它不含状态栏/导航栏（800dp 屏只算 728dp），
  * 而本窗口 decorFitsSystemWindows=false 铺满全屏 ⇒ 之前实机看起来只有 ~85%（用户说「像 88%」）。
- * 这里用 BoxWithConstraints 拿到的 maxHeight 就是窗口真实高，所见即 92%。
+ *
+ * ⚠️ 实现必须用 `Modifier.fillMaxHeight(fraction)`（09-17 实机教训）：此前用
+ * `BoxWithConstraints.maxHeight × fraction` 再 `height(固定 dp)`，实机上按钮行整体
+ * 下沉约一个导航栏高、被屏幕底缘裁半（09172116 包实锤）——固定 dp 是从外层约束算出来的
+ * 死值，与 Surface 实际分到的空间脱节；fillMaxHeight 直接吃「实际可用高」的比例，
+ * 与音色广场面板（同结构、底部完好）完全一致，不再依赖任何外层算术。
  */
 private const val SHEET_HEIGHT_FRACTION = 0.92f
 
@@ -93,9 +97,7 @@ internal fun SelectionSheet(
             decorFitsSystemWindows = false,
         ),
     ) {
-        // BoxWithConstraints 拿窗口真实高度（含系统栏）：面板高 = maxHeight × 92%，
-        // 固定高是按钮行不被挤压的根基（见类注释「高度口径」）
-        BoxWithConstraints(
+        Box(
             Modifier
                 .fillMaxSize()
                 // 键盘让位：decorFitsSystemWindows=false 后窗口不再被 IME 顶起，
@@ -116,17 +118,20 @@ internal fun SelectionSheet(
             Surface(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(maxHeight * SHEET_HEIGHT_FRACTION),
+                    // 比例填「实际可用高」（见 SHEET_HEIGHT_FRACTION 注释：勿改回固定 dp 算术）
+                    .fillMaxHeight(SHEET_HEIGHT_FRACTION),
                 // M3 底部面板：仅顶部两角 28dp 圆角、底边贴屏——系统栏间距交给内层 Column 的
                 // navigationBarsPadding，面板本体不缩，视觉上仍是「从底部升起」
                 shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp),
                 color = MaterialTheme.colorScheme.surfaceContainerHigh,
             ) {
                 // 面板本体先吃掉落在空白处的点击：否则会穿透到下面那层关闭热区，点个缝就把窗关了；
-                // 无指示色、无动作，纯占位（子级自己消费过的点击不受影响）
+                // 无指示色、无动作，纯占位（子级自己消费过的点击不受影响）。
+                // fillMaxSize 与音色广场面板同构：Column 撑满 Surface，导航栏间距由
+                // navigationBarsPadding 从撑满后的高度里收——按钮行恒在可视区（09-17 实机）
                 Column(
                     Modifier
-                        .fillMaxWidth()
+                        .fillMaxSize()
                         .navigationBarsPadding()
                         .clickable(
                             indication = null,
