@@ -202,9 +202,12 @@ fun AppSelectionDialog(
                 // start 额外缩进：底部形态下与搜索框内「搜索 N」文字同一条脊线
                 // （SELECTION_ROW_TEXT_INDENT 注释）；end 不缩，行尾图标仍与框右缘齐平
                 .padding(
+                    // ⚠️ start/end 不能与 vertical 混在同一次 padding 调用里
+                    // （PaddingValues 无该重载，CI 上报 no applicable candidate）
                     start = hp + if (useSheet) SELECTION_ROW_TEXT_INDENT else 0.dp,
                     end = hp,
-                    vertical = 12.dp
+                    top = 12.dp,
+                    bottom = 12.dp
                 ),
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
