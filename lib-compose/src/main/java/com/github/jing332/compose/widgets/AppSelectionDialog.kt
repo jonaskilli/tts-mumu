@@ -120,6 +120,11 @@ fun AppSelectionDialog(
     // （见下方 AppDialog/SelectionSheet 两处调用）
     extraButtons: (@Composable RowScope.() -> Unit)? = null,
 
+    // 调用方完全自定义居中形态（AppDialog）的底部按钮行（如上传目标选择传「取消」）；
+    // null 走默认 = 额外动作键 +「关闭」。底部形态的按钮行由 extraButtons 提供，本参数不参与
+    // （⚠️ 228d165 重构时曾误删此参数，LinkUploadSelectionDialog 调用直接编译失败——CI 教训）
+    buttons: (@Composable BoxScope.() -> Unit)? = null,
+
     onValueSame: (Any, Any) -> Boolean = { a, b -> a == b },
     onClick: (Any, String) -> Unit,
     onLongClick: ((Any, String) -> Unit)? = null,
@@ -202,7 +207,7 @@ fun AppSelectionDialog(
     // 居中形态（AppDialog）底部按钮行 = 额外动作键 +「关闭」（维持原状）。
     // 纯单选弹窗 extraButtons=null：底部形态不渲染按钮行，居中形态只有「关闭」。
     // extraButtons 是 RowScope 接收者，自起一行 Row 提供接收者（AppDialog 的槽是 BoxScope）
-    val effectiveButtons: @Composable BoxScope.() -> Unit = {
+    val effectiveButtons: @Composable BoxScope.() -> Unit = buttons ?: {
         if (extraButtons != null)
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) { extraButtons?.invoke(this) }
         TextButton(onClick = onDismissRequest) {
