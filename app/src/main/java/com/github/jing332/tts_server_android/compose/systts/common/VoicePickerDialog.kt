@@ -903,12 +903,22 @@ fun VoicePickerDialog(
             val currentVoiceName = if (isBindingMode) boundConfigName
             else pendingName ?: appliedDisplayName ?: entity.displayName
             // 顶部当前发音人：点亮标记 emoji 跟在名字后（用户 09-12 晚拍板"放后面"）——
-            // 键与候选行同口径：绑定=绑定/暂存的 tag，非绑定=当前 voice；未点亮不占位
-            val topMarkKey = if (isBindingMode) (pendingVoice ?: boundVoice) else voice
+            // 键与候选行同口径：绑定=绑定/暂存的 tag，非绑定=当前 voice；未点亮不占位。
+            // 09-17 加 ⋮ 后非绑定并入暂存：顶部显示的名字本就跟随暂存候选（currentVoiceName 的
+            // pendingName 一支），标记若还盯着已落库的 voice，暂存着 B 却把标记打到 A 上——
+            // ⋮ 一出现，这个不一致就从"看不见"变成"点得到"，故与显示名统一取暂存优先。
+            val topMarkKey = if (isBindingMode) (pendingVoice ?: boundVoice)
+            else pendingVoice ?: voice
             val topMarks = remember(topMarkKey, marksVersion) {
                 if (topMarkKey.isBlank()) emptyList()
                 else VoiceMarksFile.get(config.speechRule.tagRuleId, topMarkKey)
             }
+            // 顶部 ⋮ 的删除目标（用户 09-17 方案A）：与上面「当前发音人」的显示名**同源**——
+            // 显示谁就删谁。绑定=当前绑定/暂存标签的启用配置项（与候选行 ⋮、与显示名同一口径）；
+            // 非绑定=暂存候选那条配置项，无暂存则本面板这条。
+            // 锚点已被删且无接替时（anchorMissing）本配置项已不在库，不给删——菜单项 disabled。
+            val topDeleteTarget = if (isBindingMode) enabledConfigEntityByTag(pendingVoice ?: boundVoice)
+            else pendingVoice?.let { narrationEntityByVoice(it) } ?: entity.takeIf { !anchorMissing }
             // 09-11 重排（用户拍板）：「当前发音人」小标签独占一行，▶ 键与发音人名同一行
             //（此前 ▶ 垂直居中在两行文字块上，与名字行错位）；名字加省略号防长名硬裁
             if (!addMode) {
@@ -979,6 +989,24 @@ fun VoicePickerDialog(
                                 )
                             }
                         },
+                    )
+                    // ⋮ 菜单（用户 09-17 方案A）：打开面板想删当前这条配置项，得关掉面板回列表翻半天，
+                    // 就地给一个入口。菜单项与候选行同源（标记 + 删除配置项），零学习成本。
+                    // 宽度账：360dp 屏 − 面板左右 32dp − ▶ 40dp − ⋮ 48dp ⇒ 名字区仍有约 240dp，单行省略
+                    VoiceOverflowMenu(
+                        marks = topMarks,
+                        onToggleMark = { mark ->
+                            if (topMarkKey.isNotBlank() &&
+                                VoiceMarksFile.toggle(config.speechRule.tagRuleId, topMarkKey, mark)
+                            ) {
+                                // 标记走文件通道、无观察者：版本号自增驱动本行 emoji 与候选行重读
+                                marksVersion++
+                                onChanged?.invoke("marked", topMarkKey)
+                                if (sharedVM != null) sharedVM.voiceMarksVersion.value += 1
+                            }
+                        },
+                        deleteEnabled = topDeleteTarget != null,
+                        onDelete = { topDeleteTarget?.let { deleteConfirmTarget = it } },
                     )
                 }
             }
@@ -1551,6 +1579,60 @@ private fun LaunchedEffectOnce(key: Any?, block: suspend kotlinx.coroutines.Coro
 private fun snapParam(v: Float): Float = (kotlin.math.round(v * 100f) / 100f)
 
 /**
+ * 行末 ⋮ 菜单（候选行与顶部「当前发音人」行共用，用户 09-17 方案A）。
+ *
+ * 菜单项与候选行**完全同源**：❤️喜欢 / 🚶路人 / 😈坏人（多选 toggle，点亮行尾打勾）
+ * + 分隔线 + 🗑 删除配置项。当前发音人行照搬这套语汇是为了零学习成本——用户已在候选行见过它；
+ * 两处差异只在调用方给的标记键（顶部=topMarkKey，候选行=tag/voice）与删除目标。
+ *
+ * 标记项**点一次切一次、菜单不关**（可连点几个），点亮态即时反映到行内 emoji；
+ * emoji 是彩色字形染不上色（与角色管理 v10 同款），故点亮态交给行尾勾。
+ */
+@Composable
+private fun VoiceOverflowMenu(
+    marks: List<String>,
+    onToggleMark: (String) -> Unit,
+    deleteEnabled: Boolean,
+    onDelete: () -> Unit,
+) {
+    var menuOpen by remember { mutableStateOf(false) }
+    Box {
+        IconButton(onClick = { menuOpen = true }) {
+            Icon(Icons.Filled.MoreVert, contentDescription = "更多操作")
+        }
+        DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
+            VoiceMarksFile.MARK_ITEMS.forEach { (mark, emojiText, label) ->
+                DropdownMenuItem(
+                    text = { Text(label) },
+                    leadingIcon = { Text(emojiText) },
+                    trailingIcon = {
+                        if (mark in marks) Icon(Icons.Filled.Check, contentDescription = "已点亮")
+                    },
+                    // 多选：点一次切一次，菜单不关（可连点几个）；点亮态即时反映到行内 emoji
+                    onClick = { onToggleMark(mark) },
+                )
+            }
+            HorizontalDivider()
+            DropdownMenuItem(
+                text = { Text("删除配置项", color = MaterialTheme.colorScheme.error) },
+                leadingIcon = {
+                    Icon(
+                        Icons.Filled.Delete,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.error,
+                    )
+                },
+                enabled = deleteEnabled,
+                onClick = {
+                    menuOpen = false
+                    onDelete()
+                },
+            )
+        }
+    }
+}
+
+/**
  * 候选行（绑定/非绑定共用；用户 09-12 晚定稿紧凑化——原行内塞 ▶+3 标记+🗑 五键，窄屏把名字挤没）：
  * - 行内常驻：名字 + 点亮标记 emoji（跟在名字后）+ ▶ 试听 + ⋮；
  * - ⋮ 菜单：❤️喜欢 / 🚶路人 / 😈坏人（多选 toggle，点亮行尾打勾）+ 分隔线 + 🗑 删除配置项；
@@ -1577,7 +1659,6 @@ private fun CandidateRow(
     // 仅绑定分支传 true，非绑定分支走默认 false 不显示
     usedBadge: Boolean = false,
 ) {
-    var menuOpen by remember { mutableStateOf(false) }
     Row(
         Modifier
             .fillMaxWidth()
@@ -1636,40 +1717,12 @@ private fun CandidateRow(
                 .clickable(onClick = onPreview)
                 .padding(horizontal = 12.dp, vertical = 12.dp),
         )
-        Box {
-            IconButton(onClick = { menuOpen = true }) {
-                Icon(Icons.Filled.MoreVert, contentDescription = "更多操作")
-            }
-            DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
-                VoiceMarksFile.MARK_ITEMS.forEach { (mark, emojiText, label) ->
-                    DropdownMenuItem(
-                        text = { Text(label) },
-                        leadingIcon = { Text(emojiText) },
-                        trailingIcon = {
-                            if (mark in marks) Icon(Icons.Filled.Check, contentDescription = "已点亮")
-                        },
-                        // 多选：点一次切一次，菜单不关（可连点几个）；点亮态即时反映到行内 emoji
-                        onClick = { onToggleMark(mark) },
-                    )
-                }
-                HorizontalDivider()
-                DropdownMenuItem(
-                    text = { Text("删除配置项", color = MaterialTheme.colorScheme.error) },
-                    leadingIcon = {
-                        Icon(
-                            Icons.Filled.Delete,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.error,
-                        )
-                    },
-                    enabled = deleteEnabled,
-                    onClick = {
-                        menuOpen = false
-                        onDelete()
-                    },
-                )
-            }
-        }
+        VoiceOverflowMenu(
+            marks = marks,
+            onToggleMark = onToggleMark,
+            deleteEnabled = deleteEnabled,
+            onDelete = onDelete,
+        )
     }
 }
 
