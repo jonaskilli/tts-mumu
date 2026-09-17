@@ -364,6 +364,7 @@
     <string name="voice_catalog_empty">No voices found</string>
     <string name="voice_catalog_no_more">No more</string>
     <string name="voice_catalog_retry">Retry</string>
+    <string name="label_voice_hint">(tap to audition or categorize)</string>
     <string name="voice_catalog_usage">%1$s uses</string>
     <string name="voice_catalog_sort_score">Recommended</string>
     <string name="voice_catalog_sort_hot">Popular</string>

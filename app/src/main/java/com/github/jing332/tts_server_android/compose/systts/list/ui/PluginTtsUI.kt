@@ -441,14 +441,8 @@ class PluginTtsUI : IConfigUI() {
                         modifier = Modifier
                             .fillMaxWidth()
                             .padding(top = 4.dp),
-                        // 插件是切换音色来源的核心入口：主题色加粗+🧩，与普通字段一眼区分
-                        label = {
-                            Text(
-                                "🧩 " + stringResource(R.string.plugin),
-                                color = MaterialTheme.colorScheme.primary,
-                                fontWeight = FontWeight.Bold,
-                            )
-                        },
+                        // 与其他栏标题同款样式（用户 09-17：不要主题色/加粗，只保留 🧩 前缀）
+                        labelText = "🧩 " + stringResource(R.string.plugin),
                         value = tts.pluginId,
                         values = vm.pluginList.map { it.pluginId },
                         entries = vm.pluginList.map { it.name },
@@ -549,7 +543,10 @@ class PluginTtsUI : IConfigUI() {
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .padding(top = 4.dp),
-                                labelText = "🔊 " + stringResource(R.string.label_voice),
+                                // 试听/分类的提示直接并进标签（用户 09-17：标签旁空位够，
+                                // 不必在字段下方另起一行，省一行高度）
+                                labelText = "🔊 " + stringResource(R.string.label_voice) +
+                                    stringResource(R.string.label_voice_hint),
                                 value = tts.voice,
                                 values = vm.voices.map { it.id },
                                 entries = vm.voices.map { it.name },
@@ -847,6 +844,7 @@ class PluginTtsUI : IConfigUI() {
                                 }
                             }
                         )
+
                         // 音色广场入口（opt-in 协议 searchVoiceCatalog）：这类插件（Fish Audio 官网
                         // 音色广场等）的 getVoices() 只回它自己写的本地缓存，而**只有
                         // searchVoiceCatalog() 会写这个缓存** ⇒ 不给入口就一个音色都选不到

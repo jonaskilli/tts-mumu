@@ -427,6 +427,7 @@
     <string name="voice_catalog_empty">没有找到音色</string>
     <string name="voice_catalog_no_more">已到底</string>
     <string name="voice_catalog_retry">重试</string>
+    <string name="label_voice_hint">（点击此处可试听后分类）</string>
     <string name="voice_catalog_usage">使用 %1$s 次</string>
     <string name="voice_catalog_sort_score">推荐</string>
     <string name="voice_catalog_sort_hot">热门</string>
