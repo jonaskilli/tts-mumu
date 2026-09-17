@@ -1,6 +1,8 @@
 package com.github.jing332.tts_server_android.compose.systts.list.ui
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -12,6 +14,8 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -19,8 +23,10 @@ import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
@@ -82,6 +88,9 @@ private const val CATALOG_SORT_NEW = "created_at"
 /** 输入防抖：与 jread 的 350ms 同量级——打字过程中不逐字发请求 */
 private const val CATALOG_SEARCH_DEBOUNCE_MS = 400L
 
+/** 底部大弹窗占屏高比例：与换声弹窗（0.88）对齐，视觉上是同一个体量 */
+private const val CATALOG_SHEET_HEIGHT = 0.88f
+
 /**
  * 音色广场弹窗（opt-in 协议 `EditorJS.searchVoiceCatalog(query)`，协议见 jread
  * `docs/plugin-editor-schema-v1.md`「分类选择链路」与 `PluginVoiceMarketplaceModels.kt`）。
@@ -89,7 +98,8 @@ private const val CATALOG_SEARCH_DEBOUNCE_MS = 400L
  * 为什么必须有它：这类插件（Fish Audio 官网音色广场等）的 `getVoices()` 只回吐自己写的本地缓存，
  * 而**只有 `searchVoiceCatalog()` 会写这个缓存** ⇒ 没有广场入口时声音下拉恒空、批量导入 0 条。
  *
- * 结构按用户 09-17 拍板的方案（两图）：搜索框（服务端搜索）+ 排序 + 「筛」；下面 quickFilters
+ * 形态：**底部大弹窗**（占屏高 `CATALOG_SHEET_HEIGHT`，仅顶部两角圆角，与换声弹窗同一范式）。
+ * 内容按用户 09-17 拍板的方案（两图）：搜索框（服务端搜索）+ 排序 + 「筛」；下面 quickFilters
  * 横滑 chips；再下面是结果摘要与卡片列表（圆形封面 / 名字·作者 / 使用次数 / 描述两行 / 标签）；
  * 滚到底自动续页；底部「选用（N）」把勾中的音色交给调用方回填声音列表与批量保存链路。
  *
@@ -114,6 +124,8 @@ fun PluginVoiceMarketplaceDialog(
     var filterSheetOpen by remember { mutableStateOf(false) }
     // 勾选集合用 map 而不是 id 集合：翻页/重搜会换掉 catalogItems，勾过的条目本体得留住
     val picked = remember { mutableStateMapOf<String, VoiceCatalogItem>() }
+    // 列表滚动：换条件/重开都从头（索引 0）开始，别让上一次的位置或续页锚点把视口带偏
+    val listState = rememberLazyListState()
 
     // 输入防抖：keyboard 的 Search 动作会立刻提交；不打字时这条只在停顿后落地
     LaunchedEffect(keyword) {
@@ -122,8 +134,9 @@ fun PluginVoiceMarketplaceDialog(
         submittedKeyword = keyword
     }
 
-    // 条件变化即重查第一页（首次进入也走这里：打开广场立刻有一屏内容可看）
+    // 条件变化即重查第一页（首次进入也走这里：打开广场立刻有一屏内容可看）；先把视口拉回顶部
     LaunchedEffect(submittedKeyword, tags, sortBy, locale) {
+        listState.scrollToItem(0)
         vm.searchCatalog(locale, submittedKeyword, tags.sorted(), sortBy, append = false)
     }
 
@@ -136,216 +149,285 @@ fun PluginVoiceMarketplaceDialog(
 
     Dialog(
         onDismissRequest = onDismissRequest,
-        // 广场要占满大半个屏（列表 + 筛选都得有地方），平台默认宽度太窄
-        properties = DialogProperties(usePlatformDefaultWidth = false),
+        // 底部大弹窗（与换声弹窗同一范式）：窗口不再被系统栏裁掉，面板满宽、底边贴屏
+        properties = DialogProperties(
+            usePlatformDefaultWidth = false,
+            decorFitsSystemWindows = false,
+        ),
     ) {
-        Surface(
-            modifier = Modifier
-                .fillMaxWidth(0.96f)
-                .fillMaxHeight(0.92f),
-            shape = MaterialTheme.shapes.large,
-            tonalElevation = 6.dp,
+        Box(
+            Modifier
+                .fillMaxSize()
+                // 键盘让位：decorFitsSystemWindows=false 后窗口不再被 IME 顶起，
+                // 搜索一弹键盘、面板又底对齐，列表下半截会被键盘盖住；imePadding 让整块浮上去
+                .imePadding(),
+            contentAlignment = Alignment.BottomCenter,
         ) {
-            Column(Modifier.fillMaxSize()) {
-                // ---- 标题行：标题 + 已选数 + 关闭 ----
-                Row(
+            // 关闭热区：面板以外的区域点一下即关（满屏方案下没有 scrim 可点，只能靠 ✕）。
+            // 不填色——压暗交给 Dialog 窗口自带的 dim，自绘一层会与它叠加成过暗
+            Box(
+                Modifier
+                    .fillMaxSize()
+                    .clickable(
+                        indication = null,
+                        interactionSource = remember { MutableInteractionSource() },
+                    ) { onDismissRequest() }
+            )
+            Surface(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .fillMaxHeight(CATALOG_SHEET_HEIGHT),
+                // M3 底部面板：仅顶部两角 28dp 圆角、底边贴屏——系统栏间距交给内层 Column 的
+                // navigationBarsPadding，面板本体不缩，视觉上仍是「从底部升起」
+                shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp),
+                color = MaterialTheme.colorScheme.surfaceContainerHigh,
+            ) {
+                // 面板本体先吃掉落在空白处的点击：否则会穿透到下面那层关闭热区，点个缝就把窗关了；
+                // 无指示色、无动作，纯粹占位（子级自己消费过的点击不受影响）
+                Column(
                     Modifier
-                        .fillMaxWidth()
-                        .padding(start = 16.dp, end = 4.dp, top = 8.dp, bottom = 4.dp),
-                    verticalAlignment = Alignment.CenterVertically,
+                        .fillMaxSize()
+                        .navigationBarsPadding()
+                        .clickable(
+                            indication = null,
+                            interactionSource = remember { MutableInteractionSource() },
+                        ) {}
                 ) {
-                    Text(
-                        stringResource(R.string.voice_catalog),
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.Bold,
-                    )
-                    if (picked.isNotEmpty()) {
-                        Spacer(Modifier.width(8.dp))
-                        Text(
-                            stringResource(R.string.voice_catalog_picked, picked.size),
-                            style = MaterialTheme.typography.labelMedium,
-                            color = MaterialTheme.colorScheme.primary,
+                    // 拖拽把：M3 底部弹窗的识别特征（本面板是 Dialog 自绘的，只是形态标记、不可拖动）
+                    Box(
+                        Modifier
+                            .fillMaxWidth()
+                            .padding(top = 8.dp),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Box(
+                            Modifier
+                                .size(width = 32.dp, height = 4.dp)
+                                .background(
+                                    MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f),
+                                    RoundedCornerShape(2.dp),
+                                )
                         )
                     }
-                    Spacer(Modifier.weight(1f))
-                    IconButton(onClick = onDismissRequest) {
-                        Icon(Icons.Filled.Close, stringResource(R.string.close))
-                    }
-                }
-
-                // ---- 搜索 + 排序 + 筛选 ----
-                Row(
-                    Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 12.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    DenseOutlinedField(
-                        modifier = Modifier.weight(1f),
-                        value = keyword,
-                        onValueChange = { keyword = it },
-                        singleLine = true,
-                        maxLines = 1,
-                        label = { Text(stringResource(R.string.voice_catalog_search)) },
-                        leadingIcon = {
-                            Icon(
-                                Icons.Filled.Search,
-                                contentDescription = null,
-                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                            )
-                        },
-                        trailingIcon = {
-                            if (keyword.isNotBlank()) IconButton(onClick = { keyword = "" }) {
-                                Icon(Icons.Filled.Clear, stringResource(R.string.voice_catalog_clear))
-                            }
-                        },
-                        keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
-                        keyboardActions = KeyboardActions(
-                            onSearch = {
-                                submittedKeyword = keyword
-                                keyboard?.hide()
-                            }
-                        ),
-                    )
-                    SortMenu(
-                        options = sortOptions,
-                        current = sortBy,
-                        onSelect = { sortBy = it },
-                    )
-                    FilterEntry(
-                        activeCount = countFilterSelections(vm.catalogFilterGroups, tags),
-                        onClick = { filterSheetOpen = true },
-                    )
-                }
-
-                // ---- quickFilters 横滑 chips（协议里的"官方快捷筛选"）----
-                if (vm.catalogQuickFilters.isNotEmpty()) {
-                    LazyRow(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(top = 4.dp),
-                        contentPadding = PaddingValues(horizontal = 12.dp),
-                        horizontalArrangement = Arrangement.spacedBy(6.dp),
-                    ) {
-                        items(vm.catalogQuickFilters, key = { it.id }) { option ->
-                            FilterChip(
-                                selected = option.id in tags,
-                                onClick = { tags = tags.toggle(option.id) },
-                                label = { Text(option.label, maxLines = 1) },
-                            )
-                        }
-                    }
-                }
-
-                // ---- 结果摘要 / 错误 ----
-                val error = vm.catalogError
-                if (error != null) {
+                    // ---- 标题行：标题 + 已选数 + 关闭 ----
                     Row(
                         Modifier
                             .fillMaxWidth()
-                            .padding(start = 16.dp, end = 8.dp, top = 4.dp, bottom = 4.dp),
+                            .padding(start = 16.dp, end = 4.dp, top = 8.dp, bottom = 4.dp),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
                         Text(
-                            error,
-                            modifier = Modifier.weight(1f),
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.error,
-                            maxLines = 3,
-                            overflow = TextOverflow.Ellipsis,
+                            stringResource(R.string.voice_catalog),
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold,
                         )
-                        TextButton(
-                            contentPadding = PaddingValues(horizontal = 8.dp),
-                            onClick = {
-                                scope.launch {
-                                    vm.searchCatalog(locale, submittedKeyword, tags.sorted(), sortBy, append = false)
-                                }
-                            },
-                        ) {
-                            Text(stringResource(R.string.voice_catalog_retry))
-                        }
-                    }
-                } else {
-                    Text(
-                        text = catalogSummary(vm),
-                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
-                        style = MaterialTheme.typography.labelMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
-
-                HorizontalDivider()
-
-                // ---- 结果列表 ----
-                Box(Modifier.weight(1f)) {
-                    LazyColumn(
-                        modifier = Modifier.fillMaxSize(),
-                        contentPadding = PaddingValues(vertical = 4.dp),
-                    ) {
-                        items(vm.catalogItems, key = { it.id }) { item ->
-                            CatalogVoiceRow(
-                                item = item,
-                                checked = item.id in picked,
-                                onToggle = {
-                                    if (picked.containsKey(item.id)) picked.remove(item.id)
-                                    else picked[item.id] = item
-                                },
-                                onAudition = { onAudition(item) },
+                        if (picked.isNotEmpty()) {
+                            Spacer(Modifier.width(8.dp))
+                            Text(
+                                stringResource(R.string.voice_catalog_picked, picked.size),
+                                style = MaterialTheme.typography.labelMedium,
+                                color = MaterialTheme.colorScheme.primary,
                             )
                         }
+                        Spacer(Modifier.weight(1f))
+                        IconButton(onClick = onDismissRequest) {
+                            Icon(Icons.Filled.Close, stringResource(R.string.close))
+                        }
+                    }
 
-                        // 续页位：滚到底（该位进入组合）即自动续下一页；零新增时 VM 已把 hasMore
-                        // 置否，不会空转。⚠️ 判断必须写在 LaunchedEffect **里面**：写在 if 上会让
-                        // 自己一置 loading 就退出组合、把刚发起的请求取消掉。
-                        item(key = "catalog_footer") {
-                            LaunchedEffect(vm.catalogItems.size) {
-                                if (vm.catalogHasMore && !vm.catalogLoading) {
-                                    vm.searchCatalog(locale, submittedKeyword, tags.sorted(), sortBy, append = true)
+                    // ---- 搜索 + 排序 + 筛选 ----
+                    Row(
+                        Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 12.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        DenseOutlinedField(
+                            modifier = Modifier.weight(1f),
+                            value = keyword,
+                            onValueChange = { keyword = it },
+                            singleLine = true,
+                            maxLines = 1,
+                            label = { Text(stringResource(R.string.voice_catalog_search)) },
+                            leadingIcon = {
+                                Icon(
+                                    Icons.Filled.Search,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
+                            },
+                            trailingIcon = {
+                                if (keyword.isNotBlank()) IconButton(onClick = { keyword = "" }) {
+                                    Icon(Icons.Filled.Clear, stringResource(R.string.voice_catalog_clear))
                                 }
-                            }
-                            Box(
-                                Modifier
-                                    .fillMaxWidth()
-                                    .padding(12.dp),
-                                contentAlignment = Alignment.Center,
-                            ) {
-                                when {
-                                    vm.catalogLoading -> CircularProgressIndicator(
-                                        modifier = Modifier.size(20.dp),
-                                        strokeWidth = 2.dp,
-                                    )
-
-                                    !vm.catalogHasMore && vm.catalogItems.isNotEmpty() -> Text(
-                                        stringResource(R.string.voice_catalog_no_more),
-                                        style = MaterialTheme.typography.labelSmall,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    )
-
-                                    else -> Unit
+                            },
+                            keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
+                            keyboardActions = KeyboardActions(
+                                onSearch = {
+                                    submittedKeyword = keyword
+                                    keyboard?.hide()
                                 }
+                            ),
+                        )
+                        SortMenu(
+                            options = sortOptions,
+                            current = sortBy,
+                            onSelect = { sortBy = it },
+                        )
+                        FilterEntry(
+                            activeCount = countFilterSelections(vm.catalogFilterGroups, tags),
+                            onClick = { filterSheetOpen = true },
+                        )
+                    }
+
+                    // ---- quickFilters 横滑 chips（协议里的"官方快捷筛选"）----
+                    if (vm.catalogQuickFilters.isNotEmpty()) {
+                        LazyRow(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(top = 4.dp),
+                            contentPadding = PaddingValues(horizontal = 12.dp),
+                            horizontalArrangement = Arrangement.spacedBy(6.dp),
+                        ) {
+                            items(vm.catalogQuickFilters, key = { it.id }) { option ->
+                                FilterChip(
+                                    selected = option.id in tags,
+                                    onClick = { tags = tags.toggle(option.id) },
+                                    label = { Text(option.label, maxLines = 1) },
+                                )
                             }
                         }
                     }
-                }
 
-                HorizontalDivider()
-
-                // ---- 底部：选用（N）----
-                Row(
-                    Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 12.dp, vertical = 6.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    TextButton(onClick = onDismissRequest) {
-                        Text(stringResource(R.string.close))
+                    // ---- 结果摘要 / 错误 ----
+                    val error = vm.catalogError
+                    if (error != null) {
+                        Row(
+                            Modifier
+                                .fillMaxWidth()
+                                .padding(start = 16.dp, end = 8.dp, top = 4.dp, bottom = 4.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Text(
+                                error,
+                                modifier = Modifier.weight(1f),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.error,
+                                maxLines = 3,
+                                overflow = TextOverflow.Ellipsis,
+                            )
+                            TextButton(
+                                contentPadding = PaddingValues(horizontal = 8.dp),
+                                onClick = {
+                                    scope.launch {
+                                        vm.searchCatalog(locale, submittedKeyword, tags.sorted(), sortBy, append = false)
+                                    }
+                                },
+                            ) {
+                                Text(stringResource(R.string.voice_catalog_retry))
+                            }
+                        }
+                    } else {
+                        Text(
+                            text = catalogSummary(vm),
+                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
+                            style = MaterialTheme.typography.labelMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
                     }
-                    Spacer(Modifier.weight(1f))
-                    OutlinedButton(
-                        enabled = picked.isNotEmpty(),
-                        onClick = { onPick(picked.values.toList()) },
+
+                    HorizontalDivider()
+
+                    // ---- 结果列表 ----
+                    Box(Modifier.weight(1f)) {
+                        LazyColumn(
+                            modifier = Modifier.fillMaxSize(),
+                            state = listState,
+                            contentPadding = PaddingValues(vertical = 4.dp),
+                        ) {
+                            items(vm.catalogItems, key = { it.id }) { item ->
+                                CatalogVoiceRow(
+                                    item = item,
+                                    checked = item.id in picked,
+                                    onToggle = {
+                                        if (picked.containsKey(item.id)) picked.remove(item.id)
+                                        else picked[item.id] = item
+                                    },
+                                    onAudition = { onAudition(item) },
+                                )
+                            }
+
+                            // 续页位：滚到底（该位进入组合）即自动续下一页；零新增时 VM 已把 hasMore
+                            // 置否，不会空转。
+                            //
+                            // ⚠️ 空列表时**不能**挂这个带 key 的 item（09-17 实机「一打开停在中间」）：
+                            // 首屏只有它一项时，LazyList 会把它记成「首个可见项的 key」，第一页 30 条
+                            // 插到它前面后，滚动位置会跟着这个 key 一起走，于是开场就停在第 30 项。
+                            // 故只在已有条目时才挂它；空态转圈见下方 overlay。
+                            //
+                            // ⚠️ 续页判断必须写在 LaunchedEffect **里面**：写在 if 上会让
+                            // 自己一置 loading 就退出组合、把刚发起的请求取消掉。
+                            if (vm.catalogItems.isNotEmpty()) {
+                                item(key = "catalog_footer") {
+                                    LaunchedEffect(vm.catalogItems.size) {
+                                        if (vm.catalogHasMore && !vm.catalogLoading) {
+                                            vm.searchCatalog(locale, submittedKeyword, tags.sorted(), sortBy, append = true)
+                                        }
+                                    }
+                                    Box(
+                                        Modifier
+                                            .fillMaxWidth()
+                                            .padding(12.dp),
+                                        contentAlignment = Alignment.Center,
+                                    ) {
+                                        when {
+                                            vm.catalogLoading -> CircularProgressIndicator(
+                                                modifier = Modifier.size(20.dp),
+                                                strokeWidth = 2.dp,
+                                            )
+
+                                            !vm.catalogHasMore && vm.catalogItems.isNotEmpty() -> Text(
+                                                stringResource(R.string.voice_catalog_no_more),
+                                                style = MaterialTheme.typography.labelSmall,
+                                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                            )
+
+                                            else -> Unit
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                        // 加载中但还没有条目：列表区居中转圈（状态文案已由上方摘要行给，不重复）
+                        if (vm.catalogItems.isEmpty() && vm.catalogLoading) {
+                            Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                                CircularProgressIndicator(
+                                    modifier = Modifier.size(28.dp),
+                                    strokeWidth = 2.dp,
+                                )
+                            }
+                        }
+                    }
+
+                    HorizontalDivider()
+
+                    // ---- 底部：选用（N）----
+                    Row(
+                        Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 12.dp, vertical = 6.dp),
+                        verticalAlignment = Alignment.CenterVertically,
                     ) {
-                        Text(stringResource(R.string.voice_catalog_pick, picked.size))
+                        TextButton(onClick = onDismissRequest) {
+                            Text(stringResource(R.string.close))
+                        }
+                        Spacer(Modifier.weight(1f))
+                        OutlinedButton(
+                            enabled = picked.isNotEmpty(),
+                            onClick = { onPick(picked.values.toList()) },
+                        ) {
+                            Text(stringResource(R.string.voice_catalog_pick, picked.size))
+                        }
                     }
                 }
             }
@@ -388,95 +470,146 @@ private fun CatalogFilterSheet(
 
     Dialog(
         onDismissRequest = onDismissRequest,
-        properties = DialogProperties(usePlatformDefaultWidth = false),
+        // 底部大弹窗（与换声弹窗同一范式）：窗口不再被系统栏裁掉，面板满宽、底边贴屏
+        properties = DialogProperties(
+            usePlatformDefaultWidth = false,
+            decorFitsSystemWindows = false,
+        ),
     ) {
-        Surface(
-            modifier = Modifier
-                .fillMaxWidth(0.94f)
-                .fillMaxHeight(0.85f),
-            shape = MaterialTheme.shapes.large,
-            tonalElevation = 6.dp,
+        Box(
+            Modifier
+                .fillMaxSize()
+                // 键盘让位：decorFitsSystemWindows=false 后窗口不再被 IME 顶起，
+                // 搜索一弹键盘、面板又底对齐，列表下半截会被键盘盖住；imePadding 让整块浮上去
+                .imePadding(),
+            contentAlignment = Alignment.BottomCenter,
         ) {
-            Column(Modifier.fillMaxSize()) {
-                Row(
-                    Modifier
-                        .fillMaxWidth()
-                        .padding(start = 16.dp, end = 4.dp, top = 8.dp, bottom = 4.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Text(
-                        stringResource(R.string.voice_catalog_filter),
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.Bold,
-                    )
-                    Spacer(Modifier.weight(1f))
-                    IconButton(onClick = onDismissRequest) {
-                        Icon(Icons.Filled.Close, stringResource(R.string.close))
-                    }
-                }
-                HorizontalDivider()
-
+            // 关闭热区：面板以外的区域点一下即关（满屏方案下没有 scrim 可点，只能靠 ✕）。
+            // 不填色——压暗交给 Dialog 窗口自带的 dim，自绘一层会与它叠加成过暗
+            Box(
+                Modifier
+                    .fillMaxSize()
+                    .clickable(
+                        indication = null,
+                        interactionSource = remember { MutableInteractionSource() },
+                    ) { onDismissRequest() }
+            )
+            Surface(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .fillMaxHeight(CATALOG_SHEET_HEIGHT),
+                // M3 底部面板：仅顶部两角 28dp 圆角、底边贴屏——系统栏间距交给内层 Column 的
+                // navigationBarsPadding，面板本体不缩，视觉上仍是「从底部升起」
+                shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp),
+                color = MaterialTheme.colorScheme.surfaceContainerHigh,
+            ) {
+                // 面板本体先吃掉落在空白处的点击：否则会穿透到下面那层关闭热区，点个缝就把窗关了；
+                // 无指示色、无动作，纯粹占位（子级自己消费过的点击不受影响）
                 Column(
                     Modifier
-                        .weight(1f)
-                        .fillMaxWidth()
-                        .verticalScroll(rememberScrollState())
-                        .padding(horizontal = 12.dp, vertical = 8.dp),
+                        .fillMaxSize()
+                        .navigationBarsPadding()
+                        .clickable(
+                            indication = null,
+                            interactionSource = remember { MutableInteractionSource() },
+                        ) {}
                 ) {
-                    if (groups.isEmpty()) {
-                        Text(
-                            stringResource(R.string.voice_catalog_filter_empty),
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    // 拖拽把：M3 底部弹窗的识别特征（本面板是 Dialog 自绘的，只是形态标记、不可拖动）
+                    Box(
+                        Modifier
+                            .fillMaxWidth()
+                            .padding(top = 8.dp),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Box(
+                            Modifier
+                                .size(width = 32.dp, height = 4.dp)
+                                .background(
+                                    MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f),
+                                    RoundedCornerShape(2.dp),
+                                )
                         )
                     }
+                    Row(
+                        Modifier
+                            .fillMaxWidth()
+                            .padding(start = 16.dp, end = 4.dp, top = 8.dp, bottom = 4.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Text(
+                            stringResource(R.string.voice_catalog_filter),
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold,
+                        )
+                        Spacer(Modifier.weight(1f))
+                        IconButton(onClick = onDismissRequest) {
+                            Icon(Icons.Filled.Close, stringResource(R.string.close))
+                        }
+                    }
+                    HorizontalDivider()
 
-                    // 下拉类：两列
-                    dropdownGroups.chunked(2).forEach { row ->
-                        Row(
-                            Modifier
-                                .fillMaxWidth()
-                                .padding(vertical = 2.dp),
-                            horizontalArrangement = Arrangement.spacedBy(8.dp),
-                        ) {
-                            row.forEach { group ->
-                                DropdownFilterGroup(
-                                    modifier = Modifier.weight(1f),
-                                    group = group,
-                                    selected = draft,
-                                    onToggle = { draft = draft.toggle(it) },
-                                )
+                    Column(
+                        Modifier
+                            .weight(1f)
+                            .fillMaxWidth()
+                            .verticalScroll(rememberScrollState())
+                            .padding(horizontal = 12.dp, vertical = 8.dp),
+                    ) {
+                        if (groups.isEmpty()) {
+                            Text(
+                                stringResource(R.string.voice_catalog_filter_empty),
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
+
+                        // 下拉类：两列
+                        dropdownGroups.chunked(2).forEach { row ->
+                            Row(
+                                Modifier
+                                    .fillMaxWidth()
+                                    .padding(vertical = 2.dp),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            ) {
+                                row.forEach { group ->
+                                    DropdownFilterGroup(
+                                        modifier = Modifier.weight(1f),
+                                        group = group,
+                                        selected = draft,
+                                        onToggle = { draft = draft.toggle(it) },
+                                    )
+                                }
+                                // 奇数个时补空位，保持两列宽度一致
+                                if (row.size == 1) Spacer(Modifier.weight(1f))
                             }
-                            // 奇数个时补空位，保持两列宽度一致
-                            if (row.size == 1) Spacer(Modifier.weight(1f))
+                        }
+
+                        chipGroups.forEach { group ->
+                            ChipFilterGroup(
+                                group = group,
+                                selected = draft,
+                                onToggle = { draft = draft.toggle(it) },
+                            )
                         }
                     }
 
-                    chipGroups.forEach { group ->
-                        ChipFilterGroup(
-                            group = group,
-                            selected = draft,
-                            onToggle = { draft = draft.toggle(it) },
-                        )
-                    }
-                }
-
-                HorizontalDivider()
-                Row(
-                    Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 12.dp, vertical = 6.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    TextButton(
-                        enabled = draft.isNotEmpty(),
-                        onClick = { draft = emptySet() },
+                    HorizontalDivider()
+                    Row(
+                        Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 12.dp, vertical = 6.dp),
+                        verticalAlignment = Alignment.CenterVertically,
                     ) {
-                        Text(stringResource(R.string.voice_catalog_filter_clear))
-                    }
-                    Spacer(Modifier.weight(1f))
-                    OutlinedButton(onClick = { onApply(draft) }) {
-                        Text(stringResource(R.string.voice_catalog_filter_apply, draft.size))
+                        TextButton(
+                            enabled = draft.isNotEmpty(),
+                            onClick = { draft = emptySet() },
+                        ) {
+                            Text(stringResource(R.string.voice_catalog_filter_clear))
+                        }
+                        Spacer(Modifier.weight(1f))
+                        OutlinedButton(onClick = { onApply(draft) }) {
+                            Text(stringResource(R.string.voice_catalog_filter_apply, draft.size))
+                        }
                     }
                 }
             }
