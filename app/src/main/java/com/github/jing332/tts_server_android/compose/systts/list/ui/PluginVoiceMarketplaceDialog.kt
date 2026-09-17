@@ -215,7 +215,7 @@ fun PluginVoiceMarketplaceDialog(
                             .fillMaxWidth()
                             .padding(
                                 start = CATALOG_PANEL_PADDING,
-                                end = 8.dp,
+                                end = 12.dp,
                                 top = 8.dp,
                                 bottom = 4.dp
                             ),
@@ -312,7 +312,7 @@ fun PluginVoiceMarketplaceDialog(
                                 .fillMaxWidth()
                                 .padding(
                                 start = CATALOG_PANEL_PADDING,
-                                end = 8.dp,
+                                end = 12.dp,
                                 top = 4.dp,
                                 bottom = 4.dp
                             ),
@@ -462,10 +462,10 @@ fun PluginVoiceMarketplaceDialog(
 
 /**
  * 音色广场面板的左右内边距：广场主面板与筛选面板共用。
- * 定 20dp（目目 09-17：比选择弹窗面板的 32dp 小一档即可，「稍微大点就行」）——
- * 此前 12/16dp 混用没有统一基准；✕ 图标仍落右缘线：标题行 end=8 + IconButton 自带 12dp 内缩。
+ * 定 24dp（目目 09-17 定稿：**全 app 底部面板统一 24dp**，与选择弹窗 SelectionSheet 同一条基准）；
+ * ✕ 图标仍落右缘线：标题行 end=12 + IconButton 自带 12dp 内缩 = 24。
  */
-private val CATALOG_PANEL_PADDING = 20.dp
+private val CATALOG_PANEL_PADDING = 24.dp
 
 /**
  * 筛选弹窗（用户 09-17 方案图二）：上半是「下拉类」筛选组（两列），下半是 chips 组，
@@ -555,7 +555,7 @@ private fun CatalogFilterSheet(
                             .fillMaxWidth()
                             .padding(
                                 start = CATALOG_PANEL_PADDING,
-                                end = 8.dp,
+                                end = 12.dp,
                                 top = 8.dp,
                                 bottom = 4.dp
                             ),
