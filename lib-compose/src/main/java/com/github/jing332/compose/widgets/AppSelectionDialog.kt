@@ -101,6 +101,14 @@ private val SELECTION_ROW_HEIGHT = 48.dp
 /** 列表自身的内边距（LoadingContent 上下各 16dp），估高时补上 */
 private val SELECTION_LIST_PADDING = 32.dp
 
+/**
+ * 底部面板固定区的估算高度：拖拽把 + 标题行 + 按钮行 + 导航栏让位。
+ * 内容区上限必须为它让位——否则长列表会把面板占满，按钮行被挤出面板可视范围
+ * （目目 09-17 实机：试听分类弹窗底部看不到「保存」）。取值偏大无害，
+ * 只是长列表少显两行。
+ */
+private val SELECTION_SHEET_CHROME_HEIGHT = 200.dp
+
 /** 列表之外固定区的估算高度：搜索框 / 开关行 / 空提示 */
 private val SELECTION_FIELD_HEIGHT = 72.dp
 private val SELECTION_SWITCH_ROW_HEIGHT = 56.dp
@@ -214,7 +222,9 @@ fun AppSelectionDialog(
                         SELECTION_SWITCH_ROW_HEIGHT else 0.dp) +
                     (if (searchEnabled && searchText.isNotBlank() && visibleCount == 0)
                         SELECTION_EMPTY_HINT_HEIGHT else 0.dp)
-            ).coerceAtMost(sheetMaxHeight)
+            )
+            // 关键：上限要再减掉面板固定区——内容把 92% 吃满时按钮行会被挤出面板外
+            .coerceAtMost(sheetMaxHeight - SELECTION_SHEET_CHROME_HEIGHT)
 
     // 底部形态的按钮行：纯单选弹窗（extraButtons=null）不渲染——右上 ✕、面板外点击已够关，
     // 多一行按钮就少一行列表。调用方给了额外动作键（如试听分类的「保存」）则必须渲染：

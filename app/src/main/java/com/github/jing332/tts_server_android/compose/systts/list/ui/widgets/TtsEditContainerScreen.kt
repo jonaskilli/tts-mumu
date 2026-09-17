@@ -55,8 +55,13 @@ fun TtsEditContainerScreen(
     // 音频参数三层草稿快照（AudioParamsDimRows 上报）：🎧 试听带未应用草稿（用户 09-17）
     var audioDraft by remember { mutableStateOf<AudioParamsDraft?>(null) }
 
-    // 本地音效配置（tagName=本地音效N）用专用试听文本，与全局文本互不影响（用户 09-13）
-    val isLocalSound = isLocalSoundTagName((systts.config as TtsConfigurationDTO).speechRule.tagName)
+    // 本地音效配置（tagName=本地音效N）用专用试听文本，与全局文本互不影响（用户 09-13）。
+    // ⚠️ 必须 as? 安全转换：BGM 等非 TTS 配置没有 speechRule，无条件强转会在
+    // 进入编辑页时直接 ClassCastException 闪退（目目 09-17：添加背景音乐即闪退）；
+    // 非 TTS 配置本就不走下面的试听/音频参数区，isLocalSound 恒 false 即可
+    val isLocalSound =
+        (systts.config as? TtsConfigurationDTO)?.let { isLocalSoundTagName(it.speechRule.tagName) }
+            ?: false
 
     auditionSystts?.let { target ->
         val d = audioDraft

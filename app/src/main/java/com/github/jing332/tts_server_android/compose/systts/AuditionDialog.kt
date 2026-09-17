@@ -331,10 +331,13 @@ fun AuditionDialog(
         },
         buttons = {
             if (onPrev != null || onNext != null) {
-                // 分类/批量试听：切换按钮居中并拉开间距，删除重播后不再挤在一起
+                // 分类/批量试听：切换按钮居中。末尾必须给「关闭」作显式结束键
+                // （目目 09-17：等待分类模式下弹窗不会自动关，试听完不想继续分类
+                // 却没有出口；右上没有 ✕、点弹窗外虽能关但没有任何提示）。
+                // 间距 48→24：三枚按钮 360dp 屏放不下 48 的间距
                 Row(
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(48.dp, Alignment.CenterHorizontally),
+                    horizontalArrangement = Arrangement.spacedBy(24.dp, Alignment.CenterHorizontally),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     if (onPrev != null) {
@@ -348,6 +351,9 @@ fun AuditionDialog(
                             Text("下一个")
                             Icon(Icons.AutoMirrored.Filled.NavigateNext, contentDescription = "下一个")
                         }
+                    }
+                    TextButton(onClick = onDismissRequest) {
+                        Text(stringResource(id = R.string.close))
                     }
                 }
             } else {
