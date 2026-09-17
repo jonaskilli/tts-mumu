@@ -3,7 +3,7 @@ package com.github.jing332.compose.widgets
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.BoxScope
+import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.material.icons.Icons
@@ -61,8 +61,8 @@ private fun TextFieldSelectionDialog(
     trailingContent: (@Composable RowScope.(itemValue: Any, entry: String, onHighlight: () -> Unit) -> Unit)? = null,
     selectedMultiValues: Set<Any> = emptySet(),
     onMultiSelectedChange: ((Set<Any>) -> Unit)? = null,
-    // null = 没有额外动作键；原样透传给 AppSelectionDialog（它据此决定底部形态是否渲染按钮行）
-    extraButtons: (@Composable BoxScope.() -> Unit)? = null,
+    // null = 没有额外动作键；原样透传给 AppSelectionDialog（它据此决定动作键的渲染位置）
+    extraButtons: (@Composable RowScope.() -> Unit)? = null,
     categoryMap: Map<Any, String> = emptyMap(),
     onCategoryChange: ((itemValue: Any, category: String?) -> Unit)? = null,
     waitCategorySwitch: Boolean = false,
@@ -184,8 +184,8 @@ fun AppSpinner(
     trailingContent: (@Composable RowScope.(itemValue: Any, entry: String, onHighlight: () -> Unit) -> Unit)? = null,
     selectedMultiValues: Set<Any> = emptySet(),
     onMultiSelectedChange: ((Set<Any>) -> Unit)? = null,
-    // null = 没有额外动作键；原样透传给 AppSelectionDialog（它据此决定底部形态是否渲染按钮行）
-    extraButtons: (@Composable BoxScope.() -> Unit)? = null,
+    // null = 没有额外动作键；原样透传给 AppSelectionDialog（它据此决定动作键的渲染位置）
+    extraButtons: (@Composable RowScope.() -> Unit)? = null,
     categoryMap: Map<Any, String> = emptyMap(),
     onCategoryChange: ((itemValue: Any, category: String?) -> Unit)? = null,
     waitCategorySwitch: Boolean = false,

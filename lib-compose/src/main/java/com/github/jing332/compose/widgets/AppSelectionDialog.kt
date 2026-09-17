@@ -102,13 +102,13 @@ private val SELECTION_ROW_HEIGHT = 48.dp
 private val SELECTION_LIST_PADDING = 32.dp
 
 /**
- * 底部面板固定区的估算高度：拖拽把 + 标题行 + 按钮行 + 导航栏让位。
- * 内容区上限必须为它让位——否则长列表会把面板占满，按钮行被挤出面板可视范围
- * （目目 09-17 实机：试听分类弹窗底部看不到「保存」）。取 220dp：标题折两行
- * （约 92dp）+ 三键导航栏（48dp）时固定区实际可达 ~204dp，200 不够；偏大无害，
- * 只是长列表少显半行。
+ * 底部面板固定区的估算高度：拖拽把 + 标题行（含折行）+ 导航栏让位。
+ * 内容区上限必须为它让位——否则长列表会把面板占满，最后一行被屏幕底边裁掉。
+ * ⚠️ 动作键已移出底部（标题行 ✕ 左侧）：底部按钮行在长列表场景两度被挤得
+ * 不可见（09171748/09171924 包实锤，与换声弹窗当年同病），按行高预留已无意义，
+ * 取 130dp（拖拽把 12 + 标题两行 ~64 + 手势导航 ~24 + 余量）。
  */
-private val SELECTION_SHEET_CHROME_HEIGHT = 220.dp
+private val SELECTION_SHEET_CHROME_HEIGHT = 130.dp
 
 /** 列表之外固定区的估算高度：搜索框 / 开关行 / 空提示 */
 private val SELECTION_FIELD_HEIGHT = 72.dp
@@ -145,12 +145,9 @@ fun AppSelectionDialog(
     itemContent: (@Composable RowScope.(Boolean, String, Any?, Any) -> Unit)? = null,
 
     // null = 调用方没有额外动作键（纯单选弹窗，点行即选即关）；传了（如试听分类的「保存」）
-    // 则属于功能性出口，底部形态照样渲染并补「关闭」作显式结束键（见 effectiveButtons）
-    extraButtons: (@Composable BoxScope.() -> Unit)? = null,
-    // 传 null 走默认按钮：额外按钮 +「关闭」——底部形态下不再重复给「关闭」
-    // （面板右上已有 ✕、面板外点击也能关，底部多一行按钮就少露一行列表，见 effectiveButtons）。
-    // 调用方传了自定义 buttons 则完全替换默认，不改语义
-    buttons: (@Composable BoxScope.() -> Unit)? = null,
+    // 则属于功能性出口：居中形态渲染在底部按钮行，底部形态渲染在标题行 ✕ 左侧
+    // （见下方 AppDialog/SelectionSheet 两处调用）
+    extraButtons: (@Composable RowScope.() -> Unit)? = null,
 
     onValueSame: (Any, Any) -> Boolean = { a, b -> a == b },
     onClick: (Any, String) -> Unit,
@@ -245,13 +242,14 @@ fun AppSelectionDialog(
             // 关键：上限要再减掉面板固定区——内容把 92% 吃满时按钮行会被挤出面板外
             .coerceAtMost(sheetMaxHeight - SELECTION_SHEET_CHROME_HEIGHT)
 
-    // 底部形态的按钮行：纯单选弹窗（extraButtons=null）不渲染——右上 ✕、面板外点击已够关，
-    // 多一行按钮就少一行列表。调用方给了额外动作键（如试听分类的「保存」）则必须渲染：
-    // 保存只有勾选后才点亮，光靠右上 ✕ 又没有「不保存就退出」的显式出口
-    // （目目 09-17：试听完不想继续分类了没有结束键）⇒ 补一个「关闭」。
-    // 调用方自定义 buttons 时完全替换这套默认
-    val effectiveButtons: @Composable BoxScope.() -> Unit = buttons ?: {
-        extraButtons?.invoke(this)
+    // 按钮去向：底部形态（SelectionSheet）没有底部按钮行——动作键放标题行 ✕ 左侧
+    // （与换声弹窗同款；底部一排在长列表场景两度被挤出可视区，09171748/09171924 实锤），
+    // 「关闭」由 ✕ 兼任；居中形态（AppDialog）维持底部按钮行 = 额外动作键 +「关闭」。
+    // extraButtons 是 RowScope 接收者，这里自起一行 Row 提供接收者
+    // （AppDialog 的 buttons 槽是 BoxScope，见其实现）
+    val effectiveButtons: @Composable BoxScope.() -> Unit = {
+        if (extraButtons != null)
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) { extraButtons?.invoke(this) }
         if (!useSheet || extraButtons != null)
             TextButton(onClick = onDismissRequest) {
                 Text(stringResource(id = R.string.close))
@@ -519,7 +517,7 @@ fun AppSelectionDialog(
                 maxListHeight = listMaxHeight,
                 title = title,
                 content = dialogContent,
-                buttons = effectiveButtons,
+                titleActions = { extraButtons?.invoke(this) },
             )
         else
             AppDialog(

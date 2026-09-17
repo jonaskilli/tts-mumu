@@ -3,11 +3,11 @@ package com.github.jing332.compose.widgets
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
@@ -61,8 +61,14 @@ private val PANEL_HORIZONTAL_PADDING = 24.dp
  * 16→24→32→24 四轮（09-17 定稿 24：32 挤折标题、占长名宽度）。内层组件（搜索框、
  * 列表条目）在底部形态下**不要再自加横向内边距**，由本外壳一处说了算。
  *
+ * 动作键口径：**标题行内、✕ 左侧**（与换声弹窗同款）。底部按钮行试过两版
+ * 都被实机否决——长列表把面板空间吃紧时，底部一排永远最先被挤出可视区
+ * （09-17 试听分类弹窗「保存」两度不可见；换声弹窗当年同病，也是挪标题行才了结）。
+ * 所以本外壳**不再提供底部按钮行**：调用方有动作键（如「保存」）走 `titleActions`。
+ *
  * @param maxSheetHeight 面板高度上限（调用方按屏高比例算好）
  * @param maxListHeight 内容区高度上限（调用方按可见条数估好）
+ * @param titleActions 标题行 ✕ 左侧的动作键槽位（不传只有 ✕）
  */
 @Composable
 internal fun SelectionSheet(
@@ -71,7 +77,7 @@ internal fun SelectionSheet(
     maxListHeight: Dp,
     title: @Composable () -> Unit,
     content: @Composable BoxScope.() -> Unit,
-    buttons: @Composable BoxScope.() -> Unit,
+    titleActions: @Composable RowScope.() -> Unit = {},
 ) {
     Dialog(
         onDismissRequest = onDismissRequest,
@@ -161,6 +167,9 @@ internal fun SelectionSheet(
                             // （09-17 实机）。一个 weight 就够，Spacer 是多余的那份
                             Box(Modifier.weight(1f)) { title() }
                         }
+                        // 动作键（如试听分类的「保存」）：✕ 左侧，与换声弹窗同款。
+                        // 不放底部——长列表吃紧时底部一排最先被挤出可视区（两度实锤）
+                        titleActions()
                         IconButton(onClick = onDismissRequest) {
                             Icon(Icons.Filled.Close, stringResource(R.string.close))
                         }
@@ -181,20 +190,6 @@ internal fun SelectionSheet(
                             .padding(horizontal = PANEL_HORIZONTAL_PADDING)
                     ) {
                         content()
-                    }
-
-                    // 按钮行：与 MD3 一致横排右对齐（多个按钮不层叠）。
-                    // 左右与内容区同一条基准
-                    Box(
-                        Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = PANEL_HORIZONTAL_PADDING, vertical = 4.dp),
-                        contentAlignment = Alignment.CenterEnd,
-                    ) {
-                        val boxScope: BoxScope = this
-                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            boxScope.buttons()
-                        }
                     }
                 }
             }
