@@ -239,6 +239,14 @@ fun PluginVoiceMarketplaceDialog(
                             )
                         }
                         Spacer(Modifier.weight(1f))
+                        // 动作键放标题行（09-17 晚拍板）：Dialog 窗口被系统排版下移出屏时，
+                        // 贴屏幕底的按钮行会被裁掉，顶部锚定结构性免疫；「关闭」由 ✕ 兼任
+                        TextButton(
+                            enabled = picked.isNotEmpty(),
+                            onClick = { onPick(picked.values.toList()) },
+                        ) {
+                            Text(stringResource(R.string.voice_catalog_pick, picked.size))
+                        }
                         IconButton(onClick = onDismissRequest) {
                             Icon(Icons.Filled.Close, stringResource(R.string.close))
                         }
@@ -435,28 +443,6 @@ fun PluginVoiceMarketplaceDialog(
                             }
                         }
                     }
-
-                    HorizontalDivider()
-
-                    // ---- 底部：选用（N）----
-                    Row(
-                        Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = CATALOG_PANEL_PADDING, vertical = 6.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        TextButton(onClick = onDismissRequest) {
-                            Text(stringResource(R.string.close))
-                        }
-                        Spacer(Modifier.weight(1f))
-                        // 动作键一律纯文字 TextButton（目目 09-17：底部按钮行不要框和填充色）
-                        TextButton(
-                            enabled = picked.isNotEmpty(),
-                            onClick = { onPick(picked.values.toList()) },
-                        ) {
-                            Text(stringResource(R.string.voice_catalog_pick, picked.size))
-                        }
-                    }
                 }
             }
         }
@@ -585,6 +571,17 @@ private fun CatalogFilterSheet(
                             fontWeight = FontWeight.Bold,
                         )
                         Spacer(Modifier.weight(1f))
+                        // 动作键放标题行（09-17 晚拍板）：贴屏幕底的按钮行会被裁掉（窗口下移），
+                        // 顶部锚定结构性免疫
+                        TextButton(
+                            enabled = draft.isNotEmpty(),
+                            onClick = { draft = emptySet() },
+                        ) {
+                            Text(stringResource(R.string.voice_catalog_filter_clear))
+                        }
+                        TextButton(onClick = { onApply(draft) }) {
+                            Text(stringResource(R.string.voice_catalog_filter_apply, draft.size))
+                        }
                         IconButton(onClick = onDismissRequest) {
                             Icon(Icons.Filled.Close, stringResource(R.string.close))
                         }
@@ -633,26 +630,6 @@ private fun CatalogFilterSheet(
                                 selected = draft,
                                 onToggle = { draft = draft.toggle(it) },
                             )
-                        }
-                    }
-
-                    HorizontalDivider()
-                    Row(
-                        Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = CATALOG_PANEL_PADDING, vertical = 6.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        TextButton(
-                            enabled = draft.isNotEmpty(),
-                            onClick = { draft = emptySet() },
-                        ) {
-                            Text(stringResource(R.string.voice_catalog_filter_clear))
-                        }
-                        Spacer(Modifier.weight(1f))
-                        // 动作键一律纯文字 TextButton（目目 09-17：底部按钮行不要框和填充色）
-                        TextButton(onClick = { onApply(draft) }) {
-                            Text(stringResource(R.string.voice_catalog_filter_apply, draft.size))
                         }
                     }
                 }

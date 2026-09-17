@@ -65,7 +65,6 @@ import com.drake.net.utils.withIO
 import com.drake.net.utils.withMain
 import com.github.jing332.common.utils.toParamText
 import com.github.jing332.compose.widgets.AppSelectionDialog
-import com.github.jing332.compose.widgets.PinDialogWindowToScreen
 import com.github.jing332.database.dbm
 import com.github.jing332.database.entities.systts.AudioParams
 import com.github.jing332.database.entities.systts.SystemTtsV2
@@ -596,9 +595,6 @@ fun VoicePickerDialog(
             decorFitsSystemWindows = false,
         ),
     ) {
-        // 窗口钉成全屏+底部对齐（lib-compose PinDialogWindowToScreen）：09-17 实机
-        // 窗口被排版到屏幕下方 ~134px，底部确认键跟着出屏被裁——比例怎么改都没用的根因
-        PinDialogWindowToScreen()
         Box(
             Modifier
                 .fillMaxSize()
@@ -709,6 +705,147 @@ fun VoicePickerDialog(
                                 Text(stringResource(R.string.role_add_char_title))
                             } else {
                                 Text(stringResource(R.string.voice_picker_info_card))
+                            }
+                        }
+                        // 确认键挪进标题行（拍板方案 A）：底栏贴面板底缘，Dialog 窗口
+                        // 拿不到导航栏 insets，两轮修复（窗口真实可用高定高 / 20dp 保底间隙）都压不住
+                        // 「确认键被裁」，顶部锚定结构性免疫。仅换声区显示（音频参数各块自带
+                        // 重置/应用，不需要统一确认）；✕ / 点遮罩=取消，原底部「取消」不再重复出现
+                        if (panelTab == 0) {
+                            TextButton(
+                                onClick = {
+                                    val selected = pendingVoice
+                                    if (selected == null) {
+                                        Toast.makeText(
+                                            context,
+                                            context.getString(R.string.voice_picker_need_pick),
+                                            Toast.LENGTH_SHORT,
+                                        ).show()
+                                        return@TextButton
+                                    }
+                                    if (addMode && inputName.isBlank()) {
+                                        Toast.makeText(
+                                            context,
+                                            context.getString(R.string.voice_picker_need_name),
+                                            Toast.LENGTH_SHORT,
+                                        ).show()
+                                        return@TextButton
+                                    }
+                                    // 锚点配置项已被删且同标签再无配置项：非绑定分支要写回该配置项，
+                                    // 落库会打空（更新不存在的行=静默无操作，却弹「已应用」）——拦住并说清。
+                                    // 绑定/添加分支改写 characterRecords 里的角色记录，不依赖锚点，照常放行。
+                                    if (anchorMissing && !isBindingMode && !addMode) {
+                                        Toast.makeText(
+                                            context,
+                                            context.getString(R.string.voice_picker_anchor_deleted),
+                                            Toast.LENGTH_SHORT,
+                                        ).show()
+                                        return@TextButton
+                                    }
+                                    when {
+                                        // 添加角色 / 释放并固定：都要在 characterRecords.json 里落一条
+                                        // voice=所选 tag id 的记录，成功后自动关弹窗。
+                                        // - 添加：addCharacter 建新记录，同名已存在返回 false（确认键已拦空名）
+                                        // - 释放并固定：releaseAndFix 先把该名字从原角色解绑、
+                                        //   再另立门户写记录；名字已定（不显示输入框），用户只需选发音人
+                                        addMode -> {
+                                            val n = inputName.trim()
+                                            val isRelease = releaseOwnerName.isNotBlank()
+                                            // 发音人显示名口径与弹窗头部/候选行一致（同 tag 的启用配置项名）：
+                                            // 不在 Toast 里抛 tag id（文案一律走 R.string 三处同写，
+                                            // 这里原来硬编码中文、且原样打印 tag id）
+                                            val shown = enabledConfigEntityByTag(selected)?.displayName ?: selected
+                                            scope.launch {
+                                                val ok = withIO {
+                                                    if (isRelease) CharacterRecordsFile.releaseAndFix(
+                                                        config.speechRule.tagRuleId, releaseOwnerName, n, selected,
+                                                    ) else CharacterRecordsFile.addCharacter(
+                                                        config.speechRule.tagRuleId, n, selected,
+                                                    )
+                                                }
+                                                if (ok) {
+                                                    onChanged?.invoke("applied", selected)
+                                                    onDismissRequest()
+                                                }
+                                                pendingVoice = null
+                                                Toast.makeText(
+                                                    context,
+                                                    when {
+                                                        // 释放成功=「已释放并固定：名，发音人：X」
+                                                        ok && isRelease -> context.getString(
+                                                            R.string.role_release_fixed_toast, n, shown,
+                                                        )
+                                                        // 新增成功=「角色卡（名）已换为 X」
+                                                        ok -> context.getString(R.string.role_add_char_ok, n, shown)
+                                                        // 释放失败（原角色/名字对不上）=通用失败；新增失败=角色名已存在
+                                                        isRelease -> context.getString(R.string.role_list_failed)
+                                                        else -> context.getString(R.string.role_add_char_exists, n, shown)
+                                                    },
+                                                    Toast.LENGTH_SHORT,
+                                                ).show()
+                                            }
+                                        }
+                                        isBindingMode -> {
+                                        // 绑定模式：改写 characterRecords.json（与角色管理同文件同字段）；
+                                        // groupBindingKeys 非空=整组换声（内置角色列表组头入口，逐个 rebind 组内角色）
+                                        // 选的还是当前绑定的那条：原来静默 return（看着像点了没反应），
+                                        // 改给一句 Toast 说明——角色卡第一行自带 ✓，很容易点到它
+                                        if (selected == boundVoice) {
+                                            pendingVoice = null
+                                            Toast.makeText(
+                                                context,
+                                                context.getString(R.string.voice_picker_same_voice),
+                                                Toast.LENGTH_SHORT,
+                                            ).show()
+                                            return@TextButton
+                                        }
+                                        val targets = if (groupBindingKeys.isNotEmpty()) groupBindingKeys else listOf(bindingKey)
+                                        scope.launch {
+                                            var okCount = 0
+                                            withIO {
+                                                targets.forEach { name ->
+                                                    if (CharacterRecordsFile.rebind(
+                                                            config.speechRule.tagRuleId, name, selected,
+                                                        )
+                                                    ) okCount++
+                                                }
+                                            }
+                                            val ok = okCount > 0
+                                            if (ok) {
+                                                boundVoice = selected
+                                                onChanged?.invoke("applied", selected)
+                                                // 用户 09-17：确认成功即关面板。原来的「确认后不关」
+                                                // 是日志快捷面板时代（ed5a2c2 抽类时行为零变化带来的）
+                                                // ——那会儿是「边看日志边连着改声」，现在换声是主入口，
+                                                // 改完该退出去看角色列表/主列表
+                                                onDismissRequest()
+                                            }
+                                            pendingVoice = null
+                                            Toast.makeText(
+                                                context,
+                                                when {
+                                                    !ok -> context.getString(R.string.log_panel_rebind_failed)
+                                                    targets.size > 1 -> "已将 ${okCount}/${targets.size} 个角色换为 " +
+                                                        (if (isLocalSoundSlot) localSoundSlotLabel(selected) else selected)
+                                                    else -> "已将「$bindingKey」的发音人换为 " +
+                                                        (if (isLocalSoundSlot) localSoundSlotLabel(selected) else selected)
+                                                },
+                                                Toast.LENGTH_SHORT,
+                                            ).show()
+                                        }
+                                        }
+                                        else -> {
+                                            // 旁白/其他：写配置项 voice
+                                            applyVoice(selected)
+                                            pendingVoice = null
+                                        }
+                                    }
+                                },
+                            ) {
+                                // ⚠️ 不用 enabled 灰键（「选了角色无法确认」）：灰键说不出为
+                                // 什么是灰的，键在又按不动更像坏了。恒可点 + 前置条件各给一句 Toast；
+                                // ● = 有暂存选择（两段式确认的视觉反馈）
+                                Text((if (pendingVoice != null) "● " else "") + stringResource(R.string.confirm))
                             }
                         }
                         // 关闭键：全屏对话框规范里导航位只用 ✕（不用 ←，← 会暗示「保存后返回」）；
@@ -1376,155 +1513,10 @@ fun VoicePickerDialog(
                 }
             }
             } // 内容 Column 收尾（本区不滚：只有候选列表/音频参数段自带内滚）
-            // 底部动作行见下方「确认」（目目 09-17：从标题行挪回底部；取消语义仍由 ✕ / 点遮罩承担）。
-                    // 底部「确认」动作行（目目 09-17：顶部确认键难用，回到底部、更符合操作
-                    // 习惯；纯文字键）。仅换声区显示（音频参数各块自带 重置/应用）；
-                    // ✕ / 点遮罩 = 取消。内容区 weight(1f) 吃掉剩余高度，本行固定贴面板底。
-                if (panelTab == 0) {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(start = 16.dp, end = 16.dp, top = 4.dp, bottom = 6.dp),
-                        horizontalArrangement = Arrangement.End,
-                    ) {
-                    TextButton(
-                        onClick = {
-                            val selected = pendingVoice
-                            if (selected == null) {
-                                Toast.makeText(
-                                    context,
-                                    context.getString(R.string.voice_picker_need_pick),
-                                    Toast.LENGTH_SHORT,
-                                ).show()
-                                return@TextButton
-                            }
-                            if (addMode && inputName.isBlank()) {
-                                Toast.makeText(
-                                    context,
-                                    context.getString(R.string.voice_picker_need_name),
-                                    Toast.LENGTH_SHORT,
-                                ).show()
-                                return@TextButton
-                            }
-                            // 锚点配置项已被删且同标签再无配置项：非绑定分支要写回该配置项，
-                            // 落库会打空（更新不存在的行=静默无操作，却弹「已应用」）——拦住并说清。
-                            // 绑定/添加分支改写 characterRecords 里的角色记录，不依赖锚点，照常放行。
-                            if (anchorMissing && !isBindingMode && !addMode) {
-                                Toast.makeText(
-                                    context,
-                                    context.getString(R.string.voice_picker_anchor_deleted),
-                                    Toast.LENGTH_SHORT,
-                                ).show()
-                                return@TextButton
-                            }
-                            when {
-                                // 添加角色 / 释放并固定：都要在 characterRecords.json 里落一条
-                                // voice=所选 tag id 的记录，成功后自动关弹窗。
-                                // - 添加：addCharacter 建新记录，同名已存在返回 false（确认键已拦空名）
-                                // - 释放并固定：releaseAndFix 先把该名字从原角色解绑、
-                                //   再另立门户写记录；名字已定（不显示输入框），用户只需选发音人
-                                addMode -> {
-                                    val n = inputName.trim()
-                                    val isRelease = releaseOwnerName.isNotBlank()
-                                    // 发音人显示名口径与弹窗头部/候选行一致（同 tag 的启用配置项名）：
-                                    // 不在 Toast 里抛 tag id（文案一律走 R.string 三处同写，
-                                    // 这里原来硬编码中文、且原样打印 tag id）
-                                    val shown = enabledConfigEntityByTag(selected)?.displayName ?: selected
-                                    scope.launch {
-                                        val ok = withIO {
-                                            if (isRelease) CharacterRecordsFile.releaseAndFix(
-                                                config.speechRule.tagRuleId, releaseOwnerName, n, selected,
-                                            ) else CharacterRecordsFile.addCharacter(
-                                                config.speechRule.tagRuleId, n, selected,
-                                            )
-                                        }
-                                        if (ok) {
-                                            onChanged?.invoke("applied", selected)
-                                            onDismissRequest()
-                                        }
-                                        pendingVoice = null
-                                        Toast.makeText(
-                                            context,
-                                            when {
-                                                // 释放成功=「已释放并固定：名，发音人：X」
-                                                ok && isRelease -> context.getString(
-                                                    R.string.role_release_fixed_toast, n, shown,
-                                                )
-                                                // 新增成功=「角色卡（名）已换为 X」
-                                                ok -> context.getString(R.string.role_add_char_ok, n, shown)
-                                                // 释放失败（原角色/名字对不上）=通用失败；新增失败=角色名已存在
-                                                isRelease -> context.getString(R.string.role_list_failed)
-                                                else -> context.getString(R.string.role_add_char_exists, n, shown)
-                                            },
-                                            Toast.LENGTH_SHORT,
-                                        ).show()
-                                    }
-                                }
-                                isBindingMode -> {
-                                // 绑定模式：改写 characterRecords.json（与角色管理同文件同字段）；
-                                // groupBindingKeys 非空=整组换声（内置角色列表组头入口，逐个 rebind 组内角色）
-                                // 选的还是当前绑定的那条：原来静默 return（看着像点了没反应），
-                                // 改给一句 Toast 说明——角色卡第一行自带 ✓，很容易点到它
-                                if (selected == boundVoice) {
-                                    pendingVoice = null
-                                    Toast.makeText(
-                                        context,
-                                        context.getString(R.string.voice_picker_same_voice),
-                                        Toast.LENGTH_SHORT,
-                                    ).show()
-                                    return@TextButton
-                                }
-                                val targets = if (groupBindingKeys.isNotEmpty()) groupBindingKeys else listOf(bindingKey)
-                                scope.launch {
-                                    var okCount = 0
-                                    withIO {
-                                        targets.forEach { name ->
-                                            if (CharacterRecordsFile.rebind(
-                                                    config.speechRule.tagRuleId, name, selected,
-                                                )
-                                            ) okCount++
-                                        }
-                                    }
-                                    val ok = okCount > 0
-                                    if (ok) {
-                                        boundVoice = selected
-                                        onChanged?.invoke("applied", selected)
-                                        // 用户 09-17：确认成功即关面板。原来的「确认后不关」
-                                        // 是日志快捷面板时代（ed5a2c2 抽类时行为零变化带来的）
-                                        // ——那会儿是「边看日志边连着改声」，现在换声是主入口，
-                                        // 改完该退出去看角色列表/主列表
-                                        onDismissRequest()
-                                    }
-                                    pendingVoice = null
-                                    Toast.makeText(
-                                        context,
-                                        when {
-                                            !ok -> context.getString(R.string.log_panel_rebind_failed)
-                                            targets.size > 1 -> "已将 ${okCount}/${targets.size} 个角色换为 " +
-                                                (if (isLocalSoundSlot) localSoundSlotLabel(selected) else selected)
-                                            else -> "已将「$bindingKey」的发音人换为 " +
-                                                (if (isLocalSoundSlot) localSoundSlotLabel(selected) else selected)
-                                        },
-                                        Toast.LENGTH_SHORT,
-                                    ).show()
-                                }
-                                }
-                                else -> {
-                                    // 旁白/其他：写配置项 voice
-                                    applyVoice(selected)
-                                    pendingVoice = null
-                                }
-                            }
-                        },
-                    ) {
-                        // ⚠️ 不用 enabled 灰键（「选了角色无法确认」）：灰键说不出为
-                        // 什么是灰的，键在又按不动更像坏了。恒可点 + 前置条件各给一句 Toast；
-                        // ● = 有暂存选择（两段式确认的视觉反馈）
-                        Text((if (pendingVoice != null) "● " else "") + stringResource(R.string.confirm))
-                    }
-                        }
-                }
-
+            // 底部「取消/确定」动作行已删（拍板方案 A）：确认键挪进标题行——
+            // 底栏贴面板底缘，Dialog 窗口拿不到导航栏 insets（navigationBarsPadding=0），
+            // 定高/20dp 保底两轮修复都压不住「确认键被裁」；顶部锚定结构性免疫，
+            // 内容区 weight(1f) 直接吃满面板底。取消语义由 ✕ / 点遮罩承担。
                 } // navigationBarsPadding Column 收尾
             } // Surface 面板收尾
             } // BoxWithConstraints（弹窗窗口真实可用高）收尾
