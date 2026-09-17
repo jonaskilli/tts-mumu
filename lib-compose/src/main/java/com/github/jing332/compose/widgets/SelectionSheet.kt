@@ -3,14 +3,16 @@ package com.github.jing332.compose.widgets
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
@@ -29,7 +31,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
@@ -46,38 +47,43 @@ import com.github.jing332.compose.R
 private val PANEL_HORIZONTAL_PADDING = 24.dp
 
 /**
+ * 面板高 = 弹窗窗口真实高度 × 此比例（用户 09-17 定 92%）。
+ * ⚠️ 不能用 `LocalConfiguration.screenHeightDp`：它不含状态栏/导航栏（800dp 屏只算 728dp），
+ * 而本窗口 decorFitsSystemWindows=false 铺满全屏 ⇒ 之前实机看起来只有 ~85%（用户说「像 88%」）。
+ * 这里用 BoxWithConstraints 拿到的 maxHeight 就是窗口真实高，所见即 92%。
+ */
+private const val SHEET_HEIGHT_FRACTION = 0.92f
+
+/**
  * 列表选择弹窗的外壳：**底部大弹窗**（用户 09-17 定，与音色广场 / 换声弹窗同一形态）。
  *
  * 原先是 MD3 居中 AlertDialog：宽度被规范限死（两侧各留 24dp）、高度也由 MD3 说了算，
- * 长列表一眼能看到的行数偏少。改成满宽、底边贴屏、仅顶部两角圆角的底部面板后宽度吃满；
- * 高度按可见条数估（上限 92% 屏高）—— 条目少则面板跟着矮，条目多则撑到上限再由列表内部
- * 滚动，长短列表都不浪费屏幕。
+ * 长列表一眼能看到的行数偏少。改成满宽、底边贴屏、仅顶部两角圆角的底部面板后宽度吃满。
+ *
+ * 高度口径：**固定为窗口真实高度的 92%**。只有 >20 条的长列表才会走到本外壳，
+ * 21 条 × 48dp ≈ 1008dp 必然超屏，固定高不会产生「半屏空白」；换来的是内容区
+ * 用 weight 吃剩余空间、按钮行固定在底部——按钮行在布局上**不可能**被列表挤出
+ * 可视区（此前两版按钮行靠「估算预留」让位，标题折行/导航栏一吃就不够，
+ * 09171748/09171924 两包实锤「保存」不可见）。
  *
  * 全 app 的列表型选择弹窗（插件 / 分组 / 分类 / 音色 / 规则 / 主题 / BGM…约 19 个入口）
  * 都经由本组件，改这一处即全部生效。
  *
  * 左右边距口径：**面板内容统一 24dp**（标题行 / 内容区 / 按钮行共用 `PANEL_HORIZONTAL_PADDING`；
  * ✕ 的 48dp 触摸区自带 12dp 内缩、标题行给 end=12，图标正好落在 24dp 右缘线上）。
- * 16→24→32→24 四轮（09-17 定稿 24：32 挤折标题、占长名宽度）。内层组件（搜索框、
- * 列表条目）在底部形态下**不要再自加横向内边距**，由本外壳一处说了算。
+ * 内层组件（搜索框、列表条目）在底部形态下**不要再自加横向内边距**，由本外壳一处说了算。
  *
- * 动作键口径：**标题行内、✕ 左侧**（与换声弹窗同款）。底部按钮行试过两版
- * 都被实机否决——长列表把面板空间吃紧时，底部一排永远最先被挤出可视区
- * （09-17 试听分类弹窗「保存」两度不可见；换声弹窗当年同病，也是挪标题行才了结）。
- * 所以本外壳**不再提供底部按钮行**：调用方有动作键（如「保存」）走 `titleActions`。
+ * 按钮行口径：**只有传了 `buttons` 的弹窗才渲染**（纯单选弹窗点行即选即关，右上 ✕ 已够关）；
+ * 「关闭」由 ✕ 兼任，底部不重复放。
  *
- * @param maxSheetHeight 面板高度上限（调用方按屏高比例算好）
- * @param maxListHeight 内容区高度上限（调用方按可见条数估好）
- * @param titleActions 标题行 ✕ 左侧的动作键槽位（不传只有 ✕）
+ * @param buttons 底部动作键槽位（如试听分类的「保存」）；null = 不渲染按钮行
  */
 @Composable
 internal fun SelectionSheet(
     onDismissRequest: () -> Unit,
-    maxSheetHeight: Dp,
-    maxListHeight: Dp,
     title: @Composable () -> Unit,
     content: @Composable BoxScope.() -> Unit,
-    titleActions: @Composable RowScope.() -> Unit = {},
+    buttons: (@Composable RowScope.() -> Unit)? = null,
 ) {
     Dialog(
         onDismissRequest = onDismissRequest,
@@ -87,7 +93,9 @@ internal fun SelectionSheet(
             decorFitsSystemWindows = false,
         ),
     ) {
-        Box(
+        // BoxWithConstraints 拿窗口真实高度（含系统栏）：面板高 = maxHeight × 92%，
+        // 固定高是按钮行不被挤压的根基（见类注释「高度口径」）
+        BoxWithConstraints(
             Modifier
                 .fillMaxSize()
                 // 键盘让位：decorFitsSystemWindows=false 后窗口不再被 IME 顶起，
@@ -108,7 +116,7 @@ internal fun SelectionSheet(
             Surface(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .heightIn(max = maxSheetHeight),
+                    .height(maxHeight * SHEET_HEIGHT_FRACTION),
                 // M3 底部面板：仅顶部两角 28dp 圆角、底边贴屏——系统栏间距交给内层 Column 的
                 // navigationBarsPadding，面板本体不缩，视觉上仍是「从底部升起」
                 shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp),
@@ -142,7 +150,7 @@ internal fun SelectionSheet(
                         )
                     }
 
-                    // 标题行：标题 + ✕（✕ 与底部按钮互为冗余，是底部面板的通用形态）。
+                    // 标题行：标题 + ✕。
                     // end=12 是给 ✕ 的 48dp 触摸区留的：IconButton 自带 12dp 内缩，
                     // 12 + 12 = 24 ⇒ ✕ 图标正好落在与内容区同一条右缘线上
                     Row(
@@ -157,27 +165,22 @@ internal fun SelectionSheet(
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
                         // 标题样式跟着底部面板走：原 MD3 标题槽是 headlineSmall（24sp），
-                        // 放进底部面板偏大，降为 titleMedium 加粗，与音色广场标题同级
+                        // 放进底部面板偏大，降为 titleMedium 加粗，与音色广场标题同级。
+                        // weight(1f) 独占剩余宽度（原先多一个 Spacer(weight(1f)) 把宽对半分，
+                        // 长标题被折成两行，09-17 实机）
                         ProvideTextStyle(
                             MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold)
                         ) {
-                            // 标题独占标题行的剩余宽度。原先写成 weight(1f, fill = false)
-                            // 且后面还跟着一个 Spacer(weight(1f))，两者各分走一半 ⇒ 长标题
-                            // 只剩半个面板宽，「🔊 声音（点击此处可试听后分类）」被折成两行
-                            // （09-17 实机）。一个 weight 就够，Spacer 是多余的那份
                             Box(Modifier.weight(1f)) { title() }
                         }
-                        // 动作键（如试听分类的「保存」）：✕ 左侧，与换声弹窗同款。
-                        // 不放底部——长列表吃紧时底部一排最先被挤出可视区（两度实锤）
-                        titleActions()
                         IconButton(onClick = onDismissRequest) {
                             Icon(Icons.Filled.Close, stringResource(R.string.close))
                         }
                     }
 
-                    // 内容区（开关行 / 搜索框 / 列表 / 空提示全在里面）：
-                    // weight(fill=false) 让它只占实际需要的高度——条目少时面板跟着矮；
-                    // 上限交给 maxListHeight，列表比它高时由 LazyColumn 自己滚。
+                    // 内容区（开关行 / 搜索框 / 列表 / 空提示全在里面）：weight(1f) 吃掉
+                    // 拖拽把+标题+按钮行之后的**全部剩余**空间，列表在内部滚动——
+                    // 面板总高固定，按钮行在布局上不可能被内容挤走（方案 B 的核心）。
                     //
                     // 左右内边距**只有这里一处说了算**（PANEL_HORIZONTAL_PADDING）：
                     // 内层（搜索框的 8dp、条目文字的 16dp）在底部形态下必须让位
@@ -185,11 +188,30 @@ internal fun SelectionSheet(
                     // 否则叠出来还是多套左缘线。数值口径见常量注释（16→24→32→24 定稿 24）
                     Box(
                         Modifier
-                            .weight(1f, fill = false)
-                            .heightIn(max = maxListHeight)
+                            .weight(1f)
                             .padding(horizontal = PANEL_HORIZONTAL_PADDING)
                     ) {
                         content()
+                    }
+
+                    // 底部按钮行：只有调用方传了动作键才渲染（纯单选弹窗没有这行，
+                    // 多出一行列表）。左右与内容区同一条 24dp 基准，右对齐与 MD3 一致。
+                    // 面板高固定 + 内容 weight ⇒ 这行恒在面板底部可视区，不靠估算
+                    if (buttons != null) {
+                        Row(
+                            Modifier
+                                .fillMaxWidth()
+                                .padding(
+                                    start = PANEL_HORIZONTAL_PADDING,
+                                    end = PANEL_HORIZONTAL_PADDING,
+                                    top = 4.dp,
+                                    bottom = 10.dp
+                                ),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.End),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            buttons?.invoke(this)
+                        }
                     }
                 }
             }

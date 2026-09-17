@@ -60,7 +60,6 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.selected
@@ -69,7 +68,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
@@ -77,9 +75,6 @@ import com.github.jing332.compose.ComposeExtensions.clickableRipple
 import com.github.jing332.compose.R
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
-
-/** 底部大弹窗占屏高比例（用户 09-17 定：**统一 92%**，与音色广场同体量） */
-private const val SELECTION_SHEET_HEIGHT = 0.92f
 
 /**
  * 分档阈值（用户 09-17 定 C 方案）：条目数超过此值才用底部大弹窗，否则维持原来的居中卡片。
@@ -90,30 +85,6 @@ private const val SELECTION_SHEET_HEIGHT = 0.92f
  * 半屏——正是用户嫌的那种「内容不多却几乎满屏」。20 让 16 条的分类留在居中卡片里。
  */
 private const val SELECTION_SHEET_THRESHOLD = 20
-
-/**
- * 条目高度估算值，用于给面板定高（条目少则面板矮、多则撑到上限再由列表内部滚）。
- * `minimumInteractiveComponentSize` 是 48dp：条目本体 12dp 上下内边距 + 14sp 文字实测约 43dp，
- * 被这个下限兜住，故 48dp 就是绝大多数条目的真实高度。
- */
-private val SELECTION_ROW_HEIGHT = 48.dp
-
-/** 列表自身的内边距（LoadingContent 上下各 16dp），估高时补上 */
-private val SELECTION_LIST_PADDING = 32.dp
-
-/**
- * 底部面板固定区的估算高度：拖拽把 + 标题行（含折行）+ 导航栏让位。
- * 内容区上限必须为它让位——否则长列表会把面板占满，最后一行被屏幕底边裁掉。
- * ⚠️ 动作键已移出底部（标题行 ✕ 左侧）：底部按钮行在长列表场景两度被挤得
- * 不可见（09171748/09171924 包实锤，与换声弹窗当年同病），按行高预留已无意义，
- * 取 130dp（拖拽把 12 + 标题两行 ~64 + 手势导航 ~24 + 余量）。
- */
-private val SELECTION_SHEET_CHROME_HEIGHT = 130.dp
-
-/** 列表之外固定区的估算高度：搜索框 / 开关行 / 空提示 */
-private val SELECTION_FIELD_HEIGHT = 72.dp
-private val SELECTION_SWITCH_ROW_HEIGHT = 56.dp
-private val SELECTION_EMPTY_HINT_HEIGHT = 48.dp
 
 /**
  * 底部形态下条目文字相对搜索框**边框**的缩进量（用户 09-17：搜索框下方的字
@@ -219,41 +190,24 @@ fun AppSelectionDialog(
 
     val focusRequester = remember { FocusRequester() }
 
-    // 「输入中的文本」与「已生效的搜索词」提到外壳这层：外壳要按**过滤后的可见条数**估面板高度，
-    // 而可见条数取决于搜索词；500ms 轮询赋值的逻辑仍留在 content 里
+    // 「输入中的文本」与「已生效的搜索词」提到外壳这层：搜索过滤的判定留在 content 里
     var text by rememberSaveable { mutableStateOf("") }
     var searchText by rememberSaveable { mutableStateOf("") }
 
-    // 面板高度按可见条数估：条目少时面板随内容收缩，条目多时撑到 92% 屏高、由列表内部滚动
-    val sheetMaxHeight = LocalConfiguration.current.screenHeightDp.dp * SELECTION_SHEET_HEIGHT
-    val visibleCount = if (searchEnabled && searchText.isNotBlank())
-        entries.count { it.contains(searchText, ignoreCase = true) } else entries.size
-    val listMaxHeight = (
-            // 写成 Dp * Int 而不是 Int * Dp：后者是 Compose 的顶层扩展 `Int.times(Dp)`，
-            // 需显式 import，否则只剩 Int 自带那几个数值重载、直接编译不过
-            SELECTION_ROW_HEIGHT * visibleCount +
-                    SELECTION_LIST_PADDING +
-                    (if (searchEnabled) SELECTION_FIELD_HEIGHT else 0.dp) +
-                    (if (onWaitCategorySwitchChange != null || onAutoNextSwitchChange != null)
-                        SELECTION_SWITCH_ROW_HEIGHT else 0.dp) +
-                    (if (searchEnabled && searchText.isNotBlank() && visibleCount == 0)
-                        SELECTION_EMPTY_HINT_HEIGHT else 0.dp)
-            )
-            // 关键：上限要再减掉面板固定区——内容把 92% 吃满时按钮行会被挤出面板外
-            .coerceAtMost(sheetMaxHeight - SELECTION_SHEET_CHROME_HEIGHT)
+    // 底部面板高固定为窗口真实高度的 92%（SelectionSheet 内部定），列表在分到的
+    // 剩余空间里滚动——不再按条数估高（09-17 两次实机「保存键被挤出面板」的根源）
 
-    // 按钮去向：底部形态（SelectionSheet）没有底部按钮行——动作键放标题行 ✕ 左侧
-    // （与换声弹窗同款；底部一排在长列表场景两度被挤出可视区，09171748/09171924 实锤），
-    // 「关闭」由 ✕ 兼任；居中形态（AppDialog）维持底部按钮行 = 额外动作键 +「关闭」。
-    // extraButtons 是 RowScope 接收者，这里自起一行 Row 提供接收者
-    // （AppDialog 的 buttons 槽是 BoxScope，见其实现）
+    // 按钮去向（方案 B，用户 09-17 定：动作键回底部、面板固定高根治挤压）：
+    // 底部形态（SelectionSheet）按钮行 = 额外动作键（如保存），「关闭」由右上 ✕ 兼任；
+    // 居中形态（AppDialog）底部按钮行 = 额外动作键 +「关闭」（维持原状）。
+    // 纯单选弹窗 extraButtons=null：底部形态不渲染按钮行，居中形态只有「关闭」。
+    // extraButtons 是 RowScope 接收者，自起一行 Row 提供接收者（AppDialog 的槽是 BoxScope）
     val effectiveButtons: @Composable BoxScope.() -> Unit = {
         if (extraButtons != null)
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) { extraButtons?.invoke(this) }
-        if (!useSheet || extraButtons != null)
-            TextButton(onClick = onDismissRequest) {
-                Text(stringResource(id = R.string.close))
-            }
+        TextButton(onClick = onDismissRequest) {
+            Text(stringResource(id = R.string.close))
+        }
     }
 
     // 弹窗内容（开关行 / 搜索框 / 列表 / 空提示）：两种外壳共用同一份，只换外面的容器
@@ -513,11 +467,10 @@ fun AppSelectionDialog(
         if (useSheet)
             SelectionSheet(
                 onDismissRequest = onDismissRequest,
-                maxSheetHeight = sheetMaxHeight,
-                maxListHeight = listMaxHeight,
                 title = title,
                 content = dialogContent,
-                titleActions = { extraButtons?.invoke(this) },
+                // 类型同为 (@Composable RowScope.() -> Unit)?，直接透传；null 则按钮行不渲染
+                buttons = extraButtons,
             )
         else
             AppDialog(
