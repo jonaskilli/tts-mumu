@@ -285,11 +285,18 @@ fun VoicePickerDialog(
     // 只能靠版本号驱动重组。参照 v10：filterAndShowVoiceList 每次调用前先 refreshFayinrenList()，
     // 所以那边删除后面板里的列表仍是实时的；这里原来只 remember(entity.id)，删完行还留着（假数据）。
     var dataVersion by remember(entity.id) { mutableStateOf(0) }
+    // 行内容版本号：**行集合不变、行内文本/归属变**时自增（换声落库、标记变化）。
+    // 照 v10 的分档——refreshCharacterData()=重读数据+只更新行内标签、**不重建行**，
+    // refreshCharacterList()=重建行；判据就是**行集合是否变**：删除改行集合走 dataVersion，
+    // 换声只改某一行的显示名/发音人 id，走这里。只挂在"行内容/归属"类派生值上，
+    // 免得为一行改名把池子、启用标签集合（只随 dataVersion 变）也整份重算。
+    var rowVersion by remember(entity.id) { mutableStateOf(0) }
     // 待删除确认的配置项（非空时弹确认弹窗）
     var deleteConfirmTarget by remember(entity.id) { mutableStateOf<SystemTtsV2?>(null) }
 
-    // 全部配置项（换声候选 / 参数跟随目标查找共用）
-    val allConfigs = remember(entity.id, dataVersion) {
+    // 全部配置项（换声候选 / 参数跟随目标查找共用）——数据重读层（v10 的 refreshFayinrenList 位）：
+    // 任何一次刷新都重读，故两个版本号都挂
+    val allConfigs = remember(entity.id, dataVersion, rowVersion) {
         dbm.systemTtsV2.getAllGroupWithTts().flatMap { it.list }
     }
 
@@ -351,6 +358,9 @@ fun VoicePickerDialog(
             }
             // 弹窗头部即时跟上新名字（库已落，重开弹窗走库值）
             appliedDisplayName = targetDisplayName
+            // 行内容变了、行集合没变：只让挂了 rowVersion 的派生值重读（v10 口径：换声后
+            // 候选列表原地更新行文本，不重建列表）——旁白页那行的配置项名/发音人 id 立刻跟上
+            rowVersion++
             // 参数跟随目标回到本配置项（已带新参数），后续调整继续作用于本条
             if (newConfig != null) paramsTarget =
                 entity.copy(config = newConfig, displayName = targetDisplayName ?: entity.displayName)
@@ -865,7 +875,7 @@ fun VoicePickerDialog(
 
             // ===== 顶部块（用户 09-09 重排）：当前发音人 + 试听 + 终值 =====
             // 发音人名跟随暂存选择（09-10 参数跟随）：暂存了候选就先显示候选对应的配置项名
-            val boundConfigName = remember(entity.id, boundVoice, pendingVoice, dataVersion) {
+            val boundConfigName = remember(entity.id, boundVoice, pendingVoice, dataVersion, rowVersion) {
                 if (isBindingMode) {
                     val tag = pendingVoice ?: boundVoice
                     enabledConfigEntityByTag(tag)?.displayName ?: tag
@@ -1179,7 +1189,7 @@ fun VoicePickerDialog(
                         // 占用表（方案A）：characterRecords.json 里 voice→角色名列表，
                         // 与角色管理插件「已分配」徽章同源同口径；排除自己（bindingKey）——
                         // 自己当前绑定的那行已有 ✓ 主色，不重复标
-                        val voiceOwners = remember(entity.id, dataVersion) {
+                        val voiceOwners = remember(entity.id, dataVersion, rowVersion) {
                             CharacterRecordsFile.readVoiceOwnerMap(config.speechRule.tagRuleId)
                         }
                         displayTags.forEach { tag ->
@@ -1322,7 +1332,7 @@ fun VoicePickerDialog(
                         // 音效槽位（同族 localSound，通常 1~N 条）：搜索无意义，与绑定模式同一口径
                         CategoryChip(value = displayCategory)
                     }
-                    val narrationCandidates = remember(entity.id, currentTagId, dataVersion) {
+                    val narrationCandidates = remember(entity.id, currentTagId, dataVersion, rowVersion) {
                         allConfigs.mapNotNull { c ->
                             val dto = c.config as? TtsConfigurationDTO ?: return@mapNotNull null
                             if (dto.speechRule.tag != currentTagId) return@mapNotNull null
