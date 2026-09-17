@@ -46,6 +46,10 @@ import com.github.jing332.compose.R
  * 全 app 的列表型选择弹窗（插件 / 分组 / 分类 / 音色 / 规则 / 主题 / BGM…约 19 个入口）
  * 都经由本组件，改这一处即全部生效。
  *
+ * 左右边距口径：**面板内容统一 16dp**（标题行 16 / 内容区 16 / 按钮行 16；✕ 的 48dp 触摸区
+ * 自带 12dp 内缩，图标正好落在 16dp 右缘线上）。这是换声面板、密钥页、日志面板同一条基准，
+ * 内层组件（搜索框、列表条目）在底部形态下不要再自加横向内边距。
+ *
  * @param maxSheetHeight 面板高度上限（调用方按屏高比例算好）
  * @param maxListHeight 内容区高度上限（调用方按可见条数估好）
  */
@@ -146,20 +150,29 @@ internal fun SelectionSheet(
 
                     // 内容区（开关行 / 搜索框 / 列表 / 空提示全在里面）：
                     // weight(fill=false) 让它只占实际需要的高度——条目少时面板跟着矮；
-                    // 上限交给 maxListHeight，列表比它高时由 LazyColumn 自己滚
+                    // 上限交给 maxListHeight，列表比它高时由 LazyColumn 自己滚。
+                    //
+                    // 左右各 16dp 是**面板级统一内边距**（与换声面板 / 密钥页同一条基准：
+                    // 360dp 屏上内容区 328dp）。09-17 实机截图里搜索框在 8dp、条目行尾图标
+                    // 在 0dp、✕ 在 16dp——三套左右基准并存，用户一眼看出「边距没调」。
+                    // 内层（搜索框的 8dp、条目文字的 16dp）在底部形态下要撤掉，由这里一处说了算，
+                    // 否则加完还是三套线（24 / 32 / 16）。标题行不在这里面：它自带 16/4，
+                    // ✕ 的 48dp 触摸区再内缩 12dp ⇒ 图标正好落在这条 16dp 右缘线上
                     Box(
                         Modifier
                             .weight(1f, fill = false)
                             .heightIn(max = maxListHeight)
+                            .padding(horizontal = 16.dp)
                     ) {
                         content()
                     }
 
-                    // 按钮行：与 MD3 一致横排右对齐（多个按钮不层叠）
+                    // 按钮行：与 MD3 一致横排右对齐（多个按钮不层叠）。
+                    // 左右 16dp 与内容区同一条基准（换声面板底栏也是 16dp）
                     Box(
                         Modifier
                             .fillMaxWidth()
-                            .padding(horizontal = 8.dp, vertical = 4.dp),
+                            .padding(horizontal = 16.dp, vertical = 4.dp),
                         contentAlignment = Alignment.CenterEnd,
                     ) {
                         val boxScope: BoxScope = this

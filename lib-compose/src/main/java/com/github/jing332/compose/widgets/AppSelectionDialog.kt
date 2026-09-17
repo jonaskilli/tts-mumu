@@ -136,6 +136,15 @@ fun AppSelectionDialog(
     autoNextSwitch: Boolean = false,
     onAutoNextSwitchChange: ((Boolean) -> Unit)? = null,
 ) {
+    // 外壳分档：判定在打开那一刻定住（按原始条数，不受搜索过滤影响），
+    // 免得开着开着列表变短、形态跟着跳。声明放在条目渲染之前——底部形态下
+    // 条目不自带左右内边距，改由 SelectionSheet 统一给 16dp（见下面 hp 的用法）
+    val useSheet = entries.size > SELECTION_SHEET_THRESHOLD
+
+    // 底部形态下由面板统一给左右 16dp，内层这份横向内边距必须让位：
+    // 否则 8(搜索框)/16(条目文字) 各自叠在 16dp 之上，又变成两套左缘线
+    val hp = if (useSheet) 0.dp else 16.dp
+
     // null 时走默认渲染（icons 圆图+文字）；调用方可传自定义渲染（如插件选择器传 PluginImage,
     // 加载失败回退名称首字徽章——与插件管理页头像一致,仅插件栏补首字,其他栏无图标不补不留空）
     val content = itemContent ?: { isSelected, entry, icon, _ ->
@@ -162,7 +171,7 @@ fun AppSelectionDialog(
             style = MaterialTheme.typography.bodyMedium,
             modifier = Modifier
                 .weight(1f)
-                .padding(horizontal = 16.dp, vertical = 12.dp),
+                .padding(horizontal = hp, vertical = 12.dp),
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
             fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
@@ -195,10 +204,6 @@ fun AppSelectionDialog(
                     (if (searchEnabled && searchText.isNotBlank() && visibleCount == 0)
                         SELECTION_EMPTY_HINT_HEIGHT else 0.dp)
             ).coerceAtMost(sheetMaxHeight)
-
-    // 外壳分档：判定在打开那一刻定住（按原始条数，不受搜索过滤影响），
-    // 免得开着开着列表变短、形态跟着跳
-    val useSheet = entries.size > SELECTION_SHEET_THRESHOLD
 
     // 底部形态不再重复放「关闭」：面板右上已有 ✕、面板外点击也能关，底部多一行按钮
     // 就少露一行列表。调用方自定义的 buttons 原样使用（null = 走这套默认）
@@ -262,7 +267,7 @@ fun AppSelectionDialog(
                     DenseOutlinedField(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(horizontal = 8.dp)
+                            .padding(horizontal = if (useSheet) 0.dp else 8.dp)
                             .focusRequester(focusRequester),
                         value = text, onValueChange = { text = it },
                         label = { Text(stringResource(id = R.string.search) + " ${values.size}") },
@@ -293,7 +298,10 @@ fun AppSelectionDialog(
                 if (searchText.isNotBlank() && filteredCount == 0)
                     Text(
                         modifier = Modifier
-                            .padding(horizontal = 8.dp, vertical = 4.dp)
+                            .padding(
+                                horizontal = if (useSheet) 0.dp else 8.dp,
+                                vertical = 4.dp
+                            )
                             .minimumInteractiveComponentSize()
                             .align(Alignment.CenterHorizontally),
                         text = stringResource(id = R.string.empty_list),
