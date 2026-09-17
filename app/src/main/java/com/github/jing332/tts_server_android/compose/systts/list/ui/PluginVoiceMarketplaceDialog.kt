@@ -449,7 +449,8 @@ fun PluginVoiceMarketplaceDialog(
                             Text(stringResource(R.string.close))
                         }
                         Spacer(Modifier.weight(1f))
-                        OutlinedButton(
+                        // 动作键一律纯文字 TextButton（目目 09-17：底部按钮行不要框和填充色）
+                        TextButton(
                             enabled = picked.isNotEmpty(),
                             onClick = { onPick(picked.values.toList()) },
                         ) {
@@ -649,7 +650,8 @@ private fun CatalogFilterSheet(
                             Text(stringResource(R.string.voice_catalog_filter_clear))
                         }
                         Spacer(Modifier.weight(1f))
-                        OutlinedButton(onClick = { onApply(draft) }) {
+                        // 动作键一律纯文字 TextButton（目目 09-17：底部按钮行不要框和填充色）
+                        TextButton(onClick = { onApply(draft) }) {
                             Text(stringResource(R.string.voice_catalog_filter_apply, draft.size))
                         }
                     }
