@@ -213,7 +213,12 @@ fun PluginVoiceMarketplaceDialog(
                     Row(
                         Modifier
                             .fillMaxWidth()
-                            .padding(start = 16.dp, end = 4.dp, top = 8.dp, bottom = 4.dp),
+                            .padding(
+                                start = CATALOG_PANEL_PADDING,
+                                end = 8.dp,
+                                top = 8.dp,
+                                bottom = 4.dp
+                            ),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
                         Text(
@@ -239,7 +244,7 @@ fun PluginVoiceMarketplaceDialog(
                     Row(
                         Modifier
                             .fillMaxWidth()
-                            .padding(horizontal = 12.dp),
+                            .padding(horizontal = CATALOG_PANEL_PADDING),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
                         DenseOutlinedField(
@@ -286,7 +291,7 @@ fun PluginVoiceMarketplaceDialog(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .padding(top = 4.dp),
-                            contentPadding = PaddingValues(horizontal = 12.dp),
+                            contentPadding = PaddingValues(horizontal = CATALOG_PANEL_PADDING),
                             horizontalArrangement = Arrangement.spacedBy(6.dp),
                         ) {
                             items(vm.catalogQuickFilters, key = { it.id }) { option ->
@@ -305,7 +310,12 @@ fun PluginVoiceMarketplaceDialog(
                         Row(
                             Modifier
                                 .fillMaxWidth()
-                                .padding(start = 16.dp, end = 8.dp, top = 4.dp, bottom = 4.dp),
+                                .padding(
+                                start = CATALOG_PANEL_PADDING,
+                                end = 8.dp,
+                                top = 4.dp,
+                                bottom = 4.dp
+                            ),
                             verticalAlignment = Alignment.CenterVertically,
                         ) {
                             Text(
@@ -330,7 +340,10 @@ fun PluginVoiceMarketplaceDialog(
                     } else {
                         Text(
                             text = catalogSummary(vm),
-                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
+                            modifier = Modifier.padding(
+                                horizontal = CATALOG_PANEL_PADDING,
+                                vertical = 4.dp
+                            ),
                             style = MaterialTheme.typography.labelMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
@@ -415,7 +428,7 @@ fun PluginVoiceMarketplaceDialog(
                     Row(
                         Modifier
                             .fillMaxWidth()
-                            .padding(horizontal = 12.dp, vertical = 6.dp),
+                            .padding(horizontal = CATALOG_PANEL_PADDING, vertical = 6.dp),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
                         TextButton(onClick = onDismissRequest) {
@@ -446,6 +459,13 @@ fun PluginVoiceMarketplaceDialog(
         )
     }
 }
+
+/**
+ * 音色广场面板的左右内边距：广场主面板与筛选面板共用。
+ * 定 20dp（目目 09-17：比选择弹窗面板的 32dp 小一档即可，「稍微大点就行」）——
+ * 此前 12/16dp 混用没有统一基准；✕ 图标仍落右缘线：标题行 end=8 + IconButton 自带 12dp 内缩。
+ */
+private val CATALOG_PANEL_PADDING = 20.dp
 
 /**
  * 筛选弹窗（用户 09-17 方案图二）：上半是「下拉类」筛选组（两列），下半是 chips 组，
@@ -533,7 +553,12 @@ private fun CatalogFilterSheet(
                     Row(
                         Modifier
                             .fillMaxWidth()
-                            .padding(start = 16.dp, end = 4.dp, top = 8.dp, bottom = 4.dp),
+                            .padding(
+                                start = CATALOG_PANEL_PADDING,
+                                end = 8.dp,
+                                top = 8.dp,
+                                bottom = 4.dp
+                            ),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
                         Text(
@@ -553,7 +578,7 @@ private fun CatalogFilterSheet(
                             .weight(1f)
                             .fillMaxWidth()
                             .verticalScroll(rememberScrollState())
-                            .padding(horizontal = 12.dp, vertical = 8.dp),
+                            .padding(horizontal = CATALOG_PANEL_PADDING, vertical = 8.dp),
                     ) {
                         if (groups.isEmpty()) {
                             Text(
@@ -597,7 +622,7 @@ private fun CatalogFilterSheet(
                     Row(
                         Modifier
                             .fillMaxWidth()
-                            .padding(horizontal = 12.dp, vertical = 6.dp),
+                            .padding(horizontal = CATALOG_PANEL_PADDING, vertical = 6.dp),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
                         TextButton(
@@ -826,7 +851,12 @@ private fun CatalogVoiceRow(
         Modifier
             .fillMaxWidth()
             .clickable(onClick = onToggle)
-            .padding(start = 16.dp, end = 8.dp, top = 8.dp, bottom = 8.dp),
+            .padding(
+                start = CATALOG_PANEL_PADDING,
+                end = 12.dp,
+                top = 8.dp,
+                bottom = 8.dp
+            ),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         SubcomposeAsyncImage(
