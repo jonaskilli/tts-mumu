@@ -17,9 +17,9 @@ import com.github.jing332.tts_server_android.conf.AppConfig
 /**
  * 试听文本输入行：🎧=用这句文本试听。
  *
- * ⚡音频参数入口已删（用户 09-10 三键直出定稿）：音频参数键改为直接列在试听文本下方
- * （[AudioParamsDimChipsRow]，点语速/音量/音高开单维弹窗 [AudioParamsDimDialog]），
- * 不再需要行内入口。
+ * ⚡音频参数入口已删：音频参数改为**直接在试听文本下方就地展开**
+ * （[AudioParamsDimRows]，软槽分段一行三项 + 展开滑杆、默认收起——09-12 定稿，
+ * 取代 09-10 的「三键开单维弹窗」方案），本行不再需要行内入口。
  *
  * 本地音效配置（tagName=本地音效N）读写 [AppConfig.localSoundSampleText]，
  * 其余配置读写 [AppConfig.testSampleText]——两份文本互不影响（用户 09-13）。

@@ -246,9 +246,6 @@ class LocalTtsUI() : IConfigUI() {
         // 音频参数草稿快照（AudioParamsDimRows 上报）：🎧 试听带未应用草稿（用户 09-17）。
         // 本地TTS 无插件层，草稿 plugin 恒为 null，override 自动走库值兜底
         var audioDraft by remember { mutableStateOf<AudioParamsDraft?>(null) }
-        // 单维音频参数弹窗（用户 09-10 三键直出定稿：试听文本下方直接列 语速/音量/音高，
-        // 点哪个开哪个维度的弹窗；⚡总弹窗入口已删。本地 TTS 无插件层，弹窗自动只有 配置项+全局 两层）
-        var showAudioParamsDim by remember { mutableStateOf<Int?>(null) }
         // 本地音效配置（tagName=本地音效N）用专用试听文本，与全局文本互不影响（用户 09-13）
         val isLocalSound = isLocalSoundTagName((systts.config as TtsConfigurationDTO).speechRule.tagName)
         if (showAuditionDialog && auditionSystts != null) {

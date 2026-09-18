@@ -228,9 +228,6 @@ class PluginTtsUI : IConfigUI() {
         // 本次试听是否带草稿：只有「🎧 试听文本行」入口带（用户 09-17 定：切走即剥离）——
         // 上一个/下一个、行内 🎧、长按试听都是"试别的音色"，参数应走库值
         var auditionWithDraft by remember { mutableStateOf(false) }
-        // 单维音频参数弹窗（用户 09-10 三键直出定稿：试听文本下方直接列 语速/音量/音高，
-        // 点哪个开哪个维度的弹窗；⚡总弹窗入口已删）
-        var showAudioParamsDim by remember { mutableStateOf<Int?>(null) }
         // 当前试听对应的发音人ID（用于分类分配回调）
         var auditionVoiceId by remember { mutableStateOf<Any?>(null) }
         // 发音人 → 分类名（分配了分类的发音人保存时走新逻辑）
