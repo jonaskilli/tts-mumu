@@ -57,7 +57,9 @@ internal fun RestoreDialog(
         title = { Text(stringResource(id = R.string.restore)) },
         content = {
             LoadingContent(
-                Modifier.fillMaxWidth().padding(vertical = 16.dp),
+                // 只留 top 16 与标题拉开；bottom 曾也给 16，叠在 MD3 文字槽自带的
+                // 24dp 底边距上、动作键上方凭空多一段（同 AppSelectionDialog 09-18 修正）
+                Modifier.fillMaxWidth().padding(top = 16.dp),
                 isLoading = isLoading
             ) {
                 // LoadingContent 内容区是 Box，多段文字必须手动纵向排列，否则全部叠在同一位置

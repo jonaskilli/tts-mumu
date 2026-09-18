@@ -237,14 +237,12 @@ fun AuditionDialog(
                     modifier = Modifier.weight(1f)
                 )
                 IconButton(onClick = onDismissRequest) {
-                    // 24dp 默认尺寸在实机上太不起眼（目目 09-18）：加大到 28dp，
-                    // 颜色用 onSurface 比标题默认色更实——MD3 没有「右上关闭叉」部件，
-                    // 这里是我们自绘，明显性自己负责
+                    // 24dp 默认尺寸在实机上太不起眼（目目 09-18）：加大到 28dp。
+                    // 前景色不必显式给 onSurface——MD3 标题槽本来就提供（显式=冗余）
                     Icon(
                         Icons.Default.Close,
                         stringResource(id = R.string.close),
                         modifier = Modifier.size(28.dp),
-                        tint = MaterialTheme.colorScheme.onSurface,
                     )
                 }
             }
