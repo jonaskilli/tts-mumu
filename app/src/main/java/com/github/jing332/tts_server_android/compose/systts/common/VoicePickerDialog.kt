@@ -634,8 +634,7 @@ fun VoicePickerDialog(
                     Box(
                         Modifier
                             .fillMaxWidth()
-                            // 09-18 减重（目目「像顶着五指山」）：顶部整段压缩，抓手 8→2dp
-                            .padding(top = 2.dp),
+                            .padding(top = 8.dp),
                         contentAlignment = Alignment.Center,
                     ) {
                         Box(
@@ -648,13 +647,12 @@ fun VoicePickerDialog(
                         )
                     }
                     // 紧凑标题行：一行「标题 + ✕」，宽度与内容对齐。
-                    // 09-18 减重：行距 4→2dp、✕ 48→40dp（IconButton 底座常把标题行撑到 56dp，
-                    // 是头部最虚的一层）；end 4→8 让 40dp 底座（图标内缩 8dp）仍落在
-                    // 与候选行 ⋮ 同一条 16dp 右缘线上
+                    // 原 TopAppBar 是 M3 一级页面语汇（64dp 通栏 + 22sp 大标题 + 通栏分割线），
+                    // 弹窗借来用会读成「App 的一个页面」，且它与底栏相距一屏、把内容夹在中间。
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(start = 16.dp, end = 8.dp, top = 2.dp, bottom = 2.dp),
+                            .padding(start = 16.dp, end = 4.dp, top = 4.dp, bottom = 4.dp),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
                         Row(
@@ -704,11 +702,7 @@ fun VoicePickerDialog(
                         // 重置/应用，不需要统一确认）；✕ / 点遮罩=取消，原底部「取消」不再重复出现
                         // 关闭键：全屏对话框规范里导航位只用 ✕（不用 ←，← 会暗示「保存后返回」）；
                         // 底部面板同理——关闭走 ✕ / 点遮罩，不设「返回」语义。
-                        // 09-18 减重：✕ 底座 48→40dp，end 8dp 补偿内缩差、右缘线不动
-                        IconButton(
-                            onClick = onDismissRequest,
-                            modifier = Modifier.size(40.dp),
-                        ) {
+                        IconButton(onClick = onDismissRequest) {
                             Icon(
                                 Icons.Default.Close,
                                 contentDescription = stringResource(R.string.cancel)
@@ -904,8 +898,7 @@ fun VoicePickerDialog(
                 selectedIndex = panelTab,
                 onSelect = { panelTab = it },
                 modifier = Modifier
-                    // 09-18 减重：8→4dp
-                    .padding(top = 4.dp)
+                    .padding(top = 8.dp)
                     .align(Alignment.CenterHorizontally),
             )
 
@@ -1073,7 +1066,7 @@ fun VoicePickerDialog(
                         Modifier
                             .fillMaxWidth()
                             .weight(1f)
-                            .padding(top = 2.dp)
+                            .padding(top = 6.dp)
                             .verticalScroll(rememberScrollState()),
                     ) {
                         if (filtered.isEmpty()) {
@@ -1262,7 +1255,7 @@ fun VoicePickerDialog(
                         Modifier
                             .fillMaxWidth()
                             .weight(1f)
-                            .padding(top = 2.dp)
+                            .padding(top = 6.dp)
                             .verticalScroll(rememberScrollState()),
                     ) {
                         if (narrationCandidates.isEmpty()) {
