@@ -318,7 +318,9 @@ fun AppSelectionDialog(
 
 
                 LoadingContent(
-                    modifier = Modifier.padding(vertical = 16.dp),
+                    // 只留 top 16 与搜索框拉开；bottom 曾也给 16，叠在 MD3 文字槽
+                    // 自带的 24dp 底边距上，底部动作键上方凭空多一段（目目 09-18 嫌高）
+                    modifier = Modifier.padding(top = 16.dp),
                     isLoading = isLoading
                 ) {
 
