@@ -176,8 +176,6 @@ private val GROUP_TAG_KEYWORDS = listOf(
     "男主", "女主", "特殊男", "特殊女", "旁白"
 )
 
-/** 男主/特殊男/特殊女在朗读规则里不补零(男主1…男主20、特殊女1…)；女主仍两位补零(女主01…)，与规则一致 */
-private val NO_ZERO_PAD_PREFIXES = setOf("男主", "特殊男", "特殊女")
 
 
 private data class DetectedKeyword(val prefix: String, val zeroPad: Boolean)
@@ -224,7 +222,8 @@ private class GroupDerivedEntry(
 
 /**
  * 从分组名匹配固定关键词（取最长匹配）。
- * 返回前缀与是否补零：男主/特殊男/特殊女不补零，其余两位补零，与朗读规则一致。
+ * 返回前缀与是否补零：**仅男主不补零**（男主1…男主20），其余（含特殊男/特殊女）两位补零
+ * （特殊男05），口径唯一来源见 [JReadConfigMigration.NO_ZERO_PAD_PREFIXES]。
  * 无匹配时回退为原分组名作为前缀。
  */
 private fun detectTagKeyword(name: String): DetectedKeyword? {
@@ -232,7 +231,7 @@ private fun detectTagKeyword(name: String): DetectedKeyword? {
     if (name.contains("女性少年") || name.contains("男性少年")) return null
     val kw = GROUP_TAG_KEYWORDS.filter { name.contains(it) }
         .maxByOrNull { it.length } ?: return null
-    return DetectedKeyword(kw, zeroPad = kw !in NO_ZERO_PAD_PREFIXES)
+    return DetectedKeyword(kw, zeroPad = kw !in JReadConfigMigration.NO_ZERO_PAD_PREFIXES)
 }
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
@@ -659,7 +658,7 @@ internal fun ListManagerScreen(
                         // 后续项：tag = 旁白01、旁白02...（用第一项计算出的 tagName 作为前缀）
                         val subPrefix = firstRule.tagName
                         prefixItems.drop(1).forEachIndexed { idx, item ->
-                            val newTag = subPrefix + String.format("%02d", idx + 1)
+                            val newTag = JReadConfigMigration.buildTag(subPrefix, idx + 1)
                             val config = item.config as TtsConfigurationDTO
                             val newRule = config.speechRule.copy(tag = newTag)
                             computeTagNameOrFallback(context, newRule, newTag, ruleCache, engineCache)
@@ -670,7 +669,7 @@ internal fun ListManagerScreen(
                     } else {
                         // 其他标签：从01开始连续编号
                         prefixItems.forEachIndexed { idx, item ->
-                            val newTag = prefix + String.format("%02d", idx + 1)
+                            val newTag = JReadConfigMigration.buildTag(prefix, idx + 1)
                             val config = item.config as TtsConfigurationDTO
                             val newRule = config.speechRule.copy(tag = newTag)
                             computeTagNameOrFallback(context, newRule, newTag, ruleCache, engineCache)
@@ -687,7 +686,7 @@ internal fun ListManagerScreen(
                     }.sorted()
                     if (existingSeqs.size != prefixItems.size) return@forEach
                     prefixItems.forEachIndexed { idx, item ->
-                        val newTag = prefix + String.format("%02d", existingSeqs[idx])
+                        val newTag = JReadConfigMigration.buildTag(prefix, existingSeqs[idx])
                         val config = item.config as TtsConfigurationDTO
                         val newRule = config.speechRule.copy(tag = newTag)
                         computeTagNameOrFallback(context, newRule, newTag, ruleCache, engineCache)

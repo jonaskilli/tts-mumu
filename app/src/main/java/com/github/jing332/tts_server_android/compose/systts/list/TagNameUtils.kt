@@ -5,6 +5,7 @@ import android.util.Log
 import com.github.jing332.common.utils.StringUtils
 import com.github.jing332.database.dbm
 import com.github.jing332.database.entities.SpeechRule
+import com.github.jing332.database.entities.systts.JReadConfigMigration
 import com.github.jing332.database.entities.systts.SpeechRuleInfo
 import com.github.jing332.database.entities.systts.SystemTtsV2
 import com.github.jing332.database.entities.systts.TtsConfigurationDTO
@@ -187,7 +188,8 @@ internal fun expandSpeechRuleTagsIfNeeded(
             val sampleKey = rule.tags.keys.firstOrNull { it.startsWith(prefix) }
             val sampleValue = sampleKey?.let { rule.tags[it] } ?: ""
             for (i in (curMax + 1)..needMax) {
-                val seqStr = String.format("%02d", i)
+                // 补零口径唯一来源：男主不补零、其余两位（历史此处恒两位，会给男主补出「男主01」）
+                val seqStr = JReadConfigMigration.tagSeqText(prefix, i)
                 val newKey = prefix + seqStr
                 if (!newTags.containsKey(newKey)) {
                     val newValue = if (sampleValue.isNotEmpty()) {

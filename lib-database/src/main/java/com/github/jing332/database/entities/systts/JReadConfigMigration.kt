@@ -243,11 +243,11 @@ object JReadConfigMigration {
         // 主角式带空格："主角 女主01" → "女主01"（jread 脚本保留标签的常用形式）
         Regex("^主角\\s+(男主|女主)(\\d{1,3})$").matchEntire(t)?.let { m ->
             val prefix = m.groupValues[1]
-            return prefix + formatSeq(prefix, m.groupValues[2].toInt())
+            return buildTag(prefix, m.groupValues[2].toInt())
         }
         Regex("^主角(男主|女主)(\\d{1,3})$").matchEntire(t)?.let { m ->
             val prefix = m.groupValues[1]
-            return prefix + formatSeq(prefix, m.groupValues[2].toInt())
+            return buildTag(prefix, m.groupValues[2].toInt())
         }
         Regex("^(男|女)/(男童|女童|少年|少女|男青年|女青年|男中年|女中年|男老年|女老年|特殊)(\\d{1,3})$")
             .matchEntire(t)?.let { m ->
@@ -257,34 +257,45 @@ object JReadConfigMigration {
                 } else {
                     m.groupValues[2]
                 }
-                return prefix + formatSeq(prefix, m.groupValues[3].toInt())
+                return buildTag(prefix, m.groupValues[3].toInt())
             }
         // 长名特殊式：女性青年/特殊10 → 特殊女10（性别取长名主体，序号补零规则同上）
         Regex("^(女性儿童|男性儿童|女性少年|男性少年|女性青年|男性青年|女性中年|男性中年|女性老年|男性老年)/特殊(\\d{1,3})$")
             .matchEntire(t)?.let { m ->
                 val prefix = if (m.groupValues[1].startsWith("女")) "特殊女" else "特殊男"
-                return prefix + formatSeq(prefix, m.groupValues[2].toInt())
+                return buildTag(prefix, m.groupValues[2].toInt())
             }
         // 音色长名式：女性青年/通用01 → 女青年01（按 JRead old286 转换表反向）
         Regex("^(?:([男女])/)?(女性儿童|男性儿童|女性少年|男性少年|女性青年|男性青年|女性中年|男性中年|女性老年|男性老年)/通用(\\d{1,3})$")
             .matchEntire(t)?.let { m ->
                 val prefix = LONG_TO_SHORT_PREFIX[m.groupValues[2]] ?: return@let
-                return prefix + formatSeq(prefix, m.groupValues[3].toInt())
+                return buildTag(prefix, m.groupValues[3].toInt())
             }
         Regex("^(.*?\\D)(\\d{1,3})$").matchEntire(t)?.let { m ->
             val prefix = m.groupValues[1]
             if (prefix in DIRECT_TAG_PREFIXES) {
-                return prefix + formatSeq(prefix, m.groupValues[2].toInt())
+                return buildTag(prefix, m.groupValues[2].toInt())
             }
         }
         return t
     }
 
-    private fun formatSeq(prefix: String, seq: Int): String =
-        if (prefix in NO_ZERO_PAD_PREFIXES) seq.toString() else String.format("%02d", seq)
+    /**
+     * 标签序号文字：不补零前缀原样（男主1…男主20），其余补两位（特殊男05、女主01）。
+     * `%02d` 只补到两位，≥10（含三位数如 517）原样保留。
+     *
+     * ⚠️ **全 app 唯一实现，勿再复制**——历史上一键整理 / 分类入库 / 试听分类保存各自抄了一份，
+     * 且口径互不相同（`setOf("男主","特殊男","特殊女")` vs 恒两位），导致同一角色走不同入口
+     * 得到「特殊男5」与「特殊男05」两串，排序/显示不一致。目目 09-18 裁定以本口径为准。
+     */
+    fun tagSeqText(prefix: String, seq: Int): String =
+        if (prefix in NO_ZERO_PAD_PREFIXES) seq.toString() else String.format(java.util.Locale.US, "%02d", seq)
 
-    // 与用户实际使用的标签一致：仅 1–9 补成 01–09，10 及以上（含三位数如 517）原样保留；男主始终不补零（男主1…男主20）
-    private val NO_ZERO_PAD_PREFIXES = setOf("男主")
+    /** 「前缀 + 序号」完整标签（男主1、特殊男05）。 */
+    fun buildTag(prefix: String, seq: Int): String = prefix + tagSeqText(prefix, seq)
+
+    /** 不补零的前缀：**仅「男主」**（男主1…男主20）；特殊男/特殊女/女主等一律补两位。 */
+    val NO_ZERO_PAD_PREFIXES = setOf("男主")
 
     private val SEQ_PREFIXES = setOf(
         "女童", "少女", "女青年", "女中年", "女老年",

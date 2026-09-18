@@ -49,6 +49,7 @@ import com.github.jing332.compose.widgets.LoadingDialog
 import com.github.jing332.database.dbm
 import com.github.jing332.database.entities.SpeechRule
 import com.github.jing332.database.entities.plugin.Plugin
+import com.github.jing332.database.entities.systts.JReadConfigMigration
 import com.github.jing332.database.entities.systts.SystemTtsGroup
 import com.github.jing332.database.entities.systts.SystemTtsV2
 import com.github.jing332.database.entities.systts.TtsConfigurationDTO
@@ -746,15 +747,14 @@ class PluginTtsUI : IConfigUI() {
                                                     val seq = existing + 1
                                                     categoryCountMap[category] = seq
                                                     // 优先由朗读规则自定义生成（每套规则可有不同逻辑），
-                                                    // 未实现 getCategoryTag 或返回空时回退「分类名+两位序号」
+                                                    // 未实现 getCategoryTag 或返回空时回退「分类名+序号」
+                                                    // （补零口径见 JReadConfigMigration.tagSeqText：男主1、特殊男05）
                                                     // 「旁白」为单一角色分类，不带序号
                                                     val tagLabel = if (category == "旁白") {
                                                         category
                                                     } else {
                                                         ruleEngine?.getCategoryTag(category, seq)
-                                                            ?: (category + String.format(
-                                                                java.util.Locale.US, "%02d", seq
-                                                            ))
+                                                            ?: JReadConfigMigration.buildTag(category, seq)
                                                     }
                                                     newRuleData.target = SpeechTarget.TAG
                                                     newRuleData.tag = tagLabel

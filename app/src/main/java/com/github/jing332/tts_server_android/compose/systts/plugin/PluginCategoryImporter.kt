@@ -36,9 +36,6 @@ object PluginCategoryImporter {
         "特殊女", "特殊男", "女主", "男主", "旁白"
     )
 
-    /** 这些前缀的标签在朗读规则里不补零（男主1…男主20），与其余两位补零一致 */
-    private val NO_ZERO_PAD_PREFIXES = setOf("男主", "特殊男", "特殊女")
-
     /**
      * 插件分类名 → 标准人群名；不可映射返回 null（调用方原样入库且不打标签）。
      *
@@ -146,9 +143,7 @@ object PluginCategoryImporter {
                     else {
                         val tagLabel = if (category == "旁白") category
                         else ruleEngine?.getCategoryTag(category, seq)
-                            ?: (category + if (category in NO_ZERO_PAD_PREFIXES)
-                                seq.toString()
-                            else String.format(java.util.Locale.US, "%02d", seq))
+                            ?: JReadConfigMigration.buildTag(category, seq)
                         SpeechRuleInfo(
                             target = SpeechTarget.TAG,
                             tag = tagLabel,
