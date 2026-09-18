@@ -123,7 +123,8 @@ import kotlinx.coroutines.launch
  *   且它与底栏相距一屏、把内容夹在中间；
  * - 顶部（两区共用）：当前发音人 + ▶试听 + 终值行（播放链同源三层乘积，值为 1.0 的维度不显示）；
  * - [更换发音人] 绑定模式=分类下拉(含全部，带N项)+搜索+候选列表；旁白模式=只读分类框+同标签全量候选；
- *   行内试听 ▶/…/■ 状态机参照角色管理v10；换声两段式：点行=暂存(●)，底部「确认」落库；
+ *   行内试听 ▶/…/■ 状态机参照角色管理v10；换声两段式：点行=暂存（选中行染主色，无圆点标记），
+ *   底部「确认」落库；
  *   候选行 ⋮ 菜单=发音人标记(❤️🚶😈，voice_marks.json 与角色管理同源) + 删除配置项。
  * - [音频参数]（09-10 按维度改版）：语速/音量/音高第二级分段，每维三层滑杆同屏，
  *   重置/应用按维度一组（应用=该维三层一起落库，不关面板）；
@@ -1108,15 +1109,15 @@ fun VoicePickerDialog(
                             CandidateRow(
                                 text = rowText,
                                 isCurrent = isCurrent,
-                                isPending = isPending,
                                 usedBadge = usedByOthers,
                                 // 当前项染主色与候选行同口径（用户 09-13：图二绑定行当前项是黑的、
-                                // 图一非绑定行是绿的，两处不一致 → 统一 current/pending 都主色）
+                                // 图一非绑定行是绿的，两处不一致 → 统一 current/pending 都主色；
+                                // 09-18 目目：行内 ● 圆点标记废除，选中态=主色字，当前绑定另有 ✓）
                                 nameColor = if (isPending || isCurrent) MaterialTheme.colorScheme.primary
                                 else MaterialTheme.colorScheme.onSurface,
                                 onClick = {
                                     // 两段式（用户 09-08）：点行=暂存选中，底部「确认」才落库。
-                                    // 点到当前绑定的那一行时行内 ✓ 不会变（● 只在 !isCurrent 时补），
+                                    // 点到当前绑定的那一行时行内 ✓ 不会变、颜色也不变，
                                     // 看不出任何反应 → 补一句 Toast 说明，别让人以为点坏了
                                     // （「选了角色无法确认」的来源之一）
                                     if (tag == boundVoice) {
@@ -1285,7 +1286,6 @@ fun VoicePickerDialog(
                             CandidateRow(
                                 text = cfgEntity.displayName,
                                 isCurrent = isCurrent,
-                                isPending = isPending,
                                 nameColor = if (isPending && !isCurrent) MaterialTheme.colorScheme.primary
                                 else if (isCurrent) MaterialTheme.colorScheme.primary
                                 else MaterialTheme.colorScheme.onSurface,
@@ -1511,9 +1511,8 @@ fun VoicePickerDialog(
                         },
                     ) {
                         // ⚠️ 不用 enabled 灰键（「选了角色无法确认」）：灰键说不出为
-                        // 什么是灰的，键在又按不动更像坏了。恒可点 + 前置条件各给一句 Toast；
-                        // ● = 有暂存选择（两段式确认的视觉反馈）
-                        Text((if (pendingVoice != null) "● " else "") + stringResource(R.string.confirm))
+                        // 什么是灰的，键在又按不动更像坏了。恒可点 + 前置条件各给一句 Toast
+                        Text(stringResource(R.string.confirm))
                     }
                 }
             }
@@ -1642,7 +1641,6 @@ private fun VoiceOverflowMenu(
 private fun CandidateRow(
     text: String,
     isCurrent: Boolean,
-    isPending: Boolean,
     nameColor: Color,
     onClick: () -> Unit,
     previewText: String,
@@ -1671,7 +1669,7 @@ private fun CandidateRow(
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Text(
-                (if (isCurrent) "✓ " else "") + (if (isPending && !isCurrent) "● " else "") + text,
+                (if (isCurrent) "✓ " else "") + text,
                 modifier = Modifier.weight(1f, fill = false),
                 style = MaterialTheme.typography.bodyMedium,
                 maxLines = 1,
