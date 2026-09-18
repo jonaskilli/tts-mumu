@@ -12,11 +12,8 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.NavigateBefore
 import androidx.compose.material.icons.automirrored.filled.NavigateNext
-import androidx.compose.material.icons.filled.Close
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
-import androidx.compose.foundation.layout.size
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -228,22 +225,20 @@ fun AuditionDialog(
 
     AppDialog(
         onDismissRequest = onDismissRequest,
-        // 批量分类态的退出键放顶部 ✕（目目 09-17：底部塞 上一个/下一个/关闭 三枚
-        // 会溢出，末尾那枚被挤成竖排「关/闭」；与其它弹窗 ✕ 在右上角的惯例一致）
+        // 退出键形态（目目 09-18 拍板方案①）：批量分类态=标题行「关闭」文字键——
+        // 图标 ✕ 实机太不显眼（24/28dp 都试过），文字键直白且顶部锚定零溢出风险
+        // （三枚键同排塞底部历史失败：内容宽 ~264dp 塞不下，末尾被挤成竖排）；
+        // 单条试听态底部本就有「关闭」，标题行不再重复放退出键
         title = {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
                     stringResource(id = R.string.audition),
                     modifier = Modifier.weight(1f)
                 )
-                IconButton(onClick = onDismissRequest) {
-                    // 24dp 默认尺寸在实机上太不起眼（目目 09-18）：加大到 28dp。
-                    // 前景色不必显式给 onSurface——MD3 标题槽本来就提供（显式=冗余）
-                    Icon(
-                        Icons.Default.Close,
-                        stringResource(id = R.string.close),
-                        modifier = Modifier.size(28.dp),
-                    )
+                if (onPrev != null || onNext != null) {
+                    TextButton(onClick = onDismissRequest) {
+                        Text(stringResource(id = R.string.close))
+                    }
                 }
             }
         },
