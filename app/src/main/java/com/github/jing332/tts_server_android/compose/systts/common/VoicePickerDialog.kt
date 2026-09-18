@@ -5,8 +5,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
-import androidx.compose.foundation.layout.WindowInsets
-import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.Spacer
@@ -21,7 +20,6 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.navigationBarsPadding
-import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.material.icons.Icons
@@ -32,10 +30,6 @@ import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.ModalBottomSheet
-import androidx.compose.material3.SheetValue
-import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -65,6 +59,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 import com.drake.net.utils.withIO
 import com.drake.net.utils.withMain
 import com.github.jing332.common.utils.toParamText
@@ -102,9 +98,7 @@ import kotlinx.coroutines.launch
  * → **底部面板+定高+定头单滚动**）：
  * 全屏方案的病根是高度写死成屏高（音频参数段只占半屏多，下方四成空着）；随后试「高度跟着内容
  * 走」，又暴露三个毛病——切 tab 面板长高/缩矮、搜索每敲一个字面板跟着缩、候选只剩一两条时面板
- * 塌成小条。故取固定档位：**面板恒为可用高的 88%**（09-18 回定：早间因底部「确认」动作行
- * 占 ~52dp 上调过 92%，动作行已撤、确认回标题行，目目实机对比拍板回 88%；仍恒定不变，
- * 两段、任意候选数都不变）。
+ * 塌成小条。故取固定档位：**面板恒为可用高的 88%**，两段、任意候选数都不变。
  * ⚠️ 两条必须在的口径（都是 09-14 晚实测踩出来的）：
  * ① 高度基准取**弹窗窗口的真实可用高**（BoxWithConstraints 的 maxHeight），不用
  *    Configuration.screenHeightDp——后者来自设备显示配置，偏大时面板底缘被顶出屏幕；而底栏
@@ -124,8 +118,7 @@ import kotlinx.coroutines.launch
  *   且它与底栏相距一屏、把内容夹在中间；
  * - 顶部（两区共用）：当前发音人 + ▶试听 + 终值行（播放链同源三层乘积，值为 1.0 的维度不显示）；
  * - [更换发音人] 绑定模式=分类下拉(含全部，带N项)+搜索+候选列表；旁白模式=只读分类框+同标签全量候选；
- *   行内试听 ▶/…/■ 状态机参照角色管理v10；换声两段式：点行=暂存（选中行染主色，无圆点标记），
- *   标题行「确认」落库；
+ *   行内试听 ▶/…/■ 状态机参照角色管理v10；换声两段式：点行=暂存(●)，底部「确认」落库；
  *   候选行 ⋮ 菜单=发音人标记(❤️🚶😈，voice_marks.json 与角色管理同源) + 删除配置项。
  * - [音频参数]（09-10 按维度改版）：语速/音量/音高第二级分段，每维三层滑杆同屏，
  *   重置/应用按维度一组（应用=该维三层一起落库，不关面板）；
@@ -250,8 +243,9 @@ fun VoicePickerDialog(
     fun previewLabelColor(key: Any?): Color =
         if (previewingKey == key) MaterialTheme.colorScheme.tertiary else Color.Unspecified
 
-    // 面板分段：0=更换发音人 1=音频参数。提升到容器之前声明——标题行确认键也要读它
-    //（09-09 CI 教训：content 槽内声明的局部状态对 buttons 槽不可见；现确认键/正文两处共用，
+    // 面板分段：0=更换发音人 1=音频参数。提升到容器之前声明——底部动作行也要读它
+    //（09-09 CI 教训：content 槽内声明的局部状态对 buttons 槽不可见；09-14 改全屏后虽不再有
+    //  buttons 槽，但顶栏/底栏/正文三处仍共用它，保持这个「先声明后用」的位置）
     var panelTab by remember(entity.id) { mutableStateOf(0) }
 
     // ===== 本地编辑草稿：各维度「应用」才落库 =====
@@ -261,7 +255,7 @@ fun VoicePickerDialog(
     var volume by remember(entity.id) { mutableStateOf(config.audioParams.volume) }
     var pitch by remember(entity.id) { mutableStateOf(config.audioParams.pitch) }
 
-    // 换声两段式（用户 09-08）：点候选行=暂存选中（不落库），标题行「确认」键才生效——
+    // 换声两段式（用户 09-08）：点候选行=暂存选中（不落库），底部「确认」键才生效——
     // 即点即改的 Toast 反馈太弱且易误触；未确认选择在关闭面板时自然丢弃
     var pendingVoice by remember(entity.id) { mutableStateOf<String?>(null) }
     // 添加角色模式：角色名在弹窗内填写（终版：不弹独立名字窗），
@@ -589,48 +583,65 @@ fun VoicePickerDialog(
     // 旧居中弹窗被 MD3 24dp 内边距挤成 275dp 的老毛病。
     // 仍是 Dialog 语义，**不改成 Activity**（密钥管理那条路）：角色管理插件靠 VoicePickerBus
     // 提交请求、弹窗内变化再经 notifyMutated 回喊 JS，跨页面会让这条回喊链变脆。
-    // 关闭出口：✕ 或点遮罩（底部面板有 scrim，无需强制只在 ✕ 上）；确认键已回标题行——
+    // 关闭出口：✕ 或点遮罩（底部面板有 scrim，无需强制只在 ✕ 上）；确认动作仍留底部栏——
     // 换声段它是落库出口，面板定高后它就贴在面板底缘（不再"跟着内容浮上来"）。
-    // 外壳换 M3 ModalBottomSheet（09-18 实验定论：音色广场/筛选已实机验证，MBS 弹层窗口
-    // 能逃过 OriginOS 把 Compose Dialog 窗口排版下移出屏的毛病，贴底动作行完整可见）。
-    // ⚠️ 本面板首次换内核，插件桥回喊链（VoicePickerBus）理论无影响（MBS 内部同样是
-    // Dialog 窗口语义），实机仍按验点过一遍：换声确认 → JS 变量/朗读生效。
-    val sheetState = rememberModalBottomSheetState(
-        skipPartiallyExpanded = true,
-        // 防误关（目目 09-18）：底部弹窗里划列表选发音人，手势稍带下就整面板被拖走关掉。
-        // 禁掉 Hidden 终点 ⇒ 下滑只回弹不关；关闭仍走 ✕ / 点遮罩 / 返回键三条路
-        confirmValueChange = { it != SheetValue.Hidden },
-    )
-    ModalBottomSheet(
+    Dialog(
         onDismissRequest = onDismissRequest,
-        sheetState = sheetState,
-        containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
-        dragHandle = null,
-        // 系统栏间距自己管（内层 Column navigationBarsPadding），避免默认 insets 叠加双份
-        contentWindowInsets = { WindowInsets(0, 0, 0, 0) },
+        // decorFitsSystemWindows = false：弹窗窗口走 edge-to-edge（应用本体是 enableEdgeToEdge），
+        // 让遮罩真的盖住状态栏 / 导航栏区域；若保留默认 true，窗口会被系统栏内缩，状态栏一带
+        // 会露出没被压暗的上一个界面。
+        properties = DialogProperties(
+            usePlatformDefaultWidth = false,
+            decorFitsSystemWindows = false,
+        ),
     ) {
-        Column(
+        Box(
             Modifier
-                .fillMaxWidth()
-                // 88%：09-18 回定（早间因底部「确认」动作行占 ~52dp 上调 92%，动作行已撤、
-                // 确认回标题行，目目拍板回 88%）。
-                // 不按条数自适应：搜索过滤会让条数跨阈值、面板跟着跳档，正是恒定档位
-                // 当初要杀的抖动（见类注释「固定档位」一段）
-                .fillMaxHeight(0.88f)
-                .navigationBarsPadding()
-                // 键盘让位：换声区一弹键盘，候选列表下半截会被盖住
-                .imePadding()
-                // 面板本体先吃掉落在空白处的点击，防止误触 scrim 关窗
-                .clickable(
-                    indication = null,
-                    interactionSource = remember { MutableInteractionSource() },
-                ) {}
+                .fillMaxSize()
+                // 键盘让位：decorFitsSystemWindows=false 后窗口不再被 IME 顶起，换声区一弹键盘，
+                // 候选列表下半截会被盖住。面板底对齐，imePadding 让它整体浮到键盘之上。
+                .imePadding(),
+            contentAlignment = Alignment.BottomCenter,
         ) {
+            // ⚠️ 高度基准必须取「弹窗窗口的真实可用高」，**不能**用 Configuration.screenHeightDp
+            //（实锤「面板里看不到确认键」的根因）：screenHeightDp 来自设备显示配置，
+            // 与弹窗窗口实际拿到的高度不一定相等，偏大时面板底缘被顶出屏幕——而底栏正在面板最下缘，
+            // 于是整条「取消/确认」看不见也点不到。BoxWithConstraints 拿的是本窗口的真实约束，
+            // 面板高恒由它派生，结构上不可能超出可视区。
+            BoxWithConstraints(
+                Modifier.fillMaxSize(),
+                contentAlignment = Alignment.BottomCenter,
+            ) {
+            // 统一定高档位 88% 可用高（拍板 72%→88%）：头部四层（标题 / 分段 /
+            // 当前发音人+终值 / 分类+搜索）重构后全部固定不滚，候选列表仍能露约 8 行，
+            // 接近真·底部弹窗的体量；键盘弹出时外层 imePadding 已先把可用高收掉，
+            // 面板随之变矮，不会顶出屏幕。
+            val sheetHeight = maxHeight * 0.88f
+            // 关闭热区：面板以外的区域点一下即关（全屏方案铺满时无 scrim 可点，只能靠 ✕）。
+            // 不填色——压暗交给 Dialog 窗口自带的 dim（Compose Dialog 固定带，DialogProperties
+            // 没有 dimAmount 可调），自绘一层会与它叠加成过暗
+            Box(
+                Modifier
+                    .fillMaxSize()
+                    .clickable(
+                        indication = null,
+                        interactionSource = remember { MutableInteractionSource() },
+                    ) { onDismissRequest() }
+            )
+            Surface(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(sheetHeight),
+                // M3 底部面板：仅顶部两角 28dp 圆角，底边贴屏——系统栏间距交给内层 Column 的
+                // navigationBarsPadding，面板本体不缩，视觉上仍是「从底部升起」
+                shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp),
+                color = MaterialTheme.colorScheme.surfaceContainerHigh,
+            ) {
+                Column(Modifier.navigationBarsPadding()) {
                     // 拖拽把（「做成底部弹窗的样式」）：M3 底部弹窗的识别特征就是
-                    // 顶部这条 4dp×32dp 抓手。09-18 起外壳已是真 ModalBottomSheet，但
-                    // dragHandle=null 关掉官方拖拽、沿用这条自绘标记——面板下滑已被
-                    // confirmValueChange 禁关（只回弹），这条纯装饰不再有误关风险；
-                    // 插件桥回喊链靠 Dialog 窗口语义，勿改 Activity。
+                    // 顶部这条 4dp×32dp 抓手。本面板是 Dialog 自绘的（插件桥靠 VoicePickerBus +
+                    // Dialog 语义回喊 JS，不能换 Activity），所以它只是形态标记、不可拖动——
+                    // 真拖拽版要换 ModalBottomSheet，留作下一轮（换了要重验那条回喊链）。
                     Box(
                         Modifier
                             .fillMaxWidth()
@@ -696,11 +707,11 @@ fun VoicePickerDialog(
                                 Text(stringResource(R.string.voice_picker_info_card))
                             }
                         }
-                        // 确认键回标题行（目目 09-18 终版拍板：底部动作行试了一轮还是顶部顺手，
-                        // 整体回退 6bbba2a 的「确认回底部」；顶部锚定对「贴底被导航栏裁」结构性免疫）。
-                        // 仅换声区显示（音频参数各块自带重置/应用）；✕ / 点遮罩=取消
+                        // 确认键挪进标题行（拍板方案 A）：底栏贴面板底缘，Dialog 窗口
+                        // 拿不到导航栏 insets，两轮修复（窗口真实可用高定高 / 20dp 保底间隙）都压不住
+                        // 「确认键被裁」，顶部锚定结构性免疫。仅换声区显示（音频参数各块自带
+                        // 重置/应用，不需要统一确认）；✕ / 点遮罩=取消，原底部「取消」不再重复出现
                         if (panelTab == 0) {
-                            // 动作键一律纯文字 TextButton（目目 09-17：不要框和填充色）
                             TextButton(
                                 onClick = {
                                     val selected = pendingVoice
@@ -832,7 +843,7 @@ fun VoicePickerDialog(
                                 },
                             ) {
                                 // ⚠️ 不用 enabled 灰键（「选了角色无法确认」）：灰键说不出为
-                                // 什么是灰的，键在又按不动更像坏了。恒可点 + 前置条件各给一句 Toast
+                                // 什么是灰的，键在又按不动更像坏了。恒可点 + 前置条件各给一句 Toast；
                                 Text(stringResource(R.string.confirm))
                             }
                         }
@@ -940,13 +951,12 @@ fun VoicePickerDialog(
                         }
                     }
                     // ▶ 同候选行方案A：裸字符可点替代 TextButton（单字符占 58dp 底座，顶栏紧巴巴），
-                    // 16dp 字形+两侧 12dp ≈40dp，上下 12dp 凑满 48dp 触控高；09-18 end 4dp 与候选行同距
+                    // 16dp 字形+两侧 12dp ≈40dp，上下 12dp 凑满 48dp 触控高
                     Text(
                         previewLabel(PREVIEW_KEY_CURRENT),
                         color = previewLabelColor(PREVIEW_KEY_CURRENT),
                         style = MaterialTheme.typography.titleMedium,
-                        modifier = Modifier
-                            .clickable {
+                        modifier = Modifier.clickable {
                             // 试听当前声音（09-10 参数跟随）：绑定模式=跟随目标+草稿；
                             // 旁白=本配置项+暂存voice+草稿；播放中/合成中再点=停止复位（角色管理同款交互）
                             if (previewingKey == PREVIEW_KEY_CURRENT && previewState != PreviewState.IDLE) {
@@ -981,8 +991,7 @@ fun VoicePickerDialog(
                     )
                     // ⋮ 菜单（用户 09-17 方案A）：打开面板想删当前这条配置项，得关掉面板回列表翻半天，
                     // 就地给一个入口。菜单项与候选行同源（标记 + 删除配置项），零学习成本。
-                    // 宽度账：360dp 屏 − 面板左右 32dp − ▶ 40dp − ⋮ 40dp ⇒ 名字区仍有约 240dp，单行省略
-                    // 09-18 offset 8dp（底座 48→40）：⋮ 与候选行、标题行 ✕ 共用一条 16dp 右缘线（目目嫌 ⋮ 偏里）
+                    // 宽度账：360dp 屏 − 面板左右 32dp − ▶ 40dp − ⋮ 48dp ⇒ 名字区仍有约 240dp，单行省略
                     VoiceOverflowMenu(
                         marks = topMarks,
                         onToggleMark = { mark ->
@@ -997,7 +1006,6 @@ fun VoicePickerDialog(
                         },
                         deleteEnabled = topDeleteTarget != null,
                         onDelete = { topDeleteTarget?.let { deleteConfirmTarget = it } },
-                        modifier = Modifier.offset(x = 8.dp),
                     )
                 }
             }
@@ -1244,15 +1252,15 @@ fun VoicePickerDialog(
                             CandidateRow(
                                 text = rowText,
                                 isCurrent = isCurrent,
+                                isPending = isPending,
                                 usedBadge = usedByOthers,
                                 // 当前项染主色与候选行同口径（用户 09-13：图二绑定行当前项是黑的、
-                                // 图一非绑定行是绿的，两处不一致 → 统一 current/pending 都主色；
-                                // 09-18 目目：行内 ● 圆点标记废除，选中态=主色字，当前绑定另有 ✓）
+                                // 图一非绑定行是绿的，两处不一致 → 统一 current/pending 都主色）
                                 nameColor = if (isPending || isCurrent) MaterialTheme.colorScheme.primary
                                 else MaterialTheme.colorScheme.onSurface,
                                 onClick = {
-                                    // 两段式（用户 09-08）：点行=暂存选中，标题行「确认」才落库。
-                                    // 点到当前绑定的那一行时行内 ✓ 不会变、颜色也不变，
+                                    // 两段式（用户 09-08）：点行=暂存选中，底部「确认」才落库。
+                                    // 点到当前绑定的那一行时行内 ✓ 不会变（● 只在 !isCurrent 时补），
                                     // 看不出任何反应 → 补一句 Toast 说明，别让人以为点坏了
                                     // （「选了角色无法确认」的来源之一）
                                     if (tag == boundVoice) {
@@ -1421,11 +1429,12 @@ fun VoicePickerDialog(
                             CandidateRow(
                                 text = cfgEntity.displayName,
                                 isCurrent = isCurrent,
+                                isPending = isPending,
                                 nameColor = if (isPending && !isCurrent) MaterialTheme.colorScheme.primary
                                 else if (isCurrent) MaterialTheme.colorScheme.primary
                                 else MaterialTheme.colorScheme.onSurface,
                                 onClick = {
-                                    // 两段式（用户 09-08）：点行=暂存选中，标题行「确认」才写配置项 voice
+                                    // 两段式（用户 09-08）：点行=暂存选中，底部「确认」才写配置项 voice
                                     pendingVoice = v
                                 },
                                 previewText = previewLabel(v),
@@ -1503,9 +1512,15 @@ fun VoicePickerDialog(
                 }
             }
             } // 内容 Column 收尾（本区不滚：只有候选列表/音频参数段自带内滚）
-
-        } // ModalBottomSheet 内容 Column 收尾
-    } // ModalBottomSheet 收尾
+            // 底部「取消/确定」动作行已删（拍板方案 A）：确认键挪进标题行——
+            // 底栏贴面板底缘，Dialog 窗口拿不到导航栏 insets（navigationBarsPadding=0），
+            // 定高/20dp 保底两轮修复都压不住「确认键被裁」；顶部锚定结构性免疫，
+            // 内容区 weight(1f) 直接吃满面板底。取消语义由 ✕ / 点遮罩承担。
+                } // navigationBarsPadding Column 收尾
+            } // Surface 面板收尾
+            } // BoxWithConstraints（弹窗窗口真实可用高）收尾
+        } // Box（遮罩 + 底部对齐）收尾
+    } // Dialog 收尾
 
     // 删除确认弹窗（⋮ 菜单 🗑 入口；深夜定稿：删除的粒度就是「你点的那一条配置项」，
     // 文案照插件 doDeleteVoiceAndReassign 口径、把「发音人」统一成「配置项」）：标题行=【tag - 显示名】，
@@ -1575,15 +1590,10 @@ private fun VoiceOverflowMenu(
     onToggleMark: (String) -> Unit,
     deleteEnabled: Boolean,
     onDelete: () -> Unit,
-    // 行尾对齐用：40dp IconButton 自带 8dp 图标内缩，行内再无右缘 padding 时图标右缘
-    // 落在面板 16dp 内边距线上偏里 8dp；调用方传 offset(8dp) 右移到与标题行 ✕ 同一条右缘线
-    modifier: Modifier = Modifier,
 ) {
     var menuOpen by remember { mutableStateOf(false) }
-    Box(modifier = modifier) {
-        // 48→40dp（目目 09-18：▶ 与 ⋮ 之间全是触控底座留白、观感太远；M3 下 40dp 视觉
-        // 底座仍享有 48dp 最小触控补偿，触控面积不缩水）
-        IconButton(onClick = { menuOpen = true }, modifier = Modifier.size(40.dp)) {
+    Box {
+        IconButton(onClick = { menuOpen = true }) {
             Icon(Icons.Filled.MoreVert, contentDescription = "更多操作")
         }
         DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
@@ -1631,6 +1641,7 @@ private fun VoiceOverflowMenu(
 private fun CandidateRow(
     text: String,
     isCurrent: Boolean,
+    isPending: Boolean,
     nameColor: Color,
     onClick: () -> Unit,
     previewText: String,
@@ -1648,9 +1659,8 @@ private fun CandidateRow(
         Modifier
             .fillMaxWidth()
             .clickable(onClick = onClick)
-            // 水平 10→6dp（用户 09-13 方案A：行宽紧，省 8dp 给名字）；09-18 去 end——
-            // 右缘让 ⋮ 的 IconButton 自身内缩 + offset 直接对齐面板 16dp 右缘线
-            .padding(start = 6.dp, top = 2.dp, bottom = 2.dp),
+            // 水平 10→6dp（用户 09-13 方案A：行宽紧，省 8dp 给名字）
+            .padding(horizontal = 6.dp, vertical = 2.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         // 名字+标记包一层 weight(1f)：操作键钉在行尾，不随标记数量漂移
@@ -1694,24 +1704,20 @@ private fun CandidateRow(
         }
         // ▶ 用裸字符可点替代 TextButton（用户 09-13 方案A）：TextButton 单字符却占 58dp
         // 按钮底座，缩成「16dp 字形+两侧 12dp」≈40dp 宽、上下 12dp 凑满 48dp 触控高；
-        // 颜色沿用调用方（播放中=tertiary，默认走 LocalContentColor）。
-        // 09-18 end→0：▶ 与行尾 ⋮ 之间全是 ⋮ 触控底座的留白（字形间隙 ~37dp），目目嫌远
-        // ——收掉 ▶ 自身尾距 + ⋮ 底座 48→40dp，观感收到 ~25dp；右缘线不动
+        // 颜色沿用调用方（播放中=tertiary，默认走 LocalContentColor）
         Text(
             previewText,
             color = previewColor,
             style = MaterialTheme.typography.titleMedium,
             modifier = Modifier
                 .clickable(onClick = onPreview)
-                .padding(start = 12.dp, top = 12.dp, bottom = 12.dp),
+                .padding(horizontal = 12.dp, vertical = 12.dp),
         )
         VoiceOverflowMenu(
             marks = marks,
             onToggleMark = onToggleMark,
             deleteEnabled = deleteEnabled,
             onDelete = onDelete,
-            // 8dp = 抵消 40dp IconButton 的图标内缩，⋮ 与标题行 ✕ 共用一条 16dp 右缘线
-            modifier = Modifier.offset(x = 8.dp),
         )
     }
 }
