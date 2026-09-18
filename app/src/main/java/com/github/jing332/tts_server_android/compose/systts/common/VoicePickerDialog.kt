@@ -21,6 +21,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.material.icons.Icons
@@ -33,6 +34,7 @@ import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.SheetValue
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.DropdownMenu
@@ -592,7 +594,12 @@ fun VoicePickerDialog(
     // 能逃过 OriginOS 把 Compose Dialog 窗口排版下移出屏的毛病，贴底动作行完整可见）。
     // ⚠️ 本面板首次换内核，插件桥回喊链（VoicePickerBus）理论无影响（MBS 内部同样是
     // Dialog 窗口语义），实机仍按验点过一遍：换声确认 → JS 变量/朗读生效。
-    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    val sheetState = rememberModalBottomSheetState(
+        skipPartiallyExpanded = true,
+        // 防误关（目目 09-18）：底部弹窗里划列表选发音人，手势稍带下就整面板被拖走关掉。
+        // 禁掉 Hidden 终点 ⇒ 下滑只回弹不关；关闭仍走 ✕ / 点遮罩 / 返回键三条路
+        confirmValueChange = { it != SheetValue.Hidden },
+    )
     ModalBottomSheet(
         onDismissRequest = onDismissRequest,
         sheetState = sheetState,
@@ -620,8 +627,9 @@ fun VoicePickerDialog(
         ) {
                     // 拖拽把（「做成底部弹窗的样式」）：M3 底部弹窗的识别特征就是
                     // 顶部这条 4dp×32dp 抓手。09-18 起外壳已是真 ModalBottomSheet，但
-                    // dragHandle=null 关掉官方拖拽、沿用这条自绘标记——换声面板内滚区多，
-                    // 拖拽下滑误关的代价大于收益；插件桥回喊链靠 Dialog 窗口语义，勿改 Activity。
+                    // dragHandle=null 关掉官方拖拽、沿用这条自绘标记——面板下滑已被
+                    // confirmValueChange 禁关（只回弹），这条纯装饰不再有误关风险；
+                    // 插件桥回喊链靠 Dialog 窗口语义，勿改 Activity。
                     Box(
                         Modifier
                             .fillMaxWidth()
@@ -795,12 +803,14 @@ fun VoicePickerDialog(
                         }
                     }
                     // ▶ 同候选行方案A：裸字符可点替代 TextButton（单字符占 58dp 底座，顶栏紧巴巴），
-                    // 16dp 字形+两侧 12dp ≈40dp，上下 12dp 凑满 48dp 触控高
+                    // 16dp 字形+两侧 12dp ≈40dp，上下 12dp 凑满 48dp 触控高；09-18 end 4dp 与候选行同距
                     Text(
                         previewLabel(PREVIEW_KEY_CURRENT),
                         color = previewLabelColor(PREVIEW_KEY_CURRENT),
                         style = MaterialTheme.typography.titleMedium,
-                        modifier = Modifier.clickable {
+                        modifier = Modifier
+                            .padding(end = 4.dp)
+                            .clickable {
                             // 试听当前声音（09-10 参数跟随）：绑定模式=跟随目标+草稿；
                             // 旁白=本配置项+暂存voice+草稿；播放中/合成中再点=停止复位（角色管理同款交互）
                             if (previewingKey == PREVIEW_KEY_CURRENT && previewState != PreviewState.IDLE) {
@@ -836,6 +846,7 @@ fun VoicePickerDialog(
                     // ⋮ 菜单（用户 09-17 方案A）：打开面板想删当前这条配置项，得关掉面板回列表翻半天，
                     // 就地给一个入口。菜单项与候选行同源（标记 + 删除配置项），零学习成本。
                     // 宽度账：360dp 屏 − 面板左右 32dp − ▶ 40dp − ⋮ 48dp ⇒ 名字区仍有约 240dp，单行省略
+                    // 09-18 offset 12dp：⋮ 与候选行、标题行 ✕ 共用一条 16dp 右缘线（目目嫌 ⋮ 偏里）
                     VoiceOverflowMenu(
                         marks = topMarks,
                         onToggleMark = { mark ->
@@ -850,6 +861,7 @@ fun VoicePickerDialog(
                         },
                         deleteEnabled = topDeleteTarget != null,
                         onDelete = { topDeleteTarget?.let { deleteConfirmTarget = it } },
+                        modifier = Modifier.offset(x = 12.dp),
                     )
                 }
             }
@@ -1576,9 +1588,12 @@ private fun VoiceOverflowMenu(
     onToggleMark: (String) -> Unit,
     deleteEnabled: Boolean,
     onDelete: () -> Unit,
+    // 行尾对齐用：IconButton 自带 12dp 图标内缩，行内再无右缘 padding 时图标右缘
+    // 落在面板 16dp 内边距线上偏里 12dp；调用方传 offset 右移到与标题行 ✕ 同一条右缘线
+    modifier: Modifier = Modifier,
 ) {
     var menuOpen by remember { mutableStateOf(false) }
-    Box {
+    Box(modifier = modifier) {
         IconButton(onClick = { menuOpen = true }) {
             Icon(Icons.Filled.MoreVert, contentDescription = "更多操作")
         }
@@ -1645,8 +1660,9 @@ private fun CandidateRow(
         Modifier
             .fillMaxWidth()
             .clickable(onClick = onClick)
-            // 水平 10→6dp（用户 09-13 方案A：行宽紧，省 8dp 给名字）
-            .padding(horizontal = 6.dp, vertical = 2.dp),
+            // 水平 10→6dp（用户 09-13 方案A：行宽紧，省 8dp 给名字）；09-18 去 end——
+            // 右缘让 ⋮ 的 IconButton 自身内缩 + offset 直接对齐面板 16dp 右缘线
+            .padding(start = 6.dp, top = 2.dp, bottom = 2.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         // 名字+标记包一层 weight(1f)：操作键钉在行尾，不随标记数量漂移
@@ -1690,20 +1706,23 @@ private fun CandidateRow(
         }
         // ▶ 用裸字符可点替代 TextButton（用户 09-13 方案A）：TextButton 单字符却占 58dp
         // 按钮底座，缩成「16dp 字形+两侧 12dp」≈40dp 宽、上下 12dp 凑满 48dp 触控高；
-        // 颜色沿用调用方（播放中=tertiary，默认走 LocalContentColor）
+        // 颜色沿用调用方（播放中=tertiary，默认走 LocalContentColor）。
+        // 09-18 end 12→4：与行尾 ⋮ 的图标内缩叠出来曾隔 30dp，目目嫌远，收一半
         Text(
             previewText,
             color = previewColor,
             style = MaterialTheme.typography.titleMedium,
             modifier = Modifier
                 .clickable(onClick = onPreview)
-                .padding(horizontal = 12.dp, vertical = 12.dp),
+                .padding(start = 12.dp, end = 4.dp, top = 12.dp, bottom = 12.dp),
         )
         VoiceOverflowMenu(
             marks = marks,
             onToggleMark = onToggleMark,
             deleteEnabled = deleteEnabled,
             onDelete = onDelete,
+            // 12dp = 抵消 IconButton 图标内缩，⋮ 与标题行 ✕ 共用一条 16dp 右缘线
+            modifier = Modifier.offset(x = 12.dp),
         )
     }
 }
