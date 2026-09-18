@@ -16,6 +16,7 @@ import androidx.compose.material.icons.filled.Close
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.foundation.layout.size
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -236,7 +237,15 @@ fun AuditionDialog(
                     modifier = Modifier.weight(1f)
                 )
                 IconButton(onClick = onDismissRequest) {
-                    Icon(Icons.Default.Close, stringResource(id = R.string.close))
+                    // 24dp 默认尺寸在实机上太不起眼（目目 09-18）：加大到 28dp，
+                    // 颜色用 onSurface 比标题默认色更实——MD3 没有「右上关闭叉」部件，
+                    // 这里是我们自绘，明显性自己负责
+                    Icon(
+                        Icons.Default.Close,
+                        stringResource(id = R.string.close),
+                        modifier = Modifier.size(28.dp),
+                        tint = MaterialTheme.colorScheme.onSurface,
+                    )
                 }
             }
         },
