@@ -21,13 +21,14 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Bolt
 import androidx.compose.material.icons.filled.Checklist
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.Edit
-import androidx.compose.material.icons.filled.RemoveCircleOutline
+import androidx.compose.material.icons.filled.PlaylistRemove
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -57,8 +58,10 @@ import org.burnoutcrew.reorderable.reorderable
 
 /**
  * 启用池页（密钥管理页的子页，页内全屏覆盖）：启用中的密钥按**轮换顺序**平铺。
- * 顶栏：「测试全部」文字键（并发 4 路，回调在主页）+ ☑ 多选（批量移出）。
- * 行：大序号徽章 + 名称 / 副行（分组 · 密钥尾号，异组同名模型靠它分辨）+ 测试灯 + ⚡ 单测 + ⊖ 移出。
+ * 顶栏：「⚡测试全部」描边键（并发 4 路，回调在主页；用户 0919：加框 + ⚡，不带颜色）+ ☑ 多选（批量移出）。
+ * 行 = 两行式（用户 0919：副标题独占第二行、整行宽，不再被图标挤到截断）：
+ *   第一行 = 序号徽章（实心主题色反白）+ 模型名 + 闪电（颜色=测试结果，兼单测动作）+ ⧉复制 ✏编辑 ⊖移出；
+ *   第二行 = 分组名 · *尾号（异组同名模型靠它分辨）。
  * ⊖ 移出 = 只移出池、密钥本体保留（可逆，主页多选可再加回）；真删除只在密钥管理页（🗑 + 二次确认）。
  * 排序 = 长按拖动（照主界面 reorderable 同款，放手落位、序号自动重排）；多选模式下禁拖。
  * 底层 = miyue.txt 启用池（KeyListFile.savePool 三写），朗读规则 DualKeyManager 按此顺序轮换，
@@ -96,21 +99,6 @@ private fun resolvePoolRow(
     val groupTitle = titleByEntry[entry.name]
     val tail = KeyListFile.parseKeyValue(entry.value)?.key?.takeLast(4)
     return PoolRowInfo(KeyListFile.displayName(entry), groupTitle, tail, false, norm)
-}
-
-/** 测试灯（与主页条目卡同款语义：绿通/红挂/空心未测） */
-@Composable
-private fun PoolTestDot(testOk: Boolean?) {
-    val dot = when {
-        testOk == true -> TEST_PASS_COLOR
-        testOk == false -> MaterialTheme.colorScheme.error
-        else -> MaterialTheme.colorScheme.outlineVariant
-    }
-    if (testOk != null) {
-        Box(Modifier.size(8.dp).background(dot, CircleShape))
-    } else {
-        Box(Modifier.size(8.dp).border(1.dp, dot, CircleShape))
-    }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -161,26 +149,36 @@ internal fun KeyPoolScreen(
                     }
                 },
                 actions = {
-                    // 测试全部：文字键（0919 拍板不用图标）；测试中转小圈并禁点
+                    // 「⚡测试全部」描边键（用户 0919 终稿：加框 + ⚡，不带颜色）；
+                    // 测试中转小圈并禁点
                     Box(
                         Modifier
-                            .heightIn(min = 48.dp)
+                            .padding(horizontal = 6.dp)
+                            .heightIn(min = 32.dp)
+                            .border(1.dp, MaterialTheme.colorScheme.outline, RoundedCornerShape(16.dp))
                             .clickable(
                                 enabled = pool.isNotEmpty() && !batchTesting,
                                 onClick = onTestAll
                             )
                             .padding(horizontal = 10.dp),
-                        contentAlignment = Alignment.CenterStart
+                        contentAlignment = Alignment.Center
                     ) {
                         if (batchTesting) {
                             CircularProgressIndicator(Modifier.size(16.dp), strokeWidth = 2.dp)
                         } else {
-                            // 用户 0919 实机：默认灰不显眼，改主题色突出
-                            Text(
-                                stringResource(R.string.role_key_pool_test_all),
-                                style = MaterialTheme.typography.labelLarge,
-                                color = MaterialTheme.colorScheme.primary,
-                            )
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(
+                                    Icons.Default.Bolt,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(16.dp),
+                                    tint = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                                Spacer(Modifier.width(4.dp))
+                                Text(
+                                    stringResource(R.string.role_key_pool_test_all),
+                                    style = MaterialTheme.typography.labelLarge
+                                )
+                            }
                         }
                     }
                     // ☑ 多选：批量移出（与主页 ☑ 同款图标语言）
@@ -283,7 +281,13 @@ internal fun KeyPoolScreen(
     }
 }
 
-/** 启用池一行：序号徽章 + 名称/副行 | 测试灯 + ⚡ 单测 + ⊖ 移出；多选模式换复选框并隐藏动作区 */
+/**
+ * 启用池一行 = 两行式（用户 0919：副标题独占第二行、整行宽，不再被图标挤到截断）：
+ * 第一行 = 序号徽章（实心主题色反白）+ 模型名 + 动作区；
+ * 第二行 = 分组名 · *尾号（异组同名模型靠它分辨；残留值此行说明来源）。
+ * 动作区 = 闪电（颜色=测试结果，兼单测动作）+ ⊖ 清单减号（移出启用池，可逆）。
+ * 多选模式：复选框顶替序号徽章，动作区隐藏。
+ */
 @Composable
 private fun PoolRow(
     orderNum: Int,
@@ -300,43 +304,74 @@ private fun PoolRow(
     onEdit: () -> Unit,
     onRemove: () -> Unit,
 ) {
-    Row(
-        Modifier.fillMaxWidth()
-            .clickable(enabled = selectionMode, onClick = onToggleCheck)
-            .then(dragModifier)
-            .padding(vertical = 10.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        if (selectionMode) {
-            Checkbox(checked = checked, onCheckedChange = { onToggleCheck() })
-            Spacer(Modifier.width(10.dp))
-        } else {
-            // 大序号徽章：本页的主角就是顺序（拖动放手后自动重排）。
-            // 0919 实机：14% 透明底太淡，改实心主题色 + 反白数字
-            Box(
-                Modifier.size(24.dp).background(
-                    MaterialTheme.colorScheme.primary,
-                    CircleShape
-                ),
-                contentAlignment = Alignment.Center
-            ) {
-                Text(
-                    orderNum.toString(),
-                    style = MaterialTheme.typography.labelLarge,
-                    color = MaterialTheme.colorScheme.onPrimary,
-                    maxLines = 1
-                )
+    Column(Modifier.fillMaxWidth().padding(vertical = 10.dp)) {
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            if (selectionMode) {
+                Checkbox(checked = checked, onCheckedChange = { onToggleCheck() })
+                Spacer(Modifier.width(10.dp))
+            } else {
+                // 大序号徽章：本页的主角就是顺序（拖动放手后自动重排）
+                Box(
+                    Modifier.size(24.dp).background(
+                        MaterialTheme.colorScheme.primary,
+                        CircleShape
+                    ),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        orderNum.toString(),
+                        style = MaterialTheme.typography.labelLarge,
+                        color = MaterialTheme.colorScheme.onPrimary,
+                        maxLines = 1
+                    )
+                }
+                Spacer(Modifier.width(10.dp))
             }
-            Spacer(Modifier.width(10.dp))
-        }
-        Column(Modifier.weight(1f)) {
             Text(
                 info.display,
                 style = MaterialTheme.typography.bodyMedium,
                 maxLines = 2,
-                overflow = TextOverflow.Ellipsis
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.weight(1f)
             )
-            // 副行：归属分组 · 密钥尾号——异组同名模型靠它分辨；残留值此行说明来源
+            if (!selectionMode) {
+                // 闪电 = 单测动作兼结果灯（绿通/红挂/灰未测；测试中转圈）
+                if (testing) {
+                    Box(Modifier.size(36.dp), contentAlignment = Alignment.Center) {
+                        CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp)
+                    }
+                } else {
+                    FlatIconAction(
+                        Icons.Default.Bolt,
+                        stringResource(R.string.role_key_test),
+                        tint = when (testOk) {
+                            true -> TEST_PASS_COLOR
+                            false -> MaterialTheme.colorScheme.error
+                            else -> MaterialTheme.colorScheme.onSurfaceVariant
+                        },
+                        enabled = !batchTesting
+                    ) { onTest() }
+                }
+                // ⧉复制 ✏编辑 ⊖清单减号=移出（四键与主页条目卡一致，用户 0919；
+                // 移出可逆：只出池不删钥，真删除在主页；残留值无条目可编辑，隐藏 ✏）
+                FlatIconAction(
+                    Icons.Default.ContentCopy,
+                    stringResource(R.string.copy)
+                ) { onCopy() }
+                if (!info.stale) {
+                    FlatIconAction(
+                        Icons.Default.Edit,
+                        stringResource(R.string.role_key_edit)
+                    ) { onEdit() }
+                }
+                FlatIconAction(
+                    Icons.Default.PlaylistRemove,
+                    stringResource(R.string.desc_pool_remove)
+                ) { onRemove() }
+            }
+        }
+        if (!selectionMode) {
+            // 副标题独占第二行（整行宽）：分组名 · 密钥尾号——异组同名模型靠它分辨
             val sub = when {
                 info.stale -> stringResource(R.string.role_key_pool_stale)
                 info.groupTitle != null && info.tail != null ->
@@ -349,44 +384,10 @@ private fun PoolRow(
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.padding(start = 34.dp, top = 2.dp)
                 )
             }
-        }
-        if (!selectionMode) {
-            // 测试灯固定槽（14dp）：紧挨 ⚡，绿通/红挂/空心未测；测试中转小圈
-            Box(
-                Modifier.width(14.dp).height(24.dp),
-                contentAlignment = Alignment.Center
-            ) {
-                if (testing) {
-                    CircularProgressIndicator(Modifier.size(14.dp), strokeWidth = 2.dp)
-                } else {
-                    PoolTestDot(testOk)
-                }
-            }
-            Spacer(Modifier.width(4.dp))
-            // 动作四键与主页条目卡一致（用户 0919 实机反馈）：⚡单测 ⧉复制 ✏编辑 ⊖移出
-            //（移出=只出池不删钥，可逆；真删除在主页。残留值无条目可编辑，隐藏 ✏）
-            FlatIconAction(
-                Icons.Default.Bolt,
-                stringResource(R.string.role_key_test),
-                enabled = !testing && !batchTesting
-            ) { onTest() }
-            FlatIconAction(
-                Icons.Default.ContentCopy,
-                stringResource(R.string.copy)
-            ) { onCopy() }
-            if (!info.stale) {
-                FlatIconAction(
-                    Icons.Default.Edit,
-                    stringResource(R.string.role_key_edit)
-                ) { onEdit() }
-            }
-            FlatIconAction(
-                Icons.Default.RemoveCircleOutline,
-                stringResource(R.string.desc_pool_remove)
-            ) { onRemove() }
         }
     }
 }

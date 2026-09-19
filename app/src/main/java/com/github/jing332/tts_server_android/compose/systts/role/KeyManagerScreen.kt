@@ -31,8 +31,8 @@ import androidx.compose.material.icons.automirrored.filled.Undo
 import androidx.compose.material.icons.filled.Bolt
 import androidx.compose.material.icons.filled.Checklist
 import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.AddCircleOutline
-import androidx.compose.material.icons.filled.RemoveCircleOutline
+import androidx.compose.material.icons.filled.PlaylistAdd
+import androidx.compose.material.icons.filled.PlaylistRemove
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.ContentPaste
 import androidx.compose.material.icons.filled.DeleteOutline
@@ -201,14 +201,12 @@ internal fun FlatIconAction(
 
 /**
  * 密钥条目 = 一张卡片（**排布一行不动**，只把每个模型包成卡片）：
- * 行首序号徽章 + 显示名 | 测试灯 + 动作图标 ⚡⧉✏🗑 同行居右。
- * 三个信号各占固定位置、互不混用（09-19 用户反馈迭代）：
- *  - 行首 18dp 槽 = 启用序号徽章（轮换顺序第几把）；未启用留空。槽钉死在行首，
- *    名字再长再换行徽章也不漂。槽 18+4dp 与旧状态点 14+8dp 等宽 ⇒ 名字列起点一格不动。
- *    启用/停用的入口统一在多选模式的「加入启用池」，点名字不再是开关。
- *  - 测试灯（绿通/红挂/空心未测）在动作区左侧、紧挨 ⚡ 测试键。
+ * 行首清单图标（启用池开关）+ 显示名 | 动作图标 ⚡⧉✏🗑 同行居右（用户 0919 终稿）：
+ *  - 行首槽 = 启用池开关：在池=PlaylistRemove（主题强调色）、不在池=PlaylistAdd（灰），
+ *    点按加入/移出（⊕⊖ 裸加减号经实机反馈「不清晰」退役；轮换序号在启用池页看）。
+ *  - 测试灯取消：闪电颜色即结果（绿通/红挂/灰未测，测试中转圈），点按随时重测。
  *  - 动作图标与组头图标同列：卡片内容行右内边距必须为 0。
- *  - 多选模式下：复选框顶替行首槽，序号/测试灯/动作图标整体隐藏，卡片染浅红。
+ *  - 多选模式下：复选框顶替行首槽，图标区隐藏，卡片染浅红。
  *  - dragModifier = 长按拖动排序（reorderable 库），多选模式下调用侧传 Modifier 禁拖。
  *
  * ElevatedCard 照主界面 Item.kt:113 同款（M3 默认 surfaceContainerLow 底 + 1dp 阴影）；
@@ -218,7 +216,6 @@ internal fun FlatIconAction(
 private fun KeyEntryRow(
     entry: KeyListFile.KeyEntry,
     orderNum: Int?,
-    accent: Color,
     testOk: Boolean?,
     testing: Boolean,
     selectionMode: Boolean,
@@ -259,26 +256,25 @@ private fun KeyEntryRow(
             if (selectionMode) {
                 Checkbox(checked = checked, onCheckedChange = { onToggleCheck() })
             } else {
-                // 行首槽 = 启用池开关（用户 0919 终稿：⊕ 加入 / ⊖ 移出，减号替代「点序号徽章移出」；
-                // 已启用的 ⊖ 用 accent 色标出「在池里」，轮换顺序在启用池页看实心徽章）。
-                // 槽 20dp + 间距 2dp = 22dp，名字列不动
+                // 行首槽 = 启用池开关（用户 0919 终稿：清单加/减图标，比裸加减号具象；
+                // 在池=主题强调色）。槽 20dp + 间距 8dp（测试灯取消后让出的空间，0919 挤挤反馈修正）
                 Box(
                     Modifier.width(20.dp).height(24.dp).clickable(onClick = onTogglePool),
                     contentAlignment = Alignment.Center
                 ) {
                     Icon(
-                        if (orderNum != null) Icons.Default.RemoveCircleOutline
-                        else Icons.Default.AddCircleOutline,
+                        if (orderNum != null) Icons.Default.PlaylistRemove
+                        else Icons.Default.PlaylistAdd,
                         contentDescription = stringResource(
                             if (orderNum != null) R.string.desc_pool_remove
                             else R.string.desc_pool_add
                         ),
-                        tint = if (orderNum != null) accent
+                        tint = if (orderNum != null) MaterialTheme.colorScheme.primary
                         else MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.size(18.dp)
                     )
                 }
-                Spacer(Modifier.width(2.dp))
+                Spacer(Modifier.width(8.dp))
             }
             // 名字区 weight(1f)。多选模式下点名字 = 勾选（整行即复选框的延伸）
             Text(
@@ -291,38 +287,30 @@ private fun KeyEntryRow(
                     .clickable(enabled = selectionMode) { onToggleCheck() }
             )
             if (!selectionMode) {
-                // 测试灯固定槽（14dp）：紧挨动作区，绿通/红挂/空心未测；
-                // 测试中在此转小圈（挨着 ⚡ 键，反馈就近）
-                Box(
-                    Modifier.width(14.dp).height(24.dp),
-                    contentAlignment = Alignment.Center
-                ) {
-                    if (testing) {
-                        CircularProgressIndicator(Modifier.size(14.dp), strokeWidth = 2.dp)
-                    } else {
-                        val dot = when {
-                            testOk == true -> TEST_PASS_COLOR
-                            testOk == false -> MaterialTheme.colorScheme.error
-                            else -> MaterialTheme.colorScheme.outlineVariant
-                        }
-                        if (testOk != null) {
-                            Box(Modifier.size(8.dp).background(dot, CircleShape))
-                        } else {
-                            // 未测 = 空心圆环，和「测过但红/绿」区分开
-                            Box(Modifier.size(8.dp).border(1.dp, dot, CircleShape))
-                        }
-                    }
-                }
-                Spacer(Modifier.width(6.dp))
-                // 固定宽图标区（方案 A）：144dp=4×36dp 热区，与组头行图标垂直成列；
-                // 动作图标按使用频次（方案一）：⚡测试 ⧉复制 ✏编辑 🗑删除
+                // 固定宽图标区（方案 A）：144dp=4×36dp 热区，与组头行图标垂直成列。
+                // 闪电 = 测试动作兼结果灯（绿通/红挂/灰未测；测试中转圈），点按随时重测——
+                // 独立测试灯已取消（用户 0919：闪电颜色即结果）
                 //（📋 复制的是模型名，编辑弹窗里才是完整密钥串）
                 Row(
                     Modifier.width(144.dp),
                     horizontalArrangement = Arrangement.End,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    FlatIconAction(Icons.Default.Bolt, stringResource(R.string.role_key_test)) { onTest() }
+                    if (testing) {
+                        Box(Modifier.size(36.dp), contentAlignment = Alignment.Center) {
+                            CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp)
+                        }
+                    } else {
+                        FlatIconAction(
+                            Icons.Default.Bolt,
+                            stringResource(R.string.role_key_test),
+                            tint = when (testOk) {
+                                true -> TEST_PASS_COLOR
+                                false -> MaterialTheme.colorScheme.error
+                                else -> MaterialTheme.colorScheme.onSurfaceVariant
+                            }
+                        ) { onTest() }
+                    }
                     FlatIconAction(Icons.Default.ContentCopy, stringResource(R.string.copy)) { onCopy() }
                     FlatIconAction(Icons.Default.Edit, stringResource(R.string.role_key_edit)) { onEdit() }
                     FlatIconAction(Icons.Default.DeleteOutline, stringResource(R.string.delete)) { onDelete() }
@@ -359,24 +347,11 @@ private fun GroupHeaderBlock(
         Column(Modifier.padding(vertical = 4.dp)) {
             Column(Modifier.fillMaxWidth()) {
                 // ———— 组头行 ————
-                // 色条只跟组头行同高（3×16dp）：只有本组含启用中的密钥才亮——
-                // 色条=「这个组在轮换池里」的信号，不是装饰。放在可点区外：点色条不触发折叠
                 Row(
                     Modifier.fillMaxWidth()
                         .padding(start = 6.dp, end = 6.dp, top = 2.dp, bottom = 2.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Box(
-                        Modifier
-                            .width(3.dp)
-                            .height(16.dp)
-                            .background(
-                                if (grpHasEnabled) MaterialTheme.colorScheme.primary
-                                else Color.Transparent,
-                                RoundedCornerShape(2.dp)
-                            )
-                    )
-                    Spacer(Modifier.width(6.dp))
                     // 组头可点区：折叠箭头 + 组名 + (N)
                     Row(
                         Modifier
@@ -402,7 +377,8 @@ private fun GroupHeaderBlock(
                             grp.title,
                             style = MaterialTheme.typography.titleMedium,
                             fontWeight = FontWeight.SemiBold,
-                            color = MaterialTheme.colorScheme.onSurface,
+                            color = if (grpHasEnabled) MaterialTheme.colorScheme.primary
+                            else MaterialTheme.colorScheme.onSurface,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis,
                             // weight(fill=false)：组名超长时吃满剩余宽度后省略，
@@ -496,7 +472,7 @@ private fun GroupHeaderBlock(
                 if (ifc != null) {
                     Row(
                         Modifier.fillMaxWidth()
-                            .padding(start = 43.dp, end = 10.dp, bottom = 6.dp),
+                            .padding(start = 34.dp, end = 10.dp, bottom = 6.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Text(
@@ -532,8 +508,8 @@ private fun GroupHeaderBlock(
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                             maxLines = 2,
                             overflow = TextOverflow.Ellipsis,
-                            // 与网址分支同列（43），两分支是同一个元素的两个形态
-                            modifier = Modifier.padding(start = 43.dp, end = 10.dp, bottom = 6.dp)
+                            // 与网址分支同列（34），两分支是同一个元素的两个形态
+                            modifier = Modifier.padding(start = 34.dp, end = 10.dp, bottom = 6.dp)
                         )
                     }
                 }
@@ -1012,8 +988,6 @@ fun KeyManagerScreen(tagRuleId: String, onBack: () -> Unit) {
             val tk = to.key as? String ?: return@rememberReorderableLazyListState
             onFlatMove(fk, tk)
         })
-        // 当前密钥强调色用 scheme.secondary：primary 是各主题的 *_seed，浅底染了看不出
-        val accent = MaterialTheme.colorScheme.secondary
         val groups = buildKeyGroups(keys, ifaces)
         // 拖动排序（照主界面 reorderable 同款）：组头/子项均长按拖动；多选模式下禁拖。
         // 键前缀约定：h:组名（组头）/ e:条目名（子项）；未分组/直连为伪组、不可拖
@@ -1094,7 +1068,8 @@ fun KeyManagerScreen(tagRuleId: String, onBack: () -> Unit) {
                             testingThisGroup = testingGroup == grp.title,
                         )
                     }
-                    if (!isCollapsed) {
+                    // 多选模式下分组自动展开（用户 0919：折叠组没法多选子项）；退出恢复原折叠
+                    if (!isCollapsed || selectionMode) {
                         grp.entries.forEach { entry ->
                             item(key = "e:" + entry.name) {
                                 ShadowedDraggableItem(reorderState, "e:" + entry.name) { _ ->
@@ -1102,7 +1077,6 @@ fun KeyManagerScreen(tagRuleId: String, onBack: () -> Unit) {
                                     KeyEntryRow(
                                         entry = entry,
                                         orderNum = pool.indexOf(norm).takeIf { it >= 0 }?.plus(1),
-                                        accent = accent,
                                         testOk = testResults[norm],
                                         testing = testingValue == norm,
                                         selectionMode = selectionMode,
