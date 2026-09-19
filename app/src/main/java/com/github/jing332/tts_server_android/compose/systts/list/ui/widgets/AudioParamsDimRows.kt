@@ -1,13 +1,19 @@
 package com.github.jing332.tts_server_android.compose.systts.list.ui.widgets
 
 import android.widget.Toast
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.ExpandMore
+import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -17,8 +23,10 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.drake.net.utils.withIO
 import com.github.jing332.common.utils.toParamText
@@ -28,32 +36,24 @@ import com.github.jing332.database.entities.systts.SystemTtsV2
 import com.github.jing332.database.entities.systts.TtsConfigurationDTO
 import com.github.jing332.database.entities.systts.source.PluginTtsSource
 import com.github.jing332.tts_server_android.R
-import com.github.jing332.tts_server_android.compose.SoftSegmentedTextToggle
 import com.github.jing332.tts_server_android.compose.systts.list.ui.PluginDescriptor
 import com.github.jing332.tts_server_android.conf.SysTtsConfig
 import com.github.jing332.tts_server_android.service.systts.SystemTtsService
 import kotlinx.coroutines.launch
 
 /**
- * 编辑页「音频参数」区（用户 09-11 定稿，最终形态）：
+ * 编辑页「音频参数」区（用户 0919 定稿，按作用域版——与弹窗/换声面板对齐）：
  *
- * **软槽分段一行三项**：与卡片⋮弹窗/日志快捷面板同款 [SoftSegmentedTextToggle]（16sp），
- * 槽内 `语速 1.0`　`音量 1.3`　`音高 1.0`（各带该维**终值**＝配置×插件×全局，FOLLOW 视为 1，
- * 跟随草稿实时变）。**默认收起（用户 09-12 反转 09-11 方案A：滑杆区太占地、看不到下方插件信息）**：
- * 收起时三项都不显示勾选高亮（-1=无展开维），点任意项展开该维滑杆，**再点当前选中项收起**
- * （共用组件已放开"重复点击也回调"）；仅编辑页如此，卡片⋮弹窗与日志快捷面板仍是"永远有一维选中"平铺。
+ * **收起态（默认，保留 0912 省地方的决策）**：一行「音频参数」+ 三维终值摘要
+ * （语速0.97 · 音量1.10 · 音高1.00，实时跟随草稿）+ 展开箭头——
+ * 终值收起也一眼可见（用户 0919 关注点：对调后最终值不能没地方看）。
  *
- * **展开区只留滑条**：该维三层滑杆（本项/插件/全局，无插件源自动只有两层）+ 重置/应用，
- * 无底框平铺（与弹窗/日志面板展开区一致）——
- * 滑条外的信息（终值行、▶试听）一律不放：值已经在槽里、也在滑杆标签里，
- * **试听直接用试听文本行的 🎧**（[AuditionTextField]）。
+ * **展开态**：终值行 + 作用域分段（本项→插件→全局，无插件源自动两段，共用
+ * [AudioParamsDimensionSection]）+ 该层 语速/音量/音高 三条滑杆 + 重置/应用
+ * （应用=该层三维一起落库：本项层双写页面内存、插件层失效卡片缓存、全局写 SysTtsConfig）。
  *
- * 应用＝该维三层一起落库：配置层双写页面内存（防"应用后再保存"被旧内存覆盖）、插件层失效卡片缓存、
- * 全局写 SysTtsConfig、notifyUpdateConfig 立即生效，toast 反馈；重置＝该维三层草稿回 1.0（不落库）。
- *
- * 卡片⋮入口与日志快捷面板仍走共用的 [AudioParamsDialog]（那边要发音人上下文与面板排版，是弹窗形态）。
- *
- * 维度下标：0=语速 1=音量 2=音高。
+ * 试听仍走试听文本行的 🎧（[AudioParamsDraft] 草稿快照上报保留：滑杆调完即听，不必先应用）。
+ * 层号：0=本项(配置) 1=插件 2=全局。
  */
 
 /**
@@ -89,10 +89,10 @@ fun AudioParamsDimRows(
     val plugin = source?.let { dbm.pluginDao.getByPluginId(it.pluginId) }
     val hasPluginLayer = source != null
 
-    // 展开的维度；-1=收起（用户 09-12 反转 09-11 方案A：默认收起省地方，点项展开、再点同维收起）
-    var expanded by remember(systemTts.id) { mutableStateOf(-1) }
+    // 展开状态（收起=默认，保留 0912 省地方的决策；展开后与弹窗/换声面板同款）
+    var expanded by remember(systemTts.id) { mutableStateOf(false) }
 
-    // 三层草稿（三维共用一份；展开哪维就调哪维）
+    // 三层草稿（三维共用一份；展开哪层就调哪层）
     var speed by remember(systemTts.id) { mutableStateOf(config.audioParams.speed) }
     var volume by remember(systemTts.id) { mutableStateOf(config.audioParams.volume) }
     var pitch by remember(systemTts.id) { mutableStateOf(config.audioParams.pitch) }
@@ -103,22 +103,10 @@ fun AudioParamsDimRows(
     var globalVolume by remember { mutableStateOf(SysTtsConfig.audioParamsVolume) }
     var globalPitch by remember { mutableStateOf(SysTtsConfig.audioParamsPitch) }
 
-    // 按维度脏标记：该维任一层滑杆改动置 true，应用成功清除（● 前缀渲染已撤，标记仅保留流水）
-    var speedDirty by remember(systemTts.id) { mutableStateOf(false) }
-    var volumeDirty by remember(systemTts.id) { mutableStateOf(false) }
-    var pitchDirty by remember(systemTts.id) { mutableStateOf(false) }
-    fun isDirty(dim: Int) = when (dim) { 0 -> speedDirty; 1 -> volumeDirty; else -> pitchDirty }
-    fun clearDirty(dim: Int) {
-        when (dim) { 0 -> speedDirty = false; 1 -> volumeDirty = false; else -> pitchDirty = false }
-    }
-
-    /** 该维终值（走草稿，跟随滑杆实时变） */
-    fun finalOf(dim: Int): Float {
-        val c = when (dim) { 0 -> speed; 1 -> volume; else -> pitch }
-        val p = if (hasPluginLayer) when (dim) { 0 -> pluginSpeed; 1 -> pluginVolume; else -> pluginPitch } else 1f
-        val g = when (dim) { 0 -> globalSpeed; 1 -> globalVolume; else -> globalPitch }
-        return c * p * g
-    }
+    // 按层脏标记（0919 按作用域版）：该层任一滑杆改动置 true，应用成功清除
+    var cfgDirty by remember(systemTts.id) { mutableStateOf(false) }
+    var pluginDirty by remember(systemTts.id) { mutableStateOf(false) }
+    var globalDirty by remember(systemTts.id) { mutableStateOf(false) }
 
     // 草稿快照上报：组合即报初值，滑杆任一层改动随重组再报（值已 snap，宿主直接可用）
     LaunchedEffect(
@@ -139,41 +127,44 @@ fun AudioParamsDimRows(
         )
     }
 
-    /** 该维三层一起落库（与 AudioParamsDialog.applyDim 完全同源） */
-    fun applyDim(dim: Int) {
+    /** 作用域应用（0919 按作用域版）：该层三维一起落库——本项层双写页面内存（防旧值覆盖）、
+     *  插件层失效卡片缓存、全局写 SysTtsConfig；notifyUpdateConfig 立即生效 */
+    fun applyScope(layer: Int) {
         scope.launch {
             val newConfig = withIO {
-                val nc = config.copy(
+                val nc = if (layer == 0) config.copy(
                     audioParams = config.audioParams.copy(
-                        speed = if (dim == 0) snap(speed) else config.audioParams.speed,
-                        volume = if (dim == 1) snap(volume) else config.audioParams.volume,
-                        pitch = if (dim == 2) snap(pitch) else config.audioParams.pitch,
+                        speed = snap(speed), volume = snap(volume), pitch = snap(pitch),
                     )
-                )
+                ) else config
                 dbm.systemTtsV2.update(systemTts.copy(config = nc))
-                if (plugin != null) {
+                if (layer == 1 && plugin != null) {
                     dbm.pluginDao.update(
                         plugin.copy(
                             audioParams = plugin.audioParams.copy(
-                                speed = if (dim == 0) snap(pluginSpeed) else plugin.audioParams.speed,
-                                volume = if (dim == 1) snap(pluginVolume) else plugin.audioParams.volume,
-                                pitch = if (dim == 2) snap(pluginPitch) else plugin.audioParams.pitch,
+                                speed = snap(pluginSpeed),
+                                volume = snap(pluginVolume),
+                                pitch = snap(pluginPitch),
                             )
                         )
                     )
                     PluginDescriptor.invalidatePluginParamsCache(plugin.pluginId)
                 }
-                when (dim) {
-                    0 -> SysTtsConfig.audioParamsSpeed = snap(globalSpeed)
-                    1 -> SysTtsConfig.audioParamsVolume = snap(globalVolume)
-                    else -> SysTtsConfig.audioParamsPitch = snap(globalPitch)
+                if (layer == 2) {
+                    SysTtsConfig.audioParamsSpeed = snap(globalSpeed)
+                    SysTtsConfig.audioParamsVolume = snap(globalVolume)
+                    SysTtsConfig.audioParamsPitch = snap(globalPitch)
                 }
                 SystemTtsService.notifyUpdateConfig()
                 nc
             }
-            // 配置层双写：回写页面内存，防"应用后再保存"被旧内存覆盖
-            onSysttsChange(systemTts.copy(config = newConfig))
-            clearDirty(dim)
+            // 本项层双写：回写页面内存，防"应用后再保存"被旧内存覆盖
+            if (layer == 0) onSysttsChange(systemTts.copy(config = newConfig))
+            when (layer) {
+                0 -> cfgDirty = false
+                1 -> pluginDirty = false
+                else -> globalDirty = false
+            }
             Toast.makeText(
                 context,
                 context.getString(R.string.audio_params_apply_dim_toast),
@@ -182,70 +173,85 @@ fun AudioParamsDimRows(
         }
     }
 
-    val tagCfg = stringResource(R.string.audio_params_tag_config)
-    val tagPlugin = stringResource(R.string.audio_params_tag_plugin)
-    val tagGlobal = stringResource(R.string.audio_params_tag_global)
-
     Column(modifier.fillMaxWidth()) {
-        // 软槽分段（用户 09-11 定稿）：与弹窗/日志面板同款，选中项浮起胶囊；
-        // 14sp 与弹窗/日志面板一模一样（用户 09-11 二轮：16sp 撤，三处统一）；
-        // 顶距 12dp 与上方试听文本行拉开又相融。槽内文字=维度名+该维终值（toParamText 同口径）
-        SoftSegmentedTextToggle(
-            options = audioParamsDimNames.mapIndexed { dim, name ->
-                "$name " + finalOf(dim).toParamText()
-            },
-            selectedIndex = expanded, // -1=收起态：三项都不显示勾选高亮
-            onSelect = { dim -> expanded = if (dim == expanded) -1 else dim }, // 再点同维收起（用户 09-12）
-            modifier = Modifier.padding(top = 12.dp, bottom = if (expanded == -1) 4.dp else 0.dp),
+        // 收起/展开切换行：标题 + 三维终值摘要（实时跟随草稿，收起也能一眼看到最终值）+ 箭头
+        val arrowAngle by animateFloatAsState(
+            targetValue = if (expanded) 0f else -90f, label = ""
         )
-
-        // 展开区：该维三层滑杆 + 重置/应用，无底框平铺（与弹窗/日志面板一致）；
-        // 滑条外的信息一律不放；试听走试听文本行的 🎧
-        // 顶距 8dp / 左缩进 8dp（用户 09-11 二轮，与共用组件 AudioParamsDimensionSection 同步）
-        val dim = expanded
-        if (dim >= 0) Column(
+        Row(
             Modifier
                 .fillMaxWidth()
-                .padding(top = 8.dp, bottom = 4.dp, start = 8.dp),
-            verticalArrangement = Arrangement.spacedBy(4.dp),
+                .clickable { expanded = !expanded }
+                .padding(horizontal = 4.dp, vertical = 10.dp),
+            verticalAlignment = Alignment.CenterVertically
         ) {
-                when (dim) {
-                    0 -> {
-                        LayerSlider(tagCfg, speed) { speed = it; speedDirty = true }
-                        if (hasPluginLayer) {
-                            LayerSlider(tagPlugin, pluginSpeed) { pluginSpeed = it; speedDirty = true }
-                        }
-                        LayerSlider(tagGlobal, globalSpeed) { globalSpeed = it; speedDirty = true }
-                    }
-                    1 -> {
-                        LayerSlider(tagCfg, volume) { volume = it; volumeDirty = true }
-                        if (hasPluginLayer) {
-                            LayerSlider(tagPlugin, pluginVolume) { pluginVolume = it; volumeDirty = true }
-                        }
-                        LayerSlider(tagGlobal, globalVolume) { globalVolume = it; volumeDirty = true }
-                    }
-                    else -> {
-                        LayerSlider(tagCfg, pitch) { pitch = it; pitchDirty = true }
-                        if (hasPluginLayer) {
-                            LayerSlider(tagPlugin, pluginPitch) { pluginPitch = it; pitchDirty = true }
-                        }
-                        LayerSlider(tagGlobal, globalPitch) { globalPitch = it; pitchDirty = true }
-                    }
-                }
+            Text(
+                stringResource(R.string.audio_params),
+                style = MaterialTheme.typography.bodyLarge,
+                fontWeight = FontWeight.SemiBold,
+            )
+            Spacer(Modifier.weight(1f))
+            Text(
+                text = "语速${finalText(speed)} · 音量${finalText(volume)} · 音高${finalText(pitch)}",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 1,
+            )
+            Spacer(Modifier.size(8.dp))
+            Icon(
+                Icons.Default.ExpandMore,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.size(20.dp).rotate(arrowAngle)
+            )
+        }
 
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
-                    TextButton(onClick = {
-                        when (dim) {
-                            0 -> { speed = 1f; pluginSpeed = 1f; globalSpeed = 1f }
-                            1 -> { volume = 1f; pluginVolume = 1f; globalVolume = 1f }
-                            else -> { pitch = 1f; pluginPitch = 1f; globalPitch = 1f }
-                        }
-                    }) { Text(stringResource(R.string.reset)) }
-                    TextButton(onClick = { applyDim(dim) }) {
-                        // 绿点脏标记已撤（用户 09-11：应用前不放圆点，与共用组件同步）
-                        Text(stringResource(R.string.audio_params_apply))
+        if (expanded) {
+            // 终值行：实时跟随三层草稿（与弹窗/换声面板同款口径）
+            val finalParams = computeFinalParams(
+                snap(speed), snap(volume), snap(pitch),
+                snap(pluginSpeed), snap(pluginVolume), snap(pluginPitch),
+                snap(globalSpeed), snap(globalVolume), snap(globalPitch),
+                hasPluginLayer,
+            )
+            Text(
+                text = stringResource(
+                    R.string.audio_params_final,
+                    finalParams.speed.toParamText(),
+                    finalParams.volume.toParamText(),
+                    finalParams.pitch.toParamText(),
+                ),
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.padding(top = 2.dp, bottom = 2.dp, start = 8.dp),
+            )
+
+            // 作用域分段 + 该层 语速/音量/音高 三条滑杆 + 重置/应用（与弹窗/换声面板同款组件）
+            AudioParamsDimensionSection(
+                hasPluginLayer = hasPluginLayer,
+                firstScopeLabel = stringResource(R.string.audio_params_tag_config_item),
+                cfgSpeed = speed, onCfgSpeed = { speed = it; cfgDirty = true },
+                cfgVolume = volume, onCfgVolume = { volume = it; cfgDirty = true },
+                cfgPitch = pitch, onCfgPitch = { pitch = it; cfgDirty = true },
+                pluginSpeed = pluginSpeed, onPluginSpeed = { pluginSpeed = it; pluginDirty = true },
+                pluginVolume = pluginVolume, onPluginVolume = { pluginVolume = it; pluginDirty = true },
+                pluginPitch = pluginPitch, onPluginPitch = { pluginPitch = it; pluginDirty = true },
+                globalSpeed = globalSpeed, onGlobalSpeed = { globalSpeed = it; globalDirty = true },
+                globalVolume = globalVolume, onGlobalVolume = { globalVolume = it; globalDirty = true },
+                globalPitch = globalPitch, onGlobalPitch = { globalPitch = it; globalDirty = true },
+                isDirty = { when (it) { 0 -> cfgDirty; 1 -> pluginDirty; else -> globalDirty } },
+                onResetScope = { layer ->
+                    when (layer) {
+                        0 -> { speed = 1f; volume = 1f; pitch = 1f }
+                        1 -> { pluginSpeed = 1f; pluginVolume = 1f; pluginPitch = 1f }
+                        else -> { globalSpeed = 1f; globalVolume = 1f; globalPitch = 1f }
                     }
-                }
-            }
+                },
+                onApplyScope = { applyScope(it) },
+            )
+        }
     }
 }
+
+/** 终值摘要用：单维终值 = 本项×插件×全局（无插件源插件层按 1.0 计），toParamText 同口径 */
+private fun finalText(v: Float): String = v.toParamText()

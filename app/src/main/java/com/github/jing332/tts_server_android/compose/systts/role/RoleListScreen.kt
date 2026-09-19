@@ -24,12 +24,6 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.CallMerge
-import androidx.compose.material.icons.filled.DeleteOutline
-import androidx.compose.material.icons.filled.Edit
-import androidx.compose.material.icons.filled.LinkOff
-import androidx.compose.material.icons.filled.MergeType
-import androidx.compose.material.icons.filled.Star
 import androidx.compose.material3.AlertDialog
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardActions
@@ -544,41 +538,33 @@ fun RoleListScreen(
             text = {
                 Column {
                     if (markCount >= 2) {
-                        MenuActionRow(stringResource(R.string.role_menu_merge_follow), Icons.Default.MergeType) {
+                        MenuActionRow(stringResource(R.string.role_menu_merge_follow), "👥") {
                             menuFor = null
                             mergeFollowFor = (markedIdx + idx).mapNotNull { records.getOrNull(it)?.name }
                         }
-                        MenuActionRow(stringResource(R.string.role_menu_merge_voice), Icons.Default.CallMerge) {
+                        MenuActionRow(stringResource(R.string.role_menu_merge_voice), "🎭") {
                             menuFor = null
                             markedIdx = markedIdx + idx
                             mergeVoiceTarget = rec.name
                         }
                     }
                     if (hasMerged) {
-                        MenuActionRow(stringResource(R.string.role_menu_release), Icons.Default.LinkOff) {
+                        MenuActionRow(stringResource(R.string.role_menu_release), "✂️") {
                             menuFor = null
                             releaseForIdx = idx
                         }
                     }
                     if (markCount < 2) {
-                        MenuActionRow(stringResource(R.string.role_list_menu_rename), Icons.Default.Edit) {
+                        MenuActionRow(stringResource(R.string.role_list_menu_rename), "✏️") {
                             menuFor = null
                             editFor = idx to rec
                         }
                     }
-                    MenuActionRow(
-                        stringResource(R.string.role_list_menu_delete),
-                        Icons.Default.DeleteOutline,
-                        MaterialTheme.colorScheme.error
-                    ) {
+                    MenuActionRow(stringResource(R.string.role_list_menu_delete), "🗑️") {
                         menuFor = null
                         deleteIdx = markedIdx + idx
                     }
-                    MenuActionRow(
-                        stringResource(R.string.role_list_menu_set_main),
-                        Icons.Default.Star,
-                        Color(0xFFF57F17)
-                    ) {
+                    MenuActionRow(stringResource(R.string.role_list_menu_set_main), "⭐") {
                         menuFor = null
                         scope.launch {
                             // 按下标改（照插件 setAsMainCharacter：`characterRecords[longPressedIndex]`
@@ -743,16 +729,16 @@ fun RoleListScreen(
 }
 
 /**
- * 菜单动作行（图标 + 文字；0919 用户拍板：彩色圆点退役换图标，删除=红🗑、设为主角=琥珀⭐，
- * 其余中性灰。字号 bodyMedium→bodyLarge 16sp：用户 0919 反馈「有点小」，
- * 推翻 0911「对齐主界面弹窗正文 14sp」的旧口径——以用户最新体感为准）。
- * icon 传 null = 无图标纯文字（合并跟随的候选名单行用），文字不缩进。
+ * 菜单动作行（emoji + 文字；0919 用户拍板：彩色圆点→矢量图标→emoji 终稿——emoji 自带彩色、
+ * 表意直白，比单色矢量图标更有辨识度）：合并跟随 👥 / 合并音色 🎭 / 释放 ✂️ /
+ * 修改角色名 ✏️ / 删除角色 🗑️ / 设为主角 ⭐。
+ * 字号 bodyLarge 16sp（0919 用户反馈偏小，推翻 0911 对齐 14sp 旧口径——以用户最新体感为准）。
+ * emoji 传 null = 纯文字（合并跟随的候选名单行用）。
  */
 @Composable
 private fun MenuActionRow(
     text: String,
-    icon: ImageVector? = null,
-    iconTint: Color = MaterialTheme.colorScheme.onSurfaceVariant,
+    emoji: String? = null,
     onClick: () -> Unit,
 ) {
     Row(
@@ -762,13 +748,8 @@ private fun MenuActionRow(
             .padding(horizontal = 4.dp, vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        if (icon != null) {
-            Icon(
-                icon,
-                contentDescription = null,
-                tint = iconTint,
-                modifier = Modifier.size(20.dp)
-            )
+        if (emoji != null) {
+            Text(emoji, fontSize = 18.sp)
             Spacer(Modifier.width(12.dp))
         }
         Text(text, style = MaterialTheme.typography.bodyLarge)

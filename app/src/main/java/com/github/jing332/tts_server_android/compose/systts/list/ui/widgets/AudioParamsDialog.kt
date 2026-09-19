@@ -250,6 +250,8 @@ fun AudioParamsDialog(
                 //      + 该层 语速/音量/音高 三条滑杆 + 重置/应用；终值行恒显在顶部 =====
                 AudioParamsDimensionSection(
                     hasPluginLayer = hasPluginLayer,
+                    // 首段标签「配置项」（用户 0919：不用「本项」，与换声面板统一）
+                    firstScopeLabel = stringResource(R.string.audio_params_tag_config_item),
                     cfgSpeed = speed, onCfgSpeed = { speed = it; cfgDirty = true },
                     cfgVolume = volume, onCfgVolume = { volume = it; cfgDirty = true },
                     cfgPitch = pitch, onCfgPitch = { pitch = it; cfgDirty = true },
@@ -283,8 +285,9 @@ fun AudioParamsDialog(
     )
 }
 
-/** 三层乘积：三维最终值恒为 配置×插件×全局（09-10 接管判定废除，无插件源插件层按 1.0 计） */
-private fun computeFinalParams(
+/** 三层乘积：三维最终值恒为 配置×插件×全局（09-10 接管判定废除，无插件源插件层按 1.0 计）；
+ *  编辑页收起行/终值行同用（internal 供同包 AudioParamsDimRows 复用） */
+internal fun computeFinalParams(
     cfgSpeed: Float, cfgVolume: Float, cfgPitch: Float,
     pluginSpeed: Float, pluginVolume: Float, pluginPitch: Float,
     globalSpeed: Float, globalVolume: Float, globalPitch: Float,
