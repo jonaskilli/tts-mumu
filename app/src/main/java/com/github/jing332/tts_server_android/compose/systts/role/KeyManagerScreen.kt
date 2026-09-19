@@ -249,12 +249,13 @@ private fun KeyEntryRow(
             .padding(vertical = 3.dp)
     ) {
         Row(
-            // 卡内 9 ⇒ 行首灯左缘 24dp（卡左缘 15 + 9），与「删除密钥」标题左缘同列；
+            // 卡内 5 ⇒ 测试灯左缘 20dp，灯 8dp + 间距 6dp ⇒ 模型名左缘 34dp——
+            // 与组头组名文字左缘（箭头 6+22+6=34dp）同列（用户 0920 实机反馈：名字要对齐）
             // end 必须为 0：条目动作图标右缘才能落在卡右缘（= 组头图标区右缘）同列
             Modifier.fillMaxWidth()
                 // 点卡片本体 = 启用/停用（用户 0919 终稿：底色承担选中，加减符号全部退役）
                 .clickable(enabled = !selectionMode, onClick = onTogglePool)
-                .padding(start = 9.dp, end = 0.dp, top = 8.dp, bottom = 8.dp),
+                .padding(start = 5.dp, end = 0.dp, top = 8.dp, bottom = 8.dp),
             // 名字换行成两行时图标垂直居中，不再用 Top 咬行
             verticalAlignment = Alignment.CenterVertically
         ) {
@@ -274,7 +275,7 @@ private fun KeyEntryRow(
                         Box(Modifier.size(8.dp).background(dot, CircleShape))
                     }
                 }
-                Spacer(Modifier.width(8.dp))
+                Spacer(Modifier.width(6.dp))
             }
             // 名字区 weight(1f)。多选模式下点名字 = 勾选（整行即复选框的延伸）
             Text(
