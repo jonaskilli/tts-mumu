@@ -221,36 +221,31 @@ private fun KeyEntryRow(
     onEdit: () -> Unit,
     onDelete: () -> Unit,
 ) {
-    // 卡片底色三态（优先级从高到低）：多选勾中=12% 浅红 > 启用中=18% 主题色+描边 > 默认灰白。
-    // compositeOver：近似半透明色叠在卡面上，避免半透明直接给 ElevatedCard 透出页面底色。
-    // 0919 实机反馈：8% 底色在绿主题里和未启用几乎分不出 → 加深到 18% 并加 1dp 主题色描边
-    // （描边不跟主题变色，任何主题下启用卡一眼可辨）。
-    // 点击整卡（除右侧图标热区）即切换启用，底色就是状态反馈，无需另行加选中标记
+    // 卡片底色两态：多选勾中=12% 浅红 > 默认灰白。
+    // 启用态不再改底色（用户 0920：只靠描边表达），描边见下方 modifier
+    // compositeOver：近似半透明色叠在卡面上，避免半透明直接给 ElevatedCard 透出页面底色
     val cardColor = when {
         selectionMode && checked ->
             MaterialTheme.colorScheme.error.copy(alpha = 0.12f)
-                .compositeOver(MaterialTheme.colorScheme.surfaceContainerLow)
-        enabled ->
-            MaterialTheme.colorScheme.primary.copy(alpha = 0.18f)
                 .compositeOver(MaterialTheme.colorScheme.surfaceContainerLow)
         else -> MaterialTheme.colorScheme.surfaceContainerLow
     }
 
     ElevatedCard(
         colors = CardDefaults.elevatedCardColors(containerColor = cardColor),
-        // 启用中加 1dp 主题色描边。ElevatedCard 无 border 参数（CI 0920 教训），用
-        // Modifier.border 画；圆角 12dp 与卡默认形状(shapes.medium)一致
         modifier = Modifier.fillMaxWidth()
+            // 缩进 = 归属关系：左缘 15dp 与组头折叠箭头同列、右缘 6dp 与组头图标区同列。
+            // 上下 3 ⇒ 相邻两张卡之间 6dp
+            // start/end 与 vertical 分属不同 padding 重载，写在一起没有匹配的候选，故分两次。
+            // 描边必须画在 padding 之后（否则框住整个行宽、比卡片大一圈，0920 实机教训）；
+            // 圆角 12dp 与卡默认形状(shapes.medium)一致
+            .padding(start = 15.dp, end = 6.dp)
+            .padding(vertical = 3.dp)
             .then(
                 if (enabled) Modifier.border(
                     1.dp, MaterialTheme.colorScheme.primary, RoundedCornerShape(12.dp)
                 ) else Modifier
             )
-            // 缩进 = 归属关系：左缘 15dp 与组头折叠箭头同列、右缘 6dp 与组头图标区同列。
-            // 上下 3 ⇒ 相邻两张卡之间 6dp
-            // start/end 与 vertical 分属不同 padding 重载，写在一起没有匹配的候选，故分两次
-            .padding(start = 15.dp, end = 6.dp)
-            .padding(vertical = 3.dp)
     ) {
         Row(
             // 卡内 5 ⇒ 测试灯左缘 20dp，灯 8dp + 间距 6dp ⇒ 模型名左缘 34dp——

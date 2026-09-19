@@ -381,7 +381,8 @@ private fun PoolRow(
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.padding(start = 34.dp, top = 2.dp)
+                    // 副标题与第一行名字同列：徽章 20dp + 间距 10dp = 30dp（0920 对齐反馈）
+                    modifier = Modifier.padding(start = 30.dp, top = 2.dp)
                 )
             }
         }
