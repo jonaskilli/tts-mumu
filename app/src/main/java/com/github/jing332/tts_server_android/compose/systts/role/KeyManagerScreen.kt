@@ -988,16 +988,17 @@ fun KeyManagerScreen(tagRuleId: String, onBack: () -> Unit) {
                         ) { toggleCheckAll() }
                         Spacer(Modifier.weight(1f))
                         FlatTextAction(
-                            stringResource(R.string.role_key_pool_add_n, checkedNames.size),
-                            MaterialTheme.colorScheme.primary
-                        ) { addSelectedToPool() }
-                        FlatTextAction(
                             stringResource(R.string.role_key_delete_n, checkedNames.size),
                             MaterialTheme.colorScheme.error
                         ) {
                             if (checkedNames.isEmpty()) toast(R.string.role_key_delete_none)
                             else showDeleteSelected = true
                         }
+                        // 加入启用池放最右末位（用户 0919：与删除调换位置）
+                        FlatTextAction(
+                            stringResource(R.string.role_key_pool_add_n, checkedNames.size),
+                            MaterialTheme.colorScheme.primary
+                        ) { addSelectedToPool() }
                     }
                 }
             }
