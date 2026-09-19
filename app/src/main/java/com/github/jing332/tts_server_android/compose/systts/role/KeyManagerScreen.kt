@@ -2,7 +2,6 @@ package com.github.jing332.tts_server_android.compose.systts.role
 
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -239,12 +238,17 @@ private fun KeyEntryRow(
 
     ElevatedCard(
         colors = CardDefaults.elevatedCardColors(containerColor = cardColor),
-        // 启用中加 1dp 主题色描边（medium=12dp 与卡圆角一致，不另设形状）
-        border = if (enabled) BorderStroke(1.dp, MaterialTheme.colorScheme.primary) else null,
-        // 缩进 = 归属关系：左缘 15dp 与组头折叠箭头同列、右缘 6dp 与组头图标区同列。
-        // 上下 3 ⇒ 相邻两张卡之间 6dp
-        // start/end 与 vertical 分属不同 padding 重载，写在一起没有匹配的候选，故分两次
+        // 启用中加 1dp 主题色描边。ElevatedCard 无 border 参数（CI 0920 教训），用
+        // Modifier.border 画；圆角 12dp 与卡默认形状(shapes.medium)一致
         modifier = Modifier.fillMaxWidth()
+            .then(
+                if (enabled) Modifier.border(
+                    1.dp, MaterialTheme.colorScheme.primary, RoundedCornerShape(12.dp)
+                ) else Modifier
+            )
+            // 缩进 = 归属关系：左缘 15dp 与组头折叠箭头同列、右缘 6dp 与组头图标区同列。
+            // 上下 3 ⇒ 相邻两张卡之间 6dp
+            // start/end 与 vertical 分属不同 padding 重载，写在一起没有匹配的候选，故分两次
             .padding(start = 15.dp, end = 6.dp)
             .padding(vertical = 3.dp)
     ) {
