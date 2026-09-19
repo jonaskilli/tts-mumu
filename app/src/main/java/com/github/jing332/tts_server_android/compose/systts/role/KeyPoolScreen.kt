@@ -216,13 +216,13 @@ internal fun KeyPoolScreen(
         }
     ) { paddingValues ->
         val listState = rememberLazyListState()
-        val reorderState = rememberReorderableLazyListState(listState) { from, to ->
+        val reorderState = rememberReorderableLazyListState(listState = listState, onMove = { from, to ->
             val fk = from.key as? String ?: return@rememberReorderableLazyListState
             val tk = to.key as? String ?: return@rememberReorderableLazyListState
             if (fk.startsWith("p:") && tk.startsWith("p:")) {
                 onMove(fk.removePrefix("p:"), tk.removePrefix("p:"))
             }
-        }
+        })
         LazyColumn(
             state = listState,
             modifier = Modifier

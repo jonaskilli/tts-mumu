@@ -630,12 +630,6 @@ fun KeyManagerScreen(tagRuleId: String, onBack: () -> Unit) {
         m.add(to, m.removeAt(from))
         savePoolList(m)
     }
-    fun removeFromPool(index: Int) {
-        if (index !in pool.indices) return
-        val removed = pool[index]
-        savePoolList(pool.filterIndexed { i, _ -> i != index })
-        toast(R.string.role_key_pool_removed_one, poolDisplayName(removed))
-    }
     /** 启用池行的显示名：优先按归一化值对回条目；对不上（残留值）显示模型名/Key 尾 */
     fun poolDisplayName(value: String): String {
         val norm = KeyListFile.normalizePoolValue(value)
@@ -647,6 +641,12 @@ fun KeyManagerScreen(tagRuleId: String, onBack: () -> Unit) {
             !p.isDirect && p.model.isNotBlank() -> p.model
             else -> "*" + p.key.takeLast(6)
         }
+    }
+    fun removeFromPool(index: Int) {
+        if (index !in pool.indices) return
+        val removed = pool[index]
+        savePoolList(pool.filterIndexed { i, _ -> i != index })
+        toast(R.string.role_key_pool_removed_one, poolDisplayName(removed))
     }
     // ———— 页面级多选（照主界面 ☑ 多选模式）————
     fun exitSelection() {
@@ -994,11 +994,11 @@ fun KeyManagerScreen(tagRuleId: String, onBack: () -> Unit) {
         }
     ) { paddingValues ->
         val listState = rememberLazyListState()
-        val reorderState = rememberReorderableLazyListState(listState) { from, to ->
+        val reorderState = rememberReorderableLazyListState(listState = listState, onMove = { from, to ->
             val fk = from.key as? String ?: return@rememberReorderableLazyListState
             val tk = to.key as? String ?: return@rememberReorderableLazyListState
             onFlatMove(fk, tk)
-        }
+        })
         // 当前密钥强调色用 scheme.secondary：primary 是各主题的 *_seed，浅底染了看不出
         val accent = MaterialTheme.colorScheme.secondary
         val groups = buildKeyGroups(keys, ifaces)
@@ -1074,7 +1074,7 @@ fun KeyManagerScreen(tagRuleId: String, onBack: () -> Unit) {
                                     showPullModels = true
                                 },
                                 onTestGroup = { testGroup(grp) },
-                                onEditIfc = { grp.ifc?.let { ifc -> ifcFormFor = it } },
+                                onEditIfc = { grp.ifc?.let { ifc -> ifcFormFor = ifc } },
                                 menuExpanded = menuGroup == grp.title,
                                 onMenuDelete = { menuGroup = grp.title },
                                 onMenuDismiss = { menuGroup = null },
