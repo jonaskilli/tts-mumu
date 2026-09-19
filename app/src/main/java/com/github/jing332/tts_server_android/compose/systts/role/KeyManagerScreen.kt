@@ -2,6 +2,7 @@ package com.github.jing332.tts_server_android.compose.systts.role
 
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -221,20 +222,25 @@ private fun KeyEntryRow(
     onEdit: () -> Unit,
     onDelete: () -> Unit,
 ) {
-    // 卡片底色三态（优先级从高到低）：多选勾中=8% 浅红 > 启用中=8% 主题色 > 默认灰白。
-    // compositeOver：近似半透明色叠在卡面上，避免半透明直接给 ElevatedCard 透出页面底色
+    // 卡片底色三态（优先级从高到低）：多选勾中=12% 浅红 > 启用中=18% 主题色+描边 > 默认灰白。
+    // compositeOver：近似半透明色叠在卡面上，避免半透明直接给 ElevatedCard 透出页面底色。
+    // 0919 实机反馈：8% 底色在绿主题里和未启用几乎分不出 → 加深到 18% 并加 1dp 主题色描边
+    // （描边不跟主题变色，任何主题下启用卡一眼可辨）。
+    // 点击整卡（除右侧图标热区）即切换启用，底色就是状态反馈，无需另行加选中标记
     val cardColor = when {
         selectionMode && checked ->
-            MaterialTheme.colorScheme.error.copy(alpha = 0.08f)
+            MaterialTheme.colorScheme.error.copy(alpha = 0.12f)
                 .compositeOver(MaterialTheme.colorScheme.surfaceContainerLow)
         enabled ->
-            MaterialTheme.colorScheme.primary.copy(alpha = 0.08f)
+            MaterialTheme.colorScheme.primary.copy(alpha = 0.18f)
                 .compositeOver(MaterialTheme.colorScheme.surfaceContainerLow)
         else -> MaterialTheme.colorScheme.surfaceContainerLow
     }
 
     ElevatedCard(
         colors = CardDefaults.elevatedCardColors(containerColor = cardColor),
+        // 启用中加 1dp 主题色描边（medium=12dp 与卡圆角一致，不另设形状）
+        border = if (enabled) BorderStroke(1.dp, MaterialTheme.colorScheme.primary) else null,
         // 缩进 = 归属关系：左缘 15dp 与组头折叠箭头同列、右缘 6dp 与组头图标区同列。
         // 上下 3 ⇒ 相邻两张卡之间 6dp
         // start/end 与 vertical 分属不同 padding 重载，写在一起没有匹配的候选，故分两次

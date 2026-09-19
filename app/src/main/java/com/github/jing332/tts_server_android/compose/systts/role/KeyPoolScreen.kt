@@ -28,7 +28,7 @@ import androidx.compose.material.icons.filled.Bolt
 import androidx.compose.material.icons.filled.Checklist
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.Edit
-import androidx.compose.material.icons.filled.PlaylistRemove
+import androidx.compose.material.icons.filled.RemoveCircleOutline
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -285,7 +285,7 @@ internal fun KeyPoolScreen(
  * 启用池一行 = 两行式（用户 0919：副标题独占第二行、整行宽，不再被图标挤到截断）：
  * 第一行 = 序号徽章（实心主题色反白）+ 模型名 + 动作区；
  * 第二行 = 分组名 · *尾号（异组同名模型靠它分辨；残留值此行说明来源）。
- * 动作区 = 闪电（颜色=测试结果，兼单测动作）+ ⊖ 清单减号（移出启用池，可逆）。
+ * 动作区 = 闪电（颜色=测试结果，兼单测动作）+ ⊖ 圆圈减号（移出启用池，可逆）。
  * 多选模式：复选框顶替序号徽章，动作区隐藏。
  */
 @Composable
@@ -348,7 +348,7 @@ private fun PoolRow(
                         enabled = !batchTesting
                     ) { onTest() }
                 }
-                // ⧉复制 ✏编辑 ⊖清单减号=移出（四键与主页条目卡一致，用户 0919；
+                // ⧉复制 ✏编辑 ⊖圆圈减号=移出（四键与主页条目卡一致，用户 0919；
                 // 移出可逆：只出池不删钥，真删除在主页；残留值无条目可编辑，隐藏 ✏）
                 FlatIconAction(
                     Icons.Default.ContentCopy,
@@ -361,7 +361,7 @@ private fun PoolRow(
                     ) { onEdit() }
                 }
                 FlatIconAction(
-                    Icons.Default.PlaylistRemove,
+                    Icons.Default.RemoveCircleOutline,
                     stringResource(R.string.desc_pool_remove)
                 ) { onRemove() }
             }
