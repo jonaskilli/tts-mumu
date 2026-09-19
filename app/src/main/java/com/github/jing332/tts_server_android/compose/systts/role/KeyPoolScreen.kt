@@ -336,7 +336,7 @@ private fun PoolRow(
                 modifier = Modifier.weight(1f)
             )
             if (!selectionMode) {
-                // 闪电 = 单测动作兼结果灯（绿通/红挂/灰未测；测试中转圈）
+                // 闪电 = 单测按钮（恢复纯灰，结果看主页行首灯——两页结果共享同一份）
                 if (testing) {
                     Box(Modifier.size(36.dp), contentAlignment = Alignment.Center) {
                         CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp)
@@ -345,11 +345,6 @@ private fun PoolRow(
                     FlatIconAction(
                         Icons.Default.Bolt,
                         stringResource(R.string.role_key_test),
-                        tint = when (testOk) {
-                            true -> TEST_PASS_COLOR
-                            false -> MaterialTheme.colorScheme.error
-                            else -> MaterialTheme.colorScheme.onSurfaceVariant
-                        },
                         enabled = !batchTesting
                     ) { onTest() }
                 }

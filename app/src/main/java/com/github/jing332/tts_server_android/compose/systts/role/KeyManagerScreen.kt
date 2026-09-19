@@ -196,7 +196,8 @@ internal fun FlatIconAction(
 /**
  * 密钥条目 = 一张卡片（**排布一行不动**，只把每个模型包成卡片）：
  * 行首测试灯（专职指示）+ 显示名 | 动作图标 ⚡⧉✏🗑 同行居右（用户 0919 三轮迭代终稿）：
- *  - 行首 = 测试灯：绿●通 / 红●挂 / 灰○空心未测（测试中转圈）；只指示，不可点。
+ *  - 行首 = 测试灯：没测=空白（中性默认态不显灯）、测试中转圈、测完绿●通/红●挂保留；
+ *    只指示，不可点——有灯的行自然凸显（用户 0919 终稿）。
  *  - **点卡片 = 启用/停用切换**：启用中整卡染主题色浅底（停用恢复灰白）——
  *    ⊕⊖/清单加减图标经两轮实机反馈全部退役，选中语义由底色承担。
  *  - ⚡ 恢复纯灰色按钮（不再兼职变色）；动作区 144dp 与组头图标同列（卡片内容行右内边距 0）。
@@ -254,25 +255,17 @@ private fun KeyEntryRow(
             if (selectionMode) {
                 Checkbox(checked = checked, onCheckedChange = { onToggleCheck() })
             } else {
-                // 行首测试灯（8dp，专职指示不可点）：绿通/红挂/空心未测；测试中转圈
+                // 行首测试灯（8dp，专职指示不可点）：没测=空白（中性默认态不占视觉）、
+                // 测试中转圈、测完绿●通/红●挂并保留——有灯的行自然凸显（用户 0919 终稿）
                 Box(
                     Modifier.width(8.dp).height(24.dp),
                     contentAlignment = Alignment.CenterStart
                 ) {
                     if (testing) {
                         CircularProgressIndicator(Modifier.size(8.dp), strokeWidth = 1.5.dp)
-                    } else {
-                        val dot = when {
-                            testOk == true -> TEST_PASS_COLOR
-                            testOk == false -> MaterialTheme.colorScheme.error
-                            else -> MaterialTheme.colorScheme.outlineVariant
-                        }
-                        if (testOk != null) {
-                            Box(Modifier.size(8.dp).background(dot, CircleShape))
-                        } else {
-                            // 未测 = 空心圆环，和「测过但红/绿」区分开
-                            Box(Modifier.size(8.dp).border(1.dp, dot, CircleShape))
-                        }
+                    } else if (testOk != null) {
+                        val dot = if (testOk) TEST_PASS_COLOR else MaterialTheme.colorScheme.error
+                        Box(Modifier.size(8.dp).background(dot, CircleShape))
                     }
                 }
                 Spacer(Modifier.width(8.dp))
