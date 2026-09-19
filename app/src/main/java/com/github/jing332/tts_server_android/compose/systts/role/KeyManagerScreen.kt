@@ -276,7 +276,9 @@ private fun KeyEntryRow(
                 }
                 Spacer(Modifier.width(6.dp))
             }
-            // 名字区 weight(1f)。多选模式下点名字 = 勾选（整行即复选框的延伸）
+            // 名字区 weight(1f)。多选模式下点名字 = 勾选（整行即复选框的延伸）。
+            // clickable 只在多选时挂载：非多选挂着 enabled=false 也拦掉整卡的启用切换
+            // 点击（0920 实机反馈：只有名字前小空隙能点），条件挂载才干净
             Text(
                 KeyListFile.displayName(entry),
                 style = MaterialTheme.typography.bodyMedium,
@@ -284,7 +286,7 @@ private fun KeyEntryRow(
                 maxLines = 2,
                 overflow = TextOverflow.Ellipsis,
                 modifier = Modifier.weight(1f)
-                    .clickable(enabled = selectionMode) { onToggleCheck() }
+                    .then(if (selectionMode) Modifier.clickable { onToggleCheck() } else Modifier)
             )
             if (!selectionMode) {
                 // 固定宽图标区（方案 A）：144dp=4×36dp 热区，与组头行图标垂直成列。
@@ -551,8 +553,9 @@ fun KeyManagerScreen(tagRuleId: String, onBack: () -> Unit) {
         ifaces = loaded.second
         var p = KeyListFile.parsePoolValues(loaded.third)
         // 照插件兜底：miyue 链**全空**才自动启用第一条。
-        // ⚠️ 不能改成「池里没有匹配条目就启用第一条」——那会让用户全停用后被悄悄顶回一把
-        if (loaded.third.isEmpty() && loaded.first.isNotEmpty()) {
+        // ⚠️ 不能改成「池里没有匹配条目就启用第一条」——那会让用户全停用后被悄悄顶回一把。
+        // 「用户主动清空过池」（pool_cleared.flag）同样跳过兜底，否则删掉最后一把又被顶回（0920 实机反馈）
+        if (loaded.third.isEmpty() && loaded.first.isNotEmpty() && !withIO { KeyListFile.isPoolCleared(tagRuleId) }) {
             val first = loaded.first.first()
             if (first.value.isNotBlank()) {
                 p = listOf(KeyListFile.normalizePoolValue(first.value))
@@ -578,10 +581,15 @@ fun KeyManagerScreen(tagRuleId: String, onBack: () -> Unit) {
             if (ok) version++
         }
     }
-    /** 启用池落盘并刷新（主页与密钥池子页共用的唯一写入口） */
+    /** 启用池落盘并刷新（主页与密钥池子页共用的唯一写入口）。
+     *  空池写「用户主动清空」标记（否则主页兜底会把第一条顶回来）；非空池清除标记 */
     fun savePoolList(list: List<String>) {
         scope.launch {
-            withIO { KeyListFile.savePool(tagRuleId, list) }
+            withIO {
+                KeyListFile.savePool(tagRuleId, list)
+                if (list.isEmpty()) KeyListFile.markPoolCleared(tagRuleId)
+                else KeyListFile.clearPoolClearedFlag(tagRuleId)
+            }
             pool = list
             version++
         }

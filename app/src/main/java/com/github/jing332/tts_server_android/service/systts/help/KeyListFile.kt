@@ -387,6 +387,37 @@ object KeyListFile {
     fun savePool(tagRuleId: String, values: List<String>): Boolean =
         saveCurrentRaw(tagRuleId, values.map { normalizePoolValue(it) }.filter { it.isNotEmpty() }.joinToString("@@"))
 
+    /**
+     * 「用户主动清空池」标记：空池与「从没配置过」在 miyue 链上无法区分，
+     * 而主页兜底会对后者自动启用第一条 ⇒ 用户删掉最后一把又被悄悄顶回（0920 实机反馈）。
+     * 清空时写此标记，主页重载看到它就跳过兜底；再启用任何密钥时删除标记。
+     */
+    private fun poolClearedFlag(tagRuleId: String): File = File(File(BASE_DIR, tagRuleId), "pool_cleared.flag")
+
+    fun markPoolCleared(tagRuleId: String) {
+        try {
+            val d = File(BASE_DIR, tagRuleId)
+            if (!d.exists()) d.mkdirs()
+            poolClearedFlag(tagRuleId).writeText("1")
+        } catch (e: Exception) {
+            Log.w(TAG, "markPoolCleared failed: ${e.message}")
+        }
+    }
+
+    fun isPoolCleared(tagRuleId: String): Boolean = try {
+        poolClearedFlag(tagRuleId).exists()
+    } catch (e: Exception) {
+        false
+    }
+
+    fun clearPoolClearedFlag(tagRuleId: String) {
+        try {
+            poolClearedFlag(tagRuleId).delete()
+        } catch (e: Exception) {
+            Log.w(TAG, "clearPoolClearedFlag failed: ${e.message}")
+        }
+    }
+
 /**
  * 当前生效密钥原值：miyue.txt → gengxin.txt → miyue_backup.txt 取第一个非空（照插件 showKeyManageDialog）。
  * ⚠️ 旧版只读 miyue.txt ⇒ 它空而 backup 有值时被误判「没有当前密钥」，被兜底覆写成第一条。
