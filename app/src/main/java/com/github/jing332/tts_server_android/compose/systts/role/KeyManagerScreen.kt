@@ -54,6 +54,7 @@ import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -1026,8 +1027,9 @@ fun KeyManagerScreen(tagRuleId: String, onBack: () -> Unit) {
         ) {
             if (!selectionMode) {
                 item(key = "ops") {
-                    // 操作行：三个并排的描边键。标签用短文案（新增/拉取）——
-                    // 实机 360dp 下四字标签 + 启用池计数会折行（用户 0919 实机截图）
+                    // 操作行：新增/拉取=描边键，启用池=填充键（用户 0919：强调启用池入口）。
+                    // 0917「不要框内填充色」针对的是三键同填互抢重点；现在只强调启用池一个，
+                    // 恰好构成 MD3 的次级强调层级。短标签防 360dp 折行（0919 实机截图）
                     Row(
                         Modifier.fillMaxWidth().padding(top = 10.dp, bottom = 6.dp),
                         horizontalArrangement = Arrangement.spacedBy(8.dp)
@@ -1045,7 +1047,7 @@ fun KeyManagerScreen(tagRuleId: String, onBack: () -> Unit) {
                             Text(stringResource(R.string.role_key_fetch_short))
                         }
                         // 启用池子页入口：调轮换顺序 / 移出 / 整批测试在那边做
-                        OutlinedButton(
+                        FilledTonalButton(
                             onClick = { showPool = true },
                             modifier = Modifier.weight(1f)
                         ) {
