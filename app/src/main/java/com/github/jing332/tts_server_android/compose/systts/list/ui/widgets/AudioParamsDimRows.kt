@@ -192,10 +192,18 @@ fun AudioParamsDimRows(
                 fontWeight = FontWeight.SemiBold,
             )
             Spacer(Modifier.weight(1f))
+            // 三维终值摘要（本项×插件×全局实时乘积，用户 0919 实机：此前误显本项层原值）。
+            // 绿色 = 与终值行/绿字口径一致
+            val summary = computeFinalParams(
+                snap(speed), snap(volume), snap(pitch),
+                snap(pluginSpeed), snap(pluginVolume), snap(pluginPitch),
+                snap(globalSpeed), snap(globalVolume), snap(globalPitch),
+                hasPluginLayer,
+            )
             Text(
-                text = "语速${finalText(speed)} · 音量${finalText(volume)} · 音高${finalText(pitch)}",
+                text = "语速${summary.speed.toParamText()} · 音量${summary.volume.toParamText()} · 音高${summary.pitch.toParamText()}",
                 style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                color = MaterialTheme.colorScheme.primary,
                 maxLines = 1,
             )
             Spacer(Modifier.size(8.dp))
@@ -208,26 +216,8 @@ fun AudioParamsDimRows(
         }
 
         if (expanded) {
-            // 终值行：实时跟随三层草稿（与弹窗/换声面板同款口径）
-            val finalParams = computeFinalParams(
-                snap(speed), snap(volume), snap(pitch),
-                snap(pluginSpeed), snap(pluginVolume), snap(pluginPitch),
-                snap(globalSpeed), snap(globalVolume), snap(globalPitch),
-                hasPluginLayer,
-            )
-            Text(
-                text = stringResource(
-                    R.string.audio_params_final,
-                    finalParams.speed.toParamText(),
-                    finalParams.volume.toParamText(),
-                    finalParams.pitch.toParamText(),
-                ),
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.primary,
-                modifier = Modifier.padding(top = 2.dp, bottom = 2.dp, start = 8.dp),
-            )
-
-            // 作用域分段 + 该层 语速/音量/音高 三条滑杆 + 重置/应用（与弹窗/换声面板同款组件）
+            // 作用域分段 + 该层 语速/音量/音高 三条滑杆 + 重置/应用（与弹窗/换声面板同款组件）。
+            // 终值不再重复摆一行：收起行摘要 + 滑杆标签已覆盖（用户 0919 实机反馈）
             AudioParamsDimensionSection(
                 hasPluginLayer = hasPluginLayer,
                 firstScopeLabel = stringResource(R.string.audio_params_tag_config_item),
@@ -253,6 +243,3 @@ fun AudioParamsDimRows(
         }
     }
 }
-
-/** 终值摘要用：单维终值 = 本项×插件×全局（无插件源插件层按 1.0 计），toParamText 同口径 */
-private fun finalText(v: Float): String = v.toParamText()

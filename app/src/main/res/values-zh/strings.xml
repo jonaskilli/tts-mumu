@@ -790,8 +790,11 @@
     <string name="role_key_pool_stale">密钥管理中已无对应条目</string>
     <string name="role_key_pool_test_all">测试全部</string>
     <string name="desc_pool_remove">移出启用池</string>
+    <string name="desc_pool_add">加入启用池</string>
     <string name="role_key_pool_group_tail">%1$s · *尾%2$s</string>
     <string name="audio_params_tag_config_item">配置项</string>
+    <string name="role_key_add_short">新增</string>
+    <string name="role_key_fetch_short">拉取</string>
     <string name="role_key_pool_remove_n">移出启用池(%1$d)</string>
     <string name="role_key_pool_removed_one">已移出【%1$s】，密钥保留在密钥管理</string>
     <string name="role_key_pool_removed_batch">已移出 %1$d 把，密钥保留在密钥管理</string>

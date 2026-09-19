@@ -25,6 +25,8 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Bolt
 import androidx.compose.material.icons.filled.Checklist
+import androidx.compose.material.icons.filled.ContentCopy
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.RemoveCircleOutline
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CircularProgressIndicator
@@ -128,6 +130,8 @@ internal fun KeyPoolScreen(
     onToggleCheckAll: () -> Unit,
     onMove: (fromNorm: String, toNorm: String) -> Unit,
     onRemove: (Int) -> Unit,
+    onCopy: (display: String) -> Unit,
+    onEdit: (norm: String) -> Unit,
     onTest: (raw: String, display: String) -> Unit,
     onTestAll: () -> Unit,
     onRemoveBatch: () -> Unit,
@@ -171,9 +175,11 @@ internal fun KeyPoolScreen(
                         if (batchTesting) {
                             CircularProgressIndicator(Modifier.size(16.dp), strokeWidth = 2.dp)
                         } else {
+                            // 用户 0919 实机：默认灰不显眼，改主题色突出
                             Text(
                                 stringResource(R.string.role_key_pool_test_all),
-                                style = MaterialTheme.typography.labelLarge
+                                style = MaterialTheme.typography.labelLarge,
+                                color = MaterialTheme.colorScheme.primary,
                             )
                         }
                     }
@@ -260,6 +266,8 @@ internal fun KeyPoolScreen(
                             dragModifier = dragModifier,
                             onToggleCheck = { onToggleCheck(norm) },
                             onTest = { onTest(value, row.display) },
+                            onCopy = { onCopy(row.display) },
+                            onEdit = { onEdit(norm) },
                             onRemove = { onRemove(idx) },
                         )
                     }
@@ -288,6 +296,8 @@ private fun PoolRow(
     dragModifier: Modifier,
     onToggleCheck: () -> Unit,
     onTest: () -> Unit,
+    onCopy: () -> Unit,
+    onEdit: () -> Unit,
     onRemove: () -> Unit,
 ) {
     Row(
@@ -301,10 +311,11 @@ private fun PoolRow(
             Checkbox(checked = checked, onCheckedChange = { onToggleCheck() })
             Spacer(Modifier.width(10.dp))
         } else {
-            // 大序号徽章：本页的主角就是顺序（拖动放手后自动重排）
+            // 大序号徽章：本页的主角就是顺序（拖动放手后自动重排）。
+            // 0919 实机：14% 透明底太淡，改实心主题色 + 反白数字
             Box(
                 Modifier.size(24.dp).background(
-                    MaterialTheme.colorScheme.secondary.copy(alpha = 0.14f),
+                    MaterialTheme.colorScheme.primary,
                     CircleShape
                 ),
                 contentAlignment = Alignment.Center
@@ -312,7 +323,7 @@ private fun PoolRow(
                 Text(
                     orderNum.toString(),
                     style = MaterialTheme.typography.labelLarge,
-                    color = MaterialTheme.colorScheme.secondary,
+                    color = MaterialTheme.colorScheme.onPrimary,
                     maxLines = 1
                 )
             }
@@ -355,12 +366,23 @@ private fun PoolRow(
                 }
             }
             Spacer(Modifier.width(4.dp))
-            // ⚡ 单测 · ⊖ 移出启用池（可逆：只出池不删钥，真删除在主页）
+            // 动作四键与主页条目卡一致（用户 0919 实机反馈）：⚡单测 ⧉复制 ✏编辑 ⊖移出
+            //（移出=只出池不删钥，可逆；真删除在主页。残留值无条目可编辑，隐藏 ✏）
             FlatIconAction(
                 Icons.Default.Bolt,
                 stringResource(R.string.role_key_test),
                 enabled = !testing && !batchTesting
             ) { onTest() }
+            FlatIconAction(
+                Icons.Default.ContentCopy,
+                stringResource(R.string.copy)
+            ) { onCopy() }
+            if (!info.stale) {
+                FlatIconAction(
+                    Icons.Default.Edit,
+                    stringResource(R.string.role_key_edit)
+                ) { onEdit() }
+            }
             FlatIconAction(
                 Icons.Default.RemoveCircleOutline,
                 stringResource(R.string.desc_pool_remove)

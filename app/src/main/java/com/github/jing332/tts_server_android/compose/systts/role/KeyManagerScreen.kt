@@ -31,6 +31,7 @@ import androidx.compose.material.icons.automirrored.filled.Undo
 import androidx.compose.material.icons.filled.Bolt
 import androidx.compose.material.icons.filled.Checklist
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.AddCircleOutline
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.ContentPaste
 import androidx.compose.material.icons.filled.DeleteOutline
@@ -222,6 +223,7 @@ private fun KeyEntryRow(
     checked: Boolean,
     dragModifier: Modifier,
     onToggleCheck: () -> Unit,
+    onTogglePool: () -> Unit,
     onCopy: () -> Unit,
     onTest: () -> Unit,
     onEdit: () -> Unit,
@@ -255,9 +257,11 @@ private fun KeyEntryRow(
             if (selectionMode) {
                 Checkbox(checked = checked, onCheckedChange = { onToggleCheck() })
             } else {
-                // 行首序号槽（18dp）：启用序号钉死在行首，未启用留空
+                // 行首槽 = 启用池开关（用户 0919 实机反馈：加键直达，免去进多选勾选）：
+                // 未启用 → ⊕ 点按加入（追加到轮换队尾）；已启用 → 序号徽章，点徽章 = 移出
+                //（可再点 ⊕ 加回）。槽 20dp + 间距 2dp = 22dp，与旧 18+4 等宽，名字列不动
                 Box(
-                    Modifier.width(18.dp).height(24.dp),
+                    Modifier.width(20.dp).height(24.dp).clickable(onClick = onTogglePool),
                     contentAlignment = Alignment.Center
                 ) {
                     if (orderNum != null) {
@@ -273,9 +277,16 @@ private fun KeyEntryRow(
                                 maxLines = 1
                             )
                         }
+                    } else {
+                        Icon(
+                            Icons.Default.AddCircleOutline,
+                            contentDescription = stringResource(R.string.desc_pool_add),
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.size(18.dp)
+                        )
                     }
                 }
-                Spacer(Modifier.width(4.dp))
+                Spacer(Modifier.width(2.dp))
             }
             // 名字区 weight(1f)。多选模式下点名字 = 勾选（整行即复选框的延伸）
             Text(
@@ -341,7 +352,6 @@ private fun GroupHeaderBlock(
     isCollapsed: Boolean,
     grpHasEnabled: Boolean,
     selectionMode: Boolean,
-    dragModifier: Modifier,
     onFold: () -> Unit,
     onPull: () -> Unit,
     onTestGroup: () -> Unit,
@@ -361,7 +371,6 @@ private fun GroupHeaderBlock(
                 // 色条=「这个组在轮换池里」的信号，不是装饰。放在可点区外：点色条不触发折叠
                 Row(
                     Modifier.fillMaxWidth()
-                        .then(dragModifier)
                         .padding(start = 6.dp, end = 6.dp, top = 2.dp, bottom = 2.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
@@ -621,6 +630,21 @@ fun KeyManagerScreen(tagRuleId: String, onBack: () -> Unit) {
             version++
         }
     }
+    /** 启用/停用一把密钥（条目行首槽开关）：在池里则摘除，不在则追加到队尾（= 轮换顺序最后） */
+    fun togglePool(entry: KeyListFile.KeyEntry) {
+        val norm = KeyListFile.normalizePoolValue(entry.value)
+        if (norm.isEmpty()) {
+            toast(R.string.role_key_value_empty)
+            return
+        }
+        if (norm in pool) {
+            savePoolList(pool - norm)
+            toast(R.string.role_key_disabled, KeyListFile.displayName(entry))
+        } else {
+            savePoolList(pool + norm)
+            toast(R.string.role_key_enabled, KeyListFile.displayName(entry), pool.size + 1)
+        }
+    }
     /** 调轮换顺序：把 fromNorm 那把挪到 toNorm 的位置（启用池页拖动回调） */
     fun movePool(fromNorm: String, toNorm: String) {
         val from = pool.indexOf(fromNorm)
@@ -688,27 +712,12 @@ fun KeyManagerScreen(tagRuleId: String, onBack: () -> Unit) {
         collapsed = next
         scope.launch { withIO { KeyListFile.saveCollapsedGroups(tagRuleId, next) } }
     }
-    // LazyColumn 拖动的落位回调：键前缀 h:=组头 e:=子项。
-    // 组头只许接口组互拖（未分组/直连不在 ifaces 里 ⇒ 天然被拒，库会自动弹回）；
-    // 子项只许同组内换位——跨组换位没有意义（组的本质=网址+密钥，换组=改值，走编辑接口）
+    // LazyColumn 拖动的落位回调：键前缀 e:=子项。
+    // 子项只许同组内换位——跨组换位没有意义（组的本质=网址+密钥，换组=改值，走编辑接口）；
+    // 组头拖动已取消（用户 0919 实机：展开态拖组头与子项交错、必须收起分组才顺，收益配不上体验）
     fun onFlatMove(fk: String, tk: String) {
         if (selectionMode) return
         if (fk == tk) return
-        if (fk.startsWith("h:") && tk.startsWith("h:")) {
-            val f = fk.removePrefix("h:")
-            val t = tk.removePrefix("h:")
-            val fi = ifaces.indexOfFirst { it.name == f }
-            val ti = ifaces.indexOfFirst { it.name == t }
-            if (fi < 0 || ti < 0 || fi == ti) return
-            val m = ifaces.toMutableList()
-            m.add(ti, m.removeAt(fi))
-            scope.launch {
-                withIO { KeyListFile.saveInterfaces(tagRuleId, m) }
-                ifaces = m
-                version++
-            }
-            return
-        }
         if (fk.startsWith("e:") && tk.startsWith("e:")) {
             val fe = keys.firstOrNull { it.name == fk.removePrefix("e:") } ?: return
             val te = keys.firstOrNull { it.name == tk.removePrefix("e:") } ?: return
@@ -873,6 +882,17 @@ fun KeyManagerScreen(tagRuleId: String, onBack: () -> Unit) {
             onToggleCheckAll = { togglePoolCheckAll() },
             onMove = { fromNorm, toNorm -> movePool(fromNorm, toNorm) },
             onRemove = { index -> removeFromPool(index) },
+            onCopy = { display ->
+                clipboard.setText(AnnotatedString(display))
+                toast(R.string.role_key_copied_model)
+            },
+            onEdit = { norm ->
+                // 从启用池直接进编辑：关池子页 → 打开对应条目的编辑弹窗
+                keys.firstOrNull { KeyListFile.normalizePoolValue(it.value) == norm }?.let { e ->
+                    showPool = false
+                    renameFor = e
+                }
+            },
             onTest = { raw, display -> testRawValue(raw, display) },
             onTestAll = { testAllPool() },
             onRemoveBatch = { removePoolBatch() },
@@ -1014,7 +1034,8 @@ fun KeyManagerScreen(tagRuleId: String, onBack: () -> Unit) {
         ) {
             if (!selectionMode) {
                 item(key = "ops") {
-                    // 操作行：三个并排的描边键，**都不填色**（用户 09-17：不要框内填充色）。
+                    // 操作行：三个并排的描边键。标签用短文案（新增/拉取）——
+                    // 实机 360dp 下四字标签 + 启用池计数会折行（用户 0919 实机截图）
                     Row(
                         Modifier.fillMaxWidth().padding(top = 10.dp, bottom = 6.dp),
                         horizontalArrangement = Arrangement.spacedBy(8.dp)
@@ -1023,13 +1044,13 @@ fun KeyManagerScreen(tagRuleId: String, onBack: () -> Unit) {
                             onClick = { showAdd = true },
                             modifier = Modifier.weight(1f)
                         ) {
-                            Text(stringResource(R.string.role_key_add))
+                            Text(stringResource(R.string.role_key_add_short))
                         }
                         OutlinedButton(
                             onClick = { showPullModels = true },
                             modifier = Modifier.weight(1f)
                         ) {
-                            Text(stringResource(R.string.role_key_fetch))
+                            Text(stringResource(R.string.role_key_fetch_short))
                         }
                         // 启用池子页入口：调轮换顺序 / 移出 / 整批测试在那边做
                         OutlinedButton(
@@ -1058,29 +1079,26 @@ fun KeyManagerScreen(tagRuleId: String, onBack: () -> Unit) {
                     val grpHasEnabled = grp.entries.any {
                         KeyListFile.normalizePoolValue(it.value) in pool
                     }
+                    // 组头不可拖动（用户 0919 实机：展开态拖组头与子项交错、必须收起分组才顺，
+                    // 收益配不上体验——组序不常调，取消；子项组内拖动保留）
                     item(key = "h:" + grp.title) {
-                        ShadowedDraggableItem(reorderState, "h:" + grp.title) { _ ->
-                            GroupHeaderBlock(
-                                grp = grp,
-                                isCollapsed = isCollapsed,
-                                grpHasEnabled = grpHasEnabled,
-                                selectionMode = selectionMode,
-                                dragModifier = if (grp.ifc != null && !selectionMode)
-                                    Modifier.detectReorderAfterLongPress(reorderState)
-                                else Modifier,
-                                onFold = { toggleFold(grp.title) },
-                                onPull = {
-                                    grp.ifc?.let { ifc -> pullForIfc = ifc.name }
-                                    showPullModels = true
-                                },
-                                onTestGroup = { testGroup(grp) },
-                                onEditIfc = { grp.ifc?.let { ifc -> ifcFormFor = ifc } },
-                                menuExpanded = menuGroup == grp.title,
-                                onMenuDelete = { menuGroup = grp.title },
-                                onMenuDismiss = { menuGroup = null },
-                                testingThisGroup = testingGroup == grp.title,
-                            )
-                        }
+                        GroupHeaderBlock(
+                            grp = grp,
+                            isCollapsed = isCollapsed,
+                            grpHasEnabled = grpHasEnabled,
+                            selectionMode = selectionMode,
+                            onFold = { toggleFold(grp.title) },
+                            onPull = {
+                                grp.ifc?.let { ifc -> pullForIfc = ifc.name }
+                                showPullModels = true
+                            },
+                            onTestGroup = { testGroup(grp) },
+                            onEditIfc = { grp.ifc?.let { ifc -> ifcFormFor = ifc } },
+                            menuExpanded = menuGroup == grp.title,
+                            onMenuDelete = { menuGroup = grp.title },
+                            onMenuDismiss = { menuGroup = null },
+                            testingThisGroup = testingGroup == grp.title,
+                        )
                     }
                     if (!isCollapsed) {
                         grp.entries.forEach { entry ->
@@ -1102,6 +1120,7 @@ fun KeyManagerScreen(tagRuleId: String, onBack: () -> Unit) {
                                                 checkedNames - entry.name
                                             else checkedNames + entry.name
                                         },
+                                        onTogglePool = { togglePool(entry) },
                                         // 📋 列表行复制模型名（编辑弹窗里复制的才是完整密钥串）
                                         onCopy = {
                                             clipboard.setText(AnnotatedString(KeyListFile.displayName(entry)))
