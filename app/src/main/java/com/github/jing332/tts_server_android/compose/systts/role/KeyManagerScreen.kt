@@ -257,34 +257,24 @@ private fun KeyEntryRow(
             if (selectionMode) {
                 Checkbox(checked = checked, onCheckedChange = { onToggleCheck() })
             } else {
-                // 行首槽 = 启用池开关（用户 0919 实机反馈：加键直达，免去进多选勾选）：
-                // 未启用 → ⊕ 点按加入（追加到轮换队尾）；已启用 → 序号徽章，点徽章 = 移出
-                //（可再点 ⊕ 加回）。槽 20dp + 间距 2dp = 22dp，与旧 18+4 等宽，名字列不动
+                // 行首槽 = 启用池开关（用户 0919 终稿：⊕ 加入 / ⊖ 移出，减号替代「点序号徽章移出」；
+                // 已启用的 ⊖ 用 accent 色标出「在池里」，轮换顺序在启用池页看实心徽章）。
+                // 槽 20dp + 间距 2dp = 22dp，名字列不动
                 Box(
                     Modifier.width(20.dp).height(24.dp).clickable(onClick = onTogglePool),
                     contentAlignment = Alignment.Center
                 ) {
-                    if (orderNum != null) {
-                        Box(
-                            Modifier.fillMaxSize()
-                                .background(accent.copy(alpha = 0.14f), CircleShape),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Text(
-                                orderNum.toString(),
-                                style = MaterialTheme.typography.labelSmall,
-                                color = accent,
-                                maxLines = 1
-                            )
-                        }
-                    } else {
-                        Icon(
-                            Icons.Default.AddCircleOutline,
-                            contentDescription = stringResource(R.string.desc_pool_add),
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.size(18.dp)
-                        )
-                    }
+                    Icon(
+                        if (orderNum != null) Icons.Default.RemoveCircleOutline
+                        else Icons.Default.AddCircleOutline,
+                        contentDescription = stringResource(
+                            if (orderNum != null) R.string.desc_pool_remove
+                            else R.string.desc_pool_add
+                        ),
+                        tint = if (orderNum != null) accent
+                        else MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.size(18.dp)
+                    )
                 }
                 Spacer(Modifier.width(2.dp))
             }

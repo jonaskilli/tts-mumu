@@ -341,8 +341,8 @@
     <string name="audio_params_final">Final: speed %1$s, volume %2$s, pitch %3$s</string>
     <string name="audio_params_tag_config">Config</string>
     <string name="audio_params_tag_config_item">Config item</string>
-    <string name="role_key_add_short">Add</string>
-    <string name="role_key_fetch_short">Fetch</string>
+    <string name="role_key_add_short">+Key</string>
+    <string name="role_key_fetch_short">+Model</string>
     <string name="audio_params_tag_plugin">Plugin</string>
     <string name="audio_params_tag_global">Global</string>
     <string name="label_speed">Speed：</string>
