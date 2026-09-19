@@ -310,9 +310,10 @@ private fun PoolRow(
                 Checkbox(checked = checked, onCheckedChange = { onToggleCheck() })
                 Spacer(Modifier.width(10.dp))
             } else {
-                // 大序号徽章：本页的主角就是顺序（拖动放手后自动重排）
+                // 大序号徽章：本页的主角就是顺序（拖动放手后自动重排）。
+                // 0919 实机二调：24dp 偏大，缩到 20dp；保持实心主题色（上一版 14% 透明底不显眼的教训不回退）
                 Box(
-                    Modifier.size(24.dp).background(
+                    Modifier.size(20.dp).background(
                         MaterialTheme.colorScheme.primary,
                         CircleShape
                     ),
@@ -320,7 +321,7 @@ private fun PoolRow(
                 ) {
                     Text(
                         orderNum.toString(),
-                        style = MaterialTheme.typography.labelLarge,
+                        style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.onPrimary,
                         maxLines = 1
                     )
