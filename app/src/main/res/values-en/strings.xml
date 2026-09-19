@@ -340,6 +340,7 @@
     <string name="audio_params">Audio Params</string>
     <string name="audio_params_final">Final: speed %1$s, volume %2$s, pitch %3$s</string>
     <string name="audio_params_tag_config">Config</string>
+    <string name="audio_params_tag_config_item">Config item</string>
     <string name="audio_params_tag_plugin">Plugin</string>
     <string name="audio_params_tag_global">Global</string>
     <string name="label_speed">Speed：</string>
@@ -418,7 +419,7 @@
     <string name="backup_need_content">Select at least one item to back up</string>
     <string name="backup_need_save_target">Select at least one save destination</string>
     <string name="audio_params_apply">Apply</string>
-    <string name="audio_params_apply_dim_toast">Applied (all three layers of this dimension saved)</string>
+    <string name="audio_params_apply_dim_toast">Applied (speed/volume/pitch of this scope saved)</string>
     <string name="log_panel_title">Voice Adjustment</string>
     <string name="log_panel_voice_applied">Voice changed and saved</string>
     <string name="log_panel_rebind_failed">Failed to write character binding</string>

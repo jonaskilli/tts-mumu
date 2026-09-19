@@ -464,10 +464,10 @@ fun VoicePickerDialog(
     var globalVolume by remember { mutableStateOf(SysTtsConfig.audioParamsVolume) }
     var globalPitch by remember { mutableStateOf(SysTtsConfig.audioParamsPitch) }
 
-    // 按维度脏标记（09-10 ②A）：该维任一层滑杆改动置 true，应用成功清除（按钮 ● 提示）
-    var speedDirty by remember(entity.id) { mutableStateOf(false) }
-    var volumeDirty by remember(entity.id) { mutableStateOf(false) }
-    var pitchDirty by remember(entity.id) { mutableStateOf(false) }
+    // 按层脏标记（0919 按作用域版）：该层任一滑杆改动置 true，应用成功清除
+    var cfgDirty by remember(entity.id) { mutableStateOf(false) }
+    var pluginDirty by remember(entity.id) { mutableStateOf(false) }
+    var globalDirty by remember(entity.id) { mutableStateOf(false) }
 
     // 暂存选择 → 参数跟随目标切换（含确认后/取消暂存的回退；初始运行顺带校正绑定模式目标）
     androidx.compose.runtime.LaunchedEffect(pendingVoice) {
@@ -494,9 +494,9 @@ fun VoicePickerDialog(
             pluginSpeed = snapParam(loaded?.audioParams?.speed ?: 1f)
             pluginVolume = snapParam(loaded?.audioParams?.volume ?: 1f)
             pluginPitch = snapParam(loaded?.audioParams?.pitch ?: 1f)
-            speedDirty = false
-            volumeDirty = false
-            pitchDirty = false
+            cfgDirty = false
+            pluginDirty = false
+            globalDirty = false
         }
     }
 
@@ -525,29 +525,29 @@ fun VoicePickerDialog(
         )
     }
 
-    /** 维度应用（09-10 ②A）：该维三层一起落库——配置层写参数跟随目标，
-     *  插件层写其插件，全局层写系统配置；接管判定已废除，所有维度恒可调恒落库 */
-    fun applyDim(dim: Int) {
+    /** 作用域应用（0919 按作用域版）：该层三维一起落库——本项层写参数跟随目标，
+     *  插件层写其插件，全局层写系统配置；接管判定已废除，所有层恒可调恒落库 */
+    fun applyScope(layer: Int) {
         val targetDto = paramsTarget.config as? TtsConfigurationDTO ?: return
         val targetSource = targetDto.source as? PluginTtsSource
         scope.launch {
             withIO {
-                val newConfig = targetDto.copy(
-                    audioParams = targetDto.audioParams.copy(
-                        speed = if (dim == 0) snapParam(speed) else targetDto.audioParams.speed,
-                        volume = if (dim == 1) snapParam(volume) else targetDto.audioParams.volume,
-                        pitch = if (dim == 2) snapParam(pitch) else targetDto.audioParams.pitch,
+                if (layer == 0) {
+                    val newConfig = targetDto.copy(
+                        audioParams = targetDto.audioParams.copy(
+                            speed = snapParam(speed), volume = snapParam(volume), pitch = snapParam(pitch),
+                        )
                     )
-                )
-                dbm.systemTtsV2.update(paramsTarget.copy(config = newConfig))
-                if (targetSource != null) {
+                    dbm.systemTtsV2.update(paramsTarget.copy(config = newConfig))
+                }
+                if (layer == 1 && targetSource != null) {
                     dbm.pluginDao.getByPluginId(targetSource.pluginId)?.let { p ->
                         dbm.pluginDao.update(
                             p.copy(
                                 audioParams = p.audioParams.copy(
-                                    speed = if (dim == 0) snapParam(pluginSpeed) else p.audioParams.speed,
-                                    volume = if (dim == 1) snapParam(pluginVolume) else p.audioParams.volume,
-                                    pitch = if (dim == 2) snapParam(pluginPitch) else p.audioParams.pitch,
+                                    speed = snapParam(pluginSpeed),
+                                    volume = snapParam(pluginVolume),
+                                    pitch = snapParam(pluginPitch),
                                 )
                             )
                         )
@@ -555,17 +555,17 @@ fun VoicePickerDialog(
                         PluginDescriptor.invalidatePluginParamsCache(p.pluginId)
                     }
                 }
-                when (dim) {
-                    0 -> SysTtsConfig.audioParamsSpeed = snapParam(globalSpeed)
-                    1 -> SysTtsConfig.audioParamsVolume = snapParam(globalVolume)
-                    else -> SysTtsConfig.audioParamsPitch = snapParam(globalPitch)
+                if (layer == 2) {
+                    SysTtsConfig.audioParamsSpeed = snapParam(globalSpeed)
+                    SysTtsConfig.audioParamsVolume = snapParam(globalVolume)
+                    SysTtsConfig.audioParamsPitch = snapParam(globalPitch)
                 }
                 SystemTtsService.notifyUpdateConfig()
             }
-            when (dim) {
-                0 -> speedDirty = false
-                1 -> volumeDirty = false
-                else -> pitchDirty = false
+            when (layer) {
+                0 -> cfgDirty = false
+                1 -> pluginDirty = false
+                else -> globalDirty = false
             }
             Toast.makeText(
                 context,
@@ -1484,30 +1484,32 @@ fun VoicePickerDialog(
                     // 顶部那条 HorizontalDivider 已撤（用户 09-10 晚）：第二级换成软槽分段后，
                     // 分割线与"两区切换 + 软槽"的层次重复，撤掉更干净
                     // 三层现值总览行已撤（用户 09-10 ④）：顶部终值行足够，每维三层滑杆同屏可见；
-                    // 按维度分段（语速/音量/音高，共用组件），滑杆层标签=配置/插件/全局，
-                    // 接管判定已废除（09-10）：三层恒显示可调
+                    // 按作用域分段（本项→插件→全局，共用组件；0919 由「按维度」调换而来），
+                    // 滑杆行=该层 语速/音量/音高，接管判定已废除（0910）：三层恒显示可调。
+                    // 第一段标签传「配置项」：面板语境下「本项」指角色绑定的那条配置项（用户 0919）
                     val targetDto = paramsTarget.config as? TtsConfigurationDTO
                     val hasPluginLayer = (targetDto?.source as? PluginTtsSource) != null
                     AudioParamsDimensionSection(
                         hasPluginLayer = hasPluginLayer,
-                        cfgSpeed = speed, onCfgSpeed = { speed = it; speedDirty = true },
-                        cfgVolume = volume, onCfgVolume = { volume = it; volumeDirty = true },
-                        cfgPitch = pitch, onCfgPitch = { pitch = it; pitchDirty = true },
-                        pluginSpeed = pluginSpeed, onPluginSpeed = { pluginSpeed = it; speedDirty = true },
-                        pluginVolume = pluginVolume, onPluginVolume = { pluginVolume = it; volumeDirty = true },
-                        pluginPitch = pluginPitch, onPluginPitch = { pluginPitch = it; pitchDirty = true },
-                        globalSpeed = globalSpeed, onGlobalSpeed = { globalSpeed = it; speedDirty = true },
-                        globalVolume = globalVolume, onGlobalVolume = { globalVolume = it; volumeDirty = true },
-                        globalPitch = globalPitch, onGlobalPitch = { globalPitch = it; pitchDirty = true },
-                        isDirty = { when (it) { 0 -> speedDirty; 1 -> volumeDirty; else -> pitchDirty } },
-                        onResetDim = { dim ->
-                            when (dim) {
-                                0 -> { speed = 1f; pluginSpeed = 1f; globalSpeed = 1f }
-                                1 -> { volume = 1f; pluginVolume = 1f; globalVolume = 1f }
-                                else -> { pitch = 1f; pluginPitch = 1f; globalPitch = 1f }
+                        firstScopeLabel = stringResource(R.string.audio_params_tag_config_item),
+                        cfgSpeed = speed, onCfgSpeed = { speed = it; cfgDirty = true },
+                        cfgVolume = volume, onCfgVolume = { volume = it; cfgDirty = true },
+                        cfgPitch = pitch, onCfgPitch = { pitch = it; cfgDirty = true },
+                        pluginSpeed = pluginSpeed, onPluginSpeed = { pluginSpeed = it; pluginDirty = true },
+                        pluginVolume = pluginVolume, onPluginVolume = { pluginVolume = it; pluginDirty = true },
+                        pluginPitch = pluginPitch, onPluginPitch = { pluginPitch = it; pluginDirty = true },
+                        globalSpeed = globalSpeed, onGlobalSpeed = { globalSpeed = it; globalDirty = true },
+                        globalVolume = globalVolume, onGlobalVolume = { globalVolume = it; globalDirty = true },
+                        globalPitch = globalPitch, onGlobalPitch = { globalPitch = it; globalDirty = true },
+                        isDirty = { when (it) { 0 -> cfgDirty; 1 -> pluginDirty; else -> globalDirty } },
+                        onResetScope = { layer ->
+                            when (layer) {
+                                0 -> { speed = 1f; volume = 1f; pitch = 1f }
+                                1 -> { pluginSpeed = 1f; pluginVolume = 1f; pluginPitch = 1f }
+                                else -> { globalSpeed = 1f; globalVolume = 1f; globalPitch = 1f }
                             }
                         },
-                        onApplyDim = { applyDim(it) },
+                        onApplyScope = { applyScope(it) },
                     )
                 }
             }

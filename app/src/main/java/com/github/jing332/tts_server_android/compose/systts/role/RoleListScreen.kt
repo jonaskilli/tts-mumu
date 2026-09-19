@@ -24,6 +24,12 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.CallMerge
+import androidx.compose.material.icons.filled.DeleteOutline
+import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.LinkOff
+import androidx.compose.material.icons.filled.MergeType
+import androidx.compose.material.icons.filled.Star
 import androidx.compose.material3.AlertDialog
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardActions
@@ -538,33 +544,41 @@ fun RoleListScreen(
             text = {
                 Column {
                     if (markCount >= 2) {
-                        MenuActionRow(stringResource(R.string.role_menu_merge_follow), MaterialTheme.colorScheme.primary) {
+                        MenuActionRow(stringResource(R.string.role_menu_merge_follow), Icons.Default.MergeType) {
                             menuFor = null
                             mergeFollowFor = (markedIdx + idx).mapNotNull { records.getOrNull(it)?.name }
                         }
-                        MenuActionRow(stringResource(R.string.role_menu_merge_voice), Color(0xFF7E57C2)) {
+                        MenuActionRow(stringResource(R.string.role_menu_merge_voice), Icons.Default.CallMerge) {
                             menuFor = null
                             markedIdx = markedIdx + idx
                             mergeVoiceTarget = rec.name
                         }
                     }
                     if (hasMerged) {
-                        MenuActionRow(stringResource(R.string.role_menu_release), Color(0xFFFB8C00)) {
+                        MenuActionRow(stringResource(R.string.role_menu_release), Icons.Default.LinkOff) {
                             menuFor = null
                             releaseForIdx = idx
                         }
                     }
                     if (markCount < 2) {
-                        MenuActionRow(stringResource(R.string.role_list_menu_rename), Color(0xFF00838F)) {
+                        MenuActionRow(stringResource(R.string.role_list_menu_rename), Icons.Default.Edit) {
                             menuFor = null
                             editFor = idx to rec
                         }
                     }
-                    MenuActionRow(stringResource(R.string.role_list_menu_delete), MaterialTheme.colorScheme.error) {
+                    MenuActionRow(
+                        stringResource(R.string.role_list_menu_delete),
+                        Icons.Default.DeleteOutline,
+                        MaterialTheme.colorScheme.error
+                    ) {
                         menuFor = null
                         deleteIdx = markedIdx + idx
                     }
-                    MenuActionRow(stringResource(R.string.role_list_menu_set_main), Color(0xFFF57F17)) {
+                    MenuActionRow(
+                        stringResource(R.string.role_list_menu_set_main),
+                        Icons.Default.Star,
+                        Color(0xFFF57F17)
+                    ) {
                         menuFor = null
                         scope.launch {
                             // 按下标改（照插件 setAsMainCharacter：`characterRecords[longPressedIndex]`
@@ -593,7 +607,7 @@ fun RoleListScreen(
             text = {
                 Column {
                     candidates.forEach { name ->
-                        MenuActionRow(name, MaterialTheme.colorScheme.primary) {
+                        MenuActionRow(name) {
                             mergeFollowFor = null
                             val others = candidates.filter { it != name }.toSet()
                             scope.launch {
@@ -729,12 +743,18 @@ fun RoleListScreen(
 }
 
 /**
- * 菜单动作行（彩色圆点 + 文字，照插件 showFirstDialog 行样式）。
- * 字号口径（弹窗标题与字号全部对齐主界面实际弹窗 —— 即 M3 AlertDialog 默认档）：
- * 行文字用 bodyMedium 14sp（原 bodyLarge 16sp 比主界面弹窗正文大一号，如「转为子分组」的选项行）。
+ * 菜单动作行（图标 + 文字；0919 用户拍板：彩色圆点退役换图标，删除=红🗑、设为主角=琥珀⭐，
+ * 其余中性灰。字号 bodyMedium→bodyLarge 16sp：用户 0919 反馈「有点小」，
+ * 推翻 0911「对齐主界面弹窗正文 14sp」的旧口径——以用户最新体感为准）。
+ * icon 传 null = 无图标纯文字（合并跟随的候选名单行用），文字不缩进。
  */
 @Composable
-private fun MenuActionRow(text: String, dotColor: Color, onClick: () -> Unit) {
+private fun MenuActionRow(
+    text: String,
+    icon: ImageVector? = null,
+    iconTint: Color = MaterialTheme.colorScheme.onSurfaceVariant,
+    onClick: () -> Unit,
+) {
     Row(
         Modifier
             .fillMaxWidth()
@@ -742,11 +762,16 @@ private fun MenuActionRow(text: String, dotColor: Color, onClick: () -> Unit) {
             .padding(horizontal = 4.dp, vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Spacer(
-            Modifier.size(7.dp).background(dotColor, CircleShape)
-        )
-        Spacer(Modifier.width(12.dp))
-        Text(text, style = MaterialTheme.typography.bodyMedium)
+        if (icon != null) {
+            Icon(
+                icon,
+                contentDescription = null,
+                tint = iconTint,
+                modifier = Modifier.size(20.dp)
+            )
+            Spacer(Modifier.width(12.dp))
+        }
+        Text(text, style = MaterialTheme.typography.bodyLarge)
     }
 }
 

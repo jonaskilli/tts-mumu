@@ -55,6 +55,8 @@ import kotlinx.coroutines.launch
  *   09-10 试过的 collapsedAccordion 折叠手风琴形态已撤销，勿再引入；
  *   顶部发音人/终值行/试听键 09-10 一度被裁掉，同日用户要求恢复——保持恢复后状态。
  * - 音高进插件/全局层（09-10 翻掉 09-07「音高不出现于插件/全局层」旧决定）。
+ * - 0919 维度对调：分段=作用域（本项→插件→全局），滑杆行=语速/音量/音高；
+ *   终值行恒显，最终值不因调换失去直观可见（用户 0919 关注点）。
  *
  * [onSysttsChange] 由调用方传编辑页内存回调，保证双写一致。
  */
@@ -63,9 +65,6 @@ fun AudioParamsDialog(
     onDismissRequest: () -> Unit,
     systemTts: SystemTtsV2,
     onSysttsChange: (SystemTtsV2) -> Unit,
-    // 初始选中的维度（0=语速 1=音量 2=音高）：编辑页三键直出点哪个键就以哪个维度打开
-    // （用户 09-10 晚：编辑页三键与卡片⋮入口共用本弹窗，不再各写一套单维弹窗）
-    initialDim: Int = 0,
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -84,10 +83,10 @@ fun AudioParamsDialog(
     var globalVolume by remember { mutableStateOf(SysTtsConfig.audioParamsVolume) }
     var globalPitch by remember { mutableStateOf(SysTtsConfig.audioParamsPitch) }
 
-    // 按维度脏标记（09-10 ②A）：该维任一层滑杆改动置 true，应用成功清除
-    var speedDirty by remember(systemTts.id) { mutableStateOf(false) }
-    var volumeDirty by remember(systemTts.id) { mutableStateOf(false) }
-    var pitchDirty by remember(systemTts.id) { mutableStateOf(false) }
+    // 按层脏标记（0919 按作用域版）：该层任一滑杆改动置 true，应用成功清除
+    var cfgDirty by remember(systemTts.id) { mutableStateOf(false) }
+    var pluginDirty by remember(systemTts.id) { mutableStateOf(false) }
+    var globalDirty by remember(systemTts.id) { mutableStateOf(false) }
 
     // ===== 顶部试听状态机（同日志快捷面板：▶ →(点击)… →(出声)■ →(播完复位)▶）=====
     val previewState by TaggedTtsPreviewPlayer.state.collectAsState()
@@ -106,26 +105,24 @@ fun AudioParamsDialog(
         )
     )
 
-    /** 维度应用（09-10 ②A）：该维三层一起落库——配置层双写（库+页面内存），
-     *  插件/全局层照常写入（接管判定已废除，所有维度恒可调）；立即生效不关弹窗 */
-    fun applyDim(dim: Int) {
+    /** 作用域应用（0919 按作用域版）：该层三维一起落库——本项层双写（库+页面内存），
+     *  插件/全局层照常写入（接管判定已废除，所有层恒可调）；立即生效不关弹窗 */
+    fun applyScope(layer: Int) {
         scope.launch {
             val newConfig = withIO {
-                val nc = config.copy(
+                val nc = if (layer == 0) config.copy(
                     audioParams = config.audioParams.copy(
-                        speed = if (dim == 0) snap(speed) else config.audioParams.speed,
-                        volume = if (dim == 1) snap(volume) else config.audioParams.volume,
-                        pitch = if (dim == 2) snap(pitch) else config.audioParams.pitch,
+                        speed = snap(speed), volume = snap(volume), pitch = snap(pitch),
                     )
-                )
+                ) else config
                 dbm.systemTtsV2.update(systemTts.copy(config = nc))
-                if (plugin != null) {
+                if (layer == 1 && plugin != null) {
                     dbm.pluginDao.update(
                         plugin.copy(
                             audioParams = plugin.audioParams.copy(
-                                speed = if (dim == 0) snap(pluginSpeed) else plugin.audioParams.speed,
-                                volume = if (dim == 1) snap(pluginVolume) else plugin.audioParams.volume,
-                                pitch = if (dim == 2) snap(pluginPitch) else plugin.audioParams.pitch,
+                                speed = snap(pluginSpeed),
+                                volume = snap(pluginVolume),
+                                pitch = snap(pluginPitch),
                             )
                         )
                     )
@@ -133,20 +130,20 @@ fun AudioParamsDialog(
                     com.github.jing332.tts_server_android.compose.systts.list.ui.PluginDescriptor
                         .invalidatePluginParamsCache(plugin.pluginId)
                 }
-                when (dim) {
-                    0 -> SysTtsConfig.audioParamsSpeed = snap(globalSpeed)
-                    1 -> SysTtsConfig.audioParamsVolume = snap(globalVolume)
-                    else -> SysTtsConfig.audioParamsPitch = snap(globalPitch)
+                if (layer == 2) {
+                    SysTtsConfig.audioParamsSpeed = snap(globalSpeed)
+                    SysTtsConfig.audioParamsVolume = snap(globalVolume)
+                    SysTtsConfig.audioParamsPitch = snap(globalPitch)
                 }
                 SystemTtsService.notifyUpdateConfig()
                 nc
             }
-            // 配置层双写：回写页面内存，防"应用后再保存"被旧内存覆盖
-            onSysttsChange(systemTts.copy(config = newConfig))
-            when (dim) {
-                0 -> speedDirty = false
-                1 -> volumeDirty = false
-                else -> pitchDirty = false
+            // 本项层双写：回写页面内存，防"应用后再保存"被旧内存覆盖
+            if (layer == 0) onSysttsChange(systemTts.copy(config = newConfig))
+            when (layer) {
+                0 -> cfgDirty = false
+                1 -> pluginDirty = false
+                else -> globalDirty = false
             }
             Toast.makeText(
                 context,
@@ -249,31 +246,29 @@ fun AudioParamsDialog(
                     modifier = Modifier.padding(top = 2.dp, bottom = 2.dp),
                 )
 
-                // ===== 按维度编辑区（09-10 平铺版，用户裁定恢复）：维度分段（语速/音量/音高）
-                //      + 该维三层滑杆 + 重置/应用，与日志快捷面板同款排版；
-                //      折叠手风琴形态同日撤销并删码，勿再引入 =====
+                // ===== 按作用域编辑区（0919 调换版）：作用域分段（本项→插件→全局）
+                //      + 该层 语速/音量/音高 三条滑杆 + 重置/应用；终值行恒显在顶部 =====
                 AudioParamsDimensionSection(
                     hasPluginLayer = hasPluginLayer,
-                    initialDim = initialDim,
-                    cfgSpeed = speed, onCfgSpeed = { speed = it; speedDirty = true },
-                    cfgVolume = volume, onCfgVolume = { volume = it; volumeDirty = true },
-                    cfgPitch = pitch, onCfgPitch = { pitch = it; pitchDirty = true },
-                    pluginSpeed = pluginSpeed, onPluginSpeed = { pluginSpeed = it; speedDirty = true },
-                    pluginVolume = pluginVolume, onPluginVolume = { pluginVolume = it; volumeDirty = true },
-                    pluginPitch = pluginPitch, onPluginPitch = { pluginPitch = it; pitchDirty = true },
-                    globalSpeed = globalSpeed, onGlobalSpeed = { globalSpeed = it; speedDirty = true },
-                    globalVolume = globalVolume, onGlobalVolume = { globalVolume = it; volumeDirty = true },
-                    globalPitch = globalPitch, onGlobalPitch = { globalPitch = it; pitchDirty = true },
-                    isDirty = { when (it) { 0 -> speedDirty; 1 -> volumeDirty; else -> pitchDirty } },
-                    onResetDim = { dim ->
-                        when (dim) {
-                            0 -> { speed = 1f; pluginSpeed = 1f; globalSpeed = 1f }
-                            1 -> { volume = 1f; pluginVolume = 1f; globalVolume = 1f }
-                            else -> { pitch = 1f; pluginPitch = 1f; globalPitch = 1f }
+                    cfgSpeed = speed, onCfgSpeed = { speed = it; cfgDirty = true },
+                    cfgVolume = volume, onCfgVolume = { volume = it; cfgDirty = true },
+                    cfgPitch = pitch, onCfgPitch = { pitch = it; cfgDirty = true },
+                    pluginSpeed = pluginSpeed, onPluginSpeed = { pluginSpeed = it; pluginDirty = true },
+                    pluginVolume = pluginVolume, onPluginVolume = { pluginVolume = it; pluginDirty = true },
+                    pluginPitch = pluginPitch, onPluginPitch = { pluginPitch = it; pluginDirty = true },
+                    globalSpeed = globalSpeed, onGlobalSpeed = { globalSpeed = it; globalDirty = true },
+                    globalVolume = globalVolume, onGlobalVolume = { globalVolume = it; globalDirty = true },
+                    globalPitch = globalPitch, onGlobalPitch = { globalPitch = it; globalDirty = true },
+                    isDirty = { when (it) { 0 -> cfgDirty; 1 -> pluginDirty; else -> globalDirty } },
+                    onResetScope = { layer ->
+                        when (layer) {
+                            0 -> { speed = 1f; volume = 1f; pitch = 1f }
+                            1 -> { pluginSpeed = 1f; pluginVolume = 1f; pluginPitch = 1f }
+                            else -> { globalSpeed = 1f; globalVolume = 1f; globalPitch = 1f }
                         }
                     },
-                    onApplyDim = { applyDim(it) },
-                    // 取消改由维度区按钮行最左承载：与「重置·应用」同一行，
+                    onApplyScope = { applyScope(it) },
+                    // 取消改由作用域区按钮行最左承载：与「重置·应用」同一行，
                     // 全 app 统一「取消（左）｜ 重置 · 应用（右）」（同 GlobalAudioParamsDialog；用户 09-11 夜要求）
                     leadingAction = {
                         TextButton(onClick = onDismissRequest) {
