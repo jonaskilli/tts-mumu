@@ -542,14 +542,14 @@ fun RoleListScreen(
                             menuFor = null
                             mergeFollowFor = (markedIdx + idx).mapNotNull { records.getOrNull(it)?.name }
                         }
-                        MenuActionRow(stringResource(R.string.role_menu_merge_voice), "🎭") {
+                        MenuActionRow(stringResource(R.string.role_menu_merge_voice), "🤝") {
                             menuFor = null
                             markedIdx = markedIdx + idx
                             mergeVoiceTarget = rec.name
                         }
                     }
                     if (hasMerged) {
-                        MenuActionRow(stringResource(R.string.role_menu_release), "✂️") {
+                        MenuActionRow(stringResource(R.string.role_menu_release), "🔓") {
                             menuFor = null
                             releaseForIdx = idx
                         }
@@ -862,8 +862,9 @@ private fun RoleRow(
                 nameList.forEachIndexed { idx, name ->
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         // 性别色圆点：只看发音人分类标签（tag 本身即「分类词+序号」，见 genderDotColor 注释）
-                        // 4dp 压不住场，加大到 8dp（与密钥页状态点/书籍列表圆点同档）
-                        Spacer(Modifier.size(8.dp).background(genderDotColor(rec.voice), CircleShape))
+                        // 0919 缩到 6dp（用户：8dp 圆点视觉太重；色相是性别信息载体，缩尺寸不降饱和）
+                        // 4dp 曾压不住场，6dp 为缩小后与名字行仍相称的下限
+                        Spacer(Modifier.size(6.dp).background(genderDotColor(rec.voice), CircleShape))
                         Spacer(Modifier.width(8.dp))
                         Text(
                             text = buildString {
@@ -946,7 +947,7 @@ private fun ReleaseDialog(
                         Modifier.fillMaxWidth().padding(vertical = 6.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Spacer(Modifier.size(8.dp).background(
+                        Spacer(Modifier.size(6.dp).background(
                             Color(releaseDotColors[i % releaseDotColors.size]), CircleShape
                         ))
                         Spacer(Modifier.width(10.dp))

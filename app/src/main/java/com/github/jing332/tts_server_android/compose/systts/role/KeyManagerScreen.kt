@@ -2214,7 +2214,7 @@ fun BackupCenterDialog(
                     style = MaterialTheme.typography.headlineSmall
                 )
                 Spacer(Modifier.height(12.dp))
-                BackupOptionRow(Icons.Default.ContentCopy, stringResource(R.string.backup_export_book)) {
+                BackupOptionRow("📋", stringResource(R.string.backup_export_book)) {
                     scope.launch {
                         val recs = withIO { CharacterRecordsFile.readRecords(tagRuleId) }
                         val book = withIO { CharacterRecordsFile.readCurrentBook(tagRuleId) }
@@ -2227,12 +2227,12 @@ fun BackupCenterDialog(
                         toast(R.string.backup_clip_ok)
                     }
                 }
-                BackupOptionRow(Icons.Default.ContentPaste, stringResource(R.string.backup_import_book)) {
+                BackupOptionRow("📥", stringResource(R.string.backup_import_book)) {
                     inputText = ""
                     inputVisible = true
                 }
                 BackupOptionRow(
-                    Icons.Default.Save,
+                    "💾",
                     stringResource(R.string.backup_export_all),
                     // 摆出这份备份是什么时候的、装了几个文件——只有一份、看不见时间就等于闭眼点
                     subtitle = backupInfo?.let { info ->
@@ -2249,18 +2249,18 @@ fun BackupCenterDialog(
                         toast(if (n > 0) R.string.backup_done else R.string.role_list_failed, n)
                     }
                 }
-                BackupOptionRow(Icons.Default.Restore, stringResource(R.string.backup_restore_all)) {
+                BackupOptionRow("♻️", stringResource(R.string.backup_restore_all)) {
                     confirmAction = "restore"
                 }
                 // 撤销入口只在真有现场可退时才摆出来（还原过一次之后才有）
                 if (beforeExists) {
                     BackupOptionRow(
-                        Icons.AutoMirrored.Filled.Undo,
+                        "↩️",
                         stringResource(R.string.backup_undo_restore)
                     ) { confirmAction = "undo" }
                 }
                 BackupOptionRow(
-                    Icons.Default.Schedule, stringResource(R.string.backup_auto_enable)
+                    "🕐", stringResource(R.string.backup_auto_enable)
                 ) { autoSettingVisible = true }
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
                     TextButton(onClick = onDismiss) { Text(stringResource(R.string.cancel)) }
@@ -2396,7 +2396,7 @@ fun BackupCenterDialog(
 /** 备份中心选项行；subtitle 用来摆「上次备份于 X · N 个文件」这类事实，不解释了就换行显示 */
 @Composable
 private fun BackupOptionRow(
-    icon: ImageVector,
+    emoji: String,
     text: String,
     subtitle: String? = null,
     onClick: () -> Unit,
@@ -2410,11 +2410,9 @@ private fun BackupOptionRow(
             .padding(horizontal = 8.dp, vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Icon(
-            icon,
-            contentDescription = null,
-            tint = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.size(18.dp)
+        Text(
+            emoji,
+            fontSize = 18.sp,
         )
         Spacer(Modifier.width(14.dp))
         if (subtitle == null) {
