@@ -303,7 +303,89 @@ object KeyListFile {
         return if (saveInterfaces(tagRuleId, ifaces + ifc)) ifc else null
     }
 
-    // ==================== 当前密钥（miyue/gengxin/backup 三写）====================
+    // ==================== 页面 UI 状态（折叠记忆）====================
+
+    private fun uiStateFile(tagRuleId: String) = File(dir(tagRuleId), "key_ui_state.json")
+
+    /** 密钥管理页折叠的分组名集合（进页面读一次；文件缺失/损坏返回空集） */
+    fun readCollapsedGroups(tagRuleId: String): Set<String> = try {
+        val f = uiStateFile(tagRuleId)
+        if (!f.exists()) emptySet()
+        else {
+            val obj = JSONObject(f.readText())
+            val arr = obj.optJSONArray("collapsedGroups") ?: return emptySet()
+            (0 until arr.length()).mapNotNull { i -> arr.optString(i).takeIf { it.isNotEmpty() } }.toSet()
+        }
+    } catch (e: Exception) {
+        Log.w(TAG, "readCollapsedGroups failed: ${e.message}")
+        emptySet()
+    }
+
+    /** 保存折叠的分组名。组名即唯一键：组改名/删除后留下的过期项，下次覆盖保存时自然清掉 */
+    fun saveCollapsedGroups(tagRuleId: String, titles: Set<String>): Boolean = try {
+        val d = dir(tagRuleId)
+        if (!d.exists()) d.mkdirs()
+        val obj = JSONObject()
+        val arr = JSONArray()
+        titles.sorted().forEach { arr.put(it) }
+        obj.put("collapsedGroups", arr)
+        uiStateFile(tagRuleId).writeText(obj.toString(2))
+        true
+    } catch (e: Exception) {
+        Log.w(TAG, "saveCollapsedGroups failed: ${e.message}")
+        false
+    }
+
+    // ==================== 启用池 / 当前密钥（miyue/gengxin/backup 三写）====================
+
+/** 直连裸 Key 入池时补的默认模型（与朗读规则 DualKeyManager 的 defaultConfig.model 同源） */
+    const val DIRECT_MODEL = "glm-4-flash"
+
+/**
+ * 启用池条目归一化：@@串拆段 trim 后回拼；裸 Key 补成「@@模型@@Key」。
+ * 规则按「每 3 段一组 = 地址@@模型@@Key」解析 miyue.txt，裸 Key 不归一就混进 @@串会错位成
+ * 「地址」被整把丢掉；补成空地址段后两端都回落默认端点（智谱），直连与接口串可混选。
+ */
+    fun normalizePoolValue(value: String): String {
+        val p = parseKeyValue(value) ?: return ""
+        return if (p.isDirect) "@@$DIRECT_MODEL@@${p.key}" else "${p.url}@@${p.model}@@${p.key}"
+    }
+
+/**
+ * miyue 原文 → 启用池（有序值列表）：每 3 段一组还原成 地址@@模型@@Key，Key 空的组跳过
+ * （语义照规则 parseSingleGroup）；「##」旧双池格式**两段并入同池**——0919 规则就是这么
+ * 合并消费的，只取前段会在下次保存时把别名段悄悄丢掉。结果按序去重（重复段各保留一份）。
+ */
+    fun parsePoolValues(raw: String): List<String> {
+        val text = raw.trim()
+        if (text.isEmpty()) return emptyList()
+        val segments = if (text.contains("##")) text.split("##").map { it.trim() } else listOf(text)
+        val out = mutableListOf<String>()
+        for (scene in segments) {
+            if (scene.isEmpty()) continue
+            if (!scene.contains("@@")) {
+                normalizePoolValue(scene).takeIf { it.isNotEmpty() }?.let { out.add(it) }
+                continue
+            }
+            val parts = scene.split("@@")
+            var i = 0
+            while (i < parts.size) {
+                val url = parts.getOrNull(i)?.trim().orEmpty()
+                val model = parts.getOrNull(i + 1)?.trim().orEmpty()
+                val key = parts.getOrNull(i + 2)?.trim().orEmpty()
+                if (key.isNotEmpty()) out.add("$url@@$model@@$key")
+                i += 3
+            }
+        }
+        return out.distinct()
+    }
+
+    /** 读启用池（miyue → gengxin → backup 链） */
+    fun readPool(tagRuleId: String): List<String> = parsePoolValues(readCurrentRaw(tagRuleId))
+
+    /** 启用池落盘：值按序 @@ 连接（规则即按序轮换该池），miyue/gengxin/miyue_backup 三写不变 */
+    fun savePool(tagRuleId: String, values: List<String>): Boolean =
+        saveCurrentRaw(tagRuleId, values.map { normalizePoolValue(it) }.filter { it.isNotEmpty() }.joinToString("@@"))
 
 /**
  * 当前生效密钥原值：miyue.txt → gengxin.txt → miyue_backup.txt 取第一个非空（照插件 showKeyManageDialog）。
@@ -827,17 +909,17 @@ object KeyListFile {
     }
 
 /**
- * 恢复备份里的「当前生效」：只在目标当前已无匹配条目时才顶上（不抢占现有选择），
- * 且备份那条必须真在导入后的列表里。
- * ⚠️ 页面加载有兜底「当前无匹配 ⇒ 启用第一条」，不在这里先恢复的话备份的当前会被它顶掉。
+ * 恢复备份里的「当前生效」：现口径 miyue 存的是启用池（可多把），只在目标当前**全空**时
+ * 才整串顶上（不抢占现有启用集），且备份池里至少一把能在导入后的列表里对上号。
+ * ⚠️ 页面加载有兜底「miyue 全空 ⇒ 启用第一条」，不在这里先恢复的话备份的启用集会被它顶掉。
  */
     private fun restoreCurrent(tagRuleId: String, fromBackup: String) {
-        val v = fromBackup.trim()
-        if (v.isEmpty()) return
-        val keys = readKeys(tagRuleId)
-        if (keys.any { it.value.trim() == readCurrentRaw(tagRuleId).trim() }) return
-        if (keys.none { it.value.trim() == v }) return
-        saveCurrentRaw(tagRuleId, v)
+        val incoming = parsePoolValues(fromBackup)
+        if (incoming.isEmpty()) return
+        if (readCurrentRaw(tagRuleId).isNotBlank()) return
+        val norms = readKeys(tagRuleId).map { normalizePoolValue(it.value) }.toSet()
+        if (incoming.none { it in norms }) return
+        saveCurrentRaw(tagRuleId, incoming.joinToString("@@"))
     }
 
 /**

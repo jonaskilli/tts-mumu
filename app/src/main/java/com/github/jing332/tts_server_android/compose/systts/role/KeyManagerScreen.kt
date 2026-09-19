@@ -1,35 +1,39 @@
 package com.github.jing332.tts_server_android.compose.systts.role
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.Undo
 import androidx.compose.material.icons.filled.Bolt
+import androidx.compose.material.icons.filled.Checklist
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.ContentPaste
 import androidx.compose.material.icons.filled.DeleteOutline
-import androidx.compose.material.icons.filled.DeleteSweep
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.FileDownload
@@ -90,6 +94,10 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import com.drake.net.utils.withIO
+import com.github.jing332.compose.widgets.ShadowedDraggableItem
+import org.burnoutcrew.reorderable.detectReorderAfterLongPress
+import org.burnoutcrew.reorderable.rememberReorderableLazyListState
+import org.burnoutcrew.reorderable.reorderable
 import org.json.JSONArray
 import org.json.JSONObject
 import com.github.jing332.tts_server_android.R
@@ -108,8 +116,8 @@ import kotlinx.coroutines.sync.withPermit
  * 当前密钥用状态点 + scheme.secondary 强调（primary 各主题太淡，染了看不出）。
  */
 
-/** 分组后的密钥组（照插件 buildKeyGroups：接口组 + 未分组 + 直连密钥） */
-private class KeyGroup(
+/** 分组后的密钥组（照插件 buildKeyGroups：接口组 + 未分组 + 直连密钥）；密钥池页解析归属也用它 */
+internal class KeyGroup(
     val title: String,
     val entries: List<KeyListFile.KeyEntry>,
     val ifc: KeyListFile.ApiInterface? = null,
@@ -117,7 +125,7 @@ private class KeyGroup(
     val hintRes: Int? = null,
 )
 
-private fun buildKeyGroups(keys: List<KeyListFile.KeyEntry>, ifaces: List<KeyListFile.ApiInterface>): List<KeyGroup> {
+internal fun buildKeyGroups(keys: List<KeyListFile.KeyEntry>, ifaces: List<KeyListFile.ApiInterface>): List<KeyGroup> {
     val groups = mutableListOf<KeyGroup>()
     val assigned = mutableSetOf<String>()
         ifaces.forEach { ifc ->
@@ -148,7 +156,7 @@ private fun buildKeyGroups(keys: List<KeyListFile.KeyEntry>, ifaces: List<KeyLis
  * 红色删除键靠颜色本身表意（不再靠框）。左右内边距由本函数给，调用侧只用 Spacer 控间距。
  */
 @Composable
-private fun FlatTextAction(text: String, color: Color, onClick: () -> Unit) {
+internal fun FlatTextAction(text: String, color: Color, onClick: () -> Unit) {
     Box(
         Modifier
             .heightIn(min = 36.dp)
@@ -164,28 +172,41 @@ private fun FlatTextAction(text: String, color: Color, onClick: () -> Unit) {
 /**
  * 测试通过的绿点：M3 没有 success 槽，也不能跟随主题走（红主题下「通过」会变红），
  * 只能用固定语义绿——这里的固定是有意的，别顺手换成 colorScheme。
+ * （密钥池页的测试灯同用此色，故开放给同包的 KeyPoolScreen）
  */
-private val TEST_PASS_COLOR = Color(0xFF2E7D32)
+internal val TEST_PASS_COLOR = Color(0xFF2E7D32)
 
-/** 扁平图标动作：无描边无底色，18dp onSurfaceVariant 灰、36dp 热区；删除模式随组头转红 */
+/** 扁平图标动作：无描边无底色，18dp onSurfaceVariant 灰、36dp 热区；删除模式随组头转红。
+ *  enabled=false 置灰不可点（调序箭头在列表两端用） */
 @Composable
-private fun FlatIconAction(
+internal fun FlatIconAction(
     icon: ImageVector,
     contentDescription: String,
     tint: Color = MaterialTheme.colorScheme.onSurfaceVariant,
+    enabled: Boolean = true,
     onClick: () -> Unit,
 ) {
+    val effectiveTint = if (enabled) tint else tint.copy(alpha = 0.3f)
     Box(
-        Modifier.size(36.dp).clip(CircleShape).clickable(onClick = onClick),
+        Modifier.size(36.dp).clip(CircleShape)
+            .clickable(enabled = enabled, onClick = onClick),
         contentAlignment = Alignment.Center
     ) {
-        Icon(icon, contentDescription = contentDescription, tint = tint, modifier = Modifier.size(18.dp))
+        Icon(icon, contentDescription = contentDescription, tint = effectiveTint, modifier = Modifier.size(18.dp))
     }
 }
 
 /**
  * 密钥条目 = 一张卡片（**排布一行不动**，只把每个模型包成卡片）：
- * 状态点 + 显示名 +「当前」徽章 + 动作图标 ⚡⧉✏🗑 同行居右；显示名放不下自己换行。
+ * 行首序号徽章 + 显示名 | 测试灯 + 动作图标 ⚡⧉✏🗑 同行居右。
+ * 三个信号各占固定位置、互不混用（09-19 用户反馈迭代）：
+ *  - 行首 18dp 槽 = 启用序号徽章（轮换顺序第几把）；未启用留空。槽钉死在行首，
+ *    名字再长再换行徽章也不漂。槽 18+4dp 与旧状态点 14+8dp 等宽 ⇒ 名字列起点一格不动。
+ *    启用/停用的入口统一在多选模式的「加入启用池」，点名字不再是开关。
+ *  - 测试灯（绿通/红挂/空心未测）在动作区左侧、紧挨 ⚡ 测试键。
+ *  - 动作图标与组头图标同列：卡片内容行右内边距必须为 0。
+ *  - 多选模式下：复选框顶替行首槽，序号/测试灯/动作图标整体隐藏，卡片染浅红。
+ *  - dragModifier = 长按拖动排序（reorderable 库），多选模式下调用侧传 Modifier 禁拖。
  *
  * ElevatedCard 照主界面 Item.kt:113 同款（M3 默认 surfaceContainerLow 底 + 1dp 阴影）；
  * 组卡已撤（组头裸排），本卡是页面唯一容器层，阴影负责把卡片从页面底上顶出来。
@@ -193,104 +214,103 @@ private fun FlatIconAction(
 @Composable
 private fun KeyEntryRow(
     entry: KeyListFile.KeyEntry,
-    isCurrent: Boolean,
+    orderNum: Int?,
     accent: Color,
     testOk: Boolean?,
     testing: Boolean,
-    deleteMode: Boolean,
+    selectionMode: Boolean,
     checked: Boolean,
+    dragModifier: Modifier,
     onToggleCheck: () -> Unit,
-    onSwitch: () -> Unit,
     onCopy: () -> Unit,
     onTest: () -> Unit,
     onEdit: () -> Unit,
     onDelete: () -> Unit,
 ) {
-    // 勾选反馈（原先整行毫无变化、只有小方块在动，看着像设置列表不像多选）——
-    // 勾中整卡染 8% error 浅红，与左侧复选框一起给出「这条被选走了」。
+    // 勾选反馈：勾中整卡染 8% error 浅红，与左侧复选框一起给出「这条被选走了」。
     // compositeOver：底色近似半透明红叠在卡面上，避免半透明直接给 ElevatedCard 透出页面底色
-    val cardColor = if (deleteMode && checked)
+    val cardColor = if (selectionMode && checked)
         MaterialTheme.colorScheme.error.copy(alpha = 0.08f)
             .compositeOver(MaterialTheme.colorScheme.surfaceContainerLow)
     else MaterialTheme.colorScheme.surfaceContainerLow
 
     ElevatedCard(
         colors = CardDefaults.elevatedCardColors(containerColor = cardColor),
-        // 缩进 = 归属关系：左缘 15dp 与组头折叠箭头同列、右缘 6dp 与组头图标区
-        // 同列——上版卡左缘在 6dp（与色条同列），比组头内容还靠左，看着像与组头平级的另一行；
-        // 缩进后卡片明确挂在组头之下。上下 3 ⇒ 相邻两张卡之间 6dp
+        // 缩进 = 归属关系：左缘 15dp 与组头折叠箭头同列、右缘 6dp 与组头图标区同列。
+        // 上下 3 ⇒ 相邻两张卡之间 6dp
         // start/end 与 vertical 分属不同 padding 重载，写在一起没有匹配的候选，故分两次
         modifier = Modifier.fillMaxWidth()
             .padding(start = 15.dp, end = 6.dp)
             .padding(vertical = 3.dp)
+            .then(dragModifier)
     ) {
         Row(
-            // 卡内 9 ⇒ 状态点左缘 24dp（卡左缘 15 + 9），与「删除密钥」标题左缘同列
+            // 卡内 9 ⇒ 行首槽左缘 24dp（卡左缘 15 + 9），与「删除密钥」标题左缘同列；
+            // end 必须为 0：条目动作图标右缘才能落在卡右缘（= 组头图标区右缘）同列
             Modifier.fillMaxWidth()
-                .padding(start = 9.dp, end = 9.dp, top = 8.dp, bottom = 8.dp),
+                .padding(start = 9.dp, end = 0.dp, top = 8.dp, bottom = 8.dp),
             // 名字换行成两行时图标垂直居中，不再用 Top 咬行
             verticalAlignment = Alignment.CenterVertically
         ) {
-            if (deleteMode) {
+            if (selectionMode) {
                 Checkbox(checked = checked, onCheckedChange = { onToggleCheck() })
-            }
-            // 删除模式不显示状态点（☐ 旁边再跟个 ○ 像两组选择圈打架，纯粹干扰；
-            // 「当前」徽章仍在名字后保留）
-            if (!deleteMode) {
-                // 状态点固定 14dp 位宽、24dp 高（对齐 bodyMedium 行高）
-                Box(Modifier.width(14.dp).height(24.dp), contentAlignment = Alignment.CenterStart) {
-                    val dot = when {
-                        // 当前密钥 = 组头色条同款 primary（跟小竖线一个颜色）；
-                        // 名字与「当前」徽章仍走 accent(secondary)，实机看着别扭再统一
-                        isCurrent -> MaterialTheme.colorScheme.primary
-                        testOk == true -> TEST_PASS_COLOR
-                        testOk == false -> MaterialTheme.colorScheme.error
-                        else -> MaterialTheme.colorScheme.outlineVariant
+            } else {
+                // 行首序号槽（18dp）：启用序号钉死在行首，未启用留空
+                Box(
+                    Modifier.width(18.dp).height(24.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    if (orderNum != null) {
+                        Box(
+                            Modifier.fillMaxSize()
+                                .background(accent.copy(alpha = 0.14f), CircleShape),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                orderNum.toString(),
+                                style = MaterialTheme.typography.labelSmall,
+                                color = accent,
+                                maxLines = 1
+                            )
+                        }
                     }
-                    if (isCurrent || testOk != null) {
-                        Box(Modifier.size(8.dp).background(dot, CircleShape))
+                }
+                Spacer(Modifier.width(4.dp))
+            }
+            // 名字区 weight(1f)。多选模式下点名字 = 勾选（整行即复选框的延伸）
+            Text(
+                KeyListFile.displayName(entry),
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurface,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.weight(1f)
+                    .clickable(enabled = selectionMode) { onToggleCheck() }
+            )
+            if (!selectionMode) {
+                // 测试灯固定槽（14dp）：紧挨动作区，绿通/红挂/空心未测；
+                // 测试中在此转小圈（挨着 ⚡ 键，反馈就近）
+                Box(
+                    Modifier.width(14.dp).height(24.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    if (testing) {
+                        CircularProgressIndicator(Modifier.size(14.dp), strokeWidth = 2.dp)
                     } else {
-                        // 未测 = 空心圆环，和「测过但红/绿」区分开
-                        Box(Modifier.size(8.dp).border(1.dp, dot, CircleShape))
+                        val dot = when {
+                            testOk == true -> TEST_PASS_COLOR
+                            testOk == false -> MaterialTheme.colorScheme.error
+                            else -> MaterialTheme.colorScheme.outlineVariant
+                        }
+                        if (testOk != null) {
+                            Box(Modifier.size(8.dp).background(dot, CircleShape))
+                        } else {
+                            // 未测 = 空心圆环，和「测过但红/绿」区分开
+                            Box(Modifier.size(8.dp).border(1.dp, dot, CircleShape))
+                        }
                     }
                 }
-                Spacer(Modifier.width(8.dp))
-            }
-            // 名字区 weight(1f)：短名贴左、「当前」徽章跟在名字后，右侧空隙由固定图标区兜底
-            Row(
-                Modifier.weight(1f),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                // 显示名取**值里的真实模型名**（条目名可能带跨组共存的去重后缀，那是内部标识）。
-                // weight(fill=false)：短名贴左侧，长名吃满剩余宽度后省略，图标不被挤出去
-                Text(
-                    KeyListFile.displayName(entry),
-                    style = MaterialTheme.typography.bodyMedium,
-                    fontWeight = if (isCurrent) FontWeight.SemiBold else null,
-                    color = if (isCurrent) accent else MaterialTheme.colorScheme.onSurface,
-                    maxLines = 2,
-                    overflow = TextOverflow.Ellipsis,
-                    // 删除模式下点名字也算勾选（整行即复选框的延伸，不必非要点中那个小方块）
-                    modifier = Modifier.weight(1f, fill = false)
-                        .clickable { if (deleteMode) onToggleCheck() else onSwitch() }
-                )
-                if (isCurrent) {
-                    Spacer(Modifier.width(6.dp))
-                    Surface(shape = RoundedCornerShape(8.dp), color = accent.copy(alpha = 0.14f)) {
-                        Text(
-                            stringResource(R.string.role_key_current_badge),
-                            style = MaterialTheme.typography.labelSmall,
-                            color = accent,
-                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 1.dp)
-                        )
-                    }
-                }
-                if (testing) {
-                    Spacer(Modifier.width(6.dp))
-                    CircularProgressIndicator(Modifier.size(16.dp), strokeWidth = 2.dp)
-                }
-            }
-            if (!deleteMode) {
+                Spacer(Modifier.width(6.dp))
                 // 固定宽图标区（方案 A）：144dp=4×36dp 热区，与组头行图标垂直成列；
                 // 动作图标按使用频次（方案一）：⚡测试 ⧉复制 ✏编辑 🗑删除
                 //（📋 复制的是模型名，编辑弹窗里才是完整密钥串）
@@ -309,6 +329,217 @@ private fun KeyEntryRow(
     }
 }
 
+/**
+ * 组头 + 元信息行（接口组=网址+尾号小块；未分组/直连=身份说明）。
+ * 长按拖动 = dragModifier（仅接口组、且非多选时启用）；点按 = 折叠/展开（多选模式下不可点）；
+ * 动作图标区仅正常模式渲染：+拉取 ⚡测组 ✏编辑接口 🗑菜单（只剩「删除整组」，
+ * 原来的「多选删除子项」升级成了页面级顶栏 ☑ 多选）。
+ */
+@Composable
+private fun GroupHeaderBlock(
+    grp: KeyGroup,
+    isCollapsed: Boolean,
+    grpHasEnabled: Boolean,
+    selectionMode: Boolean,
+    dragModifier: Modifier,
+    onFold: () -> Unit,
+    onPull: () -> Unit,
+    onTestGroup: () -> Unit,
+    onEditIfc: () -> Unit,
+    menuExpanded: Boolean,
+    onMenuDelete: () -> Unit,
+    onMenuDismiss: () -> Unit,
+    testingThisGroup: Boolean,
+) {
+    // 组不做容器（照主界面 GroupItem.kt:98：组头 background(surface) 裸排、层级靠排版）。
+    // 条目 ElevatedCard 是页面唯一容器层；归属感靠组头排版 + 组间 16dp 间距表达。
+    Column(Modifier.fillMaxWidth().padding(top = 16.dp)) {
+        Column(Modifier.padding(vertical = 4.dp)) {
+            Column(Modifier.fillMaxWidth()) {
+                // ———— 组头行 ————
+                // 色条只跟组头行同高（3×16dp）：只有本组含启用中的密钥才亮——
+                // 色条=「这个组在轮换池里」的信号，不是装饰。放在可点区外：点色条不触发折叠
+                Row(
+                    Modifier.fillMaxWidth()
+                        .then(dragModifier)
+                        .padding(start = 6.dp, end = 6.dp, top = 2.dp, bottom = 2.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Box(
+                        Modifier
+                            .width(3.dp)
+                            .height(16.dp)
+                            .background(
+                                if (grpHasEnabled) MaterialTheme.colorScheme.primary
+                                else Color.Transparent,
+                                RoundedCornerShape(2.dp)
+                            )
+                    )
+                    Spacer(Modifier.width(6.dp))
+                    // 组头可点区：折叠箭头 + 组名 + (N)
+                    Row(
+                        Modifier
+                            .weight(1f)
+                            .clip(RoundedCornerShape(6.dp))
+                            .clickable(enabled = !selectionMode, onClick = onFold),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        val arrowAngle by animateFloatAsState(
+                            targetValue = if (isCollapsed) -90f else 0f, label = ""
+                        )
+                        Icon(
+                            Icons.Default.ExpandMore,
+                            contentDescription = stringResource(
+                                if (isCollapsed) R.string.desc_expand_group
+                                else R.string.desc_collapse_group, grp.title
+                            ),
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.size(22.dp).rotate(arrowAngle)
+                        )
+                        Spacer(Modifier.width(6.dp))
+                        Text(
+                            grp.title,
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.SemiBold,
+                            color = MaterialTheme.colorScheme.onSurface,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            // weight(fill=false)：组名超长时吃满剩余宽度后省略，
+                            // 没有它长组名会把后面的 (N) 挤成一字宽、逐字竖排
+                            modifier = Modifier.weight(1f, fill = false)
+                        )
+                        Spacer(Modifier.width(4.dp))
+                        Text(
+                            "(${grp.entries.size})",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                    if (!selectionMode) {
+                        // 固定宽图标区（方案 A）：144dp=4×36dp 热区，组头与模型行图标垂直成列；
+                        // 不足 4 键（未分组/直连组）右对齐留空。顺序按使用频次：+拉取 ⚡测组 ✏编辑 🗑菜单
+                        Row(
+                            Modifier.width(144.dp),
+                            horizontalArrangement = Arrangement.End,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            grp.ifc?.let { ifc ->
+                                FlatIconAction(
+                                    // 拉取模型 = 往组里加模型（+「添加」语义；放大镜易与页内搜索混淆，弃）
+                                    Icons.Default.Add,
+                                    stringResource(R.string.role_key_fetch)
+                                ) { onPull() }
+                                if (testingThisGroup) {
+                                    Box(Modifier.size(36.dp), contentAlignment = Alignment.Center) {
+                                        CircularProgressIndicator(
+                                            Modifier.size(18.dp), strokeWidth = 2.dp
+                                        )
+                                    }
+                                } else {
+                                    FlatIconAction(
+                                        Icons.Default.Bolt,
+                                        stringResource(R.string.role_key_test)
+                                    ) { onTestGroup() }
+                                }
+                                FlatIconAction(
+                                    Icons.Default.Edit,
+                                    stringResource(R.string.role_key_interface_edit)
+                                ) { onEditIfc() }
+                            }
+                            // 组头 🗑 菜单：删除整组（原来的「多选删除子项」升级成了顶栏 ☑ 多选）
+                            Box {
+                                FlatIconAction(
+                                    Icons.Default.DeleteOutline,
+                                    stringResource(R.string.delete)
+                                ) { onMenuDelete() }
+                                DropdownMenu(
+                                    expanded = menuExpanded,
+                                    onDismissRequest = onMenuDismiss
+                                ) {
+                                    DropdownMenuItem(
+                                        // 警示交给红色图标承载，标题不再整行红字（原样太扎眼）
+                                        leadingIcon = {
+                                            Icon(
+                                                Icons.Default.DeleteOutline,
+                                                contentDescription = null,
+                                                modifier = Modifier.size(18.dp),
+                                                tint = MaterialTheme.colorScheme.error
+                                            )
+                                        },
+                                        text = {
+                                            Column {
+                                                Text(
+                                                    stringResource(R.string.role_key_group_delete_all),
+                                                    style = MaterialTheme.typography.bodyMedium
+                                                )
+                                                Text(
+                                                    stringResource(
+                                                        R.string.role_key_group_delete_all_sub,
+                                                        grp.entries.size
+                                                    ),
+                                                    style = MaterialTheme.typography.labelSmall,
+                                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                                )
+                                            }
+                                        },
+                                        onClick = onMenuDelete
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+                // 元信息行：接口组 = 网址 + 尾号小块；未分组 / 直连组 = 一句身份说明。
+                // 左缘 = 组名文字左缘（43）：卡左缘 15 + 折叠箭头 22 + 间距 6
+                val ifc = grp.ifc
+                if (ifc != null) {
+                    Row(
+                        Modifier.fillMaxWidth()
+                            .padding(start = 43.dp, end = 10.dp, bottom = 6.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            ifc.baseUrl,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            // 网址放不下换行（原单行省略号会吃掉长网址）
+                            maxLines = 2,
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier.weight(1f)
+                        )
+                        Spacer(Modifier.width(8.dp))
+                        // 尾号独立小块（原先挤在网址尾巴上，网址一长就被省略号吃掉）
+                        Surface(
+                            shape = RoundedCornerShape(4.dp),
+                            color = MaterialTheme.colorScheme.surfaceContainerHighest
+                        ) {
+                            Text(
+                                stringResource(
+                                    R.string.role_key_tail, ifc.apiKey.takeLast(4)
+                                ),
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.padding(horizontal = 5.dp, vertical = 1.dp)
+                            )
+                        }
+                    }
+                } else {
+                    grp.hintRes?.let { hint ->
+                        Text(
+                            stringResource(hint),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            maxLines = 2,
+                            overflow = TextOverflow.Ellipsis,
+                            // 与网址分支同列（43），两分支是同一个元素的两个形态
+                            modifier = Modifier.padding(start = 43.dp, end = 10.dp, bottom = 6.dp)
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun KeyManagerScreen(tagRuleId: String, onBack: () -> Unit) {
@@ -319,19 +550,26 @@ fun KeyManagerScreen(tagRuleId: String, onBack: () -> Unit) {
     var version by remember { mutableIntStateOf(0) }
     var keys by remember { mutableStateOf<List<KeyListFile.KeyEntry>>(emptyList()) }
     var ifaces by remember { mutableStateOf<List<KeyListFile.ApiInterface>>(emptyList()) }
-    var currentRaw by remember { mutableStateOf("") }
-    // 测试结果记忆（条目名 → 通/不通）
+    // 启用池（miyue.txt 启用集，按序 = 规则轮换顺序）；元素为归一化值（normalizePoolValue）
+    var pool by remember { mutableStateOf<List<String>>(emptyList()) }
+    // 测试结果记忆（归一化密钥值 → 通/不通）：主页与密钥池页共享同一份
     var testResults by remember { mutableStateOf<Map<String, Boolean>>(emptyMap()) }
-    // 组折叠状态
-    var collapsed by remember { mutableStateOf<Set<String>>(emptySet()) }
-    // 测试中（单条 / 整组批量）
-    var testingName by remember { mutableStateOf<String?>(null) }
+    // 组折叠状态：持久化到 key_ui_state.json（null=尚未从盘上读，防重载覆盖用户当场切换）
+    var collapsed by remember { mutableStateOf<Set<String>?>(null) }
+    // 测试中（单条按归一化值记 / 启用池整批）
+    var testingValue by remember { mutableStateOf<String?>(null) }
     var testingGroup by remember { mutableStateOf<String?>(null) }
-    // 删除选择模式（照插件 deleteMode）：组头变红字 + 全选/取消/删除(N)
-    var deleteModeGroup by remember { mutableStateOf<String?>(null) }
-    var deleteChecked by remember { mutableStateOf<Set<String>>(emptySet()) }
-    var deleteConfirmGroup by remember { mutableStateOf<String?>(null) }
-    var menuGroup by remember { mutableStateOf<String?>(null) }          // 组头 🗑 展开的两项菜单
+    var testingPoolAll by remember { mutableStateOf(false) }
+    // 启用池子页（页内全屏覆盖，返回键退回）
+    var showPool by remember { mutableStateOf(false) }
+    // 页面级多选模式（照主界面 ☑ 多选）：跨组勾选，底栏 全选/加入启用池/删除
+    var selectionMode by remember { mutableStateOf(false) }
+    var checkedNames by remember { mutableStateOf<Set<String>>(emptySet()) }
+    var showDeleteSelected by remember { mutableStateOf(false) }
+    // 启用池页的多选移出（状态同样 hoist 在主页）
+    var poolSelection by remember { mutableStateOf(false) }
+    var poolChecked by remember { mutableStateOf<Set<String>>(emptySet()) }
+    var menuGroup by remember { mutableStateOf<String?>(null) }          // 组头 🗑 菜单（删除整组）
     var deleteGroupConfirm by remember { mutableStateOf<String?>(null) } // 「删除整组」二次确认
 
     LaunchedEffect(version) {
@@ -346,16 +584,21 @@ fun KeyManagerScreen(tagRuleId: String, onBack: () -> Unit) {
         }
         keys = loaded.first
         ifaces = loaded.second
-        var cur = loaded.third
-        // 照插件：当前本地密钥在列表中无匹配 → 自动启用第一个
-        if (keys.isNotEmpty() && keys.none { it.value.trim() == cur }) {
-            val first = keys.first()
+        var p = KeyListFile.parsePoolValues(loaded.third)
+        // 照插件兜底：miyue 链**全空**才自动启用第一条。
+        // ⚠️ 不能改成「池里没有匹配条目就启用第一条」——那会让用户全停用后被悄悄顶回一把
+        if (loaded.third.isEmpty() && loaded.first.isNotEmpty()) {
+            val first = loaded.first.first()
             if (first.value.isNotBlank()) {
-                withIO { KeyListFile.saveCurrentRaw(tagRuleId, first.value) }
-                cur = first.value.trim()
+                p = listOf(KeyListFile.normalizePoolValue(first.value))
+                withIO { KeyListFile.savePool(tagRuleId, p) }
             }
         }
-        currentRaw = cur
+        pool = p
+        // 折叠记忆：只在首次进页面时从盘上读（后续 version++ 重载不覆盖用户当场切换的折叠）
+        if (collapsed == null) {
+            collapsed = withIO { KeyListFile.readCollapsedGroups(tagRuleId) }
+        }
     }
 
     fun toast(resId: Int, vararg args: Any) {
@@ -370,37 +613,140 @@ fun KeyManagerScreen(tagRuleId: String, onBack: () -> Unit) {
             if (ok) version++
         }
     }
-    fun switchTo(entry: KeyListFile.KeyEntry) {
-        if (entry.value.trim() == currentRaw) {
-            toast(R.string.role_key_is_current, KeyListFile.displayName(entry))
-            return
-        }
-        if (entry.value.isBlank()) {
-            toast(R.string.role_key_value_empty)
-            return
-        }
+    /** 启用池落盘并刷新（主页与密钥池子页共用的唯一写入口） */
+    fun savePoolList(list: List<String>) {
         scope.launch {
-            withIO { KeyListFile.saveCurrentRaw(tagRuleId, entry.value) }
-            toast(R.string.role_key_switched, KeyListFile.displayName(entry))
+            withIO { KeyListFile.savePool(tagRuleId, list) }
+            pool = list
             version++
         }
     }
-    fun testKey(entry: KeyListFile.KeyEntry) {
-        if (entry.value.isBlank()) {
+    /** 调轮换顺序：把 fromNorm 那把挪到 toNorm 的位置（启用池页拖动回调） */
+    fun movePool(fromNorm: String, toNorm: String) {
+        val from = pool.indexOf(fromNorm)
+        val to = pool.indexOf(toNorm)
+        if (from < 0 || to < 0 || from == to) return
+        val m = pool.toMutableList()
+        m.add(to, m.removeAt(from))
+        savePoolList(m)
+    }
+    fun removeFromPool(index: Int) {
+        if (index !in pool.indices) return
+        val removed = pool[index]
+        savePoolList(pool.filterIndexed { i, _ -> i != index })
+        toast(R.string.role_key_pool_removed_one, poolDisplayName(removed))
+    }
+    /** 启用池行的显示名：优先按归一化值对回条目；对不上（残留值）显示模型名/Key 尾 */
+    fun poolDisplayName(value: String): String {
+        val norm = KeyListFile.normalizePoolValue(value)
+        keys.firstOrNull { KeyListFile.normalizePoolValue(it.value) == norm }
+            ?.let { return KeyListFile.displayName(it) }
+        val p = KeyListFile.parseKeyValue(value)
+        return when {
+            p == null -> value
+            !p.isDirect && p.model.isNotBlank() -> p.model
+            else -> "*" + p.key.takeLast(6)
+        }
+    }
+    // ———— 页面级多选（照主界面 ☑ 多选模式）————
+    fun exitSelection() {
+        selectionMode = false
+        checkedNames = emptySet()
+    }
+    fun toggleCheckAll() {
+        val all = keys.map { it.name }.toSet()
+        checkedNames = if (checkedNames.containsAll(all)) emptySet() else all
+    }
+    /** 勾选的密钥加入启用池：已在池里的自动跳过，新加入的按列表顺序追加到队尾 */
+    fun addSelectedToPool() {
+        val selected = keys.filter { it.name in checkedNames }
+        val norms = selected.map { KeyListFile.normalizePoolValue(it.value) }.filter { it.isNotEmpty() }
+        val fresh = norms.filter { it !in pool }
+        if (fresh.isNotEmpty()) savePoolList(pool + fresh)
+        toast(R.string.role_key_pool_add_batch, fresh.size, norms.size - fresh.size)
+        exitSelection()
+    }
+    // ———— 启用池页：多选移出（状态 hoist 在主页，写入口同 savePoolList）————
+    fun exitPoolSelection() {
+        poolSelection = false
+        poolChecked = emptySet()
+    }
+    fun togglePoolCheckAll() {
+        poolChecked = if (poolChecked.containsAll(pool)) emptySet() else pool.toSet()
+    }
+    fun removePoolBatch() {
+        if (poolChecked.isEmpty()) return
+        val n = poolChecked.size
+        savePoolList(pool.filter { it !in poolChecked })
+        toast(R.string.role_key_pool_removed_batch, n)
+        exitPoolSelection()
+    }
+    /** 折叠/展开分组并持久化：下次进页面保持上次状态 */
+    fun toggleFold(title: String) {
+        val cur = collapsed ?: emptySet()
+        val next = if (title in cur) cur - title else cur + title
+        collapsed = next
+        scope.launch { withIO { KeyListFile.saveCollapsedGroups(tagRuleId, next) } }
+    }
+    // LazyColumn 拖动的落位回调：键前缀 h:=组头 e:=子项。
+    // 组头只许接口组互拖（未分组/直连不在 ifaces 里 ⇒ 天然被拒，库会自动弹回）；
+    // 子项只许同组内换位——跨组换位没有意义（组的本质=网址+密钥，换组=改值，走编辑接口）
+    fun onFlatMove(fk: String, tk: String) {
+        if (selectionMode) return
+        if (fk == tk) return
+        if (fk.startsWith("h:") && tk.startsWith("h:")) {
+            val f = fk.removePrefix("h:")
+            val t = tk.removePrefix("h:")
+            val fi = ifaces.indexOfFirst { it.name == f }
+            val ti = ifaces.indexOfFirst { it.name == t }
+            if (fi < 0 || ti < 0 || fi == ti) return
+            val m = ifaces.toMutableList()
+            m.add(ti, m.removeAt(fi))
+            scope.launch {
+                withIO { KeyListFile.saveInterfaces(tagRuleId, m) }
+                ifaces = m
+                version++
+            }
+            return
+        }
+        if (fk.startsWith("e:") && tk.startsWith("e:")) {
+            val fe = keys.firstOrNull { it.name == fk.removePrefix("e:") } ?: return
+            val te = keys.firstOrNull { it.name == tk.removePrefix("e:") } ?: return
+            val groupOf = { e: KeyListFile.KeyEntry ->
+                ifaces.firstOrNull { KeyListFile.keyBelongsTo(e, it) }?.name
+            }
+            val fg = groupOf(fe)
+            if (fg == null || fg != groupOf(te)) return
+            val inGroup = keys.filter { groupOf(it) == fg }
+            val fromL = inGroup.indexOfFirst { it.name == fe.name }
+            val toL = inGroup.indexOfFirst { it.name == te.name }
+            if (fromL < 0 || toL < 0 || fromL == toL) return
+            val moved = inGroup.toMutableList()
+            moved.add(toL, moved.removeAt(fromL))
+            var li = 0
+            save(keys.map { if (groupOf(it) == fg) moved[li++] else it })
+        }
+    }
+    /** 按原始值测试一把密钥（主页条目与启用池行共用；结果按归一化值共享） */
+    fun testRawValue(raw: String, display: String) {
+        if (raw.isBlank()) {
             toast(R.string.role_key_value_empty)
             return
         }
         scope.launch {
-            testingName = entry.name
+            testingValue = KeyListFile.normalizePoolValue(raw)
             // 传原始值：@@串走对话端点、纯 Key 走智谱 /models（照插件 testModelKey）
-            val r = withIO { KeyListFile.testKey(entry.value) }
-            testingName = null
-            testResults = testResults + (entry.name to r.first)
+            val r = withIO { KeyListFile.testKey(raw) }
+            testingValue = null
+            testResults = testResults + (KeyListFile.normalizePoolValue(raw) to r.first)
             toast(
                 if (r.first) R.string.role_key_test_ok_toast else R.string.role_key_test_fail_toast,
-                KeyListFile.displayName(entry), r.second
+                display, r.second
             )
         }
+    }
+    fun testKey(entry: KeyListFile.KeyEntry) {
+        testRawValue(entry.value, KeyListFile.displayName(entry))
     }
     // 整组测试并发 4 路（原为串行）。限 4：同站点共用额度，全发会撞 429、被记成「测试失败」；
     // withIO 是真并行、testKey 纯阻塞且每次新建连接 ⇒ 并发安全，灯谁先回谁先亮
@@ -418,7 +764,7 @@ fun KeyManagerScreen(tagRuleId: String, onBack: () -> Unit) {
                 async {
                     gate.withPermit {
                         val r = withIO { KeyListFile.testKey(e.value) }
-                        testResults = testResults + (e.name to r.first)
+                        testResults = testResults + (KeyListFile.normalizePoolValue(e.value) to r.first)
                         r.first
                     }
                 }
@@ -428,22 +774,47 @@ fun KeyManagerScreen(tagRuleId: String, onBack: () -> Unit) {
             toast(R.string.role_key_test_batch_done, grp.title, okCount, targets.size - okCount)
         }
     }
-    // 批量删除（照插件 deleteMultipleBooks：删当前密钥时自动切到剩余第一条）
+    // 密钥池整批测试：同 testGroup 的并发 4 路口径
+    fun testAllPool() {
+        if (pool.isEmpty()) {
+            toast(R.string.role_key_test_none)
+            return
+        }
+        scope.launch {
+            testingPoolAll = true
+            val title = context.getString(R.string.role_key_pool_title)
+            toast(R.string.role_key_test_batch_start, title, pool.size)
+            val gate = Semaphore(4)
+            val results = pool.map { v ->
+                async {
+                    gate.withPermit {
+                        val r = withIO { KeyListFile.testKey(v) }
+                        testResults = testResults + (KeyListFile.normalizePoolValue(v) to r.first)
+                        r.first
+                    }
+                }
+            }.awaitAll()
+            testingPoolAll = false
+            val okCount = results.count { it }
+            toast(R.string.role_key_test_batch_done, title, okCount, results.size - okCount)
+        }
+    }
+    // 批量删除（照插件 deleteMultipleBooks）。被删条目若在启用池里，从池里一并摘除
+    //（池值已无对应条目但仍是可用密钥串，规则会照常轮换 ⇒ 必须显式清掉才符合「删除=连启用一起撤」直觉）
     fun deleteNames(names: List<String>) {
         if (names.isEmpty()) return
         val nameSet = names.toSet()
         val remaining = keys.filter { it.name !in nameSet }
-        val curWasRemoved = keys.any { it.name in nameSet && it.value.trim() == currentRaw }
-        val next = remaining.firstOrNull()
+        val removedNorms = keys.filter { it.name in nameSet }
+            .map { KeyListFile.normalizePoolValue(it.value) }
+            .filter { it.isNotEmpty() }
+            .toSet()
+        val nextPool = pool.filter { it !in removedNorms }
         scope.launch {
             withIO { KeyListFile.saveKeys(tagRuleId, remaining) }
-            if (curWasRemoved) {
-                withIO {
-                    KeyListFile.saveCurrentRaw(
-                        tagRuleId,
-                        next?.value?.takeIf { it.isNotBlank() }.orEmpty()
-                    )
-                }
+            if (nextPool.size != pool.size) {
+                withIO { KeyListFile.savePool(tagRuleId, nextPool) }
+                pool = nextPool
             }
             toast(R.string.role_key_deleted_toast, names.size)
             version++
@@ -476,6 +847,38 @@ fun KeyManagerScreen(tagRuleId: String, onBack: () -> Unit) {
     var showPullModels by remember { mutableStateOf(false) }
     var pullForIfc by remember { mutableStateOf<String?>(null) } // 组头 🔍 预选接口
     var showImport by remember { mutableStateOf(false) }
+
+    // 返回键：多选模式先退多选（启用池页打开时，其内部 BackHandler 后注册、优先拦截）
+    BackHandler(enabled = selectionMode) { exitSelection() }
+
+    // 启用池子页：页内全屏覆盖（照 KeyManagerActivity 的独立全屏页模式，返回键退回主页）。
+    // 状态全部 hoist 在主页（池、测试结果、测试中标记、多选），子页是纯展示 + 回调
+    if (showPool) {
+        KeyPoolScreen(
+            pool = pool,
+            keys = keys,
+            ifaces = ifaces,
+            testByValue = testResults,
+            testingValue = testingValue,
+            batchTesting = testingPoolAll,
+            selectionMode = poolSelection,
+            checked = poolChecked,
+            onBack = { showPool = false },
+            onToggleSelectionMode = {
+                if (poolSelection) exitPoolSelection() else poolSelection = true
+            },
+            onToggleCheck = { norm ->
+                poolChecked = if (norm in poolChecked) poolChecked - norm else poolChecked + norm
+            },
+            onToggleCheckAll = { togglePoolCheckAll() },
+            onMove = { fromNorm, toNorm -> movePool(fromNorm, toNorm) },
+            onRemove = { index -> removeFromPool(index) },
+            onTest = { raw, display -> testRawValue(raw, display) },
+            onTestAll = { testAllPool() },
+            onRemoveBatch = { removePoolBatch() },
+        )
+        return
+    }
 
     // 独立全屏页（照替换管理 / 插件管理模式）：返回键退页，导入/导出在顶栏
     val scrollBehavior = TopAppBarDefaults.pinnedScrollBehavior()
@@ -542,388 +945,172 @@ fun KeyManagerScreen(tagRuleId: String, onBack: () -> Unit) {
                             )
                         }
                     }
+                    // 页面级多选入口（照主界面 ☑ Checklist 同款）：跨组勾选 → 底栏 加入池/删除
+                    IconButton(
+                        onClick = { if (selectionMode) exitSelection() else selectionMode = true }
+                    ) {
+                        Icon(
+                            Icons.Default.Checklist,
+                            contentDescription = stringResource(R.string.desc_multi_select),
+                            tint = if (selectionMode) MaterialTheme.colorScheme.primary
+                            else MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
                 },
                 scrollBehavior = scrollBehavior,
             )
-        }
-    ) { paddingValues ->
-        Column(
-            Modifier
-                .fillMaxSize()
-                .padding(paddingValues)
-                .padding(start = 16.dp, end = 16.dp, top = 4.dp, bottom = 12.dp)
-                .verticalScroll(rememberScrollState())
-        ) {
-                // 操作行：两个并排的描边键，**都不填色**（用户 09-17：不要框内填充色）。
-                // 原先「拉取模型」用 FilledTonalButton 强调主路径，但本页要强调的只有「当前密钥」，
-                // 操作键再填一层就有两处重点相争；且 tonal 的 primaryContainer 与各主题 *_seed
-                // 同族，橙/pink 主题上看着像被染过。改回描边后层级交给位置（在列表之上）与文案。
-                Row(
-                    Modifier.fillMaxWidth().padding(top = 10.dp, bottom = 6.dp),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    OutlinedButton(
-                        onClick = { showAdd = true },
-                        modifier = Modifier.weight(1f)
+        },
+        bottomBar = {
+            // 页面级多选底栏（照主界面多选模式）：全选 | 加入启用池(N) | 删除(N)。
+            // 放 Scaffold bottomBar：高度计入 paddingValues，列表自动让位不被盖住
+            if (selectionMode) {
+                Surface(color = MaterialTheme.colorScheme.background) {
+                    Row(
+                        Modifier
+                            .fillMaxWidth()
+                            .navigationBarsPadding()
+                            .padding(horizontal = 8.dp, vertical = 4.dp),
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Text(stringResource(R.string.role_key_add))
-                    }
-                    OutlinedButton(
-                        onClick = { showPullModels = true },
-                        modifier = Modifier.weight(1f)
-                    ) {
-                        Text(stringResource(R.string.role_key_fetch))
+                        FlatTextAction(
+                            stringResource(R.string.select_all),
+                            MaterialTheme.colorScheme.onSurfaceVariant
+                        ) { toggleCheckAll() }
+                        Spacer(Modifier.weight(1f))
+                        FlatTextAction(
+                            stringResource(R.string.role_key_pool_add_n, checkedNames.size),
+                            MaterialTheme.colorScheme.primary
+                        ) { addSelectedToPool() }
+                        FlatTextAction(
+                            stringResource(R.string.role_key_delete_n, checkedNames.size),
+                            MaterialTheme.colorScheme.error
+                        ) {
+                            if (checkedNames.isEmpty()) toast(R.string.role_key_delete_none)
+                            else showDeleteSelected = true
+                        }
                     }
                 }
-                val groups = buildKeyGroups(keys, ifaces)
-                // 有分组（哪怕全是空组）就渲染卡片：先建组、再拉模型这条路必须走得通
-                if (groups.isEmpty()) {
+            }
+        }
+    ) { paddingValues ->
+        val listState = rememberLazyListState()
+        val reorderState = rememberReorderableLazyListState(listState) { from, to ->
+            val fk = from.key as? String ?: return@rememberReorderableLazyListState
+            val tk = to.key as? String ?: return@rememberReorderableLazyListState
+            onFlatMove(fk, tk)
+        }
+        // 当前密钥强调色用 scheme.secondary：primary 是各主题的 *_seed，浅底染了看不出
+        val accent = MaterialTheme.colorScheme.secondary
+        val groups = buildKeyGroups(keys, ifaces)
+        // 拖动排序（照主界面 reorderable 同款）：组头/子项均长按拖动；多选模式下禁拖。
+        // 键前缀约定：h:组名（组头）/ e:条目名（子项）；未分组/直连为伪组、不可拖
+        LazyColumn(
+            state = listState,
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(paddingValues)
+                .reorderable(reorderState),
+            contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 4.dp, bottom = 12.dp)
+        ) {
+            if (!selectionMode) {
+                item(key = "ops") {
+                    // 操作行：三个并排的描边键，**都不填色**（用户 09-17：不要框内填充色）。
+                    Row(
+                        Modifier.fillMaxWidth().padding(top = 10.dp, bottom = 6.dp),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        OutlinedButton(
+                            onClick = { showAdd = true },
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Text(stringResource(R.string.role_key_add))
+                        }
+                        OutlinedButton(
+                            onClick = { showPullModels = true },
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Text(stringResource(R.string.role_key_fetch))
+                        }
+                        // 启用池子页入口：调轮换顺序 / 移出 / 整批测试在那边做
+                        OutlinedButton(
+                            onClick = { showPool = true },
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Text(stringResource(R.string.role_key_pool_open, pool.size))
+                        }
+                    }
+                }
+            }
+            // 有分组（哪怕全是空组）就渲染：先建组、再拉模型这条路必须走得通
+            if (groups.isEmpty()) {
+                item(key = "empty") {
                     Text(
                         stringResource(R.string.role_key_empty),
                         style = MaterialTheme.typography.bodyLarge,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.fillMaxWidth().padding(vertical = 24.dp)
                     )
-                } else {
-                    // 当前密钥强调色用 scheme.secondary：primary 是各主题的 *_seed，浅底染了看不出
-                    val accent = MaterialTheme.colorScheme.secondary
-                    groups.forEach { grp ->
-                        val isCollapsed = grp.title in collapsed
-                        val isDeleting = deleteModeGroup == grp.title
-                        val grpHasCurrent = currentRaw.isNotEmpty() &&
-                                grp.entries.any { it.value.trim() == currentRaw }
-                        val selCount = grp.entries.count { it.name in deleteChecked }
-                        // 组不做容器（照主界面 GroupItem.kt:98：组头 background(surface) 裸排、层级靠排版）。
-                        // 旧版组卡 surfaceContainerLow 比页面底只暗 4/255、包裹根本不成形，反而把
-                        // surfaceContainerLowest 的条目卡衬成全页最亮的「白条」（质疑后查实）。
-                        // 条目 ElevatedCard 成为页面唯一容器层；归属感靠组头排版 + 组间 16dp 间距表达。
-                        // （内层 Column 保留原缩进壳，避免整块内容平移缩进）
-                        Column(Modifier.fillMaxWidth().padding(top = 16.dp)) {
-                            Column(Modifier.padding(vertical = 4.dp)) {
-                                // ———— 组头 + 元信息行 ————
-                                // 色条只跟**组头行**同高（二改）：上版拉长到元信息行、
-                                // 用 IntrinsicSize.Min 让色条撑满两行，结果折叠箭头随两行高度垂直居中、
-                                // 从「组名左侧」坠到两行中间——箭头锚的是组名，不是整块。
-                                // 现把色条放回组头行内（3×16dp），箭头与组名恢复同行居中
-                                Column(Modifier.fillMaxWidth()) {
-                                    // ———— 组头 ————（删除模式不渲染：动作行挪到卡片底部，见条目之后）
-                                    Row(
-                                        Modifier.fillMaxWidth()
-                                            .padding(start = 6.dp, end = 6.dp, top = 2.dp, bottom = 2.dp),
-                                        verticalAlignment = Alignment.CenterVertically
-                                    ) {
-                                        if (!isDeleting) {
-                                            // 组头色条（09-15 定、09-16 二改回本行高）：只有本组含
-                                            // 当前使用中的密钥才亮——色条=「这个组正在用」的信号，不是装饰。
-                                            // 16dp ≈ 组名文字高，随箭头同行居中；不亮时留等宽空位（3+6=9dp），
-                                            // 组名与箭头位置不漂。放在可点区**外**：点色条不该触发折叠
-                                            Box(
-                                                Modifier
-                                                    .width(3.dp)
-                                                    .height(16.dp)
-                                                    .background(
-                                                        if (grpHasCurrent) MaterialTheme.colorScheme.primary
-                                                        else Color.Transparent,
-                                                        RoundedCornerShape(2.dp)
-                                                    )
-                                            )
-                                            Spacer(Modifier.width(6.dp))
-                                            // 组头可点区：折叠箭头 + 组名 + (N)；「本组含当前密钥」由左侧色条承担
-                                            Row(
-                                                Modifier
-                                                    .weight(1f)
-                                                    .clip(RoundedCornerShape(6.dp))
-                                                    .clickable {
-                                                        collapsed = if (isCollapsed) collapsed - grp.title
-                                                        else collapsed + grp.title
-                                                    },
-                                                verticalAlignment = Alignment.CenterVertically
-                                            ) {
-                                                val arrowAngle by animateFloatAsState(
-                                                    targetValue = if (isCollapsed) -90f else 0f, label = ""
-                                                )
-                                                Icon(
-                                                    Icons.Default.ExpandMore,
-                                                    contentDescription = stringResource(
-                                                        if (isCollapsed) R.string.desc_expand_group
-                                                        else R.string.desc_collapse_group, grp.title
-                                                    ),
-                                                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                                                    modifier = Modifier.size(22.dp).rotate(arrowAngle)
-                                                )
-                                                Spacer(Modifier.width(6.dp))
-                                                Text(
-                                                    grp.title,
-                                                    style = MaterialTheme.typography.titleMedium,
-                                                    fontWeight = FontWeight.SemiBold,
-                                                    color = MaterialTheme.colorScheme.onSurface,
-                                                    maxLines = 1,
-                                                    overflow = TextOverflow.Ellipsis,
-                                                    // weight(fill=false)：组名超长时吃满剩余宽度后省略，
-                                                    // 没有它长组名会把后面的 (N) 挤成一字宽、逐字竖排
-                                                    modifier = Modifier.weight(1f, fill = false)
-                                                )
-                                                Spacer(Modifier.width(4.dp))
-                                                Text(
-                                                    "(${grp.entries.size})",
-                                                    style = MaterialTheme.typography.bodySmall,
-                                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                                )
-                                                // 「本组含当前密钥」不再跟 ✓（多余），
-                                                // 信号由组头左侧色条单独承担
-                                            }
-                                            // 固定宽图标区（方案 A）：144dp=4×36dp 热区，组头与
-                                            // 模型行两行图标垂直成列；不足 4 键（未分组/直连组）右对齐留空
-                                            Row(
-                                                Modifier.width(144.dp),
-                                                horizontalArrangement = Arrangement.End,
-                                                verticalAlignment = Alignment.CenterVertically
-                                            ) {
-                                                // 组级四图标全部常驻；仅接口组有前三个（未分组 / 直连点了只是白弹提示）。
-                                                // 顺序按使用频次（方案一）：+拉取 ⚡测组 ✏编辑接口 🗑删除
-                                                grp.ifc?.let { ifc ->
-                                                    FlatIconAction(
-                                                        // 拉取模型 = 往组里加模型（三轮：Sync 云同步也别扭，
-                                                        // 改 +「添加」语义；放大镜易与页内搜索混淆，弃）
-                                                        Icons.Default.Add,
-                                                        stringResource(R.string.role_key_fetch)
-                                                    ) {
-                                                        pullForIfc = ifc.name
-                                                        showPullModels = true
-                                                    }
-                                                    if (testingGroup == grp.title) {
-                                                        Box(Modifier.size(36.dp), contentAlignment = Alignment.Center) {
-                                                            CircularProgressIndicator(
-                                                                Modifier.size(18.dp), strokeWidth = 2.dp
-                                                            )
-                                                        }
-                                                    } else {
-                                                        FlatIconAction(
-                                                            Icons.Default.Bolt,
-                                                            stringResource(R.string.role_key_test)
-                                                        ) { testGroup(grp) }
-                                                    }
-                                                    FlatIconAction(
-                                                        Icons.Default.Edit,
-                                                        stringResource(R.string.role_key_interface_edit)
-                                                    ) { ifcFormFor = ifc }
-                                                }
-                                                // 组头 🗑 展开两项：删除整组 / 多选删除子项
-                                                Box {
-                                                    FlatIconAction(
-                                                        Icons.Default.DeleteOutline,
-                                                        stringResource(R.string.delete)
-                                                    ) { menuGroup = grp.title }
-                                                    DropdownMenu(
-                                                        expanded = menuGroup == grp.title,
-                                                        onDismissRequest = { menuGroup = null }
-                                                    ) {
-                                                        DropdownMenuItem(
-                                                            // 警示交给红色图标承载，标题不再整行红字（原样太扎眼）
-                                                            leadingIcon = {
-                                                                Icon(
-                                                                    Icons.Default.DeleteOutline,
-                                                                    contentDescription = null,
-                                                                    modifier = Modifier.size(18.dp),
-                                                                    tint = MaterialTheme.colorScheme.error
-                                                                )
-                                                            },
-                                                            text = {
-                                                                Column {
-                                                                    Text(
-                                                                        stringResource(R.string.role_key_group_delete_all),
-                                                                        style = MaterialTheme.typography.bodyMedium
-                                                                    )
-                                                                    Text(
-                                                                        stringResource(
-                                                                            R.string.role_key_group_delete_all_sub,
-                                                                            grp.entries.size
-                                                                        ),
-                                                                        style = MaterialTheme.typography.labelSmall,
-                                                                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                                                                    )
-                                                                }
-                                                            },
-                                                            onClick = {
-                                                                menuGroup = null
-                                                                deleteGroupConfirm = grp.title
-                                                            }
-                                                        )
-                                                        DropdownMenuItem(
-                                                            // 两项各带一枚 18dp 前置图标，文字左缘才对得齐：
-                                                            // 删除整组=红🗑（警示），多选删除=灰🧹（组保留、非毁灭）
-                                                            leadingIcon = {
-                                                                Icon(
-                                                                    Icons.Default.DeleteSweep,
-                                                                    contentDescription = null,
-                                                                    modifier = Modifier.size(18.dp),
-                                                                    tint = MaterialTheme.colorScheme.onSurfaceVariant
-                                                                )
-                                                            },
-                                                            text = {
-                                                                Column {
-                                                                    Text(
-                                                                        stringResource(R.string.role_key_group_delete_multi),
-                                                                        style = MaterialTheme.typography.bodyMedium
-                                                                    )
-                                                                    Text(
-                                                                        stringResource(R.string.role_key_group_delete_multi_sub),
-                                                                        style = MaterialTheme.typography.labelSmall,
-                                                                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                                                                    )
-                                                                }
-                                                            },
-                                                            onClick = {
-                                                                menuGroup = null
-                                                                deleteModeGroup = grp.title
-                                                                deleteChecked = emptySet()
-                                                                collapsed = collapsed - grp.title
-                                                            }
-                                                        )
-                                                    }
-                                                }
-                                            } // 固定宽图标区收尾
-                                        }
-                                    }
-                                    // 元信息行：接口组 = 网址 + 尾号小块；未分组 / 直连组 = 一句身份说明
-                                    if (!isDeleting) {
-                                        val ifc = grp.ifc
-                                        // 元信息行左缘 = 组名文字左缘（43）：卡左缘 15 + 折叠箭头 22 + 间距 6。
-                                        // 原先是 34（09-14 与组名同列），09-16 给组头加色条把组名推到 43 之后
-                                        // 这行落了单，于是组头两行文字各站一条竖线——现在共线，且零宽度代价
-                                        // （这行右边只有一个尾号小块）。不改的话卡片缩进方案又得压模型名宽度。
-                                        if (ifc != null) {
-                                            Row(
-                                                Modifier.fillMaxWidth()
-                                                    .padding(start = 43.dp, end = 10.dp, bottom = 6.dp),
-                                                verticalAlignment = Alignment.CenterVertically
-                                            ) {
-                                                Text(
-                                                    ifc.baseUrl,
-                                                    style = MaterialTheme.typography.bodySmall,
-                                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                                    // 网址放不下换行（原单行省略号会吃掉长网址）
-                                                    maxLines = 2,
-                                                    overflow = TextOverflow.Ellipsis,
-                                                    modifier = Modifier.weight(1f)
-                                                )
-                                                Spacer(Modifier.width(8.dp))
-                                                // 尾号独立小块（原先挤在网址尾巴上，网址一长就被省略号吃掉）
-                                                Surface(
-                                                    shape = RoundedCornerShape(4.dp),
-                                                    color = MaterialTheme.colorScheme.surfaceContainerHighest
-                                                ) {
-                                                    Text(
-                                                        stringResource(
-                                                            R.string.role_key_tail, ifc.apiKey.takeLast(4)
-                                                        ),
-                                                        style = MaterialTheme.typography.labelSmall,
-                                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                                        modifier = Modifier.padding(horizontal = 5.dp, vertical = 1.dp)
-                                                    )
-                                                }
-                                            }
-                                        } else {
-                                            grp.hintRes?.let { hint ->
-                                                Text(
-                                                    stringResource(hint),
-                                                    style = MaterialTheme.typography.bodySmall,
-                                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                                    maxLines = 2,
-                                                    overflow = TextOverflow.Ellipsis,
-                                                    // 与网址分支同列（43），两分支是同一个元素的两个形态
-                                                    modifier = Modifier.padding(start = 43.dp, end = 10.dp, bottom = 6.dp)
-                                                )
-                                            }
-                                        }
-                                    }
-                                }
-                                if (isDeleting) {
-                                    // 删除模式标题行（定稿）：标题回到标题位（09-15 从底部
-                                    // 挪回来是对的，但上次端的是 24sp 弹窗标题架子，压得卡片头重），
-                                    // 现在降到 16sp 与右端「全选」共一行；底部只留「取消 / 删除(N)」。
-                                    // 于是动作分两条带：顶部选谁、底部执行或退出，视线不在卡片里跑两趟。
-                                    // 左右缩进对齐条目卡内容：24 = 卡左缘 15 + 卡内 9；end 5 让「全选」文字
-                                    // 右缘落在 15dp（= 5 + FlatTextAction 自带 10dp），与条目图标成列
-                                    Row(
-                                        Modifier.fillMaxWidth()
-                                            .padding(start = 24.dp, end = 5.dp, top = 4.dp),
-                                        verticalAlignment = Alignment.CenterVertically
-                                    ) {
-                                        Text(
-                                            stringResource(R.string.role_key_delete_title),
-                                            style = MaterialTheme.typography.bodyLarge,
-                                            fontWeight = FontWeight.Medium,
-                                            color = MaterialTheme.colorScheme.onSurface,
-                                            modifier = Modifier.weight(1f)
-                                        )
-                                        FlatTextAction(
-                                            stringResource(R.string.select_all),
-                                            MaterialTheme.colorScheme.onSurfaceVariant
-                                        ) {
-                                            val allSel = grp.entries.all { it.name in deleteChecked }
-                                            val names = grp.entries.map { it.name }.toSet()
-                                            deleteChecked =
-                                                if (allSel) deleteChecked - names else deleteChecked + names
-                                        }
-                                    }
-                                }
-                                if (!isCollapsed) {
-                                    // 条目各自成卡：条目间的浅分隔线随之删掉，
-                                    // 间距改由卡片自身的 3dp 上下外边距给出（相邻两张之间 6dp）
-                                    grp.entries.forEach { entry ->
-                                        val isCurrent = currentRaw.isNotEmpty() &&
-                                                entry.value.trim() == currentRaw
-                                        KeyEntryRow(
-                                            entry = entry,
-                                            isCurrent = isCurrent,
-                                            accent = accent,
-                                            testOk = testResults[entry.name],
-                                            testing = testingName == entry.name,
-                                            deleteMode = isDeleting,
-                                            checked = entry.name in deleteChecked,
-                                            onToggleCheck = {
-                                                deleteChecked = if (entry.name in deleteChecked)
-                                                    deleteChecked - entry.name
-                                                else deleteChecked + entry.name
-                                            },
-                                            onSwitch = { switchTo(entry) },
-                                            // 📋 列表行复制模型名（编辑弹窗里复制的才是完整密钥串）
-                                            onCopy = {
-                                                clipboard.setText(AnnotatedString(KeyListFile.displayName(entry)))
-                                                toast(R.string.role_key_copied_model)
-                                            },
-                                            onTest = { testKey(entry) },
-                                            onEdit = { renameFor = entry },
-                                            onDelete = { deleteFor = entry }
-                                        )
-                                    }
-                                }
-                                // ———— 删除模式动作行（卡片底部）：只有 取消 / 删除(N) ————
-                                // 全选已并到顶部标题行，此处不再重复；两个键都是
-                                // 无框文字键，下方留 4dp 让红键不贴着卡片圆角；end 5 同标题行的「全选」
-                                if (isDeleting) {
-                                    Row(
-                                        Modifier.fillMaxWidth()
-                                            .padding(start = 24.dp, end = 5.dp, top = 2.dp, bottom = 4.dp),
-                                        horizontalArrangement = Arrangement.End,
-                                        verticalAlignment = Alignment.CenterVertically
-                                    ) {
-                                        FlatTextAction(
-                                            stringResource(R.string.cancel),
-                                            MaterialTheme.colorScheme.onSurfaceVariant
-                                        ) {
-                                            deleteModeGroup = null
-                                            deleteChecked = emptySet()
-                                        }
-                                        FlatTextAction(
-                                            stringResource(R.string.role_key_delete_n, selCount),
-                                            MaterialTheme.colorScheme.error
-                                        ) {
-                                            if (selCount == 0) toast(R.string.role_key_delete_none)
-                                            else deleteConfirmGroup = grp.title
-                                        }
-                                    }
+                }
+            } else {
+                groups.forEach { grp ->
+                    val isCollapsed = collapsed?.contains(grp.title) == true
+                    // 色条判据：本组含**启用中**的密钥（旧口径=含当前密钥，多选后推广为启用集）
+                    val grpHasEnabled = grp.entries.any {
+                        KeyListFile.normalizePoolValue(it.value) in pool
+                    }
+                    item(key = "h:" + grp.title) {
+                        ShadowedDraggableItem(reorderState, "h:" + grp.title) { _ ->
+                            GroupHeaderBlock(
+                                grp = grp,
+                                isCollapsed = isCollapsed,
+                                grpHasEnabled = grpHasEnabled,
+                                selectionMode = selectionMode,
+                                dragModifier = if (grp.ifc != null && !selectionMode)
+                                    Modifier.detectReorderAfterLongPress(reorderState)
+                                else Modifier,
+                                onFold = { toggleFold(grp.title) },
+                                onPull = {
+                                    grp.ifc?.let { ifc -> pullForIfc = ifc.name }
+                                    showPullModels = true
+                                },
+                                onTestGroup = { testGroup(grp) },
+                                onEditIfc = { grp.ifc?.let { ifc -> ifcFormFor = it } },
+                                menuExpanded = menuGroup == grp.title,
+                                onMenuDelete = { menuGroup = grp.title },
+                                onMenuDismiss = { menuGroup = null },
+                                testingThisGroup = testingGroup == grp.title,
+                            )
+                        }
+                    }
+                    if (!isCollapsed) {
+                        grp.entries.forEach { entry ->
+                            item(key = "e:" + entry.name) {
+                                ShadowedDraggableItem(reorderState, "e:" + entry.name) { _ ->
+                                    val norm = KeyListFile.normalizePoolValue(entry.value)
+                                    KeyEntryRow(
+                                        entry = entry,
+                                        orderNum = pool.indexOf(norm).takeIf { it >= 0 }?.plus(1),
+                                        accent = accent,
+                                        testOk = testResults[norm],
+                                        testing = testingValue == norm,
+                                        selectionMode = selectionMode,
+                                        checked = entry.name in checkedNames,
+                                        dragModifier = if (selectionMode) Modifier
+                                        else Modifier.detectReorderAfterLongPress(reorderState),
+                                        onToggleCheck = {
+                                            checkedNames = if (entry.name in checkedNames)
+                                                checkedNames - entry.name
+                                            else checkedNames + entry.name
+                                        },
+                                        // 📋 列表行复制模型名（编辑弹窗里复制的才是完整密钥串）
+                                        onCopy = {
+                                            clipboard.setText(AnnotatedString(KeyListFile.displayName(entry)))
+                                            toast(R.string.role_key_copied_model)
+                                        },
+                                        onTest = { testKey(entry) },
+                                        onEdit = { renameFor = entry },
+                                        onDelete = { deleteFor = entry }
+                                    )
                                 }
                             }
                         }
@@ -931,25 +1118,23 @@ fun KeyManagerScreen(tagRuleId: String, onBack: () -> Unit) {
                 }
             }
         }
-
-    // 批量删除确认（组内选中 N 条 → 二次确认）
-    deleteConfirmGroup?.let { gTitle ->
-        val grp = buildKeyGroups(keys, ifaces).firstOrNull { it.title == gTitle }
-        val targets = grp?.entries?.filter { it.name in deleteChecked }?.map { it.name }.orEmpty()
+    }
+    // 页面级多选删除确认（跨组选中 N 条 → 二次确认）
+    if (showDeleteSelected) {
         AlertDialog(
-            onDismissRequest = { deleteConfirmGroup = null },
+            onDismissRequest = { showDeleteSelected = false },
             title = { Text(stringResource(R.string.role_key_delete_title)) },
-            text = { Text(stringResource(R.string.role_key_delete_batch_text, gTitle, targets.size)) },
+            text = { Text(stringResource(R.string.role_key_delete_selected_text, checkedNames.size)) },
             confirmButton = {
                 TextButton(onClick = {
-                    deleteConfirmGroup = null
-                    deleteModeGroup = null
-                    deleteChecked = emptySet()
-                    deleteNames(targets)
+                    showDeleteSelected = false
+                    val names = checkedNames.toList()
+                    exitSelection()
+                    deleteNames(names)
                 }) { Text(stringResource(R.string.delete), color = MaterialTheme.colorScheme.error) }
             },
             dismissButton = {
-                TextButton(onClick = { deleteConfirmGroup = null }) {
+                TextButton(onClick = { showDeleteSelected = false }) {
                     Text(stringResource(R.string.cancel))
                 }
             }
@@ -967,8 +1152,6 @@ fun KeyManagerScreen(tagRuleId: String, onBack: () -> Unit) {
             confirmButton = {
                 TextButton(onClick = {
                     deleteGroupConfirm = null
-                    deleteModeGroup = null
-                    deleteChecked = emptySet()
                     if (grp != null) deleteGroupAll(grp)
                 }) { Text(stringResource(R.string.delete), color = MaterialTheme.colorScheme.error) }
             },
@@ -993,10 +1176,11 @@ fun KeyManagerScreen(tagRuleId: String, onBack: () -> Unit) {
                 } else {
                     showAdd = false
                     save(keys + KeyListFile.KeyEntry(name = name, keyCode = KeyListFile.nextKeyCode(keys), value = value))
-                    // 照插件：只有当前密钥为空时才把它设为当前
+                    // 第一把密钥：池空才自动入池接管（不打扰已有启用集）
                     // ⚠️ 旧版无条件三写 miyue ⇒ 新增 B 会把正在朗读用的密钥静默切走
-                    if (currentRaw.isBlank()) {
-                        scope.launch { withIO { KeyListFile.saveCurrentRaw(tagRuleId, value) }; version++ }
+                    if (pool.isEmpty()) {
+                        val norm = KeyListFile.normalizePoolValue(value)
+                        if (norm.isNotEmpty()) savePoolList(listOf(norm))
                         toast(R.string.role_key_add_first, name)
                     } else {
                         toast(R.string.role_key_saved)
@@ -1020,13 +1204,12 @@ fun KeyManagerScreen(tagRuleId: String, onBack: () -> Unit) {
                     toast(R.string.role_key_name_dup, name)
                 } else {
                     save(keys.map { if (it.name == entry.name) it.copy(name = name, value = value) else it })
-                    // 改的是当前密钥 → 同步 miyue 三写
-                    // ⚠️ 旧版只写 key_list.json ⇒ miyue 留旧值，重进页面被兜底切到第一条
-                    if (entry.value.trim() == currentRaw && value.isNotBlank()) {
-                        scope.launch {
-                            withIO { KeyListFile.saveCurrentRaw(tagRuleId, value) }
-                            version++
-                        }
+                    // 改的是启用中的密钥 → 同步池里的值
+                    // ⚠️ 只写 key_list.json 不改池 ⇒ miyue 留旧值，规则仍轮换旧密钥
+                    val oldNorm = KeyListFile.normalizePoolValue(entry.value)
+                    val newNorm = KeyListFile.normalizePoolValue(value)
+                    if (oldNorm in pool && newNorm.isNotEmpty()) {
+                        savePoolList(pool.map { if (it == oldNorm) newNorm else it })
                     }
                 }
             }
@@ -1043,10 +1226,13 @@ fun KeyManagerScreen(tagRuleId: String, onBack: () -> Unit) {
                     overwriteFor = null
                     val old = keys.firstOrNull { it.name == name }
                     save(keys.map { if (it.name == name) it.copy(value = value) else it })
-                    // 覆盖的是当前密钥 → 同步 miyue；否则照「仅当前为空才启用」
-                    val wasCurrent = old != null && old.value.trim() == currentRaw
-                    if (wasCurrent || currentRaw.isBlank()) {
-                        scope.launch { withIO { KeyListFile.saveCurrentRaw(tagRuleId, value) }; version++ }
+                    // 覆盖的是启用中的密钥 → 同步池值；池原本为空 → 这条顶上当第一把
+                    val oldNorm = old?.let { KeyListFile.normalizePoolValue(it.value) }.orEmpty()
+                    val newNorm = KeyListFile.normalizePoolValue(value)
+                    when {
+                        oldNorm.isNotEmpty() && oldNorm in pool && newNorm.isNotEmpty() ->
+                            savePoolList(pool.map { if (it == oldNorm) newNorm else it })
+                        pool.isEmpty() && newNorm.isNotEmpty() -> savePoolList(listOf(newNorm))
                     }
                     if (old != null) toast(R.string.role_key_saved)
                 }) { Text(stringResource(R.string.role_key_overwrite_btn)) }
@@ -1144,9 +1330,10 @@ fun KeyManagerScreen(tagRuleId: String, onBack: () -> Unit) {
 }
 
 /**
- * 密钥编辑（条目 ✏️ / 新增共用）：第一行「模型」（留空从密钥串抽模型名）、
- * 第二行「密钥」（整串 网址@@模型@@Key）；底部 取消 / 删除 / 复制 / 确定。
- * 两处复制不同：列表行 📋 = 模型名，本弹窗「复制」= 完整密钥串。
+ * 密钥编辑（条目 ✏️ / 新增共用）：只留「密钥」一栏（整串 网址@@模型@@Key）；
+ * 底部 取消 / 删除 / 复制 / 确定。两处复制不同：列表行 📋 = 模型名，本弹窗「复制」= 完整密钥串。
+ * 名称不再手填（0919 拍板）：新增时自动取密钥串里的模型名（取不到用 keyN 顺延）；
+ * 编辑时名称保持不变——列表里显示的名字本来就取自密钥串里的模型名。
  */
 @Composable
 private fun KeyEditDialog(
@@ -1157,10 +1344,8 @@ private fun KeyEditDialog(
     onConfirm: (String, String, Boolean) -> Unit,
 ) {
     val existingNames = existing.map { it.name }.toSet()
-    // 预填光标落末尾（照插件 setSelection）；「模型」框预填显示名，不是内部条目名
-    val initName = initial?.let { KeyListFile.displayName(it) }.orEmpty()
+    // 预填光标落末尾（照插件 setSelection）
     val initValue = initial?.value.orEmpty()
-    var name by remember { mutableStateOf(TextFieldValue(initName, TextRange(initName.length))) }
     var value by remember { mutableStateOf(TextFieldValue(initValue, TextRange(initValue.length))) }
     val context = LocalContext.current
     val clipboard = LocalClipboardManager.current
@@ -1172,32 +1357,17 @@ private fun KeyEditDialog(
     AlertDialog(
         onDismissRequest = onDismiss,
         title = {
-            Text(stringResource(if (initial == null) R.string.role_key_add else R.string.role_key_rename))
+            Text(stringResource(if (initial == null) R.string.role_key_add else R.string.role_key_edit))
         },
         text = {
             Column {
-                // 第一行「模型」：留空则从密钥串里抽模型名，抽不出用 key01
-                Text(
-                    stringResource(R.string.role_key_model_label),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-                Spacer(Modifier.height(4.dp))
-                OutlinedTextField(
-                    value = name,
-                    onValueChange = { name = it },
-                    placeholder = { Text(stringResource(R.string.role_key_name_auto)) },
-                    singleLine = true,
-                    textStyle = MaterialTheme.typography.bodyMedium,
-                    modifier = Modifier.fillMaxWidth(),
-                )
-                Spacer(Modifier.height(8.dp))
-                // 第二行「密钥」（整串 网址@@模型名@@API key；智谱可直填裸 key）
+                // 「密钥」一栏（整串 网址@@模型名@@API key；智谱可直填裸 key）
                 Text(
                     stringResource(R.string.role_key_value),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
+                Spacer(Modifier.height(4.dp))
                 // 密钥串很长，允许多行（原 singleLine 会把中段吞掉）
                 OutlinedTextField(
                     value = value,
@@ -1214,7 +1384,7 @@ private fun KeyEditDialog(
         confirmButton = {
             // 底部四键定位：M3 按钮区按「dismiss 槽 → confirm 槽」排，拆两槽即得 取消/删除 + 复制/确定
             Row(verticalAlignment = Alignment.CenterVertically) {
-                // 「复制」= 第二行的完整密钥串（列表行 📋 复制的是模型名）
+                // 「复制」= 完整密钥串（列表行 📋 复制的是模型名）
                 TextButton(
                     enabled = value.text.isNotBlank(),
                     onClick = {
@@ -1226,25 +1396,21 @@ private fun KeyEditDialog(
                     enabled = value.text.isNotBlank(),
                     onClick = {
                         val raw = value.text.trim()
-                        // 留空自动生成（照插件 defaultName）：从密钥串里抽模型名，抽不出用 key01
-                        val auto = KeyListFile.parseKeyValue(raw)?.let { p ->
-                            if (!p.isDirect && p.model.isNotEmpty()) p.model else "key" + (existing.size + 1)
-                        } ?: "key" + (existing.size + 1)
-                        val wanted = name.text.trim().ifEmpty { auto }
-                        // 编辑态模型名没动 ⇒ 保留条目内部名、不触发改名判定（跨组共存时易误报「名称已存在」）
-                        if (initial != null && (wanted == initName || wanted == initial.name)) {
+                        // 编辑：名称保持不变（没有名称输入框了）
+                        if (initial != null) {
                             onConfirm(initial.name, raw, false)
                             return@TextButton
                         }
-                        val clash = existing.firstOrNull { it.name == wanted && it.name != initial?.name }
-                        // 撞名判定：新增时只有同一分组（同网址 + 同密钥）才算真重复 → 覆盖确认；
-                        // 跨组撞名加序号另存；改名照插件「名字被占就用不了」
-                        val overwrite =
-                            if (initial != null) clash != null
-                            else clash != null && KeyListFile.sameGroupValue(clash.value, raw)
+                        // 新增：名称自动生成（照插件 defaultName）——从密钥串里抽模型名，抽不出用 keyN
+                        val wanted = KeyListFile.parseKeyValue(raw)?.let { p ->
+                            if (!p.isDirect && p.model.isNotEmpty()) p.model else null
+                        } ?: "key" + (existing.size + 1)
+                        // 撞名判定：只有同一分组（同网址 + 同密钥）才算真重复 → 覆盖确认；
+                        // 跨组撞名加序号另存
+                        val clash = existing.firstOrNull { it.name == wanted }
+                        val overwrite = clash != null && KeyListFile.sameGroupValue(clash.value, raw)
                         val finalName =
-                            if (initial == null && clash != null && !overwrite)
-                                KeyListFile.dedupName(wanted, existingNames)
+                            if (clash != null && !overwrite) KeyListFile.dedupName(wanted, existingNames)
                             else wanted
                         onConfirm(finalName, raw, overwrite)
                     }
