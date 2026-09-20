@@ -336,38 +336,37 @@ private fun PoolRow(
                 }
                 Spacer(Modifier.width(10.dp))
             }
+            // 名字 + 测试结果圆点（A 方案 0920：圆点紧跟名字，比行首显眼，占弹性空间不挤图标）。
+            // 名字区不再单独 weight(1f)，改由圆点后的 Spacer(weight) 吃掉剩余宽度
             Text(
                 info.display,
                 style = MaterialTheme.typography.bodyMedium,
                 maxLines = 2,
                 overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.weight(1f)
+                modifier = Modifier.weight(1f, fill = false)
             )
-            // 测试结果灯（8dp 圆点，颜色与主页行首灯同源 TEST_PASS_COLOR）：
-            // 只显示结果——没测=空白、测完绿●通/红●挂保留，批量/单条测试中都不转圈
-            // （统一规则 B 口径 0920：圈只在触发键位，灯只显结果，两页一致）
-            if (!selectionMode) {
-                Box(Modifier.width(14.dp).height(24.dp), contentAlignment = Alignment.Center) {
-                    if (testOk != null) {
-                        val dot = if (testOk) TEST_PASS_COLOR else MaterialTheme.colorScheme.error
-                        Box(Modifier.size(8.dp).background(dot, CircleShape))
-                    }
-                }
-                Spacer(Modifier.width(2.dp))
+            if (testOk != null) {
+                Spacer(Modifier.width(6.dp))
+                val dot = if (testOk) TEST_PASS_COLOR else MaterialTheme.colorScheme.error
+                Box(Modifier.size(8.dp).background(dot, CircleShape))
             }
+            Spacer(Modifier.weight(1f))
             if (!selectionMode) {
                 // 闪电 = 单测按钮：常态灰（与其他图标同色），测试中原位转小圈，
-                // 转完回灰；测完不变色（结果看左侧灯）
+                // 转完回灰；测完不变色（结果看名字后的圆点）
                 if (testing) {
                     Box(Modifier.size(36.dp), contentAlignment = Alignment.Center) {
                         CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp)
                     }
                 } else {
+                    // 批量测试中禁点但不降透明度（0920 反馈：禁用置灰让闪电看着发灰、
+                    // 与主页不一致；拦截点击即可，颜色永远与其他图标一致）
                     FlatIconAction(
                         Icons.Default.Bolt,
-                        stringResource(R.string.role_key_test),
-                        enabled = !batchTesting
-                    ) { onTest() }
+                        stringResource(R.string.role_key_test)
+                    ) {
+                        if (!batchTesting) onTest()
+                    }
                 }
                 // ⧉复制 ✏编辑 ⊖圆圈减号=移出（四键与主页条目卡一致，用户 0919；
                 // 移出可逆：只出池不删钥，真删除在主页；残留值无条目可编辑，隐藏 ✏）
