@@ -336,24 +336,30 @@ private fun PoolRow(
                 }
                 Spacer(Modifier.width(10.dp))
             }
-            // 名字 + 测试结果圆点（A 方案 0920：圆点紧跟名字，比行首显眼，占弹性空间不挤图标）。
-            // 名字区不再单独 weight(1f)，改由圆点后的 Spacer(weight) 吃掉剩余宽度
+            // 名字区 weight(1f)：独占剩余宽度（0920 教训——名字格与弹性空格不许双 weight，
+            // 各抢一半会把名字挤成半宽提前换行）
             Text(
                 info.display,
                 style = MaterialTheme.typography.bodyMedium,
                 maxLines = 2,
                 overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.weight(1f, fill = false)
+                modifier = Modifier.weight(1f)
             )
-            if (testOk != null) {
-                Spacer(Modifier.width(6.dp))
-                val dot = if (testOk) TEST_PASS_COLOR else MaterialTheme.colorScheme.error
-                Box(Modifier.size(8.dp).background(dot, CircleShape))
-            }
-            Spacer(Modifier.weight(1f))
             if (!selectionMode) {
+                // 测试结果圆点：名字后、紧挨闪电前（0920 定稿，与主页同位置）——
+                // 与闪电因果相邻、不被序号徽章抢视线、垂直成一列好扫。
+                // 没测=空槽不显但保列对齐；绿●通/红●挂保留
+                Box(
+                    Modifier.width(14.dp).height(24.dp),
+                    contentAlignment = Alignment.CenterEnd
+                ) {
+                    if (testOk != null) {
+                        val dot = if (testOk) TEST_PASS_COLOR else MaterialTheme.colorScheme.error
+                        Box(Modifier.size(8.dp).background(dot, CircleShape))
+                    }
+                }
                 // 闪电 = 单测按钮：常态灰（与其他图标同色），测试中原位转小圈，
-                // 转完回灰；测完不变色（结果看名字后的圆点）
+                // 转完回灰；测完不变色（结果看名字后圆点）
                 if (testing) {
                     Box(Modifier.size(36.dp), contentAlignment = Alignment.Center) {
                         CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp)

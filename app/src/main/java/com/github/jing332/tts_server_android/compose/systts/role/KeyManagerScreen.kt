@@ -248,8 +248,8 @@ private fun KeyEntryRow(
             )
     ) {
         Row(
-            // 卡内 5 ⇒ 测试灯左缘 20dp，灯 8dp + 间距 6dp ⇒ 模型名左缘 34dp——
-            // 与组头组名文字左缘（箭头 6+22+6=34dp）同列（用户 0920 实机反馈：名字要对齐）
+            // 卡内 5 + 左缩进 14 ⇒ 模型名左缘 34dp，与组头组名文字左缘
+            //（箭头 6+22+6=34dp）同列（用户 0920 实机反馈：名字要对齐）
             // end 必须为 0：条目动作图标右缘才能落在卡右缘（= 组头图标区右缘）同列
             Modifier.fillMaxWidth()
                 // 点卡片本体 = 启用/停用（用户 0919 终稿：底色承担选中，加减符号全部退役）
@@ -261,19 +261,9 @@ private fun KeyEntryRow(
             if (selectionMode) {
                 Checkbox(checked = checked, onCheckedChange = { onToggleCheck() })
             } else {
-                // 行首测试灯（8dp，专职结果显示）：没测=空白、测完绿●通/红●挂保留。
-                // 统一规则 0920：灯只显结果不转圈；闪电=纯按钮（测试中在原位转圈，
-                // 转完回灰），颜色永远与其他图标一致不变色
-                Box(
-                    Modifier.width(8.dp).height(24.dp),
-                    contentAlignment = Alignment.CenterStart
-                ) {
-                    if (testOk != null) {
-                        val dot = if (testOk) TEST_PASS_COLOR else MaterialTheme.colorScheme.error
-                        Box(Modifier.size(8.dp).background(dot, CircleShape))
-                    }
-                }
-                Spacer(Modifier.width(6.dp))
+                // 名字左缘占位 14dp（原行首测试灯的位置）：圆点已按 0920 定稿挪到图标区
+                //（名字后紧挨闪电前，两页统一），这里留空槽让名字左缘仍在 34dp 与组名同列
+                Spacer(Modifier.width(14.dp))
             }
             // 名字区 weight(1f)。多选模式下点名字 = 勾选（整行即复选框的延伸）。
             // clickable 只在多选时挂载：非多选挂着 enabled=false 也拦掉整卡的启用切换
@@ -288,8 +278,20 @@ private fun KeyEntryRow(
                     .then(if (selectionMode) Modifier.clickable { onToggleCheck() } else Modifier)
             )
             if (!selectionMode) {
+                // 测试结果圆点：名字后、紧挨闪电前（0920 定稿，两页同位置）——
+                // 与闪电因果相邻、离徽章/行首最远不被抢视线、垂直成一列好扫。
+                // 没测=空槽不显但保列对齐；绿●通/红●挂保留
+                Box(
+                    Modifier.width(14.dp).height(24.dp),
+                    contentAlignment = Alignment.CenterEnd
+                ) {
+                    if (testOk != null) {
+                        val dot = if (testOk) TEST_PASS_COLOR else MaterialTheme.colorScheme.error
+                        Box(Modifier.size(8.dp).background(dot, CircleShape))
+                    }
+                }
                 // 固定宽图标区（方案 A）：144dp=4×36dp 热区，与组头行图标垂直成列。
-                // ⚡ 灰按钮：测试中原位转小圈，转完回灰闪电；测完不变色（结果看行首灯）
+                // ⚡ 灰按钮：测试中原位转小圈，转完回灰闪电；测完不变色（结果看名字后圆点）
                 Row(
                     Modifier.width(144.dp),
                     horizontalArrangement = Arrangement.End,
