@@ -687,7 +687,9 @@ fun grayTheme(
 ): ColorScheme =
     if (!darkTheme)
         lightColorScheme(
-            primary = gray_seed,
+            // 灰白主题的强调色固定为绿，取自己块里的常量（而不用 gray_seed）——
+            // 它那枚 seed 已改作选择器的中性灰圆点
+            primary = gray_md_theme_light_primary,
             onPrimary = gray_md_theme_light_onPrimary,
             primaryContainer = gray_md_theme_light_primaryContainer,
             onPrimaryContainer = gray_md_theme_light_onPrimaryContainer,

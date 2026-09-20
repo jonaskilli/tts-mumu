@@ -3,7 +3,13 @@ package com.github.jing332.tts_server_android.compose.theme
 import androidx.compose.ui.graphics.Color
 import com.github.jing332.tts_server_android.R
 
-enum class AppTheme(val id: String, val stringResId: Int = -1, val color: Color) {
+enum class AppTheme(
+    val id: String,
+    val stringResId: Int = -1,
+    val color: Color,
+    /** 容器槽不带主色色相、只走中性灰阶（见 Theme.kt themedNeutral）。灰白主题专用 */
+    val neutralSurfaces: Boolean = false,
+) {
     DEFAULT("", R.string.theme_default, green_seed),
     DYNAMIC_COLOR("dynamicColor", R.string.dynamic_color, Color.Unspecified),
     GREEN("green", R.string.green, green_seed),
@@ -14,5 +20,5 @@ enum class AppTheme(val id: String, val stringResId: Int = -1, val color: Color)
     ORANGE("orange", R.string.orange, orange_seed),
     PURPLE("purple", R.string.purple, purple_seed),
     BROWN("brown", R.string.brown, brown_seed),
-    GRAY("gray", R.string.gray, gray_seed),
+    GRAY("gray", R.string.gray, gray_seed, neutralSurfaces = true),
 }

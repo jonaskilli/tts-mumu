@@ -38,7 +38,8 @@ fun appTheme(
         AppTheme.GRAY -> grayTheme(darkTheme)
     }
     // 动态取色（Android 12+ 壁纸派生）：中性色本就与彩色同种子派生、整族和谐，不覆写
-    return if (themeType == AppTheme.DYNAMIC_COLOR) base else themedNeutral(base, darkTheme)
+    return if (themeType == AppTheme.DYNAMIC_COLOR) base
+    else themedNeutral(base, darkTheme, neutralOnly = themeType.neutralSurfaces)
 }
 
 /**
@@ -50,12 +51,25 @@ fun appTheme(
  *
  * ⚠️ 只补这 7 个槽，background/surface/outline/inverse* 一律透传各主题原值——
  * 顺手覆写会把各主题自己的色相抹平，那正是要避免的。
+ *
+ * @param neutralOnly 只走明度阶梯、完全不沾主色色相。灰白主题用：它的分层靠纯中性灰阶，
+ *   掺 4% 绿会把卡面与底栏染成淡薄荷色，「灰白」就不成立了。
  */
-private fun themedNeutral(scheme: ColorScheme, darkTheme: Boolean): ColorScheme {
+private fun themedNeutral(
+    scheme: ColorScheme,
+    darkTheme: Boolean,
+    neutralOnly: Boolean = false,
+): ColorScheme {
     // 相对 surface 的通道偏移：Low / Container / High / Highest / Dim / Bright / Lowest
-    val d = if (!darkTheme) intArrayOf(-4, -8, -14, -20, -28, -2, 5)
-    else intArrayOf(8, 12, 23, 34, 0, 38, -5)
-    fun slot(i: Int) = tinted(scheme.surface, scheme.primary, d[i].toFloat())
+    // 灰白主题的 surface 取 tone 98（#F9F9F9），这组偏移由该基准逐档反推官方 tone
+    // 96/94/92/90/87/98/100；深色两路共用一组（原本就已贴近官方深色 tone 阶）。
+    val d = when {
+        darkTheme -> intArrayOf(8, 12, 23, 34, 0, 38, -5)
+        neutralOnly -> intArrayOf(-6, -11, -17, -23, -31, -2, 6)
+        else -> intArrayOf(-4, -8, -14, -20, -28, -2, 5)
+    }
+    val tint = if (neutralOnly) 0f else NEUTRAL_TINT
+    fun slot(i: Int) = tinted(scheme.surface, scheme.primary, d[i].toFloat(), tint)
     return scheme.copy(
         surfaceContainerLow = slot(0),
         surfaceContainer = slot(1),
@@ -71,14 +85,15 @@ private fun themedNeutral(scheme: ColorScheme, darkTheme: Boolean): ColorScheme 
 private const val NEUTRAL_TINT = 0.04f
 
 /**
- * 以 surface 为底，各通道平移 [delta] 定明度阶梯，再掺 [NEUTRAL_TINT] 比例的 primary 带上主题色相；
+ * 以 surface 为底，各通道平移 [delta] 定明度阶梯，再掺 [tint] 比例的 primary 带上主题色相；
  * 掺色会压暗，最后把整体亮度拉回平移后的基准，否则各槽之间的明度关系就乱了。
+ * [tint] 传 0 即纯明度阶梯（灰白主题）。
  */
-private fun tinted(surface: Color, primary: Color, delta: Float): Color {
+private fun tinted(surface: Color, primary: Color, delta: Float, tint: Float = NEUTRAL_TINT): Color {
     val s = floatArrayOf(surface.red, surface.green, surface.blue)
     val p = floatArrayOf(primary.red, primary.green, primary.blue)
     val base = FloatArray(3) { (s[it] * 255f + delta).coerceIn(0f, 255f) }
-    val mixed = FloatArray(3) { base[it] + (p[it] * 255f - base[it]) * NEUTRAL_TINT }
+    val mixed = FloatArray(3) { base[it] + (p[it] * 255f - base[it]) * tint }
     val back = (base.sum() - mixed.sum()) / 3f
     return Color(
         ((mixed[0] + back) / 255f).coerceIn(0f, 1f),
