@@ -373,7 +373,9 @@ internal fun Item(
                 Text(
                     text = type.limitLength(12, "…"),
                     style = MaterialTheme.typography.labelMedium,
-                    color = MaterialTheme.colorScheme.tertiary,
+                    // 插件名是数据标签不是状态，取中性次要色——原来用 tertiary（强调色）会变成
+                    // 每张卡右下角一个彩色字，一屏几十个＝花
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                     // 插件名按字符数截短（12字+省略号，中文字符宽度统一可预测），
                     // 右侧留 8dp 空隙避免与左侧采样率标签贴死
                     maxLines = 1,

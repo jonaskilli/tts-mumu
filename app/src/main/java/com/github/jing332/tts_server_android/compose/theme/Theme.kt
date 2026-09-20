@@ -61,11 +61,14 @@ private fun themedNeutral(
     neutralOnly: Boolean = false,
 ): ColorScheme {
     // 相对 surface 的通道偏移：Low / Container / High / Highest / Dim / Bright / Lowest
-    // 灰白主题的 surface 取 tone 98（#F9F9F9），这组偏移由该基准逐档反推官方 tone
-    // 96/94/92/90/87/98/100；深色两路共用一组（原本就已贴近官方深色 tone 阶）。
+    // neutralOnly：surface 取 tone≈95（#F0F0F0），Low/Lowest 直接顶到纯白 ——
+    //   卡片（ElevatedCard）吃的是 surfaceContainerLow，灰白主题下它必须是纯白，
+    //   否则卡片比页底还深（tone 96 < 98），看着是「凹」的、整屏没有层次。
+    //   其余槽由 240 逐档下推：#EAEAEA / #E4E4E4 / #DEDEDE / #D8D8D8。
+    // 深色两路共用一组（原本就已贴近官方深色 tone 阶）。
     val d = when {
         darkTheme -> intArrayOf(8, 12, 23, 34, 0, 38, -5)
-        neutralOnly -> intArrayOf(-6, -11, -17, -23, -31, -2, 6)
+        neutralOnly -> intArrayOf(15, -6, -12, -18, -24, 7, 15)
         else -> intArrayOf(-4, -8, -14, -20, -28, -2, 5)
     }
     val tint = if (neutralOnly) 0f else NEUTRAL_TINT

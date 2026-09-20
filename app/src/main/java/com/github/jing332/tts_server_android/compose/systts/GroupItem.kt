@@ -153,17 +153,18 @@ fun GroupItem(
         )
 
         // 序号徽章：按当前列表顺序自动编号，排序变化自动重编
-        // primaryContainer 打五折透明度：色相跟随主题(切主题会变)但强度比主题色弱一档，不抢眼
+        // 序号是「信息」不是「状态」——取中性底 + 次要文字色。原来用 primaryContainer
+        // 会在灰白底上排出一列彩色方块，把唯一的强调色稀释掉
         if (index >= 1) {
             Text(
                 "$index",
                 style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onPrimaryContainer,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier
                     .align(Alignment.CenterVertically)
                     .padding(end = 6.dp)
                     .background(
-                        MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f),
+                        MaterialTheme.colorScheme.surfaceVariant,
                         androidx.compose.foundation.shape.RoundedCornerShape(4.dp)
                     )
                     .padding(horizontal = 6.dp, vertical = 2.dp)
@@ -178,7 +179,9 @@ fun GroupItem(
                 .align(Alignment.CenterVertically)
                 .weight(1f)
         )
-        // 含子分组（下方可展开）的分组：行右侧显示树图标（15dp 主题色）；直接是配置项的不带
+        // 含子分组（下方可展开）的分组：行右侧显示树图标（15dp）；直接是配置项的不带
+        // 图标只是「可展开」的提示，不带状态含义 ⇒ 取中性次要色。原来跟主题色会跟
+        // 勾选框/底栏选中/序号一起把绿色拆成好几处
         if (hasSubGroups) {
             Icon(
                 imageVector = Icons.Default.AccountTree,
@@ -187,7 +190,7 @@ fun GroupItem(
                     .align(Alignment.CenterVertically)
                     .padding(end = 4.dp)
                     .size(15.dp),
-                tint = MaterialTheme.colorScheme.primary
+                tint = MaterialTheme.colorScheme.onSurfaceVariant
             )
         }
         // 分组内配置项数量

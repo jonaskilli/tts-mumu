@@ -126,7 +126,10 @@ fun LogFilterDialog(
                         onClick = { onAutoScrollToggle() },
                         label = { Text("实时显示最新日志") },
                         colors = FilterChipDefaults.filterChipColors(
-                            selectedContainerColor = MaterialTheme.colorScheme.primaryContainer
+                            selectedContainerColor = MaterialTheme.colorScheme.primaryContainer,
+                            // 显式给文字色：只给容器色的写法默认文字走 onSurface，
+                            // 一旦主题把 primaryContainer 做成深色（如灰白主题）就变成深字压深底
+                            selectedLabelColor = MaterialTheme.colorScheme.onPrimaryContainer
                         )
                     )
                 }

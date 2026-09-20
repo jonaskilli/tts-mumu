@@ -419,7 +419,9 @@ private fun getLevelColor(level: Int): Color {
         LogLevel.ERROR -> MaterialTheme.colorScheme.errorContainer
         LogLevel.WARN -> Color(0xFFFFF3E0)
         LogLevel.INFO -> MaterialTheme.colorScheme.secondaryContainer
-        LogLevel.DEBUG -> MaterialTheme.colorScheme.primaryContainer
+        // 不用 primaryContainer：调用处只给容器色，文字默认走 onSurface（深色），
+        // 主题把 primaryContainer 做成深色时会深字压深底；tertiaryContainer 各主题恒为浅底
+        LogLevel.DEBUG -> MaterialTheme.colorScheme.tertiaryContainer
         else -> MaterialTheme.colorScheme.surfaceVariant
     }
 }

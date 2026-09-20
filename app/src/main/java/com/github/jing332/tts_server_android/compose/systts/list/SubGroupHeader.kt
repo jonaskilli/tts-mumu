@@ -134,7 +134,8 @@ fun SubGroupHeader(
                 .weight(1f)
         )
 
-        // 含下级子分组（下方可展开）的子分组：行右侧树图标（15dp 主题色，与一级分组行一致）；直接是配置项的不带
+        // 含下级子分组（下方可展开）的子分组：行右侧树图标（15dp，与一级分组行一致）；直接是配置项的不带
+        // 中性次要色：图标只表达「可展开」，不承担状态语义（与 GroupItem 同口径）
         if (hasSubGroups) {
             Icon(
                 imageVector = Icons.Default.AccountTree,
@@ -142,7 +143,7 @@ fun SubGroupHeader(
                 modifier = Modifier
                     .padding(end = 4.dp)
                     .size(15.dp),
-                tint = MaterialTheme.colorScheme.primary
+                tint = MaterialTheme.colorScheme.onSurfaceVariant
             )
         }
 
