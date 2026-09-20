@@ -179,7 +179,7 @@ internal fun KeyPoolScreen(
                                 Text(
                                     stringResource(R.string.role_key_pool_test_all),
                                     style = MaterialTheme.typography.labelLarge,
-                                    color = MaterialTheme.colorScheme.primary
+                                    color = MaterialTheme.colorScheme.onSurface
                                 )
                             }
                         }
@@ -343,21 +343,19 @@ private fun PoolRow(
                 modifier = Modifier.weight(1f)
             )
             // 测试结果灯（8dp 圆点，颜色与主页行首灯同源 TEST_PASS_COLOR）：
-            // 没测=空白不占视觉、测试中转圈、测完绿●通/红●挂并保留（0920 反馈补：池页也要看结果）
+            // 只显示结果（没测=空白、测完绿●通/红●挂保留），转圈不在这里——
+            // 统一规则 0920：谁触发圈在谁的位置，结果永远在灯上，闪电永远灰色
             if (!selectionMode) {
                 Box(Modifier.width(14.dp).height(24.dp), contentAlignment = Alignment.Center) {
-                    when {
-                        testing -> CircularProgressIndicator(Modifier.size(8.dp), strokeWidth = 1.5.dp)
-                        testOk != null -> {
-                            val dot = if (testOk) TEST_PASS_COLOR else MaterialTheme.colorScheme.error
-                            Box(Modifier.size(8.dp).background(dot, CircleShape))
-                        }
+                    if (testOk != null) {
+                        val dot = if (testOk) TEST_PASS_COLOR else MaterialTheme.colorScheme.error
+                        Box(Modifier.size(8.dp).background(dot, CircleShape))
                     }
                 }
                 Spacer(Modifier.width(2.dp))
             }
             if (!selectionMode) {
-                // 闪电 = 单测按钮（恢复纯灰，结果看主页行首灯——两页结果共享同一份）
+                // 闪电 = 单测按钮：测试中闪电原位转小圈（统一规则 0920：圈在触发键的位置）
                 if (testing) {
                     Box(Modifier.size(36.dp), contentAlignment = Alignment.Center) {
                         CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp)
