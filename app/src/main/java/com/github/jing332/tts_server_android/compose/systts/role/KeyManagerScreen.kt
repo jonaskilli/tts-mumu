@@ -261,15 +261,14 @@ private fun KeyEntryRow(
             if (selectionMode) {
                 Checkbox(checked = checked, onCheckedChange = { onToggleCheck() })
             } else {
-                // 行首测试灯（8dp，专职指示不可点）：没测=空白（中性默认态不占视觉）、
-                // 测试中转圈、测完绿●通/红●挂并保留——有灯的行自然凸显（用户 0919 终稿）
+                // 行首测试灯（8dp，专职结果显示）：没测=空白、测完绿●通/红●挂保留。
+                // 统一规则 0920：灯只显结果不转圈；闪电=纯按钮（测试中在原位转圈，
+                // 转完回灰），颜色永远与其他图标一致不变色
                 Box(
                     Modifier.width(8.dp).height(24.dp),
                     contentAlignment = Alignment.CenterStart
                 ) {
-                    if (testing) {
-                        CircularProgressIndicator(Modifier.size(8.dp), strokeWidth = 1.5.dp)
-                    } else if (testOk != null) {
+                    if (testOk != null) {
                         val dot = if (testOk) TEST_PASS_COLOR else MaterialTheme.colorScheme.error
                         Box(Modifier.size(8.dp).background(dot, CircleShape))
                     }
@@ -290,17 +289,23 @@ private fun KeyEntryRow(
             )
             if (!selectionMode) {
                 // 固定宽图标区（方案 A）：144dp=4×36dp 热区，与组头行图标垂直成列。
-                // ⚡ 恢复纯灰色按钮（结果看行首灯）；📋 复制的是模型名，编辑弹窗里才是完整密钥串
+                // ⚡ 灰按钮：测试中原位转小圈，转完回灰闪电；测完不变色（结果看行首灯）
                 Row(
                     Modifier.width(144.dp),
                     horizontalArrangement = Arrangement.End,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    FlatIconAction(
-                        Icons.Default.Bolt,
-                        stringResource(R.string.role_key_test),
-                        enabled = !testing
-                    ) { onTest() }
+                    if (testing) {
+                        Box(Modifier.size(36.dp), contentAlignment = Alignment.Center) {
+                            CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp)
+                        }
+                    } else {
+                        FlatIconAction(
+                            Icons.Default.Bolt,
+                            stringResource(R.string.role_key_test),
+                            enabled = !testing
+                        ) { onTest() }
+                    }
                     FlatIconAction(Icons.Default.ContentCopy, stringResource(R.string.copy)) { onCopy() }
                     FlatIconAction(Icons.Default.Edit, stringResource(R.string.role_key_edit)) { onEdit() }
                     FlatIconAction(Icons.Default.DeleteOutline, stringResource(R.string.delete)) { onDelete() }

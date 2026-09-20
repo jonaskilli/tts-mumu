@@ -148,40 +148,41 @@ internal fun KeyPoolScreen(
                     }
                 },
                 actions = {
-                    // 「⚡测试全部」填充键（0920 统一：与主页「启用池(N)」同款主操作语言——
-                    // 主题色浅底无描边；描边留给次操作）。测试中转小圈并禁点
+                    // 「⚡测试全部」填充键（0920 统一：与主页「启用池(N)」同款主操作语言）。
+                    // 整批测试中：⚡图标原位转小圈、按钮禁用变淡（文字保留，身份还在）；
+                    // 测完回⚡灰绿。结果在各行灯上逐个亮
+                    val testAllEnabled = pool.isNotEmpty() && !batchTesting
                     Box(
                         Modifier
                             .padding(horizontal = 6.dp)
                             .heightIn(min = 32.dp)
                             .background(
-                                MaterialTheme.colorScheme.primary.copy(alpha = 0.14f),
+                                MaterialTheme.colorScheme.primary.copy(
+                                    alpha = if (testAllEnabled) 0.14f else 0.06f
+                                ),
                                 RoundedCornerShape(16.dp)
                             )
-                            .clickable(
-                                enabled = pool.isNotEmpty() && !batchTesting,
-                                onClick = onTestAll
-                            )
+                            .clickable(enabled = testAllEnabled, onClick = onTestAll)
                             .padding(horizontal = 10.dp),
                         contentAlignment = Alignment.Center
                     ) {
-                        if (batchTesting) {
-                            CircularProgressIndicator(Modifier.size(16.dp), strokeWidth = 2.dp)
-                        } else {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            if (batchTesting) {
+                                CircularProgressIndicator(Modifier.size(16.dp), strokeWidth = 2.dp)
+                            } else {
                                 Icon(
                                     Icons.Default.Bolt,
                                     contentDescription = null,
                                     modifier = Modifier.size(16.dp),
                                     tint = MaterialTheme.colorScheme.primary
                                 )
-                                Spacer(Modifier.width(4.dp))
-                                Text(
-                                    stringResource(R.string.role_key_pool_test_all),
-                                    style = MaterialTheme.typography.labelLarge,
-                                    color = MaterialTheme.colorScheme.onSurface
-                                )
                             }
+                            Spacer(Modifier.width(4.dp))
+                            Text(
+                                stringResource(R.string.role_key_pool_test_all),
+                                style = MaterialTheme.typography.labelLarge,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
                         }
                     }
                     // ☑ 多选：批量移出（与主页 ☑ 同款图标语言）
@@ -343,8 +344,8 @@ private fun PoolRow(
                 modifier = Modifier.weight(1f)
             )
             // 测试结果灯（8dp 圆点，颜色与主页行首灯同源 TEST_PASS_COLOR）：
-            // 只显示结果（没测=空白、测完绿●通/红●挂保留），转圈不在这里——
-            // 统一规则 0920：谁触发圈在谁的位置，结果永远在灯上，闪电永远灰色
+            // 只显示结果——没测=空白、测完绿●通/红●挂保留，批量/单条测试中都不转圈
+            // （统一规则 B 口径 0920：圈只在触发键位，灯只显结果，两页一致）
             if (!selectionMode) {
                 Box(Modifier.width(14.dp).height(24.dp), contentAlignment = Alignment.Center) {
                     if (testOk != null) {
@@ -355,7 +356,8 @@ private fun PoolRow(
                 Spacer(Modifier.width(2.dp))
             }
             if (!selectionMode) {
-                // 闪电 = 单测按钮：测试中闪电原位转小圈（统一规则 0920：圈在触发键的位置）
+                // 闪电 = 单测按钮：常态灰（与其他图标同色），测试中原位转小圈，
+                // 转完回灰；测完不变色（结果看左侧灯）
                 if (testing) {
                     Box(Modifier.size(36.dp), contentAlignment = Alignment.Center) {
                         CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp)
