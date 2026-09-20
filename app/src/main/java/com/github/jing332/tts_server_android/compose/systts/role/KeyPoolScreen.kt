@@ -342,6 +342,20 @@ private fun PoolRow(
                 overflow = TextOverflow.Ellipsis,
                 modifier = Modifier.weight(1f)
             )
+            // 测试结果灯（8dp 圆点，颜色与主页行首灯同源 TEST_PASS_COLOR）：
+            // 没测=空白不占视觉、测试中转圈、测完绿●通/红●挂并保留（0920 反馈补：池页也要看结果）
+            if (!selectionMode) {
+                Box(Modifier.width(14.dp).height(24.dp), contentAlignment = Alignment.Center) {
+                    when {
+                        testing -> CircularProgressIndicator(Modifier.size(8.dp), strokeWidth = 1.5.dp)
+                        testOk != null -> {
+                            val dot = if (testOk) TEST_PASS_COLOR else MaterialTheme.colorScheme.error
+                            Box(Modifier.size(8.dp).background(dot, CircleShape))
+                        }
+                    }
+                }
+                Spacer(Modifier.width(2.dp))
+            }
             if (!selectionMode) {
                 // 闪电 = 单测按钮（恢复纯灰，结果看主页行首灯——两页结果共享同一份）
                 if (testing) {
