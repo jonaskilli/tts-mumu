@@ -2,7 +2,6 @@ package com.github.jing332.tts_server_android.compose.systts.role
 
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -149,13 +148,16 @@ internal fun KeyPoolScreen(
                     }
                 },
                 actions = {
-                    // 「⚡测试全部」描边键（用户 0919 终稿：加框 + ⚡，不带颜色）；
-                    // 测试中转小圈并禁点
+                    // 「⚡测试全部」填充键（0920 统一：与主页「启用池(N)」同款主操作语言——
+                    // 主题色浅底无描边；描边留给次操作）。测试中转小圈并禁点
                     Box(
                         Modifier
                             .padding(horizontal = 6.dp)
                             .heightIn(min = 32.dp)
-                            .border(1.dp, MaterialTheme.colorScheme.outline, RoundedCornerShape(16.dp))
+                            .background(
+                                MaterialTheme.colorScheme.primary.copy(alpha = 0.14f),
+                                RoundedCornerShape(16.dp)
+                            )
                             .clickable(
                                 enabled = pool.isNotEmpty() && !batchTesting,
                                 onClick = onTestAll
@@ -171,12 +173,13 @@ internal fun KeyPoolScreen(
                                     Icons.Default.Bolt,
                                     contentDescription = null,
                                     modifier = Modifier.size(16.dp),
-                                    tint = MaterialTheme.colorScheme.onSurfaceVariant
+                                    tint = MaterialTheme.colorScheme.primary
                                 )
                                 Spacer(Modifier.width(4.dp))
                                 Text(
                                     stringResource(R.string.role_key_pool_test_all),
-                                    style = MaterialTheme.typography.labelLarge
+                                    style = MaterialTheme.typography.labelLarge,
+                                    color = MaterialTheme.colorScheme.primary
                                 )
                             }
                         }
@@ -304,7 +307,11 @@ private fun PoolRow(
     onEdit: () -> Unit,
     onRemove: () -> Unit,
 ) {
-    Column(Modifier.fillMaxWidth().padding(vertical = 10.dp)) {
+    Column(
+        // 长按拖动排序挂整行（用户 0920 反馈拖动失效：dragModifier 传进来后没挂载，
+        // 0920 排版改动时弄丢的回归）。多选/整批测试时 dragModifier 是空 Modifier，自然禁拖
+        Modifier.fillMaxWidth().padding(vertical = 10.dp).then(dragModifier)
+    ) {
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
             if (selectionMode) {
                 Checkbox(checked = checked, onCheckedChange = { onToggleCheck() })
