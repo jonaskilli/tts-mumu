@@ -418,14 +418,19 @@ object KeyListFile {
             val fixed = parsePoolValues(raw).joinToString("@@")
             if (fixed != raw) saveCurrentRaw(tagRuleId, fixed)
         }
+        // pool_cleared.flag 随「池空自动启用第一条」兜底一并退役（1002），顺手清掉历史残留文件
+        try { File(File(BASE_DIR, tagRuleId), "pool_cleared.flag").delete() } catch (e: Exception) {
+            Log.w(TAG, "legacy pool_cleared.flag cleanup failed: ${e.message}")
+        }
     }
 
     /**
-     * 智谱内置种子（幂等）：不存在「智谱站点+内置 Key」的接口时，重种一套完整的——
-     * 接口插到列表最前（分组置顶），默认条目 glm-4-flash 排 key_list 末尾（不插队，
-     * 「池空自动启用第一条」的既有兜底语义不变）。用户可自由删改：删整组 / 把接口改得
-     * 面目全非 → 本函数下次自愈重建；只删条目（接口还在）→ 不重种；用户自己的智谱 key
-     * （Key 不同）由 heal 自愈成「智谱2/3」，不会挡住内置的重建判定。
+     * 智谱内置种子（幂等）：不存在「智谱站点+内置 Key」的接口时，重种一套完整的。
+     * 接口与默认条目都按**自然顺序**追加到末尾——与手动新增分组/模型同待遇，
+     * 启用池顺序也不因智谱特殊（1002 拍板：去掉「分组置顶」，不再有任何插队）。
+     * 用户可自由删改：删整组 / 把接口改得面目全非 → 本函数下次自愈重建；只删条目
+     * （接口还在）→ 不重种；用户自己的智谱 key（Key 不同）由 heal 自愈成「智谱2/3」，
+     * 不会挡住内置的重建判定。池空不自动启用任何条目（兜底已退役）。
      */
     fun seedZhipuBuiltin(tagRuleId: String) {
         val ifaces = readInterfaces(tagRuleId)
@@ -436,7 +441,7 @@ object KeyListFile {
         val nm = uniqueIfcName("智谱密钥", ifaces.map { it.name }.toSet())
         saveInterfaces(
             tagRuleId,
-            listOf(ApiInterface(nm, ZHIPU_ENDPOINT, ZHIPU_BUILTIN_KEY, listOf(DIRECT_MODEL))) + ifaces
+            ifaces + ApiInterface(nm, ZHIPU_ENDPOINT, ZHIPU_BUILTIN_KEY, listOf(DIRECT_MODEL))
         )
         val entryVal = "$ZHIPU_ENDPOINT@@$DIRECT_MODEL@@$ZHIPU_BUILTIN_KEY"
         val keys = readKeys(tagRuleId)
@@ -449,37 +454,6 @@ object KeyListFile {
                     value = entryVal,
                 )
             )
-        }
-    }
-
-    /**
-     * 「用户主动清空池」标记：空池与「从没配置过」在 miyue 链上无法区分，
-     * 而主页兜底会对后者自动启用第一条 ⇒ 用户删掉最后一把又被悄悄顶回（0920 实机反馈）。
-     * 清空时写此标记，主页重载看到它就跳过兜底；再启用任何密钥时删除标记。
-     */
-    private fun poolClearedFlag(tagRuleId: String): File = File(File(BASE_DIR, tagRuleId), "pool_cleared.flag")
-
-    fun markPoolCleared(tagRuleId: String) {
-        try {
-            val d = File(BASE_DIR, tagRuleId)
-            if (!d.exists()) d.mkdirs()
-            poolClearedFlag(tagRuleId).writeText("1")
-        } catch (e: Exception) {
-            Log.w(TAG, "markPoolCleared failed: ${e.message}")
-        }
-    }
-
-    fun isPoolCleared(tagRuleId: String): Boolean = try {
-        poolClearedFlag(tagRuleId).exists()
-    } catch (e: Exception) {
-        false
-    }
-
-    fun clearPoolClearedFlag(tagRuleId: String) {
-        try {
-            poolClearedFlag(tagRuleId).delete()
-        } catch (e: Exception) {
-            Log.w(TAG, "clearPoolClearedFlag failed: ${e.message}")
         }
     }
 

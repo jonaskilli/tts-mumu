@@ -619,18 +619,9 @@ fun KeyManagerScreen(tagRuleId: String, onBack: () -> Unit) {
         }
         keys = loaded.first
         ifaces = loaded.second
-        var p = KeyListFile.parsePoolValues(loaded.third)
-        // 照插件兜底：miyue 链**全空**才自动启用第一条。
-        // ⚠️ 不能改成「池里没有匹配条目就启用第一条」——那会让用户全停用后被悄悄顶回一把。
-        // 「用户主动清空过池」（pool_cleared.flag）同样跳过兜底，否则删掉最后一把又被顶回（0920 实机反馈）
-        if (loaded.third.isEmpty() && loaded.first.isNotEmpty() && !withIO { KeyListFile.isPoolCleared(tagRuleId) }) {
-            val first = loaded.first.first()
-            if (first.value.isNotBlank()) {
-                p = listOf(KeyListFile.normalizePoolValue(first.value))
-                withIO { KeyListFile.savePool(tagRuleId, p) }
-            }
-        }
-        pool = p
+        // 启用池按实际来（1002 拍板）：没有启用就没有密钥，不再有「池空自动启用第一条」兜底
+        //（规则侧池空回落自己的 defaultConfig）；pool_cleared.flag 机制随兜底一并退役
+        pool = KeyListFile.parsePoolValues(loaded.third)
         // 折叠记忆：只在首次进页面时从盘上读（后续 version++ 重载不覆盖用户当场切换的折叠）
         if (collapsed == null) {
             collapsed = withIO { KeyListFile.readCollapsedGroups(tagRuleId) }
@@ -649,15 +640,10 @@ fun KeyManagerScreen(tagRuleId: String, onBack: () -> Unit) {
             if (ok) version++
         }
     }
-    /** 启用池落盘并刷新（主页与密钥池子页共用的唯一写入口）。
-     *  空池写「用户主动清空」标记（否则主页兜底会把第一条顶回来）；非空池清除标记 */
+    /** 启用池落盘并刷新（主页与密钥池子页共用的唯一写入口）。空池就是空池，不自动顶回 */
     fun savePoolList(list: List<String>) {
         scope.launch {
-            withIO {
-                KeyListFile.savePool(tagRuleId, list)
-                if (list.isEmpty()) KeyListFile.markPoolCleared(tagRuleId)
-                else KeyListFile.clearPoolClearedFlag(tagRuleId)
-            }
+            withIO { KeyListFile.savePool(tagRuleId, list) }
             pool = list
             version++
         }
