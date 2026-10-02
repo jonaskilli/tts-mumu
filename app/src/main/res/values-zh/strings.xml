@@ -804,6 +804,8 @@
     <string name="desc_multi_select">多选</string>
     <string name="role_key_group_delete_all">删除整组</string>
     <string name="role_key_group_delete_all_sub">连带 %1$d 条子项</string>
+    <string name="role_key_group_delete_multi">多选删除子项</string>
+    <string name="role_key_group_delete_multi_sub">勾选后批量删，组保留</string>
     <string name="role_key_delete_group_title">删除分组</string>
     <string name="role_key_delete_group_text">将删除分组「%1$s」及其下 %2$d 条子项，此操作不可恢复。</string>
     <string name="role_key_ifc_group_dup">该网址 + 密钥已属于分组「%1$s」，请先改网址或密钥</string>

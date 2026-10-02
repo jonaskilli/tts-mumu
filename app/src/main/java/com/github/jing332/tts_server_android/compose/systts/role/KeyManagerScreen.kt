@@ -34,6 +34,7 @@ import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.ContentPaste
 import androidx.compose.material.icons.filled.DeleteOutline
+import androidx.compose.material.icons.filled.DeleteSweep
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.FileDownload
@@ -320,8 +321,9 @@ private fun KeyEntryRow(
 /**
  * 组头 + 元信息行（接口组=网址+尾号小块；未分组/直连=身份说明）。
  * 点按组头 = 折叠/展开（多选模式下不可点）；主页拖动已删，启用池页拖动保留；
- * 动作图标区仅正常模式渲染：+拉取 ⚡测组 ✏编辑接口 🗑菜单（只剩「删除整组」，
- * 原来的「多选删除子项」升级成了页面级顶栏 ☑ 多选）。
+ * 动作图标区仅正常模式渲染：+拉取 ⚡测组 ✏编辑接口 🗑两项菜单
+ *（删除整组=红🗑 带二次确认；多选删除子项=灰🧹 进组内删除模式，组保留）。
+ * 组内删除模式下整块组头替换为「删除密钥 + 全选」标题行（0916 定稿形态恢复）。
  */
 @Composable
 private fun GroupHeaderBlock(
@@ -329,12 +331,16 @@ private fun GroupHeaderBlock(
     isCollapsed: Boolean,
     grpHasEnabled: Boolean,
     selectionMode: Boolean,
+    deleteMode: Boolean,
     onFold: () -> Unit,
     onPull: () -> Unit,
     onTestGroup: () -> Unit,
     onEditIfc: () -> Unit,
     menuExpanded: Boolean,
-    onMenuDelete: () -> Unit,
+    onMenuOpen: () -> Unit,
+    onMenuDeleteAll: () -> Unit,
+    onMenuDeleteMulti: () -> Unit,
+    onToggleSelectAll: () -> Unit,
     onMenuDismiss: () -> Unit,
     testingThisGroup: Boolean,
 ) {
@@ -342,6 +348,28 @@ private fun GroupHeaderBlock(
     // 条目 ElevatedCard 是页面唯一容器层；归属感靠组头排版 + 组间 16dp 间距表达。
     Column(Modifier.fillMaxWidth().padding(top = 16.dp)) {
         Column(Modifier.padding(vertical = 4.dp)) {
+            if (deleteMode) {
+                // 组内删除模式标题行（0916 定稿形态）：标题降到 16sp 与右端「全选」共一行，
+                // 底部另有 取消/删除(N) 动作行（在条目卡之后）——顶部选谁、底部执行，
+                // 视线不在卡片里跑两趟。左右缩进对齐条目名文字列（34dp，与组名同列）
+                Row(
+                    Modifier.fillMaxWidth()
+                        .padding(start = 34.dp, end = 5.dp, top = 4.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        stringResource(R.string.role_key_delete_title),
+                        style = MaterialTheme.typography.bodyLarge,
+                        fontWeight = FontWeight.Medium,
+                        color = MaterialTheme.colorScheme.onSurface,
+                        modifier = Modifier.weight(1f)
+                    )
+                    FlatTextAction(
+                        stringResource(R.string.select_all),
+                        MaterialTheme.colorScheme.onSurfaceVariant
+                    ) { onToggleSelectAll() }
+                }
+            } else {
             Column(Modifier.fillMaxWidth()) {
                 // ———— 组头行 ————
                 Row(
@@ -420,12 +448,12 @@ private fun GroupHeaderBlock(
                                     stringResource(R.string.role_key_interface_edit)
                                 ) { onEditIfc() }
                             }
-                            // 组头 🗑 菜单：删除整组（原来的「多选删除子项」升级成了顶栏 ☑ 多选）
+                            // 组头 🗑 两项菜单（0916 双路径恢复）：删除整组 / 多选删除子项
                             Box {
                                 FlatIconAction(
                                     Icons.Default.DeleteOutline,
                                     stringResource(R.string.delete)
-                                ) { onMenuDelete() }
+                                ) { onMenuOpen() }
                                 DropdownMenu(
                                     expanded = menuExpanded,
                                     onDismissRequest = onMenuDismiss
@@ -456,7 +484,33 @@ private fun GroupHeaderBlock(
                                                 )
                                             }
                                         },
-                                        onClick = onMenuDelete
+                                        onClick = onMenuDeleteAll
+                                    )
+                                    DropdownMenuItem(
+                                        // 两项各带一枚 18dp 前置图标，文字左缘才对得齐：
+                                        // 删除整组=红🗑（警示），多选删除=灰🧹（组保留、非毁灭）
+                                        leadingIcon = {
+                                            Icon(
+                                                Icons.Default.DeleteSweep,
+                                                contentDescription = null,
+                                                modifier = Modifier.size(18.dp),
+                                                tint = MaterialTheme.colorScheme.onSurfaceVariant
+                                            )
+                                        },
+                                        text = {
+                                            Column {
+                                                Text(
+                                                    stringResource(R.string.role_key_group_delete_multi),
+                                                    style = MaterialTheme.typography.bodyMedium
+                                                )
+                                                Text(
+                                                    stringResource(R.string.role_key_group_delete_multi_sub),
+                                                    style = MaterialTheme.typography.labelSmall,
+                                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                                )
+                                            }
+                                        },
+                                        onClick = onMenuDeleteMulti
                                     )
                                 }
                             }
@@ -511,6 +565,7 @@ private fun GroupHeaderBlock(
                     }
                 }
             }
+            } // else：组内删除模式只渲染标题行，组头与元信息行都不渲染
         }
     }
 }
@@ -543,8 +598,12 @@ fun KeyManagerScreen(tagRuleId: String, onBack: () -> Unit) {
     // 启用池页的多选移出（状态同样 hoist 在主页）
     var poolSelection by remember { mutableStateOf(false) }
     var poolChecked by remember { mutableStateOf<Set<String>>(emptySet()) }
-    var menuGroup by remember { mutableStateOf<String?>(null) }          // 组头 🗑 菜单（删除整组）
+    var menuGroup by remember { mutableStateOf<String?>(null) }          // 组头 🗑 菜单（两项）
     var deleteGroupConfirm by remember { mutableStateOf<String?>(null) } // 「删除整组」二次确认
+    // 组内多选删除（菜单第二项「多选删除子项」）：组保留、只删勾选条目，与页面级 ☑ 多选互斥
+    var deleteModeGroup by remember { mutableStateOf<String?>(null) }
+    var deleteChecked by remember { mutableStateOf<Set<String>>(emptySet()) }
+    var groupDeleteConfirm by remember { mutableStateOf<String?>(null) } // 组内批量删除二次确认
 
     LaunchedEffect(version) {
         // 分组自愈：匹配不上分组的 @@ 条目按（网址 + 密钥）自动建组
@@ -806,7 +865,11 @@ fun KeyManagerScreen(tagRuleId: String, onBack: () -> Unit) {
     var pullForIfc by remember { mutableStateOf<String?>(null) } // 组头 🔍 预选接口
     var showImport by remember { mutableStateOf(false) }
 
-    // 返回键：多选模式先退多选（启用池页打开时，其内部 BackHandler 后注册、优先拦截）
+    // 返回键：组内删除模式先退组内删除；页面级多选先退多选（两种多选互斥，同一时刻至多一种在）
+    BackHandler(enabled = deleteModeGroup != null) {
+        deleteModeGroup = null
+        deleteChecked = emptySet()
+    }
     BackHandler(enabled = selectionMode) { exitSelection() }
 
     // 启用池子页：页内全屏覆盖（照 KeyManagerActivity 的独立全屏页模式，返回键退回主页）。
@@ -914,9 +977,17 @@ fun KeyManagerScreen(tagRuleId: String, onBack: () -> Unit) {
                             )
                         }
                     }
-                    // 页面级多选入口（照主界面 ☑ Checklist 同款）：跨组勾选 → 底栏 加入池/删除
+                    // 页面级多选入口（照主界面 ☑ Checklist 同款）：跨组勾选 → 底栏 加入池/删除。
+                    // 与组内删除模式互斥：进入前先退掉组内删除
                     IconButton(
-                        onClick = { if (selectionMode) exitSelection() else selectionMode = true }
+                        onClick = {
+                            if (selectionMode) exitSelection()
+                            else {
+                                deleteModeGroup = null
+                                deleteChecked = emptySet()
+                                selectionMode = true
+                            }
+                        }
                     ) {
                         Icon(
                             Icons.Default.Checklist,
@@ -1015,6 +1086,9 @@ fun KeyManagerScreen(tagRuleId: String, onBack: () -> Unit) {
             } else {
                 groups.forEach { grp ->
                     val isCollapsed = collapsed?.contains(grp.title) == true
+                    // 组内删除模式（菜单第二项「多选删除子项」）：只对该组生效，组保留
+                    val isDeleting = deleteModeGroup == grp.title
+                    val selCount = grp.entries.count { it.name in deleteChecked }
                     // 色条判据：本组含**启用中**的密钥（旧口径=含当前密钥，多选后推广为启用集）
                     val grpHasEnabled = grp.entries.any {
                         KeyListFile.normalizePoolValue(it.value) in pool
@@ -1027,6 +1101,7 @@ fun KeyManagerScreen(tagRuleId: String, onBack: () -> Unit) {
                             isCollapsed = isCollapsed,
                             grpHasEnabled = grpHasEnabled,
                             selectionMode = selectionMode,
+                            deleteMode = isDeleting,
                             onFold = { toggleFold(grp.title) },
                             onPull = {
                                 grp.ifc?.let { ifc -> pullForIfc = ifc.name }
@@ -1035,14 +1110,30 @@ fun KeyManagerScreen(tagRuleId: String, onBack: () -> Unit) {
                             onTestGroup = { testGroup(grp) },
                             onEditIfc = { grp.ifc?.let { ifc -> ifcFormFor = ifc } },
                             menuExpanded = menuGroup == grp.title,
-                            onMenuDelete = { menuGroup = grp.title },
+                            onMenuOpen = { menuGroup = grp.title },
+                            onMenuDeleteAll = {
+                                menuGroup = null
+                                deleteGroupConfirm = grp.title
+                            },
+                            onMenuDeleteMulti = {
+                                menuGroup = null
+                                deleteModeGroup = grp.title
+                                deleteChecked = emptySet()
+                                if (isCollapsed) toggleFold(grp.title) // 组内删除要见子项，折叠组自动展开
+                            },
+                            onToggleSelectAll = {
+                                val allSel = grp.entries.all { it.name in deleteChecked }
+                                val names = grp.entries.map { it.name }.toSet()
+                                deleteChecked =
+                                    if (allSel) deleteChecked - names else deleteChecked + names
+                            },
                             onMenuDismiss = { menuGroup = null },
                             testingThisGroup = testingGroup == grp.title,
                         )
                     }
                     // 多选模式下分组自动展开（用户 0919：折叠组没法多选子项）；退出恢复原折叠。
-                    // 主页拖动排序已删（用户 0919：点卡片启用的交互下没有拖动场景）
-                    if (!isCollapsed || selectionMode) {
+                    // 组内删除模式进组时已自动展开；主页拖动排序已删（用户 0919：点卡片启用的交互下没有拖动场景）
+                    if (!isCollapsed || selectionMode || isDeleting) {
                         grp.entries.forEach { entry ->
                             item(key = "e:" + entry.name) {
                                 val norm = KeyListFile.normalizePoolValue(entry.value)
@@ -1051,12 +1142,20 @@ fun KeyManagerScreen(tagRuleId: String, onBack: () -> Unit) {
                                     enabled = norm in pool,
                                     testOk = testResults[norm],
                                     testing = testingValue == norm,
-                                    selectionMode = selectionMode,
-                                    checked = entry.name in checkedNames,
+                                    // 组内删除模式同页面级多选：复选框顶替行首灯、动作区隐藏、勾中染浅红
+                                    selectionMode = selectionMode || isDeleting,
+                                    checked = if (isDeleting) entry.name in deleteChecked
+                                    else entry.name in checkedNames,
                                     onToggleCheck = {
-                                        checkedNames = if (entry.name in checkedNames)
-                                            checkedNames - entry.name
-                                        else checkedNames + entry.name
+                                        if (isDeleting) {
+                                            deleteChecked = if (entry.name in deleteChecked)
+                                                deleteChecked - entry.name
+                                            else deleteChecked + entry.name
+                                        } else {
+                                            checkedNames = if (entry.name in checkedNames)
+                                                checkedNames - entry.name
+                                            else checkedNames + entry.name
+                                        }
                                     },
                                     onTogglePool = { togglePool(entry) },
                                     // 📋 列表行复制模型名（编辑弹窗里复制的才是完整密钥串）
@@ -1068,6 +1167,33 @@ fun KeyManagerScreen(tagRuleId: String, onBack: () -> Unit) {
                                     onEdit = { renameFor = entry },
                                     onDelete = { deleteFor = entry }
                                 )
+                            }
+                        }
+                        // 组内删除模式动作行（条目卡之后，老版 0916 形态）：只有 取消 / 删除(N)——
+                        // 全选已并到顶部标题行；两键都是无框文字键
+                        if (isDeleting) {
+                            item(key = "d:" + grp.title) {
+                                Row(
+                                    Modifier.fillMaxWidth()
+                                        .padding(start = 34.dp, end = 5.dp, top = 2.dp, bottom = 4.dp),
+                                    horizontalArrangement = Arrangement.End,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    FlatTextAction(
+                                        stringResource(R.string.cancel),
+                                        MaterialTheme.colorScheme.onSurfaceVariant
+                                    ) {
+                                        deleteModeGroup = null
+                                        deleteChecked = emptySet()
+                                    }
+                                    FlatTextAction(
+                                        stringResource(R.string.role_key_delete_n, selCount),
+                                        MaterialTheme.colorScheme.error
+                                    ) {
+                                        if (selCount == 0) toast(R.string.role_key_delete_none)
+                                        else groupDeleteConfirm = grp.title
+                                    }
+                                }
                             }
                         }
                     }
@@ -1113,6 +1239,30 @@ fun KeyManagerScreen(tagRuleId: String, onBack: () -> Unit) {
             },
             dismissButton = {
                 TextButton(onClick = { deleteGroupConfirm = null }) {
+                    Text(stringResource(R.string.cancel))
+                }
+            }
+        )
+    }
+
+    // 组内批量删除确认（「多选删除子项」勾中 N 条 → 二次确认，组保留）
+    groupDeleteConfirm?.let { gTitle ->
+        val grp = buildKeyGroups(keys, ifaces).firstOrNull { it.title == gTitle }
+        val targets = grp?.entries?.filter { it.name in deleteChecked }?.map { it.name }.orEmpty()
+        AlertDialog(
+            onDismissRequest = { groupDeleteConfirm = null },
+            title = { Text(stringResource(R.string.role_key_delete_title)) },
+            text = { Text(stringResource(R.string.role_key_delete_batch_text, gTitle, targets.size)) },
+            confirmButton = {
+                TextButton(onClick = {
+                    groupDeleteConfirm = null
+                    deleteModeGroup = null
+                    deleteChecked = emptySet()
+                    deleteNames(targets)
+                }) { Text(stringResource(R.string.delete), color = MaterialTheme.colorScheme.error) }
+            },
+            dismissButton = {
+                TextButton(onClick = { groupDeleteConfirm = null }) {
                     Text(stringResource(R.string.cancel))
                 }
             }
