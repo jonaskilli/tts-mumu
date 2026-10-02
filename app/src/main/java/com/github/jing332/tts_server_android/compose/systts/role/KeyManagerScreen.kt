@@ -137,7 +137,7 @@ internal fun buildKeyGroups(keys: List<KeyListFile.KeyEntry>, ifaces: List<KeyLi
     // 智谱内置组只是被 seedZhipuBuiltin 种出来的普通接口组，分组判定零特例
     val ungrouped = keys.filter { it.name !in assigned }
     if (ungrouped.isNotEmpty()) groups.add(
-        KeyGroup("未分组", ungrouped, hintRes = R.string.role_key_group_ungrouped_hint)
+        KeyGroup("未分组", ungrouped, hintRes = R.string.role_key_complete_hint)
     )
     return groups
 }
@@ -1485,6 +1485,17 @@ private fun KeyEditDialog(
                     textStyle = MaterialTheme.typography.bodyMedium,
                     modifier = Modifier.fillMaxWidth(),
                 )
+                // 裸 Key 补全引导：值是裸 Key 时显示（与未分组组头同一句提示），补全即消失——
+                // 占位提示只在空框时可见，编辑已有裸 Key 时这里是唯一能引导补全的地方
+                val parsed = KeyListFile.parseKeyValue(value.text.trim())
+                if (parsed != null && parsed.isDirect) {
+                    Spacer(Modifier.height(4.dp))
+                    Text(
+                        stringResource(R.string.role_key_complete_hint),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
             }
         },
         confirmButton = {

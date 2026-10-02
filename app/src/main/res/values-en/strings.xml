@@ -620,7 +620,7 @@
     <string name="role_key_empty">No API keys yet</string>
     <string name="role_key_tail">…%1$s</string>
     <string name="role_key_model_in_group">Already in group</string>
-    <string name="role_key_group_ungrouped_hint">Please complete the url@@model@@API key format</string>
+    <string name="role_key_complete_hint">Please complete the url@@model@@API key format</string>
     <string name="role_key_complete_first">Bare key can\'t be enabled: edit it into the full URL@@model@@key format first</string>
     <string name="role_key_pool_skip_bare">%1$d bare key(s) not added to the pool: complete the full format first</string>
     <string name="role_key_test">Test</string>
