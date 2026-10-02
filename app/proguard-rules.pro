@@ -9,10 +9,9 @@
 -keep class com.github.jing332.database.entities.** { *; }
 
 # ============================================
-# 混元太极（deepseekproxy）：Ktor CIO 引擎反射加载 + WebView 保留
-# 不保留则 release 混淆后 embeddedServer(CIO) 抛 NoClassDefFoundError 闪退
+# Ktor（lib-server 转发器/脚本服务）：引擎反射加载保留
+# 不保留则 release 混淆后 embeddedServer 抛 NoClassDefFoundError 闪退
 # ============================================
--keep class com.github.jing332.deepseekproxy.** { *; }
 -keep class io.ktor.** { *; }
 -keep class io.ktor.server.** { *; }
 -keep class io.ktor.server.cio.** { *; }

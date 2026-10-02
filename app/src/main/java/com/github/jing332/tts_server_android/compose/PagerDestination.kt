@@ -9,7 +9,6 @@ import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.Icon
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
@@ -27,7 +26,6 @@ sealed class PagerDestination(
                 SystemTts,
                 SystemTtsLog,
                 Tool,
-                HunyuanTaiji,
                 Settings
             )
         }
@@ -57,16 +55,7 @@ sealed class PagerDestination(
         )
     })
 
-    object HunyuanTaiji : PagerDestination(3, R.string.hunyuan_taiji, R.string.hunyuan_taiji, {
-        Icon(
-            modifier = Modifier.size(24.dp),
-            painter = painterResource(R.drawable.ic_taiji),
-            tint = Color.Unspecified,
-            contentDescription = null
-        )
-    })
-
-    object Settings : PagerDestination(4, R.string.settings, R.string.settings, {
+    object Settings : PagerDestination(3, R.string.settings, R.string.settings, {
         Icon(Icons.Default.Settings, contentDescription = null)
     })
 }

@@ -8,8 +8,6 @@ import android.os.Process
 import com.github.jing332.compose.widgets.AsyncCircleImageSettings
 import com.github.jing332.database.entities.systts.SystemTtsV2
 import com.github.jing332.database.entities.systts.AudioParams
-import com.github.jing332.deepseekproxy.ProxyService
-import com.github.jing332.deepseekproxy.proxy.LogStore
 import com.github.jing332.tts_server_android.conf.SystemTtsConfig
 import com.github.jing332.tts_server_android.conf.SystemTtsForwarderConfig
 import com.github.jing332.tts_server_android.conf.SysTtsConfig
@@ -62,7 +60,7 @@ class App : Application() {
         // 启动超时看门狗：独立守护线程，监测"超时后卡死"并自动重启 APP
         TtsTimeoutWatchdog.start()
 
-        // 崩溃捕获：堆栈写入本地文件 crash_last.txt，下次进混元太极页弹窗展示，
+        // 崩溃捕获：堆栈写入本地文件 crash_last.txt，下次进日志页弹窗展示，
         // 便于没有 adb/logcat 的场景排查闪退原因。
         // 沿用原策略：过滤 Compose 的 LeftCompositionCancellationException，避免页面快速切换时崩溃
         CrashCapture.install()
@@ -118,20 +116,6 @@ class App : Application() {
             if (SystemTtsForwarderConfig.isAutoStart.value && !SysTtsForwarderService.isRunning) {
                 switchSysTtsForwarder()
             }
-
-            // 混元太极：若上次为「已开启」状态，App 重启后自动按原状态恢复服务。
-            // 加固：进程可能由后台路径拉起（如系统 TTS 引擎绑定），
-            // 此时 Android 12+ 上 startForegroundService 会抛
-            // ForegroundServiceStartNotAllowedException，不捕获会导致整个 App 闪退，
-            // 且用户手动打开时为前台、无法复现（偶发闪退的根源）。此处降级为记录日志。
-            // 注意：runCatching 只捕获 Exception，NoClassDefFoundError 等 Error 需单独兜底。
-            if (ProxyService.isSavedRunning(this@App)) {
-                try {
-                    ProxyService.startFromSaved(this@App)
-                } catch (e: Throwable) {
-                    LogStore.e("Proxy", "App 重启后自动恢复混元太极服务失败: ${e.javaClass.simpleName}: ${e.message}")
-                }
-            }
         }
     }
 
@@ -146,7 +130,7 @@ class App : Application() {
 
 /**
  * 崩溃捕获：未捕获异常发生时，把线程名与完整堆栈写入 filesDir/crash_last.txt。
- * 下次进入混元太极界面时读取该文件并弹窗展示（可一键复制），
+ * 下次进入日志界面时读取该文件并弹窗展示（可一键复制），
  * 用于没有 adb/logcat 的场景排查闪退原因；展示并关闭后删除文件避免重复弹窗。
  */
 object CrashCapture {

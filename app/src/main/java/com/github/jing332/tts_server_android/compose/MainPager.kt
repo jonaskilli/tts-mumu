@@ -50,7 +50,6 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.github.jing332.compose.widgets.ControlBottomBarVisibility
 import com.github.jing332.compose.widgets.rememberA11TouchEnabled
-import com.github.jing332.tts_server_android.compose.hunyuantaiji.HunyuanTaijiScreen
 import com.github.jing332.tts_server_android.compose.settings.SettingsScreen
 import com.github.jing332.tts_server_android.compose.systts.MigrationTips
 import com.github.jing332.tts_server_android.compose.systts.TtsLogScreen
@@ -216,8 +215,7 @@ fun AnimatedContentScope.MainPager(sharedVM: SharedViewModel) {
                     when (index) {
                         PagerDestination.SystemTts.index -> ListManagerScreen(sharedVM, listBottomPadding = bottomPad)
                         PagerDestination.Tool.index -> RoleManagementScreen(sharedVM, pagerState)
-                        PagerDestination.SystemTtsLog.index -> TtsLogScreen()
-                        PagerDestination.HunyuanTaiji.index -> HunyuanTaijiScreen()
+                        PagerDestination.SystemTtsLog.index -> TtsLogScreen(pagerState)
                         PagerDestination.Settings.index -> SettingsScreen()
                     }
                 }

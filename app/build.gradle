@@ -204,13 +204,6 @@ dependencies {
     implementation(libs.bundles.codeEditor)
     implementation(libs.bundles.network)
 
-    // 混元太极本地中转服务 (OpenAI 兼容) —— 复用 ktor CIO 引擎
-    implementation(libs.ktor.server.cio)
-    implementation(libs.ktor.server.core)
-    implementation(libs.ktor.server.content.negotiation)
-    implementation(libs.ktor.server.serialization.json)
-    implementation(libs.ktor.server.cors)
-
 
     implementation(libs.bundles.room)
     ksp(libs.roomCompiler)

@@ -24,6 +24,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.pager.PagerState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Clear
@@ -62,8 +63,10 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.core.content.FileProvider
@@ -71,13 +74,15 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.compose.runtime.CompositionLocalProvider
 import com.github.jing332.common.LogEntry
 import com.github.jing332.common.LogLevel
+import com.github.jing332.tts_server_android.CrashCapture
 import com.github.jing332.tts_server_android.R
+import com.github.jing332.tts_server_android.compose.PagerDestination
 import kotlinx.coroutines.launch
 import java.io.File
 
 @OptIn(ExperimentalMaterial3Api::class, androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
 @Composable
-internal fun TtsLogScreen(vm: TtsLogViewModel = viewModel()) {
+internal fun TtsLogScreen(pagerState: PagerState, vm: TtsLogViewModel = viewModel()) {
     val context = LocalContext.current
     var isSearchActive by rememberSaveable { mutableStateOf(false) }
     // 日志文件列表弹窗（用户 09-08：文件夹点开自由选择文件，不再直接扔给外部查看器）
@@ -87,6 +92,24 @@ internal fun TtsLogScreen(vm: TtsLogViewModel = viewModel()) {
     var filterMatches by rememberSaveable { mutableStateOf(false) }
     val listState = rememberLazyListState()
     val scope = rememberCoroutineScope()
+
+    // 上次闪退/看门狗重启记录：进入本页时弹窗展示（可一键复制），便于没有 adb/logcat 的环境排查闪退原因。
+    // 日志页会被 HorizontalPager 预组合（相邻页），必须按「当前页 = 日志页」门控，避免首页启动就抢弹
+    val isPageVisible = remember {
+        derivedStateOf { pagerState.currentPage == PagerDestination.SystemTtsLog.index }
+    }
+    var lastCrashText by remember { mutableStateOf<String?>(null) }
+    LaunchedEffect(isPageVisible.value) {
+        if (isPageVisible.value) {
+            CrashCapture.last(context)?.let { recorded -> lastCrashText = recorded }
+        }
+    }
+    lastCrashText?.let { crash ->
+        CrashDialog(text = crash, onDismiss = {
+            CrashCapture.clear(context)
+            lastCrashText = null
+        })
+    }
 
     fun LogEntry.matchesQuery(q: String): Boolean =
         message.contains(q, ignoreCase = true) || time.contains(q, ignoreCase = true)
@@ -422,6 +445,33 @@ private fun getLevelColor(level: Int): Color {
         LogLevel.DEBUG -> MaterialTheme.colorScheme.primaryContainer
         else -> MaterialTheme.colorScheme.surfaceVariant
     }
+}
+
+@Composable
+private fun CrashDialog(text: String, onDismiss: () -> Unit) {
+    val clipboard = LocalClipboardManager.current
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("检测到上次异常记录") },
+        text = {
+            Column(
+                Modifier
+                    .heightIn(max = 420.dp)
+                    .verticalScroll(rememberScrollState())
+            ) {
+                Text(text, style = MaterialTheme.typography.bodySmall)
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = {
+                clipboard.setText(AnnotatedString(text))
+                onDismiss()
+            }) { Text("复制并关闭") }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text("关闭") }
+        }
+    )
 }
 
 // 用外部查看器打开文件/目录（text/plain 优先，通用类型兜底）
