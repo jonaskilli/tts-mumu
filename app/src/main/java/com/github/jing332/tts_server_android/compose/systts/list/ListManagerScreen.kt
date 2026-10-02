@@ -112,11 +112,14 @@ import com.github.jing332.database.entities.systts.GroupWithSystemTts
 import com.github.jing332.database.entities.systts.JReadConfigMigration
 import androidx.compose.material3.Tab
 import androidx.compose.material3.TabRow
+import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.platform.LocalClipboardManager
 import com.github.jing332.database.entities.systts.AudioParams
 import com.github.jing332.database.entities.systts.SystemTtsGroup
 import com.github.jing332.database.entities.systts.SystemTtsV2
 import com.github.jing332.database.entities.systts.TtsConfigurationDTO
+import com.github.jing332.tts_server_android.CrashCapture
 import com.github.jing332.tts_server_android.service.systts.help.VoiceMarksFile
 import com.github.jing332.database.entities.systts.source.LocalTtsSource
 import com.github.jing332.database.entities.systts.source.PluginTtsSource
@@ -247,6 +250,19 @@ internal fun ListManagerScreen(
     val navController = LocalNavController.current
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
+
+    // 上次闪退/看门狗重启记录：进入本页即弹窗展示（可一键复制），便于没有 adb/logcat 的环境排查闪退原因。
+    // 本页是启动落地页，崩溃/看门狗重启后用户第一眼即见；展示并关闭后文件即清除，不会重复弹
+    var lastCrashText by remember { mutableStateOf<String?>(null) }
+    LaunchedEffect(Unit) {
+        CrashCapture.last(context)?.let { recorded -> lastCrashText = recorded }
+    }
+    lastCrashText?.let { crash ->
+        CrashDialog(text = crash, onDismiss = {
+            CrashCapture.clear(context)
+            lastCrashText = null
+        })
+    }
 
     val models by vm.list.collectAsStateWithLifecycle()
     val searchKeyword by vm.keyword.collectAsStateWithLifecycle()
@@ -3938,3 +3954,32 @@ private data class PendingInvalidDelete(
     val sourceId: String?,
     val count: Int,
 )
+
+/** 崩溃黑匣子弹窗：crash_last.txt（闪退堆栈/看门狗重启留痕）展示 + 一键复制；
+ *  自 1002 删除的混元太极页迁入（原先那里是唯一展示入口） */
+@Composable
+private fun CrashDialog(text: String, onDismiss: () -> Unit) {
+    val clipboard = LocalClipboardManager.current
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("检测到上次异常记录") },
+        text = {
+            Column(
+                Modifier
+                    .heightIn(max = 420.dp)
+                    .verticalScroll(rememberScrollState())
+            ) {
+                Text(text, style = MaterialTheme.typography.bodySmall)
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = {
+                clipboard.setText(AnnotatedString(text))
+                onDismiss()
+            }) { Text("复制并关闭") }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text("关闭") }
+        }
+    )
+}

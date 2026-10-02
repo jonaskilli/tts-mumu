@@ -215,7 +215,7 @@ fun AnimatedContentScope.MainPager(sharedVM: SharedViewModel) {
                     when (index) {
                         PagerDestination.SystemTts.index -> ListManagerScreen(sharedVM, listBottomPadding = bottomPad)
                         PagerDestination.Tool.index -> RoleManagementScreen(sharedVM, pagerState)
-                        PagerDestination.SystemTtsLog.index -> TtsLogScreen(pagerState)
+                        PagerDestination.SystemTtsLog.index -> TtsLogScreen()
                         PagerDestination.Settings.index -> SettingsScreen()
                     }
                 }

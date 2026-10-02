@@ -60,7 +60,7 @@ class App : Application() {
         // 启动超时看门狗：独立守护线程，监测"超时后卡死"并自动重启 APP
         TtsTimeoutWatchdog.start()
 
-        // 崩溃捕获：堆栈写入本地文件 crash_last.txt，下次进日志页弹窗展示，
+        // 崩溃捕获：堆栈写入本地文件 crash_last.txt，下次进系统TTS主页弹窗展示，
         // 便于没有 adb/logcat 的场景排查闪退原因。
         // 沿用原策略：过滤 Compose 的 LeftCompositionCancellationException，避免页面快速切换时崩溃
         CrashCapture.install()
@@ -130,7 +130,7 @@ class App : Application() {
 
 /**
  * 崩溃捕获：未捕获异常发生时，把线程名与完整堆栈写入 filesDir/crash_last.txt。
- * 下次进入日志界面时读取该文件并弹窗展示（可一键复制），
+ * 下次进入系统TTS主界面时读取该文件并弹窗展示（可一键复制），
  * 用于没有 adb/logcat 的场景排查闪退原因；展示并关闭后删除文件避免重复弹窗。
  */
 object CrashCapture {
