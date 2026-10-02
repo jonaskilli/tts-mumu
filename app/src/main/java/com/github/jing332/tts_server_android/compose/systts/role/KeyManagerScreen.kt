@@ -1481,7 +1481,7 @@ private fun KeyEditDialog(
         },
         text = {
             Column {
-                // 「密钥」一栏（整串 网址@@模型名@@API key；智谱可直填裸 key）
+                // 「密钥」一栏（整串 网址@@模型名@@API key；裸 Key 可存但禁用启用，见 togglePool 拦截）
                 Text(
                     stringResource(R.string.role_key_value),
                     style = MaterialTheme.typography.bodySmall,

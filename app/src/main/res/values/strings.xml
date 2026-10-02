@@ -786,7 +786,7 @@
     <string name="role_key_edit">编辑密钥</string>
     <string name="role_key_copied_model">已复制模型名</string>
     <string name="role_key_value">密钥</string>
-    <string name="role_key_value_hint">网址@@模型名@@API key（智谱可直填API key）</string>
+    <string name="role_key_value_hint">网址@@模型名@@API key</string>
     <string name="role_key_delete_title">删除密钥</string>
     <string name="role_key_delete_text">确定删除密钥「%1$s」？</string>
     <string name="role_key_empty">暂无密钥</string>

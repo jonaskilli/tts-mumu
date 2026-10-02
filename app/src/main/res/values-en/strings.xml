@@ -614,7 +614,7 @@
     <string name="role_key_edit">Edit key</string>
     <string name="role_key_copied_model">Model name copied</string>
     <string name="role_key_value">Key</string>
-    <string name="role_key_value_hint">url@@model@@API key (Zhipu accepts a bare API key)</string>
+    <string name="role_key_value_hint">url@@model@@API key</string>
     <string name="role_key_delete_title">Delete key</string>
     <string name="role_key_delete_text">Delete key "%1$s"?</string>
     <string name="role_key_empty">No API keys yet</string>
