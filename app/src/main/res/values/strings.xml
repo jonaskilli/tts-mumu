@@ -792,7 +792,7 @@
     <string name="role_key_empty">暂无密钥</string>
     <string name="role_key_tail">*尾%1$s</string>
     <string name="role_key_model_in_group">已在组内</string>
-    <string name="role_key_group_ungrouped_hint">未绑定接口的散装密钥</string>
+    <string name="role_key_group_ungrouped_hint">请补全为网址@@模型名@@API Key格式</string>
     <string name="role_key_complete_first">裸 Key 不能启用：请先编辑为 网址@@模型@@Key 完整格式</string>
     <string name="role_key_pool_skip_bare">%1$d 条裸 Key 未加入启用池：请先补全为完整格式</string>
     <string name="role_key_test">测试</string>
