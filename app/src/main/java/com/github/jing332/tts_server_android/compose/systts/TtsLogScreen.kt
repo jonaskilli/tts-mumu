@@ -261,13 +261,9 @@ internal fun TtsLogScreen(vm: TtsLogViewModel = viewModel()) {
                         IconButton(onClick = { vm.showFilterDialog.value = true }) {
                             Icon(Icons.Default.FilterList, stringResource(R.string.filter))
                         }
-                        
-                        // 文件夹按钮 - 先弹日志文件列表自由选择（用户 09-08），点击文件再用外部查看器打开
-                        IconButton(onClick = { showLogFilesDialog = true }) {
-                            Icon(Icons.Default.FolderOpen, stringResource(R.string.open_log_folder))
-                        }
 
-                        // 多选入口（照密钥页 ☑ 同款）：切换键，选中态染 primary；跨条勾选 → 底栏「复制(N)」
+                        // 多选入口（1002）：紧跟筛选之后（用户点名位置）；切换键，选中态染 primary；
+                        // 跨条勾选 → 底栏「复制(N)」
                         IconButton(
                             onClick = {
                                 if (selectionMode) exitSelection() else selectionMode = true
@@ -279,6 +275,11 @@ internal fun TtsLogScreen(vm: TtsLogViewModel = viewModel()) {
                                 tint = if (selectionMode) MaterialTheme.colorScheme.primary
                                 else MaterialTheme.colorScheme.onSurfaceVariant
                             )
+                        }
+
+                        // 文件夹按钮 - 先弹日志文件列表自由选择（用户 09-08），点击文件再用外部查看器打开
+                        IconButton(onClick = { showLogFilesDialog = true }) {
+                            Icon(Icons.Default.FolderOpen, stringResource(R.string.open_log_folder))
                         }
 
                         // 清空按钮

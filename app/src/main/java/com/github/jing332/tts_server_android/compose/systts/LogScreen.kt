@@ -17,6 +17,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -25,8 +26,10 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.CheckBox
+import androidx.compose.material.icons.filled.CheckBoxOutlineBlank
 import androidx.compose.material.icons.filled.KeyboardDoubleArrowDown
-import androidx.compose.material3.Checkbox
+import androidx.compose.material.icons.filled.KeyboardDoubleArrowUp
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.HorizontalDivider
@@ -133,6 +136,15 @@ fun LogScreen(
                 }
             }
         }
+        // 是否停靠在日志最开始（决定 ↑ 键显隐）：真正到顶（第 0 条且未偏移）才隐藏
+        val isAtTop by remember {
+            derivedStateOf {
+                val layoutInfo = listState.layoutInfo
+                val first = layoutInfo.visibleItemsInfo.firstOrNull()
+                layoutInfo.totalItemsCount <= 0 ||
+                        (first != null && first.index == 0 && first.offset == 0)
+            }
+        }
 
         LaunchedEffect(list.size) {
             if (autoScrollToBottom && list.isNotEmpty())
@@ -223,11 +235,17 @@ fun LogScreen(
                     ) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             if (selectionMode) {
-                                // 勾选框替代时间戳左缘（与密钥页行首 Checkbox 同型）
-                                Checkbox(
-                                    checked = checked,
-                                    onCheckedChange = { onToggleCheck(log) },
-                                    modifier = Modifier.padding(end = 2.dp)
+                                // 行首勾选指示：16dp 图标（=bodySmall 行高）而非 M3 Checkbox——
+                                // ① Checkbox 强制 48dp 最小触控尺寸，会把日志行撑高、进多选整列跳位；
+                                // ② 图标不进正文行、只在时间戳行左缘，长日志正文宽度不变不重排。
+                                // 位处不改行高，进多选后正在看的位置原地不动（用户 1002 点名）
+                                Icon(
+                                    imageVector = if (checked) Icons.Default.CheckBox
+                                    else Icons.Default.CheckBoxOutlineBlank,
+                                    contentDescription = null,
+                                    modifier = Modifier.padding(end = 4.dp).size(16.dp),
+                                    tint = if (checked) MaterialTheme.colorScheme.primary
+                                    else MaterialTheme.colorScheme.onSurfaceVariant
                                 )
                             }
                             // 完整时间戳(年月日+时分秒+毫秒)，等级字母跟在时间后
@@ -265,28 +283,56 @@ fun LogScreen(
                 }
             }
 
-        AnimatedVisibility(
+        // 侧边浮动键（用户 1002）：向下=回底部（原键），向上=到日志最开始（新增）。
+        // 竖排堆叠、各按需显隐：不在底部才显示↓，不在顶部才显示↑，都在中间时两键都可见。
+        // 外层 48dp + 各键 8dp 与原先单键位置的算法保持一致（↓ 单独显示时位置不变）
+        Column(
             modifier = Modifier
                 .align(Alignment.BottomCenter)
                 .padding(48.dp),
-            visible = !isAtBottom,
-            enter = fadeIn() + expandIn(expandFrom = Alignment.BottomCenter),
-            exit = shrinkOut(shrinkTowards = Alignment.BottomCenter) + fadeOut(),
+            horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            FloatingActionButton(
-                modifier = Modifier.padding(8.dp),
-                shape = CircleShape,
-                onClick = {
-                    scope.launch {
-                        kotlin.runCatching {
-                            listState.scrollToItem(list.size - 1)
+            AnimatedVisibility(
+                visible = !isAtTop,
+                enter = fadeIn() + expandIn(expandFrom = Alignment.BottomCenter),
+                exit = shrinkOut(shrinkTowards = Alignment.BottomCenter) + fadeOut(),
+            ) {
+                FloatingActionButton(
+                    modifier = Modifier.padding(8.dp),
+                    shape = CircleShape,
+                    onClick = {
+                        scope.launch {
+                            kotlin.runCatching {
+                                listState.scrollToItem(0)
+                            }
                         }
-                    }
-                }) {
-                Icon(
-                    Icons.Default.KeyboardDoubleArrowDown,
-                    stringResource(id = R.string.move_to_bottom)
-                )
+                    }) {
+                    Icon(
+                        Icons.Default.KeyboardDoubleArrowUp,
+                        stringResource(id = R.string.move_to_top)
+                    )
+                }
+            }
+            AnimatedVisibility(
+                visible = !isAtBottom,
+                enter = fadeIn() + expandIn(expandFrom = Alignment.BottomCenter),
+                exit = shrinkOut(shrinkTowards = Alignment.BottomCenter) + fadeOut(),
+            ) {
+                FloatingActionButton(
+                    modifier = Modifier.padding(8.dp),
+                    shape = CircleShape,
+                    onClick = {
+                        scope.launch {
+                            kotlin.runCatching {
+                                listState.scrollToItem(list.size - 1)
+                            }
+                        }
+                    }) {
+                    Icon(
+                        Icons.Default.KeyboardDoubleArrowDown,
+                        stringResource(id = R.string.move_to_bottom)
+                    )
+                }
             }
         }
     }
