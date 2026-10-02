@@ -26,6 +26,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.KeyboardDoubleArrowDown
+import androidx.compose.material3.Checkbox
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.HorizontalDivider
@@ -96,6 +97,13 @@ fun LogScreen(
     autoScrollToBottom: Boolean = false,
     // 非空时命中项加背景高亮(定位用，不过滤列表)
     searchQuery: String = "",
+    // 多选模式（1002）：顶栏 ☑ 进入（与密钥页同款）。跨条拖选会触发 compose 1.7
+    // selection 崩溃（滚出视口的条目被回收后选区仍悬挂其 id），故跨条复制走本模式；
+    // 条目内长按选字照旧保留（SelectionContainer 按条目独立，不与本模式抢手势）
+    selectionMode: Boolean = false,
+    // 勾选的日志（以条目对象为键：对列表增删/筛选重排免疫；time 毫秒级，同值碰撞可忽略）
+    checkedEntries: Set<LogEntry> = emptySet(),
+    onToggleCheck: (LogEntry) -> Unit = {},
 ) {
     ControlBottomBarVisibility(listState, LocalBottomBarBehavior.current)
     val scope = rememberCoroutineScope()
@@ -140,8 +148,7 @@ fun LogScreen(
             }
 
         val darkTheme = isSystemInDarkTheme()
-        SelectionContainer {
-            LazyColumn(Modifier.fillMaxSize(), state = listState) {
+        LazyColumn(Modifier.fillMaxSize(), state = listState) {
                 itemsIndexed(list, key = { index, _ -> index }) { index, log ->
                     // 获取成功前缀：石板灰 Blue Grey 800/200
                     // 发音人信息：棕褐 #7D6B5D / 深色主题 #A08B7A
@@ -182,17 +189,25 @@ fun LogScreen(
                             color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f)
                         )
 
+                    // 多选：点条目=勾选（与密钥页同款，越权操作不进快捷面板）；非多选：点带
+                    // configId 的请求主行弹快捷面板。多选入口在前置 Scaffold 顶栏 ☑
+                    val checked = log in checkedEntries
                     Column(
                         modifier = Modifier
                             .fillMaxWidth()
-                            // 带 configId 的请求主行可点击：弹日志快捷面板（换发音人/调参）
                             .then(
-                                if (log.configId != 0L) Modifier.clickable {
+                                if (selectionMode) Modifier.clickable { onToggleCheck(log) }
+                                else if (log.configId != 0L) Modifier.clickable {
                                     quickPanelEntry = log
                                 } else Modifier
                             )
                             .then(
-                                if (isMatch) Modifier
+                                if (checked) Modifier
+                                    .clip(RoundedCornerShape(6.dp))
+                                    .background(
+                                        MaterialTheme.colorScheme.primary.copy(alpha = 0.10f)
+                                    )
+                                else if (isMatch) Modifier
                                     .clip(RoundedCornerShape(6.dp))
                                     .background(
                                         MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.5f)
@@ -207,6 +222,14 @@ fun LogScreen(
                             )
                     ) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
+                            if (selectionMode) {
+                                // 勾选框替代时间戳左缘（与密钥页行首 Checkbox 同型）
+                                Checkbox(
+                                    checked = checked,
+                                    onCheckedChange = { onToggleCheck(log) },
+                                    modifier = Modifier.padding(end = 2.dp)
+                                )
+                            }
                             // 完整时间戳(年月日+时分秒+毫秒)，等级字母跟在时间后
                             Text(text = log.time, style = MaterialTheme.typography.bodySmall)
                             Text(
@@ -214,20 +237,33 @@ fun LogScreen(
                                 style = MaterialTheme.typography.bodySmall
                             )
                         }
-                        Text(
-                            text = display,
-                            // 获取成功(SUCCESS)整行石板灰同字重(用户:冒号前后一致不加粗)；加粗仅保留请求文本正文
-                            color = bodyColor,
-                            style = style,
-                            lineHeight = style.lineHeight * 0.9f,
-                        )
+                        // 正文：非多选=条目内长按选字（选择容器按条目独立，容器随条目销毁，
+                        // 悬挂 selectableId 崩溃不可能发生）；多选=纯文本（整行是勾选行，
+                        // 不给选字柄抢手势）
+                        if (selectionMode) {
+                            Text(
+                                text = display,
+                                color = bodyColor,
+                                style = style,
+                                lineHeight = style.lineHeight * 0.9f,
+                            )
+                        } else {
+                            SelectionContainer {
+                                Text(
+                                    text = display,
+                                    // 获取成功(SUCCESS)整行石板灰同字重(用户:冒号前后一致不加粗)；加粗仅保留请求文本正文
+                                    color = bodyColor,
+                                    style = style,
+                                    lineHeight = style.lineHeight * 0.9f,
+                                )
+                            }
+                        }
                     }
                 }
                 item {
                     Spacer(Modifier.navigationBarsPadding())
                 }
             }
-        }
 
         AnimatedVisibility(
             modifier = Modifier

@@ -33,6 +33,7 @@ import androidx.compose.material.icons.filled.FolderOpen
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.Checklist
 import androidx.compose.material3.DockedSearchBar
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.LocalTextStyle
@@ -45,6 +46,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
@@ -62,8 +64,10 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.core.content.FileProvider
@@ -71,7 +75,9 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.compose.runtime.CompositionLocalProvider
 import com.github.jing332.common.LogEntry
 import com.github.jing332.common.LogLevel
+import com.github.jing332.common.utils.toast
 import com.github.jing332.tts_server_android.R
+import com.github.jing332.tts_server_android.compose.systts.role.FlatTextAction
 import kotlinx.coroutines.launch
 import java.io.File
 
@@ -79,6 +85,8 @@ import java.io.File
 @Composable
 internal fun TtsLogScreen(vm: TtsLogViewModel = viewModel()) {
     val context = LocalContext.current
+    // 剪贴板：多选「复制(N)」用（1002）
+    val clipboard = LocalClipboardManager.current
     var isSearchActive by rememberSaveable { mutableStateOf(false) }
     // 日志文件列表弹窗（用户 09-08：文件夹点开自由选择文件，不再直接扔给外部查看器）
     var showLogFilesDialog by remember { mutableStateOf(false) }
@@ -135,8 +143,63 @@ internal fun TtsLogScreen(vm: TtsLogViewModel = viewModel()) {
     }
 
     val scrollBehavior = TopAppBarDefaults.pinnedScrollBehavior()
+
+    // ———— 页面级多选（1002，照密钥页 ☑ 同款）：跨条勾选 → 底栏「复制(N)」————
+    // 跨条拖选（长按→拖）是 compose 1.7 selection 的崩溃源（滚动回收条目后选区悬挂
+    // selectableId），跨条复制一律走本模式；勾选以条目对象为键，筛选/重排不错位。
+    // 两个状态都用 remember（非 saveable）：Set<LogEntry> 不落 Bundle，旋转屏一并重置、
+    // 保持「模式开着但勾选丢了」的不一致不会出现
+    var selectionMode by remember { mutableStateOf(false) }
+    var checkedEntries by remember { mutableStateOf<Set<LogEntry>>(emptySet()) }
+    fun exitSelection() {
+        selectionMode = false
+        checkedEntries = emptySet()
+    }
+    fun toggleCheckAll() {
+        val all = displayLogs.toSet()
+        checkedEntries = if (checkedEntries.containsAll(all)) emptySet() else all
+    }
+    // 返回键先退多选（页面级；钥匙=与密钥页同一交互口径）
+    androidx.activity.compose.BackHandler(enabled = selectionMode) { exitSelection() }
+    // 复制：按列表顺序拼接「时间 | 级别 | message」，多条之间以空行分隔
+    fun copyChecked() {
+        if (checkedEntries.isEmpty()) {
+            context.toast(R.string.log_select_none)
+            return
+        }
+        val text = displayLogs.filter { it in checkedEntries }
+            .joinToString(separator = "\n\n") { "${it.time} | ${it.getLevelChar()} | ${it.message}" }
+        clipboard.setText(AnnotatedString(text))
+        exitSelection()
+        context.toast(R.string.copied)
+    }
+
     Scaffold(
         modifier = Modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
+        bottomBar = {
+            // 多选底栏（照密钥页）：全选 |（右）复制(N)。放 Scaffold bottomBar：列表自动让位。
+            // 不加 navigationBarsPadding——本页在 MainPager 的 pager 里，外层已让出底栏+手势条高度
+            if (selectionMode) {
+                Surface(color = MaterialTheme.colorScheme.background) {
+                    Row(
+                        Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 8.dp, vertical = 4.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        FlatTextAction(
+                            stringResource(R.string.select_all),
+                            MaterialTheme.colorScheme.onSurfaceVariant
+                        ) { toggleCheckAll() }
+                        Spacer(Modifier.weight(1f))
+                        FlatTextAction(
+                            stringResource(R.string.log_copy_n, checkedEntries.size),
+                            MaterialTheme.colorScheme.primary
+                        ) { copyChecked() }
+                    }
+                }
+            }
+        },
         topBar = {
             Column {
                 TopAppBar(
@@ -203,7 +266,21 @@ internal fun TtsLogScreen(vm: TtsLogViewModel = viewModel()) {
                         IconButton(onClick = { showLogFilesDialog = true }) {
                             Icon(Icons.Default.FolderOpen, stringResource(R.string.open_log_folder))
                         }
-                        
+
+                        // 多选入口（照密钥页 ☑ 同款）：切换键，选中态染 primary；跨条勾选 → 底栏「复制(N)」
+                        IconButton(
+                            onClick = {
+                                if (selectionMode) exitSelection() else selectionMode = true
+                            }
+                        ) {
+                            Icon(
+                                Icons.Default.Checklist,
+                                contentDescription = stringResource(R.string.desc_multi_select),
+                                tint = if (selectionMode) MaterialTheme.colorScheme.primary
+                                else MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+
                         // 清空按钮
                         IconButton(onClick = { vm.clear() }) {
                             Icon(Icons.Default.DeleteOutline, stringResource(id = R.string.clear_log))
@@ -304,12 +381,16 @@ internal fun TtsLogScreen(vm: TtsLogViewModel = viewModel()) {
         LogScreen(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(top = paddingValues.calculateTopPadding()),
+                .padding(top = paddingValues.calculateTopPadding())
+                .padding(bottom = paddingValues.calculateBottomPadding()),
             list = displayLogs,
             listState = listState,
             // 搜索定位期间不自动滚底，避免与跳转互相拉扯
             autoScrollToBottom = vm.autoScrollToBottom.value && searchQuery.isEmpty(),
-            searchQuery = searchQuery
+            searchQuery = searchQuery,
+            selectionMode = selectionMode,
+            checkedEntries = checkedEntries,
+            onToggleCheck = { e -> checkedEntries = if (e in checkedEntries) checkedEntries - e else checkedEntries + e },
         )
     }
 

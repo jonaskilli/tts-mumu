@@ -442,6 +442,8 @@
     <string name="spinner_drop_down_max_count_summary">When the number of items in the dropdown exceeds the set value, it will be displayed in the form of a popup dialog.</string>
     <string name="systts_plugin_please_set_vars">Please click here to set variables</string>
     <string name="clear_log">Clear Log</string>
+    <string name="log_copy_n">Copy (%1$d)</string>
+    <string name="log_select_none">Select at least one log to copy</string>
     <string name="nav_app_bar_open_drawer_description" tools:ignore="PrivateResource">Open drawer navigation bar</string>
     <string name="import_config_type_not_match_msg">Format error (expected: {%1$s}).\nThe format you entered is {%2$s}, please go to the corresponding management interface for import.</string>
     <string name="import_config_type_unknown_msg">Unknown format, please enter the correct configuration.</string>

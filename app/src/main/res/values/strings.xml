@@ -506,6 +506,8 @@
     <string name="spinner_drop_down_max_count_summary">当下拉框内容数超过设置值时将以弹出对话框形式显示。</string>
     <string name="systts_plugin_please_set_vars">请单击此处设置变量</string>
     <string name="clear_log">清空日志</string>
+    <string name="log_copy_n">复制(%1$d)</string>
+    <string name="log_select_none">请先勾选要复制的日志</string>
     <string name="nav_app_bar_open_drawer_description" tools:ignore="PrivateResource">打开抽屉式导航栏</string>
     <string name="import_config_type_not_match_msg">格式错误(预期为: 【%1$s】)。\n您输入的格式为 【%2$s】, 请前往对应管理界面进行导入。</string>
     <string name="import_config_type_unknown_msg">格式未知，请输入正确的配置。</string>
