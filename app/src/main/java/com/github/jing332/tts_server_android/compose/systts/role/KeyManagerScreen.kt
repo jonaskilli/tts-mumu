@@ -114,34 +114,30 @@ import kotlinx.coroutines.sync.withPermit
  * 当前密钥用状态点 + scheme.secondary 强调（primary 各主题太淡，染了看不出）。
  */
 
-/** 分组后的密钥组（照插件 buildKeyGroups：接口组 + 未分组 + 直连密钥）；密钥池页解析归属也用它 */
+/** 分组后的密钥组（照插件 buildKeyGroups：接口组 + 未分组）；密钥池页解析归属也用它 */
 internal class KeyGroup(
     val title: String,
     val entries: List<KeyListFile.KeyEntry>,
     val ifc: KeyListFile.ApiInterface? = null,
-    /** 未分组 / 直连组的身份说明（接口组此位置显示网址） */
+    /** 未分组的身份说明（接口组此位置显示网址） */
     val hintRes: Int? = null,
 )
 
 internal fun buildKeyGroups(keys: List<KeyListFile.KeyEntry>, ifaces: List<KeyListFile.ApiInterface>): List<KeyGroup> {
     val groups = mutableListOf<KeyGroup>()
     val assigned = mutableSetOf<String>()
-        ifaces.forEach { ifc ->
-            val entries = keys.filter { KeyListFile.keyBelongsTo(it, ifc) }
-            // 建组即渲染：空分组也显示，否则建完组页面不出现、点不到「拉取模型」
-            groups.add(KeyGroup(ifc.name, entries, ifc))
-            entries.forEach { assigned.add(it.name) }
-        }
-    val direct = keys.filter { k ->
-        val p = KeyListFile.parseKeyValue(k.value)
-        p != null && p.isDirect && k.name !in assigned
+    ifaces.forEach { ifc ->
+        val entries = keys.filter { KeyListFile.keyBelongsTo(it, ifc) }
+        // 建组即渲染：空分组也显示，否则建完组页面不出现、点不到「拉取模型」
+        groups.add(KeyGroup(ifc.name, entries, ifc))
+        entries.forEach { assigned.add(it.name) }
     }
-    val ungrouped = keys.filter { it.name !in assigned && it !in direct }
+    // 「直连密钥」桶已退役（1002）：裸 Key 与匹配不上接口的条目统一落「未分组」。
+    // 裸 Key 禁止启用（togglePool 拦截）；补全完整格式后由 heal 按一 key 一组自愈归组，
+    // 智谱内置组只是被 seedZhipuBuiltin 种出来的普通接口组，分组判定零特例
+    val ungrouped = keys.filter { it.name !in assigned }
     if (ungrouped.isNotEmpty()) groups.add(
         KeyGroup("未分组", ungrouped, hintRes = R.string.role_key_group_ungrouped_hint)
-    )
-    if (direct.isNotEmpty()) groups.add(
-        KeyGroup("直连密钥", direct, hintRes = R.string.role_key_group_direct_hint)
     )
     return groups
 }
@@ -319,7 +315,7 @@ private fun KeyEntryRow(
 }
 
 /**
- * 组头 + 元信息行（接口组=网址+尾号小块；未分组/直连=身份说明）。
+ * 组头 + 元信息行（接口组=网址+尾号小块；未分组=身份说明）。
  * 点按组头 = 折叠/展开（多选模式下不可点）；主页拖动已删，启用池页拖动保留；
  * 动作图标区仅正常模式渲染：+拉取 ⚡测组 ✏编辑接口 🗑两项菜单
  *（删除整组=红🗑 带二次确认；多选删除子项=灰🧹 进组内删除模式，组保留）。
@@ -419,7 +415,7 @@ private fun GroupHeaderBlock(
                     }
                     if (!selectionMode) {
                         // 固定宽图标区（方案 A）：144dp=4×36dp 热区，组头与模型行图标垂直成列；
-                        // 不足 4 键（未分组/直连组）右对齐留空。顺序按使用频次：+拉取 ⚡测组 ✏编辑 🗑菜单
+                        // 不足 4 键（未分组）右对齐留空。顺序按使用频次：+拉取 ⚡测组 ✏编辑 🗑菜单
                         Row(
                             Modifier.width(144.dp),
                             horizontalArrangement = Arrangement.End,
@@ -517,7 +513,7 @@ private fun GroupHeaderBlock(
                         }
                     }
                 }
-                // 元信息行：接口组 = 网址 + 尾号小块；未分组 / 直连组 = 一句身份说明。
+                // 元信息行：接口组 = 网址 + 尾号小块；未分组 = 一句身份说明。
                 // 左缘 = 组名文字左缘（43）：卡左缘 15 + 折叠箭头 22 + 间距 6
                 val ifc = grp.ifc
                 if (ifc != null) {
@@ -606,8 +602,14 @@ fun KeyManagerScreen(tagRuleId: String, onBack: () -> Unit) {
     var groupDeleteConfirm by remember { mutableStateOf<String?>(null) } // 组内批量删除二次确认
 
     LaunchedEffect(version) {
-        // 分组自愈：匹配不上分组的 @@ 条目按（网址 + 密钥）自动建组
-        withIO { KeyListFile.heal(tagRuleId) }
+        // 旧数据迁移（幂等）：裸 Key 条目补全智谱全串、池内空地址段补真端点
+        // → 智谱内置种子（幂等，条件=无「智谱站点+内置Key」接口；删改自由，站点+Key 消失即重建）
+        // → 分组自愈：匹配不上分组的 @@ 条目按（网址 + 密钥）自动建组
+        withIO {
+            KeyListFile.migrateLegacy(tagRuleId)
+            KeyListFile.seedZhipuBuiltin(tagRuleId)
+            KeyListFile.heal(tagRuleId)
+        }
         val loaded = withIO {
             Triple(
                 KeyListFile.readKeys(tagRuleId),
@@ -660,8 +662,14 @@ fun KeyManagerScreen(tagRuleId: String, onBack: () -> Unit) {
             version++
         }
     }
-    /** 启用/停用一把密钥（条目行首槽开关）：在池里则摘除，不在则追加到队尾（= 轮换顺序最后） */
+    /** 启用/停用一把密钥（点卡片）：在池里则摘除，不在则追加到队尾（= 轮换顺序最后）。
+     *  裸 Key 禁止启用（池是扁平 @@ 串，裸段会错位）：先在编辑框补全为完整格式再启用 */
     fun togglePool(entry: KeyListFile.KeyEntry) {
+        val p = KeyListFile.parseKeyValue(entry.value)
+        if (p != null && p.isDirect) {
+            toast(R.string.role_key_complete_first)
+            return
+        }
         val norm = KeyListFile.normalizePoolValue(entry.value)
         if (norm.isEmpty()) {
             toast(R.string.role_key_value_empty)
@@ -711,13 +719,19 @@ fun KeyManagerScreen(tagRuleId: String, onBack: () -> Unit) {
         val all = keys.map { it.name }.toSet()
         checkedNames = if (checkedNames.containsAll(all)) emptySet() else all
     }
-    /** 勾选的密钥加入启用池：已在池里的自动跳过，新加入的按列表顺序追加到队尾 */
+    /** 勾选的密钥加入启用池：已在池里的自动跳过，新加入的按列表顺序追加到队尾；
+     *  裸 Key 条目跳过并提示（先补全完整格式才能启用） */
     fun addSelectedToPool() {
         val selected = keys.filter { it.name in checkedNames }
-        val norms = selected.map { KeyListFile.normalizePoolValue(it.value) }.filter { it.isNotEmpty() }
+        val (ok, bare) = selected.partition {
+            val p = KeyListFile.parseKeyValue(it.value)
+            p != null && !p.isDirect
+        }
+        val norms = ok.map { KeyListFile.normalizePoolValue(it.value) }.filter { it.isNotEmpty() }
         val fresh = norms.filter { it !in pool }
         if (fresh.isNotEmpty()) savePoolList(pool + fresh)
-        toast(R.string.role_key_pool_add_batch, fresh.size, norms.size - fresh.size)
+        if (bare.isNotEmpty()) toast(R.string.role_key_pool_skip_bare, bare.size)
+        else toast(R.string.role_key_pool_add_batch, fresh.size, norms.size - fresh.size)
         exitSelection()
     }
     // ———— 启用池页：多选移出（状态 hoist 在主页，写入口同 savePoolList）————
@@ -838,7 +852,7 @@ fun KeyManagerScreen(tagRuleId: String, onBack: () -> Unit) {
         }
     }
 
-    // 删除整组：接口组连 api_center.json 的接口一起删；未分组 / 直连组只删条目
+    // 删除整组：接口组连 api_center.json 的接口一起删；未分组只删条目
     fun deleteGroupAll(grp: KeyGroup) {
         val names = grp.entries.map { it.name }
         val ifc = grp.ifc

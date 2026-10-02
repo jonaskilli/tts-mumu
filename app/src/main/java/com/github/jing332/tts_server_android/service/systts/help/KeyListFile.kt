@@ -338,23 +338,31 @@ object KeyListFile {
 
     // ==================== 启用池 / 当前密钥（miyue/gengxin/backup 三写）====================
 
-/** 直连裸 Key 入池时补的默认模型（与朗读规则 DualKeyManager 的 defaultConfig.model 同源） */
+/** 智谱内置端点与内置 Key（与朗读规则 DualKeyManager 的 defaultConfig 同源；种子见 seedZhipuBuiltin） */
+    const val ZHIPU_ENDPOINT = "https://open.bigmodel.cn/api/paas/v4"
+    const val ZHIPU_BUILTIN_KEY = "b26b869ffd7e4a1dac61666db27de213.ayAJYkmqeA1w3OL"
+
+/** 裸 Key 补全用的默认模型（与朗读规则 DualKeyManager 的 defaultConfig.model 同源） */
     const val DIRECT_MODEL = "glm-4-flash"
 
 /**
- * 启用池条目归一化：@@串拆段 trim 后回拼；裸 Key 补成「@@模型@@Key」。
+ * 启用池条目归一化：@@串拆段 trim 后回拼；裸 Key 补成智谱全串「端点@@模型@@Key」。
  * 规则按「每 3 段一组 = 地址@@模型@@Key」解析 miyue.txt，裸 Key 不归一就混进 @@串会错位成
- * 「地址」被整把丢掉；补成空地址段后两端都回落默认端点（智谱），直连与接口串可混选。
+ * 「地址」被整把丢掉。曾用空地址段「@@模型@@Key」兜底，1002 起改为真端点全串——
+ * 池里不再存在空地址形态，各规则（罗随机/直连2.87/M直连）按标准三段解析零歧义。
+ * 注意：裸 Key 条目 UI 上禁止启用（KeyManagerScreen 拦截），此处归一只兜迁移/历史数据。
  */
     fun normalizePoolValue(value: String): String {
         val p = parseKeyValue(value) ?: return ""
-        return if (p.isDirect) "@@$DIRECT_MODEL@@${p.key}" else "${p.url}@@${p.model}@@${p.key}"
+        return if (p.isDirect) "$ZHIPU_ENDPOINT@@$DIRECT_MODEL@@${p.key}"
+        else "${p.url}@@${p.model}@@${p.key}"
     }
 
 /**
  * miyue 原文 → 启用池（有序值列表）：每 3 段一组还原成 地址@@模型@@Key，Key 空的组跳过
- * （语义照规则 parseSingleGroup）；「##」旧双池格式**两段并入同池**——0919 规则就是这么
- * 合并消费的，只取前段会在下次保存时把别名段悄悄丢掉。结果按序去重（重复段各保留一份）。
+ * （语义照规则 parseSingleGroup）；空地址/空模型段补智谱默认（1002 起，旧数据读时即迁移）；
+ * 「##」旧双池格式**两段并入同池**——0919 规则就是这么合并消费的，只取前段会在下次保存时
+ * 把别名段悄悄丢掉。结果按序去重（重复段各保留一份）。
  */
     fun parsePoolValues(raw: String): List<String> {
         val text = raw.trim()
@@ -373,7 +381,9 @@ object KeyListFile {
                 val url = parts.getOrNull(i)?.trim().orEmpty()
                 val model = parts.getOrNull(i + 1)?.trim().orEmpty()
                 val key = parts.getOrNull(i + 2)?.trim().orEmpty()
-                if (key.isNotEmpty()) out.add("$url@@$model@@$key")
+                if (key.isNotEmpty()) {
+                    out.add("${url.ifEmpty { ZHIPU_ENDPOINT }}@@${model.ifEmpty { DIRECT_MODEL }}@@$key")
+                }
                 i += 3
             }
         }
@@ -386,6 +396,61 @@ object KeyListFile {
     /** 启用池落盘：值按序 @@ 连接（规则即按序轮换该池），miyue/gengxin/miyue_backup 三写不变 */
     fun savePool(tagRuleId: String, values: List<String>): Boolean =
         saveCurrentRaw(tagRuleId, values.map { normalizePoolValue(it) }.filter { it.isNotEmpty() }.joinToString("@@"))
+
+    /**
+     * 旧数据迁移（幂等，随自愈每次进页执行）：
+     * ① key_list 裸 Key 条目补全为智谱全串「端点@@glm-4-flash@@Key」——「直连密钥」桶已退役，
+     *   补全后由 heal 按一 key 一组自愈归组；用户后填的裸 Key 不经此处（留未分组、禁止启用，
+     *   见 KeyManagerScreen 的启用拦截）。
+     * ② miyue 链里的空地址段「@@模型@@Key」补真端点（parsePoolValues 读时已补，有变化才回写）。
+     */
+    fun migrateLegacy(tagRuleId: String) {
+        val keys = readKeys(tagRuleId)
+        val migrated = keys.map { e ->
+            val p = parseKeyValue(e.value)
+            if (p != null && p.isDirect && p.key.isNotBlank())
+                e.copy(value = "$ZHIPU_ENDPOINT@@$DIRECT_MODEL@@${p.key.trim()}")
+            else e
+        }
+        if (migrated != keys) saveKeys(tagRuleId, migrated)
+        val raw = readCurrentRaw(tagRuleId).trim()
+        if (raw.isNotEmpty()) {
+            val fixed = parsePoolValues(raw).joinToString("@@")
+            if (fixed != raw) saveCurrentRaw(tagRuleId, fixed)
+        }
+    }
+
+    /**
+     * 智谱内置种子（幂等）：不存在「智谱站点+内置 Key」的接口时，重种一套完整的——
+     * 接口插到列表最前（分组置顶），默认条目 glm-4-flash 排 key_list 末尾（不插队，
+     * 「池空自动启用第一条」的既有兜底语义不变）。用户可自由删改：删整组 / 把接口改得
+     * 面目全非 → 本函数下次自愈重建；只删条目（接口还在）→ 不重种；用户自己的智谱 key
+     * （Key 不同）由 heal 自愈成「智谱2/3」，不会挡住内置的重建判定。
+     */
+    fun seedZhipuBuiltin(tagRuleId: String) {
+        val ifaces = readInterfaces(tagRuleId)
+        val exists = ifaces.any {
+            sameApiSite(it.baseUrl, ZHIPU_ENDPOINT) && it.apiKey.trim() == ZHIPU_BUILTIN_KEY
+        }
+        if (exists) return
+        val nm = uniqueIfcName("智谱密钥", ifaces.map { it.name }.toSet())
+        saveInterfaces(
+            tagRuleId,
+            listOf(ApiInterface(nm, ZHIPU_ENDPOINT, ZHIPU_BUILTIN_KEY, listOf(DIRECT_MODEL))) + ifaces
+        )
+        val entryVal = "$ZHIPU_ENDPOINT@@$DIRECT_MODEL@@$ZHIPU_BUILTIN_KEY"
+        val keys = readKeys(tagRuleId)
+        if (keys.none { it.value.trim() == entryVal }) {
+            saveKeys(
+                tagRuleId,
+                keys + KeyEntry(
+                    name = dedupName(DIRECT_MODEL, keys.map { it.name }.toSet()),
+                    keyCode = nextKeyCode(keys),
+                    value = entryVal,
+                )
+            )
+        }
+    }
 
     /**
      * 「用户主动清空池」标记：空池与「从没配置过」在 miyue 链上无法区分，

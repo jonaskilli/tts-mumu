@@ -94,7 +94,7 @@ private fun resolvePoolRow(
         }
         return PoolRowInfo(display, null, null, true, norm)
     }
-    // 归属分组照主页 buildKeyGroups 的顺序口径：第一个命中的接口组，否则 未分组/直连
+    // 归属分组照主页 buildKeyGroups 的顺序口径：第一个命中的接口组，否则 未分组
     val groupTitle = titleByEntry[entry.name]
     val tail = KeyListFile.parseKeyValue(entry.value)?.key?.takeLast(4)
     return PoolRowInfo(KeyListFile.displayName(entry), groupTitle, tail, false, norm)
@@ -127,7 +127,7 @@ internal fun KeyPoolScreen(
     BackHandler {
         if (selectionMode) onToggleSelectionMode() else onBack()
     }
-    // 归属分组映射（照主页 buildKeyGroups 的顺序口径：第一个命中的接口组，否则 未分组/直连）
+    // 归属分组映射（照主页 buildKeyGroups 的顺序口径：第一个命中的接口组，否则 未分组）
     val titleByEntry = remember(keys, ifaces) {
         val m = mutableMapOf<String, String>()
         buildKeyGroups(keys, ifaces).forEach { g -> g.entries.forEach { m[it.name] = g.title } }
