@@ -101,6 +101,9 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import com.drake.net.utils.withIO
 import org.json.JSONArray
 import org.json.JSONObject
@@ -636,6 +639,25 @@ fun KeyManagerScreen(tagRuleId: String, onBack: () -> Unit) {
     var deleteModeGroup by remember { mutableStateOf<String?>(null) }
     var deleteChecked by remember { mutableStateOf<Set<String>>(emptySet()) }
     var groupDeleteConfirm by remember { mutableStateOf<String?>(null) } // 组内批量删除二次确认
+
+    // 朗读规则会在后台改启用池（miyue.txt：密钥试满重试次数自动停用）；
+    // 回到本页（ON_RESUME）时 version++ 重读 keys/ifaces/pool，与盘上状态联动（照 RoleManagementScreen 角色列表同款）。
+    // 跳过首次 ON_RESUME（首次进入由 LaunchedEffect(version) 初始加载，避免重复 load）
+    var firstResume by remember { mutableStateOf(true) }
+    val lifecycleOwner = LocalLifecycleOwner.current
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) {
+                if (firstResume) {
+                    firstResume = false
+                } else {
+                    version++
+                }
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
 
     LaunchedEffect(version) {
         // 旧数据迁移（幂等）：裸 Key 条目补全智谱全串、池内空地址段补真端点
