@@ -71,6 +71,7 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -350,9 +351,9 @@ private fun KeyEntryRow(
                 }
             }
         }
-        // 探测进度行（10-03 九改）：测试中且有多候选探测时，卡底显示当前进度（优先于结果条——
-        // 测试中旧结果已过时）。测试完自动消失（testing 转 false，回落到下面的结果条）
-        if (!selectionMode && testing && probeProgress != null) {
+        // 探测进度行（10-03 九改/十改修）：有进度就显示——组测不设 testingValue，条件不能依赖 testing；
+        // 进度存在期间优先于结果条（此时旧结果已过时）；测完进度清掉，回落到下面的结果条
+        if (!selectionMode && probeProgress != null) {
             Row(
                 Modifier
                     .fillMaxWidth()
@@ -372,8 +373,8 @@ private fun KeyEntryRow(
         // 结果提示条（10-03 三~六改）：黄/红/绿三态都在卡内行下方常驻（六改：绿也显示——「测试通过·用时」有普适性）。
         // 用户口径——都放卡片底部：收起=一行省略；点击展开=全文多行 + 「复制 / 去设置」；再点收起。
         // 卡内底部归属清晰（卡=模型边界）；展开态记住（rememberSaveable by key）。
-        // 测试中不显示（进度行接管——旧结果已过时）
-        if (!selectionMode && testOutcome != null && !testing) {
+        // 探测中不显示（进度行接管——旧结果已过时）
+        if (!selectionMode && testOutcome != null && probeProgress == null) {
             val isWarn = testOutcome.verdict == KeyListFile.TestVerdict.PASS_THINKING
             val isPass = testOutcome.verdict == KeyListFile.TestVerdict.PASS
             val barColor = when {
@@ -755,8 +756,9 @@ fun KeyManagerScreen(tagRuleId: String, onBack: () -> Unit) {
     var collapsed by remember { mutableStateOf<Set<String>?>(null) }
     // 测试中（单条按归一化值记 / 启用池整批）
     var testingValue by remember { mutableStateOf<String?>(null) }
-    // 探测进度（10-03 九改）：归一化值 → 「第 N/M 种写法「xxx」」；测试完清空
-    var probeProgress by remember { mutableStateOf<Map<String, String>>(emptyMap()) }
+    // 探测进度（10-03 九改/十改）：归一化值 → 「第 N/M 种写法「xxx」」；测试完清空。
+    // mutableStateMapOf：组测并发 4 路各在 IO 线程写——普通 Map+ 是读改写有丢更新竞态，状态地图逐键操作安全
+    val probeProgress = remember { mutableStateMapOf<String, String>() }
     var testingGroup by remember { mutableStateOf<String?>(null) }
     var testingPoolAll by remember { mutableStateOf(false) }
     // 启用池子页（页内全屏覆盖，返回键退回）
@@ -967,11 +969,11 @@ fun KeyManagerScreen(tagRuleId: String, onBack: () -> Unit) {
             // 进度回调（10-03 九改）在 IO 线程被调——Compose snapshot state 支持后台线程写，直接更新
             val r = withIO {
                 KeyListFile.testWithThinking(tagRuleId, raw) { p ->
-                    probeProgress = probeProgress + (norm to p)
+                    probeProgress[norm] = p
                 }
             }
             testingValue = null
-            probeProgress = probeProgress - norm
+            probeProgress.remove(norm)
             testResults = testResults + (norm to r)
             if (r.verdict == KeyListFile.TestVerdict.PASS) {
                 // 全绿：轻量 Toast（不打断）
@@ -1009,10 +1011,10 @@ fun KeyManagerScreen(tagRuleId: String, onBack: () -> Unit) {
                         // 组测同一时刻可能多条在测（并发 4）——进度按各自归一化值分开记
                         val r = withIO {
                             KeyListFile.testWithThinking(tagRuleId, e.value) { p ->
-                                probeProgress = probeProgress + (norm to p)
+                                probeProgress[norm] = p
                             }
                         }
-                        probeProgress = probeProgress - norm
+                        probeProgress.remove(norm)
                         testResults = testResults + (norm to r)
                         r.verdict != KeyListFile.TestVerdict.FAIL
                     }
@@ -1041,10 +1043,10 @@ fun KeyManagerScreen(tagRuleId: String, onBack: () -> Unit) {
                         val norm = KeyListFile.normalizePoolValue(v)
                         val r = withIO {
                             KeyListFile.testWithThinking(tagRuleId, v) { p ->
-                                probeProgress = probeProgress + (norm to p)
+                                probeProgress[norm] = p
                             }
                         }
-                        probeProgress = probeProgress - norm
+                        probeProgress.remove(norm)
                         testResults = testResults + (norm to r)
                         r.verdict != KeyListFile.TestVerdict.FAIL
                     }
@@ -1388,7 +1390,7 @@ fun KeyManagerScreen(tagRuleId: String, onBack: () -> Unit) {
                                     enabled = norm in pool,
                                     testOutcome = testResults[norm],
                                     testing = testingValue == norm,
-                                    probeProgress = probeProgress[norm],
+                                    probeProgress[norm],
                                     // 组内删除模式同页面级多选：复选框顶替行首灯、动作区隐藏、勾中染浅红
                                     selectionMode = selectionMode || isDeleting,
                                     checked = if (isDeleting) entry.name in deleteChecked
