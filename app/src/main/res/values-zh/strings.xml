@@ -803,6 +803,9 @@
     <string name="role_key_thinking_group_keep">保持各模型现有设置（不动）</string>
     <string name="role_key_thinking_group_set">统一设为：</string>
     <string name="role_key_thinking_group_warn">⚠ 保存后覆盖下方全部模型的思考设置（单个模型设置会被清除）</string>
+    <string name="role_key_warn_thinking_on">⚠ 思考未关（已自动适配，仍可能变慢）</string>
+    <string name="role_key_warn_failed">❌ 测试失败（点此检查设置）</string>
+    <string name="role_key_warn_fix">去设置 ›</string>
     <string name="role_key_model_filter">🔍 搜索过滤模型</string>
     <string name="role_key_model_input_hint">输入模型名</string>
     <string name="role_key_delete_n">删除(%1$d)</string>

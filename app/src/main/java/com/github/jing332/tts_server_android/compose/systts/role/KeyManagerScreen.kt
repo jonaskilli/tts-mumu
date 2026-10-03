@@ -230,7 +230,7 @@ internal fun FlatIconAction(
 private fun KeyEntryRow(
     entry: KeyListFile.KeyEntry,
     enabled: Boolean,
-    testOk: KeyListFile.TestVerdict?,
+    testOutcome: KeyListFile.TestOutcome?,
     testing: Boolean,
     selectionMode: Boolean,
     checked: Boolean,
@@ -313,7 +313,7 @@ private fun KeyEntryRow(
                     Modifier.width(14.dp).height(24.dp),
                     contentAlignment = Alignment.CenterEnd
                 ) {
-                    testDotColor(testOk, MaterialTheme.colorScheme.error)?.let {
+                    testDotColor(testOutcome?.verdict, MaterialTheme.colorScheme.error)?.let {
                         Box(Modifier.size(8.dp).background(it, CircleShape))
                     }
                 }
@@ -339,6 +339,38 @@ private fun KeyEntryRow(
                     FlatIconAction(Icons.Default.Edit, stringResource(R.string.role_key_edit)) { onEdit() }
                     FlatIconAction(Icons.Default.DeleteOutline, stringResource(R.string.delete)) { onDelete() }
                 }
+            }
+        }
+        // 结果提示条（10-03 三改，用户拍板「放模型行下方」）：黄/红时在卡内行下方常驻——
+        // 圆点(8dp)提示太弱，黄(思考问题)必须点名原因且可点击直达思考设置；绿不显示(不打扰)。
+        // 文案用测试返回的 message（含具体原因/锁定写法），前截 90 字防撑爆
+        if (!selectionMode && testOutcome != null &&
+            testOutcome.verdict != KeyListFile.TestVerdict.PASS
+        ) {
+            val isWarn = testOutcome.verdict == KeyListFile.TestVerdict.PASS_THINKING
+            val barColor = if (isWarn) TEST_WARN_COLOR else MaterialTheme.colorScheme.error
+            val detail = testOutcome.message.let { if (it.length > 90) it.take(90) + "…" else it }
+            Row(
+                Modifier
+                    .fillMaxWidth()
+                    .clickable { onEdit() }
+                    .padding(start = 5.dp, end = 8.dp, top = 0.dp, bottom = 8.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    (if (isWarn) "⚠ " else "❌ ") + detail,
+                    style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.sp),
+                    color = barColor,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f)
+                )
+                Text(
+                    stringResource(R.string.role_key_warn_fix),
+                    style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.sp),
+                    color = barColor,
+                    fontWeight = FontWeight.SemiBold
+                )
             }
         }
     }
@@ -627,8 +659,9 @@ fun KeyManagerScreen(tagRuleId: String, onBack: () -> Unit) {
     var ifaces by remember { mutableStateOf<List<KeyListFile.ApiInterface>>(emptyList()) }
     // 启用池（miyue.txt 启用集，按序 = 规则轮换顺序）；元素为归一化值（normalizePoolValue）
     var pool by remember { mutableStateOf<List<String>>(emptyList()) }
-    // 测试结果记忆（归一化密钥值 → 通/不通）：主页与密钥池页共享同一份
-    var testResults by remember { mutableStateOf<Map<String, KeyListFile.TestVerdict>>(emptyMap()) }
+    // 测试结果记忆（归一化密钥值 → 完整结果）：主页与密钥池页共享同一份。
+    // 10-03 三改：从只存三态升级为存 TestOutcome——模型行下方的常驻提示条要显示原因文字
+    var testResults by remember { mutableStateOf<Map<String, KeyListFile.TestOutcome>>(emptyMap()) }
     // 组折叠状态：持久化到 key_ui_state.json（null=尚未从盘上读，防重载覆盖用户当场切换）
     var collapsed by remember { mutableStateOf<Set<String>?>(null) }
     // 测试中（单条按归一化值记 / 启用池整批）
@@ -841,7 +874,7 @@ fun KeyManagerScreen(tagRuleId: String, onBack: () -> Unit) {
             // 传原始值：@@串走对话端点（带接口思考模式适配）、纯 Key 走智谱 /models
             val r = withIO { KeyListFile.testWithThinking(tagRuleId, raw) }
             testingValue = null
-            testResults = testResults + (KeyListFile.normalizePoolValue(raw) to r.verdict)
+            testResults = testResults + (KeyListFile.normalizePoolValue(raw) to r)
             toast(
                 if (r.verdict != KeyListFile.TestVerdict.FAIL) R.string.role_key_test_ok_toast
                 else R.string.role_key_test_fail_toast,
@@ -868,7 +901,7 @@ fun KeyManagerScreen(tagRuleId: String, onBack: () -> Unit) {
                 async {
                     gate.withPermit {
                         val r = withIO { KeyListFile.testWithThinking(tagRuleId, e.value) }
-                        testResults = testResults + (KeyListFile.normalizePoolValue(e.value) to r.verdict)
+                        testResults = testResults + (KeyListFile.normalizePoolValue(e.value) to r)
                         r.verdict != KeyListFile.TestVerdict.FAIL
                     }
                 }
@@ -893,7 +926,7 @@ fun KeyManagerScreen(tagRuleId: String, onBack: () -> Unit) {
                 async {
                     gate.withPermit {
                         val r = withIO { KeyListFile.testWithThinking(tagRuleId, v) }
-                        testResults = testResults + (KeyListFile.normalizePoolValue(v) to r.verdict)
+                        testResults = testResults + (KeyListFile.normalizePoolValue(v) to r)
                         r.verdict != KeyListFile.TestVerdict.FAIL
                     }
                 }
@@ -966,7 +999,7 @@ fun KeyManagerScreen(tagRuleId: String, onBack: () -> Unit) {
             pool = pool,
             keys = keys,
             ifaces = ifaces,
-            testByValue = testResults,
+            testByValue = testResults.mapValues { it.value.verdict },
             testingValue = testingValue,
             batchTesting = testingPoolAll,
             selectionMode = poolSelection,
@@ -1233,7 +1266,7 @@ fun KeyManagerScreen(tagRuleId: String, onBack: () -> Unit) {
                                 KeyEntryRow(
                                     entry = entry,
                                     enabled = norm in pool,
-                                    testOk = testResults[norm],
+                                    testOutcome = testResults[norm],
                                     testing = testingValue == norm,
                                     // 组内删除模式同页面级多选：复选框顶替行首灯、动作区隐藏、勾中染浅红
                                     selectionMode = selectionMode || isDeleting,
