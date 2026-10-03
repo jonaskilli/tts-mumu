@@ -59,6 +59,7 @@ import androidx.compose.ui.input.pointer.changedToUpIgnoreConsumed
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.input.pointer.positionChangedIgnoreConsumed
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.res.stringResource
@@ -75,8 +76,6 @@ import com.github.jing332.compose.ComposeExtensions.toAnnotatedString
 import com.github.jing332.compose.widgets.ControlBottomBarVisibility
 import com.github.jing332.tts_server_android.R
 import com.github.jing332.tts_server_android.compose.LocalBottomBarBehavior
-import kotlinx.coroutines.coroutineScope
-import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 
 // SystemTtsService 拼接次级信息所用哨兵色，此处按主题重映射
@@ -146,6 +145,61 @@ fun LogScreen(
     val currentChecked by rememberUpdatedState(checkedEntries)
     val currentOnEnterSelection by rememberUpdatedState(onEnterSelection)
     val currentOnCheckedChange by rememberUpdatedState(onCheckedChange)
+
+    // 拖选笔画共享态：手势跑在 AwaitPointerEventScope（受限挂起作用域）里，编译器禁止
+    // 在其中 launch 协程，边缘自动滚只能挂外部协程，靠这组状态桥接手势与滚动手
+    val dragActive = remember { mutableStateOf(false) }
+    val dragPointerY = remember { mutableStateOf(0f) }
+    val dragAnchor = remember { mutableStateOf(0) }
+    val dragBase = remember { mutableStateOf<Set<LogEntry>>(emptySet()) }
+    val dragLastIdx = remember { mutableStateOf(0) }
+
+    // 指尖纵坐标 → 可视行下标；只认日志行（收尾 Spacer 不算），落在空档/Spacer 上就近取边界行
+    fun logIndexAtY(y: Float): Int? {
+        val items = listState.layoutInfo.visibleItemsInfo
+            .filter { it.index < currentList.size }
+        if (items.isEmpty()) return null
+        val hit = items.firstOrNull { y >= it.offset && y < it.offset + it.size }
+        return hit?.index
+            ?: if (y < items.first().offset) items.first().index
+            else items.last().index
+    }
+
+    // 以长按起点为锚的连续区间=追加勾选；拖回缩小只收回本次加的，之前勾的行不受影响
+    fun emitDragSelection() {
+        val l = currentList
+        if (l.isEmpty()) return
+        val lo = minOf(dragAnchor.value, dragLastIdx.value).coerceIn(0, l.lastIndex)
+        val hi = maxOf(dragAnchor.value, dragLastIdx.value).coerceIn(0, l.lastIndex)
+        currentOnCheckedChange(dragBase.value + l.subList(lo, hi + 1).toSet())
+    }
+
+    fun updateDragSelection(y: Float) {
+        logIndexAtY(y)?.let { idx ->
+            if (idx != dragLastIdx.value) {
+                dragLastIdx.value = idx
+                emitDragSelection()
+            }
+        }
+    }
+
+    // 边缘自动滚：拖选中指尖压上下边缘时逐帧匀速滚，扫选屏外行；滚动后指尖下的行
+    // 变了，选中范围跟着延伸/缩小。收笔（dragActive=false）即卸载
+    val density = LocalDensity.current
+    if (dragActive.value) {
+        LaunchedEffect(density) {
+            val edgeZone = with(density) { 48.dp.toPx() }
+            val frameScroll = with(density) { 14.dp.toPx() }
+            while (dragActive.value) {
+                withFrameNanos { }
+                val end = listState.layoutInfo.viewportEndOffset
+                if (dragPointerY.value < edgeZone) listState.scrollBy(-frameScroll)
+                else if (dragPointerY.value > end - edgeZone) listState.scrollBy(frameScroll)
+                else continue
+                updateDragSelection(dragPointerY.value)
+            }
+        }
+    }
     Box(modifier) {
         val isAtBottom by remember {
             derivedStateOf {
@@ -193,22 +247,9 @@ fun LogScreen(
                     if (dragSelectEnabled) Modifier.pointerInput(Unit) {
                         // 手写 awaitEachGesture：等待长按期间不消费任何事件，滑动一旦被
                         // 滚动容器消费即取消（不抢正常翻页）；长按成立后改在 Initial 段
-                        // 消费事件（先于子节点），行点击与滚动都让位给拖动多选
-                        val edgeZone = 48.dp.toPx()
-                        val frameScroll = 14.dp.toPx()
-
-                        // 指尖纵坐标 → 可视行下标；只认日志行（收尾 Spacer 不算），
-                        // 落在空档/Spacer 上就近取边界行
-                        fun logIndexAtY(y: Float): Int? {
-                            val items = listState.layoutInfo.visibleItemsInfo
-                                .filter { it.index < currentList.size }
-                            if (items.isEmpty()) return null
-                            val hit = items.firstOrNull { y >= it.offset && y < it.offset + it.size }
-                            return hit?.index
-                                ?: if (y < items.first().offset) items.first().index
-                                else items.last().index
-                        }
-
+                        // 消费事件（先于子节点），行点击与滚动都让位给拖动多选。
+                        // 受限挂起作用域：循环里只允许本作用域的挂起调用与普通函数，
+                        // 边缘自动滚在外部 LaunchedEffect（见 dragActive 桥接）
                         awaitEachGesture {
                             val down = awaitFirstDown(requireUnconsumed = false)
                             // null＝滚动先启动或提前抬手，本次不做多选
@@ -218,64 +259,31 @@ fun LogScreen(
                                 ?: return@awaitEachGesture
                             haptics.performHapticFeedback(HapticFeedbackType.LongPress)
                             currentOnEnterSelection()
-                            // 本次笔画以起点时的勾选为底集，拖动范围=追加勾选；拖回缩小
-                            // 只收回本次加上的，之前勾的行不受影响
-                            val base = currentChecked
-
-                            fun emitRange(to: Int) {
-                                val l = currentList
-                                if (l.isEmpty()) return
-                                val lo = minOf(anchor, to).coerceIn(0, l.lastIndex)
-                                val hi = maxOf(anchor, to).coerceIn(0, l.lastIndex)
-                                currentOnCheckedChange(base + l.subList(lo, hi + 1).toSet())
-                            }
-
-                            emitRange(anchor)
-                            var pointerY = longPress.position.y
-                            var lastIdx = anchor
-                            coroutineScope {
-                                // 边缘自动滚：指尖压住上下边缘时逐帧匀速滚，扫选屏外行；
-                                // 滚动后指尖下的行变了，选中范围跟着延伸/缩小
-                                val scroller = launch {
-                                    while (isActive) {
-                                        withFrameNanos { }
-                                        val end = listState.layoutInfo.viewportEndOffset
-                                        if (pointerY < edgeZone) listState.scrollBy(-frameScroll)
-                                        else if (pointerY > end - edgeZone) listState.scrollBy(frameScroll)
-                                        else continue
-                                        logIndexAtY(pointerY)?.let { idx ->
-                                            if (idx != lastIdx) {
-                                                lastIdx = idx
-                                                emitRange(idx)
-                                            }
-                                        }
+                            dragAnchor.value = anchor
+                            dragBase.value = currentChecked
+                            dragLastIdx.value = anchor
+                            dragPointerY.value = longPress.position.y
+                            emitDragSelection()
+                            dragActive.value = true
+                            try {
+                                while (true) {
+                                    val event = awaitPointerEvent(PointerEventPass.Initial)
+                                    val change = event.changes.firstOrNull { it.id == down.id }
+                                        ?: event.changes.first()
+                                    // 抬手即收笔；UP 也消费掉，行点击（勾选/快捷面板）
+                                    // 不会在松手瞬间再触发一次
+                                    if (change.changedToUpIgnoreConsumed()) {
+                                        change.consume()
+                                        break
+                                    }
+                                    if (change.positionChangedIgnoreConsumed()) {
+                                        change.consume()
+                                        dragPointerY.value = change.position.y
+                                        updateDragSelection(change.position.y)
                                     }
                                 }
-                                try {
-                                    while (true) {
-                                        val event = awaitPointerEvent(PointerEventPass.Initial)
-                                        val change = event.changes.firstOrNull { it.id == down.id }
-                                            ?: event.changes.first()
-                                        // 抬手即收笔；UP 也消费掉，行点击（勾选/快捷面板）
-                                        // 不会在松手瞬间再触发一次
-                                        if (change.changedToUpIgnoreConsumed()) {
-                                            change.consume()
-                                            break
-                                        }
-                                        if (change.positionChangedIgnoreConsumed()) {
-                                            change.consume()
-                                            pointerY = change.position.y
-                                            logIndexAtY(pointerY)?.let { idx ->
-                                                if (idx != lastIdx) {
-                                                    lastIdx = idx
-                                                    emitRange(idx)
-                                                }
-                                            }
-                                        }
-                                    }
-                                } finally {
-                                    scroller.cancel()
-                                }
+                            } finally {
+                                dragActive.value = false
                             }
                         }
                     } else Modifier
