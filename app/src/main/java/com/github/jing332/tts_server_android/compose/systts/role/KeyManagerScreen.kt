@@ -47,6 +47,7 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Checkbox
+import androidx.compose.material3.TriStateCheckbox
 import androidx.compose.material3.ElevatedCard
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.DropdownMenu
@@ -104,6 +105,7 @@ import org.json.JSONArray
 import org.json.JSONObject
 import com.github.jing332.tts_server_android.R
 import com.github.jing332.tts_server_android.compose.nav.NavTopAppBar
+import com.github.jing332.tts_server_android.compose.systts.sizeToToggleableState
 import com.github.jing332.tts_server_android.service.systts.help.CharacterRecordsFile
 import com.github.jing332.tts_server_android.service.systts.help.KeyListFile
 import kotlinx.coroutines.async
@@ -333,14 +335,17 @@ private fun KeyEntryRow(
  * 动作图标区仅正常模式渲染：+拉取 ⚡测组 ✏编辑接口 🗑两项菜单
  *（删除整组=红🗑 带二次确认；多选删除子项=灰🧹 进组内删除模式，组保留）。
  * 组内删除模式下整块组头替换为「删除密钥 + 全选」标题行（0916 定稿形态恢复）。
+ * (N) 后接三态对勾（10-03 照主界面 GroupItem 同款）：全启=勾/全停=空/部分=横，
+ * 单击=批量启停（半选/全选单击=全停，全停单击=全启）；组名染绿随之退役。
  */
 @Composable
 private fun GroupHeaderBlock(
     grp: KeyGroup,
     isCollapsed: Boolean,
-    grpHasEnabled: Boolean,
+    enabledCount: Int,
     selectionMode: Boolean,
     deleteMode: Boolean,
+    onSetGroupEnabled: (Boolean) -> Unit,
     onFold: () -> Unit,
     onPull: () -> Unit,
     onTestGroup: () -> Unit,
@@ -353,6 +358,7 @@ private fun GroupHeaderBlock(
     onMenuDismiss: () -> Unit,
     testingThisGroup: Boolean,
 ) {
+    val context = LocalContext.current
     // 组不做容器（照主界面 GroupItem.kt:98：组头 background(surface) 裸排、层级靠排版）。
     // 条目 ElevatedCard 是页面唯一容器层；归属感靠组头排版 + 组间 16dp 间距表达。
     Column(Modifier.fillMaxWidth().padding(top = 16.dp)) {
@@ -411,8 +417,8 @@ private fun GroupHeaderBlock(
                             grp.title,
                             style = MaterialTheme.typography.titleMedium,
                             fontWeight = FontWeight.SemiBold,
-                            color = if (grpHasEnabled) MaterialTheme.colorScheme.primary
-                            else MaterialTheme.colorScheme.onSurface,
+                            // 组名染绿已退役（10-03 对勾方案）：启用状态由组尾三态对勾表达（照主界面）
+                            color = MaterialTheme.colorScheme.onSurface,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis,
                             // weight(fill=false)：组名超长时吃满剩余宽度后省略，
@@ -424,6 +430,22 @@ private fun GroupHeaderBlock(
                             "(${grp.entries.size})",
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        // 组尾三态对勾（10-03 照主界面 GroupItem 同款）：全启=勾/全停=空/部分=横。
+                        // 单击批量启停：半选/全选单击=全停、全停单击=全启（主界面口径）；
+                        // 放在可点区内但 Checkbox 自吞点击，不会触发折叠
+                        TriStateCheckbox(
+                            state = enabledCount.sizeToToggleableState(grp.entries.size),
+                            onClick = { onSetGroupEnabled(enabledCount == 0) },
+                            modifier = Modifier.semantics {
+                                stateDescription = context.getString(
+                                    when (enabledCount) {
+                                        grp.entries.size -> R.string.group_all_enabled
+                                        0 -> R.string.group_all_disabled
+                                        else -> R.string.group_part_enabled
+                                    }, grp.title
+                                )
+                            }
                         )
                     }
                     if (!selectionMode) {
@@ -732,6 +754,23 @@ fun KeyManagerScreen(tagRuleId: String, onBack: () -> Unit) {
         if (bare.isNotEmpty()) toast(R.string.role_key_pool_skip_bare, bare.size)
         else toast(R.string.role_key_pool_add_batch, fresh.size, norms.size - fresh.size)
         exitSelection()
+    }
+
+    /** 组头三态对勾的批量启停（10-03 照主界面组头口径：半选/全选单击=全停，全停单击=全启）：
+     *  裸 Key 跳过（与卡片单点同一口径）；启用追加到队尾保持组内轮换顺序；全停只摘除本组归一化值 */
+    fun setGroupPool(grp: KeyGroup, allEnabled: Boolean) {
+        val (ok, bare) = grp.entries.partition {
+            val p = KeyListFile.parseKeyValue(it.value)
+            p != null && !p.isDirect
+        }
+        val norms = ok.map { KeyListFile.normalizePoolValue(it.value) }.filter { it.isNotEmpty() }
+        if (allEnabled) {
+            val fresh = norms.filter { it !in pool }
+            if (fresh.isNotEmpty()) savePoolList(pool + fresh)
+        } else {
+            savePoolList(pool.filter { it !in norms.toSet() })
+        }
+        if (bare.isNotEmpty()) toast(R.string.role_key_pool_skip_bare, bare.size)
     }
     // ———— 启用池页：多选移出（状态 hoist 在主页，写入口同 savePoolList）————
     fun exitPoolSelection() {
@@ -1107,8 +1146,8 @@ fun KeyManagerScreen(tagRuleId: String, onBack: () -> Unit) {
                     // 组内删除模式（菜单第二项「多选删除子项」）：只对该组生效，组保留
                     val isDeleting = deleteModeGroup == grp.title
                     val selCount = grp.entries.count { it.name in deleteChecked }
-                    // 色条判据：本组含**启用中**的密钥（旧口径=含当前密钥，多选后推广为启用集）
-                    val grpHasEnabled = grp.entries.any {
+                    // 组头三态对勾判据（10-03 照主界面）：0=全停 / 全数=全启 / 中间=部分
+                    val enabledCount = grp.entries.count {
                         KeyListFile.normalizePoolValue(it.value) in pool
                     }
                     // 组头不可拖动（用户 0919 实机：展开态拖组头与子项交错、必须收起分组才顺，
@@ -1117,7 +1156,8 @@ fun KeyManagerScreen(tagRuleId: String, onBack: () -> Unit) {
                         GroupHeaderBlock(
                             grp = grp,
                             isCollapsed = isCollapsed,
-                            grpHasEnabled = grpHasEnabled,
+                            enabledCount = enabledCount,
+                            onSetGroupEnabled = { allEnabled -> setGroupPool(grp, allEnabled) },
                             selectionMode = selectionMode,
                             deleteMode = isDeleting,
                             onFold = { toggleFold(grp.title) },
