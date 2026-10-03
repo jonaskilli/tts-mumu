@@ -706,6 +706,7 @@
     <string name="role_select_all_cancel">取消全选</string>
     <string name="role_hint_line">点击名字选中 · 长按操作 · 点标签换声</string>
     <string name="role_add_character">＋ 添加角色</string>
+    <string name="role_menu_reassign">再次分配发音人</string>
     <string name="role_menu_title">选择操作</string>
     <string name="role_menu_merge_follow">合并+跟随角色</string>
     <string name="role_menu_merge_voice">合并+选择发音人</string>
@@ -733,6 +734,9 @@
     <string name="role_voice_del_msg_unused">该配置项未被分配，可删除。</string>
     <string name="role_voice_del_confirm">确认删除</string>
     <string name="role_voice_del_toast">已删除配置项「%1$s」</string>
+    <string name="role_reassign_ok">已将「%1$s」换为 %2$s</string>
+    <string name="role_reassign_none">该类别没有其他可用发音人</string>
+    <string name="role_voice_del_reassigned">已删除配置项「%1$s」，为 %2$d 个角色重新分配</string>
     <string name="role_book_renamed">已重命名为「%1$s」</string>
     <string name="role_book_hint">点击切换 · 点✕删除</string>
     <string name="role_book_deleted_toast">已删除 %1$d 本书</string>

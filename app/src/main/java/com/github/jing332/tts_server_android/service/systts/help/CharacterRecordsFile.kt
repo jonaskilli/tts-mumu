@@ -153,6 +153,89 @@ object CharacterRecordsFile {
         }
     }
 
+    // ==================== 同类别发音人再分配（10-04 新增，用户拍板）====================
+    // 用途：①删除配置项后立即给受影响角色换一个同类别发音人（不再等朗读时规则自愈）；
+    // ②角色列表行末 ⋮「再次分配」手动换一个。
+    // 选声语义**逐条照搬朗读规则 1003 的 assignVoice**：候选=池 ∩ 启用标签 ∩ 同类别前缀
+    //（女青年01→只挑女青年NN）；先挑零占用 → 均匀随机；全占用 → 最少占用档 → 档内均匀随机；
+    // 逐角色顺序分配、边分边记占用。有意不同：不做跨类别降级（类别不变是硬要求），
+    // 分配不到就保持原状、交给朗读时规则自己的降级链兜底。
+
+    /** 14 类发音人类别白名单（与换声面板 voiceCategories 同表）；剥尾部序号取类别名。
+     *  不在表内（括号1-4/音效/duihua 等单例类别）返回 null → UI 隐藏「再次分配」。 */
+    private val VOICE_CATEGORIES = listOf(
+        "女青年", "男青年", "女中年", "男中年", "女老年", "男老年",
+        "少女", "少年", "女童", "男童", "女主", "男主", "特殊女", "特殊男",
+    )
+
+    fun categoryBaseOf(tag: String): String? {
+        val t = tag.trim()
+        if (t.isEmpty()) return null
+        val base = Regex("^(.*[\\u4e00-\\u9fa5])\\d{0,4}$").find(t)?.groupValues?.getOrNull(1) ?: return null
+        return base.takeIf { it in VOICE_CATEGORIES }
+    }
+
+    /**
+     * 同类别选一个发音人（照 1003 assignVoice 口径）。[poolEnabled] 为已筛好的候选集合
+     * （池 ∩ 启用标签）。[selfIndex] 是要改的记录下标（占用计数时排除自己）；
+     * 批量调用时把 [records] 里已改的当占用即自然实现「同批尽量不同声」。无候选返回 null。
+     */
+    fun pickCategoryVoice(
+        oldTag: String,
+        records: List<RoleRecord>,
+        selfIndex: Int,
+        poolEnabled: Collection<String>,
+    ): String? {
+        val base = categoryBaseOf(oldTag) ?: return null
+        val candidates = poolEnabled.filter { t ->
+            t != oldTag && t.length > base.length && t.startsWith(base) &&
+                t.substring(base.length).all { it.isDigit() }
+        }.distinct()
+        if (candidates.isEmpty()) return null
+        // 占用计数：除自己外，每个 tag 被多少条记录绑定
+        val usage = HashMap<String, Int>()
+        records.forEachIndexed { i, r ->
+            if (i == selfIndex) return@forEachIndexed
+            val v = r.voice
+            if (v.isNotEmpty()) usage[v] = (usage[v] ?: 0) + 1
+        }
+        val unused = candidates.filter { (usage[it] ?: 0) == 0 }
+        if (unused.isNotEmpty()) return unused.random()
+        val minUse = candidates.minOf { usage[it] ?: 0 }
+        return candidates.filter { (usage[it] ?: 0) == minUse }.random()
+    }
+
+    /**
+     * 删除配置项联动：把当前书所有绑定 [oldTag] 的角色逐个改绑同类别新发音人
+     *（同批边分边记、尽量不同声）。有改动才四写落盘。返回改动的记录数（0=未动，如整类删空）。
+     */
+    fun reassignVoicesForTag(tagRuleId: String, oldTag: String, enabledTags: Collection<String>): Int {
+        val records = readRecords(tagRuleId)
+        if (records.isEmpty()) return 0
+        val poolEnabled = readVoicePool(tagRuleId).filter { it in enabledTags }
+        var changed = 0
+        for (i in records.indices) {
+            val rec = records[i]
+            if (rec.voice != oldTag) continue
+            val newVoice = pickCategoryVoice(oldTag, records, i, poolEnabled) ?: continue
+            rec.obj.put("voice", newVoice)
+            changed++
+        }
+        if (changed > 0) saveRecords(tagRuleId, records)
+        return changed
+    }
+
+    /** 「再次分配」：给单条记录换一个同类别发音人（≠当前）。成功四写落盘并返回新 tag；无候选 null。 */
+    fun rerollVoice(tagRuleId: String, index: Int, enabledTags: Collection<String>): String? {
+        val records = readRecords(tagRuleId)
+        val rec = records.getOrNull(index) ?: return null
+        val poolEnabled = readVoicePool(tagRuleId).filter { it in enabledTags }
+        val newVoice = pickCategoryVoice(rec.voice, records, index, poolEnabled) ?: return null
+        rec.obj.put("voice", newVoice)
+        saveRecords(tagRuleId, records)
+        return newVoice
+    }
+
     // ==================== 内置角色列表（Phase 1，拍板）====================
     // 角色管理页签换原生渲染后，app 端直接读写同一份数据。写入口径与插件
     // doDeleteCharacterOperation/重试路径同源：characterRecords.json + 当前书籍

@@ -391,14 +391,16 @@ fun VoicePickerDialog(
     // ① 删该配置项并清失效引擎缓存；
     // ② 仅当该标签已无其他**启用**配置时，才从 fayinren.json 移除该标签
     //    （标签还有启用配置就必须留在池子里）；
-    // ③ 角色绑定不清：启用项被删后该标签即失效，角色列表显示「标签 + ⚠」，
-    //    规则下次朗读自动为受影响角色重新分配（与角色管理 v10 同口径）。
+    // ③ 10-04 改（用户拍板）：标签删空时**立即**给当前书受影响角色改绑同类别新发音人
+    //    （reassignVoicesForTag，选声照 1003 assignVoice）；不再等朗读时规则自愈。
+    //    同类无候选（整类删空）则维持旧行为：角色列表显示「tag + ⚠」，朗读时规则降级链兜底。
     fun deletePreviewedConfig(target: SystemTtsV2) {
         val targetDto = target.config as? TtsConfigurationDTO ?: return
         val targetTag = targetDto.speechRule.tag
         val tagRuleId = targetDto.speechRule.tagRuleId
         scope.launch {
             var tagNowEmpty = false
+            var reassignedCount = 0
             val deletedSelf = withIO {
                 dbm.systemTtsV2.delete(target)
                 runCatching { CachedEngineManager.removeEngine(targetDto.source) }
@@ -409,6 +411,11 @@ fun VoicePickerDialog(
                 if (!stillEnabled) {
                     tagNowEmpty = true
                     CharacterRecordsFile.removeFromPool(tagRuleId, targetTag)
+                    // ③ 删除后启用集合（此时已不含被删标签）→ 立即重分配当前书受影响角色
+                    val enabledTags = dbm.systemTtsV2.allEnabled.mapNotNull { item ->
+                        (item.config as? TtsConfigurationDTO)?.speechRule?.tag?.takeIf { it.isNotEmpty() }
+                    }.toSet()
+                    reassignedCount = CharacterRecordsFile.reassignVoicesForTag(tagRuleId, targetTag, enabledTags)
                 }
                 target.id == entity.id
             }
@@ -418,7 +425,11 @@ fun VoicePickerDialog(
             dataVersion++
             Toast.makeText(
                 context,
-                context.getString(R.string.role_voice_del_toast, target.displayName),
+                if (reassignedCount > 0) {
+                    context.getString(R.string.role_voice_del_reassigned, target.displayName, reassignedCount)
+                } else {
+                    context.getString(R.string.role_voice_del_toast, target.displayName)
+                },
                 Toast.LENGTH_SHORT,
             ).show()
             // 被删的恰是暂存选中那条、且该标签再无启用配置：清掉暂存——

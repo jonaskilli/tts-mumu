@@ -24,10 +24,13 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material3.AlertDialog
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
@@ -229,6 +232,8 @@ fun RoleListScreen(
     var mergeFollowFor by remember { mutableStateOf<List<String>?>(null) } // 标记的角色名列表，选目标
     var mergeVoiceTarget by remember { mutableStateOf<String?>(null) } // 合并+选择发音人：目标角色
     var pickerFor by remember { mutableStateOf<CharacterRecordsFile.RoleRecord?>(null) } // 换声（标签框点击）
+    // 行末 ⋮「再次分配」菜单：当前展开的行下标（10-04）
+    var reassignForIdx by remember { mutableStateOf<Int?>(null) }
     var showBookDialog by remember { mutableStateOf(false) }
     // 密钥管理/备份恢复入口已上移到宿主顶栏（给角色区留空），
     // 弹窗状态与渲染都在 RoleManagementScreen，本页不再持有
@@ -480,9 +485,31 @@ fun RoleListScreen(
                         voiceName = voiceTagText(rec.voice, voiceNames),
                         marks = marks[rec.voice].orEmpty(),
                         marked = idx in markedIdx,
+                        menuExpanded = reassignForIdx == idx,
                         onNameClick = { toggleMark(idx) },
                         onNameLongClick = { menuFor = idx to rec },
                         onTagClick = { pickerFor = rec },
+                        onMoreClick = { reassignForIdx = idx },
+                        onMenuDismiss = { reassignForIdx = null },
+                        onReassign = {
+                            reassignForIdx = null
+                            scope.launch {
+                                val newVoice = withIO {
+                                    // 当前启用标签集合（与换声弹窗候选池同口径：只认启用配置）
+                                    val enabledTags = dbm.systemTtsV2.allEnabled.mapNotNull { item ->
+                                        (item.config as? TtsConfigurationDTO)?.speechRule?.tag
+                                            ?.takeIf { it.isNotEmpty() }
+                                    }.toSet()
+                                    CharacterRecordsFile.rerollVoice(tagRuleId, idx, enabledTags)
+                                }
+                                if (newVoice != null) {
+                                    toast(R.string.role_reassign_ok, rec.name, newVoice)
+                                    reload()
+                                } else {
+                                    toast(R.string.role_reassign_none)
+                                }
+                            }
+                        },
                     )
                     HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f))
                 }
@@ -815,8 +842,9 @@ private fun cutToTagBoxWidth(text: String, budget: Float = TAG_BOX_CHAR_BUDGET):
 /**
  * 角色行（照插件 createListRow / v9 排布）：左名字列竖排（主名第一行，别名从第二行起各占一行，
  * 每行 = 性别圆点 + 名称 + 收藏【】 + 主角👑），整列垂直居中 → 右侧标签框对这一列上下居中；
- * 右动作列只留发音人标签框（原行内 ⋮ / ▶ 退役，一切操作点标签进换声弹窗），
- * 标签后接该发音人已点亮的标记 emoji（❤️🚶😈，与换声弹窗同源 voice_marks.json）。
+ * 右动作列=发音人标签框 + 已点亮标记 emoji（❤️🚶😈，与换声弹窗同源 voice_marks.json）
+ * +（10-04 加回）行末 ⋮「再次分配」菜单——仅在发音人属 14 类可换类别时渲染；
+ * 单例类别（括号/音效/duihua 等）不显示，避开无候选的空操作。
  */
 @OptIn(ExperimentalFoundationApi::class, ExperimentalMaterial3Api::class)
 @Composable
@@ -825,9 +853,13 @@ private fun RoleRow(
     voiceName: String?,
     marks: List<String>,
     marked: Boolean,
+    menuExpanded: Boolean,
     onNameClick: () -> Unit,
     onNameLongClick: () -> Unit,
     onTagClick: () -> Unit,
+    onMoreClick: () -> Unit,
+    onMenuDismiss: () -> Unit,
+    onReassign: () -> Unit,
 ) {
     val isFav = rec.obj.optInt("usageCount", 0) == 50
     val isProtagonist = rec.isMain
@@ -927,6 +959,32 @@ private fun RoleRow(
                             fontSize = 13.sp,
                             modifier = Modifier.padding(start = 3.dp),
                         )
+                    }
+                    // 行末 ⋮（10-04 用户拍板加回）：仅 14 类可换类别时显示；
+                    // 菜单只有一项「再次分配发音人」（同类别换一个，见 DropdownMenu）
+                    if (CharacterRecordsFile.categoryBaseOf(rec.voice) != null) {
+                        Spacer(Modifier.width(2.dp))
+                        Box {
+                            FlatIconAction(
+                                Icons.Default.MoreVert,
+                                stringResource(R.string.role_menu_title),
+                            ) { onMoreClick() }
+                            DropdownMenu(
+                                expanded = menuExpanded,
+                                onDismissRequest = onMenuDismiss,
+                            ) {
+                                DropdownMenuItem(
+                                    leadingIcon = { Text("🔄", fontSize = 18.sp) },
+                                    text = {
+                                        Text(
+                                            stringResource(R.string.role_menu_reassign),
+                                            style = MaterialTheme.typography.bodyMedium,
+                                        )
+                                    },
+                                    onClick = onReassign,
+                                )
+                            }
+                        }
                     }
                 }
             }

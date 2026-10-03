@@ -652,6 +652,7 @@
     <string name="role_select_all_cancel">Deselect all</string>
     <string name="role_hint_line">Tap to select · Long-press for actions · Tap tag to change voice</string>
     <string name="role_add_character">＋ Add character</string>
+    <string name="role_menu_reassign">Reassign voice</string>
     <string name="role_menu_title">Choose action</string>
     <string name="role_menu_merge_follow">Merge + follow target</string>
     <string name="role_menu_merge_voice">Merge + pick voice</string>
@@ -679,6 +680,9 @@ Marks: %3$s</string>
     <string name="role_voice_del_msg_unused">This config is not assigned, safe to delete.</string>
     <string name="role_voice_del_confirm">Delete</string>
     <string name="role_voice_del_toast">Deleted config %1$s</string>
+    <string name="role_reassign_ok">"%1$s" changed to %2$s</string>
+    <string name="role_reassign_none">No other voice available in this category</string>
+    <string name="role_voice_del_reassigned">Deleted config %1$s, reassigned for %2$d characters</string>
     <string name="role_book_renamed">Renamed to "%1$s"</string>
     <string name="role_book_hint">Tap to switch · Tap ✕ to delete</string>
     <string name="role_book_deleted_toast">Deleted %1$d book(s)</string>
