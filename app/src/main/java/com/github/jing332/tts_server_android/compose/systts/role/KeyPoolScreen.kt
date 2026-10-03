@@ -106,7 +106,7 @@ internal fun KeyPoolScreen(
     pool: List<String>,
     keys: List<KeyListFile.KeyEntry>,
     ifaces: List<KeyListFile.ApiInterface>,
-    testByValue: Map<String, Boolean>,
+    testByValue: Map<String, KeyListFile.TestVerdict>,
     testingValue: String?,
     batchTesting: Boolean,
     selectionMode: Boolean,
@@ -296,7 +296,7 @@ internal fun KeyPoolScreen(
 private fun PoolRow(
     orderNum: Int,
     info: PoolRowInfo,
-    testOk: Boolean?,
+    testOk: KeyListFile.TestVerdict?,
     testing: Boolean,
     selectionMode: Boolean,
     checked: Boolean,
@@ -348,14 +348,13 @@ private fun PoolRow(
             if (!selectionMode) {
                 // 测试结果圆点：名字后、紧挨闪电前（0920 定稿，与主页同位置）——
                 // 与闪电因果相邻、不被序号徽章抢视线、垂直成一列好扫。
-                // 没测=空槽不显但保列对齐；绿●通/红●挂保留
+                // 没测=空槽不显但保列对齐；三色（10-03）：绿=通且思考关/黄=通但思考开/红=不通
                 Box(
                     Modifier.width(14.dp).height(24.dp),
                     contentAlignment = Alignment.CenterEnd
                 ) {
-                    if (testOk != null) {
-                        val dot = if (testOk) TEST_PASS_COLOR else MaterialTheme.colorScheme.error
-                        Box(Modifier.size(8.dp).background(dot, CircleShape))
+                    testDotColor(testOk, MaterialTheme.colorScheme.error)?.let {
+                        Box(Modifier.size(8.dp).background(it, CircleShape))
                     }
                 }
                 // 闪电 = 单测按钮：常态灰（与其他图标同色），测试中原位转小圈，

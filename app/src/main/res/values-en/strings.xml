@@ -728,6 +728,22 @@ Add %3$d, skip %4$d duplicates
     <string name="role_key_ifc_key_empty">API Key required</string>
     <string name="role_key_ifc_name_dup">Interface name exists</string>
     <string name="role_key_manual_model">Add model manually</string>
+    <string name="role_key_thinking_title">Thinking mode (affects speed)</string>
+    <string name="role_key_thinking_desc">Some APIs spend time thinking, which slows or breaks assignment. Default Auto: tests try each known way to turn it off and remember the one that works.</string>
+    <string name="role_key_thinking_auto">Auto (probe on test, remember)</string>
+    <string name="role_key_thinking_auto_hint">The ⚡ test finds a working way to disable thinking and locks it; assignment follows the locked choice afterwards.</string>
+    <string name="role_key_thinking_manual">Manual</string>
+    <string name="role_key_thinking_locked">Locked: %1$s</string>
+    <string name="role_key_thinking_not_tested">Not tested yet — run ⚡ on a model card first.</string>
+    <string name="role_key_thinking_opt_multi">Send all off-switch fields (legacy)</string>
+    <string name="role_key_thinking_opt_type">thinking: type = disabled</string>
+    <string name="role_key_thinking_opt_tmode">thinking_mode = false</string>
+    <string name="role_key_thinking_opt_dthink">disable_think = true</string>
+    <string name="role_key_thinking_opt_ncot">no_chain_of_thought = true</string>
+    <string name="role_key_thinking_opt_low">reasoning_effort = low (lower, not off)</string>
+    <string name="role_key_thinking_opt_none">No thinking params (fallback)</string>
+    <string name="role_key_thinking_opt_custom">Custom JSON (advanced)</string>
+    <string name="role_key_thinking_custom_bad">Custom JSON cannot be parsed (expected {"key": value})</string>
     <string name="role_key_model_filter">🔍 Filter models</string>
     <string name="role_key_model_input_hint">Model name</string>
     <string name="role_key_delete_n">Delete (%1$d)</string>

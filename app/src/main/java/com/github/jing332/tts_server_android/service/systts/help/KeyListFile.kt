@@ -101,16 +101,21 @@ object KeyListFile {
         emptyMap()
     }
 
+    /** 锁定表键：任何形态的网址都先归一到 openai base（补/剥版本段）再比，避免
+     *  「测试写入用 openAiBaseUrl、弹窗读取用原生址」两条路径在无 /v1 的网址上对不上 */
+    fun thinkingLockKey(url: String): String = normalizeBaseUrl(openAiBaseUrl(url))
+
     /** 写/删一条思考参数（custom 仅 custom 模式有意义）；mode 空串 = 删除该条 */
     fun saveThinkingParam(tagRuleId: String, baseUrl: String, mode: String, custom: String): Boolean = try {
         val d = dir(tagRuleId)
         if (!d.exists()) d.mkdirs()
         val f = thinkingFile(tagRuleId)
         val root = if (f.exists()) JSONObject(f.readText()) else JSONObject()
-        if (mode.isEmpty()) root.remove(normalizeBaseUrl(baseUrl)) else {
+        val key = thinkingLockKey(baseUrl)
+        if (mode.isEmpty()) root.remove(key) else {
             val o = JSONObject().put("mode", mode)
             if (mode == THINKING_CUSTOM && custom.isNotBlank()) o.put("custom", custom)
-            root.put(normalizeBaseUrl(baseUrl), o)
+            root.put(key, o)
         }
         f.writeText(root.toString(2))
         true
@@ -896,8 +901,8 @@ object KeyListFile {
             return TestOutcome(v, off, msg + suffix)
         }
 
-        // auto：先按锁定写法测一发（锁定后通常一发即走）
-        val locked = readThinkingParams(tagRuleId)[t.baseUrl]?.first
+        // auto：先按锁定写法测一发（锁定后通常一发即走）；键走 thinkingLockKey 保证与写入同键
+        val locked = readThinkingParams(tagRuleId)[thinkingLockKey(t.baseUrl)]?.first
         if (!locked.isNullOrEmpty() && locked != THINKING_CUSTOM) {
             val (ok, off, msg) = testOnce(t, locked, custom)
             if (ok) {
@@ -916,7 +921,7 @@ object KeyListFile {
             lastMsg = "$m：$msg"
             if (!ok) continue
             if (off != false) {
-                saveThinkingParam(tagRuleId, baseKey(t.baseUrl), m, "")
+                saveThinkingParam(tagRuleId, t.baseUrl, m, "")
                 return TestOutcome(
                     TestVerdict.PASS, true,
                     "思考适配完成：该接口锁定「$m」（思考已关，$msg）"
@@ -925,7 +930,7 @@ object KeyListFile {
             if (yellow == null) yellow = m to msg
         }
         if (yellow != null) {
-            saveThinkingParam(tagRuleId, baseKey(t.baseUrl), yellow.first, "")
+            saveThinkingParam(tagRuleId, t.baseUrl, yellow.first, "")
             return TestOutcome(
                 TestVerdict.PASS_THINKING, false,
                 "各写法均无法关闭思考，已锁定「${yellow.first}」保证可分配：${yellow.second}"

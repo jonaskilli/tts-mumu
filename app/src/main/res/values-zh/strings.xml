@@ -782,6 +782,22 @@
     <string name="role_key_ifc_key_empty">请填写 API Key</string>
     <string name="role_key_ifc_name_dup">已存在同名接口，请换个名称</string>
     <string name="role_key_manual_model">手动添加模型</string>
+    <string name="role_key_thinking_title">思考模式（分配速度相关）</string>
+    <string name="role_key_thinking_desc">部分 API 开着思考会拖慢分配甚至失败。默认自动：测试时逐个尝试关闭写法并记住，不用手动选。</string>
+    <string name="role_key_thinking_auto">自动（测试时尝试并记住）</string>
+    <string name="role_key_thinking_auto_hint">⚡ 测试会自动找到这家 API 能用的关闭写法并锁定；以后分配都按锁定的走。</string>
+    <string name="role_key_thinking_manual">手动指定</string>
+    <string name="role_key_thinking_locked">当前锁定：%1$s</string>
+    <string name="role_key_thinking_not_tested">尚未测试锁定——建议先点模型卡片上的 ⚡ 测一下。</string>
+    <string name="role_key_thinking_opt_multi">全部关闭字段一起发（老口径，宽容平台可用）</string>
+    <string name="role_key_thinking_opt_type">thinking：type = disabled（标准写法）</string>
+    <string name="role_key_thinking_opt_tmode">thinking_mode = false</string>
+    <string name="role_key_thinking_opt_dthink">disable_think = true</string>
+    <string name="role_key_thinking_opt_ncot">no_chain_of_thought = true</string>
+    <string name="role_key_thinking_opt_low">reasoning_effort = low（只降档，不关闭）</string>
+    <string name="role_key_thinking_opt_none">不带思考参数（保底：只求能分配）</string>
+    <string name="role_key_thinking_opt_custom">自定义 JSON（高级）</string>
+    <string name="role_key_thinking_custom_bad">自定义 JSON 无法解析，请检查格式（应为 {"键": 值}）</string>
     <string name="role_key_model_filter">🔍 搜索过滤模型</string>
     <string name="role_key_model_input_hint">输入模型名</string>
     <string name="role_key_delete_n">删除(%1$d)</string>
