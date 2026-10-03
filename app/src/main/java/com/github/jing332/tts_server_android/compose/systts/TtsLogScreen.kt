@@ -144,9 +144,9 @@ internal fun TtsLogScreen(vm: TtsLogViewModel = viewModel()) {
 
     val scrollBehavior = TopAppBarDefaults.pinnedScrollBehavior()
 
-    // ———— 页面级多选（1002，照密钥页 ☑ 同款）：跨条勾选 → 底栏「复制(N)」————
-    // 跨条拖选（长按→拖）是 compose 1.7 selection 的崩溃源（滚动回收条目后选区悬挂
-    // selectableId），跨条复制一律走本模式；勾选以条目对象为键，筛选/重排不错位。
+    // ———— 页面级多选（1002 照密钥页 ☑ 同款；1003 加长按拖动入口）：跨条勾选 → 底栏「复制(N)」————
+    // 跨条拖选是 compose 1.7 selection 的崩溃源（滚动回收条目后选区悬挂 selectableId），
+    // 跨条复制一律走本模式；勾选以条目对象为键，筛选/重排不错位。
     // 两个状态都用 remember（非 saveable）：Set<LogEntry> 不落 Bundle，旋转屏一并重置、
     // 保持「模式开着但勾选丢了」的不一致不会出现
     var selectionMode by remember { mutableStateOf(false) }
@@ -386,12 +386,18 @@ internal fun TtsLogScreen(vm: TtsLogViewModel = viewModel()) {
                 .padding(bottom = paddingValues.calculateBottomPadding()),
             list = displayLogs,
             listState = listState,
-            // 搜索定位期间不自动滚底，避免与跳转互相拉扯
-            autoScrollToBottom = vm.autoScrollToBottom.value && searchQuery.isEmpty(),
+            // 搜索定位期间不自动滚底，避免与跳转互相拉扯；多选中暂停（1003）——
+            // 拖选途中新日志一到就把列表拉到尾，指尖下的行会整批选错
+            autoScrollToBottom = vm.autoScrollToBottom.value && searchQuery.isEmpty() && !selectionMode,
             searchQuery = searchQuery,
             selectionMode = selectionMode,
             checkedEntries = checkedEntries,
             onToggleCheck = { e -> checkedEntries = if (e in checkedEntries) checkedEntries - e else checkedEntries + e },
+            // 长按拖动多选（1003）：长按即进多选并勾上该条，拖动连选、拖回缩小；
+            // 整集替换（非逐条 toggle），底栏「复制(N)」计数拖动中实时跟着走
+            dragSelectEnabled = true,
+            onEnterSelection = { selectionMode = true },
+            onCheckedChange = { checkedEntries = it },
         )
     }
 

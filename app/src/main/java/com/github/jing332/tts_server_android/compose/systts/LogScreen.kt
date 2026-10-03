@@ -8,6 +8,10 @@ import androidx.compose.animation.shrinkOut
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.foundation.gestures.awaitLongPressOrCancellation
+import androidx.compose.foundation.gestures.scrollBy
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -24,7 +28,6 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CheckBox
 import androidx.compose.material.icons.filled.CheckBoxOutlineBlank
@@ -43,12 +46,20 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.input.pointer.PointerEventPass
+import androidx.compose.ui.input.pointer.changedToUpIgnoreConsumed
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.input.pointer.positionChangedIgnoreConsumed
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
@@ -64,6 +75,8 @@ import com.github.jing332.compose.ComposeExtensions.toAnnotatedString
 import com.github.jing332.compose.widgets.ControlBottomBarVisibility
 import com.github.jing332.tts_server_android.R
 import com.github.jing332.tts_server_android.compose.LocalBottomBarBehavior
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 
 // SystemTtsService 拼接次级信息所用哨兵色，此处按主题重映射
@@ -100,13 +113,20 @@ fun LogScreen(
     autoScrollToBottom: Boolean = false,
     // 非空时命中项加背景高亮(定位用，不过滤列表)
     searchQuery: String = "",
-    // 多选模式（1002）：顶栏 ☑ 进入（与密钥页同款）。跨条拖选会触发 compose 1.7
-    // selection 崩溃（滚出视口的条目被回收后选区仍悬挂其 id），故跨条复制走本模式；
-    // 条目内长按选字照旧保留（SelectionContainer 按条目独立，不与本模式抢手势）
+    // 多选模式：顶栏 ☑ 或长按条目（1003）进入。跨条复制走本模式而非 compose
+    // selection——条目滚出视口被回收后选区仍悬挂其 selectableId，拖柄重算查表即崩
+    // （上游至今未修，详见 1002 记录）
     selectionMode: Boolean = false,
     // 勾选的日志（以条目对象为键：对列表增删/筛选重排免疫；time 毫秒级，同值碰撞可忽略）
     checkedEntries: Set<LogEntry> = emptySet(),
     onToggleCheck: (LogEntry) -> Unit = {},
+    // 长按拖动多选（1003，用户实机反馈「不符合正常操作习惯」后改）：长按任意条目＝
+    // 立刻进多选并勾上它，按住拖动＝划过的条目连续勾选、拖回缩小范围；条目内「拖选
+    // 几个字」随本次改动取消（用户确认基本不用，长按手势让位给多选）。
+    // 仅 dragSelectEnabled=true 的页面启用——转发器日志没有多选 UI，开了只有触感没反应
+    dragSelectEnabled: Boolean = false,
+    onEnterSelection: () -> Unit = {},
+    onCheckedChange: (Set<LogEntry>) -> Unit = {},
 ) {
     ControlBottomBarVisibility(listState, LocalBottomBarBehavior.current)
     val scope = rememberCoroutineScope()
@@ -120,6 +140,12 @@ fun LogScreen(
             entry = entry,
         )
     }
+    // 长按拖动手势要用到的最新值（pointerInput(Unit) 不随重组重启，一律走 State 读）
+    val haptics by rememberUpdatedState(LocalHapticFeedback.current)
+    val currentList by rememberUpdatedState(list)
+    val currentChecked by rememberUpdatedState(checkedEntries)
+    val currentOnEnterSelection by rememberUpdatedState(onEnterSelection)
+    val currentOnCheckedChange by rememberUpdatedState(onCheckedChange)
     Box(modifier) {
         val isAtBottom by remember {
             derivedStateOf {
@@ -160,7 +186,102 @@ fun LogScreen(
             }
 
         val darkTheme = isSystemInDarkTheme()
-        LazyColumn(Modifier.fillMaxSize(), state = listState) {
+        LazyColumn(
+            Modifier
+                .fillMaxSize()
+                .then(
+                    if (dragSelectEnabled) Modifier.pointerInput(Unit) {
+                        // 手写 awaitEachGesture：等待长按期间不消费任何事件，滑动一旦被
+                        // 滚动容器消费即取消（不抢正常翻页）；长按成立后改在 Initial 段
+                        // 消费事件（先于子节点），行点击与滚动都让位给拖动多选
+                        val edgeZone = 48.dp.toPx()
+                        val frameScroll = 14.dp.toPx()
+
+                        // 指尖纵坐标 → 可视行下标；只认日志行（收尾 Spacer 不算），
+                        // 落在空档/Spacer 上就近取边界行
+                        fun logIndexAtY(y: Float): Int? {
+                            val items = listState.layoutInfo.visibleItemsInfo
+                                .filter { it.index < currentList.size }
+                            if (items.isEmpty()) return null
+                            val hit = items.firstOrNull { y >= it.offset && y < it.offset + it.size }
+                            return hit?.index
+                                ?: if (y < items.first().offset) items.first().index
+                                else items.last().index
+                        }
+
+                        awaitEachGesture {
+                            val down = awaitFirstDown(requireUnconsumed = false)
+                            // null＝滚动先启动或提前抬手，本次不做多选
+                            val longPress = awaitLongPressOrCancellation(down.id)
+                                ?: return@awaitEachGesture
+                            val anchor = logIndexAtY(longPress.position.y)
+                                ?: return@awaitEachGesture
+                            haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                            currentOnEnterSelection()
+                            // 本次笔画以起点时的勾选为底集，拖动范围=追加勾选；拖回缩小
+                            // 只收回本次加上的，之前勾的行不受影响
+                            val base = currentChecked
+
+                            fun emitRange(to: Int) {
+                                val l = currentList
+                                if (l.isEmpty()) return
+                                val lo = minOf(anchor, to).coerceIn(0, l.lastIndex)
+                                val hi = maxOf(anchor, to).coerceIn(0, l.lastIndex)
+                                currentOnCheckedChange(base + l.subList(lo, hi + 1).toSet())
+                            }
+
+                            emitRange(anchor)
+                            var pointerY = longPress.position.y
+                            var lastIdx = anchor
+                            coroutineScope {
+                                // 边缘自动滚：指尖压住上下边缘时逐帧匀速滚，扫选屏外行；
+                                // 滚动后指尖下的行变了，选中范围跟着延伸/缩小
+                                val scroller = launch {
+                                    while (isActive) {
+                                        withFrameNanos { }
+                                        val end = listState.layoutInfo.viewportEndOffset
+                                        if (pointerY < edgeZone) listState.scrollBy(-frameScroll)
+                                        else if (pointerY > end - edgeZone) listState.scrollBy(frameScroll)
+                                        else continue
+                                        logIndexAtY(pointerY)?.let { idx ->
+                                            if (idx != lastIdx) {
+                                                lastIdx = idx
+                                                emitRange(idx)
+                                            }
+                                        }
+                                    }
+                                }
+                                try {
+                                    while (true) {
+                                        val event = awaitPointerEvent(PointerEventPass.Initial)
+                                        val change = event.changes.firstOrNull { it.id == down.id }
+                                            ?: event.changes.first()
+                                        // 抬手即收笔；UP 也消费掉，行点击（勾选/快捷面板）
+                                        // 不会在松手瞬间再触发一次
+                                        if (change.changedToUpIgnoreConsumed()) {
+                                            change.consume()
+                                            break
+                                        }
+                                        if (change.positionChangedIgnoreConsumed()) {
+                                            change.consume()
+                                            pointerY = change.position.y
+                                            logIndexAtY(pointerY)?.let { idx ->
+                                                if (idx != lastIdx) {
+                                                    lastIdx = idx
+                                                    emitRange(idx)
+                                                }
+                                            }
+                                        }
+                                    }
+                                } finally {
+                                    scroller.cancel()
+                                }
+                            }
+                        }
+                    } else Modifier
+                ),
+            state = listState
+        ) {
                 itemsIndexed(list, key = { index, _ -> index }) { index, log ->
                     // 获取成功前缀：石板灰 Blue Grey 800/200
                     // 发音人信息：棕褐 #7D6B5D / 深色主题 #A08B7A
@@ -201,8 +322,8 @@ fun LogScreen(
                             color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f)
                         )
 
-                    // 多选：点条目=勾选（与密钥页同款，越权操作不进快捷面板）；非多选：点带
-                    // configId 的请求主行弹快捷面板。多选入口在前置 Scaffold 顶栏 ☑
+                    // 多选：点条目=勾选（越权操作不进快捷面板）；非多选：点带
+                    // configId 的请求主行弹快捷面板。多选入口=顶栏 ☑ 或长按拖动（容器手势）
                     val checked = log in checkedEntries
                     Column(
                         modifier = Modifier
@@ -255,27 +376,15 @@ fun LogScreen(
                                 style = MaterialTheme.typography.bodySmall
                             )
                         }
-                        // 正文：非多选=条目内长按选字（选择容器按条目独立，容器随条目销毁，
-                        // 悬挂 selectableId 崩溃不可能发生）；多选=纯文本（整行是勾选行，
-                        // 不给选字柄抢手势）
-                        if (selectionMode) {
-                            Text(
-                                text = display,
-                                color = bodyColor,
-                                style = style,
-                                lineHeight = style.lineHeight * 0.9f,
-                            )
-                        } else {
-                            SelectionContainer {
-                                Text(
-                                    text = display,
-                                    // 获取成功(SUCCESS)整行石板灰同字重(用户:冒号前后一致不加粗)；加粗仅保留请求文本正文
-                                    color = bodyColor,
-                                    style = style,
-                                    lineHeight = style.lineHeight * 0.9f,
-                                )
-                            }
-                        }
+                        // 正文纯文本（1003）：条目内选字取消——长按让位给拖动多选（用户
+                        // 确认基本不用），跨条复制全走多选模式
+                        Text(
+                            text = display,
+                            // 获取成功(SUCCESS)整行石板灰同字重(用户:冒号前后一致不加粗)；加粗仅保留请求文本正文
+                            color = bodyColor,
+                            style = style,
+                            lineHeight = style.lineHeight * 0.9f,
+                        )
                     }
                 }
                 item {
