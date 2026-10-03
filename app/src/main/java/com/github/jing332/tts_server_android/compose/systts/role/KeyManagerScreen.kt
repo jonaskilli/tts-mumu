@@ -86,6 +86,10 @@ import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.font.FontWeight
@@ -192,13 +196,14 @@ internal fun FlatIconAction(
 
 /**
  * 密钥条目 = 一张卡片（**排布一行不动**，只把每个模型包成卡片）：
- * 行首测试灯（专职指示）+ 显示名 | 动作图标 ⚡⧉✏🗑 同行居右（用户 0919 三轮迭代终稿）：
- *  - 行首 = 测试灯：没测=空白（中性默认态不显灯）、测试中转圈、测完绿●通/红●挂保留；
- *    只指示，不可点——有灯的行自然凸显（用户 0919 终稿）。
- *  - **点卡片 = 启用/停用切换**：启用中整卡染主题色浅底（停用恢复灰白）——
- *    ⊕⊖/清单加减图标经两轮实机反馈全部退役，选中语义由底色承担。
- *  - ⚡ 恢复纯灰色按钮（不再兼职变色）；动作区 144dp 与组头图标同列（卡片内容行右内边距 0）。
- *  - 多选模式下：复选框顶替行首灯，图标区隐藏，勾中染浅红（启用底色让位勾选底色）。
+ * 行首对勾 + 显示名 | 动作图标 ⚡✏🗑 同行居右（启用方式 10-03 二次改版）：
+ *  - 行首 = **对勾即启用开关**（照主界面 Item.kt 同款方框，role Switch）——
+ *    启用视觉三易其稿：⊕⊖ → 底色承担（0919）→ 描边承担（0920）→ 对勾承担（10-03），
+ *    描边随对勾方案一并退役。
+ *  - **点名字 = 复制模型名**（10-03 拍板）；多选/组内删除模式下点名字仍是勾选，
+ *    行首同一颗对勾也切换为勾选语义。
+ *  - ⚡✏🗑 三键图标区 108dp，右对齐后仍与组头图标列垂直成列（📋 复制键退役——与点名字复制合并）。
+ *  - 测试圆点保持名字后、闪电前（0920 定稿不动）。
  *
  * ElevatedCard 照主界面 Item.kt:113 同款（M3 默认 surfaceContainerLow 底 + 1dp 阴影）；
  * 组卡已撤（组头裸排），本卡是页面唯一容器层，阴影负责把卡片从页面底上顶出来。
@@ -218,8 +223,9 @@ private fun KeyEntryRow(
     onEdit: () -> Unit,
     onDelete: () -> Unit,
 ) {
-    // 卡片底色两态：多选勾中=12% 浅红 > 默认灰白。
-    // 启用态不再改底色（用户 0920：只靠描边表达），描边见下方 modifier
+    val context = LocalContext.current
+    // 卡片底色两态：多选/组内删除勾中=12% 浅红 > 默认灰白。
+    // 启用态不再染底/描边（10-03 对勾方案：启用视觉全归行首对勾，0920 描边口径一并退役）
     // compositeOver：近似半透明色叠在卡面上，避免半透明直接给 ElevatedCard 透出页面底色
     val cardColor = when {
         selectionMode && checked ->
@@ -234,34 +240,37 @@ private fun KeyEntryRow(
             // 缩进 = 归属关系：左缘 15dp 与组头折叠箭头同列、右缘 6dp 与组头图标区同列。
             // 上下 3 ⇒ 相邻两张卡之间 6dp
             // start/end 与 vertical 分属不同 padding 重载，写在一起没有匹配的候选，故分两次。
-            // 描边必须画在 padding 之后（否则框住整个行宽、比卡片大一圈，0920 实机教训）；
-            // 圆角 12dp 与卡默认形状(shapes.medium)一致
+            // （启用描边已随 10-03 对勾方案退役；「描边画在 padding 之后」的教训留档：
+            //  画在前面会框住整个行宽、比卡片大一圈，0920 实机事故）
             .padding(start = 15.dp, end = 6.dp)
             .padding(vertical = 3.dp)
-            .then(
-                if (enabled) Modifier.border(
-                    1.dp, MaterialTheme.colorScheme.primary, RoundedCornerShape(12.dp)
-                ) else Modifier
-            )
     ) {
         Row(
-            // 卡内 5 + 左缩进 14 ⇒ 模型名左缘 34dp，与组头组名文字左缘
-            //（箭头 6+22+6=34dp）同列（用户 0920 实机反馈：名字要对齐）
+            // 卡内 5 + 行首对勾（约 40dp）⇒ 模型名左缘 ≈ 卡缘+45；旧「名字与组名 34dp 同列」
+            // 口径随对勾方案作废（对勾占位比原 14dp 空槽宽，结构上保不住）
             // end 必须为 0：条目动作图标右缘才能落在卡右缘（= 组头图标区右缘）同列
             Modifier.fillMaxWidth()
-                // 点卡片本体 = 启用/停用（用户 0919 终稿：底色承担选中，加减符号全部退役）
-                .clickable(enabled = !selectionMode, onClick = onTogglePool)
+                // 卡片本体不可点（10-03：启用走行首对勾、复制走点名字——旧「点卡片启用」退役）
                 .padding(start = 5.dp, end = 0.dp, top = 8.dp, bottom = 8.dp),
             // 名字换行成两行时图标垂直居中，不再用 Top 咬行
             verticalAlignment = Alignment.CenterVertically
         ) {
-            if (selectionMode) {
-                Checkbox(checked = checked, onCheckedChange = { onToggleCheck() })
-            } else {
-                // 名字左缘占位 14dp（原行首测试灯的位置）：圆点已按 0920 定稿挪到图标区
-                //（名字后紧挨闪电前，两页统一），这里留空槽让名字左缘仍在 34dp 与组名同列
-                Spacer(Modifier.width(14.dp))
-            }
+            // 行首对勾：常规=启用开关（照主界面 Item.kt 同款 role Switch + 语义描述）；
+            // 多选/组内删除模式=勾选，同一位置同一控件切换语义
+            Checkbox(
+                modifier = if (selectionMode) Modifier else Modifier.semantics {
+                    role = Role.Switch
+                    context.getString(
+                        if (enabled) R.string.config_enabled_desc else R.string.config_disabled_desc,
+                        KeyListFile.displayName(entry)
+                    ).let {
+                        contentDescription = it
+                        stateDescription = it
+                    }
+                },
+                checked = if (selectionMode) checked else enabled,
+                onCheckedChange = { if (selectionMode) onToggleCheck() else onTogglePool() },
+            )
             // 名字区 weight(1f)。多选模式下点名字 = 勾选（整行即复选框的延伸）。
             // clickable 只在多选时挂载：非多选挂着 enabled=false 也拦掉整卡的启用切换
             // 点击（0920 实机反馈：只有名字前小空隙能点），条件挂载才干净
@@ -272,7 +281,11 @@ private fun KeyEntryRow(
                 maxLines = 2,
                 overflow = TextOverflow.Ellipsis,
                 modifier = Modifier.weight(1f)
-                    .then(if (selectionMode) Modifier.clickable { onToggleCheck() } else Modifier)
+                    // 多选/组内删除模式点名字=勾选；常规模式点名字=复制模型名（10-03 拍板，📋 键退役）
+                    .then(
+                        if (selectionMode) Modifier.clickable { onToggleCheck() }
+                        else Modifier.clickable { onCopy() }
+                    )
             )
             if (!selectionMode) {
                 // 测试结果圆点：名字后、紧挨闪电前（0920 定稿，两页同位置）——
@@ -287,10 +300,11 @@ private fun KeyEntryRow(
                         Box(Modifier.size(8.dp).background(dot, CircleShape))
                     }
                 }
-                // 固定宽图标区（方案 A）：144dp=4×36dp 热区，与组头行图标垂直成列。
+                // 固定宽图标区：108dp=3×36dp 热区（📋 复制键退役，点名字即复制）；
+                // 右对齐后 ⚡✏🗑 仍与组头图标列垂直成列（组头 144dp 多出的 + 在最左空档）
                 // ⚡ 灰按钮：测试中原位转小圈，转完回灰闪电；测完不变色（结果看名字后圆点）
                 Row(
-                    Modifier.width(144.dp),
+                    Modifier.width(108.dp),
                     horizontalArrangement = Arrangement.End,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
@@ -305,7 +319,6 @@ private fun KeyEntryRow(
                             enabled = !testing
                         ) { onTest() }
                     }
-                    FlatIconAction(Icons.Default.ContentCopy, stringResource(R.string.copy)) { onCopy() }
                     FlatIconAction(Icons.Default.Edit, stringResource(R.string.role_key_edit)) { onEdit() }
                     FlatIconAction(Icons.Default.DeleteOutline, stringResource(R.string.delete)) { onDelete() }
                 }
