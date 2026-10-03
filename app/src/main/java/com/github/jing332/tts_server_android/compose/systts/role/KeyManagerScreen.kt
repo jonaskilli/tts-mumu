@@ -193,6 +193,12 @@ internal fun testDotColor(verdict: KeyListFile.TestVerdict?, errorColor: Color):
     KeyListFile.TestVerdict.PASS -> TEST_PASS_COLOR
 }
 
+/** 从测试 message 里提取用时（「…，123ms」尾段）；提不出返回空串（收起行省略用时） */
+internal fun timingOf(message: String): String {
+    val m = Regex("(\\d+)\\s*ms").find(message) ?: return ""
+    return m.groupValues[1] + "ms"
+}
+
 /** 扁平图标动作：无描边无底色，18dp onSurfaceVariant 灰、36dp 热区；删除模式随组头转红。
  *  enabled=false 置灰不可点（调序箭头在列表两端用） */
 @Composable
@@ -342,15 +348,25 @@ private fun KeyEntryRow(
                 }
             }
         }
-        // 结果提示条（10-03 三/四/五改）：黄/红时在卡内行下方常驻。用户口径——都放卡片底部：
-        // 收起=一行省略（不占地儿）；点击展开=全文多行 + 「复制 / 去设置」；再点收起。
-        // 绿不显示（不打扰）；卡内底部归属清晰（卡=模型边界）。
-        // 展开态记住（rememberSaveable by key）：组测后逐张卡片看详情不用反复展开
-        if (!selectionMode && testOutcome != null &&
-            testOutcome.verdict != KeyListFile.TestVerdict.PASS
-        ) {
+        // 结果提示条（10-03 三~六改）：黄/红/绿三态都在卡内行下方常驻（六改：绿也显示——「测试通过·用时」有普适性）。
+        // 用户口径——都放卡片底部：收起=一行省略；点击展开=全文多行 + 「复制 / 去设置」；再点收起。
+        // 卡内底部归属清晰（卡=模型边界）；展开态记住（rememberSaveable by key）
+        if (!selectionMode && testOutcome != null) {
             val isWarn = testOutcome.verdict == KeyListFile.TestVerdict.PASS_THINKING
-            val barColor = if (isWarn) TEST_WARN_COLOR else MaterialTheme.colorScheme.error
+            val isPass = testOutcome.verdict == KeyListFile.TestVerdict.PASS
+            val barColor = when {
+                isPass -> TEST_PASS_COLOR
+                isWarn -> TEST_WARN_COLOR
+                else -> MaterialTheme.colorScheme.error
+            }
+            // 收起行：绿=「✅ 通过 · 用时」（message 形如「HTTP 200，123ms」取用时段）；黄=短文案；红=原因开头
+            val passTiming = timingOf(testOutcome.message)
+            val collapsedText = when {
+                isPass -> if (passTiming.isEmpty()) "✅ " + stringResource(R.string.role_key_test_pass_only)
+                else "✅ " + stringResource(R.string.role_key_test_pass_short, passTiming)
+                isWarn -> stringResource(R.string.role_key_warn_thinking_on)
+                else -> "❌ " + testOutcome.message
+            }
             var expanded by rememberSaveable(entry.name) { mutableStateOf(false) }
             val clipboard = LocalClipboardManager.current
             Column(
@@ -366,9 +382,7 @@ private fun KeyEntryRow(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text(
-                        // 收起一行：黄用短文案（决定性信息），红用 message 开头；展开后见全文
-                        (if (isWarn) stringResource(R.string.role_key_warn_thinking_on)
-                        else "❌ " + testOutcome.message),
+                        collapsedText,
                         style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.sp),
                         color = barColor,
                         maxLines = if (expanded) Int.MAX_VALUE else 1,

@@ -700,17 +700,19 @@ object KeyListFile {
     }
 
 /**
- * OpenAI 兼容 base（照插件 getOpenAiBaseUrl）：命中末尾端点段就剥掉直接返回，否则无版本段时补 /v1。
+ * OpenAI 兼容 base（照插件 getOpenAiBaseUrl）：命中末尾端点段就剥掉直接返回。
  * 端点清单 = 插件三个（/chat/completions、/completions、/models）+ /responses（部分中转站文档直给）。
- * ⚠️ 旧版把「剥后缀」和「补 /v1」串成一条流水线 ⇒ http://x/chat/completions 变 http://x/v1，
- *    sameApiSite 判同站被放宽，与插件的分组 / 级联删除结果对不上。
+ * ⚠️ 10-03 用户令「/v1 逻辑都不要，手动填到 v1」：不再自动补 /v1——自动补会让测试与规则
+ *    对同一网址走向不同链路（测试补了能通、规则没补 404），「测试通过但无法分配」的成因之一。
+ *    剥后缀保留（分组的同站判定依赖它）；网址填不全 → 测试 404 直接暴露，不在测试层掩盖。
+ *    ⚠️ 本函数同时被分组同站判定（sameApiSite）使用——同站=剥尾巴后逐字相等。
  */
     fun openAiBaseUrl(url: String): String {
         val u = normalizeBaseUrl(url)
         for (suffix in arrayOf("/chat/completions", "/completions", "/models", "/responses")) {
             if (u.endsWith(suffix)) return u.dropLast(suffix.length)
         }
-        return if (!Regex("/v\\d+[a-z]*").containsMatchIn(u)) "$u/v1" else u
+        return u
     }
 
 /** 对话端点（照插件 getOpenAiChatUrl）：已是 /chat/completions 直接返回，其余在 base 后拼 */
@@ -977,7 +979,8 @@ object KeyListFile {
 
     // ==================== 1:1 复刻补充（对照 角色管理v10 插件函数）====================
 
-    /** 同站判断（照插件 sameApiSite：两边 base（剥端点、补版本段）一致算同站；异常回退原文比较） */
+    /** 同站判断（照插件 sameApiSite：两边 base 剥端点尾巴后逐字相等；异常回退原文比较）。
+     *  10-03 起不再补 /v1：填到哪算哪——同站=剥尾巴后逐字相等（网址必须填全版本段） */
     fun sameApiSite(a: String, b: String): Boolean = try {
         openAiBaseUrl(a) == openAiBaseUrl(b)
     } catch (e: Exception) {

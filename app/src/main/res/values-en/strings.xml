@@ -714,7 +714,7 @@ Add %3$d, skip %4$d duplicates
     <string name="role_key_ifc_url">Base URL</string>
     <string name="role_key_ifc_key">API Key</string>
     <string name="role_key_group_name_label">Group name</string>
-    <string name="role_key_ifc_url_hint">Paste up to /v1 — rest auto-filled</string>
+    <string name="role_key_ifc_url_hint">Include the version path (e.g. …/v1) — no auto-filling</string>
     <string name="role_key_group_name_hint"> (auto-fills from the URL if empty)</string>
     <string name="role_key_url_hint"> (up to /v1)</string>
     <string name="role_key_will_request">Request %1$s</string>
@@ -755,6 +755,8 @@ Add %3$d, skip %4$d duplicates
     <string name="role_key_test_warn_toast">"%1$s": thinking still on, see card below</string>
     <string name="role_key_test_fail_toast_simple">"%1$s" failed, see card below</string>
     <string name="role_key_test_result_copy">Copy result</string>
+    <string name="role_key_test_pass_short">Passed · %1$s</string>
+    <string name="role_key_test_pass_only">Test passed</string>
     <string name="role_key_model_filter">🔍 Filter models</string>
     <string name="role_key_model_input_hint">Model name</string>
     <string name="role_key_delete_n">Delete (%1$d)</string>

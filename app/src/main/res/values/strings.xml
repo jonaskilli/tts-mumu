@@ -885,7 +885,7 @@
     <string name="role_key_ifc_url">接口地址</string>
     <string name="role_key_ifc_key">API Key</string>
     <string name="role_key_group_name_label">分组名</string>
-    <string name="role_key_ifc_url_hint">地址填到 /v1 即可，自动补全</string>
+    <string name="role_key_ifc_url_hint">地址需填完整版本段（如 …/v1），不再自动补全</string>
     <string name="role_key_group_name_hint">（留空时自动从地址抓取）</string>
     <string name="role_key_url_hint">（填至 /v1 即可）</string>
     <string name="role_key_will_request">请求 %1$s</string>
@@ -926,6 +926,8 @@
     <string name="role_key_test_warn_toast">「%1$s」思考未关，详情见卡片下方</string>
     <string name="role_key_test_fail_toast_simple">「%1$s」测试未通过，详情见卡片下方</string>
     <string name="role_key_test_result_copy">复制结果</string>
+    <string name="role_key_test_pass_short">通过 · %1$s</string>
+    <string name="role_key_test_pass_only">测试通过</string>
     <string name="role_key_model_filter">🔍 搜索过滤模型</string>
     <string name="role_key_model_input_hint">输入模型名</string>
     <string name="role_key_delete_n">删除(%1$d)</string>
