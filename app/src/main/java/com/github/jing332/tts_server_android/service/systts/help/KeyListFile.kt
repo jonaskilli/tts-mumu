@@ -63,13 +63,15 @@ object KeyListFile {
         THINKING_MULTI, THINKING_TYPE, THINKING_TMODE, THINKING_DTHINK, THINKING_NCOT, THINKING_NONE,
     )
 
-    /** 写法 → 请求体附加字段（规则端按同语义实现）；custom 解析失败返回 null */
+    /** 写法 → 请求体附加字段（规则端按同语义实现）；custom 解析失败返回 null。
+     *  multi 档含 do_sample（= 旧行为逐字节：老 payload 的四连发 + do_sample 五件套都在这档） */
     fun thinkingBodyFields(mode: String, customJson: String): JSONObject? = when (mode) {
         THINKING_MULTI -> JSONObject()
             .put("thinking_mode", false)
             .put("thinking", JSONObject().put("type", "disabled"))
             .put("disable_think", true)
             .put("no_chain_of_thought", true)
+            .put("do_sample", false)
         THINKING_TYPE -> JSONObject().put("thinking", JSONObject().put("type", "disabled"))
         THINKING_TMODE -> JSONObject().put("thinking_mode", false)
         THINKING_DTHINK -> JSONObject().put("disable_think", true)
