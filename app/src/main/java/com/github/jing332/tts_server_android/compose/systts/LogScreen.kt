@@ -15,6 +15,7 @@ import androidx.compose.foundation.gestures.scrollBy
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -75,6 +76,7 @@ import com.github.jing332.common.toLogLevelChar
 import com.github.jing332.compose.ComposeExtensions.toAnnotatedString
 import com.github.jing332.compose.widgets.ControlBottomBarVisibility
 import com.github.jing332.tts_server_android.R
+import com.github.jing332.tts_server_android.compose.ListGutter
 import com.github.jing332.tts_server_android.compose.LocalBottomBarBehavior
 import kotlinx.coroutines.launch
 
@@ -288,7 +290,10 @@ fun LogScreen(
                         }
                     } else Modifier
                 ),
-            state = listState
+            state = listState,
+            // 左右基准线 16（v3 边距统一）：正文不再贴屏，与顶部搜索控制行（16）同线；
+            // 行内水平 padding 随之归零（下方），裸内容直接落 gutter 线
+            contentPadding = PaddingValues(horizontal = ListGutter)
         ) {
                 itemsIndexed(list, key = { index, _ -> index }) { index, log ->
                     // 获取成功前缀：石板灰 Blue Grey 800/200
@@ -323,10 +328,9 @@ fun LogScreen(
                             (log.message.contains(searchQuery, ignoreCase = true) ||
                                     log.time.contains(searchQuery, ignoreCase = true))
 
-                    // 每条日志之间画分隔线
+                    // 每条日志之间画分隔线（无水平 inset：与行文字同跨 gutter 全宽，左右缘对齐）
                     if (index > 0)
                         HorizontalDivider(
-                            modifier = Modifier.padding(horizontal = 4.dp),
                             color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f)
                         )
 
@@ -355,9 +359,9 @@ fun LogScreen(
                                     )
                                 else Modifier
                             )
+                            // 水平内边距归零（v3 边距统一）：容器 gutter 16 即裸内容线，
+                            // 行内不再叠加；高亮圆角块随行全宽（16..344）。纵向 3.5 保留不动
                             .padding(
-                                start = 4.dp,
-                                end = 4.dp,
                                 top = 3.5.dp,
                                 bottom = 3.5.dp
                             )

@@ -66,6 +66,7 @@ import com.drake.net.utils.withIO
 import com.github.jing332.database.dbm
 import com.github.jing332.database.entities.systts.TtsConfigurationDTO
 import com.github.jing332.tts_server_android.R
+import com.github.jing332.tts_server_android.compose.ListGutter
 import com.github.jing332.tts_server_android.compose.systts.common.VoicePickerDialog
 import com.github.jing332.tts_server_android.service.systts.help.CharacterRecordsFile
 import com.github.jing332.tts_server_android.service.systts.help.VoiceMarksFile
@@ -265,13 +266,16 @@ fun RoleListScreen(
             color = softContainerColor(),
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 8.dp, vertical = 4.dp)
+                // 卡缘 = ListGutter 16（v3 边距统一）：与搜索框描边/列表行同线，
+                // 框的从属靠框内 padding（内层 start 4）表达
+                .padding(horizontal = ListGutter, vertical = 4.dp)
                 // 编辑态不触发展开，避免打断改名输入
                 .clickable(enabled = !editingBook) { showBookDialog = true },
         ) {
             Row(
-                // start=8：外层 8 + 内层 8 = 16dp 文字左缘，与搜索框/列表行对齐（整体化）
-                Modifier.fillMaxWidth().padding(start = 8.dp, end = 2.dp, top = 4.dp, bottom = 4.dp),
+                // start=4：外层 16（gutter）+ 内层 4 = 20dp 文字左缘（框内自理，不再对齐外部元素；
+                // 旧口径「外 8+内 8=16 与搜索框对齐」随 v3 边距统一作废——框缘已与搜索框同线）
+                Modifier.fillMaxWidth().padding(start = 4.dp, end = 2.dp, top = 4.dp, bottom = 4.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 // 彩色 📖 emoji（拍板：书籍图标要彩色；推翻 09-14「入口类 emoji
@@ -438,16 +442,20 @@ fun RoleListScreen(
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             maxLines = 1,
             overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
-            // 跟下方列表行左对齐——行内容左缘 = LazyColumn 12 + RoleRow 行内 14 = 26dp，
-            // 提示行原来 12dp，比列表凸出去一截
-            modifier = Modifier.padding(start = 26.dp, end = 12.dp, top = 2.dp, bottom = 2.dp)
+            // 跟下方列表行左对齐——行内容左缘 = LazyColumn gutter 16 + RoleRow 行内 0 = 16dp
+            // （v3 边距统一后与列表同一条线；右缘同步 16 与容器对齐）
+            modifier = Modifier.padding(
+                start = ListGutter, end = ListGutter, top = 2.dp, bottom = 2.dp
+            )
         )
 
         // ===== 平铺角色列表（完全展开）=====
         LazyColumn(
             Modifier.weight(1f),
+            // 左右基准线 16（v3 边距统一，M3 gutter）：行内水平 padding 归零后，
+            // 圆点/文字/选中块直接落这条线，与搜索框描边（16）、书籍卡缘（16）同线
             contentPadding = androidx.compose.foundation.layout.PaddingValues(
-                start = 12.dp, end = 12.dp, top = 2.dp, bottom = bottomPadding + 96.dp
+                start = ListGutter, end = ListGutter, top = 2.dp, bottom = bottomPadding + 96.dp
             )
         ) {
             if (filtered.isEmpty()) {
@@ -836,8 +844,9 @@ private fun RoleRow(
         modifier = Modifier.fillMaxWidth()
     ) {
         Row(
-            // 照插件 createListRow：内边距 14dp 横 / 10dp 纵（行高 ≥44dp 保证点击区域）
-            Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 10.dp),
+            // 纵向 10dp 保留（行高 ≥44dp 保证点击区域）。水平内边距照插件 14dp 的口径已退役
+            // （v3 边距统一）：容器 gutter 16 即裸内容线，行内不再叠加，选中块随行落 16..gutter 全宽
+            Modifier.fillMaxWidth().padding(vertical = 10.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             // 名字列
