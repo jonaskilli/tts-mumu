@@ -26,7 +26,98 @@ object KeyListFile {
         val baseUrl: String,
         val apiKey: String,
         val models: List<String>,
+        // 思考模式策略（10-03）：auto=⚡测试时自动试探并锁定；其余为手动指定写法。
+        // 旧数据无此字段 → 读出 AUTO（新规则自适应；旧规则不读配置，行为不变）
+        val thinkingMode: String = THINKING_AUTO,
+        // mode = custom 时随请求体原样合并的 JSON 文本
+        val thinkingCustom: String = "",
     )
+
+    /** 条目测试结论三态：绿=通且思考已关 / 黄=通但思考仍开启 / 红=不通 */
+    enum class TestVerdict { PASS, PASS_THINKING, FAIL }
+
+    /** 测试结果：verdict 三态 + thinkingOff 判据（null=该路径无对话响应，如纯 Key 的 /models） */
+    data class TestOutcome(val verdict: TestVerdict, val thinkingOff: Boolean?, val message: String)
+
+    // ==================== 思考模式（接口级）====================
+    // 背景（10-03）：规则旧版对每家平台"四连发"思考字段，严格校验的平台整请求拒收
+    //（返回 UNKNOWN_FIELD），分配直接失败。改为按接口配置写法，⚡ 测试验证，
+    // 锁定结果落 thinking_params.json 供朗读规则读取。
+
+    const val THINKING_AUTO = "auto"                // 自动试探并锁定（默认策略）
+    const val THINKING_MULTI = "multi"              // 多字段连发（旧版规则口径，宽容平台现状）
+    const val THINKING_TYPE = "thinking_type"       // thinking: {type: "disabled"}
+    const val THINKING_TMODE = "thinking_mode"      // thinking_mode: false
+    const val THINKING_DTHINK = "disable_think"     // disable_think: true
+    const val THINKING_NCOT = "no_cot"              // no_chain_of_thought: true
+    const val THINKING_NONE = "none"                // 一个思考字段都不带（严格平台保命）
+    const val THINKING_LOW = "low"                  // reasoning_effort: "low"（只压低，关不掉）
+    const val THINKING_CUSTOM = "custom"            // 自定义 JSON 原样合并
+
+    /** auto 探测顺序：从全到裸；全被拒/全带思考 → 锁定裸请求（保"起码能分配"） */
+    private val THINKING_PROBE_ORDER = arrayOf(
+        THINKING_MULTI, THINKING_TYPE, THINKING_TMODE, THINKING_DTHINK, THINKING_NCOT, THINKING_NONE,
+    )
+
+    /** 写法 → 请求体附加字段（规则端按同语义实现）；custom 解析失败返回 null */
+    fun thinkingBodyFields(mode: String, customJson: String): JSONObject? = when (mode) {
+        THINKING_MULTI -> JSONObject()
+            .put("thinking_mode", false)
+            .put("thinking", JSONObject().put("type", "disabled"))
+            .put("disable_think", true)
+            .put("no_chain_of_thought", true)
+        THINKING_TYPE -> JSONObject().put("thinking", JSONObject().put("type", "disabled"))
+        THINKING_TMODE -> JSONObject().put("thinking_mode", false)
+        THINKING_DTHINK -> JSONObject().put("disable_think", true)
+        THINKING_NCOT -> JSONObject().put("no_chain_of_thought", true)
+        THINKING_LOW -> JSONObject().put("reasoning_effort", "low")
+        THINKING_NONE -> JSONObject()
+        THINKING_CUSTOM -> try {
+            JSONObject(customJson)
+        } catch (e: Exception) {
+            null
+        }
+        else -> null
+    }
+
+    /** 思考参数文件（规则读取的唯一真源）：{ "归一化网址": {"mode": "...", "custom": "..."} } */
+    private fun thinkingFile(tagRuleId: String) = File(dir(tagRuleId), "thinking_params.json")
+
+    /** 读全部思考参数；文件缺失/损坏返回空表 */
+    fun readThinkingParams(tagRuleId: String): Map<String, Pair<String, String>> = try {
+        val f = thinkingFile(tagRuleId)
+        if (!f.exists()) emptyMap()
+        else {
+            val root = JSONObject(f.readText())
+            val out = mutableMapOf<String, Pair<String, String>>()
+            root.keys().forEach { k ->
+                val o = root.optJSONObject(k) ?: return@forEach
+                out[k] = (o.optString("mode") to o.optString("custom"))
+            }
+            out
+        }
+    } catch (e: Exception) {
+        Log.w(TAG, "readThinkingParams failed: ${e.message}")
+        emptyMap()
+    }
+
+    /** 写/删一条思考参数（custom 仅 custom 模式有意义）；mode 空串 = 删除该条 */
+    fun saveThinkingParam(tagRuleId: String, baseUrl: String, mode: String, custom: String): Boolean = try {
+        val d = dir(tagRuleId)
+        if (!d.exists()) d.mkdirs()
+        val f = thinkingFile(tagRuleId)
+        val root = if (f.exists()) JSONObject(f.readText()) else JSONObject()
+        if (mode.isEmpty()) root.remove(normalizeBaseUrl(baseUrl)) else {
+            val o = JSONObject().put("mode", mode)
+            if (mode == THINKING_CUSTOM && custom.isNotBlank()) o.put("custom", custom)
+            root.put(normalizeBaseUrl(baseUrl), o)
+        }
+        f.writeText(root.toString(2))
+        true
+    } catch (e: Exception) {
+        Log.w(TAG, "saveThinkingParam failed: ${e.message}")
+        false
+    }
 
     data class ParsedKey(val isDirect: Boolean, val url: String, val model: String, val key: String)
 
@@ -507,6 +598,8 @@ object KeyListFile {
                     baseUrl = o.optString("baseUrl"),
                     apiKey = o.optString("apiKey"),
                     models = models,
+                    thinkingMode = o.optString("thinkingMode", THINKING_AUTO),
+                    thinkingCustom = o.optString("thinkingCustom"),
                 )
             }
         }
@@ -528,6 +621,8 @@ object KeyListFile {
             val ma = JSONArray()
             ifc.models.forEach { ma.put(it) }
             o.put("models", ma)
+            o.put("thinkingMode", ifc.thinkingMode)
+            if (ifc.thinkingCustom.isNotBlank()) o.put("thinkingCustom", ifc.thinkingCustom)
             arr.put(o)
         }
         root.put("interfaces", arr)
@@ -719,44 +814,127 @@ object KeyListFile {
         runCatching { JSONArray(body); true }.getOrDefault(false)
     }
 
+/** 思考内容判定（文档第四章判据）：choices[0].message.reasoning_content 非空，或 usage.reasoning_tokens > 0 */
+    private fun bodyHasThinking(body: String): Boolean = try {
+        val j = JSONObject(body)
+        val msg = j.optJSONArray("choices")?.optJSONObject(0)?.optJSONObject("message")
+        val rc = msg?.optString("reasoning_content").orEmpty()
+        val rt = j.optJSONObject("usage")?.optJSONObject("completion_tokens_details")
+            ?.optInt("reasoning_tokens", 0) ?: 0
+        rc.isNotEmpty() || rt > 0
+    } catch (e: Exception) {
+        false
+    }
+
+    /** 单次对话测试（请求体按 mode 附加思考字段）；返回 (可达, 思考已关判定, 摘要) */
+    private fun testOnce(t: TestTarget, mode: String, customJson: String): Triple<Boolean, Boolean?, String> {
+        val fields = thinkingBodyFields(mode, customJson)
+            ?: return Triple(false, null, "自定义 JSON 无法解析，请检查格式")
+        val payload = try {
+            val o = JSONObject(chatPayload(t.model, "只回复 pong", 16, 0))
+            fields.keys().forEach { k -> o.put(k, fields.get(k)) }
+            o.toString()
+        } catch (e: Exception) {
+            chatPayload(t.model, "只回复 pong", 16, 0)
+        }
+        val t0 = System.currentTimeMillis()
+        val resp = httpJson(t.chatUrl, "POST", t.apiKey, payload)
+        if (resp.ok && chatReplyOk(resp.body)) {
+            val thinking = bodyHasThinking(resp.body)
+            return Triple(true, !thinking, "HTTP ${resp.code}，${System.currentTimeMillis() - t0}ms")
+        }
+        return Triple(false, null, when {
+            resp.ok -> "HTTP 状态正常但内容不是有效的对话响应：${briefBody(resp.body)}"
+            resp.code == 401 || resp.code == 403 -> "密钥无效或无权限（HTTP ${resp.code}）"
+            resp.code == 404 -> "对话端点不存在（HTTP 404），请检查接口地址结尾/模型名"
+            else -> "HTTP ${resp.code}，${briefBody(resp.body)}"
+        })
+    }
+
 /**
- * 密钥通断测试（照插件 testModelKey）：@@串先打 /chat/completions 并校验响应体，失败降级重试一次；
- * /models 只作参考（多数中转站不校验密钥，任何 key 都返回 200）。纯 Key 走智谱 /models。
- * ⚠️ 旧版策略相反：先 GET /models、2xx 就判可用 ⇒ 错的密钥也显示「可用」。
+ * 密钥通断测试 + 思考模式适配（10-03）。
+ * 策略取该密钥所属接口的 thinkingMode：
+ *  - auto：先按 thinking_params.json 锁定写法测一发；不通再按候选序列（从全到裸）试探，
+ *    首个「可达且无思考内容」的写法锁定落盘；全部带思考 → 锁定裸请求（保"起码能分配"）报黄。
+ *  - 手动模式：按所选写法测一发（自定义 JSON 解析失败直接报错）。
+ * 纯 Key 直连走智谱 /models，无对话响应，思考判定为 null（圆点按绿处理）。
+ * ⚠️ 旧版"四连发"口径（thinking_mode/thinking.type/disable_think/no_chain_of_thought 一次全带）
+ *    对严格校验的平台会整请求拒收（UNKNOWN_FIELD）——这正是"有的 API 分配不了角色"的根因。
  */
-    fun testKey(rawValue: String): Pair<Boolean, String> {
+    fun testWithThinking(tagRuleId: String, rawValue: String): TestOutcome {
         val (t, err) = parseForTest(rawValue)
-        if (t == null) return false to err
+        if (t == null) return TestOutcome(TestVerdict.FAIL, null, err)
         if (t.isDirect) {
             val t0 = System.currentTimeMillis()
             val r = httpJson("https://open.bigmodel.cn/api/paas/v4/models", "GET", t.apiKey, null)
             if (r.ok && modelListOk(r.body)) {
-                return true to "智谱 /models 验证成功，${System.currentTimeMillis() - t0}ms"
+                return TestOutcome(TestVerdict.PASS, null, "智谱 /models 验证成功，${System.currentTimeMillis() - t0}ms")
             }
-            if (r.code == 401 || r.code == 403) return false to "密钥无效或无权限（HTTP ${r.code}）"
-            return false to "智谱 /models 验证失败：HTTP ${r.code}，${briefBody(r.body)}"
+            val msg = if (r.code == 401 || r.code == 403) "密钥无效或无权限（HTTP ${r.code}）"
+            else "智谱 /models 验证失败：HTTP ${r.code}，${briefBody(r.body)}"
+            return TestOutcome(TestVerdict.FAIL, null, msg)
         }
-        val t0 = System.currentTimeMillis()
-        var resp = httpJson(t.chatUrl, "POST", t.apiKey, chatPayload(t.model, "只回复 pong", 16, 0))
-        if (!(resp.ok && chatReplyOk(resp.body))) {
-            val retry = httpJson(t.chatUrl, "POST", t.apiKey, chatPayload(t.model, "ping", null, null))
-            if (retry.ok && chatReplyOk(retry.body)) resp = retry
+        val ifc = readInterfaces(tagRuleId).firstOrNull {
+            sameApiSite(it.baseUrl, t.baseUrl) && it.apiKey.trim() == t.apiKey
         }
-        if (resp.ok && chatReplyOk(resp.body)) {
-            return true to "测试成功，${System.currentTimeMillis() - t0}ms"
+        val policy = ifc?.thinkingMode ?: THINKING_AUTO
+        val custom = ifc?.thinkingCustom.orEmpty()
+
+        // 手动模式：只测所选写法
+        if (policy != THINKING_AUTO) {
+            val (ok, off, msg) = testOnce(t, policy, custom)
+            val v = when {
+                !ok -> TestVerdict.FAIL
+                off == false -> TestVerdict.PASS_THINKING
+                else -> TestVerdict.PASS
+            }
+            val suffix = when {
+                !ok -> ""
+                off == false -> "；⚠思考仍开启"
+                else -> "；思考已关"
+            }
+            return TestOutcome(v, off, msg + suffix)
         }
-        val msg = when {
-            resp.ok -> "接口返回异常：HTTP 状态正常但内容不是有效的对话响应。HTTP ${resp.code}，${briefBody(resp.body)}"
-            resp.code == 401 || resp.code == 403 -> "密钥无效或无权限（HTTP ${resp.code}）：${briefBody(resp.body)}"
-            resp.code == 404 -> "对话端点不存在（HTTP 404），请检查接口地址结尾/模型名：${briefBody(resp.body)}"
-            resp.code == 400 -> "请求被拒绝（HTTP 400，常见原因：模型名不存在或参数不支持）：${briefBody(resp.body)}"
-            else -> "chat/completions 验证失败：HTTP ${resp.code}，${briefBody(resp.body)}"
+
+        // auto：先按锁定写法测一发（锁定后通常一发即走）
+        val locked = readThinkingParams(tagRuleId)[t.baseUrl]?.first
+        if (!locked.isNullOrEmpty() && locked != THINKING_CUSTOM) {
+            val (ok, off, msg) = testOnce(t, locked, custom)
+            if (ok) {
+                val v = if (off == false) TestVerdict.PASS_THINKING else TestVerdict.PASS
+                val suffix = if (off == false) "；⚠思考仍开启（锁定：$locked）" else "；思考已关（锁定：$locked）"
+                return TestOutcome(v, off, msg + suffix)
+            }
+            // 锁定写法突然不通（平台行为变了）→ 落到全量试探
         }
-        val models = httpJson(t.baseUrl + "/models", "GET", t.apiKey, null)
-        return false to (
-            if (models.ok) "$msg\n(参考：/models 可访问——该端点多数站点不校验密钥，不能说明密钥可用)"
-            else msg
+
+        // 全量试探：首个「可达且无思考内容」锁定落盘；全带思考 → 锁定裸请求（保分配）报黄
+        var yellow: Pair<String, String>? = null
+        var lastMsg = ""
+        for (m in THINKING_PROBE_ORDER) {
+            val (ok, off, msg) = testOnce(t, m, custom)
+            lastMsg = "$m：$msg"
+            if (!ok) continue
+            if (off != false) {
+                saveThinkingParam(tagRuleId, baseKey(t.baseUrl), m, "")
+                return TestOutcome(
+                    TestVerdict.PASS, true,
+                    "思考适配完成：该接口锁定「$m」（思考已关，$msg）"
+                )
+            }
+            if (yellow == null) yellow = m to msg
+        }
+        if (yellow != null) {
+            saveThinkingParam(tagRuleId, baseKey(t.baseUrl), yellow.first, "")
+            return TestOutcome(
+                TestVerdict.PASS_THINKING, false,
+                "各写法均无法关闭思考，已锁定「${yellow.first}」保证可分配：${yellow.second}"
             )
+        }
+        return TestOutcome(
+            TestVerdict.FAIL, null,
+            "自动试探失败（共 ${THINKING_PROBE_ORDER.size} 种写法，可能 API 本身不通）——最后一条：$lastMsg"
+        )
     }
 
     // ==================== 1:1 复刻补充（对照 角色管理v10 插件函数）====================
@@ -815,6 +993,8 @@ object KeyListFile {
                 val ma = JSONArray()
                 ifc.models.forEach { ma.put(it) }
                 o.put("models", ma)
+                o.put("thinkingMode", ifc.thinkingMode)
+                if (ifc.thinkingCustom.isNotBlank()) o.put("thinkingCustom", ifc.thinkingCustom)
                 ifcArr.put(o)
             }
             root.put("interfaces", ifcArr)
@@ -888,6 +1068,8 @@ object KeyListFile {
                                 baseUrl = o.optString("baseUrl"),
                                 apiKey = o.optString("apiKey"),
                                 models = models,
+                                thinkingMode = o.optString("thinkingMode", THINKING_AUTO),
+                                thinkingCustom = o.optString("thinkingCustom"),
                             )
                         )
                     }
