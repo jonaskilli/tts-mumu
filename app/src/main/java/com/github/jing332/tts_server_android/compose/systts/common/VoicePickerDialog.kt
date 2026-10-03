@@ -1591,8 +1591,9 @@ private fun snapParam(v: Float): Float = (kotlin.math.round(v * 100f) / 100f)
  * 行末 ⋮ 菜单（候选行与顶部「当前发音人」行共用，用户 09-17 方案A）。
  *
  * 菜单项与候选行**完全同源**：❤️喜欢 / 🚶路人 / 😈坏人（多选 toggle，点亮行尾打勾）
- * + 分隔线 + 🗑 删除配置项并随机分配（10-04 用户改名：删除会立即随机分配替代发音人，
- * 见 deletePreviewedConfig ③）。当前发音人行照搬这套语汇是为了零学习成本——用户已在候选行见过它；
+ * + 分隔线 + 🗑 删除配置项（10-04 回退原名，曾试「并随机分配」显歧义；行为不变——删除会立即
+ * 随机分配替代发音人，说明文案在删除确认弹窗提示词，见 deletePreviewedConfig ③）。
+ * 当前发音人行照搬这套语汇是为了零学习成本——用户已在候选行见过它；
  * 两处差异只在调用方给的标记键（顶部=topMarkKey，候选行=tag/voice）与删除目标。
  *
  * 标记项**点一次切一次、菜单不关**（可连点几个），点亮态即时反映到行内 emoji；
@@ -1624,8 +1625,8 @@ private fun VoiceOverflowMenu(
             }
             HorizontalDivider()
             DropdownMenuItem(
-                // 文案 10-04 改（用户令）：删除配置项后立即随机分配替代发音人（见 deletePreviewedConfig ③）
-                text = { Text("删除配置项并随机分配", color = MaterialTheme.colorScheme.error) },
+                // 文案 10-04 回退原名（试过「并随机分配」显歧义）；行为不变，提示词在删除确认弹窗
+                text = { Text("删除配置项", color = MaterialTheme.colorScheme.error) },
                 leadingIcon = {
                     Icon(
                         Icons.Filled.Delete,
