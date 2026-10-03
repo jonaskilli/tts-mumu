@@ -93,11 +93,17 @@ fun RoleManagementScreen(sharedVM: SharedViewModel, pagerState: PagerState) {
     var lastSig by remember { mutableStateOf(SpeechRuleConfig.lastRoleSig.value) }
     // 签名匹配则初始即就绪，不显示加载遮罩；不匹配则需重新生成文件，先显示遮罩。
     var roleFilesReady by remember { mutableStateOf(lastSig == enabledSig) }
+    // 列表重读钥匙：ON_RESUME / 后台重生成完成后自增，通知 RoleListScreen 重读文件（不卸载重建）
+    var reloadKey by remember { mutableIntStateOf(0) }
     LaunchedEffect(enabledSig) {
         if (lastSig != enabledSig) {
             lastSig = enabledSig
             SpeechRuleConfig.lastRoleSig.value = enabledSig
-            roleFilesReady = false
+            // 10-04 修（用户反馈「删除配置项后换声面板消失」）：首次就绪后，后台重生成期间
+            // **不再把 roleFilesReady 置 false**——那会让外层 if 整树卸载 RoleListScreen，
+            // 连开着的换声面板/暂存选择一起没（表现为「删一个配置项，面板就被关掉」）。
+            // 改为列表保持挂载，重生成完 reloadKey++ 让它重读文件（被删项随之消失，其余不动）。
+            // 首次进入（尚未就绪）仍需遮罩，维持原行为。
             withIO {
                 runCatching {
                     val rule = dbm.speechRuleDao.getByRuleIdAll("mingwuyan")
@@ -127,6 +133,7 @@ fun RoleManagementScreen(sharedVM: SharedViewModel, pagerState: PagerState) {
                 }
             }
             roleFilesReady = true
+            reloadKey++
         } else {
             // 签名匹配时仍检查标签扩容：用户可能只是切换到已有大量标签的分组，
             // 签名没变但朗读规则 tags 可能还没扩容到足够数量
@@ -144,7 +151,7 @@ fun RoleManagementScreen(sharedVM: SharedViewModel, pagerState: PagerState) {
 
     // 运行朗读规则后回到本页（ON_RESUME）时 reloadKey++ 重建内置列表，刷新角色标签
     // 跳过首次 ON_RESUME（首次进入由 LaunchedEffect 初始加载，避免重复 load）
-    var reloadKey by remember { mutableIntStateOf(0) }
+    // （reloadKey 声明已上移到自动重生成之前：重生成完成后也会自增它）
     var firstResume by remember { mutableStateOf(true) }
     val lifecycleOwner = LocalLifecycleOwner.current
     DisposableEffect(lifecycleOwner) {
