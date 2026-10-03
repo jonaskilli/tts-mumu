@@ -63,6 +63,39 @@ object KeyListFile {
         THINKING_MULTI, THINKING_TYPE, THINKING_TMODE, THINKING_DTHINK, THINKING_NCOT, THINKING_NONE,
     )
 
+    /**
+     * 探测序列（10-03 八改，用户令「加同站继承」）：同站其它模型已锁的写法按优先级置顶，
+     * 后面接标准序列去重。严格站：第 2 个模型大概率 1 发命中（= 同站已验证过的写法），
+     * 省掉从零探测的 1~2 发；宽容站：继承值就是 multi，排前=序列不变、零额外成本；
+     * 继承错了：自动落回标准序列，只多花 1 发（无害——个别中转站不同模型走不同上游）。
+     * 命中即止（首个「可达且无思考内容」锁定），与既有早停原则一致。
+     */
+    private fun probeOrderFor(tagRuleId: String, url: String, model: String): Array<String> {
+        val site = normalizeBaseUrl(openAiBaseUrl(url))
+        val inherited = readThinkingParams(tagRuleId)
+            .filter { (k, v) ->
+                k.contains("@@") && k.substringBefore("@@") == site &&
+                    k.substringAfter("@@") != model.trim() && v.first.isNotEmpty() &&
+                    v.first != THINKING_AUTO && v.first != THINKING_CUSTOM
+            }
+            .values.map { it.first }
+            .distinct()
+            .sortedBy { inheritedRank(it) }
+        if (inherited.isEmpty()) return THINKING_PROBE_ORDER
+        return (inherited + THINKING_PROBE_ORDER.toList()).distinct().toTypedArray()
+    }
+
+    /** 同站继承排序：宽松在前（multi=老行为最保守；越"重"的写法越靠后），与标准序列同向 */
+    private fun inheritedRank(mode: String): Int = when (mode) {
+        THINKING_MULTI -> 0
+        THINKING_TYPE -> 1
+        THINKING_TMODE -> 2
+        THINKING_DTHINK -> 3
+        THINKING_NCOT -> 4
+        THINKING_NONE -> 5
+        else -> 6
+    }
+
     /** 写法 → 请求体附加字段（规则端按同语义实现）；custom 解析失败返回 null。
      *  multi 档含 do_sample（= 旧行为逐字节：老 payload 的四连发 + do_sample 五件套都在这档） */
     fun thinkingBodyFields(mode: String, customJson: String): JSONObject? = when (mode) {
@@ -948,10 +981,11 @@ object KeyListFile {
             // 锁定写法突然不通（平台行为变了）→ 落到全量试探
         }
 
-        // 全量试探：首个「可达且无思考内容」锁定落盘；全带思考 → 锁定裸请求（保分配）报黄
+        // 全量试探（同站继承序列：同站已锁写法排前，命中即锁）；全带思考 → 锁定最宽松档保分配报黄
         var yellow: Pair<String, String>? = null
         var lastMsg = ""
-        for (m in THINKING_PROBE_ORDER) {
+        val order = probeOrderFor(tagRuleId, t.baseUrl, t.model)
+        for (m in order) {
             val (ok, off, msg) = testOnce(t, m, custom)
             lastMsg = "$m：$msg"
             if (!ok) continue
@@ -973,7 +1007,7 @@ object KeyListFile {
         }
         return TestOutcome(
             TestVerdict.FAIL, null,
-            "自动试探失败（共 ${THINKING_PROBE_ORDER.size} 种写法，可能 API 本身不通）——最后一条：$lastMsg"
+            "自动试探失败（共 ${order.size} 种写法，可能 API 本身不通）——最后一条：$lastMsg"
         )
     }
 
