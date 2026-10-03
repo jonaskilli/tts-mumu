@@ -652,7 +652,7 @@
     <string name="role_select_all_cancel">Deselect all</string>
     <string name="role_hint_line">Tap to select · Long-press for actions · Tap tag to change voice</string>
     <string name="role_add_character">＋ Add character</string>
-    <string name="role_menu_reassign">Reassign voice</string>
+    <string name="role_menu_reassign">Assign random voice</string>
     <string name="role_menu_title">Choose action</string>
     <string name="role_menu_merge_follow">Merge + follow target</string>
     <string name="role_menu_merge_voice">Merge + pick voice</string>

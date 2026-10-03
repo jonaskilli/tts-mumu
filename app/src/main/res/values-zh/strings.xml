@@ -706,7 +706,7 @@
     <string name="role_select_all_cancel">取消全选</string>
     <string name="role_hint_line">点击名字选中 · 长按操作 · 点标签换声</string>
     <string name="role_add_character">＋ 添加角色</string>
-    <string name="role_menu_reassign">再次分配发音人</string>
+    <string name="role_menu_reassign">随机分配发音人</string>
     <string name="role_menu_title">选择操作</string>
     <string name="role_menu_merge_follow">合并+跟随角色</string>
     <string name="role_menu_merge_voice">合并+选择发音人</string>
