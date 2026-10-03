@@ -33,7 +33,6 @@ import androidx.compose.material.icons.filled.FolderOpen
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material.icons.filled.Search
-import androidx.compose.material.icons.filled.Checklist
 import androidx.compose.material3.DockedSearchBar
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.LocalTextStyle
@@ -144,9 +143,9 @@ internal fun TtsLogScreen(vm: TtsLogViewModel = viewModel()) {
 
     val scrollBehavior = TopAppBarDefaults.pinnedScrollBehavior()
 
-    // ———— 页面级多选（1002 照密钥页 ☑ 同款；1003 加长按拖动入口）：跨条勾选 → 底栏「复制(N)」————
+    // ———— 页面级多选（1003 终态：长按条目即进，1002 的顶栏 ☑ 入口已删）：跨条勾选 → 底栏「复制(N)」————
     // 跨条拖选是 compose 1.7 selection 的崩溃源（滚动回收条目后选区悬挂 selectableId），
-    // 跨条复制一律走本模式；勾选以条目对象为键，筛选/重排不错位。
+    // 跨条复制一律走本模式；勾选以条目对象为键，筛选/重排不错位。退多选=返回键/复制后自动退。
     // 两个状态都用 remember（非 saveable）：Set<LogEntry> 不落 Bundle，旋转屏一并重置、
     // 保持「模式开着但勾选丢了」的不一致不会出现
     var selectionMode by remember { mutableStateOf(false) }
@@ -260,21 +259,6 @@ internal fun TtsLogScreen(vm: TtsLogViewModel = viewModel()) {
                         // 筛选按钮
                         IconButton(onClick = { vm.showFilterDialog.value = true }) {
                             Icon(Icons.Default.FilterList, stringResource(R.string.filter))
-                        }
-
-                        // 多选入口（1002）：紧跟筛选之后（用户点名位置）；切换键，选中态染 primary；
-                        // 跨条勾选 → 底栏「复制(N)」
-                        IconButton(
-                            onClick = {
-                                if (selectionMode) exitSelection() else selectionMode = true
-                            }
-                        ) {
-                            Icon(
-                                Icons.Default.Checklist,
-                                contentDescription = stringResource(R.string.desc_multi_select),
-                                tint = if (selectionMode) MaterialTheme.colorScheme.primary
-                                else MaterialTheme.colorScheme.onSurfaceVariant
-                            )
                         }
 
                         // 文件夹按钮 - 先弹日志文件列表自由选择（用户 09-08），点击文件再用外部查看器打开

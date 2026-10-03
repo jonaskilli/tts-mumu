@@ -113,9 +113,9 @@ fun LogScreen(
     autoScrollToBottom: Boolean = false,
     // 非空时命中项加背景高亮(定位用，不过滤列表)
     searchQuery: String = "",
-    // 多选模式：顶栏 ☑ 或长按条目（1003）进入。跨条复制走本模式而非 compose
-    // selection——条目滚出视口被回收后选区仍悬挂其 selectableId，拖柄重算查表即崩
-    // （上游至今未修，详见 1002 记录）
+    // 多选模式：长按条目进入（1003；顶栏 ☑ 已删，退多选=返回键/复制后自动退）。跨条复制
+    // 走本模式而非 compose selection——条目滚出视口被回收后选区仍悬挂其 selectableId，
+    // 拖柄重算查表即崩（上游至今未修，详见 1002 记录）
     selectionMode: Boolean = false,
     // 勾选的日志（以条目对象为键：对列表增删/筛选重排免疫；time 毫秒级，同值碰撞可忽略）
     checkedEntries: Set<LogEntry> = emptySet(),
@@ -323,7 +323,7 @@ fun LogScreen(
                         )
 
                     // 多选：点条目=勾选（越权操作不进快捷面板）；非多选：点带
-                    // configId 的请求主行弹快捷面板。多选入口=顶栏 ☑ 或长按拖动（容器手势）
+                    // configId 的请求主行弹快捷面板。多选入口=长按拖动（容器手势）
                     val checked = log in checkedEntries
                     Column(
                         modifier = Modifier
