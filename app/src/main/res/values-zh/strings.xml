@@ -569,14 +569,17 @@
     <string name="keep_alive_service_title">TTS Server 后台保活</string>
     <string name="keep_alive_service_content">正在保持后台运行...</string>
     <string name="stop_keep_alive">停止保活</string>
+
     <string name="keep_alive_settings">后台保活设置</string>
     <string name="keep_alive_settings_summary">配置多种机制防止应用被系统杀死</string>
     <string name="enable_keep_alive">启用后台保活</string>
     <string name="enable_keep_alive_summary">开启独立保活服务，增强后台稳定性（会增加少量电量消耗）</string>
     <string name="keep_alive_merged_with_forwarder">检测到转发器正在运行，保活通知已合并至转发器通知中</string>
+
     <string name="auto_start_settings">自启动设置</string>
     <string name="enable_auto_start">开机自启动</string>
     <string name="enable_auto_start_summary">设备重启后自动启动服务</string>
+
     <string name="manufacturer_whitelist">厂商后台设置</string>
     <string name="manufacturer_whitelist_summary">%s 点击跳转到系统设置将本应用加入后台白名单</string>
     <string name="manufacturer_whitelist_title">厂商后台优化</string>
@@ -606,6 +609,7 @@
     <string name="network_keep_alive_stopped">网络连接保活已停止</string>
     <string name="pixel_keep_alive_started">像素保活已启动</string>
     <string name="pixel_keep_alive_stopped">像素保活已停止</string>
+
     <!-- 批量配置操作弹窗（BatchConfigDialog） -->
     <string name="batch_cfg_title">批量配置操作</string>
     <string name="batch_cfg_tab_audio_params">音频参数</string>
@@ -678,6 +682,7 @@
     <string name="role_key_test">测试</string>
     <string name="role_key_test_none">没有可测试的密钥</string>
     <string name="role_key_test_ok_toast">「%1$s」可用：%2$s</string>
+    <string name="role_key_test_fail_toast">「%1$s」不可用：%2$s</string>
     <string name="role_key_from_interface">从接口中心拉取</string>
     <string name="role_key_interface_title">接口中心</string>
     <string name="role_key_interface_empty">暂无接口（先在插件里保存接口）</string>
@@ -803,6 +808,7 @@
     <string name="role_key_warn_fix">去设置 ›</string>
     <string name="role_key_test_warn_toast">「%1$s」思考未关，详情见卡片下方</string>
     <string name="role_key_test_fail_toast_simple">「%1$s」测试未通过，详情见卡片下方</string>
+    <string name="role_key_test_result_copy">复制结果</string>
     <string name="role_key_model_filter">🔍 搜索过滤模型</string>
     <string name="role_key_model_input_hint">输入模型名</string>
     <string name="role_key_delete_n">删除(%1$d)</string>
@@ -836,8 +842,7 @@
     <string name="role_key_pull_done">已添加 %1$d 个模型（跳过 %2$d 个已存在）</string>
     <string name="role_key_deleted_toast">已删除 %1$d 条密钥</string>
     <string name="role_key_test_batch_start">开始测试「%1$s」共 %2$d 条，完成后逐条标记</string>
-    <string name="role_key_test_batch_done">「%1$s」测试完成：%2$d 通过 / %3$d 需处理</string>
-    <string name="role_key_test_result_copy">复制结果</string>
+    <string name="role_key_test_batch_done">「%1$s」测试完成：%2$d 通 / %3$d 不通</string>
     <string name="backup_title">备份恢复</string>
     <string name="role_entry_key">密钥</string>
     <string name="role_entry_backup">备份</string>
