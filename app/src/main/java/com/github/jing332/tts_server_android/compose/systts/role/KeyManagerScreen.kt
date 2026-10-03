@@ -1043,7 +1043,9 @@ fun KeyManagerScreen(tagRuleId: String, onBack: () -> Unit) {
             modifier = Modifier
                 .fillMaxSize()
                 .padding(paddingValues),
-            contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 4.dp, bottom = 12.dp)
+            // 左右贴边 0（v3 后续拍板：组头随主界面同款贴边；下方条目卡/组名/删除行全是
+            // 容器相对偏移，随容器整体左移，0920 相对缩进与名字对齐原样平移保留）。top/bottom 不变
+            contentPadding = PaddingValues(start = 0.dp, end = 0.dp, top = 4.dp, bottom = 12.dp)
         ) {
             if (!selectionMode) {
                 item(key = "ops") {
@@ -1051,7 +1053,10 @@ fun KeyManagerScreen(tagRuleId: String, onBack: () -> Unit) {
                     // 收窄让宽给「启用池(N)」——五字符不折行；weight 均分是折行根因）。
                     // 启用池键保持填充强调。Row 默认 Start 对齐，宽余量留在右侧
                     Row(
-                        Modifier.fillMaxWidth().padding(top = 10.dp, bottom = 6.dp),
+                        // horizontal 16：容器贴边归零后此行自撑边距——工具按钮行不随内容贴边，
+                        // +密钥/+模型/启用池三键保持在原位（与组头/卡片的左移无关）
+                        Modifier.fillMaxWidth()
+                            .padding(start = 16.dp, end = 16.dp, top = 10.dp, bottom = 6.dp),
                         horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
                         OutlinedButton(
