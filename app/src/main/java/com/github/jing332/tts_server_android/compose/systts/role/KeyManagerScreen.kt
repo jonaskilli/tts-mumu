@@ -945,7 +945,7 @@ fun KeyManagerScreen(tagRuleId: String, onBack: () -> Unit) {
     // 弹窗状态
     var showAdd by remember { mutableStateOf(false) }
     var renameFor by remember { mutableStateOf<KeyListFile.KeyEntry?>(null) }
-    var overwriteFor by remember { mutableStateOf<Pair<String, String>?>(null) } // (新名, 值) 覆盖确认
+    var overwriteFor by remember { mutableStateOf<Triple<String, String, Pair<String, String>>?>(null) } // (新名, 值, 思考模式 to 自定义JSON) 覆盖确认
     var deleteFor by remember { mutableStateOf<KeyListFile.KeyEntry?>(null) }
     var ifcFormFor by remember { mutableStateOf<KeyListFile.ApiInterface?>(null) } // 组头 ✏️ 编辑该接口
     var showPullModels by remember { mutableStateOf(false) }
@@ -1365,16 +1365,28 @@ fun KeyManagerScreen(tagRuleId: String, onBack: () -> Unit) {
     // 新增（名称留空自动生成；同组重名 → 覆盖确认，跨组撞名 → 加序号另存）
     if (showAdd) {
         KeyEditDialog(
+            tagRuleId = tagRuleId,
             initial = null,
             existing = keys,
             onDismiss = { showAdd = false },
-            onConfirm = { name, value, overwrite ->
+            onConfirm = { name, value, overwrite, thinkMode, thinkCustom ->
                 if (overwrite) {
                     showAdd = false
-                    overwriteFor = name to value
+                    overwriteFor = Triple(name, value, thinkMode to thinkCustom)
                 } else {
                     showAdd = false
-                    save(keys + KeyListFile.KeyEntry(name = name, keyCode = KeyListFile.nextKeyCode(keys), value = value))
+                    val newEntry = KeyListFile.KeyEntry(
+                        name = name, keyCode = KeyListFile.nextKeyCode(keys), value = value,
+                        thinkingMode = thinkMode, thinkingCustom = thinkCustom,
+                    )
+                    save(keys + newEntry)
+                    // 手动模式随条目带锁：写进锁定表（规则读这份）；auto 不写（等 ⚡ 探测）
+                    val p = KeyListFile.parseKeyValue(value)
+                    if (p != null && !p.isDirect && thinkMode != KeyListFile.THINKING_AUTO) {
+                        scope.launch {
+                            withIO { KeyListFile.saveThinkingParam(tagRuleId, p.url, p.model, thinkMode, thinkCustom) }
+                        }
+                    }
                     // 第一把密钥：池空才自动入池接管（不打扰已有启用集）
                     // ⚠️ 旧版无条件三写 miyue ⇒ 新增 B 会把正在朗读用的密钥静默切走
                     if (pool.isEmpty()) {
@@ -1391,18 +1403,42 @@ fun KeyManagerScreen(tagRuleId: String, onBack: () -> Unit) {
     // 改名（重名 → 拒绝并提示，照插件 showKeyNameDialog）
     renameFor?.let { entry ->
         KeyEditDialog(
+            tagRuleId = tagRuleId,
             initial = entry,
             existing = keys,
             onDismiss = { renameFor = null },
             onDelete = { renameFor = null; deleteFor = entry },
-            onConfirm = { name, value, overwrite ->
+            onConfirm = { name, value, overwrite, thinkMode, thinkCustom ->
                 renameFor = null
                 if (overwrite && name != entry.name) {
                     // 改成已存在的名字 → 拒绝（照插件密钥详情页「保存」）
                     // ⚠️ 旧版走覆盖分支：只覆盖同名条目、旧名条目没删 ⇒ 列表里两条并存
                     toast(R.string.role_key_name_dup, name)
                 } else {
-                    save(keys.map { if (it.name == entry.name) it.copy(name = name, value = value) else it })
+                    save(keys.map {
+                        if (it.name == entry.name) it.copy(
+                            name = name, value = value,
+                            thinkingMode = thinkMode, thinkingCustom = thinkCustom,
+                        ) else it
+                    })
+                    // 请求失败锁定表同步（10-03 二改，模型级）：
+                    // ① 旧锁定键（旧网址+旧模型）清掉；② 手动模式写新键；auto 清掉新键（等下轮 ⚡ 重探）
+                    val oldP = KeyListFile.parseKeyValue(entry.value)
+                    val newP = KeyListFile.parseKeyValue(value)
+                    scope.launch {
+                        withIO {
+                            if (oldP != null && !oldP.isDirect) {
+                                KeyListFile.saveThinkingParam(tagRuleId, oldP.url, oldP.model, "", "")
+                            }
+                            if (newP != null && !newP.isDirect) {
+                                if (thinkMode != KeyListFile.THINKING_AUTO) {
+                                    KeyListFile.saveThinkingParam(tagRuleId, newP.url, newP.model, thinkMode, thinkCustom)
+                                } else {
+                                    KeyListFile.saveThinkingParam(tagRuleId, newP.url, newP.model, "", "")
+                                }
+                            }
+                        }
+                    }
                     // 改的是启用中的密钥 → 同步池里的值
                     // ⚠️ 只写 key_list.json 不改池 ⇒ miyue 留旧值，规则仍轮换旧密钥
                     val oldNorm = KeyListFile.normalizePoolValue(entry.value)
@@ -1415,7 +1451,7 @@ fun KeyManagerScreen(tagRuleId: String, onBack: () -> Unit) {
         )
     }
     // 覆盖确认（照插件「覆盖确认」对话框：保留原 keyCode，换 value）
-    overwriteFor?.let { (name, value) ->
+    overwriteFor?.let { (name, value, thinkPair) ->
         AlertDialog(
             onDismissRequest = { overwriteFor = null },
             title = { Text(stringResource(R.string.role_key_overwrite_title)) },
@@ -1424,7 +1460,26 @@ fun KeyManagerScreen(tagRuleId: String, onBack: () -> Unit) {
                 TextButton(onClick = {
                     overwriteFor = null
                     val old = keys.firstOrNull { it.name == name }
-                    save(keys.map { if (it.name == name) it.copy(value = value) else it })
+                    val (thinkMode, thinkCustom) = thinkPair
+                    save(keys.map {
+                        if (it.name == name) it.copy(
+                            value = value,
+                            thinkingMode = thinkMode, thinkingCustom = thinkCustom,
+                        ) else it
+                    })
+                    // 锁定表同步（模型级）：旧键清理 + 按新设置写入（IO 走 withIO）
+                    val oldP = old?.let { KeyListFile.parseKeyValue(it.value) }
+                    val newP = KeyListFile.parseKeyValue(value)
+                    scope.launch {
+                        withIO {
+                            if (oldP != null && !oldP.isDirect) {
+                                KeyListFile.saveThinkingParam(tagRuleId, oldP.url, oldP.model, "", "")
+                            }
+                            if (newP != null && !newP.isDirect && thinkMode != KeyListFile.THINKING_AUTO) {
+                                KeyListFile.saveThinkingParam(tagRuleId, newP.url, newP.model, thinkMode, thinkCustom)
+                            }
+                        }
+                    }
                     // 覆盖的是启用中的密钥 → 同步池值；池原本为空 → 这条顶上当第一把
                     val oldNorm = old?.let { KeyListFile.normalizePoolValue(it.value) }.orEmpty()
                     val newNorm = KeyListFile.normalizePoolValue(value)
@@ -1536,11 +1591,12 @@ fun KeyManagerScreen(tagRuleId: String, onBack: () -> Unit) {
  */
 @Composable
 private fun KeyEditDialog(
+    tagRuleId: String,
     initial: KeyListFile.KeyEntry?,
     existing: List<KeyListFile.KeyEntry>,
     onDismiss: () -> Unit,
     onDelete: (() -> Unit)? = null,
-    onConfirm: (String, String, Boolean) -> Unit,
+    onConfirm: (String, String, Boolean, String, String) -> Unit,
 ) {
     val existingNames = existing.map { it.name }.toSet()
     // 预填光标落末尾（照插件 setSelection）
@@ -1548,6 +1604,12 @@ private fun KeyEditDialog(
     var value by remember { mutableStateOf(TextFieldValue(initValue, TextRange(initValue.length))) }
     val context = LocalContext.current
     val clipboard = LocalClipboardManager.current
+    // 思考模式（10-03 二改：模型级）——默认自动（⚡ 测试时试探并锁定）；手动展开可选写法
+    var thinkingMode by remember { mutableStateOf(initial?.thinkingMode ?: KeyListFile.THINKING_AUTO) }
+    var thinkingExpanded by remember {
+        mutableStateOf(initial?.thinkingMode?.let { it != KeyListFile.THINKING_AUTO } ?: false)
+    }
+    var customText by remember { mutableStateOf(initial?.thinkingCustom.orEmpty()) }
     fun toast(resId: Int) {
         android.widget.Toast.makeText(
             context, context.getString(resId), android.widget.Toast.LENGTH_SHORT
@@ -1589,6 +1651,121 @@ private fun KeyEditDialog(
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
+                Spacer(Modifier.height(10.dp))
+
+                // ===== 思考模式（10-03 二改：模型级）：默认自动 =====
+                Text(
+                    stringResource(R.string.role_key_thinking_title),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Text(
+                    stringResource(R.string.role_key_thinking_desc),
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(top = 2.dp)
+                )
+                // 锁定状态（读取该模型在 thinking_params.json 的锁定值；键 = 网址+模型）
+                val lockedMode = remember(initial) {
+                    val p = initial?.let { KeyListFile.parseKeyValue(it.value) }
+                    if (p == null || p.isDirect) null
+                    else KeyListFile.readThinkingParams(tagRuleId)[
+                        KeyListFile.thinkingLockKey(p.url, p.model)
+                    ]?.first
+                }
+                val multiLabel = stringResource(R.string.role_key_thinking_opt_multi)
+                val typeLabel = stringResource(R.string.role_key_thinking_opt_type)
+                val tmodeLabel = stringResource(R.string.role_key_thinking_opt_tmode)
+                val dthinkLabel = stringResource(R.string.role_key_thinking_opt_dthink)
+                val ncotLabel = stringResource(R.string.role_key_thinking_opt_ncot)
+                val lowLabel = stringResource(R.string.role_key_thinking_opt_low)
+                val noneLabel = stringResource(R.string.role_key_thinking_opt_none)
+                val customOptionLabel = stringResource(R.string.role_key_thinking_opt_custom)
+                fun modeLabel(m: String): String = when (m) {
+                    KeyListFile.THINKING_MULTI -> multiLabel
+                    KeyListFile.THINKING_TYPE -> typeLabel
+                    KeyListFile.THINKING_TMODE -> tmodeLabel
+                    KeyListFile.THINKING_DTHINK -> dthinkLabel
+                    KeyListFile.THINKING_NCOT -> ncotLabel
+                    KeyListFile.THINKING_LOW -> lowLabel
+                    KeyListFile.THINKING_NONE -> noneLabel
+                    KeyListFile.THINKING_CUSTOM -> customOptionLabel
+                    else -> m
+                }
+                Row(
+                    Modifier.fillMaxWidth().padding(top = 4.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    RadioButton(
+                        selected = !thinkingExpanded,
+                        onClick = { thinkingExpanded = false; thinkingMode = KeyListFile.THINKING_AUTO }
+                    )
+                    Text(
+                        stringResource(R.string.role_key_thinking_auto),
+                        style = MaterialTheme.typography.bodyMedium
+                    )
+                }
+                if (lockedMode != null && !thinkingExpanded) {
+                    Text(
+                        stringResource(R.string.role_key_thinking_locked, modeLabel(lockedMode)),
+                        style = MaterialTheme.typography.labelSmall,
+                        color = TEST_PASS_COLOR,
+                        modifier = Modifier.padding(start = 48.dp, top = 2.dp)
+                    )
+                } else if (initial != null && !thinkingExpanded) {
+                    Text(
+                        stringResource(R.string.role_key_thinking_not_tested),
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(start = 48.dp, top = 2.dp)
+                    )
+                }
+                Row(
+                    Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    RadioButton(
+                        selected = thinkingExpanded,
+                        onClick = {
+                            thinkingExpanded = true
+                            if (thinkingMode == KeyListFile.THINKING_AUTO)
+                                thinkingMode = KeyListFile.THINKING_MULTI
+                        }
+                    )
+                    Text(
+                        stringResource(R.string.role_key_thinking_manual),
+                        style = MaterialTheme.typography.bodyMedium
+                    )
+                }
+                if (thinkingExpanded) {
+                    val options = listOf(
+                        KeyListFile.THINKING_MULTI, KeyListFile.THINKING_TYPE,
+                        KeyListFile.THINKING_TMODE, KeyListFile.THINKING_DTHINK,
+                        KeyListFile.THINKING_NCOT, KeyListFile.THINKING_LOW,
+                        KeyListFile.THINKING_NONE, KeyListFile.THINKING_CUSTOM,
+                    )
+                    options.forEach { opt ->
+                        Row(
+                            Modifier
+                                .fillMaxWidth()
+                                .clickable { thinkingMode = opt }
+                                .padding(start = 48.dp, top = 2.dp, bottom = 2.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            RadioButton(selected = thinkingMode == opt, onClick = { thinkingMode = opt })
+                            Text(modeLabel(opt), style = MaterialTheme.typography.bodySmall)
+                        }
+                    }
+                    if (thinkingMode == KeyListFile.THINKING_CUSTOM) {
+                        OutlinedTextField(
+                            value = customText, onValueChange = { customText = it },
+                            singleLine = false, minLines = 2, maxLines = 4,
+                            textStyle = MaterialTheme.typography.bodySmall,
+                            placeholder = { Text("{\"key\": \"value\"}") },
+                            modifier = Modifier.fillMaxWidth().padding(start = 48.dp)
+                        )
+                    }
+                }
             }
         },
         confirmButton = {
@@ -1606,9 +1783,17 @@ private fun KeyEditDialog(
                     enabled = value.text.isNotBlank(),
                     onClick = {
                         val raw = value.text.trim()
+                        val finalThink = if (thinkingExpanded) thinkingMode else KeyListFile.THINKING_AUTO
+                        // custom 校验：不可解析直接拦（toast 在 Dialog 内）
+                        if (finalThink == KeyListFile.THINKING_CUSTOM &&
+                            KeyListFile.thinkingBodyFields(KeyListFile.THINKING_CUSTOM, customText) == null
+                        ) {
+                            toast(R.string.role_key_thinking_custom_bad); return@TextButton
+                        }
+                        val finalCustom = if (finalThink == KeyListFile.THINKING_CUSTOM) customText.trim() else ""
                         // 编辑：名称保持不变（没有名称输入框了）
                         if (initial != null) {
-                            onConfirm(initial.name, raw, false)
+                            onConfirm(initial.name, raw, false, finalThink, finalCustom)
                             return@TextButton
                         }
                         // 新增：名称自动生成（照插件 defaultName）——从密钥串里抽模型名，抽不出用 keyN
@@ -1622,7 +1807,7 @@ private fun KeyEditDialog(
                         val finalName =
                             if (clash != null && !overwrite) KeyListFile.dedupName(wanted, existingNames)
                             else wanted
-                        onConfirm(finalName, raw, overwrite)
+                        onConfirm(finalName, raw, overwrite, finalThink, finalCustom)
                     }
                 ) { Text(stringResource(R.string.confirm)) }
             }
@@ -1666,10 +1851,12 @@ private fun InterfaceFormDialog(
         mutableStateOf(TextFieldValue(init, TextRange(init.length)))
     }
     var key by remember { mutableStateOf(initial?.apiKey.orEmpty()) }
-    // 思考模式（10-03）：auto=测试时自动试探并锁定（默认）；手动展开后可选具体写法
-    var thinkingMode by remember { mutableStateOf(initial?.thinkingMode ?: KeyListFile.THINKING_AUTO) }
-    var thinkingExpanded by remember { mutableStateOf(initial?.thinkingMode?.let { it != KeyListFile.THINKING_AUTO } ?: false) }
-    var customText by remember { mutableStateOf(initial?.thinkingCustom.orEmpty()) }
+    // 思考模式（10-03 二改：模型级为主，本弹窗只做「统一设为下方全部模型」的批量入口）：
+    // 默认折叠不参与（thinkingTouched=false 时保存不动任何模型的思考设置）
+    var thinkingExpanded by remember { mutableStateOf(false) }
+    var thinkingMode by remember { mutableStateOf(KeyListFile.THINKING_MULTI) }
+    var thinkingTouched by remember { mutableStateOf(false) }
+    var customText by remember { mutableStateOf("") }
     // 手动加模型：点确定直接落库（拉取弹窗里那个只进候选列表）
     var addModelVisible by remember { mutableStateOf(false) }
     var addModelText by remember { mutableStateOf("") }
@@ -1699,52 +1886,39 @@ private fun InterfaceFormDialog(
                     KeyListFile.sameApiSite(it.baseUrl, u) && it.apiKey.trim() == k
             }
             if (collide != null) { toast(R.string.role_key_ifc_group_dup, collide.name); return@launch }
-            // 思考模式：auto 存 auto；手动存所选写法 + 自定义 JSON（custom 时校验可解析）
+            // 思考模式（10-03 二改，模型级为主 + 分组批量）：本弹窗的「统一设为」把所选写法
+            // 批量写入下方全部模型（KeyEntry + 各自锁定表）；仅当用户动过此项才应用（thinkingTouched）
             val thinkMode = if (thinkingExpanded) thinkingMode else KeyListFile.THINKING_AUTO
-            if (thinkMode == KeyListFile.THINKING_CUSTOM &&
+            if (thinkingTouched && thinkMode == KeyListFile.THINKING_CUSTOM &&
                 KeyListFile.thinkingBodyFields(KeyListFile.THINKING_CUSTOM, customText) == null
             ) {
                 toast(R.string.role_key_thinking_custom_bad); return@launch
             }
             val updated = if (initial == null) {
-                ifaces + KeyListFile.ApiInterface(
-                    n, u, k, emptyList(),
-                    thinkingMode = thinkMode,
-                    thinkingCustom = if (thinkMode == KeyListFile.THINKING_CUSTOM) customText.trim() else "",
-                )
+                ifaces + KeyListFile.ApiInterface(n, u, k, emptyList())
             } else {
-                ifaces.map {
-                    if (it.name == initial.name) it.copy(
-                        name = n, baseUrl = u, apiKey = k,
-                        thinkingMode = thinkMode,
-                        thinkingCustom = if (thinkMode == KeyListFile.THINKING_CUSTOM) customText.trim() else "",
-                    ) else it
-                }
+                ifaces.map { if (it.name == initial.name) KeyListFile.ApiInterface(n, u, k, it.models) else it }
             }
             withIO { KeyListFile.saveInterfaces(tagRuleId, updated) }
-            // 手动模式直接把该值写进锁定表（规则读这份）；auto 不动表（等 ⚡ 测试探测锁定）。
-            // 网址变更时迁移：旧网址的锁定值挪到新网址，不留孤儿
-            if (initial != null && KeyListFile.normalizeBaseUrl(initial.baseUrl) != KeyListFile.normalizeBaseUrl(u)) {
-                val oldLocked = KeyListFile.readThinkingParams(tagRuleId)[KeyListFile.thinkingLockKey(initial.baseUrl)]?.first
-                if (!oldLocked.isNullOrEmpty()) {
-                    withIO {
-                        KeyListFile.saveThinkingParam(tagRuleId, u, oldLocked, customText)
-                        if (!KeyListFile.sameApiSite(initial.baseUrl, u)) {
-                            KeyListFile.saveThinkingParam(tagRuleId, initial.baseUrl, "", "")
-                        }
-                    }
-                }
-            }
-            if (thinkMode != KeyListFile.THINKING_AUTO) {
-                withIO { KeyListFile.saveThinkingParam(tagRuleId, u, thinkMode, customText) }
-            }
-            // auto：不动锁定表——autoprobe 的锁定值留着（保存本身不该抹掉 ⚡ 测出来的结果
             if (initial != null) {
                 val oldUrl = initial.baseUrl
                 val oldKey = initial.apiKey
                 val entryList = withIO { KeyListFile.readKeys(tagRuleId) }
-                var changed = false
-                val rewritten = entryList.map { e ->
+                // 批量应用思考模式（只改本组条目；用户没动这一项则原样保留）
+                var rewritten = entryList
+                if (thinkingTouched) {
+                    val targets = entryList.filter { e ->
+                        val p = KeyListFile.parseKeyValue(e.value)
+                        p != null && !p.isDirect && p.key == oldKey && KeyListFile.sameApiSite(p.url, oldUrl)
+                    }
+                    val updatedTargets = withIO {
+                        KeyListFile.applyThinkingToGroup(tagRuleId, targets, thinkMode, customText.trim())
+                    }
+                    val byName = updatedTargets.associateBy { it.name }
+                    rewritten = entryList.map { e -> byName[e.name] ?: e }
+                }
+                var changed = thinkingTouched
+                val finalList = rewritten.map { e ->
                     val p = KeyListFile.parseKeyValue(e.value)
                     if (p != null && !p.isDirect && p.key == oldKey &&
                         KeyListFile.sameApiSite(p.url, oldUrl)
@@ -1753,7 +1927,7 @@ private fun InterfaceFormDialog(
                         e.copy(value = "$u@@${p.model}@@$k")
                     } else e
                 }
-                if (changed) withIO { KeyListFile.saveKeys(tagRuleId, rewritten) }
+                if (changed) withIO { KeyListFile.saveKeys(tagRuleId, finalList) }
             }
             toast(R.string.role_key_saved)
             onSaved()
@@ -1876,26 +2050,20 @@ private fun InterfaceFormDialog(
                 )
                 Spacer(Modifier.height(10.dp))
 
-                // ===== 思考模式（10-03）：默认自动（⚡ 测试时试探并锁定），展开可手动指定 =====
+                // ===== 思考模式（10-03 二改）：模型级为主，这里只做下方全部模型的批量「统一设为」=====
                 Text(
-                    stringResource(R.string.role_key_thinking_title),
+                    stringResource(R.string.role_key_thinking_group_title),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
                 Text(
-                    stringResource(R.string.role_key_thinking_desc),
+                    stringResource(R.string.role_key_thinking_group_desc),
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.padding(top = 2.dp)
                 )
-                // 自动态：一行大选项 + 锁定状态（读取 thinking_params.json 既有值）
-                val lockedMode = remember(initial) {
-                    if (initial == null) null
-                    else KeyListFile.readThinkingParams(tagRuleId)[
-                        KeyListFile.thinkingLockKey(initial.baseUrl)
-                    ]?.first
-                }
-                // 写法 → 显示名（@Composable 局部函数才可调 stringResource，先取好再拼）
+                // ===== 思考模式（10-03 二改：模型级为主，本处只做批量「统一设为」）=====
+                // 默认不参与：保存不动任何模型的思考设置；点「统一设为」才落到下方全部模型
                 val multiLabel = stringResource(R.string.role_key_thinking_opt_multi)
                 val typeLabel = stringResource(R.string.role_key_thinking_opt_type)
                 val tmodeLabel = stringResource(R.string.role_key_thinking_opt_tmode)
@@ -1921,26 +2089,11 @@ private fun InterfaceFormDialog(
                 ) {
                     RadioButton(
                         selected = !thinkingExpanded,
-                        onClick = { thinkingExpanded = false; thinkingMode = KeyListFile.THINKING_AUTO }
+                        onClick = { thinkingExpanded = false; thinkingTouched = false }
                     )
                     Text(
-                        stringResource(R.string.role_key_thinking_auto),
+                        stringResource(R.string.role_key_thinking_group_keep),
                         style = MaterialTheme.typography.bodyMedium
-                    )
-                }
-                if (lockedMode != null && !thinkingExpanded) {
-                    Text(
-                        stringResource(R.string.role_key_thinking_locked, modeLabel(lockedMode)),
-                        style = MaterialTheme.typography.labelSmall,
-                        color = TEST_PASS_COLOR,
-                        modifier = Modifier.padding(start = 48.dp, top = 2.dp)
-                    )
-                } else if (initial != null && !thinkingExpanded) {
-                    Text(
-                        stringResource(R.string.role_key_thinking_not_tested),
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.padding(start = 48.dp, top = 2.dp)
                     )
                 }
                 Row(
@@ -1949,19 +2102,22 @@ private fun InterfaceFormDialog(
                 ) {
                     RadioButton(
                         selected = thinkingExpanded,
-                        onClick = {
-                            thinkingExpanded = true
-                            if (thinkingMode == KeyListFile.THINKING_AUTO)
-                                thinkingMode = KeyListFile.THINKING_MULTI
-                        }
+                        onClick = { thinkingExpanded = true; thinkingTouched = true }
                     )
                     Text(
-                        stringResource(R.string.role_key_thinking_manual),
+                        stringResource(R.string.role_key_thinking_group_set),
                         style = MaterialTheme.typography.bodyMedium
                     )
                 }
                 if (thinkingExpanded) {
+                    Text(
+                        stringResource(R.string.role_key_thinking_group_warn),
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(start = 48.dp, top = 2.dp, bottom = 2.dp)
+                    )
                     val options = listOf(
+                        KeyListFile.THINKING_AUTO,
                         KeyListFile.THINKING_MULTI, KeyListFile.THINKING_TYPE,
                         KeyListFile.THINKING_TMODE, KeyListFile.THINKING_DTHINK,
                         KeyListFile.THINKING_NCOT, KeyListFile.THINKING_LOW,
@@ -1971,12 +2127,19 @@ private fun InterfaceFormDialog(
                         Row(
                             Modifier
                                 .fillMaxWidth()
-                                .clickable { thinkingMode = opt }
+                                .clickable { thinkingMode = opt; thinkingTouched = true }
                                 .padding(start = 48.dp, top = 2.dp, bottom = 2.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            RadioButton(selected = thinkingMode == opt, onClick = { thinkingMode = opt })
-                            Text(modeLabel(opt), style = MaterialTheme.typography.bodySmall)
+                            RadioButton(
+                                selected = thinkingMode == opt,
+                                onClick = { thinkingMode = opt; thinkingTouched = true }
+                            )
+                            Text(
+                                if (opt == KeyListFile.THINKING_AUTO) stringResource(R.string.role_key_thinking_auto)
+                                else modeLabel(opt),
+                                style = MaterialTheme.typography.bodySmall
+                            )
                         }
                     }
                     if (thinkingMode == KeyListFile.THINKING_CUSTOM) {

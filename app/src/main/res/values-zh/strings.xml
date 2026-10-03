@@ -798,6 +798,11 @@
     <string name="role_key_thinking_opt_none">不带思考参数（保底：只求能分配）</string>
     <string name="role_key_thinking_opt_custom">自定义 JSON（高级）</string>
     <string name="role_key_thinking_custom_bad">自定义 JSON 无法解析，请检查格式（应为 {"键": 值}）</string>
+    <string name="role_key_thinking_group_title">思考模式（统一设为下方全部模型）</string>
+    <string name="role_key_thinking_group_desc">单个模型的思考模式在模型编辑里单独设置。此处是批量入口：选中后保存，会覆盖下方全部模型的现有设置。</string>
+    <string name="role_key_thinking_group_keep">保持各模型现有设置（不动）</string>
+    <string name="role_key_thinking_group_set">统一设为：</string>
+    <string name="role_key_thinking_group_warn">⚠ 保存后覆盖下方全部模型的思考设置（单个模型设置会被清除）</string>
     <string name="role_key_model_filter">🔍 搜索过滤模型</string>
     <string name="role_key_model_input_hint">输入模型名</string>
     <string name="role_key_delete_n">删除(%1$d)</string>

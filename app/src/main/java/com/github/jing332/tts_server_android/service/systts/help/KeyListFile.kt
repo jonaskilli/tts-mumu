@@ -18,19 +18,23 @@ object KeyListFile {
     private const val BASE_DIR = "/storage/emulated/0/Download/chajian"
 
     /** 密钥条目（保序） */
-    data class KeyEntry(val name: String, val keyCode: String, val value: String)
+    data class KeyEntry(
+        val name: String,
+        val keyCode: String,
+        val value: String,
+        // 思考模式（10-03 二改：模型级为主）——每个模型自己的写法设置；
+        // auto=⚡ 测试时自动试探并锁定；分组弹窗的「统一设为」是批量写这些字段
+        val thinkingMode: String = THINKING_AUTO,
+        val thinkingCustom: String = "",
+    )
 
-    /** 接口（接口中心条目） */
+    /** 接口（接口中心条目）——思考模式已改模型级（10-03 二改）：设置存在 KeyEntry 上，
+     *  本结构不再携带思考字段（曾短暂有过 thinkingMode/thinkingCustom，先推后撤） */
     data class ApiInterface(
         val name: String,
         val baseUrl: String,
         val apiKey: String,
         val models: List<String>,
-        // 思考模式策略（10-03）：auto=⚡测试时自动试探并锁定；其余为手动指定写法。
-        // 旧数据无此字段 → 读出 AUTO（新规则自适应；旧规则不读配置，行为不变）
-        val thinkingMode: String = THINKING_AUTO,
-        // mode = custom 时随请求体原样合并的 JSON 文本
-        val thinkingCustom: String = "",
     )
 
     /** 条目测试结论三态：绿=通且思考已关 / 黄=通但思考仍开启 / 红=不通 */
@@ -101,17 +105,18 @@ object KeyListFile {
         emptyMap()
     }
 
-    /** 锁定表键：任何形态的网址都先归一到 openai base（补/剥版本段）再比，避免
-     *  「测试写入用 openAiBaseUrl、弹窗读取用原生址」两条路径在无 /v1 的网址上对不上 */
-    fun thinkingLockKey(url: String): String = normalizeBaseUrl(openAiBaseUrl(url))
+    /** 锁定表键（10-03 二改：模型级）：归一化网址 + @@ + 模型名。
+     *  规则侧按池值三段拆出的 url/model 拼同键读取；同一接口不同模型各锁各的 */
+    fun thinkingLockKey(url: String, model: String): String =
+        normalizeBaseUrl(openAiBaseUrl(url)) + "@@" + model.trim()
 
     /** 写/删一条思考参数（custom 仅 custom 模式有意义）；mode 空串 = 删除该条 */
-    fun saveThinkingParam(tagRuleId: String, baseUrl: String, mode: String, custom: String): Boolean = try {
+    fun saveThinkingParam(tagRuleId: String, url: String, model: String, mode: String, custom: String): Boolean = try {
         val d = dir(tagRuleId)
         if (!d.exists()) d.mkdirs()
         val f = thinkingFile(tagRuleId)
         val root = if (f.exists()) JSONObject(f.readText()) else JSONObject()
-        val key = thinkingLockKey(baseUrl)
+        val key = thinkingLockKey(url, model)
         if (mode.isEmpty()) root.remove(key) else {
             val o = JSONObject().put("mode", mode)
             if (mode == THINKING_CUSTOM && custom.isNotBlank()) o.put("custom", custom)
@@ -122,6 +127,25 @@ object KeyListFile {
     } catch (e: Exception) {
         Log.w(TAG, "saveThinkingParam failed: ${e.message}")
         false
+    }
+
+    /** 分组批量：把「统一思考模式」应用到底下全部模型（写每条 KeyEntry + 各自锁定表；auto=清锁） */
+    fun applyThinkingToGroup(
+        tagRuleId: String,
+        entries: List<KeyEntry>,
+        mode: String,
+        custom: String,
+    ): List<KeyEntry> {
+        entries.forEach { e ->
+            val p = parseKeyValue(e.value) ?: return@forEach
+            if (p.isDirect) return@forEach
+            if (mode != THINKING_AUTO) {
+                saveThinkingParam(tagRuleId, p.url, p.model, mode, custom)
+            } else {
+                saveThinkingParam(tagRuleId, p.url, p.model, "", "")
+            }
+        }
+        return entries.map { e -> e.copy(thinkingMode = mode, thinkingCustom = if (mode == THINKING_CUSTOM) custom else "") }
     }
 
     data class ParsedKey(val isDirect: Boolean, val url: String, val model: String, val key: String)
@@ -154,7 +178,13 @@ object KeyListFile {
                     val obj = pair.optJSONObject(1) ?: continue
                     val value = obj.optString("value")
                     if (name.isEmpty()) continue
-                    out.add(KeyEntry(name, obj.optString("keyCode"), value))
+                    out.add(
+                        KeyEntry(
+                            name, obj.optString("keyCode"), value,
+                            thinkingMode = obj.optString("thinkingMode", THINKING_AUTO),
+                            thinkingCustom = obj.optString("thinkingCustom"),
+                        )
+                    )
                 }
                 if (f == keyBackupFile(tagRuleId)) Log.w(TAG, "key_list.json 损坏，已回退备份")
                 return out
@@ -176,6 +206,8 @@ object KeyListFile {
             val obj = JSONObject()
             obj.put("keyCode", k.keyCode)
             obj.put("value", k.value)
+            if (k.thinkingMode != THINKING_AUTO) obj.put("thinkingMode", k.thinkingMode)
+            if (k.thinkingCustom.isNotBlank()) obj.put("thinkingCustom", k.thinkingCustom)
             val pair = JSONArray()
             pair.put(k.name)
             pair.put(obj)
@@ -603,8 +635,6 @@ object KeyListFile {
                     baseUrl = o.optString("baseUrl"),
                     apiKey = o.optString("apiKey"),
                     models = models,
-                    thinkingMode = o.optString("thinkingMode", THINKING_AUTO),
-                    thinkingCustom = o.optString("thinkingCustom"),
                 )
             }
         }
@@ -626,8 +656,6 @@ object KeyListFile {
             val ma = JSONArray()
             ifc.models.forEach { ma.put(it) }
             o.put("models", ma)
-            o.put("thinkingMode", ifc.thinkingMode)
-            if (ifc.thinkingCustom.isNotBlank()) o.put("thinkingCustom", ifc.thinkingCustom)
             arr.put(o)
         }
         root.put("interfaces", arr)
@@ -879,11 +907,13 @@ object KeyListFile {
             else "智谱 /models 验证失败：HTTP ${r.code}，${briefBody(r.body)}"
             return TestOutcome(TestVerdict.FAIL, null, msg)
         }
-        val ifc = readInterfaces(tagRuleId).firstOrNull {
-            sameApiSite(it.baseUrl, t.baseUrl) && it.apiKey.trim() == t.apiKey
-        }
-        val policy = ifc?.thinkingMode ?: THINKING_AUTO
-        val custom = ifc?.thinkingCustom.orEmpty()
+        // 策略 = 模型级（该条 KeyEntry 自己的设置；10-03 二改：分组弹窗改成了批量写入，
+        // 单条测试始终看条目自己的字段，与 ⚡ 圆点粒度一致）。
+        // 条目匹配按归一化值（池页传的是归一化串，与 key_list.json 原值可能有空白差异）
+        val normTarget = normalizePoolValue(rawValue)
+        val entry = readKeys(tagRuleId).firstOrNull { normalizePoolValue(it.value) == normTarget }
+        val policy = entry?.thinkingMode ?: THINKING_AUTO
+        val custom = entry?.thinkingCustom.orEmpty()
 
         // 手动模式：只测所选写法
         if (policy != THINKING_AUTO) {
@@ -901,8 +931,9 @@ object KeyListFile {
             return TestOutcome(v, off, msg + suffix)
         }
 
-        // auto：先按锁定写法测一发（锁定后通常一发即走）；键走 thinkingLockKey 保证与写入同键
-        val locked = readThinkingParams(tagRuleId)[thinkingLockKey(t.baseUrl)]?.first
+        // auto：先按锁定写法测一发（锁定后通常一发即走）；键 = 网址+模型（模型级锁定）
+        val lockKey = thinkingLockKey(t.baseUrl, t.model)
+        val locked = readThinkingParams(tagRuleId)[lockKey]?.first
         if (!locked.isNullOrEmpty() && locked != THINKING_CUSTOM) {
             val (ok, off, msg) = testOnce(t, locked, custom)
             if (ok) {
@@ -921,16 +952,16 @@ object KeyListFile {
             lastMsg = "$m：$msg"
             if (!ok) continue
             if (off != false) {
-                saveThinkingParam(tagRuleId, t.baseUrl, m, "")
+                saveThinkingParam(tagRuleId, t.baseUrl, t.model, m, "")
                 return TestOutcome(
                     TestVerdict.PASS, true,
-                    "思考适配完成：该接口锁定「$m」（思考已关，$msg）"
+                    "思考适配完成：该模型锁定「$m」（思考已关，$msg）"
                 )
             }
             if (yellow == null) yellow = m to msg
         }
         if (yellow != null) {
-            saveThinkingParam(tagRuleId, t.baseUrl, yellow.first, "")
+            saveThinkingParam(tagRuleId, t.baseUrl, t.model, yellow.first, "")
             return TestOutcome(
                 TestVerdict.PASS_THINKING, false,
                 "各写法均无法关闭思考，已锁定「${yellow.first}」保证可分配：${yellow.second}"
@@ -998,8 +1029,6 @@ object KeyListFile {
                 val ma = JSONArray()
                 ifc.models.forEach { ma.put(it) }
                 o.put("models", ma)
-                o.put("thinkingMode", ifc.thinkingMode)
-                if (ifc.thinkingCustom.isNotBlank()) o.put("thinkingCustom", ifc.thinkingCustom)
                 ifcArr.put(o)
             }
             root.put("interfaces", ifcArr)
@@ -1073,8 +1102,6 @@ object KeyListFile {
                                 baseUrl = o.optString("baseUrl"),
                                 apiKey = o.optString("apiKey"),
                                 models = models,
-                                thinkingMode = o.optString("thinkingMode", THINKING_AUTO),
-                                thinkingCustom = o.optString("thinkingCustom"),
                             )
                         )
                     }

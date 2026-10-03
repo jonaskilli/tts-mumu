@@ -744,6 +744,11 @@ Add %3$d, skip %4$d duplicates
     <string name="role_key_thinking_opt_none">No thinking params (fallback)</string>
     <string name="role_key_thinking_opt_custom">Custom JSON (advanced)</string>
     <string name="role_key_thinking_custom_bad">Custom JSON cannot be parsed (expected {"key": value})</string>
+    <string name="role_key_thinking_group_title">Thinking mode (apply to all models below)</string>
+    <string name="role_key_thinking_group_desc">Per-model thinking mode is set in the model editor. This is a batch entry: saving overwrites the settings of all models below.</string>
+    <string name="role_key_thinking_group_keep">Keep current per-model settings</string>
+    <string name="role_key_thinking_group_set">Set all to:</string>
+    <string name="role_key_thinking_group_warn">⚠ Saving overwrites thinking settings of all models below</string>
     <string name="role_key_model_filter">🔍 Filter models</string>
     <string name="role_key_model_input_hint">Model name</string>
     <string name="role_key_delete_n">Delete (%1$d)</string>
