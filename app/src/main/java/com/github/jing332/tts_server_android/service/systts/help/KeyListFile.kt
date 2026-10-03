@@ -930,8 +930,13 @@ object KeyListFile {
  * 纯 Key 直连走智谱 /models，无对话响应，思考判定为 null（圆点按绿处理）。
  * ⚠️ 旧版"四连发"口径（thinking_mode/thinking.type/disable_think/no_chain_of_thought 一次全带）
  *    对严格校验的平台会整请求拒收（UNKNOWN_FIELD）——这正是"有的 API 分配不了角色"的根因。
+ * onProgress（10-03 九改）：探测每换一种写法前回调一次，UI 显示「探测中：第 N/M 种写法「xxx」」。
  */
-    fun testWithThinking(tagRuleId: String, rawValue: String): TestOutcome {
+    fun testWithThinking(
+        tagRuleId: String,
+        rawValue: String,
+        onProgress: (String) -> Unit = {},
+    ): TestOutcome {
         val (t, err) = parseForTest(rawValue)
         if (t == null) return TestOutcome(TestVerdict.FAIL, null, err)
         if (t.isDirect) {
@@ -985,7 +990,9 @@ object KeyListFile {
         var yellow: Pair<String, String>? = null
         var lastMsg = ""
         val order = probeOrderFor(tagRuleId, t.baseUrl, t.model)
-        for (m in order) {
+        for ((idx, m) in order.withIndex()) {
+            // 探测进度（10-03 九改）：多候选时才报（单候选=无需进度噪音）
+            if (order.size > 1) onProgress("第 ${idx + 1}/${order.size} 种写法「$m」")
             val (ok, off, msg) = testOnce(t, m, custom)
             lastMsg = "$m：$msg"
             if (!ok) continue

@@ -928,6 +928,7 @@
     <string name="role_key_test_result_copy">复制结果</string>
     <string name="role_key_test_pass_short">通过 · %1$s</string>
     <string name="role_key_test_pass_only">测试通过</string>
+    <string name="role_key_probe_progress">探测中：第 %1$s</string>
     <string name="role_key_model_filter">🔍 搜索过滤模型</string>
     <string name="role_key_model_input_hint">输入模型名</string>
     <string name="role_key_delete_n">删除(%1$d)</string>
