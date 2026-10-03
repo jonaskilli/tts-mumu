@@ -10,16 +10,13 @@
     <string name="copied">已复制</string>
     <string name="ok_reset">已重置</string>
     <string name="loading">加载中</string>
-
     <string name="selected">已选择</string>
-
     <string name="close">关闭</string>
     <string name="start">启动</string>
     <string name="follow">跟随</string>
     <string name="custom">自定义</string>
     <string name="app_down_again_to_exit">再按一次退出程序</string>
     <string name="cannot_empty">不可为空！</string>
-
     <string name="open_web">打开网页版</string>
     <string name="check_update">检查更新</string>
     <string name="wake_lock">唤醒锁</string>
@@ -29,10 +26,7 @@
     <string name="battery_optimization_whitelist">电池优化白名单</string>
     <string name="desktop_shortcut">桌面快捷方式</string>
     <string name="added_battery_optimization_whitelist">已加入后台白名单</string>
-
     <string name="kill_process">结束进程</string>
-
-
     <string name="label_read_aloud_target">朗读目标</string>
     <string name="label_api">接口</string>
     <string name="label_language">语言</string>
@@ -47,15 +41,11 @@
     <string name="label_result">结果：</string>
     <string name="label_audio_sample_rate">音频采样率(hz)：</string>
     <string name="label_port">端口:</string>
-
     <string name="systts_api_edge">微软Edge - Go</string>
     <string name="systts_state_idle">TTS空闲中</string>
     <string name="systts_state_synthesizing">TTS合成中</string>
     <string name="systts_service">系统TTS服务</string>
-
     <string name="systts_split_long_sentences">分割长句</string>
-
-
     <string name="service_started">服务已启动</string>
     <string name="service_closed">服务已关闭</string>
     <string name="forwarder_ms">微软TTS转发器</string>
@@ -64,18 +54,15 @@
     <string name="server_restart_service_to_update">重启服务以生效</string>
     <string name="server_set_token">设置Token</string>
     <string name="server_token_set_to">Token已设为：</string>
-
     <string name="system_tts">系统TTS</string>
     <string name="settings">设置</string>
     <string name="global_settings">全局设置</string>
     <string name="copy_address">复制地址</string>
     <string name="check_update_failed">检查更新失败</string>
     <string name="current_is_last_version">当前已是最新版</string>
-
     <string name="edit_builtin_tts">编辑内置TTS</string>
     <string name="title_activity_replace_edit">编辑替换规则</string>
     <string name="title_activity_replace_manager">替换规则管理</string>
-
     <string name="display_name">显示名称</string>
     <string name="save">保存</string>
     <string name="desc_switch_item">启用或关闭本条目</string>
@@ -84,7 +71,6 @@
     <string name="desc_delete_item">删除本条目</string>
     <string name="desc_seekbar_add">滑动条 +1</string>
     <string name="desc_seekbar_remove">滑动条 -1</string>
-
     <string name="add_config">添加配置</string>
     <string name="import_config">导入</string>
     <string name="export_config">导出</string>
@@ -96,24 +82,20 @@
     <string name="ra_all">朗读全部</string>
     <string name="ra_aside">仅旁白</string>
     <string name="ra_dialogue">仅对话</string>
-
     <string name="all">全部</string>
     <string name="aside">旁白</string>
     <string name="dialogue">对话</string>
     <string name="none">无</string>
     <string name="default_str">默认</string>
-
     <string name="web">网页</string>
     <string name="clear_web_data">清空网页数据</string>
     <string name="cleared">已清空</string>
-
     <string name="import_from_clipboard">从剪贴板导入</string>
     <string name="url_net">网络链接</string>
     <string name="import_from_url">从上方URL导入</string>
     <string name="retry">重试</string>
     <string name="test">测试</string>
     <string name="audition_text">试听文本</string>
-
     <!-- 替换管理 -->
     <string name="replace_rule_manager">替换规则管理</string>
     <string name="systts_replace_add_rule">添加替换规则</string>
@@ -121,27 +103,21 @@
     <string name="replacement">替换为</string>
     <string name="systts_replace_insert_pinyin">插入拼音声调</string>
     <string name="systts_replace_use_regex">使用正则表达式</string>
-
     <!-- 系统TTS 设置 -->
     <string name="systts_set_dialogue_min_match_word_count">设置对话最小匹配汉字数</string>
     <string name="systts_set_dialogue_min_info">人物对话的汉字数（包括中文符号），即只有在大于等于此值时才作为对话朗读，反之使用旁白。</string>
     <string name="request_timeout">请求超时</string>
     <string name="request_timeout_summary">请求音频的等待时间超过设定值后，将取消请求并自动重试。</string>
-
     <string name="systts_http_edit_title">编辑自定义TTS</string>
     <string name="systts_http_request_header">请求头</string>
-
     <string name="systts_sample_test_text">单击右侧按钮即可测试并播放</string>
-
     <string name="systts_decode_audio">解码音频</string>
     <string name="systts_add_ms_tts">添加内置TTS</string>
     <string name="systts_add_custom_tts">添加自定义TTS</string>
     <string name="off_multi_voice_use_global">请关闭多语音选项以使用单语音模式</string>
-
     <string name="use_dns_lookup_ip">使用DNS解析接口IP</string>
     <string name="pref_edge_dns_summary">而非内置北京微软云节点</string>
     <string name="pref_title_global_edge">全局-Edge接口</string>
-
     <string name="systts_multi_voice_option">多语音(旁白/对白)</string>
     <string name="systts_use_internal_audio_player">使用内置播放器</string>
     <string name="systts_in_app_play_info_html"><DATA><![CDATA[
@@ -169,12 +145,9 @@
     <string name="voice_multiple_summary">相同朗读目标将不再排斥，并使用随机轮播。(单语音不支持此功能)</string>
     <string name="groups_multiple">分组可多选</string>
     <string name="groups_multiple_summary">勾选分组时将不再互相排斥。</string>
-
     <string name="systts_test_success">测试成功</string>
     <string name="systts_test_success_info">音频大小: %1$s \n音频采样率：%2$d \n音频格式: %3$s</string>
-
     <string name="systts_http_test_msg">音频大小：%1$d Kib \n格式：%2$s \n采样率：%3$d HZ \nContent-Type：%4$s</string>
-
     <string name="systts_please_check_multi_voice_option">请先在右上角菜单勾选多语音选项！</string>
     <string name="systts_sample_rate_different_in_enabled_list">检测到已启用配置中的格式/采样率不同，
         这将会导致音调异常(声音粗重或尖细)，请手动换为相同格式/采样率或在右上角将【使用内置播放器】选项打开。</string>
@@ -182,7 +155,6 @@
     <string name="group_collapsed">已折叠 %1$s</string>
     <string name="systts_desc_list_count_info">共%1$d项，已启用%2$d项</string>
     <string name="systts_list_item_desc">目标%1$s，接口%2$s，属性：%3$s，格式：%4$s</string>
-
     <string name="more_options">更多选项</string>
     <string name="add_group">添加分组</string>
     <string name="group">分组</string>
@@ -191,7 +163,6 @@
     <string name="msg_group_is_empty">分组为空，请添加配置</string>
     <string name="group_name">分组名称</string>
     <string name="default_group">默认分组</string>
-
     <string name="content">内容</string>
     <string name="name">名称</string>
     <string name="unnamed">未命名</string>
@@ -200,7 +171,6 @@
     <string name="enabled">已启用</string>
     <string name="choice_item">选择 %1$s</string>
     <string name="import_failed">导入失败</string>
-
     <string name="clipboard">剪贴板</string>
     <string name="type">类型</string>
     <string name="source">来源</string>
@@ -212,7 +182,6 @@
     <string name="toast_forwarder_not_running">请先开启转发器</string>
     <string name="toast_no_tts_engine">未找到可用的TTS引擎</string>
     <string name="toast_legado_import_failed">未安装阅读APP或导入失败</string>
-
     <string name="systts_ms_express_as_description">%1$s-%2$s | 强度:%3$s</string>
     <string name="server_log_service_running">服务已在运行中，监听地址：%1$s</string>
     <string name="server_log_tips">1. 单击启动按钮 \n2. 打开网页并选择配置 \n3. 最后生成链接导入到阅读APP  \n⚠️朗读时服务需常驻后台运行！\n⚠️本功能与系统TTS互相独立，互不干涉！</string>
@@ -416,7 +385,6 @@
     <string name="plugin_audio_params_saved">音频参数已保存</string>
     <string name="config_list">配置列表</string>
     <string name="plugin">插件</string>
-
     <!-- 音色广场（opt-in 协议 searchVoiceCatalog：Fish Audio 官网音色广场等插件） -->
     <string name="voice_catalog">音色广场</string>
     <string name="voice_catalog_search">搜索音色</string>
@@ -460,7 +428,6 @@
     <string name="invalid_url_msg">无效的URL：%1$s</string>
     <string name="invalid_path_msg">无效的Path：%1$s</string>
     <string name="import_file_as">导入文件为…</string>
-
     <string name="systts_no_speech_target_all">⚠️ 缺少{朗读全部}，使用默认！ 请确保开启多语音选项。</string>
     <string name="stream_audio_mode">流式播放音频</string>
     <string name="stream_audio_mode_summary">即边下边播，对网络稳定性要求高。</string>
@@ -520,7 +487,6 @@
     <string name="hanlp_tips">或手动解压到 外部存储/Android/data/com.mumutts.app/files/hanlp 中，\n注意：请确保hanlp目录下有 dictionary 文件夹。</string>
     <string name="copy_group">复制分组</string>
     <string name="no_audio_data_head_warn">⚠️ 该音频没有数据头，故无法获取信息。</string>
-
     <string name="theme_default">默认</string>
     <string name="dynamic_color">动态颜色</string>
     <string name="orange">橙色</string>
@@ -726,7 +692,6 @@
     <string name="network_keep_alive_stopped">Network keep alive stopped</string>
     <string name="pixel_keep_alive_started">Pixel keep alive started</string>
     <string name="pixel_keep_alive_stopped">Pixel keep alive stopped</string>
-
     <!-- 批量配置操作弹窗（BatchConfigDialog） -->
     <string name="batch_cfg_title">批量配置操作</string>
     <string name="batch_cfg_tab_audio_params">音频参数</string>
@@ -799,7 +764,6 @@
     <string name="role_key_test">测试</string>
     <string name="role_key_test_none">没有可测试的密钥</string>
     <string name="role_key_test_ok_toast">「%1$s」可用：%2$s</string>
-    <string name="role_key_test_fail_toast">「%1$s」不可用：%2$s</string>
     <string name="role_key_from_interface">从接口中心拉取</string>
     <string name="role_key_interface_title">接口中心</string>
     <string name="role_key_interface_empty">暂无接口（先在插件里保存接口）</string>
@@ -923,6 +887,8 @@
     <string name="role_key_warn_thinking_on">⚠ 思考未关（已自动适配，仍可能变慢）</string>
     <string name="role_key_warn_failed">❌ 测试失败（点此检查设置）</string>
     <string name="role_key_warn_fix">去设置 ›</string>
+    <string name="role_key_test_warn_toast">「%1$s」思考未关，详情见卡片下方</string>
+    <string name="role_key_test_fail_toast_simple">「%1$s」测试未通过，详情见卡片下方</string>
     <string name="role_key_model_filter">🔍 搜索过滤模型</string>
     <string name="role_key_model_input_hint">输入模型名</string>
     <string name="role_key_delete_n">删除(%1$d)</string>
@@ -953,7 +919,8 @@
     <string name="role_key_pull_done">已添加 %1$d 个模型（跳过 %2$d 个已存在）</string>
     <string name="role_key_deleted_toast">已删除 %1$d 条密钥</string>
     <string name="role_key_test_batch_start">开始测试「%1$s」共 %2$d 条，完成后逐条标记</string>
-    <string name="role_key_test_batch_done">「%1$s」测试完成：%2$d 通 / %3$d 不通</string>
+    <string name="role_key_test_batch_done">「%1$s」测试完成：%2$d 通过 / %3$d 需处理</string>
+    <string name="role_key_test_result_copy">复制结果</string>
     <string name="backup_title">备份恢复</string>
     <string name="role_entry_key">密钥</string>
     <string name="role_entry_backup">备份</string>

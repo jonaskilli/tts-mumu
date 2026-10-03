@@ -1,5 +1,3 @@
-<?xml version="1.0" encoding="utf-8"?>
-<resources xmlns:tools="http://schemas.android.com/tools">
     <string name="app_name">U·TTS Server</string>
     <string name="app_name_dev">D·U·TTS Server</string>
     <string name="app_switch">Switch</string>
@@ -98,14 +96,12 @@
     <string name="retry">Retry</string>
     <string name="test">Test</string>
     <string name="audition_text">Sample text</string>
-    <!-- 替换管理 -->
     <string name="replace_rule_manager">Replace rule manager</string>
     <string name="systts_replace_add_rule">Add replace rule</string>
     <string name="systts_replace_rule">Replace rule</string>
     <string name="replacement">Replace with</string>
     <string name="systts_replace_insert_pinyin">Insert pinyin tone</string>
     <string name="systts_replace_use_regex">Use regular expressions</string>
-    <!-- 系统TTS 设置 -->
     <string name="systts_set_dialogue_min_match_word_count">Set Chinese length for dialogue</string>
     <string name="systts_set_dialogue_min_info">The number of Chinese characters (including Chinese symbols) in the character\'s dialogue,
         that is, only when it is greater than or equal to this value, it will be read as a dialogue, otherwise the narration will be used.</string>
@@ -226,7 +222,6 @@
     <string name="md_checkbox_unchecked">Unchecked</string>
     <string name="md_checkbox_indeterminate">Indeterminate</string>
     <string name="systts_local_test_msg">Direct-Play is off \nSize: %1$d Kib \nSample rate: %2$d</string>
-
     <string name="systts_local_params_int_must">Must be true or 1, false or 0</string>
     <string name="internal_player">Built-in player settings</string>
     <string name="built_in_player_not_enabled">⚠️[Built-in player] is not enabled</string>
@@ -354,7 +349,6 @@
     <string name="plugin_audio_params_saved">Audio params saved</string>
     <string name="config_list">Config list</string>
     <string name="plugin">Plugin</string>
-
     <!-- Voice catalog (opt-in protocol searchVoiceCatalog: Fish Audio official marketplace etc.) -->
     <string name="voice_catalog">Voice catalog</string>
     <string name="voice_catalog_search">Search voices</string>
@@ -453,7 +447,6 @@
     <string name="voice_name_bad_format">voiceName bad format</string>
     <string name="import_hanlp_zip">Import the Hanlp syntax analysis package</string>
     <string name="hanlp_settings">Hanlp Settings</string>
-    <string name="hanlp_tips">或手动解压到 外部存储/Android/data/com.mumutts.app/files/hanlp 中，\n注意：请确保hanlp目录下有 dictionary 文件夹。</string>
     <string name="copy_group">Copy Group</string>
     <string name="no_audio_data_head_warn">⚠️ This audio has no data header, so no information can be obtained.</string>
     <string name="theme_default">Default (Green)</string>
@@ -554,8 +547,6 @@
     <string name="quick_edit">Quick edit</string>
     <string name="switch_tag">Switch tag</string>
     <string name="get_tag_name_failed">Failed to get tag name</string>
-    <string name="text_processor_init_failed">文本处理器在初始化阶段出现错误，无法继续执行。可能的原因：开启多语音但未指定配置、朗读规则</string>
-
     <!-- Batch config actions dialog (BatchConfigDialog) -->
     <string name="batch_cfg_title">Batch config actions</string>
     <string name="batch_cfg_tab_audio_params">Audio params</string>
@@ -628,7 +619,6 @@
     <string name="role_key_test">Test</string>
     <string name="role_key_test_none">No key available to test</string>
     <string name="role_key_test_ok_toast">"%1$s" works: %2$s</string>
-    <string name="role_key_test_fail_toast">"%1$s" failed: %2$s</string>
     <string name="role_key_from_interface">Pull from API center</string>
     <string name="role_key_interface_title">API Center</string>
     <string name="role_key_interface_empty">No interfaces yet (save them in the plugin first)</string>
@@ -712,7 +702,6 @@ Add %3$d, skip %4$d duplicates
     <string name="role_key_interface_edit">Edit interface</string>
     <string name="role_key_ifc_name">Name</string>
     <string name="role_key_ifc_url">Base URL</string>
-    <string name="role_key_ifc_key">API Key</string>
     <string name="role_key_group_name_label">Group name</string>
     <string name="role_key_ifc_url_hint">Paste up to /v1 — rest auto-filled</string>
     <string name="role_key_group_name_hint"> (auto-fills from the URL if empty)</string>
@@ -737,9 +726,6 @@ Add %3$d, skip %4$d duplicates
     <string name="role_key_thinking_not_tested">Not tested yet — run ⚡ on a model card first.</string>
     <string name="role_key_thinking_opt_multi">Send all off-switch fields (legacy)</string>
     <string name="role_key_thinking_opt_type">thinking: type = disabled</string>
-    <string name="role_key_thinking_opt_tmode">thinking_mode = false</string>
-    <string name="role_key_thinking_opt_dthink">disable_think = true</string>
-    <string name="role_key_thinking_opt_ncot">no_chain_of_thought = true</string>
     <string name="role_key_thinking_opt_low">reasoning_effort = low (lower, not off)</string>
     <string name="role_key_thinking_opt_none">No thinking params (fallback)</string>
     <string name="role_key_thinking_opt_custom">Custom JSON (advanced)</string>
@@ -752,6 +738,9 @@ Add %3$d, skip %4$d duplicates
     <string name="role_key_warn_thinking_on">⚠ Thinking still on (auto-adapted, may still be slow)</string>
     <string name="role_key_warn_failed">❌ Test failed (tap to check settings)</string>
     <string name="role_key_warn_fix">Settings ›</string>
+    <string name="role_key_test_warn_toast">"%1$s": thinking still on, see card below</string>
+    <string name="role_key_test_fail_toast_simple">"%1$s" failed, see card below</string>
+    <string name="role_key_test_result_copy">Copy result</string>
     <string name="role_key_model_filter">🔍 Filter models</string>
     <string name="role_key_model_input_hint">Model name</string>
     <string name="role_key_delete_n">Delete (%1$d)</string>
@@ -824,4 +813,3 @@ Add %3$d, skip %4$d duplicates
     <string name="invalid_toast_cleared">Cleared %1$d invalid config items</string>
     <string name="batch_cfg_target_plugin">plugin "%1$s"</string>
     <string name="batch_cfg_target_group">group "%1$s"</string>
-</resources>

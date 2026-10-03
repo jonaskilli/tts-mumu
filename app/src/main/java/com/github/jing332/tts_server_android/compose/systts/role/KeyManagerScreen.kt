@@ -74,6 +74,7 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -341,39 +342,88 @@ private fun KeyEntryRow(
                 }
             }
         }
-        // 结果提示条（10-03 三改，用户拍板「放模型行下方」）：黄/红时在卡内行下方常驻——
-        // 圆点(8dp)提示太弱，黄(思考问题)必须点名原因且可点击直达思考设置；绿不显示(不打扰)。
-        // 一行截断（10-03 四改，用户令「显示全占地儿」）：完整原因在 ⚡ 测试弹窗/编辑弹窗
-        // 锁定状态里都有，常驻条只承担「提醒去处理」；卡内底部归属清晰（卡=模型边界）
+        // 结果提示条（10-03 三/四/五改）：黄/红时在卡内行下方常驻。用户口径——都放卡片底部：
+        // 收起=一行省略（不占地儿）；点击展开=全文多行 + 「复制 / 去设置」；再点收起。
+        // 绿不显示（不打扰）；卡内底部归属清晰（卡=模型边界）。
+        // 展开态记住（rememberSaveable by key）：组测后逐张卡片看详情不用反复展开
         if (!selectionMode && testOutcome != null &&
             testOutcome.verdict != KeyListFile.TestVerdict.PASS
         ) {
             val isWarn = testOutcome.verdict == KeyListFile.TestVerdict.PASS_THINKING
             val barColor = if (isWarn) TEST_WARN_COLOR else MaterialTheme.colorScheme.error
-            Row(
+            var expanded by rememberSaveable(entry.name) { mutableStateOf(false) }
+            val clipboard = LocalClipboardManager.current
+            Column(
                 Modifier
                     .fillMaxWidth()
-                    .clickable { onEdit() }
-                    .padding(start = 5.dp, end = 8.dp, top = 0.dp, bottom = 8.dp),
-                verticalAlignment = Alignment.CenterVertically
+                    .padding(start = 5.dp, end = 8.dp, top = 0.dp, bottom = 8.dp)
             ) {
-                Text(
-                    // 一行制（10-03 四改）：黄用专用短文案（完整锁定详情在编辑弹窗/⚡ 弹窗里看）；
-                    // 红用 message 开头（「密钥无效或无权限（HTTP 401）」这类关键原因在最前）
-                    (if (isWarn) stringResource(R.string.role_key_warn_thinking_on)
-                    else "❌ " + testOutcome.message),
-                    style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.sp),
-                    color = barColor,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.weight(1f)
-                )
-                Text(
-                    stringResource(R.string.role_key_warn_fix),
-                    style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.sp),
-                    color = barColor,
-                    fontWeight = FontWeight.SemiBold
-                )
+                Row(
+                    // 点文字区=展开/收起（看全文）；「去设置」独立可点（打开编辑弹窗）
+                    Modifier
+                        .fillMaxWidth()
+                        .clickable { expanded = !expanded },
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        // 收起一行：黄用短文案（决定性信息），红用 message 开头；展开后见全文
+                        (if (isWarn) stringResource(R.string.role_key_warn_thinking_on)
+                        else "❌ " + testOutcome.message),
+                        style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.sp),
+                        color = barColor,
+                        maxLines = if (expanded) Int.MAX_VALUE else 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.weight(1f)
+                    )
+                    Text(
+                        if (expanded) "收起" else "详情",
+                        style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.sp),
+                        color = barColor,
+                        fontWeight = FontWeight.SemiBold,
+                        modifier = Modifier.padding(start = 6.dp)
+                    )
+                }
+                if (expanded) {
+                    // 全文（不加 emoji 前缀——标题行已给；多行展示不截断）
+                    Text(
+                        testOutcome.message,
+                        style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.sp),
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(top = 2.dp)
+                    )
+                    Row(Modifier.padding(top = 4.dp)) {
+                        Text(
+                            stringResource(R.string.role_key_test_result_copy),
+                            style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.sp),
+                            color = barColor,
+                            fontWeight = FontWeight.SemiBold,
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(4.dp))
+                                .clickable {
+                                    clipboard.setText(
+                                        AnnotatedString(
+                                            KeyListFile.displayName(entry) + "：" + testOutcome.message
+                                        )
+                                    )
+                                    android.widget.Toast.makeText(
+                                        context, context.getString(R.string.copied),
+                                        android.widget.Toast.LENGTH_SHORT
+                                    ).show()
+                                }
+                                .padding(horizontal = 6.dp, vertical = 2.dp)
+                        )
+                        Text(
+                            stringResource(R.string.role_key_warn_fix),
+                            style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.sp),
+                            color = barColor,
+                            fontWeight = FontWeight.SemiBold,
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(4.dp))
+                                .clickable { onEdit() }
+                                .padding(horizontal = 6.dp, vertical = 2.dp)
+                        )
+                    }
+                }
             }
         }
     }
@@ -878,11 +928,18 @@ fun KeyManagerScreen(tagRuleId: String, onBack: () -> Unit) {
             val r = withIO { KeyListFile.testWithThinking(tagRuleId, raw) }
             testingValue = null
             testResults = testResults + (KeyListFile.normalizePoolValue(raw) to r)
-            toast(
-                if (r.verdict != KeyListFile.TestVerdict.FAIL) R.string.role_key_test_ok_toast
-                else R.string.role_key_test_fail_toast,
-                display, r.message
-            )
+            if (r.verdict == KeyListFile.TestVerdict.PASS) {
+                // 全绿：轻量 Toast（不打断）
+                toast(R.string.role_key_test_ok_toast, display, r.message)
+            } else {
+                // 黄/红：卡底提示条已常驻（可展开看全文）——Toast 只报一句，不重复详情（10-03 五改）
+                toast(
+                    if (r.verdict == KeyListFile.TestVerdict.PASS_THINKING)
+                        R.string.role_key_test_warn_toast
+                    else R.string.role_key_test_fail_toast_simple,
+                    display
+                )
+            }
         }
     }
     fun testKey(entry: KeyListFile.KeyEntry) {
@@ -910,6 +967,7 @@ fun KeyManagerScreen(tagRuleId: String, onBack: () -> Unit) {
                 }
             }.awaitAll()
             testingGroup = null
+            // 汇总 Toast 报数；逐条原因看各卡片底部提示条（10-03 五改：组测不弹框）
             val okCount = results.count { it }
             toast(R.string.role_key_test_batch_done, grp.title, okCount, targets.size - okCount)
         }
@@ -935,6 +993,7 @@ fun KeyManagerScreen(tagRuleId: String, onBack: () -> Unit) {
                 }
             }.awaitAll()
             testingPoolAll = false
+            // 同组测口径：汇总 Toast 报数；逐条原因看行内提示条
             val okCount = results.count { it }
             toast(R.string.role_key_test_batch_done, title, okCount, results.size - okCount)
         }
