@@ -343,13 +343,13 @@ private fun KeyEntryRow(
         }
         // 结果提示条（10-03 三改，用户拍板「放模型行下方」）：黄/红时在卡内行下方常驻——
         // 圆点(8dp)提示太弱，黄(思考问题)必须点名原因且可点击直达思考设置；绿不显示(不打扰)。
-        // 文案用测试返回的 message（含具体原因/锁定写法），前截 90 字防撑爆
+        // 一行截断（10-03 四改，用户令「显示全占地儿」）：完整原因在 ⚡ 测试弹窗/编辑弹窗
+        // 锁定状态里都有，常驻条只承担「提醒去处理」；卡内底部归属清晰（卡=模型边界）
         if (!selectionMode && testOutcome != null &&
             testOutcome.verdict != KeyListFile.TestVerdict.PASS
         ) {
             val isWarn = testOutcome.verdict == KeyListFile.TestVerdict.PASS_THINKING
             val barColor = if (isWarn) TEST_WARN_COLOR else MaterialTheme.colorScheme.error
-            val detail = testOutcome.message.let { if (it.length > 90) it.take(90) + "…" else it }
             Row(
                 Modifier
                     .fillMaxWidth()
@@ -358,10 +358,13 @@ private fun KeyEntryRow(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(
-                    (if (isWarn) "⚠ " else "❌ ") + detail,
+                    // 一行制（10-03 四改）：黄用专用短文案（完整锁定详情在编辑弹窗/⚡ 弹窗里看）；
+                    // 红用 message 开头（「密钥无效或无权限（HTTP 401）」这类关键原因在最前）
+                    (if (isWarn) stringResource(R.string.role_key_warn_thinking_on)
+                    else "❌ " + testOutcome.message),
                     style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.sp),
                     color = barColor,
-                    maxLines = 2,
+                    maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                     modifier = Modifier.weight(1f)
                 )
