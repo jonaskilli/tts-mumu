@@ -87,10 +87,11 @@ class TtsLogViewModel : ViewModel() {
     val filteredLogs: List<LogEntry>
         get() {
             // 勾选=全量混排（用户 09-09）：主列表与勾选的辅助缓冲按时间戳合并。
-            // 不勾选=完全不混入（用户 10-03 拍板，推翻 09-09 的 ERROR/WARN 旁路放行）：
-            // 插件/规则的黄警红错常年混在主时间流里搅乱主日志，正常使用用不到；
-            // 排查时勾上筛选里的开关即可看全量。插件/规则自身的异常不丢线索——
-            // 主日志仍会有 app 侧文案（请求音频失败/源错误/超时等）
+            // 不勾选=不混入（用户 10-03 拍板，推翻 09-09 的 ERROR/WARN 旁路放行）：
+            // 插件/规则的黄警红错常年混在主时间流里搅乱主日志。唯一例外=朗读规则的
+            // ERROR 红字仍放行（10-03 二次拍板）——「无可用API密钥/请求失败/降级兜底」
+            // 这类规则侧报障是排障主线索；WARN 黄字与插件日志（含 ERROR）一律不混。
+            // app 侧失败文案（获取失败/源错误/超时）本就在主日志，报障链不中断
             val showPlugin = showPluginLogs.value
             val showRule = showSpeechRuleLogs.value
             val levels = selectedLevels
@@ -100,7 +101,9 @@ class TtsLogViewModel : ViewModel() {
                 (levels.isEmpty() || e.level in levels) && (showDebug || e.level != LogLevel.DEBUG)
 
             val pluginPart = if (showPlugin) pluginLogs else emptyList<LogEntry>()
-            val rulePart = if (showRule) speechRuleLogs else emptyList<LogEntry>()
+            val rulePart =
+                if (showRule) speechRuleLogs
+                else speechRuleLogs.filter { it.level == LogLevel.ERROR }
 
             // 都不勾（或勾了但缓冲为空）：纯主列表直通，不建列表不排序
             if (pluginPart.isEmpty() && rulePart.isEmpty())
