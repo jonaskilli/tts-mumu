@@ -327,6 +327,7 @@ object KeyListFile {
  *  - 去尾：丢域名后缀与路径（/api/v1）；段内两端挂通用碎块也掐（spark-api-open → spark）
  *  - 纯 IP / localhost 整份保留（带端口）；剔除 @；解析不出返回空串
  *  - 例：cavoti.com → cavoti；openrouter.ai/api/v1 → openrouter；xiaoqun.lyzm.xyz/v1 → xiaoqun
+ *  - 智谱优待（10-04 用户令）：内置智谱网址（open.bigmodel.cn）固定给名「智谱bigmodel」
  * ⚠️ 启发式：组名只是标签，取偏了界面上改名即可，不影响朗读链。
  */
     fun shortName(url: String): String {
@@ -344,6 +345,11 @@ object KeyListFile {
             return ""
         }
         if (host.isBlank()) return ""
+        // 内置智谱站优待（10-04 用户令「只改内置的那个网址」）：只认内置那一个站
+        //（open.bigmodel.cn），建组时固定叫「智谱bigmodel」——通用取段只给「bigmodel」
+        //（open 被当通用前缀跳过）。其他 bigmodel 域名一律走通用取段，不特殊。
+        // 组名只是标签：同站判定/归组仍按网址+密钥，不影响匹配与朗读链。
+        if (host.lowercase() == "open.bigmodel.cn") return "智谱bigmodel"
         val labels = host.split('.').filter { it.isNotEmpty() }
         if (labels.isEmpty()) return ""
         val isIp = labels.size == 4 && labels.all { v -> val n = v.toIntOrNull(); n != null && n in 0..255 }
