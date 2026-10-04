@@ -62,7 +62,21 @@ class PluginManagerActivity : ComposeActivity() {
                             }
 
                             PluginEditorScreen(plugin, autoDebug = autoDebug, onSave = {
-                                scope.launch { withIO { dbm.pluginDao.insert(it) } }
+                                scope.launch {
+                                    withIO {
+                                        // pluginId 相同视为同一插件：保存时若已有同 pluginId 且主键不同的
+                                        // 条目，借旧主键 REPLACE 覆盖——防 js 直导/手动新建插出同 pluginId
+                                        // 双条目（音频配置按 pluginId 关联插件，双条目会解析到旧插件）。
+                                        // 编辑本体（主键相同）与全新 pluginId 照旧直插。与朗读规则
+                                        // SpeechRuleManagerActivity 的同名处理同口径。
+                                        val entity = if (it.pluginId.isNotBlank()) {
+                                            dbm.pluginDao.getMetaByPluginId(it.pluginId)
+                                                ?.takeIf { twin -> twin.id != it.id }
+                                                ?.let { twin -> it.copy(id = twin.id) } ?: it
+                                        } else it
+                                        dbm.pluginDao.insert(entity)
+                                    }
+                                }
                             })
                         }
                     }
