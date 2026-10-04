@@ -81,6 +81,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.rotate
+import androidx.compose.ui.draw.scale
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.compositeOver
@@ -265,12 +266,13 @@ private fun KeyEntryRow(
     ElevatedCard(
         colors = CardDefaults.elevatedCardColors(containerColor = cardColor),
         modifier = Modifier.fillMaxWidth()
-            // 缩进 = 归属关系：左缘 15dp 与组头折叠箭头同列、右缘 6dp 与组头图标区同列。
+            // 左缘 6（10-04 拍板：卡片左边贴边）——与组头箭头热区同列、与右缘 6 对称；
+            // 旧「左 15 与折叠箭头同列」的归属缩进口径作废（组头 start=6 后两者自然同线）。
             // 上下 3 ⇒ 相邻两张卡之间 6dp
             // start/end 与 vertical 分属不同 padding 重载，写在一起没有匹配的候选，故分两次。
             // （启用描边已随 10-03 对勾方案退役；「描边画在 padding 之后」的教训留档：
             //  画在前面会框住整个行宽、比卡片大一圈，0920 实机事故）
-            .padding(start = 15.dp, end = 6.dp)
+            .padding(start = 6.dp, end = 6.dp)
             .padding(vertical = 3.dp)
     ) {
         Row(
@@ -285,8 +287,11 @@ private fun KeyEntryRow(
         ) {
             // 行首对勾：常规=启用开关（照主界面 Item.kt 同款 role Switch + 语义描述）；
             // 多选/组内删除模式=勾选，同一位置同一控件切换语义
+            // scale 0.85 ≈17dp（10-04 用户：与 14sp 名字适配）——只缩绘制，48dp 触控盒与行高不动；
+            // 与组头三态勾同比例，两级勾选语言一致
             Checkbox(
-                modifier = if (selectionMode) Modifier else Modifier.semantics {
+                modifier = Modifier.scale(0.85f).then(
+                    if (selectionMode) Modifier else Modifier.semantics {
                     role = Role.Switch
                     context.getString(
                         if (enabled) R.string.config_enabled_desc else R.string.config_disabled_desc,
@@ -295,7 +300,8 @@ private fun KeyEntryRow(
                         contentDescription = it
                         stateDescription = it
                     }
-                },
+                }
+                ),
                 checked = if (selectionMode) checked else enabled,
                 onCheckedChange = { if (selectionMode) onToggleCheck() else onTogglePool() },
             )
@@ -503,10 +509,11 @@ private fun GroupHeaderBlock(
             if (deleteMode) {
                 // 组内删除模式标题行（0916 定稿形态）：标题降到 16sp 与右端「全选」共一行，
                 // 底部另有 取消/删除(N) 动作行（在条目卡之后）——顶部选谁、底部执行，
-                // 视线不在卡片里跑两趟。左右缩进对齐条目名文字列（34dp，与组名同列）
+                // 视线不在卡片里跑两趟。左右缩进对齐条目名文字列（34dp，与组名同列）；
+                // end 5→6（10-04 右线归一：贴边族右线=6，孤儿 5 归线）
                 Row(
                     Modifier.fillMaxWidth()
-                        .padding(start = 34.dp, end = 5.dp, top = 4.dp),
+                        .padding(start = 34.dp, end = 6.dp, top = 4.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text(
@@ -570,11 +577,12 @@ private fun GroupHeaderBlock(
                         )
                         // 组尾三态对勾（10-03 照主界面 GroupItem 同款）：全启=勾/全停=空/部分=横。
                         // 单击批量启停：半选/全选单击=全停、全停单击=全启（主界面口径）；
-                        // 放在可点区内但 Checkbox 自吞点击，不会触发折叠
+                        // 放在可点区内但 Checkbox 自吞点击，不会触发折叠；
+                        // scale 0.85 与条目勾同比例（10-04 与 15sp 组名适配）
                         TriStateCheckbox(
                             state = enabledCount.sizeToToggleableState(grp.entries.size),
                             onClick = { onSetGroupEnabled(enabledCount == 0) },
-                            modifier = Modifier.semantics {
+                            modifier = Modifier.scale(0.85f).semantics {
                                 stateDescription = context.getString(
                                     when (enabledCount) {
                                         grp.entries.size -> R.string.group_all_enabled
@@ -687,11 +695,12 @@ private fun GroupHeaderBlock(
                 }
                 // 元信息行：接口组 = 网址 + 尾号小块；未分组 = 一句身份说明。
                 // 左缘 = 组名文字左缘（43）：卡左缘 15 + 折叠箭头 22 + 间距 6
+                // end 10→6（10-04 右线归一：尾号小块盒缘落右线 6，与卡盒/图标区同列）
                 val ifc = grp.ifc
                 if (ifc != null) {
                     Row(
                         Modifier.fillMaxWidth()
-                            .padding(start = 34.dp, end = 10.dp, bottom = 6.dp),
+                            .padding(start = 34.dp, end = 6.dp, bottom = 6.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Text(
@@ -727,8 +736,8 @@ private fun GroupHeaderBlock(
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                             maxLines = 2,
                             overflow = TextOverflow.Ellipsis,
-                            // 与网址分支同列（34），两分支是同一个元素的两个形态
-                            modifier = Modifier.padding(start = 34.dp, end = 10.dp, bottom = 6.dp)
+                            // 与网址分支同列（34）；右端同落右线 6
+                            modifier = Modifier.padding(start = 34.dp, end = 6.dp, bottom = 6.dp)
                         )
                     }
                 }
@@ -1425,7 +1434,7 @@ fun KeyManagerScreen(tagRuleId: String, onBack: () -> Unit) {
                             item(key = "d:" + grp.title) {
                                 Row(
                                     Modifier.fillMaxWidth()
-                                        .padding(start = 34.dp, end = 5.dp, top = 2.dp, bottom = 4.dp),
+                                        .padding(start = 34.dp, end = 6.dp, top = 2.dp, bottom = 4.dp),
                                     horizontalArrangement = Arrangement.End,
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {

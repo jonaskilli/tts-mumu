@@ -131,9 +131,10 @@ internal fun Item(
                         Icon(Icons.Default.Edit, stringResource(id = R.string.edit_desc, name))
                     }
                     var isMoreOptionsVisible by remember { mutableStateOf(false) }
+                    // end=10 移除（10-04 ⋮ 对齐）：末键 48dp 热区贴卡缘，与主页配置项卡同构、跨页一致
                     IconButton(onClick = {
                         isMoreOptionsVisible = true
-                    }, modifier = Modifier.padding(end = 10.dp)) {
+                    }) {
                         Icon(
                             imageVector = Icons.Filled.MoreVert,
                             contentDescription = stringResource(id = R.string.more_options_desc, name),

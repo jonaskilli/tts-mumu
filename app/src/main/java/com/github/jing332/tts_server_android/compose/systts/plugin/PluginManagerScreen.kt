@@ -64,8 +64,8 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TextFieldDefaults
-import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
+import com.github.jing332.tts_server_android.compose.nav.NavTopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.CompositionLocalProvider
@@ -612,7 +612,8 @@ fun PluginManagerScreen(sharedVM: SharedViewModel, onFinishActivity: () -> Unit)
             .fillMaxSize()
             .nestedScroll(scrollBehavior.nestedScrollConnection),
         topBar = {
-            TopAppBar(
+            // M3 TopAppBar → 全站自绘 NavTopAppBar（56dp、动作键热区贴边）：顶栏 ⋮ 与列表行 ⋮ 同列
+            NavTopAppBar(
                 title = {
                     when {
                         // 搜索态：顶栏标题位换成圆角搜索框，输入即过滤背后列表
@@ -936,7 +937,9 @@ private fun Item(
         }
     ) {
         // 第11项修复: Box会堆叠子项导致展开面板与Row重叠,改用Column使展开面板下移
-        Column(modifier = Modifier.padding(4.dp)) {
+        // 水平归零（10-04 ⋮ 对齐）：卡内容贴卡缘，末键 ⋮ 热区落卡缘——
+        // 与主页配置项卡（卡外缘 8dp + 图标贴卡缘）同构，跨页 ⋮ 列一致
+        Column(modifier = Modifier.padding(vertical = 4.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 if (isSelectionMode) {
                     Checkbox(

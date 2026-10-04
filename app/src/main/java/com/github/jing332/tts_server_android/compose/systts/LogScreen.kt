@@ -76,7 +76,6 @@ import com.github.jing332.common.toLogLevelChar
 import com.github.jing332.compose.ComposeExtensions.toAnnotatedString
 import com.github.jing332.compose.widgets.ControlBottomBarVisibility
 import com.github.jing332.tts_server_android.R
-import com.github.jing332.tts_server_android.compose.ListGutter
 import com.github.jing332.tts_server_android.compose.LocalBottomBarBehavior
 import kotlinx.coroutines.launch
 
@@ -291,9 +290,9 @@ fun LogScreen(
                     } else Modifier
                 ),
             state = listState,
-            // 左右基准线 16（v3 边距统一）：正文不再贴屏，与顶部搜索控制行（16）同线；
-            // 行内水平 padding 随之归零（下方），裸内容直接落 gutter 线
-            contentPadding = PaddingValues(horizontal = ListGutter)
+            // 左右基准线 8（10-04 用户拍板：日志页属「贴边族」，非内容页 16 口径）——
+            // 正文/分隔线/高亮同线；老版 4 略紧、16 太空，8 取中（终端面通透又连贯）
+            contentPadding = PaddingValues(horizontal = 8.dp)
         ) {
                 itemsIndexed(list, key = { index, _ -> index }) { index, log ->
                     // 获取成功前缀：石板灰 Blue Grey 800/200
