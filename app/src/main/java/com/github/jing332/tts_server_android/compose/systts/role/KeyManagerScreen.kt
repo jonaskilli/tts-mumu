@@ -146,8 +146,8 @@ internal fun buildKeyGroups(keys: List<KeyListFile.KeyEntry>, ifaces: List<KeyLi
         entries.forEach { assigned.add(it.name) }
     }
     // 「直连密钥」桶已退役（1002）：裸 Key 与匹配不上接口的条目统一落「未分组」。
-    // 裸 Key 禁止启用（togglePool 拦截）；补全完整格式后由 heal 按一 key 一组自愈归组，
-    // 智谱内置组只是被 seedZhipuBuiltin 种出来的普通接口组，分组判定零特例
+    // 裸 Key 禁止启用（togglePool 拦截）；补全完整格式后由 heal 按一 key 一组自愈归组。
+    // 智谱内置种子已退役（10-04 用户令：只认算法补全，不内置 Key）——分组判定零特例，无自动重建
     val ungrouped = keys.filter { it.name !in assigned }
     if (ungrouped.isNotEmpty()) groups.add(
         KeyGroup("未分组", ungrouped, hintRes = R.string.role_key_complete_hint)
@@ -798,11 +798,10 @@ fun KeyManagerScreen(tagRuleId: String, onBack: () -> Unit) {
 
     LaunchedEffect(version) {
         // 旧数据迁移（幂等）：裸 Key 条目补全智谱全串、池内空地址段补真端点
-        // → 智谱内置种子（幂等，条件=无「智谱站点+内置Key」接口；删改自由，站点+Key 消失即重建）
         // → 分组自愈：匹配不上分组的 @@ 条目按（网址 + 密钥）自动建组
+        //（智谱内置种子已退役 10-04：不再内置 Key/自动重建任何组；存量失效 key 由用户手动删）
         withIO {
             KeyListFile.migrateLegacy(tagRuleId)
-            KeyListFile.seedZhipuBuiltin(tagRuleId)
             KeyListFile.heal(tagRuleId)
         }
         val loaded = withIO {
@@ -1081,6 +1080,8 @@ fun KeyManagerScreen(tagRuleId: String, onBack: () -> Unit) {
     }
 
     // 删除整组：接口组连 api_center.json 的接口一起删；未分组只删条目
+    // ⚠️ 空组（条目已删光、组还在）走 deleteNames 会提前返回 ⇒ 手动 version++ 触发重载，
+    //    否则接口已从盘上删掉、界面还挂着空组直到下次重进（「删了没反应」的观感）
     fun deleteGroupAll(grp: KeyGroup) {
         val names = grp.entries.map { it.name }
         val ifc = grp.ifc
@@ -1093,7 +1094,7 @@ fun KeyManagerScreen(tagRuleId: String, onBack: () -> Unit) {
                     )
                 }
             }
-            deleteNames(names)
+            if (names.isEmpty()) version++ else deleteNames(names)
         }
     }
 
@@ -2084,6 +2085,25 @@ private fun InterfaceFormDialog(
                     } else e
                 }
                 if (changed) withIO { KeyListFile.saveKeys(tagRuleId, finalList) }
+                // 启用池同步（10-04）：本组条目在池里用旧（网址+密钥）串 ⇒ 换成新串。
+                // ⚠️ 旧版只改接口与条目、漏同步池 ⇒ 界面显示新 Key，朗读仍按池里的旧 Key 轮换
+                //（换 Key/换地址等于没换；旧 Key 失效时朗读直接失败）
+                val normMap = mutableMapOf<String, String>()
+                rewritten.forEach { e ->
+                    val p = KeyListFile.parseKeyValue(e.value) ?: return@forEach
+                    if (!p.isDirect && p.key == oldKey && KeyListFile.sameApiSite(p.url, oldUrl)) {
+                        val oldNorm = KeyListFile.normalizePoolValue(e.value)
+                        val newNorm = KeyListFile.normalizePoolValue("$u@@${p.model}@@$k")
+                        if (oldNorm.isNotEmpty() && newNorm.isNotEmpty() && oldNorm != newNorm) {
+                            normMap[oldNorm] = newNorm
+                        }
+                    }
+                }
+                if (normMap.isNotEmpty()) {
+                    val curPool = withIO { KeyListFile.readPool(tagRuleId) }
+                    val nextPool = curPool.map { normMap[it] ?: it }
+                    if (nextPool != curPool) withIO { KeyListFile.savePool(tagRuleId, nextPool) }
+                }
             }
             toast(R.string.role_key_saved)
             onSaved()

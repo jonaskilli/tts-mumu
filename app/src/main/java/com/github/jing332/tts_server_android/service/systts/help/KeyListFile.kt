@@ -501,9 +501,12 @@ object KeyListFile {
 
     // ==================== 启用池 / 当前密钥（miyue/gengxin/backup 三写）====================
 
-/** 智谱内置端点与内置 Key（与朗读规则 DualKeyManager 的 defaultConfig 同源；种子见 seedZhipuBuiltin） */
+/**
+ * 智谱站点端点（裸 Key 补全用；与朗读规则 DualKeyManager 的 defaultConfig 同源）。
+ * 10-04 用户令「内置站点可以、内置 Key 不行」：种子退役，Key 永远由用户自填。
+ * 存量失效内置 key 不自动清理（10-04 用户令：手动删一次即可；种子已拆，删了不再重建）。
+ */
     const val ZHIPU_ENDPOINT = "https://open.bigmodel.cn/api/paas/v4"
-    const val ZHIPU_BUILTIN_KEY = "b26b869ffd7e4a1dac61666db27de213.ayAJYkmqeA1w3OL"
 
 /** 裸 Key 补全用的默认模型（与朗读规则 DualKeyManager 的 defaultConfig.model 同源） */
     const val DIRECT_MODEL = "glm-4-flash"
@@ -584,39 +587,6 @@ object KeyListFile {
         // pool_cleared.flag 随「池空自动启用第一条」兜底一并退役（1002），顺手清掉历史残留文件
         try { File(File(BASE_DIR, tagRuleId), "pool_cleared.flag").delete() } catch (e: Exception) {
             Log.w(TAG, "legacy pool_cleared.flag cleanup failed: ${e.message}")
-        }
-    }
-
-    /**
-     * 智谱内置种子（幂等）：不存在「智谱站点+内置 Key」的接口时，重种一套完整的。
-     * 接口与默认条目都按**自然顺序**追加到末尾——与手动新增分组/模型同待遇，
-     * 启用池顺序也不因智谱特殊（1002 拍板：去掉「分组置顶」，不再有任何插队）。
-     * 用户可自由删改：删整组 / 把接口改得面目全非 → 本函数下次自愈重建；只删条目
-     * （接口还在）→ 不重种；用户自己的智谱 key（Key 不同）由 heal 自愈成「智谱2/3」，
-     * 不会挡住内置的重建判定。池空不自动启用任何条目（兜底已退役）。
-     */
-    fun seedZhipuBuiltin(tagRuleId: String) {
-        val ifaces = readInterfaces(tagRuleId)
-        val exists = ifaces.any {
-            sameApiSite(it.baseUrl, ZHIPU_ENDPOINT) && it.apiKey.trim() == ZHIPU_BUILTIN_KEY
-        }
-        if (exists) return
-        val nm = uniqueIfcName("智谱密钥", ifaces.map { it.name }.toSet())
-        saveInterfaces(
-            tagRuleId,
-            ifaces + ApiInterface(nm, ZHIPU_ENDPOINT, ZHIPU_BUILTIN_KEY, listOf(DIRECT_MODEL))
-        )
-        val entryVal = "$ZHIPU_ENDPOINT@@$DIRECT_MODEL@@$ZHIPU_BUILTIN_KEY"
-        val keys = readKeys(tagRuleId)
-        if (keys.none { it.value.trim() == entryVal }) {
-            saveKeys(
-                tagRuleId,
-                keys + KeyEntry(
-                    name = dedupName(DIRECT_MODEL, keys.map { it.name }.toSet()),
-                    keyCode = nextKeyCode(keys),
-                    value = entryVal,
-                )
-            )
         }
     }
 
