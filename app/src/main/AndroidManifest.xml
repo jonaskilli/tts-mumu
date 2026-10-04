@@ -134,6 +134,9 @@
                 <data android:scheme="file" />
                 <data android:mimeType="text/plain" />
                 <data android:mimeType="application/json" />
+                <!-- js 源码直导：文件管理器把 .js 解析成 javascript 类型时也能「打开方式」选 TTS -->
+                <data android:mimeType="text/javascript" />
+                <data android:mimeType="application/javascript" />
             </intent-filter>
             <intent-filter>
                 <action android:name="android.intent.action.VIEW" />

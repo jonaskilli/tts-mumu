@@ -34,6 +34,7 @@ import com.github.jing332.tts_server_android.compose.systts.plugin.parsePluginsJ
 import com.github.jing332.tts_server_android.constant.AppConst
 import com.github.jing332.tts_server_android.service.systts.SystemTtsService
 import com.github.jing332.tts_server_android.ui.systts.ImportConfigFactory
+import com.github.jing332.tts_server_android.ui.systts.ImportConfigFactory.gotoEditorFromJS
 import com.github.jing332.tts_server_android.ui.systts.ImportType
 import com.github.jing332.tts_server_android.ui.view.AppDialogs.displayErrorDialog
 import com.drake.net.utils.withIO
@@ -170,6 +171,25 @@ internal fun doAutoImport(
     if (trimmed.isEmpty()) return AutoImportResult.EmptyOrUnrecognized(
         context.getString(R.string.import_no_valid_config_reason_empty)
     )
+
+    // JS 直导：朗读规则/插件源码是纯 JS 不是 JSON，走下方 JSON 解析必报「无法识别」。
+    // 与 ImportConfigActivity 系统导入同款口径：按内容特征（SpeechRuleJS/PluginJS）分流，
+    // 交给编辑器预填打开，编辑器保存时经 SpeechRuleEngine.evalInfo 读 name/id 等元数据、
+    // 按 ruleId 覆盖同 id 条目（不产生第二个规则）。
+    if (trimmed.contains("SpeechRuleJS") || trimmed.contains("PluginJS")) {
+        val isRule = trimmed.contains("SpeechRuleJS")
+        val typeName = if (isRule) "朗读规则" else "插件"
+        return if (context.gotoEditorFromJS(trimmed)) {
+            AutoImportResult.Success(
+                1, if (isRule) ImportType.SPEECH_RULE else ImportType.PLUGIN,
+                "已识别为${typeName}JS源码：编辑器已打开，请确认保存完成导入"
+            )
+        } else {
+            AutoImportResult.EmptyOrUnrecognized(
+                "JS 文件未找到 SpeechRuleJS/PluginJS 对象定义，无法识别类型"
+            )
+        }
+    }
 
     // 截断检测（必须在补括号之前、针对原始内容）：
     // 数组开头但（去掉尾逗号后）未以 ']' 结尾 → 大概率被截断，直接报错。

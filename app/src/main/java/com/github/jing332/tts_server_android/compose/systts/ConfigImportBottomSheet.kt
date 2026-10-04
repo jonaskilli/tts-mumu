@@ -262,7 +262,15 @@ fun ConfigImportBottomSheet(
                                         IconButton(onClick = {
                                             filePicker.launch(
                                                 FilePickerActivity.RequestSelectFile(
-                                                    listOf("application/json", "text/*")
+                                                    // js 源码直导：部分 ROM/网盘把 .js 报成 application(/x)-javascript
+                                                    // 或 octet-stream，只给 json+text/* 会灰掉选不中（octet-stream 放开无解，
+                                                    // 会连带放开所有二进制；js 走报成 javascript 类型的路径）
+                                                    listOf(
+                                                        "application/json",
+                                                        "text/*",
+                                                        "application/javascript",
+                                                        "application/x-javascript"
+                                                    )
                                                 )
                                             )
                                         }) {
