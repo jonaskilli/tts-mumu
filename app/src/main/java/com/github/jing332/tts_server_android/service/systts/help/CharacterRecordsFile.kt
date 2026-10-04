@@ -830,14 +830,15 @@ object CharacterRecordsFile {
             // 核心文件（照插件 backupAllFilesToData 的 8 项：运行时同步副本
             // gengxin.json / miyue_backup.txt / characterRecords_backup.json 不入备份）。
             // ⚠️ 旧版清单少了 voice_marks.json 与 custom_keywords.json ⇒ 备份→改动→恢复之后，
-            // ❤️🚶😈 语音标记与自定义关键词回到**现场值**而不是备份值；api_center.json 是本地
-            // 多备的（无害，恢复时接口中心一并回滚反而更自洽）。
+            // ❤️🚶😈 语音标记与自定义关键词回到**现场值**而不是备份值；模型接口中心.json 是本地
+            // 多备的（无害，恢复时接口中心一并回滚反而更自洽）。旧名 api_center.json 留在清单里
+            // 是为了迁移前/旧版现场的目录也能被备全（applyBackup 恢复时重映射回新名）。
             // （custom_keywords.json 09-14 起 App 侧不再读写（自定义关键词功能下线），仍留在
             //   清单里是为了「整目录现场快照」语义与插件侧互通，不影响备份内容。）
             listOf(
                 "characterRecords.json", "liebiao.json", "miyue.txt", "cunfang.txt",
                 "fayinren.json", "voice_marks.json", "key_list.json", "custom_keywords.json",
-                "api_center.json"
+                KeyListFile.CENTER_FILE_NAME, KeyListFile.LEGACY_CENTER_FILE_NAME
             ).forEach { fn ->
                 val f = File(d, fn)
                 if (f.exists()) {
@@ -876,7 +877,11 @@ object CharacterRecordsFile {
             var n = 0
             map.keys().forEach { fn ->
                 if (!fn.startsWith("__")) {
-                    runCatching { File(d, fn).writeText(map.optString(fn)) }.onSuccess { n++ }
+                    // 旧名重映射：旧备份里的 api_center.json 恢复时写进 模型接口中心.json，
+                    // 否则现场新名文件还在、恢复值被晾在旧名文件里读不到（接口白还原）
+                    val target =
+                        if (fn == KeyListFile.LEGACY_CENTER_FILE_NAME) KeyListFile.CENTER_FILE_NAME else fn
+                    runCatching { File(d, target).writeText(map.optString(fn)) }.onSuccess { n++ }
                 }
             }
             val rec = map.optString("characterRecords.json")

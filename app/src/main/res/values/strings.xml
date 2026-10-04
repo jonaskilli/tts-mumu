@@ -383,7 +383,6 @@
     <string name="sys_doc_picker_error">打开系统文件选择器失败。</string>
     <string name="add_file">添加文件</string>
     <string name="path_is_empty">路径为空</string>
-    <string name="file_picker_mode_system">从文件恢复</string>
     <string name="no_retries">不重试</string>
     <string name="systts_no_custom_tag_config_warn">⚠️无标签配置，请添加配置或关闭多语音选项！</string>
     <string name="tip">提示</string>
@@ -484,6 +483,11 @@
     <string name="backup_save_local">保存至本地</string>
     <string name="backup_need_content">请至少选择一项备份内容</string>
     <string name="backup_need_save_target">请至少选择一种保存方式</string>
+    <string name="backup_dir_none">未设置</string>
+    <string name="backup_dir_pick">选择文件夹</string>
+    <string name="backup_dir_change">更换</string>
+    <string name="backup_dir_saved">已保存到备份文件夹：%1$s</string>
+    <string name="file_picker_mode_system">从文件恢复</string>
     <string name="audio_params_apply">应用</string>
     <string name="audio_params_apply_dim_toast">已应用（该层语速/音量/音高已保存）</string>
     <string name="log_panel_title">发音人调整</string>

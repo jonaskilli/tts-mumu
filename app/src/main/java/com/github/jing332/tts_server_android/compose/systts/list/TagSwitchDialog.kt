@@ -1,15 +1,26 @@
 package com.github.jing332.tts_server_android.compose.systts.list
 
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Category
+import androidx.compose.material.icons.filled.KeyboardArrowDown
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -28,6 +39,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.github.jing332.compose.widgets.AppDialog
+import com.github.jing332.compose.widgets.AppSelectionDialog
 import com.github.jing332.compose.widgets.LoadingContent
 import com.github.jing332.database.dbm
 import com.github.jing332.database.entities.SpeechRule
@@ -52,8 +64,10 @@ private fun extractPrefix(name: String): String {
 }
 
 /**
- * 两层标签选择弹窗（可复用纯 UI 构件）：第一层选大分类（旁白/女青年/男主…），第二层选具体序号；
- * 单项分类（旁白/括号/音效等）点分类即选中。高亮当前标签并自动滚动定位。
+ * 标签选择弹窗（可复用纯 UI 构件）：顶部「分类筛选框」+ 下方该分类的序号列表
+ * （10-04 用户定稿形态——旧两层「分类→序号」的层级差用筛选框吸收，一步可达）。
+ * 点筛选框弹出原分类列表选择（带项数、当前分类高亮）；单项分类（旁白/括号/音效等）点一下直接选中。
+ * 序号列表保留原样式：高亮当前标签并自动滚动定位。
  * 不写库不通知，选中经 [onSelect]（tag 与 tags 表显示名）交调用方处理。
  */
 @Composable
@@ -80,18 +94,15 @@ fun TagPickerDialog(
         allTags.find { it.tag == currentTag }?.let { extractPrefix(it.tagName) }
     }
 
-    var selectedGroup by remember { mutableStateOf<TagGroup?>(null) }
-
-    // 第一层：自动滚动到当前所在的大分类
-    val groupListState = rememberLazyListState()
-    LaunchedEffect(groups, currentPrefix, selectedGroup) {
-        if (selectedGroup == null && groups.isNotEmpty()) {
-            val idx = groups.indexOfFirst { it.prefix == currentPrefix }
-            groupListState.scrollToItem(if (idx >= 0) idx else 0)
-        }
+    // 筛选框选中分类（默认停在当前标签所属分类）；null = 当前标签找不到分类 → 回落第一组
+    var selectedPrefix by remember(currentPrefix, groups) {
+        mutableStateOf(currentPrefix ?: groups.firstOrNull()?.prefix)
+    }
+    val selectedGroup = remember(groups, selectedPrefix) {
+        groups.firstOrNull { it.prefix == selectedPrefix }
     }
 
-    // 第二层：自动滚动到当前所在的具体标签
+    // 序号列表自动滚动到当前标签（照原第二层行为）
     val itemListState = rememberLazyListState()
     LaunchedEffect(selectedGroup, currentTag) {
         val g = selectedGroup
@@ -101,13 +112,38 @@ fun TagPickerDialog(
         }
     }
 
+    // 分类选择弹窗（复用 AppSelectionDialog；点开那一刻的组列表快照，够用——只有「当前分类」跟着变）
+    var categoryPickerOpen by remember { mutableStateOf(false) }
+    if (categoryPickerOpen) {
+        AppSelectionDialog(
+            onDismissRequest = { categoryPickerOpen = false },
+            title = { Text("选择标签分类") },
+            value = selectedPrefix ?: "",
+            values = groups.map { it.prefix },
+            entries = groups.map {
+                if (it.items.size > 1) "${it.prefix}（${it.items.size}项）" else it.prefix
+            },
+            // 分类最多二十来个，不需要搜索框
+            searchEnabled = false,
+            onClick = { key, _ ->
+                val g = groups.find { it.prefix == key }
+                if (g != null) {
+                    if (g.items.size == 1) {
+                        // 单项分类：点一下直接选中（照原行为；父层 onSelect 会关闭整个弹窗）
+                        val only = g.items.first()
+                        onSelect(only.tag, only.tagName)
+                    } else {
+                        selectedPrefix = g.prefix
+                        categoryPickerOpen = false
+                    }
+                }
+            },
+        )
+    }
+
     AppDialog(
         onDismissRequest = onDismissRequest,
-        title = {
-            Text(
-                text = if (selectedGroup == null) "选择标签分类" else "选择标签序号",
-            )
-        },
+        title = { Text("选择标签") },
         content = {
             Column(
                 modifier = Modifier
@@ -124,63 +160,54 @@ fun TagPickerDialog(
                             .padding(16.dp)
                     )
                 } else {
-                    val targetGroup = selectedGroup
-                    if (targetGroup == null) {
-                        // 第一层：大分类列表，自动定位到当前分类
-                        LazyColumn(
-                            state = groupListState,
-                            modifier = Modifier.fillMaxWidth()
+                    // 分类筛选框：照换声弹窗 CategoryChip 样式（灰底 8dp 圆角 + 分类图标 + 箭头）
+                    Surface(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(56.dp)
+                            .clickable(
+                                indication = null,
+                                interactionSource = remember { MutableInteractionSource() },
+                            ) { categoryPickerOpen = true },
+                        shape = RoundedCornerShape(8.dp),
+                        color = MaterialTheme.colorScheme.surfaceContainerHighest,
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(horizontal = 12.dp),
+                            verticalAlignment = Alignment.CenterVertically,
                         ) {
-                            items(groups, key = { it.prefix }) { group ->
-                                val isCurrent = group.prefix == currentPrefix
-                                Row(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .clickable {
-                                            if (group.items.size == 1) {
-                                                val only = group.items.first()
-                                                onSelect(only.tag, only.tagName)
-                                            } else {
-                                                selectedGroup = group
-                                            }
-                                        }
-                                        .padding(horizontal = 16.dp, vertical = 12.dp),
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    Text(
-                                        text = if (group.items.size > 1)
-                                            "${group.prefix}（${group.items.size}项）"
-                                        else group.prefix,
-                                        // bodyMedium 14sp（用户 09-11 静态扫查定案）：AlertDialog 正文槽
-                                        // LocalTextStyle=bodyMedium，弹窗内选择列表与字段值同档对齐，
-                                        // 与 AppSelectionDialog（61dab68）同处方；原 bodyLarge 16sp 与
-                                        // 环境 14sp 错位一圈
-                                        style = MaterialTheme.typography.bodyMedium,
-                                        fontWeight = if (isCurrent) FontWeight.Bold else FontWeight.Normal,
-                                        color = if (isCurrent)
-                                            MaterialTheme.colorScheme.primary
-                                        else
-                                            MaterialTheme.colorScheme.onSurface,
-                                        maxLines = 1,
-                                        overflow = TextOverflow.Ellipsis,
-                                        modifier = Modifier.weight(1f)
-                                    )
-                                    if (isCurrent) {
-                                        Text(
-                                            "当前",
-                                            style = MaterialTheme.typography.labelSmall,
-                                            color = MaterialTheme.colorScheme.primary,
-                                            fontWeight = FontWeight.Bold,
-                                        )
-                                    }
-                                }
-                            }
+                            Icon(
+                                Icons.Default.Category,
+                                contentDescription = null,
+                                modifier = Modifier.size(18.dp),
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                            Spacer(Modifier.width(6.dp))
+                            Text(
+                                selectedPrefix ?: "—",
+                                style = MaterialTheme.typography.titleSmall,
+                                color = MaterialTheme.colorScheme.primary,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                                modifier = Modifier.weight(1f),
+                            )
+                            Icon(
+                                Icons.Default.KeyboardArrowDown,
+                                contentDescription = null,
+                                modifier = Modifier.size(20.dp),
+                                tint = MaterialTheme.colorScheme.primary,
+                            )
                         }
-                    } else {
-                        // 第二层：具体标签列表，自动定位到当前标签
+                    }
+
+                    Spacer(Modifier.height(8.dp))
+
+                    // 序号列表（原第二层样式原样）：高亮当前 + 自动定位
+                    val targetGroup = selectedGroup
+                    if (targetGroup != null) {
                         LazyColumn(
                             state = itemListState,
-                            modifier = Modifier.fillMaxWidth()
+                            modifier = Modifier.fillMaxWidth(),
                         ) {
                             items(targetGroup.items, key = { it.tag }) { tagItem ->
                                 val isCurrent = tagItem.tag == currentTag
@@ -223,14 +250,8 @@ fun TagPickerDialog(
             }
         },
         buttons = {
-            if (selectedGroup != null) {
-                TextButton(onClick = { selectedGroup = null }) {
-                    Text("返回")
-                }
-            } else {
-                TextButton(onClick = onDismissRequest) {
-                    Text(stringResource(R.string.cancel))
-                }
+            TextButton(onClick = onDismissRequest) {
+                Text(stringResource(R.string.cancel))
             }
         }
     )

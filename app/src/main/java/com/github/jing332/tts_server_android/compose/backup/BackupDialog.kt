@@ -23,6 +23,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import android.widget.Toast
 import com.github.jing332.compose.widgets.AppDialog
@@ -37,6 +38,10 @@ import com.github.jing332.tts_server_android.R
 @Composable
 internal fun BackupDialog(
     onDismissRequest: () -> Unit,
+    // 本地备份文件夹（10-03）：选定后直写该目录，不再每次弹「另存为」。
+    // localDirLabel 空 = 未设置；onPickDir 触发系统目录选择（动作由 Activity 侧落地）
+    localDirLabel: String = "",
+    onPickDir: () -> Unit = {},
     onBackupRequested: (BackupProfile, List<Type>, saveToLocal: Boolean, uploadToWebDav: Boolean) -> Unit,
 ) {
     var profile by remember { mutableStateOf(BackupProfile.PERSONAL_FULL) }
@@ -134,6 +139,32 @@ internal fun BackupDialog(
                         onCheckedChange = { saveToLocal = it },
                         horizontalArrangement = Arrangement.Start,
                     )
+                    // 文件夹行（仅本地勾选时显示）：已选=显示名+“更换”；未选=“选择文件夹”引导
+                    if (saveToLocal) {
+                        Row(
+                            Modifier
+                                .fillMaxWidth()
+                                .padding(start = 48.dp, bottom = 4.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = localDirLabel.ifBlank { stringResource(R.string.backup_dir_none) },
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                                modifier = Modifier.weight(1f)
+                            )
+                            TextButton(onClick = onPickDir) {
+                                Text(
+                                    stringResource(
+                                        if (localDirLabel.isBlank()) R.string.backup_dir_pick
+                                        else R.string.backup_dir_change
+                                    )
+                                )
+                            }
+                        }
+                    }
                     TextCheckBox(
                         modifier = Modifier.fillMaxWidth(),
                         text = { Text(stringResource(R.string.backup_to_webdav)) },

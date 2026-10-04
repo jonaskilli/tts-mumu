@@ -75,6 +75,13 @@ object AppConfig {
     val webDavPass by lazy { mutableDataSaverStateOf(dataSaverPref, "webDavPass", "") }
     val webDavPath by lazy { mutableDataSaverStateOf(dataSaverPref, "webDavPath", "TTS备份") }
 
+    // 本地备份文件夹（10-03 用户令）：SAF 目录树 URI，选定后本地备份直写该目录、
+    // 不再每次弹「另存为」。空 = 未设置（备份时仍走系统另存为流程）。
+    // FilePickerActivity 选目录时已 takePersistableUriPermission，重启后权限仍有效
+    val backupDirUri by lazy { mutableDataSaverStateOf(dataSaverPref, "backupDirUri", "") }
+    // 上者的显示名快照（选定时算好存下来，避免每次渲染做 SAF 查询）
+    val backupDirLabel by lazy { mutableDataSaverStateOf(dataSaverPref, "backupDirLabel", "") }
+
     const val DEFAULT_WEBDAV_URL = "https://dav.jianguoyun.com/dav/"
 
     /** 未配置 = 地址为默认(或空)且未填账号：仅预填默认地址不代表可用 */

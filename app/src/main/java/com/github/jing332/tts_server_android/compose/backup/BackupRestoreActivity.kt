@@ -1,7 +1,9 @@
 package com.github.jing332.tts_server_android.compose.backup
 
 import android.content.Intent
+import android.net.Uri
 import android.os.Bundle
+import android.provider.DocumentsContract
 import android.text.format.Formatter
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -66,11 +68,26 @@ class BackupRestoreActivity : ComposeActivity() {
                 val saveFilePicker = rememberLauncherForActivityResult(
                     contract = AppActivityResultContracts.filePickerActivity(),
                 ) {}
+                // 本地备份文件夹选择（10-03）：选定即记住（persistable 权限），
+                // 之后本地备份直写该目录、不再每次弹「另存为」
+                val dirPicker = rememberLauncherForActivityResult(
+                    contract = AppActivityResultContracts.filePickerActivity(),
+                ) { result ->
+                    if (result.first is FilePickerActivity.RequestSelectDir) {
+                        val uri = result.second
+                        if (uri != null) {
+                            AppConfig.backupDirUri.value = uri.toString()
+                            AppConfig.backupDirLabel.value = backupDirLabelOf(context, uri)
+                        }
+                    }
+                }
                 val scope = rememberCoroutineScope()
 
                 if (showBackupDialog) {
                     BackupDialog(
                         onDismissRequest = { showBackupDialog = false },
+                        localDirLabel = AppConfig.backupDirLabel.value,
+                        onPickDir = { dirPicker.launch(FilePickerActivity.RequestSelectDir()) },
                         onBackupRequested = { profile, types, saveToLocal, uploadToWebDav ->
                             if (uploadToWebDav && !AppConfig.isWebDavConfigured) {
                                 Toast.makeText(
@@ -93,13 +110,30 @@ class BackupRestoreActivity : ComposeActivity() {
                                         ).show()
                                     }
                                     if (saveToLocal) {
-                                        saveFilePicker.launch(
-                                            FilePickerActivity.RequestSaveFile(
-                                                fileName = backupFileName(profile),
-                                                fileMime = "application/zip",
-                                                fileBytes = data,
+                                        val dirUri = AppConfig.backupDirUri.value
+                                        if (dirUri.isNotBlank()) {
+                                            // 已设文件夹：直写该目录（SAF），不再弹「另存为」（10-03 用户令）
+                                            val label = AppConfig.backupDirLabel.value
+                                            withContext(Dispatchers.IO) {
+                                                writeToBackupDir(context, Uri.parse(dirUri), backupFileName(profile), data)
+                                            }
+                                            Toast.makeText(
+                                                context,
+                                                context.getString(
+                                                    R.string.backup_dir_saved,
+                                                    label.ifBlank { context.getString(R.string.backup) }
+                                                ),
+                                                Toast.LENGTH_LONG,
+                                            ).show()
+                                        } else {
+                                            saveFilePicker.launch(
+                                                FilePickerActivity.RequestSaveFile(
+                                                    fileName = backupFileName(profile),
+                                                    fileMime = "application/zip",
+                                                    fileBytes = data,
+                                                )
                                             )
-                                        )
+                                        }
                                     }
                                 }.onFailure {
                                     context.displayErrorDialog(it, context.getString(R.string.backup))
@@ -116,14 +150,15 @@ class BackupRestoreActivity : ComposeActivity() {
                         title = { Text(stringResource(R.string.restore)) },
                         text = {
                             Column(Modifier.fillMaxWidth()) {
+                                // 从文件恢复（10-03 用户令）：系统单文件选择器，MIME 过滤只显示 zip——
+                                // 只是给原入口加个筛选，保持一步选文件
                                 val filePicker = rememberLauncherForActivityResult(contract = AppActivityResultContracts.filePickerActivity()) { result ->
                                     showRestoreMenu = false
                                     result?.second?.let { uri -> showFromFileRestoreDialog.value = uri.readBytes(this@BackupRestoreActivity) }
                                 }
                                 ListItem(
-                                    modifier = Modifier.clickable { 
-                                        // 🛠️ 修复：传入 ZIP 专用 MIME 类型，确保系统选择器可以选中 ZIP 文件
-                                        filePicker.launch(FilePickerActivity.RequestSelectFile(listOf("application/zip", "application/x-zip-compressed"))) 
+                                    modifier = Modifier.clickable {
+                                        filePicker.launch(FilePickerActivity.RequestSelectFile(listOf("application/zip", "application/x-zip-compressed")))
                                     },
                                     headlineContent = { Text(stringResource(R.string.file_picker_mode_system)) },
                                     leadingContent = { Icon(Icons.Default.FolderOpen, null) },
@@ -334,4 +369,57 @@ class BackupRestoreActivity : ComposeActivity() {
             )
         }
     }
+}
+
+private fun backupDirLabelOf(context: android.content.Context, uri: Uri): String {
+    val path = runCatching {
+        com.github.jing332.common.utils.ASFUriUtils.getPathFromTree(context, uri)
+    }.getOrNull()
+    if (!path.isNullOrBlank()) return path
+    val displayName = runCatching {
+        val docUri = DocumentsContract.buildDocumentUriUsingTree(
+            uri, DocumentsContract.getTreeDocumentId(uri)
+        )
+        context.contentResolver.query(
+            docUri, arrayOf(DocumentsContract.Document.COLUMN_DISPLAY_NAME), null, null, null
+        )?.use { c -> if (c.moveToFirst()) c.getString(0) else null }
+    }.getOrNull()
+    return displayName ?: uri.toString()
+}
+
+/** 直写已设备份文件夹（10-03 用户令）：同名覆盖、无则新建，不弹系统「另存为」。
+ *  写入模式 "w" 与 FilePickerActivity.saveToUri 同款（minSdk 21 不启用 API 26+ 的 "wt"）。 */
+private fun writeToBackupDir(context: android.content.Context, dirUri: Uri, fileName: String, bytes: ByteArray) {
+    val resolver = context.contentResolver
+    val treeDocId = DocumentsContract.getTreeDocumentId(dirUri)
+    val parentDoc = DocumentsContract.buildDocumentUriUsingTree(dirUri, treeDocId)
+    val childrenUri = DocumentsContract.buildChildDocumentsUriUsingTree(dirUri, treeDocId)
+    // 目录内找同名文件（有则覆盖，无则新建）
+    val existingId = run {
+        var id: String? = null
+        resolver.query(
+            childrenUri,
+            arrayOf(
+                DocumentsContract.Document.COLUMN_DOCUMENT_ID,
+                DocumentsContract.Document.COLUMN_DISPLAY_NAME
+            ),
+            null, null, null
+        )?.use { c ->
+            while (c.moveToNext()) {
+                if (c.getString(1) == fileName) {
+                    id = c.getString(0)
+                    break
+                }
+            }
+        }
+        id
+    }
+    val target = if (existingId != null) {
+        DocumentsContract.buildDocumentUriUsingTree(dirUri, existingId)
+    } else {
+        DocumentsContract.createDocument(resolver, parentDoc, "application/zip", fileName)
+            ?: throw Exception("无法在备份文件夹中创建文件")
+    }
+    val out = resolver.openOutputStream(target, "w") ?: throw Exception("无法写入备份文件夹")
+    out.use { it.write(bytes) }
 }

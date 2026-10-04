@@ -10,12 +10,69 @@ import java.net.URL
 /**
  * 密钥管理本地文件通道（与角色管理 v10 同目录同格式，互通）：
  *  - key_list.json：有序数组 [["名字",{keyCode,value}]]，value = 网址@@模型@@Key（纯 Key = 直连）
- *  - key_list.backup.json / miyue.txt / gengxin.txt / miyue_backup.txt / api_center.json
+ *  - key_list.backup.json / miyue.txt / gengxin.txt / miyue_backup.txt / 模型接口中心.json（旧名 api_center.json，读到自动迁移）
  * 数据格式、URL 归一、测试、拉模型逻辑照插件 getOpenAiBaseUrl / testModelKey 实现。
  */
 object KeyListFile {
     private const val TAG = "KeyListFile"
     private const val BASE_DIR = "/storage/emulated/0/Download/chajian"
+
+    /** 密钥导出固定文件名（10-03 用户令：覆盖导出、导入只认这个名）。 */
+    const val EXPORT_FILE_NAME = "密钥备份.json"
+
+    /** 接口中心文件名（10-04 用户令改中文名：文件夹里一眼认出、防误删；曾误删 api_center.json 致密钥全裸奔）。 */
+    const val CENTER_FILE_NAME = "模型接口中心.json"
+
+    /** 接口中心改名前的旧文件名——只作迁移来源与旧备份恢复兼容，运行时不再读写。 */
+    const val LEGACY_CENTER_FILE_NAME = "api_center.json"
+
+    // ==================== 文件说明.txt（10-04 用户令：治「打开文件夹认不出文件」防误删）====================
+
+    private const val FOLDER_GUIDE_NAME = "文件说明.txt"
+
+    private val FOLDER_GUIDE_TEXT = """
+        【本文件夹文件说明】—— 由 TTS app 自动生成；删掉本文件无妨，进密钥管理页/角色管理页会自动再生成。
+        本文件夹对应一本书的运行资料。动任何文件前，建议先做两件事：密钥管理页「导出密钥」＋ 备份恢复中心「备份全部文件」。
+
+        〔密钥〕
+        key_list.json                   密钥条目主文件（本目录是哪本书，就是哪本书的密钥表）
+        key_list.backup.json            key_list.json 的自动备份；主文件损坏时自动顶上
+        miyue.txt                       当前启用中的密钥池，朗读时按序轮换取钥
+        gengxin.txt                     miyue.txt 的同步副本（与 miyue_backup.txt 三写同落，内容相同属正常）
+        miyue_backup.txt                同上
+        模型接口中心.json                接口站点定义（名称/网址/Key/模型表）；误删会让密钥全变「未分组」，导入 密钥备份.json 可整份找回
+        密钥备份.json                   导出/导入专用固定文件（导出覆盖写入，导入只认它），接口和分组都含在内
+
+        〔角色〕
+        characterRecords.json           角色绑定记录（主文件）
+        characterRecords_backup.json    角色记录运行时副本（与主文件同写，内容相同属正常）
+        gengxin.json                    角色「文件→朗读规则内存」单向通道，朗读开始时自动消费删除；存在属正常
+        fayinren.json                   发音人标签池（朗读规则运行时生成）
+        cunfang.txt                     当前书籍名（删了会回到「默认」）
+        liebiao.json                    书籍列表
+        shuming.书名.json               各书籍的角色存档（每本书一份）
+        voice_marks.json                语音标记（角色条目里的 ❤️🚶😈 等）
+
+        〔备份〕
+        fullBackup.json                 备份恢复中心的整目录快照
+        fullBackup.before.json          上次「从备份还原」前自动留的现场（撤销还原用，只留最近一次）
+        autoBackupEnable.txt            自动备份开关标记
+
+        ⚠️ 红线：除「密钥备份.json」「模型接口中心.json」「fullBackup.json」「fullBackup.before.json」「文件说明.txt」外，
+        其余文件名是 阅读·插件·朗读规则 三方共用的协议名——可以删除（删前先备份），但千万别改名，
+        改了规则和插件就找不到文件，数据会分叉。
+    """.trimIndent()
+
+    /** 生成/刷新目录说明文件；内容没变不重写（免得每次进页都蹭盘）。 */
+    fun writeFolderGuide(tagRuleId: String) {
+        val d = File(BASE_DIR, tagRuleId)
+        if (!d.isDirectory) return
+        runCatching {
+            val f = File(d, FOLDER_GUIDE_NAME)
+            if (f.exists() && f.readText() == FOLDER_GUIDE_TEXT) return
+            f.writeText(FOLDER_GUIDE_TEXT)
+        }
+    }
 
     /** 密钥条目（保序） */
     data class KeyEntry(
@@ -196,7 +253,17 @@ object KeyListFile {
     private fun dir(tagRuleId: String) = File(BASE_DIR, tagRuleId)
     private fun keyFile(tagRuleId: String) = File(dir(tagRuleId), "key_list.json")
     private fun keyBackupFile(tagRuleId: String) = File(dir(tagRuleId), "key_list.backup.json")
-    private fun centerFile(tagRuleId: String) = File(dir(tagRuleId), "api_center.json")
+    private fun centerFile(tagRuleId: String): File {
+        val d = dir(tagRuleId)
+        val f = File(d, CENTER_FILE_NAME)
+        // 一次性迁移（10-04 改名）：新名还没落地而旧名还在 ⇒ 原样转存（rename 保内容保时间）
+        val legacy = File(d, LEGACY_CENTER_FILE_NAME)
+        if (!f.exists() && legacy.exists()) {
+            runCatching { legacy.renameTo(f) }
+                .onFailure { Log.w(TAG, "center migrate failed: ${it.message}") }
+        }
+        return f
+    }
 
     // ==================== key_list.json ====================
 
@@ -627,7 +694,7 @@ object KeyListFile {
         false
     }
 
-    // ==================== 接口中心（api_center.json）====================
+    // ==================== 接口中心（模型接口中心.json，旧名 api_center.json）====================
 
     fun readInterfaces(tagRuleId: String): List<ApiInterface> = try {
         val f = centerFile(tagRuleId)
@@ -1024,15 +1091,13 @@ object KeyListFile {
     }
 
     /**
-     * 导出全部密钥 + 分组 + 当前生效那条到 密钥备份_yyMMdd-HHmm.json。
+     * 导出全部密钥 + 分组 + 当前生效那条到 密钥备份.json（固定名，重复导出直接覆盖）。
      * v2 格式：{version,exportedAt,current,interfaces,keys}。
      * ⚠️ 文件名不能用 密钥导出_ 前缀：插件导入对话框扫该前缀且把顶层当数组读，会崩。
+     * 10-03 用户令：改覆盖导出（固定文件名）+ 导入只认这个文件名——不再按日期存多份。
      */
     fun exportKeys(tagRuleId: String, keys: List<KeyEntry>): String? {
         val now = java.util.Date()
-        // 精确到时分（09-15）：只到天时同一天导多次会互相覆盖，留不下当天多份
-        val date = java.text.SimpleDateFormat("yyMMdd-HHmm", java.util.Locale.US).format(now)
-        val fileName = "密钥备份_$date.json"
         return try {
             val root = JSONObject()
             root.put("version", 2)
@@ -1067,8 +1132,8 @@ object KeyListFile {
             root.put("keys", arr)
             val d = dir(tagRuleId)
             if (!d.exists()) d.mkdirs()
-            File(d, fileName).writeText(root.toString(2))
-            fileName
+            File(d, EXPORT_FILE_NAME).writeText(root.toString(2))
+            EXPORT_FILE_NAME
         } catch (e: Exception) {
             Log.w(TAG, "exportKeys failed: ${e.message}")
             null
@@ -1076,26 +1141,13 @@ object KeyListFile {
     }
 
     /**
-     * 找现存导出/备份文件（密钥导出_* 插件时代 + 密钥备份_* 本版），按名内日期倒序 = 最新在前。
-     * ⚠️ 不能直接按名字倒序：中文「导」>「备」⇒ 老 密钥导出_* 永远压在 密钥备份_* 上面，
-     * 用户点第一条以为是最新备份、实际是最老的。改为抽名字里的 日期[时分] 当排序键。
+     * 固定导出文件是否存在（10-03 用户令：导入只认这个文件名）。
+     * 旧版按日期留存的 密钥备份_* / 密钥导出_* 存档文件不再被导入入口认可。
      */
-    fun listExportFiles(tagRuleId: String): List<String> = try {
-        dir(tagRuleId).listFiles()
-            ?.filter {
-                it.name.endsWith(".json") &&
-                    (it.name.startsWith("密钥导出_") || it.name.startsWith("密钥备份_"))
-            }
-            ?.sortedByDescending { exportSortKey(it.name) }
-            ?.map { it.name } ?: emptyList()
+    fun exportFileExists(tagRuleId: String): Boolean = try {
+        File(dir(tagRuleId), EXPORT_FILE_NAME).let { it.isFile && it.length() > 0 }
     } catch (e: Exception) {
-        emptyList()
-    }
-
-    /** 排序键 = 名内 6 位日期 + 4 位时分（缺时分补 0000）；抽不出的返回空串 ⇒ 排最后 */
-    private fun exportSortKey(name: String): String {
-        val m = Regex("(\\d{6})(?:-(\\d{4}))?").find(name) ?: return ""
-        return m.groupValues[1] + m.groupValues[2].ifEmpty { "0000" }
+        false
     }
 
 /** 读导出/备份文件：顶层是数组 = 插件时代扁平格式，是对象 = 本版 v2；损坏返回 null */

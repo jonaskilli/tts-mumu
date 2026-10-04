@@ -321,7 +321,6 @@
     <string name="sys_doc_picker_error">Failed to open system file picker.</string>
     <string name="add_file">Add File</string>
     <string name="path_is_empty">Path is Empty</string>
-    <string name="file_picker_mode_system">Restore from file</string>
     <string name="no_retries">No Retries</string>
     <string name="systts_no_custom_tag_config_warn">⚠️No tag configuration, please add configuration or turn off multi-language option!</string>
     <string name="tip">Tip</string>
@@ -420,6 +419,11 @@
     <string name="backup_save_local">Save to local storage</string>
     <string name="backup_need_content">Select at least one item to back up</string>
     <string name="backup_need_save_target">Select at least one save destination</string>
+    <string name="backup_dir_none">Not set</string>
+    <string name="backup_dir_pick">Choose folder</string>
+    <string name="backup_dir_change">Change</string>
+    <string name="backup_dir_saved">Saved to backup folder: %1$s</string>
+    <string name="file_picker_mode_system">Restore from file</string>
     <string name="audio_params_apply">Apply</string>
     <string name="audio_params_apply_dim_toast">Applied (speed/volume/pitch of this scope saved)</string>
     <string name="log_panel_title">Voice Adjustment</string>

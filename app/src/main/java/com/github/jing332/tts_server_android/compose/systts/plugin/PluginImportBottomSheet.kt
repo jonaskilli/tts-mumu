@@ -24,7 +24,6 @@ import com.drake.net.utils.withIO
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
-import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.booleanOrNull
 import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.decodeFromJsonElement
@@ -783,57 +782,4 @@ $responseLogic
     }
 };
 """.trimIndent()
-}
-
-/**
- * 将 mumu Plugin 列表导出为 JRead 插件包格式 JSON。
- *
- * 字段结构与 JRead 官方 pluginToJson() 对齐：
- * - defVars 必须是扁平 {key: 默认值}（JRead jsonObjectToMap 用 optString 读取，
- *   嵌套对象会被读成整串 JSON 文本，破坏变量替换）
- * - version 为字符串；enabled 为布尔；code 直接放 code 字段（JRead 兼容）
- */
-internal fun toJReadBundleJson(plugins: List<Plugin>, includeUserVars: Boolean): String {
-    val json = AppConst.jsonBuilder
-    val pluginsArray = kotlinx.serialization.json.buildJsonArray {
-        for (p in plugins) {
-            add(kotlinx.serialization.json.buildJsonObject {
-                put("id", JsonPrimitive(p.pluginId.ifBlank { p.id.toString() }))
-                put("name", JsonPrimitive(p.name))
-                put("pluginId", JsonPrimitive(p.pluginId))
-                put("pluginGroupId", JsonPrimitive(""))
-                put("pluginGroupName", JsonPrimitive(""))
-                put("author", JsonPrimitive(p.author))
-                put("version", JsonPrimitive(p.version.toString()))
-                put("streaming", kotlinx.serialization.json.buildJsonObject { })
-                put("iconUrl", JsonPrimitive(p.iconUrl))
-                put("code", JsonPrimitive(p.code))
-                // 扁平结构：{key: 默认值}，默认值取自嵌套属性的 default 键
-                put("defVars", kotlinx.serialization.json.buildJsonObject {
-                    for ((key, vars) in p.defVars) {
-                        put(key, JsonPrimitive(vars["default"] ?: ""))
-                    }
-                })
-                put("userVars", if (includeUserVars) {
-                    kotlinx.serialization.json.buildJsonObject {
-                        for ((k, v) in p.userVars) put(k, JsonPrimitive(v))
-                    }
-                } else {
-                    kotlinx.serialization.json.buildJsonObject { }
-                })
-                put("method", JsonPrimitive("GET"))
-                put("urlTemplate", JsonPrimitive(""))
-                put("headersText", JsonPrimitive(""))
-                put("bodyTemplate", JsonPrimitive(""))
-                put("responseAudioPath", JsonPrimitive(""))
-                put("enabled", JsonPrimitive(p.isEnabled))
-            })
-        }
-    }
-    val bundle = kotlinx.serialization.json.buildJsonObject {
-        put("format", JsonPrimitive("jread_voice_plugin_bundle"))
-        put("version", JsonPrimitive(1))
-        put("plugins", pluginsArray)
-    }
-    return json.encodeToString(kotlinx.serialization.json.JsonObject.serializer(), bundle)
 }

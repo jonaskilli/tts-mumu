@@ -75,23 +75,15 @@ class BackupRestoreViewModel(application: Application) : AndroidViewModel(applic
         resp.body?.bytes() ?: throw Exception("返回体为空")
     }
 
-    // 数字映射的默认URL（当 huifu.json 中没有对应key时使用）
-    private val defaultBackupUrls = mapOf(
-        "0" to "https://cnb.cool/mingwuyan/yinpin/-/git/raw/main/backup.zip",
-        "1" to "https://cnb.cool/Ktouls/TTS-Server-Backup/-/git/raw/main/weiruan.zip",
-        "2" to "https://cnb.cool/mingwuyan/yinpin/-/git/raw/main/backup.zip",
-        "3" to "https://cnb.cool/mingwuyan/yinpin/-/git/raw/main/backupmm.zip",
-        "4" to "https://cnb.cool/mingwuyan/yinpin/-/git/raw/main/backup04.zip",
-        "5" to "https://cnb.cool/mingwuyan/yinpin/-/git/raw/main/backup05.zip"
-    )
-
-    // huifu.json 的地址
+    // 恢复链接不内置（10-03 用户令：内置链接都指向旧备份，已不适用）。
+    // 编号链接唯一来源＝远程 huifu.json（以后添/换链接=更新该文件，无需发版）；
+    // 也可直接输入完整 URL 恢复。
     private val huifuJsonUrl = "https://cnb.cool/mingwuyan/yinpin/-/git/raw/main/huifu.json"
 
     /**
      * 处理恢复备份的输入
-     * 如果输入是单个数字（0-9），会先从 huifu.json 获取URL映射，
-     * 如果获取失败或JSON中没有该key，则使用默认的硬编码URL
+     * 纯数字 → 从 huifu.json 取对应链接；取不到报错（不再回落内置链接，10-03 已删）。
+     * 其余输入直接当 URL。
      */
     suspend fun downloadFromInput(input: String): ByteArray = withIO {
         val url = resolveBackupUrl(input)
@@ -102,36 +94,27 @@ class BackupRestoreViewModel(application: Application) : AndroidViewModel(applic
      * 根据输入解析备份URL
      * @param input 用户输入
      * @return 备份文件的下载URL
+     * @throws IllegalArgumentException 数字编号在 huifu.json 中无对应链接（或拉取失败）时
      */
     private suspend fun resolveBackupUrl(input: String): String = withIO {
-        // 如果输入长度是1且是数字，尝试从 huifu.json 获取
-        if (input.length == 1 && input[0] in '0'..'9') {
-            try {
+        // 纯数字（如 0、10）：只认 huifu.json 映射（内置链接已删，取不到即明确报错）。
+        // 放宽到多位数字：以后在 huifu.json 里加 "10"、"11" 等新编号即可用，无需发版
+        if (input.isNotEmpty() && input.all { it in '0'..'9' }) {
+            val fromJson = runCatching {
                 val client = OkHttpClient()
                 val req = Request.Builder().url(huifuJsonUrl).build()
                 val resp = client.newCall(req).execute()
-                if (resp.isSuccessful) {
-                    val jsonStr = resp.body?.string()
-                    resp.close()
-                    if (!jsonStr.isNullOrEmpty()) {
-                        val json = JSONObject(jsonStr)
-                        val urlFromJson = json.optString(input)
-                        if (urlFromJson.isNotEmpty()) {
-                            return@withIO urlFromJson
-                        }
-                    }
-                }
-            } catch (_: Exception) {
-                // 获取 huifu.json 失败，使用默认URL
-            }
+                val ok = resp.isSuccessful
+                val jsonStr = resp.body?.string()
+                resp.close()
+                if (ok && !jsonStr.isNullOrEmpty()) {
+                    JSONObject(jsonStr).optString(input)
+                } else ""
+            }.getOrDefault("")
+            if (fromJson.isNotEmpty()) return@withIO fromJson
+            throw IllegalArgumentException("编号 $input 暂无对应备份链接（可在 huifu.json 中添加，或直接输入完整 URL）")
         }
-
-        // 检查是否是默认数字映射
-        if (input in defaultBackupUrls) {
-            return@withIO defaultBackupUrls[input]!!
-        }
-
-        // 否则直接作为URL处理
+        // 非数字：直接作为URL处理
         input
     }
 

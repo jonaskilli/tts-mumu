@@ -325,7 +325,6 @@
     <string name="sys_doc_picker_error">打开系统文件选择器失败。</string>
     <string name="add_file">添加文件</string>
     <string name="path_is_empty">路径为空</string>
-    <string name="file_picker_mode_system">从文件恢复</string>
     <string name="no_retries">不重试</string>
     <string name="systts_no_custom_tag_config_warn">⚠️无标签配置，请添加配置或关闭多语音选项！</string>
     <string name="tip">提示</string>
@@ -863,6 +862,11 @@
     <string name="backup_clip_ok">已复制到剪贴板（含书名与角色数据）</string>
     <string name="backup_import_hint">粘贴书籍备份JSON（含 bookName 与 characterData）</string>
     <string name="backup_done">已备份（共 %1$d 个文件）</string>
+    <string name="backup_dir_none">未设置</string>
+    <string name="backup_dir_pick">选择文件夹</string>
+    <string name="backup_dir_change">更换</string>
+    <string name="backup_dir_saved">已保存到备份文件夹：%1$s</string>
+    <string name="file_picker_mode_system">从文件恢复</string>
     <string name="backup_restore_done">恢复成功（%1$d 个文件）</string>
     <string name="backup_none">无备份数据</string>
     <string name="backup_restore_book_ok">成功恢复书籍</string>

@@ -70,6 +70,7 @@ import com.github.jing332.tts_server_android.R
 import com.github.jing332.tts_server_android.compose.ListGutter
 import com.github.jing332.tts_server_android.compose.systts.common.VoicePickerDialog
 import com.github.jing332.tts_server_android.service.systts.help.CharacterRecordsFile
+import com.github.jing332.tts_server_android.service.systts.help.KeyListFile
 import com.github.jing332.tts_server_android.service.systts.help.VoiceMarksFile
 import kotlinx.coroutines.launch
 
@@ -154,6 +155,7 @@ fun RoleListScreen(
     var currentBook by remember { mutableStateOf("") }
     LaunchedEffect(version, reloadKey) {
         val loaded = withIO {
+            KeyListFile.writeFolderGuide(tagRuleId) // 文件说明.txt（幂等；RoleManagementScreen 与本页共用此加载链）
             val recs = CharacterRecordsFile.readRecords(tagRuleId)
             val groups = dbm.systemTtsV2.getAllGroupWithTts()
             val nameMap = LinkedHashMap<String, String>()

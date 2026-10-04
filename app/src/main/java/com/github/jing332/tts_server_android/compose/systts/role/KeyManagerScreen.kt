@@ -815,6 +815,7 @@ fun KeyManagerScreen(tagRuleId: String, onBack: () -> Unit) {
         withIO {
             KeyListFile.migrateLegacy(tagRuleId)
             KeyListFile.heal(tagRuleId)
+            KeyListFile.writeFolderGuide(tagRuleId) // 文件说明.txt（幂等，内容没变不重写）
         }
         val loaded = withIO {
             Triple(
@@ -1091,7 +1092,7 @@ fun KeyManagerScreen(tagRuleId: String, onBack: () -> Unit) {
         }
     }
 
-    // 删除整组：接口组连 api_center.json 的接口一起删；未分组只删条目
+    // 删除整组：接口组连 模型接口中心.json 的接口一起删；未分组只删条目
     // ⚠️ 空组（条目已删光、组还在）走 deleteNames 会提前返回 ⇒ 手动 version++ 触发重载，
     //    否则接口已从盘上删掉、界面还挂着空组直到下次重进（「删了没反应」的观感）
     fun deleteGroupAll(grp: KeyGroup) {
@@ -1742,7 +1743,7 @@ fun KeyManagerScreen(tagRuleId: String, onBack: () -> Unit) {
             }
         )
     }
-    // 导入（密钥备份_*.json / 密钥导出_*.json，照插件 importKeysDialog）
+    // 导入（固定文件 密钥备份.json，导出即覆盖同一份；10-03 用户令）
     if (showImport) {
         ImportKeysDialog(
             tagRuleId = tagRuleId,
@@ -2034,7 +2035,7 @@ private fun InterfaceFormDialog(
     }
 
     // 保存：名称留空按网址短名兜底；改网址/密钥时同步改写组内条目的 value
-    // ⚠️ 只改 api_center.json 不改条目 ⇒ 旧条目仍指旧地址，整组掉进「未分组」
+    // ⚠️ 只改 模型接口中心.json 不改条目 ⇒ 旧条目仍指旧地址，整组掉进「未分组」
     fun doSave() {
         val u = KeyListFile.normalizeBaseUrl(url.text.trim())
         val k = key.trim()
@@ -2749,7 +2750,7 @@ private fun ModelPullDialog(
     }
 }
 
-/** 导入密钥（照插件 importKeysDialog：选 密钥导出_*.json → 确认新增/跳过 → 导入） */
+/** 导入密钥（10-03 用户令：只认固定文件 密钥备份.json → 确认新增/跳过 → 导入） */
 @Composable
 private fun ImportKeysDialog(
     tagRuleId: String,
@@ -2758,12 +2759,11 @@ private fun ImportKeysDialog(
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
-    var files by remember { mutableStateOf<List<String>>(emptyList()) }
-    var pending by remember { mutableStateOf<Pair<String, KeyListFile.ExportData>?>(null) }
-    // 单选态：先勾文件再点「导入」，视觉自说明，不靠提示文案
-    var picked by remember { mutableStateOf<String?>(null) }
+    // null=查询中；只认固定导出文件，无则提示先导出
+    var exists by remember { mutableStateOf<Boolean?>(null) }
+    var pending by remember { mutableStateOf<KeyListFile.ExportData?>(null) }
     LaunchedEffect(Unit) {
-        files = withIO { KeyListFile.listExportFiles(tagRuleId) }
+        exists = withIO { KeyListFile.exportFileExists(tagRuleId) }
     }
     fun toast(resId: Int, vararg args: Any) {
         android.widget.Toast.makeText(context, context.getString(resId, *args), android.widget.Toast.LENGTH_SHORT).show()
@@ -2772,52 +2772,36 @@ private fun ImportKeysDialog(
         Surface(
             shape = RoundedCornerShape(24.dp),
             color = MaterialTheme.colorScheme.surfaceContainerHigh,
-            modifier = Modifier.fillMaxWidth().heightIn(max = 480.dp)
+            modifier = Modifier.fillMaxWidth()
         ) {
             Column(Modifier.padding(16.dp)) {
                 Text(stringResource(R.string.role_key_import), style = MaterialTheme.typography.headlineSmall)
                 Spacer(Modifier.height(8.dp))
-                if (files.isEmpty()) {
+                if (exists == false) {
                     Text(
                         stringResource(R.string.role_key_no_export),
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
-                } else {
-                    LazyColumn(Modifier.weight(1f, fill = false)) {
-                        files.forEach { fn ->
-                            item(key = fn) {
-                                // 单选行： RadioButton 给足「可选中」的视觉，行距拉开不再挤成一坨
-                                Row(
-                                    Modifier.fillMaxWidth()
-                                        .heightIn(min = 44.dp)
-                                        .clickable { picked = fn },
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    RadioButton(selected = picked == fn, onClick = null)
-                                    Spacer(Modifier.width(4.dp))
-                                    Text(
-                                        fn,
-                                        style = MaterialTheme.typography.bodyMedium,
-                                        modifier = Modifier.weight(1f)
-                                    )
-                                }
-                            }
-                        }
-                    }
+                } else if (exists == true) {
+                    Text(
+                        KeyListFile.EXPORT_FILE_NAME,
+                        style = MaterialTheme.typography.bodyMedium
+                    )
                 }
                 Spacer(Modifier.height(4.dp))
-                // 取消 / 导入 靠右（对齐 M3 弹窗按钮位）；导入先读文件，再进确认弹窗
+                // 取消 / 导入 靠右（对齐 M3 弹窗按钮位）；导入直读固定文件，再进确认弹窗
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
                     TextButton(onClick = onDismiss) { Text(stringResource(R.string.cancel)) }
                     TextButton(
-                        enabled = picked != null,
+                        enabled = exists == true,
                         onClick = {
-                            val fn = picked ?: return@TextButton
                             scope.launch {
-                                val list = withIO { KeyListFile.readExportFile(tagRuleId, fn) }
+                                val list = withIO {
+                                    KeyListFile.readExportFile(tagRuleId, KeyListFile.EXPORT_FILE_NAME)
+                                }
                                 if (list == null) toast(R.string.role_list_failed)
-                                else pending = fn to list
+                                else pending = list
                             }
                         }
                     ) { Text(stringResource(R.string.role_key_import)) }
@@ -2826,9 +2810,9 @@ private fun ImportKeysDialog(
         }
     }
     // 导入确认
-    pending?.let { (fn, data) ->
-        var counts by remember(fn) { mutableStateOf(0 to 0) }
-        LaunchedEffect(fn) {
+    pending?.let { data ->
+        var counts by remember(data) { mutableStateOf(0 to 0) }
+        LaunchedEffect(data) {
             val names = withIO { KeyListFile.readKeys(tagRuleId).map { it.name }.toSet() }
             counts = data.keys.count { it.name !in names } to data.keys.count { it.name in names }
         }
@@ -2839,7 +2823,7 @@ private fun ImportKeysDialog(
                 Text(
                     stringResource(
                         R.string.role_key_import_confirm,
-                        fn, data.keys.size, counts.first, counts.second, data.interfaces.size
+                        KeyListFile.EXPORT_FILE_NAME, data.keys.size, counts.first, counts.second, data.interfaces.size
                     )
                 )
             },
