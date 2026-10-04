@@ -85,7 +85,20 @@ class SpeechRuleManagerActivity : ComposeActivity() {
                                 sharedVM.getOnce<Boolean>("autoDebug") ?: false
                             }
                             SpeechRuleEditScreen(rule, autoDebug = autoDebug, onSave = {
-                                scope.launch { withIO { dbm.speechRuleDao.insert(it) } }
+                                scope.launch {
+                                    withIO {
+                                        // ruleId 相同视为同一条规则：保存时若已有同 ruleId 且主键不同的条目，
+                                        // 借旧主键 REPLACE 覆盖——防 js 直导/手动新建（默认 id=时间戳非 0）插出
+                                        // 同 ruleId 双条目（角色页/密钥页按 ruleId 取启用项，双条目会取到旧规则）。
+                                        // 编辑本体（主键相同）与全新 ruleId 照旧直插。
+                                        val entity = if (it.ruleId.isNotBlank()) {
+                                            dbm.speechRuleDao.getByRuleIdAll(it.ruleId)
+                                                ?.takeIf { twin -> twin.id != it.id }
+                                                ?.let { twin -> it.copy(id = twin.id) } ?: it
+                                        } else it
+                                        dbm.speechRuleDao.insert(entity)
+                                    }
+                                }
                             })
                         }
                     }
