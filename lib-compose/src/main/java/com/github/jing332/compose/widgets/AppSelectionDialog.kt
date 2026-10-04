@@ -271,9 +271,11 @@ fun AppSelectionDialog(
 
                     // 搜索框固定在顶部常显，无需点击搜索图标再展开
                     DenseOutlinedField(
+                        // 左右 0（10-04 用户：框要与下方选项对齐）——原居中卡片形态另加 8dp 外边距，
+                        // 而条目（图标/文字）顶在内容缘，框就比条目右缩 8dp、成了两套左缘线。
+                        // 归零后框左右缘=条目内容缘（底部面板形态本来就是 0，两形态口径统一）
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(horizontal = if (useSheet) 0.dp else 8.dp)
                             .focusRequester(focusRequester),
                         value = text, onValueChange = { text = it },
                         label = { Text(stringResource(id = R.string.search) + " ${values.size}") },

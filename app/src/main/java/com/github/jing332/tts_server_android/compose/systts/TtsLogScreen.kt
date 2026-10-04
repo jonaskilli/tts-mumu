@@ -12,9 +12,13 @@ import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.heightIn
@@ -45,6 +49,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -63,11 +68,11 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.AnnotatedString
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.core.content.FileProvider
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -191,10 +196,18 @@ internal fun TtsLogScreen(vm: TtsLogViewModel = viewModel()) {
                             MaterialTheme.colorScheme.onSurfaceVariant
                         ) { toggleCheckAll() }
                         Spacer(Modifier.weight(1f))
-                        FlatTextAction(
-                            stringResource(R.string.log_copy_n, checkedEntries.size),
-                            MaterialTheme.colorScheme.primary
-                        ) { copyChecked() }
+                        // 「复制(N)」改填充主色胶囊（10-04 用户：原灰/主色文字键不突出）。
+                        // 全选=次要文字键、复制=主操作填充键，主次一眼可分（填色=动作的全局语汇）
+                        Button(
+                            onClick = { copyChecked() },
+                            contentPadding = PaddingValues(horizontal = 20.dp, vertical = 6.dp),
+                            shape = RoundedCornerShape(percent = 50)
+                        ) {
+                            Text(
+                                stringResource(R.string.log_copy_n, checkedEntries.size),
+                                style = MaterialTheme.typography.labelLarge
+                            )
+                        }
                     }
                 }
             }
@@ -213,7 +226,23 @@ internal fun TtsLogScreen(vm: TtsLogViewModel = viewModel()) {
                             label = "TitleAnimation"
                         ) { isSearch ->
                             if (!isSearch) {
-                                Text(text = stringResource(id = R.string.log), textAlign = TextAlign.Center)
+                                // 双击标题栏空白区=回日志顶部（10-04 用户定：替代原浮动 ↑ 键）。
+                                // Box 撑满标题槽（NavTopAppBar 里是 weight(1f) 的 Box）捕获整个标题区。
+                                // 沿用标题居中，点击区不影响视觉
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .pointerInput(Unit) {
+                                            detectTapGestures(onDoubleTap = {
+                                                scope.launch {
+                                                    runCatching { listState.scrollToItem(0) }
+                                                }
+                                            })
+                                        },
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Text(text = stringResource(id = R.string.log))
+                                }
                             } else {
                                 // 搜索框 - 使用 DockedSearchBar，沉浸式样式，bodyLarge 字体
                                 CompositionLocalProvider(LocalTextStyle provides MaterialTheme.typography.bodyLarge) {
@@ -383,6 +412,9 @@ internal fun TtsLogScreen(vm: TtsLogViewModel = viewModel()) {
             dragSelectEnabled = true,
             onEnterSelection = { selectionMode = true },
             onCheckedChange = { checkedEntries = it },
+            // 浮动 ↑/↓ 键本页关掉（10-04）：改用双击标题栏空白区回顶（见 topBar），
+            // 键悬浮遮挡正文；转发器日志页仍保留默认 true
+            showScrollButtons = false,
         )
     }
 

@@ -390,7 +390,9 @@ fun RoleListScreen(
                 shape = RoundedCornerShape(12.dp),
                 color = Color.Transparent,
                 border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline),
-                modifier = Modifier.weight(1f).padding(start = 8.dp).height(44.dp)
+                // 左右各 8 + 外层行 padding 8 ⇒ 框缘 16，与书籍卡 / 列表行 / 提示行同线。
+                // 原只有 start=8：框右缘落在 8、比书籍卡（16）右凸 8dp，整页两套右缘（10-04 用户实机指出）
+                modifier = Modifier.weight(1f).padding(start = 8.dp, end = 8.dp).height(44.dp)
             ) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     BasicTextField(

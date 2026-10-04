@@ -187,6 +187,14 @@ internal val TEST_PASS_COLOR = Color(0xFF2E7D32)
 /** 测试通过的黄点（10-03）：可达但思考仍开启（分配可能失败/慢）——固定琥珀，理由同绿点 */
 internal val TEST_WARN_COLOR = Color(0xFFF9A825)
 
+/**
+ * 卡片内「测试结果条 / 探测进度条」的左缘缩进（10-04 用户拍板）：
+ * = 卡内 start 5dp + 行首勾选框 48dp（M3 Checkbox 最小触控盒，scale 只缩绘制、盒子不缩）
+ * ⇒ 与模型名文字同一条左缘线。原用 5dp（贴卡缘）夹在卡缘与勾选框之间，两边都不靠、看着歪。
+ * 右缘统一 end=0 与动作图标盒右缘（Row end=0）同线。
+ */
+private val KEY_RESULT_BAR_START = 53.dp
+
 /** 测试三态 → 圆点颜色（两页共用；null=没测过不显灯）。红=不通、黄=通但思考开启、绿=通且思考已关 */
 internal fun testDotColor(verdict: KeyListFile.TestVerdict?, errorColor: Color): Color? = when (verdict) {
     null -> null
@@ -363,7 +371,8 @@ private fun KeyEntryRow(
             Row(
                 Modifier
                     .fillMaxWidth()
-                    .padding(start = 5.dp, end = 8.dp, top = 0.dp, bottom = 8.dp),
+                    // 与结果条同口径（10-04 用户拍板）：start 对齐模型名、end 对齐动作图标盒
+                    .padding(start = KEY_RESULT_BAR_START, end = 0.dp, top = 0.dp, bottom = 8.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(
@@ -401,7 +410,9 @@ private fun KeyEntryRow(
             Column(
                 Modifier
                     .fillMaxWidth()
-                    .padding(start = 5.dp, end = 8.dp, top = 0.dp, bottom = 8.dp)
+                    // 结果条左缘对齐模型名（勾选框右侧）、右缘对齐动作图标盒右缘（10-04 用户拍板：
+                    // 原 start=5/end=8 夹在卡缘与勾选框之间，两边都不靠，看着歪）
+                    .padding(start = KEY_RESULT_BAR_START, end = 0.dp, top = 0.dp, bottom = 8.dp)
             ) {
                 Row(
                     // 点文字区=展开/收起（看全文）；「去设置」独立可点（打开编辑弹窗）

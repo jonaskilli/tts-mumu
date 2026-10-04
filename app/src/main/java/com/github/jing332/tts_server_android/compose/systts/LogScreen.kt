@@ -127,6 +127,10 @@ fun LogScreen(
     dragSelectEnabled: Boolean = false,
     onEnterSelection: () -> Unit = {},
     onCheckedChange: (Set<LogEntry>) -> Unit = {},
+    // 右下浮动 ↑/↓ 滚动键（10-04）：系统TTS 日志页改用「双击标题栏空白回顶」，
+    // 浮动键会悬浮遮挡正文（用户实机点名）→ 该页传 false 关闭；转发器日志无顶栏、
+    // 也无自动滚底，保留默认 true 维持原交互
+    showScrollButtons: Boolean = true,
 ) {
     ControlBottomBarVisibility(listState, LocalBottomBarBehavior.current)
     val scope = rememberCoroutineScope()
@@ -405,8 +409,9 @@ fun LogScreen(
 
         // 侧边浮动键（用户 1002）：向下=回底部（原键），向上=到日志最开始（新增）。
         // 竖排堆叠、各按需显隐：不在底部才显示↓，不在顶部才显示↑，都在中间时两键都可见。
-        // 外层 48dp + 各键 8dp 与原先单键位置的算法保持一致（↓ 单独显示时位置不变）
-        Column(
+        // 外层 48dp + 各键 8dp 与原先单键位置的算法保持一致（↓ 单独显示时位置不变）。
+        // 10-04：系统TTS 日志页传 showScrollButtons=false 关闭（改双击标题回顶），此处整块不渲染
+        if (showScrollButtons) Column(
             modifier = Modifier
                 .align(Alignment.BottomCenter)
                 .padding(48.dp),
