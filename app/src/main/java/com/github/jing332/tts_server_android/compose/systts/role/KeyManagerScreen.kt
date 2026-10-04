@@ -266,13 +266,13 @@ private fun KeyEntryRow(
     ElevatedCard(
         colors = CardDefaults.elevatedCardColors(containerColor = cardColor),
         modifier = Modifier.fillMaxWidth()
-            // 左缘 6（10-04 拍板：卡片左边贴边）——与组头箭头热区同列、与右缘 6 对称；
-            // 旧「左 15 与折叠箭头同列」的归属缩进口径作废（组头 start=6 后两者自然同线）。
+            // 左缘 8（10-04 用户拍板：与主页配置项卡同值「贴边族=卡 8」），右缘 8 保持对称。
+            // 组头折叠箭头由 start=3 定位到字形左缘 ≈8 与本卡左缘同线（旧「左 15」口径作废）。
             // 上下 3 ⇒ 相邻两张卡之间 6dp
             // start/end 与 vertical 分属不同 padding 重载，写在一起没有匹配的候选，故分两次。
             // （启用描边已随 10-03 对勾方案退役；「描边画在 padding 之后」的教训留档：
             //  画在前面会框住整个行宽、比卡片大一圈，0920 实机事故）
-            .padding(start = 6.dp, end = 6.dp)
+            .padding(start = 8.dp, end = 8.dp)
             .padding(vertical = 3.dp)
     ) {
         Row(
@@ -510,10 +510,10 @@ private fun GroupHeaderBlock(
                 // 组内删除模式标题行（0916 定稿形态）：标题降到 16sp 与右端「全选」共一行，
                 // 底部另有 取消/删除(N) 动作行（在条目卡之后）——顶部选谁、底部执行，
                 // 视线不在卡片里跑两趟。左右缩进对齐条目名文字列（34dp，与组名同列）；
-                // end 5→6（10-04 右线归一：贴边族右线=6，孤儿 5 归线）
+                // end=8（右线=卡右缘 8）
                 Row(
                     Modifier.fillMaxWidth()
-                        .padding(start = 34.dp, end = 6.dp, top = 4.dp),
+                        .padding(start = 34.dp, end = 8.dp, top = 4.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text(
@@ -531,9 +531,11 @@ private fun GroupHeaderBlock(
             } else {
             Column(Modifier.fillMaxWidth()) {
                 // ———— 组头行 ————
+                // start=3：22dp 箭头图标字形左留白 ≈5 ⇒ 字形左缘 ≈8，与条目卡左缘 8 同线
+                // （照主页样板：箭头字形 8.6 ≈ 卡缘 8；旧 start=6 得字形 11.4，偏右 3）。end=8 与卡右缘同列
                 Row(
                     Modifier.fillMaxWidth()
-                        .padding(start = 6.dp, end = 6.dp, top = 2.dp, bottom = 2.dp),
+                        .padding(start = 3.dp, end = 8.dp, top = 2.dp, bottom = 2.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     // 组头可点区：折叠箭头 + 组名 + (N)
@@ -556,7 +558,9 @@ private fun GroupHeaderBlock(
                             tint = MaterialTheme.colorScheme.onSurfaceVariant,
                             modifier = Modifier.size(22.dp).rotate(arrowAngle)
                         )
-                        Spacer(Modifier.width(6.dp))
+                        // spacer 6→9：start 3 后组名左缘仍保 34（= 3 + 22 + 9），
+                        // 与下方元信息行 start=34 同列不动
+                        Spacer(Modifier.width(9.dp))
                         Text(
                             grp.title,
                             style = MaterialTheme.typography.titleMedium,
@@ -694,13 +698,12 @@ private fun GroupHeaderBlock(
                     }
                 }
                 // 元信息行：接口组 = 网址 + 尾号小块；未分组 = 一句身份说明。
-                // 左缘 = 组名文字左缘（43）：卡左缘 15 + 折叠箭头 22 + 间距 6
-                // end 10→6（10-04 右线归一：尾号小块盒缘落右线 6，与卡盒/图标区同列）
+                // 左缘 = 组名文字左缘（3+22+9=34）；右缘 end=8（尾号小块盒缘落右线 8，与卡右缘同列）
                 val ifc = grp.ifc
                 if (ifc != null) {
                     Row(
                         Modifier.fillMaxWidth()
-                            .padding(start = 34.dp, end = 6.dp, bottom = 6.dp),
+                            .padding(start = 34.dp, end = 8.dp, bottom = 6.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Text(
@@ -736,8 +739,8 @@ private fun GroupHeaderBlock(
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                             maxLines = 2,
                             overflow = TextOverflow.Ellipsis,
-                            // 与网址分支同列（34）；右端同落右线 6
-                            modifier = Modifier.padding(start = 34.dp, end = 6.dp, bottom = 6.dp)
+                            // 与网址分支同列（34）；右端同落右线 8
+                            modifier = Modifier.padding(start = 34.dp, end = 8.dp, bottom = 6.dp)
                         )
                     }
                 }
@@ -1434,7 +1437,7 @@ fun KeyManagerScreen(tagRuleId: String, onBack: () -> Unit) {
                             item(key = "d:" + grp.title) {
                                 Row(
                                     Modifier.fillMaxWidth()
-                                        .padding(start = 34.dp, end = 6.dp, top = 2.dp, bottom = 4.dp),
+                                        .padding(start = 34.dp, end = 8.dp, top = 2.dp, bottom = 4.dp),
                                     horizontalArrangement = Arrangement.End,
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
