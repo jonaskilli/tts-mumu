@@ -234,8 +234,13 @@ fun SettingsScreen() {
                 // 交换键与心声 AI 都并进「朗读与播放」，故「显示与交互」「心声」两个区已撤）
                 SysttsSettingsScreen(search)
 
-                // ===== 服务与网络（10-05 用户令：不常用，移至倒数第二区）=====
-                SettingsGroup(title = { Text("服务与网络") }, show = !search.active()) {
+                // ===== 服务与网络（10-05 用户令：不常用，移至倒数第二区；同日再令：默认折叠）=====
+                SettingsGroup(
+                    title = { Text("服务与网络") },
+                    show = !search.active(),
+                    collapsible = true,
+                    defaultExpanded = false,
+                ) {
 
                 // 转发器（从设置进入，底栏不再单独占用一栏）
                 SettingItem(search, "转发器", "forwarder", "服务器") {
@@ -323,10 +328,16 @@ fun SettingsScreen() {
                 // 放"服务与网络/资源管理"都不合适；顺带解掉了"直链 vs 唤醒锁"的跨区顺序纠结）
                 } // 服务与网络区收尾
 
-                // ===== 后台与保活（10-05 用户令：原「服务与网络」混装两类，拆出后台存活类）=====
+                // ===== 后台与保活（10-05 用户令：原「服务与网络」混装两类，拆出后台存活类；
+                // 同日再令：本区也默认折叠）=====
                 // 拆分依据：本区三项都是「让进程活着」（保活/前台服务/唤醒锁）；
-                // 上一区是「对外服务与网络」（转发器/端口/一键导入/直链）。
-                SettingsGroup(title = { Text("后台与保活") }, show = !search.active()) {
+                // 上一区是「对外服务与网络」（转发器/端口/一键导入）。
+                SettingsGroup(
+                    title = { Text("后台与保活") },
+                    show = !search.active(),
+                    collapsible = true,
+                    defaultExpanded = false,
+                ) {
 
                 // 后台保活设置入口（使用 Activity 启动，与备份恢复保持一致）
                 SettingItem(search, "保活", "keepalive", "后台", "alive", "自启动") {

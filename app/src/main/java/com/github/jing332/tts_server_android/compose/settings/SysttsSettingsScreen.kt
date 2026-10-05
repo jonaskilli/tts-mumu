@@ -125,15 +125,17 @@ internal fun ColumnScope.SysttsSettingsScreen(search: SettingsSearch) {
         )
     }
 
-    // 心声 AI 判定（10-05 用户令：原「心声」区撤，并入本区——它就是"朗读时怎么认内心独白"）
-    var aiEnabled by remember { SystemTtsConfig.isInnerThoughtAiEnabled }
-    SettingItem(search, "心声", "ai", "心理活动", "inner", "内心") {
+    // 交换试听/编辑按钮位置（10-05 用户令：从「常用」挪回本区，并排在「多语音」之前）
+    var wrapButton by remember { AppConfig.isSwapListenAndEditButton }
+    SettingItem(search, "交换", "按钮", "button", "试听", "编辑") {
         SwitchPreference(
-            title = { Text("启用心声 AI 判定") },
-            subTitle = { Text("正则拿不准时调用 AI 判断") },
-            checked = aiEnabled,
-            onCheckedChange = { aiEnabled = it },
-            icon = { Icon(Icons.Default.Psychology, null) }
+            title = { Text(stringResource(id = R.string.pref_swap_listen_and_edit_button)) },
+            subTitle = {},
+            checked = wrapButton,
+            onCheckedChange = { wrapButton = it },
+            icon = {
+                Icon(Icons.Default.Headset, contentDescription = null)
+            }
         )
     }
 
@@ -163,18 +165,15 @@ internal fun ColumnScope.SysttsSettingsScreen(search: SettingsSearch) {
         )
     }
 
-    // 交换试听/编辑按钮位置（10-05 用户令：从「常用」挪回本区——用户视其为常用项，
-    // 而本区正是"跟朗读/播放打交道时顺手调"的那一区）
-    var wrapButton by remember { AppConfig.isSwapListenAndEditButton }
-    SettingItem(search, "交换", "按钮", "button", "试听", "编辑") {
+    // 心声 AI 判定（10-05 用户令：原「心声」区撤并入本区；同日再令排在本区末位）
+    var aiEnabled by remember { SystemTtsConfig.isInnerThoughtAiEnabled }
+    SettingItem(search, "心声", "ai", "心理活动", "inner", "内心") {
         SwitchPreference(
-            title = { Text(stringResource(id = R.string.pref_swap_listen_and_edit_button)) },
-            subTitle = {},
-            checked = wrapButton,
-            onCheckedChange = { wrapButton = it },
-            icon = {
-                Icon(Icons.Default.Headset, contentDescription = null)
-            }
+            title = { Text("启用心声 AI 判定") },
+            subTitle = { Text("正则拿不准时调用 AI 判断") },
+            checked = aiEnabled,
+            onCheckedChange = { aiEnabled = it },
+            icon = { Icon(Icons.Default.Psychology, null) }
         )
     }
     } // 朗读与播放区收尾（10-05 分区）
