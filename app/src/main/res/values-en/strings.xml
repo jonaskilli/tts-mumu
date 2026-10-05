@@ -625,7 +625,7 @@
     <string name="role_key_pool_skip_bare">%1$d bare key(s) not added to the pool: complete the full format first</string>
     <string name="role_key_test">Test</string>
     <string name="role_key_test_none">No key available to test</string>
-    <string name="role_key_test_ok_toast">"%1$s" works: %2$s</string>
+    <string name="role_key_test_ok_toast">Works, took %1$s</string>
     <string name="role_key_test_fail_toast">"%1$s" failed: %2$s</string>
     <string name="role_key_from_interface">Pull from API center</string>
     <string name="role_key_interface_title">API Center</string>
@@ -754,8 +754,8 @@ Add %3$d, skip %4$d duplicates
     <string name="role_key_warn_thinking_on">⚠ Thinking still on (auto-adapted, may still be slow)</string>
     <string name="role_key_warn_failed">❌ Test failed (tap to check settings)</string>
     <string name="role_key_warn_fix">Settings ›</string>
-    <string name="role_key_test_warn_toast">"%1$s": thinking still on, see card below</string>
-    <string name="role_key_test_fail_toast_simple">"%1$s" failed, see card below</string>
+    <string name="role_key_test_warn_toast">Thinking still on, see card below</string>
+    <string name="role_key_test_fail_toast_simple">Test failed, see card below</string>
     <string name="role_key_test_result_copy">Copy result</string>
     <string name="role_key_test_pass_short">Passed · %1$s</string>
     <string name="role_key_test_pass_only">Test passed</string>

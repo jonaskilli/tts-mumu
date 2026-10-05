@@ -864,8 +864,10 @@ fun KeyManagerScreen(tagRuleId: String, onBack: () -> Unit) {
     }
 
     fun toast(resId: Int, vararg args: Any) {
+        // 无参不过 format（见 lib-common ToastUtils.getStringSafe）：否则串里留 %1$s 就崩
+        val msg = if (args.isEmpty()) context.getString(resId) else context.getString(resId, *args)
         android.widget.Toast.makeText(
-            context, context.getString(resId, *args), android.widget.Toast.LENGTH_SHORT
+            context, msg, android.widget.Toast.LENGTH_SHORT
         ).show()
     }
     fun save(list: List<KeyListFile.KeyEntry>) {
@@ -2105,7 +2107,9 @@ private fun InterfaceFormDialog(
     var addModelVisible by remember { mutableStateOf(false) }
     var addModelText by remember { mutableStateOf("") }
     fun toast(resId: Int, vararg args: Any) {
-        android.widget.Toast.makeText(context, context.getString(resId, *args), android.widget.Toast.LENGTH_SHORT).show()
+        // 无参不过 format（见 lib-common ToastUtils.getStringSafe）：否则串里留 %1$s 就崩
+        val msg = if (args.isEmpty()) context.getString(resId) else context.getString(resId, *args)
+        android.widget.Toast.makeText(context, msg, android.widget.Toast.LENGTH_SHORT).show()
     }
 
     // 保存：名称留空按网址短名兜底；改网址/密钥时同步改写组内条目的 value
@@ -2840,7 +2844,9 @@ private fun ImportKeysDialog(
         exists = withIO { KeyListFile.exportFileExists(tagRuleId) }
     }
     fun toast(resId: Int, vararg args: Any) {
-        android.widget.Toast.makeText(context, context.getString(resId, *args), android.widget.Toast.LENGTH_SHORT).show()
+        // 无参不过 format（见 lib-common ToastUtils.getStringSafe）：否则串里留 %1$s 就崩
+        val msg = if (args.isEmpty()) context.getString(resId) else context.getString(resId, *args)
+        android.widget.Toast.makeText(context, msg, android.widget.Toast.LENGTH_SHORT).show()
     }
     Dialog(onDismissRequest = onDismiss) {
         Surface(
@@ -2950,8 +2956,10 @@ fun BackupCenterDialog(
         beforeExists = withIO { CharacterRecordsFile.hasBeforeRestore(tagRuleId) }
     }
     fun toast(resId: Int, vararg args: Any) {
+        // 无参不过 format（见 lib-common ToastUtils.getStringSafe）：否则串里留 %1$s 就崩
+        val msg = if (args.isEmpty()) context.getString(resId) else context.getString(resId, *args)
         android.widget.Toast.makeText(
-            context, context.getString(resId, *args), android.widget.Toast.LENGTH_SHORT
+            context, msg, android.widget.Toast.LENGTH_SHORT
         ).show()
     }
     // 完整还原 / 撤销还原共用：只是数据源不同（fullBackup.json vs fullBackup.before.json）
@@ -3236,8 +3244,10 @@ fun BookManagerDialog(
         current = loaded.second
     }
     fun toast(resId: Int, vararg args: Any) {
+        // 无参不过 format（见 lib-common ToastUtils.getStringSafe）：否则串里留 %1$s 就崩
+        val msg = if (args.isEmpty()) context.getString(resId) else context.getString(resId, *args)
         android.widget.Toast.makeText(
-            context, context.getString(resId, *args), android.widget.Toast.LENGTH_SHORT
+            context, msg, android.widget.Toast.LENGTH_SHORT
         ).show()
     }
     fun switchTo(book: String) {

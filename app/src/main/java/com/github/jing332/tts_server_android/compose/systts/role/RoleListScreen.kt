@@ -199,7 +199,9 @@ fun RoleListScreen(
     }
 
     fun toast(resId: Int, vararg args: Any) {
-        android.widget.Toast.makeText(context, context.getString(resId, *args), android.widget.Toast.LENGTH_SHORT).show()
+        // 无参不过 format（见 lib-common ToastUtils.getStringSafe）：否则串里留 %1$s 就崩
+        val msg = if (args.isEmpty()) context.getString(resId) else context.getString(resId, *args)
+        android.widget.Toast.makeText(context, msg, android.widget.Toast.LENGTH_SHORT).show()
     }
 
     // ===== 搜索 + 多选标记 =====
