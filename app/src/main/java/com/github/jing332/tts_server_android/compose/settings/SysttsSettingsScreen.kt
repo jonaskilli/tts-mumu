@@ -188,6 +188,39 @@ internal fun ColumnScope.SysttsSettingsScreen(
             icon = { Icon(Icons.Default.Psychology, null) }
         )
     }
+
+    // 两个长度限制（10-05 用户令：自「其他」区迁回本区末尾——它们改的是列表页"标签/名称"的
+    // 显示截断，属朗读与列表呈现，放「其他」不贴切）
+    // 消费点：Item.kt 里对**显示**的标签/名字做截断（不改数据、不影响朗读匹配）
+    var limitTagLen by remember { AppConfig.limitTagLength }
+    val limitTagLenString =
+        if (limitTagLen == 0) stringResource(id = R.string.unlimited) else limitTagLen.toString()
+    SettingItem(search, "标签", "tag", "限制长度", "长度") {
+        SliderPreference(
+            title = { Text(stringResource(id = R.string.limit_tag_length)) },
+            subTitle = { Text(stringResource(id = R.string.limit_tag_length_summary)) },
+            value = limitTagLen.toFloat(),
+            onValueChange = { limitTagLen = it.toInt() },
+            valueRange = 0f..50f,
+            icon = { Icon(Icons.Default.Tag, null) },
+            label = limitTagLenString
+        )
+    }
+
+    var limitNameLen by remember { AppConfig.limitNameLength }
+    val limitNameLenString =
+        if (limitNameLen == 0) stringResource(id = R.string.unlimited) else limitNameLen.toString()
+    SettingItem(search, "名称", "name", "限制长度", "长度") {
+        SliderPreference(
+            title = { Text(stringResource(id = R.string.limit_name_length)) },
+            subTitle = { Text(stringResource(id = R.string.limit_name_length_summary)) },
+            value = limitNameLen.toFloat(),
+            onValueChange = { limitNameLen = it.toInt() },
+            valueRange = 0f..50f,
+            icon = { Icon(Icons.Default.TextFields, null) },
+            label = limitNameLenString
+        )
+    }
     } // 朗读与播放区收尾（10-05 分区）
     } else {
     // 稳定性（子页形态，10-05 用户令：由"页面内折叠"改为独立子页；标题在子页顶栏，卡内不出标题）

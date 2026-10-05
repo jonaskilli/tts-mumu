@@ -55,15 +55,25 @@ import com.github.jing332.tts_server_android.R
 internal val horizontalPadding: Dp = 16.dp
 internal val verticalPadding: Dp = 12.dp
 
-/** 分区卡片：卡边到屏幕边的外边距（10-05 用户拍板加底色时定的间距） */
-internal val sectionCardMargin: Dp = 8.dp
+/**
+ * 分区卡片：卡边到屏幕边的外边距。
+ * 历史：10-05 加底色时定 8dp（当时为凑「卡边8+卡内8=16=原行内距」的零位移）；
+ * 用户实机反馈框左右太贴屏（「没加框正好，加了框边距变窄」）→ 同日改 16dp：
+ * 框线回到原来行内容线 16dp 的位置。卡内行距不再随卡边联动（见 SettingsGroup 内固定 8dp）。
+ */
+internal val sectionCardMargin: Dp = 16.dp
 
 /**
  * 行内左右内距。默认 [horizontalPadding]（16dp，未套卡片的散行照旧）；
- * 卡片内由 [SettingsGroup] 收窄成 `horizontalPadding - sectionCardMargin` = 8dp，
- * 于是「卡边 8 + 行内距 8 = 16」与套壳前一致 ⇒ 行内容横坐标零位移。
+ * 卡片内由 [SettingsGroup] 提供固定 [cardRowHorizontalPadding]=8dp——
+ * 卡边 16 + 行内距 8 = 内容线 24dp，卡片看起来有内衬不贴边。
+ * （曾用 `horizontalPadding - sectionCardMargin` 凑「内容零位移」，卡边改 16 后会算成 0、
+ * 文字贴卡缘，故改为固定值。）
  */
 internal val LocalPreferenceRowHorizontalPadding = compositionLocalOf { horizontalPadding }
+
+/** 卡片内行的左右内距（与 [sectionCardMargin] 解耦；见 [LocalPreferenceRowHorizontalPadding]） */
+internal val cardRowHorizontalPadding: Dp = 8.dp
 
 @Composable
 internal fun DropdownPreference(
@@ -209,9 +219,9 @@ internal fun SettingsGroup(
                     ),
                 ) {
                     CompositionLocalProvider(
-                        // 卡边 8 + 行内距 8 = 16 = 原来的行内距 ⇒ 行内容横坐标零位移
-                        LocalPreferenceRowHorizontalPadding provides
-                            (horizontalPadding - sectionCardMargin)
+                        // 卡内行距固定 8dp（不再用 horizontalPadding - sectionCardMargin 的联动算法：
+                        // 卡边改 16 后那个式子会得 0，行内容会贴到卡缘上）
+                        LocalPreferenceRowHorizontalPadding provides cardRowHorizontalPadding
                     ) {
                         Column(content = content)
                     }

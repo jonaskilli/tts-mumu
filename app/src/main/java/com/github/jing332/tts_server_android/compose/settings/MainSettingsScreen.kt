@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.ScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -81,6 +82,11 @@ fun SettingsScreen() {
     // 子页（10-05 用户令：稳定性/服务与网络/后台与保活/其他 不再是"页面内折叠"，改为设置页上的
     // 入口行 —— 点开是一个独立子页，顶栏带返回键 + 区名，卡内不再出区标题）
     var openSection by rememberSaveable { mutableStateOf<String?>(null) }
+    // 主页与子页各用一份滚动状态。曾共用一份：子页内容短，挂载时把 value 夹回 0，
+    // 返回设置页就跳到顶部（用户 10-05 实机反馈「点进去返回跑到顶部」）。
+    // 分离后主页状态在子页期间不被挂载，位置保持；子页每次进入从头开始。
+    val mainScrollState = rememberScrollState()
+    val subScrollState = remember(openSection) { ScrollState(0) }
     // 子页内不做搜索过滤（子页顶栏没有搜索框）：查询强制为空 ⇒ search 恒不激活，条目全部渲染
     val search = rememberSettingsSearch(if (openSection != null) "" else query)
     // 系统返回键：子页时先退回主页
@@ -189,7 +195,7 @@ fun SettingsScreen() {
                 Column(
                     Modifier
                         .weight(1f)
-                        .verticalScroll(rememberScrollState())
+                        .verticalScroll(if (openSection == null) mainScrollState else subScrollState)
                 ) {
                     // ===== 常用（10-05 用户令：常用/重要置顶，一进页就够得着）=====
                     // ===== 主页内容（子页打开时整块不渲染）=====
@@ -275,7 +281,7 @@ fun SettingsScreen() {
                     SysttsSettingsScreen(search, SysttsSettingsPart.Stability)
                 }
 
-                // ===== 子页：服务与网络 =====
+                // ===== 子页：转发器（10-05 用户令：原名「服务与网络」，因区内就是转发器/端口/一键导入，改名）=====
                 if (openSection == "service") {
                 SettingsGroup(
                     title = {},
@@ -438,13 +444,13 @@ fun SettingsScreen() {
                 }
 
                 // ===== 主页尾部：4 个入口行（10-05 用户令：这些不再是"折叠"，而是点开一个独立子页）=====
+                // 每项**各占一张独立卡片**（10-05 用户实机纠正：照用户所发 QQ 设置页截图，
+                // 那里是"一个功能一张卡"而不是"多个共卡+分隔线"；四行同卡会看着连成一块）
                 if (openSection == null) {
-                    SettingsGroup(title = {}, show = true, showHeader = false) {
-                        EntryRow(Icons.Default.HealthAndSafety, "稳定性") { openSection = "stability" }
-                        EntryRow(Icons.Default.Lan, "服务与网络") { openSection = "service" }
-                        EntryRow(Icons.Default.PowerSettingsNew, "后台与保活") { openSection = "keepalive" }
-                        EntryRow(Icons.Default.MoreHoriz, "其他") { openSection = "other" }
-                    }
+                    EntryRowCard(Icons.Default.HealthAndSafety, "稳定性") { openSection = "stability" }
+                    EntryRowCard(Icons.Default.Lan, "转发器") { openSection = "service" }
+                    EntryRowCard(Icons.Default.PowerSettingsNew, "后台与保活") { openSection = "keepalive" }
+                    EntryRowCard(Icons.Default.MoreHoriz, "其他") { openSection = "other" }
                 }
 
                 Spacer(Modifier.navigationBarsPadding())
@@ -459,26 +465,30 @@ fun SettingsScreen() {
  */
 private fun sectionTitle(key: String): String = when (key) {
     "stability" -> "稳定性"
-    "service" -> "服务与网络"
+    "service" -> "转发器"
     "keepalive" -> "后台与保活"
     "other" -> "其他"
     else -> "设置"
 }
 
 /**
- * 设置页尾部的「入口行」：图标 + 名称 + 右侧 ›（10-05 用户令：
- * 稳定性/服务与网络/后台与保活/其他 不再是"页面内折叠"，而是点开一个独立子页）。
- * 右侧 › 由 BasePreferenceWidget 的「可点行自动补 ›」机制给出（见 SettingsWidgets）。
+ * 设置页尾部的「入口卡片」：**一项一张独立卡片**，卡内一行（图标 + 名称 + 右侧 ›）。
+ * 10-05 用户实机纠正：照用户所发 QQ 设置页截图，那里是"一个功能一张卡"——
+ * 最初四项共卡 + 行间分隔线的做法被否（"明明 QQ 图是两个卡片"）。
+ * 卡边/底色/圆角与其它分区卡一致（SettingsGroup 的 card 分支同款）；
+ * 卡与卡之间留 [verticalPadding] 的缝，与分区卡之间的节奏一致。
  */
 @Composable
-private fun EntryRow(
+private fun EntryRowCard(
     icon: ImageVector,
     title: String,
     onClick: () -> Unit,
 ) {
-    BasePreferenceWidget(
-        onClick = onClick,
-        title = { Text(title) },
-        icon = { Icon(icon, contentDescription = null) },
-    )
+    SettingsGroup(title = {}, show = true, showHeader = false) {
+        BasePreferenceWidget(
+            onClick = onClick,
+            title = { Text(title) },
+            icon = { Icon(icon, contentDescription = null) },
+        )
+    }
 }
