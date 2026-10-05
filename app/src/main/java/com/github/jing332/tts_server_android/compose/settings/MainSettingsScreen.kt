@@ -319,8 +319,29 @@ fun SettingsScreen() {
                 )
                 }
 
+                // 直链设置（10-05 用户令：排在本区末位）
+                SettingItem(search, "直链", "directlink", "链接", "direct") {
+                BasePreferenceWidget(
+                    icon = {
+                        Icon(Icons.Default.Link, null)
+                    },
+                    onClick = {
+                        context.startActivity(
+                            Intent(
+                                context, LinkUploadRuleActivity::class.java
+                            ).apply { action = Intent.ACTION_VIEW })
+                    },
+                    title = { Text(stringResource(id = R.string.direct_link_settings)) },
+                )
+                }
+                } // 服务与网络区收尾
+
+                // ===== 后台与保活（10-05 用户令：原「服务与网络」混装两类，拆出后台存活类）=====
+                // 拆分依据：本区三项都是「让进程活着」（保活/前台服务/唤醒锁）；
+                // 上一区是「对外服务与网络」（转发器/端口/一键导入/直链）。
+                SettingsGroup(title = { Text("后台与保活") }, show = !search.active()) {
+
                 // 后台保活设置入口（使用 Activity 启动，与备份恢复保持一致）
-                // 10-05 用户令：由区首移至「一键导入」下方
                 SettingItem(search, "保活", "keepalive", "后台", "alive", "自启动") {
                 BasePreferenceWidget(
                     onClick = {
@@ -334,7 +355,6 @@ fun SettingsScreen() {
                 )
                 }
 
-                // 前台服务与通知 / 唤醒锁（10-05 分区：由系统TTS组移入「服务与网络」）
                 SettingItem(search, "前台服务", "通知", "foreground", "notification") {
                 var foregroundService by remember { SystemTtsConfig.isForegroundServiceEnabled }
                 SwitchPreference(
@@ -356,26 +376,11 @@ fun SettingsScreen() {
                     icon = { Icon(Icons.Default.Lock, null) }
                 )
                 }
+                } // 后台与保活区收尾
 
-                // 直链设置：10-05 用户令由「一键导入」下方移至「唤醒锁」下方（区尾）
-                SettingItem(search, "直链", "directlink", "链接", "direct") {
-                BasePreferenceWidget(
-                    icon = {
-                        Icon(Icons.Default.Link, null)
-                    },
-                    onClick = {
-                        context.startActivity(
-                            Intent(
-                                context, LinkUploadRuleActivity::class.java
-                            ).apply { action = Intent.ACTION_VIEW })
-                    },
-                    title = { Text(stringResource(id = R.string.direct_link_settings)) },
-                )
-                }
-                } // 服务与网络区收尾
-
-                // 数据与关于区（OtherSettingsScreen 渲染，10-05 用户令默认折叠）：
-                // 最近任务排除 / 关于 / 清除网页数据 / 清空数据
+                // 「其他」区（OtherSettingsScreen 渲染，10-05 用户令默认折叠；原名「数据与关于」，
+                // 同日因区内含语言而改名）：
+                // 语言 / 最近任务排除 / 关于 / 清除网页数据 / 清空数据
                 // （帮助文档、检查更新、自动检查更新、下拉数量 均已退役）
                 OtherSettingsScreen(search)
 

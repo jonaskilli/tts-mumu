@@ -34,9 +34,10 @@ import java.io.File
 
 @Composable
 internal fun ColumnScope.OtherSettingsScreen(search: SettingsSearch) {
-    // 「数据与关于」（10-05 分区；同日用户令：本区无关紧要，默认**折叠**——设置页条目太多）
+    // 「其他」（原名「数据与关于」；10-05 用户令改名——本区已含语言，原名的"数据与关于"盖不住）
+    // 10-05 用户令：本区无关紧要，默认**折叠**（设置页条目太多）
     SettingsGroup(
-        title = { Text("数据与关于") },
+        title = { Text("其他") },
         show = !search.active(),
         collapsible = true,
         defaultExpanded = false,
@@ -122,7 +123,8 @@ internal fun ColumnScope.OtherSettingsScreen(search: SettingsSearch) {
     }
 
     // 「帮助」入口与帮助文档整页已删（10-05 用户令：帮助文档取消，给删了）
-    // —— AppHelpDocumentActivity + manifest 声明 + app_help_document 串 + assets/help/app.md 一并退役
+    // —— AppHelpDocumentActivity + manifest 声明 + app_help_document 串 + 整个 assets/help 目录
+    // （app.md 与 js/*.md 共 8 份）一并退役
 
 
     // 「检查更新」入口已删（10-05 用户令：应用内更新功能整体退役）

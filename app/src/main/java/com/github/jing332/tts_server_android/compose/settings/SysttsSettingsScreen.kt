@@ -4,14 +4,18 @@ import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AccessTime
 import androidx.compose.material.icons.filled.Audiotrack
+import androidx.compose.material.icons.filled.EditNote
 import androidx.compose.material.icons.filled.Groups
 import androidx.compose.material.icons.filled.Headset
+import androidx.compose.material.icons.filled.NightsStay
 import androidx.compose.material.icons.filled.Psychology
 import androidx.compose.material.icons.filled.Repeat
+import androidx.compose.material.icons.filled.RestartAlt
 import androidx.compose.material.icons.filled.SelectAll
 import androidx.compose.material.icons.filled.StackedLineChart
 import androidx.compose.material.icons.filled.Tag
 import androidx.compose.material.icons.filled.TextFields
+import androidx.compose.material.icons.filled.Timer
 import androidx.compose.material.icons.filled.Waves
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.DropdownMenuItem
@@ -201,9 +205,11 @@ internal fun ColumnScope.SysttsSettingsScreen(search: SettingsSearch) {
         )
     }
     SettingItem(search, "重试附加", "retry append", "附加文本") {
+        // 右侧不再重复第二个值（10-05 用户令）：本来副标题已写「未开启 / 已开启：xxx」，
+        // 行尾又摆同一个值，同一信息两遍；去掉后本行按"可点进弹窗"自动带 ›
         BasePreferenceWidget(
             onClick = { showRetryAppendDialog = true },
-            icon = { Icon(Icons.Default.Repeat, null) },
+            icon = { Icon(Icons.Default.EditNote, null) },
             title = { Text(stringResource(id = R.string.retry_append_text)) },
             subTitle = {
                 Text(
@@ -213,9 +219,7 @@ internal fun ColumnScope.SysttsSettingsScreen(search: SettingsSearch) {
                         stringResource(id = R.string.retry_append_text_on, retryAppendText)
                 )
             }
-        ) {
-            Text(if (retryAppendText.isEmpty()) "OFF" else retryAppendText)
-        }
+        )
     }
 
     var restartOnMaxRetryMode by remember { SystemTtsConfig.restartOnMaxRetryMode }
@@ -224,7 +228,7 @@ internal fun ColumnScope.SysttsSettingsScreen(search: SettingsSearch) {
         DropdownPreference(
             expanded = restartMenuExpanded,
             onExpandedChange = { restartMenuExpanded = it },
-            icon = { Icon(Icons.Default.Repeat, null) },
+            icon = { Icon(Icons.Default.RestartAlt, null) },
             title = { Text(stringResource(id = R.string.restart_on_max_retry)) },
             subTitle = {
                 Text(
@@ -271,7 +275,7 @@ internal fun ColumnScope.SysttsSettingsScreen(search: SettingsSearch) {
             onValueChange = { standbyTriggeredIndex = it.fastRoundToInt() },
             valueRange = 0f..10f,
             steps = 9,
-            icon = { Icon(Icons.Default.Repeat, null) },
+            icon = { Icon(Icons.Default.NightsStay, null) },
             label = standbyTriggeredIndexValue
         )
     }
@@ -300,7 +304,7 @@ internal fun ColumnScope.SysttsSettingsScreen(search: SettingsSearch) {
             value = watchdogSeconds.toFloat(),
             onValueChange = { watchdogSeconds = it.toInt() },
             valueRange = 0f..120f,
-            icon = { Icon(Icons.Default.AccessTime, null) },
+            icon = { Icon(Icons.Default.Timer, null) },
             label = watchdogValue
         )
     }
