@@ -59,3 +59,6 @@ newapk/
 /tts配套文件/
 /技术文档/
 
+# AI 助手工作区规则(本地文件, 镜像自 E:\TTS\AGENTS.md, 不随公开仓库分发)
+/AGENTS.md
+
