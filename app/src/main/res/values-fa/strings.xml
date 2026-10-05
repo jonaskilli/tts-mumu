@@ -369,7 +369,6 @@
 قالبی که وارد کردید [%2$s] است، لطفاً برای درونریزی آن به رابط مدیریت مربوطه بروید</string>
     <string name="import_config_type_unknown_msg">قالب ناشناخته است، لطفاً پیکربندی صحیح را درونریزی کنید.</string>
     <string name="still_to_import">هنوز هم می خواهید درونریزی کنید</string>
-    <string name="app_help_document">اسناد راهنما</string>
     <string name="replace_rule_after_execute">بعد از بلندخوانی قوانین اجرا کنید</string>
     <string name="voice_name_bad_format">خطای قالب voiceName</string>
     <string name="import_hanlp_zip">بسته تحلیل نحوی Hanlp را وارد کنید</string>

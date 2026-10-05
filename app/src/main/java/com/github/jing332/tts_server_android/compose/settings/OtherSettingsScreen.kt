@@ -1,9 +1,7 @@
 package com.github.jing332.tts_server_android.compose.settings
 
-import android.content.Intent
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.HelpOutline
 import androidx.compose.material.icons.filled.CleaningServices
 import androidx.compose.material.icons.filled.DeleteSweep
 import androidx.compose.material.icons.filled.HideSource
@@ -26,14 +24,19 @@ import com.github.jing332.common.utils.toast
 import com.github.jing332.tts_server_android.R
 import com.github.jing332.tts_server_android.compose.AboutDialog
 import com.github.jing332.tts_server_android.conf.AppConfig
-import com.github.jing332.tts_server_android.ui.AppHelpDocumentActivity
 import java.io.File
 
 @Composable
 internal fun ColumnScope.OtherSettingsScreen(search: SettingsSearch) {
-    // 「数据与关于」（10-05 分区）：原 OtherSettingsScreen 的 关于/帮助/检查更新/清除网页数据/清空数据
-    // ＋ 由主设置页移入的 自动检查更新/最近任务排除/下拉数量
-    SettingsGroup(title = { Text("数据与关于") }, show = !search.active()) {
+    // 「数据与关于」（10-05 分区；同日用户令：本区无关紧要，默认**折叠**——设置页条目太多）
+    SettingsGroup(
+        title = { Text("数据与关于") },
+        show = !search.active(),
+        collapsible = true,
+        defaultExpanded = false,
+    ) {
+    val context = LocalContext.current
+
     // 「自动检查更新」已删（10-05 用户令：应用内更新功能整体退役，AppConfig.isAutoCheckUpdateEnabled 一并拆除）
 
     SettingItem(search, "最近任务", "排除", "recent", "后台") {
@@ -66,23 +69,8 @@ internal fun ColumnScope.OtherSettingsScreen(search: SettingsSearch) {
         )
     }
 
-    val context = LocalContext.current
-    SettingItem(search, "帮助", "help", "文档", "教程") {
-        BasePreferenceWidget(
-            onClick = {
-                context.startActivity(
-                    Intent(
-                        context,
-                        AppHelpDocumentActivity::class.java
-                    ).apply { action = Intent.ACTION_VIEW }
-                )
-            },
-            title = { Text(stringResource(R.string.app_help_document)) },
-            icon = {
-                Icon(Icons.AutoMirrored.Default.HelpOutline, null)
-            }
-        )
-    }
+    // 「帮助」入口与帮助文档整页已删（10-05 用户令：帮助文档取消，给删了）
+    // —— AppHelpDocumentActivity + manifest 声明 + app_help_document 串 + assets/help/app.md 一并退役
 
 
     // 「检查更新」入口已删（10-05 用户令：应用内更新功能整体退役）

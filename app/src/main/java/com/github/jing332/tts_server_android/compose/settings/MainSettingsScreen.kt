@@ -416,8 +416,9 @@ fun SettingsScreen() {
                 }
                 } // 服务与网络区收尾
 
-                // 数据与关于区（OtherSettingsScreen 渲染）：自动检查更新/最近任务/下拉数量
-                // + 关于/帮助/检查更新/清除网页数据/清空数据
+                // 数据与关于区（OtherSettingsScreen 渲染，10-05 用户令默认折叠）：
+                // 最近任务排除 / 关于 / 清除网页数据 / 清空数据
+                // （帮助文档、检查更新、自动检查更新、下拉数量 均已退役）
                 OtherSettingsScreen(search)
 
                 Spacer(Modifier.navigationBarsPadding())

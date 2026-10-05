@@ -10,8 +10,12 @@ import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.defaultMinSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.selection.toggleable
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.Icon
 import androidx.compose.material3.LocalTextStyle
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Switch
@@ -29,6 +33,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
@@ -99,18 +104,27 @@ internal fun DividerPreference(title: @Composable () -> Unit) {
  * 设置页遂成一片平铺；10-05 用户要求分类整理（参考墨听设置页），
  * 只恢复**标题**（用户明确不要卡片壳）——条目仍平铺，靠标题分段跳读。
  * 保留 [show]：搜索模式下调用方以 show=false 退平铺（不显示标题），行为不变。
+ *
+ * 10-05 追加折叠：[collapsible]=true 时标题行整行可点，右侧（箭头在标题左，与分组/子分组头同习语）
+ * 出 ▾/▸ 指示；[defaultExpanded]=false 即默认收起（用户令：设置页条目太多，
+ * 「数据与关于」无关紧要，折叠起来）。搜索态（show=false）**一律平铺直出**——
+ * 搜到的条目不能被折叠藏起来。
  */
 @Composable
 internal fun SettingsGroup(
     title: @Composable () -> Unit,
     modifier: Modifier = Modifier,
     show: Boolean = true,
+    collapsible: Boolean = false,
+    defaultExpanded: Boolean = true,
     content: @Composable ColumnScope.() -> Unit,
 ) {
     if (!show) {
         Column(content = content)
         return
     }
+    // 折叠态用 rememberSaveable：转屏/进程重启后保持用户当场的选择
+    var expanded by rememberSaveable { mutableStateOf(defaultExpanded) }
     Column(modifier.fillMaxWidth()) {
         // 分区小标题：titleSmall + primary（与 DividerPreference 同款，本页现成的分区习语）
         CompositionLocalProvider(
@@ -119,16 +133,34 @@ internal fun SettingsGroup(
             ),
         ) {
             Row(
-                Modifier.padding(
-                    start = horizontalPadding + 4.dp,
-                    top = verticalPadding + 6.dp,
-                    bottom = 4.dp
-                )
+                Modifier
+                    .fillMaxWidth()
+                    .then(
+                        if (collapsible) Modifier.clickable { expanded = !expanded }
+                        else Modifier
+                    )
+                    .padding(
+                        start = horizontalPadding + 4.dp,
+                        top = verticalPadding + 6.dp,
+                        bottom = 4.dp
+                    ),
+                verticalAlignment = Alignment.CenterVertically
             ) {
+                if (collapsible) {
+                    Icon(
+                        imageVector = Icons.Default.ExpandMore,
+                        // 纯装饰（标题文字已表意）：展开朝下 / 折叠朝右，与列表页分组头同一习语
+                        contentDescription = null,
+                        modifier = Modifier
+                            .size(20.dp)
+                            .rotate(if (expanded) 0f else -90f),
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
                 title()
             }
         }
-        Column(content = content)
+        if (!collapsible || expanded) Column(content = content)
     }
 }
 

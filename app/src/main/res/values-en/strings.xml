@@ -444,7 +444,6 @@
     <string name="import_config_type_not_match_msg">Format error (expected: {%1$s}).\nThe format you entered is {%2$s}, please go to the corresponding management interface for import.</string>
     <string name="import_config_type_unknown_msg">Unknown format, please enter the correct configuration.</string>
     <string name="still_to_import">Still to Import</string>
-    <string name="app_help_document">Help Document</string>
     <string name="replace_rule_after_execute">Execute after Speech-Rule</string>
     <string name="voice_name_bad_format">voiceName bad format</string>
     <string name="import_hanlp_zip">Import the Hanlp syntax analysis package</string>
