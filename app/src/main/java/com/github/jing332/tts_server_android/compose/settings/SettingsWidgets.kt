@@ -7,8 +7,10 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.defaultMinSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.selection.toggleable
@@ -134,13 +136,16 @@ internal fun DividerPreference(title: @Composable () -> Unit) {
  */
 @Composable
 internal fun SettingsGroup(
-    title: @Composable () -> Unit,
+    // showHeader=false 时不需要标题（套一张无标题卡片，如「后台保活设置」页顶部两行）
+    title: @Composable () -> Unit = {},
     modifier: Modifier = Modifier,
     show: Boolean = true,
     collapsible: Boolean = false,
     defaultExpanded: Boolean = true,
     // 逃生阀：需要纯平铺（不套卡片底）时传 false
     card: Boolean = true,
+    // false = 不出分区标题行（仍然套卡片底）
+    showHeader: Boolean = true,
     content: @Composable ColumnScope.() -> Unit,
 ) {
     if (!show) {
@@ -152,38 +157,43 @@ internal fun SettingsGroup(
     Column(modifier.fillMaxWidth()) {
         // 分区小标题：titleSmall + primary（与 DividerPreference 同款，本页现成的分区习语）
         // 卡片外、左缘与卡片边对齐（卡边 8 + 4）
-        CompositionLocalProvider(
-            LocalTextStyle provides MaterialTheme.typography.titleSmall.copy(
-                color = MaterialTheme.colorScheme.primary
-            ),
-        ) {
-            Row(
-                Modifier
-                    .fillMaxWidth()
-                    .then(
-                        if (collapsible) Modifier.clickable { expanded = !expanded }
-                        else Modifier
-                    )
-                    .padding(
-                        start = sectionCardMargin + 4.dp,
-                        top = verticalPadding + 6.dp,
-                        bottom = 4.dp
-                    ),
-                verticalAlignment = Alignment.CenterVertically
+        if (showHeader) {
+            CompositionLocalProvider(
+                LocalTextStyle provides MaterialTheme.typography.titleSmall.copy(
+                    color = MaterialTheme.colorScheme.primary
+                ),
             ) {
-                if (collapsible) {
-                    Icon(
-                        imageVector = Icons.Default.ExpandMore,
-                        // 纯装饰（标题文字已表意）：展开朝下 / 折叠朝右，与列表页分组头同一习语
-                        contentDescription = null,
-                        modifier = Modifier
-                            .size(20.dp)
-                            .rotate(if (expanded) 0f else -90f),
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
+                Row(
+                    Modifier
+                        .fillMaxWidth()
+                        .then(
+                            if (collapsible) Modifier.clickable { expanded = !expanded }
+                            else Modifier
+                        )
+                        .padding(
+                            start = sectionCardMargin + 4.dp,
+                            top = verticalPadding + 6.dp,
+                            bottom = 4.dp
+                        ),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    if (collapsible) {
+                        Icon(
+                            imageVector = Icons.Default.ExpandMore,
+                            // 纯装饰（标题文字已表意）：展开朝下 / 折叠朝右，与列表页分组头同一习语
+                            contentDescription = null,
+                            modifier = Modifier
+                                .size(20.dp)
+                                .rotate(if (expanded) 0f else -90f),
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                    title()
                 }
-                title()
             }
+        } else {
+            // 无标题卡片：只补一点上间距，避免与前一项贴死
+            Spacer(Modifier.height(verticalPadding))
         }
         // 收起时不出空卡片；展开才渲染卡片本体
         if (!collapsible || expanded) {

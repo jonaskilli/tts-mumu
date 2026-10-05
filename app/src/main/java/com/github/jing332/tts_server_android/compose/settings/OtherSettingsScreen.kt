@@ -1,11 +1,13 @@
 package com.github.jing332.tts_server_android.compose.settings
 
+import android.content.Intent
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CleaningServices
 import androidx.compose.material.icons.filled.DeleteSweep
 import androidx.compose.material.icons.filled.HideSource
 import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.Link
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -23,6 +25,7 @@ import com.github.jing332.common.utils.clearWebViewData
 import com.github.jing332.common.utils.toast
 import com.github.jing332.tts_server_android.R
 import com.github.jing332.tts_server_android.compose.AboutDialog
+import com.github.jing332.tts_server_android.compose.systts.directlink.LinkUploadRuleActivity
 import com.github.jing332.tts_server_android.conf.AppConfig
 import java.io.File
 
@@ -37,6 +40,21 @@ internal fun ColumnScope.OtherSettingsScreen(search: SettingsSearch) {
         defaultExpanded = false,
     ) {
     val context = LocalContext.current
+
+    // 「直链设置」（10-05 用户令：自「服务与网络」区迁来）——本质是"配置导出 → 上传到直链（网盘）"
+    // 那条链的 JS 规则编辑器，放在设置页任何"功能分区"里都不贴切，归「其他」
+    SettingItem(search, "直链", "directlink", "链接", "direct", "上传", "网盘") {
+        BasePreferenceWidget(
+            icon = { Icon(Icons.Default.Link, null) },
+            onClick = {
+                context.startActivity(
+                    Intent(
+                        context, LinkUploadRuleActivity::class.java
+                    ).apply { action = Intent.ACTION_VIEW })
+            },
+            title = { Text(stringResource(id = R.string.direct_link_settings)) },
+        )
+    }
 
     // 「语言」项已删（10-05 用户令：只留中文）——外语 strings.xml 五个目录（en/ja/fa/zh-rHK/zh-rTW）
     // 一并删除，语言列表（BuildConfig.TRANSLATION_ARRAY，构建时扫 values-* 生成）随之只剩中文，

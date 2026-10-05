@@ -125,6 +125,9 @@ class KeepAliveSettingsActivity : ComposeActivity() {
                     .padding(paddingValues)
                     .verticalScroll(rememberScrollState())
             ) {
+                // 电池优化白名单 / 厂商后台设置（10-05 用户令：这两行不在任何分区里，
+                // 加卡片底色后会"裸奔"，故套一张**无标题卡片**）
+                SettingsGroup(showHeader = false) {
                 // 电池优化白名单
                 val isInBatteryWhitelist = remember { context.isIgnoringBatteryOptimizations() }
                 BasePreferenceWidget(
@@ -156,6 +159,7 @@ class KeepAliveSettingsActivity : ComposeActivity() {
                     },
                     icon = { Icon(Icons.Default.MobileFriendly, null) }
                 )
+                }
 
                 // 分区标题与顶栏页名「后台保活设置」区分，避免重复（SettingsGroup 10-05 恢复标题渲染后）；
                 // 「高级保活」组在外层，两者成对

@@ -21,7 +21,6 @@ import androidx.compose.material.icons.filled.ColorLens
 import androidx.compose.material.icons.filled.FileOpen
 import androidx.compose.material.icons.filled.Lan
 import androidx.compose.material.icons.filled.Key
-import androidx.compose.material.icons.filled.Link
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.NotificationsNone
 import androidx.compose.material.icons.filled.Input
@@ -56,7 +55,6 @@ import com.github.jing332.tts_server_android.R
 import com.github.jing332.tts_server_android.compose.backup.BackupRestoreActivity
 import com.github.jing332.tts_server_android.compose.forwarder.systts.ForwarderWebDialog
 import com.github.jing332.tts_server_android.compose.nav.NavTopAppBar
-import com.github.jing332.tts_server_android.compose.systts.directlink.LinkUploadRuleActivity
 import com.github.jing332.tts_server_android.compose.systts.plugin.PluginManagerActivity
 import com.github.jing332.tts_server_android.compose.systts.replace.ReplaceManagerActivity
 import com.github.jing332.tts_server_android.compose.systts.role.KeyManagerActivity
@@ -318,21 +316,8 @@ fun SettingsScreen() {
                 )
                 }
 
-                // 直链设置（10-05 用户令：排在本区末位）
-                SettingItem(search, "直链", "directlink", "链接", "direct") {
-                BasePreferenceWidget(
-                    icon = {
-                        Icon(Icons.Default.Link, null)
-                    },
-                    onClick = {
-                        context.startActivity(
-                            Intent(
-                                context, LinkUploadRuleActivity::class.java
-                            ).apply { action = Intent.ACTION_VIEW })
-                    },
-                    title = { Text(stringResource(id = R.string.direct_link_settings)) },
-                )
-                }
+                // 「直链设置」已迁往「其他」区（10-05 用户令：它本质是"导出到网盘拿直链"的 JS 规则，
+                // 放"服务与网络/资源管理"都不合适；顺带解掉了"直链 vs 唤醒锁"的跨区顺序纠结）
                 } // 服务与网络区收尾
 
                 // ===== 后台与保活（10-05 用户令：原「服务与网络」混装两类，拆出后台存活类）=====
