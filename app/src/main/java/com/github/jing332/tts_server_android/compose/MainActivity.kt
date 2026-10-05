@@ -24,7 +24,6 @@ import androidx.compose.material3.rememberDrawerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableLongStateOf
@@ -33,7 +32,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
-import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
@@ -63,8 +61,8 @@ import com.google.accompanist.permissions.rememberPermissionState
 
 val LocalNavController = compositionLocalOf<NavHostController> { error("No nav controller") }
 val LocalDrawerState = compositionLocalOf<DrawerState> { error("No drawer state") }
-val LocalUpdateCheckTrigger =
-    staticCompositionLocalOf<MutableState<Boolean>> { mutableStateOf(false) }
+// LocalUpdateCheckTrigger 已删（10-05 用户令：应用内更新功能整体退役——
+// 更新检查硬编码指向上游 jing332/tts-server-android 的 Actions/Releases，与本 fork 无关）
 
 fun Context.asAppCompatActivity(): AppCompatActivity {
     return this as? AppCompatActivity ?: error("Context is not an AppCompatActivity")
@@ -101,17 +99,6 @@ class MainActivity : ComposeActivity() {
 
         setContent {
             AppTheme {
-                var showAutoCheckUpdaterDialog by remember { mutableStateOf(false) }
-                val updateCheckTrigger = LocalUpdateCheckTrigger.current
-                if (showAutoCheckUpdaterDialog) {
-                    // 👈 改用原生 Log
-                    Log.i(TAG, "Check for update") 
-                    AutoUpdateCheckerDialog(updateCheckTrigger.value, fromGithubAction = true) {
-                        showAutoCheckUpdaterDialog = false
-                        updateCheckTrigger.value = false
-                    }
-                }
-
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) { // A13
                     val notificationPermission =
                         rememberPermissionState(permission = Manifest.permission.POST_NOTIFICATIONS)
@@ -122,10 +109,6 @@ class MainActivity : ComposeActivity() {
                     }
                 }
 
-                LaunchedEffect(Unit) {
-                    showAutoCheckUpdaterDialog = AppConfig.isAutoCheckUpdateEnabled.value
-                }
-
                 val excludeFromRecent by AppConfig.isExcludeFromRecent
                 LaunchedEffect(excludeFromRecent) {
                     (application.getSystemService(ACTIVITY_SERVICE) as ActivityManager).let { manager ->
@@ -133,10 +116,6 @@ class MainActivity : ComposeActivity() {
                             task?.setExcludeFromRecents(excludeFromRecent)
                         }
                     }
-                }
-
-                LaunchedEffect(updateCheckTrigger.value) {
-                    if (updateCheckTrigger.value) showAutoCheckUpdaterDialog = true
                 }
 
                 MainScreen { finish() }

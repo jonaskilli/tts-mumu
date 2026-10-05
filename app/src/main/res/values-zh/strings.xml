@@ -18,7 +18,6 @@
     <string name="app_down_again_to_exit">再按一次退出程序</string>
     <string name="cannot_empty">不可为空！</string>
     <string name="open_web">打开网页版</string>
-    <string name="check_update">检查更新</string>
     <string name="wake_lock">唤醒锁</string>
     <string name="about">关于</string>
     <string name="config">配置</string>
@@ -62,7 +61,6 @@
     <string name="settings">设置</string>
     <string name="global_settings">全局设置</string>
     <string name="copy_address">复制地址</string>
-    <string name="check_update_failed">检查更新失败</string>
     <string name="current_is_last_version">当前已是最新版</string>
     <string name="edit_builtin_tts">编辑内置TTS</string>
     <string name="title_activity_replace_edit">编辑替换规则</string>
@@ -307,7 +305,6 @@
     <string name="learn_more">了解详情</string>
     <string name="systts_bgm_description">音量:%1$s</string>
     <string name="total_n_folders">共 %1$s 个文件夹</string>
-    <string name="auto_check_update">自动检查更新</string>
     <string name="direct_upload_settings">直链上传设置</string>
     <string name="warn_returned_url_is_empty">返回的链接为空！</string>
     <string name="choose_an_upload_target">选择一个上传目标</string>
@@ -317,7 +314,6 @@
     <string name="import_plugin">导入插件</string>
     <string name="systts_drag_tip_msg">拖拽勾选框进行排序</string>
     <string name="code_editor">代码编辑器</string>
-    <string name="check_update_summary">打开主界面时检查更新</string>
     <string name="edit_read_rule">编辑朗读规则</string>
     <string name="speech_rule_manager">朗读规则管理</string>
     <string name="speech_rule_script">规则脚本</string>

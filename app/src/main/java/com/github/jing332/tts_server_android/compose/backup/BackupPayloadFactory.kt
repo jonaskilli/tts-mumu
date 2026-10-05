@@ -194,7 +194,7 @@ internal class BackupPayloadFactory(
         val sharePreferenceAllowlist = linkedMapOf(
             "app" to setOf(
                 "theme", "limitTagLength", "limitNameLength", "isSwapListenAndEditButton",
-                "isAutoCheckUpdateEnabled", "isExcludeFromRecent", "isEdgeDnsEnabled",
+                "isExcludeFromRecent", "isEdgeDnsEnabled",
             ),
             "systts" to setOf(
                 "isInAppPlayAudio", "inAppPlaySpeed", "inAppPlayVolume", "inAppPlayPitch",

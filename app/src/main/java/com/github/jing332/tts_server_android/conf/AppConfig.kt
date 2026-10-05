@@ -59,7 +59,7 @@ object AppConfig {
     val limitTagLength by lazy { mutableDataSaverStateOf(dataSaverPref, "limitTagLength", 0) }
     val limitNameLength by lazy { mutableDataSaverStateOf(dataSaverPref, "limitNameLength", 0) }
     val isSwapListenAndEditButton by lazy { mutableDataSaverStateOf(dataSaverPref, "isSwapListenAndEditButton", false) }
-    val isAutoCheckUpdateEnabled by lazy { mutableDataSaverStateOf(dataSaverPref, "isAutoCheckUpdateEnabled", false) }
+    // isAutoCheckUpdateEnabled 已删（10-05 用户令：应用内更新功能整体退役）
     val isExcludeFromRecent by lazy { mutableDataSaverStateOf(dataSaverPref, "isExcludeFromRecent", false) }
     val isEdgeDnsEnabled by lazy { mutableDataSaverStateOf(dataSaverPref, "isEdgeDnsEnabled", true) }
     val testSampleText by lazy { mutableDataSaverStateOf(dataSaverPref, "testSampleText", "单击右侧按钮即可测试并播放这段音频。") }

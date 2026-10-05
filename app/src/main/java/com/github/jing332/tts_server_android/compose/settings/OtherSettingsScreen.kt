@@ -4,12 +4,10 @@ import android.content.Intent
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.HelpOutline
-import androidx.compose.material.icons.filled.ArrowCircleUp
 import androidx.compose.material.icons.filled.CleaningServices
 import androidx.compose.material.icons.filled.DeleteSweep
 import androidx.compose.material.icons.filled.HideSource
 import androidx.compose.material.icons.filled.Info
-import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -27,7 +25,6 @@ import com.github.jing332.common.utils.clearWebViewData
 import com.github.jing332.common.utils.toast
 import com.github.jing332.tts_server_android.R
 import com.github.jing332.tts_server_android.compose.AboutDialog
-import com.github.jing332.tts_server_android.compose.LocalUpdateCheckTrigger
 import com.github.jing332.tts_server_android.conf.AppConfig
 import com.github.jing332.tts_server_android.ui.AppHelpDocumentActivity
 import java.io.File
@@ -37,16 +34,7 @@ internal fun ColumnScope.OtherSettingsScreen(search: SettingsSearch) {
     // 「数据与关于」（10-05 分区）：原 OtherSettingsScreen 的 关于/帮助/检查更新/清除网页数据/清空数据
     // ＋ 由主设置页移入的 自动检查更新/最近任务排除/下拉数量
     SettingsGroup(title = { Text("数据与关于") }, show = !search.active()) {
-    SettingItem(search, "更新", "update", "检查", "自动") {
-        var autoCheck by remember { AppConfig.isAutoCheckUpdateEnabled }
-        SwitchPreference(
-            title = { Text(stringResource(id = R.string.auto_check_update)) },
-            subTitle = { Text(stringResource(id = R.string.check_update_summary)) },
-            checked = autoCheck,
-            onCheckedChange = { autoCheck = it },
-            icon = { Icon(Icons.Default.ArrowCircleUp, contentDescription = null) }
-        )
-    }
+    // 「自动检查更新」已删（10-05 用户令：应用内更新功能整体退役，AppConfig.isAutoCheckUpdateEnabled 一并拆除）
 
     SettingItem(search, "最近任务", "排除", "recent", "后台") {
         var excludeFromRecent by remember { AppConfig.isExcludeFromRecent }
@@ -97,17 +85,7 @@ internal fun ColumnScope.OtherSettingsScreen(search: SettingsSearch) {
     }
 
 
-    val updateCheckTrigger = LocalUpdateCheckTrigger.current
-    SettingItem(search, "检查更新", "更新", "update", "升级") {
-        BasePreferenceWidget(
-            onClick = { updateCheckTrigger.value = true },
-            title = { Text(stringResource(R.string.check_update)) },
-            icon = {
-                Icon(Icons.Default.Refresh, null)
-            }
-        )
-    }
-
+    // 「检查更新」入口已删（10-05 用户令：应用内更新功能整体退役）
 
     SettingItem(search, "清除网页数据", "缓存", "cache", "webview") {
         BasePreferenceWidget(
