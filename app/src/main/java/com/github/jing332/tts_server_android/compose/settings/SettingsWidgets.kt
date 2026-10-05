@@ -15,6 +15,8 @@ import androidx.compose.foundation.selection.toggleable
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.KeyboardArrowRight
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.LocalTextStyle
@@ -26,6 +28,7 @@ import androidx.compose.material3.minimumInteractiveComponentSize
 import androidx.compose.material3.ripple
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -49,6 +52,16 @@ import com.github.jing332.tts_server_android.R
 
 internal val horizontalPadding: Dp = 16.dp
 internal val verticalPadding: Dp = 12.dp
+
+/** 分区卡片：卡边到屏幕边的外边距（10-05 用户拍板加底色时定的间距） */
+internal val sectionCardMargin: Dp = 8.dp
+
+/**
+ * 行内左右内距。默认 [horizontalPadding]（16dp，未套卡片的散行照旧）；
+ * 卡片内由 [SettingsGroup] 收窄成 `horizontalPadding - sectionCardMargin` = 8dp，
+ * 于是「卡边 8 + 行内距 8 = 16」与套壳前一致 ⇒ 行内容横坐标零位移。
+ */
+internal val LocalPreferenceRowHorizontalPadding = compositionLocalOf { horizontalPadding }
 
 @Composable
 internal fun DropdownPreference(
@@ -106,16 +119,18 @@ internal fun DividerPreference(title: @Composable () -> Unit) {
 }
 
 /**
- * 设置分区：**只出文字小标题，不出卡片壳**。
- * 历史：050a759「返璞归真」把本组件从「卡片壳+标题」删成纯直通（无标题），
- * 设置页遂成一片平铺；10-05 用户要求分类整理（参考墨听设置页），
- * 只恢复**标题**（用户明确不要卡片壳）——条目仍平铺，靠标题分段跳读。
- * 保留 [show]：搜索模式下调用方以 show=false 退平铺（不显示标题），行为不变。
+ * 设置分区：文字小标题（卡片外）+ 条目卡片底（10-05 用户拍板：照 QQ 那套）。
+ * 历史：050a759「返璞归真」把本组件从「卡片壳+标题」删成纯直通（无标题）；
+ * 10-05 先恢复**标题**（当时明确不要卡片壳），同日再拍板"加底色"——
+ * 采用 QQ 式：**标题留在卡片外**、只给条目套一张与配置项编辑页同款底色的卡片。
+ * 保留 [show]：搜索模式下调用方以 show=false 退平铺（不显示标题、不套卡片），行为不变。
  *
- * 10-05 追加折叠：[collapsible]=true 时标题行整行可点，右侧（箭头在标题左，与分组/子分组头同习语）
- * 出 ▾/▸ 指示；[defaultExpanded]=false 即默认收起（用户令：设置页条目太多，
- * 「数据与关于」无关紧要，折叠起来）。搜索态（show=false）**一律平铺直出**——
- * 搜到的条目不能被折叠藏起来。
+ * 折叠：[collapsible]=true 时标题行整行可点，箭头在标题左（与分组/子分组头同习语）；
+ * [defaultExpanded]=false 即默认收起。收起时**不出空卡片**；搜索态（show=false）一律平铺直出——
+ * 搜到的条目不能被折叠藏起来，也不套壳（命中项是跨区散项，套壳会变成一堆无名小块）。
+ *
+ * 零位移约定：[sectionCardMargin] 8dp + 卡内行内距 8dp = 原来的 16dp 行内距
+ * ⇒ 套壳后图标/文字/右侧控件的横坐标与套壳前完全一致（只是多了一层底色）。
  */
 @Composable
 internal fun SettingsGroup(
@@ -124,6 +139,8 @@ internal fun SettingsGroup(
     show: Boolean = true,
     collapsible: Boolean = false,
     defaultExpanded: Boolean = true,
+    // 逃生阀：需要纯平铺（不套卡片底）时传 false
+    card: Boolean = true,
     content: @Composable ColumnScope.() -> Unit,
 ) {
     if (!show) {
@@ -134,6 +151,7 @@ internal fun SettingsGroup(
     var expanded by rememberSaveable { mutableStateOf(defaultExpanded) }
     Column(modifier.fillMaxWidth()) {
         // 分区小标题：titleSmall + primary（与 DividerPreference 同款，本页现成的分区习语）
+        // 卡片外、左缘与卡片边对齐（卡边 8 + 4）
         CompositionLocalProvider(
             LocalTextStyle provides MaterialTheme.typography.titleSmall.copy(
                 color = MaterialTheme.colorScheme.primary
@@ -147,7 +165,7 @@ internal fun SettingsGroup(
                         else Modifier
                     )
                     .padding(
-                        start = horizontalPadding + 4.dp,
+                        start = sectionCardMargin + 4.dp,
                         top = verticalPadding + 6.dp,
                         bottom = 4.dp
                     ),
@@ -167,7 +185,31 @@ internal fun SettingsGroup(
                 title()
             }
         }
-        if (!collapsible || expanded) Column(content = content)
+        // 收起时不出空卡片；展开才渲染卡片本体
+        if (!collapsible || expanded) {
+            if (card) {
+                Card(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = sectionCardMargin),
+                    colors = CardDefaults.cardColors(
+                        // 与配置项编辑页 SectionCard 同款底色（surfaceVariant@20%）：
+                        // 与编辑页视觉统一，且比页面底略深一眼认出分区、不抢内容
+                        containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.20f),
+                    ),
+                ) {
+                    CompositionLocalProvider(
+                        // 卡边 8 + 行内距 8 = 16 = 原来的行内距 ⇒ 行内容横坐标零位移
+                        LocalPreferenceRowHorizontalPadding provides
+                            (horizontalPadding - sectionCardMargin)
+                    ) {
+                        Column(content = content)
+                    }
+                }
+            } else {
+                Column(content = content)
+            }
+        }
     }
 }
 
@@ -231,7 +273,7 @@ internal fun BasePreferenceWidget(
             )
         )
         .then(modifier)
-        .padding(horizontal = horizontalPadding, vertical = verticalPadding)
+        .padding(horizontal = LocalPreferenceRowHorizontalPadding.current, vertical = verticalPadding)
         .semantics(true) {}
     ) {
         Column(
