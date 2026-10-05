@@ -172,8 +172,7 @@ fun SettingsScreen() {
                 )
                 }
 
-                // 「语言」整项已迁往「数据与关于」区（10-05 用户令：语言不能放常用，放最后的关于里）
-                // —— 连同 languageKeys / languageNames / langMenu 一起搬走（OtherSettingsScreen）
+                // 「语言」整项已删（10-05 用户令：只留中文，外语翻译五个目录一并退役）
 
                 SettingItem(search, "备份", "恢复", "backup", "restore") {
                 BasePreferenceWidget(
@@ -379,9 +378,9 @@ fun SettingsScreen() {
                 } // 后台与保活区收尾
 
                 // 「其他」区（OtherSettingsScreen 渲染，10-05 用户令默认折叠；原名「数据与关于」，
-                // 同日因区内含语言而改名）：
-                // 语言 / 最近任务排除 / 关于 / 清除网页数据 / 清空数据
-                // （帮助文档、检查更新、自动检查更新、下拉数量 均已退役）
+                // 同日因区内含语言而改名，随后语言项本身也退役）：
+                // 最近任务排除 / 关于 / 清除网页数据 / 清空数据
+                // （帮助文档、检查更新、自动检查更新、下拉数量、语言 均已退役）
                 OtherSettingsScreen(search)
 
                 Spacer(Modifier.navigationBarsPadding())
