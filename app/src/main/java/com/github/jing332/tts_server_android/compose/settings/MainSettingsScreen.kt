@@ -51,6 +51,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.nestedscroll.nestedScroll
@@ -84,6 +85,8 @@ fun SettingsScreen() {
     val search = rememberSettingsSearch(if (openSection != null) "" else query)
     // 系统返回键：子页时先退回主页
     BackHandler(enabled = openSection != null) { openSection = null }
+    // 子页标题（供顶栏用；委托属性不能 smart cast，先落到局部值）
+    val openSectionTitle = sectionTitle(openSection ?: "")
 
     var showThemeDialog by remember { mutableStateOf(false) }
     if (showThemeDialog)
@@ -146,7 +149,7 @@ fun SettingsScreen() {
                 if (openSection != null) {
                     // 子页顶栏：返回键 + 区名（无搜索框——子页内不做过滤）
                     NavTopAppBar(
-                        title = { Text(sectionTitle(openSection!!)) },
+                        title = { Text(openSectionTitle) },
                         navigationIcon = {
                             IconButton(onClick = { openSection = null }) {
                                 Icon(
