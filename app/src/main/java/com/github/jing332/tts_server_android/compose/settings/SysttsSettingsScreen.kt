@@ -162,7 +162,13 @@ internal fun ColumnScope.SysttsSettingsScreen(search: SettingsSearch) {
     }
     } // 朗读与播放区收尾（10-05 分区）
 
-    SettingsGroup(title = { Text("稳定性") }, show = !search.active()) {
+    // 稳定性区（10-05 分区；同日用户令：也默认折叠——与「数据与关于」同一处理）
+    SettingsGroup(
+        title = { Text("稳定性") },
+        show = !search.active(),
+        collapsible = true,
+        defaultExpanded = false,
+    ) {
     var maxRetry by remember { SystemTtsConfig.maxRetryCount }
     val maxRetryValue =
         if (maxRetry == 0) stringResource(id = R.string.no_retries) else maxRetry.toString()
