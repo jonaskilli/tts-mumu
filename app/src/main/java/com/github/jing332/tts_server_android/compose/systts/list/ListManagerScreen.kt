@@ -3795,8 +3795,13 @@ internal fun ListManagerScreen(
                                                         RoundedCornerShape(8.dp),
                                                     ) else Modifier
                                                     ).then(itemDragModifier).padding(
-                                                        // 配置项卡片随所属子分组层级缩进，与子分组头对齐
-                                                        start = (8 + (fItem.displayLevel - 1).coerceAtLeast(0) * 12).dp,
+                                                        // 配置项卡片随所属子分组层级缩进，与子分组头同列。
+                                                        // displayLevel = 所属子分组 node.level + 1，故本式
+                                                        // 8 + displayLevel*12 与 SubGroupHeader 的
+                                                        // 8 + (level+1)*12 恒等：子分组头 20 ⇒ 其直属卡片 20，
+                                                        // 更深一级头 32 ⇒ 卡片 32；根目录卡片 displayLevel=0 留 8，
+                                                        // 与一级分组行同列（10-05 用户令：整体下压一级）
+                                                        start = (8 + fItem.displayLevel * 12).dp,
                                                         end = 8.dp,
                                                         top = 4.dp,
                                                         bottom = 4.dp

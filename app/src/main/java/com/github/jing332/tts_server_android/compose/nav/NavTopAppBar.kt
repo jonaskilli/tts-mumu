@@ -55,9 +55,11 @@ fun NavTopAppBar(
                     .fillMaxWidth()
                     .height(56.dp)
                     // 左 4 = 返回键热区内缩、字形视觉 ≈16 与内容页 16 左线齐；
-                    // 右 0 = 最右键热区贴边（与列表行内动作热区贴边同构），
-                    // ⋮ 圆点字形视觉 22.3dp 与主页行内 ⋮ 实测同列（边距口径：两侧定「字形线16」）
-                    .padding(start = 4.dp, end = 0.dp),
+                    // 右 8 = ⋮ 字形与全站「30dp 列」同列（10-05 用户实机指认：顶栏 ⋮ 与下方列表行
+                    // 没对齐）。算式：行内距 8 + ⋮ 字形在 48dp 热区内的居中偏移 22 = 字形右缘距屏 30。
+                    // 曾为 end=0：最右键热区贴边，⋮ 字形落在 22dp、其下拉菜单右缘也贴到屏幕边（0dp），
+                    // 与列表/卡片 ⋮ 菜单的 8dp 留白不一致（用户 10-05「菜单右边距是 0，给统一下」）。
+                    .padding(start = 4.dp, end = 8.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 // navigationIcon 与 M3 同签名为无参 lambda（不吃 RowScope），直接 invoke

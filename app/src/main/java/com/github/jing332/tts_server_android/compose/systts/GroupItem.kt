@@ -158,21 +158,15 @@ fun GroupItem(
                 .clickable { onClick() }
         )
 
-        // 序号徽章：按当前列表顺序自动编号，排序变化自动重编
-        // primaryContainer 打五折透明度：色相跟随主题(切主题会变)但强度比主题色弱一档，不抢眼
+        // 序号徽章：按当前列表顺序自动编号，排序变化自动重编。
+        // 形状/配色统一走 OrderBadge（10-05 用户拍板「丙」胶囊：1 位数=正圆、两位数起自动变宽）；
+        // 原本地实现是「圆角方 4dp + 内容撑」，与密钥池的实心正圆不一致，故收敛为共享组件
         if (index >= 1) {
-            Text(
-                "$index",
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onPrimaryContainer,
+            OrderBadge(
+                number = index,
                 modifier = Modifier
                     .align(Alignment.CenterVertically)
                     .padding(end = 6.dp)
-                    .background(
-                        MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f),
-                        androidx.compose.foundation.shape.RoundedCornerShape(4.dp)
-                    )
-                    .padding(horizontal = 6.dp, vertical = 2.dp)
             )
         }
 

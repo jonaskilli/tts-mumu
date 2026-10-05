@@ -50,6 +50,7 @@ import androidx.compose.ui.unit.dp
 import com.github.jing332.compose.widgets.ShadowedDraggableItem
 import com.github.jing332.tts_server_android.R
 import com.github.jing332.tts_server_android.compose.nav.NavTopAppBar
+import com.github.jing332.tts_server_android.compose.systts.OrderBadge
 import com.github.jing332.tts_server_android.service.systts.help.KeyListFile
 import org.burnoutcrew.reorderable.detectReorderAfterLongPress
 import org.burnoutcrew.reorderable.rememberReorderableLazyListState
@@ -318,22 +319,14 @@ private fun PoolRow(
                 Checkbox(checked = checked, onCheckedChange = { onToggleCheck() })
                 Spacer(Modifier.width(10.dp))
             } else {
-                // 大序号徽章：本页的主角就是顺序（拖动放手后自动重排）。
-                // 0919 实机二调：24dp 偏大，缩到 20dp；保持实心主题色（上一版 14% 透明底不显眼的教训不回退）
-                Box(
-                    Modifier.size(20.dp).background(
-                        MaterialTheme.colorScheme.primary,
-                        CircleShape
-                    ),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text(
-                        orderNum.toString(),
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onPrimary,
-                        maxLines = 1
-                    )
-                }
+                // 序号徽章：统一走 OrderBadge（10-05 用户拍板形状「丙」胶囊）。
+                // 原先这里是「Box(20dp) + CircleShape + 实心 primary + onPrimary 白字」，
+                // 与主界面分组的「圆角方 + primaryContainer@50% + 深字」两套不一致，故收敛。
+                // 形制变化：1 位数为 20dp 正圆（观感与原先一致）；两位数起自动加宽——
+                // 原先宽度写死 20dp，两位数只剩 ~3dp/侧、三位数直接溢出圆外。
+                // 历史注：0919 那条「14% 透明底不显眼」的教训针对的是 **14% 的 primary**；
+                // 现用的是 primaryContainer@50%（色阶本身更实），不属该回退范围。
+                OrderBadge(number = orderNum)
                 Spacer(Modifier.width(10.dp))
             }
             // 名字区 weight(1f)：独占剩余宽度（0920 教训——名字格与弹性空格不许双 weight，

@@ -103,8 +103,13 @@ fun SubGroupHeader(
             )
             .clickable { if (!showOptions && !showExtraOptions) onClick() }
             .padding(
-                // 按层级水平缩进，每级 12dp（与树内配置项卡片缩进公式一致）
-                start = (8 + level * 12).dp,
+                // 按层级水平缩进，每级 12dp（与树内配置项卡片缩进公式一致）。
+                // (level+1)：10-05 用户实机指认「子分组折叠键缩进怪」——一级分组行当时补了
+                // start=8dp（治"箭头贴边"），而本行 level0 也恰好是 8dp，父子落同一条竖线、
+                // 从属关系消失。改为 (level+1) 整体下压一级：一级分组 8 → 子分组 20 → 更深 32。
+                // 与卡片口径的对应：卡片用 displayLevel（=node.level+1），故卡片 start =
+                // 8 + displayLevel*12，本行 8 + (level+1)*12 ⇒ 子分组头与其直属卡片恒同列。
+                start = (8 + (level + 1) * 12).dp,
                 top = paddingTop,
                 bottom = paddingBottom,
                 // end 8（10-05 用户拍板：三行 ⋮ 统一 30dp 列）——曾短暂归 0 去凑组头旧 22 列，

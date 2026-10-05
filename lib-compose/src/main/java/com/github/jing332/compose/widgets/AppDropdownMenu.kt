@@ -16,8 +16,8 @@ import androidx.compose.ui.unit.DpOffset
  * 已验证（material3 1.4.0-alpha09 MenuPosition.kt）：行尾 ⋮ 的宽菜单走
  * 「菜单右缘对齐锚点右缘」候选，offset 照加——即菜单右缘 = 锚点右缘 + offset.x。
  * 列表行/卡片 ⋮ 热区右缘本就距屏 8dp（10-05 三行 ⋮ 统一 30dp 列），菜单右缘
- * 天然留 8dp，无需传参；顶栏 ⋮（NavTopAppBar end=4）待拍板改 8 后同理。此参数
- * 仅为该类场景预留。
+ * 天然留 8dp；顶栏 ⋮ 原为 end=0（菜单右缘贴屏 0dp，用户 10-05 实机指认「菜单右边距
+ * 是 0」），同日 NavTopAppBar 改 end=8 后同样天然留 8dp。此参数仅为该类场景预留。
  */
 @Composable
 fun AppDropdownMenu(
