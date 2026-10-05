@@ -41,42 +41,7 @@ internal fun ColumnScope.OtherSettingsScreen(search: SettingsSearch) {
     ) {
     val context = LocalContext.current
 
-    // 「直链设置」（10-05 用户令：自「服务与网络」区迁来）——本质是"配置导出 → 上传到直链（网盘）"
-    // 那条链的 JS 规则编辑器，放在设置页任何"功能分区"里都不贴切，归「其他」
-    SettingItem(search, "直链", "directlink", "链接", "direct", "上传", "网盘") {
-        BasePreferenceWidget(
-            icon = { Icon(Icons.Default.Link, null) },
-            onClick = {
-                context.startActivity(
-                    Intent(
-                        context, LinkUploadRuleActivity::class.java
-                    ).apply { action = Intent.ACTION_VIEW })
-            },
-            title = { Text(stringResource(id = R.string.direct_link_settings)) },
-        )
-    }
-
-    // 「语言」项已删（10-05 用户令：只留中文）——外语 strings.xml 五个目录（en/ja/fa/zh-rHK/zh-rTW）
-    // 一并删除，语言列表（BuildConfig.TRANSLATION_ARRAY，构建时扫 values-* 生成）随之只剩中文，
-    // 留着这个开关就是"拨了没反应"的假选项。AppLocale 启动套用语言的逻辑保留（旧语言码自动回退系统语言）。
-
-    // 「自动检查更新」已删（10-05 用户令：应用内更新功能整体退役，AppConfig.isAutoCheckUpdateEnabled 一并拆除）
-
-    SettingItem(search, "最近任务", "排除", "recent", "后台") {
-        var excludeFromRecent by remember { AppConfig.isExcludeFromRecent }
-        SwitchPreference(
-            title = { Text(stringResource(id = R.string.exclude_from_recent)) },
-            subTitle = { Text(stringResource(id = R.string.exclude_from_recent_summary)) },
-            checked = excludeFromRecent,
-            onCheckedChange = { excludeFromRecent = it },
-            icon = { Icon(Icons.Default.HideSource, contentDescription = null) }
-        )
-    }
-
-    // 「下拉框内容最大数」已删（10-05 用户令）：该设置写 AppConfig.spinnerMaxDropDownCount，
-    // 但全仓无任何消费点——AppSpinner 用的是 lib-compose 的 ComposeWidgetSettings.maxDropDownCount
-    // （硬编码 3），两处从未接线，即拨动此开关不产生任何效果（假开关）。删后下拉阈值仍恒为 3。
-
+    // 关于（10-05 用户令：放本区第一个）
     var showAboutDialog by rememberSaveable { mutableStateOf(false) }
     if (showAboutDialog)
         AboutDialog { showAboutDialog = false }
@@ -92,12 +57,38 @@ internal fun ColumnScope.OtherSettingsScreen(search: SettingsSearch) {
         )
     }
 
-    // 「帮助」入口与帮助文档整页已删（10-05 用户令：帮助文档取消，给删了）
-    // —— AppHelpDocumentActivity + manifest 声明 + app_help_document 串 + 整个 assets/help 目录
-    // （app.md 与 js/*.md 共 8 份）一并退役
+    // 最近任务排除
+    SettingItem(search, "最近任务", "排除", "recent", "后台") {
+        var excludeFromRecent by remember { AppConfig.isExcludeFromRecent }
+        SwitchPreference(
+            title = { Text(stringResource(id = R.string.exclude_from_recent)) },
+            subTitle = { Text(stringResource(id = R.string.exclude_from_recent_summary)) },
+            checked = excludeFromRecent,
+            onCheckedChange = { excludeFromRecent = it },
+            icon = { Icon(Icons.Default.HideSource, contentDescription = null) }
+        )
+    }
 
+    // 「直链设置」（10-05 用户令：自「服务与网络」区迁来，并排在「清除网页数据」之前）
+    // 本质是"配置导出 → 上传到直链（网盘）"那条链的 JS 规则编辑器，放任何"功能分区"里都不贴切，归「其他」
+    SettingItem(search, "直链", "directlink", "链接", "direct", "上传", "网盘") {
+        BasePreferenceWidget(
+            icon = { Icon(Icons.Default.Link, null) },
+            onClick = {
+                context.startActivity(
+                    Intent(
+                        context, LinkUploadRuleActivity::class.java
+                    ).apply { action = Intent.ACTION_VIEW })
+            },
+            title = { Text(stringResource(id = R.string.direct_link_settings)) },
+        )
+    }
 
-    // 「检查更新」入口已删（10-05 用户令：应用内更新功能整体退役）
+    // —— 以下项目已退役（留记录，避免将来被"重新发现"）——
+    // 语言：10-05 用户令只留中文（外语 strings.xml 五个目录一并删除；AppLocale 启动套用逻辑保留）
+    // 自动检查更新 / 检查更新：应用内更新功能整体退役
+    // 下拉框内容最大数：假开关（AppConfig.spinnerMaxDropDownCount 全仓无消费点，字段已删）
+    // 帮助：帮助文档整页退役（AppHelpDocumentActivity + app_help_document 串 + assets/help 共 8 份文件）
 
     SettingItem(search, "清除网页数据", "缓存", "cache", "webview") {
         BasePreferenceWidget(
@@ -114,7 +105,8 @@ internal fun ColumnScope.OtherSettingsScreen(search: SettingsSearch) {
         )
     }
 
-    // 清空数据：效果同长按软件-清除该软件数据
+    // 清空数据：效果同长按软件-清除该软件数据。**危险动作**（10-05 用户令：改红色字），
+    // 排在区内最末；标题+图标都用 error 色，与列表页/插件页的删除类菜单同习语
     var showClearDataDialog by rememberSaveable { mutableStateOf(false) }
     if (showClearDataDialog) {
         AlertDialog(
@@ -145,10 +137,14 @@ internal fun ColumnScope.OtherSettingsScreen(search: SettingsSearch) {
     SettingItem(search, "清空数据", "clear", "data", "重置应用") {
         BasePreferenceWidget(
             onClick = { showClearDataDialog = true },
-            title = { Text("清空数据") },
+            title = { Text("清空数据", color = MaterialTheme.colorScheme.error) },
             subTitle = { Text("清除本应用的所有数据") },
             icon = {
-                Icon(Icons.Default.DeleteSweep, null)
+                Icon(
+                    Icons.Default.DeleteSweep,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.error
+                )
             }
         )
     }

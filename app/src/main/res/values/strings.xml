@@ -113,7 +113,7 @@
     <string name="audition_text">试听文本</string>
 
     <!-- 替换管理 -->
-    <string name="replace_rule_manager">替换规则管理</string>
+    <string name="replace_rule_manager">替换规则</string>
     <string name="systts_replace_add_rule">添加替换规则</string>
     <string name="systts_replace_rule">替换规则</string>
     <string name="replacement">替换为</string>
@@ -287,7 +287,7 @@
     <string name="forwarder_systts">TTS转发器</string>
     <string name="forwarder_sys_running">TTS转发器运行中</string>
     <string name="language">语言</string>
-    <string name="plugin_manager">插件管理</string>
+    <string name="plugin_manager">插件</string>
     <string name="error">错误</string>
     <string name="systts_add_plugin_tts">添加插件TTS</string>
     <string name="debug">调试</string>
@@ -368,7 +368,7 @@
     <string name="systts_drag_tip_msg">拖拽勾选框进行排序</string>
     <string name="code_editor">代码编辑器</string>
     <string name="edit_read_rule">编辑朗读规则</string>
-    <string name="speech_rule_manager">朗读规则管理</string>
+    <string name="speech_rule_manager">朗读规则</string>
     <string name="speech_rule_script">规则脚本</string>
     <string name="empty_list">列表为空</string>
     <string name="max_retry_count">最大重试次数</string>
@@ -778,7 +778,7 @@
     <string name="role_list_merge_target_title">选择保留的角色</string>
     <string name="role_list_merge_target_hint">其余角色名将并入所选角色的别名</string>
     <string name="role_list_merge_toast">已合并 %1$d 个角色</string>
-    <string name="role_key_title">密钥管理</string>
+    <string name="role_key_title">密钥</string>
     <string name="role_key_current">当前</string>
     <string name="role_key_set_current">设为当前</string>
     <string name="role_key_add">新增密钥</string>

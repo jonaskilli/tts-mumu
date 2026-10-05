@@ -228,7 +228,8 @@ fun SettingsScreen() {
                     }
                 }
 
-                // 朗读与播放 / 稳定性 / 心声与标签 三区（SysttsSettingsScreen 渲染）
+                // 朗读与播放 / 显示与交互 / 稳定性 / 心声 四区（SysttsSettingsScreen 渲染；
+                // 10-05 用户令：显示与交互自前两区抽出——交换键+两个长度限制都只改列表卡片显示）
                 SysttsSettingsScreen(search)
 
                 // ===== 服务与网络（10-05 用户令：不常用，移至倒数第二区）=====

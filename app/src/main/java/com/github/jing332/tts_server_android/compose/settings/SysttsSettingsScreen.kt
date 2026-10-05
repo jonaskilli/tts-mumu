@@ -125,19 +125,8 @@ internal fun ColumnScope.SysttsSettingsScreen(search: SettingsSearch) {
         )
     }
 
-    // 交换/多语音/多组（10-05 分区：原「系统TTS接口偏好」杂项组拆出后归入朗读与播放）
-    var wrapButton by remember { AppConfig.isSwapListenAndEditButton }
-    SettingItem(search, "交换", "按钮", "button", "试听", "编辑") {
-        SwitchPreference(
-            title = { Text(stringResource(id = R.string.pref_swap_listen_and_edit_button)) },
-            subTitle = {},
-            checked = wrapButton,
-            onCheckedChange = { wrapButton = it },
-            icon = {
-                Icon(Icons.Default.Headset, contentDescription = null)
-            }
-        )
-    }
+    // 「交换试听和编辑按钮位置」已移出本区（10-05 用户令：它改的是列表卡片的按钮，不是朗读行为）
+    // —— 现归入「显示与交互」区
 
     var targetMultiple by remember { SystemTtsConfig.isVoiceMultipleEnabled }
     SettingItem(search, "多语音", "voice", "并行", "多角色") {
@@ -165,6 +154,55 @@ internal fun ColumnScope.SysttsSettingsScreen(search: SettingsSearch) {
         )
     }
     } // 朗读与播放区收尾（10-05 分区）
+
+    // ===== 显示与交互（10-05 用户令：这三项都只改「列表卡片怎么显示/怎么点」，与朗读行为无关）=====
+    // 依据（查过消费点）：两个长度限制就是 Item.kt 里对显示的名字/标签做截断（不改数据、不影响朗读匹配）；
+    // 交换键改的是列表卡片左右两个按钮的位置。原先散落在「朗读与播放」「心声与标签」两区里名不副实。
+    SettingsGroup(title = { Text("显示与交互") }, show = !search.active()) {
+
+    var wrapButton by remember { AppConfig.isSwapListenAndEditButton }
+    SettingItem(search, "交换", "按钮", "button", "试听", "编辑") {
+        SwitchPreference(
+            title = { Text(stringResource(id = R.string.pref_swap_listen_and_edit_button)) },
+            subTitle = {},
+            checked = wrapButton,
+            onCheckedChange = { wrapButton = it },
+            icon = {
+                Icon(Icons.Default.Headset, contentDescription = null)
+            }
+        )
+    }
+
+    var limitTagLen by remember { AppConfig.limitTagLength }
+    val limitTagLenString =
+        if (limitTagLen == 0) stringResource(id = R.string.unlimited) else limitTagLen.toString()
+    SettingItem(search, "标签", "tag", "限制长度", "长度") {
+        SliderPreference(
+            title = { Text(stringResource(id = R.string.limit_tag_length)) },
+            subTitle = { Text(stringResource(id = R.string.limit_tag_length_summary)) },
+            value = limitTagLen.toFloat(),
+            onValueChange = { limitTagLen = it.toInt() },
+            valueRange = 0f..50f,
+            icon = { Icon(Icons.Default.Tag, null) },
+            label = limitTagLenString
+        )
+    }
+
+    var limitNameLen by remember { AppConfig.limitNameLength }
+    val limitNameLenString =
+        if (limitNameLen == 0) stringResource(id = R.string.unlimited) else limitNameLen.toString()
+    SettingItem(search, "名称", "name", "限制长度", "长度") {
+        SliderPreference(
+            title = { Text(stringResource(id = R.string.limit_name_length)) },
+            subTitle = { Text(stringResource(id = R.string.limit_name_length_summary)) },
+            value = limitNameLen.toFloat(),
+            onValueChange = { limitNameLen = it.toInt() },
+            valueRange = 0f..50f,
+            icon = { Icon(Icons.Default.TextFields, null) },
+            label = limitNameLenString
+        )
+    }
+    } // 显示与交互区收尾
 
     // 稳定性区（10-05 分区；同日用户令：也默认折叠——与「数据与关于」同一处理）
     SettingsGroup(
@@ -309,10 +347,11 @@ internal fun ColumnScope.SysttsSettingsScreen(search: SettingsSearch) {
         )
     }
 
-    // ========== 心声与标签（10-05 分区：原「心声 AI 判定」并入标签/名称长度）==========
+    // ========== 心声（10-05 分区；同日用户令：标签/名称长度移去「显示与交互」，
+    // 本区只剩心声 AI 判定，故名从「心声与标签」简化为「心声」）==========
     }
 
-    SettingsGroup(title = { Text("心声与标签") }, show = !search.active()) {
+    SettingsGroup(title = { Text("心声") }, show = !search.active()) {
     var aiEnabled by remember { SystemTtsConfig.isInnerThoughtAiEnabled }
     SettingItem(search, "心声", "ai", "心理活动", "inner", "内心") {
         SwitchPreference(
@@ -321,36 +360,6 @@ internal fun ColumnScope.SysttsSettingsScreen(search: SettingsSearch) {
             checked = aiEnabled,
             onCheckedChange = { aiEnabled = it },
             icon = { Icon(Icons.Default.Psychology, null) }
-        )
-    }
-
-    var limitTagLen by remember { AppConfig.limitTagLength }
-    val limitTagLenString =
-        if (limitTagLen == 0) stringResource(id = R.string.unlimited) else limitTagLen.toString()
-    SettingItem(search, "标签", "tag", "限制长度", "长度") {
-        SliderPreference(
-            title = { Text(stringResource(id = R.string.limit_tag_length)) },
-            subTitle = { Text(stringResource(id = R.string.limit_tag_length_summary)) },
-            value = limitTagLen.toFloat(),
-            onValueChange = { limitTagLen = it.toInt() },
-            valueRange = 0f..50f,
-            icon = { Icon(Icons.Default.Tag, null) },
-            label = limitTagLenString
-        )
-    }
-
-    var limitNameLen by remember { AppConfig.limitNameLength }
-    val limitNameLenString =
-        if (limitNameLen == 0) stringResource(id = R.string.unlimited) else limitNameLen.toString()
-    SettingItem(search, "名称", "name", "限制长度", "长度") {
-        SliderPreference(
-            title = { Text(stringResource(id = R.string.limit_name_length)) },
-            subTitle = { Text(stringResource(id = R.string.limit_name_length_summary)) },
-            value = limitNameLen.toFloat(),
-            onValueChange = { limitNameLen = it.toInt() },
-            valueRange = 0f..50f,
-            icon = { Icon(Icons.Default.TextFields, null) },
-            label = limitNameLenString
         )
     }
     }
