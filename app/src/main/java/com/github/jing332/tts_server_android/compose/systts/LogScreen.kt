@@ -294,9 +294,11 @@ fun LogScreen(
                     } else Modifier
                 ),
             state = listState,
-            // 左右基准线 8（10-04 用户拍板：日志页属「贴边族」，非内容页 16 口径）——
-            // 正文/分隔线/高亮同线；老版 4 略紧、16 太空，8 取中（终端面通透又连贯）
-            contentPadding = PaddingValues(horizontal = 8.dp)
+            // 左右基准线：恢复"改边距前"的旧版口径（10-05 用户令：「把日志改回很早以前的边距」，
+            // 且明确只恢复边距、长按拖动多选/双击标题回顶等新功能全部保留）。
+            // 旧版算式 = 容器 0 + 行内 start/end 4dp ⇒ 正文距屏 4dp、分隔线同样缩进 4dp；
+            // v3 曾改 16、v4 改 8（都带"行内归零+分隔线全宽"的副作用），此处一并回旧。
+            contentPadding = PaddingValues(horizontal = 0.dp)
         ) {
                 itemsIndexed(list, key = { index, _ -> index }) { index, log ->
                     // 获取成功前缀：石板灰 Blue Grey 800/200
@@ -311,12 +313,9 @@ fun LogScreen(
                             .remapMetaColor(metaColor, voiceColor)
                     }
 
-                    // 折叠计数（用户 09-09）：连续同模式的插件/规则日志显示「… ×N」，
-                    // N 为被合并的行数；message 已是该串最后一条，内容仍是最新的
-                    val display = if (log.repeatCount > 1) buildAnnotatedString {
-                        append(spanned)
-                        append("\u2002×${log.repeatCount}")
-                    } else spanned
+                    // 「×N」折叠后缀已于 10-05 用户令去掉（见 TtsLogViewModel.routeEntry 注释）：
+                    // 每条日志独立成行，直接渲染 message，不再追加重叠计数
+                    val display = spanned
 
                     // 正文着色（09-13 终版：插件/规则日志与「请求音频」等普通 INFO 完全同色——
                     // 即级别色 INFO=绿；此前 onSurface/彩色方案两轮被否后仍不齐，
@@ -331,9 +330,11 @@ fun LogScreen(
                             (log.message.contains(searchQuery, ignoreCase = true) ||
                                     log.time.contains(searchQuery, ignoreCase = true))
 
-                    // 每条日志之间画分隔线（无水平 inset：与行文字同跨 gutter 全宽，左右缘对齐）
+                    // 每条日志之间画分隔线（旧版口径：分隔线随行缩进 4dp，与正文左右同缘；
+                    // v3/v4 曾撤该 inset 让线跨全宽，本次一并回旧）
                     if (index > 0)
                         HorizontalDivider(
+                            modifier = Modifier.padding(horizontal = 4.dp),
                             color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f)
                         )
 
@@ -362,9 +363,12 @@ fun LogScreen(
                                     )
                                 else Modifier
                             )
-                            // 水平内边距归零（v3 边距统一）：容器 gutter 16 即裸内容线，
-                            // 行内不再叠加；高亮圆角块随行全宽（16..344）。纵向 3.5 保留不动
+                            // 水平内边距恢复到旧版 4dp（v3/v4 曾归零改由容器 gutter 承担；
+                            // 现容器归 0，正文/高亮块/分隔线同落距屏 4dp 的旧口径）。
+                            // 纵向 3.5 一直未动，保留
                             .padding(
+                                start = 4.dp,
+                                end = 4.dp,
                                 top = 3.5.dp,
                                 bottom = 3.5.dp
                             )

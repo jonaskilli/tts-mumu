@@ -40,6 +40,9 @@ class TtsLogViewModel : ViewModel() {
         // 独立缓冲字符总量熔断线（message 字符数合计；超限按最旧裁，UTF-16 下约 0.6MB/缓冲）
         const val AUX_CHAR_BUDGET = 300_000L
 
+        // 主流程日志监听器是否已全局注册（见 RouteSink 注释：防重复注册导致同一条日志多份）
+        private val registered = java.util.concurrent.atomic.AtomicBoolean(false)
+
         // 支持的日志级别
         val LOG_LEVELS = listOf(
             LogLevel.ERROR,
@@ -133,11 +136,6 @@ class TtsLogViewModel : ViewModel() {
             entry.copy(time = auxTimeFormatter.format(System.currentTimeMillis()))
         else entry
 
-    // 折叠判别键（用户 09-09）：数字全部替换为 #，同一模式的行视为同类——
-    // 「干问音频块: len=1, total=2」与「len=3, total=5」归并，参数说明类日志同理。
-    // message 保留每串最后一条，进度值仍是最新
-    private fun collapseKey(message: String): String = message.replace(Regex("\\d+"), "#")
-
     private fun routeEntry(entry: LogEntry) {
         val isPlugin = entry.isPluginLog
         val isRule = entry.isSpeechRuleLog
@@ -146,18 +144,11 @@ class TtsLogViewModel : ViewModel() {
                 val stamped = stampTime(entry)
                 val target = if (isPlugin) pluginLogs else speechRuleLogs
                 val chars = if (isPlugin) pluginChars else ruleChars
-                // 连续同模式折叠（用户 09-09）：与缓冲末条归一化后相同 → 并入末条计数，
-                // 不再新增条目（onLoadData/音频块这类逐次刷屏收敛为一条 ×N）
-                val last = target.lastOrNull()
-                if (last != null && collapseKey(last.message) == collapseKey(stamped.message)) {
-                    chars.addAndGet(-last.message.length.toLong())
-                    val merged = stamped.copy(repeatCount = last.repeatCount + 1)
-                    target[target.lastIndex] = merged
-                    chars.addAndGet(merged.message.length.toLong())
-                } else {
-                    target.add(stamped)
-                    chars.addAndGet(stamped.message.length.toLong())
-                }
+                // 连续同模式折叠已于 10-05 用户令去掉（原「×N」）：用户看日志时对 ×2 困惑
+                // （以为同一动作发了两次请求），宁可多几行也要每条独立成行、时序一目了然。
+                // 条数与字符总量熔断仍在（防刷屏/防 OOM 靠它们，不靠折叠）
+                target.add(stamped)
+                chars.addAndGet(stamped.message.length.toLong())
                 // 条数裁剪
                 val overflow = target.size - AUX_MAX
                 if (overflow >= AUX_PRUNE) {
@@ -275,23 +266,41 @@ class TtsLogViewModel : ViewModel() {
         return file.parentFile?.absolutePath ?: file.absolutePath
     }
 
+    // 主流程日志的分发落点。⚠️ 必须是「固定单例回调 + 可变目标」，不能每次 init 直接
+    // SysttsLogger.register { routeEntry(...) }：
+    // SysttsLogger 内部是 CopyOnWriteArraySet<LogListener>，而每次 register 传入的都是新的
+    // lambda 实例（equals 不成立）⇒ **重复注册不会被去重**，监听器只增不减；且旧 lambda
+    // 捕获的是旧 VM ⇒ 同一条日志被投递 N 次，表现成「日志里同一行出现两遍」（用户 10-05
+    // 看到的 ×2 即此；×N 折叠只是把症状合了起来，根因在此）。
+    // 现在：监听器**全局只注册一次**（见 registered 标志），回调只做一件事——把日志交给
+    // 当前活着的那份 VM。
+    private object RouteSink {
+        @Volatile
+        var target: TtsLogViewModel? = null
+
+        fun emit(entry: LogEntry) {
+            val vm = target ?: return
+            runOnUI { vm.routeEntry(entry) }
+        }
+    }
+
     init {
+        // 无论本 VM 是第几次创建，都把自己登记为当前分发目标（旧 VM 由 onCleared 摘除）
+        RouteSink.target = this
         try {
             viewModelScope.launch(Dispatchers.IO) {
                 pull()
 
-                // 统一的日志添加函数：滑动窗口，超限裁掉最旧的
-                // 统一入口：按类型路由（主列表/插件缓冲/规则缓冲），各自限高
-                SysttsLogger.register { log ->
-                    runOnUI { routeEntry(log) }
+                // 主流程日志监听器：全局幂等注册（这是修掉"同一条日志出现两遍"的关键）
+                if (registered.compareAndSet(false, true)) {
+                    SysttsLogger.register { log -> RouteSink.emit(log) }
                 }
 
-                // 注册插件日志监听器
+                // 插件/朗读规则日志监听器：Console 侧是**单值静态赋值**（覆盖语义），
+                // 每次重新指向当前 VM 即可，不存在累加问题
                 Console.globalPluginLogListener = { logEntry ->
                     runOnUI { routeEntry(logEntry) }
                 }
-
-                // 注册朗读规则日志监听器
                 Console.globalSpeechRuleLogListener = { logEntry ->
                     runOnUI { routeEntry(logEntry) }
                 }
@@ -299,6 +308,12 @@ class TtsLogViewModel : ViewModel() {
         } catch (e: Exception) {
             Log.e(TAG, "init: ", e)
         }
+    }
+
+    /** 本 VM 退出时摘掉分发目标，避免已销毁的 VM 继续接收（并让下一个 VM 接手） */
+    override fun onCleared() {
+        if (RouteSink.target === this) RouteSink.target = null
+        super.onCleared()
     }
 
     fun add(line: String) {
