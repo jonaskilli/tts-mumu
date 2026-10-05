@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.selection.toggleable
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ExpandMore
+import androidx.compose.material.icons.filled.KeyboardArrowRight
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.LocalTextStyle
@@ -62,6 +63,12 @@ internal fun DropdownPreference(
     BasePreferenceWidget(modifier = modifier, icon = icon, onClick = {
         onExpandedChange(true)
     }, title = title, subTitle = subTitle) {
+        // 下拉行自带菜单锚点（零尺寸），右侧原本也是空白 —— 与其它可点行一致补 ›
+        Icon(
+            imageVector = Icons.Default.KeyboardArrowRight,
+            contentDescription = null,
+            tint = MaterialTheme.colorScheme.onSurfaceVariant
+        )
         AppDropdownMenu(
             modifier = Modifier.align(Alignment.Top),
             expanded = expanded,
@@ -209,7 +216,9 @@ internal fun BasePreferenceWidget(
     title: @Composable () -> Unit,
     subTitle: @Composable () -> Unit = {},
     icon: @Composable () -> Unit = {},
-    content: @Composable RowScope.() -> Unit = {},
+    /** 行可点又没有自带右侧控件时是否补 ›（纯动作行可关掉，见调用点） */
+    showChevron: Boolean = true,
+    content: (@Composable RowScope.() -> Unit)? = null,
 ) {
     Row(modifier = Modifier
         .minimumInteractiveComponentSize()
@@ -256,7 +265,18 @@ internal fun BasePreferenceWidget(
             Modifier
                 .align(Alignment.CenterVertically)
         ) {
-            content()
+            if (content != null) {
+                content.invoke(this)
+            } else if (onClick != null && showChevron) {
+                // 10-05 用户实机反馈「右边空空的」：可点的行原来右侧什么都没有（标题列 weight(1f)
+                // 把空白全留在右边），看着像没做完。补一个 › 作「进下一页／弹窗」的指示——
+                // 常规设置页习语；自带右侧控件（开关/滑杆值/下拉菜单）的行不受影响。
+                Icon(
+                    imageVector = Icons.Default.KeyboardArrowRight,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
         }
     }
 }

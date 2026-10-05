@@ -237,20 +237,6 @@ fun SettingsScreen() {
                 // ===== 服务与网络（10-05 用户令：不常用，移至倒数第二区）=====
                 SettingsGroup(title = { Text("服务与网络") }, show = !search.active()) {
 
-            // 后台保活设置入口（使用 Activity 启动，与备份恢复保持一致）
-            SettingItem(search, "保活", "keepalive", "后台", "alive", "自启动") {
-                BasePreferenceWidget(
-                    onClick = {
-                        context.startActivity(
-                            Intent(context, KeepAliveSettingsActivity::class.java)
-                        )
-                    },
-                    title = { Text(stringResource(id = R.string.keep_alive_settings)) },
-                    subTitle = { Text(stringResource(R.string.keep_alive_settings_summary)) },
-                    icon = { Icon(Icons.Default.PowerSettingsNew, null) }
-                )
-            }
-
                 // 转发器（从设置进入，底栏不再单独占用一栏）
                 SettingItem(search, "转发器", "forwarder", "服务器") {
                 BasePreferenceWidget(
@@ -327,22 +313,24 @@ fun SettingsScreen() {
                     },
                     icon = { Icon(Icons.Default.Input, null) },
                     title = { Text("一键导入") },
-                    subTitle = { Text("将TTS转发器引擎导入至阅读") }
+                    subTitle = { Text("将TTS转发器引擎导入至阅读") },
+                    // 纯动作（跳深链），不是「进下一页」：不给右侧 ›（10-05 用户令重排时定）
+                    showChevron = false,
                 )
                 }
 
-                SettingItem(search, "直链", "directlink", "链接", "direct") {
+                // 后台保活设置入口（使用 Activity 启动，与备份恢复保持一致）
+                // 10-05 用户令：由区首移至「一键导入」下方
+                SettingItem(search, "保活", "keepalive", "后台", "alive", "自启动") {
                 BasePreferenceWidget(
-                    icon = {
-                        Icon(Icons.Default.Link, null)
-                    },
                     onClick = {
                         context.startActivity(
-                            Intent(
-                                context, LinkUploadRuleActivity::class.java
-                            ).apply { action = Intent.ACTION_VIEW })
+                            Intent(context, KeepAliveSettingsActivity::class.java)
+                        )
                     },
-                    title = { Text(stringResource(id = R.string.direct_link_settings)) },
+                    title = { Text(stringResource(id = R.string.keep_alive_settings)) },
+                    subTitle = { Text(stringResource(R.string.keep_alive_settings_summary)) },
+                    icon = { Icon(Icons.Default.PowerSettingsNew, null) }
                 )
                 }
 
@@ -366,6 +354,22 @@ fun SettingsScreen() {
                     checked = wakeLock,
                     onCheckedChange = { wakeLock = it },
                     icon = { Icon(Icons.Default.Lock, null) }
+                )
+                }
+
+                // 直链设置：10-05 用户令由「一键导入」下方移至「唤醒锁」下方（区尾）
+                SettingItem(search, "直链", "directlink", "链接", "direct") {
+                BasePreferenceWidget(
+                    icon = {
+                        Icon(Icons.Default.Link, null)
+                    },
+                    onClick = {
+                        context.startActivity(
+                            Intent(
+                                context, LinkUploadRuleActivity::class.java
+                            ).apply { action = Intent.ACTION_VIEW })
+                    },
+                    title = { Text(stringResource(id = R.string.direct_link_settings)) },
                 )
                 }
                 } // 服务与网络区收尾

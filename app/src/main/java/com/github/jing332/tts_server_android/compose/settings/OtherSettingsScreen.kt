@@ -136,7 +136,9 @@ internal fun ColumnScope.OtherSettingsScreen(search: SettingsSearch) {
             title = { Text(stringResource(R.string.clear_web_data)) },
             icon = {
                 Icon(Icons.Default.CleaningServices, null)
-            }
+            },
+            // 纯动作（就地清缓存），不是「进下一页」：不给右侧 ›
+            showChevron = false,
         )
     }
 

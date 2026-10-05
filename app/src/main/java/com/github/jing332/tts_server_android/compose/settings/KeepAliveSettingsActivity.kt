@@ -138,7 +138,9 @@ class KeepAliveSettingsActivity : ComposeActivity() {
                                 stringResource(R.string.battery_optimization_whitelist_desc)
                         )
                     },
-                    icon = { Icon(Icons.Default.BatteryChargingFull, null) }
+                    icon = { Icon(Icons.Default.BatteryChargingFull, null) },
+                    // 纯动作（直接调系统电池优化页），不是「进下一页」：不给右侧 ›
+                    showChevron = false,
                 )
 
                 // 厂商后台设置
