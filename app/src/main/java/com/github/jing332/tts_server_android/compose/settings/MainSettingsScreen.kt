@@ -21,6 +21,7 @@ import androidx.compose.material.icons.filled.ColorLens
 import androidx.compose.material.icons.filled.FileOpen
 import androidx.compose.material.icons.filled.Language
 import androidx.compose.material.icons.filled.Lan
+import androidx.compose.material.icons.filled.Key
 import androidx.compose.material.icons.filled.Link
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.NotificationsNone
@@ -63,6 +64,7 @@ import com.github.jing332.tts_server_android.compose.nav.NavTopAppBar
 import com.github.jing332.tts_server_android.compose.systts.directlink.LinkUploadRuleActivity
 import com.github.jing332.tts_server_android.compose.systts.plugin.PluginManagerActivity
 import com.github.jing332.tts_server_android.compose.systts.replace.ReplaceManagerActivity
+import com.github.jing332.tts_server_android.compose.systts.role.KeyManagerActivity
 import com.github.jing332.tts_server_android.compose.systts.speechrule.SpeechRuleManagerActivity
 import com.github.jing332.tts_server_android.compose.theme.getAppTheme
 import com.github.jing332.tts_server_android.compose.theme.setAppTheme
@@ -236,27 +238,41 @@ fun SettingsScreen() {
                 }
                 }
 
-                // ===== 规则与插件（10-05 用户令：常用，靠前；三项各占一行，保留 ⋮ 同名入口）=====
-                SettingsGroup(title = { Text("规则与插件") }, show = !search.active()) {
+                // ===== 资源管理（10-05 用户令：常用，就第 2 区；四项各占一行，保留 ⋮ 同名入口）=====
+                // 原名「规则与插件」，加入「密钥管理」后分区改名为「资源管理」（都是独立管理页）。
+                SettingsGroup(title = { Text("资源管理") }, show = !search.active()) {
                     SettingItem(search, "朗读规则", "规则", "speech", "rule") {
                         BasePreferenceWidget(
-                            onClick = { context.startActivity(SpeechRuleManagerActivity::class.java) },
+                            // 显式 Intent：本文件 import 了 ContextCompat.startActivity（要 Intent 的静态重载），
+                            // 它遮蔽 Context.startActivity(Class) —— 直接传 Class 会编译报「期望 Intent」
+                            onClick = { context.startActivity(Intent(context, SpeechRuleManagerActivity::class.java)) },
                             title = { Text(stringResource(id = R.string.speech_rule_manager)) },
                             icon = { Icon(Icons.AutoMirrored.Default.MenuBook, null) }
                         )
                     }
                     SettingItem(search, "插件", "plugin", "插件管理") {
                         BasePreferenceWidget(
-                            onClick = { context.startActivity(PluginManagerActivity::class.java) },
+                            onClick = { context.startActivity(Intent(context, PluginManagerActivity::class.java)) },
                             title = { Text(stringResource(id = R.string.plugin_manager)) },
                             icon = { Icon(painterResource(id = R.drawable.ic_shortcut_plugin), null) }
                         )
                     }
                     SettingItem(search, "替换规则", "replace", "净化") {
                         BasePreferenceWidget(
-                            onClick = { context.startActivity(ReplaceManagerActivity::class.java) },
+                            onClick = { context.startActivity(Intent(context, ReplaceManagerActivity::class.java)) },
                             title = { Text(stringResource(id = R.string.replace_rule_manager)) },
                             icon = { Icon(Icons.AutoMirrored.Default.ManageSearch, null) }
+                        )
+                    }
+                    // 密钥管理（10-05 用户令：补一行；角色管理页顶栏「密钥」入口保留）。
+                    // tagRuleId 用 "mingwuyan"，与 RoleManagementScreen.ROLE_RULE_ID 同值——
+                    // 该常量是 RoleManagementScreen 的 private，外部取不到，此处以字面量对齐
+                    // （两处同值：密钥/角色数据都挂在 mingwuyan 规则目录下）。
+                    SettingItem(search, "密钥", "key", "密钥管理", "接口") {
+                        BasePreferenceWidget(
+                            onClick = { KeyManagerActivity.start(context, "mingwuyan") },
+                            title = { Text(stringResource(id = R.string.role_key_title)) },
+                            icon = { Icon(Icons.Default.Key, null) }
                         )
                     }
                 }
