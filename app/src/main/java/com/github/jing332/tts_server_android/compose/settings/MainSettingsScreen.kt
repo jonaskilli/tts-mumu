@@ -19,7 +19,6 @@ import androidx.compose.material.icons.automirrored.filled.ManageSearch
 
 import androidx.compose.material.icons.filled.ColorLens
 import androidx.compose.material.icons.filled.FileOpen
-import androidx.compose.material.icons.filled.Language
 import androidx.compose.material.icons.filled.Lan
 import androidx.compose.material.icons.filled.Key
 import androidx.compose.material.icons.filled.Link
@@ -29,7 +28,6 @@ import androidx.compose.material.icons.filled.Input
 import androidx.compose.material.icons.filled.PowerSettingsNew
 import androidx.compose.ui.res.painterResource
 import androidx.compose.material.icons.filled.SettingsBackupRestore
-import androidx.compose.material3.DropdownMenuItem
 import android.content.IntentFilter
 import androidx.compose.foundation.clickable
 import androidx.compose.material3.Switch
@@ -44,7 +42,6 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBarDefaults
-import androidx.compose.material3.minimumInteractiveComponentSize
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -55,9 +52,7 @@ import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
-import com.github.jing332.tts_server_android.AppLocale
 import com.github.jing332.tts_server_android.R
-import com.github.jing332.tts_server_android.app
 import com.github.jing332.tts_server_android.compose.backup.BackupRestoreActivity
 import com.github.jing332.tts_server_android.compose.forwarder.systts.ForwarderWebDialog
 import com.github.jing332.tts_server_android.compose.nav.NavTopAppBar
@@ -177,49 +172,8 @@ fun SettingsScreen() {
                 )
                 }
 
-                val languageKeys = remember {
-                    mutableListOf("").apply { addAll(AppLocale.localeMap.keys.toList()) }
-                }
-
-                val languageNames = remember {
-                    AppLocale.localeMap.map { "${it.value.displayName} - ${it.value.getDisplayName(it.value)}" }
-                        .toMutableList()
-                        .apply { add(0, context.getString(R.string.follow_system)) }
-                }
-
-                var langMenu by remember { mutableStateOf(false) }
-                SettingItem(search, "语言", "language", "locale", "地区") {
-                DropdownPreference(
-                    Modifier.minimumInteractiveComponentSize(),
-                    expanded = langMenu,
-                    onExpandedChange = { langMenu = it },
-                    icon = {
-                        Icon(Icons.Default.Language, null)
-                    },
-                    title = { Text(stringResource(id = R.string.language)) },
-                    subTitle = {
-                        Text(
-                            if (AppLocale.getLocaleCodeFromFile(context).isEmpty()) {
-                                stringResource(id = R.string.follow_system)
-                            } else {
-                                AppLocale.getLocaleFromFile(context).displayName
-                            }
-                        )
-                    }) {
-                    languageNames.forEachIndexed { index, name ->
-                        DropdownMenuItem(
-                            text = {
-                                Text(name)
-                            }, onClick = {
-                                langMenu = false
-
-                                AppLocale.saveLocaleCodeToFile(context, languageKeys[index])
-                                AppLocale.setLocale(app as Context)
-                            }
-                        )
-                    }
-                }
-                }
+                // 「语言」整项已迁往「数据与关于」区（10-05 用户令：语言不能放常用，放最后的关于里）
+                // —— 连同 languageKeys / languageNames / langMenu 一起搬走（OtherSettingsScreen）
 
                 SettingItem(search, "备份", "恢复", "backup", "restore") {
                 BasePreferenceWidget(
