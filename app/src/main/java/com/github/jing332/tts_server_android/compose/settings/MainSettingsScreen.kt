@@ -3,6 +3,7 @@ package com.github.jing332.tts_server_android.compose.settings
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -14,13 +15,16 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.MenuBook
 import androidx.compose.material.icons.automirrored.filled.ManageSearch
 
 import androidx.compose.material.icons.filled.ColorLens
 import androidx.compose.material.icons.filled.FileOpen
+import androidx.compose.material.icons.filled.HealthAndSafety
 import androidx.compose.material.icons.filled.HideSource
 import androidx.compose.material.icons.filled.Lan
+import androidx.compose.material.icons.filled.MoreHoriz
 import androidx.compose.material.icons.filled.Key
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.NotificationsNone
@@ -39,6 +43,7 @@ import com.github.jing332.tts_server_android.service.forwarder.system.SysTtsForw
 import com.github.jing332.tts_server_android.service.forwarder.ForwarderServiceManager.switchSysTtsForwarder
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBarDefaults
@@ -51,6 +56,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.unit.dp
 import com.github.jing332.tts_server_android.R
 import com.github.jing332.tts_server_android.compose.backup.BackupRestoreActivity
@@ -71,7 +77,13 @@ import androidx.core.content.ContextCompat.startActivity
 @Composable
 fun SettingsScreen() {
     var query by remember { mutableStateOf("") }
-    val search = rememberSettingsSearch(query)
+    // 子页（10-05 用户令：稳定性/服务与网络/后台与保活/其他 不再是"页面内折叠"，改为设置页上的
+    // 入口行 —— 点开是一个独立子页，顶栏带返回键 + 区名，卡内不再出区标题）
+    var openSection by rememberSaveable { mutableStateOf<String?>(null) }
+    // 子页内不做搜索过滤（子页顶栏没有搜索框）：查询强制为空 ⇒ search 恒不激活，条目全部渲染
+    val search = rememberSettingsSearch(if (openSection != null) "" else query)
+    // 系统返回键：子页时先退回主页
+    BackHandler(enabled = openSection != null) { openSection = null }
 
     var showThemeDialog by remember { mutableStateOf(false) }
     if (showThemeDialog)
@@ -131,6 +143,21 @@ fun SettingsScreen() {
             contentWindowInsets = WindowInsets(0),
             modifier = Modifier.nestedScroll(scrollBehaviour.nestedScrollConnection),
             topBar = {
+                if (openSection != null) {
+                    // 子页顶栏：返回键 + 区名（无搜索框——子页内不做过滤）
+                    NavTopAppBar(
+                        title = { Text(sectionTitle(openSection!!)) },
+                        navigationIcon = {
+                            IconButton(onClick = { openSection = null }) {
+                                Icon(
+                                    Icons.AutoMirrored.Filled.ArrowBack,
+                                    stringResource(R.string.navigate_back)
+                                )
+                            }
+                        },
+                        scrollBehavior = scrollBehaviour,
+                    )
+                } else {
                 NavTopAppBar(
                     title = {
                         // 标题右侧嵌入紧凑搜索框，占满顶栏剩余宽度
@@ -147,6 +174,7 @@ fun SettingsScreen() {
                     },
                     scrollBehavior = scrollBehaviour,
                 )
+                }
             }
         ) { paddingValues ->
             val context = LocalContext.current
@@ -160,6 +188,9 @@ fun SettingsScreen() {
                         .weight(1f)
                         .verticalScroll(rememberScrollState())
                 ) {
+                    // ===== 常用（10-05 用户令：常用/重要置顶，一进页就够得着）=====
+                    // ===== 主页内容（子页打开时整块不渲染）=====
+                    if (openSection == null) {
                     // ===== 常用（10-05 用户令：常用/重要置顶，一进页就够得着）=====
                     SettingsGroup(title = { Text("常用") }, show = !search.active()) {
 
@@ -232,14 +263,21 @@ fun SettingsScreen() {
 
                 // 朗读与播放 / 稳定性 两区（SysttsSettingsScreen 渲染；10-05 用户令：
                 // 交换键与心声 AI 都并进「朗读与播放」，故「显示与交互」「心声」两个区已撤）
-                SysttsSettingsScreen(search)
+                // 朗读与播放（留在主页；稳定性改独立子页，故只渲染 Loudness 部分）
+                SysttsSettingsScreen(search, SysttsSettingsPart.Loudness)
+                    } // 主页内容收尾
 
-                // ===== 服务与网络（10-05 用户令：不常用，移至倒数第二区；同日再令：默认折叠）=====
+                // ===== 子页：稳定性（10-05 用户令：由"页面内折叠"改为入口行 → 独立子页）=====
+                if (openSection == "stability") {
+                    SysttsSettingsScreen(search, SysttsSettingsPart.Stability)
+                }
+
+                // ===== 子页：服务与网络 =====
+                if (openSection == "service") {
                 SettingsGroup(
-                    title = { Text("服务与网络") },
+                    title = {},
                     show = !search.active(),
-                    collapsible = true,
-                    defaultExpanded = false,
+                    showHeader = false,
                 ) {
 
                 // 转发器（从设置进入，底栏不再单独占用一栏）
@@ -326,17 +364,18 @@ fun SettingsScreen() {
 
                 // 「直链设置」已迁往「其他」区（10-05 用户令：它本质是"导出到网盘拿直链"的 JS 规则，
                 // 放"服务与网络/资源管理"都不合适；顺带解掉了"直链 vs 唤醒锁"的跨区顺序纠结）
-                } // 服务与网络区收尾
+                } // 服务与网络子页收尾
+                }
 
-                // ===== 后台与保活（10-05 用户令：原「服务与网络」混装两类，拆出后台存活类；
-                // 同日再令：本区也默认折叠）=====
-                // 拆分依据：本区三项都是「让进程活着」（保活/前台服务/唤醒锁）；
+                // ===== 子页：后台与保活（10-05 用户令：原「服务与网络」混装两类，拆出后台存活类；
+                // 同日再令：改为入口行 → 独立子页）=====
+                // 拆分依据：本区几项都是「让进程活着」（保活/前台服务/唤醒锁/最近任务排除）；
                 // 上一区是「对外服务与网络」（转发器/端口/一键导入）。
+                if (openSection == "keepalive") {
                 SettingsGroup(
-                    title = { Text("后台与保活") },
+                    title = {},
                     show = !search.active(),
-                    collapsible = true,
-                    defaultExpanded = false,
+                    showHeader = false,
                 ) {
 
                 // 后台保活设置入口（使用 Activity 启动，与备份恢复保持一致）
@@ -387,16 +426,56 @@ fun SettingsScreen() {
                     icon = { Icon(Icons.Default.HideSource, contentDescription = null) }
                 )
                 }
-                } // 后台与保活区收尾
+                } // 后台与保活子页收尾
+                }
 
-                // 「其他」区（OtherSettingsScreen 渲染，10-05 用户令默认折叠；原名「数据与关于」，
-                // 同日因区内含语言而改名，随后语言项本身也退役）：
-                // 最近任务排除 / 关于 / 清除网页数据 / 清空数据
-                // （帮助文档、检查更新、自动检查更新、下拉数量、语言 均已退役）
-                OtherSettingsScreen(search)
+                // ===== 子页：其他（OtherSettingsScreen 渲染；10-05 用户令：由页面内折叠改为入口行 → 子页）=====
+                if (openSection == "other") {
+                    OtherSettingsScreen(search, showGroupHeader = false)
+                }
+
+                // ===== 主页尾部：4 个入口行（10-05 用户令：这些不再是"折叠"，而是点开一个独立子页）=====
+                if (openSection == null) {
+                    SettingsGroup(title = {}, show = true, showHeader = false) {
+                        EntryRow(Icons.Default.HealthAndSafety, "稳定性") { openSection = "stability" }
+                        EntryRow(Icons.Default.Lan, "服务与网络") { openSection = "service" }
+                        EntryRow(Icons.Default.PowerSettingsNew, "后台与保活") { openSection = "keepalive" }
+                        EntryRow(Icons.Default.MoreHoriz, "其他") { openSection = "other" }
+                    }
+                }
 
                 Spacer(Modifier.navigationBarsPadding())
             }
         }
     }
+}
+
+/**
+ * 子页标题（与设置页上的入口行同文案）。
+ * 这些区名本来就是硬编码中文（分区标题亦然），故此处不引入 strings 键。
+ */
+private fun sectionTitle(key: String): String = when (key) {
+    "stability" -> "稳定性"
+    "service" -> "服务与网络"
+    "keepalive" -> "后台与保活"
+    "other" -> "其他"
+    else -> "设置"
+}
+
+/**
+ * 设置页尾部的「入口行」：图标 + 名称 + 右侧 ›（10-05 用户令：
+ * 稳定性/服务与网络/后台与保活/其他 不再是"页面内折叠"，而是点开一个独立子页）。
+ * 右侧 › 由 BasePreferenceWidget 的「可点行自动补 ›」机制给出（见 SettingsWidgets）。
+ */
+@Composable
+private fun EntryRow(
+    icon: ImageVector,
+    title: String,
+    onClick: () -> Unit,
+) {
+    BasePreferenceWidget(
+        onClick = onClick,
+        title = { Text(title) },
+        icon = { Icon(icon, contentDescription = null) },
+    )
 }

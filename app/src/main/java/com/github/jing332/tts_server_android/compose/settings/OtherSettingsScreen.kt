@@ -31,14 +31,17 @@ import com.github.jing332.tts_server_android.conf.AppConfig
 import java.io.File
 
 @Composable
-internal fun ColumnScope.OtherSettingsScreen(search: SettingsSearch) {
+internal fun ColumnScope.OtherSettingsScreen(
+    search: SettingsSearch,
+    // 子页形态（10-05 用户令：「其他」由"页面内折叠"改为设置页上的入口行 → 独立子页）时，
+    // 标题由子页顶栏承担，卡内不再出标题
+    showGroupHeader: Boolean = true,
+) {
     // 「其他」（原名「数据与关于」；10-05 用户令改名——本区已含语言，原名的"数据与关于"盖不住）
-    // 10-05 用户令：本区无关紧要，默认**折叠**（设置页条目太多）
     SettingsGroup(
         title = { Text("其他") },
         show = !search.active(),
-        collapsible = true,
-        defaultExpanded = false,
+        showHeader = showGroupHeader,
     ) {
     val context = LocalContext.current
 

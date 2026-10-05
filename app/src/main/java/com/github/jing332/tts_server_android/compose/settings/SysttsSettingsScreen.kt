@@ -38,8 +38,20 @@ import com.github.jing332.tts_server_android.conf.AppConfig
 import com.github.jing332.tts_server_android.conf.SystemTtsConfig
 import com.github.jing332.tts.loudness.SpeakerLoudnessManager
 
+/**
+ * 本文件负责的两个区（10-05 用户令：稳定性不再是"页面内折叠"，改为设置页上的一个入口行，
+ * 点开是一个独立子页）——故按 [part] 二选一渲染：
+ * - [Loudness] 朗读与播放：留在设置主页，带分区标题
+ * - [Stability] 稳定性：子页形态，标题由子页顶栏承担，卡内不再出标题也不折叠
+ */
+internal enum class SysttsSettingsPart { Loudness, Stability }
+
 @Composable
-internal fun ColumnScope.SysttsSettingsScreen(search: SettingsSearch) {
+internal fun ColumnScope.SysttsSettingsScreen(
+    search: SettingsSearch,
+    part: SysttsSettingsPart = SysttsSettingsPart.Loudness,
+) {
+    if (part == SysttsSettingsPart.Loudness) {
     SettingsGroup(title = { Text("朗读与播放") }, show = !search.active()) {
     var loudnessEnabled by remember { SystemTtsConfig.isLoudnessEnabled }
     SettingItem(search, "音量平衡", "响度", "loudness", "平衡") {
@@ -177,18 +189,12 @@ internal fun ColumnScope.SysttsSettingsScreen(search: SettingsSearch) {
         )
     }
     } // 朗读与播放区收尾（10-05 分区）
-
-    // 「显示与交互」「心声」两个区已撤（10-05 用户令）：
-    // - 交换键 → 归本区（用户视其为常用项，且本区就是"跟朗读/播放打交道时顺手调"）
-    // - 两个长度限制 → 归「其他」（一次性设置）
-    // - 心声 AI 判定 → 归本区（就是"朗读时怎么认内心独白"）
-
-    // 稳定性区（10-05 分区；同日用户令：也默认折叠——与「数据与关于」同一处理）
+    } else {
+    // 稳定性（子页形态，10-05 用户令：由"页面内折叠"改为独立子页；标题在子页顶栏，卡内不出标题）
     SettingsGroup(
         title = { Text("稳定性") },
         show = !search.active(),
-        collapsible = true,
-        defaultExpanded = false,
+        showHeader = false,
     ) {
     var maxRetry by remember { SystemTtsConfig.maxRetryCount }
     val maxRetryValue =
@@ -326,7 +332,6 @@ internal fun ColumnScope.SysttsSettingsScreen(search: SettingsSearch) {
         )
     }
 
-    // ========== 稳定性区收尾 ==========
+    } // 稳定性区收尾
     }
-
 }
