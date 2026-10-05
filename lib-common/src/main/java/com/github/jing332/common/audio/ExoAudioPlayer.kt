@@ -30,7 +30,11 @@ class ExoAudioPlayer(val context: Context) {
     @Volatile
     private var mContinuation: Continuation<Unit>? = null
 
-    private val exoPlayer by lazy {
+    // 具名 lazy 委托：release() 需判断「是否创建过」以跳过无谓的 ExoPlayer 创建/销毁。
+    // ⚠ 不能写 `::exoPlayer.isInitialized`——`.isInitialized` 仅对 lateinit 属性合法，
+    // 对 by lazy 委托属性会编译报错「This declaration can only be called on a reference to a
+    // 'lateinit' property」（10-05 CI run 37272852119 实锤）。改用 Lazy 自身的 isInitialized()。
+    private val exoPlayerDelegate = lazy {
         ExoPlayer.Builder(context).build().apply {
             playWhenReady = true
             addListener(object : Player.Listener {
@@ -54,6 +58,7 @@ class ExoAudioPlayer(val context: Context) {
             })
         }
     }
+    private val exoPlayer by exoPlayerDelegate
 
     suspend fun play(audio: InputStream, speed: Float = 1f, volume: Float = 1f, pitch: Float = 1f) {
         playInternal(createMediaSourceFromInputStream(context, audio), speed, volume, pitch)
@@ -97,8 +102,9 @@ class ExoAudioPlayer(val context: Context) {
         // 取消 continuation 廉价且空安全，无条件执行（保证等待方解挂）
         mContinuation?.context?.cancel()
         // 未创建过就跳过（10-05 性能修：`exoPlayer by lazy` 会在 release 时先创建再销毁——
-        // 角色面板试听走纯 PCM 路径从不碰 Exo，每会话却都白烧一次 ExoPlayer 创建/销毁）
-        if (::exoPlayer.isInitialized) exoPlayer.release()
+        // 角色面板试听走纯 PCM 路径从不碰 Exo，每会话却都白烧一次 ExoPlayer 创建/销毁）。
+        // 用委托自身的 isInitialized()（对 by lazy 合法），勿写成 ::exoPlayer.isInitialized。
+        if (exoPlayerDelegate.isInitialized()) exoPlayer.release()
     }
 
 }
