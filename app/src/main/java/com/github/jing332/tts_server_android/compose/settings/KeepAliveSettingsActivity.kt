@@ -23,7 +23,6 @@ import androidx.compose.material.icons.filled.Alarm
 import androidx.compose.material.icons.filled.BatteryChargingFull
 import androidx.compose.material.icons.filled.MobileFriendly
 import androidx.compose.material.icons.filled.Notifications
-import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.PowerSettingsNew
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -410,16 +409,8 @@ class KeepAliveSettingsActivity : ComposeActivity() {
             },
             icon = { Icon(Icons.Default.PowerSettingsNew, null) }
         )
-
-        // 唤醒锁
-        var wakeLock by remember { SystemTtsConfig.isWakeLockEnabled }
-        SwitchPreference(
-            title = { Text(stringResource(R.string.wake_lock)) },
-            subTitle = { Text(stringResource(R.string.wake_lock_summary)) },
-            checked = wakeLock,
-            onCheckedChange = { wakeLock = it },
-            icon = { Icon(Icons.Default.Lock, null) }
-        )
+        // 「唤醒锁」开关已从本页删除（10-05 用户令）：与「设置 → 后台与保活 → 唤醒锁」是同一个开关
+        //（都读写 SystemTtsConfig.isWakeLockEnabled），同一设置两个入口容易让人以为是两个功能
     }
 
     @OptIn(ExperimentalMaterial3Api::class)

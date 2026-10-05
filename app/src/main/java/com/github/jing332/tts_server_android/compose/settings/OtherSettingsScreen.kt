@@ -5,9 +5,10 @@ import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CleaningServices
 import androidx.compose.material.icons.filled.DeleteSweep
-import androidx.compose.material.icons.filled.HideSource
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Link
+import androidx.compose.material.icons.filled.Tag
+import androidx.compose.material.icons.filled.TextFields
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -57,15 +58,37 @@ internal fun ColumnScope.OtherSettingsScreen(search: SettingsSearch) {
         )
     }
 
-    // 最近任务排除
-    SettingItem(search, "最近任务", "排除", "recent", "后台") {
-        var excludeFromRecent by remember { AppConfig.isExcludeFromRecent }
-        SwitchPreference(
-            title = { Text(stringResource(id = R.string.exclude_from_recent)) },
-            subTitle = { Text(stringResource(id = R.string.exclude_from_recent_summary)) },
-            checked = excludeFromRecent,
-            onCheckedChange = { excludeFromRecent = it },
-            icon = { Icon(Icons.Default.HideSource, contentDescription = null) }
+    // 最近任务排除（10-05 用户令：已迁往「后台与保活」区——它改的是系统"最近任务"里是否显示本 App）
+
+    // 两个长度限制（10-05 用户令：自「显示与交互」撤区后归「其他」——都是一次性设置，不常用）
+    // 消费点：Item.kt 里对**显示**的标签/名字做截断（不改数据、不影响朗读匹配）
+    var limitTagLen by remember { AppConfig.limitTagLength }
+    val limitTagLenString =
+        if (limitTagLen == 0) stringResource(id = R.string.unlimited) else limitTagLen.toString()
+    SettingItem(search, "标签", "tag", "限制长度", "长度") {
+        SliderPreference(
+            title = { Text(stringResource(id = R.string.limit_tag_length)) },
+            subTitle = { Text(stringResource(id = R.string.limit_tag_length_summary)) },
+            value = limitTagLen.toFloat(),
+            onValueChange = { limitTagLen = it.toInt() },
+            valueRange = 0f..50f,
+            icon = { Icon(Icons.Default.Tag, null) },
+            label = limitTagLenString
+        )
+    }
+
+    var limitNameLen by remember { AppConfig.limitNameLength }
+    val limitNameLenString =
+        if (limitNameLen == 0) stringResource(id = R.string.unlimited) else limitNameLen.toString()
+    SettingItem(search, "名称", "name", "限制长度", "长度") {
+        SliderPreference(
+            title = { Text(stringResource(id = R.string.limit_name_length)) },
+            subTitle = { Text(stringResource(id = R.string.limit_name_length_summary)) },
+            value = limitNameLen.toFloat(),
+            onValueChange = { limitNameLen = it.toInt() },
+            valueRange = 0f..50f,
+            icon = { Icon(Icons.Default.TextFields, null) },
+            label = limitNameLenString
         )
     }
 

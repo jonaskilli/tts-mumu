@@ -19,6 +19,8 @@ import androidx.compose.material.icons.automirrored.filled.ManageSearch
 
 import androidx.compose.material.icons.filled.ColorLens
 import androidx.compose.material.icons.filled.FileOpen
+import androidx.compose.material.icons.filled.Headset
+import androidx.compose.material.icons.filled.HideSource
 import androidx.compose.material.icons.filled.Lan
 import androidx.compose.material.icons.filled.Key
 import androidx.compose.material.icons.filled.Lock
@@ -61,6 +63,7 @@ import com.github.jing332.tts_server_android.compose.systts.role.KeyManagerActiv
 import com.github.jing332.tts_server_android.compose.systts.speechrule.SpeechRuleManagerActivity
 import com.github.jing332.tts_server_android.compose.theme.getAppTheme
 import com.github.jing332.tts_server_android.compose.theme.setAppTheme
+import com.github.jing332.tts_server_android.conf.AppConfig
 import com.github.jing332.tts_server_android.conf.SystemTtsForwarderConfig
 import com.github.jing332.tts_server_android.conf.SystemTtsConfig
 import androidx.core.content.ContextCompat.startActivity
@@ -171,6 +174,18 @@ fun SettingsScreen() {
                 }
 
                 // 「语言」整项已删（10-05 用户令：只留中文，外语翻译五个目录一并退役）
+
+                // 交换试听/编辑按钮位置（10-05 用户令：这是常用项，从「显示与交互」撤区后归「常用」）
+                var wrapButton by remember { AppConfig.isSwapListenAndEditButton }
+                SettingItem(search, "交换", "按钮", "button", "试听", "编辑") {
+                    SwitchPreference(
+                        title = { Text(stringResource(id = R.string.pref_swap_listen_and_edit_button)) },
+                        subTitle = {},
+                        checked = wrapButton,
+                        onCheckedChange = { wrapButton = it },
+                        icon = { Icon(Icons.Default.Headset, contentDescription = null) }
+                    )
+                }
 
                 SettingItem(search, "备份", "恢复", "backup", "restore") {
                 BasePreferenceWidget(
@@ -359,6 +374,19 @@ fun SettingsScreen() {
                     checked = wakeLock,
                     onCheckedChange = { wakeLock = it },
                     icon = { Icon(Icons.Default.Lock, null) }
+                )
+                }
+
+                // 最近任务排除（10-05 用户令：自「其他」迁来——它改的是系统"最近任务"里是否显示本 App，
+                // 属系统集成，与本区"让进程活着"是一路）
+                SettingItem(search, "最近任务", "排除", "recent", "后台") {
+                var excludeFromRecent by remember { AppConfig.isExcludeFromRecent }
+                SwitchPreference(
+                    title = { Text(stringResource(id = R.string.exclude_from_recent)) },
+                    subTitle = { Text(stringResource(id = R.string.exclude_from_recent_summary)) },
+                    checked = excludeFromRecent,
+                    onCheckedChange = { excludeFromRecent = it },
+                    icon = { Icon(Icons.Default.HideSource, contentDescription = null) }
                 )
                 }
                 } // 后台与保活区收尾
