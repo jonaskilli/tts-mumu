@@ -381,6 +381,7 @@ class ListManagerViewModel : ViewModel() {
     fun updateGroupEnable(
         item: GroupWithSystemTts,
         enabled: Boolean,
+        onTagConflictSkipped: (Int) -> Unit = {},
     ) = viewModelScope.launch(Dispatchers.IO) {
         val allUpdates = mutableListOf<SystemTtsV2>()
         val affectedGroupIds = mutableSetOf<Long>()
@@ -397,16 +398,59 @@ class ListManagerViewModel : ViewModel() {
             }
         }
 
-        // 启用/禁用当前分组的所有项
-        val groupUpdates = item.list.filter { it.isEnabled != enabled }
-            .map { it.copy(isEnabled = enabled) }
-        allUpdates.addAll(groupUpdates)
-        affectedGroupIds.add(item.group.id)
+        // 启用/禁用当前分组的所有项。
+        // 10-05 补漏（用户实机核对）：组头开关这条路径此前**没吃**「相同朗读目标可多选」开关——
+        // 上一批只给 updateSubGroupEnable / updateEnabledBatch 接了互斥，组头开关漏网，
+        // 表现为：关掉该开关后整组启用，同标签的条目依然全部点亮。
+        // 启用且互斥时按同标签身份去重，每个身份只留**列表里第一条**：
+        // 留「本批第一条」会把组内原本亮着的同标签条目反手熄掉，与「把这一组点亮」的语义相反。
+        val before = item.list.associateBy { it.id }
+        var tagConflictSkipped = 0
+        if (enabled && !SystemTtsConfig.isVoiceMultipleEnabled.value) {
+            val kept = mutableSetOf<String>()
+            val finalStates = item.list.map { e ->
+                val identity = sameTagIdentity(e)          // null = 无标签身份，不参与互斥
+                val keep = identity == null || kept.add(identity)
+                e.copy(isEnabled = keep)
+            }
+            // 回报口径＝被互斥压下去的条数（含"这次没被点亮"和"被熄掉"两种）：
+            // 只报后者的话，"整组启用后有一条没亮"会没有任何提示，像 bug。
+            tagConflictSkipped = finalStates.count { !it.isEnabled }
+            // 同一 PK 在一次 @Update 里只能出现一次：先摘掉本组实体（上面"整组独占"可能已写成停用），
+            // 再按最终态补回；最终态与现值相同的条目不必写。
+            val groupIds = before.keys
+            allUpdates.removeAll { it.id in groupIds }
+            allUpdates.addAll(finalStates.filter { before.getValue(it.id).isEnabled != it.isEnabled })
+            affectedGroupIds.add(item.group.id)
+
+            // 跨分组：其它分组里与「本组保留身份」相同的已启用项一并停用（与批量路径同口径）
+            val keptIdentities = finalStates.filter { it.isEnabled }
+                .mapNotNull { sameTagIdentity(it) }.toSet()
+            if (keptIdentities.isNotEmpty()) {
+                list.value.forEach { gwt ->
+                    if (gwt.group.id == item.group.id) return@forEach
+                    gwt.list.forEach { systts ->
+                        val identity = sameTagIdentity(systts)
+                        if (systts.isEnabled && identity != null && identity in keptIdentities) {
+                            allUpdates.add(systts.copy(isEnabled = false))
+                            affectedGroupIds.add(gwt.group.id)
+                        }
+                    }
+                }
+            }
+        } else {
+            val groupUpdates = item.list.filter { it.isEnabled != enabled }
+                .map { it.copy(isEnabled = enabled) }
+            allUpdates.addAll(groupUpdates)
+            affectedGroupIds.add(item.group.id)
+        }
 
         // 3.⑨: 分组多选时同tag去重——新启用分组中item的tag若与其他已启用分组中item的tag相同，
         // 则将其他分组中相同tag的item置为不启用（保留新启用的，仅不启用，不删除）
         if (enabled && SystemTtsConfig.isGroupMultipleEnabled.value) {
-            val newEnabledTags = groupUpdates.mapNotNull { extractTag(it) }.toSet()
+            // 新启用 = 本次由停用转为启用的那些（等价改动前的 groupUpdates：isEnabled != enabled）
+            val newEnabledTags = item.list.filter { !it.isEnabled }
+                .mapNotNull { extractTag(it) }.toSet()
             if (newEnabledTags.isNotEmpty()) {
                 list.value.forEach { gwt ->
                     if (gwt.group.id != item.group.id) {
@@ -425,9 +469,15 @@ class ListManagerViewModel : ViewModel() {
         }
 
         if (allUpdates.isNotEmpty()) {
-            dbm.systemTtsV2.update(*allUpdates.toTypedArray())
+            // 同一 PK 可能被上面多个分支重复写入（重复者语义一致，都是"停用"）：
+            // 按 PK 归并后再落库，不依赖 @Update 内部的处理顺序
+            val finalUpdates = allUpdates.associateBy { it.id }.values.toList()
+            dbm.systemTtsV2.update(*finalUpdates.toTypedArray())
             // 立即更新内存列表，使UI即时响应
-            updateMultipleGroupsInMemory(affectedGroupIds, allUpdates)
+            updateMultipleGroupsInMemory(affectedGroupIds, finalUpdates)
+        }
+        if (tagConflictSkipped > 0) {
+            withContext(Dispatchers.Main) { onTagConflictSkipped(tagConflictSkipped) }
         }
         if (enabled) SystemTtsService.notifyUpdateConfig()
     }

@@ -576,6 +576,7 @@
     <string name="rule_disabled_desc">已禁用规则：%1$s</string>
     <string name="rule_only_one_enabled">已自动停用其它 %1$d 条规则（朗读规则只允许启用一条）</string>
     <string name="plugin_only_one_enabled">已自动停用同一 pluginId 的其它 %1$d 个插件（同 id 只允许启用一个）</string>
+    <string name="same_tag_only_one_kept">相同标签只保留第一条，%1$d 条未启用</string>
     <string name="paste">粘贴</string>
     <string name="tag_data">标签数据</string>
     <string name="grant_permission_audio_file">授予【读取音频文件权限】</string>

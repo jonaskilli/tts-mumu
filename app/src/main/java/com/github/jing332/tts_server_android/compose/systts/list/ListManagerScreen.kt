@@ -3360,7 +3360,12 @@ internal fun ListManagerScreen(
                                 isExpanded = expandedGroupIds.contains(g.id.toString()),
                                 toggleableState = checkState,
                                 onToggleableStateChange = {
-                                    vm.updateGroupEnable(groupWithSystemTts, it)
+                                    vm.updateGroupEnable(groupWithSystemTts, it) { n ->
+                                        // 互斥生效时的可见回报（与插件/规则「只允许启用一个」同口径）
+                                        context.toast(
+                                            context.getString(R.string.same_tag_only_one_kept, n)
+                                        )
+                                    }
                                 },
                                 onClick = {
                                     val wasExpanded = expandedGroupIds.contains(g.id.toString())

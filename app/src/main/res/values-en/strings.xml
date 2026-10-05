@@ -501,6 +501,7 @@
     <string name="rule_disabled_desc">Rule disabled：%1$s</string>
     <string name="rule_only_one_enabled">Auto-disabled %1$d other rule(s) (only one speech rule may be enabled)</string>
     <string name="plugin_only_one_enabled">Auto-disabled %1$d other plugin(s) with the same pluginId (only one per id)</string>
+    <string name="same_tag_only_one_kept">Kept only the first config per tag; %1$d left off</string>
     <string name="paste">Paste</string>
     <string name="tag_data">Tag data</string>
     <string name="grant_permission_audio_file">Grant [Read Audio File Permission]  </string>
