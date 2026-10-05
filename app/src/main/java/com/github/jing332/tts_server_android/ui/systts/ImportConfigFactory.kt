@@ -1,16 +1,12 @@
 package com.github.jing332.tts_server_android.ui.systts
 
-import android.content.Context
-import android.content.Intent
 import androidx.annotation.StringRes
 import androidx.compose.runtime.Composable
 import com.github.jing332.tts_server_android.R
 import com.github.jing332.tts_server_android.compose.systts.list.ListImportBottomSheet
 import com.github.jing332.tts_server_android.compose.systts.plugin.PluginImportBottomSheet
-import com.github.jing332.tts_server_android.compose.systts.plugin.PluginManagerActivity
 import com.github.jing332.tts_server_android.compose.systts.replace.ReplaceRuleImportBottomSheet
 import com.github.jing332.tts_server_android.compose.systts.speechrule.SpeechRuleImportBottomSheet
-import com.github.jing332.tts_server_android.compose.systts.speechrule.SpeechRuleManagerActivity
 import com.github.jing332.tts_server_android.constant.AppConst
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
@@ -109,23 +105,4 @@ object ImportConfigFactory {
     /**
      * @return 是否识别成功
      */
-    fun Context.gotoEditorFromJS(js: String): Boolean {
-        if (js.contains("PluginJS")) {
-            startActivity(Intent(this, PluginManagerActivity::class.java).apply {
-                action = Intent.ACTION_VIEW
-                flags = Intent.FLAG_ACTIVITY_NEW_TASK
-                putExtra("js", js)
-            })
-
-        } else if (js.contains("SpeechRuleJS")) {
-            startActivity(Intent(this, SpeechRuleManagerActivity::class.java).apply {
-                action = Intent.ACTION_VIEW
-                flags = Intent.FLAG_ACTIVITY_NEW_TASK
-                putExtra("js", js)
-            })
-        } else
-            return false
-
-        return true
-    }
 }

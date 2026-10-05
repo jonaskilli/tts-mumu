@@ -139,7 +139,7 @@
     <string name="systts_voice_data_load_failed">语音数据加载失败</string>
     <string name="systts_help_sample_rate">系统TTS在开始播放时需指定采样率，如已启用【内置播放器】、【直接播放】则可忽略此选项。</string>
     <string name="voice_multiple_option">相同朗读目标可多选</string>
-    <string name="voice_multiple_summary">相同朗读目标将不再排斥，并使用随机轮播。(单语音不支持此功能)</string>
+    <string name="voice_multiple_summary">开启后同一标签可同时启用多个配置项（关闭时，开启某条会自动停用同标签的其它条）。</string>
     <string name="groups_multiple">分组可多选</string>
     <string name="groups_multiple_summary">勾选分组时将不再互相排斥。</string>
     <string name="systts_test_success">测试成功</string>
@@ -276,6 +276,7 @@
     <string name="file_save_failed">文件保存失败：%1$s</string>
     <string name="save_success">保存成功</string>
     <string name="save_to_list">已保存 %1$d 个到语音列表</string>
+    <string name="voice_bulk_import">导入 %1$d 个音色</string>
     <string name="failed_timed_out">已超时：%1$dms</string>
     <string name="builtin_player_settings_tip_msg">启用内置播放器时，使用此处设置覆盖全局。</string>
     <string name="systts_standby_help_msg">勾选后，本配置作为备用发音人：当使用同一朗读规则、同一标签名的配置重试失败，并达到「备用配置使用条件」时，改由本配置朗读。\n备用请求同样按「最大重试次数」重试，并非首次失败即跳过。</string>
@@ -357,7 +358,7 @@
     <string name="voice_catalog_search">搜索音色</string>
     <string name="voice_catalog_clear">清除</string>
     <string name="voice_catalog_picked">已加入 %1$d 个音色</string>
-    <string name="voice_catalog_pick">选用（%1$d）</string>
+    <string name="voice_catalog_pick">加入并勾选（%1$d）</string>
     <string name="voice_catalog_total">共 %1$d 个音色</string>
     <string name="voice_catalog_found">已加载 %1$d 个</string>
     <string name="voice_catalog_loading">正在加载音色…</string>
@@ -407,8 +408,6 @@
     <string name="restore">恢复</string>
     <string name="restore_confirm">从此文件恢复数据？</string>
     <string name="js_file_type_not_recognized">无法识别JS文件类型</string>
-    <string name="spinner_drop_down_max_count">下拉框内容最大数</string>
-    <string name="spinner_drop_down_max_count_summary">当下拉框内容数超过设置值时将以弹出对话框形式显示。</string>
     <string name="systts_plugin_please_set_vars">请单击此处设置变量</string>
     <string name="clear_log">清空日志</string>
     <string name="log_copy_n">复制(%1$d)</string>
@@ -480,6 +479,8 @@
     <string name="plugin_disabled_desc">已禁用插件：%1$s</string>
     <string name="rule_enabled_desc">已启用规则：%1$s</string>
     <string name="rule_disabled_desc">已禁用规则：%1$s</string>
+    <string name="rule_only_one_enabled">已自动停用其它 %1$d 条规则（朗读规则只允许启用一条）</string>
+    <string name="plugin_only_one_enabled">已自动停用同一 pluginId 的其它 %1$d 个插件（同 id 只允许启用一个）</string>
     <string name="paste">粘贴</string>
     <string name="tag_data">标签数据</string>
     <string name="grant_permission_audio_file">授予【读取音频文件权限】</string>

@@ -360,9 +360,11 @@ class PluginTtsUI : IConfigUI() {
 
         Column(modifier) {
             // 仅界面模式开关仅对角色管理类插件显示：兼容插件换 pluginId 后按名称回退识别
+            // 用 getMetaByPluginId（code=''）而非 getByPluginId（SELECT *）：这里只要 name，
+            // 原全量查会把 MB 级插件 JS 拉上主线程、每次重组都卡（10-05 加载慢定位）
             val isRoleManagementPlugin = remember(tts.pluginId) {
                 tts.pluginId == "mingwuyan" ||
-                    dbm.pluginDao.getByPluginId(tts.pluginId)?.name?.contains("角色管理") == true
+                    dbm.pluginDao.getMetaByPluginId(tts.pluginId)?.name?.contains("角色管理") == true
             }
             // 分区卡片化：基本信息 / 音色来源 /（朗读与标签由 FullEditScreen 渲染）/ 音频参数
             // 基本信息标题恢复显示（用户 09-10：与标签态正文卡的「ℹ️基本信息」标题对称）
@@ -629,9 +631,11 @@ class PluginTtsUI : IConfigUI() {
                                 autoNextSwitch = it
                                 context.toast(if (it) "已开启：选分类后自动试听下一个" else "已关闭：选分类后不自动切换")
                             },
-                            extraButtons = {
+                            extraButtons = { dismiss ->
                                 // 纯文字键（目目 09-17：不要框和填充色）——按钮行位置修好后
                                 // 位置本身可见，不再靠药丸底色标识；未点亮=灰字、勾选后点亮主题色
+                                // ⚠ 本键是「批量导入 N 条配置项」，不是保存当前这条配置——
+                                // 与顶栏 💾「保存」区分（10-05 用户：两道保存歧义）。文案见下方按钮。
                                 TextButton(
                                     enabled = selectedVoiceIds.isNotEmpty() && !showLoadingDialog,
                                     onClick = {
@@ -828,6 +832,9 @@ class PluginTtsUI : IConfigUI() {
                                                 )
                                                 selectedVoiceIds = emptySet()
                                                 voiceCategoryMap = emptyMap()
+                                                // 导入成功即关掉声音弹窗（10-05 用户 C 案）：不再停在原地
+                                                // 让人以为没生效、又去点顶栏「保存」重来
+                                                dismiss()
                                                 onSaved?.invoke()
                                             }
                                             }.onFailure { e ->
@@ -845,7 +852,9 @@ class PluginTtsUI : IConfigUI() {
                                         }
                                     }
                                 ) {
-                                    Text(stringResource(id = R.string.save))
+                                    // 键名与顶栏「保存」区分：这是「把勾选的音色批量导成配置项」，
+                                    // 数量随勾选变（0 时禁用）；真正保存当前配置是顶栏 💾（10-05 用户 C 案）
+                                    Text(stringResource(id = R.string.voice_bulk_import, selectedVoiceIds.size))
                                 }
                             }
                         )

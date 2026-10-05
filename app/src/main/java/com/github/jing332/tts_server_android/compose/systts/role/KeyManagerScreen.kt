@@ -188,12 +188,11 @@ internal val TEST_PASS_COLOR = Color(0xFF2E7D32)
 internal val TEST_WARN_COLOR = Color(0xFFF9A825)
 
 /**
- * 卡片内「测试结果条 / 探测进度条」的左缘缩进（10-04 用户拍板）：
- * = 卡内 start 5dp + 行首勾选框 48dp（M3 Checkbox 最小触控盒，scale 只缩绘制、盒子不缩）
- * ⇒ 与模型名文字同一条左缘线。原用 5dp（贴卡缘）夹在卡缘与勾选框之间，两边都不靠、看着歪。
- * 右缘统一 end=0 与动作图标盒右缘（Row end=0）同线。
+ * 卡片内「测试结果条 / 探测进度条」的左缘缩进（10-05 用户拍板，推翻 10-04 的对齐模型名）：
+ * 20dp = 对勾方框字形左缘（行 start 4 + 48dp 触控盒内 0.85 缩绘居中 ⇒ 字形 ≈19.6）——
+ * 结果条跟「方框」对齐，方框字形又跟文字线 28（页面上 8+4+15.6≈28）。右缘 end=12 留呼吸。
  */
-private val KEY_RESULT_BAR_START = 53.dp
+private val KEY_RESULT_BAR_START = 20.dp
 
 /** 测试三态 → 圆点颜色（两页共用；null=没测过不显灯）。红=不通、黄=通但思考开启、绿=通且思考已关 */
 internal fun testDotColor(verdict: KeyListFile.TestVerdict?, errorColor: Color): Color? = when (verdict) {
@@ -284,12 +283,12 @@ private fun KeyEntryRow(
             .padding(vertical = 3.dp)
     ) {
         Row(
-            // 卡内 5 + 行首对勾（约 40dp）⇒ 模型名左缘 ≈ 卡缘+45；旧「名字与组名 34dp 同列」
-            // 口径随对勾方案作废（对勾占位比原 14dp 空槽宽，结构上保不住）
+            // start 10（10-05 用户拍板：对勾方框原偏左突出——字形左缘 28.6 不在文字线 34 上；
+            // 改 10 后方框字形 ≈33.6 与组名/URL 文字同一条竖线，模型名随之后移到 ≈66）
             // end 必须为 0：条目动作图标右缘才能落在卡右缘（= 组头图标区右缘）同列
             Modifier.fillMaxWidth()
                 // 卡片本体不可点（10-03：启用走行首对勾、复制走点名字——旧「点卡片启用」退役）
-                .padding(start = 5.dp, end = 0.dp, top = 8.dp, bottom = 8.dp),
+                .padding(start = 4.dp, end = 0.dp, top = 8.dp, bottom = 8.dp),
             // 名字换行成两行时图标垂直居中，不再用 Top 咬行
             verticalAlignment = Alignment.CenterVertically
         ) {
@@ -333,8 +332,11 @@ private fun KeyEntryRow(
                 // 测试结果圆点：名字后、紧挨闪电前（0920 定稿，两页同位置）——
                 // 与闪电因果相邻、离徽章/行首最远不被抢视线、垂直成一列好扫。
                 // 没测=空槽不显但保列对齐；三色（10-03）：绿=通且思考关/黄=通但思考开/红=不通
+                // 槽宽 25（10-05 用户拍板「圆点跟分组的+对齐」）：组头 144dp 图标区 ➕ 中心在
+                // 距右缘 126dp 处，本行 108dp 图标区左边的空槽加宽到 25dp 后圆点中心恰在同列
+                // （108+25-7=126，⚡✏🗑 本就已与组头同列）
                 Box(
-                    Modifier.width(14.dp).height(24.dp),
+                    Modifier.width(25.dp).height(24.dp),
                     contentAlignment = Alignment.CenterEnd
                 ) {
                     testDotColor(testOutcome?.verdict, MaterialTheme.colorScheme.error)?.let {
@@ -397,22 +399,28 @@ private fun KeyEntryRow(
                 isWarn -> TEST_WARN_COLOR
                 else -> MaterialTheme.colorScheme.error
             }
-            // 收起行：绿=「✅ 通过 · 用时」（message 形如「HTTP 200，123ms」取用时段）；黄=短文案；红=原因开头
+            // 收起行（10-05 用户文案终稿）：
+            // 绿=「✅ 通过 · 用时」（锁定写法名移出——每行都挂成复读，展开区/编辑页仍可看）；
+            // 黄=「⚠ 可用 · 思考未关（可能拖慢分配）」（先说可用安人心、再给影响，
+            //   删掉「已自动适配」模糊词——有时直接命中旧锁定根本没适配动作）；
+            // 红=「❌ + 具体原因」（用户：直接写原因，不写「测试不通过」这种废话；
+            //   reason 为空的老数据回落 message 首句）
             val passTiming = timingOf(testOutcome.message)
             val collapsedText = when {
                 isPass -> if (passTiming.isEmpty()) "✅ " + stringResource(R.string.role_key_test_pass_only)
                 else "✅ " + stringResource(R.string.role_key_test_pass_short, passTiming)
-                isWarn -> stringResource(R.string.role_key_warn_thinking_on)
-                else -> "❌ " + testOutcome.message
+                isWarn -> "⚠ 可用 · 思考未关（可能拖慢分配）"
+                else -> "❌ " + (testOutcome.reason.ifEmpty { testOutcome.message })
             }
             var expanded by rememberSaveable(entry.name) { mutableStateOf(false) }
             val clipboard = LocalClipboardManager.current
             Column(
                 Modifier
                     .fillMaxWidth()
-                    // 结果条左缘对齐模型名（勾选框右侧）、右缘对齐动作图标盒右缘（10-04 用户拍板：
-                    // 原 start=5/end=8 夹在卡缘与勾选框之间，两边都不靠，看着歪）
-                    .padding(start = KEY_RESULT_BAR_START, end = 0.dp, top = 0.dp, bottom = 8.dp)
+                    // 结果条左缘对齐勾选框方框、右缘收进 12dp（10-05 用户拍板，推翻 10-04：
+                    // 原 start=53 对模型名 / end=0 顶卡缘——「详情」直接贴屏被裁。
+                    // 文字不是键，右缘不与图标盒同线）
+                    .padding(start = KEY_RESULT_BAR_START, end = 12.dp, top = 0.dp, bottom = 8.dp)
             ) {
                 Row(
                     // 点文字区=展开/收起（看全文）；「去设置」独立可点（打开编辑弹窗）
@@ -425,7 +433,9 @@ private fun KeyEntryRow(
                         collapsedText,
                         style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.sp),
                         color = barColor,
-                        maxLines = if (expanded) Int.MAX_VALUE else 1,
+                        // 恒 1 行（10-05：原展开时 maxLines=MAX 把全文红字再放一遍，
+                        // 与下方灰字全文上下重复——展开态正文只看下方灰字）
+                        maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
                         modifier = Modifier.weight(1f)
                     )
@@ -508,7 +518,6 @@ private fun GroupHeaderBlock(
     onMenuOpen: () -> Unit,
     onMenuDeleteAll: () -> Unit,
     onMenuDeleteMulti: () -> Unit,
-    onToggleSelectAll: () -> Unit,
     onMenuDismiss: () -> Unit,
     testingThisGroup: Boolean,
 ) {
@@ -518,26 +527,22 @@ private fun GroupHeaderBlock(
     Column(Modifier.fillMaxWidth().padding(top = 16.dp)) {
         Column(Modifier.padding(vertical = 4.dp)) {
             if (deleteMode) {
-                // 组内删除模式标题行（0916 定稿形态）：标题降到 16sp 与右端「全选」共一行，
-                // 底部另有 取消/删除(N) 动作行（在条目卡之后）——顶部选谁、底部执行，
-                // 视线不在卡片里跑两趟。左右缩进对齐条目名文字列（34dp，与组名同列）；
+                // 组内删除模式标题行（10-05 改：全选挪到底部动作行与 取消/删除(N) 同排——
+                // 「选谁+执行」都在底部一排，视线不用上下跑；标题恢复 titleMedium SemiBold
+                // 与组名同档（原 bodyLarge Medium 太弱）。左右缩进对齐条目名文字列（28dp）；
                 // end=8（右线=卡右缘 8）
                 Row(
                     Modifier.fillMaxWidth()
-                        .padding(start = 34.dp, end = 8.dp, top = 4.dp),
+                        .padding(start = 28.dp, end = 8.dp, top = 4.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text(
                         stringResource(R.string.role_key_delete_title),
-                        style = MaterialTheme.typography.bodyLarge,
-                        fontWeight = FontWeight.Medium,
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.SemiBold,
                         color = MaterialTheme.colorScheme.onSurface,
                         modifier = Modifier.weight(1f)
                     )
-                    FlatTextAction(
-                        stringResource(R.string.select_all),
-                        MaterialTheme.colorScheme.onSurfaceVariant
-                    ) { onToggleSelectAll() }
                 }
             } else {
             Column(Modifier.fillMaxWidth()) {
@@ -569,9 +574,10 @@ private fun GroupHeaderBlock(
                             tint = MaterialTheme.colorScheme.onSurfaceVariant,
                             modifier = Modifier.size(22.dp).rotate(arrowAngle)
                         )
-                        // spacer 6→9：start 3 后组名左缘仍保 34（= 3 + 22 + 9），
-                        // 与下方元信息行 start=34 同列不动
-                        Spacer(Modifier.width(9.dp))
+                        // spacer 9→3（10-05 用户：折叠箭头离组名太远——原间隙 ≈14dp，
+                        // 主页 GroupItem 样板 ≈4.5；收 3 后组名 28=新文字线，间隙 ≈8）。
+                        // 文字线 34→28 全家随动：URL 行/说明行/多选行/对勾字形/结果条同步搬
+                        Spacer(Modifier.width(3.dp))
                         Text(
                             grp.title,
                             style = MaterialTheme.typography.titleMedium,
@@ -714,7 +720,7 @@ private fun GroupHeaderBlock(
                 if (ifc != null) {
                     Row(
                         Modifier.fillMaxWidth()
-                            .padding(start = 34.dp, end = 8.dp, bottom = 6.dp),
+                            .padding(start = 28.dp, end = 8.dp, bottom = 6.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Text(
@@ -726,7 +732,9 @@ private fun GroupHeaderBlock(
                             overflow = TextOverflow.Ellipsis,
                             modifier = Modifier.weight(1f)
                         )
-                        Spacer(Modifier.width(8.dp))
+                        // 间隙 8→12（10-05 用户：长网址换行时首行尾部离尾号徽章太近，
+                        // 观感挤；徽章保持垂直居中于两行 URL）
+                        Spacer(Modifier.width(12.dp))
                         // 尾号独立小块（原先挤在网址尾巴上，网址一长就被省略号吃掉）
                         Surface(
                             shape = RoundedCornerShape(4.dp),
@@ -751,7 +759,7 @@ private fun GroupHeaderBlock(
                             maxLines = 2,
                             overflow = TextOverflow.Ellipsis,
                             // 与网址分支同列（34）；右端同落右线 8
-                            modifier = Modifier.padding(start = 34.dp, end = 8.dp, bottom = 6.dp)
+                            modifier = Modifier.padding(start = 28.dp, end = 8.dp, bottom = 6.dp)
                         )
                     }
                 }
@@ -772,9 +780,12 @@ fun KeyManagerScreen(tagRuleId: String, onBack: () -> Unit) {
     var ifaces by remember { mutableStateOf<List<KeyListFile.ApiInterface>>(emptyList()) }
     // 启用池（miyue.txt 启用集，按序 = 规则轮换顺序）；元素为归一化值（normalizePoolValue）
     var pool by remember { mutableStateOf<List<String>>(emptyList()) }
-    // 测试结果记忆（归一化密钥值 → 完整结果）：主页与密钥池页共享同一份。
+    // 测试结果记忆（归一化密钥值 → 完整结果）：持久化到 key_test_results.json，
+    // 「保存到下次测试」语义（10-05 用户拍板）——退出页面再进不丢、重测即覆盖、可手动清。
     // 10-03 三改：从只存三态升级为存 TestOutcome——模型行下方的常驻提示条要显示原因文字
     var testResults by remember { mutableStateOf<Map<String, KeyListFile.TestOutcome>>(emptyMap()) }
+    // 是否已从盘上读过结果表（防 version++ 重载/ON_RESUME 刷新时用旧盘值覆盖当场新测的结果）
+    var testResultsLoaded by remember { mutableStateOf(false) }
     // 组折叠状态：持久化到 key_ui_state.json（null=尚未从盘上读，防重载覆盖用户当场切换）
     var collapsed by remember { mutableStateOf<Set<String>?>(null) }
     // 测试中（单条按归一化值记 / 启用池整批）
@@ -840,6 +851,12 @@ fun KeyManagerScreen(tagRuleId: String, onBack: () -> Unit) {
         // 启用池按实际来（1002 拍板）：没有启用就没有密钥，不再有「池空自动启用第一条」兜底
         //（规则侧池空回落自己的 defaultConfig）；pool_cleared.flag 机制随兜底一并退役
         pool = KeyListFile.parsePoolValues(loaded.third)
+        // 测试结果持久化（10-05 用户拍板「保存到下次测试」）：进页面读回上次结论；重测覆盖写。
+        // 只在结果表尚未加载时读（与折叠记忆同款防覆盖：version++ 重载不推翻当场测试结果）
+        if (testResultsLoaded.not()) {
+            testResults = withIO { KeyListFile.readTestResults(tagRuleId) }
+            testResultsLoaded = true
+        }
         // 折叠记忆：只在首次进页面时从盘上读（后续 version++ 重载不覆盖用户当场切换的折叠）
         if (collapsed == null) {
             collapsed = withIO { KeyListFile.readCollapsedGroups(tagRuleId) }
@@ -977,10 +994,17 @@ fun KeyManagerScreen(tagRuleId: String, onBack: () -> Unit) {
         collapsed = next
         scope.launch { withIO { KeyListFile.saveCollapsedGroups(tagRuleId, next) } }
     }
-    // 主页拖动排序已整段删除（用户 0919 终稿：点卡片启用的交互下没有拖动场景；
-    // 调轮换顺序在启用池页做，那边拖动保留）。组内显示顺序 = key_list.json 的存储顺序
-    /** 按原始值测试一把密钥（主页条目与启用池行共用；结果按归一化值共享） */
-    fun testRawValue(raw: String, display: String) {
+    /** 主页拖动排序已整段删除（用户 0919 终稿：点卡片启用的交互下没有拖动场景；
+     * 调轮换顺序在启用池页做，那边拖动保留）。组内显示顺序 = key_list.json 的存储顺序 */
+    /** 记一条测试结果并落盘（10-05 持久化：内存表更新+覆盖写 key_test_results.json） */
+    fun recordTestResult(norm: String, r: KeyListFile.TestOutcome) {
+        testResults = testResults + (norm to r)
+        val snapshot = testResults
+        scope.launch { withIO { KeyListFile.saveTestResults(tagRuleId, snapshot) } }
+    }
+    /** 按原始值测试一把密钥（主页条目与启用池行共用；结果按归一化值共享）。
+     *  10-05：display 参数退役（toast 不再报名字——卡片就在眼前、模型名还长） */
+    fun testRawValue(raw: String) {
         if (raw.isBlank()) {
             toast(R.string.role_key_value_empty)
             return
@@ -997,23 +1021,22 @@ fun KeyManagerScreen(tagRuleId: String, onBack: () -> Unit) {
             }
             testingValue = null
             probeProgress.remove(norm)
-            testResults = testResults + (norm to r)
+            recordTestResult(norm, r)
+            // 10-05 文案终稿：Toast 只报结论+用时，名字不报（卡片就在眼前、模型名还长）
             if (r.verdict == KeyListFile.TestVerdict.PASS) {
-                // 全绿：轻量 Toast（不打断）
-                toast(R.string.role_key_test_ok_toast, display, r.message)
+                toast(R.string.role_key_test_ok_toast, timingOf(r.message).ifEmpty { "OK" })
             } else {
-                // 黄/红：卡底提示条已常驻（可展开看全文）——Toast 只报一句，不重复详情（10-03 五改）
+                // 黄/红：卡底提示条已常驻（可展开看全文）——Toast 只报一句结论，不重复详情
                 toast(
                     if (r.verdict == KeyListFile.TestVerdict.PASS_THINKING)
                         R.string.role_key_test_warn_toast
-                    else R.string.role_key_test_fail_toast_simple,
-                    display
+                    else R.string.role_key_test_fail_toast_simple
                 )
             }
         }
     }
     fun testKey(entry: KeyListFile.KeyEntry) {
-        testRawValue(entry.value, KeyListFile.displayName(entry))
+        testRawValue(entry.value)
     }
     // 整组测试并发 4 路（原为串行）。限 4：同站点共用额度，全发会撞 429、被记成「测试失败」；
     // withIO 是真并行、testKey 纯阻塞且每次新建连接 ⇒ 并发安全，灯谁先回谁先亮
@@ -1038,7 +1061,7 @@ fun KeyManagerScreen(tagRuleId: String, onBack: () -> Unit) {
                             }
                         }
                         probeProgress.remove(norm)
-                        testResults = testResults + (norm to r)
+                        recordTestResult(norm, r)
                         r.verdict != KeyListFile.TestVerdict.FAIL
                     }
                 }
@@ -1070,7 +1093,7 @@ fun KeyManagerScreen(tagRuleId: String, onBack: () -> Unit) {
                             }
                         }
                         probeProgress.remove(norm)
-                        testResults = testResults + (norm to r)
+                        recordTestResult(norm, r)
                         r.verdict != KeyListFile.TestVerdict.FAIL
                     }
                 }
@@ -1172,7 +1195,7 @@ fun KeyManagerScreen(tagRuleId: String, onBack: () -> Unit) {
                     renameFor = e
                 }
             },
-            onTest = { raw, display -> testRawValue(raw, display) },
+            onTest = { raw, _ -> testRawValue(raw) },
             onTestAll = { testAllPool() },
             onRemoveBatch = { removePoolBatch() },
         )
@@ -1320,10 +1343,10 @@ fun KeyManagerScreen(tagRuleId: String, onBack: () -> Unit) {
                     // 收窄让宽给「启用池(N)」——五字符不折行；weight 均分是折行根因）。
                     // 启用池键保持填充强调。Row 默认 Start 对齐，宽余量留在右侧
                     Row(
-                        // horizontal 16：容器贴边归零后此行自撑边距——工具按钮行不随内容贴边，
-                        // +密钥/+模型/启用池三键保持在原位（与组头/卡片的左移无关）
+                        // horizontal 16→8（10-05 用户：跟随本页贴边族口径——组头/卡片左线 8、
+                        // 卡右缘 8，胶囊行原来自己用 16 与同页其他元素左右都不齐）
                         Modifier.fillMaxWidth()
-                            .padding(start = 16.dp, end = 16.dp, top = 10.dp, bottom = 6.dp),
+                            .padding(start = 8.dp, end = 8.dp, top = 10.dp, bottom = 6.dp),
                         horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
                         OutlinedButton(
@@ -1394,12 +1417,6 @@ fun KeyManagerScreen(tagRuleId: String, onBack: () -> Unit) {
                                 deleteChecked = emptySet()
                                 if (isCollapsed) toggleFold(grp.title) // 组内删除要见子项，折叠组自动展开
                             },
-                            onToggleSelectAll = {
-                                val allSel = grp.entries.all { it.name in deleteChecked }
-                                val names = grp.entries.map { it.name }.toSet()
-                                deleteChecked =
-                                    if (allSel) deleteChecked - names else deleteChecked + names
-                            },
                             onMenuDismiss = { menuGroup = null },
                             testingThisGroup = testingGroup == grp.title,
                         )
@@ -1443,16 +1460,27 @@ fun KeyManagerScreen(tagRuleId: String, onBack: () -> Unit) {
                                 )
                             }
                         }
-                        // 组内删除模式动作行（条目卡之后，老版 0916 形态）：只有 取消 / 删除(N)——
-                        // 全选已并到顶部标题行；两键都是无框文字键
+                        // 组内删除模式动作行（条目卡之后，10-05 改）：全选挪下来与 取消/删除(N)
+                        // 同排——选谁+执行一条线（原全选在顶部标题行，视线跑两趟）；
+                        // 全选靠左、执行键靠右，三键都是无框文字键
                         if (isDeleting) {
                             item(key = "d:" + grp.title) {
                                 Row(
                                     Modifier.fillMaxWidth()
-                                        .padding(start = 34.dp, end = 8.dp, top = 2.dp, bottom = 4.dp),
-                                    horizontalArrangement = Arrangement.End,
+                                        .padding(start = 28.dp, end = 8.dp, top = 2.dp, bottom = 4.dp),
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
+                                    FlatTextAction(
+                                        stringResource(R.string.select_all),
+                                        MaterialTheme.colorScheme.onSurfaceVariant
+                                    ) {
+                                        // 全组全选/反选（原 GroupHeaderBlock 顶部全选的内联逻辑随键搬迁）
+                                        val allSel = grp.entries.all { it.name in deleteChecked }
+                                        val names = grp.entries.map { it.name }.toSet()
+                                        deleteChecked =
+                                            if (allSel) deleteChecked - names else deleteChecked + names
+                                    }
+                                    Spacer(Modifier.weight(1f))
                                     FlatTextAction(
                                         stringResource(R.string.cancel),
                                         MaterialTheme.colorScheme.onSurfaceVariant
@@ -1802,7 +1830,11 @@ private fun KeyEditDialog(
             Text(stringResource(if (initial == null) R.string.role_key_add else R.string.role_key_edit))
         },
         text = {
-            Column {
+            // 内容整体可滚动（10-05 修溢出：标题+密钥框+思考模式 8 选项+按钮总高超屏幕，
+            // M3 AlertDialog 把内容槽按剩余高度压缩 → 列表末尾几行被挤扁，只剩孤立 RadioButton
+            // 圆环顶在上一个选项下面（用户实机截图「最后几个挤一块」）。与下方 InterfaceFormDialog
+            // 同款：heightIn 限高 + verticalScroll，超出部分改滚动，不再压缩子项）
+            Column(Modifier.heightIn(max = 520.dp).verticalScroll(rememberScrollState())) {
                 // 「密钥」一栏（整串 网址@@模型名@@API key；裸 Key 可存但禁用启用，见 togglePool 拦截）
                 Text(
                     stringResource(R.string.role_key_value),
@@ -1817,7 +1849,8 @@ private fun KeyEditDialog(
                     placeholder = { Text(stringResource(R.string.role_key_value_hint)) },
                     singleLine = false,
                     minLines = 2,
-                    maxLines = 4,
+                    // maxLines 4→10（10-05 用户：按内容适配高度，长密钥串要显示全不内滚）
+                    maxLines = 10,
                     textStyle = MaterialTheme.typography.bodyMedium,
                     modifier = Modifier.fillMaxWidth(),
                 )
@@ -1834,18 +1867,9 @@ private fun KeyEditDialog(
                 }
                 Spacer(Modifier.height(10.dp))
 
-                // ===== 思考模式（10-03 二改：模型级）：默认自动 =====
-                Text(
-                    stringResource(R.string.role_key_thinking_title),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-                Text(
-                    stringResource(R.string.role_key_thinking_desc),
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(top = 2.dp)
-                )
+                // ===== 思考模式（10-05 方案一：折叠一行，点击展开——原整段平铺把按钮行
+                // 推得离密钥栏太远，用户不知道按钮是给谁的；功能零搬家）=====
+                var thinkingOpen by remember { mutableStateOf(false) }
                 // 锁定状态（读取该模型在 thinking_params.json 的锁定值；键 = 网址+模型）
                 val lockedMode = remember(initial) {
                     val p = initial?.let { KeyListFile.parseKeyValue(it.value) }
@@ -1873,6 +1897,42 @@ private fun KeyEditDialog(
                     KeyListFile.THINKING_CUSTOM -> customOptionLabel
                     else -> m
                 }
+                // 折叠摘要行：模式 + 锁定写法名（与测试结果的「multi」同词）+ 展开箭头
+                Row(
+                    Modifier
+                        .fillMaxWidth()
+                        .clickable { thinkingOpen = !thinkingOpen }
+                        .padding(vertical = 6.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        "思考模式",
+                        style = MaterialTheme.typography.bodyMedium
+                    )
+                    Spacer(Modifier.weight(1f))
+                    Text(
+                        when {
+                            !thinkingExpanded -> lockedMode?.let { "自动（锁定 $it）" } ?: "自动（未测试）"
+                            else -> "手动（${modeLabel(thinkingMode)}）"
+                        },
+                        style = MaterialTheme.typography.bodySmall,
+                        color = if (lockedMode != null || thinkingExpanded) TEST_PASS_COLOR
+                        else MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Text(
+                        if (thinkingOpen) "▾" else "▸",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(start = 6.dp)
+                    )
+                }
+                if (thinkingOpen) {
+                Text(
+                    stringResource(R.string.role_key_thinking_desc),
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(top = 2.dp)
+                )
                 Row(
                     Modifier.fillMaxWidth().padding(top = 4.dp),
                     verticalAlignment = Alignment.CenterVertically
@@ -1888,7 +1948,9 @@ private fun KeyEditDialog(
                 }
                 if (lockedMode != null && !thinkingExpanded) {
                     Text(
-                        stringResource(R.string.role_key_thinking_locked, modeLabel(lockedMode)),
+                        // 写法名+中文释义一起给（10-05 用户：测试结果说锁定「multi」，
+                        // 进设置只看到「全部关闭字段一起发」对不上号——名字和释义必须同现）
+                        stringResource(R.string.role_key_thinking_locked, lockedMode) + "，" + modeLabel(lockedMode),
                         style = MaterialTheme.typography.labelSmall,
                         color = TEST_PASS_COLOR,
                         modifier = Modifier.padding(start = 48.dp, top = 2.dp)
@@ -1947,6 +2009,7 @@ private fun KeyEditDialog(
                         )
                     }
                 }
+                } // thinkingOpen 展开区收尾
             }
         },
         confirmButton = {

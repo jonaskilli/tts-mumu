@@ -4,8 +4,10 @@ import android.content.Intent
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.HelpOutline
+import androidx.compose.material.icons.filled.ArrowCircleUp
 import androidx.compose.material.icons.filled.CleaningServices
 import androidx.compose.material.icons.filled.DeleteSweep
+import androidx.compose.material.icons.filled.HideSource
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.AlertDialog
@@ -25,12 +27,41 @@ import com.github.jing332.common.utils.toast
 import com.github.jing332.tts_server_android.R
 import com.github.jing332.tts_server_android.compose.AboutDialog
 import com.github.jing332.tts_server_android.compose.LocalUpdateCheckTrigger
+import com.github.jing332.tts_server_android.conf.AppConfig
 import com.github.jing332.tts_server_android.ui.AppHelpDocumentActivity
 import java.io.File
 
 @Composable
 internal fun ColumnScope.OtherSettingsScreen(search: SettingsSearch) {
-    SettingsGroup(title = { Text(stringResource(R.string.other)) }, show = !search.active()) {
+    // 「数据与关于」（10-05 分区）：原 OtherSettingsScreen 的 关于/帮助/检查更新/清除网页数据/清空数据
+    // ＋ 由主设置页移入的 自动检查更新/最近任务排除/下拉数量
+    SettingsGroup(title = { Text("数据与关于") }, show = !search.active()) {
+    SettingItem(search, "更新", "update", "检查", "自动") {
+        var autoCheck by remember { AppConfig.isAutoCheckUpdateEnabled }
+        SwitchPreference(
+            title = { Text(stringResource(id = R.string.auto_check_update)) },
+            subTitle = { Text(stringResource(id = R.string.check_update_summary)) },
+            checked = autoCheck,
+            onCheckedChange = { autoCheck = it },
+            icon = { Icon(Icons.Default.ArrowCircleUp, contentDescription = null) }
+        )
+    }
+
+    SettingItem(search, "最近任务", "排除", "recent", "后台") {
+        var excludeFromRecent by remember { AppConfig.isExcludeFromRecent }
+        SwitchPreference(
+            title = { Text(stringResource(id = R.string.exclude_from_recent)) },
+            subTitle = { Text(stringResource(id = R.string.exclude_from_recent_summary)) },
+            checked = excludeFromRecent,
+            onCheckedChange = { excludeFromRecent = it },
+            icon = { Icon(Icons.Default.HideSource, contentDescription = null) }
+        )
+    }
+
+    // 「下拉框内容最大数」已删（10-05 用户令）：该设置写 AppConfig.spinnerMaxDropDownCount，
+    // 但全仓无任何消费点——AppSpinner 用的是 lib-compose 的 ComposeWidgetSettings.maxDropDownCount
+    // （硬编码 3），两处从未接线，即拨动此开关不产生任何效果（假开关）。删后下拉阈值仍恒为 3。
+
     var showAboutDialog by rememberSaveable { mutableStateOf(false) }
     if (showAboutDialog)
         AboutDialog { showAboutDialog = false }

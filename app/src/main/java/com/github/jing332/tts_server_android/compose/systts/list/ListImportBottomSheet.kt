@@ -1,5 +1,6 @@
 package com.github.jing332.tts_server_android.compose.systts.list
 
+import android.app.Application
 import android.content.Context
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Text
@@ -28,13 +29,14 @@ import com.github.jing332.database.entities.systts.SystemTtsMigration
 import com.github.jing332.database.entities.systts.SystemTtsV2
 import com.github.jing332.database.entities.systts.TtsConfigurationDTO
 import com.github.jing332.database.entities.systts.v1.GroupWithV1TTS
+import com.github.jing332.tts.speech.plugin.engine.TtsPluginUiEngineV2
 import com.github.jing332.tts_server_android.R
 import com.github.jing332.tts_server_android.compose.systts.ConfigImportBottomSheet
 import com.github.jing332.tts_server_android.compose.systts.plugin.parsePluginsJson
 import com.github.jing332.tts_server_android.constant.AppConst
+import com.github.jing332.tts_server_android.model.rhino.speech_rule.SpeechRuleEngine
 import com.github.jing332.tts_server_android.service.systts.SystemTtsService
 import com.github.jing332.tts_server_android.ui.systts.ImportConfigFactory
-import com.github.jing332.tts_server_android.ui.systts.ImportConfigFactory.gotoEditorFromJS
 import com.github.jing332.tts_server_android.ui.systts.ImportType
 import com.github.jing332.tts_server_android.ui.view.AppDialogs.displayErrorDialog
 import com.drake.net.utils.withIO
@@ -158,11 +160,42 @@ internal sealed class AutoImportResult {
     ) : AutoImportResult()
 }
 
-/**
- * 自动识别 JSON 类型并直接导入，无需手动选择/确认。
- * 支持：配置列表 / 插件 / 朗读规则 / 替换规则。
- */
-internal fun doAutoImport(
+    // JS 直存（10-05 用户：导入朗读规则/插件 JS 直接落库，不再跳编辑器手动点保存）。
+    // 元数据提取与编辑器保存同引擎同口径：朗读规则走 SpeechRuleEngine.evalInfo()，
+    // 插件走 TtsPluginUiEngineV2.eval()（引擎把 JS 里的 name/id 回写进实体）；落库按
+    // ruleId/pluginId 借旧主键 REPLACE 覆盖（与两个 ManagerActivity 的 onSave 同款，
+    // 防同 id 双条目）。返回结果文案；解析/执行失败抛异常，由调用方转错误提示。
+    internal fun saveJsDirect(js: String, context: Context): String {
+        val trimmed = js.trim()
+        val app = context.applicationContext as Application
+        return if (trimmed.contains("SpeechRuleJS")) {
+            val rule = SpeechRule(code = trimmed)
+            SpeechRuleEngine(app, rule).evalInfo()
+            val entity = if (rule.ruleId.isNotBlank()) {
+                dbm.speechRuleDao.getByRuleIdAll(rule.ruleId)
+                    ?.takeIf { twin -> twin.id != rule.id }
+                    ?.let { twin -> rule.copy(id = twin.id) } ?: rule
+            } else rule
+            dbm.speechRuleDao.insert(entity)
+            "已识别为朗读规则JS源码，已直接保存：「${rule.name}」"
+        } else {
+            val plugin = Plugin(code = trimmed)
+            val meta = TtsPluginUiEngineV2(app, plugin).also { it.eval() }.plugin
+            val entity = if (meta.pluginId.isNotBlank()) {
+                dbm.pluginDao.getMetaByPluginId(meta.pluginId)
+                    ?.takeIf { twin -> twin.id != meta.id }
+                    ?.let { twin -> meta.copy(id = twin.id) } ?: meta
+            } else meta
+            dbm.pluginDao.insert(entity)
+            "已识别为插件JS源码，已直接保存：「${meta.name}」"
+        }
+    }
+
+    /**
+     * 自动识别 JSON 类型并直接导入，无需手动选择/确认。
+     * 支持：配置列表 / 插件 / 朗读规则 / 替换规则。
+     */
+    internal fun doAutoImport(
     json: String,
     context: Context,
     onProgress: (done: Int, total: Int) -> Unit = { _, _ -> }
@@ -172,22 +205,20 @@ internal fun doAutoImport(
         context.getString(R.string.import_no_valid_config_reason_empty)
     )
 
-    // JS 直导：朗读规则/插件源码是纯 JS 不是 JSON，走下方 JSON 解析必报「无法识别」。
-    // 与 ImportConfigActivity 系统导入同款口径：按内容特征（SpeechRuleJS/PluginJS）分流，
-    // 交给编辑器预填打开，编辑器保存时经 SpeechRuleEngine.evalInfo 读 name/id 等元数据、
-    // 按 ruleId 覆盖同 id 条目（不产生第二个规则）。
+    // JS 直存：朗读规则/插件源码是纯 JS 不是 JSON，走下方 JSON 解析必报「无法识别」。
+    // 按内容特征（SpeechRuleJS/PluginJS）分流直接落库（10-05 用户：不再跳编辑器手动保存——
+    // 原流程 gotoEditorFromJS 预填编辑器还要再点一次保存，纯多余一步）。
     if (trimmed.contains("SpeechRuleJS") || trimmed.contains("PluginJS")) {
         val isRule = trimmed.contains("SpeechRuleJS")
         val typeName = if (isRule) "朗读规则" else "插件"
-        return if (context.gotoEditorFromJS(trimmed)) {
+        return try {
+            saveJsDirect(trimmed, context)
             AutoImportResult.Success(
                 1, if (isRule) ImportType.SPEECH_RULE else ImportType.PLUGIN,
-                "已识别为${typeName}JS源码：编辑器已打开，请确认保存完成导入"
+                "已识别为${typeName}JS源码，已直接保存入库"
             )
-        } else {
-            AutoImportResult.EmptyOrUnrecognized(
-                "JS 文件未找到 SpeechRuleJS/PluginJS 对象定义，无法识别类型"
-            )
+        } catch (e: Exception) {
+            AutoImportResult.EmptyOrUnrecognized("${typeName}JS 保存失败：${e.message}")
         }
     }
 

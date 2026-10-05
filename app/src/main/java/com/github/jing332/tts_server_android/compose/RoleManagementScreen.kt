@@ -207,7 +207,10 @@ fun RoleManagementScreen(sharedVM: SharedViewModel, pagerState: PagerState) {
                         Modifier
                             .heightIn(min = 48.dp)
                             .clickable { showBackupCenter = true }
-                            .padding(horizontal = 8.dp),
+                            // end 0（10-05 顶栏审计）：文字键的视觉本体是文字，右缘落 344 内容线
+                            // （原 horizontal 8 让「备份」缩到 336，比图标键字形 331 还短一截没道理；
+                            //  左侧密钥键保留 8 与备份键拉开间距）
+                            .padding(start = 8.dp, end = 0.dp),
                         contentAlignment = Alignment.CenterStart
                     ) {
                         Row(verticalAlignment = Alignment.CenterVertically) {

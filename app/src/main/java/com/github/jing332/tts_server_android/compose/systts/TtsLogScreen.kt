@@ -228,7 +228,8 @@ internal fun TtsLogScreen(vm: TtsLogViewModel = viewModel()) {
                             if (!isSearch) {
                                 // 双击标题栏空白区=回日志顶部（10-04 用户定：替代原浮动 ↑ 键）。
                                 // Box 撑满标题槽（NavTopAppBar 里是 weight(1f) 的 Box）捕获整个标题区。
-                                // 沿用标题居中，点击区不影响视觉
+                                // 左对齐（10-05 用户：标题居中是四页独一份，「都跑中间了」——
+                                // 撤掉居中，走 NavTopAppBar 默认 CenterStart，与主页/密钥页同构）
                                 Box(
                                     modifier = Modifier
                                         .fillMaxWidth()
@@ -239,7 +240,7 @@ internal fun TtsLogScreen(vm: TtsLogViewModel = viewModel()) {
                                                 }
                                             })
                                         },
-                                    contentAlignment = Alignment.Center
+                                    contentAlignment = Alignment.CenterStart
                                 ) {
                                     Text(text = stringResource(id = R.string.log))
                                 }

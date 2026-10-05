@@ -87,11 +87,9 @@ import kotlinx.coroutines.isActive
 private const val SELECTION_SHEET_THRESHOLD = 20
 
 /**
- * 底部形态下条目文字相对搜索框**边框**的缩进量（用户 09-17：搜索框下方的字
- * 不该跟框左对齐）。搜索框内文字自带 12dp contentPadding，条目文字若与边框齐平，
- * 就比「搜索」两字的起点突兀地凸出一截；补 12dp 后条目文字正好与搜索文字同一条
- * 脊线（文字对文字，容器对容器）。居中卡片形态不缩进：那里搜索框另有 8dp 外边距，
- * 条目文字本来就比框边凹进 8dp，关系已经成立。
+ * 底部形态下条目文字相对搜索框**边框**的缩进量。底部形态（SelectionSheet）自
+ * 10-05 起停用（useSheet=false 全量回退居中卡片），此常量仅随死代码保留；
+ * 居中卡片形态的行文字内收已改在 content 的 padding 里定死 8dp（10-05 用户）。
  */
 private val SELECTION_ROW_TEXT_INDENT = 12.dp
 
@@ -118,7 +116,9 @@ fun AppSelectionDialog(
     // null = 调用方没有额外动作键（纯单选弹窗，点行即选即关）；传了（如试听分类的「保存」）
     // 则属于功能性出口：居中形态渲染在底部按钮行，底部形态渲染在标题行 ✕ 左侧
     // （见下方 AppDialog/SelectionSheet 两处调用）
-    extraButtons: (@Composable RowScope.() -> Unit)? = null,
+    // 回调参数 = 关闭本弹窗（10-05 用户令：批量导入成功后应自动关闭，不要停在原地让用户
+    // 以为没生效、再去找外层「保存」重来——两道保存歧义的第一现场）
+    extraButtons: (@Composable RowScope.(dismiss: () -> Unit) -> Unit)? = null,
 
     // 调用方完全自定义居中形态（AppDialog）的底部按钮行（如上传目标选择传「取消」）；
     // null 走默认 = 额外动作键 +「关闭」。底部形态的按钮行由 extraButtons 提供，本参数不参与
@@ -178,12 +178,14 @@ fun AppSelectionDialog(
             style = MaterialTheme.typography.bodyMedium,
             modifier = Modifier
                 .weight(1f)
-                // start 额外缩进：底部形态下与搜索框内「搜索 N」文字同一条脊线
-                // （SELECTION_ROW_TEXT_INDENT 注释）；end 不缩，行尾图标仍与框右缘齐平
+                // start 内收 8（10-05 用户：原 16 相对搜索框边框太深，「左边距过大」；
+                // 09-17 的「条目文字对齐搜索文字脊线」方案废弃——实测脊线本就差 4dp 没对上。
+                // 8dp 与全站行内缩口径同值：行内容相对框缘收 8）
+                // end 不缩，行尾图标仍与框右缘齐平
                 .padding(
                     // ⚠️ start/end 不能与 vertical 混在同一次 padding 调用里
                     // （PaddingValues 无该重载，CI 上报 no applicable candidate）
-                    start = hp + if (useSheet) SELECTION_ROW_TEXT_INDENT else 0.dp,
+                    start = if (useSheet) hp + SELECTION_ROW_TEXT_INDENT else 8.dp,
                     end = hp,
                     top = 12.dp,
                     bottom = 12.dp
@@ -214,7 +216,9 @@ fun AppSelectionDialog(
     // extraButtons 是 RowScope 接收者，自起一行 Row 提供接收者（AppDialog 的槽是 BoxScope）
     val effectiveButtons: @Composable BoxScope.() -> Unit = buttons ?: {
         if (extraButtons != null)
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) { extraButtons?.invoke(this) }
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                extraButtons.invoke(this, onDismissRequest)
+            }
         TextButton(onClick = onDismissRequest) {
             Text(stringResource(id = R.string.close))
         }
@@ -371,7 +375,11 @@ fun AppSelectionDialog(
                                         val allCategories = remember {
                                             listOf("默认") + VoiceCategories.ALL
                                         }
-                                        Box {
+                                        Box(
+                                            // end 12（10-05 用户：行尾盒不再贴框缘线——收进来后与
+                                            // IconButton 48 热区里 glyph 的自然内缩（12dp）同一条竖线）
+                                            modifier = Modifier.padding(end = 12.dp)
+                                        ) {
                                             Surface(
                                                 modifier = Modifier
                                                     .padding(start = 4.dp)
@@ -416,7 +424,10 @@ fun AppSelectionDialog(
                                         val allCategories = remember {
                                             listOf("默认") + VoiceCategories.ALL
                                         }
-                                        Box {
+                                        Box(
+                                            // end 12：同上，行尾盒收进「内容缘−12」glyph 竖线，不贴框缘
+                                            modifier = Modifier.padding(end = 12.dp)
+                                        ) {
                                             Box(
                                                 Modifier
                                                     .padding(start = 4.dp)
@@ -478,15 +489,20 @@ fun AppSelectionDialog(
     // 条目多 → 底部大弹窗（满宽 + 上限 92% 屏高，一眼看到更多行）。
     // 顺手把条目横向内边距按形态广播出去，自定义 itemContent 同步对齐
     CompositionLocalProvider(LocalSelectionRowHorizontalPadding provides hp) {
-        if (useSheet)
+        if (useSheet) {
+            // extraButtons 现带 dismiss 回调，SelectionSheet 的 buttons 仍是无参接收者——
+            // 在此补一个闭包适配（useSheet 恒 false=死路径，仅保持可编译）
+            val eb = extraButtons
+            val sheetButtons: (@Composable RowScope.() -> Unit)? = if (eb != null) {
+                { eb.invoke(this, onDismissRequest) }
+            } else null
             SelectionSheet(
                 onDismissRequest = onDismissRequest,
                 title = title,
                 content = dialogContent,
-                // 类型同为 (@Composable RowScope.() -> Unit)?，直接透传；null 则按钮行不渲染
-                buttons = extraButtons,
+                buttons = sheetButtons,
             )
-        else
+        } else
             AppDialog(
                 onDismissRequest = onDismissRequest,
                 title = title,

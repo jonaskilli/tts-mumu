@@ -366,8 +366,6 @@
     <string name="restore">بازیابی</string>
     <string name="restore_confirm">داده ها را از این فایل بازیابی کنید؟</string>
     <string name="js_file_type_not_recognized">نوع فایل JS شناسایی نشد</string>
-    <string name="spinner_drop_down_max_count">حداکثر تعداد محتویات جعبه کشویی</string>
-    <string name="spinner_drop_down_max_count_summary">هنگامی که تعداد محتویات در کادر کشویی از مقدار تنظیم شده بیشتر شود، یک کادر محاوره ای پاپ آپ نمایش داده می شود.</string>
     <string name="systts_plugin_please_set_vars">لطفا برای تنظیم متغیرها اینجا را کلیک کنید</string>
     <string name="clear_log">پاک کردن گزارش</string>
     <string name="nav_app_bar_open_drawer_description" tools:ignore="PrivateResource">کشوی ناوبری را باز کنید</string>

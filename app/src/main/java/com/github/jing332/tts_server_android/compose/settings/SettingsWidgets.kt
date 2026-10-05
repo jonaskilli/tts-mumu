@@ -94,9 +94,11 @@ internal fun DividerPreference(title: @Composable () -> Unit) {
 }
 
 /**
- * 设置分组（返璞归真批次改为直通渲染）：不再出卡片壳与组标题，
- * 内容直接平铺进设置页——原版设置页就是无分组结构。
- * 保留 [show] 语义：搜索模式下调用方本就以 show=false 退平铺，行为不变。
+ * 设置分区：**只出文字小标题，不出卡片壳**。
+ * 历史：050a759「返璞归真」把本组件从「卡片壳+标题」删成纯直通（无标题），
+ * 设置页遂成一片平铺；10-05 用户要求分类整理（参考墨听设置页），
+ * 只恢复**标题**（用户明确不要卡片壳）——条目仍平铺，靠标题分段跳读。
+ * 保留 [show]：搜索模式下调用方以 show=false 退平铺（不显示标题），行为不变。
  */
 @Composable
 internal fun SettingsGroup(
@@ -105,7 +107,29 @@ internal fun SettingsGroup(
     show: Boolean = true,
     content: @Composable ColumnScope.() -> Unit,
 ) {
-    Column(content = content)
+    if (!show) {
+        Column(content = content)
+        return
+    }
+    Column(modifier.fillMaxWidth()) {
+        // 分区小标题：titleSmall + primary（与 DividerPreference 同款，本页现成的分区习语）
+        CompositionLocalProvider(
+            LocalTextStyle provides MaterialTheme.typography.titleSmall.copy(
+                color = MaterialTheme.colorScheme.primary
+            ),
+        ) {
+            Row(
+                Modifier.padding(
+                    start = horizontalPadding + 4.dp,
+                    top = verticalPadding + 6.dp,
+                    bottom = 4.dp
+                )
+            ) {
+                title()
+            }
+        }
+        Column(content = content)
+    }
 }
 
 @Composable

@@ -107,6 +107,8 @@ fun SubGroupHeader(
                 start = (8 + level * 12).dp,
                 top = paddingTop,
                 bottom = paddingBottom,
+                // end 8（10-05 用户拍板：三行 ⋮ 统一 30dp 列）——曾短暂归 0 去凑组头旧 22 列，
+                // 后组头补 end=8 回到 30 列，本行同步回 8：⋮ 字形 ≈30dp 与一级分组/卡片同列
                 end = 8.dp
             ),
         verticalAlignment = Alignment.CenterVertically
@@ -130,7 +132,9 @@ fun SubGroupHeader(
             },
             color = MaterialTheme.colorScheme.onSurface,
             modifier = Modifier
-                .padding(start = 8.dp)
+                // start 8→3（10-05 用户：折叠箭头离子分组名太远，间隙 ≈12.5→≈8，
+                // 与密钥页组头收紧同口径）
+                .padding(start = 3.dp)
                 .weight(1f)
         )
 

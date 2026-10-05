@@ -155,7 +155,9 @@ class KeepAliveSettingsActivity : ComposeActivity() {
                     icon = { Icon(Icons.Default.MobileFriendly, null) }
                 )
 
-                SettingsGroup(title = { Text(stringResource(R.string.keep_alive_settings)) }) {
+                // 分区标题与顶栏页名「后台保活设置」区分，避免重复（SettingsGroup 10-05 恢复标题渲染后）；
+                // 「高级保活」组在外层，两者成对
+                SettingsGroup(title = { Text("基础保活") }) {
 
                 // 启用后台保活
                 val isForwarderRunning = SysTtsForwarderService.isRunning

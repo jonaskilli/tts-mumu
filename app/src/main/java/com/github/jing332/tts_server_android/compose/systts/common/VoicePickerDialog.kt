@@ -2,6 +2,9 @@ package com.github.jing332.tts_server_android.compose.systts.common
 
 import android.widget.Toast
 import androidx.compose.foundation.background
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -71,6 +74,8 @@ import com.github.jing332.database.entities.systts.SystemTtsV2
 import com.github.jing332.database.entities.systts.TtsConfigurationDTO
 import com.github.jing332.database.entities.systts.source.PluginTtsSource
 import com.github.jing332.tts.PreviewState
+import com.github.jing332.tts_server_android.compose.systts.role.genderDotColor
+import com.github.jing332.tts_server_android.compose.systts.role.softContainerColor
 import com.github.jing332.tts.TaggedTtsPreviewPlayer
 import com.github.jing332.tts.CachedEngineManager
 import com.github.jing332.tts_server_android.R
@@ -222,16 +227,19 @@ fun VoicePickerDialog(
     val addMode = createIfMissing || releaseOwnerName.isNotBlank()
     val isBindingMode = bindingKey.isNotBlank() || addMode
 
-    // ===== 行内试听状态（参照角色管理v9/v10试听状态机：▶ →(点击)… →(真正出声)■ →(播完复位)▶）=====
+    // ===== 行内试听状态（照角色管理 v10 口径）=====
     // 播放器全局单实例（同一时刻只有一个试听），previewingKey 记当前行（顶部=current，绑定=tag，旁白=voice）
     val previewState by TaggedTtsPreviewPlayer.state.collectAsState()
     var previewingKey by remember(entity.id) { mutableStateOf<Any?>(null) }
-    // 标签纯由 previewingKey+previewState 推导，**不用 LaunchedEffect 在 IDLE 时清 key**——
-    // 那条复位路会把「上一条试听刚结束/失败的 IDLE 广播」落进新点击与 play() 置 SYNTHESIZING
-    // 的窗口里（绑定分支要经 withIO 查库才有 play，窗口更宽），刚写入的新 key 被抹掉、
-    // play 照常出声 → 该行全程 ▶ 无反馈（「第一行有反馈、后面的行点了不动」实锤）。
-    // 改状态推导后 IDLE 恒显 ▶、key 残留无害（所有消费点都有 state!=IDLE 守卫），与角色管理
-    // 插件的轮询复位语义完全一致
+    // v10 三态色（10-05 用户令「参考 v10 试听处理」）：
+    //   合成中 … = #FF6F00（琥珀）｜播放中 ■ = #F44336（红）｜空闲 ▶ = 主题主色
+    // v10 状态机：点下**立即**置「…」（明写 setText），出声→「■」，播完/失败→复位「▶」；
+    //   同一按钮再点=停。当前实现原靠 play() 内部异步置 SYNTHESIZING，点下到置位之间有
+    //   空窗（绑定分支还要先查库）→ 那一段 state 仍是旧 IDLE，刚点的行先闪 ▶ 再变 …，
+    //   就是「试听状态不准」的根因。改为点击处先本地置 key+乐观态，UI 立刻变。
+    val previewPlayingColor = Color(0xFFF44336)   // v10 ■ 红
+    val previewSynthColor = Color(0xFFFF6F00)     // v10 … 琥珀
+
     fun previewLabel(key: Any?): String = when {
         previewingKey != key -> "▶"
         previewState == PreviewState.PLAYING -> "■"
@@ -239,9 +247,14 @@ fun VoicePickerDialog(
         else -> "▶"
     }
 
+    /** 三态色照 v10：…=琥珀 / ■=红 / ▶=主题主色（原本只给点亮态染 tertiary，且 ▶ 恒默认灰） */
     @Composable
-    fun previewLabelColor(key: Any?): Color =
-        if (previewingKey == key) MaterialTheme.colorScheme.tertiary else Color.Unspecified
+    fun previewLabelColor(key: Any?): Color = when {
+        previewingKey != key -> MaterialTheme.colorScheme.primary
+        previewState == PreviewState.PLAYING -> previewPlayingColor
+        previewState == PreviewState.SYNTHESIZING -> previewSynthColor
+        else -> MaterialTheme.colorScheme.primary
+    }
 
     // 面板分段：0=更换发音人 1=音频参数。提升到容器之前声明——底部动作行也要读它
     //（09-09 CI 教训：content 槽内声明的局部状态对 buttons 槽不可见；09-14 改全屏后虽不再有
@@ -286,6 +299,11 @@ fun VoicePickerDialog(
     // 合成一把会连累无关重读（勾个标记不该去重查一遍 DB）。
     // ① 标记：只动 voice_marks.json（文件通道无观察者，靠版本号刷新）→ 顶部/行内标记
     var marksVersion by remember(entity.id) { mutableStateOf(0) }
+    // 标记表一次读盘（10-05 性能：原候选行逐行 VoiceMarksFile.get 各读一遍整文件，
+    // N 行=N 次读盘+JSON 解析，是「点开面板卡」主源之一）；marksVersion 自增时重读
+    val marksMap = remember(config.speechRule.tagRuleId, marksVersion) {
+        VoiceMarksFile.readAll(config.speechRule.tagRuleId)
+    }
     // ② 行集合/池子：删除配置项 ⇒ 启用标签集合与候选池都变。DB 通道同样没有观察者，
     //    只能靠版本号驱动重组。参照 v10：filterAndShowVoiceList 每次调用前先 refreshFayinrenList()，
     //    所以那边删除后面板里的列表仍是实时的；这里原来只 remember(entity.id)，删完行还留着（假数据）。
@@ -307,13 +325,22 @@ fun VoicePickerDialog(
      *  用户 09-12 定稿：匹配键=**tag（id）**，fayinren.json/characterRecords 存的都是 tag id。
      *  正常配置=**一个标签只启用一条**：换声即改写这条启用配置，该标签后续
      *  片段确定全换；「同 tag 多配置随机轮播」属误操作，引擎侧 random 只是兜底，勿当设计意图；
-     *  tagName 是显示名不参与匹配（09-12 晚：tagName 兜底也移除，全链只认 tag） */
+     *  tagName 是显示名不参与匹配（09-12 晚：tagName 兜底也移除，全链只认 tag）。
+     *  10-05 性能：预建 tag→首条启用配置 查找表（原每次调用线性扫全部配置项，
+     *  候选行逐行调用是「里面操作卡」主源之一）；语义与原 firstOrNull 完全一致 */
+    val enabledConfigByTag = remember(entity.id, dataVersion, rowVersion) {
+        val m = LinkedHashMap<String, SystemTtsV2>()
+        allConfigs.forEach { item ->
+            if (!item.isEnabled) return@forEach
+            val t = (item.config as? TtsConfigurationDTO)?.speechRule?.tag ?: return@forEach
+            if (t.isNotEmpty() && !m.containsKey(t)) m[t] = item
+        }
+        m
+    }
+
     fun enabledConfigEntityByTag(tag: String): SystemTtsV2? {
         if (tag.isEmpty()) return null
-        return allConfigs.firstOrNull { item ->
-            if (!item.isEnabled) return@firstOrNull false
-            (item.config as? TtsConfigurationDTO)?.speechRule?.tag == tag
-        }
+        return enabledConfigByTag[tag]
     }
 
     /** 按发音人ID查配置项（旁白暂存候选的参数跟随目标） */
@@ -919,9 +946,9 @@ fun VoicePickerDialog(
             // ⋮ 一出现，这个不一致就从"看不见"变成"点得到"，故与显示名统一取暂存优先。
             val topMarkKey = if (isBindingMode) (pendingVoice ?: boundVoice)
             else pendingVoice ?: voice
-            val topMarks = remember(topMarkKey, marksVersion) {
+            val topMarks = remember(topMarkKey, marksMap) {
                 if (topMarkKey.isBlank()) emptyList()
-                else VoiceMarksFile.get(config.speechRule.tagRuleId, topMarkKey)
+                else marksMap[topMarkKey] ?: emptyList()
             }
             // 顶部 ⋮ 的删除目标（用户 09-17 方案A）：与上面「当前发音人」的显示名**同源**——
             // 显示谁就删谁。绑定=当前绑定/暂存标签的启用配置项（与候选行 ⋮、与显示名同一口径）；
@@ -931,8 +958,16 @@ fun VoicePickerDialog(
             else pendingVoice?.let { narrationEntityByVoice(it) } ?: entity.takeIf { !anchorMissing }
             // 09-11 重排（用户拍板）：「当前发音人」小标签独占一行，▶ 键与发音人名同一行
             //（此前 ▶ 垂直居中在两行文字块上，与名字行错位）；名字加省略号防长名硬裁
+            // 方案A 强调（10-05 用户选型）：整块垫 softContainerColor 圆角底 + 性别色圆点
+            // （genderDotColor 同角色列表口径，tag=「显示谁就圆点谁」的 topMarkKey）+ 名称加粗；
+            // 底块不加水平内边距——名字/▶/⋮ 仍钉在 16 内容线上，不破坏刚做的竖列对齐
             if (!addMode) {
-            Column(Modifier.fillMaxWidth()) {
+            Surface(
+                shape = RoundedCornerShape(10.dp),
+                color = softContainerColor(),
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+            Column(Modifier.fillMaxWidth().padding(vertical = 7.dp)) {
                 Text(
                     // 标题已改叫「角色卡（角色名）」（终版），本行回归纯「当前发音人」
                     "当前发音人",
@@ -945,9 +980,18 @@ fun VoicePickerDialog(
                         modifier = Modifier.weight(1f),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
+                        // 性别色圆点（10-05 方案A）：当前发音人的分类性别，一眼可辨
+                        Spacer(
+                            Modifier
+                                .padding(end = 7.dp)
+                                .size(7.dp)
+                                .background(genderDotColor(topMarkKey), CircleShape)
+                        )
                         Text(
                             currentVoiceName,
-                            style = MaterialTheme.typography.titleMedium,
+                            style = MaterialTheme.typography.titleMedium.copy(
+                                fontWeight = FontWeight.SemiBold
+                            ),
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis,
                             modifier = Modifier.weight(1f, fill = false),
@@ -963,42 +1007,49 @@ fun VoicePickerDialog(
                     }
                     // ▶ 同候选行方案A：裸字符可点替代 TextButton（单字符占 58dp 底座，顶栏紧巴巴），
                     // 16dp 字形+两侧 12dp ≈40dp，上下 12dp 凑满 48dp 触控高
+                    // padding 照 CandidateRow 同款（10-05 竖列对齐：原顶行 ▶ 无水平 12dp，
+                    // 与列表行 ▶ 差半列宽；补齐后 ▶/⋮ 上下贯通）
                     Text(
                         previewLabel(PREVIEW_KEY_CURRENT),
                         color = previewLabelColor(PREVIEW_KEY_CURRENT),
                         style = MaterialTheme.typography.titleMedium,
-                        modifier = Modifier.clickable {
-                            // 试听当前声音（09-10 参数跟随）：绑定模式=跟随目标+草稿；
-                            // 旁白=本配置项+暂存voice+草稿；播放中/合成中再点=停止复位（角色管理同款交互）
-                            if (previewingKey == PREVIEW_KEY_CURRENT && previewState != PreviewState.IDLE) {
-                                TaggedTtsPreviewPlayer.stop()
-                                previewingKey = null
-                                return@clickable
+                        modifier = Modifier
+                            .clickable {
+                                // 试听当前声音（09-10 参数跟随）：绑定模式=跟随目标+草稿；
+                                // 旁白=本配置项+暂存voice+草稿；播放中/合成中再点=停止复位（角色管理同款交互）
+                                if (previewingKey == PREVIEW_KEY_CURRENT && previewState != PreviewState.IDLE) {
+                                    TaggedTtsPreviewPlayer.stop()
+                                    previewingKey = null
+                                    return@clickable
+                                }
+                                previewingKey = PREVIEW_KEY_CURRENT
+                                // 点击即置「合成中」（v10 口径）：不等 play() 异步置位，
+                                // 消除「点下先闪 ▶ 再变 …」的状态不准
+                                TaggedTtsPreviewPlayer.markSynthesizing()
+                                scope.launch {
+                                    val target = if (isBindingMode) draftParamsTarget() else null
+                                    // 音效槽位用专用试听文本（与全局/编辑页音效文本同源，用户 09-13）；其余照旧固定句
+                                    val text = if (isLocalSoundSlot)
+                                        AppConfig.localSoundSampleText.value.ifBlank { "你好，这是试听语音。" }
+                                    else "你好，这是试听语音。"
+                                    TaggedTtsPreviewPlayer.play(
+                                        context, target ?: draftEntity(pendingVoice), text,
+                                        // 插件/全局层草稿全覆盖（用户 09-17）：调滑杆即听，
+                                        // 不必先点应用；插件无实体时传 null 保住库值不被 1.0 抹掉
+                                        pluginParamsOverride = plugin?.audioParams?.copy(
+                                            speed = snapParam(pluginSpeed),
+                                            volume = snapParam(pluginVolume),
+                                            pitch = snapParam(pluginPitch),
+                                        ),
+                                        globalParamsOverride = AudioParams(
+                                            speed = snapParam(globalSpeed),
+                                            volume = snapParam(globalVolume),
+                                            pitch = snapParam(globalPitch),
+                                        ),
+                                    )
+                                }
                             }
-                            previewingKey = PREVIEW_KEY_CURRENT
-                            scope.launch {
-                                val target = if (isBindingMode) draftParamsTarget() else null
-                                // 音效槽位用专用试听文本（与全局/编辑页音效文本同源，用户 09-13）；其余照旧固定句
-                                val text = if (isLocalSoundSlot)
-                                    AppConfig.localSoundSampleText.value.ifBlank { "你好，这是试听语音。" }
-                                else "你好，这是试听语音。"
-                                TaggedTtsPreviewPlayer.play(
-                                    context, target ?: draftEntity(pendingVoice), text,
-                                    // 插件/全局层草稿全覆盖（用户 09-17）：调滑杆即听，
-                                    // 不必先点应用；插件无实体时传 null 保住库值不被 1.0 抹掉
-                                    pluginParamsOverride = plugin?.audioParams?.copy(
-                                        speed = snapParam(pluginSpeed),
-                                        volume = snapParam(pluginVolume),
-                                        pitch = snapParam(pluginPitch),
-                                    ),
-                                    globalParamsOverride = AudioParams(
-                                        speed = snapParam(globalSpeed),
-                                        volume = snapParam(globalVolume),
-                                        pitch = snapParam(globalPitch),
-                                    ),
-                                )
-                            }
-                        },
+                            .padding(horizontal = 12.dp, vertical = 12.dp),
                     )
                     // ⋮ 菜单（用户 09-17 方案A）：打开面板想删当前这条配置项，得关掉面板回列表翻半天，
                     // 就地给一个入口。菜单项与候选行同源（标记 + 删除配置项），零学习成本。
@@ -1020,6 +1071,7 @@ fun VoicePickerDialog(
                     )
                 }
             }
+            } // Surface（当前发音人底块）收尾
 
             // ===== 终值（播放链同源三层乘积；三维恒显，用户 09-10）=====
             // 最终值恒为 配置×插件×全局（三层草稿实时跟随；音高 09-10 起同规格走草稿；
@@ -1057,40 +1109,32 @@ fun VoicePickerDialog(
             )
 
             if (panelTab == 0 && source != null) {
-                // 分类定稿（用户 09-09 下拉版顺序）：全部 + 女/男系列（旁白不下拉，见下）；
-                // 提取方式参照标签分类（剥尾部数字取汉字前缀），前缀在白名单内才可被分类筛选命中；
-                // 对话/括号/本地音效/角色名等不入分类；「全部」=不筛选
-                val voiceCategories = listOf(
-                    "女青年", "男青年", "女中年", "男中年", "女老年", "男老年",
-                    "少女", "少年", "女童", "男童", "女主", "男主", "特殊女", "特殊男",
-                )
-
-                fun voiceCategoryOf(tagName: String): String? {
-                    val base = Regex("^(.*[\\u4e00-\\u9fa5])\\d{0,4}$").find(tagName)
-                        ?.groupValues?.getOrNull(1) ?: tagName.takeIf { it.isNotBlank() } ?: return null
-                    return when {
-                        base == "旁白" -> "旁白"
-                        base in voiceCategories -> base
-                        else -> null
-                    }
-                }
+                // 分类口径（10-05 用户：与编辑页标签选择弹窗 TagSwitchDialog 一字同口径）——
+                // 来源=规则 tags 表（tag id→显示名 tagName，权威；未加载/无记录回落 tag id，
+                // tag id 本身即「汉字+序号」形态）；分组=显示名剥尾数字（「女青年01」→「女青年」，
+                // extractTagCategory 同款正则）；书面名一律按 tagName。
+                // 原硬编码 14 类白名单废弃——对话/括号/音效等非白名单前缀按标签口径照常成组
+                fun tagDisplayName(tag: String): String = ruleTags?.get(tag) ?: tag
+                fun tagCategoryOf(tag: String): String = extractTagCategory(tagDisplayName(tag))
 
                 // 候选键：""=全部（不筛选）；选项与展示名在绑定模式内按当前范围动态生成
                 //（09-11 晚起 0 项分类被隐藏，见下），此处不再静态定义。
 
                 if (isBindingMode) {
                     // ===== 绑定模式：下拉定范围 + 常驻搜索（范围内）+ 列表（行内试听）=====
-                    var selectedCategory by remember(entity.id) {
-                        // 默认选中配置项当前标签所属分类（「女青年25」→「女青年」；九类外如「括号1」→全部）
-                        mutableStateOf(voiceCategoryOf(config.speechRule.tagName))
+                    var selectedCategory by remember(entity.id, ruleTags) {
+                        // 默认选中配置项当前标签所属分类（显示名现查剥尾号；ruleTags 异步到达后重算）
+                        mutableStateOf(
+                            config.speechRule.tag.takeIf { it.isNotEmpty() }?.let { tagCategoryOf(it) }
+                        )
                     }
                     var tagSearch by remember(entity.id) { mutableStateOf("") }
                     // 改绑到无启用配置的标签会掉进随机兜底，读声不可控，必须排除
                     // （用户 09-12 定稿：池子/记录存的都是 tag id，启用标签集合只收 tag，
                     //   tagName 兜底已移除——全链只认 tag）
-                    val enabledTags = remember(entity.id, dataVersion) {
-                        dbm.systemTtsV2.getAllGroupWithTts().flatMap { it.list }
-                            .filter { it.isEnabled }
+                    // 10-05 性能：复用 allConfigs（remember 的同一份）原地过滤，不再重复查库
+                    val enabledTags = remember(entity.id, dataVersion, rowVersion) {
+                        allConfigs.filter { it.isEnabled }
                             .mapNotNull {
                                 (it.config as? TtsConfigurationDTO)?.speechRule?.tag
                                     ?.takeIf { t -> t.isNotEmpty() }
@@ -1101,21 +1145,31 @@ fun VoicePickerDialog(
                     // - 本地音效槽位：**不能**用池子——规则 detectAvailableVoices 只遍历 GENSHIN_CHARACTERS
                     //   （localSound 前缀不在其中），音效标签根本进不了池子，取出来全是 TTS 音色。
                     //   改为直接在启用配置里枚举同族槽位（tag=localSoundN），即"本槽位可借用哪些音效槽位的配置"
+                    // 10-05 性能：readVoicePool（整文件读+JSON解析）必须包进 remember——
+                    // 原直接写在组合体里，面板每次重组（输入搜索字、滑动、状态变化）都读一次盘，
+                    // 是「点开面板卡顿/操作卡」的第一主源
+                    val rawVoicePool = remember(entity.id, dataVersion) {
+                        if (isLocalSoundSlot) emptyList()
+                        else CharacterRecordsFile.readVoicePool(config.speechRule.tagRuleId)
+                    }
                     val poolEnabled = if (isLocalSoundSlot) {
-                        remember(entity.id, dataVersion) { enabledTags.filter { LOCAL_SOUND_TAG.matches(it) } }
+                        enabledTags.filter { LOCAL_SOUND_TAG.matches(it) }
                     } else {
-                        CharacterRecordsFile.readVoicePool(config.speechRule.tagRuleId)
-                            .filter { it in enabledTags }
+                        rawVoicePool.filter { it in enabledTags }
                     }
                     // 下拉项带括号项数（不含搜索过滤，选分类前就知道各范围有多少可选）；
                     // 0 项分类直接隐藏（用户 09-11 晚改，替代 09-09「不标数量」——不标会被误读成
                     // 信息缺失，没货的分类干脆不列）；「全部」恒在首位。
-                    // 当前选中分类若恰好 0 项，AppSpinner 会自动回落到「全部」（values 不含当前值时
-                    // 回调第一项），与既有「九类外标签→全部」语义一致，不会留下幽灵值。
-                    val categoryCounts = poolEnabled.groupingBy { voiceCategoryOf(it) }.eachCount()
+                    // 分类顺序=tags 原始迭代顺序（JS 定义序，首现收集不重排）——与标签选择弹窗
+                    // 同一顺序来源；ruleTags 未加载时按候选 tag id 序兜底。
+                    // 当前选中分类若恰好 0 项（该分类已被隐藏），视同「全部」——
+                    // 原 AppSpinner 会自动回落到第一项（见下），换状态条后由这里兜底，语义不变
+                    val categoryCounts = poolEnabled.groupingBy { tagCategoryOf(it) }.eachCount()
+                    val categoryOrder = (ruleTags?.keys ?: poolEnabled.asIterable())
+                        .map { tagCategoryOf(it) }.distinct()
                     val categoryOptions: List<Pair<String, String>> =
                         listOf("" to "全部") +
-                            voiceCategories.filter { (categoryCounts[it] ?: 0) > 0 }.map { it to it }
+                            categoryOrder.filter { (categoryCounts[it] ?: 0) > 0 }.map { it to it }
                     val categoryEntries = categoryOptions.map { (key, label) ->
                         val n = if (key.isEmpty()) poolEnabled.size else categoryCounts[key] ?: 0
                         "$label（${n}项）"
@@ -1202,9 +1256,11 @@ fun VoicePickerDialog(
                         poolEnabled
                     } else {
                         poolEnabled.filter { tag ->
-                            (effectiveCategory == null || voiceCategoryOf(tag) == effectiveCategory) &&
+                            (effectiveCategory == null || tagCategoryOf(tag) == effectiveCategory) &&
                                 (tagSearch.isBlank() ||
                                     tag.contains(tagSearch) ||
+                                    // 书面名按 tagName（10-05 用户）：规则 tags 表显示名一并入搜索
+                                    tagDisplayName(tag).contains(tagSearch) ||
                                     enabledConfigEntityByTag(tag)?.displayName?.contains(tagSearch) == true)
                         }
                     }
@@ -1216,34 +1272,38 @@ fun VoicePickerDialog(
                     // 候选列表：点行=暂存改绑；▶=只试听该标签对应的启用配置（不应用）。
                     // weight(1f) 吃满头部以下的剩余高度并自带内滚（09-14 晚重构：原来上限写死
                     // 55% 屏高、且整个内容区还挂着外层 verticalScroll → 列表只分到约 5 行高度）
-                    Column(
-                        Modifier
-                            .fillMaxWidth()
-                            .weight(1f)
-                            .padding(top = 6.dp)
-                            .verticalScroll(rememberScrollState()),
-                    ) {
-                        if (filtered.isEmpty()) {
-                            Text(
-                                "该范围内没有可用的标签",
-                                modifier = Modifier.padding(10.dp),
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            )
-                        }
-                        // 重名兜底（去序号后）：显示名在本轮候选里撞车才括号补回标签，
-                        // 正常情况一个字不多（一标签一启用，显示名基本不重）
-                        val dupNames = filtered.groupingBy { t ->
+                    // 10-05 性能改 LazyColumn（原 Column+verticalScroll 一次性组合全部行，
+                    // 几百候选=几百个行组件同帧构建，是「点开面板卡」的第二主源；滚动只建可见行
+                    // 预计算的 dupNames / voiceOwners 保持在列表外，逐行计算不重复
+                    val dupNames = remember(filtered, isLocalSoundSlot) {
+                        filtered.groupingBy { t ->
                             enabledConfigEntityByTag(t)?.displayName?.ifEmpty { null }
                                 ?: if (isLocalSoundSlot) localSoundSlotLabel(t) else t
                         }.eachCount()
-                        // 占用表（方案A）：characterRecords.json 里 voice→角色名列表，
-                        // 与角色管理插件「已分配」徽章同源同口径；排除自己（bindingKey）——
-                        // 自己当前绑定的那行已有 ✓ 主色，不重复标
-                        val voiceOwners = remember(entity.id, dataVersion, rowVersion) {
-                            CharacterRecordsFile.readVoiceOwnerMap(config.speechRule.tagRuleId)
+                    }
+                    // 占用表（方案A）：characterRecords.json 里 voice→角色名列表，
+                    // 与角色管理插件「已分配」徽章同源同口径；排除自己（bindingKey）——
+                    // 自己当前绑定的那行已有 ✓ 主色，不重复标
+                    val voiceOwners = remember(entity.id, dataVersion, rowVersion) {
+                        CharacterRecordsFile.readVoiceOwnerMap(config.speechRule.tagRuleId)
+                    }
+                    LazyColumn(
+                        Modifier
+                            .fillMaxWidth()
+                            .weight(1f)
+                            .padding(top = 6.dp),
+                    ) {
+                        if (filtered.isEmpty()) {
+                            item {
+                                Text(
+                                    "该范围内没有可用的标签",
+                                    modifier = Modifier.padding(10.dp),
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
+                            }
                         }
-                        filtered.forEach { tag ->
+                        items(filtered, key = { it }) { tag ->
                             val isCurrent = tag == boundVoice
                             val isPending = tag == pendingVoice
                             // 候选行=纯配置项显示名（定稿：序号/标签不进行内，
@@ -1254,10 +1314,8 @@ fun VoicePickerDialog(
                             val rowText = if (dupNames.getOrDefault(cfgName.ifEmpty { rowName }, 0) > 1)
                                 "${cfgName.ifEmpty { rowName }}（$rowName）" else cfgName.ifEmpty { rowName }
                             // 标记/删除收进 ⋮ 菜单（用户 09-12 晚定稿紧凑化：行内塞 5 键把名字挤没）；
-                            // 点亮标记由 CandidateRow 渲染在名字后
-                            val rowMarks = remember(tag, marksVersion) {
-                                VoiceMarksFile.get(config.speechRule.tagRuleId, tag)
-                            }
+                            // 点亮标记由 CandidateRow 渲染在名字后（标记取内存表，10-05 性能）
+                            val rowMarks = marksMap[tag] ?: emptyList()
                             // 已被其他角色占用 → 行内「已用」徽章（占用≠禁用，仍可点选改绑）
                             val usedByOthers = voiceOwners[tag].orEmpty().any { it != bindingKey }
                             CandidateRow(
@@ -1294,6 +1352,8 @@ fun VoicePickerDialog(
                                         previewingKey = null
                                     } else {
                                         previewingKey = tag
+                                        // 点击即置「合成中」（v10 口径；见顶部试听键同款注释）
+                                        TaggedTtsPreviewPlayer.markSynthesizing()
                                         scope.launch {
                                             val target = withIO { enabledConfigEntityByTag(tag) }
                                             if (target != null) {
@@ -1303,7 +1363,9 @@ fun VoicePickerDialog(
                                                 else "你好，这是试听语音。"
                                                 TaggedTtsPreviewPlayer.play(context, target, text)
                                             } else {
+                                                // 无匹配配置项：没走到 play，须复位合成中态（否则灯卡在 …）
                                                 previewingKey = null
+                                                TaggedTtsPreviewPlayer.stop()
                                                 Toast.makeText(
                                                     context,
                                                     context.getString(R.string.log_panel_rebind_no_config),
@@ -1405,38 +1467,41 @@ fun VoicePickerDialog(
                     }
                     // 候选列表（非绑定）：weight(1f) 吃满头部以下的剩余高度并自带内滚
                     //（09-14 晚重构：原来上限写死 55% 屏高、外层又挂着一层 scroll，列表只见约 5 行）
-                    Column(
+                    // 10-05 性能改 LazyColumn（同绑定列表：原一次性组合全部行）
+                    LazyColumn(
                         Modifier
                             .fillMaxWidth()
                             .weight(1f)
-                            .padding(top = 6.dp)
-                            .verticalScroll(rememberScrollState()),
+                            .padding(top = 6.dp),
                     ) {
                         if (narrationCandidates.isEmpty()) {
-                            Text(
-                                if (currentTagName.isBlank()) "该标签下没有可用的配置项"
-                                else "「$currentTagName」标签下没有可用的配置项",
-                                modifier = Modifier.padding(10.dp),
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            )
+                            item {
+                                Text(
+                                    if (currentTagName.isBlank()) "该标签下没有可用的配置项"
+                                    else "「$currentTagName」标签下没有可用的配置项",
+                                    modifier = Modifier.padding(10.dp),
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
+                            }
                         } else if (narrationShown.isEmpty()) {
                             // 搜出来的空态与"本标签下没有候选"要分开说：否则清空搜索前会被读成
                             // "这个标签坏了"（本标签明明有 N 条，只是没匹配上）
-                            Text(
-                                "没有匹配「${narrationSearch.trim()}」的配置项",
-                                modifier = Modifier.padding(10.dp),
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            )
+                            item {
+                                Text(
+                                    "没有匹配「${narrationSearch.trim()}」的配置项",
+                                    modifier = Modifier.padding(10.dp),
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
+                            }
                         }
-                        narrationShown.forEach { (v, cfgEntity) ->
+                        items(narrationShown, key = { it.first }) { (v, cfgEntity) ->
                             val isCurrent = v == voice && voice.isNotEmpty()
                             val isPending = v == pendingVoice
                             // 标记键=voice（同一 tag 下多条配置靠 voice 区分；与角色行 tag 键同口径）
-                            val rowMarks = remember(v, marksVersion) {
-                                VoiceMarksFile.get(config.speechRule.tagRuleId, v)
-                            }
+                            // 标记取内存表（10-05 性能：原逐行读整文件）
+                            val rowMarks = marksMap[v] ?: emptyList()
                             CandidateRow(
                                 text = cfgEntity.displayName,
                                 isCurrent = isCurrent,
@@ -1456,6 +1521,8 @@ fun VoicePickerDialog(
                                         previewingKey = null
                                     } else {
                                         previewingKey = v
+                                        // 点击即置「合成中」（v10 口径；见顶部试听键同款注释）
+                                        TaggedTtsPreviewPlayer.markSynthesizing()
                                         TaggedTtsPreviewPlayer.play(
                                             context, cfgEntity, "你好，这是试听语音。"
                                         )
@@ -1675,8 +1742,10 @@ private fun CandidateRow(
         Modifier
             .fillMaxWidth()
             .clickable(onClick = onClick)
-            // 水平 10→6dp（用户 09-13 方案A：行宽紧，省 8dp 给名字）
-            .padding(horizontal = 6.dp, vertical = 2.dp),
+            // 水平 6→0（10-05 用户：换声面板竖列对齐——上方当前发音人/最终/分类行全在
+            // 内容区 16 线上，行自带 6dp 缩进让整块列表（名字/▶/⋮ 三列）错位 6dp；
+            // 归零后名字回到 16 线、▶/⋮ 与顶行同列。09-13「省宽度」诉求由行内容承担）
+            .padding(vertical = 2.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         // 名字+标记包一层 weight(1f)：操作键钉在行尾，不随标记数量漂移

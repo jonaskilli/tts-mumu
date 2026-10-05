@@ -89,12 +89,16 @@ class ExoAudioPlayer(val context: Context) {
     }
 
     fun stop() {
+        // 取消 continuation 即停声+给等待方解挂；无等待方时天然什么都不发生（不触碰 lazy exoPlayer）
         mContinuation?.context?.cancel()
     }
 
     fun release() {
-        stop()
-        exoPlayer.release()
+        // 取消 continuation 廉价且空安全，无条件执行（保证等待方解挂）
+        mContinuation?.context?.cancel()
+        // 未创建过就跳过（10-05 性能修：`exoPlayer by lazy` 会在 release 时先创建再销毁——
+        // 角色面板试听走纯 PCM 路径从不碰 Exo，每会话却都白烧一次 ExoPlayer 创建/销毁）
+        if (::exoPlayer.isInitialized) exoPlayer.release()
     }
 
 }

@@ -120,7 +120,8 @@ internal fun Item(
                 overflow = TextOverflow.Ellipsis,
                 modifier = Modifier
                     .weight(1f)
-                    .padding(start = 4.dp)
+                    // start 4 撤（10-05 审计：主页/朗读规则/插件共用的 list/Item 名字都在
+                    // 对勾后 0 间距=卡内 48dp 线，替换页独多 4dp 成游离线）
                     .fillMaxWidth()
                     .align(Alignment.CenterVertically),
             )

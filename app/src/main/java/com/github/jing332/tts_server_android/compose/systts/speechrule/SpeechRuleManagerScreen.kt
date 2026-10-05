@@ -63,6 +63,7 @@ import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.unit.dp
+import com.github.jing332.common.utils.toast
 import com.github.jing332.compose.rememberLazyListReorderCache
 import com.github.jing332.compose.widgets.AppDialog
 import com.github.jing332.compose.widgets.LazyListIndexStateSaver
@@ -76,8 +77,10 @@ import com.github.jing332.tts_server_android.compose.SharedViewModel
 import com.github.jing332.tts_server_android.compose.systts.ConfigDeleteDialog
 import com.github.jing332.tts_server_android.utils.MyTools
 import com.drake.net.utils.withIO
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.conflate
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import androidx.compose.runtime.rememberCoroutineScope
 import org.burnoutcrew.reorderable.detectReorderAfterLongPress
 import org.burnoutcrew.reorderable.rememberReorderableLazyListState
@@ -388,7 +391,29 @@ fun SpeechRuleManagerScreen(sharedVM: SharedViewModel, finish: () -> Unit) {
                         name = item.name,
                         desc = "${item.author} - v${item.version}",
                         isEnabled = item.isEnabled,
-                        onEnabledChange = { dbm.speechRuleDao.update(item.copy(isEnabled = it)) },
+                        // 朗读规则全局只允许启用一条（10-05 用户令）：启用本条时先停用其它已启用规则。
+                        // 依据：配置编辑页的规则下拉数据源是 allEnabled（只列已启用），多启用会让下拉
+                        // 出现多条；而运行侧多处按 firstOrNull 取「当前规则」，多启用时取谁取决于 order、用户无从感知。
+                        // ⚠ 必须用 allEnabled（SELECT *，含完整 code），不能用 getAllEnabledWithoutCode()：
+                        // 后者 code=''，交给 update() 会把规则 JS 覆盖成空串。
+                        onEnabledChange = { enabled ->
+                            scope.launch(Dispatchers.IO) {
+                                if (enabled) {
+                                    val others = dbm.speechRuleDao.allEnabled.filter { it.id != item.id }
+                                    if (others.isNotEmpty()) {
+                                        dbm.speechRuleDao.update(
+                                            *others.map { it.copy(isEnabled = false) }.toTypedArray()
+                                        )
+                                        withContext(Dispatchers.Main) {
+                                            context.toast(
+                                                context.getString(R.string.rule_only_one_enabled, others.size)
+                                            )
+                                        }
+                                    }
+                                }
+                                dbm.speechRuleDao.update(item.copy(isEnabled = enabled))
+                            }
+                        },
                         isSelectionMode = selectionMode,
                         isSelected = isSelected,
                         onToggleSelection = {

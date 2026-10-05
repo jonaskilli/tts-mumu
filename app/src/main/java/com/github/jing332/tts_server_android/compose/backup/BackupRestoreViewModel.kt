@@ -9,7 +9,6 @@ import com.thegrizzlylabs.sardineandroid.DavResource
 import com.github.jing332.tts_server_android.conf.AppConfig
 import okhttp3.OkHttpClient
 import okhttp3.Request
-import org.json.JSONObject
 
 class BackupRestoreViewModel(application: Application) : AndroidViewModel(application) {
     private val engine by lazy { BackupRestoreEngine(application) }
@@ -75,47 +74,16 @@ class BackupRestoreViewModel(application: Application) : AndroidViewModel(applic
         resp.body?.bytes() ?: throw Exception("返回体为空")
     }
 
-    // 恢复链接不内置（10-03 用户令：内置链接都指向旧备份，已不适用）。
-    // 编号链接唯一来源＝远程 huifu.json（以后添/换链接=更新该文件，无需发版）；
-    // 也可直接输入完整 URL 恢复。
-    private val huifuJsonUrl = "https://cnb.cool/mingwuyan/yinpin/-/git/raw/main/huifu.json"
+    // 恢复来源：10-05 用户令「别用人家的 cnb 了」——数字编号恢复整体退役。
+    // 删除远程 huifu.json 映射（cnb.cool/mingwuyan/yinpin）与 resolveBackupUrl：
+    // 「一个数字→一串直链」依赖外部仓库，既无本地数据源也无必要，且旧编号指向的都是旧备份包。
+    // 现只保留「直接输入完整 URL 恢复」。
 
     /**
-     * 处理恢复备份的输入
-     * 纯数字 → 从 huifu.json 取对应链接；取不到报错（不再回落内置链接，10-03 已删）。
-     * 其余输入直接当 URL。
+     * 处理恢复备份的输入（10-05：只剩直链——输入即 URL，失败由下载层报错）
      */
     suspend fun downloadFromInput(input: String): ByteArray = withIO {
-        val url = resolveBackupUrl(input)
-        downloadFromUrl(url)
-    }
-
-    /**
-     * 根据输入解析备份URL
-     * @param input 用户输入
-     * @return 备份文件的下载URL
-     * @throws IllegalArgumentException 数字编号在 huifu.json 中无对应链接（或拉取失败）时
-     */
-    private suspend fun resolveBackupUrl(input: String): String = withIO {
-        // 纯数字（如 0、10）：只认 huifu.json 映射（内置链接已删，取不到即明确报错）。
-        // 放宽到多位数字：以后在 huifu.json 里加 "10"、"11" 等新编号即可用，无需发版
-        if (input.isNotEmpty() && input.all { it in '0'..'9' }) {
-            val fromJson = runCatching {
-                val client = OkHttpClient()
-                val req = Request.Builder().url(huifuJsonUrl).build()
-                val resp = client.newCall(req).execute()
-                val ok = resp.isSuccessful
-                val jsonStr = resp.body?.string()
-                resp.close()
-                if (ok && !jsonStr.isNullOrEmpty()) {
-                    JSONObject(jsonStr).optString(input)
-                } else ""
-            }.getOrDefault("")
-            if (fromJson.isNotEmpty()) return@withIO fromJson
-            throw IllegalArgumentException("编号 $input 暂无对应备份链接（可在 huifu.json 中添加，或直接输入完整 URL）")
-        }
-        // 非数字：直接作为URL处理
-        input
+        downloadFromUrl(input.trim())
     }
 
     // 上传方法

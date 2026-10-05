@@ -19,6 +19,12 @@ class CodeEditorHelper(val context: Context, val editor: CodeEditor) {
     fun initEditor() {
         FileProviderRegistry.getInstance().addFileProvider(AssetsFileResolver(context.assets))
 
+        // 默认字号取最小（10-05 用户令：「默认是最小字号，不然我每次点进去都要手动缩小」）。
+        // sora-editor 自身默认 DEFAULT_TEXT_SIZE=18sp；双指缩放区间由 EditorTouchEventHandler
+        // 定为 8sp~26sp（scaleMinSize/scaleMaxSize），且字号不持久化——故每次进编辑页都回到 18sp。
+        // 这里显式 setTextSize 到缩放下限 8sp：想放大仍可双指缩放，只是起点改为最小。
+        editor.setTextSize(8f)
+
         val themes = arrayOf(
             "textmate/quietlight.json",
             "textmate/solarized_drak.json",

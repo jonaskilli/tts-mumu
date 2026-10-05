@@ -14,15 +14,16 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.MenuOpen
-import androidx.compose.material.icons.filled.ArrowCircleUp
+import androidx.compose.material.icons.automirrored.filled.MenuBook
+import androidx.compose.material.icons.automirrored.filled.ManageSearch
 
 import androidx.compose.material.icons.filled.ColorLens
 import androidx.compose.material.icons.filled.FileOpen
-import androidx.compose.material.icons.filled.HideSource
 import androidx.compose.material.icons.filled.Language
 import androidx.compose.material.icons.filled.Lan
 import androidx.compose.material.icons.filled.Link
+import androidx.compose.material.icons.filled.Lock
+import androidx.compose.material.icons.filled.NotificationsNone
 import androidx.compose.material.icons.filled.Input
 import androidx.compose.material.icons.filled.PowerSettingsNew
 import androidx.compose.ui.res.painterResource
@@ -60,10 +61,13 @@ import com.github.jing332.tts_server_android.compose.backup.BackupRestoreActivit
 import com.github.jing332.tts_server_android.compose.forwarder.systts.ForwarderWebDialog
 import com.github.jing332.tts_server_android.compose.nav.NavTopAppBar
 import com.github.jing332.tts_server_android.compose.systts.directlink.LinkUploadRuleActivity
+import com.github.jing332.tts_server_android.compose.systts.plugin.PluginManagerActivity
+import com.github.jing332.tts_server_android.compose.systts.replace.ReplaceManagerActivity
+import com.github.jing332.tts_server_android.compose.systts.speechrule.SpeechRuleManagerActivity
 import com.github.jing332.tts_server_android.compose.theme.getAppTheme
 import com.github.jing332.tts_server_android.compose.theme.setAppTheme
-import com.github.jing332.tts_server_android.conf.AppConfig
 import com.github.jing332.tts_server_android.conf.SystemTtsForwarderConfig
+import com.github.jing332.tts_server_android.conf.SystemTtsConfig
 import androidx.core.content.ContextCompat.startActivity
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -159,21 +163,61 @@ fun SettingsScreen() {
                         .weight(1f)
                         .verticalScroll(rememberScrollState())
                 ) {
-                    SettingsGroup(title = { Text(stringResource(id = R.string.app_name)) }, show = !search.active()) {
+                    // ===== 常用（10-05 用户令：常用/重要置顶，一进页就够得着）=====
+                    SettingsGroup(title = { Text("常用") }, show = !search.active()) {
 
-            // 后台保活设置入口（使用 Activity 启动，与备份恢复保持一致）
-            SettingItem(search, "保活", "keepalive", "后台", "alive", "自启动") {
+                SettingItem(search, "主题", "theme", "深色", "浅色", "外观") {
                 BasePreferenceWidget(
-                    onClick = {
-                        context.startActivity(
-                            Intent(context, KeepAliveSettingsActivity::class.java)
-                        )
-                    },
-                    title = { Text(stringResource(id = R.string.keep_alive_settings)) },
-                    subTitle = { Text(stringResource(R.string.keep_alive_settings_summary)) },
-                    icon = { Icon(Icons.Default.PowerSettingsNew, null) }
+                    icon = { Icon(Icons.Default.ColorLens, null) },
+                    onClick = { showThemeDialog = true },
+                    title = { Text(stringResource(id = R.string.theme)) },
+                    subTitle = { Text(stringResource(id = getAppTheme().stringResId)) },
                 )
-            }
+                }
+
+                val languageKeys = remember {
+                    mutableListOf("").apply { addAll(AppLocale.localeMap.keys.toList()) }
+                }
+
+                val languageNames = remember {
+                    AppLocale.localeMap.map { "${it.value.displayName} - ${it.value.getDisplayName(it.value)}" }
+                        .toMutableList()
+                        .apply { add(0, context.getString(R.string.follow_system)) }
+                }
+
+                var langMenu by remember { mutableStateOf(false) }
+                SettingItem(search, "语言", "language", "locale", "地区") {
+                DropdownPreference(
+                    Modifier.minimumInteractiveComponentSize(),
+                    expanded = langMenu,
+                    onExpandedChange = { langMenu = it },
+                    icon = {
+                        Icon(Icons.Default.Language, null)
+                    },
+                    title = { Text(stringResource(id = R.string.language)) },
+                    subTitle = {
+                        Text(
+                            if (AppLocale.getLocaleCodeFromFile(context).isEmpty()) {
+                                stringResource(id = R.string.follow_system)
+                            } else {
+                                AppLocale.getLocaleFromFile(context).displayName
+                            }
+                        )
+                    }) {
+                    languageNames.forEachIndexed { index, name ->
+                        DropdownMenuItem(
+                            text = {
+                                Text(name)
+                            }, onClick = {
+                                langMenu = false
+
+                                AppLocale.saveLocaleCodeToFile(context, languageKeys[index])
+                                AppLocale.setLocale(app as Context)
+                            }
+                        )
+                    }
+                }
+                }
 
                 SettingItem(search, "备份", "恢复", "backup", "restore") {
                 BasePreferenceWidget(
@@ -190,21 +234,52 @@ fun SettingsScreen() {
                     title = { Text(stringResource(id = R.string.backup_restore)) },
                 )
                 }
+                }
 
-                SettingItem(search, "直链", "directlink", "链接", "direct") {
+                // ===== 规则与插件（10-05 用户令：常用，靠前；三项各占一行，保留 ⋮ 同名入口）=====
+                SettingsGroup(title = { Text("规则与插件") }, show = !search.active()) {
+                    SettingItem(search, "朗读规则", "规则", "speech", "rule") {
+                        BasePreferenceWidget(
+                            onClick = { context.startActivity(SpeechRuleManagerActivity::class.java) },
+                            title = { Text(stringResource(id = R.string.speech_rule_manager)) },
+                            icon = { Icon(Icons.AutoMirrored.Default.MenuBook, null) }
+                        )
+                    }
+                    SettingItem(search, "插件", "plugin", "插件管理") {
+                        BasePreferenceWidget(
+                            onClick = { context.startActivity(PluginManagerActivity::class.java) },
+                            title = { Text(stringResource(id = R.string.plugin_manager)) },
+                            icon = { Icon(painterResource(id = R.drawable.ic_shortcut_plugin), null) }
+                        )
+                    }
+                    SettingItem(search, "替换规则", "replace", "净化") {
+                        BasePreferenceWidget(
+                            onClick = { context.startActivity(ReplaceManagerActivity::class.java) },
+                            title = { Text(stringResource(id = R.string.replace_rule_manager)) },
+                            icon = { Icon(Icons.AutoMirrored.Default.ManageSearch, null) }
+                        )
+                    }
+                }
+
+                // 朗读与播放 / 稳定性 / 心声与标签 三区（SysttsSettingsScreen 渲染）
+                SysttsSettingsScreen(search)
+
+                // ===== 服务与网络（10-05 用户令：不常用，移至倒数第二区）=====
+                SettingsGroup(title = { Text("服务与网络") }, show = !search.active()) {
+
+            // 后台保活设置入口（使用 Activity 启动，与备份恢复保持一致）
+            SettingItem(search, "保活", "keepalive", "后台", "alive", "自启动") {
                 BasePreferenceWidget(
-                    icon = {
-                        Icon(Icons.Default.Link, null)
-                    },
                     onClick = {
                         context.startActivity(
-                            Intent(
-                                context, LinkUploadRuleActivity::class.java
-                            ).apply { action = Intent.ACTION_VIEW })
+                            Intent(context, KeepAliveSettingsActivity::class.java)
+                        )
                     },
-                    title = { Text(stringResource(id = R.string.direct_link_settings)) },
+                    title = { Text(stringResource(id = R.string.keep_alive_settings)) },
+                    subTitle = { Text(stringResource(R.string.keep_alive_settings_summary)) },
+                    icon = { Icon(Icons.Default.PowerSettingsNew, null) }
                 )
-                }
+            }
 
                 // 转发器（从设置进入，底栏不再单独占用一栏）
                 SettingItem(search, "转发器", "forwarder", "服务器") {
@@ -286,100 +361,47 @@ fun SettingsScreen() {
                 )
                 }
 
-                SettingItem(search, "主题", "theme", "深色", "浅色", "外观") {
+                SettingItem(search, "直链", "directlink", "链接", "direct") {
                 BasePreferenceWidget(
-                    icon = { Icon(Icons.Default.ColorLens, null) },
-                    onClick = { showThemeDialog = true },
-                    title = { Text(stringResource(id = R.string.theme)) },
-                    subTitle = { Text(stringResource(id = getAppTheme().stringResId)) },
-                )
-                }
-
-                val languageKeys = remember {
-                    mutableListOf("").apply { addAll(AppLocale.localeMap.keys.toList()) }
-                }
-
-                val languageNames = remember {
-                    AppLocale.localeMap.map { "${it.value.displayName} - ${it.value.getDisplayName(it.value)}" }
-                        .toMutableList()
-                        .apply { add(0, context.getString(R.string.follow_system)) }
-                }
-
-                var langMenu by remember { mutableStateOf(false) }
-                SettingItem(search, "语言", "language", "locale", "地区") {
-                DropdownPreference(
-                    Modifier.minimumInteractiveComponentSize(),
-                    expanded = langMenu,
-                    onExpandedChange = { langMenu = it },
                     icon = {
-                        Icon(Icons.Default.Language, null)
+                        Icon(Icons.Default.Link, null)
                     },
-                    title = { Text(stringResource(id = R.string.language)) },
-                    subTitle = {
-                        Text(
-                            if (AppLocale.getLocaleCodeFromFile(context).isEmpty()) {
-                                stringResource(id = R.string.follow_system)
-                            } else {
-                                AppLocale.getLocaleFromFile(context).displayName
-                            }
-                        )
-                    }) {
-                    languageNames.forEachIndexed { index, name ->
-                        DropdownMenuItem(
-                            text = {
-                                Text(name)
-                            }, onClick = {
-                                langMenu = false
-
-                                AppLocale.saveLocaleCodeToFile(context, languageKeys[index])
-                                AppLocale.setLocale(app as Context)
-                            }
-                        )
-                    }
-                }
+                    onClick = {
+                        context.startActivity(
+                            Intent(
+                                context, LinkUploadRuleActivity::class.java
+                            ).apply { action = Intent.ACTION_VIEW })
+                    },
+                    title = { Text(stringResource(id = R.string.direct_link_settings)) },
+                )
                 }
 
-                SettingItem(search, "更新", "update", "检查", "自动") {
-                var autoCheck by remember { AppConfig.isAutoCheckUpdateEnabled }
+                // 前台服务与通知 / 唤醒锁（10-05 分区：由系统TTS组移入「服务与网络」）
+                SettingItem(search, "前台服务", "通知", "foreground", "notification") {
+                var foregroundService by remember { SystemTtsConfig.isForegroundServiceEnabled }
                 SwitchPreference(
-                    title = { Text(stringResource(id = R.string.auto_check_update)) },
-                    subTitle = { Text(stringResource(id = R.string.check_update_summary)) },
-                    checked = autoCheck,
-                    onCheckedChange = { autoCheck = it },
-                    icon = {
-                        Icon(Icons.Default.ArrowCircleUp, contentDescription = null)
-                    }
+                    title = { Text(stringResource(id = R.string.foreground_service_and_notification)) },
+                    subTitle = { Text(stringResource(id = R.string.foreground_service_and_notification_summary)) },
+                    checked = foregroundService,
+                    onCheckedChange = { foregroundService = it },
+                    icon = { Icon(Icons.Default.NotificationsNone, null) }
                 )
                 }
 
-                SettingItem(search, "最近任务", "排除", "recent", "后台") {
-                var excludeFromRecent by remember { AppConfig.isExcludeFromRecent }
+                SettingItem(search, "唤醒锁", "wakelock", "锁屏") {
+                var wakeLock by remember { SystemTtsConfig.isWakeLockEnabled }
                 SwitchPreference(
-                    title = { Text(stringResource(id = R.string.exclude_from_recent)) },
-                    subTitle = { Text(stringResource(id = R.string.exclude_from_recent_summary)) },
-                    checked = excludeFromRecent,
-                    onCheckedChange = { excludeFromRecent = it },
-                    icon = {
-                        Icon(Icons.Default.HideSource, contentDescription = null)
-                    }
+                    title = { Text(stringResource(id = R.string.wake_lock)) },
+                    subTitle = { Text(stringResource(id = R.string.wake_lock_summary)) },
+                    checked = wakeLock,
+                    onCheckedChange = { wakeLock = it },
+                    icon = { Icon(Icons.Default.Lock, null) }
                 )
                 }
+                } // 服务与网络区收尾
 
-                SettingItem(search, "下拉", "spinner", "数量", "菜单") {
-                var maxDropdownCount by remember { AppConfig.spinnerMaxDropDownCount }
-                SliderPreference(
-                    title = { Text(stringResource(id = R.string.spinner_drop_down_max_count)) },
-                    subTitle = { Text(stringResource(id = R.string.spinner_drop_down_max_count_summary)) },
-                    value = maxDropdownCount.toFloat(),
-                    onValueChange = { maxDropdownCount = it.toInt() },
-                    label = if (maxDropdownCount == 0) stringResource(id = R.string.unlimited) else maxDropdownCount.toString(),
-                    valueRange = 0f..50f,
-                    icon = { Icon(Icons.AutoMirrored.Filled.MenuOpen, null) }
-                )
-                }
-                }
-
-                SysttsSettingsScreen(search)
+                // 数据与关于区（OtherSettingsScreen 渲染）：自动检查更新/最近任务/下拉数量
+                // + 关于/帮助/检查更新/清除网页数据/清空数据
                 OtherSettingsScreen(search)
 
                 Spacer(Modifier.navigationBarsPadding())

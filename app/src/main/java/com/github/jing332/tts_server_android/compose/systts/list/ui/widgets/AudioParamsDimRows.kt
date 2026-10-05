@@ -87,6 +87,9 @@ fun AudioParamsDimRows(
     val scope = rememberCoroutineScope()
     val config = systemTts.config as? TtsConfigurationDTO ?: return
     val source = config.source as? PluginTtsSource
+    // 注意：此处必须用 getByPluginId（SELECT *）而非 getMetaByPluginId——
+    // 本变量随后在 applyScope(layer=1) 参与 dbm.pluginDao.update(plugin.copy(...)) 的全行更新，
+    // 若用 code='' 的轻量查询会把插件 JS 覆盖为空。（10-05 加载慢优化时核实，勿改）
     val plugin = source?.let { dbm.pluginDao.getByPluginId(it.pluginId) }
     val hasPluginLayer = source != null
 

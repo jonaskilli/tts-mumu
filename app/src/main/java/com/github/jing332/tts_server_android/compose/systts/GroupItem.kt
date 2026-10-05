@@ -135,7 +135,13 @@ fun GroupItem(
                     } else onClick()
                 }
             }
-            .padding(vertical = 4.dp),
+            // 左缘 8（10-05 用户）：一级分组行曾是全站唯一没做水平内缩的行——子分组行 start=8、
+            // 卡片 padding=8，唯独它 start=0，箭头字形只到 8.6dp，看着比别的行“贴边”。
+            // 补 8 后箭头字形 ≈16.6dp，与全站内容左线 16 同构。
+            // 右缘 8（10-05 用户拍板：三行 ⋮ 统一 30dp 列）——卡片 ⋮ 被容器 8dp 内缩锁定在字形
+            // ≈30dp，22 列永远凑不齐三行；本行 end=8 后 ⋮ 字形 ≈30dp 与子分组/卡片同列，
+            // 48dp 热区完整在屏内（热区右缘距屏 8dp）
+            .padding(start = 8.dp, top = 4.dp, bottom = 4.dp, end = 8.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         val rotationAngle by animateFloatAsState(

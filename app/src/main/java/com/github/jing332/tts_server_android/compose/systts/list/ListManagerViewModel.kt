@@ -341,6 +341,43 @@ class ListManagerViewModel : ViewModel() {
         return if (tag.isBlank()) null else tag
     }
 
+    /**
+     * 配置项的「同标签身份」键（与 [updateTtsEnabled] 单条路径同判据）：
+     * target + tagRuleId + tag + tagName + isStandby。空配置返回 null（不参与互斥）。
+     */
+    private fun sameTagIdentity(systts: SystemTtsV2): String? {
+        val c = systts.config as? TtsConfigurationDTO ?: return null
+        val r = c.speechRule
+        return "${r.target}|${r.tagRuleId}|${r.tag}|${r.tagName}|${r.isStandby}"
+    }
+
+    /**
+     * 需求②：批量启用时的「同标签只留一条」——补齐批量路径此前绕过 [isVoiceMultipleEnabled] 的漏网。
+     * 返回需要一并**停用**的条目（isEnabled 已置 false，可直接并入 @Update）：
+     * 1) 本批内部同身份只留第一条（其余停用）；
+     * 2) 库中其它已启用项若与保留身份相同，一并停用（不在本批内者）。
+     * 开关 [SystemTtsConfig.isVoiceMultipleEnabled] 为 true 时不做任何排斥。
+     * 注意：返回的实体一律 `copy(isEnabled = false)`——若直接返回原实体（启用态），
+     * 调用方 update() 会把它们又设成启用，效果与意图相反。
+     */
+    private fun sameTagConflictsToDisable(enabling: List<SystemTtsV2>): List<SystemTtsV2> {
+        if (SystemTtsConfig.isVoiceMultipleEnabled.value) return emptyList()
+        val batchIds = enabling.map { it.id }.toSet()
+        val kept = mutableSetOf<String>()
+        val toDisable = mutableListOf<SystemTtsV2>()
+        enabling.forEach { e ->
+            val id = sameTagIdentity(e) ?: return@forEach
+            if (!kept.add(id)) toDisable += e.copy(isEnabled = false)
+        }
+        if (kept.isEmpty()) return toDisable
+        dbm.systemTtsV2.allEnabled.forEach { e ->
+            if (e.id in batchIds) return@forEach
+            val id = sameTagIdentity(e) ?: return@forEach
+            if (id in kept) toDisable += e.copy(isEnabled = false)
+        }
+        return toDisable
+    }
+
     fun updateGroupEnable(
         item: GroupWithSystemTts,
         enabled: Boolean,
@@ -407,13 +444,23 @@ class ListManagerViewModel : ViewModel() {
         val updates = subItems.filter { it.isEnabled != enabled }
             .map { it.copy(isEnabled = enabled) }
         if (updates.isNotEmpty()) {
-            dbm.systemTtsV2.update(*updates.toTypedArray())
+            // 需求②：批量启用也走「同标签只留一条」（此前只有单条路径检查，批量绕过）
+            val conflicts = if (enabled) sameTagConflictsToDisable(updates) else emptyList()
+            val conflictIds = conflicts.map { it.id }.toSet()
+            // 冲突项可能与本批 updates 同主键（批内同身份被去重者）：从 updates 剔除，
+            // 保证每个 PK 在一次 @Update 里只出现一次（重复 PK 由实现顺序决定结果，不可依赖）
+            val finalUpdates = updates.filterNot { it.id in conflictIds }
+            dbm.systemTtsV2.update(*(finalUpdates + conflicts).toTypedArray())
             // 立即更新内存列表
             val currentList = findListInGroup(groupId)
             val newItems = currentList.map { systts ->
-                if (systts.id in subIds && systts.isEnabled != enabled)
-                    systts.copy(isEnabled = enabled)
-                else systts
+                when {
+                    // 冲突优先：本批内同身份被去重停用者，即便它也在 subIds 里也必须显示为停用，
+                    // 否则内存与 DB 不一致（DB 已停用、列表还亮着）
+                    systts.id in conflictIds -> systts.copy(isEnabled = false)
+                    systts.id in subIds && systts.isEnabled != enabled -> systts.copy(isEnabled = enabled)
+                    else -> systts
+                }
             }
             updateGroupListInMemory(groupId, newItems)
         }
@@ -488,7 +535,11 @@ class ListManagerViewModel : ViewModel() {
         val updates = items.filter { it.isEnabled != enabled }
             .map { it.copy(isEnabled = enabled) }
         if (updates.isNotEmpty()) {
-            dbm.systemTtsV2.update(*updates.toTypedArray())
+            // 需求②：批量启用也走「同标签只留一条」（此前只有单条路径检查，批量绕过）
+            val conflicts = if (enabled) sameTagConflictsToDisable(updates) else emptyList()
+            val conflictIds = conflicts.map { it.id }.toSet()
+            val finalUpdates = updates.filterNot { it.id in conflictIds }
+            dbm.systemTtsV2.update(*(finalUpdates + conflicts).toTypedArray())
             SystemTtsService.notifyUpdateConfig()
         }
         withContext(Dispatchers.Main) { onDone(updates.size) }

@@ -150,15 +150,15 @@ class BackupRestoreActivity : ComposeActivity() {
                         title = { Text(stringResource(R.string.restore)) },
                         text = {
                             Column(Modifier.fillMaxWidth()) {
-                                // 从文件恢复（10-03 用户令）：系统单文件选择器，MIME 过滤只显示 zip——
-                                // 只是给原入口加个筛选，保持一步选文件
+                                // 从文件恢复：系统单文件选择器，不过滤类型（10-05 用户令「选择不了就别筛选了，
+                                // 去掉这个功能」）。RequestSelectFile 默认 listOf("*") → */* 显示全部文件。
                                 val filePicker = rememberLauncherForActivityResult(contract = AppActivityResultContracts.filePickerActivity()) { result ->
                                     showRestoreMenu = false
                                     result?.second?.let { uri -> showFromFileRestoreDialog.value = uri.readBytes(this@BackupRestoreActivity) }
                                 }
                                 ListItem(
                                     modifier = Modifier.clickable {
-                                        filePicker.launch(FilePickerActivity.RequestSelectFile(listOf("application/zip", "application/x-zip-compressed")))
+                                        filePicker.launch(FilePickerActivity.RequestSelectFile())
                                     },
                                     headlineContent = { Text(stringResource(R.string.file_picker_mode_system)) },
                                     leadingContent = { Icon(Icons.Default.FolderOpen, null) },

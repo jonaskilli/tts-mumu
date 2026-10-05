@@ -6,8 +6,6 @@ import androidx.compose.material.icons.filled.AccessTime
 import androidx.compose.material.icons.filled.Audiotrack
 import androidx.compose.material.icons.filled.Groups
 import androidx.compose.material.icons.filled.Headset
-import androidx.compose.material.icons.filled.Lock
-import androidx.compose.material.icons.filled.NotificationsNone
 import androidx.compose.material.icons.filled.Psychology
 import androidx.compose.material.icons.filled.Repeat
 import androidx.compose.material.icons.filled.SelectAll
@@ -38,7 +36,7 @@ import com.github.jing332.tts.loudness.SpeakerLoudnessManager
 
 @Composable
 internal fun ColumnScope.SysttsSettingsScreen(search: SettingsSearch) {
-    SettingsGroup(title = { Text(stringResource(id = R.string.system_tts)) }, show = !search.active()) {
+    SettingsGroup(title = { Text("朗读与播放") }, show = !search.active()) {
     var loudnessEnabled by remember { SystemTtsConfig.isLoudnessEnabled }
     SettingItem(search, "音量平衡", "响度", "loudness", "平衡") {
         SwitchPreference(
@@ -123,28 +121,48 @@ internal fun ColumnScope.SysttsSettingsScreen(search: SettingsSearch) {
         )
     }
 
-    var foregroundService by remember { SystemTtsConfig.isForegroundServiceEnabled }
-    SettingItem(search, "前台服务", "通知", "foreground", "notification") {
+    // 交换/多语音/多组（10-05 分区：原「系统TTS接口偏好」杂项组拆出后归入朗读与播放）
+    var wrapButton by remember { AppConfig.isSwapListenAndEditButton }
+    SettingItem(search, "交换", "按钮", "button", "试听", "编辑") {
         SwitchPreference(
-            title = { Text(stringResource(id = R.string.foreground_service_and_notification)) },
-            subTitle = { Text(stringResource(id = R.string.foreground_service_and_notification_summary)) },
-            checked = foregroundService,
-            onCheckedChange = { foregroundService = it },
-            icon = { Icon(Icons.Default.NotificationsNone, null) }
+            title = { Text(stringResource(id = R.string.pref_swap_listen_and_edit_button)) },
+            subTitle = {},
+            checked = wrapButton,
+            onCheckedChange = { wrapButton = it },
+            icon = {
+                Icon(Icons.Default.Headset, contentDescription = null)
+            }
         )
     }
 
-    var wakeLock by remember { SystemTtsConfig.isWakeLockEnabled }
-    SettingItem(search, "唤醒锁", "wakelock", "锁屏") {
+    var targetMultiple by remember { SystemTtsConfig.isVoiceMultipleEnabled }
+    SettingItem(search, "多语音", "voice", "并行", "多角色") {
         SwitchPreference(
-            title = { Text(stringResource(id = R.string.wake_lock)) },
-            subTitle = { Text(stringResource(id = R.string.wake_lock_summary)) },
-            checked = wakeLock,
-            onCheckedChange = { wakeLock = it },
-            icon = { Icon(Icons.Default.Lock, null) }
+            title = { Text(stringResource(id = R.string.voice_multiple_option)) },
+            subTitle = { Text(stringResource(id = R.string.voice_multiple_summary)) },
+            checked = targetMultiple,
+            onCheckedChange = { targetMultiple = it },
+            icon = {
+                Icon(Icons.Default.SelectAll, contentDescription = null)
+            }
         )
     }
 
+    var groupMultiple by remember { SystemTtsConfig.isGroupMultipleEnabled }
+    SettingItem(search, "多组", "groups", "并行", "多角色") {
+        SwitchPreference(
+            title = { Text(stringResource(id = R.string.groups_multiple)) },
+            subTitle = { Text(stringResource(id = R.string.groups_multiple_summary)) },
+            checked = groupMultiple,
+            onCheckedChange = { groupMultiple = it },
+            icon = {
+                Icon(Icons.Default.Groups, contentDescription = null)
+            }
+        )
+    }
+    } // 朗读与播放区收尾（10-05 分区）
+
+    SettingsGroup(title = { Text("稳定性") }, show = !search.active()) {
     var maxRetry by remember { SystemTtsConfig.maxRetryCount }
     val maxRetryValue =
         if (maxRetry == 0) stringResource(id = R.string.no_retries) else maxRetry.toString()
@@ -281,10 +299,10 @@ internal fun ColumnScope.SysttsSettingsScreen(search: SettingsSearch) {
         )
     }
 
-    // ========== 心声 AI 判定 ==========
+    // ========== 心声与标签（10-05 分区：原「心声 AI 判定」并入标签/名称长度）==========
     }
 
-    SettingsGroup(title = { Text("心声 AI 判定") }, show = !search.active()) {
+    SettingsGroup(title = { Text("心声与标签") }, show = !search.active()) {
     var aiEnabled by remember { SystemTtsConfig.isInnerThoughtAiEnabled }
     SettingItem(search, "心声", "ai", "心理活动", "inner", "内心") {
         SwitchPreference(
@@ -296,9 +314,6 @@ internal fun ColumnScope.SysttsSettingsScreen(search: SettingsSearch) {
         )
     }
 
-    }
-
-    SettingsGroup(title = { Text(stringResource(id = R.string.systts_interface_preference)) }, show = !search.active()) {
     var limitTagLen by remember { AppConfig.limitTagLength }
     val limitTagLenString =
         if (limitTagLen == 0) stringResource(id = R.string.unlimited) else limitTagLen.toString()
@@ -326,45 +341,6 @@ internal fun ColumnScope.SysttsSettingsScreen(search: SettingsSearch) {
             valueRange = 0f..50f,
             icon = { Icon(Icons.Default.TextFields, null) },
             label = limitNameLenString
-        )
-    }
-
-    var wrapButton by remember { AppConfig.isSwapListenAndEditButton }
-    SettingItem(search, "交换", "按钮", "button", "试听", "编辑") {
-        SwitchPreference(
-            title = { Text(stringResource(id = R.string.pref_swap_listen_and_edit_button)) },
-            subTitle = {},
-            checked = wrapButton,
-            onCheckedChange = { wrapButton = it },
-            icon = {
-                Icon(Icons.Default.Headset, contentDescription = null)
-            }
-        )
-    }
-
-    var targetMultiple by remember { SystemTtsConfig.isVoiceMultipleEnabled }
-    SettingItem(search, "多语音", "voice", "并行", "多角色") {
-        SwitchPreference(
-            title = { Text(stringResource(id = R.string.voice_multiple_option)) },
-            subTitle = { Text(stringResource(id = R.string.voice_multiple_summary)) },
-            checked = targetMultiple,
-            onCheckedChange = { targetMultiple = it },
-            icon = {
-                Icon(Icons.Default.SelectAll, contentDescription = null)
-            }
-        )
-    }
-
-    var groupMultiple by remember { SystemTtsConfig.isGroupMultipleEnabled }
-    SettingItem(search, "多组", "groups", "并行", "多角色") {
-        SwitchPreference(
-            title = { Text(stringResource(id = R.string.groups_multiple)) },
-            subTitle = { Text(stringResource(id = R.string.groups_multiple_summary)) },
-            checked = groupMultiple,
-            onCheckedChange = { groupMultiple = it },
-            icon = {
-                Icon(Icons.Default.Groups, contentDescription = null)
-            }
         )
     }
     }

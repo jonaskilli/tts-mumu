@@ -98,7 +98,66 @@ object KeyListFile {
     enum class TestVerdict { PASS, PASS_THINKING, FAIL }
 
     /** 测试结果：verdict 三态 + thinkingOff 判据（null=该路径无对话响应，如纯 Key 的 /models） */
-    data class TestOutcome(val verdict: TestVerdict, val thinkingOff: Boolean?, val message: String)
+    // locked=自动适配后锁定的思考写法名（multi/none/…，10-05）：摘要行直接报写法名，
+    // 免得用户在测试结果「已锁定 multi」与设置页中文释义之间对不上号
+    // reason=失败的具体原因短语（10-05 用户：「测试不通过」是废话，首行直接给原因——
+    // 红态收起行显示它而非整段 message；三路失败[短路/全拒/手动]回填）
+    data class TestOutcome(val verdict: TestVerdict, val thinkingOff: Boolean?, val message: String, val locked: String? = null, val reason: String = "")
+
+    // ==================== 测试结果持久化（10-05 用户拍板：保存到下次测试）====================
+    // 语义=「上次测试结论」而非「本次会话临时状态」：退出页面再进不丢，重测即覆盖，
+    // 手动可清（组头 🗑 菜单「清除测试结果」）。键=归一化密钥值（normalizePoolValue，
+    // 与页面内 testResults 同键口径）。文件不进三方协议、纯 app 自用。
+
+    private fun testResultsFile(tagRuleId: String) = File(dir(tagRuleId), "key_test_results.json")
+
+    /** 读全部测试结果（键=归一化密钥值）；文件缺失/损坏返回空表 */
+    fun readTestResults(tagRuleId: String): Map<String, TestOutcome> = try {
+        val f = testResultsFile(tagRuleId)
+        if (!f.exists()) emptyMap()
+        else {
+            val obj = JSONObject(f.readText())
+            val out = mutableMapOf<String, TestOutcome>()
+            val it = obj.keys()
+            while (it.hasNext()) {
+                val k = it.next()
+                val o = obj.optJSONObject(k) ?: continue
+                val v = runCatching { TestVerdict.valueOf(o.optString("verdict")) }.getOrNull() ?: continue
+                out[k] = TestOutcome(
+                    verdict = v,
+                    thinkingOff = if (o.has("thinkingOff") && !o.isNull("thinkingOff")) o.optBoolean("thinkingOff") else null,
+                    message = o.optString("message"),
+                    locked = o.optString("locked").takeIf { s -> s.isNotEmpty() },
+                    reason = o.optString("reason"),
+                )
+            }
+            out
+        }
+    } catch (e: Exception) {
+        Log.w(TAG, "readTestResults failed: ${e.message}")
+        emptyMap()
+    }
+
+    /** 全量覆盖写测试结果（空表=清空）；失败返回 false */
+    fun saveTestResults(tagRuleId: String, results: Map<String, TestOutcome>): Boolean = try {
+        val d = dir(tagRuleId)
+        if (!d.exists()) d.mkdirs()
+        val root = JSONObject()
+        results.forEach { (k, r) ->
+            root.put(k, JSONObject().apply {
+                put("verdict", r.verdict.name)
+                if (r.thinkingOff != null) put("thinkingOff", r.thinkingOff) else put("thinkingOff", JSONObject.NULL)
+                put("message", r.message)
+                if (!r.locked.isNullOrEmpty()) put("locked", r.locked)
+                if (r.reason.isNotEmpty()) put("reason", r.reason)
+            })
+        }
+        testResultsFile(tagRuleId).writeText(root.toString(2))
+        true
+    } catch (e: Exception) {
+        Log.w(TAG, "saveTestResults failed: ${e.message}")
+        false
+    }
 
     // ==================== 思考模式（接口级）====================
     // 背景（10-03）：规则旧版对每家平台"四连发"思考字段，严格校验的平台整请求拒收
@@ -413,10 +472,11 @@ object KeyListFile {
         }
         if (host.isBlank()) return ""
         // 内置智谱站优待（10-04 用户令「只改内置的那个网址」）：只认内置那一个站
-        //（open.bigmodel.cn），建组时固定叫「智谱bigmodel」——通用取段只给「bigmodel」
-        //（open 被当通用前缀跳过）。其他 bigmodel 域名一律走通用取段，不特殊。
+        //（open.bigmodel.cn），建组时固定叫「智谱」（10-05 用户：原「智谱bigmodel」
+        // 名字太长，分组名栏位太窄显示不全）。其他 bigmodel 域名一律走通用取段，不特殊。
         // 组名只是标签：同站判定/归组仍按网址+密钥，不影响匹配与朗读链。
-        if (host.lowercase() == "open.bigmodel.cn") return "智谱bigmodel"
+        // 注意：只影响此后新建/自愈出的组；已存在的旧组名用户自行改（10-05 用户确认）
+        if (host.lowercase() == "open.bigmodel.cn") return "智谱"
         val labels = host.split('.').filter { it.isNotEmpty() }
         if (labels.isEmpty()) return ""
         val isIp = labels.size == 4 && labels.all { v -> val n = v.toIntOrNull(); n != null && n in 0..255 }
@@ -927,6 +987,20 @@ object KeyListFile {
         runCatching { JSONArray(body); true }.getOrDefault(false)
     }
 
+    /**
+     * 写法无关失败判别（10-05 用户：站点连不上/上游挂了不该怪思考，也不该轮完 6 种写法）：
+     * HTTP -1=连接层（DNS/拒连/超时）、5xx=上游、401/403=鉴权、404=端点、429=限流、
+     * 「2xx 但内容无效」=上游行为——换思考写法不可能改变结果，试探循环遇到即终止。
+     * 只有 400~422 这类参数拒收（UNKNOWN_FIELD 等）才值得换下一写法。
+     */
+    private fun isSpellingAgnosticFailure(msg: String): Boolean {
+        if (msg.contains("HTTP -1")) return true
+        if (msg.contains("不是有效的对话响应")) return true
+        val code = Regex("HTTP (\\d{3})").find(msg)?.groupValues?.get(1)?.toIntOrNull()
+            ?: return false
+        return code >= 500 || code !in 400..422
+    }
+
 /** 思考内容判定（文档第四章判据）：choices[0].message.reasoning_content 非空，或 usage.reasoning_tokens > 0 */
     private fun bodyHasThinking(body: String): Boolean = try {
         val j = JSONObject(body)
@@ -981,7 +1055,7 @@ object KeyListFile {
         onProgress: (String) -> Unit = {},
     ): TestOutcome {
         val (t, err) = parseForTest(rawValue)
-        if (t == null) return TestOutcome(TestVerdict.FAIL, null, err)
+        if (t == null) return TestOutcome(TestVerdict.FAIL, null, err, reason = err)
         if (t.isDirect) {
             val t0 = System.currentTimeMillis()
             val r = httpJson("https://open.bigmodel.cn/api/paas/v4/models", "GET", t.apiKey, null)
@@ -990,7 +1064,7 @@ object KeyListFile {
             }
             val msg = if (r.code == 401 || r.code == 403) "密钥无效或无权限（HTTP ${r.code}）"
             else "智谱 /models 验证失败：HTTP ${r.code}，${briefBody(r.body)}"
-            return TestOutcome(TestVerdict.FAIL, null, msg)
+            return TestOutcome(TestVerdict.FAIL, null, msg, reason = msg)
         }
         // 策略 = 模型级（该条 KeyEntry 自己的设置；10-03 二改：分组弹窗改成了批量写入，
         // 单条测试始终看条目自己的字段，与 ⚡ 圆点粒度一致）。
@@ -1013,7 +1087,7 @@ object KeyListFile {
                 off == false -> "；⚠思考仍开启"
                 else -> "；思考已关"
             }
-            return TestOutcome(v, off, msg + suffix)
+            return TestOutcome(v, off, msg + suffix, reason = if (!ok) msg else "")
         }
 
         // auto：先按锁定写法测一发（锁定后通常一发即走）；键 = 网址+模型（模型级锁定）
@@ -1038,12 +1112,24 @@ object KeyListFile {
             if (order.size > 1) onProgress("第 ${idx + 1}/${order.size} 种写法「$m」")
             val (ok, off, msg) = testOnce(t, m, custom)
             lastMsg = "$m：$msg"
-            if (!ok) continue
+            if (!ok) {
+                // 写法无关失败（10-05 用户）：连接不上/上游 5xx/鉴权不通，换思考写法没有意义——
+                // 首个即终止，别轮完整套再让提示把锅甩给思考写法
+                if (isSpellingAgnosticFailure(msg)) {
+                    return TestOutcome(
+                        TestVerdict.FAIL, null,
+                        "API 不通，与思考写法无关（第 ${idx + 1}/${order.size} 种写法「$m」即失败，试探中止）——$msg",
+                        reason = msg
+                    )
+                }
+                continue
+            }
             if (off != false) {
                 saveThinkingParam(tagRuleId, t.baseUrl, t.model, m, "")
                 return TestOutcome(
                     TestVerdict.PASS, true,
-                    "思考适配完成：该模型锁定「$m」（思考已关，$msg）"
+                    "思考适配完成：该模型锁定「$m」（思考已关，$msg）",
+                    locked = m
                 )
             }
             if (yellow == null) yellow = m to msg
@@ -1052,12 +1138,16 @@ object KeyListFile {
             saveThinkingParam(tagRuleId, t.baseUrl, t.model, yellow.first, "")
             return TestOutcome(
                 TestVerdict.PASS_THINKING, false,
-                "各写法均无法关闭思考，已锁定「${yellow.first}」保证可分配：${yellow.second}"
+                "各写法均无法关闭思考，已锁定「${yellow.first}」保证可分配：${yellow.second}",
+                locked = yellow.first
             )
         }
         return TestOutcome(
             TestVerdict.FAIL, null,
-            "自动试探失败（共 ${order.size} 种写法，可能 API 本身不通）——最后一条：$lastMsg"
+            // 走到这里=6 种写法全是参数类拒收（连接/鉴权类已被上面短路）——锅在参数或模型名
+            "自动试探失败（共 ${order.size} 种写法全部被拒，未见连接/鉴权类错误，应是参数写法或模型名不被接受）——最后一条：$lastMsg",
+            // 红态首行只显示原因（用户 10-05：「测试不通过」是废话）——全拒时原因=最后一条的原始错
+            reason = lastMsg.substringAfter("：", lastMsg)
         )
     }
 

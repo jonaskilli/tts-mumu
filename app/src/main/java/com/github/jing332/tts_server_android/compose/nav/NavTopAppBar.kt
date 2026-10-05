@@ -63,7 +63,10 @@ fun NavTopAppBar(
                 // navigationIcon 与 M3 同签名为无参 lambda（不吃 RowScope），直接 invoke
                 navigationIcon?.invoke()
                 Box(
-                    Modifier.weight(1f).padding(horizontal = 8.dp),
+                    // 标题槽 start 12（10-05 用户：顶栏文字/图标左右边距审计——原 8 让标题
+                    // 文字落在 4+8=12dp，偏在返回键字形线 16 与卡内容线之外；改 12 后
+                    // 无返回键时标题文字=16dp 内容线，与列表正文同一条竖线）
+                    Modifier.weight(1f).padding(start = 12.dp, end = 8.dp),
                     contentAlignment = Alignment.CenterStart
                 ) {
                     // M3 TopAppBar 的标题默认吃 titleLarge，自绘后手动补上，

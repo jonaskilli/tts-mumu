@@ -60,8 +60,9 @@ private fun TextFieldSelectionDialog(
     trailingContent: (@Composable RowScope.(itemValue: Any, entry: String, onHighlight: () -> Unit) -> Unit)? = null,
     selectedMultiValues: Set<Any> = emptySet(),
     onMultiSelectedChange: ((Set<Any>) -> Unit)? = null,
-    // null = 没有额外动作键；原样透传给 AppSelectionDialog（它据此决定动作键的渲染位置）
-    extraButtons: (@Composable RowScope.() -> Unit)? = null,
+    // null = 没有额外动作键；原样透传给 AppSelectionDialog（它据此决定动作键的渲染位置）。
+    // 带 dismiss 回调：动作键（如批量导入「导入 N 个音色」）完成后可主动关弹窗
+    extraButtons: (@Composable RowScope.(dismiss: () -> Unit) -> Unit)? = null,
     categoryMap: Map<Any, String> = emptyMap(),
     onCategoryChange: ((itemValue: Any, category: String?) -> Unit)? = null,
     waitCategorySwitch: Boolean = false,
@@ -183,8 +184,9 @@ fun AppSpinner(
     trailingContent: (@Composable RowScope.(itemValue: Any, entry: String, onHighlight: () -> Unit) -> Unit)? = null,
     selectedMultiValues: Set<Any> = emptySet(),
     onMultiSelectedChange: ((Set<Any>) -> Unit)? = null,
-    // null = 没有额外动作键；原样透传给 AppSelectionDialog（它据此决定动作键的渲染位置）
-    extraButtons: (@Composable RowScope.() -> Unit)? = null,
+    // null = 没有额外动作键；原样透传给 AppSelectionDialog（它据此决定动作键的渲染位置）。
+    // 带 dismiss 回调：动作键（如批量导入「导入 N 个音色」）完成后可主动关弹窗
+    extraButtons: (@Composable RowScope.(dismiss: () -> Unit) -> Unit)? = null,
     categoryMap: Map<Any, String> = emptyMap(),
     onCategoryChange: ((itemValue: Any, category: String?) -> Unit)? = null,
     waitCategorySwitch: Boolean = false,

@@ -17,8 +17,8 @@ import com.github.jing332.tts_server_android.compose.ComposeActivity
 import com.github.jing332.tts_server_android.compose.systts.LocalImportFilePath
 import com.github.jing332.tts_server_android.compose.systts.LocalImportRemoteUrl
 import com.github.jing332.tts_server_android.compose.theme.AppTheme
+import com.github.jing332.tts_server_android.compose.systts.list.saveJsDirect
 import com.github.jing332.tts_server_android.ui.systts.ImportConfigFactory
-import com.github.jing332.tts_server_android.ui.systts.ImportConfigFactory.gotoEditorFromJS
 import com.github.jing332.tts_server_android.ui.systts.ImportType
 
 
@@ -105,11 +105,18 @@ class ImportConfigActivity : ComposeActivity() {
         if (intent?.data != null) {
             if (intent.data?.fileName()?.endsWith("js", true) == true) {
                 val txt = intent.data?.readAllText(this)
-                if (txt.isNullOrBlank() || !gotoEditorFromJS(txt)) {
+                if (txt.isNullOrBlank()) {
                     longToast(R.string.js_file_type_not_recognized)
+                } else {
+                    // JS 直存（10-05）：与内部导入同一条 saveJsDirect 路径直接落库，
+                    // 不再跳编辑器手动保存
+                    try {
+                        longToast(saveJsDirect(txt, this))
+                    } catch (e: Exception) {
+                        longToast("${getString(R.string.import_failed)}：${e.message}")
+                    }
                 }
-                // JS 已交给编辑器（或提示无法识别），本页无内容可展示，直接关闭，
-                // 避免从编辑器返回后残留空白页
+                // 本页无内容可展示，直接关闭，避免导入后残留空白页
                 finish()
             } else {
                 // 非 JS 文件：直接交给统一的自动导入流程（doAutoImport）识别和导入，

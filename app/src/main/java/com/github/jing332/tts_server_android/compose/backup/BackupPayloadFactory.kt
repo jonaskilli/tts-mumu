@@ -195,7 +195,6 @@ internal class BackupPayloadFactory(
             "app" to setOf(
                 "theme", "limitTagLength", "limitNameLength", "isSwapListenAndEditButton",
                 "isAutoCheckUpdateEnabled", "isExcludeFromRecent", "isEdgeDnsEnabled",
-                "spinnerMaxDropDownCount",
             ),
             "systts" to setOf(
                 "isInAppPlayAudio", "inAppPlaySpeed", "inAppPlayVolume", "inAppPlayPitch",

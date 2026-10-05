@@ -57,6 +57,9 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.TextRange
+import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.TextFieldValue
@@ -97,7 +100,7 @@ import kotlinx.coroutines.launch
  * `少年` 里**没有「男」字**（少年 = 少 + 年），只按 男/女 匹配会落进 else 变灰。
  * 故顺序固定：少女 → 少年 → 女 → 男（先点名这一对，再走通用词）。
  */
-private fun genderDotColor(tag: String): Color = when {
+internal fun genderDotColor(tag: String): Color = when {
     tag.contains("少女") -> Color(0xFFE91E63)
     tag.contains("少年") -> Color(0xFF1976D2)
     tag.contains("女") -> Color(0xFFE91E63)
@@ -130,7 +133,7 @@ private val BOOK_NAME_COLOR = Color(0xFF333333)
  * 文字仍用 onSecondaryContainer：背景变浅对比度只会更大，不用换。
  */
 @Composable
-private fun softContainerColor(): Color = lerp(
+internal fun softContainerColor(): Color = lerp(
     MaterialTheme.colorScheme.secondaryContainer,
     MaterialTheme.colorScheme.background,
     0.4f,
@@ -899,8 +902,15 @@ private fun RoleRow(
                         // 性别色圆点：只看发音人分类标签（tag 本身即「分类词+序号」，见 genderDotColor 注释）
                         // 0919 缩到 6dp（用户：8dp 圆点视觉太重；色相是性别信息载体，缩尺寸不降饱和）
                         // 4dp 曾压不住场，6dp 为缩小后与名字行仍相称的下限
-                        Spacer(Modifier.size(6.dp).background(genderDotColor(rec.voice), CircleShape))
-                        Spacer(Modifier.width(8.dp))
+                        // start 4（10-05 用户：圆点原顶在 16 内容线上，「圆点对齐难受」——收进 4dp
+                        // 不再压线；名字脊线 30 不变，点-名间距 8→4 让圆点更「属于」名字）
+                        Spacer(
+                            Modifier
+                                .padding(start = 4.dp)
+                                .size(6.dp)
+                                .background(genderDotColor(rec.voice), CircleShape)
+                        )
+                        Spacer(Modifier.width(4.dp))
                         Text(
                             text = buildString {
                                 if (isFav) append("【$name】") else append(name)
@@ -923,9 +933,12 @@ private fun RoleRow(
                     // 标签文本：正常态由 voiceTagText 按框宽截好；失效态（查不到配置）
                     // 回落 tag + ⚠——⚠ 本身也占宽，故先让出 2 字预算再拼，
                     // 否则尾巴又会被框挤掉（框里不要出现「…」）
-                    val tagLabel = voiceName
-                        ?: (cutToTagBoxWidth(rec.voice, TAG_BOX_CHAR_BUDGET - 2f) + " ⚠")
-                    // 发音人标签框（失效标签加 ⚠）；点它=换声弹窗（标记 / 删除配置项都在里面）
+                    // 10-05 用户：失效 ⚠ 单独染红（error 色）——标签整体还是容器色文字，
+                    // 感叹号红起来一眼可辨（AnnotatedString 分段着色）
+                    val tagBase = voiceName
+                        ?: cutToTagBoxWidth(rec.voice, TAG_BOX_CHAR_BUDGET - 2f)
+                    val tagInvalid = voiceName == null
+                    // 发音人标签框（失效标签加红色 ⚠）；点它=换声弹窗（标记 / 删除配置项都在里面）
                     Surface(
                         onClick = onTagClick,
                         shape = RoundedCornerShape(8.dp),
@@ -933,7 +946,14 @@ private fun RoleRow(
                         color = softContainerColor(),
                     ) {
                         Text(
-                            tagLabel,
+                            buildAnnotatedString {
+                                append(tagBase)
+                                if (tagInvalid) {
+                                    withStyle(SpanStyle(color = MaterialTheme.colorScheme.error)) {
+                                        append(" ⚠")
+                                    }
+                                }
+                            },
                             style = MaterialTheme.typography.bodySmall.copy(fontSize = 13.sp),
                             color = MaterialTheme.colorScheme.onSecondaryContainer,
                             maxLines = 1,

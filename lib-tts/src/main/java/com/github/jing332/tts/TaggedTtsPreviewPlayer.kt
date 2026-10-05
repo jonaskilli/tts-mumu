@@ -18,6 +18,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
@@ -41,6 +42,10 @@ object TaggedTtsPreviewPlayer {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private val lock = Any()
     private var job: Job? = null
+    // 播放器复用（10-05 性能修，用户：连续试听卡顿/等很久）：原实现每次 play() 都
+    // 「新建 AudioPlayer + release 旧实例」——ExoPlayer 的创建与拆毁都是主线程上的重活
+    // （且 release 对从未用过的 Exo 实例会先惰性创建再销毁，纯白烧），连续试听=反复拆建。
+    // 现在整个 object 复用一个实例：新会话只 stop() 静音旧会话；release 仅发生在显式 stop() 时。
     private var player: AudioPlayer? = null
 
     // 会话计数守卫：被新试听顶替时旧 job 的 finally 不得清掉新会话的 state
@@ -79,9 +84,8 @@ object TaggedTtsPreviewPlayer {
             player?.stop()
             audible = false
             _state.value = PreviewState.SYNTHESIZING
-            val audioPlayer = AudioPlayer(context.applicationContext)
-            player?.release()
-            player = audioPlayer
+            // 复用播放器（10-05 性能修）：没有才建，新会话不拆旧实例（见 player 字段注释）
+            val audioPlayer = player ?: AudioPlayer(context.applicationContext).also { player = it }
             focusSession++
             val session = focusSession
             job = scope.launch {
@@ -163,16 +167,22 @@ object TaggedTtsPreviewPlayer {
                             if (reverbOn && declaredPcm) applyReverbToPcm(bytes, sampleRate) else bytes
                         audioPlayer.play(out, sampleRate, local.speed, localVolume, local.pitch)
                     }
+                } catch (e: TimeoutCancellationException) {
+                    // 合成真超时（10-05 修：它属于 CancellationException 子类，原先被
+                    // 下面的通用取消分支静默吞掉——用户等 30 秒后毫无反馈，像死了一样）。
+                    // 仅当本会话仍是当前会话时才报，被新试听顶替时不打扰
+                    if (synchronized(lock) { focusSession == session }) {
+                        toast(context, "试听失败：合成超时（30 秒）")
+                    }
                 } catch (_: CancellationException) {
                     // Replacing/stopping a preview is normal.
                 } catch (e: Exception) {
-                    // A newer preview may have released this session's player mid-write
-                    // (AudioTrack.write is blocking and cannot honour cancellation): the
-                    // replacement then owns `player` and owns playback from here on — stay
-                    // silent. Report only when this session's player is still the active one,
-                    // so real synthesis errors are not swallowed.
-                    val stillOwnsPlayer = synchronized(lock) { player === audioPlayer }
-                    if (stillOwnsPlayer) {
+                    // 被新试听顶替的旧会话被中断时会抛各种 IO/写失败异常（AudioTrack.write 阻塞
+                    // 不响应取消）——此时由新会话接管，保持安静。10-05 播放器改复用后，身份检查
+                    // （player === audioPlayer 恒真）失效，改用会话号：只有仍是当前会话才报错，
+                    // 真实合成错误才不会被吞。
+                    val stillCurrent = synchronized(lock) { focusSession == session }
+                    if (stillCurrent) {
                         toast(context, "试听失败：${e.message ?: e.javaClass.simpleName}")
                     }
                 } finally {
@@ -230,15 +240,26 @@ object TaggedTtsPreviewPlayer {
         }
     }
 
+    /**
+     * 点击即置「合成中」（10-05 照 v10 口径：按钮点下立即变「…」，不等 play() 内部置位）。
+     * v10 明写 `btn.setText("…")` 在点击处理里；本项目原靠 play() 异步置 SYNTHESIZING，
+     * 而调用侧要先 withIO 查库才调 play —— 那段空窗 state 仍是旧 IDLE，刚点的行先闪 ▶
+     * 再变 …（「试听状态不准」根因）。点击处先调本方法，UI 立刻反映；play() 会再置一次（幂等）。
+     * 若最终没走到 play（无匹配配置项），调用方须 stop() 复位，别把 state 留在 SYNTHESIZING。
+     */
+    fun markSynthesizing() {
+        synchronized(lock) { _state.value = PreviewState.SYNTHESIZING }
+    }
+
     fun stop() {
         synchronized(lock) {
             job?.cancel()
             job = null
             audible = false
             _state.value = PreviewState.IDLE
+            // 只停不拆（10-05 性能修）：播放器实例常驻复用，避免 stop→play 快速切换时
+            // 反复走 ExoPlayer/AudioTrack 的创建销毁；实例持 applicationContext，无常驻泄漏
             player?.stop()
-            player?.release()
-            player = null
             focusSession++
         }
     }

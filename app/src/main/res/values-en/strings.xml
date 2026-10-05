@@ -141,7 +141,7 @@
     <string name="systts_voice_data_load_failed">Voice failed to load</string>
     <string name="systts_help_sample_rate">The system TTS needs to specify the sample rate when starting to play. If [built-in player] is turned on, this option can be ignored.</string>
     <string name="voice_multiple_option">Config can multiple</string>
-    <string name="voice_multiple_summary">⚠️The same reading target will no longer be excluded, and a random rotation will be used. (Single voice does not support this function)</string>
+    <string name="voice_multiple_summary">When on, multiple configs with the same tag can be enabled at once. (When off, enabling one auto-disables other configs with the same tag.)</string>
     <string name="groups_multiple">Group can multiple</string>
     <string name="groups_multiple_summary">⚠️Checking groups will no longer be mutually exclusive</string>
     <string name="systts_test_success">Test was successful</string>
@@ -275,6 +275,7 @@
     <string name="file_save_failed">File save failed：%1$s</string>
     <string name="save_success">Save successfully</string>
     <string name="save_to_list">Saved %1$d to voice list</string>
+    <string name="voice_bulk_import">Import %1$d voices</string>
     <string name="failed_timed_out">Timed out：%1$dms</string>
     <string name="builtin_player_settings_tip_msg">When the built-in player is enabled, use the settings here to override the global.</string>
     <string name="systts_standby_help_msg">When checked, this configuration acts as the standby voice: it takes over once the configuration sharing the same reading rule and the same tag name has failed its retries and reached [Standby Settings].\nThe standby request is retried the same [Max Retry Count] times — it is not skipped on the first failure.</string>
@@ -359,7 +360,7 @@
     <string name="voice_catalog_search">Search voices</string>
     <string name="voice_catalog_clear">Clear</string>
     <string name="voice_catalog_picked">%1$d voices added</string>
-    <string name="voice_catalog_pick">Use (%1$d)</string>
+    <string name="voice_catalog_pick">Add &amp; select (%1$d)</string>
     <string name="voice_catalog_total">%1$d voices</string>
     <string name="voice_catalog_found">%1$d loaded</string>
     <string name="voice_catalog_loading">Loading voices…</string>
@@ -433,8 +434,8 @@
     <string name="log_panel_config_missing">Config item missing or deleted</string>
     <string name="log_panel_voice_label">Voice</string>
     <string name="log_panel_config_layer">This config (affects only this item)</string>
-    <string name="restore_from_url_net">Restore from number / URL</string>
-    <string name="restore_from_url_dialog_title">Restore from number / URL</string>
+    <string name="restore_from_url_net">Restore from URL</string>
+    <string name="restore_from_url_dialog_title">Restore from URL</string>
     <string name="preference_settings">Preference</string>
     <string name="restart">Restart</string>
     <string name="restore_finished">Restore Finished</string>
@@ -442,8 +443,6 @@
     <string name="restore">Restore</string>
     <string name="restore_confirm">Restore data from this file?</string>
     <string name="js_file_type_not_recognized">JS file type not recognized</string>
-    <string name="spinner_drop_down_max_count">Max number of drop-down content</string>
-    <string name="spinner_drop_down_max_count_summary">When the number of items in the dropdown exceeds the set value, it will be displayed in the form of a popup dialog.</string>
     <string name="systts_plugin_please_set_vars">Please click here to set variables</string>
     <string name="clear_log">Clear Log</string>
     <string name="log_copy_n">Copy (%1$d)</string>
@@ -507,6 +506,8 @@
     <string name="plugin_disabled_desc">Plugin disabled：%1$s</string>
     <string name="rule_enabled_desc">Rule enabled：%1$s</string>
     <string name="rule_disabled_desc">Rule disabled：%1$s</string>
+    <string name="rule_only_one_enabled">Auto-disabled %1$d other rule(s) (only one speech rule may be enabled)</string>
+    <string name="plugin_only_one_enabled">Auto-disabled %1$d other plugin(s) with the same pluginId (only one per id)</string>
     <string name="paste">Paste</string>
     <string name="tag_data">Tag data</string>
     <string name="grant_permission_audio_file">Grant [Read Audio File Permission]  </string>

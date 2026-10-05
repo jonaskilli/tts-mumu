@@ -49,7 +49,9 @@ class PluginTtsViewModel(app: Application) : AndroidViewModel(app) {
 
     fun loadPluginList() {
         viewModelScope.launch(Dispatchers.IO) {
-            val plugins = dbm.pluginDao.allEnabled
+            // getAllEnabledWithoutCode（code=''）：插件选择器只需 pluginId/name/iconUrl，
+            // 原 allEnabled 的 SELECT * 会把所有已启用插件的 MB 级 JS 一起读出（10-05 加载慢定位）
+            val plugins = dbm.pluginDao.getAllEnabledWithoutCode()
             withMain {
                 pluginList.clear()
                 pluginList.addAll(plugins)

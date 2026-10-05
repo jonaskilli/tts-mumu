@@ -118,8 +118,10 @@ import com.github.jing332.tts_server_android.constant.AppConst
 import com.github.jing332.tts_server_android.service.systts.SystemTtsService
 import com.github.jing332.tts_server_android.utils.MyTools
 import com.drake.net.utils.withIO
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.conflate
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import kotlinx.serialization.encodeToString
 import org.burnoutcrew.reorderable.detectReorderAfterLongPress
 import org.burnoutcrew.reorderable.rememberReorderableLazyListState
@@ -848,8 +850,30 @@ fun PluginManagerScreen(sharedVM: SharedViewModel, onFinishActivity: () -> Unit)
                         desc = desc,
                         iconUrl = item.iconUrl,
                         isEnabled = item.isEnabled,
-                        onEnabledChange = {
-                            dbm.pluginDao.update(item.copy(isEnabled = it))
+                        // 同一 pluginId 只允许启用一个（10-05 用户令）：启用本条时先停用同 pluginId 的
+                        // 其它已启用条目。依据：插件选择器数据源是「全部已启用插件」，同 pluginId 多启用
+                        // 会让选择器出现两个同名条目；运行侧 getEnabled(pluginId) 取哪条不确定。
+                        // ⚠ 必须用 allEnabled（SELECT *，含完整 code），不能用 getAllEnabledWithoutCode()：
+                        // 后者 code=''，交给 update() 会把插件 JS 覆盖成空串。
+                        onEnabledChange = { enabled ->
+                            scope.launch(Dispatchers.IO) {
+                                if (enabled && item.pluginId.isNotBlank()) {
+                                    val others = dbm.pluginDao.allEnabled.filter {
+                                        it.id != item.id && it.pluginId == item.pluginId
+                                    }
+                                    if (others.isNotEmpty()) {
+                                        dbm.pluginDao.update(
+                                            *others.map { it.copy(isEnabled = false) }.toTypedArray()
+                                        )
+                                        withContext(Dispatchers.Main) {
+                                            context.longToast(
+                                                context.getString(R.string.plugin_only_one_enabled, others.size)
+                                            )
+                                        }
+                                    }
+                                }
+                                dbm.pluginDao.update(item.copy(isEnabled = enabled))
+                            }
                         },
                         isSelectionMode = selectionMode,
                         isSelected = isSelected,
