@@ -58,17 +58,6 @@ private fun TextFieldSelectionDialog(
     onValueSame: (current: Any, new: Any) -> Boolean = { current, new -> current == new },
     onEntryLongClick: ((key: Any, value: String) -> Unit)? = null,
     trailingContent: (@Composable RowScope.(itemValue: Any, entry: String, onHighlight: () -> Unit) -> Unit)? = null,
-    selectedMultiValues: Set<Any> = emptySet(),
-    onMultiSelectedChange: ((Set<Any>) -> Unit)? = null,
-    // null = 没有额外动作键；原样透传给 AppSelectionDialog（它据此决定动作键的渲染位置）。
-    // 带 dismiss 回调：动作键（如批量导入「导入 N 个音色」）完成后可主动关弹窗
-    extraButtons: (@Composable RowScope.(dismiss: () -> Unit) -> Unit)? = null,
-    categoryMap: Map<Any, String> = emptyMap(),
-    onCategoryChange: ((itemValue: Any, category: String?) -> Unit)? = null,
-    waitCategorySwitch: Boolean = false,
-    onWaitCategorySwitchChange: ((Boolean) -> Unit)? = null,
-    autoNextSwitch: Boolean = false,
-    onAutoNextSwitchChange: ((Boolean) -> Unit)? = null,
     // 选中值允许行数:默认1(恒定单行,长名折行会把字段撑高并压住浮动标题);
     // 插件选择器等需要完整显示长名称的场景传更大值
     valueMaxLines: Int = 1,
@@ -98,15 +87,6 @@ private fun TextFieldSelectionDialog(
             onValueSame = onValueSame,
             onLongClick = onEntryLongClick,
             trailingContent = trailingContent,
-            selectedMultiValues = selectedMultiValues,
-            onMultiSelectedChange = onMultiSelectedChange,
-            extraButtons = extraButtons,
-            categoryMap = categoryMap,
-            onCategoryChange = onCategoryChange,
-            waitCategorySwitch = waitCategorySwitch,
-            onWaitCategorySwitchChange = onWaitCategorySwitchChange,
-            autoNextSwitch = autoNextSwitch,
-            onAutoNextSwitchChange = onAutoNextSwitchChange,
             itemContent = itemContent,
         )
     }
@@ -182,17 +162,6 @@ fun AppSpinner(
     onSelectedChange: (key: Any, value: String) -> Unit,
     onEntryLongClick: ((key: Any, value: String) -> Unit)? = null,
     trailingContent: (@Composable RowScope.(itemValue: Any, entry: String, onHighlight: () -> Unit) -> Unit)? = null,
-    selectedMultiValues: Set<Any> = emptySet(),
-    onMultiSelectedChange: ((Set<Any>) -> Unit)? = null,
-    // null = 没有额外动作键；原样透传给 AppSelectionDialog（它据此决定动作键的渲染位置）。
-    // 带 dismiss 回调：动作键（如批量导入「导入 N 个音色」）完成后可主动关弹窗
-    extraButtons: (@Composable RowScope.(dismiss: () -> Unit) -> Unit)? = null,
-    categoryMap: Map<Any, String> = emptyMap(),
-    onCategoryChange: ((itemValue: Any, category: String?) -> Unit)? = null,
-    waitCategorySwitch: Boolean = false,
-    onWaitCategorySwitchChange: ((Boolean) -> Unit)? = null,
-    autoNextSwitch: Boolean = false,
-    onAutoNextSwitchChange: ((Boolean) -> Unit)? = null,
     // 选中值允许行数:默认1恒定单行;插件选择器等需完整显示长名称的场景传更大值
     valueMaxLines: Int = 1,
     // 自定义条目渲染（如插件图标加载失败显示名称首字）；不传走 icons+默认渲染
@@ -219,15 +188,6 @@ fun AppSpinner(
             onSelectedChange = onSelectedChange,
             onEntryLongClick = onEntryLongClick,
             trailingContent = trailingContent,
-            selectedMultiValues = selectedMultiValues,
-            onMultiSelectedChange = onMultiSelectedChange,
-            extraButtons = extraButtons,
-            categoryMap = categoryMap,
-            onCategoryChange = onCategoryChange,
-            waitCategorySwitch = waitCategorySwitch,
-            onWaitCategorySwitchChange = onWaitCategorySwitchChange,
-            autoNextSwitch = autoNextSwitch,
-            onAutoNextSwitchChange = onAutoNextSwitchChange,
             valueMaxLines = valueMaxLines,
             itemContent = itemContent,
         )

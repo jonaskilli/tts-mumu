@@ -322,8 +322,6 @@
     <string name="import_truncated_hint">导入失败，JSON 可能被截断：%1$s\n\n若为大配置列表，请先关闭系统TTS服务再导入。</string>
     <string name="file_save_failed">文件保存失败：%1$s</string>
     <string name="save_success">保存成功</string>
-    <string name="save_to_list">已保存 %1$d 个到语音列表</string>
-    <string name="voice_bulk_import">导入 %1$d 个音色</string>
     <string name="failed_timed_out">已超时：%1$dms</string>
     <string name="builtin_player_settings_tip_msg">启用内置播放器时，使用此处设置覆盖全局。</string>
     <string name="systts_standby_help_msg">勾选后，本配置作为备用发音人：当使用同一朗读规则、同一标签名的配置重试失败，并达到「备用配置使用条件」时，改由本配置朗读。\n备用请求同样按「最大重试次数」重试，并非首次失败即跳过。</string>
@@ -425,7 +423,6 @@
     <string name="voice_catalog_empty">没有找到音色</string>
     <string name="voice_catalog_no_more">已到底</string>
     <string name="voice_catalog_retry">重试</string>
-    <string name="label_voice_hint">（点击此处可试听后分类）</string>
     <string name="voice_catalog_usage">使用 %1$s 次</string>
     <string name="voice_catalog_sort_score">推荐</string>
     <string name="voice_catalog_sort_hot">热门</string>

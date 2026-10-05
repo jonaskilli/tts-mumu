@@ -22,8 +22,9 @@ import java.util.concurrent.Executors
 /**
  * 插件「按插件音色分类入库」：
  * 1. 以插件名自动新建分组（不占用用户已有分组）
- * 2. 拉取用户勾选的音色分类，每个分类作为子分组建在插件分组下
- * 3. 分类名可映射到标准人群词则归一并打标签；无法映射则原样入库、不打标签
+ * 2. 逐个入库调用方指定的音色；分类 = 试听时手选的分类（categoryOverride）
+ *    优先，否则按池名做字面映射；可映射走标准人群名（打标签+子分组），
+ *    不可映射则原样入库、不打标签
  *
  * 采样率使用插件声明的请求/裸 PCM 兜底值；MP3/WAV/Opus 等实际输入格式在播放时自动识别。
  */
@@ -57,20 +58,36 @@ object PluginCategoryImporter {
     }
 
     /**
-     * @param selectedPoolIds 用户在对话框中勾选的分类 poolId 列表
+     * 待导入的一条音色（10-05 迁移：声音列表在弹窗里选好再交给本对象落库）。
+     *
+     * @param poolId 所属语言池/分类 id（无分类插件为 ""）
+     * @param poolName 池显示名（categoryOverride 为空时用做字面映射/子分组名）
+     * @param categoryOverride 试听时手动分配的分类（女童…旁白）；null = 未手选，
+     *        按 [poolName] 字面映射（旧「整池盲入」行为）
+     */
+    data class VoiceItem(
+        val poolId: String,
+        val poolName: String,
+        val voiceId: String,
+        val voiceName: String,
+        val categoryOverride: String? = null,
+    )
+
+    /**
+     * @param items 待入库音色（已由弹窗按勾选筛好）
      * @param onProgress 进度回调，可从任意线程安全地更新 Compose 状态
      * @return 成功插入的配置项数量
      */
-    suspend fun import(
+    suspend fun importVoices(
         context: Context,
         plugin: Plugin,
-        selectedPoolIds: List<String>,
+        items: List<VoiceItem>,
         onProgress: (String) -> Unit = {},
     ): Int {
         val dispatcher = Executors.newSingleThreadExecutor().asCoroutineDispatcher()
         try {
             return withContext(dispatcher) {
-                importInternal(context, plugin, selectedPoolIds, onProgress)
+                importInternal(context, plugin, items, onProgress)
             }
         } finally {
             dispatcher.close()
@@ -80,7 +97,7 @@ object PluginCategoryImporter {
     private suspend fun importInternal(
         context: Context,
         plugin: Plugin,
-        selectedPoolIds: List<String>,
+        items: List<VoiceItem>,
         onProgress: (String) -> Unit,
     ): Int {
         val engine = TtsPluginUiEngineV2(context, plugin)
@@ -113,83 +130,78 @@ object PluginCategoryImporter {
             val categoryCountMap = mutableMapOf<String, Int>()
             var processed = 0
 
-            val locales = engine.getLocales()
-            selectedPoolIds.forEach { poolId ->
-                val poolName = locales[poolId] ?: return@forEach
-                val rawName = poolName.trim()
-                if (rawName.isBlank()) return@forEach
-                // 可映射 → 标准人群名（序号+标签）；不可映射 → 原样名、无标签
-                val category = mapTagCategory(rawName)
-                val subGroupName = category ?: rawName
+            items.forEach { item ->
+                val rawName = item.poolName.trim()
+                // 分类优先级（10-05）：试听手选的分类 > 池名字面映射；
+                // 都拿不到 → 原名当子分组、不打标签（旧盲入行为）
+                val category = item.categoryOverride?.takeIf { it.isNotBlank() }
+                    ?: mapTagCategory(rawName)
+                val subGroupName = category ?: rawName.ifBlank { "未分类" }
 
-                val voices = runCatching { engine.getVoices(poolId) }.getOrNull().orEmpty()
-                    .filter { it.id.isNotBlank() }
-                voices.forEach { voice ->
-                    processed++
-                    onProgress("正在导入 ${processed}：${voice.name}")
+                processed++
+                onProgress("正在导入 ${processed}：${item.voiceName}")
 
-                    // 各子分组序号起点接库中已有数量，避免重号
-                    val cachedCount = categoryCountMap.getOrDefault(subGroupName, 0)
-                    val existing = if (cachedCount == 0) {
-                        withContext(Dispatchers.IO) {
-                            dbm.systemTtsV2.getByGroup(targetGroupId).count { it.categoryPath == subGroupName }
-                        }
-                    } else cachedCount
-                    val seq = existing + 1
-                    categoryCountMap[subGroupName] = seq
-
-                    // 无映射分类不打标签（空 SpeechRuleInfo）；旁白为单一角色分类不带序号
-                    val newRuleData = if (category == null) SpeechRuleInfo()
-                    else {
-                        val tagLabel = if (category == "旁白") category
-                        else ruleEngine?.getCategoryTag(category, seq)
-                            ?: JReadConfigMigration.buildTag(category, seq)
-                        SpeechRuleInfo(
-                            target = SpeechTarget.TAG,
-                            tag = tagLabel,
-                            tagName = runCatching {
-                                ruleEngine?.getTagName(tagLabel, emptyMap())
-                            }.getOrNull()?.takeIf { it.isNotBlank() } ?: tagLabel,
-                            tagRuleId = speechRule?.ruleId ?: ""
-                        )
-                    }
-
-                    val needDecode = runCatching {
-                        engine.isNeedDecode(poolId, voice.id)
-                    }.getOrNull() ?: true
-
-                    val src = PluginTtsSource(pluginId = plugin.pluginId, locale = poolId)
-                    val templateConfig = TtsConfigurationDTO(
-                        source = src,
-                        speechRule = newRuleData,
-                        audioFormat = BasicAudioFormat(isNeedDecode = needDecode)
-                    )
-
-                    // 插件声明值对应用户在插件界面选定的请求/裸 PCM 兜底格式。
-                    // 可解码音频会在播放时从音频头识别实际输入格式，无需逐声音合成测率。
-                    val sampleRate = runCatching {
-                        engine.getSampleRate(poolId, voice.id)
-                    }.getOrNull()?.takeIf { it > 0 } ?: templateConfig.audioFormat.sampleRate
-
-                    val newConfig = templateConfig.copy(
-                        audioFormat = templateConfig.audioFormat.copy(sampleRate = sampleRate),
-                        source = src.copy(voice = voice.id)
-                    )
-
-                    // 批量导入默认不启用：避免未知发音人立刻影响当前朗读
+                // 各子分组序号起点接库中已有数量，避免重号
+                val cachedCount = categoryCountMap.getOrDefault(subGroupName, 0)
+                val existing = if (cachedCount == 0) {
                     withContext(Dispatchers.IO) {
-                        dbm.systemTtsV2.insert(
-                            SystemTtsV2(
-                                id = baseId + idSeq++,
-                                displayName = voice.name,
-                                groupId = targetGroupId,
-                                isEnabled = false,
-                                order = baseOrder + orderSeq++,
-                                categoryPath = subGroupName,
-                                config = newConfig
-                            )
-                        )
+                        dbm.systemTtsV2.getByGroup(targetGroupId).count { it.categoryPath == subGroupName }
                     }
+                } else cachedCount
+                val seq = existing + 1
+                categoryCountMap[subGroupName] = seq
+
+                // 无映射分类不打标签（空 SpeechRuleInfo）；旁白为单一角色分类不带序号
+                val newRuleData = if (category == null) SpeechRuleInfo()
+                else {
+                    val tagLabel = if (category == "旁白") category
+                    else ruleEngine?.getCategoryTag(category, seq)
+                        ?: JReadConfigMigration.buildTag(category, seq)
+                    SpeechRuleInfo(
+                        target = SpeechTarget.TAG,
+                        tag = tagLabel,
+                        tagName = runCatching {
+                            ruleEngine?.getTagName(tagLabel, emptyMap())
+                        }.getOrNull()?.takeIf { it.isNotBlank() } ?: tagLabel,
+                        tagRuleId = speechRule?.ruleId ?: ""
+                    )
+                }
+
+                val needDecode = runCatching {
+                    engine.isNeedDecode(item.poolId, item.voiceId)
+                }.getOrNull() ?: true
+
+                val src = PluginTtsSource(pluginId = plugin.pluginId, locale = item.poolId)
+                val templateConfig = TtsConfigurationDTO(
+                    source = src,
+                    speechRule = newRuleData,
+                    audioFormat = BasicAudioFormat(isNeedDecode = needDecode)
+                )
+
+                // 插件声明值对应用户在插件界面选定的请求/裸 PCM 兜底格式。
+                // 可解码音频会在播放时从音频头识别实际输入格式，无需逐声音合成测率。
+                val sampleRate = runCatching {
+                    engine.getSampleRate(item.poolId, item.voiceId)
+                }.getOrNull()?.takeIf { it > 0 } ?: templateConfig.audioFormat.sampleRate
+
+                val newConfig = templateConfig.copy(
+                    audioFormat = templateConfig.audioFormat.copy(sampleRate = sampleRate),
+                    source = src.copy(voice = item.voiceId)
+                )
+
+                // 批量导入默认不启用：避免未知发音人立刻影响当前朗读
+                withContext(Dispatchers.IO) {
+                    dbm.systemTtsV2.insert(
+                        SystemTtsV2(
+                            id = baseId + idSeq++,
+                            displayName = item.voiceName,
+                            groupId = targetGroupId,
+                            isEnabled = false,
+                            order = baseOrder + orderSeq++,
+                            categoryPath = subGroupName,
+                            config = newConfig
+                        )
+                    )
                 }
             }
             return idSeq

@@ -2,7 +2,6 @@ package com.github.jing332.compose.widgets
 
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.focusable
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -11,7 +10,6 @@ import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
@@ -19,8 +17,6 @@ import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
@@ -30,14 +26,10 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Search
-import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ProvideTextStyle
-import androidx.compose.material3.Surface
-import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.minimumInteractiveComponentSize
@@ -53,7 +45,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.staticCompositionLocalOf
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -113,15 +104,8 @@ fun AppSelectionDialog(
 
     itemContent: (@Composable RowScope.(Boolean, String, Any?, Any) -> Unit)? = null,
 
-    // null = 调用方没有额外动作键（纯单选弹窗，点行即选即关）；传了（如试听分类的「保存」）
-    // 则属于功能性出口：居中形态渲染在底部按钮行，底部形态渲染在标题行 ✕ 左侧
-    // （见下方 AppDialog/SelectionSheet 两处调用）
-    // 回调参数 = 关闭本弹窗（10-05 用户令：批量导入成功后应自动关闭，不要停在原地让用户
-    // 以为没生效、再去找外层「保存」重来——两道保存歧义的第一现场）
-    extraButtons: (@Composable RowScope.(dismiss: () -> Unit) -> Unit)? = null,
-
     // 调用方完全自定义居中形态（AppDialog）的底部按钮行（如上传目标选择传「取消」）；
-    // null 走默认 = 额外动作键 +「关闭」。底部形态的按钮行由 extraButtons 提供，本参数不参与
+    // null 走默认 = 「关闭」。底部形态的按钮行本参数不参与
     // （⚠️ 228d165 重构时曾误删此参数，LinkUploadSelectionDialog 调用直接编译失败——CI 教训）
     buttons: (@Composable BoxScope.() -> Unit)? = null,
 
@@ -129,14 +113,6 @@ fun AppSelectionDialog(
     onClick: (Any, String) -> Unit,
     onLongClick: ((Any, String) -> Unit)? = null,
     trailingContent: (@Composable RowScope.(itemValue: Any, entry: String, onHighlight: () -> Unit) -> Unit)? = null,
-    selectedMultiValues: Set<Any> = emptySet(),
-    onMultiSelectedChange: ((Set<Any>) -> Unit)? = null,
-    categoryMap: Map<Any, String> = emptyMap(),
-    onCategoryChange: ((itemValue: Any, category: String?) -> Unit)? = null,
-    waitCategorySwitch: Boolean = false,
-    onWaitCategorySwitchChange: ((Boolean) -> Unit)? = null,
-    autoNextSwitch: Boolean = false,
-    onAutoNextSwitchChange: ((Boolean) -> Unit)? = null,
 ) {
     // 外壳分档：判定在打开那一刻定住（按原始条数，不受搜索过滤影响），
     // 免得开着开着列表变短、形态跟着跳。声明放在条目渲染之前——底部形态下
@@ -209,22 +185,15 @@ fun AppSelectionDialog(
     // 底部面板高固定为窗口真实高度的 92%（SelectionSheet 内部定），列表在分到的
     // 剩余空间里滚动——不再按条数估高（09-17 两次实机「保存键被挤出面板」的根源）
 
-    // 按钮去向（方案 B，用户 09-17 定：动作键回底部、面板固定高根治挤压）：
-    // 底部形态（SelectionSheet）按钮行 = 额外动作键（如保存），「关闭」由右上 ✕ 兼任；
-    // 居中形态（AppDialog）底部按钮行 = 额外动作键 +「关闭」（维持原状）。
-    // 纯单选弹窗 extraButtons=null：底部形态不渲染按钮行，居中形态只有「关闭」。
-    // extraButtons 是 RowScope 接收者，自起一行 Row 提供接收者（AppDialog 的槽是 BoxScope）
+    // 按钮去向：调用方传了 buttons 就整体接管；否则居中形态只有「关闭」，
+    // 底部形态不渲染按钮行（「关闭」由右上 ✕ 兼任）。
     val effectiveButtons: @Composable BoxScope.() -> Unit = buttons ?: {
-        if (extraButtons != null)
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                extraButtons.invoke(this, onDismissRequest)
-            }
         TextButton(onClick = onDismissRequest) {
             Text(stringResource(id = R.string.close))
         }
     }
 
-    // 弹窗内容（开关行 / 搜索框 / 列表 / 空提示）：两种外壳共用同一份，只换外面的容器
+    // 弹窗内容（搜索框 / 列表 / 空提示）：两种外壳共用同一份，只换外面的容器
     val dialogContent: @Composable BoxScope.() -> Unit = {
             // 打开时定位到「当前值」那一条（09-17 与目目确认：这是预期行为——
             // 打开就落在当前声音所在的位置，不要改成从第一条开始）
@@ -235,41 +204,6 @@ fun AppSelectionDialog(
                     state.scrollToItem(index)
             }
             Column(modifier = Modifier.fillMaxWidth()) {
-                // 开关行：等待分类 / 自动下一个，带文字标签，置于列表上方避免与标题挤在一起
-                if (onWaitCategorySwitchChange != null || onAutoNextSwitchChange != null) {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(vertical = 4.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.Center
-                    ) {
-                        onWaitCategorySwitchChange?.let { onChange ->
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Switch(checked = waitCategorySwitch, onCheckedChange = onChange)
-                                Text(
-                                    stringResource(R.string.wait_for_category),
-                                    style = MaterialTheme.typography.labelMedium,
-                                    modifier = Modifier.padding(start = 4.dp)
-                                )
-                            }
-                        }
-                        if (onWaitCategorySwitchChange != null && onAutoNextSwitchChange != null) {
-                            Spacer(Modifier.width(16.dp))
-                        }
-                        onAutoNextSwitchChange?.let { onChange ->
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Switch(checked = autoNextSwitch, onCheckedChange = onChange)
-                                Text(
-                                    stringResource(R.string.auto_next),
-                                    style = MaterialTheme.typography.labelMedium,
-                                    modifier = Modifier.padding(start = 4.dp)
-                                )
-                            }
-                        }
-                    }
-                }
-
                 if (searchEnabled) {
                     val keyboardController = LocalSoftwareKeyboardController.current
 
@@ -366,118 +300,6 @@ fun AppSelectionDialog(
                                 if (trailingContent != null) trailingContent(current, entry) {
                                     highlightedValue = current
                                 }
-                                if (onMultiSelectedChange != null) {
-                                    val isMultiSelected = current in selectedMultiValues
-                                    val category = categoryMap[current]
-                                    if (category != null) {
-                                        // 已分配分类：显示分类名标签，点击可重新选择
-                                        var showCategoryMenu by remember { mutableStateOf(false) }
-                                        val allCategories = remember {
-                                            listOf("默认") + VoiceCategories.ALL
-                                        }
-                                        Box(
-                                            // end 12（10-05 用户：行尾盒不再贴框缘线——收进来后与
-                                            // IconButton 48 热区里 glyph 的自然内缩（12dp）同一条竖线）
-                                            modifier = Modifier.padding(end = 12.dp)
-                                        ) {
-                                            Surface(
-                                                modifier = Modifier
-                                                    .padding(start = 4.dp)
-                                                    .clickableRipple(onClick = { showCategoryMenu = true }),
-                                                shape = MaterialTheme.shapes.small,
-                                                color = MaterialTheme.colorScheme.tertiaryContainer,
-                                                tonalElevation = 2.dp
-                                            ) {
-                                                Text(
-                                                    category,
-                                                    modifier = Modifier.padding(
-                                                        horizontal = 8.dp,
-                                                        vertical = 4.dp
-                                                    ),
-                                                    style = MaterialTheme.typography.labelSmall,
-                                                    color = MaterialTheme.colorScheme.onTertiaryContainer
-                                                )
-                                            }
-                                            DropdownMenu(
-                                                expanded = showCategoryMenu,
-                                                onDismissRequest = { showCategoryMenu = false }
-                                            ) {
-                                                allCategories.forEach { cat ->
-                                                    DropdownMenuItem(
-                                                        text = { Text(cat) },
-                                                        onClick = {
-                                                            showCategoryMenu = false
-                                                            if (onCategoryChange != null) {
-                                                                onCategoryChange.invoke(
-                                                                    current,
-                                                                    if (cat == "默认") null else cat
-                                                                )
-                                                            }
-                                                        }
-                                                    )
-                                                }
-                                            }
-                                        }
-                                    } else {
-                                        // 未分配分类：显示多选圆点，长按可弹出分类选择
-                                        var showCategoryMenu by remember { mutableStateOf(false) }
-                                        val allCategories = remember {
-                                            listOf("默认") + VoiceCategories.ALL
-                                        }
-                                        Box(
-                                            // end 12：同上，行尾盒收进「内容缘−12」glyph 竖线，不贴框缘
-                                            modifier = Modifier.padding(end = 12.dp)
-                                        ) {
-                                            Box(
-                                                Modifier
-                                                    .padding(start = 4.dp)
-                                                    .size(24.dp)
-                                                    .clip(CircleShape)
-                                                    .background(
-                                                        if (isMultiSelected) MaterialTheme.colorScheme.primary
-                                                        else Color.Transparent
-                                                    )
-                                                    .border(
-                                                        2.dp,
-                                                        if (isMultiSelected) MaterialTheme.colorScheme.primary
-                                                        else MaterialTheme.colorScheme.outline,
-                                                        CircleShape
-                                                    )
-                                                    .clickableRipple(
-                                                        onClick = {
-                                                            highlightedValue = current
-                                                            onMultiSelectedChange.invoke(
-                                                                if (isMultiSelected) selectedMultiValues - current
-                                                                else selectedMultiValues + current
-                                                            )
-                                                        },
-                                                        onLongClick = {
-                                                            if (onCategoryChange != null) showCategoryMenu = true
-                                                        }
-                                                    )
-                                            )
-                                            DropdownMenu(
-                                                expanded = showCategoryMenu,
-                                                onDismissRequest = { showCategoryMenu = false }
-                                            ) {
-                                                allCategories.forEach { cat ->
-                                                    DropdownMenuItem(
-                                                        text = { Text(cat) },
-                                                        onClick = {
-                                                            showCategoryMenu = false
-                                                            if (onCategoryChange != null) {
-                                                                onCategoryChange.invoke(
-                                                                    current,
-                                                                    if (cat == "默认") null else cat
-                                                                )
-                                                            }
-                                                        }
-                                                    )
-                                                }
-                                            }
-                                        }
-                                    }
-                                }
                             }
                         }
                     }
@@ -490,17 +312,11 @@ fun AppSelectionDialog(
     // 顺手把条目横向内边距按形态广播出去，自定义 itemContent 同步对齐
     CompositionLocalProvider(LocalSelectionRowHorizontalPadding provides hp) {
         if (useSheet) {
-            // extraButtons 现带 dismiss 回调，SelectionSheet 的 buttons 仍是无参接收者——
-            // 在此补一个闭包适配（useSheet 恒 false=死路径，仅保持可编译）
-            val eb = extraButtons
-            val sheetButtons: (@Composable RowScope.() -> Unit)? = if (eb != null) {
-                { eb.invoke(this, onDismissRequest) }
-            } else null
             SelectionSheet(
                 onDismissRequest = onDismissRequest,
                 title = title,
                 content = dialogContent,
-                buttons = sheetButtons,
+                buttons = null,
             )
         } else
             AppDialog(
@@ -513,17 +329,9 @@ fun AppSelectionDialog(
 }
 
 /**
- * 发音人分类的公共常量：试听分类弹窗（AuditionDialog）与
- * 声音列表长按分类菜单（AppSelectionDialog）共用，避免两处硬编码不同步。
+ * 发音人分类的公共常量：供试听分类弹窗（AuditionDialog）的三列分类标签使用。
  */
 object VoiceCategories {
-    /** 全部分类（按性别年龄排列，后四项为朗读规则 2.87 中新增的主角/特殊分类） */
-    val ALL: List<String> = listOf(
-        "女童", "少女", "女青年", "女中年", "女老年",
-        "男童", "少年", "男青年", "男中年", "男老年",
-        "男主", "女主", "特殊男", "特殊女", "旁白"
-    )
-
     /** 分类弹窗的三列布局：女性列 / 男性列 / 主角特殊旁白列，每列内部竖向堆叠 */
     val COLUMNS: List<List<String>> = listOf(
         // 女性列

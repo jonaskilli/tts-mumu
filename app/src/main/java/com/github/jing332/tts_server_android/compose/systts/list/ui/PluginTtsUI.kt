@@ -45,12 +45,8 @@ import com.github.jing332.common.utils.toast
 import com.github.jing332.compose.widgets.AppSpinner
 import com.github.jing332.compose.widgets.LocalSelectionRowHorizontalPadding
 import com.github.jing332.compose.widgets.LoadingContent
-import com.github.jing332.compose.widgets.LoadingDialog
 import com.github.jing332.database.dbm
-import com.github.jing332.database.entities.SpeechRule
 import com.github.jing332.database.entities.plugin.Plugin
-import com.github.jing332.database.entities.systts.JReadConfigMigration
-import com.github.jing332.database.entities.systts.SystemTtsGroup
 import com.github.jing332.database.entities.systts.SystemTtsV2
 import com.github.jing332.database.entities.systts.TtsConfigurationDTO
 import com.github.jing332.database.entities.systts.source.PluginTtsSource
@@ -68,8 +64,6 @@ import com.github.jing332.tts_server_android.compose.systts.list.ui.widgets.Save
 import com.github.jing332.tts_server_android.compose.systts.list.ui.widgets.SectionCard
 import com.github.jing332.tts_server_android.compose.systts.list.ui.widgets.withAudioParams
 import com.github.jing332.tts_server_android.constant.SpeechTarget
-import com.github.jing332.tts_server_android.model.rhino.speech_rule.SpeechRuleEngine
-import com.github.jing332.tts_server_android.service.systts.SystemTtsService
 import com.github.jing332.tts_server_android.ui.view.AppDialogs.displayErrorDialog
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -132,9 +126,6 @@ class PluginTtsUI : IConfigUI() {
         showParamsSection: Boolean = true,
         // 插件 UI 重建触发器：变化时强制重新 onLoadUI（用于运行规则后刷新角色列表）
         reloadKey: Any? = null,
-        // 批量保存成功后的回调：用于关闭当前界面（如预览 Activity finish），
-        // 不传则停留原地（如工具箱页，保存后列表就在本页）
-        onSaved: (() -> Unit)? = null,
     ) {
         var displayName by remember { mutableStateOf("") }
 
@@ -207,18 +198,6 @@ class PluginTtsUI : IConfigUI() {
             }
         }
 
-        // 批量保存中：显示进度，避免大量声音入库时被误认为没有响应
-        var showLoadingDialog by remember { mutableStateOf(false) }
-        var savingProgressText by remember { mutableStateOf("") }
-        if (showLoadingDialog)
-            LoadingDialog(
-                onDismissRequest = { },
-                text = savingProgressText.takeIf { it.isNotBlank() }
-            )
-
-        // 声音选择框中多选的发音人ID集合（用于批量保存到配置列表）
-        var selectedVoiceIds by remember { mutableStateOf<Set<Any>>(emptySet()) }
-
         // 音色广场弹窗（opt-in 协议 searchVoiceCatalog，用户 09-17 拍板做全套）
         var showVoiceCatalog by remember { mutableStateOf(false) }
 
@@ -226,36 +205,12 @@ class PluginTtsUI : IConfigUI() {
         // 音频参数三层草稿快照（AudioParamsDimRows 上报）：🎧 试听带未应用草稿（用户 09-17）
         var audioDraft by remember { mutableStateOf<AudioParamsDraft?>(null) }
         // 本次试听是否带草稿：只有「🎧 试听文本行」入口带（用户 09-17 定：切走即剥离）——
-        // 上一个/下一个、行内 🎧、长按试听都是"试别的音色"，参数应走库值
+        // 行内 🎧、长按试听都是"试别的音色"，参数应走库值
         var auditionWithDraft by remember { mutableStateOf(false) }
-        // 当前试听对应的发音人ID（用于分类分配回调）
+        // 当前试听对应的发音人ID
         var auditionVoiceId by remember { mutableStateOf<Any?>(null) }
-        // 发音人 → 分类名（分配了分类的发音人保存时走新逻辑）
-        var voiceCategoryMap by remember { mutableStateOf<Map<Any, String>>(emptyMap()) }
-        // 开关1：试听弹窗等待分类（播放完毕不自动关闭）
-        var waitCategorySwitch by remember { mutableStateOf(false) }
-        // 开关2：点分类后自动试听下一个
-        var autoNextSwitch by remember { mutableStateOf(false) }
-        // 全部分类入库：忽略勾选，逐分类拉全量，按每条音色所属分类落子分组
-        var allPoolsImport by remember { mutableStateOf(false) }
-
-        // 切换到指定发音人试听
-        fun startAuditionForVoice(voice: com.github.jing332.tts.speech.plugin.engine.TtsPluginUiEngineV2.Voice) {
-            auditionVoiceId = voice.id
-            // 切到别的音色=试别人，剥离草稿（用户 09-17）
-            auditionWithDraft = false
-            auditionSystts = systts.copy(
-                displayName = voice.name,
-                config = (systts.config as TtsConfigurationDTO).copy(
-                    source = tts.copy(voice = voice.id)
-                )
-            )
-        }
-
-        // 当前试听发音人在列表中的索引
-        val currentVoiceIndex = remember(auditionVoiceId, vm.voices) {
-            vm.voices.indexOfFirst { it.id == auditionVoiceId }
-        }
+        // 批量试听分类入库整链已迁出（10-05 用户令：搬到插件管理页「按插件音色分类入库」，
+        // 本弹窗只负责「给当前配置选声音 + 试听」）
 
         @Suppress("UNCHECKED_CAST")
         // 本地音效配置（tagName=本地音效N）用专用试听文本，与全局文本互不影响（用户 09-13）
@@ -271,43 +226,6 @@ class PluginTtsUI : IConfigUI() {
                 globalParamsOverride = d?.global,
                 engine = if (plugin == null) null else vm.service(),
                 voiceId = auditionVoiceId,
-                // 带分类回调（批量试听分类场景）时，播放完成不自动关闭弹窗，
-                // 否则用户来不及选分类、且当前声音高亮/分类选择被打断
-                autoDismiss = !waitCategorySwitch,
-                hasPrev = currentVoiceIndex > 0,
-                hasNext = currentVoiceIndex >= 0 && currentVoiceIndex < vm.voices.size - 1,
-                onCategoryAssigned = { voiceId, category ->
-                    // category == null 表示取消分配（归为默认），与列表长按分类「取消」语义一致
-                    voiceCategoryMap = if (category == null) {
-                        voiceCategoryMap - voiceId
-                    } else {
-                        voiceCategoryMap + (voiceId to category)
-                    }
-                    if (category != null && voiceId !in selectedVoiceIds) {
-                        selectedVoiceIds = selectedVoiceIds + voiceId
-                    }
-                    // 原地切换到下一个：仅真正分配分类时才自动跳下一个，
-                    // 取消分配（category == null）不触发跳转，避免误触后直接跳过
-                    val nextIndex = currentVoiceIndex + 1
-                    if (category != null && autoNextSwitch && nextIndex in vm.voices.indices) {
-                        startAuditionForVoice(vm.voices[nextIndex])
-                    }
-                },
-                onPrev = {
-                    val prevIndex = currentVoiceIndex - 1
-                    if (prevIndex >= 0) {
-                        startAuditionForVoice(vm.voices[prevIndex])
-                    }
-                },
-                onNext = {
-                    val nextIndex = currentVoiceIndex + 1
-                    if (nextIndex < vm.voices.size) {
-                        startAuditionForVoice(vm.voices[nextIndex])
-                    }
-                },
-                assignedCategory = voiceCategoryMap[auditionVoiceId],
-                progressText = if (currentVoiceIndex >= 0 && vm.voices.size > 1)
-                    "${currentVoiceIndex + 1}/${vm.voices.size}" else null
             ) {
                 auditionSystts = null
                 auditionVoiceId = null
@@ -315,16 +233,15 @@ class PluginTtsUI : IConfigUI() {
             }
         } // if (auditionSystts != null)
 
-        // 音色广场（opt-in 协议 searchVoiceCatalog）：勾选后把音色**补进声音列表并勾上**，
-        // 再由用户点现有的「保存」走分类/标签/试听那条链路入库——广场只负责"找得到音色"。
+        // 音色广场（opt-in 协议 searchVoiceCatalog）：勾选后把音色**补进声音列表**，
+        // 供用户在下拉里选中试听——广场只负责"找得到音色"。
         if (showVoiceCatalog) {
             PluginVoiceMarketplaceDialog(
                 vm = vm,
                 locale = tts.locale,
                 onDismissRequest = { showVoiceCatalog = false },
                 onAudition = { item ->
-                    // 与行内 🎧 同源：试该音色、不带草稿。广场音色不在 vm.voices 里，
-                    // 故上一个/下一个与进度文本自然为 0（AuditionDialog 已按 index<0 兜底）
+                    // 与行内 🎧 同源：试该音色、不带草稿。广场音色不在 vm.voices 里
                     auditionWithDraft = false
                     auditionVoiceId = item.id
                     auditionSystts = systts.copy(
@@ -336,8 +253,7 @@ class PluginTtsUI : IConfigUI() {
                 },
                 onPick = { items ->
                     // 广场音色不在 vm.voices 里（插件 getVoices 只回它自己的本地缓存，而缓存
-                    // 只有广场查询会写）——不补进去的话：下拉框显示空、批量保存被
-                    // `filter { it.id in selectedVoiceIds }` 整批过滤掉
+                    // 只有广场查询会写）——不补进去的话下拉框里选不到这些音色
                     val known = vm.voices.map { it.id }.toHashSet()
                     items.forEach { item ->
                         if (item.id !in known) vm.voices.add(
@@ -348,7 +264,6 @@ class PluginTtsUI : IConfigUI() {
                             )
                         )
                     }
-                    selectedVoiceIds = selectedVoiceIds + items.map { it.id }
                     showVoiceCatalog = false
                     context.toast(context.getString(R.string.voice_catalog_picked, items.size))
                 },
@@ -473,9 +388,7 @@ class PluginTtsUI : IConfigUI() {
                         },
                         onSelectedChange = { id, name ->
                             if (id == tts.pluginId) return@AppSpinner
-                            // 切换插件：清空跨插件残留状态（多选/分类/试听）
-                            selectedVoiceIds = emptySet()
-                            voiceCategoryMap = emptyMap()
+                            // 切换插件：清空跨插件残留状态（试听）
                             auditionSystts = null
                             auditionVoiceId = null
                             auditionWithDraft = false
@@ -549,10 +462,8 @@ class PluginTtsUI : IConfigUI() {
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .padding(top = 4.dp),
-                                // 试听/分类的提示直接并进标签（用户 09-17：标签旁空位够，
-                                // 不必在字段下方另起一行，省一行高度）
-                                labelText = "🔊 " + stringResource(R.string.label_voice) +
-                                    stringResource(R.string.label_voice_hint),
+                                // 发音人栏：试听入口=行内 🎧 与长按（批量分类入库已迁往插件管理页）
+                                labelText = "🔊 " + stringResource(R.string.label_voice),
                                 value = tts.voice,
                                 values = vm.voices.map { it.id },
                                 entries = vm.voices.map { it.name },
@@ -607,262 +518,12 @@ class PluginTtsUI : IConfigUI() {
                                     Icon(Icons.Default.Headset, stringResource(id = R.string.audition))
                                 }
                             },
-                            selectedMultiValues = selectedVoiceIds,
-                            onMultiSelectedChange = { selectedVoiceIds = it },
-                            categoryMap = voiceCategoryMap,
-                            onCategoryChange = { voiceId, category ->
-                                voiceCategoryMap = if (category == null) {
-                                    voiceCategoryMap - voiceId
-                                } else {
-                                    // 与试听弹窗分配分类行为一致：分配了分类即视为待保存项，
-                                    // 否则长按分好类后保存按钮仍禁用、或保存时漏掉该项
-                                    if (voiceId !in selectedVoiceIds)
-                                        selectedVoiceIds = selectedVoiceIds + voiceId
-                                    voiceCategoryMap + (voiceId to category)
-                                }
-                            },
-                            waitCategorySwitch = waitCategorySwitch,
-                            onWaitCategorySwitchChange = {
-                                waitCategorySwitch = it
-                                context.toast(if (it) "已开启：试听后等待选择分类" else "已关闭：试听后自动关闭")
-                            },
-                            autoNextSwitch = autoNextSwitch,
-                            onAutoNextSwitchChange = {
-                                autoNextSwitch = it
-                                context.toast(if (it) "已开启：选分类后自动试听下一个" else "已关闭：选分类后不自动切换")
-                            },
-                            extraButtons = { dismiss ->
-                                // 纯文字键（目目 09-17：不要框和填充色）——按钮行位置修好后
-                                // 位置本身可见，不再靠药丸底色标识；未点亮=灰字、勾选后点亮主题色
-                                // ⚠ 本键是「批量导入 N 条配置项」，不是保存当前这条配置——
-                                // 与顶栏 💾「保存」区分（10-05 用户：两道保存歧义）。文案见下方按钮。
-                                TextButton(
-                                    enabled = selectedVoiceIds.isNotEmpty() && !showLoadingDialog,
-                                    onClick = {
-                                        val selectedVoices = vm.voices.filter { it.id in selectedVoiceIds }
-                                        if (selectedVoices.isEmpty()) {
-                                            // 勾选项不在当前声音列表（切换语言/插件后列表已刷新）：
-                                            // 显式提示而非静默返回，避免"点了保存没反应"
-                                            context.toast("所选声音不在当前列表中，可能已切换语言或插件，请重新选择")
-                                            return@TextButton
-                                        }
-                                        // 主线程先捕获状态快照，IO 协程内不再读取 Compose 状态
-                                        val categoryMapSnapshot = voiceCategoryMap
-                                        val systtsSnapshot = systts
-                                        val ttsSnapshot = tts
-                                        showLoadingDialog = true
-                                        savingProgressText = ""
-                                        scope.launch(Dispatchers.IO) {
-                                            runCatching {
-                                            val config = systtsSnapshot.config as TtsConfigurationDTO
-                                            val ruleData = config.speechRule.copy()
-
-                                            // 目标分组兜底：从插件预览等入口进入时配置项未落库（groupId=0），
-                                            // 直接插入会进入不存在的分组导致主界面不可见。
-                                            // 此时按插件名新建（或复用同名）分组承载，并在结果提示中告知分组名。
-                                            val existingGroup =
-                                                if (systtsSnapshot.groupId != 0L) dbm.systemTtsV2.getGroup(systtsSnapshot.groupId) else null
-                                            val targetGroupId: Long
-                                            val targetGroupName: String
-                                            if (existingGroup != null) {
-                                                targetGroupId = existingGroup.id
-                                                targetGroupName = existingGroup.name
-                                            } else {
-                                                val pluginName = plugin?.name
-                                                    ?: dbm.pluginDao.getMetaByPluginId(ttsSnapshot.pluginId)?.name
-                                                    ?: "插件分组"
-                                                val sameName = dbm.systemTtsV2.allGroup()
-                                                    .firstOrNull { it.group.name == pluginName }
-                                                if (sameName != null) {
-                                                    targetGroupId = sameName.group.id
-                                                    targetGroupName = sameName.group.name
-                                                } else {
-                                                    val group = SystemTtsGroup(
-                                                        name = pluginName,
-                                                        order = dbm.systemTtsV2.groupCount,
-                                                        // 新建分组默认展开：保存完成后立即可见，避免找不到保存项
-                                                        isExpanded = true
-                                                    )
-                                                    dbm.systemTtsV2.insertGroup(group)
-                                                    targetGroupId = group.id
-                                                    targetGroupName = group.name
-                                                }
-                                            }
-
-                                            // 获取当前标签规则及有序标签列表
-                                            val speechRule: SpeechRule? =
-                                                if (ruleData.tagRuleId.isNotBlank())
-                                                    dbm.speechRuleDao.getByRuleId(ruleData.tagRuleId)
-                                                else null
-                                            val tagKeys = speechRule?.tags?.keys?.toList() ?: emptyList()
-                                            // 第一个用当前选中的标签，后续按标签列表顺序向下延续（取模循环）
-                                            val startIndex = if (tagKeys.isNotEmpty())
-                                                tagKeys.indexOf(ruleData.tag).coerceAtLeast(0)
-                                            else 0
-
-                                            // 循环外仅 eval 一次规则引擎并复用：
-                                            // 每个声音重复 eval 整个 JS（数千行）开销过大
-                                            val ruleEngine = speechRule?.let { sr ->
-                                                runCatching {
-                                                    SpeechRuleEngine(context, sr).apply { eval() }
-                                                }.getOrNull()
-                                            }
-
-                                            // 各分类下已有数量（用于序号起点，避免重号）
-                                            val categoryCountMap = mutableMapOf<String, Int>()
-                                            // 未分配分类的序号计数
-                                            var untaggedIdx = 0
-                                            // 批次内自增序号：与时间戳基值组合保证 ID 唯一，
-                                            // 避免原「untaggedIdx+分类数之和」组合可能撞车（REPLACE 会静默覆盖）
-                                            val baseId = System.currentTimeMillis()
-                                            var idSeq = 0
-                                            // 排序追加起点：目标分组内现有最大 order + 1。
-                                            // 新项若全部继承模板项的 order，与已有项互相冲突导致列表顺序混乱
-                                            val baseOrder = (dbm.systemTtsV2.getByGroup(targetGroupId)
-                                                .maxOfOrNull { it.order } ?: -1) + 1
-                                            var orderSeq = 0
-
-                                            // 待保存清单：(音色, 语言池ID, "")，locale 即当前表单所选
-                                            val importItems =
-                                                selectedVoices.map { Triple(it, ttsSnapshot.locale, "") }
-
-                                            importItems.forEachIndexed { voiceIdx, (voice, voiceLocale, poolName) ->
-                                                withContext(Dispatchers.Main) {
-                                                    savingProgressText =
-                                                        "正在保存 ${voiceIdx + 1}/${importItems.size}：${voice.name}"
-                                                }
-                                                val category = categoryMapSnapshot[voice.id]
-                                                val newRuleData = config.speechRule.copy()
-                                                // 未分配分类时保留用户在分组树中已选的子分组路径，
-                                                // 不再被强制置空导致保存位置丢失
-                                                var categoryPath = systtsSnapshot.categoryPath
-
-                                                if (category != null) {
-                                                    // —— 分配了分类：标签依据朗读规则生成 ——
-                                                    val count = categoryCountMap.getOrDefault(category, 0)
-                                                    // 查询该子分组下已有数量作为起点
-                                                    val existing = if (count == 0) {
-                                                        dbm.systemTtsV2.getByGroup(targetGroupId)
-                                                            .count { it.categoryPath == category }
-                                                    } else count
-                                                    val seq = existing + 1
-                                                    categoryCountMap[category] = seq
-                                                    // 优先由朗读规则自定义生成（每套规则可有不同逻辑），
-                                                    // 未实现 getCategoryTag 或返回空时回退「分类名+序号」
-                                                    // （补零口径见 JReadConfigMigration.tagSeqText：男主1、特殊男05）
-                                                    // 「旁白」为单一角色分类，不带序号
-                                                    val tagLabel = if (category == "旁白") {
-                                                        category
-                                                    } else {
-                                                        ruleEngine?.getCategoryTag(category, seq)
-                                                            ?: JReadConfigMigration.buildTag(category, seq)
-                                                    }
-                                                    newRuleData.target = SpeechTarget.TAG
-                                                    newRuleData.tag = tagLabel
-                                                    // 标签名同样优先走规则的 getTagName（各规则自己的取名逻辑），
-                                                    // 取不到再用 tag 本身
-                                                    newRuleData.tagName = runCatching {
-                                                        ruleEngine?.getTagName(tagLabel, newRuleData.tagData)
-                                                    }.getOrNull()?.takeIf { it.isNotBlank() } ?: tagLabel
-                                                    newRuleData.tagRuleId = ruleData.tagRuleId
-                                                    categoryPath = category
-                                                } else if (tagKeys.isNotEmpty()) {
-                                                    // —— 未分配分类：原逻辑 ——
-                                                    val tagKey = tagKeys.getOrNull((startIndex + untaggedIdx) % tagKeys.size)
-                                                    untaggedIdx++
-                                                    if (tagKey != null) {
-                                                        newRuleData.target = SpeechTarget.TAG
-                                                        newRuleData.tag = tagKey
-                                                        newRuleData.tagRuleId = ruleData.tagRuleId
-                                                        runCatching {
-                                                            ruleEngine?.let { re ->
-                                                                newRuleData.tagName =
-                                                                    re.getTagName(tagKey, newRuleData.tagData)
-                                                            }
-                                                        }.onFailure {
-                                                            // 与 SpeechRuleEngine.getTagName 伴生方法行为一致：
-                                                            // JS 未实现 getTagName 时回退 tags 内的显示名
-                                                            newRuleData.tagName = speechRule?.tags?.get(tagKey) ?: ""
-                                                        }
-                                                    }
-                                                }
-
-                                                // 插件声明的采样率是用户在插件界面选择的请求/PCM兜底值。
-                                                // MP3/WAV/Opus 等有音频头的实际输入格式在播放时自动识别，
-                                                // 不再把试听或额外合成测得的瞬时值写进每个配置项。
-                                                val voiceSampleRate = runCatching {
-                                                    vm.engine.getSampleRate(voiceLocale, voice.id)
-                                                }.getOrNull()?.takeIf { it > 0 }
-                                                    ?: config.audioFormat.sampleRate
-                                                val voiceNeedDecode = runCatching {
-                                                    vm.engine.isNeedDecode(voiceLocale, voice.id)
-                                                }.getOrNull() ?: config.audioFormat.isNeedDecode
-
-                                                val newConfig = config.copy(
-                                                    source = ttsSnapshot.copy(
-                                                        locale = voiceLocale,
-                                                        voice = voice.id
-                                                    ),
-                                                    speechRule = newRuleData,
-                                                    audioFormat = config.audioFormat.copy(
-                                                        sampleRate = voiceSampleRate,
-                                                        isNeedDecode = voiceNeedDecode
-                                                    )
-                                                )
-                                                dbm.systemTtsV2.insert(
-                                                    systtsSnapshot.copy(
-                                                        id = baseId + idSeq++,
-                                                        groupId = targetGroupId,
-                                                        order = baseOrder + orderSeq++,
-                                                        displayName = voice.name,
-                                                        categoryPath = categoryPath,
-                                                        config = newConfig
-                                                    )
-                                                )
-                                            }
-                                            withContext(Dispatchers.Main) {
-                                                if (systtsSnapshot.isEnabled) SystemTtsService.notifyUpdateConfig()
-                                                // 明确提示保存数量与位置（语音列表/分组），
-                                                // 保存成功后直接关闭当前界面，避免停留在编辑页还要手动关闭
-                                                context.toast(
-                                                    context.getString(
-                                                        R.string.save_to_list,
-                                                        importItems.size
-                                                    ) + " → $targetGroupName"
-                                                )
-                                                selectedVoiceIds = emptySet()
-                                                voiceCategoryMap = emptyMap()
-                                                // 导入成功即关掉声音弹窗（10-05 用户 C 案）：不再停在原地
-                                                // 让人以为没生效、又去点顶栏「保存」重来
-                                                dismiss()
-                                                onSaved?.invoke()
-                                            }
-                                            }.onFailure { e ->
-                                                // 保存过程任何异常（DB 写入、分组创建等）都显式提示，
-                                                // 不再静默失败让用户误以为已保存
-                                                withContext(Dispatchers.Main) {
-                                                    context.toast("保存失败：${e.message}")
-                                                }
-                                            }
-                                            // 无论成败都关闭进度弹窗：置于 runCatching 之外，异常路径也能关闭
-                                            withContext(Dispatchers.Main) {
-                                                showLoadingDialog = false
-                                                savingProgressText = ""
-                                            }
-                                        }
-                                    }
-                                ) {
-                                    // 键名与顶栏「保存」区分：这是「把勾选的音色批量导成配置项」，
-                                    // 数量随勾选变（0 时禁用）；真正保存当前配置是顶栏 💾（10-05 用户 C 案）
-                                    Text(stringResource(id = R.string.voice_bulk_import, selectedVoiceIds.size))
-                                }
-                            }
                         )
 
                         // 音色广场入口（opt-in 协议 searchVoiceCatalog）：这类插件（Fish Audio 官网
                         // 音色广场等）的 getVoices() 只回它自己写的本地缓存，而**只有
                         // searchVoiceCatalog() 会写这个缓存** ⇒ 不给入口就一个音色都选不到
-                        // （声音下拉恒空、批量导入 0 条）。插件没声明该接口时按钮不出现。
+                        // （声音下拉恒空）。插件没声明该接口时按钮不出现。
                         if (vm.supportsVoiceCatalog) {
                             OutlinedButton(
                                 modifier = Modifier

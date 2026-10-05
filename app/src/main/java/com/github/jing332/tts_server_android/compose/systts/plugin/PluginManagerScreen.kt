@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -35,6 +36,7 @@ import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.DeleteForever
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.EditNote
+import androidx.compose.material.icons.filled.Headset
 import androidx.compose.material.icons.filled.LibraryAdd
 import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material.icons.filled.MoreVert
@@ -67,6 +69,7 @@ import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.material3.TopAppBarDefaults
 import com.github.jing332.tts_server_android.compose.nav.NavTopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.derivedStateOf
@@ -105,12 +108,17 @@ import com.github.jing332.database.dbm
 import com.github.jing332.database.entities.plugin.Plugin
 import com.github.jing332.database.entities.systts.TtsConfigurationDTO
 import com.github.jing332.database.entities.systts.source.PluginTtsSource
+import com.github.jing332.database.entities.systts.source.TextToSpeechSource
 import com.github.jing332.database.entities.systts.SystemTtsV2
+import com.github.jing332.tts.speech.TextToSpeechProvider
+import com.github.jing332.tts.speech.plugin.PluginTtsProvider
+import com.github.jing332.tts_server_android.compose.systts.AuditionDialog
 import com.github.jing332.tts_server_android.compose.systts.list.SourceSwitchCheckDialog
 import com.github.jing332.script.JsMetadataSyncer
 import com.github.jing332.tts.speech.plugin.engine.TtsPluginUiEngineV2
 import com.github.jing332.tts_server_android.R
 import com.github.jing332.tts_server_android.compose.AppDefaultProperties
+import com.github.jing332.tts_server_android.conf.AppConfig
 import com.github.jing332.tts_server_android.compose.LocalNavController
 import com.github.jing332.tts_server_android.compose.SharedViewModel
 import com.github.jing332.tts_server_android.compose.systts.ConfigDeleteDialog
@@ -1177,26 +1185,111 @@ private fun ImportByCategoryDialog(
 
     // 插件音色分类列表：poolId → poolName
     data class CategoryItem(val poolId: String, val poolName: String, val mappedName: String?)
+
+    // 声音行：key = poolId+voiceId（跨池不撞），用于勾选/分类集合的键
+    data class VoiceRow(val poolId: String, val poolName: String, val voiceId: String, val voiceName: String) {
+        val key: String get() = "$poolId\u0000$voiceId"
+    }
+
     var categories by remember { mutableStateOf<List<CategoryItem>>(emptyList()) }
     var selectedPoolIds by remember { mutableStateOf<Set<String>>(emptySet()) }
+    // 0=选分类（勾池子）；1=选声音（试听/分类/勾选/导入）。无分类插件直接进 1
+    var stage by remember { mutableStateOf(0) }
+    var voices by remember { mutableStateOf<List<VoiceRow>>(emptyList()) }
+    var selectedKeys by remember { mutableStateOf<Set<String>>(emptySet()) }
+    // 试听时手动分配的分类：voiceKey → 分类名（女童…旁白）
+    var categoryOverrides by remember { mutableStateOf<Map<String, String>>(emptyMap()) }
+    var loadingVoices by remember { mutableStateOf(false) }
     var importing by remember { mutableStateOf(false) }
     var progressText by remember { mutableStateOf("") }
+    // 正在试听的声音行下标（-1 = 未试听）；弹窗内上一个/下一个按此下标走
+    var auditionIndex by remember { mutableStateOf(-1) }
+
+    // 引擎贯穿弹窗生命周期：既用于拉池/声音，也用于试听合成；关闭时销毁
+    val engine = remember(plugin.id) { TtsPluginUiEngineV2(context, plugin) }
+    DisposableEffect(plugin.id) {
+        onDispose { runCatching { engine.destroy() } }
+    }
+
+    fun loadVoices(pools: List<CategoryItem>) {
+        loadingVoices = true
+        scope.launch(Dispatchers.IO) {
+            val rows = pools.flatMap { p ->
+                runCatching { engine.getVoices(p.poolId) }.getOrNull().orEmpty()
+                    .filter { it.id.isNotBlank() }
+                    .map { VoiceRow(p.poolId, p.poolName, it.id, it.name) }
+            }
+            withContext(Dispatchers.Main) {
+                voices = rows
+                // 默认全选（省事流：进列表直接点导入=原「整池盲入」行为）
+                selectedKeys = rows.map { it.key }.toSet()
+                categoryOverrides = emptyMap()
+                loadingVoices = false
+                stage = 1
+            }
+        }
+    }
 
     LaunchedEffect(plugin.id) {
-        // 在主线程初始化引擎拉取分类列表（getLocales 是纯数据方法，不涉及耗时合成）
-        val engine = TtsPluginUiEngineV2(context, plugin)
+        // 初始化引擎并拉分类列表（getLocales/getVoices 为纯数据方法，不涉及合成）
         runCatching {
             engine.eval()
             engine.onLoad()
             categories = engine.getLocales().map { (id, name) ->
                 CategoryItem(id, name, PluginCategoryImporter.mapTagCategory(name))
             }
-            engine.destroy()
+            // 无分类插件：跳过勾池子，直接给全量声音列表（伪池 id=""，插件不认则该列表为空）
+            if (categories.isEmpty()) loadVoices(listOf(CategoryItem("", "全部音色", null)))
         }
     }
 
     val allSelected = categories.isNotEmpty() && selectedPoolIds.size == categories.size
     val hasSelection = selectedPoolIds.isNotEmpty()
+    val allVoicesSelected = voices.isNotEmpty() && selectedKeys.size == voices.size
+    val importCount = voices.count { it.key in selectedKeys }
+
+    // 试听弹窗：复用编辑页同一组件（🎧 试听 + 三列分类标签 + 上一个/下一个 + 进度）
+    if (auditionIndex in voices.indices) {
+        val row = voices[auditionIndex]
+        val auditionSystts = remember(row) {
+            SystemTtsV2(
+                displayName = row.voiceName,
+                config = TtsConfigurationDTO(
+                    source = PluginTtsSource(
+                        pluginId = plugin.pluginId,
+                        locale = row.poolId,
+                        voice = row.voiceId
+                    )
+                )
+            )
+        }
+        @Suppress("UNCHECKED_CAST")
+        val provider = remember {
+            PluginTtsProvider(context, plugin).also { it.engine = engine }
+                as TextToSpeechProvider<TextToSpeechSource>
+        }
+        AuditionDialog(
+            systts = auditionSystts,
+            text = AppConfig.testSampleText.value,
+            engine = provider,
+            voiceId = row.voiceId,
+            // 不带分类开关：本页试听恒等分类（自动关闭会来不及点分类标签）
+            autoDismiss = false,
+            hasPrev = auditionIndex > 0,
+            hasNext = auditionIndex < voices.size - 1,
+            onCategoryAssigned = { _, category ->
+                categoryOverrides = if (category == null) categoryOverrides - row.key
+                else categoryOverrides + (row.key to category)
+                // 手选分类即视为待导入项（否则分好类却没勾、导入漏掉它）
+                if (category != null) selectedKeys = selectedKeys + row.key
+            },
+            onPrev = { if (auditionIndex > 0) auditionIndex-- },
+            onNext = { if (auditionIndex < voices.size - 1) auditionIndex++ },
+            assignedCategory = categoryOverrides[row.key],
+            progressText = "${auditionIndex + 1}/${voices.size}",
+            onDismissRequest = { auditionIndex = -1 }
+        )
+    }
 
     AlertDialog(
         onDismissRequest = { if (!importing) onDismiss() },
@@ -1209,9 +1302,7 @@ private fun ImportByCategoryDialog(
                     Spacer(Modifier.width(12.dp))
                     Text(progressText, style = MaterialTheme.typography.bodyMedium)
                 }
-            } else if (categories.isEmpty()) {
-                Text("该插件无音色分类")
-            } else {
+            } else if (stage == 0) {
                 Column(Modifier.verticalScroll(rememberScrollState())) {
                     // 插件名：次级信息行，小字最多两行省略，归属可见又不抢标题
                     Text(
@@ -1262,30 +1353,112 @@ private fun ImportByCategoryDialog(
                         )
                     }
                 }
+            } else if (loadingVoices) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    CircularProgressIndicator(Modifier.size(24.dp), strokeWidth = 2.dp)
+                    Spacer(Modifier.width(12.dp))
+                    Text("正在读取音色…", style = MaterialTheme.typography.bodyMedium)
+                }
+            } else if (voices.isEmpty()) {
+                Text("该插件无音色")
+            } else {
+                // 声音列表：每行 🎧 试听 + 勾选；顶部全选行。默认全选（省事流直接导入）
+                LazyColumn(Modifier.fillMaxWidth().heightIn(max = 420.dp)) {
+                    item {
+                        CheckRow(
+                            checked = allVoicesSelected,
+                            onChecked = {
+                                selectedKeys = if (allVoicesSelected) emptySet() else voices.map { it.key }.toSet()
+                            },
+                            label = if (allVoicesSelected) "取消全选" else "全选",
+                            trailing = {
+                                Text(
+                                    "已选 ${selectedKeys.size}/${voices.size}",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                        )
+                        HorizontalDivider(Modifier.padding(bottom = 2.dp))
+                    }
+                    items(voices, key = { it.key }) { row ->
+                        val idx = voices.indexOfFirst { it.key == row.key }
+                        CheckRow(
+                            checked = row.key in selectedKeys,
+                            onChecked = null,
+                            label = row.voiceName,
+                            onClick = {
+                                selectedKeys = if (row.key in selectedKeys) selectedKeys - row.key
+                                else selectedKeys + row.key
+                            },
+                            trailing = {
+                                // 已试听后手选分类的，行尾标出分类名（导入依据一目了然）
+                                categoryOverrides[row.key]?.let { cat ->
+                                    Text(
+                                        text = cat,
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.primary,
+                                        modifier = Modifier.padding(end = 4.dp)
+                                    )
+                                }
+                                IconButton(onClick = { if (idx >= 0) auditionIndex = idx }) {
+                                    Icon(
+                                        Icons.Default.Headset,
+                                        stringResource(id = R.string.audition)
+                                    )
+                                }
+                            }
+                        )
+                    }
+                }
             }
         },
         confirmButton = {
-            TextButton(
-                enabled = !importing && hasSelection,
-                onClick = {
-                    importing = true
-                    val poolIds = selectedPoolIds.toList()
-                    scope.launch {
-                        val result = runCatching {
-                            PluginCategoryImporter.import(context, plugin, poolIds) { progressText = it }
-                        }
-                        result.fold(
-                            onSuccess = { count -> context.longToast("已导入 $count 个音色，已自动创建分组「${plugin.name}」") },
-                            onFailure = { e -> context.longToast("导入失败: ${e.message}") }
-                        )
-                        importing = false
-                        onDismiss()
+            if (stage == 0) {
+                // 有分类：先勾池子 → 下一步拉声音列表
+                TextButton(
+                    enabled = !importing && hasSelection,
+                    onClick = {
+                        val pools = categories.filter { it.poolId in selectedPoolIds }
+                        if (pools.isNotEmpty()) loadVoices(pools)
                     }
-                }
-            ) { Text(if (importing) "导入中" else "开始导入") }
+                ) { Text("下一步") }
+            } else {
+                TextButton(
+                    enabled = !importing && importCount > 0,
+                    onClick = {
+                        importing = true
+                        val items = voices.filter { it.key in selectedKeys }.map {
+                            PluginCategoryImporter.VoiceItem(
+                                poolId = it.poolId,
+                                poolName = it.poolName,
+                                voiceId = it.voiceId,
+                                voiceName = it.voiceName,
+                                categoryOverride = categoryOverrides[it.key]
+                            )
+                        }
+                        scope.launch {
+                            val result = runCatching {
+                                PluginCategoryImporter.importVoices(context, plugin, items) { progressText = it }
+                            }
+                            result.fold(
+                                onSuccess = { count -> context.longToast("已导入 $count 个音色，已自动创建分组「${plugin.name}」") },
+                                onFailure = { e -> context.longToast("导入失败: ${e.message}") }
+                            )
+                            importing = false
+                            onDismiss()
+                        }
+                    }
+                ) { Text(if (importing) "导入中" else "导入 $importCount 个音色") }
+            }
         },
         dismissButton = {
-            TextButton(enabled = !importing, onClick = onDismiss) { Text("取消") }
+            // 声音列表阶段且插件有分类：可退回勾池子
+            if (stage == 1 && categories.isNotEmpty()) {
+                TextButton(enabled = !importing, onClick = { stage = 0; auditionIndex = -1 }) { Text("上一步") }
+            } else {
+                TextButton(enabled = !importing, onClick = onDismiss) { Text("取消") }
+            }
         }
     )
 }

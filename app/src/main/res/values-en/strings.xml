@@ -272,8 +272,6 @@
     <string name="import_truncated_hint">Import failed, JSON may be truncated: %1$s\n\nFor large config lists, turn off system TTS service before importing.</string>
     <string name="file_save_failed">File save failed：%1$s</string>
     <string name="save_success">Save successfully</string>
-    <string name="save_to_list">Saved %1$d to voice list</string>
-    <string name="voice_bulk_import">Import %1$d voices</string>
     <string name="failed_timed_out">Timed out：%1$dms</string>
     <string name="builtin_player_settings_tip_msg">When the built-in player is enabled, use the settings here to override the global.</string>
     <string name="systts_standby_help_msg">When checked, this configuration acts as the standby voice: it takes over once the configuration sharing the same reading rule and the same tag name has failed its retries and reached [Standby Settings].\nThe standby request is retried the same [Max Retry Count] times — it is not skipped on the first failure.</string>
@@ -363,7 +361,6 @@
     <string name="voice_catalog_empty">No voices found</string>
     <string name="voice_catalog_no_more">No more</string>
     <string name="voice_catalog_retry">Retry</string>
-    <string name="label_voice_hint">(tap to audition or categorize)</string>
     <string name="voice_catalog_usage">%1$s uses</string>
     <string name="voice_catalog_sort_score">Recommended</string>
     <string name="voice_catalog_sort_hot">Popular</string>
