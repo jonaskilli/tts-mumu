@@ -12,7 +12,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.pager.PagerState
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Backup
+import androidx.compose.material.icons.filled.Book
 import androidx.compose.material.icons.filled.Key
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -214,8 +214,12 @@ fun RoleManagementScreen(sharedVM: SharedViewModel, pagerState: PagerState) {
                         contentAlignment = Alignment.CenterStart
                     ) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
+                            // 图标改书形（10-05 用户令：本键管的是「当前书籍/朗读数据」的导出导入，
+                            // 与设置页的 App 级「备份与恢复」易混）。原用 Icons.Default.Backup
+                            // （云+箭头）与设置页 SettingsBackupRestore 语义都是"备份"分不开；
+                            // 换 Icons.Default.Book 一眼看出是"书"的事。名字仍「备份」两字（四字嫌长）。
                             Icon(
-                                Icons.Default.Backup,
+                                Icons.Default.Book,
                                 contentDescription = null,
                                 modifier = Modifier.size(18.dp),
                                 tint = MaterialTheme.colorScheme.onSurfaceVariant
