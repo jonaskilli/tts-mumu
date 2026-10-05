@@ -125,8 +125,17 @@ internal fun ColumnScope.SysttsSettingsScreen(search: SettingsSearch) {
         )
     }
 
-    // 「交换试听和编辑按钮位置」已移出本区（10-05 用户令：它改的是列表卡片的按钮，不是朗读行为）
-    // —— 现归入「显示与交互」区
+    // 心声 AI 判定（10-05 用户令：原「心声」区撤，并入本区——它就是"朗读时怎么认内心独白"）
+    var aiEnabled by remember { SystemTtsConfig.isInnerThoughtAiEnabled }
+    SettingItem(search, "心声", "ai", "心理活动", "inner", "内心") {
+        SwitchPreference(
+            title = { Text("启用心声 AI 判定") },
+            subTitle = { Text("正则拿不准时调用 AI 判断") },
+            checked = aiEnabled,
+            onCheckedChange = { aiEnabled = it },
+            icon = { Icon(Icons.Default.Psychology, null) }
+        )
+    }
 
     var targetMultiple by remember { SystemTtsConfig.isVoiceMultipleEnabled }
     SettingItem(search, "多语音", "voice", "并行", "多角色") {
@@ -153,10 +162,27 @@ internal fun ColumnScope.SysttsSettingsScreen(search: SettingsSearch) {
             }
         )
     }
+
+    // 交换试听/编辑按钮位置（10-05 用户令：从「常用」挪回本区——用户视其为常用项，
+    // 而本区正是"跟朗读/播放打交道时顺手调"的那一区）
+    var wrapButton by remember { AppConfig.isSwapListenAndEditButton }
+    SettingItem(search, "交换", "按钮", "button", "试听", "编辑") {
+        SwitchPreference(
+            title = { Text(stringResource(id = R.string.pref_swap_listen_and_edit_button)) },
+            subTitle = {},
+            checked = wrapButton,
+            onCheckedChange = { wrapButton = it },
+            icon = {
+                Icon(Icons.Default.Headset, contentDescription = null)
+            }
+        )
+    }
     } // 朗读与播放区收尾（10-05 分区）
 
-    // 「显示与交互」区已撤（10-05 用户令：把"高频的交换键"和"一年不动一次的两个长度限制"捆一起，
-    // 标题再准也难用）——交换键移入「常用」，两个长度限制移入「其他」（不常用归口）
+    // 「显示与交互」「心声」两个区已撤（10-05 用户令）：
+    // - 交换键 → 归本区（用户视其为常用项，且本区就是"跟朗读/播放打交道时顺手调"）
+    // - 两个长度限制 → 归「其他」（一次性设置）
+    // - 心声 AI 判定 → 归本区（就是"朗读时怎么认内心独白"）
 
     // 稳定性区（10-05 分区；同日用户令：也默认折叠——与「数据与关于」同一处理）
     SettingsGroup(
@@ -301,21 +327,7 @@ internal fun ColumnScope.SysttsSettingsScreen(search: SettingsSearch) {
         )
     }
 
-    // ========== 心声（10-05 分区；同日用户令：标签/名称长度移去「显示与交互」，
-    // 本区只剩心声 AI 判定，故名从「心声与标签」简化为「心声」）==========
-    }
-
-    SettingsGroup(title = { Text("心声") }, show = !search.active()) {
-    var aiEnabled by remember { SystemTtsConfig.isInnerThoughtAiEnabled }
-    SettingItem(search, "心声", "ai", "心理活动", "inner", "内心") {
-        SwitchPreference(
-            title = { Text("启用心声 AI 判定") },
-            subTitle = { Text("正则拿不准时调用 AI 判断") },
-            checked = aiEnabled,
-            onCheckedChange = { aiEnabled = it },
-            icon = { Icon(Icons.Default.Psychology, null) }
-        )
-    }
+    // ========== 稳定性区收尾 ==========
     }
 
 }

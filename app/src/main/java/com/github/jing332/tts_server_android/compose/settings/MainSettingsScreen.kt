@@ -19,7 +19,6 @@ import androidx.compose.material.icons.automirrored.filled.ManageSearch
 
 import androidx.compose.material.icons.filled.ColorLens
 import androidx.compose.material.icons.filled.FileOpen
-import androidx.compose.material.icons.filled.Headset
 import androidx.compose.material.icons.filled.HideSource
 import androidx.compose.material.icons.filled.Lan
 import androidx.compose.material.icons.filled.Key
@@ -175,18 +174,6 @@ fun SettingsScreen() {
 
                 // 「语言」整项已删（10-05 用户令：只留中文，外语翻译五个目录一并退役）
 
-                // 交换试听/编辑按钮位置（10-05 用户令：这是常用项，从「显示与交互」撤区后归「常用」）
-                var wrapButton by remember { AppConfig.isSwapListenAndEditButton }
-                SettingItem(search, "交换", "按钮", "button", "试听", "编辑") {
-                    SwitchPreference(
-                        title = { Text(stringResource(id = R.string.pref_swap_listen_and_edit_button)) },
-                        subTitle = {},
-                        checked = wrapButton,
-                        onCheckedChange = { wrapButton = it },
-                        icon = { Icon(Icons.Default.Headset, contentDescription = null) }
-                    )
-                }
-
                 SettingItem(search, "备份", "恢复", "backup", "restore") {
                 BasePreferenceWidget(
                     icon = {
@@ -243,8 +230,8 @@ fun SettingsScreen() {
                     }
                 }
 
-                // 朗读与播放 / 显示与交互 / 稳定性 / 心声 四区（SysttsSettingsScreen 渲染；
-                // 10-05 用户令：显示与交互自前两区抽出——交换键+两个长度限制都只改列表卡片显示）
+                // 朗读与播放 / 稳定性 两区（SysttsSettingsScreen 渲染；10-05 用户令：
+                // 交换键与心声 AI 都并进「朗读与播放」，故「显示与交互」「心声」两个区已撤）
                 SysttsSettingsScreen(search)
 
                 // ===== 服务与网络（10-05 用户令：不常用，移至倒数第二区）=====
