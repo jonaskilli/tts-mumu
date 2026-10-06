@@ -3579,6 +3579,14 @@ internal fun ListManagerScreen(
                                         ),
                                         name = item.displayName,
                                         marks = remember(item, voiceMarksVersion) { marksOf(item) },
+                                        onToggleMark = { mark ->
+                                            // 卡片⋮打标记（10-06 用户令）：写 voice_marks.json，版本号驱动名字后 emoji 重读
+                                            //（与日志面板/换声弹窗同链；标记键=tag，与 marksOf 查找键一致）
+                                            val dto = item.config as? TtsConfigurationDTO
+                                            if (dto != null && VoiceMarksFile.toggle(dto.speechRule.tagRuleId, dto.speechRule.tag, mark)) {
+                                                sharedVM.voiceMarksVersion.value += 1
+                                            }
+                                        },
                                         tagName = descriptor.tagName,
                                         type = descriptor.type,
                                         standby = descriptor.standby,
@@ -3806,6 +3814,14 @@ internal fun ListManagerScreen(
                                                     ),
                                                     name = item.displayName,
                                                     marks = remember(item, voiceMarksVersion) { marksOf(item) },
+                                                    onToggleMark = { mark ->
+                                                        // 卡片⋮打标记（10-06 用户令）：写 voice_marks.json，版本号驱动名字后 emoji 重读
+                                                        //（与日志面板/换声弹窗同链；标记键=tag，与 marksOf 查找键一致）
+                                                        val dto = item.config as? TtsConfigurationDTO
+                                                        if (dto != null && VoiceMarksFile.toggle(dto.speechRule.tagRuleId, dto.speechRule.tag, mark)) {
+                                                            sharedVM.voiceMarksVersion.value += 1
+                                                        }
+                                                    },
                                                     tagName = descriptor.tagName,
                                                     type = descriptor.type,
                                                     standby = descriptor.standby,

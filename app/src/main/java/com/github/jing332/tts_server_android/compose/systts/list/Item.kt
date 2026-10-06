@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AccountTree
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.CopyAll
 import androidx.compose.material.icons.filled.DeleteForever
 import androidx.compose.material.icons.filled.Edit
@@ -72,6 +73,8 @@ internal fun Item(
     name: String,
     // 点亮的发音人标记 emoji（用户 09-12 晚：与日志面板同源 voice_marks.json，跟在名字后显示）
     marks: List<String> = emptyList(),
+    // 标记 toggle（10-06 用户令：卡片⋮菜单也可打标记）；默认空实现=旧调用方零改动
+    onToggleMark: (String) -> Unit = {},
     tagName: String,
     type: String,
     desc: String,
@@ -331,6 +334,19 @@ internal fun Item(
                                 Icon(Icons.Default.Output, stringResource(R.string.export_config))
                             }
                         )
+                        // 发音人标记（10-06 用户令：卡片⋮也可打标记，与换声弹窗行内 ⋮ 同源同款）：
+                        // 多选 toggle、点一次切一次菜单不关（可连点几个），点亮态即时反映到名字后 emoji
+                        VoiceMarksFile.MARK_ITEMS.forEach { (mark, emojiText, label) ->
+                            DropdownMenuItem(
+                                text = { Text(label) },
+                                leadingIcon = { Text(emojiText) },
+                                trailingIcon = {
+                                    if (mark in marks)
+                                        Icon(Icons.Default.Check, stringResource(R.string.tagged_mark_on))
+                                },
+                                onClick = { onToggleMark(mark) },
+                            )
+                        }
                         HorizontalDivider()
                         DropdownMenuItem(
                             text = { Text(stringResource(id = R.string.delete)) },

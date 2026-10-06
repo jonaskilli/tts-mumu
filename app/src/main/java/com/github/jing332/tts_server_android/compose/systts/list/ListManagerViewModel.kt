@@ -18,6 +18,7 @@ import com.github.jing332.tts_server_android.R
 import com.github.jing332.tts_server_android.compose.systts.list.ui.PluginDescriptor
 import com.github.jing332.tts_server_android.conf.SystemTtsConfig
 import com.github.jing332.tts_server_android.service.systts.SystemTtsService
+import com.github.jing332.tts_server_android.service.systts.help.VoiceMarksFile
 import kotlinx.serialization.encodeToString
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -235,6 +236,35 @@ class ListManagerViewModel : ViewModel() {
                     it.group.name.contains(key, ignoreCase = true)
                 }.map {
                     it.copy(group = it.group.copy(isExpanded = true))
+                }
+            }
+            SearchType.MARKED -> {
+                // 已标记发音人（10-06 用户令）：voice_marks.json 点亮 ❤️/🚶/😈 的配置项。
+                // 匹配口径=emoji（❤️/🚶/😈）或中文名（喜欢/路人/坏人）任一命中；空关键词=全部已标记。
+                // 查找键与 ListManagerScreen.marksOf 同源：marksFor(voice 优先、tag 兜底)。
+                // 筛出的条目在界面上可走卡片⋮「导出」/分组行「导出」，导出链零额外改动
+                list.mapNotNull { groupWithTts ->
+                    val filteredItems = groupWithTts.list.filter { item ->
+                        val dto = item.config as? TtsConfigurationDTO ?: return@filter false
+                        val marks = VoiceMarksFile.marksFor(
+                            dto.speechRule.tagRuleId,
+                            dto.speechRule.tag,
+                            (dto.source as? PluginTtsSource)?.voice.orEmpty(),
+                        )
+                        if (marks.isEmpty()) return@filter false
+                        if (key.isBlank()) return@filter true
+                        val lit = VoiceMarksFile.MARK_ITEMS.filter { it.first in marks }
+                        val emojis = lit.joinToString("") { it.second }
+                        val names = lit.joinToString("") { it.third }
+                        emojis.contains(key, ignoreCase = true) ||
+                            names.contains(key, ignoreCase = true)
+                    }
+                    if (filteredItems.isNotEmpty()) {
+                        groupWithTts.copy(
+                            list = filteredItems,
+                            group = groupWithTts.group.copy(isExpanded = true)
+                        )
+                    } else null
                 }
             }
         }

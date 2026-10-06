@@ -45,6 +45,9 @@ enum class SearchType(@StringRes val strId: Int) {
     TAG(R.string.tag),
     PLUGIN(R.string.plugin),
     GROUP(R.string.group),
+    // 标记（10-06 用户令）：按 voice_marks.json 点亮筛选（❤️/🚶/😈，搜 emoji 或名称都命中），
+    // 筛出的已标记发音人可直接走现有导出链
+    MARKED(R.string.search_type_marked),
 }
 
 // 编辑分组对话框使用的搜索类型（不包含 GROUP）

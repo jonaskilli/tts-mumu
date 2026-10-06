@@ -446,6 +446,8 @@
     <string name="tts_config_not_exist">指定的TTS配置不存在</string>
     <string name="open_source_license">开源许可</string>
     <string name="limit_tag_length">限制标签长度</string>
+    <string name="tagged_mark_on">已点亮</string>
+    <string name="search_type_marked">标记</string>
     <string name="limit_tag_length_summary">标签超出的部分忽略，0=不限制</string>
     <string name="limit_name_length">限制显示名称长度</string>
     <string name="limit_name_length_summary">列表、换声弹窗与日志的显示名统一生效，0=不限制</string>
