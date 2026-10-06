@@ -54,7 +54,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.constraintlayout.compose.ConstraintLayout
 import androidx.constraintlayout.compose.Dimension
-import com.github.jing332.common.utils.StringUtils.limitLength
+import com.github.jing332.common.utils.StringUtils.limitDisplayLength
 import com.github.jing332.common.utils.performLongPress
 import com.github.jing332.compose.widgets.AppDropdownMenu
 import com.github.jing332.compose.widgets.LongClickIconButton
@@ -105,8 +105,10 @@ internal fun Item(
     val context = LocalContext.current
 
     val limitNameLen by remember { AppConfig.limitNameLength }
+    // 统一截断（10-06）：码点安全+竖线段回退，与日志/弹窗一口径；
+    // 标记 emoji 拼在截断后名字后（同槽一起限长的口径见下 nameWithMarks）
     val limitedName = remember(name, limitNameLen) {
-        if (limitNameLen == 0) name else name.limitLength(limitNameLen)
+        if (limitNameLen == 0) name else name.limitDisplayLength(limitNameLen)
     }
     // 点亮的标记 emoji 拼在名字后（未点亮不占位；顺序固定 喜欢→路人→坏人，见 VoiceMarksFile.MARK_ITEMS）。
     // 名字超长被省略号吃掉时标记可能一并裁掉——与日志面板同取舍：名字优先，不额外占一行

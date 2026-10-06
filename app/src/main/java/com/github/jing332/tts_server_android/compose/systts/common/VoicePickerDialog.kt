@@ -66,7 +66,7 @@ import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import com.drake.net.utils.withIO
 import com.drake.net.utils.withMain
-import com.github.jing332.common.utils.StringUtils.limitLength
+import com.github.jing332.common.utils.StringUtils.limitDisplayLength
 import com.github.jing332.common.utils.toParamText
 import com.github.jing332.compose.widgets.AppSelectionDialog
 import com.github.jing332.database.dbm
@@ -1012,7 +1012,7 @@ fun VoicePickerDialog(
             // 只截显示、不动数据（真音已验 | MINI_MAX 这类后缀原样保留在库里）
             val displayNameLimit = AppConfig.limitNameLength.value
             fun limitName(name: String): String =
-                if (displayNameLimit == 0) name else name.limitLength(displayNameLimit, "…")
+                if (displayNameLimit == 0) name else name.limitDisplayLength(displayNameLimit)
             // 随机结果落暂存 + 简洁提示（用户 10-06：点后再弹提示，不设常驻提示词）；
             // 换分类触发时范围空属正常（该分类只有当前这一个），静默不打扰
             fun applyRandomPick(pick: String?, silentIfEmpty: Boolean) {

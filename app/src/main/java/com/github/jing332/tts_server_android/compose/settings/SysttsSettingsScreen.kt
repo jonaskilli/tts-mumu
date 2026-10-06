@@ -202,6 +202,8 @@ internal fun ColumnScope.SysttsSettingsScreen(
             value = limitTagLen.toFloat(),
             onValueChange = { limitTagLen = it.toInt() },
             valueRange = 0f..20f,
+            // 整数吸附：拖动值按 1 吸附，与音频参数滑杆同款档位手感（10-06 用户反馈）
+            step = 1f,
             icon = { Icon(Icons.Default.Tag, null) },
             label = limitTagLenString
         )
@@ -216,7 +218,10 @@ internal fun ColumnScope.SysttsSettingsScreen(
             subTitle = { Text(stringResource(id = R.string.limit_name_length_summary)) },
             value = limitNameLen.toFloat(),
             onValueChange = { limitNameLen = it.toInt() },
-            valueRange = 0f..20f,
+            // 上限 30（10-06 用户令：「阳光甜妹」这类格外长的名字 20 不够挑）；默认仍 20
+            valueRange = 0f..30f,
+            // 整数吸附：拖动值按 1 吸附（顺手；原 it.toInt() 向下取整导致值与滑块错半格）
+            step = 1f,
             icon = { Icon(Icons.Default.TextFields, null) },
             label = limitNameLenString
         )

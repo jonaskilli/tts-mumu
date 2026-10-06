@@ -26,7 +26,7 @@ import androidx.annotation.StringRes
 import androidx.core.app.ServiceCompat.stopForeground
 import androidx.core.content.ContextCompat
 import com.github.jing332.common.utils.StringUtils
-import com.github.jing332.common.utils.limitLength
+import com.github.jing332.common.utils.limitDisplayLength
 import com.github.jing332.common.utils.longToast
 import com.github.jing332.common.utils.registerGlobalReceiver
 import com.github.jing332.common.utils.runOnUI
@@ -100,9 +100,6 @@ import kotlin.system.exitProcess
  * 沿革：6 字（09-09 前）→ 12 字（92a99eb）→ 20 字（8eea3e6）→ 12 字（2d92f12）→ 20 字（本次回调）。
  * 别再合并成一个常量，两边容器宽度根本不同。
  */
-internal const val LOG_DISPLAY_NAME_MAX_CHARS = 20
-
-
 @Suppress("DEPRECATION")
 class SystemTtsService : TextToSpeechService(), IEventDispatcher {
     companion object {
@@ -763,15 +760,12 @@ class SystemTtsService : TextToSpeechService(), IEventDispatcher {
                 // 半角竖线会被排版引擎当成字母、与后面的省略号/逗号粘成不可断块，日志行
                 // 右侧还剩整字宽度就被提前折行（「台湾口/音|⋯，」实测差 5px 整块下移）；
                 // 全角｜自带断行机会，且只动显示文案，配置项名/标签匹配不受影响
-                // 上限跟设置页「限制显示名称长度」滑杆（10-06 用户令：设完全生效）；
-                // 0=未设 → 维持 20 字兜底。超出截断补「…」，截掉的尾巴若带半截竖线/空格一并剪掉
+                // 上限跟设置页「限制显示名称长度」滑杆（10-06 用户拍板默认 20 字）；
+                // 0=不限制。截断走 limitDisplayLength（码点安全+竖线段回退+清尾），补「…」
                 val tagName = config.speechInfo.tagName.trim().replace('|', '｜')
                 val dispFull = tag.displayName.replace('|', '｜')
-                val maxChars = AppConfig.limitNameLength.value.takeIf { it > 0 }
-                    ?: LOG_DISPLAY_NAME_MAX_CHARS
-                val disp = if (dispFull.length > maxChars)
-                    dispFull.take(maxChars).trimEnd(' ', '|', '｜') + "…"
-                else dispFull
+                val maxChars = AppConfig.limitNameLength.value
+                val disp = if (maxChars > 0) dispFull.limitDisplayLength(maxChars) else dispFull
                 // 声音部分 = 标签名 [+ 逗号 + 显示名]；显示名以标签开头时不重复拼（防“男主1男主1”），
                 // 此时二者本为一体、也就无需分隔；与角色行 voiceTagText 同规则。
                 // ⚠️ 去重判断必须用**全量** dispFull：disp 已被切到 8 字，标签名本身超过 8 字时

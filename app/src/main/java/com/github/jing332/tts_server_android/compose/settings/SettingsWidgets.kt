@@ -355,6 +355,10 @@ internal fun SliderPreference(
     onValueChange: (Float) -> Unit,
     valueRange: ClosedFloatingPointRange<Float> = 0f..1f,
     steps: Int = 0,
+    // 拖动吸附档位（10-06 用户反馈「没音频参数调的顺手」）：音频参数滑杆传 step=0.05
+    // 拖动值吸附档位有跟手感；本组件原先不透传 step（LabelSlider 默认 0=纯连续），
+    // 整数型滑杆（限长等）传 1f 即与音频参数同款档位感
+    step: Float = 0f,
     buttonSteps: Float = 1f,
     buttonLongSteps: Float = 2f,
     label: String,
@@ -381,6 +385,7 @@ internal fun SliderPreference(
                     onValueChange = onValueChange,
                     valueRange = valueRange,
                     steps = steps,
+                    step = step,
                     buttonSteps = buttonSteps,
                     buttonLongSteps = buttonLongSteps,
                     text = label

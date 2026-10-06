@@ -143,6 +143,33 @@ fun String.limitLength(max: Int): String {
     return if (this.length > max) this.substring(0, max) else this
 }
 
+/**
+ * 显示名限长的统一截断（10-06 用户拍板默认 20 字，各处共享）：
+ * 超长按**码点**取前 [max] 个（emoji/代理对不腰斩）后补 [suffix]，再清尾——
+ * ① 段回退：名字是 `主名 | 属性|属性` 结构时，截断落在最后一个竖线段中间
+ *    会留半截尾巴（如「MINI_M」），回退到上一个段界；回退后剩余不足 6 字
+ *    （信息太少）或正好切在段界（无残段）则不回退。
+ *    半角 | 与全角｜都认——日志侧显示前会把半角转全角，其余处保持半角；
+ * ② 剪掉悬空竖线/空格与切剩的半个代理对。
+ * 与旧 [limitLength] 的差异：旧版按 UTF-16 char 切、不清尾。
+ */
+fun String.limitDisplayLength(max: Int, suffix: String = "…"): String {
+    if (length <= max) return this
+    val cut = offsetByCodePoints(0, max)   // 按码点切，emoji 不腰斩
+    var head = substring(0, cut)
+    val lastBar = maxOf(head.lastIndexOf('|'), head.lastIndexOf('｜'))
+    if (lastBar > 0 && lastBar < head.length - 1) {
+        val kept = head.substring(0, lastBar)
+        if (kept.length >= 6) head = kept
+    }
+    head = head.trimEnd(' ', '|', '｜')
+    while (head.isNotEmpty() && Character.isHighSurrogate(head.last())) {
+        head = head.dropLast(1)
+    }
+    if (head.isEmpty()) head = substring(0, cut)
+    return head + suffix
+}
+
 fun String.fromCookie(): Map<String, String> {
     val map = mutableMapOf<String, String>()
     val cookies = this.split(";")
