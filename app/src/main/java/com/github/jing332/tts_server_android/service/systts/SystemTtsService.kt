@@ -866,8 +866,11 @@ class SystemTtsService : TextToSpeechService(), IEventDispatcher {
                             && e.request.failoverFromTag == null
                         ) {
                             val reason = SysttsLogger.lastWarnReason()
+                            // 10-06 收紧：去掉裸「失效/无效」——规则的数据质量消息（「字段无效」「包含
+                            // 无效数据」）密钥明明是好的也被判成密钥问题；真密钥故障的消息必带
+                            // 「密钥」字样或 401/403/英文鉴权词，照旧能报
                             val authLike = reason != null &&
-                                Regex("(?i)401|403|失效|无效|invalid|unauthor|forbidden|denied")
+                                Regex("(?i)密钥|api[ _-]?key|401|403|unauthor|forbidden|denied|invalid")
                                     .containsMatchIn(reason)
                             when {
                                 !InnerThoughtAiClassifier.hasCurrentKey() -> logChild(

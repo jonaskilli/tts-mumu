@@ -12,7 +12,13 @@ object SysttsLogger {
     // 原因日志——在此维护最近 W/E 主行环形缓冲；朗读规则/插件 console 的 W/E 经
     // Console.extraListeners 一并汇入（hookConsole 幂等挂钩，不抢 UI 的单值全局监听）
     private const val REASON_CAP = 32
-    private val recentReasons = ArrayDeque<LogEntry>(REASON_CAP)
+
+    // 原因只认「新鲜」的：朗读请求排队出队，兜底请求落后失败日志几秒属正常，30 秒内才可能是
+    // 本次兜底的原因。此前原因永久残留——一次「无效数据」能跨书挂半小时黄字（10-06 用户实锤：
+    // 换书后章节标题的合法括号4路由还拿十几分钟前的旧原因报「密钥疑似失效」）
+    private const val REASON_MAX_AGE_MS = 30_000L
+    private class ReasonEntry(val entry: LogEntry, val at: Long)
+    private val recentReasons = ArrayDeque<ReasonEntry>(REASON_CAP)
     private val consoleHooked = AtomicBoolean(false)
 
     fun log(entry: LogEntry) {
@@ -36,17 +42,19 @@ object SysttsLogger {
         if (entry.indent != 0) return // 子行从属于主行，不作为独立原因
         synchronized(recentReasons) {
             if (recentReasons.size >= REASON_CAP) recentReasons.removeFirst()
-            recentReasons.addLast(entry)
+            recentReasons.addLast(ReasonEntry(entry, System.currentTimeMillis()))
         }
     }
 
-    /** 最近一条 W/E 主行（朗读规则 console 优先，其次插件，再次主流程），无则 null；
+    /** 时间窗内最近一条 W/E 主行（朗读规则 console 优先，其次插件，再次主流程），无则 null；
      *  返回纯文本（剥离 HTML 标签、压空白、截 40 字），供兜底子行拼接 */
     fun lastWarnReason(): String? {
+        val now = System.currentTimeMillis()
+        fun ReasonEntry.fresh() = now - at <= REASON_MAX_AGE_MS
         val e = synchronized(recentReasons) {
-            recentReasons.lastOrNull { it.isSpeechRuleLog }
-                ?: recentReasons.lastOrNull { it.isPluginLog }
-                ?: recentReasons.lastOrNull()
+            recentReasons.lastOrNull { it.entry.isSpeechRuleLog && it.fresh() }?.entry
+                ?: recentReasons.lastOrNull { it.entry.isPluginLog && it.fresh() }?.entry
+                ?: recentReasons.lastOrNull { it.fresh() }?.entry
         } ?: return null
         val plain = e.message
             .removePrefix("[SpeechRule] ").removePrefix("[Plugin] ")
