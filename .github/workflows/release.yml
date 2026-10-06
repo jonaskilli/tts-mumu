@@ -9,9 +9,10 @@ on:
   workflow_dispatch:
     inputs:
       build_dev:
-        description: "同时构建 dev 共存版 (默认同时构建 app 和 dev)"
+        description: "同时构建 dev 共存版 (不勾=只打 app)"
         type: boolean
-        default: true
+        # 10-07 用户令：默认不勾（原先默认 true，等于每次多打一个 dev 共存版）
+        default: false
       is_official:
         description: "这是正式版吗？(不勾=修改包，打 Pre-release 橙标；勾=正式版，进 Latest)"
         type: boolean
