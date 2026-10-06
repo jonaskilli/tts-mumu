@@ -125,7 +125,10 @@ jobs:
           target_commitish: ${{ github.sha }}
           generate_release_notes: true
           draft: false
-          prerelease: false
+          # 手动触发（workflow_dispatch）= 还在改的包 → 打 GitHub「Pre-release」橙标，
+          # 不参与 Latest 判定、在 Release 页可一眼区分；推 1.26.* tag = 正式版，不带标。
+          # 用户 10-07 令：「我这不是实验、是 bug 不断的修改包，别被误解成能用的版本」。
+          prerelease: ${{ github.event_name == 'workflow_dispatch' }}
           files: artifacts/**/*.apk
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
