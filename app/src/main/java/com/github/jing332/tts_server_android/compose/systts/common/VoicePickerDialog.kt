@@ -21,7 +21,6 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
@@ -44,7 +43,6 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -1256,33 +1254,39 @@ fun VoicePickerDialog(
                             )
                             // 随机固定（10-06 用户令）：分类定了不想翻列表——从当前筛选范围
                             // （同分类+搜索词，排除当前绑定）随机取一个**暂存**；顶部当前发音人
-                            // 名字跟显，按「确认」落库固定。仍走两段式（用户 09-08），不绕过确认。
-                            // 提示语义：同分类随机只换尾序号（分类不变），与角色列表长按标签同口径
-                            OutlinedButton(
-                                onClick = {
-                                    val pick = poolEnabled
-                                        .filter { it != boundVoice && candidateMatches(it) }
-                                        .randomOrNull()
-                                    if (pick == null) {
-                                        Toast.makeText(
-                                            context,
-                                            "当前范围没有可随机候选",
-                                            Toast.LENGTH_SHORT,
-                                        ).show()
-                                    } else {
-                                        pendingVoice = pick
-                                    }
-                                },
-                                modifier = Modifier.heightIn(min = 48.dp),
-                            ) {
-                                Icon(
-                                    Icons.Default.Casino,
-                                    contentDescription = null,
-                                    modifier = Modifier.size(18.dp),
-                                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                                )
-                                Spacer(Modifier.width(4.dp))
-                                Text("随机", style = MaterialTheme.typography.labelLarge)
+                            // 名字跟显，按「确认」落库。仍走两段式（用户 09-08），不绕过确认。
+                            // 10-06 二改（用户四点反馈）：纯图标键不带文字——行宽留给搜索框，
+                            // 带文字会把 placeholder 挤截断；搜索输入中隐藏（打字时随机无意义、
+                            // 整行让位）；不设常驻提示词，点中后 Toast 简洁报随机结果
+                            if (tagSearch.isBlank()) {
+                                IconButton(
+                                    onClick = {
+                                        val pick = poolEnabled
+                                            .filter { it != boundVoice && candidateMatches(it) }
+                                            .randomOrNull()
+                                        if (pick == null) {
+                                            Toast.makeText(
+                                                context,
+                                                "当前范围没有可随机候选",
+                                                Toast.LENGTH_SHORT,
+                                            ).show()
+                                        } else {
+                                            pendingVoice = pick
+                                            val name = enabledConfigEntityByTag(pick)?.displayName ?: pick
+                                            Toast.makeText(
+                                                context,
+                                                "已随机暂存：$name",
+                                                Toast.LENGTH_SHORT,
+                                            ).show()
+                                        }
+                                    },
+                                ) {
+                                    Icon(
+                                        Icons.Default.Casino,
+                                        contentDescription = "随机",
+                                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    )
+                                }
                             }
                         }
                     } else {
