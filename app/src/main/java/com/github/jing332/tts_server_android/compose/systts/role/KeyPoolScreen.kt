@@ -238,9 +238,9 @@ internal fun KeyPoolScreen(
                 .fillMaxSize()
                 .padding(paddingValues)
                 .reorderable(reorderState),
-            // 10-06 用户令：左右 16→8——左线同主界面一级分组/密钥管理主页（组头卡片左线 8），
-            // 右线按「右=左镜像」口径同取 8（与主界面卡片 end=8 同值）
-            contentPadding = PaddingValues(start = 8.dp, end = 8.dp, top = 4.dp, bottom = 12.dp)
+            // 10-06 用户令对齐主界面一级分组可见左线（字形 ≈16.6≈16）——启用池 16/16 本就
+            // 在线上；曾短暂改 8（误按盒线口径）已回退。右=左镜像同 16
+            contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 4.dp, bottom = 12.dp)
         ) {
             if (pool.isEmpty()) {
                 item(key = "empty") {

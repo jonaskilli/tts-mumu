@@ -1335,9 +1335,11 @@ fun KeyManagerScreen(tagRuleId: String, onBack: () -> Unit) {
             modifier = Modifier
                 .fillMaxSize()
                 .padding(paddingValues),
-            // 左右贴边 0（v3 后续拍板：组头随主界面同款贴边；下方条目卡/组名/删除行全是
-            // 容器相对偏移，随容器整体左移，0920 相对缩进与名字对齐原样平移保留）。top/bottom 不变
-            contentPadding = PaddingValues(start = 0.dp, end = 0.dp, top = 4.dp, bottom = 12.dp)
+            // 10-06 用户令：左右容器 0→8——页内全是容器相对偏移，整体 +8 后组头箭头字形
+            // ≈8→16、条目卡左缘 8→16，对齐主界面一级分组行的可见左线（其箭头字形 ≈16.6，
+            // 10-05 按「字形对齐内容左线 16」拍的板）；右=左镜像同取 8（卡右缘 8→16）。
+            // 组头箭头对卡缘、对勾对文字线等页内字形校准全是相对值，随容器平移原样保留
+            contentPadding = PaddingValues(start = 8.dp, end = 8.dp, top = 4.dp, bottom = 12.dp)
         ) {
             if (!selectionMode) {
                 item(key = "ops") {
