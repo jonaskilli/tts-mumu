@@ -3604,10 +3604,9 @@ private fun BookRow(
         }
         Text(
             name,
-            // 字号统一为角色列表档（方案 C）：bodyLarge ＋显式 16sp，与角色名同款。
-            // 原 14sp(bodyMedium) 是 M3 的「次要信息」档，而书籍名与角色名同为「列表主对象名」；
-            // 与顶部书籍栏书名（16sp 加粗）也正好同档，只差字重
-            style = MaterialTheme.typography.bodyLarge.copy(fontSize = 16.sp),
+            // 15sp（10-06 用户：16sp 偏大，降一档）。原沿革：14sp(bodyMedium 次要信息档)
+            // → 16sp(与角色名同款) → 15sp（本次回调，仍高于次要档、小于角色名，弹窗内不喧宾）
+            style = MaterialTheme.typography.bodyLarge.copy(fontSize = 15.sp),
             // 当前书不再加粗（不喜欢粗体）——行首主色竖条 + 主色书名已够表达
             color = if (isCurrent) MaterialTheme.colorScheme.primary
             else MaterialTheme.colorScheme.onSurface,
