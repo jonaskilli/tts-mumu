@@ -1157,8 +1157,11 @@ private fun Item(
                 Text(
                     text = stringResource(id = R.string.systts_plugin_please_set_vars),
                     modifier = Modifier.align(Alignment.CenterHorizontally),
-                    // 特例许可（用户 09-11 终裁"一并回原版"）：回原版手调 15sp；primary 高亮保留
-                    style = MaterialTheme.typography.bodyMedium.copy(fontSize = 15.sp),
+                    // 13sp（10-06 用户令）：原 15sp 与插件名同级、比它服务的描述行(bodySmall 12sp)
+                    // 还大 3sp，层级倒挂——看着比版本信息更抢眼。降到 13sp（全站既有档：
+                    // 描述行/列表层标同档），读作"次级提示"而非"标题"；
+                    // primary 高亮保留（它是可操作提示，染色正确）
+                    style = MaterialTheme.typography.bodyMedium.copy(fontSize = 13.sp),
                     color = MaterialTheme.colorScheme.primary
                 )
 
