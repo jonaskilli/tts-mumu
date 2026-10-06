@@ -21,6 +21,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -42,6 +43,9 @@ fun NavTopAppBar(
     ),
     // 保留参数兼容旧调用，但不再消费：滚动变色已被 colors 定死为 background
     scrollBehavior: TopAppBarScrollBehavior? = null,
+    // 标题槽左缩进（10-06 密钥页独立 tab：用户嫌标题离返回键远，收紧到 4）。
+    // 默认 12 = 既有口径原样；只有显式传入的页面变，其他页面零影响
+    titleStartPadding: Dp = 12.dp,
 ) {
     // 自绘顶栏（拍板 56dp）：M3 TopAppBar 内部布局写死 64dp
     // （heightFrom(TopAppBarHeight)），外面套 height(56) 只会把标题裁掉半截
@@ -68,7 +72,8 @@ fun NavTopAppBar(
                     // 标题槽 start 12（10-05 用户：顶栏文字/图标左右边距审计——原 8 让标题
                     // 文字落在 4+8=12dp，偏在返回键字形线 16 与卡内容线之外；改 12 后
                     // 无返回键时标题文字=16dp 内容线，与列表正文同一条竖线）
-                    Modifier.weight(1f).padding(start = 12.dp, end = 8.dp),
+                    // titleStartPadding 可由页面覆写（10-06 密钥页传 4 收紧与返回键的距离）
+                    Modifier.weight(1f).padding(start = titleStartPadding, end = 8.dp),
                     contentAlignment = Alignment.CenterStart
                 ) {
                     // M3 TopAppBar 的标题默认吃 titleLarge，自绘后手动补上，

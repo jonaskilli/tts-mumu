@@ -1028,7 +1028,9 @@ object KeyListFile {
         val resp = httpJson(t.chatUrl, "POST", t.apiKey, payload)
         if (resp.ok && chatReplyOk(resp.body)) {
             val thinking = bodyHasThinking(resp.body)
-            return Triple(true, !thinking, "HTTP ${resp.code}，${System.currentTimeMillis() - t0}ms")
+            // 成功不回状态码（10-07 用户：HTTP 200 没信息量，能省则省）——绿/黄本身就是「通」的结论；
+            // 只剩用时（黄态收起行要显示它）。失败分支的状态码保留（503/401 是排障唯一线索）
+            return Triple(true, !thinking, "${System.currentTimeMillis() - t0}ms")
         }
         return Triple(false, null, when {
             resp.ok -> "HTTP 状态正常但内容不是有效的对话响应：${briefBody(resp.body)}"
@@ -1084,7 +1086,7 @@ object KeyListFile {
             }
             val suffix = when {
                 !ok -> ""
-                off == false -> "；⚠思考仍开启"
+                off == false -> "；思考未关闭"   // 10-06 用户：术语统一「未关闭」（原「仍开启」）
                 else -> "；思考已关"
             }
             return TestOutcome(v, off, msg + suffix, reason = if (!ok) msg else "")
@@ -1097,8 +1099,10 @@ object KeyListFile {
             val (ok, off, msg) = testOnce(t, locked, custom)
             if (ok) {
                 val v = if (off == false) TestVerdict.PASS_THINKING else TestVerdict.PASS
-                val suffix = if (off == false) "；⚠思考仍开启（锁定：$locked）" else "；思考已关（锁定：$locked）"
-                return TestOutcome(v, off, msg + suffix)
+                val suffix = if (off == false) "；思考未关闭（锁定：$locked）" else "；思考已关（锁定：$locked）"
+                // ⚠️ locked 必须回传（10-06 漏改修复）：界面靠它判断「已锁定→不给『去设置』」，
+                // 漏传会让锁定命中的黄态被误判为「未锁定」而多出没必要的设置入口
+                return TestOutcome(v, off, msg + suffix, locked = locked)
             }
             // 锁定写法突然不通（平台行为变了）→ 落到全量试探
         }
@@ -1114,11 +1118,13 @@ object KeyListFile {
             lastMsg = "$m：$msg"
             if (!ok) {
                 // 写法无关失败（10-05 用户）：连接不上/上游 5xx/鉴权不通，换思考写法没有意义——
-                // 首个即终止，别轮完整套再让提示把锅甩给思考写法
+                // 首个即终止，别轮完整套再让提示把锅甩给思考写法。
+                // 10-06 用户两连问后定稿：不拼任何前缀——「API 不通」没有 HTTP 503 具体，
+                // 「第 1/6 种写法即失败」是排障过程信息，用户只要结论；message=原始错误
                 if (isSpellingAgnosticFailure(msg)) {
                     return TestOutcome(
                         TestVerdict.FAIL, null,
-                        "API 不通，与思考写法无关（第 ${idx + 1}/${order.size} 种写法「$m」即失败，试探中止）——$msg",
+                        msg,
                         reason = msg
                     )
                 }

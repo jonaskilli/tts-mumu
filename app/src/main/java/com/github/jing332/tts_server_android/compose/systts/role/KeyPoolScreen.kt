@@ -238,9 +238,10 @@ internal fun KeyPoolScreen(
                 .fillMaxSize()
                 .padding(paddingValues)
                 .reorderable(reorderState),
-            // 10-06 用户令对齐主界面一级分组可见左线（字形 ≈16.6≈16）——启用池 16/16 本就
-            // 在线上；曾短暂改 8（误按盒线口径）已回退。右=左镜像同 16
-            contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 4.dp, bottom = 12.dp)
+            // 10-07 用户令：左线 16 收 12（与密钥页同批；「8 太窄、16 太宽」）。
+            // 池页行无自身水平内缩，容器值即内容线：16→12。右=左镜像同 12（本页图标右端
+            // 靠行右缘，左右对称才不偏）
+            contentPadding = PaddingValues(start = 12.dp, end = 12.dp, top = 4.dp, bottom = 12.dp)
         ) {
             if (pool.isEmpty()) {
                 item(key = "empty") {
@@ -344,9 +345,12 @@ private fun PoolRow(
                 // 测试结果圆点：名字后、紧挨闪电前（0920 定稿，与主页同位置）——
                 // 与闪电因果相邻、不被序号徽章抢视线、垂直成一列好扫。
                 // 没测=空槽不显但保列对齐；三色（10-03）：绿=通且思考关/黄=通但思考开/红=不通
+                // 槽 14→36dp（10-06 图4 对齐口径）：与主页灯槽同构——36dp 一整格、灯在格心，
+                // 灯心距闪电热区中心恒 36dp，两页灯列/图标列视觉同律（原 14dp 槽灯贴闪电太近，
+                // 且与主页 36dp 槽错位 11dp，用户实机指「快捷图标没竖向对齐」）
                 Box(
-                    Modifier.width(14.dp).height(24.dp),
-                    contentAlignment = Alignment.CenterEnd
+                    Modifier.width(36.dp).height(24.dp),
+                    contentAlignment = Alignment.Center
                 ) {
                     testDotColor(testOk, MaterialTheme.colorScheme.error)?.let {
                         Box(Modifier.size(8.dp).background(it, CircleShape))

@@ -47,7 +47,6 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Checkbox
-import androidx.compose.material3.TriStateCheckbox
 import androidx.compose.material3.ElevatedCard
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.DropdownMenu
@@ -113,7 +112,6 @@ import org.json.JSONArray
 import org.json.JSONObject
 import com.github.jing332.tts_server_android.R
 import com.github.jing332.tts_server_android.compose.nav.NavTopAppBar
-import com.github.jing332.tts_server_android.compose.systts.sizeToToggleableState
 import com.github.jing332.tts_server_android.service.systts.help.CharacterRecordsFile
 import com.github.jing332.tts_server_android.service.systts.help.KeyListFile
 import kotlinx.coroutines.async
@@ -188,11 +186,13 @@ internal val TEST_PASS_COLOR = Color(0xFF2E7D32)
 internal val TEST_WARN_COLOR = Color(0xFFF9A825)
 
 /**
- * 卡片内「测试结果条 / 探测进度条」的左缘缩进（10-05 用户拍板，推翻 10-04 的对齐模型名）：
- * 20dp = 对勾方框字形左缘（行 start 4 + 48dp 触控盒内 0.85 缩绘居中 ⇒ 字形 ≈19.6）——
- * 结果条跟「方框」对齐，方框字形又跟文字线 28（页面上 8+4+15.6≈28）。右缘 end=12 留呼吸。
+ * 卡片内「测试结果条 / 探测进度条」的左缘缩进（10-06 三校：随对勾盒 28dp 重排）：
+ * 24dp = 卡内模型名文字线（卡内容起点页 8 + 盒宽 24 ⇒ 页 32，与组名/URL 同一条竖线；
+ * 10-07 卡缘补 4 内距、盒 28→24 后仍落 32）——
+ * 结果条与模型名同线；不再跟 48dp 时代「方框字形 19.6」的旧口径（10-05 原口径作废）。
+ * 右缘 end=12 留呼吸（文字不是键，右缘不与图标盒同线）。
  */
-private val KEY_RESULT_BAR_START = 20.dp
+private val KEY_RESULT_BAR_START = 24.dp
 
 /** 测试三态 → 圆点颜色（两页共用；null=没测过不显灯）。红=不通、黄=通但思考开启、绿=通且思考已关 */
 internal fun testDotColor(verdict: KeyListFile.TestVerdict?, errorColor: Color): Color? = when (verdict) {
@@ -259,6 +259,9 @@ private fun KeyEntryRow(
     onCopy: () -> Unit,
     onTest: () -> Unit,
     onEdit: () -> Unit,
+    // 提示条「思考设置 ›」入口（10-07）：单独回调，进去时直达思考区（展开+预选自定义 JSON），
+    // 与上面 onEdit（✏/编辑键，打开完整编辑弹窗的原形态）区分开
+    onEditThinking: () -> Unit = onEdit,
     onDelete: () -> Unit,
 ) {
     val context = LocalContext.current
@@ -275,13 +278,12 @@ private fun KeyEntryRow(
     ElevatedCard(
         colors = CardDefaults.elevatedCardColors(containerColor = cardColor),
         modifier = Modifier.fillMaxWidth()
-            // 10-06 用户令：卡缘同主界面配置项卡盒线 8——容器已出 8，卡自身不再另加水平内距；
-            // 组头/操作行的字形线 16（容器 8 + 自身偏移）照主界面两线关系：一级分组行字形
-            // ≈16.6 / 配置卡盒 8，本页组头字形 ≈16 / 卡盒 8 与之同构。上下 3 ⇒ 相邻两张卡
-            // 之间 6dp。卡内对勾/模型名等校准全是卡相对值，随卡缘平移原样保留
-            // （启用描边已随 10-03 对勾方案退役；「描边画在 padding 之后」的教训留档：
-            //  画在前面会框住整个行宽、比卡片大一圈，0920 实机事故）
-            .padding(vertical = 3.dp)
+            // 卡缘左 8（改前后一致：容器 4 + 卡自身 start 4 = 8）；右缘不动（容器 end 8 即屏幕 8）。
+            // 10-07：容器 8→4 只为把组头字形线 16→12（用户「靠左一点」），卡片左缘由这 4dp
+            // 补回原位 —— 「组头左移、卡片不动」两个诉求同时满足（此前漏补，卡片一起跑到 4）。
+            // 上下 3 ⇒ 相邻两张卡之间 6dp。卡内校准是卡相对值，随卡缘平移原样保留
+            // （「描边画在 padding 之后」的教训留档：画在前面会框住整个行宽、比卡片大一圈，0920 实机事故）
+            .padding(start = 4.dp, end = 0.dp, top = 3.dp, bottom = 3.dp)
     ) {
         Row(
             // start 10（10-05 用户拍板：对勾方框原偏左突出——字形左缘 28.6 不在文字线 34 上；
@@ -289,30 +291,47 @@ private fun KeyEntryRow(
             // end 必须为 0：条目动作图标右缘才能落在卡右缘（= 组头图标区右缘）同列
             Modifier.fillMaxWidth()
                 // 卡片本体不可点（10-03：启用走行首对勾、复制走点名字——旧「点卡片启用」退役）
-                .padding(start = 4.dp, end = 0.dp, top = 8.dp, bottom = 8.dp),
+                // start 4→0（10-06 用户：模型名大幅左移——行首改 36dp 自绘对勾盒，名字起线
+                // = 对勾字形右缘，比原 48dp M3 触控盒收紧 12dp；触控由盒内 clickable 全覆盖）
+                .padding(start = 0.dp, end = 0.dp, top = 8.dp, bottom = 8.dp),
             // 名字换行成两行时图标垂直居中，不再用 Top 咬行
             verticalAlignment = Alignment.CenterVertically
         ) {
-            // 行首对勾：常规=启用开关（照主界面 Item.kt 同款 role Switch + 语义描述）；
-            // 多选/组内删除模式=勾选，同一位置同一控件切换语义
-            // scale 0.85 ≈17dp（10-04 用户：与 14sp 名字适配）——只缩绘制，48dp 触控盒与行高不动；
-            // 与组头三态勾同比例，两级勾选语言一致
-            Checkbox(
-                modifier = Modifier.scale(0.85f).then(
-                    if (selectionMode) Modifier else Modifier.semantics {
-                    role = Role.Switch
-                    context.getString(
-                        if (enabled) R.string.config_enabled_desc else R.string.config_disabled_desc,
-                        KeyListFile.displayName(entry)
-                    ).let {
-                        contentDescription = it
-                        stateDescription = it
-                    }
-                }
-                ),
-                checked = if (selectionMode) checked else enabled,
-                onCheckedChange = { if (selectionMode) onToggleCheck() else onTogglePool() },
-            )
+            // 行首对勾：常规=启用开关（role Switch 语义保留）；多选/组内删除模式=勾选。
+            // 10-07 三改：盒 28→24（卡缘补 4 内距后，名字起线 = 容器 4 + 卡内距 4 + 盒 24 = 页 32）。
+            // 算式——组名文字线=页 32（容器 4 + 行 start 3 + 箭头 22 + spacer 3）；
+            // 名字起线 = 卡内容起点(页 8) + 盒宽 ⇒ 盒 24 时名字=页 32，与组名/URL 同一竖线。
+            // 触控说明：盒 28×36（宽收、高留）比 36dp 图标键口径窄——「名字对齐」的硬成本；
+            // 实机若嫌难点，盒宽改 32/36 即回退（一个数）
+            Box(
+                modifier = Modifier
+                    .size(width = 24.dp, height = 36.dp)
+                    .then(
+                        if (selectionMode) Modifier
+                            .clip(CircleShape)
+                            .clickable { onToggleCheck() }
+                        else Modifier
+                            .clip(CircleShape)
+                            .clickable { onTogglePool() }
+                            .semantics {
+                                role = Role.Switch
+                                context.getString(
+                                    if (enabled) R.string.config_enabled_desc else R.string.config_disabled_desc,
+                                    KeyListFile.displayName(entry)
+                                ).let {
+                                    contentDescription = it
+                                    stateDescription = it
+                                }
+                            }
+                    ),
+                contentAlignment = Alignment.Center
+            ) {
+                Checkbox(
+                    modifier = Modifier.scale(0.85f),
+                    checked = if (selectionMode) checked else enabled,
+                    onCheckedChange = null   // 点击由外层盒接管，避免双触发
+                )
+            }
             // 名字区 weight(1f)。多选模式下点名字 = 勾选（整行即复选框的延伸）。
             // clickable 只在多选时挂载：非多选挂着 enabled=false 也拦掉整卡的启用切换
             // 点击（0920 实机反馈：只有名字前小空隙能点），条件挂载才干净
@@ -344,23 +363,10 @@ private fun KeyEntryRow(
                 Spacer(Modifier.width(4.dp))
             }
             if (!selectionMode) {
-                // 测试结果圆点：名字后、紧挨闪电前（0920 定稿，两页同位置）——
-                // 与闪电因果相邻、离徽章/行首最远不被抢视线、垂直成一列好扫。
-                // 没测=空槽不显但保列对齐；三色（10-03）：绿=通且思考关/黄=通但思考开/红=不通
-                // 槽宽 25（10-05 用户拍板「圆点跟分组的+对齐」）：组头 144dp 图标区 ➕ 中心在
-                // 距右缘 126dp 处，本行 108dp 图标区左边的空槽加宽到 25dp 后圆点中心恰在同列
-                // （108+25-7=126，⚡✏🗑 本就已与组头同列）
-                Box(
-                    Modifier.width(25.dp).height(24.dp),
-                    contentAlignment = Alignment.CenterEnd
-                ) {
-                    testDotColor(testOutcome?.verdict, MaterialTheme.colorScheme.error)?.let {
-                        Box(Modifier.size(8.dp).background(it, CircleShape))
-                    }
-                }
-                // 固定宽图标区：108dp=3×36dp 热区（📋 复制键退役，点名字即复制）；
-                // 右对齐后 ⚡✏🗑 仍与组头图标列垂直成列（组头 144dp 多出的 + 在最左空档）
-                // ⚡ 灰按钮：测试中原位转小圈，转完回灰闪电；测完不变色（结果看名字后圆点）
+                // 测试灯已撤（10-07 用户拍板：与提示条行首同色圆点重复，撤掉给模型名让宽）——
+                // 测试结果看卡内提示条（那行常驻显示，绿/黄/红圆点 + 文字），不再挂名字后。
+                // 固定宽图标区：108dp=3×36dp 热区；右对齐后 ⚡✏🗑 与组头图标列同列
+                // ⚡ 灰按钮：测试中原位转小圈，转完回灰闪电；测完不变色（结果看提示条）
                 Row(
                     Modifier.width(108.dp),
                     horizontalArrangement = Arrangement.End,
@@ -414,70 +420,111 @@ private fun KeyEntryRow(
                 isWarn -> TEST_WARN_COLOR
                 else -> MaterialTheme.colorScheme.error
             }
-            // 收起行（10-05 用户文案终稿）：
-            // 绿=「✅ 通过 · 用时」（锁定写法名移出——每行都挂成复读，展开区/编辑页仍可看）；
-            // 黄=「⚠ 可用 · 思考未关（可能拖慢分配）」（先说可用安人心、再给影响，
-            //   删掉「已自动适配」模糊词——有时直接命中旧锁定根本没适配动作）；
-            // 红=「❌ + 具体原因」（用户：直接写原因，不写「测试不通过」这种废话；
-            //   reason 为空的老数据回落 message 首句）
+            // 收起行（10-07 用户终稿，三态各归其位）：
+            // 绿=「通过 · 用时」一行——测试通过且思考已关，没有可看可改的；
+            // 黄=「可用 · 思考未关（可能拖慢分配）· 用时」——不要详情、不要复制；带用时（用户：
+            //   黄色速度没显示）；黄=思考没关掉，可进编辑页用「自定义」自己关 → 只留「去设置」；
+            // 红=红色第一行（maxLines=1 按宽度截断），点「详情」展开看全部
             val passTiming = timingOf(testOutcome.message)
+            // 收起行前缀圆点（10-06 用户：✅⚠❌ emoji 与行首启用对勾撞脸——同绿同勾形；
+            // 改为同色小圆点与行内测试灯同语言，形态（圆）与对勾（方+勾）彻底分开）
             val collapsedText = when {
-                isPass -> if (passTiming.isEmpty()) "✅ " + stringResource(R.string.role_key_test_pass_only)
-                else "✅ " + stringResource(R.string.role_key_test_pass_short, passTiming)
-                isWarn -> "⚠ 可用 · 思考未关（可能拖慢分配）"
-                else -> "❌ " + (testOutcome.reason.ifEmpty { testOutcome.message })
+                isPass -> if (passTiming.isEmpty()) stringResource(R.string.role_key_test_pass_only)
+                else stringResource(R.string.role_key_test_pass_short, passTiming)
+                isWarn -> if (passTiming.isEmpty()) stringResource(R.string.role_key_test_warn_short)
+                else stringResource(R.string.role_key_test_warn_short_timed, passTiming)
+                // 红：原始错误全文，靠 maxLines=1 截成一行（展开看全部，见下方 expanded 分支）
+                else -> testOutcome.reason.ifEmpty { testOutcome.message }
             }
+            // 只有红态可展开（绿已完美、黄不需要）
+            val hasExpandable = !isPass && !isWarn
+            // 「去设置」只给黄态（10-07 用户：有些可以点进去自定义关闭思考，自己找到合适方案）——
+            // 绿态思考已关无需设置；红态是连接/5xx/鉴权错误，设置改不了（模型名写错在编辑页改，
+            // 但那是模型不是思考，不在这条测试提示的引导范围）
+            val showFixEntry = isWarn
             var expanded by rememberSaveable(entry.name) { mutableStateOf(false) }
             val clipboard = LocalClipboardManager.current
             Column(
                 Modifier
                     .fillMaxWidth()
-                    // 结果条左缘对齐勾选框方框、右缘收进 12dp（10-05 用户拍板，推翻 10-04：
-                    // 原 start=53 对模型名 / end=0 顶卡缘——「详情」直接贴屏被裁。
-                    // 文字不是键，右缘不与图标盒同线）
+                    // 结果条左缘对齐模型名文字线、右缘收进 12dp（文字不是键，右缘不与图标盒同线）
                     .padding(start = KEY_RESULT_BAR_START, end = 12.dp, top = 0.dp, bottom = 8.dp)
             ) {
                 Row(
-                    // 点文字区=展开/收起（看全文）；「去设置」独立可点（打开编辑弹窗）
-                    Modifier
-                        .fillMaxWidth()
-                        .clickable { expanded = !expanded },
+                    Modifier.fillMaxWidth(),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
+                    // 三态圆点（8dp 同测试灯）：绿=通/黄=可用但思考开/红=不通
+                    Box(
+                        Modifier
+                            .padding(end = 5.dp)
+                            .size(8.dp)
+                            .background(barColor, CircleShape)
+                    )
                     Text(
                         collapsedText,
                         style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.sp),
                         color = barColor,
-                        // 恒 1 行（10-05：原展开时 maxLines=MAX 把全文红字再放一遍，
-                        // 与下方灰字全文上下重复——展开态正文只看下方灰字）
+                        // 恒 1 行（红态=第一行截断；展开态正文在下方）
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
                         modifier = Modifier.weight(1f)
                     )
-                    Text(
-                        if (expanded) "收起" else "详情",
-                        style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.sp),
-                        color = barColor,
-                        fontWeight = FontWeight.SemiBold,
-                        modifier = Modifier.padding(start = 6.dp)
-                    )
-                }
-                if (expanded) {
-                    // 全文（不加 emoji 前缀——标题行已给；多行展示不截断）
-                    Text(
-                        testOutcome.message,
-                        style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.sp),
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.padding(top = 2.dp)
-                    )
-                    Row(Modifier.padding(top = 4.dp)) {
+                    if (showFixEntry) {
+                        // 黄态：思考设置 —— 打开密钥编辑弹窗的「思考」栏（自动/多选/自定义 JSON），
+                        // 用户可自己写字段关思考。10-07 用户：文案原「去设置」看不出是思考，
+                        // 改为「思考设置 ›」；颜色与「详情」统一灰（动作键不抢状态色语义）
                         Text(
-                            stringResource(R.string.role_key_test_result_copy),
+                            stringResource(R.string.role_key_thinking_entry),
                             style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.sp),
-                            color = barColor,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
                             fontWeight = FontWeight.SemiBold,
                             modifier = Modifier
                                 .clip(RoundedCornerShape(4.dp))
+                                .clickable { onEditThinking() }
+                                .padding(start = 6.dp, end = 2.dp)
+                        )
+                    } else if (hasExpandable) {
+                        // 红态收起时：右上角「详情」；展开后右上角不再放键——
+                        // 「收起」挪到底部动作行（10-07 用户：红态收起位置不对，应放底部）
+                        if (!expanded) {
+                            Text(
+                                "详情",
+                                style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.sp),
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                fontWeight = FontWeight.SemiBold,
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(4.dp))
+                                    .clickable { expanded = true }
+                                    .padding(start = 6.dp, end = 2.dp)
+                            )
+                        }
+                    }
+                }
+                if (expanded && hasExpandable) {
+                    // 全部内容（红字，与首行同色——用户：点开详情显示全部）
+                    Text(
+                        testOutcome.message,
+                        style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.sp),
+                        color = barColor,
+                        modifier = Modifier.padding(top = 2.dp)
+                    )
+                    // 底部动作行（右对齐）：复制结果 + 收起（红态展开后「收起」在底部，与复制同排）
+                    // 间距 12→24（10-07 用户：两键挨太近像连成一个词）——两键性质不同
+                    // （复制 vs 折叠），且都靠右排，加大间距不占额外行宽。
+                    // 垂直热区 2→6：原热区仅 11sp 文字+4dp 太薄，点着飘；提高后键高 ≈23dp
+                    Row(
+                        Modifier.fillMaxWidth().padding(top = 4.dp),
+                        horizontalArrangement = Arrangement.End,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            stringResource(R.string.role_key_test_result_copy),
+                            style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.sp),
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            fontWeight = FontWeight.SemiBold,
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(6.dp))
                                 .clickable {
                                     clipboard.setText(
                                         AnnotatedString(
@@ -489,17 +536,18 @@ private fun KeyEntryRow(
                                         android.widget.Toast.LENGTH_SHORT
                                     ).show()
                                 }
-                                .padding(horizontal = 6.dp, vertical = 2.dp)
+                                .padding(horizontal = 8.dp, vertical = 6.dp)
                         )
+                        Spacer(Modifier.width(24.dp))
                         Text(
-                            stringResource(R.string.role_key_warn_fix),
+                            "收起",
                             style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.sp),
-                            color = barColor,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
                             fontWeight = FontWeight.SemiBold,
                             modifier = Modifier
-                                .clip(RoundedCornerShape(4.dp))
-                                .clickable { onEdit() }
-                                .padding(horizontal = 6.dp, vertical = 2.dp)
+                                .clip(RoundedCornerShape(6.dp))
+                                .clickable { expanded = false }
+                                .padding(horizontal = 8.dp, vertical = 6.dp)
                         )
                     }
                 }
@@ -509,13 +557,69 @@ private fun KeyEntryRow(
 }
 
 /**
+ * 组启用状态胶囊（10-07 用户拍板，替掉「(N) 计数 + 三态方框」）：
+ * 纯数字「已启用数/总数」，三态用色与形态表达——
+ *  - 全启：实心绿底 + 白字；部分：浅绿底(primary 12%) + 主色字；全停：透明底 + 灰描边 + 灰字。
+ * 单击=批量启停（全停点=全启；其余点=全停，与旧方框口径一致），语义描述沿用 group_* 三串。
+ * 宽：内容自适应（4/4≈34dp、10/11≈44dp），恒窄于旧占位 72~80dp。
+ */
+@Composable
+private fun GroupEnablePill(
+    enabled: Int,
+    total: Int,
+    groupTitle: String,
+    onClick: () -> Unit,
+) {
+    val context = LocalContext.current
+    val allOn = enabled == total && total > 0
+    val noneOn = enabled == 0
+    val bg = when {
+        allOn -> MaterialTheme.colorScheme.primary
+        noneOn -> Color.Transparent
+        else -> MaterialTheme.colorScheme.primary.copy(alpha = 0.12f)
+    }
+    val fg = when {
+        allOn -> MaterialTheme.colorScheme.onPrimary
+        noneOn -> MaterialTheme.colorScheme.onSurfaceVariant
+        else -> MaterialTheme.colorScheme.primary
+    }
+    Box(
+        Modifier
+            .clip(RoundedCornerShape(50))
+            .then(
+                if (noneOn) Modifier.border(1.dp, MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(50))
+                else Modifier
+            )
+            .background(bg)
+            .clickable(onClick = onClick)
+            .semantics {
+                stateDescription = context.getString(
+                    when {
+                        allOn -> R.string.group_all_enabled
+                        noneOn -> R.string.group_all_disabled
+                        else -> R.string.group_part_enabled
+                    }, groupTitle
+                )
+            }
+            .padding(horizontal = 8.dp, vertical = 2.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        Text(
+            "$enabled/$total",
+            style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.sp),
+            color = fg,
+            fontWeight = FontWeight.SemiBold,
+        )
+    }
+}
+
+/**
  * 组头 + 元信息行（接口组=网址+尾号小块；未分组=身份说明）。
  * 点按组头 = 折叠/展开（多选模式下不可点）；主页拖动已删，启用池页拖动保留；
  * 动作图标区仅正常模式渲染：+拉取 ⚡测组 ✏编辑接口 🗑两项菜单
  *（删除整组=红🗑 带二次确认；多选删除子项=灰🧹 进组内删除模式，组保留）。
  * 组内删除模式下整块组头替换为「删除密钥 + 全选」标题行（0916 定稿形态恢复）。
- * (N) 后接三态对勾（10-03 照主界面 GroupItem 同款）：全启=勾/全停=空/部分=横，
- * 单击=批量启停（半选/全选单击=全停，全停单击=全启）；组名染绿随之退役。
+ * 10-07：组尾「(N) + 三态方框」合并为纯数字胶囊 GroupEnablePill（省宽 + 不撞行首启用对勾）。
  */
 @Composable
 private fun GroupHeaderBlock(
@@ -563,10 +667,13 @@ private fun GroupHeaderBlock(
             Column(Modifier.fillMaxWidth()) {
                 // ———— 组头行 ————
                 // start=3：22dp 箭头图标字形左留白 ≈5 ⇒ 字形左缘 ≈8，与条目卡左缘 8 同线
-                // （照主页样板：箭头字形 8.6 ≈ 卡缘 8；旧 start=6 得字形 11.4，偏右 3）。end=8 与卡右缘同列
+                // （照主页样板：箭头字形 8.6 ≈ 卡缘 8；旧 start=6 得字形 11.4，偏右 3）。
+                // end 8→0（10-06 图3/图4 真根因修复）：条目卡内 end=0 → 🗑 字形贴卡缘；
+                // 组头行若留 end=8 会比卡内图标再内缩 8dp（实机：组头 🗑 距屏 16、模型行 8），
+                // 这就是「灯/快捷图标没跟模型行竖向对齐」的本源；归 0 后两组图标列逐像素同列
                 Row(
                     Modifier.fillMaxWidth()
-                        .padding(start = 3.dp, end = 8.dp, top = 2.dp, bottom = 2.dp),
+                        .padding(start = 3.dp, end = 0.dp, top = 2.dp, bottom = 2.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     // 组头可点区：折叠箭头 + 组名 + (N)
@@ -605,28 +712,17 @@ private fun GroupHeaderBlock(
                             // 没有它长组名会把后面的 (N) 挤成一字宽、逐字竖排
                             modifier = Modifier.weight(1f, fill = false)
                         )
-                        Spacer(Modifier.width(4.dp))
-                        Text(
-                            "(${grp.entries.size})",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                        // 组尾三态对勾（10-03 照主界面 GroupItem 同款）：全启=勾/全停=空/部分=横。
-                        // 单击批量启停：半选/全选单击=全停、全停单击=全启（主界面口径）；
-                        // 放在可点区内但 Checkbox 自吞点击，不会触发折叠；
-                        // scale 0.85 与条目勾同比例（10-04 与 15sp 组名适配）
-                        TriStateCheckbox(
-                            state = enabledCount.sizeToToggleableState(grp.entries.size),
-                            onClick = { onSetGroupEnabled(enabledCount == 0) },
-                            modifier = Modifier.scale(0.85f).semantics {
-                                stateDescription = context.getString(
-                                    when (enabledCount) {
-                                        grp.entries.size -> R.string.group_all_enabled
-                                        0 -> R.string.group_all_disabled
-                                        else -> R.string.group_part_enabled
-                                    }, grp.title
-                                )
-                            }
+                        Spacer(Modifier.width(6.dp))
+                        // 组启用状态胶囊（10-07 用户拍板）：替掉「(N) 计数 + 三态方框」两件东西，
+                        // 纯数字「启用数/总数」——全启=实心绿、部分=浅绿底、全停=灰描边。
+                        // 省宽算式：旧占位 (N)≈20-28 + 间距 4 + 方框 48（M3 触控盒定长）≈72-80dp；
+                        // 胶囊内容宽 4/4≈34、10/11≈44 —— 任何组合（含两位数分母）都比旧占位窄，
+                        // 组名净得 ≈28~46dp。数字语义：左=已启用数/右=本组总数
+                        GroupEnablePill(
+                            enabled = enabledCount,
+                            total = grp.entries.size,
+                            groupTitle = grp.title,
+                            onClick = { onSetGroupEnabled(enabledCount == 0) }
                         )
                     }
                     if (!selectionMode) {
@@ -810,14 +906,14 @@ fun KeyManagerScreen(tagRuleId: String, onBack: () -> Unit) {
     val probeProgress = remember { mutableStateMapOf<String, String>() }
     var testingGroup by remember { mutableStateOf<String?>(null) }
     var testingPoolAll by remember { mutableStateOf(false) }
+    // 启用池子页（页内全屏覆盖，返回键退回）
+    var showPool by remember { mutableStateOf(false) }
     // 账号池子页（10-06 方案B：页内全屏覆盖，返回键退回；登录/签到/积分/续期）
     var showAccountPool by remember { mutableStateOf(false) }
     // 账号池令牌集（10-06 来源标签）：密钥 value 里的 key 段命中任一账号 access_token → 行内显示「账号池」绿标
     val poolTokens by remember(version) {
         mutableStateOf(AccountPool.load().map { it.accessToken }.toSet())
     }
-    // 启用池子页（页内全屏覆盖，返回键退回）
-    var showPool by remember { mutableStateOf(false) }
     // 页面级多选模式（照主界面 ☑ 多选）：跨组勾选，底栏 全选/加入启用池/删除
     var selectionMode by remember { mutableStateOf(false) }
     var checkedNames by remember { mutableStateOf<Set<String>>(emptySet()) }
@@ -1171,6 +1267,9 @@ fun KeyManagerScreen(tagRuleId: String, onBack: () -> Unit) {
     // 弹窗状态
     var showAdd by remember { mutableStateOf(false) }
     var renameFor by remember { mutableStateOf<KeyListFile.KeyEntry?>(null) }
+    // 提示条「思考设置 ›」进来的编辑弹窗（10-07）：与 renameFor 同一个弹窗，但直达思考自定义区。
+    // 两条路分开存，避免「✏ 编辑」也被强制跳思考区
+    var thinkingFor by remember { mutableStateOf<KeyListFile.KeyEntry?>(null) }
     var overwriteFor by remember { mutableStateOf<Triple<String, String, Pair<String, String>>?>(null) } // (新名, 值, 思考模式 to 自定义JSON) 覆盖确认
     var deleteFor by remember { mutableStateOf<KeyListFile.KeyEntry?>(null) }
     var ifcFormFor by remember { mutableStateOf<KeyListFile.ApiInterface?>(null) } // 组头 ✏️ 编辑该接口
@@ -1239,6 +1338,8 @@ fun KeyManagerScreen(tagRuleId: String, onBack: () -> Unit) {
         topBar = {
             NavTopAppBar(
                 title = { Text(stringResource(R.string.role_key_title)) },
+                // 10-06 用户：标题离返回键太远，收紧（12→4；仅本页，其他页默认不变）
+                titleStartPadding = 4.dp,
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(
@@ -1376,19 +1477,18 @@ fun KeyManagerScreen(tagRuleId: String, onBack: () -> Unit) {
             modifier = Modifier
                 .fillMaxSize()
                 .padding(paddingValues),
-            // 10-06 用户令：左右容器 0→8——页内全是容器相对偏移，整体 +8 后组头箭头字形
-            // ≈8→16、条目卡左缘 8→16，对齐主界面一级分组行的可见左线（其箭头字形 ≈16.6，
-            // 10-05 按「字形对齐内容左线 16」拍的板）；右=左镜像同取 8（卡右缘 8→16）。
-            // 组头箭头对卡缘、对勾对文字线等页内字形校准全是相对值，随容器平移原样保留
-            contentPadding = PaddingValues(start = 8.dp, end = 8.dp, top = 4.dp, bottom = 12.dp)
+            // 10-07 用户令：左线 16 收 12（「8 太窄、16 太宽」）——容器 start 8→4，
+            // 组头箭头字形 ≈4+3+5=12、条目卡左缘 4。end 保持 8（右线不动：条目图标右缘
+            // 对卡右缘、组头图标区右缘同列的既有校准全在行内相对值里，随右线一起才不破）
+            contentPadding = PaddingValues(start = 4.dp, end = 8.dp, top = 4.dp, bottom = 12.dp)
         ) {
             if (!selectionMode) {
                 item(key = "ops") {
                     // 操作行三键：**内容自适应宽度**（用户 0919：weight 均分是折行根因，按钮
                     // 保持自适应；启用池键保持填充强调）。
                     // 10-06 用户令：均匀散开——SpaceBetween 把宽余量变成两条等距缝，首键左缘、
-                    // 尾键右缘各贴行边；行内距 8 + 容器 8 = 左右内容线 16（与组头字形线同一条，
-                    // 即主界面一级分组行那条线）
+                    // 尾键右缘各贴行边；行内距 8 + 容器 4 = 左内容线 12（10-07 用户令收 12，
+                    // 与组头字形线同一条；卡片另有 4 内距故卡缘 8 不动）
                     Row(
                         Modifier.fillMaxWidth()
                             .padding(start = 8.dp, end = 8.dp, top = 10.dp, bottom = 6.dp),
@@ -1508,6 +1608,8 @@ fun KeyManagerScreen(tagRuleId: String, onBack: () -> Unit) {
                                     },
                                     onTest = { testKey(entry) },
                                     onEdit = { renameFor = entry },
+                                    // 提示条「思考设置 ›」→ 直达自定义 JSON 区（10-07 用户令）
+                                    onEditThinking = { thinkingFor = entry },
                                     onDelete = { deleteFor = entry }
                                 )
                             }
@@ -1662,15 +1764,19 @@ fun KeyManagerScreen(tagRuleId: String, onBack: () -> Unit) {
         )
     }
     // 改名（重名 → 拒绝并提示，照插件 showKeyNameDialog）
-    renameFor?.let { entry ->
+    // 编辑弹窗：✏ 编辑与「思考设置 ›」共用（后者多传 jumpToThinkingCustom=true 直达 JSON 区）。
+    // 取 renameFor 或 thinkingFor 命中的那个（两者互斥：打开一个时另一个必为 null）
+    (renameFor ?: thinkingFor)?.let { entry ->
         KeyEditDialog(
             tagRuleId = tagRuleId,
             initial = entry,
             existing = keys,
-            onDismiss = { renameFor = null },
-            onDelete = { renameFor = null; deleteFor = entry },
+            jumpToThinkingCustom = thinkingFor != null,
+            onDismiss = { renameFor = null; thinkingFor = null },
+            onDelete = { renameFor = null; thinkingFor = null; deleteFor = entry },
             onConfirm = { name, value, overwrite, thinkMode, thinkCustom ->
                 renameFor = null
+                thinkingFor = null
                 if (overwrite && name != entry.name) {
                     // 改成已存在的名字 → 拒绝（照插件密钥详情页「保存」）
                     // ⚠️ 旧版走覆盖分支：只覆盖同名条目、旧名条目没删 ⇒ 列表里两条并存
@@ -1857,6 +1963,10 @@ private fun KeyEditDialog(
     existing: List<KeyListFile.KeyEntry>,
     onDismiss: () -> Unit,
     onDelete: (() -> Unit)? = null,
+    // 从提示条「思考设置 ›」进入=true：直达思考区——展开 + 预选「自定义」，
+    // 用户落到就是 JSON 输入框（用户 10-07：黄色那个应该直接跳转到自定义 JSON 界面）。
+    // 常规 ✏ 编辑进=false，保持老形态（自动/手动 二选一未展开）
+    jumpToThinkingCustom: Boolean = false,
     onConfirm: (String, String, Boolean, String, String) -> Unit,
 ) {
     val existingNames = existing.map { it.name }.toSet()
@@ -1866,9 +1976,15 @@ private fun KeyEditDialog(
     val context = LocalContext.current
     val clipboard = LocalClipboardManager.current
     // 思考模式（10-03 二改：模型级）——默认自动（⚡ 测试时试探并锁定）；手动展开可选写法
-    var thinkingMode by remember { mutableStateOf(initial?.thinkingMode ?: KeyListFile.THINKING_AUTO) }
+    var thinkingMode by remember {
+        // jumpToThinkingCustom：从提示条「思考设置 ›」进 → 直接落到「自定义」（JSON 输入框）
+        if (jumpToThinkingCustom) KeyListFile.THINKING_CUSTOM
+        else initial?.thinkingMode ?: KeyListFile.THINKING_AUTO
+    }
     var thinkingExpanded by remember {
-        mutableStateOf(initial?.thinkingMode?.let { it != KeyListFile.THINKING_AUTO } ?: false)
+        mutableStateOf(
+            jumpToThinkingCustom || (initial?.thinkingMode?.let { it != KeyListFile.THINKING_AUTO } ?: false)
+        )
     }
     var customText by remember { mutableStateOf(initial?.thinkingCustom.orEmpty()) }
     fun toast(resId: Int) {
@@ -2033,11 +2149,22 @@ private fun KeyEditDialog(
                     )
                 }
                 if (thinkingExpanded) {
+                    // 10-07 用户令：8 项技术写法按用途收拢（「用户想的是关掉思考，不是
+                    // 选 disable_think 还是 no_chain_of_thought」）。三项不删——它们既是 auto
+                    // 试探序列的弹药（THINKING_PROBE_ORDER），也是黄态下唯一的手动出路；
+                    // 只是加小节标题归组，扫一眼就知道哪几项是「关掉思考」。
+                    Text(
+                        stringResource(R.string.role_key_thinking_goal_off),
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(start = 48.dp, top = 6.dp, bottom = 2.dp)
+                    )
                     val options = listOf(
                         KeyListFile.THINKING_MULTI, KeyListFile.THINKING_TYPE,
                         KeyListFile.THINKING_TMODE, KeyListFile.THINKING_DTHINK,
-                        KeyListFile.THINKING_NCOT, KeyListFile.THINKING_LOW,
-                        KeyListFile.THINKING_NONE, KeyListFile.THINKING_CUSTOM,
+                        KeyListFile.THINKING_NCOT, KeyListFile.THINKING_NONE,
+                        // 后两项语义不同（不关、只降档 / 完全手写），列表里靠自身文案区分
+                        KeyListFile.THINKING_LOW, KeyListFile.THINKING_CUSTOM,
                     )
                     options.forEach { opt ->
                         Row(
@@ -2433,14 +2560,10 @@ private fun InterfaceFormDialog(
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.padding(start = 48.dp, top = 2.dp, bottom = 2.dp)
                     )
-                    val options = listOf(
-                        KeyListFile.THINKING_AUTO,
-                        KeyListFile.THINKING_MULTI, KeyListFile.THINKING_TYPE,
-                        KeyListFile.THINKING_TMODE, KeyListFile.THINKING_DTHINK,
-                        KeyListFile.THINKING_NCOT, KeyListFile.THINKING_LOW,
-                        KeyListFile.THINKING_NONE, KeyListFile.THINKING_CUSTOM,
-                    )
-                    options.forEach { opt ->
+                    // 10-07 用户令：同编辑弹窗——按用途归组。auto 单独一行（它自己就是
+                    // 「自动试探并锁定」），其余写法收在「关掉思考」小节下；8 项不删
+                    // （auto 试探序列的弹药 + 黄态手动出路）
+                    fun pickRow(opt: String) {
                         Row(
                             Modifier
                                 .fillMaxWidth()
@@ -2459,6 +2582,19 @@ private fun InterfaceFormDialog(
                             )
                         }
                     }
+                    pickRow(KeyListFile.THINKING_AUTO)
+                    Text(
+                        stringResource(R.string.role_key_thinking_goal_off),
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(start = 48.dp, top = 6.dp, bottom = 2.dp)
+                    )
+                    listOf(
+                        KeyListFile.THINKING_MULTI, KeyListFile.THINKING_TYPE,
+                        KeyListFile.THINKING_TMODE, KeyListFile.THINKING_DTHINK,
+                        KeyListFile.THINKING_NCOT, KeyListFile.THINKING_NONE,
+                        KeyListFile.THINKING_LOW, KeyListFile.THINKING_CUSTOM,
+                    ).forEach { pickRow(it) }
                     if (thinkingMode == KeyListFile.THINKING_CUSTOM) {
                         OutlinedTextField(
                             value = customText, onValueChange = { customText = it },

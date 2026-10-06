@@ -921,6 +921,7 @@
     <string name="role_key_thinking_opt_low">reasoning_effort = low（只降档，不关闭）</string>
     <string name="role_key_thinking_opt_none">不带思考参数（保底：只求能分配）</string>
     <string name="role_key_thinking_opt_custom">自定义 JSON（高级）</string>
+    <string name="role_key_thinking_goal_off">关掉思考（下列写法任选一种）</string>
     <string name="role_key_thinking_custom_bad">自定义 JSON 无法解析，请检查格式（应为 {"键": 值}）</string>
     <string name="role_key_thinking_group_title">思考模式（统一设为下方全部模型）</string>
     <string name="role_key_thinking_group_desc">单个模型的思考模式在模型编辑里单独设置。此处是批量入口：选中后保存，会覆盖下方全部模型的现有设置。</string>
@@ -929,12 +930,14 @@
     <string name="role_key_thinking_group_warn">⚠ 保存后覆盖下方全部模型的思考设置（单个模型设置会被清除）</string>
     <string name="role_key_warn_thinking_on">⚠ 思考未关（已自动适配，仍可能变慢）</string>
     <string name="role_key_warn_failed">❌ 测试失败（点此检查设置）</string>
-    <string name="role_key_warn_fix">去设置 ›</string>
+    <string name="role_key_thinking_entry">自定义思考 ›</string>
     <string name="role_key_test_warn_toast">思考未关，详情见卡片下方</string>
     <string name="role_key_test_fail_toast_simple">测试未通过，详情见卡片下方</string>
     <string name="role_key_test_result_copy">复制结果</string>
     <string name="role_key_test_pass_short">通过 · %1$s</string>
     <string name="role_key_test_pass_only">测试通过</string>
+    <string name="role_key_test_warn_short">可用 · 思考未关（可能拖慢分配）</string>
+    <string name="role_key_test_warn_short_timed">可用 · 思考未关（可能拖慢分配）· %1$s</string>
     <string name="role_key_probe_progress">探测中：%1$s</string>
     <string name="role_key_model_filter">🔍 搜索过滤模型</string>
     <string name="role_key_model_input_hint">输入模型名</string>
