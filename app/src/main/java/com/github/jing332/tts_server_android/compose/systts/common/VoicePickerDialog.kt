@@ -26,7 +26,6 @@ import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Casino
 import androidx.compose.material.icons.filled.Category
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
@@ -67,6 +66,7 @@ import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import com.drake.net.utils.withIO
 import com.drake.net.utils.withMain
+import com.github.jing332.common.utils.StringUtils.limitLength
 import com.github.jing332.common.utils.toParamText
 import com.github.jing332.compose.widgets.AppSelectionDialog
 import com.github.jing332.database.dbm
@@ -1007,6 +1007,12 @@ fun VoicePickerDialog(
                         (category == null || tagCategoryOf(it) == category) &&
                         tagHitSearch(it, search)
                 }.randomOrNull()
+            // 显示名限长（10-06 用户令）：吃设置页「限制显示名称长度」滑杆，0=不限；
+            // 候选行/顶部当前发音人/Toast 三处同一份，与主列表卡片、日志显示名全站一口径。
+            // 只截显示、不动数据（真音已验 | MINI_MAX 这类后缀原样保留在库里）
+            val displayNameLimit = AppConfig.limitNameLength.value
+            fun limitName(name: String): String =
+                if (displayNameLimit == 0) name else name.limitLength(displayNameLimit, "…")
             // 随机结果落暂存 + 简洁提示（用户 10-06：点后再弹提示，不设常驻提示词）；
             // 换分类触发时范围空属正常（该分类只有当前这一个），静默不打扰
             fun applyRandomPick(pick: String?, silentIfEmpty: Boolean) {
@@ -1017,7 +1023,7 @@ fun VoicePickerDialog(
                     return
                 }
                 pendingVoice = pick
-                val name = enabledConfigEntityByTag(pick)?.displayName ?: pick
+                val name = limitName(enabledConfigEntityByTag(pick)?.displayName ?: pick)
                 Toast.makeText(context, "已随机：$name", Toast.LENGTH_SHORT).show()
             }
 
@@ -1026,14 +1032,18 @@ fun VoicePickerDialog(
             val boundConfigName = remember(entity.id, boundVoice, pendingVoice, dataVersion, rowVersion) {
                 if (isBindingMode) {
                     val tag = pendingVoice ?: boundVoice
-                    enabledConfigEntityByTag(tag)?.displayName ?: tag
+                    limitName(enabledConfigEntityByTag(tag)?.displayName ?: tag)
                 } else ""
             }
             val pendingName = pendingVoice
                 ?.takeIf { !isBindingMode }
                 ?.let { narrationEntityByVoice(it)?.displayName }
-            val currentVoiceName = if (isBindingMode) boundConfigName
-            else pendingName ?: appliedDisplayName ?: entity.displayName
+            // 顶部名字也吃限长（10-06 用户令：设完全生效）；remember 内读 Compose 快照态安全
+            //（快照读，滑杆改动触发重组重算）
+            val currentVoiceName = limitName(
+                if (isBindingMode) boundConfigName
+                else pendingName ?: appliedDisplayName ?: entity.displayName
+            )
             // 顶部当前发音人：点亮标记 emoji 跟在名字后（用户 09-12 晚拍板"放后面"）——
             // 键与候选行同口径：绑定=绑定/暂存的 tag，非绑定=当前 voice；未点亮不占位。
             // 09-17 加 ⋮ 后非绑定并入暂存：顶部显示的名字本就跟随暂存候选（currentVoiceName 的
@@ -1102,24 +1112,27 @@ fun VoicePickerDialog(
                     }
                     // 一键换（10-06 用户令：从分类行挪到「当前发音人」这里）：在当前分类+搜索
                     // 范围内随机换一个（排除当前暂存/绑定），结果落暂存、顶部名字跟显，确认才落库。
-                    // 用骰子图标键（与之前预览版同图标，单色不染主题色——本页曾否过 primary 染色）；
-                    // 仅绑定模式显示（非绑定是同一标签内选，没有"分类范围"概念）；
-                    // 无候选 Toast 提示（这里是用户主动点的，不能像换分类那样静默）
+                    // 🎲 彩色 emoji（10-06 用户拍板：选 emoji 不用 Casino 图标——Material 实心
+                    // 骰子在浅底上是一个重方块，预览稿与实装图标形态不一致；emoji 真机彩色、
+                    // 与候选行点亮标记 ❤️🚶😈 同一语汇）。仅绑定模式显示；无候选 Toast 提示
                     if (isBindingMode) {
-                        IconButton(
-                            onClick = {
-                                applyRandomPick(
-                                    pickRandomIn(effectiveCategory, tagSearch, topMarkKey),
-                                    silentIfEmpty = false,
-                                )
-                            },
-                        ) {
-                            Icon(
-                                Icons.Default.Casino,
-                                contentDescription = "随机换一个",
-                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                            )
-                        }
+                        Text(
+                            "🎲",
+                            modifier = Modifier
+                                .clickable(
+                                    indication = null,
+                                    interactionSource = remember { MutableInteractionSource() },
+                                ) {
+                                    applyRandomPick(
+                                        pickRandomIn(effectiveCategory, tagSearch, topMarkKey),
+                                        silentIfEmpty = false,
+                                    )
+                                }
+                                // 字形 ~19sp + 两侧 12dp ≈ 40dp 宽、上下 12dp 凑满 48dp 触控高
+                                //（与右侧 ▶ 裸字符键同处方）
+                                .padding(horizontal = 12.dp, vertical = 12.dp),
+                            style = MaterialTheme.typography.titleLarge,
+                        )
                     }
                     // ▶ 同候选行方案A：裸字符可点替代 TextButton（单字符占 58dp 底座，顶栏紧巴巴），
                     // 16dp 字形+两侧 12dp ≈40dp，上下 12dp 凑满 48dp 触控高
@@ -1367,7 +1380,8 @@ fun VoicePickerDialog(
                             // 候选行=纯配置项显示名（定稿：序号/标签不进行内，
                             // 大类由上方分类框表达）；无显示名回落：音效槽位→「本地音效N」，其余→tag
                             // 候选池已筛 fayinren.json∩启用配置（tag id 口径），用 enabledConfigEntityByTag 即可取到 displayName
-                            val cfgName = enabledConfigEntityByTag(tag)?.displayName.orEmpty()
+                            // 限长（10-06 用户令）：cfgName/rowText 同吃 displayNameLimit，去重表以未截断名计数
+                            val cfgName = limitName(enabledConfigEntityByTag(tag)?.displayName.orEmpty())
                             val rowName = if (isLocalSoundSlot) localSoundSlotLabel(tag) else tag
                             val rowText = if (dupNames.getOrDefault(cfgName.ifEmpty { rowName }, 0) > 1)
                                 "${cfgName.ifEmpty { rowName }}（$rowName）" else cfgName.ifEmpty { rowName }
@@ -1561,7 +1575,7 @@ fun VoicePickerDialog(
                             // 标记取内存表（10-05 性能：原逐行读整文件）
                             val rowMarks = marksMap[v] ?: emptyList()
                             CandidateRow(
-                                text = cfgEntity.displayName,
+                                text = limitName(cfgEntity.displayName),
                                 isCurrent = isCurrent,
                                 isPending = isPending,
                                 nameColor = if (isPending && !isCurrent) MaterialTheme.colorScheme.primary

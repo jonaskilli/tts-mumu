@@ -397,8 +397,6 @@
     <string name="audio_params_final">最终：语速%1$s，音量%2$s，音高%3$s</string>
     <string name="audio_params_tag_config">本项</string>
     <string name="audio_params_tag_config_item">配置项</string>
-    <string name="role_key_add_short">+密钥</string>
-    <string name="role_key_fetch_short">+模型</string>
     <string name="audio_params_tag_plugin">插件</string>
     <string name="audio_params_tag_global">全局</string>
     <string name="label_speed">速度：</string>
@@ -552,9 +550,9 @@
     <string name="tts_config_not_exist">指定的TTS配置不存在</string>
     <string name="open_source_license">开源许可</string>
     <string name="limit_tag_length">限制标签长度</string>
-    <string name="limit_tag_length_summary">标签超出的部分忽略</string>
+    <string name="limit_tag_length_summary">标签超出的部分忽略，0=不限制</string>
     <string name="limit_name_length">限制显示名称长度</string>
-    <string name="limit_name_length_summary">名称超出的部分忽略</string>
+    <string name="limit_name_length_summary">列表、换声弹窗与日志的显示名统一生效，0=不限制</string>
     <string name="descending">降序</string>
     <string name="sort">排序</string>
     <string name="created_time_id">创建时间(ID)</string>

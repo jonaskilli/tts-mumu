@@ -201,7 +201,7 @@ internal fun ColumnScope.SysttsSettingsScreen(
             subTitle = { Text(stringResource(id = R.string.limit_tag_length_summary)) },
             value = limitTagLen.toFloat(),
             onValueChange = { limitTagLen = it.toInt() },
-            valueRange = 0f..50f,
+            valueRange = 0f..20f,
             icon = { Icon(Icons.Default.Tag, null) },
             label = limitTagLenString
         )
@@ -216,7 +216,7 @@ internal fun ColumnScope.SysttsSettingsScreen(
             subTitle = { Text(stringResource(id = R.string.limit_name_length_summary)) },
             value = limitNameLen.toFloat(),
             onValueChange = { limitNameLen = it.toInt() },
-            valueRange = 0f..50f,
+            valueRange = 0f..20f,
             icon = { Icon(Icons.Default.TextFields, null) },
             label = limitNameLenString
         )

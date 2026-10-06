@@ -3,7 +3,6 @@ package com.github.jing332.tts_server_android.compose.systts.list
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Input
 import androidx.compose.material.icons.automirrored.filled.ManageSearch
-import androidx.compose.material.icons.automirrored.filled.MenuBook
 import androidx.compose.material.icons.filled.Audiotrack
 import androidx.compose.material.icons.filled.Build
 import androidx.compose.material.icons.filled.ContentCut
@@ -21,16 +20,13 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import com.github.jing332.common.utils.startActivity
 import com.github.jing332.compose.widgets.AppDropdownMenu
 import com.github.jing332.compose.widgets.CheckedMenuItem
 import com.github.jing332.tts_server_android.R
 import com.github.jing332.tts_server_android.compose.asAppCompatActivity
-import com.github.jing332.tts_server_android.compose.systts.plugin.PluginManagerActivity
 import com.github.jing332.tts_server_android.compose.systts.replace.ReplaceManagerActivity
-import com.github.jing332.tts_server_android.compose.systts.speechrule.SpeechRuleManagerActivity
 import com.github.jing332.tts_server_android.conf.SystemTtsConfig
 import com.github.jing332.tts_server_android.service.systts.SystemTtsService
 
@@ -119,28 +115,8 @@ internal fun MenuMoreOptions(
         )
 
         HorizontalDivider()
-        DropdownMenuItem(
-            text = { Text(stringResource(id = R.string.speech_rule_manager)) },
-            onClick = {
-                onDismissRequest()
-                context.startActivity(SpeechRuleManagerActivity::class.java)
-            },
-            leadingIcon = {
-                Icon(Icons.AutoMirrored.Default.MenuBook, null)
-            }
-        )
-
-        DropdownMenuItem(
-            text = { Text(stringResource(id = R.string.plugin_manager)) },
-            onClick = {
-                onDismissRequest()
-                context.startActivity(PluginManagerActivity::class.java)
-            },
-            leadingIcon = {
-                Icon(painterResource(id = R.drawable.ic_shortcut_plugin), null)
-            }
-        )
-
+        // 朗读规则/插件两条已删（10-06 用户拍板：与设置页「资源管理」区、桌面快捷方式重复，
+        // 菜单收敛；替换规则保留——它的勾选是替换规则总开关的唯一落点，点行进页面、勾选控启停）
         CheckedMenuItem(
             text = { Text(stringResource(id = R.string.replace_rule_manager)) },
             checked = SystemTtsConfig.isReplaceEnabled.value,

@@ -58,6 +58,7 @@ import com.github.jing332.tts.synthesizer.event.IEventDispatcher
 import com.github.jing332.tts.synthesizer.event.NormalEvent
 import com.github.jing332.tts_server_android.R
 import com.github.jing332.tts_server_android.compose.MainActivity
+import com.github.jing332.tts_server_android.conf.AppConfig
 import com.github.jing332.tts_server_android.conf.SysTtsConfig
 import com.github.jing332.tts_server_android.constant.AppConst
 import com.github.jing332.tts_server_android.constant.SystemNotificationConst
@@ -758,12 +759,18 @@ class SystemTtsService : TextToSpeechService(), IEventDispatcher {
                 // 身份段（用户 09-14 三次定稿：全回从前）——【角色名】，标签名，显示名，参数
                 // 字段间一律全角逗号（前一版「身份段直连」真机验证不过：标签与显示名中间无天然
                 // 分界，糊成一串读不出边界）。
-                // 显示名限 **20 字**（与角色行标签框的 8 字**故意不同值**，
-                // 原话「这俩不要一样，那边也可以加省略号」）——超出截断并补「…」
-                val tagName = config.speechInfo.tagName.trim()
-                val dispFull = tag.displayName
-                val disp = if (dispFull.length > LOG_DISPLAY_NAME_MAX_CHARS)
-                    dispFull.take(LOG_DISPLAY_NAME_MAX_CHARS) + "…"
+                // 显示名里的半角竖线 | 一律换全角｜（10-06 用户拍板「一劳永逸」）：真机实锤
+                // 半角竖线会被排版引擎当成字母、与后面的省略号/逗号粘成不可断块，日志行
+                // 右侧还剩整字宽度就被提前折行（「台湾口/音|⋯，」实测差 5px 整块下移）；
+                // 全角｜自带断行机会，且只动显示文案，配置项名/标签匹配不受影响
+                // 上限跟设置页「限制显示名称长度」滑杆（10-06 用户令：设完全生效）；
+                // 0=未设 → 维持 20 字兜底。超出截断补「…」，截掉的尾巴若带半截竖线/空格一并剪掉
+                val tagName = config.speechInfo.tagName.trim().replace('|', '｜')
+                val dispFull = tag.displayName.replace('|', '｜')
+                val maxChars = AppConfig.limitNameLength.value.takeIf { it > 0 }
+                    ?: LOG_DISPLAY_NAME_MAX_CHARS
+                val disp = if (dispFull.length > maxChars)
+                    dispFull.take(maxChars).trimEnd(' ', '|', '｜') + "…"
                 else dispFull
                 // 声音部分 = 标签名 [+ 逗号 + 显示名]；显示名以标签开头时不重复拼（防“男主1男主1”），
                 // 此时二者本为一体、也就无需分隔；与角色行 voiceTagText 同规则。

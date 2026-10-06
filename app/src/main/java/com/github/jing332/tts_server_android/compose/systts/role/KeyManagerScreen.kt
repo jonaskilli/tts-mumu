@@ -1355,12 +1355,14 @@ fun KeyManagerScreen(tagRuleId: String, onBack: () -> Unit) {
                         OutlinedButton(
                             onClick = { showAdd = true }
                         ) {
-                            Text(stringResource(R.string.role_key_add_short))
+                            // 回全名（10-06 用户拍板）：短版「+密钥」是 0919 weight 均分防折行的产物，
+                            // 操作行改自适应宽+SpaceBetween 后前提消失；360dp 屏三键 ≈318dp 放得下
+                            Text(stringResource(R.string.role_key_add))
                         }
                         OutlinedButton(
                             onClick = { showPullModels = true }
                         ) {
-                            Text(stringResource(R.string.role_key_fetch_short))
+                            Text(stringResource(R.string.role_key_fetch))
                         }
                         // 启用池子页入口：调轮换顺序 / 移出 / 整批测试在那边做
                         FilledTonalButton(
