@@ -83,6 +83,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.rotate
+import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalContext
@@ -972,6 +973,11 @@ private fun Item(
             Row(verticalAlignment = Alignment.CenterVertically) {
                 if (isSelectionMode) {
                     Checkbox(
+                        // 0.85 缩放（10-06 用户令「方框缩到 18dp」）：M3 默认视觉方块 20dp、
+                        // 实心填色，在「方框+圆图标+文字」三层前导里比 28dp 淡底圆更抢眼。
+                        // 20×0.85≈17dp，与密钥页同款做法（那边也是 scale(0.85f)）；
+                        // 触摸区仍是组件的 48dp 最小触控，不受缩放影响
+                        modifier = Modifier.scale(0.85f),
                         checked = isSelected,
                         onCheckedChange = { onToggleSelection() },
                     )
@@ -979,7 +985,9 @@ private fun Item(
                 Checkbox(
                     checked = isEnabled,
                     onCheckedChange = onEnabledChange,
-                    modifier = Modifier.semantics {
+                    modifier = Modifier
+                        .scale(0.85f)
+                        .semantics {
                         role = Role.Switch
                         context
                             .getString(
