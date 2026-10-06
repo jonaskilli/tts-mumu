@@ -413,9 +413,6 @@ internal fun TtsLogScreen(vm: TtsLogViewModel = viewModel()) {
             dragSelectEnabled = true,
             onEnterSelection = { selectionMode = true },
             onCheckedChange = { checkedEntries = it },
-            // 浮动 ↑/↓ 键本页关掉（10-04）：改用双击标题栏空白区回顶（见 topBar），
-            // 键悬浮遮挡正文；转发器日志页仍保留默认 true
-            showScrollButtons = false,
         )
     }
 
