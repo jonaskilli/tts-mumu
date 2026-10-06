@@ -273,13 +273,12 @@ private fun KeyEntryRow(
     ElevatedCard(
         colors = CardDefaults.elevatedCardColors(containerColor = cardColor),
         modifier = Modifier.fillMaxWidth()
-            // 左缘 8（10-04 用户拍板：与主页配置项卡同值「贴边族=卡 8」），右缘 8 保持对称。
-            // 组头折叠箭头由 start=3 定位到字形左缘 ≈8 与本卡左缘同线（旧「左 15」口径作废）。
-            // 上下 3 ⇒ 相邻两张卡之间 6dp
-            // start/end 与 vertical 分属不同 padding 重载，写在一起没有匹配的候选，故分两次。
+            // 10-06 用户令：卡缘同主界面配置项卡盒线 8——容器已出 8，卡自身不再另加水平内距；
+            // 组头/操作行的字形线 16（容器 8 + 自身偏移）照主界面两线关系：一级分组行字形
+            // ≈16.6 / 配置卡盒 8，本页组头字形 ≈16 / 卡盒 8 与之同构。上下 3 ⇒ 相邻两张卡
+            // 之间 6dp。卡内对勾/模型名等校准全是卡相对值，随卡缘平移原样保留
             // （启用描边已随 10-03 对勾方案退役；「描边画在 padding 之后」的教训留档：
             //  画在前面会框住整个行宽、比卡片大一圈，0920 实机事故）
-            .padding(start = 8.dp, end = 8.dp)
             .padding(vertical = 3.dp)
     ) {
         Row(
@@ -1343,15 +1342,15 @@ fun KeyManagerScreen(tagRuleId: String, onBack: () -> Unit) {
         ) {
             if (!selectionMode) {
                 item(key = "ops") {
-                    // 操作行三键：**内容自适应宽度 + 均匀挤**（用户 0919：+密钥/+模型 本来宽松，
-                    // 收窄让宽给「启用池(N)」——五字符不折行；weight 均分是折行根因）。
-                    // 启用池键保持填充强调。Row 默认 Start 对齐，宽余量留在右侧
+                    // 操作行三键：**内容自适应宽度**（用户 0919：weight 均分是折行根因，按钮
+                    // 保持自适应；启用池键保持填充强调）。
+                    // 10-06 用户令：均匀散开——SpaceBetween 把宽余量变成两条等距缝，首键左缘、
+                    // 尾键右缘各贴行边；行内距 8 + 容器 8 = 左右内容线 16（与组头字形线同一条，
+                    // 即主界面一级分组行那条线）
                     Row(
-                        // horizontal 16→8（10-05 用户：跟随本页贴边族口径——组头/卡片左线 8、
-                        // 卡右缘 8，胶囊行原来自己用 16 与同页其他元素左右都不齐）
                         Modifier.fillMaxWidth()
                             .padding(start = 8.dp, end = 8.dp, top = 10.dp, bottom = 6.dp),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        horizontalArrangement = Arrangement.SpaceBetween
                     ) {
                         OutlinedButton(
                             onClick = { showAdd = true }
