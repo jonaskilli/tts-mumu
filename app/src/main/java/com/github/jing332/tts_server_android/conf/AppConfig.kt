@@ -58,9 +58,9 @@ object AppConfig {
     val theme by lazy { mutableDataSaverStateOf(dataSaverPref, "theme", AppTheme.DEFAULT) }
     val limitTagLength by lazy { mutableDataSaverStateOf(dataSaverPref, "limitTagLength", 0) }
 
-    // 显示名限长（10-06 用户拍板：默认 20 字固定值，0=不限制仍可拉回）；
-    // 消费点统一走 StringUtils.limitDisplayLength（码点安全+竖线段回退）
-    val limitNameLength by lazy { mutableDataSaverStateOf(dataSaverPref, "limitNameLength", 20) }
+    // 显示名限长（10-06 用户二调：默认 15 字——20 偏长、去省略号后 16 字宽度封顶；
+    // 0=不限制仍可拉回，上限 30）。消费点统一走 StringUtils.limitDisplayLength
+    val limitNameLength by lazy { mutableDataSaverStateOf(dataSaverPref, "limitNameLength", 15) }
     val isSwapListenAndEditButton by lazy { mutableDataSaverStateOf(dataSaverPref, "isSwapListenAndEditButton", false) }
     // isAutoCheckUpdateEnabled 已删（10-05 用户令：应用内更新功能整体退役）
     val isExcludeFromRecent by lazy { mutableDataSaverStateOf(dataSaverPref, "isExcludeFromRecent", false) }

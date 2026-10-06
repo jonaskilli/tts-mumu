@@ -450,7 +450,7 @@
     <string name="search_type_marked">标记</string>
     <string name="limit_tag_length_summary">标签超出的部分忽略，0=不限制</string>
     <string name="limit_name_length">限制显示名称长度</string>
-    <string name="limit_name_length_summary">列表、换声弹窗与日志的显示名统一生效，0=不限制</string>
+    <string name="limit_name_length_summary">列表、换声弹窗与日志统一生效，超长截到段边界不加省略号，0=不限制</string>
     <string name="descending">降序</string>
     <string name="sort">排序</string>
     <string name="created_time_id">创建时间(ID)</string>

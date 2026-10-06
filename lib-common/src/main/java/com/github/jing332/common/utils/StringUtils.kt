@@ -144,17 +144,22 @@ fun String.limitLength(max: Int): String {
 }
 
 /**
- * 显示名限长的统一截断（10-06 用户拍板默认 20 字，各处共享）：
- * 超长按**码点**取前 [max] 个（emoji/代理对不腰斩）后补 [suffix]，再清尾——
+ * 显示名限长的统一截断（10-06 用户拍板默认 15 字，各处共享）：
+ * 超长按**码点**取前 [max] 个（emoji/代理对不腰斩），再清尾——
  * ① 段回退：名字是 `主名 | 属性|属性` 结构时，截断落在最后一个竖线段中间
  *    会留半截尾巴（如「MINI_M」），回退到上一个段界；回退后剩余不足 6 字
  *    （信息太少）或正好切在段界（无残段）则不回退。
  *    半角 | 与全角｜都认——日志侧显示前会把半角转全角，其余处保持半角；
  * ② 剪掉悬空竖线/空格与切剩的半个代理对。
+ * **不补省略号**（10-06 用户令：… 占一字宽，去掉可多显示一个字；截断落在
+ * 段界上观感即"完整的短名"）。[suffix] 保留给确需提示截断的调用方。
  * 与旧 [limitLength] 的差异：旧版按 UTF-16 char 切、不清尾。
  */
-fun String.limitDisplayLength(max: Int, suffix: String = "…"): String {
+fun String.limitDisplayLength(max: Int, suffix: String = ""): String {
     if (length <= max) return this
+    // 码点数守卫：emoji 占比高的字符串 UTF-16 长度会超 max、码点数却不足，
+    // 直接 offsetByCodePoints(0, max) 越界崩溃（JS 原型测试没暴露这坑）
+    if (codePointCount(0, length) <= max) return this
     val cut = offsetByCodePoints(0, max)   // 按码点切，emoji 不腰斩
     var head = substring(0, cut)
     val lastBar = maxOf(head.lastIndexOf('|'), head.lastIndexOf('｜'))
