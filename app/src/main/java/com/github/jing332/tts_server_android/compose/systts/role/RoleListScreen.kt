@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.minimumInteractiveComponentSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -24,7 +25,6 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Autorenew
 import androidx.compose.material3.AlertDialog
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardActions
@@ -844,9 +844,9 @@ private fun cutToTagBoxWidth(text: String, budget: Float = TAG_BOX_CHAR_BUDGET):
  * 角色行（照插件 createListRow / v9 排布）：左名字列竖排（主名第一行，别名从第二行起各占一行，
  * 每行 = 性别圆点 + 名称 + 收藏【】 + 主角👑），整列垂直居中 → 右侧标签框对这一列上下居中；
  * 右动作列=发音人标签框 + 已点亮标记 emoji（❤️🚶😈，与换声弹窗同源 voice_marks.json）
- * +（10-04 二次改，用户令）标签末尾 🔄 直键「随机分配」——点一下立即换一个同类别发音人、
- * 标签就地更新（不再走 ⋮ 菜单两步）；仅在发音人属 14 类可换类别时渲染，
- * 单例类别（括号/音效/duihua 等）不显示，避开无候选的空操作。
+ * 随机分配入口（10-04 曾为标签后 🔄 直键 → 10-06 用户令改长按标签、直键删除）：
+ * 长按标签立即换一个同类别发音人、标签就地更新；仅 14 类可换类别响应，
+ * 单例类别（括号/音效/duihua 等）长按无动作，避开无候选的空操作。
  */
 @OptIn(ExperimentalFoundationApi::class, ExperimentalMaterial3Api::class)
 @Composable
@@ -940,12 +940,23 @@ private fun RoleRow(
                     val tagBase = voiceName
                         ?: cutToTagBoxWidth(rec.voice, TAG_BOX_CHAR_BUDGET - 2f)
                     val tagInvalid = voiceName == null
-                    // 发音人标签框（失效标签加红色 ⚠）；点它=换声弹窗（标记 / 删除配置项都在里面）
+                    // 发音人标签框（失效标签加红色 ⚠）；点它=换声弹窗（标记 / 删除配置项都在里面）；
+                    // 长按=随机分配（10-06 用户令，替代原标签后的 🔄 直键）——仅 14 类可换类别
+                    // 响应，单例类别长按无动作（原直键在单例类别本就不渲染，口径一致）；
+                    // minimumInteractiveComponentSize 照旧保 48dp 触控（原 Surface(onClick) 同款）
                     Surface(
-                        onClick = onTagClick,
                         shape = RoundedCornerShape(8.dp),
                         // 浅一档容器色（「方案一」）：与书栏卡共用 softContainerColor 同色
                         color = softContainerColor(),
+                        modifier = Modifier
+                            .combinedClickable(
+                                onClick = onTagClick,
+                                onLongClick = onReassign.takeIf {
+                                    CharacterRecordsFile.categoryBaseOf(rec.voice) != null
+                                },
+                                onLongClickLabel = stringResource(R.string.role_menu_reassign),
+                            )
+                            .minimumInteractiveComponentSize(),
                     ) {
                         Text(
                             buildAnnotatedString {
@@ -968,15 +979,7 @@ private fun RoleRow(
                                 .widthIn(max = 220.dp)
                         )
                     }
-                    // 标签末尾 🔄 随机分配直键（10-04 二次改，用户令）：点一下立即换同类别发音人、
-                    // 标签就地更新；仅 14 类可换类别时显示（单例类别无候选，隐藏免空操作）。
-                    // 色随全局图标语言（onSurfaceVariant 灰，不染主题色——本页曾否过 primary 染色）
-                    if (CharacterRecordsFile.categoryBaseOf(rec.voice) != null) {
-                        FlatIconAction(
-                            Icons.Default.Autorenew,
-                            stringResource(R.string.role_menu_reassign),
-                        ) { onReassign() }
-                    }
+                    // 🔄 随机分配直键已删（10-06 用户令）：入口改为长按标签，见上方标签框注释
                     val litEmoji = VoiceMarksFile.emojiOf(marks)
                     if (litEmoji.isNotEmpty()) {
                         Text(
