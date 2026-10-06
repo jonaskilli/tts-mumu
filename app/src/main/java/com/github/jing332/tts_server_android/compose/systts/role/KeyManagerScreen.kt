@@ -252,6 +252,8 @@ private fun KeyEntryRow(
     probeProgress: String? = null,
     selectionMode: Boolean,
     checked: Boolean,
+    // 来源标签（10-06 方案B）：密钥 key 段命中账号池 access_token → 名字后绿标「账号池」
+    fromPool: Boolean = false,
     onToggleCheck: () -> Unit,
     onTogglePool: () -> Unit,
     onCopy: () -> Unit,
@@ -327,6 +329,20 @@ private fun KeyEntryRow(
                         else Modifier.clickable { onCopy() }
                     )
             )
+            // 来源标签（10-06 方案B）：密钥取自账号池（key 段=某账号 access_token）→ 绿底胶囊。
+            // 放名字后、测试灯槽前；不占名字 weight，长名字省略号照旧
+            if (fromPool && !selectionMode) {
+                Text(
+                    stringResource(R.string.account_pool_source_tag),
+                    style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp),
+                    color = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(6.dp))
+                        .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.12f))
+                        .padding(horizontal = 5.dp, vertical = 1.dp)
+                )
+                Spacer(Modifier.width(4.dp))
+            }
             if (!selectionMode) {
                 // 测试结果圆点：名字后、紧挨闪电前（0920 定稿，两页同位置）——
                 // 与闪电因果相邻、离徽章/行首最远不被抢视线、垂直成一列好扫。
@@ -794,6 +810,12 @@ fun KeyManagerScreen(tagRuleId: String, onBack: () -> Unit) {
     val probeProgress = remember { mutableStateMapOf<String, String>() }
     var testingGroup by remember { mutableStateOf<String?>(null) }
     var testingPoolAll by remember { mutableStateOf(false) }
+    // 账号池子页（10-06 方案B：页内全屏覆盖，返回键退回；登录/签到/积分/续期）
+    var showAccountPool by remember { mutableStateOf(false) }
+    // 账号池令牌集（10-06 来源标签）：密钥 value 里的 key 段命中任一账号 access_token → 行内显示「账号池」绿标
+    val poolTokens by remember(version) {
+        mutableStateOf(AccountPool.load().map { it.accessToken }.toSet())
+    }
     // 启用池子页（页内全屏覆盖，返回键退回）
     var showPool by remember { mutableStateOf(false) }
     // 页面级多选模式（照主界面 ☑ 多选）：跨组勾选，底栏 全选/加入启用池/删除
@@ -1165,6 +1187,13 @@ fun KeyManagerScreen(tagRuleId: String, onBack: () -> Unit) {
 
     // 启用池子页：页内全屏覆盖（照 KeyManagerActivity 的独立全屏页模式，返回键退回主页）。
     // 状态全部 hoist 在主页（池、测试结果、测试中标记、多选），子页是纯展示 + 回调
+    // 账号池子页（10-06 方案B）：同级全屏覆盖，返回键退回密钥主页
+    if (showAccountPool) {
+        com.github.jing332.tts_server_android.compose.systts.account.AccountPoolScreen(
+            onBack = { showAccountPool = false }
+        )
+    }
+
     if (showPool) {
         KeyPoolScreen(
             pool = pool,
@@ -1220,6 +1249,19 @@ fun KeyManagerScreen(tagRuleId: String, onBack: () -> Unit) {
                 },
                 // 导入/导出：FileDownload/FileUpload 单色图标 + 文字；热区 ≥48dp（IconButton 最小宽会挤标题）
                 actions = {
+                    // 账号池入口（10-06 方案B）：开二级页（登录/签到/积分/续期）
+                    Box(
+                        Modifier
+                            .heightIn(min = 48.dp)
+                            .clickable { showAccountPool = true }
+                            .padding(horizontal = 8.dp),
+                        contentAlignment = Alignment.CenterStart
+                    ) {
+                        Text(
+                            stringResource(R.string.account_pool_title),
+                            style = MaterialTheme.typography.labelLarge
+                        )
+                    }
                     Box(
                         Modifier
                             .heightIn(min = 48.dp)
@@ -1442,6 +1484,11 @@ fun KeyManagerScreen(tagRuleId: String, onBack: () -> Unit) {
                                     selectionMode = selectionMode || isDeleting,
                                     checked = if (isDeleting) entry.name in deleteChecked
                                     else entry.name in checkedNames,
+                                    // 来源标签（10-06 方案B）：key 段命中账号池 access_token → 绿标「账号池」
+                                    fromPool = run {
+                                        val k = KeyListFile.parseKeyValue(entry.value)
+                                        k != null && k.key.isNotEmpty() && k.key in poolTokens
+                                    },
                                     onToggleCheck = {
                                         if (isDeleting) {
                                             deleteChecked = if (entry.name in deleteChecked)

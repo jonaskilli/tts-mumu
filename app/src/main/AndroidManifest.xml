@@ -60,6 +60,13 @@
             android:exported="true"
             android:label="@string/direct_link_settings" />
         <activity
+            android:name=".compose.systts.account.AccountLoginActivity"
+            android:exported="false"
+            android:label="@string/account_pool_login" />
+        <receiver
+            android:name=".service.systts.help.AccountCheckinReceiver"
+            android:exported="false" />
+        <activity
             android:name=".compose.backup.BackupRestoreActivity"
             android:exported="true"
             android:label="@string/backup_restore">
