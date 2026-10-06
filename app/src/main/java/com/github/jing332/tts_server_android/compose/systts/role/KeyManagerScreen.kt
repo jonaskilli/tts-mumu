@@ -3304,7 +3304,13 @@ fun BookManagerDialog(
         scope.launch {
             val ok = withIO { CharacterRecordsFile.switchBook(tagRuleId, book) }
             toast(if (ok) R.string.role_key_saved else R.string.role_list_failed)
-            if (ok) { version++; onSwitched() }
+            if (ok) {
+                version++
+                onSwitched()
+                // 切换动作已完成即关窗（10-06 用户令）：原来切完留在弹窗里，
+                // 还得手动点外部关掉，像"没生效"；关窗后角色列表立刻展示新书
+                onDismiss()
+            }
         }
     }
     fun deleteBooks(target: Set<String>) {
@@ -3610,8 +3616,13 @@ private fun BookRow(
             modifier = Modifier.weight(1f),
         )
         if (deletable) {
-            // 扁平灰叉（进批量删除弹窗才用红色表达）
-            FlatIconAction(Icons.Default.Close, contentDescription = stringResource(R.string.delete)) {
+            // 删除叉染红（10-06 用户令）：删书不可逆，红色表意更明确；
+            // 原「扁平灰叉，进批量删除弹窗才红」口径作废
+            FlatIconAction(
+                Icons.Default.Close,
+                contentDescription = stringResource(R.string.delete),
+                tint = MaterialTheme.colorScheme.error,
+            ) {
                 onDelete()
             }
         }
