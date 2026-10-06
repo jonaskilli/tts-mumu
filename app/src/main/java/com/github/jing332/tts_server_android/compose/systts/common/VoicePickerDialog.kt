@@ -21,12 +21,14 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Category
+import androidx.compose.material.icons.filled.Casino
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
@@ -42,6 +44,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -1179,6 +1182,15 @@ fun VoicePickerDialog(
                     val effectiveCategory = selectedCategory?.takeIf { key ->
                         categoryOptions.any { it.first == key }
                     }
+                    // 候选过滤谓词（分类+搜索一份口径两处用：下方 filtered 候选列表、
+                    // 分类行的「随机」键——10-06 用户令随机固定）
+                    fun candidateMatches(tag: String): Boolean =
+                        (effectiveCategory == null || tagCategoryOf(tag) == effectiveCategory) &&
+                            (tagSearch.isBlank() ||
+                                tag.contains(tagSearch) ||
+                                // 书面名按 tagName（10-05 用户）：规则 tags 表显示名一并入搜索
+                                tagDisplayName(tag).contains(tagSearch) ||
+                                enabledConfigEntityByTag(tag)?.displayName?.contains(tagSearch) == true)
                     // 音效槽位：候选只有同族 localSound 槽位（通常 1~N 条），
                     // 音色分类与搜索都无意义（分类表里音效恒落 null → 只有「全部（N项）」一项）
                     // → 下拉与搜索框整块隐藏，列表直接铺满
@@ -1242,6 +1254,36 @@ fun VoicePickerDialog(
                                     unfocusedBorderColor = MaterialTheme.colorScheme.outlineVariant,
                                 ),
                             )
+                            // 随机固定（10-06 用户令）：分类定了不想翻列表——从当前筛选范围
+                            // （同分类+搜索词，排除当前绑定）随机取一个**暂存**；顶部当前发音人
+                            // 名字跟显，按「确认」落库固定。仍走两段式（用户 09-08），不绕过确认。
+                            // 提示语义：同分类随机只换尾序号（分类不变），与角色列表长按标签同口径
+                            OutlinedButton(
+                                onClick = {
+                                    val pick = poolEnabled
+                                        .filter { it != boundVoice && candidateMatches(it) }
+                                        .randomOrNull()
+                                    if (pick == null) {
+                                        Toast.makeText(
+                                            context,
+                                            "当前范围没有可随机候选",
+                                            Toast.LENGTH_SHORT,
+                                        ).show()
+                                    } else {
+                                        pendingVoice = pick
+                                    }
+                                },
+                                modifier = Modifier.heightIn(min = 48.dp),
+                            ) {
+                                Icon(
+                                    Icons.Default.Casino,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(18.dp),
+                                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
+                                Spacer(Modifier.width(4.dp))
+                                Text("随机", style = MaterialTheme.typography.labelLarge)
+                            }
                         }
                     } else {
                         // 只读态：音效槽位大分类取 rule.tags 现查（剥尾号→「本地音效」），
@@ -1250,19 +1292,12 @@ fun VoicePickerDialog(
                     }
                     // 搜索词同时匹配「标签名」与「配置项名」（用户 09-11 晚：记忆里是"女青年01晓晓"，
                     // 原先只匹配标签名，搜"晓晓"搜不到）。候选行现在只显示配置项名（09-13 去序号），
-                    // 但按标签名搜仍应命中，故匹配范围保持两者并集。
+                    // 但按标签名搜仍应命中，故匹配范围保持两者并集（谓词见上 candidateMatches）。
                     // 音效槽位没有搜索控件（上方已隐藏），直接全量出列
                     val filtered = if (isLocalSoundSlot) {
                         poolEnabled
                     } else {
-                        poolEnabled.filter { tag ->
-                            (effectiveCategory == null || tagCategoryOf(tag) == effectiveCategory) &&
-                                (tagSearch.isBlank() ||
-                                    tag.contains(tagSearch) ||
-                                    // 书面名按 tagName（10-05 用户）：规则 tags 表显示名一并入搜索
-                                    tagDisplayName(tag).contains(tagSearch) ||
-                                    enabledConfigEntityByTag(tag)?.displayName?.contains(tagSearch) == true)
-                        }
+                        poolEnabled.filter { candidateMatches(it) }
                     }
                     // 候选列表 = 候选池本身（用户 09-17）：不再把「当前绑定」补到列表顶部。
                     // 顶栏已经展示当前发音人（含 ▶ 试听与 ⋮ 菜单），列表首位该留给候选项，
