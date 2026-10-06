@@ -95,7 +95,7 @@ fun SubGroupHeader(
             .fillMaxWidth()
             .background(
                 when (level) {
-                    // 背景随层级递减，配合缩进体现 jread 多级子分组的从属关系
+                    // 背景随层级递减，配合箭头/字号体现多级子分组的从属关系（缩进已取消）
                     0 -> MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
                     1 -> MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.25f)
                     else -> MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.12f)
@@ -103,17 +103,12 @@ fun SubGroupHeader(
             )
             .clickable { if (!showOptions && !showExtraOptions) onClick() }
             .padding(
-                // 按层级水平缩进，每级 12dp（与树内配置项卡片缩进公式一致）。
-                // (level+1)：10-05 用户实机指认「子分组折叠键缩进怪」——一级分组行当时补了
-                // start=8dp（治"箭头贴边"），而本行 level0 也恰好是 8dp，父子落同一条竖线、
-                // 从属关系消失。改为 (level+1) 整体下压一级：一级分组 8 → 子分组 20 → 更深 32。
-                // 与卡片口径的对应：卡片用 displayLevel（=node.level+1），故卡片 start =
-                // 8 + displayLevel*12，本行 8 + (level+1)*12 ⇒ 子分组头与其直属卡片恒同列。
-                start = (8 + (level + 1) * 12).dp,
+                // 10-06 用户令：按层缩进取消（曾 8+level*12 → 8+(level+1)*12 两版），全层级
+                // 统一落 8dp 同一条左线——层级感由箭头/字号/背景递减承担，卡片右移最深
+                // 到 44dp 只废宽度。end 8（10-05 用户拍板：三行 ⋮ 统一 30dp 列）
+                start = 8.dp,
                 top = paddingTop,
                 bottom = paddingBottom,
-                // end 8（10-05 用户拍板：三行 ⋮ 统一 30dp 列）——曾短暂归 0 去凑组头旧 22 列，
-                // 后组头补 end=8 回到 30 列，本行同步回 8：⋮ 字形 ≈30dp 与一级分组/卡片同列
                 end = 8.dp
             ),
         verticalAlignment = Alignment.CenterVertically
