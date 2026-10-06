@@ -123,27 +123,39 @@ internal fun TtsLogScreen(vm: TtsLogViewModel = viewModel()) {
         }
     }
 
-    // 搜索词变化/开关过滤 → 跳到最近一条匹配(高亮由 LogScreen 渲染)
+    // 归组结果（10-06 全链卡）：与 LogScreen 共用同一实例——搜索跳转要把条目下标
+    // 换算成列表项下标（一张卡=一个列表项），必须用同一份归组才不会错位
+    val logGroups = remember(displayLogs) { LogGroups.build(displayLogs) }
+
+    // 搜索词变化/开关过滤 → 跳到最近一条匹配(高亮由 LogScreen 渲染)；跳转目标按
+    // 归组映射换算：命中卡内任一行即落到整张卡
     LaunchedEffect(searchQuery, filterMatches) {
         val q = searchQuery.trim()
         if (q.isNotEmpty()) {
             val idx = displayLogs.indexOfLast { it.matchesQuery(q) }
-            if (idx >= 0) listState.animateScrollToItem(idx)
+            if (idx >= 0) listState.animateScrollToItem(logGroups.listItemFor(idx))
         }
     }
 
-    // 上一处/下一处：以当前可视位置为锚点跳转，到头自动绕回
+    // 上一处/下一处：以当前可视位置为锚点跳转，到头自动绕回；条目下标经归组映射
+    // 换算成列表项下标再滚动
     fun jumpToMatch(forward: Boolean) {
         val q = searchQuery.trim()
         if (q.isEmpty()) return
         val matches = displayLogs.indices.filter { displayLogs[it].matchesQuery(q) }
         if (matches.isEmpty()) return
-        val anchor = listState.firstVisibleItemIndex
+        // 可视首项（可能是卡/裸行/日期签）→ 取该列表项的首个条目下标做锚
+        val firstVisible = listState.firstVisibleItemIndex
+        val anchorEntry = when (val item = logGroups.items.getOrNull(firstVisible)) {
+            is LogGroups.Item.Bare -> item.index
+            is LogGroups.Item.Card -> item.head
+            else -> firstVisible
+        }
         val target = if (forward)
-            matches.firstOrNull { it > anchor } ?: matches.first()
+            matches.firstOrNull { it > anchorEntry } ?: matches.first()
         else
-            matches.lastOrNull { it < anchor } ?: matches.last()
-        scope.launch { listState.animateScrollToItem(target) }
+            matches.lastOrNull { it < anchorEntry } ?: matches.last()
+        scope.launch { listState.animateScrollToItem(logGroups.listItemFor(target)) }
     }
 
     val scrollBehavior = TopAppBarDefaults.pinnedScrollBehavior()
@@ -239,8 +251,7 @@ internal fun TtsLogScreen(vm: TtsLogViewModel = viewModel()) {
                                                     runCatching { listState.scrollToItem(0) }
                                                 }
                                             })
-                                        },
-                                    contentAlignment = Alignment.CenterStart
+                                        },                                    contentAlignment = Alignment.CenterStart
                                 ) {
                                     Text(text = stringResource(id = R.string.log))
                                 }
@@ -309,7 +320,13 @@ internal fun TtsLogScreen(vm: TtsLogViewModel = viewModel()) {
                         }
                     }
                 )
-                
+
+                // 顶栏与列表之间的分隔线（10-06）：滚动的日志/卡片贴到顶栏时有了"底"，
+                // 不再像 UI 被拦腰截断
+                HorizontalDivider(
+                    color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)
+                )
+
                 // 搜索控制行：匹配数 + 上一处/下一处跳转 + 只看匹配开关
                 AnimatedVisibility(
                     visible = isSearchActive && searchQuery.isNotBlank(),
@@ -419,6 +436,8 @@ internal fun TtsLogScreen(vm: TtsLogViewModel = viewModel()) {
             dragSelectEnabled = true,
             onEnterSelection = { selectionMode = true },
             onCheckedChange = { checkedEntries = it },
+            // 共享归组（10-06 全链卡）：与上面搜索跳转用同一实例，条目↔列表项不错位
+            groups = logGroups,
         )
     }
 
