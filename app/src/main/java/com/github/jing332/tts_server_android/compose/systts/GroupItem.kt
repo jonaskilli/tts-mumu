@@ -149,15 +149,15 @@ fun GroupItem(
             label = ""
         )
         // 纯箭头(无实心圆底)弱化色：展开朝下/折叠朝右，比ExpandCircleDown黑圆轻盈
-        // 20dp（10-06 用户拍板）：与子分组 SubGroupHeader 的 20dp 同一图标盒——Material 箭头
-        // 字形在 24dp 盒与 20dp 盒内边距不同，此前一级默认 24、子分组 20，真机两行箭头字形
-        // 左缘差 1dp 不同线（截图实测 4px）；统一后同线，层级区分仍由背景/字号/徽章承担
+        // 回退 24dp（10-06 用户终裁「恢复老形式」）：曾为对齐子分组箭头改 20dp（a8ec94f），
+        // 但一级行有数字徽章、子分组行没有——老形式里子分组箭头对的是一级行**徽章中部**，
+        // 两级名字列天然同起点，层级靠"名字列对名字列"读；箭头对箭头反而让子分组名字凸出。
+        // 图标盒 24dp（默认），子分组 20dp 保持不变
         Icon(
             Icons.Default.ExpandMore,
             contentDescription = stringResource(if (isExpanded) R.string.desc_collapse_group else R.string.desc_expand_group, name),
             tint = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier
-                .size(20.dp)
                 .rotate(rotationAngle)
                 .clickable { onClick() }
         )
