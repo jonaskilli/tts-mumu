@@ -26,8 +26,8 @@ import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Category
 import androidx.compose.material.icons.filled.Casino
+import androidx.compose.material.icons.filled.Category
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
@@ -927,6 +927,100 @@ fun VoicePickerDialog(
                 )
             }
 
+            // ===== 绑定模式数据准备（10-06 上移：顶部「一键换」与「换分类即随机」共用）=====
+            // 分类口径（10-05 用户：与编辑页标签选择弹窗 TagSwitchDialog 一字同口径）——
+            // 来源=规则 tags 表（tag id→显示名 tagName，权威；未加载/无记录回落 tag id，
+            // tag id 本身即「汉字+序号」形态）；分组=显示名剥尾数字（「女青年01」→「女青年」，
+            // extractTagCategory 同款正则）；书面名一律按 tagName。
+            // 原硬编码 14 类白名单废弃——对话/括号/音效等非白名单前缀按标签口径照常成组
+            fun tagDisplayName(tag: String): String = ruleTags?.get(tag) ?: tag
+            fun tagCategoryOf(tag: String): String = extractTagCategory(tagDisplayName(tag))
+            // 改绑到无启用配置的标签会掉进随机兜底，读声不可控，必须排除
+            // （用户 09-12 定稿：池子/记录存的都是 tag id，启用标签集合只收 tag，
+            //   tagName 兜底已移除——全链只认 tag）
+            val enabledTags = remember(entity.id, dataVersion, rowVersion) {
+                allConfigs.filter { it.isEnabled }
+                    .mapNotNull {
+                        (it.config as? TtsConfigurationDTO)?.speechRule?.tag
+                            ?.takeIf { t -> t.isNotEmpty() }
+                    }.toMutableSet()
+            }
+            // 候选来源分两类：
+            // - 角色槽位：发音人池 fayinren.json ∩ 启用标签（池子只装 GENSHIN 音色标签）
+            // - 本地音效槽位：**不能**用池子——规则 detectAvailableVoices 只遍历 GENSHIN_CHARACTERS
+            //   （localSound 前缀不在其中），音效标签根本进不了池子，取出来全是 TTS 音色。
+            //   改为直接在启用配置里枚举同族槽位（tag=localSoundN），即"本槽位可借用哪些音效槽位的配置"
+            // 10-05 性能：readVoicePool（整文件读+JSON解析）必须包进 remember——
+            // 原直接写在组合体里，面板每次重组（输入搜索字、滑动、状态变化）都读一次盘，
+            // 是「点开面板卡顿/操作卡」的第一主源
+            val rawVoicePool = remember(entity.id, dataVersion) {
+                if (isLocalSoundSlot) emptyList()
+                else CharacterRecordsFile.readVoicePool(config.speechRule.tagRuleId)
+            }
+            val poolEnabled = if (isLocalSoundSlot) {
+                enabledTags.filter { LOCAL_SOUND_TAG.matches(it) }
+            } else {
+                rawVoicePool.filter { it in enabledTags }
+            }
+            var selectedCategory by remember(entity.id, ruleTags) {
+                // 默认选中配置项当前标签所属分类（显示名现查剥尾号；ruleTags 异步到达后重算）
+                mutableStateOf(
+                    config.speechRule.tag.takeIf { it.isNotEmpty() }?.let { tagCategoryOf(it) }
+                )
+            }
+            var tagSearch by remember(entity.id) { mutableStateOf("") }
+            // 下拉项带括号项数（不含搜索过滤，选分类前就知道各范围有多少可选）；
+            // 0 项分类直接隐藏（用户 09-11 晚改，替代 09-09「不标数量」——不标会被误读成
+            // 信息缺失，没货的分类干脆不列）；「全部」恒在首位。
+            // 分类顺序=tags 原始迭代顺序（JS 定义序，首现收集不重排）——与标签选择弹窗
+            // 同一顺序来源；ruleTags 未加载时按候选 tag id 序兜底。
+            val categoryCounts = poolEnabled.groupingBy { tagCategoryOf(it) }.eachCount()
+            val categoryOrder = (ruleTags?.keys ?: poolEnabled.asIterable())
+                .map { tagCategoryOf(it) }.distinct()
+            val categoryOptions: List<Pair<String, String>> =
+                listOf("" to "全部") +
+                    categoryOrder.filter { (categoryCounts[it] ?: 0) > 0 }.map { it to it }
+            val categoryEntries = categoryOptions.map { (key, label) ->
+                val n = if (key.isEmpty()) poolEnabled.size else categoryCounts[key] ?: 0
+                "$label（${n}项）"
+            }
+            // 当前选中分类若恰好 0 项（该分类已被隐藏），视同「全部」——
+            // 原 AppSpinner 会自动回落到第一项（见下），换状态条后由这里兜底，语义不变
+            val effectiveCategory = selectedCategory?.takeIf { key ->
+                categoryOptions.any { it.first == key }
+            }
+            // 搜索词同时匹配「标签名」与「配置项名」（用户 09-11 晚：记忆里是"女青年01晓晓"，
+            // 原先只匹配标签名，搜"晓晓"搜不到）。候选行现在只显示配置项名（09-13 去序号），
+            // 但按标签名搜仍应命中，故匹配范围保持两者并集。
+            fun tagHitSearch(tag: String, search: String): Boolean =
+                search.isBlank() || tag.contains(search) ||
+                    tagDisplayName(tag).contains(search) ||
+                    enabledConfigEntityByTag(tag)?.displayName?.contains(search) == true
+            fun candidateMatches(tag: String): Boolean =
+                (effectiveCategory == null || tagCategoryOf(tag) == effectiveCategory) &&
+                    tagHitSearch(tag, tagSearch)
+            // 随机取一个（10-06「换分类即随机」/ 顶部「一键换」共用）：在给定分类+搜索范围内、
+            // 排除 exclude（当前绑定或已暂存的那个），无候选返回 null
+            fun pickRandomIn(category: String?, search: String, exclude: String?): String? =
+                poolEnabled.filter {
+                    it != exclude &&
+                        (category == null || tagCategoryOf(it) == category) &&
+                        tagHitSearch(it, search)
+                }.randomOrNull()
+            // 随机结果落暂存 + 简洁提示（用户 10-06：点后再弹提示，不设常驻提示词）；
+            // 换分类触发时范围空属正常（该分类只有当前这一个），静默不打扰
+            fun applyRandomPick(pick: String?, silentIfEmpty: Boolean) {
+                if (pick == null) {
+                    if (!silentIfEmpty) Toast.makeText(
+                        context, "当前范围没有可随机候选", Toast.LENGTH_SHORT
+                    ).show()
+                    return
+                }
+                pendingVoice = pick
+                val name = enabledConfigEntityByTag(pick)?.displayName ?: pick
+                Toast.makeText(context, "已随机：$name", Toast.LENGTH_SHORT).show()
+            }
+
             // ===== 顶部块（用户 09-09 重排）：当前发音人 + 试听 + 终值 =====
             // 发音人名跟随暂存选择（09-10 参数跟随）：暂存了候选就先显示候选对应的配置项名
             val boundConfigName = remember(entity.id, boundVoice, pendingVoice, dataVersion, rowVersion) {
@@ -1003,6 +1097,27 @@ fun VoicePickerDialog(
                                 topEmoji,
                                 modifier = Modifier.padding(start = 4.dp),
                                 style = MaterialTheme.typography.labelMedium,
+                            )
+                        }
+                    }
+                    // 一键换（10-06 用户令：从分类行挪到「当前发音人」这里）：在当前分类+搜索
+                    // 范围内随机换一个（排除当前暂存/绑定），结果落暂存、顶部名字跟显，确认才落库。
+                    // 用骰子图标键（与之前预览版同图标，单色不染主题色——本页曾否过 primary 染色）；
+                    // 仅绑定模式显示（非绑定是同一标签内选，没有"分类范围"概念）；
+                    // 无候选 Toast 提示（这里是用户主动点的，不能像换分类那样静默）
+                    if (isBindingMode) {
+                        IconButton(
+                            onClick = {
+                                applyRandomPick(
+                                    pickRandomIn(effectiveCategory, tagSearch, topMarkKey),
+                                    silentIfEmpty = false,
+                                )
+                            },
+                        ) {
+                            Icon(
+                                Icons.Default.Casino,
+                                contentDescription = "随机换一个",
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
                             )
                         }
                     }
@@ -1110,85 +1225,10 @@ fun VoicePickerDialog(
             )
 
             if (panelTab == 0 && source != null) {
-                // 分类口径（10-05 用户：与编辑页标签选择弹窗 TagSwitchDialog 一字同口径）——
-                // 来源=规则 tags 表（tag id→显示名 tagName，权威；未加载/无记录回落 tag id，
-                // tag id 本身即「汉字+序号」形态）；分组=显示名剥尾数字（「女青年01」→「女青年」，
-                // extractTagCategory 同款正则）；书面名一律按 tagName。
-                // 原硬编码 14 类白名单废弃——对话/括号/音效等非白名单前缀按标签口径照常成组
-                fun tagDisplayName(tag: String): String = ruleTags?.get(tag) ?: tag
-                fun tagCategoryOf(tag: String): String = extractTagCategory(tagDisplayName(tag))
-
-                // 候选键：""=全部（不筛选）；选项与展示名在绑定模式内按当前范围动态生成
-                //（09-11 晚起 0 项分类被隐藏，见下），此处不再静态定义。
-
+                // 分类口径/候选池/分类下拉数据/谓词均由上方「绑定模式数据准备」统一提供
+                // （10-06 上移：顶部「一键换」与「换分类即随机」共用；此处不再重复声明）
                 if (isBindingMode) {
                     // ===== 绑定模式：下拉定范围 + 常驻搜索（范围内）+ 列表（行内试听）=====
-                    var selectedCategory by remember(entity.id, ruleTags) {
-                        // 默认选中配置项当前标签所属分类（显示名现查剥尾号；ruleTags 异步到达后重算）
-                        mutableStateOf(
-                            config.speechRule.tag.takeIf { it.isNotEmpty() }?.let { tagCategoryOf(it) }
-                        )
-                    }
-                    var tagSearch by remember(entity.id) { mutableStateOf("") }
-                    // 改绑到无启用配置的标签会掉进随机兜底，读声不可控，必须排除
-                    // （用户 09-12 定稿：池子/记录存的都是 tag id，启用标签集合只收 tag，
-                    //   tagName 兜底已移除——全链只认 tag）
-                    // 10-05 性能：复用 allConfigs（remember 的同一份）原地过滤，不再重复查库
-                    val enabledTags = remember(entity.id, dataVersion, rowVersion) {
-                        allConfigs.filter { it.isEnabled }
-                            .mapNotNull {
-                                (it.config as? TtsConfigurationDTO)?.speechRule?.tag
-                                    ?.takeIf { t -> t.isNotEmpty() }
-                            }.toMutableSet()
-                    }
-                    // 候选来源分两类：
-                    // - 角色槽位：发音人池 fayinren.json ∩ 启用标签（池子只装 GENSHIN 音色标签）
-                    // - 本地音效槽位：**不能**用池子——规则 detectAvailableVoices 只遍历 GENSHIN_CHARACTERS
-                    //   （localSound 前缀不在其中），音效标签根本进不了池子，取出来全是 TTS 音色。
-                    //   改为直接在启用配置里枚举同族槽位（tag=localSoundN），即"本槽位可借用哪些音效槽位的配置"
-                    // 10-05 性能：readVoicePool（整文件读+JSON解析）必须包进 remember——
-                    // 原直接写在组合体里，面板每次重组（输入搜索字、滑动、状态变化）都读一次盘，
-                    // 是「点开面板卡顿/操作卡」的第一主源
-                    val rawVoicePool = remember(entity.id, dataVersion) {
-                        if (isLocalSoundSlot) emptyList()
-                        else CharacterRecordsFile.readVoicePool(config.speechRule.tagRuleId)
-                    }
-                    val poolEnabled = if (isLocalSoundSlot) {
-                        enabledTags.filter { LOCAL_SOUND_TAG.matches(it) }
-                    } else {
-                        rawVoicePool.filter { it in enabledTags }
-                    }
-                    // 下拉项带括号项数（不含搜索过滤，选分类前就知道各范围有多少可选）；
-                    // 0 项分类直接隐藏（用户 09-11 晚改，替代 09-09「不标数量」——不标会被误读成
-                    // 信息缺失，没货的分类干脆不列）；「全部」恒在首位。
-                    // 分类顺序=tags 原始迭代顺序（JS 定义序，首现收集不重排）——与标签选择弹窗
-                    // 同一顺序来源；ruleTags 未加载时按候选 tag id 序兜底。
-                    // 当前选中分类若恰好 0 项（该分类已被隐藏），视同「全部」——
-                    // 原 AppSpinner 会自动回落到第一项（见下），换状态条后由这里兜底，语义不变
-                    val categoryCounts = poolEnabled.groupingBy { tagCategoryOf(it) }.eachCount()
-                    val categoryOrder = (ruleTags?.keys ?: poolEnabled.asIterable())
-                        .map { tagCategoryOf(it) }.distinct()
-                    val categoryOptions: List<Pair<String, String>> =
-                        listOf("" to "全部") +
-                            categoryOrder.filter { (categoryCounts[it] ?: 0) > 0 }.map { it to it }
-                    val categoryEntries = categoryOptions.map { (key, label) ->
-                        val n = if (key.isEmpty()) poolEnabled.size else categoryCounts[key] ?: 0
-                        "$label（${n}项）"
-                    }
-                    // 当前选中分类若恰好 0 项（该分类已被隐藏），视同「全部」——
-                    // 原 AppSpinner 会自动回落到第一项（见下），换状态条后由这里兜底，语义不变
-                    val effectiveCategory = selectedCategory?.takeIf { key ->
-                        categoryOptions.any { it.first == key }
-                    }
-                    // 候选过滤谓词（分类+搜索一份口径两处用：下方 filtered 候选列表、
-                    // 分类行的「随机」键——10-06 用户令随机固定）
-                    fun candidateMatches(tag: String): Boolean =
-                        (effectiveCategory == null || tagCategoryOf(tag) == effectiveCategory) &&
-                            (tagSearch.isBlank() ||
-                                tag.contains(tagSearch) ||
-                                // 书面名按 tagName（10-05 用户）：规则 tags 表显示名一并入搜索
-                                tagDisplayName(tag).contains(tagSearch) ||
-                                enabledConfigEntityByTag(tag)?.displayName?.contains(tagSearch) == true)
                     // 音效槽位：候选只有同族 localSound 槽位（通常 1~N 条），
                     // 音色分类与搜索都无意义（分类表里音效恒落 null → 只有「全部（N项）」一项）
                     // → 下拉与搜索框整块隐藏，列表直接铺满
@@ -1208,8 +1248,21 @@ fun VoicePickerDialog(
                                 // 分类最多十几个，不需要搜索框（默认 >5 项就带）
                                 searchEnabled = false,
                                 onClick = { key, _ ->
-                                    selectedCategory = (key as? String)?.takeIf { it.isNotEmpty() }
+                                    val newCat = (key as? String)?.takeIf { it.isNotEmpty() }
+                                    val changed = newCat != selectedCategory
+                                    selectedCategory = newCat
                                     categoryPickerOpen = false
+                                    // 换分类即随机（10-06 用户令）：分类是范围、随机是范围内取一个，
+                                    // 换了范围直接给一个结果，省掉「选分类→再点骰子」两步。
+                                    // 仅在分类真的变了时掷；范围空（该分类只有当前绑定这一个）
+                                    // 静默不打扰；结果落暂存，顶部名字跟显，点「确认」才落库
+                                    if (changed) {
+                                        tagSearch = ""
+                                        applyRandomPick(
+                                            pickRandomIn(newCat, "", boundVoice),
+                                            silentIfEmpty = true,
+                                        )
+                                    }
                                 },
                             )
                         }
@@ -1252,42 +1305,8 @@ fun VoicePickerDialog(
                                     unfocusedBorderColor = MaterialTheme.colorScheme.outlineVariant,
                                 ),
                             )
-                            // 随机固定（10-06 用户令）：分类定了不想翻列表——从当前筛选范围
-                            // （同分类+搜索词，排除当前绑定）随机取一个**暂存**；顶部当前发音人
-                            // 名字跟显，按「确认」落库。仍走两段式（用户 09-08），不绕过确认。
-                            // 10-06 二改（用户四点反馈）：纯图标键不带文字——行宽留给搜索框，
-                            // 带文字会把 placeholder 挤截断；搜索输入中隐藏（打字时随机无意义、
-                            // 整行让位）；不设常驻提示词，点中后 Toast 简洁报随机结果
-                            if (tagSearch.isBlank()) {
-                                IconButton(
-                                    onClick = {
-                                        val pick = poolEnabled
-                                            .filter { it != boundVoice && candidateMatches(it) }
-                                            .randomOrNull()
-                                        if (pick == null) {
-                                            Toast.makeText(
-                                                context,
-                                                "当前范围没有可随机候选",
-                                                Toast.LENGTH_SHORT,
-                                            ).show()
-                                        } else {
-                                            pendingVoice = pick
-                                            val name = enabledConfigEntityByTag(pick)?.displayName ?: pick
-                                            Toast.makeText(
-                                                context,
-                                                "已随机暂存：$name",
-                                                Toast.LENGTH_SHORT,
-                                            ).show()
-                                        }
-                                    },
-                                ) {
-                                    Icon(
-                                        Icons.Default.Casino,
-                                        contentDescription = "随机",
-                                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    )
-                                }
-                            }
+                            // 随机键已挪到顶部「当前发音人」区（10-06 用户令：一键换放那儿）——
+                            // 本行只留分类 + 搜索，行宽宽裕
                         }
                     } else {
                         // 只读态：音效槽位大分类取 rule.tags 现查（剥尾号→「本地音效」），
