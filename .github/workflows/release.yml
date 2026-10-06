@@ -12,6 +12,10 @@ on:
         description: "同时构建 dev 共存版 (默认同时构建 app 和 dev)"
         type: boolean
         default: true
+      is_official:
+        description: "这是正式版吗？(不勾=修改包，打 Pre-release 橙标；勾=正式版，进 Latest)"
+        type: boolean
+        default: false
 
 jobs:
   build:
@@ -125,10 +129,11 @@ jobs:
           target_commitish: ${{ github.sha }}
           generate_release_notes: true
           draft: false
-          # 手动触发（workflow_dispatch）= 还在改的包 → 打 GitHub「Pre-release」橙标，
-          # 不参与 Latest 判定、在 Release 页可一眼区分；推 1.26.* tag = 正式版，不带标。
-          # 用户 10-07 令：「我这不是实验、是 bug 不断的修改包，别被误解成能用的版本」。
-          prerelease: ${{ github.event_name == 'workflow_dispatch' }}
+          # 只有「推 1.26.* tag」或「手动触发时勾了 is_official」才算正式版（进 Latest）；
+          # 其余手动触发（默认）= 修改包，打 GitHub「Pre-release」橙标，Release 页一眼可分。
+          # 用户 10-07 令：「我这不是实验、是 bug 不断的修改包，别被误解成能用的版本」
+          #（历史口径：正式版也是手动触发的，故不能用 event_name 单独判定，必须显式勾选）
+          prerelease: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.is_official != 'true' }}
           files: artifacts/**/*.apk
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
