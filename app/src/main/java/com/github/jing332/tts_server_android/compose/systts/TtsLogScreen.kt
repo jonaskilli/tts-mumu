@@ -287,19 +287,25 @@ internal fun TtsLogScreen(vm: TtsLogViewModel = viewModel()) {
                             )
                         }
                         
-                        // 筛选按钮
-                        IconButton(onClick = { vm.showFilterDialog.value = true }) {
-                            Icon(Icons.Default.FilterList, stringResource(R.string.filter))
-                        }
+                        // 筛选/文件夹/清空三键搜索态隐藏（10-06 用户：点搜索框只露出
+                        // 「搜索日」三个字——标题槽被四键挤剩 ≈144dp，占位符放不下）。
+                        // 搜索态只留返回键，框宽回到 ≈280dp；匹配跳转/只看匹配开关
+                        // 都在下方「搜索控制行」，功能不受影响
+                        if (!isSearchActive) {
+                            // 筛选按钮
+                            IconButton(onClick = { vm.showFilterDialog.value = true }) {
+                                Icon(Icons.Default.FilterList, stringResource(R.string.filter))
+                            }
 
-                        // 文件夹按钮 - 先弹日志文件列表自由选择（用户 09-08），点击文件再用外部查看器打开
-                        IconButton(onClick = { showLogFilesDialog = true }) {
-                            Icon(Icons.Default.FolderOpen, stringResource(R.string.open_log_folder))
-                        }
+                            // 文件夹按钮 - 先弹日志文件列表自由选择（用户 09-08），点击文件再用外部查看器打开
+                            IconButton(onClick = { showLogFilesDialog = true }) {
+                                Icon(Icons.Default.FolderOpen, stringResource(R.string.open_log_folder))
+                            }
 
-                        // 清空按钮
-                        IconButton(onClick = { vm.clear() }) {
-                            Icon(Icons.Default.DeleteOutline, stringResource(id = R.string.clear_log))
+                            // 清空按钮
+                            IconButton(onClick = { vm.clear() }) {
+                                Icon(Icons.Default.DeleteOutline, stringResource(id = R.string.clear_log))
+                            }
                         }
                     }
                 )
