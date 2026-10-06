@@ -27,6 +27,7 @@ import androidx.core.app.ServiceCompat.stopForeground
 import androidx.core.content.ContextCompat
 import com.github.jing332.common.utils.StringUtils
 import com.github.jing332.common.utils.limitDisplayLength
+import com.github.jing332.common.utils.limitLength
 import com.github.jing332.common.utils.longToast
 import com.github.jing332.common.utils.registerGlobalReceiver
 import com.github.jing332.common.utils.runOnUI

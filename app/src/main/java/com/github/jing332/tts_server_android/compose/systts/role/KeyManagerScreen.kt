@@ -112,6 +112,7 @@ import org.json.JSONArray
 import org.json.JSONObject
 import com.github.jing332.tts_server_android.R
 import com.github.jing332.tts_server_android.compose.nav.NavTopAppBar
+import com.github.jing332.tts_server_android.service.systts.help.AccountPool
 import com.github.jing332.tts_server_android.service.systts.help.CharacterRecordsFile
 import com.github.jing332.tts_server_android.service.systts.help.KeyListFile
 import kotlinx.coroutines.async
@@ -1977,9 +1978,14 @@ private fun KeyEditDialog(
     val clipboard = LocalClipboardManager.current
     // 思考模式（10-03 二改：模型级）——默认自动（⚡ 测试时试探并锁定）；手动展开可选写法
     var thinkingMode by remember {
-        // jumpToThinkingCustom：从提示条「思考设置 ›」进 → 直接落到「自定义」（JSON 输入框）
-        if (jumpToThinkingCustom) KeyListFile.THINKING_CUSTOM
-        else initial?.thinkingMode ?: KeyListFile.THINKING_AUTO
+        // 10-07 编译修复：原 remember { 表达式 } 少了 mutableStateOf —— remember 直接返回
+        // String，by 委托要 MutableState（编译器报「Property delegate must have getValue」）。
+        // 补 mutableStateOf 并与下面 thinkingExpanded 同写法
+        mutableStateOf(
+            // jumpToThinkingCustom：从提示条「思考设置 ›」进 → 直接落到「自定义」（JSON 输入框）
+            if (jumpToThinkingCustom) KeyListFile.THINKING_CUSTOM
+            else initial?.thinkingMode ?: KeyListFile.THINKING_AUTO
+        )
     }
     var thinkingExpanded by remember {
         mutableStateOf(
@@ -2563,6 +2569,10 @@ private fun InterfaceFormDialog(
                     // 10-07 用户令：同编辑弹窗——按用途归组。auto 单独一行（它自己就是
                     // 「自动试探并锁定」），其余写法收在「关掉思考」小节下；8 项不删
                     // （auto 试探序列的弹药 + 黄态手动出路）
+                    // 局部函数体里调 Row/stringResource（都是 @Composable）→ 必须标 @Composable
+                    // （10-07 编译修复：原缺注解，报「Functions which invoke @Composable
+                    // functions must be marked with the @Composable annotation」）
+                    @Composable
                     fun pickRow(opt: String) {
                         Row(
                             Modifier

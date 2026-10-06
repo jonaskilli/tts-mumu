@@ -54,7 +54,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.constraintlayout.compose.ConstraintLayout
 import androidx.constraintlayout.compose.Dimension
-import com.github.jing332.common.utils.StringUtils.limitDisplayLength
+import com.github.jing332.common.utils.StringUtils.limitLength
+import com.github.jing332.common.utils.limitDisplayLength
 import com.github.jing332.common.utils.performLongPress
 import com.github.jing332.compose.widgets.AppDropdownMenu
 import com.github.jing332.compose.widgets.LongClickIconButton

@@ -61,7 +61,9 @@ object AccountCheckinScheduler {
 
     fun scheduleNext(context: Context) {
         try {
-            val am = android.app.AlarmManager.getInstance(context)
+            // 10-07 编译修复：AlarmManager 没有 getInstance —— 正确取法照 AlarmKeepAliveReceiver
+            // （context.getSystemService(Context.ALARM_SERVICE) as AlarmManager）
+            val am = context.getSystemService(Context.ALARM_SERVICE) as android.app.AlarmManager
             val now = java.util.Calendar.getInstance().apply {
                 set(java.util.Calendar.HOUR_OF_DAY, AccountCheckinReceiver.HOUR)
                 set(java.util.Calendar.MINUTE, AccountCheckinReceiver.MINUTE)

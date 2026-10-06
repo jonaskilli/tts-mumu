@@ -243,7 +243,7 @@ internal class LogGroups(val items: List<Item>, val entryToList: IntArray) {
 
 @OptIn(ExperimentalFoundationApi::class, ExperimentalMaterial3Api::class)
 @Composable
-fun LogScreen(
+internal fun LogScreen(
     modifier: Modifier,
     list: List<LogEntry>,
     listState: LazyListState = rememberLazyListState(),

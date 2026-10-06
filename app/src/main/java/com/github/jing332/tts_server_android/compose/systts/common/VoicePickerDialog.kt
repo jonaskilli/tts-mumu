@@ -66,7 +66,7 @@ import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import com.drake.net.utils.withIO
 import com.drake.net.utils.withMain
-import com.github.jing332.common.utils.StringUtils.limitDisplayLength
+import com.github.jing332.common.utils.limitDisplayLength
 import com.github.jing332.common.utils.toParamText
 import com.github.jing332.compose.widgets.AppSelectionDialog
 import com.github.jing332.database.dbm

@@ -4,6 +4,7 @@ import android.content.Intent
 import android.os.Bundle
 import android.webkit.WebView
 import androidx.activity.compose.BackHandler
+import androidx.activity.compose.setContent
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -35,6 +36,8 @@ import com.github.jing332.tts_server_android.compose.ComposeActivity
 import com.github.jing332.tts_server_android.compose.nav.NavTopAppBar
 import com.github.jing332.tts_server_android.compose.theme.AppTheme
 import com.github.jing332.tts_server_android.service.systts.help.AccountPool
+import com.google.accompanist.web.LoadingState
+import com.google.accompanist.web.rememberWebViewNavigator
 import com.google.accompanist.web.rememberWebViewState
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
@@ -93,6 +96,9 @@ class AccountLoginActivity : ComposeActivity() {
     @Composable
     private fun Content(onBack: () -> Unit) {
         val state = rememberWebViewState(url = loginUrl)
+        // 刷新走 navigator（10-07 编译修复）：原 `state.view?.reload()` —— accompanist 的
+        // WebViewState 没有公开 view，参照 PluginLoginActivity 用 rememberWebViewNavigator()
+        val navigator = rememberWebViewNavigator()
         BackHandler { onBack() }
         Scaffold(
             topBar = {
@@ -104,11 +110,10 @@ class AccountLoginActivity : ComposeActivity() {
                         }
                     },
                     actions = {
-                        IconButton(onClick = { state.view?.reload() }) {
+                        IconButton(onClick = { navigator.reload() }) {
                             Icon(Icons.Default.Refresh, stringResource(R.string.reload))
                         }
                     },
-                    scrollBehavior = TopAppBarDefaults.pinnedScrollBehavior()
                 )
             }
         ) { padding ->
@@ -118,13 +123,17 @@ class AccountLoginActivity : ComposeActivity() {
                     .padding(padding)
             ) {
                 val loading = state.loadingState
-                if (loading is com.google.accompanist.web.LoadingState.Loading)
+                if (loading is LoadingState.Loading)
                     LinearProgressIndicator(
                         progress = { loading.progress },
                         modifier = Modifier.fillMaxWidth()
                     )
                 AppWebView(
                     state = state,
+                    // navigator 必传（10-07 编译修复）：AppWebView 签名里它是无默认值的必填参数；
+                    // captureBackPresses=false 与参照页一致——返回键由本页 BackHandler 统一接管
+                    navigator = navigator,
+                    captureBackPresses = false,
                     onDispose = {},
                     modifier = Modifier.fillMaxSize()
                 )
