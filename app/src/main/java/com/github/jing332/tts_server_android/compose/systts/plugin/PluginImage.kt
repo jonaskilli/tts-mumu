@@ -14,9 +14,18 @@ fun PluginImage(modifier: Modifier = Modifier, model: Any?, name: String) {
         model,
         null,
         contentScale = ContentScale.Crop,
-        modifier = modifier.size(32.dp),
+        // 28dp（10-06 用户拍板方案 C）：原 32dp 圆配 15sp 插件名偏大——插件名自 3ef36f7
+        // 降回 15sp 后圆没跟着收，看着「图标过大」。现圆随名字号一起收，与名字（15sp）
+        // 体量相称、又略大一圈（引子 vs 主体）。圆内字形由 CenterTextImage 按占空比推导
+        modifier = modifier.size(28.dp),
         error = {
-            CenterTextImage(name.getOrElse(0) { '-' }.toString())
+            // 占空比 16/28≈0.57（10-06 方案 C）：插件名 15sp 时圆内字 16sp，与名字体量相称；
+            // 默认 0.625 在此圆径下会算出 17.5sp、仍偏撑
+            CenterTextImage(
+                name.getOrElse(0) { '-' }.toString(),
+                size = 28.dp,
+                textRatio = 16f / 28f,
+            )
         }
     )
 }
