@@ -36,7 +36,6 @@ import androidx.compose.material.icons.filled.ContentPaste
 import androidx.compose.material.icons.filled.DeleteOutline
 import androidx.compose.material.icons.filled.DeleteSweep
 import androidx.compose.material.icons.filled.Edit
-import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.FileDownload
 import androidx.compose.material.icons.filled.FileUpload
 import androidx.compose.material.icons.filled.Restore
@@ -47,7 +46,7 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Checkbox
-import androidx.compose.material3.TriStateCheckbox
+import androidx.compose.material3.Text
 import androidx.compose.material3.ElevatedCard
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.DropdownMenu
@@ -102,7 +101,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.sp
-import androidx.compose.ui.state.ToggleableState
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
@@ -673,11 +671,10 @@ private fun GroupHeaderBlock(
                 // 这就是「灯/快捷图标没跟模型行竖向对齐」的本源；归 0 后两组图标列逐像素同列
                 Row(
                     Modifier.fillMaxWidth()
-                        // start 3→0（10-07 用户令：行首箭头取消，组名文字线=卡缘）
                         .padding(start = 0.dp, end = 0.dp, top = 2.dp, bottom = 2.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    // 组头可点区：组名 + N/M 胶囊——点击=折叠/展开（10-07 用户令：行首箭头取消，
+                    // 组名可点区：点击=折叠/展开（10-07 用户令：行首箭头取消，
                     // 折叠态只剩组名行即视觉提示；元信息/条目随展开出现）
                     Row(
                         Modifier
@@ -692,56 +689,27 @@ private fun GroupHeaderBlock(
                             },
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        val arrowAngle by animateFloatAsState(
-                            targetValue = if (isCollapsed) -90f else 0f, label = ""
-                        )
                         Text(
                             grp.title,
                             style = MaterialTheme.typography.titleMedium,
                             fontWeight = FontWeight.SemiBold,
-                            // 组名染绿已退役（10-03 对勾方案）：启用状态由组尾三态对勾表达（照主界面）
                             color = MaterialTheme.colorScheme.onSurface,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis,
-                            // weight(fill=false)：组名超长时吃满剩余宽度后省略，
-                            // 没有它长组名会把后面的 (N) 挤成一字宽、逐字竖排
                             modifier = Modifier.weight(1f, fill = false)
                         )
-                        Spacer(Modifier.width(6.dp))
-                        // 组启用状态胶囊（10-07 用户拍板）：替掉「(N) 计数 + 三态方框」两件东西，
-                        // 纯数字「启用数/总数」——全启=实心绿、部分=浅绿底、全停=灰描边。
-                        // 省宽算式：旧占位 (N)≈20-28 + 间距 4 + 方框 48（M3 触控盒定长）≈72-80dp；
-                        // 胶囊内容宽 4/4≈34、10/11≈44 —— 任何组合（含两位数分母）都比旧占位窄，
-                        // 组名净得 ≈28~46dp。数字语义：左=已启用数/右=本组总数
-                        // 10-07 用户令：胶囊改纯显示（误触防线），批量启停在 🗑 菜单
+                    }
+                    if (!selectionMode) {
+                        // 组启用胶囊（10-07 定稿恢复可点）：状态+控制一体、最省空间——
+                        // 替掉「(N) 计数 + 三态方框」≈72-80dp（胶囊 4/4≈34、10/11≈44）。
+                        // 误触的解药是挪位不是加锁：胶囊从组名旁挪到行尾图标区左侧、
+                        // 独立热区，与组名折叠区彻底分开。
+                        // 点击=整组启停：全停→全部启用，其余→全部停用
                         GroupEnablePill(
                             enabled = enabledCount,
                             total = grp.entries.size,
                             groupTitle = grp.title,
-                        )
-                        // 展开向指示（10-07 二改）：行首不占，挪到行尾胶囊后——折叠朝右、
-                        // 展开朝下，「可展开」的方向感保留（用户否行首箭头后的折中位）
-                        Spacer(Modifier.weight(1f))
-                        Icon(
-                            Icons.Default.ExpandMore,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.size(18.dp).rotate(arrowAngle)
-                        )
-                    }
-                    if (!selectionMode) {
-                        // 整组启停三态对勾（10-07：撤菜单两项、撤胶囊点击后的归宿）——
-                        // 照主界面 GroupItem「计数+三态方框」组合：胶囊=读数、对勾=控制，分工不重复。
-                        // 独立 48dp 热区在行尾图标区左侧，不在组名折叠区里，防误触。
-                        // 点击规则照系统TTS 组头：全停→全部启用，部分/全启→全部停用
-                        val groupToggle = when {
-                            enabledCount == 0 -> ToggleableState.Off
-                            enabledCount == grp.entries.size -> ToggleableState.On
-                            else -> ToggleableState.Indeterminate
-                        }
-                        TriStateCheckbox(
-                            state = groupToggle,
-                            onClick = { onSetGroupEnabled(groupToggle == ToggleableState.Off) }
+                            onClick = { onSetGroupEnabled(enabledCount == 0) }
                         )
                         // 固定宽图标区（方案 A）：144dp=4×36dp 热区，组头与模型行图标垂直成列；
                         // 不足 4 键（未分组）右对齐留空。顺序按使用频次：+拉取 ⚡测组 ✏编辑 🗑菜单
