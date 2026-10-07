@@ -12,13 +12,17 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import com.github.jing332.common.utils.toJsonListString
+import com.github.jing332.common.utils.startActivity
 import com.github.jing332.compose.widgets.LoadingDialog
 import com.github.jing332.database.entities.plugin.Plugin
 import com.github.jing332.tts_server_android.R
 import com.github.jing332.tts_server_android.compose.systts.ConfigImportBottomSheet
 import com.github.jing332.tts_server_android.compose.systts.list.AutoImportResult
 import com.github.jing332.tts_server_android.compose.systts.list.doAutoImport
+import com.github.jing332.tts_server_android.compose.systts.replace.ReplaceManagerActivity
+import com.github.jing332.tts_server_android.compose.systts.speechrule.SpeechRuleManagerActivity
 import com.github.jing332.tts_server_android.constant.AppConst
+import com.github.jing332.tts_server_android.ui.systts.ImportType
 import com.github.jing332.tts_server_android.ui.view.AppDialogs.displayErrorDialog
 import com.drake.net.utils.withIO
 import kotlinx.coroutines.CoroutineScope
@@ -45,6 +49,9 @@ fun PluginImportBottomSheet(onDismissRequest: () -> Unit) {
     var isImporting by remember { mutableStateOf(false) }
     // 导入结果文案（成功/失败原因），非 null 时弹出模态对话框
     var successMsg = remember { mutableStateOf<String?>(null) }
+    // 导入成功后待跳转的管理页（10-07 用户令：点「确定」后跳过去看结果）。
+    // doAutoImport 全类型自识别——按实际识别出的类型跳，不固定本页类型；LIST 不跳
+    var pendingNav = remember { mutableStateOf<Class<*>?>(null) }
 
     // 先取局部 val 再判空：局部 val 支持 smart cast，MutableState.value 属性不支持
     val msgText = successMsg.value
@@ -54,12 +61,14 @@ fun PluginImportBottomSheet(onDismissRequest: () -> Unit) {
                 successMsg.value = null
                 sheetVisible = false
                 onDismissRequest()
+                pendingNav.value?.let { context.startActivity(it) }
             },
             confirmButton = {
                 TextButton(onClick = {
                     successMsg.value = null
                     sheetVisible = false
                     onDismissRequest()
+                    pendingNav.value?.let { context.startActivity(it) }
                 }) {
                     Text(stringResource(id = R.string.ok))
                 }
@@ -110,6 +119,13 @@ fun PluginImportBottomSheet(onDismissRequest: () -> Unit) {
                     }
                     is AutoImportResult.Success -> {
                         // doAutoImport 已生成完整文案（含数量），直接展示
+                        // 导入成功待跳转（10-07 用户令）：按实际类型跳对应管理页，确定后触发
+                        pendingNav.value = when (result.type) {
+                            ImportType.SPEECH_RULE -> SpeechRuleManagerActivity::class.java
+                            ImportType.PLUGIN -> PluginManagerActivity::class.java
+                            ImportType.REPLACE_RULE -> ReplaceManagerActivity::class.java
+                            else -> null
+                        }
                         successMsg.value = result.typeName
                     }
                 }

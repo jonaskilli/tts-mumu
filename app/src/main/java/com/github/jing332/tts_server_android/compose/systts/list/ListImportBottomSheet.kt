@@ -14,6 +14,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import com.github.jing332.common.utils.StringUtils
+import com.github.jing332.common.utils.startActivity
 import com.github.jing332.common.utils.toJsonListString
 import com.github.jing332.compose.widgets.LoadingDialog
 import com.github.jing332.database.dbm
@@ -32,7 +33,10 @@ import com.github.jing332.database.entities.systts.v1.GroupWithV1TTS
 import com.github.jing332.tts.speech.plugin.engine.TtsPluginUiEngineV2
 import com.github.jing332.tts_server_android.R
 import com.github.jing332.tts_server_android.compose.systts.ConfigImportBottomSheet
+import com.github.jing332.tts_server_android.compose.systts.plugin.PluginManagerActivity
 import com.github.jing332.tts_server_android.compose.systts.plugin.parsePluginsJson
+import com.github.jing332.tts_server_android.compose.systts.replace.ReplaceManagerActivity
+import com.github.jing332.tts_server_android.compose.systts.speechrule.SpeechRuleManagerActivity
 import com.github.jing332.tts_server_android.constant.AppConst
 import com.github.jing332.tts_server_android.model.rhino.speech_rule.SpeechRuleEngine
 import com.github.jing332.tts_server_android.service.systts.SystemTtsService
@@ -55,6 +59,9 @@ fun ListImportBottomSheet(onDismissRequest: () -> Unit) {
     var isImporting by remember { mutableStateOf(false) }
     // 导入结果文案（成功/失败原因），非 null 时弹出模态对话框
     var successMsg = remember { mutableStateOf<String?>(null) }
+    // 导入成功后待跳转的管理页（10-07 用户令：结果弹窗点「确定」后跳过去看结果）。
+    // LIST 不跳（主页 ⋮ 导入时用户本来就在列表页）；null=不跳
+    var pendingNav = remember { mutableStateOf<Class<*>?>(null) }
 
     // 先取局部 val 再判空：局部 val 支持 smart cast，MutableState.value 属性不支持
     val msgText = successMsg.value
@@ -64,12 +71,14 @@ fun ListImportBottomSheet(onDismissRequest: () -> Unit) {
                 successMsg.value = null
                 sheetVisible = false
                 onDismissRequest()
+                pendingNav.value?.let { context.startActivity(it) }
             },
             confirmButton = {
                 TextButton(onClick = {
                     successMsg.value = null
                     sheetVisible = false
                     onDismissRequest()
+                    pendingNav.value?.let { context.startActivity(it) }
                 }) {
                     Text(stringResource(id = R.string.ok))
                 }
@@ -140,6 +149,14 @@ fun ListImportBottomSheet(onDismissRequest: () -> Unit) {
                             }
                             SystemTtsService.notifyUpdateConfig()
                         }
+                        // 导入成功待跳转（10-07 用户令）：按实际识别出的类型跳对应管理页，
+                        // 点结果弹窗「确定」后触发；LIST 不跳（主页导入本来就在列表页）
+                        pendingNav.value = when (result.type) {
+                            ImportType.SPEECH_RULE -> SpeechRuleManagerActivity::class.java
+                            ImportType.PLUGIN -> PluginManagerActivity::class.java
+                            ImportType.REPLACE_RULE -> ReplaceManagerActivity::class.java
+                            else -> null
+                        }
                         successMsg.value = result.typeName
                     }
                 }
@@ -164,8 +181,9 @@ internal sealed class AutoImportResult {
     // 元数据提取与编辑器保存同引擎同口径：朗读规则走 SpeechRuleEngine.evalInfo()，
     // 插件走 TtsPluginUiEngineV2.eval()（引擎把 JS 里的 name/id 回写进实体）；落库按
     // ruleId/pluginId 借旧主键 REPLACE 覆盖（与两个 ManagerActivity 的 onSave 同款，
-    // 防同 id 双条目）。返回结果文案；解析/执行失败抛异常，由调用方转错误提示。
-    internal fun saveJsDirect(js: String, context: Context): String {
+    // 防同 id 双条目）。返回 (类型, 结果文案)——类型供外部「打开方式」导入后跳对应
+    // 管理页用（10-07）；解析/执行失败抛异常，由调用方转错误提示。
+    internal fun saveJsDirect(js: String, context: Context): Pair<ImportType, String> {
         val trimmed = js.trim()
         val app = context.applicationContext as Application
         return if (trimmed.contains("SpeechRuleJS")) {
@@ -177,7 +195,7 @@ internal sealed class AutoImportResult {
                     ?.let { twin -> rule.copy(id = twin.id) } ?: rule
             } else rule
             dbm.speechRuleDao.insert(entity)
-            "已识别为朗读规则JS源码，已直接保存：「${rule.name}」"
+            ImportType.SPEECH_RULE to "已识别为朗读规则JS源码，已直接保存：「${rule.name}」"
         } else {
             val plugin = Plugin(code = trimmed)
             val meta = TtsPluginUiEngineV2(app, plugin).also { it.eval() }.plugin
@@ -187,7 +205,7 @@ internal sealed class AutoImportResult {
                     ?.let { twin -> meta.copy(id = twin.id) } ?: meta
             } else meta
             dbm.pluginDao.insert(entity)
-            "已识别为插件JS源码，已直接保存：「${meta.name}」"
+            ImportType.PLUGIN to "已识别为插件JS源码，已直接保存：「${meta.name}」"
         }
     }
 
@@ -212,7 +230,7 @@ internal sealed class AutoImportResult {
         val isRule = trimmed.contains("SpeechRuleJS")
         val typeName = if (isRule) "朗读规则" else "插件"
         return try {
-            saveJsDirect(trimmed, context)
+            saveJsDirect(trimmed, context) // 返回类型已由下方 AutoImportResult.Success 携带
             AutoImportResult.Success(
                 1, if (isRule) ImportType.SPEECH_RULE else ImportType.PLUGIN,
                 "已识别为${typeName}JS源码，已直接保存入库"

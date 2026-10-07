@@ -18,6 +18,8 @@ import com.github.jing332.tts_server_android.compose.systts.LocalImportFilePath
 import com.github.jing332.tts_server_android.compose.systts.LocalImportRemoteUrl
 import com.github.jing332.tts_server_android.compose.theme.AppTheme
 import com.github.jing332.tts_server_android.compose.systts.list.saveJsDirect
+import com.github.jing332.tts_server_android.compose.systts.plugin.PluginManagerActivity
+import com.github.jing332.tts_server_android.compose.systts.speechrule.SpeechRuleManagerActivity
 import com.github.jing332.tts_server_android.ui.systts.ImportConfigFactory
 import com.github.jing332.tts_server_android.ui.systts.ImportType
 
@@ -109,9 +111,17 @@ class ImportConfigActivity : ComposeActivity() {
                     longToast(R.string.js_file_type_not_recognized)
                 } else {
                     // JS 直存（10-05）：与内部导入同一条 saveJsDirect 路径直接落库，
-                    // 不再跳编辑器手动保存
+                    // 不再跳编辑器手动保存。10-07 用户令：导入成功跳对应管理页看结果
+                    // （本页从文件管理器进来，不跳的话用户被踢回去根本没看到导入成没成）
                     try {
-                        longToast(saveJsDirect(txt, this))
+                        val (type, msg) = saveJsDirect(txt, this)
+                        longToast(msg)
+                        val target = when (type) {
+                            ImportType.SPEECH_RULE -> SpeechRuleManagerActivity::class.java
+                            ImportType.PLUGIN -> PluginManagerActivity::class.java
+                            else -> null
+                        }
+                        target?.let { startActivity(it) }
                     } catch (e: Exception) {
                         longToast("${getString(R.string.import_failed)}：${e.message}")
                     }
