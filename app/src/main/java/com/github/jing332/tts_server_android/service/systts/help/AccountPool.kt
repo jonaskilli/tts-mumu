@@ -308,6 +308,55 @@ object AccountPool {
         "kimi-k2.6",
     )
 
+    // ==================== 一键添加为密钥（10-08：账号即凭据，照原插件免手填） ====================
+
+    /**
+     * 把账号直接落成密钥管理的一条密钥：网址=CodeBuddy 上游、Key=该账号 access_token、
+     * 模型=清单第一个（拉不到用内置默认）。接口分组同名复用、密钥条目按（站点+钥+模型）
+     * 去重——重复点不会堆重复条目。免复制粘贴、免见令牌本体（原插件「登录即用」的形态）。
+     * @param tagRuleId 密钥归属规则（现两入口都传 mingwuyan）
+     * @return (是否新增, 提示)；已存在= false + 说明文案
+     */
+    fun addAsKey(tagRuleId: String, acc: Account): Pair<Boolean, String> {
+        val baseUrl = "https://$CHAT_HOST"
+        val model = runCatching { fetchModels(acc.accessToken).first.first() }
+            .getOrElse { builtinModels().first() }
+        val ifaces = KeyListFile.readInterfaces(tagRuleId)
+        val keys = KeyListFile.readKeys(tagRuleId)
+        val value = "$baseUrl@@$model@@${acc.accessToken}"
+        // 去重判据与分组同口径：同站点+同钥+同模型
+        val dup = keys.any {
+            val p = KeyListFile.parseKeyValue(it.value)
+            p != null && !p.isDirect && KeyListFile.sameApiSite(p.url, baseUrl) &&
+                p.key == acc.accessToken && p.model == model
+        }
+        if (dup) return false to "已在密钥管理（CodeBuddy / $model），无需重复添加"
+
+        // 接口分组：同站点同名复用并把模型补进清单；没有则新建「CodeBuddy」组（带组级 Key）
+        val updatedIfaces = if (ifaces.any { KeyListFile.sameApiSite(it.baseUrl, baseUrl) && it.name == "CodeBuddy" }) {
+            ifaces.map {
+                if (KeyListFile.sameApiSite(it.baseUrl, baseUrl) && it.name == "CodeBuddy" && model !in it.models)
+                    it.copy(models = it.models + model, apiKey = acc.accessToken)
+                else it
+            }
+        } else {
+            ifaces + KeyListFile.ApiInterface(
+                name = "CodeBuddy",
+                baseUrl = baseUrl,
+                apiKey = acc.accessToken,
+                models = listOf(model),
+            )
+        }
+        val newKeys = keys + KeyListFile.KeyEntry(
+            name = KeyListFile.dedupName(model, keys.map { it.name }.toSet()),
+            keyCode = KeyListFile.nextKeyCode(keys),
+            value = value,
+        )
+        KeyListFile.saveInterfaces(tagRuleId, updatedIfaces)
+        KeyListFile.saveKeys(tagRuleId, newKeys)
+        return true to "已添加：CodeBuddy / $model"
+    }
+
     // ==================== 登录 ====================
 
     /**

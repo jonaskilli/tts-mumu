@@ -23,6 +23,7 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.EventAvailable
+import androidx.compose.material.icons.filled.LibraryAdd
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Savings
 import androidx.compose.material3.CircularProgressIndicator
@@ -54,6 +55,7 @@ import com.github.jing332.tts_server_android.R
 import com.github.jing332.tts_server_android.compose.nav.NavTopAppBar
 import com.github.jing332.tts_server_android.compose.systts.OrderBadge
 import com.github.jing332.tts_server_android.service.systts.help.AccountPool
+import com.github.jing332.tts_server_android.service.systts.help.KeyListFile
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -192,6 +194,17 @@ fun AccountPoolScreen(onBack: () -> Unit) {
                         )
                         context.toast("令牌已复制，去密钥管理添加密钥时粘贴到 Key 段")
                     },
+                    onAddAsKey = {
+                        // 一键添加为密钥（账号即凭据）：网址/令牌/模型自动备齐，重复点去重
+                        scope.launch {
+                            busyId = acc.id
+                            val (_, msg) = withContext(Dispatchers.IO) {
+                                AccountPool.addAsKey(KeyListFile.DEFAULT_TAG_RULE_ID, acc)
+                            }
+                            busyId = null
+                            context.toast(msg)
+                        }
+                    },
                 )
                 // 行间分隔线（同启用池 0.6dp 半透明；末行不画）
                 if (idx < accounts.lastIndex) {
@@ -215,6 +228,7 @@ private fun AccountRow(
     onCheckIn: () -> Unit,
     onQueryCredits: () -> Unit,
     onCopyToken: () -> Unit,
+    onAddAsKey: () -> Unit,
 ) {
     Column(
         // 10-07 装机反馈：照启用池 PoolRow 同款两行式——第一行 序号徽章+昵称+状态+图标动作区，
@@ -257,6 +271,13 @@ private fun AccountRow(
                 // 复制令牌（10-08 接线）：密钥管理添加密钥时把 access_token 粘进 key 段，
                 // 行内即自动挂「账号池」绿标（keyBelongsTo 按值识别，无需任何开关）
                 FlatIconAction(Icons.Default.ContentCopy, "复制令牌") { onCopyToken() }
+                // 一键添加为密钥（10-08：账号即凭据，照原插件免手填）——网址/令牌/模型
+                // 自动备齐落进密钥管理，重复点去重不堆条目
+                FlatIconAction(
+                    Icons.Default.LibraryAdd,
+                    "添加为密钥",
+                    tint = MaterialTheme.colorScheme.primary
+                ) { onAddAsKey() }
             }
         }
         // 副行：过期/积分/签到时间（缩进对齐名字列 = 徽章 20 + 间距 10 = 30dp，同启用池）
