@@ -912,6 +912,12 @@ object KeyListFile {
  * ⚠️ 旧版用 optString(i) 取元素 ⇒ 标准 {data:[{id}]} 会把整个对象当模型名写进密钥。
  */
     fun fetchModels(baseUrl: String, apiKey: String): Pair<List<String>?, String> {
+        // CodeBuddy 上游（10-08 接线）：无标准 /models，走 /v3/config 专用解析
+        //（agent 引用优先+非对话模型过滤；拉不到回落内置清单不阻断添加流程）
+        if (AccountPool.isChatHost(baseUrl)) {
+            val (list, err) = AccountPool.fetchModels(apiKey)
+            return list to err
+        }
         val resp = httpJson(openAiBaseUrl(baseUrl) + "/models", "GET", apiKey, null)
         if (!resp.ok) return null to "HTTP ${resp.code}，${briefBody(resp.body)}"
         return parseModelList(resp.body) to ""

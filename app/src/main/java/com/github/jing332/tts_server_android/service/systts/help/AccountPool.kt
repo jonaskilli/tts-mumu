@@ -225,6 +225,89 @@ object AccountPool {
         return if (compact.length > 180) compact.take(180) + "..." else compact.ifEmpty { "无响应内容" }
     }
 
+    // ==================== 模型清单（10-08 接线：密钥管理「拉模型」） ====================
+
+    // 模型解析常量（buddy.js parseModelsFromConfig 忠实精简）：
+    // 过滤——非对话模型前缀 / 自动别名 / 画图标签；agent 引用优先级 cli > craft
+    private val NON_CHAT_PREFIXES = arrayOf("nes-", "completion-", "codewise-")
+    private val PREFERRED_AGENTS = arrayOf("cli", "craft")
+
+    /**
+     * 拉 CodeBuddy 模型清单：GET /v3/config（带对话头族+Bearer）。
+     * 响应 data.{agents:[{name,models[]}], models:[{id,tags[],maxOutputTokens}]}；
+     * 解析顺序照 parseModelsFromConfig：①cli/craft agent 引用的模型优先 ②data.models 其余
+     * ③跳过 auto/default、nes-/completion-/codewise- 前缀、text-to-image 标签、
+     * maxOutputTokens≤256（补全类）。返回 (模型 id 列表, err)；解析失败给内置兜底清单。
+     */
+    fun fetchModels(token: String): Pair<List<String>, String> {
+        val r = httpJson("$UPSTREAM_BASE/v3/config", "GET", billingHeaders(token), null)
+        if (!r.ok) return builtinModels() to "HTTP ${r.code}，用内置清单（${briefBody(r.body)}）"
+        return try {
+            val d = JSONObject(r.body).optJSONObject("data") ?: return builtinModels() to "响应无 data，用内置清单"
+            // data.models 元数据表（过滤判据用）
+            val metaById = HashMap<String, JSONObject>()
+            d.optJSONArray("models")?.let { arr ->
+                for (i in 0 until arr.length()) {
+                    val m = arr.optJSONObject(i) ?: continue
+                    val id = m.optString("id")
+                    if (id.isNotEmpty()) metaById[id] = m
+                }
+            }
+            // agent 引用 id 集合（保序：先 preferred agent 后其余——实测 cli/craft 已覆盖，其余兜底）
+            val agentIds = LinkedHashSet<String>()
+            val agents = d.optJSONArray("agents")
+            val preferredFirst = ArrayList<JSONArray?>()
+            if (agents != null) {
+                for (p in PREFERRED_AGENTS) {
+                    for (i in 0 until agents.length()) {
+                        val a = agents.optJSONObject(i) ?: continue
+                        if (a.optString("name") == p) { preferredFirst.add(a.optJSONArray("models")); break }
+                    }
+                }
+                for (i in 0 until agents.length()) {
+                    val a = agents.optJSONObject(i) ?: continue
+                    if (PREFERRED_AGENTS.any { a.optString("name") == it }) continue
+                    preferredFirst.add(a.optJSONArray("models"))
+                }
+            }
+            preferredFirst.forEach { arr ->
+                if (arr != null) for (i in 0 until arr.length()) {
+                    val id = arr.optString(i)
+                    if (id.isNotEmpty()) agentIds.add(id)
+                }
+            }
+            val out = LinkedHashSet<String>()
+            fun push(id: String) {
+                if (id == "auto" || id == "default") return
+                if (NON_CHAT_PREFIXES.any { id.startsWith(it) }) return
+                val meta = metaById[id]
+                if (meta != null) {
+                    if (meta.optBoolean("supportsExtra", false)) return
+                    val maxOut = meta.optLong("maxOutputTokens", 0L)
+                    if (maxOut in 1..256) return
+                    val tags = meta.optJSONArray("tags")
+                    if (tags != null) for (i in 0 until tags.length())
+                        if (tags.optString(i) == "text-to-image") return
+                }
+                out.add(id)
+            }
+            agentIds.forEach { push(it) }
+            metaById.keys.forEach { push(it) }
+            if (out.isEmpty()) builtinModels() to "清单为空，用内置清单"
+            else out.toList() to ""
+        } catch (e: Exception) {
+            builtinModels() to "解析失败用内置清单：${e.message}"
+        }
+    }
+
+    /** 内置兜底清单（codebuddy.js CB.DEFAULT_MODEL 同源；清单接口未稳定，拉不到不至于无模型可选） */
+    private fun builtinModels(): List<String> = listOf(
+        "deepseek-v4.1-flash",
+        "deepseek-v3.2",
+        "glm-5.3",
+        "kimi-k2.6",
+    )
+
     // ==================== 登录 ====================
 
     /**
