@@ -1309,11 +1309,15 @@ fun KeyManagerScreen(tagRuleId: String, onBack: () -> Unit) {
 
     // 启用池子页：页内全屏覆盖（照 KeyManagerActivity 的独立全屏页模式，返回键退回主页）。
     // 状态全部 hoist 在主页（池、测试结果、测试中标记、多选），子页是纯展示 + 回调
-    // 账号池子页（10-06 方案B）：同级全屏覆盖，返回键退回密钥主页
+    // 账号池子页（10-06 方案B）：同级全屏覆盖，返回键退回密钥主页。
+    // 10-07 修「点不开」：本块漏了 return——启用池同款结构（覆盖后 return 终止主页渲染），
+    // 这里没 return 时 Compose 会把账号池 Scaffold 和主页 Scaffold 叠着组进同一布局，
+    // 实机表现即「点了账号池没反应」（后组内容的布局被前者吞/测距异常）。
     if (showAccountPool) {
         com.github.jing332.tts_server_android.compose.systts.account.AccountPoolScreen(
             onBack = { showAccountPool = false }
         )
+        return
     }
 
     if (showPool) {
@@ -1375,18 +1379,14 @@ fun KeyManagerScreen(tagRuleId: String, onBack: () -> Unit) {
                 // 撤 ⬇⬆ 图标各省 ≈22dp，标题得 71dp 放得下；热区 ≥48dp 不变）
                 actions = {
                     // 账号池入口（10-06 方案B）：开二级页（登录/签到/积分/续期）。
-                    // 横距 8→6（10-07 大字体留宽）
-                    Box(
-                        Modifier
-                            .heightIn(min = 48.dp)
-                            .clickable { showAccountPool = true }
-                            .padding(horizontal = 6.dp),
-                        contentAlignment = Alignment.CenterStart
+                    // 10-07 装机反馈：照操作行「启用池(1)」同款 FilledTonalButton 胶囊——
+                    // 原裸文字键与旁边图标+文字键排一排，主次不分还小；胶囊键给足热区与视觉分量。
+                    FilledTonalButton(
+                        onClick = { showAccountPool = true },
+                        modifier = Modifier.heightIn(min = 44.dp),
+                        contentPadding = PaddingValues(horizontal = 10.dp, vertical = 6.dp)
                     ) {
-                        Text(
-                            stringResource(R.string.account_pool_title),
-                            style = MaterialTheme.typography.labelLarge
-                        )
+                        Text(stringResource(R.string.account_pool_title), maxLines = 1)
                     }
                     // 导入/导出：**图标 + 文字**（10-07 装机反馈二改：撤图标改纯文字曾为治
                     // 大字体「密钥」竖排，用户复盘后定稿——图标不能省，文字可省；现回
