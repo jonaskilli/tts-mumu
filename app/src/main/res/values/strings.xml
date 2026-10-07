@@ -905,6 +905,8 @@
     <string name="role_key_thinking_title">思考模式（分配速度相关）</string>
     <string name="role_key_thinking_desc">部分 API 开着思考会拖慢分配甚至失败。默认自动：测试时逐个尝试关闭写法并记住，不用手动选。</string>
     <string name="role_key_thinking_auto">自动（测试时尝试并记住）</string>
+    <string name="role_key_thinking_off_option">关闭思考（选一种现成写法）</string>
+    <string name="role_key_thinking_custom_option">自定义 JSON（高级，直接填写）</string>
     <string name="role_key_thinking_auto_hint">⚡ 测试会自动找到这家 API 能用的关闭写法并锁定；以后分配都按锁定的走。</string>
     <string name="role_key_thinking_manual">手动指定</string>
     <string name="role_key_thinking_locked">当前锁定：%1$s</string>
@@ -932,10 +934,8 @@
     <string name="role_key_test_warn_toast">思考未关，详情见卡片下方</string>
     <string name="role_key_test_fail_toast_simple">测试未通过，详情见卡片下方</string>
     <string name="role_key_test_result_copy">复制结果</string>
-    <string name="role_key_test_pass_short">通过 · %1$s</string>
     <string name="role_key_test_pass_only">测试通过</string>
     <string name="role_key_test_warn_short">可用 · 思考未关（可能拖慢分配）</string>
-    <string name="role_key_test_warn_short_timed">可用 · 思考未关（可能拖慢分配）· %1$s</string>
     <string name="role_key_probe_progress">探测中：%1$s</string>
     <string name="role_key_model_filter">🔍 搜索过滤模型</string>
     <string name="role_key_model_input_hint">输入模型名</string>

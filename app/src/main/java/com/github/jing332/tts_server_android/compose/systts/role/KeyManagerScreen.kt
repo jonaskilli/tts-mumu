@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -21,6 +22,7 @@ import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
@@ -414,9 +416,11 @@ private fun KeyEntryRow(
             }
         }
         // 结果提示条（10-03 三~六改）：黄/红/绿三态都在卡内行下方常驻（六改：绿也显示——「测试通过·用时」有普适性）。
-        // 用户口径——都放卡片底部：收起=一行省略；点击展开=全文多行 + 「复制 / 去设置」；再点收起。
-        // 卡内底部归属清晰（卡=模型边界）；展开态记住（rememberSaveable by key）。
-        // 探测中不显示（进度行接管——旧结果已过时）
+        // 用户口径——都放卡片底部：收起=两行内省略；点击展开=全文多行 + 「复制/详情」；再点收起。
+        // 10-08 用户令：①结果条与模型名框对齐（原 end=12 白白少一截文字面积，右缘回到图标盒线）
+        // ②红态恒给「详情/复制」（原 message==reason 不给详情——但显示不全正需要点开看）
+        // ③用时前置：黄态/绿态把用时放行首圆点后（原放行尾，maxLines=1 时最先被省略号吃掉——
+        //   「我都不知道满不满」）
         if (!selectionMode && testOutcome != null && probeProgress == null) {
             val isWarn = testOutcome.verdict == KeyListFile.TestVerdict.PASS_THINKING
             val isPass = testOutcome.verdict == KeyListFile.TestVerdict.PASS
@@ -425,37 +429,32 @@ private fun KeyEntryRow(
                 isWarn -> TEST_WARN_COLOR
                 else -> MaterialTheme.colorScheme.error
             }
-            // 收起行（10-07 用户终稿，三态各归其位）：
-            // 绿=「通过 · 用时」一行——测试通过且思考已关，没有可看可改的；
-            // 黄=「可用 · 思考未关（可能拖慢分配）· 用时」——不要详情、不要复制；带用时（用户：
-            //   黄色速度没显示）；黄=思考没关掉，可进编辑页用「自定义」自己关 → 只留「去设置」；
-            // 红=红色第一行（maxLines=1 按宽度截断），点「详情」展开看全部
+            // 用时（「123ms」）从 message 提取；提不出=空串不显示
             val passTiming = timingOf(testOutcome.message)
-            // 收起行前缀圆点（10-06 用户：✅⚠❌ emoji 与行首启用对勾撞脸——同绿同勾形；
-            // 改为同色小圆点与行内测试灯同语言，形态（圆）与对勾（方+勾）彻底分开）
+            // 用时前缀徽标：统一放行首「● 123ms ·」位置——三态都能看到测试花的时间
+            val timingPrefix = if (passTiming.isEmpty()) "" else "$passTiming · "
+            // 锁定提示（10-08 用户令：测试完自动设了思考模式要显示出来）——
+            // green/warn 且 locked 非空 → 收起行尾部「已锁定 xxx」；点「详情」可见全文
+            val lockedSuffix = testOutcome.locked?.takeIf { it.isNotEmpty() }
+                ?.let { " · 已锁定 ${it}" } ?: ""
+            // 收起行文字（用时已独立前置；红=原始错误全文，靠 maxLines 截断）
             val collapsedText = when {
-                isPass -> if (passTiming.isEmpty()) stringResource(R.string.role_key_test_pass_only)
-                else stringResource(R.string.role_key_test_pass_short, passTiming)
-                isWarn -> if (passTiming.isEmpty()) stringResource(R.string.role_key_test_warn_short)
-                else stringResource(R.string.role_key_test_warn_short_timed, passTiming)
-                // 红：原始错误全文，靠 maxLines=1 截成一行（展开看全部，见下方 expanded 分支）
+                isPass -> stringResource(R.string.role_key_test_pass_only) + lockedSuffix
+                isWarn -> stringResource(R.string.role_key_test_warn_short) + lockedSuffix
                 else -> testOutcome.reason.ifEmpty { testOutcome.message }
             }
-            // 只有红态可展开（绿已完美、黄不需要）；且「全文 ≠ 首行」才有得展——
-            // 连接/单条失败类 message==reason（如「密钥无效或无权限（HTTP 401）」），
-            // 展开只会重复同一句话，不给「详情」入口（10-07 用户实锤反馈）
-            val hasExpandable = !isPass && !isWarn && testOutcome.message != collapsedText
-            // 「去设置」只给黄态（10-07 用户：有些可以点进去自定义关闭思考，自己找到合适方案）——
-            // 绿态思考已关无需设置；红态是连接/5xx/鉴权错误，设置改不了（模型名写错在编辑页改，
-            // 但那是模型不是思考，不在这条测试提示的引导范围）
+            // 红态恒可展开（显示不全就是展开的理由；展开=全文一次+复制，见下方分支）
+            val hasExpandable = !isPass && !isWarn
+            // 「思考设置」只给黄态（绿已关、红是连接/鉴权错设置改不了）
             val showFixEntry = isWarn
             var expanded by rememberSaveable(entry.name) { mutableStateOf(false) }
             val clipboard = LocalClipboardManager.current
             Column(
                 Modifier
                     .fillMaxWidth()
-                    // 结果条左缘对齐模型名文字线、右缘收进 12dp（文字不是键，右缘不与图标盒同线）
-                    .padding(start = KEY_RESULT_BAR_START, end = 12.dp, top = 0.dp, bottom = 8.dp)
+                    // 10-08：start 对齐模型名文字线；end=0 与动作图标盒右缘同线——
+                    // 原先 end=12 让文字白少一截（用户：跟方框对齐能有更多文字面积）
+                    .padding(start = KEY_RESULT_BAR_START, end = 0.dp, top = 0.dp, bottom = 8.dp)
             ) {
                 // 10-07 用户令：展开态首行让位——原实现首行（截断 reason）+ 下方全文并列，
                 // 同一段话读两遍（401 详情尤其明显）；展开后只渲染全文一次，圆点随正文顶对齐
@@ -528,19 +527,27 @@ private fun KeyEntryRow(
                             .size(8.dp)
                             .background(barColor, CircleShape)
                     )
+                    // 用时前置徽标（10-08 用户令：黄态看不到用时=不知道满不满）——
+                    // 独立 Text 不进正文流，maxLines 截断只吃正文、永远吃不到用时
+                    if (timingPrefix.isNotEmpty()) {
+                        Text(
+                            timingPrefix,
+                            style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.sp),
+                            color = barColor,
+                            maxLines = 1
+                        )
+                    }
                     Text(
                         collapsedText,
                         style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.sp),
                         color = barColor,
-                        // 恒 1 行（红态=第一行截断；展开态正文在下方）
-                        maxLines = 1,
+                        // 10-08：1→2 行（显示不全的主诉；还想看全 → 红态恒有「详情」）
+                        maxLines = 2,
                         overflow = TextOverflow.Ellipsis,
                         modifier = Modifier.weight(1f)
                     )
                     if (showFixEntry) {
-                        // 黄态：思考设置 —— 打开密钥编辑弹窗的「思考」栏（自动/多选/自定义 JSON），
-                        // 用户可自己写字段关思考。10-07 用户：文案原「去设置」看不出是思考，
-                        // 改为「思考设置 ›」；颜色与「详情」统一灰（动作键不抢状态色语义）
+                        // 黄态：思考设置 → 打开编辑弹窗直接落「自定义 JSON」（三类结构第三项）
                         Text(
                             stringResource(R.string.role_key_thinking_entry),
                             style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.sp),
@@ -551,8 +558,26 @@ private fun KeyEntryRow(
                                 .clickable { onEditThinking() }
                                 .padding(start = 6.dp, end = 2.dp)
                         )
+                        // 黄态也带「复制」（10-08：结果可复制不该只红态有）
+                        Text(
+                            stringResource(R.string.role_key_test_result_copy),
+                            style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.sp),
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            fontWeight = FontWeight.SemiBold,
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(4.dp))
+                                .clickable {
+                                    clipboard.setText(AnnotatedString(testOutcome.message))
+                                    android.widget.Toast.makeText(
+                                        context, context.getString(R.string.copied),
+                                        android.widget.Toast.LENGTH_SHORT
+                                    ).show()
+                                }
+                                .padding(start = 6.dp, end = 2.dp)
+                        )
                     } else if (hasExpandable) {
-                        // 红态收起时：右上角「详情」；展开后整行让位给全文（见上方分支）
+                        // 红态收起：恒给「详情」（10-08：显示不全正需要点开；
+                        // 原 message==reason 不给——那次修的是「同句读两遍」，这里只管入口恒在）
                         Text(
                             "详情",
                             style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.sp),
@@ -681,41 +706,62 @@ private fun GroupHeaderBlock(
                     )
                 }
             } else {
-            Column(Modifier.fillMaxWidth()) {
+            // 10-08 装机反馈⑦：箭头跨「组头行 + 网址行」两行垂直居中（网址也属这张卡，
+            // 箭头顶在第一行看着偏上）；折叠点击区随之覆盖两行。
+            // 结构：Row{ 箭头列(fillMaxHeight 居中) | 右侧 Column{组头行 / 网址行} }
+            // （替代原「组头+元信息」Column 顶层的排版壳，内部行原样平移）
+            Row(Modifier.fillMaxWidth()) {
+                val canFold = grp.entries.isNotEmpty()
+                val arrowAngle by animateFloatAsState(
+                    targetValue = if (isCollapsed) -90f else 0f, label = ""
+                )
+                // 箭头列：fillMaxHeight 占满两行高度、wrapContentHeight 居中——
+                // 空组（无模型可折）画 24dp 占位、不可点
+                Box(
+                    Modifier
+                        .fillMaxHeight()
+                        .wrapContentHeight(Alignment.CenterVertically)
+                        .then(
+                            if (canFold) Modifier
+                                .clickable(enabled = !selectionMode, onClick = onFold)
+                            else Modifier
+                        ),
+                    contentAlignment = Alignment.Center
+                ) {
+                    if (canFold) {
+                        Icon(
+                            Icons.Default.ExpandMore,
+                            contentDescription = context.getString(
+                                if (isCollapsed) R.string.desc_expand_group
+                                else R.string.desc_collapse_group, grp.title
+                            ),
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.rotate(arrowAngle)
+                        )
+                    } else {
+                        Spacer(Modifier.width(24.dp))
+                    }
+                }
+                // 右侧两行：组头行 / 网址行（共用 Column）
+                Column(Modifier.weight(1f)) {
                 // ———— 组头行 ————
-                // start 0（10-07 与主界面统一）：展开键用默认 24dp 图标盒，盒缘落卡内容起点
-                // ——与下方条目卡对勾盒（同为 0+24）逐像素同一条左列；组名线 = 24+4 = 28，
+                // 组名线 = 箭头列 24 + spacer 4 = 28，
                 // URL/说明行/删除模式行照旧对齐 28 不动。
-                // end 8→0（10-06 图3/图4 真根因修复）：条目卡内 end=0 → 🗑 字形贴卡缘；
-                // 组头行若留 end=8 会比卡内图标再内缩 8dp（实机：组头 🗑 距屏 16、模型行 8），
-                // 这就是「灯/快捷图标没跟模型行竖向对齐」的本源；归 0 后两组图标列逐像素同列
+                // end=0：条目卡内 end=0 → 🗑 字形贴卡缘；组头行同口径，
+                // 两组图标列逐像素同列
                 Row(
                     Modifier.fillMaxWidth()
                         .padding(start = 0.dp, end = 0.dp, top = 2.dp, bottom = 2.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    // 展开键（图标与主界面 GroupItem 逐字同款：ExpandMore 默认 24dp 盒 + 旋转）。
-                    // 10-07 二改（用户令）：恢复「点左侧区域都能折叠」——箭头 + 组名 + 名字后空白
-                    // 都触发折叠；曾收成只认箭头（防误触），现按用户口径放开。
-                    // 实现挂在左段整块上（含组名与空白），胶囊是独立键不受影响；右侧图标区
-                    // （＋⚡✏🗑 144dp）不响应折叠，避免点图标连带收组。
-                    val arrowAngle by animateFloatAsState(
-                        targetValue = if (isCollapsed) -90f else 0f, label = ""
-                    )
-                    Icon(
-                        Icons.Default.ExpandMore,
-                        contentDescription = context.getString(
-                            if (isCollapsed) R.string.desc_expand_group
-                            else R.string.desc_collapse_group, grp.title
-                        ),
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.rotate(arrowAngle)
-                    )
+                    // 展开键已上移为跨两行的独立列（见外层）；左段整块仍可点折叠。
+                    // 组内没有模型时不渲染箭头、整行不可点折叠——
+                    // 没东西可收，箭头转成假按钮（0/0 空组点了像没反应）。
                     // 左段（名字+胶囊）weight(1f)：整段可点折叠（除胶囊自己的启停点击外）；
-                    // 右段图标区固定 144dp 贴右线
+                    // 右段图标区固定 144dp 贴右线。空组挂空 clickable 不可点
                     Row(
                         Modifier.weight(1f)
-                            .clickable(enabled = !selectionMode, onClick = onFold),
+                            .clickable(enabled = !selectionMode && canFold, onClick = onFold),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Spacer(Modifier.width(4.dp))
@@ -898,11 +944,12 @@ private fun GroupHeaderBlock(
                         )
                     }
                 }
-            }
+            } // 内层 Column（组头行/网址行）
+            } // 右侧两行 Column（10-08 箭头跨两行结构）
+        } // 外层 Row（箭头列 + 右侧两行）
             } // else：组内删除模式只渲染标题行，组头与元信息行都不渲染
-        }
-    }
-}
+        } // Column(padding vertical=4)
+    } // GroupHeaderBlock 顶层 Column
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun KeyManagerScreen(tagRuleId: String, onBack: () -> Unit) {
@@ -938,10 +985,8 @@ fun KeyManagerScreen(tagRuleId: String, onBack: () -> Unit) {
     val poolTokens by remember(version) {
         mutableStateOf(AccountPool.load().map { it.accessToken }.toSet())
     }
-    // 页面级多选模式（照主界面 ☑ 多选）：跨组勾选，底栏 全选/加入启用池/删除
-    var selectionMode by remember { mutableStateOf(false) }
-    var checkedNames by remember { mutableStateOf<Set<String>>(emptySet()) }
-    var showDeleteSelected by remember { mutableStateOf(false) }
+    // 页面级 ☑ 多选已整体退役（10-08 用户令「多选没用」）：入口/底栏/跨组删除确认全删。
+    // 组内多选删除仍在（组头 🗑 菜单），走独立的 deleteModeGroup/deleteChecked。
     // 启用池页的多选移出（状态同样 hoist 在主页）
     var poolSelection by remember { mutableStateOf(false) }
     var poolChecked by remember { mutableStateOf<Set<String>>(emptySet()) }
@@ -1074,30 +1119,7 @@ fun KeyManagerScreen(tagRuleId: String, onBack: () -> Unit) {
         savePoolList(pool.filterIndexed { i, _ -> i != index })
         toast(R.string.role_key_pool_removed_one, poolDisplayName(removed))
     }
-    // ———— 页面级多选（照主界面 ☑ 多选模式）————
-    fun exitSelection() {
-        selectionMode = false
-        checkedNames = emptySet()
-    }
-    fun toggleCheckAll() {
-        val all = keys.map { it.name }.toSet()
-        checkedNames = if (checkedNames.containsAll(all)) emptySet() else all
-    }
-    /** 勾选的密钥加入启用池：已在池里的自动跳过，新加入的按列表顺序追加到队尾；
-     *  裸 Key 条目跳过并提示（先补全完整格式才能启用） */
-    fun addSelectedToPool() {
-        val selected = keys.filter { it.name in checkedNames }
-        val (ok, bare) = selected.partition {
-            val p = KeyListFile.parseKeyValue(it.value)
-            p != null && !p.isDirect
-        }
-        val norms = ok.map { KeyListFile.normalizePoolValue(it.value) }.filter { it.isNotEmpty() }
-        val fresh = norms.filter { it !in pool }
-        if (fresh.isNotEmpty()) savePoolList(pool + fresh)
-        if (bare.isNotEmpty()) toast(R.string.role_key_pool_skip_bare, bare.size)
-        else toast(R.string.role_key_pool_add_batch, fresh.size, norms.size - fresh.size)
-        exitSelection()
-    }
+    // ———— 页面级多选三个函数（exitSelection/toggleCheckAll/addSelectedToPool）随 ☑ 入口退役删除 ————
 
     /** 组头三态对勾的批量启停（10-03 照主界面组头口径：半选/全选单击=全停，全停单击=全启）：
      *  裸 Key 跳过（与卡片单点同一口径）；启用追加到队尾保持组内轮换顺序；全停只摘除本组归一化值 */
@@ -1136,6 +1158,25 @@ fun KeyManagerScreen(tagRuleId: String, onBack: () -> Unit) {
         val next = if (title in cur) cur - title else cur + title
         collapsed = next
         scope.launch { withIO { KeyListFile.saveCollapsedGroups(tagRuleId, next) } }
+    }
+    /** 强制展开某组（10-08 装机反馈：新增密钥/拉取模型/组测试完成后自动展开——
+     *  操作的结果落在组里，折叠着就什么都看不见；不动持久化文件只改内存态，
+     *  用户再手动折叠时 toggleFold 照常落盘） */
+    fun expandGroup(title: String) {
+        if (collapsed?.contains(title) == true) {
+            collapsed = (collapsed ?: emptySet()) - title
+        }
+    }
+    /** 展开并把该组滚进视野（10-08 装机反馈：组在屏幕底部时点展开不知道展开了——
+     *  LazyColumn 不自动滚，组头顶在屏底、内容全在屏外）。scrollToItem 定位组卡 item，
+     *  稍等重组完成再滚（折叠状态切换是异步重组）。
+     *  ⚠️ listState 声明在 Scaffold 内容区，本函数用 lateinit 挂接（见下方赋值）。 */
+    var listStateRef: androidx.compose.foundation.lazy.LazyListState? = null
+    suspend fun expandAndReveal(title: String) {
+        expandGroup(title)
+        val idx = buildKeyGroups(keys, ifaces).indexOfFirst { it.title == title }
+        // 列表 item 序 = ops(1) + 组序（空态时无组卡；有组才谈得上 reveal）
+        listStateRef?.let { ls -> runCatching { ls.scrollToItem(index = 1 + idx) } }
     }
     /** 主页拖动排序已整段删除（用户 0919 终稿：点卡片启用的交互下没有拖动场景；
      * 调轮换顺序在启用池页做，那边拖动保留）。组内显示顺序 = key_list.json 的存储顺序 */
@@ -1213,6 +1254,8 @@ fun KeyManagerScreen(tagRuleId: String, onBack: () -> Unit) {
             // 汇总 Toast 报数；逐条原因看各卡片底部提示条（10-03 五改：组测不弹框）
             val okCount = results.count { it }
             toast(R.string.role_key_test_batch_done, grp.title, okCount, targets.size - okCount)
+            // 组测完成后自动展开并滚到该组（10-08：结果条都在各模型卡里，折叠/在屏外都看不见）
+            expandAndReveal(grp.title)
         }
     }
     // 密钥池整批测试：同 testGroup 的并发 4 路口径
@@ -1305,7 +1348,7 @@ fun KeyManagerScreen(tagRuleId: String, onBack: () -> Unit) {
         deleteModeGroup = null
         deleteChecked = emptySet()
     }
-    BackHandler(enabled = selectionMode) { exitSelection() }
+    // 页面级 ☑ 多选已删：原「BackHandler(selectionMode)→exitSelection」随状态链一并退役
 
     // 启用池子页：页内全屏覆盖（照 KeyManagerActivity 的独立全屏页模式，返回键退回主页）。
     // 状态全部 hoist 在主页（池、测试结果、测试中标记、多选），子页是纯展示 + 回调
@@ -1375,12 +1418,12 @@ fun KeyManagerScreen(tagRuleId: String, onBack: () -> Unit) {
                         )
                     }
                 },
-                // 导入/导出：**纯文字**（10-07 用户：大字体下顶栏五件挤得「密钥」竖排——
-                // 撤 ⬇⬆ 图标各省 ≈22dp，标题得 71dp 放得下；热区 ≥48dp 不变）
+                // 顶栏（10-08 装机反馈终稿）：「密」标题竖排的根因是动作区太宽——
+                // ①导入/导出撤文字只留图标（用户令：文字删除；含义由 contentDescription 承载）
+                // ②页面级多选 ☑ 整个删除（用户：感觉没用——单条启停/删除在卡内都有，
+                // 整组启停在组头胶囊；随删 page 级 selectionMode 底栏与其状态链）
                 actions = {
-                    // 账号池入口（10-06 方案B）：开二级页（登录/签到/积分/续期）。
-                    // 10-07 装机反馈：照操作行「启用池(1)」同款 FilledTonalButton 胶囊——
-                    // 原裸文字键与旁边图标+文字键排一排，主次不分还小；胶囊键给足热区与视觉分量。
+                    // 账号池入口（10-06 方案B）：照操作行「启用池(1)」同款 FilledTonalButton 胶囊
                     FilledTonalButton(
                         onClick = { showAccountPool = true },
                         modifier = Modifier.heightIn(min = 44.dp),
@@ -1388,93 +1431,47 @@ fun KeyManagerScreen(tagRuleId: String, onBack: () -> Unit) {
                     ) {
                         Text(stringResource(R.string.account_pool_title), maxLines = 1)
                     }
-                    // 导入/导出：**图标 + 文字**（10-07 装机反馈二改：撤图标改纯文字曾为治
-                    // 大字体「密钥」竖排，用户复盘后定稿——图标不能省，文字可省；现回
-                    // 图标+文字。若再遇大字体挤压，撤的是文字不是图标）
-                    Box(
-                        Modifier
-                            .heightIn(min = 48.dp)
-                            // 10-07 用户令：一步导入——中间弹层（只显示一个文件名）与确认弹窗都删；
-                            // 导入=合并不覆盖、重名自动跳过，无破坏性，结果直接 toast
-                            .clickable {
-                                scope.launch {
-                                    if (!withIO { KeyListFile.exportFileExists(tagRuleId) }) {
-                                        toast(R.string.role_key_no_export)
-                                    } else {
-                                        val data = withIO {
-                                            KeyListFile.readExportFile(tagRuleId, KeyListFile.EXPORT_FILE_NAME)
-                                        }
-                                        if (data == null) toast(R.string.role_list_failed)
-                                        else {
-                                            val (added, skipped, addedIfc) =
-                                                withIO { KeyListFile.importAll(tagRuleId, data) }
-                                            toast(R.string.role_key_import_done, added, skipped, addedIfc)
-                                            version++
-                                        }
-                                    }
-                                }
-                            }
-                            .padding(horizontal = 6.dp),
-                        contentAlignment = Alignment.CenterStart
-                    ) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Icon(
-                                Icons.Default.FileDownload,
-                                contentDescription = null,
-                                modifier = Modifier.size(18.dp),
-                                tint = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                            Spacer(Modifier.width(4.dp))
-                            Text(
-                                stringResource(R.string.role_key_action_import),
-                                style = MaterialTheme.typography.labelLarge
-                            )
-                        }
-                    }
-                    Box(
-                        Modifier
-                            .heightIn(min = 48.dp)
-                            .clickable {
-                                scope.launch {
-                                    val name = withIO { KeyListFile.exportKeys(tagRuleId, keys) }
-                                    if (name != null) toast(R.string.role_key_exported, keys.size, name)
-                                    else toast(R.string.role_list_failed)
-                                }
-                            }
-                            .padding(horizontal = 6.dp),
-                        contentAlignment = Alignment.CenterStart
-                    ) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Icon(
-                                Icons.Default.FileUpload,
-                                contentDescription = null,
-                                modifier = Modifier.size(18.dp),
-                                tint = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                            Spacer(Modifier.width(4.dp))
-                            Text(
-                                stringResource(R.string.role_key_action_export),
-                                style = MaterialTheme.typography.labelLarge
-                            )
-                        }
-                    }
-                    // 页面级多选入口（照主界面 ☑ Checklist 同款）：跨组勾选 → 底栏 加入池/删除。
-                    // 与组内删除模式互斥：进入前先退掉组内删除
+                    // 导入（纯图标；一步导入逻辑不变）
                     IconButton(
                         onClick = {
-                            if (selectionMode) exitSelection()
-                            else {
-                                deleteModeGroup = null
-                                deleteChecked = emptySet()
-                                selectionMode = true
+                            scope.launch {
+                                if (!withIO { KeyListFile.exportFileExists(tagRuleId) }) {
+                                    toast(R.string.role_key_no_export)
+                                } else {
+                                    val data = withIO {
+                                        KeyListFile.readExportFile(tagRuleId, KeyListFile.EXPORT_FILE_NAME)
+                                    }
+                                    if (data == null) toast(R.string.role_list_failed)
+                                    else {
+                                        val (added, skipped, addedIfc) =
+                                            withIO { KeyListFile.importAll(tagRuleId, data) }
+                                        toast(R.string.role_key_import_done, added, skipped, addedIfc)
+                                        version++
+                                    }
+                                }
                             }
                         }
                     ) {
                         Icon(
-                            Icons.Default.Checklist,
-                            contentDescription = stringResource(R.string.desc_multi_select),
-                            tint = if (selectionMode) MaterialTheme.colorScheme.primary
-                            else MaterialTheme.colorScheme.onSurfaceVariant
+                            Icons.Default.FileDownload,
+                            contentDescription = stringResource(R.string.role_key_action_import),
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                    // 导出（纯图标）
+                    IconButton(
+                        onClick = {
+                            scope.launch {
+                                val name = withIO { KeyListFile.exportKeys(tagRuleId, keys) }
+                                if (name != null) toast(R.string.role_key_exported, keys.size, name)
+                                else toast(R.string.role_list_failed)
+                            }
+                        }
+                    ) {
+                        Icon(
+                            Icons.Default.FileUpload,
+                            contentDescription = stringResource(R.string.role_key_action_export),
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
                 },
@@ -1482,40 +1479,12 @@ fun KeyManagerScreen(tagRuleId: String, onBack: () -> Unit) {
             )
         },
         bottomBar = {
-            // 页面级多选底栏（照主界面多选模式）：全选 | 加入启用池(N) | 删除(N)。
-            // 放 Scaffold bottomBar：高度计入 paddingValues，列表自动让位不被盖住
-            if (selectionMode) {
-                Surface(color = MaterialTheme.colorScheme.background) {
-                    Row(
-                        Modifier
-                            .fillMaxWidth()
-                            .navigationBarsPadding()
-                            .padding(horizontal = 8.dp, vertical = 4.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        FlatTextAction(
-                            stringResource(R.string.select_all),
-                            MaterialTheme.colorScheme.onSurfaceVariant
-                        ) { toggleCheckAll() }
-                        Spacer(Modifier.weight(1f))
-                        FlatTextAction(
-                            stringResource(R.string.role_key_delete_n, checkedNames.size),
-                            MaterialTheme.colorScheme.error
-                        ) {
-                            if (checkedNames.isEmpty()) toast(R.string.role_key_delete_none)
-                            else showDeleteSelected = true
-                        }
-                        // 加入启用池放最右末位（用户 0919：与删除调换位置）
-                        FlatTextAction(
-                            stringResource(R.string.role_key_pool_add_n, checkedNames.size),
-                            MaterialTheme.colorScheme.primary
-                        ) { addSelectedToPool() }
-                    }
-                }
-            }
+            // 10-08：页面级 ☑ 多选已删（入口+底栏整体退役）——单条启停/删除在卡内、
+            // 整组启停在组头胶囊、组内多选删除走组头 🗑 菜单（isDeleting 底部动作行在组卡内）
         }
     ) { paddingValues ->
         val listState = rememberLazyListState()
+        listStateRef = listState
         val groups = buildKeyGroups(keys, ifaces)
         // 主页拖动排序已整段删除（用户 0919 终稿）：无 reorderable modifier、无落位回调；
         // LazyColumn 仅为长列表性能保留
@@ -1529,8 +1498,7 @@ fun KeyManagerScreen(tagRuleId: String, onBack: () -> Unit) {
             // end 保持 8（右线不动：条目图标右缘对卡右缘、组头图标区右缘同列的校准全在行内相对值里）
             contentPadding = PaddingValues(start = 12.dp, end = 8.dp, top = 4.dp, bottom = 12.dp)
         ) {
-            if (!selectionMode) {
-                item(key = "ops") {
+            item(key = "ops") {
                     // 操作行三键：**内容自适应宽度**（用户 0919：weight 均分是折行根因，按钮
                     // 保持自适应；启用池键保持填充强调）。
                     // 10-07 二改（装机反馈「松散」）：①三键加高 40→44dp（vertical 8→11，
@@ -1571,7 +1539,6 @@ fun KeyManagerScreen(tagRuleId: String, onBack: () -> Unit) {
                         }
                     }
                 }
-            }
             // 有分组（哪怕全是空组）就渲染：先建组、再拉模型这条路必须走得通
             if (groups.isEmpty()) {
                 item(key = "empty") {
@@ -1610,7 +1577,8 @@ fun KeyManagerScreen(tagRuleId: String, onBack: () -> Unit) {
                             isCollapsed = isCollapsed,
                             enabledCount = enabledCount,
                             onSetGroupEnabled = { allEnabled -> setGroupPool(grp, allEnabled) },
-                            selectionMode = selectionMode,
+                            // 页面级 ☑ 多选已删：组头只在组内删除模式渲染删除标题行
+                            selectionMode = isDeleting,
                             deleteMode = isDeleting,
                             onFold = { toggleFold(grp.title) },
                             onPull = {
@@ -1634,9 +1602,8 @@ fun KeyManagerScreen(tagRuleId: String, onBack: () -> Unit) {
                             onMenuDismiss = { menuGroup = null },
                             testingThisGroup = testingGroup == grp.title,
                         )
-                        // 多选模式下分组自动展开（用户 0919：折叠组没法多选子项）；退出恢复原折叠。
-                        // 组内删除模式进组时已自动展开；主页拖动排序已删（用户 0919：点卡片启用的交互下没有拖动场景）
-                        if (!isCollapsed || selectionMode || isDeleting) {
+                        // 组内删除模式进组时自动展开（折叠组没法多选子项），退出恢复原折叠
+                        if (!isCollapsed || isDeleting) {
                             // 组头区与模型区分隔线（10-07 装机反馈）：比条目之间的线重一档——
                             // 它是「组信息 / 模型列表」的分界，模型行间那条只做行切分
                             HorizontalDivider(
@@ -1654,25 +1621,19 @@ fun KeyManagerScreen(tagRuleId: String, onBack: () -> Unit) {
                                     testOutcome = testResults[norm],
                                     testing = testingValue == norm,
                                     probeProgress[norm],
-                                    // 组内删除模式同页面级多选：复选框顶替行首灯、动作区隐藏、勾中染浅红
-                                    selectionMode = selectionMode || isDeleting,
-                                    checked = if (isDeleting) entry.name in deleteChecked
-                                    else entry.name in checkedNames,
+                                    // 组内删除模式：复选框顶替行首对勾、动作区隐藏、勾中染浅红。
+                                    // 10-08：页面级 ☑ 多选已删，selectionMode 只剩 isDeleting 一个来源
+                                    selectionMode = isDeleting,
+                                    checked = entry.name in deleteChecked,
                                     // 来源标签（10-06 方案B）：key 段命中账号池 access_token → 绿标「账号池」
                                     fromPool = run {
                                         val k = KeyListFile.parseKeyValue(entry.value)
                                         k != null && k.key.isNotEmpty() && k.key in poolTokens
                                     },
                                     onToggleCheck = {
-                                        if (isDeleting) {
-                                            deleteChecked = if (entry.name in deleteChecked)
-                                                deleteChecked - entry.name
-                                            else deleteChecked + entry.name
-                                        } else {
-                                            checkedNames = if (entry.name in checkedNames)
-                                                checkedNames - entry.name
-                                            else checkedNames + entry.name
-                                        }
+                                        deleteChecked = if (entry.name in deleteChecked)
+                                            deleteChecked - entry.name
+                                        else deleteChecked + entry.name
                                     },
                                     onTogglePool = { togglePool(entry) },
                                     // 📋 列表行复制模型名（编辑弹窗里复制的才是完整密钥串）
@@ -1723,34 +1684,14 @@ fun KeyManagerScreen(tagRuleId: String, onBack: () -> Unit) {
                                     }
                                 }
                         } // if (isDeleting)
-                        } // if (!isCollapsed || selectionMode || isDeleting)——展开内容收尾
+                        } // if (!isCollapsed || isDeleting)——展开内容收尾
                         } // ElevatedCard：连体卡内容收尾
                     } // item(key = "g:")——一组一张卡
                 }
             }
         }
     }
-    // 页面级多选删除确认（跨组选中 N 条 → 二次确认）
-    if (showDeleteSelected) {
-        AlertDialog(
-            onDismissRequest = { showDeleteSelected = false },
-            title = { Text(stringResource(R.string.role_key_delete_title)) },
-            text = { Text(stringResource(R.string.role_key_delete_selected_text, checkedNames.size)) },
-            confirmButton = {
-                TextButton(onClick = {
-                    showDeleteSelected = false
-                    val names = checkedNames.toList()
-                    exitSelection()
-                    deleteNames(names)
-                }) { Text(stringResource(R.string.delete), color = MaterialTheme.colorScheme.error) }
-            },
-            dismissButton = {
-                TextButton(onClick = { showDeleteSelected = false }) {
-                    Text(stringResource(R.string.cancel))
-                }
-            }
-        )
-    }
+    // 页面级多选删除确认弹窗已随 ☑ 多选入口退役（10-08）
 
     // 删除整组确认（显示将删条数）
     deleteGroupConfirm?.let { gTitle ->
@@ -1816,6 +1757,14 @@ fun KeyManagerScreen(tagRuleId: String, onBack: () -> Unit) {
                         thinkingMode = thinkMode, thinkingCustom = thinkCustom,
                     )
                     save(keys + newEntry)
+                    // 新增后自动展开其所属组（10-08：结果落在组里，折叠着看不见）；
+                    // 未分组条目没有组卡可展开，跳过
+                    val p0 = KeyListFile.parseKeyValue(value)
+                    if (p0 != null && !p0.isDirect) {
+                        buildKeyGroups(keys + newEntry, ifaces)
+                            .firstOrNull { g -> g.entries.any { it.name == newEntry.name } && g.ifc != null }
+                            ?.let { expandGroup(it.title) }
+                    }
                     // 手动模式随条目带锁：写进锁定表（规则读这份）；auto 不写（等 ⚡ 探测）
                     val p = KeyListFile.parseKeyValue(value)
                     if (p != null && !p.isDirect && thinkMode != KeyListFile.THINKING_AUTO) {
@@ -2007,6 +1956,8 @@ fun KeyManagerScreen(tagRuleId: String, onBack: () -> Unit) {
                             KeyListFile.addModelsToInterface(tagRuleId, ifc.name, pickedModels)
                         }
                         toast(R.string.role_key_pull_done, toAdd.size, entries.size - toAdd.size)
+                        // 拉取完成后自动展开并滚到该组（10-08：结果落在组里，折叠/屏外都看不见）
+                        if (toAdd.isNotEmpty()) expandAndReveal(ifc.name)
                     }
                     version++
                 }
@@ -2052,9 +2003,12 @@ private fun KeyEditDialog(
             else initial?.thinkingMode ?: KeyListFile.THINKING_AUTO
         )
     }
+    // 三类结构（10-08 用户定稿）：自动 / 关闭思考（现成写法）/ 自定义 JSON，三者同级。
+    // thinkingExpanded 语义收窄为「第二类选中」；第三类由 thinkingMode==CUSTOM 独立表达
+    // （不再藏在手动抽屉底）。存储值不变：AUTO / 7 种现成写法 / CUSTOM。
     var thinkingExpanded by remember {
         mutableStateOf(
-            jumpToThinkingCustom || (initial?.thinkingMode?.let { it != KeyListFile.THINKING_AUTO } ?: false)
+            initial?.thinkingMode?.let { it != KeyListFile.THINKING_AUTO && it != KeyListFile.THINKING_CUSTOM } ?: false
         )
     }
     var customText by remember { mutableStateOf(initial?.thinkingCustom.orEmpty()) }
@@ -2150,7 +2104,11 @@ private fun KeyEditDialog(
                 // 8 项写法默认只显示当前选中那一条，其余收在「换一种写法」后（10-07 装机反馈：
                 // 8 项平铺占 416dp、是弹窗变长的主因）。从「自定义思考 ›」直达时连同展开，
                 // 否则用户进来只看到一条、以为选项没了。
-                var optionsOpen by remember { mutableStateOf(jumpToThinkingCustom) }
+                // 10-08 用户定稿：直达也落折叠态（进来就是「自定义 JSON 填写界面」——
+                // 只显选中那条 + JSON 框，其余写法在「换一种写法 ▾」后）。曾设 jumpToThinkingCustom
+                // 强制展开列表，用户实机指出「跳到很多选项的界面不对，直接到填写界面」。
+                // 换写法是低频动作，点一下「换一种写法」的成本可接受
+                var optionsOpen by remember { mutableStateOf(false) }
                 // 锁定状态（读取该模型在 thinking_params.json 的锁定值；键 = 网址+模型）
                 val lockedMode = remember(initial) {
                     val p = initial?.let { KeyListFile.parseKeyValue(it.value) }
@@ -2178,7 +2136,15 @@ private fun KeyEditDialog(
                     KeyListFile.THINKING_CUSTOM -> customOptionLabel
                     else -> m
                 }
-                // 折叠摘要行：模式 + 锁定写法名（与测试结果的「multi」同词）+ 展开箭头
+                // 折叠摘要行：模式 + 锁定写法名（与测试结果的「multi」同词）+ 展开箭头。
+                // 三类摘要文案：自动（锁定 x）/关闭思考（写法名）/自定义 JSON
+                val isCustomSelected = thinkingMode == KeyListFile.THINKING_CUSTOM
+                val summaryText = when {
+                    !thinkingExpanded && !isCustomSelected ->
+                        lockedMode?.let { "自动（锁定 $it）" } ?: "自动（未测试）"
+                    isCustomSelected -> "自定义 JSON"
+                    else -> "关闭思考（${modeLabel(thinkingMode)}）"
+                }
                 Row(
                     Modifier
                         .fillMaxWidth()
@@ -2192,12 +2158,9 @@ private fun KeyEditDialog(
                     )
                     Spacer(Modifier.weight(1f))
                     Text(
-                        when {
-                            !thinkingExpanded -> lockedMode?.let { "自动（锁定 $it）" } ?: "自动（未测试）"
-                            else -> "手动（${modeLabel(thinkingMode)}）"
-                        },
+                        summaryText,
                         style = MaterialTheme.typography.bodySmall,
-                        color = if (lockedMode != null || thinkingExpanded) TEST_PASS_COLOR
+                        color = if (lockedMode != null || thinkingExpanded || isCustomSelected) TEST_PASS_COLOR
                         else MaterialTheme.colorScheme.onSurfaceVariant
                     )
                     Text(
@@ -2214,12 +2177,16 @@ private fun KeyEditDialog(
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.padding(top = 2.dp)
                 )
+                // ===== 三类同级（10-08 用户定稿）：自动 / 关闭思考（现成写法）/ 自定义 JSON =====
+                // 原「自动 vs 手动抽屉（8 项塞抽屉里）」两层结构层级乱——自定义跟现成写法
+                // 不是一类东西；摊平成三个 RadioButton，第二类点开才铺 7 项现成写法。
+                // 第一类：自动
                 Row(
                     Modifier.fillMaxWidth().padding(top = 4.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     RadioButton(
-                        selected = !thinkingExpanded,
+                        selected = !thinkingExpanded && thinkingMode != KeyListFile.THINKING_CUSTOM,
                         onClick = { thinkingExpanded = false; thinkingMode = KeyListFile.THINKING_AUTO }
                     )
                     Text(
@@ -2227,7 +2194,7 @@ private fun KeyEditDialog(
                         style = MaterialTheme.typography.bodyMedium
                     )
                 }
-                if (lockedMode != null && !thinkingExpanded) {
+                if (lockedMode != null && !thinkingExpanded && thinkingMode != KeyListFile.THINKING_CUSTOM) {
                     Text(
                         // 写法名+中文释义一起给（10-05 用户：测试结果说锁定「multi」，
                         // 进设置只看到「全部关闭字段一起发」对不上号——名字和释义必须同现）
@@ -2236,7 +2203,7 @@ private fun KeyEditDialog(
                         color = TEST_PASS_COLOR,
                         modifier = Modifier.padding(start = 48.dp, top = 2.dp)
                     )
-                } else if (initial != null && !thinkingExpanded) {
+                } else if (initial != null && !thinkingExpanded && thinkingMode != KeyListFile.THINKING_CUSTOM) {
                     Text(
                         stringResource(R.string.role_key_thinking_not_tested),
                         style = MaterialTheme.typography.labelSmall,
@@ -2244,6 +2211,7 @@ private fun KeyEditDialog(
                         modifier = Modifier.padding(start = 48.dp, top = 2.dp)
                     )
                 }
+                // 第二类：关闭思考（现成写法）——收 7 项，点开才铺；折叠态显当前写法名
                 Row(
                     Modifier.fillMaxWidth(),
                     verticalAlignment = Alignment.CenterVertically
@@ -2252,47 +2220,32 @@ private fun KeyEditDialog(
                         selected = thinkingExpanded,
                         onClick = {
                             thinkingExpanded = true
-                            if (thinkingMode == KeyListFile.THINKING_AUTO)
-                                thinkingMode = KeyListFile.THINKING_MULTI
+                            if (thinkingMode == KeyListFile.THINKING_AUTO ||
+                                thinkingMode == KeyListFile.THINKING_CUSTOM
+                            ) thinkingMode = KeyListFile.THINKING_MULTI
                         }
                     )
                     Text(
-                        stringResource(R.string.role_key_thinking_manual),
+                        stringResource(R.string.role_key_thinking_off_option),
                         style = MaterialTheme.typography.bodyMedium
                     )
                 }
                 if (thinkingExpanded) {
-                    // 10-07 用户令：8 项技术写法按用途收拢（「用户想的是关掉思考，不是
-                    // 选 disable_think 还是 no_chain_of_thought」）。三项不删——它们既是 auto
-                    // 试探序列的弹药（THINKING_PROBE_ORDER），也是黄态下唯一的手动出路；
-                    // 只是加小节标题归组，扫一眼就知道哪几项是「关掉思考」。
-                    Text(
-                        // 11→12 + 中粗（10-07 装机反馈）：原 labelSmall 11sp 比它自己的选项
-                        // （bodySmall 12sp）还小，小标题不该小于条目；labelMedium 正好 12sp、
-                        // M3 默认 Medium 字重，一档同时补上尺寸与层级感。
-                        stringResource(R.string.role_key_thinking_goal_off),
-                        style = MaterialTheme.typography.labelMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.padding(start = 48.dp, top = 6.dp, bottom = 2.dp)
-                    )
                     val options = listOf(
                         KeyListFile.THINKING_MULTI, KeyListFile.THINKING_TYPE,
                         KeyListFile.THINKING_TMODE, KeyListFile.THINKING_DTHINK,
                         KeyListFile.THINKING_NCOT, KeyListFile.THINKING_NONE,
-                        // 后两项语义不同（不关、只降档 / 完全手写），列表里靠自身文案区分
-                        KeyListFile.THINKING_LOW, KeyListFile.THINKING_CUSTOM,
+                        // LOW 语义不同（只降档不关），靠自身文案区分
+                        KeyListFile.THINKING_LOW,
                     )
-                    // 折起时只画当前选中那条，其余收在下方「换一种写法」里（展开才铺全）。
-                    // 本块在 thinkingExpanded 为真时才渲染，而 thinkingMode 此刻必是这 8 项之一
-                    // （「自动」那条会把 thinkingExpanded 置回 false），故 listOf(thinkingMode) 一定有效
+                    // 折叠态 = 只显当前选中一条；「换一种写法 ▾」铺开 7 项（CUSTOM 已提为第三类，不在此列）
                     val shown = if (optionsOpen) options else listOf(thinkingMode)
                     shown.forEach { opt ->
                         Row(
                             Modifier
                                 .fillMaxWidth()
                                 .clickable { thinkingMode = opt }
-                                // 上下内距 2→0（10-07 装机反馈）：52dp 行距里 4dp 是我们加的，
-                                // 撤掉后剩 M3 强制的最小触摸高 48dp，仍是标准触摸尺寸，块高省 32dp
+                                // 上下内距 2→0（10-07 装机反馈）：撤掉后剩 M3 最小触摸高 48dp
                                 .padding(start = 48.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
@@ -2300,40 +2253,52 @@ private fun KeyEditDialog(
                             Text(modeLabel(opt), style = MaterialTheme.typography.bodySmall)
                         }
                     }
-                    // JSON 框紧贴选中项（折叠/展开都在它下方紧接着），「换一种写法」固定在
-                    // 最底部——这样展开与否、选不选 custom，切换键的位置都不跳
-                    if (thinkingMode == KeyListFile.THINKING_CUSTOM) {
-                        OutlinedTextField(
-                            value = customText, onValueChange = { customText = it },
-                            singleLine = false, minLines = 2, maxLines = 4,
-                            textStyle = MaterialTheme.typography.bodySmall,
-                            placeholder = {
-                                Text("{\"key\": \"value\"}", style = MaterialTheme.typography.bodySmall)
-                            },
-                            modifier = Modifier.fillMaxWidth().padding(start = 48.dp)
+                    // 「换一种写法 / 收起写法」切换行（无 RadioButton 撑高，自钉 48dp 触摸）
+                    Row(
+                        Modifier
+                            .fillMaxWidth()
+                            .heightIn(min = 48.dp)
+                            .clickable { optionsOpen = !optionsOpen }
+                            .padding(start = 48.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            stringResource(
+                                if (optionsOpen) R.string.role_key_thinking_less
+                                else R.string.role_key_thinking_more
+                            ),
+                            style = MaterialTheme.typography.labelMedium,
+                            color = MaterialTheme.colorScheme.primary
                         )
                     }
-                    // 「换一种写法 / 收起写法」切换行（本行没有 RadioButton 撑高，须自己钉
-                    // 最小触摸 48dp；缩进 48 与选项文字左缘齐）
-                    if (options.size > 1) {
-                        Row(
-                            Modifier
-                                .fillMaxWidth()
-                                .heightIn(min = 48.dp)
-                                .clickable { optionsOpen = !optionsOpen }
-                                .padding(start = 48.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Text(
-                                stringResource(
-                                    if (optionsOpen) R.string.role_key_thinking_less
-                                    else R.string.role_key_thinking_more
-                                ),
-                                style = MaterialTheme.typography.labelMedium,
-                                color = MaterialTheme.colorScheme.primary
-                            )
+                }
+                // 第三类：自定义 JSON——选中即出框（直达「自定义思考 ›」落这里）
+                Row(
+                    Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    RadioButton(
+                        selected = thinkingMode == KeyListFile.THINKING_CUSTOM,
+                        onClick = {
+                            thinkingMode = KeyListFile.THINKING_CUSTOM
+                            thinkingExpanded = false
                         }
-                    }
+                    )
+                    Text(
+                        stringResource(R.string.role_key_thinking_custom_option),
+                        style = MaterialTheme.typography.bodyMedium
+                    )
+                }
+                if (thinkingMode == KeyListFile.THINKING_CUSTOM) {
+                    OutlinedTextField(
+                        value = customText, onValueChange = { customText = it },
+                        singleLine = false, minLines = 2, maxLines = 4,
+                        textStyle = MaterialTheme.typography.bodySmall,
+                        placeholder = {
+                            Text("{\"key\": \"value\"}", style = MaterialTheme.typography.bodySmall)
+                        },
+                        modifier = Modifier.fillMaxWidth().padding(start = 48.dp)
+                    )
                 }
                 } // thinkingOpen 展开区收尾
             }
@@ -2345,7 +2310,13 @@ private fun KeyEditDialog(
                 enabled = value.text.isNotBlank(),
                 onClick = {
                     val raw = value.text.trim()
-                    val finalThink = if (thinkingExpanded) thinkingMode else KeyListFile.THINKING_AUTO
+                    // 三类语义（10-08）：第一类自动=collapsed 且非 custom；第二类现成写法=
+                    // expanded；第三类自定义=custom（不再依赖 expanded）
+                    val finalThink = when {
+                        thinkingMode == KeyListFile.THINKING_CUSTOM -> KeyListFile.THINKING_CUSTOM
+                        thinkingExpanded -> thinkingMode
+                        else -> KeyListFile.THINKING_AUTO
+                    }
                     // custom 校验：不可解析直接拦（toast 在 Dialog 内）
                     if (finalThink == KeyListFile.THINKING_CUSTOM &&
                         KeyListFile.thinkingBodyFields(KeyListFile.THINKING_CUSTOM, customText) == null
@@ -2732,12 +2703,15 @@ private fun InterfaceFormDialog(
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.padding(start = 48.dp, top = 6.dp, bottom = 2.dp)
                     )
+                    // 10-08 与编辑弹窗三类结构对齐：CUSTOM 从现成写法列表拆出、独立成类
+                    // （7 项现成写法 + 自定义不是一类东西）
                     listOf(
                         KeyListFile.THINKING_MULTI, KeyListFile.THINKING_TYPE,
                         KeyListFile.THINKING_TMODE, KeyListFile.THINKING_DTHINK,
                         KeyListFile.THINKING_NCOT, KeyListFile.THINKING_NONE,
-                        KeyListFile.THINKING_LOW, KeyListFile.THINKING_CUSTOM,
+                        KeyListFile.THINKING_LOW,
                     ).forEach { pickRow(it) }
+                    pickRow(KeyListFile.THINKING_CUSTOM)
                     if (thinkingMode == KeyListFile.THINKING_CUSTOM) {
                         OutlinedTextField(
                             value = customText, onValueChange = { customText = it },

@@ -445,18 +445,16 @@ fun RoleListScreen(
                 }
             }
         }
-        // 操作提示行（两行：名字/标签各占一行，\n 硬分行——10-07 用户令；
-        // 原先压成一行在窄屏被省略号截断）
+        // 操作提示行（10-08 用户令：框下文字要缩进一档——它是搜索框的附属说明，
+        // 跟框内文字（框缘 16 + start 12 = 28）同线，不再与列表行齐 16）
         Text(
             stringResource(R.string.role_hint_line),
             style = MaterialTheme.typography.labelSmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             maxLines = 2,
             overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
-            // 跟下方列表行左对齐——行内容左缘 = LazyColumn gutter 16 + RoleRow 行内 0 = 16dp
-            // （v3 边距统一后与列表同一条线；右缘同步 16 与容器对齐）
             modifier = Modifier.padding(
-                start = ListGutter, end = ListGutter, top = 2.dp, bottom = 2.dp
+                start = ListGutter + 12.dp, end = ListGutter, top = 2.dp, bottom = 2.dp
             )
         )
 
