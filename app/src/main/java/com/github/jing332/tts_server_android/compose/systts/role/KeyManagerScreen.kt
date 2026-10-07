@@ -240,8 +240,8 @@ internal fun FlatIconAction(
  *  - ⚡✏🗑 三键图标区 108dp，右对齐后仍与组头图标列垂直成列（📋 复制键退役——与点名字复制合并）。
  *  - 测试圆点保持名字后、闪电前（0920 定稿不动）。
  *
- * ElevatedCard 照主界面 Item.kt:113 同款（M3 默认 surfaceContainerLow 底 + 1dp 阴影）；
- * 组卡已撤（组头裸排），本卡是页面唯一容器层，阴影负责把卡片从页面底上顶出来。
+ * 10-07 连体卡重构：条目不再各自成卡（原 ElevatedCard 撤），改为组卡内的一个区块，
+ * 行间分隔线由组卡统一画；底色口径保留——多选/组内删除勾中=12% 浅红，否则透明随组卡。
  */
 @Composable
 private fun KeyEntryRow(
@@ -276,15 +276,10 @@ private fun KeyEntryRow(
         else -> MaterialTheme.colorScheme.surfaceContainerLow
     }
 
-    ElevatedCard(
-        colors = CardDefaults.elevatedCardColors(containerColor = cardColor),
-        modifier = Modifier.fillMaxWidth()
-            // 卡缘左 8（改前后一致：容器 4 + 卡自身 start 4 = 8）；右缘不动（容器 end 8 即屏幕 8）。
-            // 10-07：容器 8→4 只为把组头字形线 16→12（用户「靠左一点」），卡片左缘由这 4dp
-            // 补回原位 —— 「组头左移、卡片不动」两个诉求同时满足（此前漏补，卡片一起跑到 4）。
-            // 上下 3 ⇒ 相邻两张卡之间 6dp。卡内校准是卡相对值，随卡缘平移原样保留
-            // （「描边画在 padding 之后」的教训留档：画在前面会框住整个行宽、比卡片大一圈，0920 实机事故）
-            .padding(start = 4.dp, end = 0.dp, top = 3.dp, bottom = 3.dp)
+    // 10-07 连体卡：条目行并入组 ElevatedCard。勾中浅红底改由本区块 background 表达
+    // （原 ElevatedCard containerColor 口径不变）；卡内校准全是行内相对值，原样保留
+    Column(
+        modifier = Modifier.fillMaxWidth().background(cardColor)
     ) {
         Row(
             // start 10（10-05 用户拍板：对勾方框原偏左突出——字形左缘 28.6 不在文字线 34 上；
@@ -642,9 +637,9 @@ private fun GroupHeaderBlock(
     testingThisGroup: Boolean,
 ) {
     val context = LocalContext.current
-    // 组不做容器（照主界面 GroupItem.kt:98：组头 background(surface) 裸排、层级靠排版）。
-    // 条目 ElevatedCard 是页面唯一容器层；归属感靠组头排版 + 组间 16dp 间距表达。
-    Column(Modifier.fillMaxWidth().padding(top = 16.dp)) {
+    // 10-07 连体卡：组头并入组 ElevatedCard（不再裸排）——组=一张卡，折叠时只剩组头行。
+    // 卡片间距/边距由调用处的组卡层负责，此处不再吃 top 16
+    Column(Modifier.fillMaxWidth()) {
         Column(Modifier.padding(vertical = 4.dp)) {
             if (deleteMode) {
                 // 组内删除模式标题行（10-05 改：全选挪到底部动作行与 取消/删除(N) 同排——
@@ -826,10 +821,11 @@ private fun GroupHeaderBlock(
                         }
                     }
                 }
-                // 元信息行：接口组 = 网址 + 尾号小块；未分组 = 一句身份说明。
+                // 元信息行（10-07 连体卡：折叠时藏进卡内不渲染，展开才出现——组头行即折叠态）。
+                // 接口组 = 网址 + 尾号小块；未分组 = 一句身份说明。
                 // 左缘 = 组名文字左缘（3+22+9=34）；右缘 end=8（尾号小块盒缘落右线 8，与卡右缘同列）
                 val ifc = grp.ifc
-                if (ifc != null) {
+                if (!isCollapsed && ifc != null) {
                     Row(
                         Modifier.fillMaxWidth()
                             .padding(start = 28.dp, end = 8.dp, bottom = 6.dp),
@@ -862,7 +858,7 @@ private fun GroupHeaderBlock(
                             )
                         }
                     }
-                } else {
+                } else if (!isCollapsed) {
                     grp.hintRes?.let { hint ->
                         Text(
                             stringResource(hint),
@@ -1545,7 +1541,11 @@ fun KeyManagerScreen(tagRuleId: String, onBack: () -> Unit) {
                     )
                 }
             } else {
-                groups.forEach { grp ->
+                // 10-07 用户令：启用中的组自动上浮（组内任一条目启用即算启用中）；
+                // 两档内部保持原相对顺序（sortedByDescending 稳定排序），禁用组顺延在后
+                groups.sortedByDescending { g ->
+                    g.entries.any { KeyListFile.normalizePoolValue(it.value) in pool }
+                }.forEach { grp ->
                     val isCollapsed = collapsed?.contains(grp.title) == true
                     // 组内删除模式（菜单第二项「多选删除子项」）：只对该组生效，组保留
                     val isDeleting = deleteModeGroup == grp.title
@@ -1556,7 +1556,13 @@ fun KeyManagerScreen(tagRuleId: String, onBack: () -> Unit) {
                     }
                     // 组头不可拖动（用户 0919 实机：展开态拖组头与子项交错、必须收起分组才顺，
                     // 收益配不上体验——组序不常调，取消；子项组内拖动保留）
-                    item(key = "h:" + grp.title) {
+                    // 10-07 连体卡：一组一张卡——组头/元信息/条目/提示条全在卡内，条目行间画分隔线
+                    item(key = "g:" + grp.title) {
+                        ElevatedCard(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(start = 4.dp, end = 0.dp, top = 10.dp, bottom = 4.dp)
+                        ) {
                         GroupHeaderBlock(
                             grp = grp,
                             isCollapsed = isCollapsed,
@@ -1586,13 +1592,15 @@ fun KeyManagerScreen(tagRuleId: String, onBack: () -> Unit) {
                             onMenuDismiss = { menuGroup = null },
                             testingThisGroup = testingGroup == grp.title,
                         )
-                    }
-                    // 多选模式下分组自动展开（用户 0919：折叠组没法多选子项）；退出恢复原折叠。
-                    // 组内删除模式进组时已自动展开；主页拖动排序已删（用户 0919：点卡片启用的交互下没有拖动场景）
-                    if (!isCollapsed || selectionMode || isDeleting) {
-                        grp.entries.forEach { entry ->
-                            item(key = "e:" + entry.name) {
+                        // 多选模式下分组自动展开（用户 0919：折叠组没法多选子项）；退出恢复原折叠。
+                        // 组内删除模式进组时已自动展开；主页拖动排序已删（用户 0919：点卡片启用的交互下没有拖动场景）
+                        if (!isCollapsed || selectionMode || isDeleting) {
+                            grp.entries.forEachIndexed { i, entry ->
                                 val norm = KeyListFile.normalizePoolValue(entry.value)
+                                // 条目分隔线（连体卡内，10-07）：淡描边半透明，只做视觉切分不抢内容
+                                if (i > 0) HorizontalDivider(
+                                    color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)
+                                )
                                 KeyEntryRow(
                                     entry = entry,
                                     enabled = norm in pool,
@@ -1631,13 +1639,11 @@ fun KeyManagerScreen(tagRuleId: String, onBack: () -> Unit) {
                                     onEditThinking = { thinkingFor = entry },
                                     onDelete = { deleteFor = entry }
                                 )
-                            }
-                        }
-                        // 组内删除模式动作行（条目卡之后，10-05 改）：全选挪下来与 取消/删除(N)
+                            } // forEachIndexed（条目区块已并入组卡，无独立 item）
+                        // 组内删除模式动作行（条目区块之后，10-05 改）：全选挪下来与 取消/删除(N)
                         // 同排——选谁+执行一条线（原全选在顶部标题行，视线跑两趟）；
                         // 全选靠左、执行键靠右，三键都是无框文字键
                         if (isDeleting) {
-                            item(key = "d:" + grp.title) {
                                 Row(
                                     Modifier.fillMaxWidth()
                                         .padding(start = 28.dp, end = 8.dp, top = 2.dp, bottom = 4.dp),
@@ -1669,9 +1675,9 @@ fun KeyManagerScreen(tagRuleId: String, onBack: () -> Unit) {
                                         else groupDeleteConfirm = grp.title
                                     }
                                 }
-                            }
-                        }
-                    }
+                        } // if (isDeleting)
+                        } // ElevatedCard：连体卡内容收尾
+                    } // item(key = "g:")——一组一张卡
                 }
             }
         }
