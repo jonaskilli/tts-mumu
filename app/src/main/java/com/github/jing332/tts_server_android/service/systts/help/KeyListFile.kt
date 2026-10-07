@@ -183,9 +183,12 @@ object KeyListFile {
     const val THINKING_LOW = "low"                  // reasoning_effort: "low"（只压低，关不掉）
     const val THINKING_CUSTOM = "custom"            // 自定义 JSON 原样合并
 
-    /** auto 探测顺序：从全到裸；全被拒/全带思考 → 锁定裸请求（保"起码能分配"） */
+    /** auto 探测顺序：从全到裸；全被拒/全带思考 → 锁定裸请求（保"起码能分配"）。
+     *  10-08 用户拍板：low 追加序列尾——「不带思考字段就拒绝」的站 6 项关法全灭时 low 是
+     *  最后一根稻草；命中报黄态（思考未关闭），语义自洽。前面 6 项命中即停，对宽容站零影响。 */
     private val THINKING_PROBE_ORDER = arrayOf(
         THINKING_MULTI, THINKING_TYPE, THINKING_TMODE, THINKING_DTHINK, THINKING_NCOT, THINKING_NONE,
+        THINKING_LOW,
     )
 
     /**
