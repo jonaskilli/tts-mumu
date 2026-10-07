@@ -1674,6 +1674,7 @@ fun KeyManagerScreen(tagRuleId: String, onBack: () -> Unit) {
                                     }
                                 }
                         } // if (isDeleting)
+                        } // if (!isCollapsed || selectionMode || isDeleting)——展开内容收尾
                         } // ElevatedCard：连体卡内容收尾
                     } // item(key = "g:")——一组一张卡
                 }
