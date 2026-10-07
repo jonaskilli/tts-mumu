@@ -43,8 +43,8 @@ object AccountPool {
     private const val PATH_CREDITS = "/v2/billing/meter/get-user-resource"          // POST {}，Accounts[] 求和
 
     // billing 头族（credits.js checkinHeaders 权威形状；Accept/Content-Type 由 httpJson 统一带）
-    private const val API_DOMAIN = "copilot.tencent.com"
-    private const val CLIENT_VERSION = "1.106.1"
+    const val API_DOMAIN = "copilot.tencent.com"
+    const val CLIENT_VERSION = "1.106.1"
 
     // 登录链路头族（buddy-oauth.js fetchAuthState/loopGetToken 逐字段照抄）：
     // X-No-Authorization 声明免登录请求；X-No-User-Id/Enterprise-Id/Department-Info
@@ -182,6 +182,32 @@ object AccountPool {
         "X-Product-Code" to "codebuddy",
         "User-Agent" to "CodeBuddyIDE/$CLIENT_VERSION",
     )
+
+    /** CodeBuddy 上游域名——密钥/测试/朗读链按它识别「这是 CodeBuddy 站点」自动带头族 */
+    const val CHAT_HOST = "copilot.tencent.com"
+
+    /**
+     * 对话头族（codebuddy.js cb_chatHeaders 权威形状，10-07 PC 实测五项全通的那份）：
+     * 裸 Bearer 对话 HTTP 200 但 SSE 零内容，必须带全。X-Product 实源发 "SaaS" 归属。
+     * Authorization/Accept/Content-Type 由调用方自定，这里只给身份族。
+     */
+    fun chatHeaders(): Map<String, String> = mapOf(
+        "X-Domain" to API_DOMAIN,
+        "X-Product" to "SaaS",
+        "X-Product-Code" to "codebuddy",
+        "X-Agent-Purpose" to "conversation",
+        "X-IDE-Name" to "CodeBuddy",
+        "X-IDE-Type" to "CodeBuddy",
+        "X-IDE-Version" to CLIENT_VERSION,
+        "User-Agent" to "CodeBuddyIDE/$CLIENT_VERSION",
+    )
+
+    /** url 是否 CodeBuddy 上游（密钥测试/朗读链自动识别用） */
+    fun isChatHost(url: String): Boolean = try {
+        java.net.URI(url).host == CHAT_HOST
+    } catch (_: Exception) {
+        url.contains(CHAT_HOST)
+    }
 
     private fun parseJson(text: String): JSONObject? = try { JSONObject(text) } catch (e: Exception) { null }
 

@@ -880,6 +880,11 @@ object KeyListFile {
                 readTimeout = 15_000
                 setRequestProperty("Accept", "application/json")
                 if (!apiKey.isNullOrBlank()) setRequestProperty("Authorization", "Bearer $apiKey")
+                // CodeBuddy 上游（10-08）：/models 等请求也要身份头族，裸 Bearer 可能被静默空响应
+                if (AccountPool.isChatHost(url)) {
+                    if (!apiKey.isNullOrBlank())
+                        AccountPool.chatHeaders().forEach { (k, v) -> setRequestProperty(k, v) }
+                }
                 if (body != null) {
                     doOutput = true
                     setRequestProperty("Content-Type", "application/json; charset=utf-8")
@@ -1040,7 +1045,16 @@ object KeyListFile {
             chatPayload(t.model, "只回复 pong", 16, 0)
         }
         val t0 = System.currentTimeMillis()
-        val resp = httpJson(t.chatUrl, "POST", t.apiKey, payload)
+        // CodeBuddy 上游（10-08 接线）：只收流式（非流式 code 11101 拒）+ 必须完整对话头族
+        // （裸 Bearer HTTP 200 但零内容）——走 SseAggregator 流式桥聚合回非流式形状，
+        // 下面的 chatReplyOk/bodyHasThinking 解析零改动
+        val resp = if (AccountPool.isChatHost(t.chatUrl)) {
+            val (ok, body) = SseAggregator.chatCompletion(t.chatUrl, t.apiKey, payload)
+            // code=-2 标记「桥内失败」避免与真实 HTTP 码混淆；body 已是「HTTP xxx：…」或聚合后 JSON
+            HttpResp(ok, if (ok) 200 else -2, body)
+        } else {
+            httpJson(t.chatUrl, "POST", t.apiKey, payload)
+        }
         if (resp.ok && chatReplyOk(resp.body)) {
             val thinking = bodyHasThinking(resp.body)
             // 成功不回状态码（10-07 用户：HTTP 200 没信息量，能省则省）——绿/黄本身就是「通」的结论；
@@ -1049,6 +1063,8 @@ object KeyListFile {
         }
         return Triple(false, null, when {
             resp.ok -> "HTTP 状态正常但内容不是有效的对话响应：${briefBody(resp.body)}"
+            // -2 = 流式桥内失败，body 已带「HTTP xxx：」或具体原因，不再拼「HTTP -2」
+            resp.code == -2 -> briefBody(resp.body)
             resp.code == 401 || resp.code == 403 -> "密钥无效或无权限（HTTP ${resp.code}）"
             resp.code == 404 -> "对话端点不存在（HTTP 404），请检查接口地址结尾/模型名"
             else -> "HTTP ${resp.code}，${briefBody(resp.body)}"

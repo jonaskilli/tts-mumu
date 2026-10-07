@@ -21,6 +21,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.EventAvailable
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Savings
@@ -182,6 +183,15 @@ fun AccountPoolScreen(onBack: () -> Unit) {
                             } else context.toast("查询失败：$err")
                         }
                     },
+                    onCopyToken = {
+                        // 令牌是长串，走系统 ClipboardManager（LocalClipboardManager 对超长串无优势且此处非 Compose 作用域惯用）
+                        val cb = context.getSystemService(android.content.Context.CLIPBOARD_SERVICE)
+                                as android.content.ClipboardManager
+                        cb.setPrimaryClip(
+                            android.content.ClipData.newPlainText("token", acc.accessToken)
+                        )
+                        context.toast("令牌已复制，去密钥管理添加密钥时粘贴到 Key 段")
+                    },
                 )
                 // 行间分隔线（同启用池 0.6dp 半透明；末行不画）
                 if (idx < accounts.lastIndex) {
@@ -204,6 +214,7 @@ private fun AccountRow(
     onRefresh: () -> Unit,
     onCheckIn: () -> Unit,
     onQueryCredits: () -> Unit,
+    onCopyToken: () -> Unit,
 ) {
     Column(
         // 10-07 装机反馈：照启用池 PoolRow 同款两行式——第一行 序号徽章+昵称+状态+图标动作区，
@@ -243,6 +254,9 @@ private fun AccountRow(
                 ) { onCheckIn() }
                 FlatIconAction(Icons.Default.Refresh, "续期") { onRefresh() }
                 FlatIconAction(Icons.Default.Savings, "查积分") { onQueryCredits() }
+                // 复制令牌（10-08 接线）：密钥管理添加密钥时把 access_token 粘进 key 段，
+                // 行内即自动挂「账号池」绿标（keyBelongsTo 按值识别，无需任何开关）
+                FlatIconAction(Icons.Default.ContentCopy, "复制令牌") { onCopyToken() }
             }
         }
         // 副行：过期/积分/签到时间（缩进对齐名字列 = 徽章 20 + 间距 10 = 30dp，同启用池）

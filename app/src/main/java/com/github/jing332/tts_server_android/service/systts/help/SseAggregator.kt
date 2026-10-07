@@ -53,6 +53,9 @@ object SseAggregator {
                 setRequestProperty("Accept", "text/event-stream")
                 setRequestProperty("Content-Type", "application/json; charset=utf-8")
                 setRequestProperty("Authorization", "Bearer $apiKey")
+                // CodeBuddy 对话头族（10-08 接线）：裸 Bearer 实测 HTTP 200 但 SSE 零内容，
+                // 必须带全身份族（cb_chatHeaders 权威形状，AccountPool.chatHeaders 单点维护）
+                AccountPool.chatHeaders().forEach { (k, v) -> setRequestProperty(k, v) }
                 doOutput = true
                 outputStream.use { it.write(body.toByteArray(Charsets.UTF_8)) }
             }
