@@ -7,7 +7,9 @@ import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.AlertDialog
 import androidx.compose.foundation.layout.Row
@@ -972,34 +974,47 @@ private fun Item(
         Column(modifier = Modifier.padding(vertical = 4.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 if (isSelectionMode) {
-                    Checkbox(
-                        // 0.85 缩放（10-06 用户令「方框缩到 18dp」）：M3 默认视觉方块 20dp、
-                        // 实心填色，在「方框+圆图标+文字」三层前导里比 28dp 淡底圆更抢眼。
-                        // 20×0.85≈17dp，与密钥页同款做法（那边也是 scale(0.85f)）；
-                        // 触摸区仍是组件的 48dp 最小触控，不受缩放影响
-                        modifier = Modifier.scale(0.85f),
-                        checked = isSelected,
-                        onCheckedChange = { onToggleSelection() },
-                    )
-                } else {
-                Checkbox(
-                    checked = isEnabled,
-                    onCheckedChange = onEnabledChange,
-                    modifier = Modifier
-                        .scale(0.85f)
-                        .semantics {
-                        role = Role.Switch
-                        context
-                            .getString(
-                                if (isEnabled) R.string.plugin_enabled_desc else R.string.plugin_disabled_desc,
-                                name
-                            )
-                            .let {
-                                contentDescription = it
-                                stateDescription = it
-                            }
+                    // 视觉 17dp（10-06 用户令 0.85 缩放）、触摸 48dp（10-07 治「点勾不跟手」）：
+                    // scale 连命中区一起缩（48→≈41dp），改外层 48dp 盒吃触摸、内层 Checkbox
+                    // 只画不摸（onCheckedChange=null，密钥页行首对勾同款写法）
+                    Box(
+                        modifier = Modifier
+                            .size(48.dp)
+                            .clip(CircleShape)
+                            .clickable { onToggleSelection() },
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Checkbox(
+                            checked = isSelected,
+                            onCheckedChange = null,
+                            modifier = Modifier.scale(0.85f),
+                        )
                     }
-                )
+                } else {
+                    Box(
+                        modifier = Modifier
+                            .size(48.dp)
+                            .toggleable(
+                                value = isEnabled,
+                                role = Role.Switch,
+                                onValueChange = { onEnabledChange(it) }
+                            )
+                            .semantics {
+                                context
+                                    .getString(
+                                        if (isEnabled) R.string.plugin_enabled_desc else R.string.plugin_disabled_desc,
+                                        name
+                                    )
+                                    .let { contentDescription = it }
+                            },
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Checkbox(
+                            checked = isEnabled,
+                            onCheckedChange = null,
+                            modifier = Modifier.scale(0.85f),
+                        )
+                    }
                 }
 
                 PluginImage(model = iconUrl, name = name)
