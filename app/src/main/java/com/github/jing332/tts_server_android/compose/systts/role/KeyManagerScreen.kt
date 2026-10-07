@@ -29,6 +29,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.Undo
 import androidx.compose.material.icons.filled.Bolt
+import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.Checklist
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.ContentCopy
@@ -599,12 +600,12 @@ private fun GroupEnablePill(
                     }, groupTitle
                 )
             }
-            .padding(horizontal = 8.dp, vertical = 2.dp),
+            .padding(horizontal = 6.dp, vertical = 1.dp),
         contentAlignment = Alignment.Center
     ) {
         Text(
             "$enabled/$total",
-            style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.sp),
+            style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp),
             color = fg,
             fontWeight = FontWeight.SemiBold,
         )
@@ -613,7 +614,8 @@ private fun GroupEnablePill(
 
 /**
  * 组头 + 元信息行（接口组=网址+尾号小块；未分组=身份说明）。
- * 点按组头 = 折叠/展开（多选模式下不可点）；主页拖动已删，启用池页拖动保留；
+ * 折叠/展开只认行首展开键（10-07 用户终稿：行内内容密，点组名/空白误触折叠比漏点更烦）；
+ * 组名后胶囊 = 整组启停开关（状态+控制一体，10sp）；
  * 动作图标区仅正常模式渲染：+拉取 ⚡测组 ✏编辑接口 🗑两项菜单
  *（删除整组=红🗑 带二次确认；多选删除子项=灰🧹 进组内删除模式，组保留）。
  * 组内删除模式下整块组头替换为「删除密钥 + 全选」标题行（0916 定稿形态恢复）。
@@ -671,24 +673,34 @@ private fun GroupHeaderBlock(
                 // 这就是「灯/快捷图标没跟模型行竖向对齐」的本源；归 0 后两组图标列逐像素同列
                 Row(
                     Modifier.fillMaxWidth()
-                        .padding(start = 0.dp, end = 0.dp, top = 2.dp, bottom = 2.dp),
+                        .padding(start = 3.dp, end = 0.dp, top = 2.dp, bottom = 2.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    // 组名可点区：点击=折叠/展开（10-07 用户令：行首箭头取消，
-                    // 折叠态只剩组名行即视觉提示；元信息/条目随展开出现）
-                    Row(
-                        Modifier
-                            .weight(1f)
-                            .clip(RoundedCornerShape(6.dp))
+                    // 展开键（10-07 用户定稿：折叠/展开只认这个键——行内内容密，点组名/空白
+                    // 误触折叠比漏点更烦）。图标 ExpandMore 旋转，照主界面 GroupItem 同款：
+                    // 折叠朝右 ❯、展开朝下 ⌄，全站组头一个语言
+                    val arrowAngle by animateFloatAsState(
+                        targetValue = if (isCollapsed) -90f else 0f, label = ""
+                    )
+                    Icon(
+                        Icons.Default.ExpandMore,
+                        contentDescription = context.getString(
+                            if (isCollapsed) R.string.desc_expand_group
+                            else R.string.desc_collapse_group, grp.title
+                        ),
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier
+                            .size(22.dp)
+                            .rotate(arrowAngle)
                             .clickable(enabled = !selectionMode, onClick = onFold)
-                            .semantics {
-                                contentDescription = context.getString(
-                                    if (isCollapsed) R.string.desc_expand_group
-                                    else R.string.desc_collapse_group, grp.title
-                                )
-                            },
+                    )
+                    // 左段（名字+胶囊）weight(1f)：胶囊紧跟名字后，多余空白留在本段右端；
+                    // 右段图标区固定 144dp 贴右线（原布局同构，10-07 复原）
+                    Row(
+                        Modifier.weight(1f),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
+                        Spacer(Modifier.width(3.dp))
                         Text(
                             grp.title,
                             style = MaterialTheme.typography.titleMedium,
@@ -698,19 +710,19 @@ private fun GroupHeaderBlock(
                             overflow = TextOverflow.Ellipsis,
                             modifier = Modifier.weight(1f, fill = false)
                         )
+                        if (!selectionMode) {
+                            Spacer(Modifier.width(6.dp))
+                            // 组启用胶囊（10-07 用户定稿）：组名后方原位、字号收小（10sp）；
+                            // 点击=整组启停（全停→全部启用，其余→全部停用）
+                            GroupEnablePill(
+                                enabled = enabledCount,
+                                total = grp.entries.size,
+                                groupTitle = grp.title,
+                                onClick = { onSetGroupEnabled(enabledCount == 0) }
+                            )
+                        }
                     }
                     if (!selectionMode) {
-                        // 组启用胶囊（10-07 定稿恢复可点）：状态+控制一体、最省空间——
-                        // 替掉「(N) 计数 + 三态方框」≈72-80dp（胶囊 4/4≈34、10/11≈44）。
-                        // 误触的解药是挪位不是加锁：胶囊从组名旁挪到行尾图标区左侧、
-                        // 独立热区，与组名折叠区彻底分开。
-                        // 点击=整组启停：全停→全部启用，其余→全部停用
-                        GroupEnablePill(
-                            enabled = enabledCount,
-                            total = grp.entries.size,
-                            groupTitle = grp.title,
-                            onClick = { onSetGroupEnabled(enabledCount == 0) }
-                        )
                         // 固定宽图标区（方案 A）：144dp=4×36dp 热区，组头与模型行图标垂直成列；
                         // 不足 4 键（未分组）右对齐留空。顺序按使用频次：+拉取 ⚡测组 ✏编辑 🗑菜单
                         Row(
@@ -812,12 +824,12 @@ private fun GroupHeaderBlock(
                 }
                 // 元信息行（10-07 连体卡：折叠时藏进卡内不渲染，展开才出现——组头行即折叠态）。
                 // 接口组 = 网址 + 尾号小块；未分组 = 一句身份说明。
-                // 左缘 = 组名文字左缘（行首箭头取消后 = 卡缘 0）；右缘 end=8（尾号小块盒缘与卡右缘同列）
+                // 左缘 = 组名文字左缘（行首箭头 22 + spacer 3 + 行 start 3 = 28）；右缘 end=8（尾号小块盒缘与卡右缘同列）
                 val ifc = grp.ifc
                 if (!isCollapsed && ifc != null) {
                     Row(
                         Modifier.fillMaxWidth()
-                            .padding(start = 0.dp, end = 8.dp, bottom = 6.dp),
+                            .padding(start = 28.dp, end = 8.dp, bottom = 6.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Text(
@@ -855,8 +867,8 @@ private fun GroupHeaderBlock(
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                             maxLines = 2,
                             overflow = TextOverflow.Ellipsis,
-                            // 与网址分支同列（卡缘 0）；右端同落右线 8
-                            modifier = Modifier.padding(start = 0.dp, end = 8.dp, bottom = 6.dp)
+                            // 与网址分支同列（28）；右端同落右线 8
+                            modifier = Modifier.padding(start = 28.dp, end = 8.dp, bottom = 6.dp)
                         )
                     }
                 }
