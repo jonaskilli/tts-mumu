@@ -1,5 +1,7 @@
 package com.github.jing332.tts_server_android.compose.systts.account
 
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
@@ -79,6 +81,16 @@ fun AccountPoolScreen(onBack: () -> Unit) {
 
     fun reload() { version++ }
 
+    // 登录页结果回传：成功 = 轮询已拿到凭据并落盘，回来重读列表即可（无需手动刷新）
+    val loginLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.StartActivityForResult()
+    ) { result ->
+        if (result.resultCode == android.app.Activity.RESULT_OK) {
+            context.toast("登录成功：${result.data?.getStringExtra("nickname") ?: ""}")
+            reload()
+        }
+    }
+
     Scaffold(
         topBar = {
             NavTopAppBar(
@@ -99,7 +111,10 @@ fun AccountPoolScreen(onBack: () -> Unit) {
                             if (url == null) {
                                 context.toast("获取登录地址失败：$err")
                             } else {
-                                context.startActivity(
+                                // 必须用 ActivityResultLauncher：登录页轮询成功是 setResult 回传+
+                                // finish，裸 startActivity 没人接收 → 账号已落盘但列表不刷新
+                                // （10-08 真机实锤：WebView 里选完账号回到池页仍「暂无账号」）
+                                loginLauncher.launch(
                                     android.content.Intent(context, AccountLoginActivity::class.java)
                                         .putExtra(AccountLoginActivity.EXTRA_LOGIN_URL, url)
                                         .putExtra(AccountLoginActivity.EXTRA_LOGIN_STATE, state)

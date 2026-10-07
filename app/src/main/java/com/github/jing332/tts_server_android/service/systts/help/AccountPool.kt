@@ -46,6 +46,18 @@ object AccountPool {
     private const val API_DOMAIN = "copilot.tencent.com"
     private const val CLIENT_VERSION = "1.106.1"
 
+    // 登录链路头族（buddy-oauth.js fetchAuthState/loopGetToken 逐字段照抄）：
+    // X-No-Authorization 声明免登录请求；X-No-User-Id/Enterprise-Id/Department-Info
+    // 声明不带组织信息；网关认 UA 里的产品身份（10-08 补——此前裸发，真机登录轮询未过）
+    private val authStateHeaders: Map<String, String> = mapOf(
+        "X-Domain" to API_DOMAIN,
+        "X-No-Authorization" to "true",
+        "X-No-User-Id" to "true",
+        "X-No-Enterprise-Id" to "true",
+        "X-No-Department-Info" to "true",
+        "User-Agent" to "CodeBuddyIDE/$CLIENT_VERSION",
+    )
+
     private val dir: File
         get() = File(AppConst.externalFilesDir, "account_pool")
     private val stateFile: File
@@ -194,7 +206,7 @@ object AccountPool {
      * 返回 (state, authUrl, err)；authUrl==null = 失败。state 必须带到 pollToken。
      */
     fun fetchLoginUrl(): Triple<String?, String?, String> {
-        val r = httpJson("$UPSTREAM_BASE$PATH_AUTH_STATE", "POST", emptyMap(), "{}")
+        val r = httpJson("$UPSTREAM_BASE$PATH_AUTH_STATE", "POST", authStateHeaders, "{}")
         if (!r.ok) return Triple(null, null, "HTTP ${r.code}：${briefBody(r.body)}")
         return try {
             // 实测（10-07）：登录地址在 data.authUrl（不是顶层 url），轮询凭据用 data.state
@@ -218,7 +230,7 @@ object AccountPool {
         if (state.isNullOrEmpty()) return null to "无 state，无法查询登录结果"
         val r = httpJson(
             "$UPSTREAM_BASE$PATH_AUTH_TOKEN" + URLEncoder.encode(state, "UTF-8"),
-            "GET", emptyMap(), null
+            "GET", authStateHeaders, null
         )
         if (!r.ok) return null to "HTTP ${r.code}（未登录完或已过期）：${briefBody(r.body)}"
         return try {
