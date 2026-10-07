@@ -445,12 +445,13 @@ fun RoleListScreen(
                 }
             }
         }
-        // 操作提示行（两行压一行短句、去 emoji、12sp——正文口径精简）
+        // 操作提示行（两行：名字/标签各占一行，\n 硬分行——10-07 用户令；
+        // 原先压成一行在窄屏被省略号截断）
         Text(
             stringResource(R.string.role_hint_line),
             style = MaterialTheme.typography.labelSmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
-            maxLines = 1,
+            maxLines = 2,
             overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
             // 跟下方列表行左对齐——行内容左缘 = LazyColumn gutter 16 + RoleRow 行内 0 = 16dp
             // （v3 边距统一后与列表同一条线；右缘同步 16 与容器对齐）
