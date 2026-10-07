@@ -1182,11 +1182,14 @@ object KeyListFile {
             // custom 文本三源取一：本模型条目 > 同站继承源行 > 空
             val mCustom = if (m == THINKING_CUSTOM) {
                 custom.ifBlank {
-                    (paramsTable[lockKey]?.takeIf { it.first == THINKING_CUSTOM }?.second)
-                        ?: paramsTable.entries.firstOrNull {
+                    val own = paramsTable[lockKey]?.takeIf { it.first == THINKING_CUSTOM }?.second
+                    val site = own ?: paramsTable.entries
+                        .firstOrNull {
                             it.key.substringBefore("@@") == normalizeBaseUrl(openAiBaseUrl(t.baseUrl)) &&
                                 it.value.first == THINKING_CUSTOM
-                        }?.value.second.orEmpty()
+                        }
+                        ?.value?.second
+                    site.orEmpty()
                 }
             } else custom
             val (ok, off, msg) = testOnce(t, m, mCustom)
