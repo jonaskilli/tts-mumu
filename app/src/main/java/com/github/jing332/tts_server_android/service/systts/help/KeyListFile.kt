@@ -1076,7 +1076,9 @@ object KeyListFile {
         // （裸 Bearer HTTP 200 但零内容）——走 SseAggregator 流式桥聚合回非流式形状，
         // 下面的 chatReplyOk/bodyHasThinking 解析零改动
         val resp = if (AccountPool.isChatHost(t.chatUrl)) {
-            val (ok, body) = SseAggregator.chatCompletion(t.chatUrl, t.apiKey, payload)
+            // 带账号池轮换（10-08 移植插件语义）：key 命中账号池账号 → 429/401/403 自动切号；
+            // 普通密钥单发行为不变。model 参与限流过滤（账号×模型标记）
+            val (ok, body) = SseAggregator.chatCompletionWithPool(t.chatUrl, t.apiKey, payload, t.model)
             // code=-2 标记「桥内失败」避免与真实 HTTP 码混淆；body 已是「HTTP xxx：…」或聚合后 JSON
             HttpResp(ok, if (ok) 200 else -2, body)
         } else {

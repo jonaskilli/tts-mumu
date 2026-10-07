@@ -64,7 +64,6 @@ object SseAggregator {
                 val err = conn.errorStream?.bufferedReader(Charsets.UTF_8)?.use { it.readText() } ?: ""
                 return false to "HTTP $code：${err.take(180).ifEmpty { "无响应内容" }}"
             }
-
             val content = StringBuilder()
             var usageJson: String? = null
             var model = ""
@@ -110,5 +109,98 @@ object SseAggregator {
         } finally {
             conn?.disconnect()
         }
+    }
+
+    /**
+     * 带账号池轮换的对话（10-08 移植插件账号池语义，照 buddy-adapter 换号循环）：
+     *  - key 命中账号池 → 该账号首发；429/限流体=记限流标记+换下一启用账号（同模型过滤）；
+     *    401/403=现场续期一次→重试→仍失败换号；全部试完才报错。
+     *  - 11140 安全策略拦截（HTTP 403 + code 11140，账号级）：30 分钟冷却后换号。
+     *  - key 不在账号池（普通第三方密钥）→ 单发，行为与 chatCompletion 完全一致。
+     * 限流解析照插件 llm-adapter.parseRateLimitError：msg 里「将在 … 重置」取真实时刻，
+     * 解析不出兜底 1h（RATE_LIMIT_FALLBACK_MS）。
+     */
+    fun chatCompletionWithPool(
+        baseUrl: String,
+        apiKey: String,
+        bodyJson: String,
+        model: String,
+        cancelled: Cancelled = Cancelled { false },
+    ): Pair<Boolean, String> {
+        val pool = AccountPool.load()
+        val first = pool.firstOrNull { it.accessToken == apiKey }
+        if (first == null) return chatCompletion(baseUrl, apiKey, bodyJson, cancelled)
+
+        val tried = mutableSetOf<String>()
+        var current = first
+        var currentKey = apiKey
+        var sawAuthFail = false
+        var lastErr = ""
+        while (true) {
+            val (ok, body) = chatCompletion(baseUrl, currentKey, bodyJson, cancelled)
+            if (ok) return true to body
+
+            // 分类本页失败（照插件错误归类：401/403=AUTH、429/限流文案=RATE_LIMIT）
+            val m = Regex("HTTP (\\d{3})").find(body)
+            val status = m?.groupValues?.get(1)?.toIntOrNull() ?: 0
+            val isPolicyBlock = body.contains("11140") // 腾讯安全策略拦截（账号级，回 HTTP 403）
+            val rateLimited = status == 429 || body.contains("频率限制")
+                || body.contains("reset at", true) || isPolicyBlock
+            val authFailed = status == 401 || status == 403
+
+            if (rateLimited) {
+                // 限流/拦截标记（插件同款：11140 与认证处理**都走**——先记冷却再换号，
+                // 否则下轮它还是第一候选每轮重撞）。服务端给了解禁时刻用真实值，
+                // 否则兜底：11140 用 30min（BUDDY_POLICY_BLOCK_COOLDOWN_MS），其余 1h。
+                val resetAt = parseResetTime(body)
+                    ?: System.currentTimeMillis() + if (isPolicyBlock) 30 * 60_000L else 3_600_000L
+                AccountPool.markRateLimited(current.id, model, resetAt)
+            }
+            if (authFailed) {
+                sawAuthFail = true
+                // 401/403：现场续期一次再试同账号（插件：刷新→重试→换号）
+                if (current.refreshToken.isNotEmpty()) {
+                    val (ref, _) = AccountPool.refresh(current)
+                    if (ref != null) {
+                        val (ok2, body2) = chatCompletion(baseUrl, ref.accessToken, bodyJson, cancelled)
+                        if (ok2) return true to body2
+                        val status2 = Regex("HTTP (\\d{3})").find(body2)?.groupValues?.get(1)?.toIntOrNull() ?: 0
+                        lastErr = body2
+                        if (status2 != 401 && status2 != 403) {
+                            // 续期后变成别的错误（限流/参数）→ 换成续期后的凭据，回循环顶统一分类
+                            //（限流会在那里被记标记；401/403 则继续换号）
+                            tried.add(current.id) // 防死循环：ref 与原账号同 id，不排除会在 401→refresh 循环里打转
+                            current = ref; currentKey = ref.accessToken
+                            continue
+                        }
+                    }
+                }
+            }
+            tried.add(current.id)
+            lastErr = if (lastErr.isEmpty()) body else lastErr
+
+            // 换号：启用中、未试过、该模型不限流、未过期
+            val next = AccountPool.pickAccount(model, tried)
+            if (next == null) {
+                val head = if (rateLimited) "该模型所有账号均受限" else if (sawAuthFail) "所有账号均被拒绝" else "所有账号均失败"
+                return false to "$head（已试 ${tried.size} 个账号）：${lastErr.take(180)}"
+            }
+            AccountPool.logLine("对话失败（${lastErr.take(60)}），换账号「${next.nickname}」重试")
+            current = next
+            currentKey = next.accessToken
+        }
+    }
+
+    /** 从限流文案抠重置时刻（照插件 RESET_TIME_PATTERN：`将在 2026-09-11 18:08:17 UTC+8 重置`） */
+    private fun parseResetTime(body: String): Long? {
+        val m = Regex("(?:将在|reset at)\\s+([\\d-]+)\\s+([\\d:]+)\\s+(UTC[+-]\\d{1,2}(?::\\d{1,2})?)", RegexOption.IGNORE_CASE)
+            .find(body) ?: return null
+        return runCatching {
+            val zone = java.time.ZoneId.of(m.groupValues[3].replace("UTC", "GMT"))
+            val date = m.groupValues[1].split("-").map { it.toInt() }
+            val time = m.groupValues[2].split(":").map { it.toInt() }
+            java.time.LocalDateTime.of(date[0], date[1], date[2], time[0], time[1], time.getOrElse(2) { 0 })
+                .atZone(zone).toInstant().toEpochMilli()
+        }.getOrNull()
     }
 }

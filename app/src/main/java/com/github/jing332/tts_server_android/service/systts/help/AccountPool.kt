@@ -49,6 +49,9 @@ object AccountPool {
         }
     }
 
+    /** 供 SseAggregator 轮换层写日志（包内可见）：统一挂 [账号池] 前缀 */
+    internal fun logLine(msg: String) = appLog(LogLevel.INFO, msg)
+
     // 轮询「等待登录完成」去重：上游 body 不变就不重复打（2s 一次会刷屏）
     private var lastWaitBrief: String = ""
 
@@ -100,10 +103,20 @@ object AccountPool {
         val lastCheckinAt: Long = 0L,
         val enabled: Boolean = true,
         val createdAt: Long = System.currentTimeMillis(),
+        // 模型级限流标记（10-08 移植插件 modelRateLimits）：模型名 → 重置时刻 epoch ms。
+        // 对话链 429/11140 时写入；选号跳过未解禁的（同模型）；解禁后标记自然失效。
+        val modelRateLimits: Map<String, Long> = emptyMap(),
     ) {
         /** access_token 是否已过期（留 10 分钟余量；未知不算过期） */
         fun isExpired(now: Long = System.currentTimeMillis()): Boolean =
             expiresAt in 1..(now + 10 * 60_000L)
+
+        /** 该模型是否处于限流期（空模型名=未知目标，不过滤——照插件同判据） */
+        fun isRateLimitedFor(model: String, now: Long = System.currentTimeMillis()): Boolean {
+            if (model.isEmpty()) return false
+            val resetAt = modelRateLimits[model] ?: return false
+            return resetAt > 0 && now < resetAt
+        }
     }
 
     /** 签到状态（checkin-activity-status 响应） */
@@ -118,21 +131,26 @@ object AccountPool {
         if (!stateFile.exists()) emptyList()
         else {
             val arr = JSONObject(stateFile.readText()).optJSONArray("accounts") ?: return emptyList()
-            (0 until arr.length()).mapNotNull { i ->
-                val o = arr.optJSONObject(i) ?: return@mapNotNull null
-                Account(
-                    id = o.optString("id"),
-                    provider = o.optString("provider", "codebuddy"),
-                    nickname = o.optString("nickname"),
-                    accessToken = o.optString("accessToken"),
-                    refreshToken = o.optString("refreshToken"),
-                    expiresAt = o.optLong("expiresAt"),
-                    credits = o.optDouble("credits", 0.0),
-                    lastCheckinAt = o.optLong("lastCheckinAt"),
-                    enabled = o.optBoolean("enabled", true),
-                    createdAt = o.optLong("createdAt"),
-                )
-            }.filter { it.id.isNotEmpty() && it.accessToken.isNotEmpty() }
+                (0 until arr.length()).mapNotNull { i ->
+                    val o = arr.optJSONObject(i) ?: return@mapNotNull null
+                    val limits = mutableMapOf<String, Long>()
+                    o.optJSONObject("modelRateLimits")?.let { m ->
+                        for (k in m.keys()) m.optLong(k, 0L).takeIf { it > 0L }?.let { limits[k] = it }
+                    }
+                    Account(
+                        id = o.optString("id"),
+                        provider = o.optString("provider", "codebuddy"),
+                        nickname = o.optString("nickname"),
+                        accessToken = o.optString("accessToken"),
+                        refreshToken = o.optString("refreshToken"),
+                        expiresAt = o.optLong("expiresAt"),
+                        credits = o.optDouble("credits", 0.0),
+                        lastCheckinAt = o.optLong("lastCheckinAt"),
+                        enabled = o.optBoolean("enabled", true),
+                        createdAt = o.optLong("createdAt"),
+                        modelRateLimits = limits,
+                    )
+                }.filter { it.id.isNotEmpty() && it.accessToken.isNotEmpty() }
         }
     } catch (e: Exception) {
         Log.w(TAG, "load failed: ${e.message}")
@@ -155,6 +173,7 @@ object AccountPool {
                 put("lastCheckinAt", a.lastCheckinAt)
                 put("enabled", a.enabled)
                 put("createdAt", a.createdAt)
+                if (a.modelRateLimits.isNotEmpty()) put("modelRateLimits", JSONObject(a.modelRateLimits))
             })
         }
         root.put("accounts", arr)
@@ -649,5 +668,58 @@ object AccountPool {
         val credits = Math.round(total * 100.0) / 100.0
         save(load().map { if (it.id == acc.id) acc.copy(credits = credits) else it })
         return credits to ""
+    }
+
+    // ==================== 选号 / 限流标记 / 账号管理（10-08 移植插件账号池语义） ====================
+
+    /**
+     * 选号（照插件 getAvailableAccount 语义）：启用中的账号按**落盘顺序**（=列表展示序，
+     * 插件「拖拽顺序即优先级」在 app 里对应账号池列表顺序）取第一个满足：
+     * ① enabled ② 该模型不在限流期（空模型不过滤）③ 非 expired（过期的跳过——
+     * 插件里凭据过期由续期调度兜着，选号侧不选它；app 侧请求链的 401 会现场续期一次）。
+     * excludeIds：换号循环排除已试过的。无候选返回 null。
+     */
+    fun pickAccount(model: String, excludeIds: Set<String> = emptySet()): Account? {
+        val now = System.currentTimeMillis()
+        return load().filter { it.enabled && it.id !in excludeIds }
+            .filter { !it.isExpired(now) && !it.isRateLimitedFor(model, now) }
+            .firstOrNull()
+    }
+
+    /**
+     * 记限流标记（照插件 updateModelRateLimit）：账号×模型 → 重置时刻。429 与 11140 安全
+     * 拦截共用本标记（插件同款复用；11140 无时间字段，用 30 分钟冷却）。
+     * 解析出服务端重置时刻用真实值；解析不出用兜底（插件 RATE_LIMIT_FALLBACK_MS=1h）。
+     */
+    fun markRateLimited(accountId: String, model: String, resetAtMs: Long): Boolean {
+        val acc = load().firstOrNull { it.id == accountId } ?: return false
+        val limits = acc.modelRateLimits + (model to resetAtMs)
+        save(load().map { if (it.id == accountId) acc.copy(modelRateLimits = limits) else it })
+        appLog(LogLevel.INFO, "账号「${acc.nickname}」模型 $model 限流，${java.text.SimpleDateFormat("HH:mm", java.util.Locale.getDefault()).format(java.util.Date(resetAtMs))} 解禁")
+        return true
+    }
+
+    /** 清某账号的全部限流标记（插件「重测/重置」的人工解禁路径） */
+    fun clearRateLimits(accountId: String): Boolean {
+        val acc = load().firstOrNull { it.id == accountId } ?: return false
+        if (acc.modelRateLimits.isEmpty()) return false
+        save(load().map { if (it.id == accountId) acc.copy(modelRateLimits = emptyMap()) else it })
+        return true
+    }
+
+    /** 删除账号（连带无其它账号引用的「账号池」密钥不动——密钥归 KeyListFile 管，用户手动删） */
+    fun remove(accountId: String): Boolean {
+        val list = load()
+        val next = list.filterNot { it.id == accountId }
+        if (next.size == list.size) return false
+        save(next)
+        return true
+    }
+
+    /** 停用/启用（停用只影响自动选号，续期/签到照跑——照插件同语义） */
+    fun setEnabled(accountId: String, value: Boolean): Boolean {
+        val acc = load().firstOrNull { it.id == accountId } ?: return false
+        save(load().map { if (it.id == accountId) acc.copy(enabled = value) else it })
+        return true
     }
 }

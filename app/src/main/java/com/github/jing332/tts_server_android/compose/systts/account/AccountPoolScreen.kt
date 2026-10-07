@@ -4,6 +4,8 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -26,7 +28,10 @@ import androidx.compose.material.icons.filled.EventAvailable
 import androidx.compose.material.icons.filled.LibraryAdd
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Savings
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -76,6 +81,8 @@ fun AccountPoolScreen(onBack: () -> Unit) {
     var version by remember { mutableIntStateOf(0) }
     // 操作中账号（转圈定位到行）
     var busyId by remember { mutableStateOf<String?>(null) }
+    // 待确认删除的账号（10-08 移植插件「删除」动作；删除不可逆，弹窗确认）
+    var confirmDelete by remember { mutableStateOf<AccountPool.Account?>(null) }
     val timeFmt = remember { SimpleDateFormat("MM-dd HH:mm", Locale.getDefault()) }
 
     LaunchedEffect(version) {
@@ -209,6 +216,22 @@ fun AccountPoolScreen(onBack: () -> Unit) {
                             context.toast(msg)
                         }
                     },
+                    onToggleEnabled = {
+                        // 停用/启用（10-08 移植）：停用只退出自动选号，签到/续期照跑（插件同语义）
+                        scope.launch {
+                            withContext(Dispatchers.IO) { AccountPool.setEnabled(acc.id, !acc.enabled) }
+                            context.toast(if (acc.enabled) "已停用「${acc.nickname}」" else "已启用「${acc.nickname}」")
+                            reload()
+                        }
+                    },
+                    onClearLimits = {
+                        scope.launch {
+                            val n = withContext(Dispatchers.IO) { AccountPool.clearRateLimits(acc.id) }
+                            context.toast(if (n) "已清除限流标记" else "无限流标记")
+                            if (n) reload()
+                        }
+                    },
+                    onDelete = { confirmDelete = acc },
                 )
                 // 行间分隔线（同启用池 0.6dp 半透明；末行不画）
                 if (idx < accounts.lastIndex) {
@@ -220,8 +243,31 @@ fun AccountPoolScreen(onBack: () -> Unit) {
             }
         }
     }
+
+    // 删除确认弹窗（删除不可逆；连带说明：密钥条目不随删，由用户在密钥页自行管理）
+    confirmDelete?.let { victim ->
+        androidx.compose.material3.AlertDialog(
+            onDismissRequest = { confirmDelete = null },
+            title = { Text("删除账号") },
+            text = { Text("确定删除「${victim.nickname}」？删除后自动选号不再使用该账号；已添加的密钥条目不受影响。") },
+            confirmButton = {
+                androidx.compose.material3.TextButton(onClick = {
+                    scope.launch {
+                        withContext(Dispatchers.IO) { AccountPool.remove(victim.id) }
+                        confirmDelete = null
+                        context.toast("已删除「${victim.nickname}」")
+                        reload()
+                    }
+                }) { Text("删除", color = MaterialTheme.colorScheme.error) }
+            },
+            dismissButton = {
+                androidx.compose.material3.TextButton(onClick = { confirmDelete = null }) { Text("取消") }
+            }
+        )
+    }
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun AccountRow(
     acc: AccountPool.Account,
@@ -233,13 +279,37 @@ private fun AccountRow(
     onQueryCredits: () -> Unit,
     onCopyToken: () -> Unit,
     onAddAsKey: () -> Unit,
+    onToggleEnabled: () -> Unit,
+    onDelete: () -> Unit,
+    onClearLimits: () -> Unit,
 ) {
+    // 长按菜单（10-08 移植插件账号卡片能力）：停用/启用、清限流（有标记才显示）、删除
+    var menuOpen by remember { mutableStateOf(false) }
     Column(
         // 10-07 装机反馈：照启用池 PoolRow 同款两行式——第一行 序号徽章+昵称+状态+图标动作区，
         // 第二行 信息副行；整行不再可点（原「点行=查积分」易误触，动作全走图标键）。
-        // 行间分隔线由列表层画（同启用池 0.6dp 半透明）
-        Modifier.fillMaxWidth().padding(vertical = 10.dp)
+        // 行间分隔线由列表层画（同启用池 0.6dp 半透明）。
+        // 长按 = 管理菜单（删除/停用/清限流）：低频危险动作不占图标位
+        Modifier
+            .fillMaxWidth()
+            .padding(vertical = 10.dp)
+            .combinedClickable(onClick = {}, onLongClick = { menuOpen = true })
     ) {
+        DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
+            DropdownMenuItem(
+                text = { Text(if (acc.enabled) "停用（不参与自动选号）" else "启用") },
+                onClick = { menuOpen = false; onToggleEnabled() }
+            )
+            if (acc.modelRateLimits.isNotEmpty())
+                DropdownMenuItem(
+                    text = { Text("清除限流标记（${acc.modelRateLimits.size} 项）") },
+                    onClick = { menuOpen = false; onClearLimits() }
+                )
+            DropdownMenuItem(
+                text = { Text("删除账号", color = MaterialTheme.colorScheme.error) },
+                onClick = { menuOpen = false; onDelete() }
+            )
+        }
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
             // 序号徽章：与启用池同一个 OrderBadge（10-05 形「丙」胶囊；本页浅绿配色随全局）
             OrderBadge(number = index + 1)
@@ -251,11 +321,12 @@ private fun AccountRow(
                 overflow = TextOverflow.Ellipsis,
                 modifier = Modifier.weight(1f)
             )
-            // 状态胶囊（有效/已过期）：沿用原两色语义
-            if (acc.isExpired())
-                StatusChip("已过期", MaterialTheme.colorScheme.errorContainer)
-            else
-                StatusChip("有效", MaterialTheme.colorScheme.primaryContainer)
+            // 状态胶囊（有效/已过期/已停用）：停用优先显示（停用号不参与自动选号）
+            when {
+                !acc.enabled -> StatusChip("已停用", MaterialTheme.colorScheme.surfaceVariant)
+                acc.isExpired() -> StatusChip("已过期", MaterialTheme.colorScheme.errorContainer)
+                else -> StatusChip("有效", MaterialTheme.colorScheme.primaryContainer)
+            }
             Spacer(Modifier.width(4.dp))
             // 图标动作区（36dp 热区 + 18dp 图标，与启用池 FlatIconAction 同规格）：
             // 签到（绿，主操作）/ 续期 / 查积分；操作中该键原位转小圈
@@ -284,7 +355,7 @@ private fun AccountRow(
                 ) { onAddAsKey() }
             }
         }
-        // 副行：过期/积分/签到时间（缩进对齐名字列 = 徽章 20 + 间距 10 = 30dp，同启用池）
+        // 副行：过期/积分/签到时间/限流（缩进对齐名字列 = 徽章 20 + 间距 10 = 30dp，同启用池）
         Spacer(Modifier.height(2.dp))
         Text(
             buildString {
@@ -296,6 +367,13 @@ private fun AccountRow(
                     append(if (acc.credits % 1.0 == 0.0) acc.credits.toLong().toString() else acc.credits.toString())
                 }
                 if (acc.lastCheckinAt > 0) append(" · 签到 ${timeFmt.format(Date(acc.lastCheckinAt))}")
+                // 限流中（10-08 移植）：模型名+解禁时刻；已解禁的不显示（标记自然失效）
+                val now = System.currentTimeMillis()
+                val active = acc.modelRateLimits.filterValues { it > now }
+                if (active.isNotEmpty()) {
+                    val fmt = java.text.SimpleDateFormat("HH:mm", java.util.Locale.getDefault())
+                    append(" · 限流 " + active.entries.joinToString("、") { (m, t) -> "$m→${fmt.format(Date(t))}" })
+                }
             },
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
