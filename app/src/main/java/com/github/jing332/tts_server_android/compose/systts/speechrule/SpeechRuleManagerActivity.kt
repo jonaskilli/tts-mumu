@@ -76,12 +76,13 @@ class SpeechRuleManagerActivity : ComposeActivity() {
                             SpeechRuleEditScreen(rule, autoDebug = autoDebug, onSave = {
                                 scope.launch {
                                     withIO {
-                                        // ruleId 相同视为同一条规则：保存时若已有同 ruleId 且主键不同的条目，
-                                        // 借旧主键 REPLACE 覆盖——防 js 直导/手动新建（默认 id=时间戳非 0）插出
-                                        // 同 ruleId 双条目（角色页/密钥页按 ruleId 取启用项，双条目会取到旧规则）。
-                                        // 编辑本体（主键相同）与全新 ruleId 照旧直插。
+                                        // ruleId+name 全同视为同一条规则（10-10 用户令改双条件）：
+                                        // 保存时若已有同 ruleId 同 name 且主键不同的条目，借旧主键
+                                        // REPLACE 覆盖；仅 id 同名字不同（如 M 直连与 1008 主线共用
+                                        // mingwuyan）= 不同规则，并存不再静默顶掉。与导入面
+                                        // saveJsDirect 同口径。编辑本体（主键相同）与全新 ruleId 照旧直插。
                                         val entity = if (it.ruleId.isNotBlank()) {
-                                            dbm.speechRuleDao.getByRuleIdAll(it.ruleId)
+                                            dbm.speechRuleDao.getByRuleIdAndName(it.ruleId, it.name)
                                                 ?.takeIf { twin -> twin.id != it.id }
                                                 ?.let { twin -> it.copy(id = twin.id) } ?: it
                                         } else it

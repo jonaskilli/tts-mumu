@@ -183,6 +183,9 @@ internal sealed class AutoImportResult {
     // ruleId/pluginId 借旧主键 REPLACE 覆盖（与两个 ManagerActivity 的 onSave 同款，
     // 防同 id 双条目）。返回 (类型, 结果文案)——类型供外部「打开方式」导入后跳对应
     // 管理页用（10-07）；解析/执行失败抛异常，由调用方转错误提示。
+    // ⚠️ 10-10 用户令改双条件：id+name 全同才覆盖——朗读规则一族共用 id「mingwuyan」
+    // （起源+分支全同），旧逻辑只看 id 会把 M 直连等不同名分支静默顶掉；现同名同 id
+    // 才 REPLACE，任一不同即作新条目并存。
     internal fun saveJsDirect(js: String, context: Context): Pair<ImportType, String> {
         val trimmed = js.trim()
         val app = context.applicationContext as Application
@@ -190,7 +193,7 @@ internal sealed class AutoImportResult {
             val rule = SpeechRule(code = trimmed)
             SpeechRuleEngine(app, rule).evalInfo()
             val entity = if (rule.ruleId.isNotBlank()) {
-                dbm.speechRuleDao.getByRuleIdAll(rule.ruleId)
+                dbm.speechRuleDao.getByRuleIdAndName(rule.ruleId, rule.name)
                     ?.takeIf { twin -> twin.id != rule.id }
                     ?.let { twin -> rule.copy(id = twin.id) } ?: rule
             } else rule
@@ -200,7 +203,7 @@ internal sealed class AutoImportResult {
             val plugin = Plugin(code = trimmed)
             val meta = TtsPluginUiEngineV2(app, plugin).also { it.eval() }.plugin
             val entity = if (meta.pluginId.isNotBlank()) {
-                dbm.pluginDao.getMetaByPluginId(meta.pluginId)
+                dbm.pluginDao.getByPluginIdAndName(meta.pluginId, meta.name)
                     ?.takeIf { twin -> twin.id != meta.id }
                     ?.let { twin -> meta.copy(id = twin.id) } ?: meta
             } else meta

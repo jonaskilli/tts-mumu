@@ -48,6 +48,10 @@ interface PluginDao {
     @Query("SELECT id, isEnabled, version, name, pluginId, author, iconUrl, '' AS code, defVars, userVars, `order`, audioParams, pluginHandlesSpeed, pluginHandlesVolume, pluginHandlesPitch FROM plugin WHERE pluginId = :pluginId LIMIT 1")
     fun getMetaByPluginId(pluginId: String): Plugin?
 
+    /** 双条件孪生查询（10-10 用户令：导入覆盖须 pluginId+name 全同才 REPLACE，防止同 id 不同名插件被静默顶掉） */
+    @Query("SELECT * FROM plugin WHERE pluginId = :pluginId AND name = :name LIMIT 1")
+    fun getByPluginIdAndName(pluginId: String, name: String): Plugin?
+
     /**
      * 轻量全表：全部插件元数据（code 为空串）。
      * getAllTts 批量解析时一次查完建缓存，消灭逐条配置全量查插件的 N+1。

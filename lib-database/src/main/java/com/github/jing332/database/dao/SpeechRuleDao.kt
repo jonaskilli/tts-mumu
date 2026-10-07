@@ -53,6 +53,10 @@ interface SpeechRuleDao {
     @Query("SELECT * FROM speech_rules WHERE ruleId = :ruleId LIMIT 1")
     fun getByRuleIdAll(ruleId: String): SpeechRule?
 
+    /** 双条件孪生查询（10-10 用户令：导入覆盖须 id+name 全同才 REPLACE，防止同 id 不同名规则被静默顶掉） */
+    @Query("SELECT * FROM speech_rules WHERE ruleId = :ruleId AND name = :name LIMIT 1")
+    fun getByRuleIdAndName(ruleId: String, name: String): SpeechRule?
+
     @Query("DELETE FROM speech_rules")
     fun deleteAll()
 
