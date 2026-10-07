@@ -37,6 +37,7 @@ import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.SmallFloatingActionButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -63,7 +64,9 @@ import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -83,6 +86,11 @@ import kotlin.math.abs
 // SystemTtsService 拼接次级信息所用哨兵色，此处按主题重映射
 private val MetaColorSentinel = Color(0xFFFF00FF)       // 获取成功前缀 → 石板灰
 private val VoiceMetaSentinel = Color(0xFF00FFFF)       // 发音人信息 → 雾紫
+
+// 排版实验 1008（用户拍板 A/C/D/E，回退基线 7f0d647）：请求行"请求音频："前缀专用色
+// （深绿），正文不再跟级别色——纯绿满屏太抢，只染前缀、书名/正文回默认色
+private val RequestPrefixColorLight = Color(0xFF2E7D32)
+private val RequestPrefixColorDark = Color(0xFF81C784)
 
 // 把命中哨兵色的段落整体换成目标色，让"请求音频"正文(纯绿)与
 // 获取成功前缀(石板灰)/发音人信息(雾紫)层次分明但不抢眼
@@ -550,7 +558,8 @@ internal fun LogScreen(
                             val cardBg = if (item.isError) cardBgErr else cardBgOk
                             Column(
                                 modifier = Modifier
-                                    .padding(horizontal = 6.dp, vertical = 3.dp)
+                                    // 排版实验 1008（D）：卡外距 6→10dp，两侧留白与密钥页口径靠拢
+                                    .padding(horizontal = 10.dp, vertical = 3.dp)
                                     .clip(RoundedCornerShape(12.dp))
                                     .background(cardBg)
                                     .then(
@@ -575,8 +584,9 @@ internal fun LogScreen(
                                             darkTheme = darkTheme,
                                             metaColor = metaColor,
                                             voiceColor = voiceColor,
-                                            fontSize = 13.sp,
-                                            lineHeight = 17.sp,
+                                            // 排版实验 1008（A）：前置分析行 13→12sp（第三档）
+                                            fontSize = 12.sp,
+                                            lineHeight = 16.sp,
                                             isMatch = isMatchEntry(p, searchQuery),
                                         )
                                     }
@@ -608,9 +618,12 @@ internal fun LogScreen(
                                     darkTheme = darkTheme,
                                     metaColor = metaColor,
                                     voiceColor = voiceColor,
+                                    // 排版实验 1008（A）：主行 16sp 半粗，与成员行 13sp 拉开层级
                                     fontSize = 16.sp,
                                     lineHeight = MaterialTheme.typography.bodyMedium.lineHeight * 0.9f,
                                     isMatch = isMatchEntry(head, searchQuery),
+                                    // 排版实验 1008（C）：只染"请求音频："前缀，正文回默认色
+                                    isRequestHead = true,
                                 )
                                 // 成员行：结果子行/插件过程行，缩进+小一档+卡内次级色
                                 item.members.forEach { mIdx ->
@@ -633,10 +646,13 @@ internal fun LogScreen(
                                             darkTheme = darkTheme,
                                             metaColor = metaColor,
                                             voiceColor = voiceColor,
-                                            fontSize = 14.sp,
-                                            lineHeight = 20.sp,
+                                            // 排版实验 1008（A）：成员行 14→13sp，与主行 16sp 拉开
+                                            fontSize = 13.sp,
+                                            lineHeight = 18.sp,
                                             isMatch = isMatchEntry(m, searchQuery),
                                             forceColor = if (item.isError) kidBodyErrColor else kidBodyColor,
+                                            // 排版实验 1008（E）：卡内错误行加粗+⚠，突出于成功行
+                                            emphasizeError = true,
                                         )
                                     }
                                 }
@@ -650,6 +666,7 @@ internal fun LogScreen(
             }
 
         // 侧边浮动键（用户 1002）：右下浮动 ↓=回底部；回顶部走双击标题栏空白区
+        // 排版实验 1008（①已拍板）：56dp 标准键 → 40dp 小键，原地缩小少盖正文
         AnimatedVisibility(
             modifier = Modifier
                 .align(Alignment.BottomCenter)
@@ -658,7 +675,7 @@ internal fun LogScreen(
             enter = fadeIn() + expandIn(expandFrom = Alignment.BottomCenter),
             exit = shrinkOut(shrinkTowards = Alignment.BottomCenter) + fadeOut(),
         ) {
-            FloatingActionButton(
+            SmallFloatingActionButton(
                 modifier = Modifier.padding(8.dp),
                 shape = CircleShape,
                 onClick = {
@@ -670,7 +687,8 @@ internal fun LogScreen(
                 }) {
                 Icon(
                     Icons.Default.KeyboardDoubleArrowDown,
-                    stringResource(id = R.string.move_to_bottom)
+                    stringResource(id = R.string.move_to_bottom),
+                    modifier = Modifier.size(20.dp),
                 )
             }
         }
@@ -693,20 +711,65 @@ private fun LogEntryBody(
     isMatch: Boolean,
     // 非空=成员行统一用卡内次级色（石板灰/粉卡暗红），级别色让位
     forceColor: Color? = null,
+    // 排版实验 1008（C）：请求主行——"请求音频："前缀染深绿、其余回默认色。
+    // 请求行 HTML 结构固定：`请求音频：` + <b>正文</b>（+ 哨兵色次级段），
+    // 据此把首段（正文之前的裸文本）与前缀分开着色
+    isRequestHead: Boolean = false,
+    // 排版实验 1008（E）：卡内错误行加粗 + ⚠ 行首标，让错误在粉卡里突出于成功行
+    emphasizeError: Boolean = false,
 ) {
-    val spanned = remember(entry.message, darkTheme, metaColor, voiceColor) {
-        HtmlCompat.fromHtml(entry.message, HtmlCompat.FROM_HTML_MODE_COMPACT)
+    val spanned = remember(entry.message, darkTheme, metaColor, voiceColor, isRequestHead, emphasizeError) {
+        val base = HtmlCompat.fromHtml(entry.message, HtmlCompat.FROM_HTML_MODE_COMPACT)
             .toAnnotatedString()
             .remapMetaColor(metaColor, voiceColor)
+        var s = base
+        if (isRequestHead) {
+            // 前缀 = 首个"："及之前的段（"请求音频："）；前缀 span 染深绿盖过级别色，
+            // 正文色不在此处理——由外层 Text 的统一 color（onSurface）兜
+            val prefixEnd = base.text.indexOf("：").let { if (it >= 0) it + 1 else 0 }
+            if (prefixEnd > 0) {
+                s = buildAnnotatedString {
+                    append(base.text)
+                    base.spanStyles.forEach { r ->
+                        // 与前缀区间重叠的 span（级别色绿）改染前缀色；
+                        // 不重叠的 span（正文 <b>、哨兵色次级段）原样保留
+                        val overlapsPrefix = r.start < prefixEnd
+                        addStyle(
+                            if (overlapsPrefix) r.item.copy(
+                                color = if (darkTheme) RequestPrefixColorDark else RequestPrefixColorLight
+                            ) else r.item,
+                            r.start,
+                            r.end
+                        )
+                    }
+                }
+            }
+        }
+        if (emphasizeError && entry.level == LogLevel.ERROR) {
+            s = buildAnnotatedString {
+                append("⚠ ")
+                append(s.text)
+                s.spanStyles.forEach { addStyle(it.item, it.start + 2, it.end + 2) }
+                addStyle(SpanStyle(fontWeight = FontWeight.Bold), 0, s.text.length + 2)
+            }
+        }
+        s
     }
     val bodyColor = forceColor ?: when {
         entry.level == LogLevel.SUCCESS -> metaColor
+        // 排版实验 1008（C）：请求主行正文回默认色（前缀已单独染色），其余行照旧级别色
+        isRequestHead -> MaterialTheme.colorScheme.onSurface
         else -> Color(entry.level.toArgb(isDarkTheme = darkTheme))
     }
     Text(
         text = spanned,
         color = bodyColor,
-        style = MaterialTheme.typography.bodyMedium.copy(fontSize = fontSize, lineHeight = lineHeight),
+        style = MaterialTheme.typography.bodyMedium.copy(
+            fontSize = fontSize,
+            lineHeight = lineHeight,
+            // 排版实验 1008（A）：请求主行半粗，与结果行拉开字重
+            fontWeight = if (isRequestHead) FontWeight.SemiBold else null,
+        ),
         modifier = if (isMatch) Modifier
             .clip(RoundedCornerShape(4.dp))
             .background(MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.5f))

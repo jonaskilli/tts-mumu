@@ -27,7 +27,9 @@ fun Int.toArgb(isDarkTheme: Boolean = false): Long =
     when (this) {
         LogLevel.TRACE -> if (isDarkTheme) 0xFFB0BEC5 else 0xFF9E9E9E
         LogLevel.DEBUG -> if (isDarkTheme) 0xFF64B5F6 else 0xFF2196F3
-        LogLevel.INFO -> if (isDarkTheme) 0xFF81C784 else 0xFF4CAF50
+        // INFO：10-08 排版实验（用户拍板 A/C/D/E）由 #4CAF50 降为 #2E7D32——纯绿满屏太抢；
+        // 不满意回退此行即可（其余实验改动在 LogScreen.kt，搜「排版实验 1008」）
+        LogLevel.INFO -> if (isDarkTheme) 0xFF81C784 else 0xFF2E7D32
         LogLevel.WARN -> if (isDarkTheme) 0xFFFFD54F else 0xFFFFC107
         LogLevel.ERROR -> if (isDarkTheme) 0xFFE57373 else 0xFFF44336
         // SUCCESS 跟随主题：深色用白、浅色用黑
