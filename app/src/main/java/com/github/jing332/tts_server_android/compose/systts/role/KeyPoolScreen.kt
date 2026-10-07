@@ -3,6 +3,7 @@ package com.github.jing332.tts_server_android.compose.systts.role
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -28,10 +29,11 @@ import androidx.compose.material.icons.filled.Checklist
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.RemoveCircleOutline
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.ElevatedCard
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -40,14 +42,23 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import com.github.jing332.compose.widgets.ShadowedDraggableItem
+import androidx.compose.ui.unit.sp
 import com.github.jing332.tts_server_android.R
 import com.github.jing332.tts_server_android.compose.nav.NavTopAppBar
 import com.github.jing332.tts_server_android.compose.systts.OrderBadge
@@ -109,7 +120,8 @@ internal fun KeyPoolScreen(
     pool: List<String>,
     keys: List<KeyListFile.KeyEntry>,
     ifaces: List<KeyListFile.ApiInterface>,
-    testByValue: Map<String, KeyListFile.TestVerdict>,
+    // 10-08 卡片化：完整 TestOutcome（含用时/结论/锁定）——池卡渲染与主页同构的结果条
+    testByValue: Map<String, KeyListFile.TestOutcome>,
     testingValue: String?,
     batchTesting: Boolean,
     selectionMode: Boolean,
@@ -262,11 +274,20 @@ internal fun KeyPoolScreen(
                     // 长按拖动排序（放手落位、序号自动重排）；多选/整批测试中禁拖
                     val dragModifier = if (selectionMode || batchTesting) Modifier
                     else Modifier.detectReorderAfterLongPress(reorderState)
-                    ShadowedDraggableItem(reorderState, "p:" + norm) { _ ->
+                    // 10-08 卡片化：条目各自成 ElevatedCard（与主页组卡同容器/边距/白底），
+                    // 行间分割线撤（卡自然分隔）；卡间距 8dp
+                    ElevatedCard(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(start = 4.dp, end = 0.dp, top = 4.dp, bottom = 4.dp),
+                        colors = CardDefaults.elevatedCardColors(
+                            containerColor = MaterialTheme.colorScheme.surface
+                        )
+                    ) {
                         PoolRow(
                             orderNum = idx + 1,
                             info = row,
-                            testOk = testByValue[norm],
+                            testOutcome = testByValue[norm],
                             testing = testing,
                             selectionMode = selectionMode,
                             checked = norm in checked,
@@ -279,12 +300,6 @@ internal fun KeyPoolScreen(
                             onRemove = { onRemove(idx) },
                         )
                     }
-                    if (idx < pool.lastIndex) {
-                        HorizontalDivider(
-                            thickness = 0.6.dp,
-                            color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f)
-                        )
-                    }
                 }
             }
         }
@@ -292,17 +307,20 @@ internal fun KeyPoolScreen(
 }
 
 /**
- * 启用池一行 = 两行式（用户 0919：副标题独占第二行、整行宽，不再被图标挤到截断）：
- * 第一行 = 序号徽章（中性灰 OrderBadge，10-07 配色口径）+ 模型名 + 动作区；
- * 第二行 = 分组名 · *尾号（异组同名模型靠它分辨；残留值此行说明来源）。
- * 动作区 = 闪电（颜色=测试结果，兼单测动作）+ ⊖ 圆圈减号（移出启用池，可逆）。
+ * 启用池卡内容 = 两行式（用户 0919：副标题独占第二行、整行宽，不再被图标挤到截断）：
+ * 第一行 = 序号徽章（进 32×36 盒=主页对勾盒规格，10-08 卡片化）+ 模型名 + 动作区；
+ * 第二行 = 分组名 · *尾号（异组同名模型靠它分辨；残留值此行说明来源）；
+ * 第三段 = 测试结果条（10-08 卡片化补：与主页同构单行——用时前置+结论+已锁定，
+ * 黄/红尾挂「详情」可展开全文；此前只有一颗圆点，结论文字无处看）。
+ * 动作区 = ⚡单测 + ⧉复制 ✏编辑 ⊖移出（与主页条目一致；移出可逆，真删除在主页）。
  * 多选模式：复选框顶替序号徽章，动作区隐藏。
+ * 长按拖动排序挂整行内容（dragModifier），卡容器不参与拖拽手势。
  */
 @Composable
 private fun PoolRow(
     orderNum: Int,
     info: PoolRowInfo,
-    testOk: KeyListFile.TestVerdict?,
+    testOutcome: KeyListFile.TestOutcome?,
     testing: Boolean,
     selectionMode: Boolean,
     checked: Boolean,
@@ -317,7 +335,7 @@ private fun PoolRow(
     Column(
         // 长按拖动排序挂整行（用户 0920 反馈拖动失效：dragModifier 传进来后没挂载，
         // 0920 排版改动时弄丢的回归）。多选/整批测试时 dragModifier 是空 Modifier，自然禁拖
-        Modifier.fillMaxWidth().padding(vertical = 10.dp).then(dragModifier)
+        Modifier.fillMaxWidth().padding(vertical = 8.dp).then(dragModifier)
     ) {
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
             if (selectionMode) {
@@ -325,14 +343,16 @@ private fun PoolRow(
                 Spacer(Modifier.width(10.dp))
             } else {
                 // 序号徽章：统一走 OrderBadge（10-05 用户拍板形状「丙」胶囊）。
-                // 原先这里是「Box(20dp) + CircleShape + 实心 primary + onPrimary 白字」，
-                // 与主界面分组的「圆角方 + primaryContainer@50% + 深字」两套不一致，故收敛。
-                // 形制变化：1 位数为 20dp 正圆（观感与原先一致）；两位数起自动加宽——
-                // 原先宽度写死 20dp，两位数只剩 ~3dp/侧、三位数直接溢出圆外。
+                // 10-08 卡片化：徽章包进 32×36 盒（=主页对勾盒规格）——盒右缘=文字总线 32，
+                // 模型名/副标题/结果条三条线与主页同值；徽章本体形制不变（胶囊，宽度随内容）。
                 // 历史注：0919 那条「14% 透明底不显眼」的教训针对的是 **14% 的 primary**；
                 // 现用的是 primaryContainer@50%（色阶本身更实），不属该回退范围。
-                OrderBadge(number = orderNum)
-                Spacer(Modifier.width(10.dp))
+                Box(
+                    Modifier.size(width = 32.dp, height = 36.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    OrderBadge(number = orderNum)
+                }
             }
             // 名字区 weight(1f)：独占剩余宽度（0920 教训——名字格与弹性空格不许双 weight，
             // 各抢一半会把名字挤成半宽提前换行）
@@ -354,7 +374,7 @@ private fun PoolRow(
                     Modifier.width(36.dp).height(24.dp),
                     contentAlignment = Alignment.Center
                 ) {
-                    testDotColor(testOk, MaterialTheme.colorScheme.error)?.let {
+                    testDotColor(testOutcome?.verdict, MaterialTheme.colorScheme.error)?.let {
                         Box(Modifier.size(8.dp).background(it, CircleShape))
                     }
                 }
@@ -407,9 +427,140 @@ private fun PoolRow(
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
-                    // 副标题与第一行名字同列：徽章 20dp + 间距 10dp = 30dp（0920 对齐反馈）
-                    modifier = Modifier.padding(start = 30.dp, top = 2.dp)
+                    // 副标题与第一行名字同列：序号盒 32×36（=主页对勾盒规格，10-08 卡片化）
+                    // 盒右缘即文字总线 32（原徽章 20+间距 10=30 与主页差 2，随之校齐）
+                    modifier = Modifier.padding(start = 32.dp, top = 2.dp)
                 )
+            }
+        }
+        // 测试结果条（10-08 卡片化补：与主页同构单行口径——用时前置+结论+已锁定，
+        // 黄/红尾挂「详情」展开全文；三色文字即状态色、无圆点，左缘同文字线 32）
+        if (!selectionMode && testOutcome != null) {
+            PoolTestResultBar(testOutcome, onEditThinking = onEdit)
+        }
+    }
+}
+
+/**
+ * 池卡测试结果条（10-08）：照主页 KeyEntryRow 收起行单行口径精简——
+ * 用时前置（独立 Text，maxLines 截断吃不到它）+ 结论一行 + 黄/红「详情」展开全文。
+ * 展开态 = 用时+全文同 Row（折行从用时右缘起，主页 10-08 三令同构）+ 底部「复制结果｜收起」。
+ * 池页没有思考设置入口（编辑弹窗在主页），不挂「自定义思考 ›」。
+ */
+@Composable
+private fun PoolTestResultBar(
+    testOutcome: KeyListFile.TestOutcome,
+    onEditThinking: () -> Unit,
+) {
+    val isWarn = testOutcome.verdict == KeyListFile.TestVerdict.PASS_THINKING
+    val isPass = testOutcome.verdict == KeyListFile.TestVerdict.PASS
+    val barColor = when {
+        isPass -> TEST_PASS_COLOR
+        isWarn -> TEST_WARN_COLOR
+        else -> MaterialTheme.colorScheme.error
+    }
+    val passTiming = timingOf(testOutcome.message)
+    val timingPrefix = if (passTiming.isEmpty()) "" else "$passTiming · "
+    val lockedSuffix = testOutcome.locked?.takeIf { it.isNotEmpty() }
+        ?.let { " · 已锁定 ${it}" } ?: ""
+    val collapsedText = when {
+        isPass -> stringResource(R.string.role_key_test_pass_only) + lockedSuffix
+        isWarn -> stringResource(R.string.role_key_test_warn_short) + lockedSuffix
+        else -> testOutcome.reason.ifEmpty { testOutcome.message }
+    }
+    val hasExpandable = !isPass
+    var expanded by rememberSaveable(testOutcome.message) { mutableStateOf(false) }
+    val clipboard = LocalClipboardManager.current
+    val context = LocalContext.current
+    Column(
+        Modifier.fillMaxWidth()
+            // 左缘=文字总线 32（序号盒右缘）；右缘 0 与图标盒同线（主页同口径）
+            .padding(start = 32.dp, end = 0.dp, top = 2.dp, bottom = 2.dp)
+    ) {
+        if (expanded && hasExpandable) {
+            Row(Modifier.fillMaxWidth()) {
+                if (timingPrefix.isNotEmpty()) {
+                    Text(
+                        timingPrefix,
+                        style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.sp),
+                        color = barColor,
+                        maxLines = 1
+                    )
+                }
+                Text(
+                    testOutcome.message,
+                    style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.sp),
+                    color = barColor,
+                    modifier = Modifier.weight(1f)
+                )
+            }
+            Row(
+                Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.End,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    stringResource(R.string.role_key_test_result_copy),
+                    style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.sp),
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    fontWeight = FontWeight.SemiBold,
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(6.dp))
+                        .clickable {
+                            clipboard.setText(AnnotatedString(testOutcome.message))
+                            android.widget.Toast.makeText(
+                                context, context.getString(R.string.copied),
+                                android.widget.Toast.LENGTH_SHORT
+                            ).show()
+                        }
+                        .padding(horizontal = 8.dp, vertical = 6.dp)
+                )
+                Spacer(Modifier.width(24.dp))
+                Text(
+                    stringResource(R.string.role_key_pool_collapse),
+                    style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.sp),
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    fontWeight = FontWeight.SemiBold,
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(6.dp))
+                        .clickable { expanded = false }
+                        .padding(horizontal = 8.dp, vertical = 6.dp)
+                )
+            }
+        } else {
+            Row(
+                Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                if (timingPrefix.isNotEmpty()) {
+                    Text(
+                        timingPrefix,
+                        style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.sp),
+                        color = barColor,
+                        maxLines = 1
+                    )
+                }
+                Text(
+                    collapsedText,
+                    style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.sp),
+                    color = barColor,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f)
+                )
+                if (hasExpandable) {
+                    // 黄/红收起尾挂「详情」（与主页同位同词）
+                    Text(
+                        stringResource(R.string.role_key_pool_detail),
+                        style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.sp),
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        fontWeight = FontWeight.SemiBold,
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(4.dp))
+                            .clickable { expanded = true }
+                            .padding(start = 6.dp, end = 2.dp)
+                    )
+                }
             }
         }
     }
