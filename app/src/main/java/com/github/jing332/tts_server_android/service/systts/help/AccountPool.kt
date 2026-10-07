@@ -52,6 +52,66 @@ object AccountPool {
     /** 供 SseAggregator 轮换层写日志（包内可见）：统一挂 [账号池] 前缀 */
     internal fun logLine(msg: String) = appLog(LogLevel.INFO, msg)
 
+    /**
+     * 渠道层续期成功后的落盘（10-09 全渠道批）：更新 token 三元组，保留其余字段。
+     * codebuddy 的续期在 refresh() 内部落盘不走这里；其它渠道走这里统一落。
+     */
+    fun saveRefreshed(accountId: String, accessToken: String, refreshToken: String, expiresAt: Long): Boolean {
+        val acc = load().firstOrNull { it.id == accountId } ?: return false
+        save(load().map {
+            if (it.id == accountId) acc.copy(accessToken = accessToken, refreshToken = refreshToken, expiresAt = expiresAt)
+            else it
+        })
+        appLog(LogLevel.SUCCESS, "「${acc.nickname}」（${acc.provider}）凭据已续期")
+        return true
+    }
+
+    // ==================== 多渠道路由（10-09 全渠道批） ====================
+
+    /**
+     * 续期按渠道路由：codebuddy 走内置实现（已实测稳定）；其它渠道走 ChatChannel。
+     * 返回 (更新后账号, 错误)；渠道无续期能力返回 (null, "该渠道不支持自动续期")。
+     */
+    fun refreshAny(acc: Account): Pair<Account?, String> {
+        if (acc.provider == "codebuddy") return refresh(acc)
+        ChannelBootstrap.install()
+        val ch = ChatChannels.byProvider(acc.provider)
+            ?: return null to "未知渠道：${acc.provider}"
+        val r = ch.refresh(acc)
+            ?: return null to if (acc.provider == "zcode" || acc.provider == "opencode" || acc.provider == "loomy")
+                "该渠道无续期接口（凭据静态/会话到期重登）" else "续期失败"
+        val updated = acc.copy(accessToken = r.first, refreshToken = r.second, expiresAt = r.third)
+        // codearts 的 AK/SK/ST 变化落 extra
+        val withExtra = if (acc.provider == "codearts") {
+            CodeartsChannel.pendingExtraUpdate?.let { pj ->
+                var u = updated
+                for (k in pj.keys()) u = u.withExtra(k, pj.optString(k))
+                CodeartsChannel.clearPendingExtraUpdate()
+                u
+            } ?: updated
+        } else updated
+        save(load().map { if (it.id == acc.id) withExtra else it })
+        appLog(LogLevel.SUCCESS, "「${acc.nickname}」（${ch.displayName}）凭据已续期")
+        return withExtra to ""
+    }
+
+    /** 签到按渠道路由（渠道无签到接口返回其文案） */
+    fun checkInAny(acc: Account, retried: Boolean = false): Pair<Boolean, String> {
+        if (acc.provider == "codebuddy") return checkIn(acc, retried)
+        ChannelBootstrap.install()
+        val ch = ChatChannels.byProvider(acc.provider) ?: return false to "未知渠道：${acc.provider}"
+        return ch.checkIn(acc)
+    }
+
+    /** 余额按渠道路由（NaN=不支持，调用方显示「未知」） */
+    fun queryCreditsAny(acc: Account): Pair<Double, String> {
+        if (acc.provider == "codebuddy") { val c = queryCredits(acc); return if (c >= 0) c to "" else -1.0 to "查询失败" }
+        ChannelBootstrap.install()
+        val ch = ChatChannels.byProvider(acc.provider) ?: return -1.0 to "未知渠道：${acc.provider}"
+        val v = ch.queryCredits(acc)
+        return if (v.isNaN()) -1.0 to "该渠道无余额接口" else Math.round(v * 100.0) / 100.0 to ""
+    }
+
     // 轮询「等待登录完成」去重：上游 body 不变就不重复打（2s 一次会刷屏）
     private var lastWaitBrief: String = ""
 
@@ -106,6 +166,10 @@ object AccountPool {
         // 模型级限流标记（10-08 移植插件 modelRateLimits）：模型名 → 重置时刻 epoch ms。
         // 对话链 429/11140 时写入；选号跳过未解禁的（同模型）；解禁后标记自然失效。
         val modelRateLimits: Map<String, Long> = emptyMap(),
+        // 渠道扩展字段（10-09 全渠道批）：各渠道私有持久化（zcode 的 device_mid、
+        // lobsterai 的 uuid/firstKeyfrom、trae 的 machine_id/device_id 等），JSON 串。
+        // 渠道实现自己读写，AccountPool 不解释内容。
+        val extra: String = "{}",
     ) {
         /** access_token 是否已过期（留 10 分钟余量；未知不算过期） */
         fun isExpired(now: Long = System.currentTimeMillis()): Boolean =
@@ -116,6 +180,18 @@ object AccountPool {
             if (model.isEmpty()) return false
             val resetAt = modelRateLimits[model] ?: return false
             return resetAt > 0 && now < resetAt
+        }
+
+        /** extra JSON 里取字段（空/坏 JSON 返回 def） */
+        fun extraStr(key: String, def: String = ""): String = try {
+            JSONObject(extra).optString(key).takeIf { it.isNotEmpty() } ?: def
+        } catch (_: Exception) { def }
+
+        /** 返回一份 extra 更新后的新 Account（不改存储，调用方 save） */
+        fun withExtra(key: String, value: String): Account {
+            val o = try { JSONObject(extra) } catch (_: Exception) { JSONObject() }
+            o.put(key, value)
+            return copy(extra = o.toString())
         }
     }
 
@@ -149,6 +225,7 @@ object AccountPool {
                         enabled = o.optBoolean("enabled", true),
                         createdAt = o.optLong("createdAt"),
                         modelRateLimits = limits,
+                        extra = o.optString("extra").ifEmpty { "{}" },
                     )
                 }.filter { it.id.isNotEmpty() && it.accessToken.isNotEmpty() }
         }
@@ -174,6 +251,7 @@ object AccountPool {
                 put("enabled", a.enabled)
                 put("createdAt", a.createdAt)
                 if (a.modelRateLimits.isNotEmpty()) put("modelRateLimits", JSONObject(a.modelRateLimits))
+                put("extra", a.extra)
             })
         }
         root.put("accounts", arr)
@@ -250,6 +328,59 @@ object AccountPool {
     }
 
     private fun parseJson(text: String): JSONObject? = try { JSONObject(text) } catch (e: Exception) { null }
+
+    // ==================== 渠道层共用 HTTP / JSON（10-09 全渠道批） ====================
+
+    /** 渠道实现共用 POST（AccountPool.httpJson 是 private，这里开公开壳） */
+    fun channelPost(url: String, headers: Map<String, String>, body: String): ChannelHttpResp {
+        var conn: java.net.HttpURLConnection? = null
+        return try {
+            conn = (java.net.URL(url).openConnection() as java.net.HttpURLConnection).apply {
+                requestMethod = "POST"
+                connectTimeout = 10_000
+                readTimeout = 30_000
+                headers.forEach { (k, v) -> setRequestProperty(k, v) }
+                if (!headers.containsKey("Content-Type"))
+                    setRequestProperty("Content-Type", "application/json; charset=utf-8")
+                if (body.isNotEmpty()) {
+                    doOutput = true
+                    outputStream.use { it.write(body.toByteArray(Charsets.UTF_8)) }
+                }
+            }
+            val code = conn.responseCode
+            val stream = if (code >= 400) conn.errorStream else conn.inputStream
+            val text = stream?.bufferedReader(Charsets.UTF_8)?.use { it.readText() } ?: ""
+            ChannelHttpResp(code in 200..299, code, text)
+        } catch (e: Exception) {
+            ChannelHttpResp(false, -1, e.message ?: e.toString())
+        } finally {
+            conn?.disconnect()
+        }
+    }
+
+    /** 渠道实现共用 GET */
+    fun channelGet(url: String, headers: Map<String, String>): ChannelHttpResp {
+        var conn: java.net.HttpURLConnection? = null
+        return try {
+            conn = (java.net.URL(url).openConnection() as java.net.HttpURLConnection).apply {
+                requestMethod = "GET"
+                connectTimeout = 10_000
+                readTimeout = 30_000
+                headers.forEach { (k, v) -> setRequestProperty(k, v) }
+            }
+            val code = conn.responseCode
+            val stream = if (code >= 400) conn.errorStream else conn.inputStream
+            val text = stream?.bufferedReader(Charsets.UTF_8)?.use { it.readText() } ?: ""
+            ChannelHttpResp(code in 200..299, code, text)
+        } catch (e: Exception) {
+            ChannelHttpResp(false, -1, e.message ?: e.toString())
+        } finally {
+            conn?.disconnect()
+        }
+    }
+
+    /** 数字或数字字符串取值（billing Accounts[] 条目通用；本类 firstNumber 的公开版） */
+    fun firstNumberOf(o: JSONObject, vararg keys: String): Double? = firstNumber(o, *keys)
 
     /** 数字或数字字符串取值（CycleCapacityRemainPrecise 优先，照 codebuddy.js cb_firstNumber） */
     private fun firstNumber(o: JSONObject, vararg keys: String): Double? {

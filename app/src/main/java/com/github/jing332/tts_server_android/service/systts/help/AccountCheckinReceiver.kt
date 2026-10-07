@@ -44,8 +44,8 @@ class AccountCheckinReceiver : BroadcastReceiver() {
         if (accounts.isEmpty()) return "无账号"
         var ok = 0
         accounts.forEach { acc ->
-            val target = if (acc.isExpired()) AccountPool.refresh(acc).first ?: acc else acc
-            val (success, _) = AccountPool.checkIn(target)
+            val target = if (acc.isExpired()) AccountPool.refreshAny(acc).first ?: acc else acc
+            val (success, _) = AccountPool.checkInAny(target)
             if (success) ok++
         }
         return "签到 $ok/${accounts.size}"

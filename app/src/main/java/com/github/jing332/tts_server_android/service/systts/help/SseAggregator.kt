@@ -31,14 +31,20 @@ object SseAggregator {
         apiKey: String,
         bodyJson: String,
         cancelled: Cancelled = Cancelled { false },
+        channel: ChatChannel? = null,
+        model: String = "",
+        extraHeaders: Map<String, String> = emptyMap(),
     ): Pair<Boolean, String> {
         val url = if (baseUrl.endsWith("/chat/completions")) baseUrl
         else baseUrl.trimEnd('/') + "/chat/completions"
         // 强制 stream=true：上游仅收流式；stream_options 带回 usage 供测试口径
+        // （Anthropic 族渠道在 patchBody 里自行处理 stream；这里只对无渠道实现者覆写）
         val body = try {
             val o = org.json.JSONObject(bodyJson)
-            o.put("stream", true)
-            o.put("stream_options", org.json.JSONObject().put("include_usage", true))
+            if (channel == null) {
+                o.put("stream", true)
+                o.put("stream_options", org.json.JSONObject().put("include_usage", true))
+            }
             o.toString()
         } catch (e: Exception) {
             return false to "请求体不是合法 JSON：${e.message}"
@@ -53,9 +59,14 @@ object SseAggregator {
                 setRequestProperty("Accept", "text/event-stream")
                 setRequestProperty("Content-Type", "application/json; charset=utf-8")
                 setRequestProperty("Authorization", "Bearer $apiKey")
-                // CodeBuddy 对话头族（10-08 接线）：裸 Bearer 实测 HTTP 200 但 SSE 零内容，
-                // 必须带全身份族（cb_chatHeaders 权威形状，AccountPool.chatHeaders 单点维护）
-                AccountPool.chatHeaders().forEach { (k, v) -> setRequestProperty(k, v) }
+                // 渠道头族优先（10-09 全渠道）：各自的身份头族/双认证头/指纹头；
+                // 无渠道实现 = CodeBuddy 对话头族（10-08 接线，权威形状单点维护）
+                if (channel != null) {
+                    channel.chatHeaders(apiKey).forEach { (k, v) -> setRequestProperty(k, v) }
+                    extraHeaders.forEach { (k, v) -> setRequestProperty(k, v) }
+                } else {
+                    AccountPool.chatHeaders().forEach { (k, v) -> setRequestProperty(k, v) }
+                }
                 doOutput = true
                 outputStream.use { it.write(body.toByteArray(Charsets.UTF_8)) }
             }
@@ -130,6 +141,11 @@ object SseAggregator {
         val pool = AccountPool.load()
         val first = pool.firstOrNull { it.accessToken == apiKey }
         if (first == null) return chatCompletion(baseUrl, apiKey, bodyJson, cancelled)
+        // 渠道路由（10-09 全渠道批）：非 codebuddy 渠道走 ChatChannel 头族/请求体变换；
+        // 状态机（限流标记/续期/换号）渠道无关共用
+        ChannelBootstrap.install() // 幂等；进程内首调装配注册表
+        val channel = ChatChannels.byProvider(first.provider)
+        val effectiveBody = channel?.patchBody(bodyJson, model) ?: bodyJson
 
         val tried = mutableSetOf<String>()
         // 显式非空类型：refresh()/pickAccount() 都返回可空对，解构赋值会把 var 推成可空
@@ -138,41 +154,53 @@ object SseAggregator {
         var sawAuthFail = false
         var lastErr = ""
         while (true) {
-            val (ok, body) = chatCompletion(baseUrl, currentKey, bodyJson, cancelled)
+            val (ok, body) = chatCompletion(baseUrl, currentKey, effectiveBody, cancelled, channel, model)
+
             if (ok) return true to body
 
-            // 分类本页失败（照插件错误归类：401/403=AUTH、429/限流文案=RATE_LIMIT）
+            // 错误分类：渠道实现优先（各自限流语义：流内错误帧/业务码/402 额度…），
+            // 无渠道实现回退 codebuddy 内联分类（11140/频率限制/HTTP 状态码）
             val m = Regex("HTTP (\\d{3})").find(body)
             val status = m?.groupValues?.get(1)?.toIntOrNull() ?: 0
-            val isPolicyBlock = body.contains("11140") // 腾讯安全策略拦截（账号级，回 HTTP 403）
-            val rateLimited = status == 429 || body.contains("频率限制")
-                || body.contains("reset at", true) || isPolicyBlock
-            val authFailed = status == 401 || status == 403
+            val errClass = channel?.classifyError(status, body)
+            val isPolicyBlock = body.contains("11140")
+            val rateLimited = errClass == ChatChannel.ErrClass.RATE_LIMIT ||
+                (errClass == null && (status == 429 || body.contains("频率限制")
+                    || body.contains("reset at", true) || isPolicyBlock))
+            val authFailed = errClass == ChatChannel.ErrClass.AUTH ||
+                (errClass == null && (status == 401 || status == 403))
 
             if (rateLimited) {
                 // 限流/拦截标记（插件同款：11140 与认证处理**都走**——先记冷却再换号，
-                // 否则下轮它还是第一候选每轮重撞）。服务端给了解禁时刻用真实值，
-                // 否则兜底：11140 用 30min（BUDDY_POLICY_BLOCK_COOLDOWN_MS），其余 1h。
+                // 否则下轮它还是第一候选每轮重撞）。解禁时刻：服务端给了用真实值；
+                // 渠道有专属兜底（zcode/codearts UTC+8 日切）用渠道值；否则 1h；11140 用 30min。
                 val resetAt = parseResetTime(body)
+                    ?: channel?.let { System.currentTimeMillis() + it.rateLimitFallbackMs }
                     ?: System.currentTimeMillis() + if (isPolicyBlock) 30 * 60_000L else 3_600_000L
                 AccountPool.markRateLimited(current.id, model, resetAt)
             }
             if (authFailed) {
                 sawAuthFail = true
-                // 401/403：现场续期一次再试同账号（插件：刷新→重试→换号）
+                // 401/403：现场续期一次再试同账号（插件：刷新→重试→换号）。
+                // 渠道实现优先（cline 驼峰 body/minimax form/zcode 无续期…），codebuddy 走 AccountPool
                 if (current.refreshToken.isNotEmpty()) {
-                    val (refRaw, _) = AccountPool.refresh(current)
-                    val ref = refRaw // 局部量接住智能转换（Pair 解构值不携带判空流）
-                    if (ref != null) {
-                        val (ok2, body2) = chatCompletion(baseUrl, ref.accessToken, bodyJson, cancelled)
+                    val refreshed = channel?.refresh(current)?.let { Triple(it.first, it.second, it.third) }
+                        ?: AccountPool.refresh(current).let { (a, _) -> a?.let { Triple(it.accessToken, it.refreshToken, it.expiresAt) } }
+                    if (refreshed != null) {
+                        val (newAccess, newRefresh, newExpires) = refreshed
+                        // 渠道凭据续期成功后落盘（AccountPool.refresh 内部落；渠道层在这里落）
+                        if (channel != null) {
+                            AccountPool.saveRefreshed(current.id, newAccess, newRefresh, newExpires)
+                        }
+                        val (ok2, body2) = chatCompletion(baseUrl, newAccess, effectiveBody, cancelled, channel, model)
                         if (ok2) return true to body2
                         val status2 = Regex("HTTP (\\d{3})").find(body2)?.groupValues?.get(1)?.toIntOrNull() ?: 0
                         lastErr = body2
-                        if (status2 != 401 && status2 != 403) {
+                        if (status2 != 401 && status2 != 403 && errClass != ChatChannel.ErrClass.AUTH) {
                             // 续期后变成别的错误（限流/参数）→ 换成续期后的凭据，回循环顶统一分类
-                            //（限流会在那里被记标记；401/403 则继续换号）
-                            tried.add(current.id) // 防死循环：ref 与原账号同 id，不排除会在 401→refresh 循环里打转
-                            current = ref; currentKey = ref.accessToken
+                            tried.add(current.id) // 防死循环：ref 与原账号同 id
+                            current = current.copy(accessToken = newAccess, refreshToken = newRefresh, expiresAt = newExpires)
+                            currentKey = newAccess
                             continue
                         }
                     }
@@ -192,7 +220,6 @@ object SseAggregator {
             currentKey = next.accessToken
         }
     }
-
     /** 从限流文案抠重置时刻（照插件 RESET_TIME_PATTERN：`将在 2026-09-11 18:08:17 UTC+8 重置`） */
     private fun parseResetTime(body: String): Long? {
         val m = Regex("(?:将在|reset at)\\s+([\\d-]+)\\s+([\\d:]+)\\s+(UTC[+-]\\d{1,2}(?::\\d{1,2})?)", RegexOption.IGNORE_CASE)

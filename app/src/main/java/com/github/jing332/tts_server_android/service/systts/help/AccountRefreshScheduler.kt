@@ -57,7 +57,7 @@ object AccountRefreshScheduler {
                 val needsRefresh = acc.expiresAt == 0L || acc.expiresAt - now <= REFRESH_LEAD_MS
                 if (!needsRefresh) return@forEach
                 due++
-                val (ref, err) = AccountPool.refresh(acc)
+                val (ref, err) = AccountPool.refreshAny(acc)
                 if (ref != null) {
                     ok++
                     Log.i(TAG, "续期成功：${acc.nickname}（新过期 ${ref.expiresAt}）")

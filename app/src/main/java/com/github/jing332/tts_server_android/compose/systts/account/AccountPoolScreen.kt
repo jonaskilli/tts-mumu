@@ -60,6 +60,8 @@ import com.github.jing332.tts_server_android.R
 import com.github.jing332.tts_server_android.compose.nav.NavTopAppBar
 import com.github.jing332.tts_server_android.compose.systts.OrderBadge
 import com.github.jing332.tts_server_android.service.systts.help.AccountPool
+import com.github.jing332.tts_server_android.service.systts.help.ChannelBootstrap
+import com.github.jing332.tts_server_android.service.systts.help.ChatChannels
 import com.github.jing332.tts_server_android.service.systts.help.KeyListFile
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -167,7 +169,7 @@ fun AccountPoolScreen(onBack: () -> Unit) {
                     onRefresh = {
                         scope.launch {
                             busyId = acc.id
-                            val (updated, err) = withContext(Dispatchers.IO) { AccountPool.refresh(acc) }
+                            val (updated, err) = withContext(Dispatchers.IO) { AccountPool.refreshAny(acc) }
                             busyId = null
                             if (updated != null) {
                                 context.toast(R.string.account_pool_refresh_ok)
@@ -178,7 +180,7 @@ fun AccountPoolScreen(onBack: () -> Unit) {
                     onCheckIn = {
                         scope.launch {
                             busyId = acc.id
-                            val (ok, msg) = withContext(Dispatchers.IO) { AccountPool.checkIn(acc) }
+                            val (ok, msg) = withContext(Dispatchers.IO) { AccountPool.checkInAny(acc) }
                             busyId = null
                             context.toast(msg)
                             if (ok) reload()
@@ -187,7 +189,7 @@ fun AccountPoolScreen(onBack: () -> Unit) {
                     onQueryCredits = {
                         scope.launch {
                             busyId = acc.id
-                            val (c, err) = withContext(Dispatchers.IO) { AccountPool.queryCredits(acc) }
+                            val (c, err) = withContext(Dispatchers.IO) { AccountPool.queryCreditsAny(acc) }
                             busyId = null
                             if (c >= 0) {
                                 // 余额=资源包合计，实测含小数（如 3930.73），整数位不打 .0
@@ -359,6 +361,11 @@ private fun AccountRow(
         Spacer(Modifier.height(2.dp))
         Text(
             buildString {
+                // 渠道名（10-09 全渠道批）：非 codebuddy 显示 displayName（渠道与插件 id 同名）
+                if (acc.provider != "codebuddy") {
+                    ChannelBootstrap.install()
+                    append("[").append(ChatChannels.byProvider(acc.provider)?.displayName ?: acc.provider).append("] ")
+                }
                 append("过期：")
                 append(if (acc.expiresAt > 0) timeFmt.format(Date(acc.expiresAt)) else "未知")
                 // 积分 Double 保小数（余额=资源包合计，实测 3930.73 这类）；0 显示「未知」
