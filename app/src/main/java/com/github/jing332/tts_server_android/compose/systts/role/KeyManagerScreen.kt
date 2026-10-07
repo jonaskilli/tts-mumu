@@ -2096,14 +2096,9 @@ private fun KeyEditDialog(
                 // 10-07：从提示条「自定义思考 ›」进来时直接展开——「直达」之前只预选了写法，
                 // 折叠区还关着，用户得多点一下才见 JSON 框
                 var thinkingOpen by remember { mutableStateOf(jumpToThinkingCustom) }
-                // 8 项写法默认只显示当前选中那一条，其余收在「换一种写法」后（10-07 装机反馈：
-                // 8 项平铺占 416dp、是弹窗变长的主因）。从「自定义思考 ›」直达时连同展开，
-                // 否则用户进来只看到一条、以为选项没了。
-                // 10-08 用户定稿：直达也落折叠态（进来就是「自定义 JSON 填写界面」——
-                // 只显选中那条 + JSON 框，其余写法在「换一种写法 ▾」后）。曾设 jumpToThinkingCustom
-                // 强制展开列表，用户实机指出「跳到很多选项的界面不对，直接到填写界面」。
-                // 换写法是低频动作，点一下「换一种写法」的成本可接受
-                var optionsOpen by remember { mutableStateOf(false) }
+                // 10-08 用户定稿：直达落折叠态（进来是「自定义 JSON 填写界面」）。
+                // 关闭思考六种写法平铺（原「换一种写法 ▾」折叠键已删——折叠后只显一条，
+                // 用户不知道还有别的写法；实测六行并不算长，换写法不再要多点一下）
                 // 锁定状态（读取该模型在 thinking_params.json 的锁定值；键 = 网址+模型）
                 val lockedMode = remember(initial) {
                     val p = initial?.let { KeyListFile.parseKeyValue(it.value) }
@@ -2134,10 +2129,12 @@ private fun KeyEditDialog(
                 // 折叠摘要行：模式 + 锁定写法名（与测试结果的「multi」同词）+ 展开箭头。
                 // 三类摘要文案：自动（锁定 x）/关闭思考（写法名）/自定义 JSON
                 val isCustomSelected = thinkingMode == KeyListFile.THINKING_CUSTOM
+                val isLowSelected = thinkingExpanded && thinkingMode == KeyListFile.THINKING_LOW
                 val summaryText = when {
                     !thinkingExpanded && !isCustomSelected ->
                         lockedMode?.let { "自动（锁定 $it）" } ?: "自动（未测试）"
                     isCustomSelected -> "自定义 JSON"
+                    isLowSelected -> modeLabel(KeyListFile.THINKING_LOW)
                     else -> "关闭思考（${modeLabel(thinkingMode)}）"
                 }
                 Row(
@@ -2212,11 +2209,14 @@ private fun KeyEditDialog(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     RadioButton(
-                        selected = thinkingExpanded,
+                        // LOW 提为独立选项后 thinkingExpanded 不再专属第二类（LOW 也置真）——
+                        // 选中须排除 LOW，否则 LOW 选中时这里跟着亮、双选
+                        selected = thinkingExpanded && thinkingMode != KeyListFile.THINKING_LOW,
                         onClick = {
                             thinkingExpanded = true
                             if (thinkingMode == KeyListFile.THINKING_AUTO ||
-                                thinkingMode == KeyListFile.THINKING_CUSTOM
+                                thinkingMode == KeyListFile.THINKING_CUSTOM ||
+                                thinkingMode == KeyListFile.THINKING_LOW
                             ) thinkingMode = KeyListFile.THINKING_MULTI
                         }
                     )
@@ -2225,17 +2225,16 @@ private fun KeyEditDialog(
                         style = MaterialTheme.typography.bodyMedium
                     )
                 }
+                // 六种关闭写法平铺（10-08 用户令：删「换一种写法」折叠键——
+                // 折叠后只显一条，用户不知道还有别的写法；六行 RadioButton 是最短路径）。
+                // LOW 不在列：语义不同（只降档不关闭），提为下方独立一级选项
                 if (thinkingExpanded) {
                     val options = listOf(
                         KeyListFile.THINKING_MULTI, KeyListFile.THINKING_TYPE,
                         KeyListFile.THINKING_TMODE, KeyListFile.THINKING_DTHINK,
                         KeyListFile.THINKING_NCOT, KeyListFile.THINKING_NONE,
-                        // LOW 语义不同（只降档不关），靠自身文案区分
-                        KeyListFile.THINKING_LOW,
                     )
-                    // 折叠态 = 只显当前选中一条；「换一种写法 ▾」铺开 7 项（CUSTOM 已提为第三类，不在此列）
-                    val shown = if (optionsOpen) options else listOf(thinkingMode)
-                    shown.forEach { opt ->
+                    options.forEach { opt ->
                         Row(
                             Modifier
                                 .fillMaxWidth()
@@ -2248,24 +2247,21 @@ private fun KeyEditDialog(
                             Text(modeLabel(opt), style = MaterialTheme.typography.bodySmall)
                         }
                     }
-                    // 「换一种写法 / 收起写法」切换行（无 RadioButton 撑高，自钉 48dp 触摸）
-                    Row(
-                        Modifier
-                            .fillMaxWidth()
-                            .heightIn(min = 48.dp)
-                            .clickable { optionsOpen = !optionsOpen }
-                            .padding(start = 48.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text(
-                            stringResource(
-                                if (optionsOpen) R.string.role_key_thinking_less
-                                else R.string.role_key_thinking_more
-                            ),
-                            style = MaterialTheme.typography.labelMedium,
-                            color = MaterialTheme.colorScheme.primary
-                        )
-                    }
+                }
+                // 第四个一级选项：reasoning_effort = low——只降档不关闭，不属「关闭思考」，
+                // 三类定稿时先收进第二类靠文案区分；平铺六项后混在里头更看不出来，独立成行
+                Row(
+                    Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    RadioButton(
+                        selected = thinkingExpanded && thinkingMode == KeyListFile.THINKING_LOW,
+                        onClick = {
+                            thinkingExpanded = true
+                            thinkingMode = KeyListFile.THINKING_LOW
+                        }
+                    )
+                    Text(modeLabel(KeyListFile.THINKING_LOW), style = MaterialTheme.typography.bodySmall)
                 }
                 // 第三类：自定义 JSON——选中即出框（直达「自定义思考 ›」落这里）
                 Row(
