@@ -564,7 +564,8 @@ private fun GroupEnablePill(
     enabled: Int,
     total: Int,
     groupTitle: String,
-    onClick: () -> Unit,
+    // 10-07 用户令：改纯显示——点它切换整组启停太容易误触；批量启停挪组头 🗑 菜单
+    onClick: (() -> Unit)? = null,
 ) {
     val context = LocalContext.current
     val allOn = enabled == total && total > 0
@@ -587,7 +588,7 @@ private fun GroupEnablePill(
                 else Modifier
             )
             .background(bg)
-            .clickable(onClick = onClick)
+            .then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier)
             .semantics {
                 stateDescription = context.getString(
                     when {
@@ -669,33 +670,25 @@ private fun GroupHeaderBlock(
                 // 这就是「灯/快捷图标没跟模型行竖向对齐」的本源；归 0 后两组图标列逐像素同列
                 Row(
                     Modifier.fillMaxWidth()
-                        .padding(start = 3.dp, end = 0.dp, top = 2.dp, bottom = 2.dp),
+                        // start 3→0（10-07 用户令：行首箭头取消，组名文字线=卡缘）
+                        .padding(start = 0.dp, end = 0.dp, top = 2.dp, bottom = 2.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    // 组头可点区：折叠箭头 + 组名 + (N)
+                    // 组头可点区：组名 + N/M 胶囊——点击=折叠/展开（10-07 用户令：行首箭头取消，
+                    // 折叠态只剩组名行即视觉提示；元信息/条目随展开出现）
                     Row(
                         Modifier
                             .weight(1f)
                             .clip(RoundedCornerShape(6.dp))
-                            .clickable(enabled = !selectionMode, onClick = onFold),
+                            .clickable(enabled = !selectionMode, onClick = onFold)
+                            .semantics {
+                                contentDescription = context.getString(
+                                    if (isCollapsed) R.string.desc_expand_group
+                                    else R.string.desc_collapse_group, grp.title
+                                )
+                            },
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        val arrowAngle by animateFloatAsState(
-                            targetValue = if (isCollapsed) -90f else 0f, label = ""
-                        )
-                        Icon(
-                            Icons.Default.ExpandMore,
-                            contentDescription = stringResource(
-                                if (isCollapsed) R.string.desc_expand_group
-                                else R.string.desc_collapse_group, grp.title
-                            ),
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.size(22.dp).rotate(arrowAngle)
-                        )
-                        // spacer 9→3（10-05 用户：折叠箭头离组名太远——原间隙 ≈14dp，
-                        // 主页 GroupItem 样板 ≈4.5；收 3 后组名 28=新文字线，间隙 ≈8）。
-                        // 文字线 34→28 全家随动：URL 行/说明行/多选行/对勾字形/结果条同步搬
-                        Spacer(Modifier.width(3.dp))
                         Text(
                             grp.title,
                             style = MaterialTheme.typography.titleMedium,
@@ -714,11 +707,11 @@ private fun GroupHeaderBlock(
                         // 省宽算式：旧占位 (N)≈20-28 + 间距 4 + 方框 48（M3 触控盒定长）≈72-80dp；
                         // 胶囊内容宽 4/4≈34、10/11≈44 —— 任何组合（含两位数分母）都比旧占位窄，
                         // 组名净得 ≈28~46dp。数字语义：左=已启用数/右=本组总数
+                        // 10-07 用户令：胶囊改纯显示（误触防线），批量启停在 🗑 菜单
                         GroupEnablePill(
                             enabled = enabledCount,
                             total = grp.entries.size,
                             groupTitle = grp.title,
-                            onClick = { onSetGroupEnabled(enabledCount == 0) }
                         )
                     }
                     if (!selectionMode) {
@@ -762,6 +755,22 @@ private fun GroupHeaderBlock(
                                     expanded = menuExpanded,
                                     onDismissRequest = onMenuDismiss
                                 ) {
+                                    // 10-07：胶囊改纯显示后，整组批量启停挪进本菜单（原胶囊点击职责）
+                                    DropdownMenuItem(
+                                        // 硬编码中文照替换页/子分组头菜单先例（避免新增 strings 键破坏三地键集基线）
+                                        text = { Text("全部启用", style = MaterialTheme.typography.bodyMedium) },
+                                        onClick = {
+                                            onMenuDismiss()
+                                            onSetGroupEnabled(true)
+                                        }
+                                    )
+                                    DropdownMenuItem(
+                                        text = { Text("全部停用", style = MaterialTheme.typography.bodyMedium) },
+                                        onClick = {
+                                            onMenuDismiss()
+                                            onSetGroupEnabled(false)
+                                        }
+                                    )
                                     DropdownMenuItem(
                                         // 警示交给红色图标承载，标题不再整行红字（原样太扎眼）
                                         leadingIcon = {
@@ -823,12 +832,12 @@ private fun GroupHeaderBlock(
                 }
                 // 元信息行（10-07 连体卡：折叠时藏进卡内不渲染，展开才出现——组头行即折叠态）。
                 // 接口组 = 网址 + 尾号小块；未分组 = 一句身份说明。
-                // 左缘 = 组名文字左缘（3+22+9=34）；右缘 end=8（尾号小块盒缘落右线 8，与卡右缘同列）
+                // 左缘 = 组名文字左缘（行首箭头取消后 = 卡缘 0）；右缘 end=8（尾号小块盒缘与卡右缘同列）
                 val ifc = grp.ifc
                 if (!isCollapsed && ifc != null) {
                     Row(
                         Modifier.fillMaxWidth()
-                            .padding(start = 28.dp, end = 8.dp, bottom = 6.dp),
+                            .padding(start = 0.dp, end = 8.dp, bottom = 6.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Text(
@@ -866,8 +875,8 @@ private fun GroupHeaderBlock(
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                             maxLines = 2,
                             overflow = TextOverflow.Ellipsis,
-                            // 与网址分支同列（34）；右端同落右线 8
-                            modifier = Modifier.padding(start = 28.dp, end = 8.dp, bottom = 6.dp)
+                            // 与网址分支同列（卡缘 0）；右端同落右线 8
+                            modifier = Modifier.padding(start = 0.dp, end = 8.dp, bottom = 6.dp)
                         )
                     }
                 }
@@ -1492,10 +1501,10 @@ fun KeyManagerScreen(tagRuleId: String, onBack: () -> Unit) {
             modifier = Modifier
                 .fillMaxSize()
                 .padding(paddingValues),
-            // 10-07 用户令：左线 16 收 12（「8 太窄、16 太宽」）——容器 start 8→4，
-            // 组头箭头字形 ≈4+3+5=12、条目卡左缘 4。end 保持 8（右线不动：条目图标右缘
-            // 对卡右缘、组头图标区右缘同列的既有校准全在行内相对值里，随右线一起才不破）
-            contentPadding = PaddingValues(start = 4.dp, end = 8.dp, top = 4.dp, bottom = 12.dp)
+            // 10-07 二改（用户令：边距回 16）——容器 start 4→12，容器 12 + 组卡 4 = 卡缘 16，
+            // 对齐全站 16 内容线（行首箭头取消后组名文字线 = 卡缘）。
+            // end 保持 8（右线不动：条目图标右缘对卡右缘、组头图标区右缘同列的校准全在行内相对值里）
+            contentPadding = PaddingValues(start = 12.dp, end = 8.dp, top = 4.dp, bottom = 12.dp)
         ) {
             if (!selectionMode) {
                 item(key = "ops") {
