@@ -20,6 +20,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.requiredSize
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.wrapContentHeight
@@ -308,10 +309,12 @@ private fun KeyEntryRow(
             Box(
                 modifier = Modifier
                     .size(width = 32.dp, height = 36.dp)
-                    // 热区外扩（10-08 用户令：视觉不动只加热区）——负 padding 让 clickable
-                    // 面积向四周各扩 8/6dp 成 48×48（M3 无障碍最低触摸标准），视觉盒与文字
-                    // 线 32 都不动；原 32×36 是全页最薄热区，行高夹在分隔线间偏一点就落空隙
-                    .padding(horizontal = -8.dp, vertical = -6.dp)
+                    // 热区外扩（10-08 用户令：视觉不动只加热区）——负 padding 运行时直接抛
+                    // IllegalArgumentException「Padding must be non-negative」（编译/CI/静守卫
+                    // 全查不出，真机点卡即崩，02:22 崩溃实锤）。改 requiredSize：size 仍锁
+                    // 32×36 视觉占位，点击节点强行撑成 48×48 并居中（四周各溢出 8/6dp），
+                    // 等效外扩且不占布局空间
+                    .requiredSize(width = 48.dp, height = 48.dp)
                     .then(
                         if (selectionMode) Modifier
                             .clip(CircleShape)
