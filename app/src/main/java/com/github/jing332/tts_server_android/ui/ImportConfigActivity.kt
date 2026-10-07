@@ -121,7 +121,9 @@ class ImportConfigActivity : ComposeActivity() {
                             ImportType.PLUGIN -> PluginManagerActivity::class.java
                             else -> null
                         }
-                        target?.let { startActivity(it) }
+                        // Activity 自身 startActivity(Intent) 优先于扩展 startActivity(Class)——
+                        // 直接传 Class 会报「期望 Intent」（重载遮蔽，b6e9911 同款坑），显式包 Intent
+                        target?.let { startActivity(Intent(this, it)) }
                     } catch (e: Exception) {
                         longToast("${getString(R.string.import_failed)}：${e.message}")
                     }
