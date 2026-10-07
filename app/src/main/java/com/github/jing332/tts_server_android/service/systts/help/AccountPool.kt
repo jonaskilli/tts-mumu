@@ -424,18 +424,37 @@ object AccountPool {
         }
         return try {
             val o = JSONObject(r.body).let { it.optJSONObject("data") ?: it }
-            val access = o?.optString("access_token").orEmpty()
-            val refresh = o?.optString("refresh_token").orEmpty().ifEmpty { existing?.refreshToken ?: "" }
+            // 10-08 真机实锤：上游键名是驼峰 accessToken/refreshToken（code:0 响应见日志），
+            // 试水期记的下划线式留作兼容
+            val access = o?.optString("accessToken").orEmpty()
+                .ifEmpty { o?.optString("access_token").orEmpty() }
+            val refresh = o?.optString("refreshToken").orEmpty()
+                .ifEmpty { o?.optString("refresh_token").orEmpty() }
+                .ifEmpty { existing?.refreshToken ?: "" }
             if (access.isEmpty()) {
                 // HTTP 200 + 业务码未完成（如 11217 login ing）= 正常等待。同因只记首条
                 //（轮询 2s 一次，逐条打会刷屏），调用方有 lastWaitBrief 传短状态时跳过重复
                 val brief = briefBody(r.body)
                 if (!brief.startsWith(lastWaitBrief))
-                    appLog(LogLevel.INFO, "等待登录完成（200 无 access_token）：$brief")
+                    appLog(LogLevel.INFO, "等待登录完成（200 无凭据）：$brief")
                 lastWaitBrief = brief
-                return null to "响应无 access_token（可能还没登录完）：$brief"
+                return null to "响应无 accessToken（可能还没登录完）：$brief"
             }
-            val expiresAt = System.currentTimeMillis() + (o?.optLong("expires_in", 0L) ?: 0L) * 1000L
+            // expires 完整形态未见过（日志截断）：expiresIn/expires_in 相对秒、
+            // expiresAt/expires_at 绝对毫秒，四式兜底
+            val relSec = maxOf(
+                o?.optLong("expiresIn", 0L) ?: 0L,
+                o?.optLong("expires_in", 0L) ?: 0L
+            )
+            val absMs = maxOf(
+                o?.optLong("expiresAt", 0L) ?: 0L,
+                o?.optLong("expires_at", 0L) ?: 0L
+            )
+            val expiresAt = when {
+                absMs > 0L -> absMs
+                relSec > 0L -> System.currentTimeMillis() + relSec * 1000L
+                else -> 0L
+            }
             val nick = o?.optString("nickname").orEmpty()
                 .ifEmpty { o?.optString("username").orEmpty() }
                 .ifEmpty { existing?.nickname ?: "CodeBuddy" }
@@ -474,9 +493,26 @@ object AccountPool {
         if (!r.ok) return null to "HTTP ${r.code}：${briefBody(r.body)}"
         return try {
             val o = JSONObject(r.body).let { it.optJSONObject("data") ?: it }
-            val access = o?.optString("access_token").orEmpty().ifEmpty { acc.accessToken }
-            val refresh = o?.optString("refresh_token").orEmpty().ifEmpty { acc.refreshToken }
-            val expiresAt = System.currentTimeMillis() + (o?.optLong("expires_in", 0L) ?: 0L) * 1000L
+            // 10-08 真机实锤：上游键名驼峰（同 pollToken），下划线式留作兼容
+            val access = o?.optString("accessToken").orEmpty()
+                .ifEmpty { o?.optString("access_token").orEmpty() }
+                .ifEmpty { acc.accessToken }
+            val refresh = o?.optString("refreshToken").orEmpty()
+                .ifEmpty { o?.optString("refresh_token").orEmpty() }
+                .ifEmpty { acc.refreshToken }
+            val relSec = maxOf(
+                o?.optLong("expiresIn", 0L) ?: 0L,
+                o?.optLong("expires_in", 0L) ?: 0L
+            )
+            val absMs = maxOf(
+                o?.optLong("expiresAt", 0L) ?: 0L,
+                o?.optLong("expires_at", 0L) ?: 0L
+            )
+            val expiresAt = when {
+                absMs > 0L -> absMs
+                relSec > 0L -> System.currentTimeMillis() + relSec * 1000L
+                else -> acc.expiresAt
+            }
             val updated = acc.copy(accessToken = access, refreshToken = refresh, expiresAt = expiresAt)
             save(load().map { if (it.id == acc.id) updated else it })
             updated to ""
