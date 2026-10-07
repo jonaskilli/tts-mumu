@@ -968,18 +968,22 @@ private fun GroupHeaderBlock(
                         // 观感挤；徽章保持垂直居中于两行 URL）
                         Spacer(Modifier.width(12.dp))
                         // 尾号独立小块（原先挤在网址尾巴上，网址一长就被省略号吃掉）
-                        Surface(
-                            shape = RoundedCornerShape(4.dp),
-                            color = MaterialTheme.colorScheme.surfaceContainerHighest
-                        ) {
-                            Text(
-                                stringResource(
-                                    R.string.role_key_tail, ifc.apiKey.takeLast(4)
-                                ),
-                                style = MaterialTheme.typography.labelSmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                modifier = Modifier.padding(horizontal = 5.dp, vertical = 1.dp)
-                            )
+                        // 10-08 用户令：key ≤4 位不显示——takeLast(4) 会把整把 key 全裸
+                        // （4 位 key 尾 4 位=全文）；「*尾」语义是「只露一角」，露了全部就别挂
+                        if (ifc.apiKey.length > 4) {
+                            Surface(
+                                shape = RoundedCornerShape(4.dp),
+                                color = MaterialTheme.colorScheme.surfaceContainerHighest
+                            ) {
+                                Text(
+                                    stringResource(
+                                        R.string.role_key_tail, ifc.apiKey.takeLast(4)
+                                    ),
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    modifier = Modifier.padding(horizontal = 5.dp, vertical = 1.dp)
+                                )
+                            }
                         }
                     }
                 } else {
@@ -1161,7 +1165,9 @@ fun KeyManagerScreen(tagRuleId: String, onBack: () -> Unit) {
         return when {
             p == null -> value
             !p.isDirect && p.model.isNotBlank() -> p.model
-            else -> "*" + p.key.takeLast(6)
+            // 10-08 用户令：key ≤6 位不遮——takeLast(6) 会把整把 key 全裸，回退显 key 本身
+            // 也是裸；改显固定占位「*密钥」，不给任何原文线索
+            else -> if (p.key.length > 6) "*" + p.key.takeLast(6) else "*密钥"
         }
     }
     fun removeFromPool(index: Int) {
