@@ -62,6 +62,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import com.drake.net.utils.withIO
@@ -1828,7 +1829,8 @@ private fun CandidateRow(
             Text(
                 (if (isCurrent) "✓ " else "") + text,
                 modifier = Modifier.weight(1f, fill = false),
-                style = MaterialTheme.typography.bodyMedium,
+                // 选择列表行名 15sp（10-07 归档：与书籍列表行同档，条目名 15 一线）
+                style = MaterialTheme.typography.bodyMedium.copy(fontSize = 15.sp),
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
                 color = nameColor,

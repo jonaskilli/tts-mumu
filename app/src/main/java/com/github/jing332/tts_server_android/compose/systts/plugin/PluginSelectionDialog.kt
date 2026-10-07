@@ -12,6 +12,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.github.jing332.compose.widgets.AppSelectionDialog
 import com.github.jing332.compose.widgets.LocalSelectionRowHorizontalPadding
 import com.github.jing332.database.dbm
@@ -68,7 +69,8 @@ fun PluginSelectionDialog(onDismissRequest: () -> Unit, onSelect: (Plugin) -> Un
                         horizontal = LocalSelectionRowHorizontalPadding.current,
                         vertical = 12.dp
                     ),
-                style = MaterialTheme.typography.bodyMedium,
+                // 选择列表行名 15sp（10-07 归档：与书籍列表行同档，条目名 15 一线）
+                style = MaterialTheme.typography.bodyMedium.copy(fontSize = 15.sp),
                 maxLines = 3,
                 overflow = TextOverflow.Ellipsis,
             )
