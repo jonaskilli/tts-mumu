@@ -63,10 +63,10 @@ object RaccoonChannel : ChatChannel {
                     val rt = d.optString("refresh_token")
                     if (at.isEmpty()) Triple("PENDING", "", "") else Triple("OK", at, rt)
                 }
-                else -> Triple("PENDING", "", "")
+                else -> return Triple("PENDING", "", "")
             }
         } catch (_: Exception) {
-            Triple("PENDING", "", "") // ⚠️ 任何轮询异常降级 pending（误判 success 卡死）
+            return Triple("PENDING", "", "") // ⚠️ 任何轮询异常降级 pending（误判 success 卡死）
         }
     }
 

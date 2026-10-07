@@ -106,14 +106,14 @@ object AccountPool {
     /** 余额按渠道路由（NaN=不支持，调用方显示「未知」） */
     fun queryCreditsAny(acc: Account): Pair<Double, String> {
         if (acc.provider == "codebuddy") {
-            val c = queryCredits(acc)
-            return if (c >= 0) c to "" else -1.0 to "查询失败"
+            val c: Double = queryCredits(acc)
+            return if (c >= 0.0) Pair(c, "") else Pair(-1.0, "查询失败")
         }
         ChannelBootstrap.install()
-        val ch = ChatChannels.byProvider(acc.provider) ?: return -1.0 to "未知渠道：${acc.provider}"
-        val v = ch.queryCredits(acc)
-        if (v.isNaN()) return -1.0 to "该渠道无余额接口"
-        return Math.round(v * 100.0) / 100.0 to ""
+        val ch = ChatChannels.byProvider(acc.provider) ?: return Pair(-1.0, "未知渠道：${acc.provider}")
+        val v: Double = ch.queryCredits(acc)
+        if (v.isNaN()) return Pair(-1.0, "该渠道无余额接口")
+        return Pair(Math.round(v * 100.0) / 100.0, "")
     }
 
     // 轮询「等待登录完成」去重：上游 body 不变就不重复打（2s 一次会刷屏）

@@ -190,7 +190,7 @@ object CodeartsChannel : ChatChannel {
             }
             true to "签到成功"
         } catch (e: Exception) {
-            false to (e.message ?: "签到失败")
+            return false to (e.message ?: "签到失败")
         }
     }
 
@@ -217,7 +217,7 @@ object CodeartsChannel : ChatChannel {
                 if (m.optString("name") == "usageTotalPackageCredit")
                     return m.optDouble("package_credit_remain", Double.NaN)
             }
-            Double.NaN
-        } catch (_: Exception) { Double.NaN }
+            return Double.NaN
+        } catch (_: Exception) { return Double.NaN }
     }
 }

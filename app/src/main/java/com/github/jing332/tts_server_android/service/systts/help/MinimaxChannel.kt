@@ -143,9 +143,9 @@ object MinimaxChannel : ChatChannel {
                 val sc = br?.optInt("status_code", -1) ?: -1
                 if (sc == 0) true to "签到成功"
                 else false to "业务码 $sc：${br?.optString("message") ?: ""}"
-            } else false to "HTTP ${st.code}：${st.body.take(120)}"
+            } else return false to "HTTP ${st.code}：${st.body.take(120)}"
         } catch (e: Exception) {
-            false to (e.message ?: "签到失败")
+            return false to (e.message ?: "签到失败")
         }
     }
 
@@ -160,7 +160,7 @@ object MinimaxChannel : ChatChannel {
                     .filter { it.isNotEmpty() }
                     .ifEmpty { fallback() }
             }
-        } catch (_: Exception) { fallback() }
+        } catch (_: Exception) { return fallback() }
     }
 
     private fun fallback(): List<String> = listOf(

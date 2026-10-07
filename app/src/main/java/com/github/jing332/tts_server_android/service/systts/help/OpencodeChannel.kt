@@ -92,7 +92,7 @@ object OpencodeChannel : ChatChannel {
                 (0 until arr.length()).mapNotNull { arr.optJSONObject(it)?.optString("id") }.filter { it.isNotEmpty() }
             }
         } catch (_: Exception) {
-            emptyList()
+            return emptyList()
         }
     }
 }

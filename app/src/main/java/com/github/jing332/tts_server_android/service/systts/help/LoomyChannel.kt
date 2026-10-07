@@ -141,9 +141,9 @@ object LoomyChannel : ChatChannel {
                 val d = o.optJSONObject("data") ?: JSONObject()
                 if (d.optBoolean("alreadyProcessed", false)) true to "今日已领取"
                 else true to "领取成功（daily=${d.optLong("dailyBalance", 0)}）"
-            } else false to "业务码 $code：${o.optString("desc")}"
+            } else return false to "业务码 $code：${o.optString("desc")}"
         } catch (e: Exception) {
-            false to (e.message ?: "签到失败")
+            return false to (e.message ?: "签到失败")
         }
     }
 
@@ -172,7 +172,7 @@ object LoomyChannel : ChatChannel {
                     .mapNotNull { it.optString("id").ifEmpty { null } }
                     .ifEmpty { fallback() }
             }
-        } catch (_: Exception) { fallback() }
+        } catch (_: Exception) { return fallback() }
     }
 
     private fun fallback(): List<String> = listOf(

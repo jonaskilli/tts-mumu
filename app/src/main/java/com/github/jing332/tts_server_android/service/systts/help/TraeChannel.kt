@@ -171,10 +171,10 @@ object TraeChannel : ChatChannel {
             val claim = AccountPool.channelPost("$UG_HOST/trae/api/v2/ug/checkin_credits/claim", checkinHeaders(acc), "{}")
             if (!claim.ok) return false to "HTTP ${claim.code}：${claim.body.take(120)}"
             val co = JSONObject(claim.body)
-            if (co.optInt("code", -1) == 0) true to "签到成功"
+            return if (co.optInt("code", -1) == 0) true to "签到成功"
             else false to "业务码 ${co.optInt("code")}：${co.optString("message")}"
         } catch (e: Exception) {
-            false to (e.message ?: "签到失败")
+            return false to (e.message ?: "签到失败")
         }
     }
 
