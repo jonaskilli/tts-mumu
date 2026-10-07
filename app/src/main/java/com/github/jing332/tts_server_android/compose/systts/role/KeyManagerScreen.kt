@@ -427,11 +427,14 @@ private fun KeyEntryRow(
             }
         }
         // 结果提示条（10-03 三~六改）：黄/红/绿三态都在卡内行下方常驻（六改：绿也显示——「测试通过·用时」有普适性）。
-        // 用户口径——都放卡片底部：收起=两行内省略；点击展开=全文多行 + 「复制/详情」；再点收起。
+        // 用户口径——都放卡片底部：收起=单行省略；点击展开=全文多行 + 动作键；再点收起。
         // 10-08 用户令：①结果条与模型名框对齐（原 end=12 白白少一截文字面积，右缘回到图标盒线）
         // ②红态恒给「详情/复制」（原 message==reason 不给详情——但显示不全正需要点开看）
         // ③用时前置：黄态/绿态把用时放行首圆点后（原放行尾，maxLines=1 时最先被省略号吃掉——
         //   「我都不知道满不满」）
+        // 10-08 二令（装机反馈）：黄/红收起态一律**单行**（原 2 行：换行总从「可用」下方起
+        // 很怪——用时是独立 Text、正文在自己框里折；且两行+动作行三段太高），
+        // 黄态尾挂「展开 ›」、红态尾挂「详情」，动作键全部收进展开态
         if (!selectionMode && testOutcome != null && probeProgress == null) {
             val isWarn = testOutcome.verdict == KeyListFile.TestVerdict.PASS_THINKING
             val isPass = testOutcome.verdict == KeyListFile.TestVerdict.PASS
@@ -529,10 +532,12 @@ private fun KeyEntryRow(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     // 行首圆点已撤（10-08 用户令）：整行文字本身就是状态色（绿/黄/红），
-                    // 圆点是重复编码；撤后文字左移 13dp（点 8 + 边距 5），左缘齐模型名文字线。
+                    // 圆点是重复编码；撤后文字左缘齐模型名文字线。
                     // 扫视锚点不丢——模型行灯槽（乙案保留）仍是行内状态锚。
-                    // 用时前置徽标（10-08 用户令：黄态看不到用时=不知道满不满）——
-                    // 独立 Text 不进正文流，maxLines 截断只吃正文、永远吃不到用时
+                    // 10-08 二令：黄/红改单行（原 2 行+黄态独立动作行=三段太高；
+                    // 换行还总从「可用」下方起——用时前置是独立 Text，正文在自己框里折）。
+                    // 单行后正文永远吃不满，黄态动作键（自定义思考/复制）挪进展开态，
+                    // 收起态尾挂「展开 ›」；红态「详情」同位同词形
                     if (timingPrefix.isNotEmpty()) {
                         Text(
                             timingPrefix,
@@ -545,8 +550,7 @@ private fun KeyEntryRow(
                         collapsedText,
                         style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.sp),
                         color = barColor,
-                        // 10-08：1→2 行（显示不全的主诉；还想看全 → 红态恒有「详情」）
-                        maxLines = 2,
+                        maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
                         modifier = Modifier.weight(1f)
                     )
@@ -563,19 +567,34 @@ private fun KeyEntryRow(
                                 .clickable { expanded = true }
                                 .padding(start = 6.dp, end = 2.dp)
                         )
+                    } else if (isWarn) {
+                        // 黄态收起：「展开 ›」（10-08 二令：单行+展开键；动作键在展开态里）
+                        Text(
+                            "展开 ›",
+                            style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.sp),
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            fontWeight = FontWeight.SemiBold,
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(4.dp))
+                                .clickable { expanded = true }
+                                .padding(start = 6.dp, end = 2.dp)
+                        )
                     }
                 }
-                // 黄态动作行（10-08 用户令：键下移到正文下一行）——原先双键挂正文行尾，
-                // 占掉 ~180dp 把「可用 · 思考未关（可能拖慢分配）」截成两行还吃字；
-                // 下移后正文独占整行一行放得下，总高不涨（省下的第二行 ≈ 新增的动作行）。
-                // 右对齐 + 键距 24，与红态展开底部动作行同一套尺度
-                if (showFixEntry) {
+                // 黄态展开态：正文全文 + 底部动作行（自定义思考 ›｜复制结果）——
+                // 单行口径后动作键不再挤正文行，收进展开态；「收起」同排右端
+                if (expanded && isWarn) {
+                    Text(
+                        testOutcome.message,
+                        style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.sp),
+                        color = barColor,
+                        modifier = Modifier.padding(top = 2.dp)
+                    )
                     Row(
                         Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.End,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        // 黄态：思考设置 → 打开编辑弹窗直接落「自定义 JSON」（三类结构第三项）
                         Text(
                             stringResource(R.string.role_key_thinking_entry),
                             style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.sp),
@@ -587,7 +606,6 @@ private fun KeyEntryRow(
                                 .padding(horizontal = 8.dp, vertical = 6.dp)
                         )
                         Spacer(Modifier.width(24.dp))
-                        // 黄态也带「复制」（10-08：结果可复制不该只红态有）
                         Text(
                             stringResource(R.string.role_key_test_result_copy),
                             style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.sp),
@@ -602,6 +620,17 @@ private fun KeyEntryRow(
                                         android.widget.Toast.LENGTH_SHORT
                                     ).show()
                                 }
+                                .padding(horizontal = 8.dp, vertical = 6.dp)
+                        )
+                        Spacer(Modifier.width(24.dp))
+                        Text(
+                            "收起",
+                            style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.sp),
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            fontWeight = FontWeight.SemiBold,
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(6.dp))
+                                .clickable { expanded = false }
                                 .padding(horizontal = 8.dp, vertical = 6.dp)
                         )
                     }
@@ -745,11 +774,15 @@ private fun GroupHeaderBlock(
                         else Modifier
                     )
                 ) {
-                    // 折叠键盒：32宽（=对勾盒宽，盒右缘即文字线）×36高（=组头行高）。
-                    // 空组（无模型可折）画 32dp 占位（盒宽一致，文字线不偏）
+                    // 折叠键盒：32宽（=对勾盒宽，盒右缘即文字线）。高不钉死（10-08 二令：
+                    // 与组名横向对齐——钉 36 时箭头在组头行中线偏下，因为组头行有 top/bottom 2dp
+                    // 内距、箭头中心落在两行内距之外的盒中心）；让盒缩进组头 Row 的内距结构里
+                    // 无法做到（盒在 Row 兄弟位），改为 height = 组头行实际高 = 字形 24+4 内距，
+                    // 与组名同一水平中心。空组（无模型可折）同盒占位（盒宽一致，文字线不偏）
                     Box(
                         Modifier
-                            .size(width = 32.dp, height = 36.dp),
+                            .size(width = 32.dp, height = 36.dp)
+                            .padding(top = 2.dp, bottom = 2.dp),
                         contentAlignment = Alignment.Center
                     ) {
                         if (canFold) {
@@ -1441,6 +1474,19 @@ fun KeyManagerScreen(tagRuleId: String, onBack: () -> Unit) {
                 // ②页面级多选 ☑ 整个删除（用户：感觉没用——单条启停/删除在卡内都有，
                 // 整组启停在组头胶囊；随删 page 级 selectionMode 底栏与其状态链）
                 actions = {
+                    // 账号池入口（10-08 用户令：撤绿胶囊、改纯图标；二令挪到导入左边——池是入口性页面、导入导出是动作，入口在前动作在后）——原 FilledTonalButton
+                    // 是顶栏唯一色底、夹在标题和图标中间突兀；改后三枚图标同灰同尺寸一条线收尾。
+                    // 子页有完整标题不怕认不出
+                    IconButton(
+                        onClick = { showAccountPool = true },
+                        modifier = Modifier.heightIn(min = 44.dp)
+                    ) {
+                        Icon(
+                            Icons.Default.Group,
+                            contentDescription = stringResource(R.string.account_pool_title),
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
                     // 导入（纯图标；一步导入逻辑不变）
                     IconButton(
                         onClick = {
@@ -1481,19 +1527,6 @@ fun KeyManagerScreen(tagRuleId: String, onBack: () -> Unit) {
                         Icon(
                             Icons.Default.FileUpload,
                             contentDescription = stringResource(R.string.role_key_action_export),
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                    // 账号池入口（10-08 用户令：撤绿胶囊、改纯图标排最右）——原 FilledTonalButton
-                    // 是顶栏唯一色底、夹在标题和图标中间突兀；改后三枚图标同灰同尺寸一条线收尾。
-                    // 子页有完整标题不怕认不出
-                    IconButton(
-                        onClick = { showAccountPool = true },
-                        modifier = Modifier.heightIn(min = 44.dp)
-                    ) {
-                        Icon(
-                            Icons.Default.Group,
-                            contentDescription = stringResource(R.string.account_pool_title),
                             tint = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
