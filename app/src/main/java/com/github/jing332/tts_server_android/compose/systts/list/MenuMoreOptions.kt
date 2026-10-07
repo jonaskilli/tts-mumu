@@ -9,6 +9,7 @@ import androidx.compose.material.icons.filled.ContentCut
 import androidx.compose.material.icons.filled.Group
 import androidx.compose.material.icons.filled.Output
 import androidx.compose.material.icons.filled.Speed
+import androidx.compose.material.icons.automirrored.filled.MenuBook
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.HorizontalDivider
@@ -20,13 +21,16 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import com.github.jing332.common.utils.startActivity
 import com.github.jing332.compose.widgets.AppDropdownMenu
 import com.github.jing332.compose.widgets.CheckedMenuItem
 import com.github.jing332.tts_server_android.R
 import com.github.jing332.tts_server_android.compose.asAppCompatActivity
+import com.github.jing332.tts_server_android.compose.systts.plugin.PluginManagerActivity
 import com.github.jing332.tts_server_android.compose.systts.replace.ReplaceManagerActivity
+import com.github.jing332.tts_server_android.compose.systts.speechrule.SpeechRuleManagerActivity
 import com.github.jing332.tts_server_android.conf.SystemTtsConfig
 import com.github.jing332.tts_server_android.service.systts.SystemTtsService
 
@@ -84,27 +88,10 @@ internal fun MenuMoreOptions(
             },
         )
 
-        // 替换规则（10-07 装机反馈甲案：由「自己一组」上移到本开关组）。
-        // 10-06 收敛时删掉了同组的「朗读规则」「插件」两条（与设置页资源管理区重复），
-        // 这一组只剩它一个、前后各一条分隔线，成了菜单里的孤岛；现按「功能性质」归位——
-        // 与上面两条同属"朗读行为的开关"，菜单随之变「开关 / 设置 / 文件」三段。
-        // 点行进替换规则页、点勾选框控总开关（本项是全菜单唯一混合体，勾选框是总开关唯一落点）
-        CheckedMenuItem(
-            text = { Text(stringResource(id = R.string.replace_rule_manager)) },
-            checked = SystemTtsConfig.isReplaceEnabled.value,
-            onClick = {
-                onDismissRequest()
-                context.startActivity(ReplaceManagerActivity::class.java)
-            },
-            onClickCheckBox = {
-                SystemTtsConfig.isReplaceEnabled.value = it
-            },
-            leadingIcon = {
-                Icon(Icons.AutoMirrored.Default.ManageSearch, null)
-            }
-        )
+        // 替换规则/朗读规则/插件（10-07 晚回退：恢复 10-06 前的老样子——用户确认这三条
+        // 「以前一直都没改过，就这两天开始改的」，甲案上移+收敛删除整个撤销）。
+        // 替换规则仍是混合体：点行进替换规则页、点勾选框控总开关（唯一落点）
         HorizontalDivider()
-
         DropdownMenuItem(
             text = { Text(stringResource(id = R.string.audio_params_settings)) },
             onClick = { showAudioParamsDialog = true },
@@ -134,7 +121,44 @@ internal fun MenuMoreOptions(
             }
         )
 
-        // 替换规则已上移到上方开关组（10-07 装机反馈甲案），此处不再单独成组
+        HorizontalDivider()
+        DropdownMenuItem(
+            text = { Text(stringResource(id = R.string.speech_rule_manager)) },
+            onClick = {
+                onDismissRequest()
+                context.startActivity(SpeechRuleManagerActivity::class.java)
+            },
+            leadingIcon = {
+                Icon(Icons.AutoMirrored.Default.MenuBook, null)
+            }
+        )
+
+        DropdownMenuItem(
+            text = { Text(stringResource(id = R.string.plugin_manager)) },
+            onClick = {
+                onDismissRequest()
+                context.startActivity(PluginManagerActivity::class.java)
+            },
+            leadingIcon = {
+                Icon(painterResource(id = R.drawable.ic_shortcut_plugin), null)
+            }
+        )
+
+        CheckedMenuItem(
+            text = { Text(stringResource(id = R.string.replace_rule_manager)) },
+            checked = SystemTtsConfig.isReplaceEnabled.value,
+            onClick = {
+                onDismissRequest()
+                context.startActivity(ReplaceManagerActivity::class.java)
+            },
+            onClickCheckBox = {
+                SystemTtsConfig.isReplaceEnabled.value = it
+            },
+            leadingIcon = {
+                Icon(Icons.AutoMirrored.Default.ManageSearch, null)
+            }
+        )
+
         HorizontalDivider()
         DropdownMenuItem(text = {
             Text(stringResource(id = R.string.import_config))

@@ -197,11 +197,10 @@ fun SettingsScreen() {
                         .weight(1f)
                         .verticalScroll(if (openSection == null) mainScrollState else subScrollState)
                 ) {
-                    // ===== 常用（10-05 用户令：常用/重要置顶，一进页就够得着）=====
+                    // ===== 我的（10-07 用户令：常用+资源管理合并，一区六项一屏看全）=====
                     // ===== 主页内容（子页打开时整块不渲染）=====
                     if (openSection == null) {
-                    // ===== 常用（10-05 用户令：常用/重要置顶，一进页就够得着）=====
-                    SettingsGroup(title = { Text("常用") }, show = !search.active()) {
+                    SettingsGroup(title = { Text("我的") }, show = !search.active()) {
 
                 SettingItem(search, "主题", "theme", "深色", "浅色", "外观") {
                 BasePreferenceWidget(
@@ -229,12 +228,8 @@ fun SettingsScreen() {
                     title = { Text(stringResource(id = R.string.backup_restore)) },
                 )
                 }
-                }
 
-                // ===== 资源管理（10-05 用户令：常用，就第 2 区；四项各占一行，保留 ⋮ 同名入口）=====
-                // 原名「规则与插件」，加入「密钥管理」后分区改名为「资源管理」（都是独立管理页）。
-                SettingsGroup(title = { Text("资源管理") }, show = !search.active()) {
-                    SettingItem(search, "朗读规则", "规则", "speech", "rule") {
+                SettingItem(search, "朗读规则", "规则", "speech", "rule") {
                         BasePreferenceWidget(
                             // 显式 Intent：本文件 import 了 ContextCompat.startActivity（要 Intent 的静态重载），
                             // 它遮蔽 Context.startActivity(Class) —— 直接传 Class 会编译报「期望 Intent」
