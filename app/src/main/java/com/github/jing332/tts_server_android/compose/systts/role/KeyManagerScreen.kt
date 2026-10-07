@@ -542,7 +542,31 @@ private fun KeyEntryRow(
                         overflow = TextOverflow.Ellipsis,
                         modifier = Modifier.weight(1f)
                     )
-                    if (showFixEntry) {
+                    if (hasExpandable) {
+                        // 红态收起：恒给「详情」（10-08：显示不全正需要点开；
+                        // 原 message==reason 不给——那次修的是「同句读两遍」，这里只管入口恒在）
+                        Text(
+                            "详情",
+                            style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.sp),
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            fontWeight = FontWeight.SemiBold,
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(4.dp))
+                                .clickable { expanded = true }
+                                .padding(start = 6.dp, end = 2.dp)
+                        )
+                    }
+                }
+                // 黄态动作行（10-08 用户令：键下移到正文下一行）——原先双键挂正文行尾，
+                // 占掉 ~180dp 把「可用 · 思考未关（可能拖慢分配）」截成两行还吃字；
+                // 下移后正文独占整行一行放得下，总高不涨（省下的第二行 ≈ 新增的动作行）。
+                // 右对齐 + 键距 24，与红态展开底部动作行同一套尺度
+                if (showFixEntry) {
+                    Row(
+                        Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.End,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
                         // 黄态：思考设置 → 打开编辑弹窗直接落「自定义 JSON」（三类结构第三项）
                         Text(
                             stringResource(R.string.role_key_thinking_entry),
@@ -552,8 +576,9 @@ private fun KeyEntryRow(
                             modifier = Modifier
                                 .clip(RoundedCornerShape(4.dp))
                                 .clickable { onEditThinking() }
-                                .padding(start = 6.dp, end = 2.dp)
+                                .padding(horizontal = 8.dp, vertical = 6.dp)
                         )
+                        Spacer(Modifier.width(24.dp))
                         // 黄态也带「复制」（10-08：结果可复制不该只红态有）
                         Text(
                             stringResource(R.string.role_key_test_result_copy),
@@ -569,20 +594,7 @@ private fun KeyEntryRow(
                                         android.widget.Toast.LENGTH_SHORT
                                     ).show()
                                 }
-                                .padding(start = 6.dp, end = 2.dp)
-                        )
-                    } else if (hasExpandable) {
-                        // 红态收起：恒给「详情」（10-08：显示不全正需要点开；
-                        // 原 message==reason 不给——那次修的是「同句读两遍」，这里只管入口恒在）
-                        Text(
-                            "详情",
-                            style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.sp),
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            fontWeight = FontWeight.SemiBold,
-                            modifier = Modifier
-                                .clip(RoundedCornerShape(4.dp))
-                                .clickable { expanded = true }
-                                .padding(start = 6.dp, end = 2.dp)
+                                .padding(horizontal = 8.dp, vertical = 6.dp)
                         )
                     }
                 }
@@ -2130,12 +2142,15 @@ private fun KeyEditDialog(
                 // 三类摘要文案：自动（锁定 x）/关闭思考（写法名）/自定义 JSON
                 val isCustomSelected = thinkingMode == KeyListFile.THINKING_CUSTOM
                 val isLowSelected = thinkingExpanded && thinkingMode == KeyListFile.THINKING_LOW
+                // 摘要行取短名（截掉「（…）」括注）：完整文案如「全部关闭字段一起发（老口径，
+                // 宽容平台可用）」进摘要会变双括号嵌套还折行（10-08 实机截图）；括注留给平铺列表
+                fun shortLabel(m: String): String = modeLabel(m).substringBefore("（")
                 val summaryText = when {
                     !thinkingExpanded && !isCustomSelected ->
                         lockedMode?.let { "自动（锁定 $it）" } ?: "自动（未测试）"
                     isCustomSelected -> "自定义 JSON"
-                    isLowSelected -> modeLabel(KeyListFile.THINKING_LOW)
-                    else -> "关闭思考（${modeLabel(thinkingMode)}）"
+                    isLowSelected -> shortLabel(KeyListFile.THINKING_LOW)
+                    else -> "关闭思考（${shortLabel(thinkingMode)}）"
                 }
                 Row(
                     Modifier
