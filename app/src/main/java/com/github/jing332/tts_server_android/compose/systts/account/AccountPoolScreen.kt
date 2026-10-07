@@ -85,6 +85,11 @@ fun AccountPoolScreen(onBack: () -> Unit) {
     var busyId by remember { mutableStateOf<String?>(null) }
     // 待确认删除的账号（10-08 移植插件「删除」动作；删除不可逆，弹窗确认）
     var confirmDelete by remember { mutableStateOf<AccountPool.Account?>(null) }
+    // 渠道选择弹窗（10-09 全渠道批：「+」先选渠道再分流登录形态）
+    var showChannelPicker by remember { mutableStateOf(false) }
+    // 设备码登录中渠道 / 凭据直填渠道
+    var deviceLoginChannel by remember { mutableStateOf<String?>(null) }
+    var credentialChannel by remember { mutableStateOf<String?>(null) }
     val timeFmt = remember { SimpleDateFormat("MM-dd HH:mm", Locale.getDefault()) }
 
     LaunchedEffect(version) {
@@ -120,24 +125,7 @@ fun AccountPoolScreen(onBack: () -> Unit) {
                     IconButton(onClick = { reload() }) {
                         Icon(Icons.Default.Refresh, stringResource(R.string.reload))
                     }
-                    IconButton(onClick = {
-                        scope.launch {
-                            // 10-07 协议修正：state 必须带给登录页（GET auth/token?state= 轮询凭据用）
-                            val (state, url, err) = withContext(Dispatchers.IO) { AccountPool.fetchLoginUrl() }
-                            if (url == null) {
-                                context.toast("获取登录地址失败：$err")
-                            } else {
-                                // 必须用 ActivityResultLauncher：登录页轮询成功是 setResult 回传+
-                                // finish，裸 startActivity 没人接收 → 账号已落盘但列表不刷新
-                                // （10-08 真机实锤：WebView 里选完账号回到池页仍「暂无账号」）
-                                loginLauncher.launch(
-                                    android.content.Intent(context, AccountLoginActivity::class.java)
-                                        .putExtra(AccountLoginActivity.EXTRA_LOGIN_URL, url)
-                                        .putExtra(AccountLoginActivity.EXTRA_LOGIN_STATE, state)
-                                )
-                            }
-                        }
-                    }) {
+                    IconButton(onClick = { showChannelPicker = true }) {
                         Icon(Icons.Default.Add, stringResource(R.string.account_pool_login))
                     }
                 },
@@ -247,6 +235,51 @@ fun AccountPoolScreen(onBack: () -> Unit) {
     }
 
     // 删除确认弹窗（删除不可逆；连带说明：密钥条目不随删，由用户在密钥页自行管理）
+    // 渠道选择弹窗（10-09 全渠道批）：选完按登录形态分流
+    if (showChannelPicker) {
+        ChannelPickerDialog(
+            onDismiss = { showChannelPicker = false },
+            onPick = { ch ->
+                showChannelPicker = false
+                when (loginKindOf(ch.id)) {
+                    LoginFlowKind.WEBVIEW -> scope.launch {
+                        // CodeBuddy 既有 WebView 登录链（10-07/10-08 定稿，勿动交互）
+                        val (state, url, err) = withContext(Dispatchers.IO) { AccountPool.fetchLoginUrl() }
+                        if (url == null) {
+                            context.toast("获取登录地址失败：$err")
+                        } else {
+                            loginLauncher.launch(
+                                android.content.Intent(context, AccountLoginActivity::class.java)
+                                    .putExtra(AccountLoginActivity.EXTRA_LOGIN_URL, url)
+                                    .putExtra(AccountLoginActivity.EXTRA_LOGIN_STATE, state)
+                            )
+                        }
+                    }
+                    LoginFlowKind.DEVICE_CODE -> deviceLoginChannel = ch.id
+                    else -> credentialChannel = ch.id
+                }
+            },
+        )
+    }
+    deviceLoginChannel?.let { chId ->
+        DeviceCodeDialog(
+            provider = chId,
+            onDismiss = { deviceLoginChannel = null },
+            onDone = { reload() },
+        )
+    }
+    credentialChannel?.let { chId ->
+        CredentialDialog(
+            provider = chId,
+            onDismiss = { credentialChannel = null },
+            onDone = { nick ->
+                credentialChannel = null
+                context.toast("已添加：$nick")
+                reload()
+            },
+        )
+    }
+
     confirmDelete?.let { victim ->
         androidx.compose.material3.AlertDialog(
             onDismissRequest = { confirmDelete = null },
