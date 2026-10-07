@@ -1502,23 +1502,28 @@ fun KeyManagerScreen(tagRuleId: String, onBack: () -> Unit) {
                             .padding(start = 8.dp, end = 8.dp, top = 10.dp, bottom = 6.dp),
                         horizontalArrangement = Arrangement.SpaceBetween
                     ) {
+                        // 10-07 用户：大字体下「启用池(3)」折两行（图3）——三键内容边距
+                        // 24→12 各省 ≈24dp（共 ≈72dp），并给启用池键加 maxLines=1 兜底
                         OutlinedButton(
-                            onClick = { showAdd = true }
+                            onClick = { showAdd = true },
+                            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp)
                         ) {
                             // 回全名（10-06 用户拍板）：短版「+密钥」是 0919 weight 均分防折行的产物，
                             // 操作行改自适应宽+SpaceBetween 后前提消失；360dp 屏三键 ≈318dp 放得下
-                            Text(stringResource(R.string.role_key_add))
+                            Text(stringResource(R.string.role_key_add), maxLines = 1)
                         }
                         OutlinedButton(
-                            onClick = { showPullModels = true }
+                            onClick = { showPullModels = true },
+                            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp)
                         ) {
-                            Text(stringResource(R.string.role_key_fetch))
+                            Text(stringResource(R.string.role_key_fetch), maxLines = 1)
                         }
                         // 启用池子页入口：调轮换顺序 / 移出 / 整批测试在那边做
                         FilledTonalButton(
-                            onClick = { showPool = true }
+                            onClick = { showPool = true },
+                            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp)
                         ) {
-                            Text(stringResource(R.string.role_key_pool_open, pool.size))
+                            Text(stringResource(R.string.role_key_pool_open, pool.size), maxLines = 1)
                         }
                     }
                 }
