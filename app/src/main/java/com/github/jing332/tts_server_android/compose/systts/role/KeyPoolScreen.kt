@@ -61,6 +61,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.github.jing332.tts_server_android.R
 import com.github.jing332.tts_server_android.compose.nav.NavTopAppBar
+import com.github.jing332.tts_server_android.compose.systts.FlatIconAction
 import com.github.jing332.tts_server_android.compose.systts.OrderBadge
 import com.github.jing332.tts_server_android.service.systts.help.KeyListFile
 import org.burnoutcrew.reorderable.detectReorderAfterLongPress
@@ -163,42 +164,20 @@ internal fun KeyPoolScreen(
                     }
                 },
                 actions = {
-                    // 「⚡测试全部」填充键（0920 统一：与主页「启用池(N)」同款主操作语言）。
-                    // 整批测试中：⚡图标原位转小圈、按钮禁用变淡（文字保留，身份还在）；
-                    // 测完回⚡灰绿。结果在各行灯上逐个亮
+                    // ⚡测试（10-08 用户令）：测试全部胶囊撤，改纯图标——与模型行灰闪电同款
+                    // （FlatIconAction onSurfaceVariant 18dp、36dp 热区），文案进 contentDescription。
+                    // 整批测试中原位转小圈，测完回灰闪电
                     val testAllEnabled = pool.isNotEmpty() && !batchTesting
-                    Box(
-                        Modifier
-                            .padding(horizontal = 6.dp)
-                            .heightIn(min = 32.dp)
-                            .background(
-                                MaterialTheme.colorScheme.primary.copy(
-                                    alpha = if (testAllEnabled) 0.14f else 0.06f
-                                ),
-                                RoundedCornerShape(16.dp)
-                            )
-                            .clickable(enabled = testAllEnabled, onClick = onTestAll)
-                            .padding(horizontal = 10.dp),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            if (batchTesting) {
-                                CircularProgressIndicator(Modifier.size(16.dp), strokeWidth = 2.dp)
-                            } else {
-                                Icon(
-                                    Icons.Default.Bolt,
-                                    contentDescription = null,
-                                    modifier = Modifier.size(16.dp),
-                                    tint = MaterialTheme.colorScheme.primary
-                                )
-                            }
-                            Spacer(Modifier.width(4.dp))
-                            Text(
-                                stringResource(R.string.role_key_pool_test_all),
-                                style = MaterialTheme.typography.labelLarge,
-                                color = MaterialTheme.colorScheme.onSurface
-                            )
+                    if (batchTesting) {
+                        Box(Modifier.size(36.dp), contentAlignment = Alignment.Center) {
+                            CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp)
                         }
+                    } else {
+                        FlatIconAction(
+                            Icons.Default.Bolt,
+                            stringResource(R.string.role_key_pool_test_all),
+                            enabled = testAllEnabled
+                        ) { onTestAll() }
                     }
                     // ☑ 多选：批量移出（与主页 ☑ 同款图标语言）
                     IconButton(onClick = onToggleSelectionMode) {
