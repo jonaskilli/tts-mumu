@@ -300,12 +300,17 @@ object AccountPool {
         }
     }
 
-    /** 内置兜底清单（codebuddy.js CB.DEFAULT_MODEL 同源；清单接口未稳定，拉不到不至于无模型可选） */
+    /** 内置兜底清单（10-08 全模型实测 14/14 后按真清单收录；/v3/config 拉不到时不至于无模型可选） */
     private fun builtinModels(): List<String> = listOf(
         "deepseek-v4.1-flash",
-        "deepseek-v3.2",
+        "deepseek-v4-pro",
+        "deepseek-v4-flash",
         "glm-5.3",
-        "kimi-k2.6",
+        "glm-5.3-flash",
+        "glm-5.2",
+        "kimi-k3-1",
+        "minimax-m3",
+        "hy3",
     )
 
     // ==================== 一键添加为密钥（10-08：账号即凭据，照原插件免手填） ====================

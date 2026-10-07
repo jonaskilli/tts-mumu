@@ -1044,11 +1044,11 @@ object KeyListFile {
         val fields = thinkingBodyFields(mode, customJson)
             ?: return Triple(false, null, "自定义 JSON 无法解析，请检查格式")
         val payload = try {
-            val o = JSONObject(chatPayload(t.model, "只回复 pong", 16, 0))
+            val o = JSONObject(chatPayload(t.model, "只回复 pong", 512, 0))
             fields.keys().forEach { k -> o.put(k, fields.get(k)) }
             o.toString()
         } catch (e: Exception) {
-            chatPayload(t.model, "只回复 pong", 16, 0)
+            chatPayload(t.model, "只回复 pong", 512, 0)
         }
         val t0 = System.currentTimeMillis()
         // CodeBuddy 上游（10-08 接线）：只收流式（非流式 code 11101 拒）+ 必须完整对话头族
