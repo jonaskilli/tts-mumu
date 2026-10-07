@@ -344,7 +344,10 @@ object AccountPool {
      * @return (是否新增, 提示)；已存在= false + 说明文案
      */
     fun addAsKey(tagRuleId: String, acc: Account): Pair<Boolean, String> {
-        val baseUrl = "https://$CHAT_HOST"
+        // 必须带 /v2（10-08 真机实锤）：裸 https://copilot.tencent.com 拼出 /chat/completions
+        // 被网关 302 跳 www.codebuddy.cn，HttpURLConnection 静默跟随且 POST 降 GET，
+        // 拿回 200 非 SSE 页面 → 「流式响应无内容 finish=null」。鉴权/拉模型路径本来就带 /v2。
+        val baseUrl = "https://$CHAT_HOST/v2"
         val model = runCatching { fetchModels(acc.accessToken).first.first() }
             .getOrElse { builtinModels().first() }
         val ifaces = KeyListFile.readInterfaces(tagRuleId)
@@ -381,6 +384,37 @@ object AccountPool {
         KeyListFile.saveInterfaces(tagRuleId, updatedIfaces)
         KeyListFile.saveKeys(tagRuleId, newKeys)
         return true to "已添加：CodeBuddy / $model"
+    }
+
+    /**
+     * 存量迁移（10-08 真机实锤）：addAsKey 早期落的是裸 https://copilot.tencent.com，
+     * 对话拼 /chat/completions 被网关 302 跳 www.codebuddy.cn → 空流。
+     * 把密钥 value 网址段与接口 baseUrl 里的裸域改写成 …/v2；密钥/接口都改才不留半吊子
+     * （sameApiSite 逐字相等，只改一边会把归属拆散）。幂等：已是 /v2 不动。
+     * @return 修过的条目数（0=无需迁移）
+     */
+    fun migrateLegacyKeyUrls(tagRuleId: String): Int {
+        val bare = "https://$CHAT_HOST"
+        val fixed = "$bare/v2"
+        val ifaces = KeyListFile.readInterfaces(tagRuleId)
+        val keys = KeyListFile.readKeys(tagRuleId)
+        var n = 0
+        val newIfaces = ifaces.map {
+            if (it.baseUrl.trimEnd('/') == bare) { n++; it.copy(baseUrl = fixed) } else it
+        }
+        val newKeys = keys.map { e ->
+            val p = KeyListFile.parseKeyValue(e.value)
+            if (p != null && !p.isDirect && p.url.trimEnd('/') == bare) {
+                n++
+                e.copy(value = "$fixed@@${p.model}@@${p.key}")
+            } else e
+        }
+        if (n > 0) {
+            KeyListFile.saveInterfaces(tagRuleId, newIfaces)
+            KeyListFile.saveKeys(tagRuleId, newKeys)
+            appLog(LogLevel.SUCCESS, "账号池：已把 $n 处旧网址补上 /v2（302 空流修复）")
+        }
+        return n
     }
 
     // ==================== 登录 ====================

@@ -79,7 +79,11 @@ fun AccountPoolScreen(onBack: () -> Unit) {
     val timeFmt = remember { SimpleDateFormat("MM-dd HH:mm", Locale.getDefault()) }
 
     LaunchedEffect(version) {
-        accounts = withContext(Dispatchers.IO) { AccountPool.load() }
+        accounts = withContext(Dispatchers.IO) {
+            // 存量迁移（10-08）：旧版 addAsKey 落的裸域名会 302 空流，进页顺手修（幂等）
+            runCatching { AccountPool.migrateLegacyKeyUrls(KeyListFile.DEFAULT_TAG_RULE_ID) }
+            AccountPool.load()
+        }
     }
 
     fun reload() { version++ }
