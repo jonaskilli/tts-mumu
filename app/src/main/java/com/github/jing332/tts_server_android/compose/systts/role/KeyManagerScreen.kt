@@ -290,7 +290,10 @@ private fun KeyEntryRow(
                 // 卡片本体不可点（10-03：启用走行首对勾、复制走点名字——旧「点卡片启用」退役）
                 // start 4→0（10-06 用户：模型名大幅左移——行首改 36dp 自绘对勾盒，名字起线
                 // = 对勾字形右缘，比原 48dp M3 触控盒收紧 12dp；触控由盒内 clickable 全覆盖）
-                .padding(start = 0.dp, end = 0.dp, top = 8.dp, bottom = 8.dp),
+                .padding(start = 0.dp, end = 0.dp, top = 8.dp,
+                    // 乙案压扁（10-08 用户拍板）：模型行底距 8→3——有结果条时两者间距
+                    // 由结果条自身 padding 承担，绿/黄/红态结果行整体上提 ~5dp
+                    bottom = if (testOutcome != null && probeProgress == null && !selectionMode) 3.dp else 8.dp),
             // 名字换行成两行时图标垂直居中，不再用 Top 咬行
             verticalAlignment = Alignment.CenterVertically
         ) {
@@ -454,18 +457,15 @@ private fun KeyEntryRow(
                     .fillMaxWidth()
                     // 10-08：start 对齐模型名文字线；end=0 与动作图标盒右缘同线——
                     // 原先 end=12 让文字白少一截（用户：跟方框对齐能有更多文字面积）
-                    .padding(start = KEY_RESULT_BAR_START, end = 0.dp, top = 0.dp, bottom = 8.dp)
+                    // 乙案压扁：top 0（模型行底距已让 3dp）、bottom 8→5，行高再省 3dp
+                    .padding(start = KEY_RESULT_BAR_START, end = 0.dp, top = 0.dp, bottom = 5.dp)
             ) {
                 // 10-07 用户令：展开态首行让位——原实现首行（截断 reason）+ 下方全文并列，
-                // 同一段话读两遍（401 详情尤其明显）；展开后只渲染全文一次，圆点随正文顶对齐
+                // 同一段话读两遍（401 详情尤其明显）；展开后只渲染全文一次。
+                // 10-08 用户令「结果条前方灯去掉」：展开态首行圆点一并撤（同理由——整行
+                // 文字已是红色，圆点重复编码），全文左缘与收起行/模型名同一条线
                 if (expanded && hasExpandable) {
                     Row(Modifier.fillMaxWidth()) {
-                        Box(
-                            Modifier
-                                .padding(end = 5.dp, top = 5.dp)
-                                .size(8.dp)
-                                .background(barColor, CircleShape)
-                        )
                         // 全部内容（红字，与首行同色——用户：点开详情显示全部）
                         Text(
                             testOutcome.message,
@@ -520,13 +520,9 @@ private fun KeyEntryRow(
                     Modifier.fillMaxWidth(),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    // 三态圆点（8dp 同测试灯）：绿=通/黄=可用但思考开/红=不通
-                    Box(
-                        Modifier
-                            .padding(end = 5.dp)
-                            .size(8.dp)
-                            .background(barColor, CircleShape)
-                    )
+                    // 行首圆点已撤（10-08 用户令）：整行文字本身就是状态色（绿/黄/红），
+                    // 圆点是重复编码；撤后文字左移 13dp（点 8 + 边距 5），左缘齐模型名文字线。
+                    // 扫视锚点不丢——模型行灯槽（乙案保留）仍是行内状态锚。
                     // 用时前置徽标（10-08 用户令：黄态看不到用时=不知道满不满）——
                     // 独立 Text 不进正文流，maxLines 截断只吃正文、永远吃不到用时
                     if (timingPrefix.isNotEmpty()) {
