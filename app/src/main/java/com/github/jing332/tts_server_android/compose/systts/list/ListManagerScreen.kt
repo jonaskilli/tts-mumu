@@ -758,8 +758,9 @@ internal fun ListManagerScreen(
     /**
      * 旁白整理：旁白为单一角色不带序号，组内全部配置统一打 narration（显示名 旁白）。
      * 标签名固定，无需 JS 评估；已正确的项跳过。
-     * 防误转：只统一旁白族（旁白X/narration）与空白标签的项；
-     * 人物标签（如 jread 的 女青年01）即使出现在旁白命名的分组里也不改，避免一键整理毁掉人物标签。
+     * 10-07 用户令改强改口径：分组名含「旁白」即整组无差别改 narration——不再保护
+     * 人物标签（旧口径只动旁白族/空白标签，用户预期是「别管之前是什么标签」全改）。
+     * 菜单显示本身有闸（一键整理标签只在无子分组+组内非空时出现），误触面由它挡。
      */
     suspend fun reassignNarrationTags(list: List<SystemTtsV2>): Int {
         val toUpdate = mutableListOf<SystemTtsV2>()
@@ -767,9 +768,6 @@ internal fun ListManagerScreen(
             val config = item.config as TtsConfigurationDTO
             val tag = config.speechRule.tag
             if (tag == "narration") return@forEach
-            val isNarrationFamily = tag.isBlank() ||
-                tag.equals("narration", true) || tag.startsWith("旁白")
-            if (!isNarrationFamily) return@forEach
             val newRule = config.speechRule.copy(tag = "narration", tagName = "旁白")
             toUpdate.add(item.copy(config = config.copy(speechRule = newRule)))
         }
