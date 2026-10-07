@@ -1519,41 +1519,35 @@ fun KeyManagerScreen(tagRuleId: String, onBack: () -> Unit) {
             contentPadding = PaddingValues(start = 12.dp, end = 8.dp, top = 4.dp, bottom = 12.dp)
         ) {
             item(key = "ops") {
-                    // 操作行三键：**内容自适应宽度**（用户 0919：weight 均分是折行根因，按钮
-                    // 保持自适应；启用池键保持填充强调）。
-                    // 10-07 二改（装机反馈「松散」）：①三键加高 40→44dp（vertical 8→11，
-                    // 摸上去更立得住；不能 48——三键横向只剩 10dp 余量，再加高显厚且挤行）；
-                    // ②SpaceBetween→居中等距（Arrangement.spacedBy）——原「首尾贴边+两条大缝」
-                    // 是松散感主源；改后三键居中、两缝等宽 8dp。横向总宽不变，不引发折行
+                    // 操作行三键（10-08 用户拍板乙案）：键宽内容自适应（0919 weight 均分折行坑
+                    // 与它无关——根本不均分宽），SpaceBetween 首键贴左/尾键贴右、两缝自动均分，
+                    // 与下方组卡同宽对齐；键左右内距 12→18 兜住文字呼吸。
+                    // 高度 44dp 不动（10-07 定的，加厚显挤）
                     Row(
                         Modifier.fillMaxWidth()
                             .padding(horizontal = 8.dp, vertical = 6.dp),
-                        horizontalArrangement = Arrangement.Center,
+                        horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         OutlinedButton(
                             onClick = { showAdd = true },
                             modifier = Modifier.heightIn(min = 44.dp),
-                            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 11.dp)
+                            contentPadding = PaddingValues(horizontal = 18.dp, vertical = 11.dp)
                         ) {
-                            // 回全名（10-06 用户拍板）：短版「+密钥」是 0919 weight 均分防折行的产物，
-                            // 操作行改自适应宽+SpaceBetween 后前提消失；360dp 屏三键 ≈318dp 放得下
                             Text(stringResource(R.string.role_key_add), maxLines = 1)
                         }
-                        Spacer(Modifier.width(8.dp))
                         OutlinedButton(
                             onClick = { showPullModels = true },
                             modifier = Modifier.heightIn(min = 44.dp),
-                            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 11.dp)
+                            contentPadding = PaddingValues(horizontal = 18.dp, vertical = 11.dp)
                         ) {
                             Text(stringResource(R.string.role_key_fetch), maxLines = 1)
                         }
-                        Spacer(Modifier.width(8.dp))
                         // 启用池子页入口：调轮换顺序 / 移出 / 整批测试在那边做
                         FilledTonalButton(
                             onClick = { showPool = true },
                             modifier = Modifier.heightIn(min = 44.dp),
-                            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 11.dp)
+                            contentPadding = PaddingValues(horizontal = 18.dp, vertical = 11.dp)
                         ) {
                             Text(stringResource(R.string.role_key_pool_open, pool.size), maxLines = 1)
                         }
