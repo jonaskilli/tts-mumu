@@ -37,8 +37,6 @@ import androidx.compose.material.icons.filled.ContentPaste
 import androidx.compose.material.icons.filled.DeleteOutline
 import androidx.compose.material.icons.filled.DeleteSweep
 import androidx.compose.material.icons.filled.Edit
-import androidx.compose.material.icons.filled.FileDownload
-import androidx.compose.material.icons.filled.FileUpload
 import androidx.compose.material.icons.filled.Restore
 import androidx.compose.material.icons.filled.Save
 import androidx.compose.material.icons.filled.Schedule
@@ -434,8 +432,10 @@ private fun KeyEntryRow(
                 // 红：原始错误全文，靠 maxLines=1 截成一行（展开看全部，见下方 expanded 分支）
                 else -> testOutcome.reason.ifEmpty { testOutcome.message }
             }
-            // 只有红态可展开（绿已完美、黄不需要）
-            val hasExpandable = !isPass && !isWarn
+            // 只有红态可展开（绿已完美、黄不需要）；且「全文 ≠ 首行」才有得展——
+            // 连接/单条失败类 message==reason（如「密钥无效或无权限（HTTP 401）」），
+            // 展开只会重复同一句话，不给「详情」入口（10-07 用户实锤反馈）
+            val hasExpandable = !isPass && !isWarn && testOutcome.message != collapsedText
             // 「去设置」只给黄态（10-07 用户：有些可以点进去自定义关闭思考，自己找到合适方案）——
             // 绿态思考已关无需设置；红态是连接/5xx/鉴权错误，设置改不了（模型名写错在编辑页改，
             // 但那是模型不是思考，不在这条测试提示的引导范围）
@@ -448,65 +448,24 @@ private fun KeyEntryRow(
                     // 结果条左缘对齐模型名文字线、右缘收进 12dp（文字不是键，右缘不与图标盒同线）
                     .padding(start = KEY_RESULT_BAR_START, end = 12.dp, top = 0.dp, bottom = 8.dp)
             ) {
-                Row(
-                    Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    // 三态圆点（8dp 同测试灯）：绿=通/黄=可用但思考开/红=不通
-                    Box(
-                        Modifier
-                            .padding(end = 5.dp)
-                            .size(8.dp)
-                            .background(barColor, CircleShape)
-                    )
-                    Text(
-                        collapsedText,
-                        style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.sp),
-                        color = barColor,
-                        // 恒 1 行（红态=第一行截断；展开态正文在下方）
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                        modifier = Modifier.weight(1f)
-                    )
-                    if (showFixEntry) {
-                        // 黄态：思考设置 —— 打开密钥编辑弹窗的「思考」栏（自动/多选/自定义 JSON），
-                        // 用户可自己写字段关思考。10-07 用户：文案原「去设置」看不出是思考，
-                        // 改为「思考设置 ›」；颜色与「详情」统一灰（动作键不抢状态色语义）
-                        Text(
-                            stringResource(R.string.role_key_thinking_entry),
-                            style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.sp),
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            fontWeight = FontWeight.SemiBold,
-                            modifier = Modifier
-                                .clip(RoundedCornerShape(4.dp))
-                                .clickable { onEditThinking() }
-                                .padding(start = 6.dp, end = 2.dp)
-                        )
-                    } else if (hasExpandable) {
-                        // 红态收起时：右上角「详情」；展开后右上角不再放键——
-                        // 「收起」挪到底部动作行（10-07 用户：红态收起位置不对，应放底部）
-                        if (!expanded) {
-                            Text(
-                                "详情",
-                                style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.sp),
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                fontWeight = FontWeight.SemiBold,
-                                modifier = Modifier
-                                    .clip(RoundedCornerShape(4.dp))
-                                    .clickable { expanded = true }
-                                    .padding(start = 6.dp, end = 2.dp)
-                            )
-                        }
-                    }
-                }
+                // 10-07 用户令：展开态首行让位——原实现首行（截断 reason）+ 下方全文并列，
+                // 同一段话读两遍（401 详情尤其明显）；展开后只渲染全文一次，圆点随正文顶对齐
                 if (expanded && hasExpandable) {
-                    // 全部内容（红字，与首行同色——用户：点开详情显示全部）
-                    Text(
-                        testOutcome.message,
-                        style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.sp),
-                        color = barColor,
-                        modifier = Modifier.padding(top = 2.dp)
-                    )
+                    Row(Modifier.fillMaxWidth()) {
+                        Box(
+                            Modifier
+                                .padding(end = 5.dp, top = 5.dp)
+                                .size(8.dp)
+                                .background(barColor, CircleShape)
+                        )
+                        // 全部内容（红字，与首行同色——用户：点开详情显示全部）
+                        Text(
+                            testOutcome.message,
+                            style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.sp),
+                            color = barColor,
+                            modifier = Modifier.weight(1f)
+                        )
+                    }
                     // 底部动作行（右对齐）：复制结果 + 收起（红态展开后「收起」在底部，与复制同排）
                     // 间距 12→24（10-07 用户：两键挨太近像连成一个词）——两键性质不同
                     // （复制 vs 折叠），且都靠右排，加大间距不占额外行宽。
@@ -548,6 +507,55 @@ private fun KeyEntryRow(
                                 .padding(horizontal = 8.dp, vertical = 6.dp)
                         )
                     }
+                } else {
+                Row(
+                    Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    // 三态圆点（8dp 同测试灯）：绿=通/黄=可用但思考开/红=不通
+                    Box(
+                        Modifier
+                            .padding(end = 5.dp)
+                            .size(8.dp)
+                            .background(barColor, CircleShape)
+                    )
+                    Text(
+                        collapsedText,
+                        style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.sp),
+                        color = barColor,
+                        // 恒 1 行（红态=第一行截断；展开态正文在下方）
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.weight(1f)
+                    )
+                    if (showFixEntry) {
+                        // 黄态：思考设置 —— 打开密钥编辑弹窗的「思考」栏（自动/多选/自定义 JSON），
+                        // 用户可自己写字段关思考。10-07 用户：文案原「去设置」看不出是思考，
+                        // 改为「思考设置 ›」；颜色与「详情」统一灰（动作键不抢状态色语义）
+                        Text(
+                            stringResource(R.string.role_key_thinking_entry),
+                            style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.sp),
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            fontWeight = FontWeight.SemiBold,
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(4.dp))
+                                .clickable { onEditThinking() }
+                                .padding(start = 6.dp, end = 2.dp)
+                        )
+                    } else if (hasExpandable) {
+                        // 红态收起时：右上角「详情」；展开后整行让位给全文（见上方分支）
+                        Text(
+                            "详情",
+                            style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.sp),
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            fontWeight = FontWeight.SemiBold,
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(4.dp))
+                                .clickable { expanded = true }
+                                .padding(start = 6.dp, end = 2.dp)
+                        )
+                    }
+                }
                 }
             }
         }
@@ -1345,14 +1353,16 @@ fun KeyManagerScreen(tagRuleId: String, onBack: () -> Unit) {
                         )
                     }
                 },
-                // 导入/导出：FileDownload/FileUpload 单色图标 + 文字；热区 ≥48dp（IconButton 最小宽会挤标题）
+                // 导入/导出：**纯文字**（10-07 用户：大字体下顶栏五件挤得「密钥」竖排——
+                // 撤 ⬇⬆ 图标各省 ≈22dp，标题得 71dp 放得下；热区 ≥48dp 不变）
                 actions = {
-                    // 账号池入口（10-06 方案B）：开二级页（登录/签到/积分/续期）
+                    // 账号池入口（10-06 方案B）：开二级页（登录/签到/积分/续期）。
+                    // 横距 8→6（10-07 大字体留宽）
                     Box(
                         Modifier
                             .heightIn(min = 48.dp)
                             .clickable { showAccountPool = true }
-                            .padding(horizontal = 8.dp),
+                            .padding(horizontal = 6.dp),
                         contentAlignment = Alignment.CenterStart
                     ) {
                         Text(
@@ -1383,22 +1393,13 @@ fun KeyManagerScreen(tagRuleId: String, onBack: () -> Unit) {
                                     }
                                 }
                             }
-                            .padding(horizontal = 8.dp),
+                            .padding(horizontal = 6.dp),
                         contentAlignment = Alignment.CenterStart
                     ) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Icon(
-                                Icons.Default.FileDownload,
-                                contentDescription = null,
-                                modifier = Modifier.size(18.dp),
-                                tint = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                            Spacer(Modifier.width(4.dp))
-                            Text(
-                                stringResource(R.string.role_key_action_import),
-                                style = MaterialTheme.typography.labelLarge
-                            )
-                        }
+                        Text(
+                            stringResource(R.string.role_key_action_import),
+                            style = MaterialTheme.typography.labelLarge
+                        )
                     }
                     Box(
                         Modifier
@@ -1410,22 +1411,13 @@ fun KeyManagerScreen(tagRuleId: String, onBack: () -> Unit) {
                                     else toast(R.string.role_list_failed)
                                 }
                             }
-                            .padding(horizontal = 8.dp),
+                            .padding(horizontal = 6.dp),
                         contentAlignment = Alignment.CenterStart
                     ) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Icon(
-                                Icons.Default.FileUpload,
-                                contentDescription = null,
-                                modifier = Modifier.size(18.dp),
-                                tint = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                            Spacer(Modifier.width(4.dp))
-                            Text(
-                                stringResource(R.string.role_key_action_export),
-                                style = MaterialTheme.typography.labelLarge
-                            )
-                        }
+                        Text(
+                            stringResource(R.string.role_key_action_export),
+                            style = MaterialTheme.typography.labelLarge
+                        )
                     }
                     // 页面级多选入口（照主界面 ☑ Checklist 同款）：跨组勾选 → 底栏 加入池/删除。
                     // 与组内删除模式互斥：进入前先退掉组内删除

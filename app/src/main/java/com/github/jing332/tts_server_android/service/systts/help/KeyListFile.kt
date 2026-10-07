@@ -1001,12 +1001,18 @@ object KeyListFile {
      * HTTP -1=连接层（DNS/拒连/超时）、5xx=上游、401/403=鉴权、404=端点、429=限流、
      * 「2xx 但内容无效」=上游行为——换思考写法不可能改变结果，试探循环遇到即终止。
      * 只有 400~422 这类参数拒收（UNKNOWN_FIELD 等）才值得换下一写法。
+     *
+     * ⚠️ 10-07 修（用户装机实锤）：401/403/404 曾落进 400~422 区间被当成「可能关思考写法的事」，
+     * 白轮完全套写法，还会拼出「未见连接/鉴权类错误…应是参数写法」的自相矛盾结论（401 就是鉴权错）。
+     * 这几码与思考写法无关，必须显式短路——注释里早写了「401/403=鉴权」，分类器却没实现。
      */
     private fun isSpellingAgnosticFailure(msg: String): Boolean {
         if (msg.contains("HTTP -1")) return true
         if (msg.contains("不是有效的对话响应")) return true
         val code = Regex("HTTP (\\d{3})").find(msg)?.groupValues?.get(1)?.toIntOrNull()
             ?: return false
+        // 鉴权/端点类：与「换哪种思考写法」无关，首个即终止
+        if (code == 401 || code == 403 || code == 404) return true
         return code >= 500 || code !in 400..422
     }
 
@@ -1159,8 +1165,10 @@ object KeyListFile {
         }
         return TestOutcome(
             TestVerdict.FAIL, null,
-            // 走到这里=6 种写法全是参数类拒收（连接/鉴权类已被上面短路）——锅在参数或模型名
-            "自动试探失败（共 ${order.size} 种写法全部被拒，未见连接/鉴权类错误，应是参数写法或模型名不被接受）——最后一条：$lastMsg",
+            // 走到这里=写法全是参数类拒收（连接/鉴权/端点类已被上面短路——10-07 补齐 401/403/404，
+            // 此前误落 400~422 区间）——锅在参数写法或模型名。
+            // 原文案「未见连接/鉴权类错误」与「最后一条：HTTP 401」自相矛盾（装机实锤），已删。
+            "自动试探失败：${order.size} 种写法全部被拒，应是参数写法或模型名不被接受——最后一条：$lastMsg",
             // 红态首行只显示原因（用户 10-05：「测试不通过」是废话）——全拒时原因=最后一条的原始错
             reason = lastMsg.substringAfter("：", lastMsg)
         )
