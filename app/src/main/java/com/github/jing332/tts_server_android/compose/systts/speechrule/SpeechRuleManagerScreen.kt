@@ -70,6 +70,7 @@ import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.github.jing332.common.utils.toast
 import com.github.jing332.compose.rememberLazyListReorderCache
 import com.github.jing332.compose.widgets.AppDialog
@@ -530,7 +531,8 @@ internal fun Item(
                 }
                 Column(Modifier.weight(1f)) {
                     // 名称14sp限两行、author等次要信息12sp,与插件管理列表一致
-                    Text(text = name, style = MaterialTheme.typography.bodyMedium, maxLines = 2,
+                    // 条目名 15sp（10-07 归档：与插件/替换两卡同名档，14sp 原为无拍板默认值）
+                    Text(text = name, style = MaterialTheme.typography.bodyMedium.copy(fontSize = 15.sp), maxLines = 2,
                         overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
                     Text(text = desc, style = MaterialTheme.typography.bodySmall)
                 }

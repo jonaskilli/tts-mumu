@@ -333,7 +333,8 @@ private fun KeyEntryRow(
             // 点击（0920 实机反馈：只有名字前小空隙能点），条件挂载才干净
             Text(
                 KeyListFile.displayName(entry),
-                style = MaterialTheme.typography.bodyMedium,
+                // 条目名 15sp（10-07 归档：与插件/替换两卡同名档，14sp 原为无拍板默认值）
+                style = MaterialTheme.typography.bodyMedium.copy(fontSize = 15.sp),
                 color = MaterialTheme.colorScheme.onSurface,
                 maxLines = 2,
                 overflow = TextOverflow.Ellipsis,
