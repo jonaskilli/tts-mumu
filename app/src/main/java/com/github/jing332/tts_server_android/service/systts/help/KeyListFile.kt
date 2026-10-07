@@ -197,6 +197,9 @@ object KeyListFile {
      * 省掉从零探测的 1~2 发；宽容站：继承值就是 multi，排前=序列不变、零额外成本；
      * 继承错了：自动落回标准序列，只多花 1 发（无害——个别中转站不同模型走不同上游）。
      * 命中即止（首个「可达且无思考内容」锁定），与既有早停原则一致。
+     * 10-08 用户拍板：**自定义 JSON 也参与同站继承**（人填的认证答案分享给同站其它模型，
+     * 不是机器发明）——custom 排最前（同站特殊站大概率全站都要它），命中/继承都会带上
+     * 锁定表里的 custom 文本（testOnce 的 custom 参数走 locked 行，非本模型空串）。
      */
     private fun probeOrderFor(tagRuleId: String, url: String, model: String): Array<String> {
         val site = normalizeBaseUrl(openAiBaseUrl(url))
@@ -204,7 +207,7 @@ object KeyListFile {
             .filter { (k, v) ->
                 k.contains("@@") && k.substringBefore("@@") == site &&
                     k.substringAfter("@@") != model.trim() && v.first.isNotEmpty() &&
-                    v.first != THINKING_AUTO && v.first != THINKING_CUSTOM
+                    v.first != THINKING_AUTO
             }
             .values.map { it.first }
             .distinct()
@@ -213,8 +216,9 @@ object KeyListFile {
         return (inherited + THINKING_PROBE_ORDER.toList()).distinct().toTypedArray()
     }
 
-    /** 同站继承排序：宽松在前（multi=老行为最保守；越"重"的写法越靠后），与标准序列同向 */
+    /** 同站继承排序：custom 最前（人填的认证答案，同站大概率全站要它）；宽松在前（multi=老行为最保守；越"重"的写法越靠后），与标准序列同向 */
     private fun inheritedRank(mode: String): Int = when (mode) {
+        THINKING_CUSTOM -> -1
         THINKING_MULTI -> 0
         THINKING_TYPE -> 1
         THINKING_TMODE -> 2
@@ -1146,11 +1150,14 @@ object KeyListFile {
             return TestOutcome(v, off, msg + suffix, reason = if (!ok) msg else "")
         }
 
-        // auto：先按锁定写法测一发（锁定后通常一发即走）；键 = 网址+模型（模型级锁定）
-        val lockKey = thinkingLockKey(t.baseUrl, t.model)
-        val locked = readThinkingParams(tagRuleId)[lockKey]?.first
-        if (!locked.isNullOrEmpty() && locked != THINKING_CUSTOM) {
-            val (ok, off, msg) = testOnce(t, locked, custom)
+        // auto：先按锁定写法测一发（锁定后通常一发即走）；键 = 网址+模型（模型级锁定）。
+        // 10-08 用户拍板：custom 锁定也在此命中——本模型自己的 custom 锁定用本模型 custom 文本；
+        // 同站继承来的 custom（探测轮命中）已落成本模型自己的锁定行，走同一读取路径
+        val lockEntry = readThinkingParams(tagRuleId)[lockKey]
+        val locked = lockEntry?.first
+        val lockedCustom = if (locked == THINKING_CUSTOM) lockEntry?.second.orEmpty() else custom
+        if (!locked.isNullOrEmpty()) {
+            val (ok, off, msg) = testOnce(t, locked, lockedCustom)
             if (ok) {
                 val v = if (off == false) TestVerdict.PASS_THINKING else TestVerdict.PASS
                 val suffix = if (off == false) "；思考未关闭（锁定：$locked）" else "；思考已关（锁定：$locked）"
@@ -1161,14 +1168,27 @@ object KeyListFile {
             // 锁定写法突然不通（平台行为变了）→ 落到全量试探
         }
 
-        // 全量试探（同站继承序列：同站已锁写法排前，命中即锁）；全带思考 → 锁定最宽松档保分配报黄
+        // 全量试探（同站继承序列：同站已锁写法排前，命中即锁）；全带思考 → 锁定最宽松档保分配报黄。
+        // 10-08 用户拍板：custom 参与同站继承——试探到 custom 时要带「源模型锁定行里的 custom 文本」，
+        // 命中锁定也存该文本（本模型自己的 custom 优先，其次同站源模型的）
+        val paramsTable = readThinkingParams(tagRuleId)
         var yellow: Pair<String, String>? = null
         var lastMsg = ""
         val order = probeOrderFor(tagRuleId, t.baseUrl, t.model)
         for ((idx, m) in order.withIndex()) {
             // 探测进度（10-03 九改）：多候选时才报（单候选=无需进度噪音）
             if (order.size > 1) onProgress("第 ${idx + 1}/${order.size} 种写法「$m」")
-            val (ok, off, msg) = testOnce(t, m, custom)
+            // custom 文本三源取一：本模型条目 > 同站继承源行 > 本模型条目的 custom 字段
+            val mCustom = if (m == THINKING_CUSTOM) {
+                custom.ifBlank {
+                    lockKey.let { k -> paramsTable[k]?.takeIf { it.first == THINKING_CUSTOM }?.second }
+                        ?: paramsTable.entries.firstOrNull {
+                            it.key.substringBefore("@@") == normalizeBaseUrl(openAiBaseUrl(t.baseUrl)) &&
+                                it.value.first == THINKING_CUSTOM
+                        }?.value.second.orEmpty()
+                }
+            } else custom
+            val (ok, off, msg) = testOnce(t, m, mCustom)
             lastMsg = "$m：$msg"
             if (!ok) {
                 // 写法无关失败（10-05 用户）：连接不上/上游 5xx/鉴权不通，换思考写法没有意义——
@@ -1185,7 +1205,7 @@ object KeyListFile {
                 continue
             }
             if (off != false) {
-                saveThinkingParam(tagRuleId, t.baseUrl, t.model, m, "")
+                saveThinkingParam(tagRuleId, t.baseUrl, t.model, m, mCustom)
                 return TestOutcome(
                     TestVerdict.PASS, true,
                     "思考适配完成：该模型锁定「$m」（思考已关，$msg）",
