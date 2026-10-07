@@ -60,6 +60,7 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import com.github.jing332.compose.ComposeExtensions.clickableRipple
@@ -148,10 +149,10 @@ fun AppSelectionDialog(
             )
         Text(
             entry,
-            // bodyMedium 14sp（用户 09-11）：AlertDialog 正文槽 LocalTextStyle=bodyMedium，
-            // 触发它的字段值全是 14sp，列表条目原显式 bodyLarge 16sp 与字段错位一圈；
-            // 降到 14sp 后全 app 选择弹窗（插件/分组/分类）字段与列表对齐，长列表也更紧凑
-            style = MaterialTheme.typography.bodyMedium,
+            // 选择列表行名 15sp（10-07 归档）：与条目名/书籍行 15 一线。
+            // 推翻 09-11 的「14sp 与字段对齐」口径——字段是输入内容、列表是选择对象，不必对齐；
+            // 全 app 选择弹窗（主题/直链/BGM/标签/分组/分类/插件/AppSpinner大列表）由本组件统一承担
+            style = MaterialTheme.typography.bodyMedium.copy(fontSize = 15.sp),
             modifier = Modifier
                 .weight(1f)
                 // start 内收 8（10-05 用户：原 16 相对搜索框边框太深，「左边距过大」；

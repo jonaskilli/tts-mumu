@@ -13,6 +13,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.DialogProperties
 import com.github.jing332.database.dbm
 import com.github.jing332.database.entities.SpeechRule
@@ -150,7 +151,8 @@ fun BatchTagDialog(
                             Column(modifier = Modifier.weight(1f)) {
                                 Text(
                                     text = "${index + 1}. ${item.displayName}",
-                                    style = MaterialTheme.typography.bodyMedium
+                                    // 选择行名 15sp（10-07 归档）
+                                    style = MaterialTheme.typography.bodyMedium.copy(fontSize = 15.sp)
                                 )
                                 if (currentTagName.isNotEmpty()) {
                                     Text(

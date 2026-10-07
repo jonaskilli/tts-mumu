@@ -45,6 +45,7 @@ import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.unit.sp
 import kotlin.math.max
 
 
@@ -147,8 +148,10 @@ fun DropdownTextField(
                                 selected = selectedIndex == index
                             },
                         text = {
+                            // 选项行名 15sp（10-07 归档：选择列表与 AppSelectionDialog/条目名 15 一线）
                             Text(
                                 text,
+                                style = MaterialTheme.typography.bodyMedium.copy(fontSize = 15.sp),
                                 fontWeight = if (checked) FontWeight.Bold else FontWeight.Normal
                             )
                         },

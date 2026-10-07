@@ -33,6 +33,7 @@ import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.DialogProperties
 import com.github.jing332.database.dbm
 
@@ -228,7 +229,8 @@ fun GroupTreePickerDialog(
                                 )
                                 Text(
                                     text = "（根目录，不设子分组）",
-                                    style = MaterialTheme.typography.bodyMedium,
+                                    // 选择行名 15sp（10-07 归档）
+                                    style = MaterialTheme.typography.bodyMedium.copy(fontSize = 15.sp),
                                     modifier = Modifier.padding(start = 4.dp)
                                 )
                             }
@@ -269,7 +271,8 @@ fun GroupTreePickerDialog(
                                 )
                                 Text(
                                     text = path.replace("/", " / "),
-                                    style = MaterialTheme.typography.bodyMedium,
+                                    // 选择行名 15sp（10-07 归档）
+                                    style = MaterialTheme.typography.bodyMedium.copy(fontSize = 15.sp),
                                     modifier = Modifier.padding(start = 4.dp)
                                 )
                             }
@@ -308,7 +311,8 @@ fun GroupTreePickerDialog(
                             )
                             Text(
                                 text = "新建子分组",
-                                style = MaterialTheme.typography.bodyMedium,
+                                // 可选行名 15sp（10-07 归档）
+                                style = MaterialTheme.typography.bodyMedium.copy(fontSize = 15.sp),
                                 modifier = Modifier.padding(start = 4.dp)
                             )
                         }

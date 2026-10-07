@@ -22,6 +22,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 
 @Composable
 fun MoveToSubGroupDialog(
@@ -80,7 +81,8 @@ fun MoveToSubGroupDialog(
                             )
                             Text(
                                 text = path,
-                                style = MaterialTheme.typography.bodyMedium,
+                                // 选择行名 15sp（10-07 归档）
+                                style = MaterialTheme.typography.bodyMedium.copy(fontSize = 15.sp),
                                 modifier = Modifier.padding(start = 4.dp)
                             )
                         }
@@ -111,7 +113,8 @@ fun MoveToSubGroupDialog(
                     )
                     Text(
                         text = "新建子分组",
-                        style = MaterialTheme.typography.bodyMedium,
+                        // 可选行名 15sp（10-07 归档）
+                        style = MaterialTheme.typography.bodyMedium.copy(fontSize = 15.sp),
                         modifier = Modifier.padding(start = 4.dp)
                     )
                 }
