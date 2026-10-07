@@ -396,15 +396,20 @@ internal fun LogScreen(
                 .fillMaxSize()
                 .then(
                     if (dragSelectEnabled) Modifier.pointerInput(Unit) {
-                        // 手写 awaitEachGesture。等待长按阶段（10-06 手势修正）：本页躺在
-                        // 底栏横向翻页容器里，长按期间手指轻微横漂会被外层 pager 抢走
-                        // 变成切页。改法：等待期内横漂在 Initial 段就地消费（pager 抢不走），
-                        // 纵向明确滚动立即放行。两道门=触摸 slop 幅度 + longPressTimeout
-                        // 时间——快速滑动越过即正常翻页，不会误触。
+                        // 手写 awaitEachGesture。等待长按阶段：本页躺在底栏横向翻页容器里，
+                        // 长按期间手指轻微横漂会被外层 pager 抢走变成切页。
+                        // 10-07 换栏修复：横移处理加时间闸——落指 150ms 内就越过 slop 的横移
+                        // = 快速换栏意图，不消费直接放手让 pager 接管（10-06 版无条件消费，
+                        // 把左右滑换栏整个废掉了）；150ms 后才慢慢漂过 slop = 按住时的轻微
+                        // 横漂，就地消费保住长按。时间闸取长按超时（400ms）的前段：正常换栏
+                        // 横滑几乎都在 150ms 内越过 slop，按住不动的手几乎不会。
+                        // 纵向明确滚动立即放行（与 10-06 一致）。
                         // 超时未被取消 = 长按成立（withTimeoutOrNull null 返回值语义）
                         awaitEachGesture {
                             val down = awaitFirstDown(requireUnconsumed = false)
                             val slop = viewConfiguration.touchSlop
+                            val downAt = System.nanoTime()
+                            val swipeGraceMs = 150L
                             val waited = withTimeoutOrNull(viewConfiguration.longPressTimeoutMillis) {
                                 while (true) {
                                     val event = awaitPointerEvent(PointerEventPass.Initial)
@@ -416,8 +421,12 @@ internal fun LogScreen(
                                         val dx = change.position.x - down.position.x
                                         val dy = change.position.y - down.position.y
                                         if (abs(dy) > slop && abs(dy) >= abs(dx)) break // 纵向滚动意图 → 放行
-                                        if (abs(dx) > slop || abs(dy) > slop)
-                                            change.consume() // 横漂拦截：pager 抢不走
+                                        if (abs(dx) > slop || abs(dy) > slop) {
+                                            val elapsedMs = (System.nanoTime() - downAt) / 1_000_000
+                                            if (abs(dx) > abs(dy) && elapsedMs < swipeGraceMs)
+                                                break // 快速横滑 → 不消费，pager 接管换栏
+                                            change.consume() // 长按等待期横漂：pager 抢不走
+                                        }
                                     }
                                 }
                                 "done"
