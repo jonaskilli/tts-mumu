@@ -775,13 +775,11 @@ private fun GroupHeaderBlock(
                             Text(
                                 grp.title,
                                 style = MaterialTheme.typography.titleMedium,
-                                // 启用态染色（10-07 装机反馈：恢复 10-03 退役的「组名染绿」并加强）——
-                                // 原 primary(0xFF376A20) 太浅看不出来；改用与测试「通过」同源的
-                                // TEST_PASS_COLOR 深绿 + Bold（原 SemiBold），有组在启用时一眼可辨。
-                                // 该色已被提示条/测试点共用，语义同源（这组活着=绿）。
-                                fontWeight = if (enabledCount > 0) FontWeight.Bold else FontWeight.SemiBold,
-                                color = if (enabledCount > 0) TEST_PASS_COLOR
-                                else MaterialTheme.colorScheme.onSurface,
+                                // 10-08 用户令：组名不染绿——原「有启用染 TEST_PASS_COLOR+Bold、
+                                // 全停黑字 SemiBold」的双态撤掉，统一黑字；启用态已有 1/1 胶囊承担，
+                                // 组名不再重复编码
+                                fontWeight = FontWeight.SemiBold,
+                                color = MaterialTheme.colorScheme.onSurface,
                                 maxLines = 1,
                                 overflow = TextOverflow.Ellipsis,
                                 modifier = Modifier.weight(1f, fill = false)
@@ -2264,9 +2262,10 @@ private fun KeyEditDialog(
                     }
                 }
                 // 第四个一级选项：reasoning_effort = low——只降档不关闭，不属「关闭思考」，
-                // 三类定稿时先收进第二类靠文案区分；平铺六项后混在里头更看不出来，独立成行
+                // 三类定稿时先收进第二类靠文案区分；平铺六项后混在里头更看不出来，独立成行。
+                // 与其它三个一级行同字号 bodyMedium（原沿用二级 bodySmall 是不一致）、上距 4dp 归组
                 Row(
-                    Modifier.fillMaxWidth(),
+                    Modifier.fillMaxWidth().padding(top = 4.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     RadioButton(
@@ -2276,7 +2275,7 @@ private fun KeyEditDialog(
                             thinkingMode = KeyListFile.THINKING_LOW
                         }
                     )
-                    Text(modeLabel(KeyListFile.THINKING_LOW), style = MaterialTheme.typography.bodySmall)
+                    Text(modeLabel(KeyListFile.THINKING_LOW), style = MaterialTheme.typography.bodyMedium)
                 }
                 // 第三类：自定义 JSON——选中即出框（直达「自定义思考 ›」落这里）
                 Row(
