@@ -14,7 +14,7 @@ import java.net.URLEncoder
  *
  * 管理 CodeBuddy 账号：登录（POST auth/state?platform=ide 取 authUrl+state → WebView 浏览器
  * 登录 → GET auth/token?state= 轮询换凭据）、续期（POST auth/token/refresh + X-Refresh-Token，
- * refresh_token 可能被服务端轮换，返回什么就必须存回什么）、每日签到领积分（/v2/billing/meter/*）。
+ * refresh_token 可能被服务端轮换，返回什么就必须存回什么）、每日签到领积分（/v2/billing/meter 系端点）。
  * 凭据存 app 私有外部存储，不进备份白名单（凭据跟着账号走，恢复后重登）。
  *
  * 协议底数 = 2026-10-07 真实上游实测（权威 = 临时文件/codebuddy.js 试水版，五项全通；
