@@ -91,16 +91,15 @@ private fun resolvePoolRow(
         val display = when {
             p == null -> value
             !p.isDirect && p.model.isNotBlank() -> p.model
-            // 10-08 用户令：key ≤6 位不遮——takeLast(6) 会把整把 key 全裸（与主页同口径）
-            else -> if (p.key.length > 6) "*" + p.key.takeLast(6) else "*密钥"
+            // 10-08 用户定稿：短 key 尾段走 KeyListFile.keyTail（与主页同口径）
+            else -> "*" + KeyListFile.keyTail(p.key)
         }
         return PoolRowInfo(display, null, null, true, norm)
     }
     // 归属分组照主页 buildKeyGroups 的顺序口径：第一个命中的接口组，否则 未分组
     val groupTitle = titleByEntry[entry.name]
-    // 10-08 用户令：key ≤4 位不给尾号——takeLast(4) 会把整把 key 全裸（与主页尾号块同口径）
-    val tail = KeyListFile.parseKeyValue(entry.value)?.key
-        ?.takeIf { it.length > 4 }?.takeLast(4)
+    // 10-08 用户定稿：尾段走 KeyListFile.keyTail（>4 显尾4 / 3~4 显尾2 / ≤2 全显，与主页同口径）
+    val tail = KeyListFile.parseKeyValue(entry.value)?.key?.let { KeyListFile.keyTail(it) }
     return PoolRowInfo(KeyListFile.displayName(entry), groupTitle, tail, false, norm)
 }
 

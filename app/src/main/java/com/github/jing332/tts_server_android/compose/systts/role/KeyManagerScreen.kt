@@ -476,15 +476,14 @@ private fun KeyEntryRow(
                 // 10-08 用户令「结果条前方灯去掉」：展开态首行圆点一并撤（同理由——整行
                 // 文字已是红色，圆点重复编码），全文左缘与收起行/模型名同一条线
                 if (expanded && hasExpandable) {
-                    Row(Modifier.fillMaxWidth()) {
-                        // 全部内容（红字，与首行同色——用户：点开详情显示全部）
-                        Text(
-                            testOutcome.message,
-                            style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.sp),
-                            color = barColor,
-                            modifier = Modifier.weight(1f)
-                        )
-                    }
+                    // 10-08 用户令（推翻「同 Row 固定用时列」提案）：展开全文**从行首起、
+                    // 折行也回行首**——第二行挂用时右缘=每行白一段，没必要。用时只是
+                    // 行首普通前缀，连成一段自然折行；收起→展开文字左缘始终不动
+                    Text(
+                        timingPrefix + testOutcome.message,
+                        style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.sp),
+                        color = barColor
+                    )
                     // 底部动作行（右对齐）：复制结果 + 收起（红态展开后「收起」在底部，与复制同排）
                     // 间距 12→24（10-07 用户：两键挨太近像连成一个词）——两键性质不同
                     // （复制 vs 折叠），且都靠右排，加大间距不占额外行宽。
@@ -570,26 +569,16 @@ private fun KeyEntryRow(
                     }
                 }
                 // 黄态展开态（10-08 三令）：换行与行首「xxxms ·」对齐——
-                // 用时与全文放同一 Row，用时段固定宽、全文 weight(1f) 在右列折行，
-                // 第二行自然从用时右缘起（与收起行同结构，只是 maxLines 放开）。
+                // 黄态展开态（10-08 三令落码；同日再令推翻固定用时列）：换行**回行首**——
+                // 用时与全文连成一段（timingPrefix 只是行首普通前缀），自然折行，
+                // 第二行回行首不再挂用时右缘（用户：每行白一段没必要）。
                 // 动作行（自定义思考 ›｜复制结果｜收起）随后
                 if (expanded && isWarn) {
-                    Row(Modifier.fillMaxWidth()) {
-                        if (timingPrefix.isNotEmpty()) {
-                            Text(
-                                timingPrefix,
-                                style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.sp),
-                                color = barColor,
-                                maxLines = 1
-                            )
-                        }
-                        Text(
-                            testOutcome.message,
-                            style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.sp),
-                            color = barColor,
-                            modifier = Modifier.weight(1f)
-                        )
-                    }
+                    Text(
+                        timingPrefix + testOutcome.message,
+                        style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.sp),
+                        color = barColor
+                    )
                     Row(
                         Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.End,
@@ -968,16 +957,16 @@ private fun GroupHeaderBlock(
                         // 观感挤；徽章保持垂直居中于两行 URL）
                         Spacer(Modifier.width(12.dp))
                         // 尾号独立小块（原先挤在网址尾巴上，网址一长就被省略号吃掉）
-                        // 10-08 用户令：key ≤4 位不显示——takeLast(4) 会把整把 key 全裸
-                        // （4 位 key 尾 4 位=全文）；「*尾」语义是「只露一角」，露了全部就别挂
-                        if (ifc.apiKey.length > 4) {
+                        // 10-08 用户定稿：尾段走 KeyListFile.keyTail（>4 显尾4 / 3~4 显尾2 /
+                        // ≤2 全显——takeLast(4) 对短 key 会把整把全裸）
+                        if (ifc.apiKey.length > 2) {
                             Surface(
                                 shape = RoundedCornerShape(4.dp),
                                 color = MaterialTheme.colorScheme.surfaceContainerHighest
                             ) {
                                 Text(
                                     stringResource(
-                                        R.string.role_key_tail, ifc.apiKey.takeLast(4)
+                                        R.string.role_key_tail, KeyListFile.keyTail(ifc.apiKey)
                                     ),
                                     style = MaterialTheme.typography.labelSmall,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -1165,9 +1154,8 @@ fun KeyManagerScreen(tagRuleId: String, onBack: () -> Unit) {
         return when {
             p == null -> value
             !p.isDirect && p.model.isNotBlank() -> p.model
-            // 10-08 用户令：key ≤6 位不遮——takeLast(6) 会把整把 key 全裸，回退显 key 本身
-            // 也是裸；改显固定占位「*密钥」，不给任何原文线索
-            else -> if (p.key.length > 6) "*" + p.key.takeLast(6) else "*密钥"
+            // 10-08 用户定稿：短 key 尾段走 KeyListFile.keyTail（3~4 显尾2 / ≤2 全显）
+            else -> "*" + KeyListFile.keyTail(p.key)
         }
     }
     fun removeFromPool(index: Int) {
