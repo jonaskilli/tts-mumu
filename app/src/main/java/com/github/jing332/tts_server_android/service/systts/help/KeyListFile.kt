@@ -1153,6 +1153,7 @@ object KeyListFile {
         // auto：先按锁定写法测一发（锁定后通常一发即走）；键 = 网址+模型（模型级锁定）。
         // 10-08 用户拍板：custom 锁定也在此命中——本模型自己的 custom 锁定用本模型 custom 文本；
         // 同站继承来的 custom（探测轮命中）已落成本模型自己的锁定行，走同一读取路径
+        val lockKey = thinkingLockKey(t.baseUrl, t.model)
         val lockEntry = readThinkingParams(tagRuleId)[lockKey]
         val locked = lockEntry?.first
         val lockedCustom = if (locked == THINKING_CUSTOM) lockEntry?.second.orEmpty() else custom
@@ -1178,10 +1179,10 @@ object KeyListFile {
         for ((idx, m) in order.withIndex()) {
             // 探测进度（10-03 九改）：多候选时才报（单候选=无需进度噪音）
             if (order.size > 1) onProgress("第 ${idx + 1}/${order.size} 种写法「$m」")
-            // custom 文本三源取一：本模型条目 > 同站继承源行 > 本模型条目的 custom 字段
+            // custom 文本三源取一：本模型条目 > 同站继承源行 > 空
             val mCustom = if (m == THINKING_CUSTOM) {
                 custom.ifBlank {
-                    lockKey.let { k -> paramsTable[k]?.takeIf { it.first == THINKING_CUSTOM }?.second }
+                    (paramsTable[lockKey]?.takeIf { it.first == THINKING_CUSTOM }?.second)
                         ?: paramsTable.entries.firstOrNull {
                             it.key.substringBefore("@@") == normalizeBaseUrl(openAiBaseUrl(t.baseUrl)) &&
                                 it.value.first == THINKING_CUSTOM
