@@ -3,6 +3,7 @@ package com.github.jing332.tts_server_android.compose.systts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.defaultMinSize
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
@@ -40,14 +41,17 @@ internal fun OrderBadge(
 ) {
     Box(
         modifier = modifier
-            // 双向最小尺寸：宽度不足 20dp 时补到 20，1 位数才不会被压成扁圆
-            .defaultMinSize(minWidth = BadgeMinSize, minHeight = BadgeMinSize)
+            // 高度钉死 20dp（10-07 装机反馈）：minHeight 挡不住系统字体放大——行高随放大
+            // 撑到 23dp 而宽度停在 20dp，1 位数被拉成竖椭圆（实测 20.9×23.1）。钉死后
+            // 放大档下数字墨迹（≈14dp）仍完整落在 20dp 圆内；宽度照旧随内容走（minWidth 兜底）
+            .height(BadgeMinSize)
+            .defaultMinSize(minWidth = BadgeMinSize)
             .background(
                 color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f),
                 // 百分比圆角：任何宽高比下都是胶囊端；1 位数（宽=高）即正圆
                 shape = RoundedCornerShape(percent = 50)
             )
-            .padding(horizontal = 6.dp, vertical = 2.dp),
+            .padding(horizontal = 6.dp),
         contentAlignment = Alignment.Center
     ) {
         Text(

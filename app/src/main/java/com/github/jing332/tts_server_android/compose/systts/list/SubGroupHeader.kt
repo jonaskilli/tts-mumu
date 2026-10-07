@@ -103,10 +103,12 @@ fun SubGroupHeader(
             )
             .clickable { if (!showOptions && !showExtraOptions) onClick() }
             .padding(
-                // 10-06 用户令：按层缩进取消（曾 8+level*12 → 8+(level+1)*12 两版），全层级
-                // 统一落 8dp 同一条左线——层级感由箭头/字号/背景递减承担，卡片右移最深
-                // 到 44dp 只废宽度。end 8（10-05 用户拍板：三行 ⋮ 统一 30dp 列）
-                start = 8.dp,
+                // 10-07 用户令：子分组箭头**左侧**对齐一级分组箭头**中间**——一级行 start 8 +
+                // 24dp 箭头盒 ⇒ 盒中心 20dp，本行 start 同落 20dp（20dp 箭头盒左缘即在该点）。
+                // 10-06 曾「按层缩进取消」全层级统一 8dp，实测子分组箭头跑到一级箭头中心
+                // 左侧 12dp（13.4 vs 20），层级读不出来。层级感仍由字号/背景递减承担。
+                // end 8（10-05 用户拍板：三行 ⋮ 统一 30dp 列）
+                start = 20.dp,
                 top = paddingTop,
                 bottom = paddingBottom,
                 end = 8.dp
