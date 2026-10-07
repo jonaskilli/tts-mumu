@@ -41,6 +41,7 @@ import androidx.compose.material.icons.filled.DeleteSweep
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.FileDownload
 import androidx.compose.material.icons.filled.FileUpload
+import androidx.compose.material.icons.filled.Group
 import androidx.compose.material.icons.filled.Restore
 import androidx.compose.material.icons.filled.Save
 import androidx.compose.material.icons.filled.Schedule
@@ -190,11 +191,11 @@ internal val TEST_PASS_COLOR = Color(0xFF2E7D32)
 internal val TEST_WARN_COLOR = Color(0xFFF9A825)
 
 /**
- * 卡片内「测试结果条 / 探测进度条」的左缘缩进（10-07 四校：随对勾盒 24→32 重排）：
- * 40dp = 卡内模型名文字线 = 容器 4 + 卡内距 4 + 对勾盒 32（盒缘页 40）。
- * 结果条恒与模型名同线（10-06 定口径不回退）。右缘 end=12 留呼吸（文字不是键）。
+ * 卡片内「测试结果条 / 探测进度条」的左缘缩进（10-08 定稿=文字总线 32）：
+ * 32 = 卡内对勾盒右缘（盒 32×36）= 模型名文字线 = 组名/网址线（四线归一）。
+ * 原 40 是把容器边距重复计入的错账（比模型名偏右 8）；行首圆点已撤，本值即文字起线。
  */
-private val KEY_RESULT_BAR_START = 40.dp
+private val KEY_RESULT_BAR_START = 32.dp
 
 /** 测试三态 → 圆点颜色（两页共用；null=没测过不显灯）。红=不通、黄=通但思考开启、绿=通且思考已关 */
 internal fun testDotColor(verdict: KeyListFile.TestVerdict?, errorColor: Color): Color? = when (verdict) {
@@ -714,14 +715,13 @@ private fun GroupHeaderBlock(
                     )
                 }
             } else {
-            // 10-08 装机反馈⑦：箭头跨「组头行 + 网址行」两行垂直居中（网址也属这张卡，
-            // 箭头顶在第一行看着偏上）；折叠点击区随之覆盖两行。
-            // 结构：Row{ 箭头列(fillMaxHeight 居中) | 右侧 Column{组头行 / 网址行} }
-            // （替代原「组头+元信息」Column 顶层的排版壳，内部行原样平移）
-            // 10-08 修「折叠键没功能」：折叠点击不再分散挂在内层 Row/箭头列两处
-                // （重组布局里两处兄弟 clickable 曾互相吞手势），改成**整块一个 clickable**——
-                // 外层 Row 直接挂 onFold（canFold=false 时不挂），内部胶囊/图标键各自
-                // 消费自己的点击，不冒泡上来（M3 组件自带消费，无需额外拦截）
+            // 10-08 定稿（尺寸四线归一）：折叠键盒 32×36 固定（与模型行对勾盒同规格）——
+            // 原裸图标无固定盒，组名线随箭头字形飘；盒右缘=文字总线 32，组名/网址/
+            // 模型名/提示条四条线全部钉在这条线上。箭头只对组头行垂直居中（不再跨
+            // 组头+网址两行居中——发飘、不属于任何一行）；折叠点击区仍整块组头两行可点。
+            // 10-08 修「折叠键没功能」：折叠点击不分散挂多处（两处兄弟 clickable 曾互吞手势），
+            // 整块一个 clickable——外层 Row 直接挂 onFold（canFold=false 时不挂），内部
+            // 胶囊/图标键各自消费自己的点击，不冒泡上来（M3 组件自带消费，无需额外拦截）
                 val canFold = grp.entries.isNotEmpty()
                 val arrowAngle by animateFloatAsState(
                     targetValue = if (isCollapsed) -90f else 0f, label = ""
@@ -732,12 +732,11 @@ private fun GroupHeaderBlock(
                         else Modifier
                     )
                 ) {
-                    // 箭头列：fillMaxHeight 占满两行高度、wrapContentHeight 居中——
-                    // 空组（无模型可折）画 24dp 占位
+                    // 折叠键盒：32宽（=对勾盒宽，盒右缘即文字线）×36高（=组头行高）。
+                    // 空组（无模型可折）画 32dp 占位（盒宽一致，文字线不偏）
                     Box(
                         Modifier
-                            .fillMaxHeight()
-                            .wrapContentHeight(Alignment.CenterVertically),
+                            .size(width = 32.dp, height = 36.dp),
                         contentAlignment = Alignment.Center
                     ) {
                         if (canFold) {
@@ -748,17 +747,14 @@ private fun GroupHeaderBlock(
                                     else R.string.desc_collapse_group, grp.title
                                 ),
                                 tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                                modifier = Modifier.rotate(arrowAngle)
+                                modifier = Modifier.size(24.dp).rotate(arrowAngle)
                             )
-                        } else {
-                            Spacer(Modifier.width(24.dp))
                         }
                     }
                     // 右侧两行：组头行 / 网址行（共用 Column）
                     Column(Modifier.weight(1f)) {
                     // ———— 组头行 ————
-                    // 组名线 = 箭头列 24 + spacer 4 = 28，
-                    // URL/说明行/删除模式行照旧对齐 28 不动。
+                    // 组名线 = 折叠键盒右缘 = 卡内 32（10-08 四线归一：组名/网址/模型名/提示条同值）。
                     // end=0：条目卡内 end=0 → 🗑 字形贴卡缘；组头行同口径，
                     // 两组图标列逐像素同列
                     Row(
@@ -906,7 +902,11 @@ private fun GroupHeaderBlock(
                 if (ifc != null) {
                     Row(
                         Modifier.fillMaxWidth()
-                            .padding(start = 28.dp, end = 8.dp, bottom = 6.dp),
+                            // 10-08 四线归一：本行在「折叠键盒右侧的 Column」里，盒右缘=文字线 32
+                            // 已由外层结构给足——旧 start 28 是挪进右列前遗留的独立缩进，
+                            // 两道相加网址缩到 52，重构漏改（bug）；归零后网址与组名同一条线。
+                            // end=8（尾号小块盒缘与卡右缘同列，不动）
+                            .padding(start = 0.dp, end = 8.dp, bottom = 6.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Text(
@@ -944,8 +944,8 @@ private fun GroupHeaderBlock(
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                             maxLines = 2,
                             overflow = TextOverflow.Ellipsis,
-                            // 与网址分支同列（28）；右端同落右线 8
-                            modifier = Modifier.padding(start = 28.dp, end = 8.dp, bottom = 6.dp)
+                            // 与网址分支同列（同在折叠键盒右列，文字线 32）；右端同落右线 8
+                            modifier = Modifier.padding(start = 0.dp, end = 8.dp, bottom = 6.dp)
                         )
                     }
                 }
@@ -1428,14 +1428,6 @@ fun KeyManagerScreen(tagRuleId: String, onBack: () -> Unit) {
                 // ②页面级多选 ☑ 整个删除（用户：感觉没用——单条启停/删除在卡内都有，
                 // 整组启停在组头胶囊；随删 page 级 selectionMode 底栏与其状态链）
                 actions = {
-                    // 账号池入口（10-06 方案B）：照操作行「启用池(1)」同款 FilledTonalButton 胶囊
-                    FilledTonalButton(
-                        onClick = { showAccountPool = true },
-                        modifier = Modifier.heightIn(min = 44.dp),
-                        contentPadding = PaddingValues(horizontal = 10.dp, vertical = 6.dp)
-                    ) {
-                        Text(stringResource(R.string.account_pool_title), maxLines = 1)
-                    }
                     // 导入（纯图标；一步导入逻辑不变）
                     IconButton(
                         onClick = {
@@ -1476,6 +1468,19 @@ fun KeyManagerScreen(tagRuleId: String, onBack: () -> Unit) {
                         Icon(
                             Icons.Default.FileUpload,
                             contentDescription = stringResource(R.string.role_key_action_export),
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                    // 账号池入口（10-08 用户令：撤绿胶囊、改纯图标排最右）——原 FilledTonalButton
+                    // 是顶栏唯一色底、夹在标题和图标中间突兀；改后三枚图标同灰同尺寸一条线收尾。
+                    // 子页有完整标题不怕认不出
+                    IconButton(
+                        onClick = { showAccountPool = true },
+                        modifier = Modifier.heightIn(min = 44.dp)
+                    ) {
+                        Icon(
+                            Icons.Default.Group,
+                            contentDescription = stringResource(R.string.account_pool_title),
                             tint = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
