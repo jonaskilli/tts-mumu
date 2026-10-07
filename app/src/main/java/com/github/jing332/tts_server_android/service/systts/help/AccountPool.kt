@@ -103,12 +103,9 @@ object AccountPool {
         return ch.checkIn(acc)
     }
 
-    /** 余额按渠道路由（NaN=不支持，调用方显示「未知」） */
+    /** 余额按渠道路由（NaN=不支持，调用方显示「未知」）。⚠️ 本类 queryCredits 返回 Pair（codebuddy 旧签名），ChatChannel.queryCredits 返回 Double（渠道新签名） */
     fun queryCreditsAny(acc: Account): Pair<Double, String> {
-        if (acc.provider == "codebuddy") {
-            val c: Double = queryCredits(acc)
-            return if (c >= 0.0) Pair(c, "") else Pair(-1.0, "查询失败")
-        }
+        if (acc.provider == "codebuddy") return queryCredits(acc)
         ChannelBootstrap.install()
         val ch = ChatChannels.byProvider(acc.provider) ?: return Pair(-1.0, "未知渠道：${acc.provider}")
         val v: Double = ch.queryCredits(acc)

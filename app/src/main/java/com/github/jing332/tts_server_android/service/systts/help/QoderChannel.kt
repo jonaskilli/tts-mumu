@@ -38,18 +38,18 @@ object QoderChannel : ChatChannel {
     }
 
     /** 轮询一次：404=未授权继续；2xx 解 data（token/user_id/user_name 必读） */
-    fun pollOnce(nonce: String, verifier: String): Triple<String, JSONObject?> {
+    fun pollOnce(nonce: String, verifier: String): Pair<String, JSONObject?> {
         val r = AccountPool.channelGet(
             "$OPEN_API_BASE/api/v1/deviceToken/poll?nonce=$nonce&verifier=${java.net.URLEncoder.encode(verifier, "UTF-8")}&challenge_method=S256",
             mapOf("User-Agent" to "qoder/1.0.0", "Accept" to "application/json"),
         )
-        if (r.code == 404) return Triple("PENDING", null) // 尚未授权
-        if (!r.ok) return Triple("PENDING", null) // 网络抖动继续（连续失败计数由调用方做）
+        if (r.code == 404) return "PENDING" to null // 尚未授权
+        if (!r.ok) return "PENDING" to null // 网络抖动继续（连续失败计数由调用方做）
         val d = try { JSONObject(r.body).optJSONObject("data") } catch (_: Exception) { null }
-            ?: return Triple("PENDING", null)
+            ?: return "PENDING" to null
         val token = listOf("token", "device_token", "access_token").firstNotNullOfOrNull { d.optString(it).takeIf { s -> s.isNotEmpty() } }
-        if (token.isNullOrEmpty()) return Triple("PENDING", null)
-        return Triple("OK", d)
+        if (token.isNullOrEmpty()) return "PENDING" to null
+        return "OK" to d
     }
 
     // ==================== 续期 ====================
