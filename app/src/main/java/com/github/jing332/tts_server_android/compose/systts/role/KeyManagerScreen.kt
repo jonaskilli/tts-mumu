@@ -770,15 +770,17 @@ private fun GroupHeaderBlock(
                                 ) {
                                     // 10-07：胶囊改纯显示后，整组批量启停挪进本菜单（原胶囊点击职责）
                                     DropdownMenuItem(
-                                        // 硬编码中文照替换页/子分组头菜单先例（避免新增 strings 键破坏三地键集基线）
-                                        text = { Text("全部启用", style = MaterialTheme.typography.bodyMedium) },
+                                        // 10-07：胶囊改纯显示后，整组批量启停挪进本菜单（原胶囊点击职责）。
+                                        // 文本不带样式=M3 默认 labelLarge，与全站其余 92 项菜单同款（硬编码中文
+                                        // 照替换页/子分组头菜单先例，避免新增 strings 键破坏三地键集基线）
+                                        text = { Text("全部启用") },
                                         onClick = {
                                             onMenuDismiss()
                                             onSetGroupEnabled(true)
                                         }
                                     )
                                     DropdownMenuItem(
-                                        text = { Text("全部停用", style = MaterialTheme.typography.bodyMedium) },
+                                        text = { Text("全部停用") },
                                         onClick = {
                                             onMenuDismiss()
                                             onSetGroupEnabled(false)
