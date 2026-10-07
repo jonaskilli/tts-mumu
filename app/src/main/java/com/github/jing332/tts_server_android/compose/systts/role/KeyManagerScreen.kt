@@ -1969,7 +1969,8 @@ fun KeyManagerScreen(tagRuleId: String, onBack: () -> Unit) {
 
 /**
  * 密钥编辑（条目 ✏️ / 新增共用）：只留「密钥」一栏（整串 网址@@模型@@Key）；
- * 底部 取消 / 删除 / 复制 / 确定。两处复制不同：列表行 📋 = 模型名，本弹窗「复制」= 完整密钥串。
+ * 底部 取消 / 确定（10-07：复制/删除上移到密钥标签行右端——作用于密钥本身，思考区展开
+ * 时不再被推远）。两处复制不同：列表行 📋 = 模型名，密钥标签行「复制」= 完整密钥串。
  * 名称不再手填（0919 拍板）：新增时自动取密钥串里的模型名（取不到用 keyN 顺延）；
  * 编辑时名称保持不变——列表里显示的名字本来就取自密钥串里的模型名。
  */
@@ -2025,12 +2026,37 @@ private fun KeyEditDialog(
             // 圆环顶在上一个选项下面（用户实机截图「最后几个挤一块」）。与下方 InterfaceFormDialog
             // 同款：heightIn 限高 + verticalScroll，超出部分改滚动，不再压缩子项）
             Column(Modifier.heightIn(max = 520.dp).verticalScroll(rememberScrollState())) {
-                // 「密钥」一栏（整串 网址@@模型名@@API key；裸 Key 可存但禁用启用，见 togglePool 拦截）
-                Text(
-                    stringResource(R.string.role_key_value),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
+                // 「密钥」一栏（整串 网址@@模型名@@API key；裸 Key 可存但禁用启用，见 togglePool 拦截）。
+                // 10-07 用户令：复制/删除挪到密钥标签行——它们作用于密钥本身，原先在底部按钮区，
+                // 思考区一展开就被推得老远（新用的人也不知道底部按钮是给谁的）
+                Row(
+                    Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        stringResource(R.string.role_key_value),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Spacer(Modifier.weight(1f))
+                    TextButton(
+                        enabled = value.text.isNotBlank(),
+                        // 紧凑文字键：贴标签行，高度对齐 bodySmall 行
+                        contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp),
+                        onClick = {
+                            clipboard.setText(AnnotatedString(value.text.trim()))
+                            toast(R.string.copied)
+                        }
+                    ) { Text(stringResource(R.string.copy)) }
+                    if (onDelete != null) {
+                        TextButton(
+                            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp),
+                            onClick = onDelete
+                        ) {
+                            Text(stringResource(R.string.delete), color = MaterialTheme.colorScheme.error)
+                        }
+                    }
+                }
                 Spacer(Modifier.height(4.dp))
                 // 密钥串很长，允许多行（原 singleLine 会把中段吞掉）
                 OutlinedTextField(
@@ -2059,7 +2085,9 @@ private fun KeyEditDialog(
 
                 // ===== 思考模式（10-05 方案一：折叠一行，点击展开——原整段平铺把按钮行
                 // 推得离密钥栏太远，用户不知道按钮是给谁的；功能零搬家）=====
-                var thinkingOpen by remember { mutableStateOf(false) }
+                // 10-07：从提示条「自定义思考 ›」进来时直接展开——「直达」之前只预选了写法，
+                // 折叠区还关着，用户得多点一下才见 JSON 框
+                var thinkingOpen by remember { mutableStateOf(jumpToThinkingCustom) }
                 // 锁定状态（读取该模型在 thinking_params.json 的锁定值；键 = 网址+模型）
                 val lockedMode = remember(initial) {
                     val p = initial?.let { KeyListFile.parseKeyValue(it.value) }
@@ -2214,59 +2242,42 @@ private fun KeyEditDialog(
             }
         },
         confirmButton = {
-            // 底部四键定位：M3 按钮区按「dismiss 槽 → confirm 槽」排，拆两槽即得 取消/删除 + 复制/确定
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                // 「复制」= 完整密钥串（列表行 📋 复制的是模型名）
-                TextButton(
-                    enabled = value.text.isNotBlank(),
-                    onClick = {
-                        clipboard.setText(AnnotatedString(value.text.trim()))
-                        toast(R.string.copied)
+            // 10-07：复制/删除已上移到密钥标签行（作用于密钥本身），底部只留 取消/确定——
+            // 思考区展开再长，底部按钮语义也不混
+            TextButton(
+                enabled = value.text.isNotBlank(),
+                onClick = {
+                    val raw = value.text.trim()
+                    val finalThink = if (thinkingExpanded) thinkingMode else KeyListFile.THINKING_AUTO
+                    // custom 校验：不可解析直接拦（toast 在 Dialog 内）
+                    if (finalThink == KeyListFile.THINKING_CUSTOM &&
+                        KeyListFile.thinkingBodyFields(KeyListFile.THINKING_CUSTOM, customText) == null
+                    ) {
+                        toast(R.string.role_key_thinking_custom_bad); return@TextButton
                     }
-                ) { Text(stringResource(R.string.copy)) }
-                TextButton(
-                    enabled = value.text.isNotBlank(),
-                    onClick = {
-                        val raw = value.text.trim()
-                        val finalThink = if (thinkingExpanded) thinkingMode else KeyListFile.THINKING_AUTO
-                        // custom 校验：不可解析直接拦（toast 在 Dialog 内）
-                        if (finalThink == KeyListFile.THINKING_CUSTOM &&
-                            KeyListFile.thinkingBodyFields(KeyListFile.THINKING_CUSTOM, customText) == null
-                        ) {
-                            toast(R.string.role_key_thinking_custom_bad); return@TextButton
-                        }
-                        val finalCustom = if (finalThink == KeyListFile.THINKING_CUSTOM) customText.trim() else ""
-                        // 编辑：名称保持不变（没有名称输入框了）
-                        if (initial != null) {
-                            onConfirm(initial.name, raw, false, finalThink, finalCustom)
-                            return@TextButton
-                        }
-                        // 新增：名称自动生成（照插件 defaultName）——从密钥串里抽模型名，抽不出用 keyN
-                        val wanted = KeyListFile.parseKeyValue(raw)?.let { p ->
-                            if (!p.isDirect && p.model.isNotEmpty()) p.model else null
-                        } ?: "key" + (existing.size + 1)
-                        // 撞名判定：只有同一分组（同网址 + 同密钥）才算真重复 → 覆盖确认；
-                        // 跨组撞名加序号另存
-                        val clash = existing.firstOrNull { it.name == wanted }
-                        val overwrite = clash != null && KeyListFile.sameGroupValue(clash.value, raw)
-                        val finalName =
-                            if (clash != null && !overwrite) KeyListFile.dedupName(wanted, existingNames)
-                            else wanted
-                        onConfirm(finalName, raw, overwrite, finalThink, finalCustom)
+                    val finalCustom = if (finalThink == KeyListFile.THINKING_CUSTOM) customText.trim() else ""
+                    // 编辑：名称保持不变（没有名称输入框了）
+                    if (initial != null) {
+                        onConfirm(initial.name, raw, false, finalThink, finalCustom)
+                        return@TextButton
                     }
-                ) { Text(stringResource(R.string.confirm)) }
-            }
+                    // 新增：名称自动生成（照插件 defaultName）——从密钥串里抽模型名，抽不出用 keyN
+                    val wanted = KeyListFile.parseKeyValue(raw)?.let { p ->
+                        if (!p.isDirect && p.model.isNotEmpty()) p.model else null
+                    } ?: "key" + (existing.size + 1)
+                    // 撞名判定：只有同一分组（同网址 + 同密钥）才算真重复 → 覆盖确认；
+                    // 跨组撞名加序号另存
+                    val clash = existing.firstOrNull { it.name == wanted }
+                    val overwrite = clash != null && KeyListFile.sameGroupValue(clash.value, raw)
+                    val finalName =
+                        if (clash != null && !overwrite) KeyListFile.dedupName(wanted, existingNames)
+                        else wanted
+                    onConfirm(finalName, raw, overwrite, finalThink, finalCustom)
+                }
+            ) { Text(stringResource(R.string.confirm)) }
         },
         dismissButton = {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                TextButton(onClick = onDismiss) { Text(stringResource(R.string.cancel)) }
-                // 删除入口留在编辑弹窗内（红字）
-                if (onDelete != null) {
-                    TextButton(onClick = onDelete) {
-                        Text(stringResource(R.string.delete), color = MaterialTheme.colorScheme.error)
-                    }
-                }
-            }
+            TextButton(onClick = onDismiss) { Text(stringResource(R.string.cancel)) }
         }
     )
 }
