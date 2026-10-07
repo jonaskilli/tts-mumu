@@ -152,7 +152,8 @@ object ClineChannel : ChatChannel {
         "deepseek-v4.1", "kimi-k3", "qwen3.8-max", "x-ai/grok-code-fast-1",
     )
 
-    private fun parseModelList(body: String, filter: (String) -> Boolean): List<String> = try {
+    private fun parseModelList(body: String, filter: (String) -> Boolean): List<String> {
+        return try {
         val o = JSONObject(body)
         val arr = o.optJSONArray("models") ?: o.optJSONArray("data") ?: return emptyList()
         (0 until arr.length()).mapNotNull {
@@ -162,7 +163,8 @@ object ClineChannel : ChatChannel {
                 else -> null
             }
         }.filter(filter)
-    } catch (_: Exception) { emptyList() }
+        } catch (_: Exception) { emptyList() }
+    }
 
     /** 余额（credits）：GET /users/me + quota 端点。返回 NaN=查不到 */
     override fun queryCredits(acc: AccountPool.Account): Double = try {

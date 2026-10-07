@@ -105,29 +105,31 @@ object ZcodeChannel : ChatChannel {
     override fun fetchModels(accessToken: String): List<String> = listOf("GLM-5.3-Flash", "GLM-5.3")
 
     /** 余额（balance 端点：Bearer + X-Device-Mid 双必须；缺 device_mid=400 code 3001） */
-    override fun queryCredits(acc: AccountPool.Account): Double = try {
-        val mid = acc.extraStr("device_mid")
-        if (mid.isEmpty() || acc.accessToken.isEmpty()) Double.NaN
-        else {
-            val r = DeviceCodeLogin.get(
-                "https://zcode.z.ai/api/v1/zcode-plan/billing/balance",
-                baseHeaders() + mapOf(
-                    "Authorization" to "Bearer ${acc.accessToken}",
-                    "X-Device-Mid" to mid,
-                ),
-            )
-            if (!r.ok) Double.NaN
+    override fun queryCredits(acc: AccountPool.Account): Double {
+        return try {
+            val mid = acc.extraStr("device_mid")
+            if (mid.isEmpty() || acc.accessToken.isEmpty()) Double.NaN
             else {
-                val d = JSONObject(r.body).optJSONObject("data") ?: return Double.NaN
-                // 各桶 credits 求和；expiresAt 单位是秒（照插件）
-                val plans = d.optJSONArray("plans") ?: return Double.NaN
-                var total = 0.0
-                for (i in 0 until plans.length()) {
-                    val p = plans.optJSONObject(i) ?: continue
-                    total += p.optDouble("credits", 0.0)
+                val r = DeviceCodeLogin.get(
+                    "https://zcode.z.ai/api/v1/zcode-plan/billing/balance",
+                    baseHeaders() + mapOf(
+                        "Authorization" to "Bearer ${acc.accessToken}",
+                        "X-Device-Mid" to mid,
+                    ),
+                )
+                if (!r.ok) Double.NaN
+                else {
+                    val d = JSONObject(r.body).optJSONObject("data") ?: return Double.NaN
+                    // 各桶 credits 求和；expiresAt 单位是秒（照插件）
+                    val plans = d.optJSONArray("plans") ?: return Double.NaN
+                    var total = 0.0
+                    for (i in 0 until plans.length()) {
+                        val p = plans.optJSONObject(i) ?: continue
+                        total += p.optDouble("credits", 0.0)
+                    }
+                    total
                 }
-                total
             }
-        }
-    } catch (_: Exception) { Double.NaN }
+        } catch (_: Exception) { Double.NaN }
+    }
 }

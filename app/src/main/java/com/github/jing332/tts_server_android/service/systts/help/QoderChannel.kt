@@ -52,25 +52,27 @@ object QoderChannel : ChatChannel {
 
     // ==================== 续期 ====================
 
-    override fun refresh(acc: AccountPool.Account): Triple<String, String, Long>? = try {
-        val machineId = acc.extraStr("machine_id")
-        val r = AccountPool.channelPost(
-            "$OPEN_API_BASE/api/v1/deviceToken/refresh",
-            mapOf("User-Agent" to "qoder/1.0.0", "Accept" to "application/json"),
-            JSONObject().put("refresh_token", acc.refreshToken).put("machine_id", machineId).toString(),
-        )
-        if (!r.ok) null // 401/403=终态；网络失败不能判终态（本层区分不了，调度器按失败重试）
-        else {
-            val d = JSONObject(r.body).optJSONObject("data") ?: return null
-            val token = listOf("device_token", "token", "access_token").firstNotNullOfOrNull { d.optString(it).takeIf { s -> s.isNotEmpty() } }
-            if (token.isNullOrEmpty()) null
+    override fun refresh(acc: AccountPool.Account): Triple<String, String, Long>? {
+        return try {
+            val machineId = acc.extraStr("machine_id")
+            val r = AccountPool.channelPost(
+                "$OPEN_API_BASE/api/v1/deviceToken/refresh",
+                mapOf("User-Agent" to "qoder/1.0.0", "Accept" to "application/json"),
+                JSONObject().put("refresh_token", acc.refreshToken).put("machine_id", machineId).toString(),
+            )
+            if (!r.ok) null // 401/403=终态；网络失败不能判终态（本层区分不了，调度器按失败重试）
             else {
-                val expire = parseMillis(d.opt("expire_time"))
-                    ?: (System.currentTimeMillis() + 24 * 3600_000L)
-                Triple(token, d.optString("refresh_token").ifEmpty { acc.refreshToken }, expire)
+                val d = JSONObject(r.body).optJSONObject("data") ?: return null
+                val token = listOf("device_token", "token", "access_token").firstNotNullOfOrNull { d.optString(it).takeIf { s -> s.isNotEmpty() } }
+                if (token.isNullOrEmpty()) null
+                else {
+                    val expire = parseMillis(d.opt("expire_time"))
+                        ?: (System.currentTimeMillis() + 24 * 3600_000L)
+                    Triple(token, d.optString("refresh_token").ifEmpty { acc.refreshToken }, expire)
+                }
             }
-        }
-    } catch (_: Exception) { null }
+        } catch (_: Exception) { null }
+    }
 
     /** ISO/秒/毫秒三形态兼容；解析失败不填 0（照插件） */
     private fun parseMillis(v: Any?): Long? = when (v) {
@@ -94,24 +96,26 @@ object QoderChannel : ChatChannel {
 
     // ==================== 签到 / 余额（/sash/ 无需 WASM） ====================
 
-    override fun queryCredits(acc: AccountPool.Account): Double = try {
-        // ⚠️ 余额不只在 userQuota：资源包在 addOnQuota，只读 userQuota 显示 0
-        val r = AccountPool.channelGet(
-            "$OPEN_API_BASE/sash/api/v2/me/usage",
-            mapOf("Authorization" to "Bearer ${acc.accessToken}", "Cosy-ClientType" to "5", "User-Agent" to "Qoder"),
-        )
-        if (!r.ok) Double.NaN
-        else {
-            val d = JSONObject(r.body).optJSONObject("data") ?: return Double.NaN
-            val usage = d.optJSONObject("qoderUsage") ?: return Double.NaN
-            var remain = 0.0
-            for (key in listOf("userQuota", "addOnQuota")) {
-                val q = usage.optJSONObject(key) ?: continue
-                remain += q.optDouble("remaining", 0.0)
+    override fun queryCredits(acc: AccountPool.Account): Double {
+        return try {
+            // ⚠️ 余额不只在 userQuota：资源包在 addOnQuota，只读 userQuota 显示 0
+            val r = AccountPool.channelGet(
+                "$OPEN_API_BASE/sash/api/v2/me/usage",
+                mapOf("Authorization" to "Bearer ${acc.accessToken}", "Cosy-ClientType" to "5", "User-Agent" to "Qoder"),
+            )
+            if (!r.ok) Double.NaN
+            else {
+                val d = JSONObject(r.body).optJSONObject("data") ?: return Double.NaN
+                val usage = d.optJSONObject("qoderUsage") ?: return Double.NaN
+                var remain = 0.0
+                for (key in listOf("userQuota", "addOnQuota")) {
+                    val q = usage.optJSONObject(key) ?: continue
+                    remain += q.optDouble("remaining", 0.0)
+                }
+                remain
             }
-            remain
-        }
-    } catch (_: Exception) { Double.NaN }
+        } catch (_: Exception) { Double.NaN }
+    }
 
     override fun fetchModels(accessToken: String): List<String> = listOf(
         "auto", "ultimate", "performance", "efficient", "smodel", "cmodel",

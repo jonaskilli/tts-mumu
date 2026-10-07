@@ -136,18 +136,20 @@ object LobsteraiChannel : ChatChannel {
 
     // ==================== 签到 / 模型 / 余额 ====================
 
-    override fun queryCredits(acc: AccountPool.Account): Double = try {
-        // ⚠️ 用 profile-summary（quota 端点不含活动积分）
-        val r = AccountPool.channelGet(
-            "$SERVER/api/user/profile-summary",
-            mapOf("Authorization" to "Bearer ${acc.accessToken}") + capabilityHeaders(),
-        )
-        if (!r.ok) Double.NaN
-        else {
-            val d = JSONObject(r.body).optJSONObject("data") ?: return Double.NaN
-            d.optDouble("totalCreditsRemaining", Double.NaN).let { if (it < 0) 0.0 else it }
-        }
-    } catch (_: Exception) { Double.NaN }
+    override fun queryCredits(acc: AccountPool.Account): Double {
+        return try {
+            // ⚠️ 用 profile-summary（quota 端点不含活动积分）
+            val r = AccountPool.channelGet(
+                "$SERVER/api/user/profile-summary",
+                mapOf("Authorization" to "Bearer ${acc.accessToken}") + capabilityHeaders(),
+            )
+            if (!r.ok) Double.NaN
+            else {
+                val d = JSONObject(r.body).optJSONObject("data") ?: return Double.NaN
+                d.optDouble("totalCreditsRemaining", Double.NaN).let { if (it < 0) 0.0 else it }
+            }
+        } catch (_: Exception) { Double.NaN }
+    }
 
     override fun fetchModels(accessToken: String): List<String> = listOf(
         "deepseek-v4-flash", "deepseek-v4-pro", "MiniMax-M3", "MiniMax-M2.7",

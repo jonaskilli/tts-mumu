@@ -158,22 +158,24 @@ object TraeChannel : ChatChannel {
 
     // ==================== 签到 / 余额 / 模型 ====================
 
-    override fun checkIn(acc: AccountPool.Account): Pair<Boolean, String> = try {
-        val token = acc.accessToken
-        // status：{checked_in, credits, enable}
-        val st = AccountPool.channelPost("$UG_HOST/trae/api/v2/ug/checkin_credits/status", checkinHeaders(acc), "{}")
-        if (!st.ok) return false to "HTTP ${st.code}"
-        val so = JSONObject(st.body)
-        val sd = so.optJSONObject("data") ?: so
-        if (sd.optBoolean("checked_in", false)) return true to "今日已签到（credits=${sd.optLong("credits", 0)}）"
-        // claim 响应不含积分数——成功后补查 status
-        val claim = AccountPool.channelPost("$UG_HOST/trae/api/v2/ug/checkin_credits/claim", checkinHeaders(acc), "{}")
-        if (!claim.ok) return false to "HTTP ${claim.code}：${claim.body.take(120)}"
-        val co = JSONObject(claim.body)
-        if (co.optInt("code", -1) == 0) true to "签到成功"
-        else false to "业务码 ${co.optInt("code")}：${co.optString("message")}"
-    } catch (e: Exception) {
-        false to e.message ?: "签到失败"
+    override fun checkIn(acc: AccountPool.Account): Pair<Boolean, String> {
+        try {
+            val token = acc.accessToken
+            // status：{checked_in, credits, enable}
+            val st = AccountPool.channelPost("$UG_HOST/trae/api/v2/ug/checkin_credits/status", checkinHeaders(acc), "{}")
+            if (!st.ok) return false to "HTTP ${st.code}"
+            val so = JSONObject(st.body)
+            val sd = so.optJSONObject("data") ?: so
+            if (sd.optBoolean("checked_in", false)) return true to "今日已签到（credits=${sd.optLong("credits", 0)}）"
+            // claim 响应不含积分数——成功后补查 status
+            val claim = AccountPool.channelPost("$UG_HOST/trae/api/v2/ug/checkin_credits/claim", checkinHeaders(acc), "{}")
+            if (!claim.ok) return false to "HTTP ${claim.code}：${claim.body.take(120)}"
+            val co = JSONObject(claim.body)
+            if (co.optInt("code", -1) == 0) true to "签到成功"
+            else false to "业务码 ${co.optInt("code")}：${co.optString("message")}"
+        } catch (e: Exception) {
+            false to (e.message ?: "签到失败")
+        }
     }
 
     /** 签到客户端头族（≈20 头；设备身份按 user_id 确定性派生，每账号稳定） */
@@ -207,24 +209,26 @@ object TraeChannel : ChatChannel {
         return digits.toString().take(len)
     }
 
-    override fun queryCredits(acc: AccountPool.Account): Double = try {
-        val r = AccountPool.channelPost(
-            "$UG_HOST/trae/api/v2/pay/ide_user_ent_usage",
-            checkinHeaders(acc) + mapOf("Content-Type" to "application/json"),
-            JSONObject().put("require_usage", true).put("req_source", 2).toString(),
-        )
-        if (!r.ok) Double.NaN
-        else {
-            val d = JSONObject(r.body).optJSONObject("data") ?: return Double.NaN
-            val packs = d.optJSONArray("user_entitlement_pack_list") ?: return Double.NaN
-            var remain = 0.0
-            for (i in 0 until packs.length()) {
-                val p = packs.optJSONObject(i) ?: continue
-                remain += p.optDouble("credits_limit", 0.0) - p.optDouble("credits_amount", 0.0)
+    override fun queryCredits(acc: AccountPool.Account): Double {
+        return try {
+            val r = AccountPool.channelPost(
+                "$UG_HOST/trae/api/v2/pay/ide_user_ent_usage",
+                checkinHeaders(acc) + mapOf("Content-Type" to "application/json"),
+                JSONObject().put("require_usage", true).put("req_source", 2).toString(),
+            )
+            if (!r.ok) Double.NaN
+            else {
+                val d = JSONObject(r.body).optJSONObject("data") ?: return Double.NaN
+                val packs = d.optJSONArray("user_entitlement_pack_list") ?: return Double.NaN
+                var remain = 0.0
+                for (i in 0 until packs.length()) {
+                    val p = packs.optJSONObject(i) ?: continue
+                    remain += p.optDouble("credits_limit", 0.0) - p.optDouble("credits_amount", 0.0)
+                }
+                remain
             }
-            remain
-        }
-    } catch (_: Exception) { Double.NaN }
+        } catch (_: Exception) { Double.NaN }
+    }
 
     override fun fetchModels(accessToken: String): List<String> = listOf(
         "DeepSeek-V4-Flash-Official", "Doubao-Seed-2.1-Pro", "seed-code-pro-0430",

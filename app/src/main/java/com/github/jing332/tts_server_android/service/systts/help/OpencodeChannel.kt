@@ -83,14 +83,16 @@ object OpencodeChannel : ChatChannel {
     }
 
     /** 从 opencode.ai/zen/v1/models 拉动态清单（失败静默回静态表） */
-    fun fetchModelsRemote(apiKey: String): List<String> = try {
-        val r = DeviceCodeLogin.get("$chatBaseUrl/models", mapOf("Authorization" to "Bearer $apiKey"))
-        if (!r.ok) emptyList()
-        else {
-            val arr = JSONObject(r.body).optJSONArray("data") ?: return emptyList()
-            (0 until arr.length()).mapNotNull { arr.optJSONObject(it)?.optString("id") }.filter { it.isNotEmpty() }
+    fun fetchModelsRemote(apiKey: String): List<String> {
+        return try {
+            val r = DeviceCodeLogin.get("$chatBaseUrl/models", mapOf("Authorization" to "Bearer $apiKey"))
+            if (!r.ok) emptyList()
+            else {
+                val arr = JSONObject(r.body).optJSONArray("data") ?: return emptyList()
+                (0 until arr.length()).mapNotNull { arr.optJSONObject(it)?.optString("id") }.filter { it.isNotEmpty() }
+            }
+        } catch (_: Exception) {
+            emptyList()
         }
-    } catch (_: Exception) {
-        emptyList()
     }
 }

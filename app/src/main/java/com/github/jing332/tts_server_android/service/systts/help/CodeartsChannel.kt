@@ -154,43 +154,44 @@ object CodeartsChannel : ChatChannel {
 
     // ==================== 签到（三步+确认，均签名） ====================
 
-    override fun checkIn(acc: AccountPool.Account): Pair<Boolean, String> = try {
-        // 活动列表 → USER_LOGIN → claim → confirm
-        val listUrl = "/snap-manager/v1/ops/delivery?channel=IDE"
-        val lr = AccountPool.channelGet(SNAP_ACCESS + listUrl, signedHeaders(ak(acc), sk(acc), st(acc), "GET", "/snap-manager/v1/ops/delivery", "channel=IDE", ""))
-        if (!lr.ok) return false to "HTTP ${lr.code}"
-        val items = JSONObject(lr.body).optJSONObject("data")?.optJSONArray("items") ?: return false to "响应无 items"
-        var campaignId = ""
-        for (i in 0 until items.length()) {
-            val it = items.optJSONObject(i) ?: continue
-            if (it.optString("type") == "USER_LOGIN") {
-                val status = it.optString("status")
-                if (status !in setOf("CLAIMED", "CONFIRMED", "CONSUMED")) campaignId = it.opt("campaignId").toString()
-                break
+    override fun checkIn(acc: AccountPool.Account): Pair<Boolean, String> {
+        return try {
+            // 活动列表 → USER_LOGIN → claim → confirm
+            val lr = AccountPool.channelGet(SNAP_ACCESS + "/snap-manager/v1/ops/delivery?channel=IDE", signedHeaders(ak(acc), sk(acc), st(acc), "GET", "/snap-manager/v1/ops/delivery", "channel=IDE", ""))
+            if (!lr.ok) return false to "HTTP ${lr.code}"
+            val items = JSONObject(lr.body).optJSONObject("data")?.optJSONArray("items") ?: return false to "响应无 items"
+            var campaignId = ""
+            for (i in 0 until items.length()) {
+                val it = items.optJSONObject(i) ?: continue
+                if (it.optString("type") == "USER_LOGIN") {
+                    val status = it.optString("status")
+                    if (status !in setOf("CLAIMED", "CONFIRMED", "CONSUMED")) campaignId = it.opt("campaignId").toString()
+                    break
+                }
             }
-        }
-        if (campaignId.isEmpty()) return true to "今日已签到"
-        val claimBody = JSONObject().put("campaignId", campaignId).put("channel", "IDE")
-        val cr = AccountPool.channelPost(
-            "$SNAP_ACCESS/snap-manager/v1/ops/claim",
-            signedHeaders(ak(acc), sk(acc), st(acc), "POST", "/snap-manager/v1/ops/claim", "", claimBody.toString()),
-            claimBody.toString(),
-        )
-        if (!cr.ok) return false to "claim HTTP ${cr.code}"
-        val claimResp = JSONObject(cr.body)
-        // ⚠️ id 非 null 时必须 confirm（漏了积分停在待确认不入账；confirm 失败不算整体失败）
-        val confirmId = claimResp.optString("id", "null")
-        if (confirmId.isNotEmpty() && confirmId != "null") {
-            val cfBody = JSONObject().put("campaignId", campaignId)
-            AccountPool.channelPost(
-                "$SNAP_ACCESS/snap-manager/v1/ops/confirm",
-                signedHeaders(ak(acc), sk(acc), st(acc), "POST", "/snap-manager/v1/ops/confirm", "", cfBody.toString()),
-                cfBody.toString(),
+            if (campaignId.isEmpty()) return true to "今日已签到"
+            val claimBody = JSONObject().put("campaignId", campaignId).put("channel", "IDE")
+            val cr = AccountPool.channelPost(
+                "$SNAP_ACCESS/snap-manager/v1/ops/claim",
+                signedHeaders(ak(acc), sk(acc), st(acc), "POST", "/snap-manager/v1/ops/claim", "", claimBody.toString()),
+                claimBody.toString(),
             )
+            if (!cr.ok) return false to "claim HTTP ${cr.code}"
+            val claimResp = JSONObject(cr.body)
+            // ⚠️ id 非 null 时必须 confirm（漏了积分停在待确认不入账；confirm 失败不算整体失败）
+            val confirmId = claimResp.optString("id", "null")
+            if (confirmId.isNotEmpty() && confirmId != "null") {
+                val cfBody = JSONObject().put("campaignId", campaignId)
+                AccountPool.channelPost(
+                    "$SNAP_ACCESS/snap-manager/v1/ops/confirm",
+                    signedHeaders(ak(acc), sk(acc), st(acc), "POST", "/snap-manager/v1/ops/confirm", "", cfBody.toString()),
+                    cfBody.toString(),
+                )
+            }
+            true to "签到成功"
+        } catch (e: Exception) {
+            false to (e.message ?: "签到失败")
         }
-        true to "签到成功"
-    } catch (e: Exception) {
-        false to e.message ?: "签到失败"
     }
 
     // ==================== 模型 / 余额 ====================
@@ -200,15 +201,16 @@ object CodeartsChannel : ChatChannel {
         "deepseek-v4-flash", "deepseek-v4-pro", "deepseek-v4.1-flash",
     ) // -VL- 模型在目录层过滤
 
-    override fun queryCredits(acc: AccountPool.Account): Double = try {
-        val r = AccountPool.channelGet(
-            "$SNAP_ACCESS/snap-manager/v1/statistics/plugin",
-            signedHeaders(ak(acc), sk(acc), st(acc), "GET", "/snap-manager/v1/statistics/plugin", "", ""),
-        )
-        if (!r.ok) Double.NaN
-        else {
+    override fun queryCredits(acc: AccountPool.Account): Double {
+        return try {
+            val r = AccountPool.channelGet(
+                "$SNAP_ACCESS/snap-manager/v1/statistics/plugin",
+                signedHeaders(ak(acc), sk(acc), st(acc), "GET", "/snap-manager/v1/statistics/plugin", "", ""),
+            )
+            if (!r.ok) return Double.NaN
             val o = JSONObject(r.body) // ⚠️ 裸对象无信封
-            if (!o.optJSONObject("package")?.optBoolean("is_credit_package", false)!!) return Double.NaN
+            val pkg = o.optJSONObject("package")
+            if (pkg == null || !pkg.optBoolean("is_credit_package", false)) return Double.NaN
             val metrics = o.optJSONArray("metrics") ?: return Double.NaN
             for (i in 0 until metrics.length()) {
                 val m = metrics.optJSONObject(i) ?: continue
@@ -216,6 +218,6 @@ object CodeartsChannel : ChatChannel {
                     return m.optDouble("package_credit_remain", Double.NaN)
             }
             Double.NaN
-        }
-    } catch (_: Exception) { Double.NaN }
+        } catch (_: Exception) { Double.NaN }
+    }
 }

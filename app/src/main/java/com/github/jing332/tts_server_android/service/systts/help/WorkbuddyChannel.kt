@@ -163,31 +163,33 @@ object WorkbuddyChannel : ChatChannel {
         "gemini-3.5-flash", "glm-5.3", "glm-5.2", "kimi-k3",
     )
 
-    override fun queryCredits(acc: AccountPool.Account): Double = try {
-        // 余额 get-user-resource 两产品通用（creditItems[]）
-        val r = AccountPool.channelPost(
-            "$ENDPOINT/v2/billing/meter/get-user-resource",
-            mapOf(
-                "Authorization" to "Bearer ${acc.accessToken}",
-                "X-Domain" to DOMAIN,
-                "X-Product" to "SaaS",
-                "X-Product-Code" to "workbuddy",
-                "User-Agent" to uaFor(""),
-            ), "{}",
-        )
-        if (!r.ok) Double.NaN
-        else {
-            val d = JSONObject(r.body).optJSONObject("data")
-                ?.optJSONObject("Response")?.optJSONObject("Data") ?: return Double.NaN
-            val accs = d.optJSONArray("Accounts") ?: return Double.NaN
-            var total = 0.0
-            for (i in 0 until accs.length()) {
-                val p = accs.optJSONObject(i) ?: continue
-                if (p.optInt("Status", 0) == 3) continue
-                val v = AccountPool.firstNumberOf(p, "CycleCapacityRemainPrecise", "CycleCapacityRemain") ?: continue
-                total += v
+    override fun queryCredits(acc: AccountPool.Account): Double {
+        return try {
+            // 余额 get-user-resource 两产品通用（creditItems[]）
+            val r = AccountPool.channelPost(
+                "$ENDPOINT/v2/billing/meter/get-user-resource",
+                mapOf(
+                    "Authorization" to "Bearer ${acc.accessToken}",
+                    "X-Domain" to DOMAIN,
+                    "X-Product" to "SaaS",
+                    "X-Product-Code" to "workbuddy",
+                    "User-Agent" to uaFor(""),
+                ), "{}",
+            )
+            if (!r.ok) Double.NaN
+            else {
+                val d = JSONObject(r.body).optJSONObject("data")
+                    ?.optJSONObject("Response")?.optJSONObject("Data") ?: return Double.NaN
+                val accs = d.optJSONArray("Accounts") ?: return Double.NaN
+                var total = 0.0
+                for (i in 0 until accs.length()) {
+                    val p = accs.optJSONObject(i) ?: continue
+                    if (p.optInt("Status", 0) == 3) continue
+                    val v = AccountPool.firstNumberOf(p, "CycleCapacityRemainPrecise", "CycleCapacityRemain") ?: continue
+                    total += v
+                }
+                Math.round(total * 100.0) / 100.0
             }
-            Math.round(total * 100.0) / 100.0
-        }
-    } catch (_: Exception) { Double.NaN }
+        } catch (_: Exception) { Double.NaN }
+    }
 }

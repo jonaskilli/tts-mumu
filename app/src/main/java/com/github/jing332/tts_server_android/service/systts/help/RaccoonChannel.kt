@@ -122,15 +122,17 @@ object RaccoonChannel : ChatChannel {
 
     // ==================== 余额 / 模型 ====================
 
-    override fun queryCredits(acc: AccountPool.Account): Double = try {
-        val r = AccountPool.channelGet("$POINTS/balance", baseHeaders(acc.accessToken))
-        if (!r.ok) Double.NaN
-        else {
-            val d = JSONObject(r.body).optJSONObject("data") ?: return Double.NaN
-            if (!d.has("available_points")) Double.NaN // 形状不对不编造
-            else d.optDouble("available_points", Double.NaN)
-        }
-    } catch (_: Exception) { Double.NaN }
+    override fun queryCredits(acc: AccountPool.Account): Double {
+        return try {
+            val r = AccountPool.channelGet("$POINTS/balance", baseHeaders(acc.accessToken))
+            if (!r.ok) Double.NaN
+            else {
+                val d = JSONObject(r.body).optJSONObject("data") ?: return Double.NaN
+                if (!d.has("available_points")) Double.NaN // 形状不对不编造
+                else d.optDouble("available_points", Double.NaN)
+            }
+        } catch (_: Exception) { Double.NaN }
+    }
 
     override fun fetchModels(accessToken: String): List<String> = listOf(
         "sn-sensenova-6-8-flash", "sn-sensenova-6-8-flash-lite", "sn-glm-5-3",

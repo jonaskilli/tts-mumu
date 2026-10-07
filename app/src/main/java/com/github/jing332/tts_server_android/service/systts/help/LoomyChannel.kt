@@ -127,47 +127,53 @@ object LoomyChannel : ChatChannel {
     // ==================== 签到/余额/模型 ====================
 
     /** 「签到」= points/first-login（写、幂等）；查询余额用 points/records（读写严格分离） */
-    override fun checkIn(acc: AccountPool.Account): Pair<Boolean, String> = try {
-        val r = AccountPool.channelPost(
-            "$API_BASE/points/first-login",
-            mapOf("token" to acc.accessToken, "Content-Type" to "application/json"), // 业务端点只认 token 头
-            "{}",
-        )
-        if (!r.ok) return false to "HTTP ${r.code}"
-        val o = JSONObject(r.body)
-        val code = o.optString("code")
-        if (code == "000000") {
-            val d = o.optJSONObject("data") ?: JSONObject()
-            if (d.optBoolean("alreadyProcessed", false)) true to "今日已领取"
-            else true to "领取成功（daily=${d.optLong("dailyBalance", 0)}）"
-        } else false to "业务码 $code：${o.optString("desc")}"
-    } catch (e: Exception) {
-        false to e.message ?: "签到失败"
+    override fun checkIn(acc: AccountPool.Account): Pair<Boolean, String> {
+        return try {
+            val r = AccountPool.channelPost(
+                "$API_BASE/points/first-login",
+                mapOf("token" to acc.accessToken, "Content-Type" to "application/json"), // 业务端点只认 token 头
+                "{}",
+            )
+            if (!r.ok) return false to "HTTP ${r.code}"
+            val o = JSONObject(r.body)
+            val code = o.optString("code")
+            if (code == "000000") {
+                val d = o.optJSONObject("data") ?: JSONObject()
+                if (d.optBoolean("alreadyProcessed", false)) true to "今日已领取"
+                else true to "领取成功（daily=${d.optLong("dailyBalance", 0)}）"
+            } else false to "业务码 $code：${o.optString("desc")}"
+        } catch (e: Exception) {
+            false to (e.message ?: "签到失败")
+        }
     }
 
-    override fun queryCredits(acc: AccountPool.Account): Double = try {
-        val r = AccountPool.channelGet(
-            "$API_BASE/points/records?pageNo=1&pageSize=1&recordType=all",
-            mapOf("token" to acc.accessToken),
-        )
-        if (!r.ok) Double.NaN
-        else {
-            val d = JSONObject(r.body).optJSONObject("data") ?: return Double.NaN
-            d.optDouble("availableBalance", Double.NaN) // 永久+每日合计
-        }
-    } catch (_: Exception) { Double.NaN }
+    override fun queryCredits(acc: AccountPool.Account): Double {
+        return try {
+            val r = AccountPool.channelGet(
+                "$API_BASE/points/records?pageNo=1&pageSize=1&recordType=all",
+                mapOf("token" to acc.accessToken),
+            )
+            if (!r.ok) Double.NaN
+            else {
+                val d = JSONObject(r.body).optJSONObject("data") ?: return Double.NaN
+                d.optDouble("availableBalance", Double.NaN) // 永久+每日合计
+            }
+        } catch (_: Exception) { Double.NaN }
+    }
 
-    override fun fetchModels(accessToken: String): List<String> = try {
-        val r = AccountPool.channelGet("$API_BASE/models", mapOf("token" to accessToken))
-        if (!r.ok) fallback()
-        else {
-            val arr = JSONObject(r.body).optJSONArray("data") ?: return fallback()
-            (0 until arr.length()).mapNotNull { arr.optJSONObject(it) }
-                .filter { it.optString("type") == "chat" } // ⚠️ 不用 output_modalities 判断
-                .mapNotNull { it.optString("id").ifEmpty { null } }
-                .ifEmpty { fallback() }
-        }
-    } catch (_: Exception) { fallback() }
+    override fun fetchModels(accessToken: String): List<String> {
+        return try {
+            val r = AccountPool.channelGet("$API_BASE/models", mapOf("token" to accessToken))
+            if (!r.ok) fallback()
+            else {
+                val arr = JSONObject(r.body).optJSONArray("data") ?: return fallback()
+                (0 until arr.length()).mapNotNull { arr.optJSONObject(it) }
+                    .filter { it.optString("type") == "chat" } // ⚠️ 不用 output_modalities 判断
+                    .mapNotNull { it.optString("id").ifEmpty { null } }
+                    .ifEmpty { fallback() }
+            }
+        } catch (_: Exception) { fallback() }
+    }
 
     private fun fallback(): List<String> = listOf(
         "deepseek-v4-flash-0731", "MiniMax-M3", "Kimi-k2.6", "qwen-3.8-max",

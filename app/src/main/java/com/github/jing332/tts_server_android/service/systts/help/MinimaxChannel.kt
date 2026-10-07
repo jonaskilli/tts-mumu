@@ -120,49 +120,48 @@ object MinimaxChannel : ChatChannel {
 
     // ==================== 签到 / 模型 ====================
 
-    override fun checkIn(acc: AccountPool.Account): Pair<Boolean, String> = try {
-        // ⚠️ timezone_id 是 query 且必填（放头无效）；业务码在 base_resp.status_code
-        val tz = java.net.URLEncoder.encode("Asia/Shanghai", "UTF-8")
-        val st = DeviceCodeLogin.get(
-            "https://agent.minimax.cn/minimax-cloud/api/v1/signin/status?timezone_id=$tz",
-            mapOf("Authorization" to "Bearer ${acc.accessToken}"),
-        )
-        if (st.ok) {
-            val so = JSONObject(st.body)
-            val d = so.optJSONObject("data")
-            if (d != null && d.optBoolean("today_signed", d.optBoolean("checked_in", false)))
-                true to "今日已签到"
-            else {
+    override fun checkIn(acc: AccountPool.Account): Pair<Boolean, String> {
+        return try {
+            // ⚠️ timezone_id 是 query 且必填（放头无效）；业务码在 base_resp.status_code
+            val tz = java.net.URLEncoder.encode("Asia/Shanghai", "UTF-8")
+            val st = DeviceCodeLogin.get(
+                "https://agent.minimax.cn/minimax-cloud/api/v1/signin/status?timezone_id=$tz",
+                mapOf("Authorization" to "Bearer ${acc.accessToken}"),
+            )
+            if (st.ok) {
+                val so = JSONObject(st.body)
+                val d = so.optJSONObject("data")
+                if (d != null && d.optBoolean("today_signed", d.optBoolean("checked_in", false)))
+                    return true to "今日已签到"
                 val claim = DeviceCodeLogin.postJson(
                     "https://agent.minimax.cn/minimax-cloud/api/v1/signin/claim?timezone_id=$tz",
                     "{}", mapOf("Authorization" to "Bearer ${acc.accessToken}"),
                 )
-                if (!claim.ok) false to "HTTP ${claim.code}"
-                else {
-                    val co = JSONObject(claim.body)
-                    val br = co.optJSONObject("base_resp")
-                    val sc = br?.optInt("status_code", -1) ?: -1
-                    if (sc == 0) true to "签到成功"
-                    else false to "业务码 $sc：${br?.optString("message") ?: ""}"
-                }
-            }
-        } else false to "HTTP ${st.code}：${st.body.take(120)}"
-    } catch (e: Exception) {
-        false to e.message ?: "签到失败"
+                if (!claim.ok) return false to "HTTP ${claim.code}"
+                val co = JSONObject(claim.body)
+                val br = co.optJSONObject("base_resp")
+                val sc = br?.optInt("status_code", -1) ?: -1
+                if (sc == 0) true to "签到成功"
+                else false to "业务码 $sc：${br?.optString("message") ?: ""}"
+            } else false to "HTTP ${st.code}：${st.body.take(120)}"
+        } catch (e: Exception) {
+            false to (e.message ?: "签到失败")
+        }
     }
 
-    override fun fetchModels(accessToken: String): List<String> = try {
-        val r = DeviceCodeLogin.get("https://agent.minimax.cn/mavis/api/v1/models?region=cn&buildEnv=prod")
-        if (!r.ok) fallback()
-        else {
-            val arr = JSONObject(r.body).optJSONArray("data")
-                ?: JSONObject(r.body).optJSONArray("models")
-                ?: return fallback()
-            (0 until arr.length()).mapNotNull { arr.optJSONObject(it)?.optString("id") }
-                .filter { it.isNotEmpty() }
-                .ifEmpty { fallback() }
-        }
-    } catch (_: Exception) { fallback() }
+    override fun fetchModels(accessToken: String): List<String> {
+        return try {
+            val r = DeviceCodeLogin.get("https://agent.minimax.cn/mavis/api/v1/models?region=cn&buildEnv=prod")
+            if (!r.ok) fallback()
+            else {
+                val o = JSONObject(r.body)
+                val arr = o.optJSONArray("data") ?: o.optJSONArray("models") ?: return fallback()
+                (0 until arr.length()).mapNotNull { arr.optJSONObject(it)?.optString("id") }
+                    .filter { it.isNotEmpty() }
+                    .ifEmpty { fallback() }
+            }
+        } catch (_: Exception) { fallback() }
+    }
 
     private fun fallback(): List<String> = listOf(
         "MiniMax-M3.1-Flash-Preview", "MiniMax-M3", "MiniMax-M2.7-highspeed", "MiniMax-M2.7",
