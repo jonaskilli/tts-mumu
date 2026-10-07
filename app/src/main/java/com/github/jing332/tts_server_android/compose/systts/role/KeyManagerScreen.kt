@@ -47,6 +47,7 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Checkbox
+import androidx.compose.material3.TriStateCheckbox
 import androidx.compose.material3.ElevatedCard
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.DropdownMenu
@@ -101,6 +102,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.state.ToggleableState
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
@@ -728,6 +730,19 @@ private fun GroupHeaderBlock(
                         )
                     }
                     if (!selectionMode) {
+                        // 整组启停三态对勾（10-07：撤菜单两项、撤胶囊点击后的归宿）——
+                        // 照主界面 GroupItem「计数+三态方框」组合：胶囊=读数、对勾=控制，分工不重复。
+                        // 独立 48dp 热区在行尾图标区左侧，不在组名折叠区里，防误触。
+                        // 点击规则照系统TTS 组头：全停→全部启用，部分/全启→全部停用
+                        val groupToggle = when {
+                            enabledCount == 0 -> ToggleableState.Off
+                            enabledCount == grp.entries.size -> ToggleableState.On
+                            else -> ToggleableState.Indeterminate
+                        }
+                        TriStateCheckbox(
+                            state = groupToggle,
+                            onClick = { onSetGroupEnabled(groupToggle == ToggleableState.Off) }
+                        )
                         // 固定宽图标区（方案 A）：144dp=4×36dp 热区，组头与模型行图标垂直成列；
                         // 不足 4 键（未分组）右对齐留空。顺序按使用频次：+拉取 ⚡测组 ✏编辑 🗑菜单
                         Row(
@@ -768,24 +783,6 @@ private fun GroupHeaderBlock(
                                     expanded = menuExpanded,
                                     onDismissRequest = onMenuDismiss
                                 ) {
-                                    // 10-07：胶囊改纯显示后，整组批量启停挪进本菜单（原胶囊点击职责）
-                                    DropdownMenuItem(
-                                        // 10-07：胶囊改纯显示后，整组批量启停挪进本菜单（原胶囊点击职责）。
-                                        // 文本不带样式=M3 默认 labelLarge，与全站其余 92 项菜单同款（硬编码中文
-                                        // 照替换页/子分组头菜单先例，避免新增 strings 键破坏三地键集基线）
-                                        text = { Text("全部启用") },
-                                        onClick = {
-                                            onMenuDismiss()
-                                            onSetGroupEnabled(true)
-                                        }
-                                    )
-                                    DropdownMenuItem(
-                                        text = { Text("全部停用") },
-                                        onClick = {
-                                            onMenuDismiss()
-                                            onSetGroupEnabled(false)
-                                        }
-                                    )
                                     DropdownMenuItem(
                                         // 警示交给红色图标承载，标题不再整行红字（原样太扎眼）
                                         leadingIcon = {
