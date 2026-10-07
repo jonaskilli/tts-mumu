@@ -2033,8 +2033,11 @@ private fun KeyEditDialog(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text(
+                        // 12→14（10-07 装机反馈甲案）：原 bodySmall 比同行右侧的动作键（复制/删除
+                        // labelLarge 14sp）小两档，夹在中间显小；升到 14 后本行「标签/动作」同档，
+                        // 靠颜色（灰字 vs 绿/红）分语义，也与「思考模式」那一行的 14sp 对齐。
                         stringResource(R.string.role_key_value),
-                        style = MaterialTheme.typography.bodySmall,
+                        style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                     Spacer(Modifier.weight(1f))
@@ -2061,7 +2064,15 @@ private fun KeyEditDialog(
                 OutlinedTextField(
                     value = value,
                     onValueChange = { value = it },
-                    placeholder = { Text(stringResource(R.string.role_key_value_hint)) },
+                    // 占位提示必须自己钉字号（10-07 装机反馈根治）：OutlinedTextField 的
+                    // textStyle 只管输入文字，placeholder 里的 Text 不吃它、回落弹窗默认
+                    // 16sp（换声面板搜索框 09-13 已记录过同坑）——本框实测占位比输入字大两档。
+                    placeholder = {
+                        Text(
+                            stringResource(R.string.role_key_value_hint),
+                            style = MaterialTheme.typography.bodyMedium
+                        )
+                    },
                     singleLine = false,
                     minLines = 2,
                     // maxLines 4→10（10-05 用户：按内容适配高度，长密钥串要显示全不内滚）
@@ -2087,6 +2098,10 @@ private fun KeyEditDialog(
                 // 10-07：从提示条「自定义思考 ›」进来时直接展开——「直达」之前只预选了写法，
                 // 折叠区还关着，用户得多点一下才见 JSON 框
                 var thinkingOpen by remember { mutableStateOf(jumpToThinkingCustom) }
+                // 8 项写法默认只显示当前选中那一条，其余收在「换一种写法」后（10-07 装机反馈：
+                // 8 项平铺占 416dp、是弹窗变长的主因）。从「自定义思考 ›」直达时连同展开，
+                // 否则用户进来只看到一条、以为选项没了。
+                var optionsOpen by remember { mutableStateOf(jumpToThinkingCustom) }
                 // 锁定状态（读取该模型在 thinking_params.json 的锁定值；键 = 网址+模型）
                 val lockedMode = remember(initial) {
                     val p = initial?.let { KeyListFile.parseKeyValue(it.value) }
@@ -2203,8 +2218,11 @@ private fun KeyEditDialog(
                     // 试探序列的弹药（THINKING_PROBE_ORDER），也是黄态下唯一的手动出路；
                     // 只是加小节标题归组，扫一眼就知道哪几项是「关掉思考」。
                     Text(
+                        // 11→12 + 中粗（10-07 装机反馈）：原 labelSmall 11sp 比它自己的选项
+                        // （bodySmall 12sp）还小，小标题不该小于条目；labelMedium 正好 12sp、
+                        // M3 默认 Medium 字重，一档同时补上尺寸与层级感。
                         stringResource(R.string.role_key_thinking_goal_off),
-                        style = MaterialTheme.typography.labelSmall,
+                        style = MaterialTheme.typography.labelMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.padding(start = 48.dp, top = 6.dp, bottom = 2.dp)
                     )
@@ -2215,26 +2233,57 @@ private fun KeyEditDialog(
                         // 后两项语义不同（不关、只降档 / 完全手写），列表里靠自身文案区分
                         KeyListFile.THINKING_LOW, KeyListFile.THINKING_CUSTOM,
                     )
-                    options.forEach { opt ->
+                    // 折起时只画当前选中那条，其余收在下方「换一种写法」里（展开才铺全）。
+                    // 本块在 thinkingExpanded 为真时才渲染，而 thinkingMode 此刻必是这 8 项之一
+                    // （「自动」那条会把 thinkingExpanded 置回 false），故 listOf(thinkingMode) 一定有效
+                    val shown = if (optionsOpen) options else listOf(thinkingMode)
+                    shown.forEach { opt ->
                         Row(
                             Modifier
                                 .fillMaxWidth()
                                 .clickable { thinkingMode = opt }
-                                .padding(start = 48.dp, top = 2.dp, bottom = 2.dp),
+                                // 上下内距 2→0（10-07 装机反馈）：52dp 行距里 4dp 是我们加的，
+                                // 撤掉后剩 M3 强制的最小触摸高 48dp，仍是标准触摸尺寸，块高省 32dp
+                                .padding(start = 48.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             RadioButton(selected = thinkingMode == opt, onClick = { thinkingMode = opt })
                             Text(modeLabel(opt), style = MaterialTheme.typography.bodySmall)
                         }
                     }
+                    // JSON 框紧贴选中项（折叠/展开都在它下方紧接着），「换一种写法」固定在
+                    // 最底部——这样展开与否、选不选 custom，切换键的位置都不跳
                     if (thinkingMode == KeyListFile.THINKING_CUSTOM) {
                         OutlinedTextField(
                             value = customText, onValueChange = { customText = it },
                             singleLine = false, minLines = 2, maxLines = 4,
                             textStyle = MaterialTheme.typography.bodySmall,
-                            placeholder = { Text("{\"key\": \"value\"}") },
+                            placeholder = {
+                                Text("{\"key\": \"value\"}", style = MaterialTheme.typography.bodySmall)
+                            },
                             modifier = Modifier.fillMaxWidth().padding(start = 48.dp)
                         )
+                    }
+                    // 「换一种写法 / 收起写法」切换行（本行没有 RadioButton 撑高，须自己钉
+                    // 最小触摸 48dp；缩进 48 与选项文字左缘齐）
+                    if (options.size > 1) {
+                        Row(
+                            Modifier
+                                .fillMaxWidth()
+                                .heightIn(min = 48.dp)
+                                .clickable { optionsOpen = !optionsOpen }
+                                .padding(start = 48.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                stringResource(
+                                    if (optionsOpen) R.string.role_key_thinking_less
+                                    else R.string.role_key_thinking_more
+                                ),
+                                style = MaterialTheme.typography.labelMedium,
+                                color = MaterialTheme.colorScheme.primary
+                            )
+                        }
                     }
                 }
                 } // thinkingOpen 展开区收尾
@@ -2457,8 +2506,12 @@ private fun InterfaceFormDialog(
                     onValueChange = { name = it; nameTouched = true },
                     singleLine = true, textStyle = MaterialTheme.typography.bodyMedium,
                     // 清空后灰字摆出将用的短名（替代原来标签里那句括号说明）
+                    // 占位钉字号：placeholder 不吃 textStyle，不钉会回落 16sp（比输入字大）
                     placeholder = {
-                        Text(runCatching { KeyListFile.shortName(url.text) }.getOrDefault(""))
+                        Text(
+                            runCatching { KeyListFile.shortName(url.text) }.getOrDefault(""),
+                            style = MaterialTheme.typography.bodyMedium
+                        )
                     },
                     modifier = Modifier.fillMaxWidth(),
                 )
@@ -2604,7 +2657,9 @@ private fun InterfaceFormDialog(
                             Modifier
                                 .fillMaxWidth()
                                 .clickable { thinkingMode = opt; thinkingTouched = true }
-                                .padding(start = 48.dp, top = 2.dp, bottom = 2.dp),
+                                // 上下内距 2→0（10-07 装机反馈）：与编辑弹窗同步收敛到
+                                // M3 最小触摸高 48dp——两处是同一份 8 项写法列表，行距须一致
+                                .padding(start = 48.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             RadioButton(
@@ -2620,8 +2675,11 @@ private fun InterfaceFormDialog(
                     }
                     pickRow(KeyListFile.THINKING_AUTO)
                     Text(
+                        // 11→12 + 中粗（10-07 装机反馈）：原 labelSmall 11sp 比它自己的选项
+                        // （bodySmall 12sp）还小，小标题不该小于条目；labelMedium 正好 12sp、
+                        // M3 默认 Medium 字重，一档同时补上尺寸与层级感。
                         stringResource(R.string.role_key_thinking_goal_off),
-                        style = MaterialTheme.typography.labelSmall,
+                        style = MaterialTheme.typography.labelMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.padding(start = 48.dp, top = 6.dp, bottom = 2.dp)
                     )
@@ -2636,7 +2694,9 @@ private fun InterfaceFormDialog(
                             value = customText, onValueChange = { customText = it },
                             singleLine = false, minLines = 2, maxLines = 4,
                             textStyle = MaterialTheme.typography.bodySmall,
-                            placeholder = { Text("{\"key\": \"value\"}") },
+                            placeholder = {
+                                Text("{\"key\": \"value\"}", style = MaterialTheme.typography.bodySmall)
+                            },
                             modifier = Modifier.fillMaxWidth().padding(start = 48.dp)
                         )
                     }
@@ -2835,7 +2895,10 @@ private fun ModelPullDialog(
                         value = nameText, onValueChange = { nameText = it },
                         singleLine = true,
                         // 空框时把将用的短名当占位显示；网址没填就空着，不写解释
-                        placeholder = { Text(autoName) },
+                        // （占位钉字号：placeholder 不吃 textStyle，不钉就回落 16sp）
+                        placeholder = {
+                            Text(autoName, style = MaterialTheme.typography.bodyMedium)
+                        },
                         textStyle = MaterialTheme.typography.bodyMedium,
                         modifier = Modifier.fillMaxWidth(),
                     )
@@ -2905,7 +2968,12 @@ private fun ModelPullDialog(
                     OutlinedTextField(
                         value = filter,
                         onValueChange = { filter = it },
-                        placeholder = { Text(stringResource(R.string.role_key_model_filter)) },
+                        placeholder = {
+                            Text(
+                                stringResource(R.string.role_key_model_filter),
+                                style = MaterialTheme.typography.bodyMedium
+                            )
+                        },
                         singleLine = true,
                         textStyle = MaterialTheme.typography.bodyMedium,
                         modifier = Modifier.fillMaxWidth()
@@ -3257,7 +3325,12 @@ fun BackupCenterDialog(
                 OutlinedTextField(
                     value = inputText,
                     onValueChange = { inputText = it },
-                    placeholder = { Text(stringResource(R.string.backup_import_hint)) },
+                    placeholder = {
+                        Text(
+                            stringResource(R.string.backup_import_hint),
+                            style = MaterialTheme.typography.bodySmall
+                        )
+                    },
                     textStyle = MaterialTheme.typography.bodySmall,
                     minLines = 3,
                     maxLines = 8,

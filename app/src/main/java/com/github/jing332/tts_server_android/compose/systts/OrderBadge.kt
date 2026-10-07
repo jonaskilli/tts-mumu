@@ -12,6 +12,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import com.github.jing332.tts_server_android.compose.systts.role.softContainerColor
 
 /** 序号徽章的最小边长（1 位数时宽=高=本值 ⇒ 正圆） */
 private val BadgeMinSize = 20.dp
@@ -28,9 +29,12 @@ private val BadgeMinSize = 20.dp
  * 溢出圆外**。主界面有多个分组、密钥池可放多把密钥，两位数必然出现，故宽度必须随内容走。
  * （注：宽度写死 20dp 时 1 位数≈18.3dp 还会被压成扁圆，故最小边长得双向设。）
  *
- * 配色：**中性灰（surfaceVariant 底 + onSurfaceVariant 字，10-07 用户拍板）**——
- * 曾用 primaryContainer@50% 浅绿，装机反馈填充色不好看，且与行右侧饱和绿勾选框同屏抢色；
- * 灰底把序号退成纯辅助信息，也不进「绿色=可点」的页面色彩语言。
+ * 配色（10-07 二改，用户拍板）：**复用 `softContainerColor()` = 角色列表标签框 / 书籍卡的浅绿**。
+ * 演进：曾 primaryContainer@50% 浅绿（与勾选框抢色）→ 改 surfaceVariant 中性灰（装机反馈
+ * 「默认色不好看」）→ 定为本值。它同为 secondaryContainer→background 插 40%，带主题色相
+ * 但不饱和，且与同屏的标签框**同一个函数**算出（改插值比例两处一起变，永不岔色），
+ * 也不进「绿色=可点」的页面色彩语言。
+ * 字色随标签框取 onSecondaryContainer：底变浅后对比度只会更大。
  *
  * 尺寸：最小边 20dp；左右 padding 6dp、上下 2dp；字号 labelSmall。
  */
@@ -47,7 +51,7 @@ internal fun OrderBadge(
             .height(BadgeMinSize)
             .defaultMinSize(minWidth = BadgeMinSize)
             .background(
-                color = MaterialTheme.colorScheme.surfaceVariant,
+                color = softContainerColor(),
                 // 百分比圆角：任何宽高比下都是胶囊端；1 位数（宽=高）即正圆
                 shape = RoundedCornerShape(percent = 50)
             )
@@ -57,7 +61,7 @@ internal fun OrderBadge(
         Text(
             text = number.toString(),
             style = MaterialTheme.typography.labelSmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            color = MaterialTheme.colorScheme.onSecondaryContainer,
             maxLines = 1
         )
     }

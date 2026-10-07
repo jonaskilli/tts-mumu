@@ -83,6 +83,26 @@ internal fun MenuMoreOptions(
                 Icon(Icons.Default.Group, null)
             },
         )
+
+        // 替换规则（10-07 装机反馈甲案：由「自己一组」上移到本开关组）。
+        // 10-06 收敛时删掉了同组的「朗读规则」「插件」两条（与设置页资源管理区重复），
+        // 这一组只剩它一个、前后各一条分隔线，成了菜单里的孤岛；现按「功能性质」归位——
+        // 与上面两条同属"朗读行为的开关"，菜单随之变「开关 / 设置 / 文件」三段。
+        // 点行进替换规则页、点勾选框控总开关（本项是全菜单唯一混合体，勾选框是总开关唯一落点）
+        CheckedMenuItem(
+            text = { Text(stringResource(id = R.string.replace_rule_manager)) },
+            checked = SystemTtsConfig.isReplaceEnabled.value,
+            onClick = {
+                onDismissRequest()
+                context.startActivity(ReplaceManagerActivity::class.java)
+            },
+            onClickCheckBox = {
+                SystemTtsConfig.isReplaceEnabled.value = it
+            },
+            leadingIcon = {
+                Icon(Icons.AutoMirrored.Default.ManageSearch, null)
+            }
+        )
         HorizontalDivider()
 
         DropdownMenuItem(
@@ -114,24 +134,7 @@ internal fun MenuMoreOptions(
             }
         )
 
-        HorizontalDivider()
-        // 朗读规则/插件两条已删（10-06 用户拍板：与设置页「资源管理」区、桌面快捷方式重复，
-        // 菜单收敛；替换规则保留——它的勾选是替换规则总开关的唯一落点，点行进页面、勾选控启停）
-        CheckedMenuItem(
-            text = { Text(stringResource(id = R.string.replace_rule_manager)) },
-            checked = SystemTtsConfig.isReplaceEnabled.value,
-            onClick = {
-                onDismissRequest()
-                context.startActivity(ReplaceManagerActivity::class.java)
-            },
-            onClickCheckBox = {
-                SystemTtsConfig.isReplaceEnabled.value = it
-            },
-            leadingIcon = {
-                Icon(Icons.AutoMirrored.Default.ManageSearch, null)
-            }
-        )
-
+        // 替换规则已上移到上方开关组（10-07 装机反馈甲案），此处不再单独成组
         HorizontalDivider()
         DropdownMenuItem(text = {
             Text(stringResource(id = R.string.import_config))
