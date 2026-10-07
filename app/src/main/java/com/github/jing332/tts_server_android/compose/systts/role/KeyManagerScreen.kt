@@ -666,19 +666,20 @@ private fun GroupHeaderBlock(
             } else {
             Column(Modifier.fillMaxWidth()) {
                 // ———— 组头行 ————
-                // start=3：22dp 箭头图标字形左留白 ≈5 ⇒ 字形左缘 ≈8，与条目卡左缘 8 同线
-                // （照主页样板：箭头字形 8.6 ≈ 卡缘 8；旧 start=6 得字形 11.4，偏右 3）。
+                // start 0（10-07 与主界面统一）：展开键用默认 24dp 图标盒，盒缘落卡内容起点
+                // ——与下方条目卡对勾盒（同为 0+24）逐像素同一条左列；组名线 = 24+4 = 28，
+                // URL/说明行/删除模式行照旧对齐 28 不动。
                 // end 8→0（10-06 图3/图4 真根因修复）：条目卡内 end=0 → 🗑 字形贴卡缘；
                 // 组头行若留 end=8 会比卡内图标再内缩 8dp（实机：组头 🗑 距屏 16、模型行 8），
                 // 这就是「灯/快捷图标没跟模型行竖向对齐」的本源；归 0 后两组图标列逐像素同列
                 Row(
                     Modifier.fillMaxWidth()
-                        .padding(start = 3.dp, end = 0.dp, top = 2.dp, bottom = 2.dp),
+                        .padding(start = 0.dp, end = 0.dp, top = 2.dp, bottom = 2.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     // 展开键（10-07 用户定稿：折叠/展开只认这个键——行内内容密，点组名/空白
-                    // 误触折叠比漏点更烦）。图标 ExpandMore 旋转，照主界面 GroupItem 同款：
-                    // 折叠朝右 ❯、展开朝下 ⌄，全站组头一个语言
+                    // 误触折叠比漏点更烦）。图标与主界面 GroupItem 逐字同款：ExpandMore
+                    // 默认 24dp 盒 + 旋转（折叠朝右 ❯、展开朝下 ⌄），不写 size 覆盖
                     val arrowAngle by animateFloatAsState(
                         targetValue = if (isCollapsed) -90f else 0f, label = ""
                     )
@@ -690,7 +691,6 @@ private fun GroupHeaderBlock(
                         ),
                         tint = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier
-                            .size(22.dp)
                             .rotate(arrowAngle)
                             .clickable(enabled = !selectionMode, onClick = onFold)
                     )
@@ -700,7 +700,7 @@ private fun GroupHeaderBlock(
                         Modifier.weight(1f),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Spacer(Modifier.width(3.dp))
+                        Spacer(Modifier.width(4.dp))
                         Text(
                             grp.title,
                             style = MaterialTheme.typography.titleMedium,
