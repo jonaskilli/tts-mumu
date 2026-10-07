@@ -690,6 +690,9 @@ private fun GroupHeaderBlock(
                             },
                         verticalAlignment = Alignment.CenterVertically
                     ) {
+                        val arrowAngle by animateFloatAsState(
+                            targetValue = if (isCollapsed) -90f else 0f, label = ""
+                        )
                         Text(
                             grp.title,
                             style = MaterialTheme.typography.titleMedium,
@@ -713,6 +716,15 @@ private fun GroupHeaderBlock(
                             enabled = enabledCount,
                             total = grp.entries.size,
                             groupTitle = grp.title,
+                        )
+                        // 展开向指示（10-07 二改）：行首不占，挪到行尾胶囊后——折叠朝右、
+                        // 展开朝下，「可展开」的方向感保留（用户否行首箭头后的折中位）
+                        Spacer(Modifier.weight(1f))
+                        Icon(
+                            Icons.Default.ExpandMore,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.size(18.dp).rotate(arrowAngle)
                         )
                     }
                     if (!selectionMode) {
