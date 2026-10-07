@@ -395,12 +395,22 @@ object AccountPool {
             "$UPSTREAM_BASE$PATH_AUTH_TOKEN" + URLEncoder.encode(state, "UTF-8"),
             "GET", authStateHeaders, null
         )
-        if (!r.ok) return null to "HTTP ${r.code}（未登录完或已过期）：${briefBody(r.body)}"
+        // 10-08 真机排障：轮询全程静默→失败无从查起，关键分支落日志页（tag=AccountPool）
+        if (!r.ok) {
+            val msg = "HTTP ${r.code}（未登录完或已过期）：${briefBody(r.body)}"
+            Log.i(TAG, "pollToken: $msg")
+            return null to msg
+        }
         return try {
             val o = JSONObject(r.body).let { it.optJSONObject("data") ?: it }
             val access = o?.optString("access_token").orEmpty()
             val refresh = o?.optString("refresh_token").orEmpty().ifEmpty { existing?.refreshToken ?: "" }
-            if (access.isEmpty()) return null to "响应无 access_token（可能还没登录完）：${briefBody(r.body)}"
+            if (access.isEmpty()) {
+                // HTTP 200 + 业务码未完成（如 11217 login ing）= 正常等待，不打错误级
+                val brief = briefBody(r.body)
+                Log.i(TAG, "pollToken: 200 但无 access_token（等待登录完成）：$brief")
+                return null to "响应无 access_token（可能还没登录完）：$brief"
+            }
             val expiresAt = System.currentTimeMillis() + (o?.optLong("expires_in", 0L) ?: 0L) * 1000L
             val nick = o?.optString("nickname").orEmpty()
                 .ifEmpty { o?.optString("username").orEmpty() }
@@ -418,6 +428,7 @@ object AccountPool {
             )
             val list = load().filterNot { it.id == acc.id } + acc
             save(list)
+            Log.i(TAG, "pollToken: 登录成功，账号「${acc.nickname}」已落盘（expiresAt=${acc.expiresAt}）")
             acc to ""
         } catch (e: Exception) {
             null to "解析失败：${briefBody(r.body)}"

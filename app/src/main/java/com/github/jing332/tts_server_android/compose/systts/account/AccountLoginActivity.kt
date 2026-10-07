@@ -70,6 +70,8 @@ class AccountLoginActivity : ComposeActivity() {
 
         // 轮询凭据：浏览器登录成功前 token 接口返回未授权/空，成功即返回 access_token。
         // 5 分钟上限，到点静默结束（用户可自行关闭页面）
+        // 10-08 排障：起点/终点进日志页（此前全程静默，失败无从查起）
+        android.util.Log.i("AccountPool", "登录轮询启动：state=${loginState.take(8)}…，上限 5 分钟")
         var polling = true
         lifecycleScope.launch {
             repeat(150) {
@@ -77,13 +79,17 @@ class AccountLoginActivity : ComposeActivity() {
                 val (acc, err) = withContext(Dispatchers.IO) { AccountPool.pollToken(loginState, null) }
                 if (acc != null) {
                     polling = false
+                    android.util.Log.i("AccountPool", "登录轮询拿到凭据，回传池页：${acc.nickname}")
                     setResult(RESULT_OK, Intent().putExtra("nickname", acc.nickname))
                     finish()
                     return@launch
                 }
                 delay(2000)
             }
-            if (polling) finish()
+            if (polling) {
+                android.util.Log.w("AccountPool", "登录轮询 5 分钟超时退出（未拿到凭据）——上游未确认登录完成")
+                finish()
+            }
         }
 
         setContent {
