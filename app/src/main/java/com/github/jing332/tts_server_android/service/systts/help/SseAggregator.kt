@@ -132,8 +132,9 @@ object SseAggregator {
         if (first == null) return chatCompletion(baseUrl, apiKey, bodyJson, cancelled)
 
         val tried = mutableSetOf<String>()
-        var current = first
-        var currentKey = apiKey
+        // 显式非空类型：refresh()/pickAccount() 都返回可空对，解构赋值会把 var 推成可空
+        var current: AccountPool.Account = first
+        var currentKey: String = apiKey
         var sawAuthFail = false
         var lastErr = ""
         while (true) {
@@ -160,7 +161,8 @@ object SseAggregator {
                 sawAuthFail = true
                 // 401/403：现场续期一次再试同账号（插件：刷新→重试→换号）
                 if (current.refreshToken.isNotEmpty()) {
-                    val (ref, _) = AccountPool.refresh(current)
+                    val (refRaw, _) = AccountPool.refresh(current)
+                    val ref = refRaw // 局部量接住智能转换（Pair 解构值不携带判空流）
                     if (ref != null) {
                         val (ok2, body2) = chatCompletion(baseUrl, ref.accessToken, bodyJson, cancelled)
                         if (ok2) return true to body2
