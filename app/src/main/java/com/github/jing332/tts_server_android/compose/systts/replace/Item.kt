@@ -2,10 +2,15 @@ package com.github.jing332.tts_server_android.compose.systts.replace
 
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.selection.toggleable
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.DeleteForever
 import androidx.compose.material.icons.filled.Edit
@@ -30,6 +35,8 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.scale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
@@ -86,31 +93,49 @@ internal fun Item(
     ) {
         Row(modifier = Modifier.fillMaxSize()) {
             // 多选模式显示选中状态, 非多选模式显示启用开关
+            // 10-07 统一插件卡/朗读规则页写法：视觉 17dp（0.85 缩放）、外层 48dp 盒吃触摸，
+            // 内层 Checkbox 只画不摸（onCheckedChange=null）
             if (isSelectionMode) {
-                Checkbox(
-                    modifier = Modifier.align(Alignment.CenterVertically),
-                    checked = isSelected,
-                    onCheckedChange = { onToggleSelection() }
-                )
-            } else {
-                Checkbox(
+                Box(
                     modifier = Modifier
                         .align(Alignment.CenterVertically)
+                        .size(48.dp)
+                        .clip(CircleShape)
+                        .clickable { onToggleSelection() },
+                    contentAlignment = Alignment.Center
+                ) {
+                    Checkbox(
+                        checked = isSelected,
+                        onCheckedChange = null,
+                        modifier = Modifier.scale(0.85f),
+                    )
+                }
+            } else {
+                Box(
+                    modifier = Modifier
+                        .align(Alignment.CenterVertically)
+                        .size(48.dp)
+                        .toggleable(
+                            value = isEnabled,
+                            role = Role.Switch,
+                            onValueChange = { onCheckedChange(it) }
+                        )
                         .semantics {
-                            role = Role.Switch
                             context
                                 .getString(
                                     if (isEnabled) R.string.rule_enabled_desc else R.string.rule_disabled_desc,
                                     name
                                 )
-                                .let {
-                                    contentDescription = it
-                                    stateDescription = it
-                                }
+                                .let { contentDescription = it }
                         },
-                    checked = isEnabled,
-                    onCheckedChange = onCheckedChange
-                )
+                    contentAlignment = Alignment.Center
+                ) {
+                    Checkbox(
+                        checked = isEnabled,
+                        onCheckedChange = null,
+                        modifier = Modifier.scale(0.85f),
+                    )
+                }
             }
             Text(
                 name,
