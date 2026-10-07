@@ -843,7 +843,15 @@ private fun CatalogVoiceRow(
             modifier = Modifier
                 .size(44.dp)
                 .clip(CircleShape),
-            error = { CenterTextImage(item.name.getOrElse(0) { '-' }.toString(), size = 44.dp) },
+            error = {
+                // 兜底中文首字：占空比 0.5（22sp@44dp）——10-07 用户令「中文当图标取 50~55%」；
+                // 原默认 0.625 会算出 27.5sp，字撑满圆（插件圆 28dp 已按 0.57 同口径修过）
+                CenterTextImage(
+                    item.name.getOrElse(0) { '-' }.toString(),
+                    size = 44.dp,
+                    textRatio = 22f / 44f,
+                )
+            },
         )
         Column(
             Modifier
