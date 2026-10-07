@@ -182,6 +182,14 @@
 
                 <action android:name="android.service.quicksettings.action.QS_TILE_PREFERENCES" />
             </intent-filter>
+            <!-- 外部「打开方式」导入密钥（10-07）：文件管理器点 json → 选本应用 → 自识别并入密钥库 -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+
+                <category android:name="android.intent.category.DEFAULT" />
+
+                <data android:mimeType="application/json" />
+            </intent-filter>
         </activity>
 
         <activity android:name=".compose.systts.plugin.login.PluginLoginActivity" />

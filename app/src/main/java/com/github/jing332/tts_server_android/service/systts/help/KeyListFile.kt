@@ -20,6 +20,10 @@ object KeyListFile {
     /** 密钥导出固定文件名（10-03 用户令：覆盖导出、导入只认这个名）。 */
     const val EXPORT_FILE_NAME = "密钥备份.json"
 
+    /** 密钥归属的规则 id（角色管理/设置页两处入口都传这个值）；
+     *  外部「打开方式」导入（10-07）没有页面上下文，也落这里。 */
+    const val DEFAULT_TAG_RULE_ID = "mingwuyan"
+
     /** 接口中心文件名（10-04 用户令改中文名：文件夹里一眼认出、防误删；曾误删 api_center.json 致密钥全裸奔）。 */
     const val CENTER_FILE_NAME = "模型接口中心.json"
 
@@ -1249,42 +1253,48 @@ object KeyListFile {
 /** 读导出/备份文件：顶层是数组 = 插件时代扁平格式，是对象 = 本版 v2；损坏返回 null */
     fun readExportFile(tagRuleId: String, fileName: String): ExportData? = try {
         val f = File(dir(tagRuleId), fileName)
-        if (!f.exists()) null
-        else {
-            val text = f.readText().trim()
-            if (text.startsWith("[")) {
-                ExportData(parseKeyPairs(JSONArray(text)), emptyList())
-            } else {
-                val root = JSONObject(text)
-                val ifcs = mutableListOf<ApiInterface>()
-                root.optJSONArray("interfaces")?.let { ia ->
-                    for (i in 0 until ia.length()) {
-                        val o = ia.optJSONObject(i) ?: continue
-                        val models = mutableListOf<String>()
-                        o.optJSONArray("models")?.let { ma ->
-                            for (j in 0 until ma.length()) {
-                                ma.optString(j).takeIf { t -> t.isNotEmpty() }?.let { models.add(it) }
-                            }
-                        }
-                        ifcs.add(
-                            ApiInterface(
-                                name = o.optString("name"),
-                                baseUrl = o.optString("baseUrl"),
-                                apiKey = o.optString("apiKey"),
-                                models = models,
-                            )
-                        )
-                    }
-                }
-                ExportData(
-                    root.optJSONArray("keys")?.let { parseKeyPairs(it) } ?: emptyList(),
-                    ifcs,
-                    root.optString("current"),
-                )
-            }
-        }
+        if (!f.exists()) null else parseExportText(f.readText())
     } catch (e: Exception) {
         Log.w(TAG, "readExportFile failed: ${e.message}")
+        null
+    }
+
+    /** 自识别解析导出文本（10-07 外部「打开方式」导入）：顶层数组 = 插件时代扁平格式，
+     *  对象 = 本版 v2（keys 必需，interfaces/current 可缺）；损坏返回 null */
+    fun parseExportText(text: String): ExportData? = try {
+        val t = text.trim()
+        if (t.startsWith("[")) {
+            ExportData(parseKeyPairs(JSONArray(t)), emptyList())
+        } else {
+            val root = JSONObject(t)
+            val ifcs = mutableListOf<ApiInterface>()
+            root.optJSONArray("interfaces")?.let { ia ->
+                for (i in 0 until ia.length()) {
+                    val o = ia.optJSONObject(i) ?: continue
+                    val models = mutableListOf<String>()
+                    o.optJSONArray("models")?.let { ma ->
+                        for (j in 0 until ma.length()) {
+                            ma.optString(j).takeIf { s -> s.isNotEmpty() }?.let { models.add(it) }
+                        }
+                    }
+                    ifcs.add(
+                        ApiInterface(
+                            name = o.optString("name"),
+                            baseUrl = o.optString("baseUrl"),
+                            apiKey = o.optString("apiKey"),
+                            models = models,
+                        )
+                    )
+                }
+            }
+            ExportData(
+                root.optJSONArray("keys")?.let { parseKeyPairs(it) } ?: emptyList(),
+                ifcs,
+                root.optString("current"),
+            )
+        }
+    } catch (e: Exception) {
+        Log.w(TAG, "parseExportText failed: ${e.message}")
         null
     }
 

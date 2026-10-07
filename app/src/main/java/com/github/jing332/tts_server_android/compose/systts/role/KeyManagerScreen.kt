@@ -1276,7 +1276,6 @@ fun KeyManagerScreen(tagRuleId: String, onBack: () -> Unit) {
     var ifcFormFor by remember { mutableStateOf<KeyListFile.ApiInterface?>(null) } // 组头 ✏️ 编辑该接口
     var showPullModels by remember { mutableStateOf(false) }
     var pullForIfc by remember { mutableStateOf<String?>(null) } // 组头 🔍 预选接口
-    var showImport by remember { mutableStateOf(false) }
 
     // 返回键：组内删除模式先退组内删除；页面级多选先退多选（两种多选互斥，同一时刻至多一种在）
     BackHandler(enabled = deleteModeGroup != null) {
@@ -1367,7 +1366,26 @@ fun KeyManagerScreen(tagRuleId: String, onBack: () -> Unit) {
                     Box(
                         Modifier
                             .heightIn(min = 48.dp)
-                            .clickable { showImport = true }
+                            // 10-07 用户令：一步导入——中间弹层（只显示一个文件名）与确认弹窗都删；
+                            // 导入=合并不覆盖、重名自动跳过，无破坏性，结果直接 toast
+                            .clickable {
+                                scope.launch {
+                                    if (!withIO { KeyListFile.exportFileExists(tagRuleId) }) {
+                                        toast(R.string.role_key_no_export)
+                                    } else {
+                                        val data = withIO {
+                                            KeyListFile.readExportFile(tagRuleId, KeyListFile.EXPORT_FILE_NAME)
+                                        }
+                                        if (data == null) toast(R.string.role_list_failed)
+                                        else {
+                                            val (added, skipped, addedIfc) =
+                                                withIO { KeyListFile.importAll(tagRuleId, data) }
+                                            toast(R.string.role_key_import_done, added, skipped, addedIfc)
+                                            version++
+                                        }
+                                    }
+                                }
+                            }
                             .padding(horizontal = 8.dp),
                         contentAlignment = Alignment.CenterStart
                     ) {
@@ -1939,14 +1957,6 @@ fun KeyManagerScreen(tagRuleId: String, onBack: () -> Unit) {
                     version++
                 }
             }
-        )
-    }
-    // 导入（固定文件 密钥备份.json，导出即覆盖同一份；10-03 用户令）
-    if (showImport) {
-        ImportKeysDialog(
-            tagRuleId = tagRuleId,
-            onDismiss = { showImport = false },
-            onDone = { showImport = false; version++ },
         )
     }
 }
@@ -3019,103 +3029,6 @@ private fun ModelPullDialog(
             },
             dismissButton = {
                 TextButton(onClick = { manualVisible = false }) { Text(stringResource(R.string.cancel)) }
-            }
-        )
-    }
-}
-
-/** 导入密钥（10-03 用户令：只认固定文件 密钥备份.json → 确认新增/跳过 → 导入） */
-@Composable
-private fun ImportKeysDialog(
-    tagRuleId: String,
-    onDismiss: () -> Unit,
-    onDone: () -> Unit,
-) {
-    val context = LocalContext.current
-    val scope = rememberCoroutineScope()
-    // null=查询中；只认固定导出文件，无则提示先导出
-    var exists by remember { mutableStateOf<Boolean?>(null) }
-    var pending by remember { mutableStateOf<KeyListFile.ExportData?>(null) }
-    LaunchedEffect(Unit) {
-        exists = withIO { KeyListFile.exportFileExists(tagRuleId) }
-    }
-    fun toast(resId: Int, vararg args: Any) {
-        // 无参不过 format（见 lib-common ToastUtils.getStringSafe）：否则串里留 %1$s 就崩
-        val msg = if (args.isEmpty()) context.getString(resId) else context.getString(resId, *args)
-        android.widget.Toast.makeText(context, msg, android.widget.Toast.LENGTH_SHORT).show()
-    }
-    Dialog(onDismissRequest = onDismiss) {
-        Surface(
-            shape = RoundedCornerShape(24.dp),
-            color = MaterialTheme.colorScheme.surfaceContainerHigh,
-            modifier = Modifier.fillMaxWidth()
-        ) {
-            Column(Modifier.padding(16.dp)) {
-                Text(stringResource(R.string.role_key_import), style = MaterialTheme.typography.headlineSmall)
-                Spacer(Modifier.height(8.dp))
-                if (exists == false) {
-                    Text(
-                        stringResource(R.string.role_key_no_export),
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                } else if (exists == true) {
-                    Text(
-                        KeyListFile.EXPORT_FILE_NAME,
-                        style = MaterialTheme.typography.bodyMedium
-                    )
-                }
-                Spacer(Modifier.height(4.dp))
-                // 取消 / 导入 靠右（对齐 M3 弹窗按钮位）；导入直读固定文件，再进确认弹窗
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
-                    TextButton(onClick = onDismiss) { Text(stringResource(R.string.cancel)) }
-                    TextButton(
-                        enabled = exists == true,
-                        onClick = {
-                            scope.launch {
-                                val list = withIO {
-                                    KeyListFile.readExportFile(tagRuleId, KeyListFile.EXPORT_FILE_NAME)
-                                }
-                                if (list == null) toast(R.string.role_list_failed)
-                                else pending = list
-                            }
-                        }
-                    ) { Text(stringResource(R.string.role_key_import)) }
-                }
-            }
-        }
-    }
-    // 导入确认
-    pending?.let { data ->
-        var counts by remember(data) { mutableStateOf(0 to 0) }
-        LaunchedEffect(data) {
-            val names = withIO { KeyListFile.readKeys(tagRuleId).map { it.name }.toSet() }
-            counts = data.keys.count { it.name !in names } to data.keys.count { it.name in names }
-        }
-        AlertDialog(
-            onDismissRequest = { pending = null },
-            title = { Text(stringResource(R.string.role_key_import_confirm_title)) },
-            text = {
-                Text(
-                    stringResource(
-                        R.string.role_key_import_confirm,
-                        KeyListFile.EXPORT_FILE_NAME, data.keys.size, counts.first, counts.second, data.interfaces.size
-                    )
-                )
-            },
-            confirmButton = {
-                TextButton(onClick = {
-                    pending = null
-                    scope.launch {
-                        // v2 含分组 → importAll；插件时代的扁平数组 interfaces 为空，等价 importKeys
-                        val (added, skipped, addedIfc) = withIO { KeyListFile.importAll(tagRuleId, data) }
-                        toast(R.string.role_key_import_done, added, skipped, addedIfc)
-                        onDone()
-                    }
-                }) { Text(stringResource(R.string.confirm)) }
-            },
-            dismissButton = {
-                TextButton(onClick = { pending = null }) { Text(stringResource(R.string.cancel)) }
             }
         )
     }

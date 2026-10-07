@@ -28,9 +28,9 @@ private val BadgeMinSize = 20.dp
  * 溢出圆外**。主界面有多个分组、密钥池可放多把密钥，两位数必然出现，故宽度必须随内容走。
  * （注：宽度写死 20dp 时 1 位数≈18.3dp 还会被压成扁圆，故最小边长得双向设。）
  *
- * 配色：浅底 + 深字（**主界面原有那套**）——primaryContainer@50% 底 + onPrimaryContainer 字。
- * 理由：这些行右侧本就有一个饱和绿勾选框，序号再用实心主题色会同屏两个高饱和绿互抢；
- * 浅底既一眼认出、又不喧宾夺主。（密钥池原为实心主题色 + 白字，统一后随之改浅底。）
+ * 配色：**中性灰（surfaceVariant 底 + onSurfaceVariant 字，10-07 用户拍板）**——
+ * 曾用 primaryContainer@50% 浅绿，装机反馈填充色不好看，且与行右侧饱和绿勾选框同屏抢色；
+ * 灰底把序号退成纯辅助信息，也不进「绿色=可点」的页面色彩语言。
  *
  * 尺寸：最小边 20dp；左右 padding 6dp、上下 2dp；字号 labelSmall。
  */
@@ -47,7 +47,7 @@ internal fun OrderBadge(
             .height(BadgeMinSize)
             .defaultMinSize(minWidth = BadgeMinSize)
             .background(
-                color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f),
+                color = MaterialTheme.colorScheme.surfaceVariant,
                 // 百分比圆角：任何宽高比下都是胶囊端；1 位数（宽=高）即正圆
                 shape = RoundedCornerShape(percent = 50)
             )
@@ -57,7 +57,7 @@ internal fun OrderBadge(
         Text(
             text = number.toString(),
             style = MaterialTheme.typography.labelSmall,
-            color = MaterialTheme.colorScheme.onPrimaryContainer,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
             maxLines = 1
         )
     }

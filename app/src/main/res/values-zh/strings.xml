@@ -757,10 +757,6 @@
     <string name="role_key_action_import">导入</string>
     <string name="role_key_exported">已导出 %1$d 个密钥到 %2$s</string>
     <string name="role_key_no_export">未找到密钥导出文件，请先导出</string>
-    <string name="role_key_import_confirm_title">导入确认</string>
-    <string name="role_key_import_confirm">从 %1$s 读取 %2$d 条
-将新增 %3$d 个，跳过 %4$d 个重名
-含 %5$d 个分组</string>
     <string name="role_key_import_done">导入完成：新增 %1$d 个，跳过 %2$d 个重名，恢复 %3$d 个分组</string>
     <string name="role_key_interface_new">新建接口</string>
     <string name="role_key_interface_edit">编辑接口</string>
