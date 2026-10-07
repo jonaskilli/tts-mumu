@@ -308,6 +308,10 @@ private fun KeyEntryRow(
             Box(
                 modifier = Modifier
                     .size(width = 32.dp, height = 36.dp)
+                    // 热区外扩（10-08 用户令：视觉不动只加热区）——负 padding 让 clickable
+                    // 面积向四周各扩 8/6dp 成 48×48（M3 无障碍最低触摸标准），视觉盒与文字
+                    // 线 32 都不动；原 32×36 是全页最薄热区，行高夹在分隔线间偏一点就落空隙
+                    .padding(horizontal = -8.dp, vertical = -6.dp)
                     .then(
                         if (selectionMode) Modifier
                             .clip(CircleShape)
@@ -694,7 +698,13 @@ private fun GroupHeaderBlock(
     val context = LocalContext.current
     // 10-07 连体卡：组头并入组 ElevatedCard（不再裸排）——组=一张卡，折叠时只剩组头行。
     // 卡片间距/边距由调用处的组卡层负责，此处不再吃 top 16
-    Column(Modifier.fillMaxWidth()) {
+    // 10-08 配色 C 案（用户拍板）：组头区包 primary 8% 绿带当「卡名条」，与转白的模型区
+    // 拉开层次（组界一眼清）；primary 跟主题，深浅色模式各自成立
+    Column(
+        Modifier.fillMaxWidth().background(
+            MaterialTheme.colorScheme.primary.copy(alpha = 0.08f)
+        )
+    ) {
         Column(Modifier.padding(vertical = 4.dp)) {
             if (deleteMode) {
                 // 组内删除模式标题行（10-05 改：全选挪到底部动作行与 取消/删除(N) 同排——
@@ -1575,12 +1585,17 @@ fun KeyManagerScreen(tagRuleId: String, onBack: () -> Unit) {
                     }
                     // 组头不可拖动（用户 0919 实机：展开态拖组头与子项交错、必须收起分组才顺，
                     // 收益配不上体验——组序不常调，取消；子项组内拖动保留）
-                    // 10-07 连体卡：一组一张卡——组头/元信息/条目/提示条全在卡内，条目行间画分隔线
+                    // 10-07 连体卡：一组一张卡——组头/元信息/条目/提示条全在卡内，条目间画分隔线
+                    // 10-08 配色 C 案（用户拍板）：卡底转 surface（模型区白）——红/黄结果字
+                    // 在白底对比度回来；组头绿带由 GroupHeaderBlock 自包（视觉=卡名条）
                     item(key = "g:" + grp.title) {
                         ElevatedCard(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .padding(start = 4.dp, end = 0.dp, top = 10.dp, bottom = 4.dp)
+                                .padding(start = 4.dp, end = 0.dp, top = 10.dp, bottom = 4.dp),
+                            colors = CardDefaults.elevatedCardColors(
+                                containerColor = MaterialTheme.colorScheme.surface
+                            )
                         ) {
                         GroupHeaderBlock(
                             grp = grp,
