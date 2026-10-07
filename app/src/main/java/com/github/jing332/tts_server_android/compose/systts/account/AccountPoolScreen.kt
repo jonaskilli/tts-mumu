@@ -94,13 +94,15 @@ fun AccountPoolScreen(onBack: () -> Unit) {
                     }
                     IconButton(onClick = {
                         scope.launch {
-                            val (url, err) = withContext(Dispatchers.IO) { AccountPool.fetchLoginUrl() }
+                            // 10-07 协议修正：state 必须带给登录页（GET auth/token?state= 轮询凭据用）
+                            val (state, url, err) = withContext(Dispatchers.IO) { AccountPool.fetchLoginUrl() }
                             if (url == null) {
                                 context.toast("获取登录地址失败：$err")
                             } else {
                                 context.startActivity(
                                     android.content.Intent(context, AccountLoginActivity::class.java)
                                         .putExtra(AccountLoginActivity.EXTRA_LOGIN_URL, url)
+                                        .putExtra(AccountLoginActivity.EXTRA_LOGIN_STATE, state)
                                 )
                             }
                         }
@@ -159,7 +161,8 @@ fun AccountPoolScreen(onBack: () -> Unit) {
                             val (c, err) = withContext(Dispatchers.IO) { AccountPool.queryCredits(acc) }
                             busyId = null
                             if (c >= 0) {
-                                context.toast("积分：$c")
+                                // 余额=资源包合计，实测含小数（如 3930.73），整数位不打 .0
+                                context.toast("积分：${if (c % 1.0 == 0.0) c.toLong().toString() else c.toString()}")
                                 reload()
                             } else context.toast("查询失败：$err")
                         }
@@ -233,7 +236,11 @@ private fun AccountRow(
             buildString {
                 append("过期：")
                 append(if (acc.expiresAt > 0) timeFmt.format(Date(acc.expiresAt)) else "未知")
-                if (acc.credits != 0L) append(" · 积分 ${acc.credits}")
+                // 积分 Double 保小数（余额=资源包合计，实测 3930.73 这类）；0 显示「未知」
+                if (acc.credits != 0.0) {
+                    append(" · 积分 ")
+                    append(if (acc.credits % 1.0 == 0.0) acc.credits.toLong().toString() else acc.credits.toString())
+                }
                 if (acc.lastCheckinAt > 0) append(" · 签到 ${timeFmt.format(Date(acc.lastCheckinAt))}")
             },
             style = MaterialTheme.typography.bodySmall,

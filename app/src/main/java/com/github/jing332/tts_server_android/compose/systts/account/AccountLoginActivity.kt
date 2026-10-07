@@ -52,13 +52,17 @@ import kotlinx.coroutines.withContext
 class AccountLoginActivity : ComposeActivity() {
     companion object {
         const val EXTRA_LOGIN_URL = "account_login_url"
+        // 10-07 协议修正：auth/token 改 GET ?state= 轮询，state 由 auth/state 下发、全程携带
+        const val EXTRA_LOGIN_STATE = "account_login_state"
     }
 
     private var loginUrl: String = ""
+    private var loginState: String = ""
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         loginUrl = intent.getStringExtra(EXTRA_LOGIN_URL) ?: ""
+        loginState = intent.getStringExtra(EXTRA_LOGIN_STATE) ?: ""
         if (loginUrl.isEmpty()) {
             finish()
             return
@@ -70,7 +74,7 @@ class AccountLoginActivity : ComposeActivity() {
         lifecycleScope.launch {
             repeat(150) {
                 if (!polling) return@launch
-                val (acc, err) = withContext(Dispatchers.IO) { AccountPool.pollToken(null) }
+                val (acc, err) = withContext(Dispatchers.IO) { AccountPool.pollToken(loginState, null) }
                 if (acc != null) {
                     polling = false
                     setResult(RESULT_OK, Intent().putExtra("nickname", acc.nickname))
