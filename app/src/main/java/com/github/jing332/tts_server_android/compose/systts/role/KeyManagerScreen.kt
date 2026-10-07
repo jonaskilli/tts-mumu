@@ -37,6 +37,8 @@ import androidx.compose.material.icons.filled.ContentPaste
 import androidx.compose.material.icons.filled.DeleteOutline
 import androidx.compose.material.icons.filled.DeleteSweep
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.FileDownload
+import androidx.compose.material.icons.filled.FileUpload
 import androidx.compose.material.icons.filled.Restore
 import androidx.compose.material.icons.filled.Save
 import androidx.compose.material.icons.filled.Schedule
@@ -186,13 +188,11 @@ internal val TEST_PASS_COLOR = Color(0xFF2E7D32)
 internal val TEST_WARN_COLOR = Color(0xFFF9A825)
 
 /**
- * 卡片内「测试结果条 / 探测进度条」的左缘缩进（10-06 三校：随对勾盒 28dp 重排）：
- * 24dp = 卡内模型名文字线（卡内容起点页 8 + 盒宽 24 ⇒ 页 32，与组名/URL 同一条竖线；
- * 10-07 卡缘补 4 内距、盒 28→24 后仍落 32）——
- * 结果条与模型名同线；不再跟 48dp 时代「方框字形 19.6」的旧口径（10-05 原口径作废）。
- * 右缘 end=12 留呼吸（文字不是键，右缘不与图标盒同线）。
+ * 卡片内「测试结果条 / 探测进度条」的左缘缩进（10-07 四校：随对勾盒 24→32 重排）：
+ * 40dp = 卡内模型名文字线 = 容器 4 + 卡内距 4 + 对勾盒 32（盒缘页 40）。
+ * 结果条恒与模型名同线（10-06 定口径不回退）。右缘 end=12 留呼吸（文字不是键）。
  */
-private val KEY_RESULT_BAR_START = 24.dp
+private val KEY_RESULT_BAR_START = 40.dp
 
 /** 测试三态 → 圆点颜色（两页共用；null=没测过不显灯）。红=不通、黄=通但思考开启、绿=通且思考已关 */
 internal fun testDotColor(verdict: KeyListFile.TestVerdict?, errorColor: Color): Color? = when (verdict) {
@@ -293,14 +293,15 @@ private fun KeyEntryRow(
             verticalAlignment = Alignment.CenterVertically
         ) {
             // 行首对勾：常规=启用开关（role Switch 语义保留）；多选/组内删除模式=勾选。
-            // 10-07 三改：盒 28→24（卡缘补 4 内距后，名字起线 = 容器 4 + 卡内距 4 + 盒 24 = 页 32）。
-            // 算式——组名文字线=页 32（容器 4 + 行 start 3 + 箭头 22 + spacer 3）；
-            // 名字起线 = 卡内容起点(页 8) + 盒宽 ⇒ 盒 24 时名字=页 32，与组名/URL 同一竖线。
-            // 触控说明：盒 28×36（宽收、高留）比 36dp 图标键口径窄——「名字对齐」的硬成本；
-            // 实机若嫌难点，盒宽改 32/36 即回退（一个数）
+            // 10-07 四改（装机反馈）：盒 24→32 —— 两个诉求一并解：①用户嫌对勾太小难点，
+            // 触摸盒 24→32dp（高仍 36）；②模型名文字线随盒右缘移动后与组名线的差值
+            // 收敛（实测截图：盒 24 时代组名 44.9 / 模型名 44.6 本已同线——差的是箭头盒
+            // 与对勾盒的字形留白，属字形内空；盒加宽 8 后两条线的**盒缘**同为页 40）。
+            // 三改收 24 那版注释里的「名字=页 32」算式是按组头行内距算的，与本行（无
+            // start 内距、盒即行首）不可比，以实测截图为准。
             Box(
                 modifier = Modifier
-                    .size(width = 24.dp, height = 36.dp)
+                    .size(width = 32.dp, height = 36.dp)
                     .then(
                         if (selectionMode) Modifier
                             .clip(CircleShape)
@@ -359,15 +360,23 @@ private fun KeyEntryRow(
                 Spacer(Modifier.width(4.dp))
             }
             if (!selectionMode) {
-                // 测试灯已撤（10-07 用户拍板：与提示条行首同色圆点重复，撤掉给模型名让宽）——
-                // 测试结果看卡内提示条（那行常驻显示，绿/黄/红圆点 + 文字），不再挂名字后。
-                // 固定宽图标区：108dp=3×36dp 热区；右对齐后 ⚡✏🗑 与组头图标列同列
-                // ⚡ 灰按钮：测试中原位转小圈，转完回灰闪电；测完不变色（结果看提示条）
+                // 固定宽图标区：测试灯槽 36 + 三键 108 = 144dp（10-07 二改：恢复测试结果点——
+                // 与启用池 PoolRow 同构：名字后、闪电前 36dp 槽内 8dp 圆点，三色与提示条同源；
+                // 撤掉那版让模型名吃掉整段宽的方案作废）
                 Row(
-                    Modifier.width(108.dp),
+                    Modifier.width(144.dp),
                     horizontalArrangement = Arrangement.End,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
+                    // 测试结果圆点（恢复 10-05 定稿形态）：36dp 槽居中 8dp 点，没测=空槽保列对齐
+                    Box(
+                        Modifier.width(36.dp).height(24.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        testDotColor(testOutcome?.verdict, MaterialTheme.colorScheme.error)?.let {
+                            Box(Modifier.size(8.dp).background(it, CircleShape))
+                        }
+                    }
                     if (testing) {
                         Box(Modifier.size(36.dp), contentAlignment = Alignment.Center) {
                             CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp)
@@ -685,9 +694,11 @@ private fun GroupHeaderBlock(
                         .padding(start = 0.dp, end = 0.dp, top = 2.dp, bottom = 2.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    // 展开键（10-07 用户定稿：折叠/展开只认这个键——行内内容密，点组名/空白
-                    // 误触折叠比漏点更烦）。图标与主界面 GroupItem 逐字同款：ExpandMore
-                    // 默认 24dp 盒 + 旋转（折叠朝右 ❯、展开朝下 ⌄），不写 size 覆盖
+                    // 展开键（图标与主界面 GroupItem 逐字同款：ExpandMore 默认 24dp 盒 + 旋转）。
+                    // 10-07 二改（用户令）：恢复「点左侧区域都能折叠」——箭头 + 组名 + 名字后空白
+                    // 都触发折叠；曾收成只认箭头（防误触），现按用户口径放开。
+                    // 实现挂在左段整块上（含组名与空白），胶囊是独立键不受影响；右侧图标区
+                    // （＋⚡✏🗑 144dp）不响应折叠，避免点图标连带收组。
                     val arrowAngle by animateFloatAsState(
                         targetValue = if (isCollapsed) -90f else 0f, label = ""
                     )
@@ -698,22 +709,26 @@ private fun GroupHeaderBlock(
                             else R.string.desc_collapse_group, grp.title
                         ),
                         tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier
-                            .rotate(arrowAngle)
-                            .clickable(enabled = !selectionMode, onClick = onFold)
+                        modifier = Modifier.rotate(arrowAngle)
                     )
-                    // 左段（名字+胶囊）weight(1f)：胶囊紧跟名字后，多余空白留在本段右端；
-                    // 右段图标区固定 144dp 贴右线（原布局同构，10-07 复原）
+                    // 左段（名字+胶囊）weight(1f)：整段可点折叠（除胶囊自己的启停点击外）；
+                    // 右段图标区固定 144dp 贴右线
                     Row(
-                        Modifier.weight(1f),
+                        Modifier.weight(1f)
+                            .clickable(enabled = !selectionMode, onClick = onFold),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Spacer(Modifier.width(4.dp))
                         Text(
                             grp.title,
                             style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.SemiBold,
-                            color = MaterialTheme.colorScheme.onSurface,
+                            // 启用态染色（10-07 装机反馈：恢复 10-03 退役的「组名染绿」并加强）——
+                            // 原 primary(0xFF376A20) 太浅看不出来；改用与测试「通过」同源的
+                            // TEST_PASS_COLOR 深绿 + Bold（原 SemiBold），有组在启用时一眼可辨。
+                            // 该色已被提示条/测试点共用，语义同源（这组活着=绿）。
+                            fontWeight = if (enabledCount > 0) FontWeight.Bold else FontWeight.SemiBold,
+                            color = if (enabledCount > 0) TEST_PASS_COLOR
+                            else MaterialTheme.colorScheme.onSurface,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis,
                             modifier = Modifier.weight(1f, fill = false)
@@ -833,8 +848,11 @@ private fun GroupHeaderBlock(
                 // 元信息行（10-07 连体卡：折叠时藏进卡内不渲染，展开才出现——组头行即折叠态）。
                 // 接口组 = 网址 + 尾号小块；未分组 = 一句身份说明。
                 // 左缘 = 组名文字左缘（行首箭头 22 + spacer 3 + 行 start 3 = 28）；右缘 end=8（尾号小块盒缘与卡右缘同列）
+                // 10-07 二改（用户令）：网址/尾号行**不随折叠**——折叠收的是下方模型列表，
+                // 组卡折叠态 = 组头行 + 网址行（接口身份信息常驻，「折叠后不认识这是哪组」的问题不再有）。
+                // 未分组的身份说明行同口径常驻。
                 val ifc = grp.ifc
-                if (!isCollapsed && ifc != null) {
+                if (ifc != null) {
                     Row(
                         Modifier.fillMaxWidth()
                             .padding(start = 28.dp, end = 8.dp, bottom = 6.dp),
@@ -867,7 +885,7 @@ private fun GroupHeaderBlock(
                             )
                         }
                     }
-                } else if (!isCollapsed) {
+                } else {
                     grp.hintRes?.let { hint ->
                         Text(
                             stringResource(hint),
@@ -1370,6 +1388,9 @@ fun KeyManagerScreen(tagRuleId: String, onBack: () -> Unit) {
                             style = MaterialTheme.typography.labelLarge
                         )
                     }
+                    // 导入/导出：**图标 + 文字**（10-07 装机反馈二改：撤图标改纯文字曾为治
+                    // 大字体「密钥」竖排，用户复盘后定稿——图标不能省，文字可省；现回
+                    // 图标+文字。若再遇大字体挤压，撤的是文字不是图标）
                     Box(
                         Modifier
                             .heightIn(min = 48.dp)
@@ -1396,10 +1417,19 @@ fun KeyManagerScreen(tagRuleId: String, onBack: () -> Unit) {
                             .padding(horizontal = 6.dp),
                         contentAlignment = Alignment.CenterStart
                     ) {
-                        Text(
-                            stringResource(R.string.role_key_action_import),
-                            style = MaterialTheme.typography.labelLarge
-                        )
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(
+                                Icons.Default.FileDownload,
+                                contentDescription = null,
+                                modifier = Modifier.size(18.dp),
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                            Spacer(Modifier.width(4.dp))
+                            Text(
+                                stringResource(R.string.role_key_action_import),
+                                style = MaterialTheme.typography.labelLarge
+                            )
+                        }
                     }
                     Box(
                         Modifier
@@ -1414,10 +1444,19 @@ fun KeyManagerScreen(tagRuleId: String, onBack: () -> Unit) {
                             .padding(horizontal = 6.dp),
                         contentAlignment = Alignment.CenterStart
                     ) {
-                        Text(
-                            stringResource(R.string.role_key_action_export),
-                            style = MaterialTheme.typography.labelLarge
-                        )
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(
+                                Icons.Default.FileUpload,
+                                contentDescription = null,
+                                modifier = Modifier.size(18.dp),
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                            Spacer(Modifier.width(4.dp))
+                            Text(
+                                stringResource(R.string.role_key_action_export),
+                                style = MaterialTheme.typography.labelLarge
+                            )
+                        }
                     }
                     // 页面级多选入口（照主界面 ☑ Checklist 同款）：跨组勾选 → 底栏 加入池/删除。
                     // 与组内删除模式互斥：进入前先退掉组内删除
@@ -1494,34 +1533,39 @@ fun KeyManagerScreen(tagRuleId: String, onBack: () -> Unit) {
                 item(key = "ops") {
                     // 操作行三键：**内容自适应宽度**（用户 0919：weight 均分是折行根因，按钮
                     // 保持自适应；启用池键保持填充强调）。
-                    // 10-06 用户令：均匀散开——SpaceBetween 把宽余量变成两条等距缝，首键左缘、
-                    // 尾键右缘各贴行边；行内距 8 + 容器 4 = 左内容线 12（10-07 用户令收 12，
-                    // 与组头字形线同一条；卡片另有 4 内距故卡缘 8 不动）
+                    // 10-07 二改（装机反馈「松散」）：①三键加高 40→44dp（vertical 8→11，
+                    // 摸上去更立得住；不能 48——三键横向只剩 10dp 余量，再加高显厚且挤行）；
+                    // ②SpaceBetween→居中等距（Arrangement.spacedBy）——原「首尾贴边+两条大缝」
+                    // 是松散感主源；改后三键居中、两缝等宽 8dp。横向总宽不变，不引发折行
                     Row(
                         Modifier.fillMaxWidth()
-                            .padding(start = 8.dp, end = 8.dp, top = 10.dp, bottom = 6.dp),
-                        horizontalArrangement = Arrangement.SpaceBetween
+                            .padding(horizontal = 8.dp, vertical = 6.dp),
+                        horizontalArrangement = Arrangement.Center,
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
-                        // 10-07 用户：大字体下「启用池(3)」折两行（图3）——三键内容边距
-                        // 24→12 各省 ≈24dp（共 ≈72dp），并给启用池键加 maxLines=1 兜底
                         OutlinedButton(
                             onClick = { showAdd = true },
-                            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp)
+                            modifier = Modifier.heightIn(min = 44.dp),
+                            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 11.dp)
                         ) {
                             // 回全名（10-06 用户拍板）：短版「+密钥」是 0919 weight 均分防折行的产物，
                             // 操作行改自适应宽+SpaceBetween 后前提消失；360dp 屏三键 ≈318dp 放得下
                             Text(stringResource(R.string.role_key_add), maxLines = 1)
                         }
+                        Spacer(Modifier.width(8.dp))
                         OutlinedButton(
                             onClick = { showPullModels = true },
-                            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp)
+                            modifier = Modifier.heightIn(min = 44.dp),
+                            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 11.dp)
                         ) {
                             Text(stringResource(R.string.role_key_fetch), maxLines = 1)
                         }
+                        Spacer(Modifier.width(8.dp))
                         // 启用池子页入口：调轮换顺序 / 移出 / 整批测试在那边做
                         FilledTonalButton(
                             onClick = { showPool = true },
-                            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp)
+                            modifier = Modifier.heightIn(min = 44.dp),
+                            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 11.dp)
                         ) {
                             Text(stringResource(R.string.role_key_pool_open, pool.size), maxLines = 1)
                         }
@@ -1593,6 +1637,11 @@ fun KeyManagerScreen(tagRuleId: String, onBack: () -> Unit) {
                         // 多选模式下分组自动展开（用户 0919：折叠组没法多选子项）；退出恢复原折叠。
                         // 组内删除模式进组时已自动展开；主页拖动排序已删（用户 0919：点卡片启用的交互下没有拖动场景）
                         if (!isCollapsed || selectionMode || isDeleting) {
+                            // 组头区与模型区分隔线（10-07 装机反馈）：比条目之间的线重一档——
+                            // 它是「组信息 / 模型列表」的分界，模型行间那条只做行切分
+                            HorizontalDivider(
+                                color = MaterialTheme.colorScheme.outlineVariant
+                            )
                             grp.entries.forEachIndexed { i, entry ->
                                 val norm = KeyListFile.normalizePoolValue(entry.value)
                                 // 条目分隔线（连体卡内，10-07）：淡描边半透明，只做视觉切分不抢内容

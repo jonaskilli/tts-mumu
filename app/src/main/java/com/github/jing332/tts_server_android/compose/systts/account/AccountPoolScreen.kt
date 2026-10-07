@@ -2,28 +2,33 @@ package com.github.jing332.tts_server_android.compose.systts.account
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.EventAvailable
 import androidx.compose.material.icons.filled.Refresh
-import androidx.compose.material3.Button
+import androidx.compose.material.icons.filled.Savings
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
@@ -39,10 +44,12 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.github.jing332.common.utils.toast
 import com.github.jing332.tts_server_android.R
 import com.github.jing332.tts_server_android.compose.nav.NavTopAppBar
+import com.github.jing332.tts_server_android.compose.systts.OrderBadge
 import com.github.jing332.tts_server_android.service.systts.help.AccountPool
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -120,9 +127,10 @@ fun AccountPoolScreen(onBack: () -> Unit) {
                     )
                 }
             }
-            items(accounts, key = { it.id }) { acc ->
+            itemsIndexed(accounts, key = { _, acc -> acc.id }) { idx, acc ->
                 AccountRow(
                     acc = acc,
+                    index = idx,
                     busy = busyId == acc.id,
                     timeFmt = timeFmt,
                     onRefresh = {
@@ -157,6 +165,13 @@ fun AccountPoolScreen(onBack: () -> Unit) {
                         }
                     },
                 )
+                // 行间分隔线（同启用池 0.6dp 半透明；末行不画）
+                if (idx < accounts.lastIndex) {
+                    HorizontalDivider(
+                        thickness = 0.6.dp,
+                        color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f)
+                    )
+                }
             }
         }
     }
@@ -165,48 +180,68 @@ fun AccountPoolScreen(onBack: () -> Unit) {
 @Composable
 private fun AccountRow(
     acc: AccountPool.Account,
+    index: Int,
     busy: Boolean,
     timeFmt: SimpleDateFormat,
     onRefresh: () -> Unit,
     onCheckIn: () -> Unit,
     onQueryCredits: () -> Unit,
 ) {
-    Surface(color = MaterialTheme.colorScheme.background) {
-        Column(
-            Modifier
-                .fillMaxWidth()
-                .clickable(enabled = !busy) { onQueryCredits() }
-                .padding(horizontal = 16.dp, vertical = 10.dp)
-        ) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(
-                    acc.nickname,
-                    style = MaterialTheme.typography.titleMedium,
-                    modifier = Modifier.weight(1f)
-                )
-                if (acc.isExpired())
-                    StatusChip("已过期", MaterialTheme.colorScheme.errorContainer)
-                else
-                    StatusChip("有效", MaterialTheme.colorScheme.primaryContainer)
-            }
-            Spacer(Modifier.size(4.dp))
+    Column(
+        // 10-07 装机反馈：照启用池 PoolRow 同款两行式——第一行 序号徽章+昵称+状态+图标动作区，
+        // 第二行 信息副行；整行不再可点（原「点行=查积分」易误触，动作全走图标键）。
+        // 行间分隔线由列表层画（同启用池 0.6dp 半透明）
+        Modifier.fillMaxWidth().padding(vertical = 10.dp)
+    ) {
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            // 序号徽章：与启用池同一个 OrderBadge（10-05 形「丙」胶囊；本页浅绿配色随全局）
+            OrderBadge(number = index + 1)
+            Spacer(Modifier.width(10.dp))
             Text(
-                buildString {
-                    append("过期：")
-                    append(if (acc.expiresAt > 0) timeFmt.format(Date(acc.expiresAt)) else "未知")
-                    if (acc.credits != 0L) append(" · 积分 ${acc.credits}")
-                    if (acc.lastCheckinAt > 0) append(" · 签到 ${timeFmt.format(Date(acc.lastCheckinAt))}")
-                },
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
+                acc.nickname,
+                style = MaterialTheme.typography.bodyMedium,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.weight(1f)
             )
-            Spacer(Modifier.size(6.dp))
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                FlatTextAction("签到", MaterialTheme.colorScheme.primary, enabled = !busy, onClick = onCheckIn)
-                FlatTextAction("续期", MaterialTheme.colorScheme.onSurfaceVariant, enabled = !busy, onClick = onRefresh)
-                FlatTextAction("查积分", MaterialTheme.colorScheme.onSurfaceVariant, enabled = !busy, onClick = onQueryCredits)
+            // 状态胶囊（有效/已过期）：沿用原两色语义
+            if (acc.isExpired())
+                StatusChip("已过期", MaterialTheme.colorScheme.errorContainer)
+            else
+                StatusChip("有效", MaterialTheme.colorScheme.primaryContainer)
+            Spacer(Modifier.width(4.dp))
+            // 图标动作区（36dp 热区 + 18dp 图标，与启用池 FlatIconAction 同规格）：
+            // 签到（绿，主操作）/ 续期 / 查积分；操作中该键原位转小圈
+            if (busy) {
+                Box(Modifier.size(36.dp), contentAlignment = Alignment.Center) {
+                    CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp)
+                }
+            } else {
+                // 签到：事件可用图标（带 ✓ 语义）；主操作用主色
+                FlatIconAction(
+                    Icons.Default.EventAvailable,
+                    "签到",
+                    tint = MaterialTheme.colorScheme.primary
+                ) { onCheckIn() }
+                FlatIconAction(Icons.Default.Refresh, "续期") { onRefresh() }
+                FlatIconAction(Icons.Default.Savings, "查积分") { onQueryCredits() }
             }
         }
+        // 副行：过期/积分/签到时间（缩进对齐名字列 = 徽章 20 + 间距 10 = 30dp，同启用池）
+        Spacer(Modifier.height(2.dp))
+        Text(
+            buildString {
+                append("过期：")
+                append(if (acc.expiresAt > 0) timeFmt.format(Date(acc.expiresAt)) else "未知")
+                if (acc.credits != 0L) append(" · 积分 ${acc.credits}")
+                if (acc.lastCheckinAt > 0) append(" · 签到 ${timeFmt.format(Date(acc.lastCheckinAt))}")
+            },
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.padding(start = 30.dp)
+        )
     }
 }
 
@@ -223,21 +258,27 @@ private fun StatusChip(text: String, bg: androidx.compose.ui.graphics.Color) {
     )
 }
 
-// 与密钥页 FlatTextAction 同款次要文字键（本地复刻避免跨包可见性纠缠）
+/**
+ * 图标动作键（10-07 装机反馈：账号池行 UI 对齐启用池）——与密钥页 FlatIconAction 同规格：
+ * 36dp 圆形热区 + 18dp 图标（本地复刻，跨包 internal 不通）。原 FlatTextAction 文字键
+ * 随本改造退役（动作全归图标，行间分隔线与两行式排版见 AccountRow）。
+ */
 @Composable
-private fun FlatTextAction(
-    text: String,
-    color: androidx.compose.ui.graphics.Color,
+private fun FlatIconAction(
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    contentDescription: String,
+    tint: androidx.compose.ui.graphics.Color = MaterialTheme.colorScheme.onSurfaceVariant,
     enabled: Boolean = true,
     onClick: () -> Unit,
 ) {
-    Text(
-        text,
-        style = MaterialTheme.typography.labelLarge,
-        color = if (enabled) color else color.copy(alpha = 0.4f),
-        modifier = Modifier
-            .clip(RoundedCornerShape(8.dp))
-            .clickable(enabled = enabled) { onClick() }
-            .padding(horizontal = 10.dp, vertical = 4.dp)
-    )
+    val effectiveTint = if (enabled) tint else tint.copy(alpha = 0.3f)
+    Box(
+        Modifier
+            .size(36.dp)
+            .clip(CircleShape)
+            .clickable(enabled = enabled, onClick = onClick),
+        contentAlignment = Alignment.Center
+    ) {
+        Icon(icon, contentDescription = contentDescription, tint = effectiveTint, modifier = Modifier.size(18.dp))
+    }
 }
