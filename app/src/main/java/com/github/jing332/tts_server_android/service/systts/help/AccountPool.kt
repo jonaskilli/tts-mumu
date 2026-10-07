@@ -1,6 +1,9 @@
 package com.github.jing332.tts_server_android.service.systts.help
 
 import android.util.Log
+import com.github.jing332.common.LogEntry
+import com.github.jing332.common.LogLevel
+import com.github.jing332.tts_server_android.SysttsLogger
 import com.github.jing332.tts_server_android.constant.AppConst
 import org.json.JSONArray
 import org.json.JSONObject
@@ -30,6 +33,24 @@ import java.net.URLEncoder
  */
 object AccountPool {
     private const val TAG = "AccountPool"
+
+    /** 排障日志进 App 日志页（10-08 用户令「手机直接看，不用连电脑」）：账号池登录/续期/签到关键分支走这里 */
+    private fun appLog(level: Int, msg: String) {
+        Log.i(TAG, msg) // logcat 同步留一份，双通道
+        runCatching {
+            SysttsLogger.log(
+                LogEntry(
+                    level = level,
+                    time = java.time.LocalDateTime.now()
+                        .format(java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")),
+                    message = "[账号池] $msg",
+                )
+            )
+        }
+    }
+
+    // 轮询「等待登录完成」去重：上游 body 不变就不重复打（2s 一次会刷屏）
+    private var lastWaitBrief: String = ""
 
     // CodeBuddy 上游根（对话/鉴权同源）
     const val UPSTREAM_BASE = "https://copilot.tencent.com"
@@ -398,7 +419,7 @@ object AccountPool {
         // 10-08 真机排障：轮询全程静默→失败无从查起，关键分支落日志页（tag=AccountPool）
         if (!r.ok) {
             val msg = "HTTP ${r.code}（未登录完或已过期）：${briefBody(r.body)}"
-            Log.i(TAG, "pollToken: $msg")
+            appLog(LogLevel.WARN, "轮询凭据失败：$msg")
             return null to msg
         }
         return try {
@@ -406,9 +427,12 @@ object AccountPool {
             val access = o?.optString("access_token").orEmpty()
             val refresh = o?.optString("refresh_token").orEmpty().ifEmpty { existing?.refreshToken ?: "" }
             if (access.isEmpty()) {
-                // HTTP 200 + 业务码未完成（如 11217 login ing）= 正常等待，不打错误级
+                // HTTP 200 + 业务码未完成（如 11217 login ing）= 正常等待。同因只记首条
+                //（轮询 2s 一次，逐条打会刷屏），调用方有 lastWaitBrief 传短状态时跳过重复
                 val brief = briefBody(r.body)
-                Log.i(TAG, "pollToken: 200 但无 access_token（等待登录完成）：$brief")
+                if (!brief.startsWith(lastWaitBrief))
+                    appLog(LogLevel.INFO, "等待登录完成（200 无 access_token）：$brief")
+                lastWaitBrief = brief
                 return null to "响应无 access_token（可能还没登录完）：$brief"
             }
             val expiresAt = System.currentTimeMillis() + (o?.optLong("expires_in", 0L) ?: 0L) * 1000L
@@ -428,7 +452,7 @@ object AccountPool {
             )
             val list = load().filterNot { it.id == acc.id } + acc
             save(list)
-            Log.i(TAG, "pollToken: 登录成功，账号「${acc.nickname}」已落盘（expiresAt=${acc.expiresAt}）")
+            appLog(LogLevel.SUCCESS, "登录成功，账号「${acc.nickname}」已落盘（expiresAt=${acc.expiresAt}）")
             acc to ""
         } catch (e: Exception) {
             null to "解析失败：${briefBody(r.body)}"
