@@ -554,9 +554,9 @@ private fun KeyEntryRow(
                         overflow = TextOverflow.Ellipsis,
                         modifier = Modifier.weight(1f)
                     )
-                    if (hasExpandable) {
-                        // 红态收起：恒给「详情」（10-08：显示不全正需要点开；
-                        // 原 message==reason 不给——那次修的是「同句读两遍」，这里只管入口恒在）
+                    if (hasExpandable || isWarn) {
+                        // 黄/红收起态统一「详情」（10-08 三令：黄态「展开 ›」词形不齐——
+                        // 两态语义同为「点开看全文」，同位同词）
                         Text(
                             "详情",
                             style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.sp),
@@ -567,29 +567,29 @@ private fun KeyEntryRow(
                                 .clickable { expanded = true }
                                 .padding(start = 6.dp, end = 2.dp)
                         )
-                    } else if (isWarn) {
-                        // 黄态收起：「展开 ›」（10-08 二令：单行+展开键；动作键在展开态里）
-                        Text(
-                            "展开 ›",
-                            style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.sp),
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            fontWeight = FontWeight.SemiBold,
-                            modifier = Modifier
-                                .clip(RoundedCornerShape(4.dp))
-                                .clickable { expanded = true }
-                                .padding(start = 6.dp, end = 2.dp)
-                        )
                     }
                 }
-                // 黄态展开态：正文全文 + 底部动作行（自定义思考 ›｜复制结果）——
-                // 单行口径后动作键不再挤正文行，收进展开态；「收起」同排右端
+                // 黄态展开态（10-08 三令）：换行与行首「xxxms ·」对齐——
+                // 用时与全文放同一 Row，用时段固定宽、全文 weight(1f) 在右列折行，
+                // 第二行自然从用时右缘起（与收起行同结构，只是 maxLines 放开）。
+                // 动作行（自定义思考 ›｜复制结果｜收起）随后
                 if (expanded && isWarn) {
-                    Text(
-                        testOutcome.message,
-                        style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.sp),
-                        color = barColor,
-                        modifier = Modifier.padding(top = 2.dp)
-                    )
+                    Row(Modifier.fillMaxWidth()) {
+                        if (timingPrefix.isNotEmpty()) {
+                            Text(
+                                timingPrefix,
+                                style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.sp),
+                                color = barColor,
+                                maxLines = 1
+                            )
+                        }
+                        Text(
+                            testOutcome.message,
+                            style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.sp),
+                            color = barColor,
+                            modifier = Modifier.weight(1f)
+                        )
+                    }
                     Row(
                         Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.End,
