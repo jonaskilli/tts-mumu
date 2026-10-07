@@ -710,88 +710,87 @@ private fun GroupHeaderBlock(
             // 箭头顶在第一行看着偏上）；折叠点击区随之覆盖两行。
             // 结构：Row{ 箭头列(fillMaxHeight 居中) | 右侧 Column{组头行 / 网址行} }
             // （替代原「组头+元信息」Column 顶层的排版壳，内部行原样平移）
-            Row(Modifier.fillMaxWidth()) {
+            // 10-08 修「折叠键没功能」：折叠点击不再分散挂在内层 Row/箭头列两处
+                // （重组布局里两处兄弟 clickable 曾互相吞手势），改成**整块一个 clickable**——
+                // 外层 Row 直接挂 onFold（canFold=false 时不挂），内部胶囊/图标键各自
+                // 消费自己的点击，不冒泡上来（M3 组件自带消费，无需额外拦截）
                 val canFold = grp.entries.isNotEmpty()
                 val arrowAngle by animateFloatAsState(
                     targetValue = if (isCollapsed) -90f else 0f, label = ""
                 )
-                // 箭头列：fillMaxHeight 占满两行高度、wrapContentHeight 居中——
-                // 空组（无模型可折）画 24dp 占位、不可点
-                Box(
-                    Modifier
-                        .fillMaxHeight()
-                        .wrapContentHeight(Alignment.CenterVertically)
-                        .then(
-                            if (canFold) Modifier
-                                .clickable(enabled = !selectionMode, onClick = onFold)
-                            else Modifier
-                        ),
-                    contentAlignment = Alignment.Center
-                ) {
-                    if (canFold) {
-                        Icon(
-                            Icons.Default.ExpandMore,
-                            contentDescription = context.getString(
-                                if (isCollapsed) R.string.desc_expand_group
-                                else R.string.desc_collapse_group, grp.title
-                            ),
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.rotate(arrowAngle)
-                        )
-                    } else {
-                        Spacer(Modifier.width(24.dp))
-                    }
-                }
-                // 右侧两行：组头行 / 网址行（共用 Column）
-                Column(Modifier.weight(1f)) {
-                // ———— 组头行 ————
-                // 组名线 = 箭头列 24 + spacer 4 = 28，
-                // URL/说明行/删除模式行照旧对齐 28 不动。
-                // end=0：条目卡内 end=0 → 🗑 字形贴卡缘；组头行同口径，
-                // 两组图标列逐像素同列
                 Row(
-                    Modifier.fillMaxWidth()
-                        .padding(start = 0.dp, end = 0.dp, top = 2.dp, bottom = 2.dp),
-                    verticalAlignment = Alignment.CenterVertically
+                    Modifier.fillMaxWidth().then(
+                        if (canFold && !selectionMode) Modifier.clickable(onClick = onFold)
+                        else Modifier
+                    )
                 ) {
-                    // 展开键已上移为跨两行的独立列（见外层）；左段整块仍可点折叠。
-                    // 组内没有模型时不渲染箭头、整行不可点折叠——
-                    // 没东西可收，箭头转成假按钮（0/0 空组点了像没反应）。
-                    // 左段（名字+胶囊）weight(1f)：整段可点折叠（除胶囊自己的启停点击外）；
-                    // 右段图标区固定 144dp 贴右线。空组挂空 clickable 不可点
-                    Row(
-                        Modifier.weight(1f)
-                            .clickable(enabled = !selectionMode && canFold, onClick = onFold),
-                        verticalAlignment = Alignment.CenterVertically
+                    // 箭头列：fillMaxHeight 占满两行高度、wrapContentHeight 居中——
+                    // 空组（无模型可折）画 24dp 占位
+                    Box(
+                        Modifier
+                            .fillMaxHeight()
+                            .wrapContentHeight(Alignment.CenterVertically),
+                        contentAlignment = Alignment.Center
                     ) {
-                        Spacer(Modifier.width(4.dp))
-                        Text(
-                            grp.title,
-                            style = MaterialTheme.typography.titleMedium,
-                            // 启用态染色（10-07 装机反馈：恢复 10-03 退役的「组名染绿」并加强）——
-                            // 原 primary(0xFF376A20) 太浅看不出来；改用与测试「通过」同源的
-                            // TEST_PASS_COLOR 深绿 + Bold（原 SemiBold），有组在启用时一眼可辨。
-                            // 该色已被提示条/测试点共用，语义同源（这组活着=绿）。
-                            fontWeight = if (enabledCount > 0) FontWeight.Bold else FontWeight.SemiBold,
-                            color = if (enabledCount > 0) TEST_PASS_COLOR
-                            else MaterialTheme.colorScheme.onSurface,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                            modifier = Modifier.weight(1f, fill = false)
-                        )
-                        if (!selectionMode) {
-                            Spacer(Modifier.width(6.dp))
-                            // 组启用胶囊（10-07 用户定稿）：组名后方原位、字号收小（10sp）；
-                            // 点击=整组启停（全停→全部启用，其余→全部停用）
-                            GroupEnablePill(
-                                enabled = enabledCount,
-                                total = grp.entries.size,
-                                groupTitle = grp.title,
-                                onClick = { onSetGroupEnabled(enabledCount == 0) }
+                        if (canFold) {
+                            Icon(
+                                Icons.Default.ExpandMore,
+                                contentDescription = context.getString(
+                                    if (isCollapsed) R.string.desc_expand_group
+                                    else R.string.desc_collapse_group, grp.title
+                                ),
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.rotate(arrowAngle)
                             )
+                        } else {
+                            Spacer(Modifier.width(24.dp))
                         }
                     }
-                    if (!selectionMode) {
+                    // 右侧两行：组头行 / 网址行（共用 Column）
+                    Column(Modifier.weight(1f)) {
+                    // ———— 组头行 ————
+                    // 组名线 = 箭头列 24 + spacer 4 = 28，
+                    // URL/说明行/删除模式行照旧对齐 28 不动。
+                    // end=0：条目卡内 end=0 → 🗑 字形贴卡缘；组头行同口径，
+                    // 两组图标列逐像素同列
+                    Row(
+                        Modifier.fillMaxWidth()
+                            .padding(start = 0.dp, end = 0.dp, top = 2.dp, bottom = 2.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        // 左段（名字+胶囊）weight(1f)：折叠点击已上收到整卡 Row（见外层），
+                        // 这里不再单独挂 clickable；右段图标区固定 144dp 贴右线
+                        Row(
+                            Modifier.weight(1f),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                grp.title,
+                                style = MaterialTheme.typography.titleMedium,
+                                // 启用态染色（10-07 装机反馈：恢复 10-03 退役的「组名染绿」并加强）——
+                                // 原 primary(0xFF376A20) 太浅看不出来；改用与测试「通过」同源的
+                                // TEST_PASS_COLOR 深绿 + Bold（原 SemiBold），有组在启用时一眼可辨。
+                                // 该色已被提示条/测试点共用，语义同源（这组活着=绿）。
+                                fontWeight = if (enabledCount > 0) FontWeight.Bold else FontWeight.SemiBold,
+                                color = if (enabledCount > 0) TEST_PASS_COLOR
+                                else MaterialTheme.colorScheme.onSurface,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                                modifier = Modifier.weight(1f, fill = false)
+                            )
+                            if (!selectionMode) {
+                                Spacer(Modifier.width(6.dp))
+                                // 组启用胶囊（10-07 用户定稿）：组名后方原位、字号收小（10sp）；
+                                // 点击=整组启停（全停→全部启用，其余→全部停用）
+                                GroupEnablePill(
+                                    enabled = enabledCount,
+                                    total = grp.entries.size,
+                                    groupTitle = grp.title,
+                                    onClick = { onSetGroupEnabled(enabledCount == 0) }
+                                )
+                            }
+                        }
+                        if (!selectionMode) {
                         // 固定宽图标区（方案 A）：144dp=4×36dp 热区，组头与模型行图标垂直成列；
                         // 不足 4 键（未分组）右对齐留空。顺序按使用频次：+拉取 ⚡测组 ✏编辑 🗑菜单
                         Row(
@@ -944,12 +943,12 @@ private fun GroupHeaderBlock(
                         )
                     }
                 }
-            } // 内层 Column（组头行/网址行）
-            } // 右侧两行 Column（10-08 箭头跨两行结构）
-        } // 外层 Row（箭头列 + 右侧两行）
+            } // 右侧两行 Column（组头行/网址行）
+        } // 新外层可点 Row（10-08 折叠键修复）
             } // else：组内删除模式只渲染标题行，组头与元信息行都不渲染
         } // Column(padding vertical=4)
     } // GroupHeaderBlock 顶层 Column
+}
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun KeyManagerScreen(tagRuleId: String, onBack: () -> Unit) {
