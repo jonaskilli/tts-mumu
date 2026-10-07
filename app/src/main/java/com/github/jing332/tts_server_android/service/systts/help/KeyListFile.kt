@@ -17,8 +17,12 @@ object KeyListFile {
     private const val TAG = "KeyListFile"
     private const val BASE_DIR = "/storage/emulated/0/Download/chajian"
 
-    /** 密钥导出固定文件名（10-03 用户令：覆盖导出、导入只认这个名）。 */
-    const val EXPORT_FILE_NAME = "密钥备份.json"
+    /** 密钥导出固定文件名（10-03 用户令：覆盖导出、导入只认这个名；
+     *  10-07 改名「密钥列表」——用户拍板：文件要传给别人/别的设备，名字让人一眼看懂内容）。 */
+    const val EXPORT_FILE_NAME = "密钥列表.json"
+
+    /** 改名前的旧导出名——磁盘上已导出的存量文件仍可导入（读取顺序：新名优先，旧名兜底）。 */
+    const val LEGACY_EXPORT_FILE_NAME = "密钥备份.json"
 
     /** 密钥归属的规则 id（角色管理/设置页两处入口都传这个值）；
      *  外部「打开方式」导入（10-07）没有页面上下文，也落这里。 */
@@ -44,8 +48,8 @@ object KeyListFile {
         miyue.txt                       当前启用中的密钥池，朗读时按序轮换取钥
         gengxin.txt                     miyue.txt 的同步副本（与 miyue_backup.txt 三写同落，内容相同属正常）
         miyue_backup.txt                同上
-        模型接口中心.json                接口站点定义（名称/网址/Key/模型表）；误删会让密钥全变「未分组」，导入 密钥备份.json 可整份找回
-        密钥备份.json                   导出/导入专用固定文件（导出覆盖写入，导入只认它），接口和分组都含在内
+        模型接口中心.json                接口站点定义（名称/网址/Key/模型表）；误删会让密钥全变「未分组」，导入 密钥列表.json 可整份找回
+        密钥列表.json                   导出/导入专用固定文件（导出覆盖写入），接口和分组都含在内；旧名 密钥备份.json 仍可导入
 
         〔角色〕
         characterRecords.json           角色绑定记录（主文件）
@@ -62,7 +66,7 @@ object KeyListFile {
         fullBackup.before.json          上次「从备份还原」前自动留的现场（撤销还原用，只留最近一次）
         autoBackupEnable.txt            自动备份开关标记
 
-        ⚠️ 红线：除「密钥备份.json」「模型接口中心.json」「fullBackup.json」「fullBackup.before.json」「文件说明.txt」外，
+        ⚠️ 红线：除「密钥列表.json」「密钥备份.json」「模型接口中心.json」「fullBackup.json」「fullBackup.before.json」「文件说明.txt」外，
         其余文件名是 阅读·插件·朗读规则 三方共用的协议名——可以删除（删前先备份），但千万别改名，
         改了规则和插件就找不到文件，数据会分叉。
     """.trimIndent()
@@ -1191,7 +1195,7 @@ object KeyListFile {
     }
 
     /**
-     * 导出全部密钥 + 分组 + 当前生效那条到 密钥备份.json（固定名，重复导出直接覆盖）。
+     * 导出全部密钥 + 分组 + 当前生效那条到 密钥列表.json（固定名，重复导出直接覆盖）。
      * v2 格式：{version,exportedAt,current,interfaces,keys}。
      * ⚠️ 文件名不能用 密钥导出_ 前缀：插件导入对话框扫该前缀且把顶层当数组读，会崩。
      * 10-03 用户令：改覆盖导出（固定文件名）+ 导入只认这个文件名——不再按日期存多份。
@@ -1241,18 +1245,24 @@ object KeyListFile {
     }
 
     /**
-     * 固定导出文件是否存在（10-03 用户令：导入只认这个文件名）。
-     * 旧版按日期留存的 密钥备份_* / 密钥导出_* 存档文件不再被导入入口认可。
+     * 导出文件是否存在（导入入口用）。新名 密钥列表.json 或旧名 密钥备份.json 任一在即算在——
+     * 10-07 改名后存量旧文件不作废。旧版按日期留存的 密钥备份_* / 密钥导出_* 存档文件仍不认可。
      */
     fun exportFileExists(tagRuleId: String): Boolean = try {
-        File(dir(tagRuleId), EXPORT_FILE_NAME).let { it.isFile && it.length() > 0 }
+        File(dir(tagRuleId), EXPORT_FILE_NAME).let { it.isFile && it.length() > 0 } ||
+            File(dir(tagRuleId), LEGACY_EXPORT_FILE_NAME).let { it.isFile && it.length() > 0 }
     } catch (e: Exception) {
         false
     }
 
-/** 读导出/备份文件：顶层是数组 = 插件时代扁平格式，是对象 = 本版 v2；损坏返回 null */
+/** 读导出/备份文件：顶层是数组 = 插件时代扁平格式，是对象 = 本版 v2；损坏返回 null。
+ *  新名 密钥列表.json 优先，旧名 密钥备份.json 兜底（10-07 改名，存量旧文件不作废）。 */
     fun readExportFile(tagRuleId: String, fileName: String): ExportData? = try {
-        val f = File(dir(tagRuleId), fileName)
+        val f0 = File(dir(tagRuleId), fileName)
+        val f = if (f0.isFile && f0.length() > 0) f0 else {
+            val legacy = File(dir(tagRuleId), LEGACY_EXPORT_FILE_NAME)
+            if (legacy.isFile && legacy.length() > 0) legacy else f0
+        }
         if (!f.exists()) null else parseExportText(f.readText())
     } catch (e: Exception) {
         Log.w(TAG, "readExportFile failed: ${e.message}")
