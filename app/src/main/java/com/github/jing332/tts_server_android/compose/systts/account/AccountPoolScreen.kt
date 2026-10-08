@@ -23,7 +23,6 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.EventAvailable
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Savings
@@ -254,13 +253,12 @@ fun AccountPoolScreen(onBack: () -> Unit) {
             title = { Text("账号行工具条说明") },
             text = {
                 Column {
-                    Text("☑ 签到（每日领积分）", style = MaterialTheme.typography.bodyMedium)
-                    Text("⟳ 续期（手动刷新令牌）", style = MaterialTheme.typography.bodyMedium)
-                    Text("🏦 查积分（查余额）", style = MaterialTheme.typography.bodyMedium)
-                    Text("⧉ 复制令牌（access_token）", style = MaterialTheme.typography.bodyMedium)
+                    Text("签到（每日领积分）", style = MaterialTheme.typography.bodyMedium)
+                    Text("续期（手动刷新令牌）", style = MaterialTheme.typography.bodyMedium)
+                    Text("查积分（查余额）", style = MaterialTheme.typography.bodyMedium)
                     Spacer(Modifier.height(8.dp))
                     Text(
-                        "账号落池即自动进密钥管理，无需手动添加。长按账号行：停用 / 清限流 / 删除。",
+                        "账号落池即自动进密钥管理，无需手动添加。长按账号行：复制令牌 / 停用 / 清限流 / 删除。",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
@@ -531,7 +529,8 @@ private fun AccountRow(
             ToolAction(Icons.Default.EventAvailable, "签到", busy) { onCheckIn() }
             ToolAction(Icons.Default.Refresh, "续期", busy) { onRefresh() }
             ToolAction(Icons.Default.Savings, "查积分", busy) { onQueryCredits() }
-            ToolAction(Icons.Default.ContentCopy, "复制令牌", busy) { onCopyToken() }
+            // 复制令牌撤出工具条（10-10 用户令：自动落键后无日常场景，跨端粘贴又绕；
+            // 长按菜单保留该项兜底）
         }
     }
 }
