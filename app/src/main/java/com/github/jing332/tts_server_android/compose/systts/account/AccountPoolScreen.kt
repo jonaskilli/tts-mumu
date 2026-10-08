@@ -23,7 +23,10 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.ContentCopy
+import androidx.compose.material.icons.filled.EventAvailable
 import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.Savings
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
@@ -516,25 +519,27 @@ private fun AccountRow(
             modifier = Modifier.padding(start = 30.dp)
         )
         // 丙案工具条（10-10 用户拍板）：整行宽四键均排，图标 18dp 下带 10sp 文字标签，
-        // 全部动作一键直达、谁也不进长按菜单；操作中对应键原位转小圈（标签换「…」）
+        // 全部动作一键直达、谁也不进长按菜单。
+        // 10-10 二令：字符字形（☑⟳⧉）有豆腐块风险且与 🏦 彩色 emoji 风格打架——
+        // 换 Material 矢量图标（原行内键同款四枚），单色同字体渲染永不缺字形
         // 「添加为密钥」已退役（登录落盘即自动进密钥池，无需手动）
         Row(
             Modifier.fillMaxWidth().padding(top = 4.dp),
             horizontalArrangement = Arrangement.SpaceEvenly,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            ToolAction("☑", "签到", busy) { onCheckIn() }
-            ToolAction("⟳", "续期", busy) { onRefresh() }
-            ToolAction("🏦", "查积分", busy) { onQueryCredits() }
-            ToolAction("⧉", "复制令牌", busy) { onCopyToken() }
+            ToolAction(Icons.Default.EventAvailable, "签到", busy) { onCheckIn() }
+            ToolAction(Icons.Default.Refresh, "续期", busy) { onRefresh() }
+            ToolAction(Icons.Default.Savings, "查积分", busy) { onQueryCredits() }
+            ToolAction(Icons.Default.ContentCopy, "复制令牌", busy) { onCopyToken() }
         }
     }
 }
 
-/** 丙案工具条键：字符图标 + 10sp 标签纵排，36dp 热区。busy 时整体禁点防连击 */
+/** 丙案工具条键：Material 矢量图标 18dp + 10sp 标签纵排。busy 时整体禁点防连击 */
 @Composable
 private fun ToolAction(
-    glyph: String,
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
     label: String,
     busy: Boolean,
     onClick: () -> Unit,
@@ -546,7 +551,12 @@ private fun ToolAction(
             .padding(horizontal = 10.dp, vertical = 4.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        Text(glyph, fontSize = 17.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Icon(
+            icon,
+            contentDescription = label,
+            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.size(18.dp)
+        )
         Text(
             label,
             fontSize = 10.sp,
