@@ -318,7 +318,11 @@ internal fun TtsLogScreen(vm: TtsLogViewModel = viewModel()) {
                                         },
                                         expanded = false,
                                         onExpandedChange = { },
-                                        modifier = Modifier.fillMaxWidth(0.95f)
+                                        // 排版实验 1008（用户 10-08 拍板 甲案）：0.95→0.6——
+                                        // 框瘦身让位，筛选/文件夹/清空三键搜索态原位保留
+                                        //（10-06 的「三键隐藏」取消）；框 ≈200dp，
+                                        // placeholder「搜索日志」四字 + 清除键放得下
+                                        modifier = Modifier.fillMaxWidth(0.6f)
                                     ) {}
                                 }
                             }
@@ -336,11 +340,9 @@ internal fun TtsLogScreen(vm: TtsLogViewModel = viewModel()) {
                             )
                         }
                         
-                        // 筛选/文件夹/清空三键搜索态隐藏（10-06 用户：点搜索框只露出
-                        // 「搜索日」三个字——标题槽被四键挤剩 ≈144dp，占位符放不下）。
-                        // 搜索态只留返回键，框宽回到 ≈280dp；匹配跳转/只看匹配开关
-                        // 都在下方「搜索控制行」，功能不受影响
-                        if (!isSearchActive) {
+                        // 排版实验 1008（甲案）：三键不再搜索态隐藏——框已瘦身到 0.6，
+                        // 标题槽余量足够四键与框并存（10-06 的隐藏口径取消）
+                        {
                             // 筛选按钮
                             IconButton(onClick = { vm.showFilterDialog.value = true }) {
                                 Icon(Icons.Default.FilterList, stringResource(R.string.filter))
