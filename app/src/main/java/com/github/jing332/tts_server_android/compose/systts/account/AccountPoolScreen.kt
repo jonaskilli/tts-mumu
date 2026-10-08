@@ -52,6 +52,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -143,6 +144,41 @@ fun AccountPoolScreen(onBack: () -> Unit) {
                     }
                 },
                 actions = {
+                    // 全部签到（10-10 用户令）：逐启用账号跑（过期的先续期），
+                    // 判据/记账与每日闹钟 checkinAll 同口径（coversToday 跳过已签）
+                    IconButton(
+                        onClick = {
+                            scope.launch {
+                                busyId = "__all__"
+                                val summary = withContext(Dispatchers.IO) {
+                                    val list = AccountPool.load().filter { it.enabled }
+                                    var ok = 0
+                                    var skipped = 0
+                                    list.forEach { acc ->
+                                        if (com.github.jing332.tts_server_android.service.systts.help.CheckinPolicy.coversToday(acc.lastCheckinAt)) {
+                                            skipped++; return@forEach
+                                        }
+                                        val target = if (acc.isExpired()) AccountPool.refreshAny(acc).first ?: acc else acc
+                                        val (success, msg) = AccountPool.checkInAny(target)
+                                        if (success) {
+                                            ok++
+                                            AccountPool.markCheckedIn(target.id)
+                                        } else if (msg.contains("无签到接口") || msg.contains("暂不支持")) {
+                                            skipped++
+                                        }
+                                    }
+                                    if (skipped > 0) "签到 $ok/${list.size}（$skipped 个已签/跳过）"
+                                    else "签到 $ok/${list.size}"
+                                }
+                                busyId = null
+                                context.toast(summary)
+                                reload()
+                            }
+                        },
+                        enabled = accounts.any { it.enabled } && busyId == null
+                    ) {
+                        Icon(Icons.Default.EventAvailable, "全部签到")
+                    }
                     IconButton(onClick = { reload() }) {
                         Icon(Icons.Default.Refresh, stringResource(R.string.reload))
                     }
@@ -154,6 +190,17 @@ fun AccountPoolScreen(onBack: () -> Unit) {
             )
         }
     ) { padding ->
+        // 按渠道分组（10-10 用户令）：组头=渠道名+账号数+积分合计；组内保持落盘顺序，
+        // 序号徽章跨组连续（轮换优先级口径不变）
+        val grouped = remember(accounts) {
+            accounts.groupBy { acc ->
+                if (acc.provider == "codebuddy") "codebuddy"
+                else {
+                    ChannelBootstrap.install()
+                    acc.provider
+                }
+            }
+        }
         LazyColumn(
             Modifier
                 .fillMaxSize()
@@ -169,11 +216,37 @@ fun AccountPoolScreen(onBack: () -> Unit) {
                     )
                 }
             }
-            itemsIndexed(accounts, key = { _, acc -> acc.id }) { idx, acc ->
-                AccountRow(
-                    acc = acc,
-                    index = idx,
-                    busy = busyId == acc.id,
+            grouped.forEach { (provider, groupAccounts) ->
+                item(key = "hdr:$provider") {
+                    // 组头：渠道名 + (N) + 积分合计（只计已取到的，NaN/0 不计）
+                    val total = groupAccounts.sumOf { if (it.credits > 0) it.credits else 0.0 }
+                    val totalText = if (total > 0.0) {
+                        " · 积分 " + (if (total % 1.0 == 0.0) total.toLong().toString() else total.toString())
+                    } else ""
+                    val chName = if (provider == "codebuddy") "CodeBuddy"
+                    else ChatChannels.byProvider(provider)?.displayName ?: provider
+                    Row(
+                        Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, top = 12.dp, bottom = 4.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            "$chName ${groupAccounts.size}",
+                            style = MaterialTheme.typography.titleSmall,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                        Spacer(Modifier.weight(1f))
+                        if (totalText.isNotEmpty()) Text(
+                            totalText.removePrefix(" · "),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+                itemsIndexed(groupAccounts, key = { _, acc -> acc.id }) { idx, acc ->
+                    AccountRow(
+                        acc = acc,
+                        index = accounts.indexOf(acc),
+                        busy = busyId == acc.id || busyId == "__all__",
                     timeFmt = timeFmt,
                     onRefresh = {
                         scope.launch {
@@ -233,12 +306,13 @@ fun AccountPoolScreen(onBack: () -> Unit) {
                     },
                     onDelete = { confirmDelete = acc },
                 )
-                // 行间分隔线（同启用池 0.6dp 半透明；末行不画）
-                if (idx < accounts.lastIndex) {
+                // 行间分隔线（同启用池 0.6dp 半透明；组末行不画——组头自带上边距分区）
+                if (idx < groupAccounts.lastIndex) {
                     HorizontalDivider(
                         thickness = 0.6.dp,
                         color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f)
                     )
+                }
                 }
             }
         }
