@@ -24,7 +24,7 @@ object QoderChannel : ChatChannel {
     override val id = "qoder"
     override val displayName = "Qoder 阿里"
     override val chatBaseUrl = "https://api2.qoder.sh/algo/api/v2"
-    override val available = false // 对话待 WASM 链
+    override val available = true // 10-10 WASM 对话接线（WebView 跑官方 wasm，见 chatViaChannel 节）
 
     // ⚠️ 签到待接（10-10 对账 TOP5 第 5 条）：qoder 的「签到」= /sash/ 活动领取，claim
     // 依赖 Cosy-MachineToken 头族（规格书 §4.8，WASM 机器签名，与对话同链锁死）且
@@ -334,6 +334,164 @@ object QoderChannel : ChatChannel {
                 remain
             }
         } catch (_: Exception) { Double.NaN }
+    }
+
+    // ==================== WASM 加密对话（10-10 接线，任务书 4b） ====================
+
+    // 链路：QoderWasmBridge（无头 WebView 跑官方 WASM）生成加密请求三件套
+    // {url, headers, body} → HttpURLConnection 发送（headers 原样透传，Authorization
+    // 是 WASM 生成的 Bearer COSY.<载荷>.<签名>，覆盖即 403 Signature invalid）→
+    // 响应 SSE 每帧剥信封（外层 {headers, body, statusCode...}，内层 body 才是
+    // 标准 OpenAI chunk JSON 字符串——请求加密、响应不加密）。
+    // 403 三义（10605 排队/105 auth/duplicate_request 重发）见 classifyError。
+
+    /** 加密端点 host（bridge.js QODER_ENCRYPTED_INFER_BASE 同值）。 */
+    private const val INFER_HOST = "https://api2.qoder.sh"
+
+    override fun chatViaChannel(
+        acc: AccountPool.Account,
+        bodyJson: String,
+        model: String,
+        cancelled: Cancelled,
+    ): Pair<Boolean, String> {
+        return try {
+            // uid：加密链必备（runtime auth fields 的身份来源）；缺了提示重登，不崩
+            val uid = acc.extraStr("_uid").ifEmpty { acc.extraStr("uid") }
+            if (uid.isEmpty()) return false to "Qoder 账号缺少 uid（请删除后重新登录该账号）"
+            // machine_id：per 账号持久化（WASM 上下文绑定）；登录时已存，无则现生成补落盘
+            // （落盘失败无害：服务端不绑定 machine 身份到凭据，下次对话重生成）
+            var machineId = acc.extraStr("machine_id")
+            if (machineId.isEmpty()) {
+                machineId = DeviceCodeLogin.randomUuid()
+                val updated = acc.withExtra("machine_id", machineId)
+                AccountPool.save(AccountPool.load().map { if (it.id == acc.id) updated else it })
+            }
+            // 明文请求基本字段（OpenAI 形）：抽 messages/userText，剥离 stream/stream_options
+            // 等加密端点不认识的字段（服务端拒收未知顶层字段风险，宁剥勿传）
+            val src = JSONObject(bodyJson)
+            val messages = src.optJSONArray("messages")
+            val userText = lastUserText(messages) ?: run {
+                return false to "Qoder 请求无 user 消息（朗读链应恒有）"
+            }
+            // 建上下文 + 构造加密请求（JS 侧负责明文 payload 完整形状与 WASM 加密）
+            val ctxId = QoderWasmBridge.createContext(uid, acc.accessToken, machineId)
+                ?: return false to "Qoder WASM 上下文创建失败（WebView 桥不可用？看日志）"
+            val historyArr = org.json.JSONArray()
+            if (messages != null) {
+                for (i in 0 until messages.length()) {
+                    val m = messages.optJSONObject(i) ?: continue
+                    historyArr.put(JSONObject().put("role", m.optString("role")).put("content", m.optString("content")))
+                }
+            }
+            val infer = QoderWasmBridge.prepareInfer(ctxId, model, userText, false, historyArr.toString(), "system")
+                ?: return false to "Qoder WASM 加密请求构造失败"
+            QoderWasmBridge.dropContext(ctxId)
+
+            // 发送（headers 原样透传——含 COSY 签名 Authorization）
+            val headers = mutableMapOf(
+                "Accept" to "text/event-stream",
+                "Content-Type" to "application/json; charset=utf-8",
+            )
+            val hs = infer.optJSONObject("headers")
+            if (hs != null) for (k in hs.keys()) headers[k] = hs.optString(k)
+            val conn = java.net.URL(infer.optString("url")).openConnection() as java.net.HttpURLConnection
+            conn.requestMethod = "POST"
+            conn.connectTimeout = 10_000
+            conn.readTimeout = 120_000 // 流式首包可能慢（排队/思考）
+            for ((k, v) in headers) conn.setRequestProperty(k, v)
+            conn.doOutput = true
+            conn.outputStream.use { it.write(infer.optString("body").toByteArray(Charsets.UTF_8)) }
+            val code = conn.responseCode
+            if (code < 200 || code >= 300) {
+                val err = conn.errorStream?.bufferedReader(Charsets.UTF_8)?.use { it.readText() } ?: ""
+                return false to "HTTP $code：${err.take(180).ifEmpty { "无响应内容" }}"
+            }
+
+            // 消费 SSE：每帧剥信封取内层 OpenAI chunk（unwrapQoderEnvelope 语义）
+            val content = StringBuilder()
+            var streamEnded = false
+            conn.inputStream.bufferedReader(Charsets.UTF_8).use { reader ->
+                while (true) {
+                    if (cancelled.isCancelled()) return false to "已取消"
+                    val line = reader.readLine() ?: break
+                    if (!line.startsWith("data:")) continue
+                    val payload = line.removePrefix("data:").trim()
+                    if (payload.isEmpty()) continue
+                    if (payload == "[DONE]") { streamEnded = true; break }
+                    // 信封剥壳：{headers, body:"<openai chunk json 字符串>", statusCode...}
+                    val inner = envelopeInner(payload) ?: continue
+                    if (inner == "[DONE]") { streamEnded = true; break }
+                    try {
+                        val o = JSONObject(inner)
+                        // 流内错误帧（排队 10605 等）：抛给轮换层按 classifyError 语义处理
+                        val bizCode = o.optString("code")
+                        if (bizCode.isNotEmpty() && bizCode != "0") {
+                            conn.disconnect()
+                            return false to "HTTP 403：$inner"
+                        }
+                        val choices = o.optJSONArray("choices") ?: continue
+                        val c = choices.optJSONObject(0) ?: continue
+                        val delta = c.optJSONObject("delta") ?: c.optJSONObject("message")
+                        delta?.optString("content")?.let { if (it.isNotEmpty()) content.append(it) }
+                        if (c.optString("finish_reason").isNotEmpty()) streamEnded = true
+                    } catch (_: Exception) {
+                        // 内层不是 JSON（如 [FAIL]node 文本）：按错误帧转发
+                        if (inner.contains("[FAIL]")) {
+                            conn.disconnect()
+                            return false to "HTTP 403：$inner"
+                        }
+                    }
+                }
+            }
+            val text = content.toString()
+            when {
+                text.isNotEmpty() -> {
+                    // 半截内容纪律：已吐内容但流未正常收尾——按截断结果返回 ok（不换号重放）
+                    true to text
+                }
+                streamEnded -> false to "Qoder 对话完成但无内容"
+                else -> false to "Qoder 对话流中断（无内容）"
+            }
+        } catch (e: Exception) {
+            false to "Qoder 对话异常：${e.message}"
+        }
+    }
+
+    /** 信封剥壳：取外层 JSON 的 body 字段（字符串原样返回；缺 body=已是标准帧，原样透传）。 */
+    private fun envelopeInner(payload: String): String? {
+        val o = try { JSONObject(payload) } catch (_: Exception) { return null }
+        if (!o.has("body")) return payload
+        val b = o.opt("body")
+        return when (b) {
+            is String -> b
+            null -> null
+            else -> b.toString()
+        }
+    }
+
+    /** 取最后一条 user 消息文本（加密端点 chat_context.text 语义）。 */
+    private fun lastUserText(messages: org.json.JSONArray?): String? {
+        if (messages == null) return null
+        for (i in messages.length() - 1 downTo 0) {
+            val m = messages.optJSONObject(i) ?: continue
+            if (m.optString("role") == "user") {
+                val c = m.opt("content")
+                return when (c) {
+                    is String -> c.ifEmpty { null }
+                    is org.json.JSONArray -> {
+                        // 多模态块取 text 块拼接（朗读场景一般纯文本）
+                        val sb = StringBuilder()
+                        for (j in 0 until c.length()) {
+                            val blk = c.optJSONObject(j) ?: continue
+                            if (blk.optString("type") == "text") sb.append(blk.optString("text"))
+                        }
+                        sb.toString().ifEmpty { null }
+                    }
+                    else -> null
+                }
+            }
+        }
+        return null
     }
 
     override fun fetchModels(accessToken: String): List<String> = listOf(

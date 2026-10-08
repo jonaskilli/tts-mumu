@@ -70,6 +70,19 @@ interface ChatChannel {
     /** 模型清单（拉取或静态表；失败返回空表由调用方兜底） */
     fun fetchModels(accessToken: String): List<String>
 
+    /**
+     * 渠道自管对话（10-10 qoder WASM 引入）：加密端点 URL/鉴权（WASM 生成的
+     * COSY 签名头）与通用 /chat/completions 形状完全不同，通用 chatCompletion
+     * 无法承载。返回 null=本渠道不走自管路径（默认，通用流处理）；非 null=
+     * 已完成一次对话，语义与 chatCompletion 对齐（ok=true 时 second 为聚合回答文本）。
+     */
+    fun chatViaChannel(
+        acc: AccountPool.Account,
+        bodyJson: String,
+        model: String,
+        cancelled: Cancelled = Cancelled { false },
+    ): Pair<Boolean, String>? = null
+
     enum class ErrClass { RATE_LIMIT, AUTH, OTHER }
 }
 

@@ -175,6 +175,12 @@ object SseAggregator {
         ChannelBootstrap.install() // 幂等；进程内首调装配注册表
         val channel = ChatChannels.byProvider(first.provider)
         val effectiveBody = channel?.patchBody(bodyJson, model) ?: bodyJson
+        // 渠道自管对话分叉（10-10 qoder WASM）：加密端点 URL/鉴权形状与通用流完全不同，
+        // chatViaChannel 非 null 即整条对话由渠道自己完成；失败复用同一套
+        // classifyError 状态机（限流标记/续期/换号），见 chatViaPoolWithRotation。
+        if (channel != null && channel.chatViaChannel(first, effectiveBody, model, cancelled) != null) {
+            return chatViaPoolWithRotation(channel, first, effectiveBody, model, cancelled)
+        }
 
         val tried = mutableSetOf<String>()
         // 显式非空类型：refresh()/pickAccount() 都返回可空对，解构赋值会把 var 推成可空
@@ -259,6 +265,71 @@ object SseAggregator {
             currentKey = next.accessToken
         }
     }
+    /**
+     * 渠道自管对话的轮换状态机（10-10 qoder WASM）：请求体由渠道 chatViaChannel 生成
+     * 与发送，本函数只负责失败分类后的状态机动作（限流标记/现场续期/换号重试），
+     * 与 chatCompletionWithPool 的通用循环同语义（半截内容纪律由渠道层保证：
+     * chatViaChannel 有内容即 ok=true，永不换号重放）。
+     */
+    private fun chatViaPoolWithRotation(
+        channel: ChatChannel,
+        first: AccountPool.Account,
+        bodyJson: String,
+        model: String,
+        cancelled: Cancelled,
+    ): Pair<Boolean, String> {
+        val tried = mutableSetOf<String>()
+        var current: AccountPool.Account = first
+        var sawAuthFail = false
+        var lastErr = ""
+        while (true) {
+            val (ok, body) = channel.chatViaChannel(current, bodyJson, model, cancelled)
+            if (ok) return true to body
+
+            // 错误分类（渠道实现；与通用循环同一套判据）
+            val status = Regex("HTTP (\\d{3})").find(body)?.groupValues?.get(1)?.toIntOrNull() ?: 0
+            val errClass = channel.classifyError(status, body)
+            val rateLimited = errClass == ChatChannel.ErrClass.RATE_LIMIT
+            val authFailed = errClass == ChatChannel.ErrClass.AUTH
+
+            if (rateLimited) {
+                val resetAt = parseResetTime(body)
+                    ?: (System.currentTimeMillis() + channel.rateLimitFallbackMs)
+                AccountPool.markRateLimited(current.id, model, resetAt)
+            }
+            if (authFailed) {
+                sawAuthFail = true
+                // 401/403(105 auth_error)：现场续期一次再试同账号（唯一该走续期的情形）
+                if (current.refreshToken.isNotEmpty()) {
+                    channel.refresh(current)?.let { r ->
+                        AccountPool.saveRefreshed(current.id, r.first, r.second, r.third)
+                        val refreshed = current.copy(accessToken = r.first, refreshToken = r.second, expiresAt = r.third)
+                        val (ok2, body2) = channel.chatViaChannel(refreshed, bodyJson, model, cancelled)
+                        if (ok2) return true to body2
+                        val status2 = Regex("HTTP (\\d{3})").find(body2)?.groupValues?.get(1)?.toIntOrNull() ?: 0
+                        lastErr = body2
+                        if (status2 != 401 && status2 != 403 && errClass != ChatChannel.ErrClass.AUTH) {
+                            tried.add(current.id)
+                            current = refreshed
+                            continue
+                        }
+                    }
+                }
+            }
+            tried.add(current.id)
+            if (lastErr.isEmpty()) lastErr = body
+
+            // 换号：同 provider、启用中、未试过、该模型不限流、未过期
+            val next = AccountPool.pickAccount(model, current.provider, tried)
+            if (next == null) {
+                val head = if (rateLimited) "该模型所有账号均受限" else if (sawAuthFail) "所有账号均被拒绝" else "所有账号均失败"
+                return false to "$head（已试 ${tried.size} 个账号）：${lastErr.take(180)}"
+            }
+            AccountPool.logLine("对话失败（${lastErr.take(60)}），换账号「${next.nickname}」重试")
+            current = next
+        }
+    }
+
     /** 从限流文案抠重置时刻（照插件 RESET_TIME_PATTERN：`将在 2026-09-11 18:08:17 UTC+8 重置`） */
     private fun parseResetTime(body: String): Long? {
         val m = Regex("(?:将在|reset at)\\s+([\\d-]+)\\s+([\\d:]+)\\s+(UTC[+-]\\d{1,2}(?::\\d{1,2})?)", RegexOption.IGNORE_CASE)

@@ -85,6 +85,7 @@ fun DeviceCodeDialog(
     var minimaxStart by remember { mutableStateOf<MinimaxChannel.DeviceStart?>(null) }
     var zcodeStart by remember { mutableStateOf<ZcodeChannel.LoginInit?>(null) }
     var zcodeDeviceMid by remember { mutableStateOf("") }
+    var qoderStart by remember { mutableStateOf<QoderChannel.QoderStart?>(null) }
 
     // ---------- 阶段二状态 ----------
     var pollCount by remember { mutableIntStateOf(0) }
@@ -100,6 +101,7 @@ fun DeviceCodeDialog(
                 "cline" -> ClineChannel.startDeviceLogin()
                 "minimax" -> MinimaxChannel.startDeviceLogin()
                 "zcode" -> ZcodeChannel.initLogin("bigmodel") // 规格书 §10.1
+                "qoder" -> QoderChannel.startLogin()
                 else -> null
             }
         }
@@ -137,6 +139,16 @@ fun DeviceCodeDialog(
                     authUrl = r.authorizeUrl
                     intervalSec = r.intervalSec.coerceAtLeast(1)
                     zcodeDeviceMid = DeviceCodeLogin.randomUuid()
+                    startReady = true
+                }
+            }
+            is QoderChannel.QoderStart -> {
+                qoderStart = r
+                if (r.err.isNotEmpty()) startErr = r.err
+                else {
+                    // qoder 无 user_code，只展示 authorize_url（PKCE+nonce 在 URL 里）
+                    authUrl = r.authorizeUrl
+                    intervalSec = 2
                     startReady = true
                 }
             }
@@ -244,6 +256,41 @@ fun DeviceCodeDialog(
                                             // ⚠️ §10.2 必须稳定持久化，且不能拿它认账号
                                             .withExtra("device_mid", existing?.extraStr("device_mid")?.ifEmpty { null } ?: zcodeDeviceMid)
                                             .withExtra("_uid", pr.userId)
+                                    }
+                                    doneNick = if (acc.isUpdate) "${acc.nickname}(已更新)" else acc.nickname
+                                }
+                                else -> Unit
+                            }
+                        }
+                    }
+                    "qoder" -> {
+                        val s = qoderStart ?: return@withContext
+                        loop@ while (pollErr.isEmpty() && doneNick.isEmpty() && System.currentTimeMillis() < deadline) {
+                            delay(intervalSec * 1000L)
+                            pollCount += 1
+                            val (st, d) = QoderChannel.pollOnce(s.nonce, s.verifier)
+                            when (st) {
+                                "PENDING" -> Unit // 404=未授权继续（连续失败计数由 pollOnce 语义吸收）
+                                "OK" -> {
+                                    val token = d ?: break@loop
+                                    // token/user_id/user_name 必读（uid 是 WASM 加密链身份来源，缺它对话挂）
+                                    val at = listOf("token", "device_token", "access_token")
+                                        .firstNotNullOfOrNull { token.optString(it).takeIf { x -> x.isNotEmpty() } }
+                                        ?: break@loop
+                                    val uid = token.optString("user_id")
+                                    val nickname = token.optString("user_name").ifEmpty { "Qoder" }
+                                    val rt = token.optString("refresh_token")
+                                    val acc = AccountPool.upsert("qoder", uid.ifEmpty { null }) { existing ->
+                                        AccountPool.Account(
+                                            id = existing?.id ?: "qoder-${System.currentTimeMillis().toString(16)}",
+                                            provider = "qoder",
+                                            nickname = existing?.nickname ?: nickname,
+                                            accessToken = at, refreshToken = rt,
+                                            expiresAt = 0L, // expire 三形态由 refresh 自算，登录期不猜
+                                        )
+                                            // machine_id：登录时生成稳定持久化（WASM 上下文绑定，换号纪律）
+                                            .withExtra("machine_id", existing?.extraStr("machine_id")?.ifEmpty { null } ?: s.machineId)
+                                            .withExtra("_uid", uid)
                                     }
                                     doneNick = if (acc.isUpdate) "${acc.nickname}(已更新)" else acc.nickname
                                 }
