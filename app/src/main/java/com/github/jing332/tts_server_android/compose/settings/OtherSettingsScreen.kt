@@ -138,7 +138,9 @@ internal fun ColumnScope.OtherSettingsScreen(
                     contentDescription = null,
                     tint = MaterialTheme.colorScheme.error
                 )
-            }
+            },
+            // 危险行动作与图标都是 error 系，底衬跟着同色，不跟着全站主题绿（10-10 圆底批）
+            iconContainerColor = MaterialTheme.colorScheme.error.copy(alpha = 0.14f),
         )
     }
     }

@@ -1,8 +1,10 @@
 package com.github.jing332.tts_server_android.compose.settings
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.focusable
 import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
@@ -14,6 +16,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.selection.toggleable
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.KeyboardArrowRight
@@ -21,6 +24,7 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
+import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.LocalTextStyle
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Switch
@@ -40,6 +44,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.rotate
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
@@ -80,7 +85,7 @@ internal fun DropdownPreference(
     modifier: Modifier = Modifier,
     expanded: Boolean,
     onExpandedChange: (Boolean) -> Unit,
-    icon: @Composable () -> Unit,
+    icon: (@Composable () -> Unit)? = null,
     title: @Composable () -> Unit,
     subTitle: @Composable () -> Unit,
     actions: @Composable ColumnScope. () -> Unit = {},
@@ -238,7 +243,8 @@ internal fun SwitchPreference(
     modifier: Modifier = Modifier,
     title: @Composable () -> Unit,
     subTitle: @Composable () -> Unit,
-    icon: @Composable () -> Unit = {},
+    icon: (@Composable () -> Unit)? = null,
+    iconContainerColor: Color? = null,
 
     checked: Boolean,
     onCheckedChange: (Boolean) -> Unit,
@@ -258,6 +264,7 @@ internal fun SwitchPreference(
         title = title,
         subTitle = subTitle,
         icon = icon,
+        iconContainerColor = iconContainerColor,
         content = {
             Switch(
                 checked = checked,
@@ -277,7 +284,11 @@ internal fun BasePreferenceWidget(
     onClick: (() -> Unit)? = null,
     title: @Composable () -> Unit,
     subTitle: @Composable () -> Unit = {},
-    icon: @Composable () -> Unit = {},
+    // 图标槽（10-10 用户令：照预览 D「矢量 + 圆底」——所有设置行统一戴一枚圆角底衬）。
+    // 改为可空：不传图标就不出底衬，避免出现一块空的圆角色块。
+    icon: (@Composable () -> Unit)? = null,
+    /** 图标底衬色；不传则用主题色 14%（危险行可传 error 系保持同色系） */
+    iconContainerColor: Color? = null,
     /** 行可点又没有自带右侧控件时是否补 ›（纯动作行可关掉，见调用点） */
     showChevron: Boolean = true,
     content: (@Composable RowScope.() -> Unit)? = null,
@@ -296,10 +307,26 @@ internal fun BasePreferenceWidget(
         .padding(horizontal = LocalPreferenceRowHorizontalPadding.current, vertical = verticalPadding)
         .semantics(true) {}
     ) {
-        Column(
-            Modifier.align(Alignment.CenterVertically)
-        ) {
-            icon()
+        if (icon != null) {
+            // 40dp 圆角底衬 + 24dp 矢量图标 = 60%，M3 对矢量图标规定的比例
+            Box(
+                modifier = Modifier
+                    .align(Alignment.CenterVertically)
+                    .size(40.dp)
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(
+                        iconContainerColor
+                            ?: MaterialTheme.colorScheme.primary.copy(alpha = 0.14f)
+                    ),
+                contentAlignment = Alignment.Center
+            ) {
+                // 底衬内图标统一走主题色（显式 tint 的行——如「清空数据」的 error 红——仍以显式值为准）
+                CompositionLocalProvider(
+                    LocalContentColor provides MaterialTheme.colorScheme.primary
+                ) {
+                    icon()
+                }
+            }
         }
 
         Column(
@@ -350,7 +377,7 @@ internal fun SliderPreference(
     modifier: Modifier = Modifier,
     title: @Composable () -> Unit,
     subTitle: @Composable () -> Unit,
-    icon: @Composable () -> Unit = {},
+    icon: (@Composable () -> Unit)? = null,
     value: Float,
     onValueChange: (Float) -> Unit,
     valueRange: ClosedFloatingPointRange<Float> = 0f..1f,
@@ -408,7 +435,7 @@ internal fun PreferenceDialog(
     modifier: Modifier = Modifier,
     title: @Composable () -> Unit,
     subTitle: @Composable () -> Unit,
-    icon: @Composable () -> Unit,
+    icon: (@Composable () -> Unit)? = null,
 
     dialogContent: @Composable ColumnScope.() -> Unit,
     endContent: @Composable RowScope.() -> Unit = {},
