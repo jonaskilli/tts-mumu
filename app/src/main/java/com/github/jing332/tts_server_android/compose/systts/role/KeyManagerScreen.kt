@@ -1558,6 +1558,14 @@ fun KeyManagerScreen(tagRuleId: String, onBack: () -> Unit) {
         val listState = rememberLazyListState()
         listStateRef = listState
         val groups = buildKeyGroups(keys, ifaces)
+        // 甲方案（10-09 用户拍板）：上浮只在进页时算一次——以 keys 实例为快照键记「哪些组
+        // 当时启用中」，页内启停只改对勾不重排（原实时排序导致编辑中分组跳走、用户追着找）。
+        // keys 引用变化（进页/导入/拉模型/删条目后重载）即重算快照；同一实例内 pool 变化不算。
+        val floatSnapshot = remember(keys) {
+            groups.associate { g ->
+                g.title to g.entries.any { KeyListFile.normalizePoolValue(it.value) in pool }
+            }
+        }
         // 主页拖动排序已整段删除（用户 0919 终稿）：无 reorderable modifier、无落位回调；
         // LazyColumn 仅为长列表性能保留
         LazyColumn(
@@ -1629,11 +1637,10 @@ fun KeyManagerScreen(tagRuleId: String, onBack: () -> Unit) {
                     )
                 }
             } else {
-                // 10-07 用户令：启用中的组自动上浮（组内任一条目启用即算启用中）；
-                // 两档内部保持原相对顺序（sortedByDescending 稳定排序），禁用组顺延在后
-                groups.sortedByDescending { g ->
-                    g.entries.any { KeyListFile.normalizePoolValue(it.value) in pool }
-                }.forEach { grp ->
+                // 10-07 用户令：启用中的组自动上浮——甲方案（10-09 用户拍板）改为按
+                // floatSnapshot（进页快照）排序：两档内部保持原相对顺序（稳定排序），
+                // 页内启停不再触发重排（消除编辑中分组跳走）
+                groups.sortedByDescending { g -> floatSnapshot[g.title] == true }.forEach { grp ->
                     val isCollapsed = collapsed?.contains(grp.title) == true
                     // 组内删除模式（菜单第二项「多选删除子项」）：只对该组生效，组保留
                     val isDeleting = deleteModeGroup == grp.title
