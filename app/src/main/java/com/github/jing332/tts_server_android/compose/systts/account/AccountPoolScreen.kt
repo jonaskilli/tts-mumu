@@ -100,6 +100,9 @@ fun AccountPoolScreen(onBack: () -> Unit) {
     var smsLoginOpen by remember { mutableStateOf<String?>(null) }
     var callbackChannel by remember { mutableStateOf<String?>(null) }
     var opencodeLoginOpen by remember { mutableStateOf(false) }
+    // 系统返回拦截（10-10 实锤修复）：本页是 KeyManagerScreen 内的覆盖层（非导航路由），
+    // 原先不拦返回键 → 系统返回直接 finish 整个密钥 Activity，跳过密钥页回角色管理
+    androidx.activity.compose.BackHandler(onBack = onBack)
     val timeFmt = remember { SimpleDateFormat("MM-dd HH:mm", Locale.getDefault()) }
 
     LaunchedEffect(version) {
@@ -428,7 +431,13 @@ private fun AccountRow(
             .padding(vertical = 10.dp)
             .combinedClickable(onClick = {}, onLongClick = { menuOpen = true })
     ) {
-        DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
+        DropdownMenu(
+            expanded = menuOpen,
+            onDismissRequest = { menuOpen = false },
+            // 10-10 用户令（弹窗位置）：默认锚在整行 top-start = 永远弹屏幕左上角。
+            // 右移下移对准动作图标区（右上角），菜单出现在长按行旁而不是屏幕角落
+            offset = androidx.compose.ui.unit.IntOffset(x = -40, y = 40)
+        ) {
             // 乙方案（10-09 用户拍板）：长按菜单兼作图例——先列五个图标动作的文字说明
             //（点了不执行，纯查阅；图标行含义在此可见），再列管理动作（点即执行）
             DropdownMenuItem(
@@ -490,21 +499,25 @@ private fun AccountRow(
             // 图标动作区（36dp 热区 + 18dp 图标，与启用池 FlatIconAction 同规格）：
             // 签到（绿，主操作）/ 续期 / 查积分；操作中该键原位转小圈
             if (busy) {
-                Box(Modifier.size(36.dp), contentAlignment = Alignment.Center) {
+                Box(Modifier.size(44.dp), contentAlignment = Alignment.Center) {
                     CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp)
                 }
             } else {
-                // 签到：事件可用图标（带 ✓ 语义）；主操作用主色
+                // 签到：事件可用图标（带 ✓ 语义）；主操作用主色（相邻键 2dp 间隔，10-10）
                 FlatIconAction(
                     Icons.Default.EventAvailable,
                     "签到",
                     tint = MaterialTheme.colorScheme.primary
                 ) { onCheckIn() }
+                Spacer(Modifier.width(2.dp))
                 FlatIconAction(Icons.Default.Refresh, "续期") { onRefresh() }
+                Spacer(Modifier.width(2.dp))
                 FlatIconAction(Icons.Default.Savings, "查积分") { onQueryCredits() }
+                Spacer(Modifier.width(2.dp))
                 // 复制令牌（10-08 接线）：密钥管理添加密钥时把 access_token 粘进 key 段，
                 // 行内即自动挂「账号池」绿标（keyBelongsTo 按值识别，无需任何开关）
                 FlatIconAction(Icons.Default.ContentCopy, "复制令牌") { onCopyToken() }
+                Spacer(Modifier.width(2.dp))
                 // 一键添加为密钥（10-08：账号即凭据，照原插件免手填）——网址/令牌/模型
                 // 自动备齐落进密钥管理，重复点去重不堆条目
                 FlatIconAction(
@@ -565,6 +578,8 @@ private fun StatusChip(text: String, bg: androidx.compose.ui.graphics.Color) {
  * 图标动作键（10-07 装机反馈：账号池行 UI 对齐启用池）——与密钥页 FlatIconAction 同规格：
  * 36dp 圆形热区 + 18dp 图标（本地复刻，跨包 internal 不通）。原 FlatTextAction 文字键
  * 随本改造退役（动作全归图标，行间分隔线与两行式排版见 AccountRow）。
+ * 10-10 用户令（适配度）：热区 36→44dp、相邻键间 2dp——一排五键贴死连排易误触，
+ * 视觉不变大（图标仍 18dp），只是命中区更稳。
  */
 @Composable
 private fun FlatIconAction(
@@ -577,7 +592,7 @@ private fun FlatIconAction(
     val effectiveTint = if (enabled) tint else tint.copy(alpha = 0.3f)
     Box(
         Modifier
-            .size(36.dp)
+            .size(44.dp)
             .clip(CircleShape)
             .clickable(enabled = enabled, onClick = onClick),
         contentAlignment = Alignment.Center

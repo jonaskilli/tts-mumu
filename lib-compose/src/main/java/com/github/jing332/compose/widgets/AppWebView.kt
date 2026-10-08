@@ -125,6 +125,11 @@ fun AppWebView(
             ): Boolean {
                 kotlin.runCatching {
                     if (request?.url?.scheme?.startsWith("http") == false) {
+                        // workbuddy-ai:// 等客户端回调 scheme 静默吞掉（10-10 实锤：账号池
+                        // 登录页完成登录后重定向 workbuddy-ai:// 想拉起外部 IDE 客户端，
+                        // 本 app 靠 state 轮询拿凭据、不需要这个跳转——createChooser 找不到
+                        // 应用反而弹「没有应用可执行此操作」扰人）
+                        if (request.url.scheme == "workbuddy-ai") return true
                         val intent = Intent(Intent.ACTION_VIEW, request.url)
                         context.startActivity(Intent.createChooser(intent, request.url.toString()))
                         return true

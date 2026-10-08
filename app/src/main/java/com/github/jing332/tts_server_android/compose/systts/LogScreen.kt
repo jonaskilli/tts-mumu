@@ -607,11 +607,11 @@ internal fun LogScreen(
                             }
                             Column(
                                 modifier = Modifier
-                                    // 排版实验 1008（用户 10-08 拍板对齐全站）：外距 10→16dp
-                                    //（ListGutter 线，与设置页分区卡 sectionCardMargin 同值）
+                                    // 底色贴边（10-10 用户令）：撤卡外距 16dp 与圆角——底色
+                                    // 通到屏幕左右边缘，正文边距由卡内衬 16dp 承担
+                                    // （原 16 外距+8 内衬=文字左缘 24dp，页面显空）
                                     .fillMaxWidth()
-                                    .padding(horizontal = 16.dp, vertical = 3.dp)
-                                    .clip(RoundedCornerShape(12.dp))
+                                    .padding(vertical = 3.dp)
                                     .background(cardBg)
                                     .then(
                                         if (selectionMode) Modifier.clickable {
@@ -624,9 +624,8 @@ internal fun LogScreen(
                                         // 非多选：点卡弹快捷面板（换发音人），锚定请求主行
                                         else Modifier.clickable { quickPanelEntry = head }
                                     )
-                                    // 卡内水平衬 8dp（cardRowHorizontalPadding 同值，设置页
-                                    // 分区卡同款）；外距16+内衬8=正文左缘 24 全站照应
-                                    .padding(start = 8.dp, end = 8.dp, top = 8.dp, bottom = 8.dp)
+                                    // 卡内水平衬 16dp（贴边后文字边距 = 此值，全站 ListGutter 线）
+                                    .padding(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 8.dp)
                             ) {
                                 // 前置区：本次请求前的规则分析行（级别色照旧，字号小一档）
                                 if (item.pre.isNotEmpty()) {
@@ -717,9 +716,10 @@ internal fun LogScreen(
                                 // 主行与成员区分隔线（用户 10-08 午后追问补）：请求正文与
                                 // 获取成功/插件过程行之间此前只有缩进，加一条与前置区同款
                                 // 细线（10% 透明度）标出"请求→结果"的内容分界
+                                // 10-10 用户令：线与正文间距 6+6 太空（总隙 ≈19dp），收到 2+0
                                 if (item.members.isNotEmpty()) {
                                     HorizontalDivider(
-                                        modifier = Modifier.padding(vertical = 6.dp),
+                                        modifier = Modifier.padding(vertical = 2.dp),
                                         color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.10f)
                                     )
                                 }
@@ -728,7 +728,7 @@ internal fun LogScreen(
                                 // 表达，缩进是第四重冗余，还压窄插件长句的可读宽度
                                 item.members.forEach { mIdx ->
                                     val m = list[mIdx]
-                                    Column(Modifier.padding(top = 6.dp)) {
+                                    Column(Modifier.padding(top = 2.dp)) {
                                         Row {
                                             Text(
                                                 // 排版实验 1008（P3，用户 10-08 午后令）：成员行

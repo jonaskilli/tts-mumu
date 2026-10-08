@@ -365,28 +365,38 @@ private fun KeyEntryRow(
             // ExperimentalFoundationApi）——多选/组内删除模式没有长按，勾选语义不动。
             // 菜单锚点 = 包住名字 Text 的 Box（weight 上移到 Box）
             Box(modifier = Modifier.weight(1f)) {
-                Text(
-                    KeyListFile.displayName(entry),
-                    // 10-09 五令（字号 A 案）：15→14sp——与插件/替换两卡模型名同档，
-                    // 长模型名（aion-labs/aion-2.0 类）截断概率降；组名 15 半粗扛层级
-                    style = MaterialTheme.typography.bodyMedium.copy(fontSize = 14.sp),
-                    // 分配专用键（10-09）：染主色加粗（预览稿 assign-final-preview 定稿视觉）
-                    color = if (hasAssign) MaterialTheme.colorScheme.primary
-                    else MaterialTheme.colorScheme.onSurface,
-                    fontWeight = if (hasAssign) FontWeight.Bold else null,
-                    maxLines = 2,
-                    overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier
-                        // 多选/组内删除模式点名字=勾选；常规模式点名字=复制模型名
-                        //（10-03 拍板，📋 键退役）+ 长按弹分配菜单（10-09）
-                        .then(
-                            if (selectionMode) Modifier.clickable { onToggleCheck() }
-                            else Modifier.combinedClickable(
-                                onClick = { onCopy() },
-                                onLongClick = { nameMenu = true }
+                // 名字+🚀 同 Row（10-10 用户令：🚀 紧跟模型名，不再被 weight(1f)
+                // 挤到右侧图标区旁）；去绿留粗（10-10 用户令：模型名不染主色，
+                // 加粗保留——仍是「这把被分配占用」的扫视锚）
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        KeyListFile.displayName(entry),
+                        // 10-09 五令（字号 A 案）：15→14sp——与插件/替换两卡模型名同档，
+                        // 长模型名（aion-labs/aion-2.0 类）截断概率降；组名 15 半粗扛层级
+                        style = MaterialTheme.typography.bodyMedium.copy(fontSize = 14.sp),
+                        // 10-10 用户令：去绿（原 hasAssign 染 primary），加粗保留
+                        color = MaterialTheme.colorScheme.onSurface,
+                        fontWeight = if (hasAssign) FontWeight.Bold else null,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier
+                            // 多选/组内删除模式点名字=勾选；常规模式点名字=复制模型名
+                            //（10-03 拍板，📋 键退役）+ 长按弹分配菜单（10-09）
+                            .then(
+                                if (selectionMode) Modifier.clickable { onToggleCheck() }
+                                else Modifier.combinedClickable(
+                                    onClick = { onCopy() },
+                                    onLongClick = { nameMenu = true }
+                                )
                             )
-                        )
-                )
+                    )
+                    if (hasAssign && !selectionMode) {
+                        Spacer(Modifier.width(4.dp))
+                        // 分配专用标记（10-09）：名字后一枚 🚀——只读小标，权威开关在
+                        // 编辑弹窗 Switch / 长按菜单（10-10 改：进名字区紧跟模型名）
+                        Text("🚀", fontSize = 14.sp)
+                    }
+                }
                 if (!selectionMode) {
                     DropdownMenu(expanded = nameMenu, onDismissRequest = { nameMenu = false }) {
                         DropdownMenuItem(
@@ -420,13 +430,8 @@ private fun KeyEntryRow(
                     }
                 }
             }
-            // 分配专用标记（10-09）：名字后一枚 🚀（原账号池标签位置，14sp）——
-            // 只读小标，权威开关在编辑弹窗 Switch / 长按菜单
-            if (hasAssign && !selectionMode) {
-                Text("🚀", fontSize = 14.sp)
-                Spacer(Modifier.width(4.dp))
-            }
-            // 来源标签（10-06 方案B）：密钥取自账号池（key 段=某账号 access_token）→ 绿底胶囊。
+            // 分配专用标记（10-09）已并入名字区 Row（10-10：🚀 紧跟模型名）——
+            // 此处不再渲染；来源标签（10-06 方案B）：密钥取自账号池（key 段=某账号 access_token）→ 绿底胶囊。
             // ⚠️ 10-09 用户令：绿标撤除腾空间（分配专用 🚀 顶位）——渲染块注释保留，
             // fromPool 参数与调用侧取值原样留着，用户要恢复时解开即可
             // if (fromPool && !selectionMode) {
@@ -529,7 +534,10 @@ private fun KeyEntryRow(
             // 红态恒可展开；绿/黄原不可展开——10-09 六令细化：详情键改**超一行才出**，
             // 截断时三态都可展开（展开=TestOutcome 全文，含写法名/状态码等底层信息，
             // 必比摘要多东西），未截断则无详情键（一行了结就不给第二态）
-            val hasExpandable = !isPass && !isWarn
+            // 10-10 实锤修复：门槛原为 !isPass && !isWarn——黄态被排除但详情键照出，
+            // 点击置 expanded=true 而 549 行渲染条件不成立 → 「详情点不动」；
+            // 与池页 KeyPoolScreen 同构条目对齐改 !isPass
+            val hasExpandable = !isPass
             var expanded by rememberSaveable(entry.name) { mutableStateOf(false) }
             val clipboard = LocalClipboardManager.current
             Column(
@@ -600,6 +608,8 @@ private fun KeyEntryRow(
                         )
                     }
                 } else {
+                // 收起行（10-10 用户令：详情/自定义思考两键下移第二行——原先与摘要挤
+                // 同一行，长摘要+两键互相挤压）
                 Row(
                     Modifier.fillMaxWidth(),
                     verticalAlignment = Alignment.CenterVertically
@@ -633,31 +643,41 @@ private fun KeyEntryRow(
                         onTextLayout = { truncated = it.hasVisualOverflow },
                         modifier = Modifier.weight(1f)
                     )
-                    if (truncated) {
-                        // 截断时三态统一挂「详情」（绿/黄展开=TestOutcome 全文，红=reason 全文）
-                        Text(
-                            "详情",
-                            style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.sp),
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            fontWeight = FontWeight.SemiBold,
-                            modifier = Modifier
-                                .clip(RoundedCornerShape(4.dp))
-                                .clickable { expanded = true }
-                                .padding(start = 6.dp, end = 8.dp)
-                        )
-                    }
-                    if (isWarn) {
-                        // 黄态收起行尾「自定义思考 ›」直键（原独立动作行撤，省一行高）
-                        Text(
-                            stringResource(R.string.role_key_thinking_entry),
-                            style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.sp),
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            fontWeight = FontWeight.SemiBold,
-                            modifier = Modifier
-                                .clip(RoundedCornerShape(4.dp))
-                                .clickable { onEditThinking() }
-                                .padding(start = 6.dp, end = 8.dp)
-                        )
+                    // 第二行动作行（10-10 用户令）：「详情」（截断才出）+「自定义思考›」
+                    // （黄态才出）——原与摘要同排挤一行，摘要截断时两键还互相顶
+                    if (truncated || isWarn) {
+                        Row(
+                            Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.End,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            if (truncated) {
+                                // 截断时三态统一挂「详情」（绿/黄展开=TestOutcome 全文，红=reason 全文）
+                                Text(
+                                    "详情",
+                                    style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.sp),
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    fontWeight = FontWeight.SemiBold,
+                                    modifier = Modifier
+                                        .clip(RoundedCornerShape(4.dp))
+                                        .clickable { expanded = true }
+                                        .padding(start = 6.dp, end = 8.dp, top = 2.dp, bottom = 2.dp)
+                                )
+                            }
+                            if (isWarn) {
+                                // 黄态「自定义思考 ›」直键（原独立动作行撤，省一行高）
+                                Text(
+                                    stringResource(R.string.role_key_thinking_entry),
+                                    style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.sp),
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    fontWeight = FontWeight.SemiBold,
+                                    modifier = Modifier
+                                        .clip(RoundedCornerShape(4.dp))
+                                        .clickable { onEditThinking() }
+                                        .padding(start = 6.dp, end = 8.dp, top = 2.dp, bottom = 2.dp)
+                                )
+                            }
+                        }
                     }
                 }
                 }
@@ -1699,7 +1719,9 @@ fun KeyManagerScreen(tagRuleId: String, onBack: () -> Unit) {
                             modifier = Modifier.heightIn(min = 44.dp),
                             contentPadding = PaddingValues(horizontal = 18.dp, vertical = 11.dp)
                         ) {
-                            Text(stringResource(R.string.role_key_pool_short, pool.size), maxLines = 1, style = MaterialTheme.typography.labelLarge)
+                            // 10-10 用户令：补全回「启用池(N)」（role_key_pool_open 现成串；
+                            // 当年 fe86073 缩短是 A1 四胶囊时代口径，1fb4ea0 回三键后没改回）
+                            Text(stringResource(R.string.role_key_pool_open, pool.size), maxLines = 1, style = MaterialTheme.typography.labelLarge)
                         }
                     }
                 }

@@ -318,10 +318,10 @@ internal fun TtsLogScreen(vm: TtsLogViewModel = viewModel()) {
                                         },
                                         expanded = false,
                                         onExpandedChange = { },
-                                        // 搜索态专属框（log-ui-1008 ④拍板：搜索态顶栏只留
-                                        // 搜索+返回，三键隐藏）——框回 0.95 宽 ≈280dp，
-                                        // placeholder 四字+清除键放得下
-                                        modifier = Modifier.fillMaxWidth(0.95f)
+                                        // 搜索态专属框（10-10 用户令：恢复 3779dba 甲案——
+                                        // 框缩 0.6 宽 ≈200dp，右侧腾出常驻四键位；
+                                        // d6131f6 曾无说明回滚本改动，此为二次落地）
+                                        modifier = Modifier.fillMaxWidth(0.6f)
                                     ) {}
                                 }
                             }
@@ -329,7 +329,7 @@ internal fun TtsLogScreen(vm: TtsLogViewModel = viewModel()) {
                     },
                     actions = {
                         // 搜索按钮
-                        IconButton(onClick = { 
+                        IconButton(onClick = {
                             isSearchActive = !isSearchActive
                             if (!isSearchActive) searchQuery = ""
                         }) {
@@ -338,27 +338,23 @@ internal fun TtsLogScreen(vm: TtsLogViewModel = viewModel()) {
                                 if (isSearchActive) stringResource(R.string.nav_back) else stringResource(R.string.search)
                             )
                         }
-                        
-                        // 漏斗/文件夹/清空三键：非搜索态才显示（log-ui-1008 ④拍板
-                        // 回归 10-06 口径——搜索态顶栏只留搜索框+返回；级别筛选改由
-                        // 搜索控制行里的漏斗键承担，不因隐藏而失入口）。
-                        // 退出搜索三键原位恢复。整个 if 挂在 actions 里，无孤儿 lambda
-                        // （37733831376 教训：撤门控时条件与大括号必须一起动）
-                        if (!isSearchActive) {
-                            // 筛选按钮
-                            IconButton(onClick = { vm.showFilterDialog.value = true }) {
-                                Icon(Icons.Default.FilterList, stringResource(R.string.filter))
-                            }
 
-                            // 文件夹按钮 - 先弹日志文件列表自由选择（用户 09-08），点击文件再用外部查看器打开
-                            IconButton(onClick = { showLogFilesDialog = true }) {
-                                Icon(Icons.Default.FolderOpen, stringResource(R.string.open_log_folder))
-                            }
+                        // 漏斗/文件夹/清空三键（10-10 恢复 3779dba 甲案：四键常驻——
+                        // 搜索态不再隐藏，级别筛选/开日志目录/清空全程可达。
+                        // dda939c 教训：撤 if 门控时条件与大括号必须一起动，勿留孤儿 lambda）
+                        // 筛选按钮
+                        IconButton(onClick = { vm.showFilterDialog.value = true }) {
+                            Icon(Icons.Default.FilterList, stringResource(R.string.filter))
+                        }
 
-                            // 清空按钮
-                            IconButton(onClick = { vm.clear() }) {
-                                Icon(Icons.Default.DeleteOutline, stringResource(id = R.string.clear_log))
-                            }
+                        // 文件夹按钮 - 先弹日志文件列表自由选择（用户 09-08），点击文件再用外部查看器打开
+                        IconButton(onClick = { showLogFilesDialog = true }) {
+                            Icon(Icons.Default.FolderOpen, stringResource(R.string.open_log_folder))
+                        }
+
+                        // 清空按钮
+                        IconButton(onClick = { vm.clear() }) {
+                            Icon(Icons.Default.DeleteOutline, stringResource(id = R.string.clear_log))
                         }
                     }
                 )
