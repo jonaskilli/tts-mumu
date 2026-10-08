@@ -304,6 +304,9 @@ object KeyListFile {
      * 10-08 用户拍板：**自定义 JSON 也参与同站继承**（人填的认证答案分享给同站其它模型，
      * 不是机器发明）——custom 排最前（同站特殊站大概率全站都要它），命中/继承都会带上
      * 锁定表里的 custom 文本（testOnce 的 custom 参数走 locked 行，非本模型空串）。
+     * 10-08 B 方案（厂家思考写法归档）：主域已验证写法排同站继承之后、标准序列之前——
+     * 同厂家新站/新模型直接从已验证写法起试，省的是探测顺序、不是省验证请求
+     * （厂家档命中仍真发请求，失败顺延标准序列；custom 不入厂家档，见 thinking_vendor 段注释）。
      */
     private fun probeOrderFor(tagRuleId: String, url: String, model: String): Array<String> {
         val site = normalizeBaseUrl(openAiBaseUrl(url))
@@ -316,8 +319,11 @@ object KeyListFile {
             .values.map { it.first }
             .distinct()
             .sortedBy { inheritedRank(it) }
-        if (inherited.isEmpty()) return THINKING_PROBE_ORDER
-        return (inherited + THINKING_PROBE_ORDER.toList()).distinct().toTypedArray()
+        // 厂家档（10-08 B 方案）：键=主域；防御性再滤 AUTO/CUSTOM（写入侧已拦，读侧不信任文件内容）
+        val vendorMode = readThinkingVendor(tagRuleId)[vendorKeyFor(url)]
+            ?.takeIf { it.isNotEmpty() && it != THINKING_AUTO && it != THINKING_CUSTOM }
+        if (inherited.isEmpty() && vendorMode == null) return THINKING_PROBE_ORDER
+        return (inherited + listOfNotNull(vendorMode) + THINKING_PROBE_ORDER.toList()).distinct().toTypedArray()
     }
 
     /** 同站继承排序：custom 最前（人填的认证答案，同站大概率全站要它）；宽松在前（multi=老行为最保守；越"重"的写法越靠后），与标准序列同向 */
@@ -398,6 +404,69 @@ object KeyListFile {
     } catch (e: Exception) {
         Log.w(TAG, "saveThinkingParam failed: ${e.message}")
         false
+    }
+
+    // ==================== 厂家思考写法档（thinking_vendor.json，10-08 B 方案）====================
+    // 语义：主域级「已验证关闭思考」写法归档——同厂家新站/新模型探测时排到标准序列前直试，
+    // 省的是探测顺序、不是省验证请求（厂家档命中仍真发请求验证，失败顺延标准序列；档错了
+    // 最多多花请求，无害——个别中转站不同模型走不同上游）。键 = 主域（host 末两段，
+    // api.deepseek.com → deepseek.com；IP/localhost 整 host）——「同厂家新站」的现成粒度，
+    // 零维护，不做「阿里系/字节系」式人工映射。值 = {"mode","setAt"}。
+    // AUTO/CUSTOM 不入档（已定案：自动不发明 custom；custom 只走同站继承）；写法无关失败
+    // 不写档（调用侧 isSpellingAgnosticFailure 短路在先，本档只可能在真命中后落笔）。
+    // 纯 app 自用旁挂，不进三方协议（朗读规则只认 thinking_params.json 的 网址@@模型 键）。
+
+    private fun thinkingVendorFile(tagRuleId: String) = File(dir(tagRuleId), "thinking_vendor.json")
+
+    /** 主域键：host 末两段（api.deepseek.com → deepseek.com）；IP/localhost/单段 host 整体用 */
+    private fun vendorKeyFor(url: String): String {
+        return try {
+            var body = normalizeBaseUrl(url)
+            if (!body.contains("://")) body = "https://$body"
+            val host = java.net.URI(openAiBaseUrl(body)).host.orEmpty().lowercase()
+            if (host.isEmpty()) "" else {
+                val labels = host.split('.').filter { it.isNotEmpty() }
+                val isIp = labels.size == 4 &&
+                    labels.all { v -> val n = v.toIntOrNull(); n != null && n in 0..255 }
+                if (labels.size <= 2 || isIp) host else labels.takeLast(2).joinToString(".")
+            }
+        } catch (e: Exception) {
+            ""
+        }
+    }
+
+    /** 读厂家档（键=主域 → 写法名）；文件缺失/损坏返回空表 */
+    private fun readThinkingVendor(tagRuleId: String): Map<String, String> = try {
+        val f = thinkingVendorFile(tagRuleId)
+        if (!f.exists()) emptyMap()
+        else {
+            val root = JSONObject(f.readText())
+            val out = mutableMapOf<String, String>()
+            root.keys().forEach { k -> out[k] = root.optJSONObject(k)?.optString("mode").orEmpty() }
+            out
+        }
+    } catch (e: Exception) {
+        Log.w(TAG, "readThinkingVendor failed: ${e.message}")
+        emptyMap()
+    }
+
+    /** 写一条厂家档（探测绿态命中路径调用；AUTO/CUSTOM/空串不入档，失败不影响主流程） */
+    private fun saveThinkingVendor(tagRuleId: String, url: String, mode: String): Boolean {
+        if (mode.isBlank() || mode == THINKING_AUTO || mode == THINKING_CUSTOM) return true
+        val key = vendorKeyFor(url)
+        if (key.isEmpty()) return false
+        return try {
+            val d = dir(tagRuleId)
+            if (!d.exists()) d.mkdirs()
+            val f = thinkingVendorFile(tagRuleId)
+            val root = if (f.exists()) JSONObject(f.readText()) else JSONObject()
+            root.put(key, JSONObject().put("mode", mode).put("setAt", System.currentTimeMillis()))
+            f.writeText(root.toString(2))
+            true
+        } catch (e: Exception) {
+            Log.w(TAG, "saveThinkingVendor failed: ${e.message}")
+            false
+        }
     }
 
     /** 分组批量：把「统一思考模式」应用到底下全部模型（写每条 KeyEntry + 各自锁定表；auto=清锁） */
@@ -1328,6 +1397,8 @@ object KeyListFile {
             }
             if (off != false) {
                 saveThinkingParam(tagRuleId, t.baseUrl, t.model, m, mCustom)
+                // 厂家档双写（10-08 B 方案）：主域归档这条已验证写法；写档失败不影响本模型锁定
+                saveThinkingVendor(tagRuleId, t.baseUrl, m)
                 val okMsg = "$msg · 思考已关 · 已锁定 $m"
                 // 自动佩戴（10-09）：全量试探的绿态路——判定放成功返回前，message 带用时
                 maybeAutoAssign(tagRuleId, normTarget, okMsg)
