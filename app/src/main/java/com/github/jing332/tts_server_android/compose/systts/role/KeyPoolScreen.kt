@@ -1,7 +1,6 @@
 package com.github.jing332.tts_server_android.compose.systts.role
 
 import androidx.activity.compose.BackHandler
-import androidx.compose.foundation.HorizontalDivider
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -30,9 +29,12 @@ import androidx.compose.material.icons.filled.Checklist
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.RemoveCircleOutline
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.ElevatedCard
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -256,7 +258,7 @@ internal fun KeyPoolScreen(
                     // 平铺（主页条目=连体卡内分区，无卡中卡）；多选勾中=12% 浅红（同主页
                     // cardColor 两态，compositeOver 防透页面底）；卡间 1dp 分隔线（连体卡
                     // 分区观感），垂直 4dp 节奏保留
-                    val cardColor = if (selectionMode && checked)
+                    val cardColor = if (selectionMode && norm in checked)
                         MaterialTheme.colorScheme.error.copy(alpha = 0.12f)
                             .compositeOver(MaterialTheme.colorScheme.surface)
                     else MaterialTheme.colorScheme.surface
