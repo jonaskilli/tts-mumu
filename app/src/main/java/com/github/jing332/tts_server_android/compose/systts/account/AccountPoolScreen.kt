@@ -87,7 +87,11 @@ fun AccountPoolScreen(onBack: () -> Unit) {
     var confirmDelete by remember { mutableStateOf<AccountPool.Account?>(null) }
     // 渠道选择弹窗（10-09 全渠道批）：选完按登录形态分流
     var showChannelPicker by remember { mutableStateOf(false) }
-    // 设备码登录中渠道 / 凭据直填渠道 / 扫码 / 短信 / 本地回调 / opencode 一键
+    // 首次进页图例弹窗（乙方案）：SharedPreferences 记「已看过」，只弹一次
+    val prefs = remember {
+        context.getSharedPreferences("account_pool_ui", android.content.Context.MODE_PRIVATE)
+    }
+    var showLegend by remember { mutableStateOf(!prefs.getBoolean("legend_shown", false)) }
     var deviceLoginChannel by remember { mutableStateOf<String?>(null) }
     var credentialChannel by remember { mutableStateOf<String?>(null) }
     var qrcodeLoginOpen by remember { mutableStateOf(false) }
@@ -240,6 +244,34 @@ fun AccountPoolScreen(onBack: () -> Unit) {
 
     // 删除确认弹窗（删除不可逆；连带说明：密钥条目不随删，由用户在密钥页自行管理）
     // 渠道选择弹窗（10-09 全渠道批）：选完按登录形态分流
+    // 首次进页图例（乙方案）：账号行五个图标动作的含义，只弹一次
+    if (showLegend) {
+        AlertDialog(
+            onDismissRequest = { showLegend = false; prefs.edit().putBoolean("legend_shown", true).apply() },
+            title = { Text("账号行图标说明") },
+            text = {
+                Column {
+                    Text("☑ 签到（每日领积分）", style = MaterialTheme.typography.bodyMedium)
+                    Text("⟳ 续期（手动刷新令牌）", style = MaterialTheme.typography.bodyMedium)
+                    Text("🏦 查积分（查余额）", style = MaterialTheme.typography.bodyMedium)
+                    Text("⧉ 复制令牌（access_token）", style = MaterialTheme.typography.bodyMedium)
+                    Text("📁+ 添加为密钥（落密钥管理）", style = MaterialTheme.typography.bodyMedium)
+                    Spacer(Modifier.height(8.dp))
+                    Text(
+                        "长按账号行：停用 / 清限流 / 删除。这行说明之后可在长按菜单随时查看。",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { showLegend = false; prefs.edit().putBoolean("legend_shown", true).apply() }) {
+                    Text("知道了")
+                }
+            },
+        )
+    }
+
     if (showChannelPicker) {
         ChannelPickerDialog(
             onDismiss = { showChannelPicker = false },
@@ -390,6 +422,32 @@ private fun AccountRow(
             .combinedClickable(onClick = {}, onLongClick = { menuOpen = true })
     ) {
         DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
+            // 乙方案（10-09 用户拍板）：长按菜单兼作图例——先列五个图标动作的文字说明
+            //（点了不执行，纯查阅；图标行含义在此可见），再列管理动作（点即执行）
+            DropdownMenuItem(
+                text = { Text("☑ 签到（每日领积分）", style = MaterialTheme.typography.bodySmall) },
+                onClick = { menuOpen = false; onCheckIn() }
+            )
+            DropdownMenuItem(
+                text = { Text("⟳ 续期（手动刷新令牌）", style = MaterialTheme.typography.bodySmall) },
+                onClick = { menuOpen = false; onRefresh() }
+            )
+            DropdownMenuItem(
+                text = { Text("🏦 查积分（查余额）", style = MaterialTheme.typography.bodySmall) },
+                onClick = { menuOpen = false; onQueryCredits() }
+            )
+            DropdownMenuItem(
+                text = { Text("⧉ 复制令牌（access_token）", style = MaterialTheme.typography.bodySmall) },
+                onClick = { menuOpen = false; onCopyToken() }
+            )
+            DropdownMenuItem(
+                text = { Text("📁+ 添加为密钥（落密钥管理）", style = MaterialTheme.typography.bodySmall) },
+                onClick = { menuOpen = false; onAddAsKey() }
+            )
+            DropdownMenuItem(
+                text = { Text("⸺", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.outlineVariant) },
+                onClick = {}
+            )
             DropdownMenuItem(
                 text = { Text(if (acc.enabled) "停用（不参与自动选号）" else "启用") },
                 onClick = { menuOpen = false; onToggleEnabled() }
