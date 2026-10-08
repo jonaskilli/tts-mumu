@@ -54,15 +54,19 @@ class AccountLoginActivity : ComposeActivity() {
         const val EXTRA_LOGIN_URL = "account_login_url"
         // 10-07 协议修正：auth/token 改 GET ?state= 轮询，state 由 auth/state 下发、全程携带
         const val EXTRA_LOGIN_STATE = "account_login_state"
+        // 10-09 全渠道批：provider 决定轮询函数（缺省 codebuddy；workbuddy 走 WorkbuddyChannel）
+        const val EXTRA_PROVIDER = "account_login_provider"
     }
 
     private var loginUrl: String = ""
     private var loginState: String = ""
+    private var provider: String = "codebuddy"
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         loginUrl = intent.getStringExtra(EXTRA_LOGIN_URL) ?: ""
         loginState = intent.getStringExtra(EXTRA_LOGIN_STATE) ?: ""
+        provider = intent.getStringExtra(EXTRA_PROVIDER) ?: "codebuddy"
         if (loginUrl.isEmpty()) {
             finish()
             return
@@ -82,10 +86,35 @@ class AccountLoginActivity : ComposeActivity() {
         lifecycleScope.launch {
             repeat(150) {
                 if (!polling) return@launch
-                val (acc, err) = withContext(Dispatchers.IO) { AccountPool.pollToken(loginState, null) }
-                if (acc != null) {
+                // provider 分流（10-09 全渠道批）：codebuddy 走原轮询+落盘；
+                // workbuddy 走 WorkbuddyChannel.pollToken（响应相对秒换算），成功自落盘
+                val nickname: String? = withContext(Dispatchers.IO) {
+                    when (provider) {
+                        "workbuddy" -> {
+                            val q = com.github.jing332.tts_server_android.service.systts.help.WorkbuddyChannel.pollToken(loginState)
+                            if (q.status == "OK") {
+                                val acc = com.github.jing332.tts_server_android.service.systts.help.AccountPool.Account(
+                                    id = "workbuddy-${System.currentTimeMillis().toString(16)}",
+                                    provider = "workbuddy",
+                                    nickname = "WorkBuddy",
+                                    accessToken = q.accessToken,
+                                    refreshToken = q.refreshToken,
+                                    expiresAt = q.expiresAt,
+                                )
+                                com.github.jing332.tts_server_android.service.systts.help.AccountPool.save(
+                                    com.github.jing332.tts_server_android.service.systts.help.AccountPool.load()
+                                        .filterNot { it.id == acc.id } + acc
+                                )
+                                acc.nickname
+                            } else null
+                        }
+                        else -> com.github.jing332.tts_server_android.service.systts.help.AccountPool
+                            .pollToken(loginState, null).first?.nickname
+                    }
+                }
+                if (nickname != null) {
                     polling = false
-                    setResult(RESULT_OK, Intent().putExtra("nickname", acc.nickname))
+                    setResult(RESULT_OK, Intent().putExtra("nickname", nickname))
                     finish()
                     return@launch
                 }

@@ -87,12 +87,13 @@ fun AccountPoolScreen(onBack: () -> Unit) {
     var confirmDelete by remember { mutableStateOf<AccountPool.Account?>(null) }
     // 渠道选择弹窗（10-09 全渠道批）：选完按登录形态分流
     var showChannelPicker by remember { mutableStateOf(false) }
-    // 设备码登录中渠道 / 凭据直填渠道 / 扫码 / 短信 / 本地回调
+    // 设备码登录中渠道 / 凭据直填渠道 / 扫码 / 短信 / 本地回调 / opencode 一键
     var deviceLoginChannel by remember { mutableStateOf<String?>(null) }
     var credentialChannel by remember { mutableStateOf<String?>(null) }
     var qrcodeLoginOpen by remember { mutableStateOf(false) }
     var smsLoginOpen by remember { mutableStateOf(false) }
     var callbackChannel by remember { mutableStateOf<String?>(null) }
+    var opencodeLoginOpen by remember { mutableStateOf(false) }
     val timeFmt = remember { SimpleDateFormat("MM-dd HH:mm", Locale.getDefault()) }
 
     LaunchedEffect(version) {
@@ -246,15 +247,25 @@ fun AccountPoolScreen(onBack: () -> Unit) {
                 showChannelPicker = false
                 when (loginKindOf(ch.id)) {
                     LoginFlowKind.WEBVIEW -> scope.launch {
-                        // CodeBuddy 既有 WebView 登录链（10-07/10-08 定稿，勿动交互）
-                        val (state, url, err) = withContext(Dispatchers.IO) { AccountPool.fetchLoginUrl() }
-                        if (url == null) {
+                        // WebView 登录链（10-07/10-08 定稿交互）：codebuddy 走原轮询；
+                        // workbuddy 同形态不同产品（EXTRA_PROVIDER 分流，WorkbuddyChannel.pollToken）
+                        val (state, url, err) = withContext(Dispatchers.IO) {
+                            if (ch.id == "workbuddy") {
+                                val s = com.github.jing332.tts_server_android.service.systts.help.WorkbuddyChannel.fetchLoginUrl()
+                                Triple(s.state, s.url, s.err)
+                            } else {
+                                val (state, url, err) = AccountPool.fetchLoginUrl()
+                                Triple(state, url, err)
+                            }
+                        }
+                        if (url == null || url.isEmpty()) {
                             context.toast("获取登录地址失败：$err")
                         } else {
                             loginLauncher.launch(
                                 android.content.Intent(context, AccountLoginActivity::class.java)
                                     .putExtra(AccountLoginActivity.EXTRA_LOGIN_URL, url)
                                     .putExtra(AccountLoginActivity.EXTRA_LOGIN_STATE, state)
+                                    .putExtra(AccountLoginActivity.EXTRA_PROVIDER, ch.id)
                             )
                         }
                     }
@@ -262,6 +273,7 @@ fun AccountPoolScreen(onBack: () -> Unit) {
                     LoginFlowKind.QRCODE -> qrcodeLoginOpen = true
                     LoginFlowKind.SMS -> smsLoginOpen = true
                     LoginFlowKind.CALLBACK -> callbackChannel = ch.id
+                    LoginFlowKind.OPENCODE -> opencodeLoginOpen = true
                     else -> credentialChannel = ch.id
                 }
             },
@@ -312,6 +324,16 @@ fun AccountPoolScreen(onBack: () -> Unit) {
             onDone = {
                 callbackChannel = null
                 context.toast("已添加")
+                reload()
+            },
+        )
+    }
+    if (opencodeLoginOpen) {
+        OpencodeLoginDialog(
+            onDismiss = { opencodeLoginOpen = false },
+            onDone = { nick ->
+                opencodeLoginOpen = false
+                context.toast("已添加：$nick")
                 reload()
             },
         )
