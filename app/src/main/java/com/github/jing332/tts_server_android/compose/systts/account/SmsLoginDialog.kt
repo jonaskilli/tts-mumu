@@ -1,6 +1,8 @@
 package com.github.jing332.tts_server_android.compose.systts.account
 
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -192,7 +194,10 @@ fun SmsLoginDialog(
             }
         },
         dismissButton = {
-            Column {
+            // 取消与发送验证码同占 dismiss 槽（Row 平铺），与确认键一行右对齐；
+            // 此前取消独占 Column 第二行被 M3 按钮流居中换行（10-10 用户实机截图）
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                TextButton(onClick = onDismiss) { Text(if (done) "关闭" else "取消") }
                 // 发送验证码（60s 倒计时防连发）
                 TextButton(
                     enabled = phoneValid && !sending && countdown <= 0,
@@ -228,7 +233,6 @@ fun SmsLoginDialog(
                     if (sending) CircularProgressIndicator(Modifier.padding(end = 6.dp))
                     Text(if (countdown > 0) "重发(${countdown}s)" else "发送验证码")
                 }
-                TextButton(onClick = onDismiss) { Text(if (done) "关闭" else "取消") }
             }
         },
     )
