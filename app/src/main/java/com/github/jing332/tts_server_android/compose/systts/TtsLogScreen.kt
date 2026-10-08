@@ -131,24 +131,26 @@ internal fun TtsLogScreen(vm: TtsLogViewModel = viewModel()) {
     val logGroups = remember(displayLogs) { LogGroups.build(displayLogs) }
 
     // ——「原文」定位（用户 10-08 午后拍板 甲方案）——
-    // 筛选/搜索态下列表是收窄视图；点卡上的「⟲ 原文」= 清全部筛选回到完整流，
+    // 筛选/搜索态下列表是收窄视图；点卡上的「⟲ 原文」= 清筛选回到完整流，
     // 跳到该条目所在卡并高亮。完整流归组单独建（与 displayLogs 归组不同实例）。
     val isFiltered by remember(vm) {
         derivedStateOf {
-            searchQuery.trim().isNotEmpty() ||
-                vm.selectedLevels.isNotEmpty() ||
-                vm.showPluginLogs.value || vm.showSpeechRuleLogs.value
+            // 只认真正"收窄"视图的两项：搜索词、级别筛选（10-10 用户令）。
+            // 「插件」「朗读规则」两个调试开关是**追加型**——勾上往列表里加日志，
+            // 一点都不收窄，与"回完整流找原位置"语义相反；此前把它们也算进 isFiltered，
+            // 导致只要勾了调试开关每张卡右上角都冒原文键（用户实机反馈）。
+            searchQuery.trim().isNotEmpty() || vm.selectedLevels.isNotEmpty()
         }
     }
     val fullGroups = remember(vm.filteredLogs) { LogGroups.build(vm.filteredLogs) }
     var locateHighlight by remember { mutableStateOf<LogEntry?>(null) }
 
     fun locateOriginal(entry: LogEntry) {
-        // 1) 清全部筛选（搜索词/级别勾选/插件/规则缓冲开关）
+        // 1) 清**收窄类**筛选（搜索词/级别勾选）——与 isFiltered 的判据保持一致。
+        // 「插件」「朗读规则」两个调试开关**不动**：它们是用户主动开启的追加项，
+        // 不是筛选条件；点一次「原文」就把它们关掉属意外副作用（此前会误关）。
         searchQuery = ""
         vm.clearFilter()
-        vm.showPluginLogs.value = false
-        vm.showSpeechRuleLogs.value = false
         // 2) 在完整流里找到该条目的卡头，滚动过去并高亮闪现
         val fullList = vm.filteredLogs
         val idx = fullList.indexOfFirst { it == entry }.let { found ->

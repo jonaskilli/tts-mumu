@@ -42,7 +42,14 @@ class SpeechRuleEngine(
         }
     }
 
-    val engine = SimpleScriptEngine(context, rule.ruleId)
+    // 构造即标 SPEECH_RULE：本类就是朗读规则引擎，而 Console 的默认来源是 PLUGIN。
+    // 此前只有朗读链（TextProcessor）与规则编辑器显式改过标记，其余构造点
+    //（角色管理页重算 / TagNameUtils / 分类导入器 / 导入解析 / companion 反查）全用默认值，
+    // 产出的规则日志被打成 [Plugin] 前缀进插件缓冲——「朗读规则」开关勾了也永远看不到它们。
+    // 在这里给默认值，全部构造点一处修好；调用方若要换 console 仍可覆盖 setter。
+    val engine = SimpleScriptEngine(context, rule.ruleId).apply {
+        runtime.console = Console(Console.LogSource.SPEECH_RULE)
+    }
     var console: Console
         get() = engine.runtime.console
         set(value) {
