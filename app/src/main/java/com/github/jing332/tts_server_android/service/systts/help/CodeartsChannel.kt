@@ -111,10 +111,11 @@ object CodeartsChannel : ChatChannel {
             val jwk = JSONObject()
                 .put("kty", "EC")
                 .put("crv", "P-256")
-                .put("x", b64u32(pub.w.x))
-                .put("y", b64u32(pub.w.y))
+                .put("x", b64u32(pub.w.affineX))
+                .put("y", b64u32(pub.w.affineY))
                 .put("d", b64u32(priv.s))
-            jwk.toString() to jwk
+            // 私钥/公钥同一份 JWK（分量齐）：调用方只落盘这一个对象
+            jwk to jwk
         } catch (_: Exception) {
             null
         }
