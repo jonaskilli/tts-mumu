@@ -6,6 +6,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -18,16 +19,11 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.ContentCopy
-import androidx.compose.material.icons.filled.EventAvailable
-import androidx.compose.material.icons.filled.LibraryAdd
 import androidx.compose.material.icons.filled.Refresh
-import androidx.compose.material.icons.filled.Savings
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
@@ -56,6 +52,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.github.jing332.common.utils.toast
 import com.github.jing332.tts_server_android.R
 import com.github.jing332.tts_server_android.compose.nav.NavTopAppBar
@@ -112,6 +109,12 @@ fun AccountPoolScreen(onBack: () -> Unit) {
             // 渠道错位迁移（10-10）：旧版 addAsKey 把 workbuddy 等渠道硬挂 CodeBuddy 上游
             // → 网关 401 + 「copilot」串组，进页顺手改回各自渠道（幂等）
             runCatching { AccountPool.migrateWrongChannelKeyUrls(KeyListFile.DEFAULT_TAG_RULE_ID) }
+            // 自动落键补齐（10-10 用户令「添加为密钥」退役）：登录落盘的账号本就该在
+            // 密钥管理有条目——对池内每个账号补跑 addAsKey（幂等去重，已有条目秒回）
+            val loaded = AccountPool.load()
+            loaded.forEach { acc ->
+                runCatching { AccountPool.addAsKey(KeyListFile.DEFAULT_TAG_RULE_ID, acc) }
+            }
             AccountPool.load()
         }
     }
@@ -211,18 +214,6 @@ fun AccountPoolScreen(onBack: () -> Unit) {
                         )
                         context.toast("令牌已复制，去密钥管理添加密钥时粘贴到 Key 段")
                     },
-                    onAddAsKey = {
-                        // 一键添加为密钥（账号即凭据）：网址/令牌/模型自动备齐，重复点去重
-                        scope.launch {
-                            busyId = acc.id
-                            val (_, msg) = withContext(Dispatchers.IO) {
-                                AccountPool.addAsKey(KeyListFile.DEFAULT_TAG_RULE_ID, acc)
-                            }
-                            busyId = null
-                            // 落键引导（10-09）：密钥条目未进启用池朗读用不上——把下一步路标指给用户
-                            context.toast(if (msg.startsWith("已添加")) "$msg——去密钥页勾选进启用池后朗读可用" else msg)
-                        }
-                    },
                     onToggleEnabled = {
                         // 停用/启用（10-08 移植）：停用只退出自动选号，签到/续期照跑（插件同语义）
                         scope.launch {
@@ -253,21 +244,20 @@ fun AccountPoolScreen(onBack: () -> Unit) {
 
     // 删除确认弹窗（删除不可逆；连带说明：密钥条目不随删，由用户在密钥页自行管理）
     // 渠道选择弹窗（10-09 全渠道批）：选完按登录形态分流
-    // 首次进页图例（乙方案）：账号行五个图标动作的含义，只弹一次
+    // 首次进页图例（乙方案）：账号行工具条的含义，只弹一次
     if (showLegend) {
         AlertDialog(
             onDismissRequest = { showLegend = false; prefs.edit().putBoolean("legend_shown", true).apply() },
-            title = { Text("账号行图标说明") },
+            title = { Text("账号行工具条说明") },
             text = {
                 Column {
                     Text("☑ 签到（每日领积分）", style = MaterialTheme.typography.bodyMedium)
                     Text("⟳ 续期（手动刷新令牌）", style = MaterialTheme.typography.bodyMedium)
                     Text("🏦 查积分（查余额）", style = MaterialTheme.typography.bodyMedium)
                     Text("⧉ 复制令牌（access_token）", style = MaterialTheme.typography.bodyMedium)
-                    Text("📁+ 添加为密钥（落密钥管理）", style = MaterialTheme.typography.bodyMedium)
                     Spacer(Modifier.height(8.dp))
                     Text(
-                        "长按账号行：停用 / 清限流 / 删除。这行说明之后可在长按菜单随时查看。",
+                        "账号落池即自动进密钥管理，无需手动添加。长按账号行：停用 / 清限流 / 删除。",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
@@ -414,7 +404,6 @@ private fun AccountRow(
     onCheckIn: () -> Unit,
     onQueryCredits: () -> Unit,
     onCopyToken: () -> Unit,
-    onAddAsKey: () -> Unit,
     onToggleEnabled: () -> Unit,
     onDelete: () -> Unit,
     onClearLimits: () -> Unit,
@@ -422,10 +411,10 @@ private fun AccountRow(
     // 长按菜单（10-08 移植插件账号卡片能力）：停用/启用、清限流（有标记才显示）、删除
     var menuOpen by remember { mutableStateOf(false) }
     Column(
-        // 10-07 装机反馈：照启用池 PoolRow 同款两行式——第一行 序号徽章+昵称+状态+图标动作区，
-        // 第二行 信息副行；整行不再可点（原「点行=查积分」易误触，动作全走图标键）。
+        // 丙案（10-10 用户拍板）：第一行 序号+昵称+状态胶囊（零图标）；第二行 信息副行；
+        // 第三段 工具条（签到/续期/查积分/复制令牌 四键带文字标签整行宽）。
         // 行间分隔线由列表层画（同启用池 0.6dp 半透明）。
-        // 长按 = 管理菜单（删除/停用/清限流）：低频危险动作不占图标位
+        // 长按 = 管理菜单（删除/停用/清限流）
         Modifier
             .fillMaxWidth()
             .padding(vertical = 10.dp)
@@ -456,10 +445,8 @@ private fun AccountRow(
                 text = { Text("⧉ 复制令牌（access_token）", style = MaterialTheme.typography.bodySmall) },
                 onClick = { menuOpen = false; onCopyToken() }
             )
-            DropdownMenuItem(
-                text = { Text("📁+ 添加为密钥（落密钥管理）", style = MaterialTheme.typography.bodySmall) },
-                onClick = { menuOpen = false; onAddAsKey() }
-            )
+            // 「添加为密钥」菜单项已撤（10-10 用户令）：登录落盘即自动进密钥池，
+            // 进页还有幂等补齐，无需手动动作
             DropdownMenuItem(
                 text = { Text("⸺", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.outlineVariant) },
                 onClick = {}
@@ -479,7 +466,8 @@ private fun AccountRow(
             )
         }
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-            // 序号徽章：与启用池同一个 OrderBadge（10-05 形「丙」胶囊；本页浅绿配色随全局）
+            // 丙案（10-10 用户拍板「两行全宽图标排」）：第一行 = 序号+名字+状态胶囊，
+            // **零图标**——五个动作整体下移副行下方的工具条（整行宽、带文字标签）
             OrderBadge(number = index + 1)
             Spacer(Modifier.width(10.dp))
             Text(
@@ -494,37 +482,6 @@ private fun AccountRow(
                 !acc.enabled -> StatusChip("已停用", MaterialTheme.colorScheme.surfaceVariant)
                 acc.isExpired() -> StatusChip("已过期", MaterialTheme.colorScheme.errorContainer)
                 else -> StatusChip("有效", MaterialTheme.colorScheme.primaryContainer)
-            }
-            Spacer(Modifier.width(4.dp))
-            // 图标动作区（36dp 热区 + 18dp 图标，与启用池 FlatIconAction 同规格）：
-            // 签到（绿，主操作）/ 续期 / 查积分；操作中该键原位转小圈
-            if (busy) {
-                Box(Modifier.size(44.dp), contentAlignment = Alignment.Center) {
-                    CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp)
-                }
-            } else {
-                // 签到：事件可用图标（带 ✓ 语义）；主操作用主色（相邻键 2dp 间隔，10-10）
-                FlatIconAction(
-                    Icons.Default.EventAvailable,
-                    "签到",
-                    tint = MaterialTheme.colorScheme.primary
-                ) { onCheckIn() }
-                Spacer(Modifier.width(2.dp))
-                FlatIconAction(Icons.Default.Refresh, "续期") { onRefresh() }
-                Spacer(Modifier.width(2.dp))
-                FlatIconAction(Icons.Default.Savings, "查积分") { onQueryCredits() }
-                Spacer(Modifier.width(2.dp))
-                // 复制令牌（10-08 接线）：密钥管理添加密钥时把 access_token 粘进 key 段，
-                // 行内即自动挂「账号池」绿标（keyBelongsTo 按值识别，无需任何开关）
-                FlatIconAction(Icons.Default.ContentCopy, "复制令牌") { onCopyToken() }
-                Spacer(Modifier.width(2.dp))
-                // 一键添加为密钥（10-08：账号即凭据，照原插件免手填）——网址/令牌/模型
-                // 自动备齐落进密钥管理，重复点去重不堆条目
-                FlatIconAction(
-                    Icons.Default.LibraryAdd,
-                    "添加为密钥",
-                    tint = MaterialTheme.colorScheme.primary
-                ) { onAddAsKey() }
             }
         }
         // 副行：过期/积分/签到时间/限流（缩进对齐名字列 = 徽章 20 + 间距 10 = 30dp，同启用池）
@@ -558,6 +515,44 @@ private fun AccountRow(
             overflow = TextOverflow.Ellipsis,
             modifier = Modifier.padding(start = 30.dp)
         )
+        // 丙案工具条（10-10 用户拍板）：整行宽四键均排，图标 18dp 下带 10sp 文字标签，
+        // 全部动作一键直达、谁也不进长按菜单；操作中对应键原位转小圈（标签换「…」）
+        // 「添加为密钥」已退役（登录落盘即自动进密钥池，无需手动）
+        Row(
+            Modifier.fillMaxWidth().padding(top = 4.dp),
+            horizontalArrangement = Arrangement.SpaceEvenly,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            ToolAction("☑", "签到", busy) { onCheckIn() }
+            ToolAction("⟳", "续期", busy) { onRefresh() }
+            ToolAction("🏦", "查积分", busy) { onQueryCredits() }
+            ToolAction("⧉", "复制令牌", busy) { onCopyToken() }
+        }
+    }
+}
+
+/** 丙案工具条键：字符图标 + 10sp 标签纵排，36dp 热区。busy 时整体禁点防连击 */
+@Composable
+private fun ToolAction(
+    glyph: String,
+    label: String,
+    busy: Boolean,
+    onClick: () -> Unit,
+) {
+    Column(
+        Modifier
+            .clip(RoundedCornerShape(8.dp))
+            .clickable(enabled = !busy, onClick = onClick)
+            .padding(horizontal = 10.dp, vertical = 4.dp),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Text(glyph, fontSize = 17.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Text(
+            label,
+            fontSize = 10.sp,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            maxLines = 1
+        )
     }
 }
 
@@ -573,30 +568,5 @@ private fun StatusChip(text: String, bg: androidx.compose.ui.graphics.Color) {
             .padding(horizontal = 8.dp, vertical = 2.dp)
     )
 }
-
-/**
- * 图标动作键（10-07 装机反馈：账号池行 UI 对齐启用池）——与密钥页 FlatIconAction 同规格：
- * 36dp 圆形热区 + 18dp 图标（本地复刻，跨包 internal 不通）。原 FlatTextAction 文字键
- * 随本改造退役（动作全归图标，行间分隔线与两行式排版见 AccountRow）。
- * 10-10 用户令（适配度）：热区 36→44dp、相邻键间 2dp——一排五键贴死连排易误触，
- * 视觉不变大（图标仍 18dp），只是命中区更稳。
- */
-@Composable
-private fun FlatIconAction(
-    icon: androidx.compose.ui.graphics.vector.ImageVector,
-    contentDescription: String,
-    tint: androidx.compose.ui.graphics.Color = MaterialTheme.colorScheme.onSurfaceVariant,
-    enabled: Boolean = true,
-    onClick: () -> Unit,
-) {
-    val effectiveTint = if (enabled) tint else tint.copy(alpha = 0.3f)
-    Box(
-        Modifier
-            .size(44.dp)
-            .clip(CircleShape)
-            .clickable(enabled = enabled, onClick = onClick),
-        contentAlignment = Alignment.Center
-    ) {
-        Icon(icon, contentDescription = contentDescription, tint = effectiveTint, modifier = Modifier.size(18.dp))
-    }
-}
+// FlatIconAction（10-07~10-10 行内图标键）随丙案工具条退役：动作键改 ToolAction
+// （字符图标+10sp 文字标签纵排），见 AccountRow。

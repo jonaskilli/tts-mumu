@@ -822,7 +822,13 @@ object AccountPool {
             val acc = upsert("codebuddy", sub) { found ->
                 Account(
                     id = found?.id ?: "codebuddy-${System.currentTimeMillis().toString(16)}",
-                    nickname = nick.ifEmpty { found?.nickname ?: existing?.nickname ?: "CodeBuddy" },
+                    // 多号区分（10-10 用户定案）：真名拉得到用真名，拉不到回退渠道名+「*尾4」
+                    // （同密钥 *尾4BeP 口径，keyTail>4 显尾4）。更新路径沿用旧名不重算，
+                    // 防上游改名把用户已识别的标签搅动
+                    nickname = nick.ifEmpty {
+                        found?.nickname ?: existing?.nickname
+                        ?: "CodeBuddy *" + KeyListFile.keyTail(access)
+                    },
                     accessToken = access,
                     refreshToken = refresh,
                     expiresAt = expiresAt,

@@ -108,7 +108,10 @@ class AccountLoginActivity : ComposeActivity() {
                                     com.github.jing332.tts_server_android.service.systts.help.AccountPool.Account(
                                         id = existing?.id ?: "workbuddy-${System.currentTimeMillis().toString(16)}",
                                         provider = "workbuddy",
-                                        nickname = existing?.nickname ?: "WorkBuddy",
+                                        // 多号区分（10-10 用户定案）：真名空回退「WorkBuddy *尾4」
+                                        //（同密钥尾号口径）；更新路径沿用旧名
+                                        nickname = existing?.nickname
+                                            ?: "WorkBuddy *" + com.github.jing332.tts_server_android.service.systts.help.KeyListFile.keyTail(q.accessToken),
                                         accessToken = q.accessToken,
                                         refreshToken = q.refreshToken,
                                         expiresAt = q.expiresAt,
