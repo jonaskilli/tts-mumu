@@ -85,11 +85,14 @@ fun AccountPoolScreen(onBack: () -> Unit) {
     var busyId by remember { mutableStateOf<String?>(null) }
     // 待确认删除的账号（10-08 移植插件「删除」动作；删除不可逆，弹窗确认）
     var confirmDelete by remember { mutableStateOf<AccountPool.Account?>(null) }
-    // 渠道选择弹窗（10-09 全渠道批：「+」先选渠道再分流登录形态）
+    // 渠道选择弹窗（10-09 全渠道批）：选完按登录形态分流
     var showChannelPicker by remember { mutableStateOf(false) }
-    // 设备码登录中渠道 / 凭据直填渠道
+    // 设备码登录中渠道 / 凭据直填渠道 / 扫码 / 短信 / 本地回调
     var deviceLoginChannel by remember { mutableStateOf<String?>(null) }
     var credentialChannel by remember { mutableStateOf<String?>(null) }
+    var qrcodeLoginOpen by remember { mutableStateOf(false) }
+    var smsLoginOpen by remember { mutableStateOf(false) }
+    var callbackChannel by remember { mutableStateOf<String?>(null) }
     val timeFmt = remember { SimpleDateFormat("MM-dd HH:mm", Locale.getDefault()) }
 
     LaunchedEffect(version) {
@@ -256,6 +259,9 @@ fun AccountPoolScreen(onBack: () -> Unit) {
                         }
                     }
                     LoginFlowKind.DEVICE_CODE -> deviceLoginChannel = ch.id
+                    LoginFlowKind.QRCODE -> qrcodeLoginOpen = true
+                    LoginFlowKind.SMS -> smsLoginOpen = true
+                    LoginFlowKind.CALLBACK -> callbackChannel = ch.id
                     else -> credentialChannel = ch.id
                 }
             },
@@ -274,6 +280,37 @@ fun AccountPoolScreen(onBack: () -> Unit) {
             onDismiss = { credentialChannel = null },
             onDone = { nick ->
                 credentialChannel = null
+                context.toast("已添加：$nick")
+                reload()
+            },
+        )
+    }
+    if (qrcodeLoginOpen) {
+        QrcodeLoginDialog(
+            onDismiss = { qrcodeLoginOpen = false },
+            onDone = { nick ->
+                qrcodeLoginOpen = false
+                context.toast("已添加：$nick")
+                reload()
+            },
+        )
+    }
+    if (smsLoginOpen) {
+        SmsLoginDialog(
+            onDismiss = { smsLoginOpen = false },
+            onDone = { nick ->
+                smsLoginOpen = false
+                context.toast("已添加：$nick")
+                reload()
+            },
+        )
+    }
+    callbackChannel?.let { chId ->
+        CallbackLoginDialog(
+            provider = chId,
+            onDismiss = { callbackChannel = null },
+            onDone = { nick ->
+                callbackChannel = null
                 context.toast("已添加：$nick")
                 reload()
             },

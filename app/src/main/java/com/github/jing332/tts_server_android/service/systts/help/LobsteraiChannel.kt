@@ -39,6 +39,17 @@ object LobsteraiChannel : ChatChannel {
         }
     } catch (_: Exception) { "2026.9.4" }
 
+    // ==================== 登录 URL（规格书 3.1） ====================
+
+    /**
+     * 登录 URL：portal 登录页 hash 路由（#/login 段不能用 searchParams 构造），
+     * redirect_uri 必须百分号编码后与本地回调逐字一致。纯函数。
+     */
+    fun buildLoginUrl(port: Int, state: String): String =
+        "https://lobsterai.youdao.com/portal#/login?source=electron" +
+            "&redirect_uri=${java.net.URLEncoder.encode("http://127.0.0.1:$port/auth/callback", "UTF-8")}" +
+            "&state=$state"
+
     // ==================== 换 token / 续期 ====================
 
     /** authCode 换凭据（登录第二跳）：body 带 uuid/firstKeyfrom（随凭据永久持久化） */

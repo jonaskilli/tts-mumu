@@ -26,6 +26,31 @@ object TraeChannel : ChatChannel {
     private const val IDE_VERSION = "0.1.52"
     private const val IDE_VERSION_CODE = "20260811"
 
+    // ==================== 登录 URL（17 参数模板，规格书 5.1） ====================
+
+    /**
+     * 登录 URL（17 参数一个不能少，少参数症状「网页停在认证中」）：
+     * machine_id 32hex / device_id 16 数字由调用方生成并持久化（存 extra），
+     * login_trace_id = (machineId+deviceId) 拼接串尾部 16 字符。
+     * 纯函数，不改任何状态。
+     */
+    fun buildLoginUrl(machineId: String, deviceId: String, callbackUrl: String): String {
+        val traceId = (machineId + deviceId).takeLast(16)
+        return "https://www.trae.cn/authorization" +
+            "?login_version=1&auth_from=solo&login_channel=native_ide" +
+            "&plugin_version=$PLUGIN_VERSION" +
+            "&auth_type=local&client_id=$CLIENT_ID&redirect=0" +
+            "&login_trace_id=$traceId" +
+            "&auth_callback_url=${java.net.URLEncoder.encode(callbackUrl, "UTF-8")}" +
+            "&machine_id=$machineId&device_id=$deviceId" +
+            "&x_device_id=$deviceId&x_machine_id=$machineId" +
+            "&x_device_brand=PC&x_device_type=PC&x_os_version=1.0" +
+            "&x_app_version=$IDE_VERSION&x_app_type=stable"
+    }
+
+    /** 插件版本常量（§5.1 pluginVersion=2.3.62834；与 IDE_VERSION_CODE 不是一回事） */
+    private const val PLUGIN_VERSION = "2.3.62834"
+
     // ==================== 续期（ExchangeToken） ====================
 
     override fun refresh(acc: AccountPool.Account): Triple<String, String, Long>? {

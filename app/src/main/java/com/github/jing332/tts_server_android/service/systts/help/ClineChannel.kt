@@ -29,18 +29,32 @@ object ClineChannel : ChatChannel {
 
     // ==================== 设备码登录 ====================
 
-    /** 申请设备码 → (deviceCode, verificationUriComplete, interval 秒)；失败 null */
-    fun startDeviceLogin(): Triple<String, String, Int>? {
+    /** 申请结果：两阶段弹窗需要 user_code/expires_in 透出（规格书 §6.1） */
+    data class DeviceStart(
+        val deviceCode: String, val userCode: String,
+        val verifyUrl: String, val verifyUrlComplete: String,
+        val intervalSec: Int, val expiresInSec: Int, val err: String,
+    ) {
+        companion object {
+            fun err(e: String) = DeviceStart("", "", "", "", 0, 0, e)
+        }
+    }
+
+    /** 申请设备码；失败返回 err 非空 */
+    fun startDeviceLogin(): DeviceStart {
         val r = DeviceCodeLogin.postForm(
             "$WORKOS_BASE/user_management/authorize/device",
             mapOf("client_id" to WORKOS_CLIENT_ID),
         )
-        if (!r.ok) return null
-        val o = JSONObject(r.body)
+        if (!r.ok) return DeviceStart.err("HTTP ${r.code}：${r.body.take(120)}")
+        val o = try { JSONObject(r.body) } catch (_: Exception) { return DeviceStart.err("响应不是 JSON") }
         val dc = o.optString("device_code")
-        val uri = o.optString("verification_uri_complete").ifEmpty { o.optString("verification_uri") }
-        if (dc.isEmpty() || uri.isEmpty()) return null
-        return Triple(dc, uri, o.optInt("interval", 5))
+        if (dc.isEmpty()) return DeviceStart.err("响应缺 device_code")
+        return DeviceStart(
+            dc, o.optString("user_code"),
+            o.optString("verification_uri"), o.optString("verification_uri_complete"),
+            o.optInt("interval", 5), o.optInt("expires_in", 300), "",
+        )
     }
 
     /**
@@ -60,6 +74,32 @@ object ClineChannel : ChatChannel {
         val err = o.optString("error")
         if (!r.ok && err == "authorization_pending") return "PENDING" to null
         if (err == "slow_down") return "PENDING" to null // 调用方负责累积退避
+        if (err == "access_denied") return "DENIED" to null
+        if (err == "expired_token" || err == "invalid_grant") return "EXPIRED" to null
+        val token = o.optString("access_token")
+        if (token.isNotEmpty()) return "OK" to o
+        return "PENDING" to null
+    }
+
+    /**
+     * 轮询一次（区分 slow_down 的扩展版，10-10 两阶段弹窗专用；pollOnce 保持原样未动）。
+     * 返回 PENDING / SLOW_DOWN / DENIED / EXPIRED / ("OK" to json)。
+     * 之所以单独加这个函数：规格书 §6.1 要求 slow_down 必须真退避（interval +1 秒累积），
+     * 而 pollOnce 把 slow_down 归并成了 PENDING，调用方无从感知。
+     */
+    fun pollOnceEx(deviceCode: String): Pair<String, JSONObject?> {
+        val r = DeviceCodeLogin.postForm(
+            "$WORKOS_BASE/user_management/authenticate",
+            mapOf(
+                "grant_type" to "urn:ietf:params:oauth:grant-type:device_code",
+                "device_code" to deviceCode,
+                "client_id" to WORKOS_CLIENT_ID,
+            ),
+        )
+        val o = try { JSONObject(r.body) } catch (_: Exception) { JSONObject() }
+        val err = o.optString("error")
+        if (!r.ok && err == "authorization_pending") return "PENDING" to null
+        if (err == "slow_down") return "SLOW_DOWN" to null
         if (err == "access_denied") return "DENIED" to null
         if (err == "expired_token" || err == "invalid_grant") return "EXPIRED" to null
         val token = o.optString("access_token")

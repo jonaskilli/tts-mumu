@@ -27,12 +27,18 @@ object LoginFlowKind {
     const val WEBVIEW = "webview"
     const val DEVICE_CODE = "device"
     const val CREDENTIAL = "credential"
+    const val QRCODE = "qrcode"
+    const val SMS = "sms"
+    const val CALLBACK = "callback"
 }
 
 /** 渠道 → 登录形态（静态表；与各渠道实现同步维护） */
 fun loginKindOf(provider: String): String = when (provider) {
     "codebuddy" -> LoginFlowKind.WEBVIEW
     "cline", "minimax", "zcode", "qoder" -> LoginFlowKind.DEVICE_CODE
+    "raccoon" -> LoginFlowKind.QRCODE
+    "loomy" -> LoginFlowKind.SMS
+    "trae", "gemini", "lobsterai", "codearts" -> LoginFlowKind.CALLBACK
     else -> LoginFlowKind.CREDENTIAL
 }
 
@@ -54,6 +60,9 @@ fun ChannelPickerDialog(
                         !ch.available -> "对话待接入（可登录管凭据）"
                         kind == LoginFlowKind.DEVICE_CODE -> "设备码授权"
                         kind == LoginFlowKind.WEBVIEW -> "浏览器登录"
+                        kind == LoginFlowKind.QRCODE -> "微信扫码登录"
+                        kind == LoginFlowKind.SMS -> "手机验证码登录"
+                        kind == LoginFlowKind.CALLBACK -> "浏览器授权（本地回调）"
                         else -> "粘贴凭据"
                     }
                     Column(

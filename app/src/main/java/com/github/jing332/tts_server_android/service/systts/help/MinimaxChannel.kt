@@ -25,7 +25,7 @@ object MinimaxChannel : ChatChannel {
 
     // ==================== 登录 ====================
 
-    data class DeviceStart(val deviceCode: String, val userCode: String, val verifyUrl: String, val verifyUrlComplete: String, val intervalSec: Int, val verifier: String, val err: String)
+    data class DeviceStart(val deviceCode: String, val userCode: String, val verifyUrl: String, val verifyUrlComplete: String, val intervalSec: Int, val expiresInSec: Int, val verifier: String, val err: String)
 
     fun startDeviceLogin(): DeviceStart {
         val (verifier, challenge) = DeviceCodeLogin.pkce()
@@ -39,14 +39,14 @@ object MinimaxChannel : ChatChannel {
                 "code_challenge_method" to "S256",
             ),
         )
-        if (!r.ok) return DeviceStart("", "", "", "", 0, "", "HTTP ${r.code}：${r.body.take(120)}")
-        val o = try { JSONObject(r.body) } catch (_: Exception) { return DeviceStart("", "", "", "", 0, "", "响应不是 JSON") }
+        if (!r.ok) return DeviceStart("", "", "", "", 0, 0, "", "HTTP ${r.code}：${r.body.take(120)}")
+        val o = try { JSONObject(r.body) } catch (_: Exception) { return DeviceStart("", "", "", "", 0, 0, "", "响应不是 JSON") }
         val dc = o.optString("device_code")
-        if (dc.isEmpty()) return DeviceStart("", "", "", "", 0, "", "响应缺 device_code")
+        if (dc.isEmpty()) return DeviceStart("", "", "", "", 0, 0, "", "响应缺 device_code")
         return DeviceStart(
             dc, o.optString("user_code"),
             o.optString("verification_uri"), o.optString("verification_uri_complete"),
-            o.optInt("interval", 5), verifier, "",
+            o.optInt("interval", 5), o.optInt("expires_in", 300), verifier, "",
         )
     }
 
