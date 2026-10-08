@@ -426,10 +426,11 @@ internal fun LogScreen(
         // 排版实验 1008（用户 10-08 拍板①）：成员行 forceColor 压制撤除，kidBody 色系
         // 退役——卡内恢复级别色/来源色（25cbf5f 的插件灰青/规则灰紫在卡内重新可见）
         val darkTheme = isSystemInDarkTheme()
-        // 卡片底色（浅/深）；排版实验 1008（拍板②）：#F6F5F8→#F1F0F4——与页面底
-        // #FBF7F1 拉开一档，卡片形制本身可见。报错三件套（拍板）：粉底分两档——
-        // 仅 WARN 淡琥珀、含 ERROR 红粉，扫一眼分清"出错"还是"只是警告"
-        val cardBgOk = if (darkTheme) Color(0xFF232527) else Color(0xFFF1F0F4)
+        // 卡片底色（用户 10-08 拍板对齐全站）：surfaceVariant@20%——与设置页分区卡/
+        // 编辑页 SectionCard 同源（SettingsWidgets 同款注释：比页面底略深一眼认出分区、
+        // 不抢内容），深浅色主题自动正确，此前手写的浅/深死值全部退役。
+        // 报错分档保留信号色：仅 WARN 淡琥珀、含 ERROR 红粉（信号色允许偏离底色系）
+        val cardBgOk = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.20f)
         val cardBgWarn = if (darkTheme) Color(0xFF3A3226) else Color(0xFFFDF8E8)
         val cardBgErr = if (darkTheme) Color(0xFF3A2626) else Color(0xFFFDF0F0)
         // 获取成功前缀：石板灰 Blue Grey 800/200
@@ -583,7 +584,7 @@ internal fun LogScreen(
                                     voiceColor = voiceColor,
                                     // 排版实验 1008（A 二轮，用户 10-08 午后令）：主行 16→14sp
                                     fontSize = 14.sp,
-                                    lineHeight = MaterialTheme.typography.bodyMedium.lineHeight * 1.15f, // 排版实验 1008（P1）：0.9→1.15 解正文/发音人段挤压
+                                    lineHeight = fontSize * 1.3f, // 排版实验 1008（行距定版）：统一字号×1.3 节奏，疏密靠字号差递减
                                     // 命中高亮已在整行背景，正文不再叠一层
                                     isMatch = false,
                                     highlight = log == locateHighlight,
@@ -603,11 +604,10 @@ internal fun LogScreen(
                             }
                             Column(
                                 modifier = Modifier
-                                    // 排版实验 1008（D）：卡外距 6→10dp，两侧留白与密钥页口径靠拢
-                                    // 用户 10-08 午后补令：底色必须撑满右缘——Column 缺 fillMaxWidth
-                                    // 时按内容收缩，短文本卡右侧露底色空档
+                                    // 排版实验 1008（用户 10-08 拍板对齐全站）：外距 10→16dp
+                                    //（ListGutter 线，与设置页分区卡 sectionCardMargin 同值）
                                     .fillMaxWidth()
-                                    .padding(horizontal = 10.dp, vertical = 3.dp)
+                                    .padding(horizontal = 16.dp, vertical = 3.dp)
                                     .clip(RoundedCornerShape(12.dp))
                                     .background(cardBg)
                                     .then(
@@ -621,9 +621,9 @@ internal fun LogScreen(
                                         // 非多选：点卡弹快捷面板（换发音人），锚定请求主行
                                         else Modifier.clickable { quickPanelEntry = head }
                                     )
-                                    // 排版实验 1008（拍板③，用户 10-08）：卡内衬 11→5dp——
-                                    // 外距10+内衬5≈全站16dp 左缘线；成员行缩进同步撤（拍板④）
-                                    .padding(start = 5.dp, end = 11.dp, top = 8.dp, bottom = 8.dp)
+                                    // 卡内水平衬 8dp（cardRowHorizontalPadding 同值，设置页
+                                    // 分区卡同款）；外距16+内衬8=正文左缘 24 全站照应
+                                    .padding(start = 8.dp, end = 8.dp, top = 8.dp, bottom = 8.dp)
                             ) {
                                 // 前置区：本次请求前的规则分析行（级别色照旧，字号小一档）
                                 if (item.pre.isNotEmpty()) {
@@ -636,7 +636,7 @@ internal fun LogScreen(
                                             voiceColor = voiceColor,
                                             // 排版实验 1008（A）：前置分析行 13→12sp（第三档）
                                             fontSize = 12.sp,
-                                            lineHeight = 16.sp,
+                                            lineHeight = 16.sp, // 12×1.3≈15.6，取16
                                             isMatch = isMatchEntry(p, searchQuery),
                                             highlight = p == locateHighlight,
                                         )
@@ -704,7 +704,7 @@ internal fun LogScreen(
                                     // 排版实验 1008（A 二轮，用户 10-08 午后令）：主行 16→14sp，
                                     // 半粗保留；与成员行 13sp/前置行 12sp 每档差 1sp 层层递减
                                     fontSize = 14.sp,
-                                    lineHeight = MaterialTheme.typography.bodyMedium.lineHeight * 1.15f, // 排版实验 1008（P1）：0.9→1.15 解正文/发音人段挤压
+                                    lineHeight = fontSize * 1.3f, // 排版实验 1008（行距定版）：统一字号×1.3 节奏，疏密靠字号差递减
                                     isMatch = isMatchEntry(head, searchQuery),
                                     // 排版实验 1008（C）：只染"请求音频："前缀，正文回默认色
                                     isRequestHead = true,
@@ -746,7 +746,7 @@ internal fun LogScreen(
                                             voiceColor = voiceColor,
                                             // 排版实验 1008（A）：成员行 14→13sp，与主行 16sp 拉开
                                             fontSize = 13.sp,
-                                            lineHeight = 18.sp,
+                                            lineHeight = 17.sp, // 13×1.3≈16.9
                                             isMatch = isMatchEntry(m, searchQuery),
                                             // 排版实验 1008（用户 10-08 拍板①）：撤 forceColor
                                             // 统一压制——卡内恢复各自行本来的级别色/来源色
@@ -771,7 +771,9 @@ internal fun LogScreen(
         AnimatedVisibility(
             modifier = Modifier
                 .align(Alignment.BottomCenter)
-                .padding(48.dp),
+                // 键缩小后 48dp 遗留外距把键顶离屏底太远（用户 10-08：太靠上）→20dp，
+                // 拇指自然可及也不压底栏
+                .padding(bottom = 20.dp),
             visible = !isAtBottom,
             enter = fadeIn() + expandIn(expandFrom = Alignment.BottomCenter),
             exit = shrinkOut(shrinkTowards = Alignment.BottomCenter) + fadeOut(),
