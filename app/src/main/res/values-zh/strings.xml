@@ -818,6 +818,7 @@
     <string name="role_key_delete_batch_text">确定删除「%1$s」中选中的 %2$d 条密钥？不可恢复。</string>
     <string name="role_key_pool_title">启用池</string>
     <string name="role_key_pool_open">启用池(%1$d)</string>
+    <string name="role_key_pool_short">池(%1$d)</string>
     <string name="role_key_pool_empty">尚未启用任何密钥。\n在密钥管理点右上角「多选」，勾选后加入启用池。</string>
     <string name="role_key_pool_stale">密钥管理中已无对应条目</string>
     <string name="role_key_pool_test_all">测试全部</string>
