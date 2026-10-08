@@ -25,6 +25,11 @@ object SseAggregator {
      * @param bodyJson 请求体 JSON（原样发送；本桥强制覆写 stream=true）
      * @param cancelled 取消钩子（可传 { false }）
      * @return (成功?, 非流式格式 JSON 或错误信息)；HTTP 失败/解析失败都走第二参
+     *
+     * 半截内容纪律（移植自 dsh-phone buddy-adapter「已有流输出后不换号不重放」）：
+     * 流异常中断（未收到 finish_reason/[DONE]）但已聚合出非空 content 时，返回成功
+     * JSON 且 finish_reason="length"（OpenAI 标准截断记号）——绝不冒充 "stop"，也
+     * 绝不报失败（失败会让 chatCompletionWithPool 换号重放整轮请求）。
      */
     fun chatCompletion(
         baseUrl: String,
@@ -51,6 +56,10 @@ object SseAggregator {
         }
 
         var conn: HttpURLConnection? = null
+        // 提升到 try 外：catch 的半截内容兜底要读它们（流中断时已有聚合内容的判据）
+        val content = StringBuilder()
+        var usageJson: String? = null
+        var model = ""
         return try {
             conn = (java.net.URL(url).openConnection() as HttpURLConnection).apply {
                 requestMethod = "POST"
@@ -75,10 +84,10 @@ object SseAggregator {
                 val err = conn.errorStream?.bufferedReader(Charsets.UTF_8)?.use { it.readText() } ?: ""
                 return false to "HTTP $code：${err.take(180).ifEmpty { "无响应内容" }}"
             }
-            val content = StringBuilder()
-            var usageJson: String? = null
-            var model = ""
             var finishReason: String? = null
+            // 半截内容判据：流是否正常收尾（[DONE] 或读到 finish_reason）。
+            // 未收尾 + content 非空 = 半截内容，见上方纪律注释。
+            var streamEnded = false
             conn.inputStream.bufferedReader(Charsets.UTF_8).use { reader ->
                 while (true) {
                     if (cancelled.isCancelled()) return false to "已取消"
@@ -86,7 +95,7 @@ object SseAggregator {
                     if (!line.startsWith("data:")) continue
                     val payload = line.removePrefix("data:").trim()
                     if (payload.isEmpty()) continue
-                    if (payload == "[DONE]") break
+                    if (payload == "[DONE]") { streamEnded = true; break }
                     try {
                         val o = org.json.JSONObject(payload)
                         if (o.optString("model").isNotEmpty()) model = o.optString("model")
@@ -96,7 +105,7 @@ object SseAggregator {
                             // delta（流式）优先，message 兜底（上游某些网关会把聚合帧伪装成 message）
                             val delta = c.optJSONObject("delta") ?: c.optJSONObject("message")
                             delta?.optString("content")?.let { if (it.isNotEmpty()) content.append(it) }
-                            c.optString("finish_reason").takeIf { it.isNotEmpty() }?.let { finishReason = it }
+                            c.optString("finish_reason").takeIf { it.isNotEmpty() }?.let { finishReason = it; streamEnded = true }
                         }
                         o.optJSONObject("usage")?.let { usageJson = it.toString() }
                     } catch (e: Exception) {
@@ -105,6 +114,12 @@ object SseAggregator {
                 }
             }
             if (content.isEmpty()) return false to "流式响应无内容（finish=$finishReason）"
+
+            // 半截内容：已向调用方聚合出非空 content，但流没正常收尾（既无 [DONE] 也无
+            // finish_reason）——dsh-phone buddy-adapter 纪律：绝不报失败让轮换循环换号重放
+            // （重放会产出两段拼接的回答），把已有内容按截断结果返回。finish_reason 用
+            // OpenAI 标准截断记号 "length"，不冒充 "stop"，调用方可据此区分完整/截断。
+            if (!streamEnded) finishReason = "length"
 
             // 包回非流式标准形状，调用方原解析零改动
             val out = org.json.JSONObject()
@@ -116,6 +131,20 @@ object SseAggregator {
             usageJson?.let { out.put("usage", org.json.JSONObject(it)) }
             true to out.toString()
         } catch (e: Exception) {
+            // 半截内容纪律同款：流中途异常（网络断流等）但已聚合出非空 content 时，
+            // 绝不报失败——失败会触发账号池换号重放（前半 A 账号 + 后半 B 账号的拼接
+            // 回答）。把已聚合内容包成截断结果（finish_reason="length"）返回。这是
+            // 网络断流不是账号的错，走成功路径也天然不给该账号记限流标记。
+            if (content.isNotEmpty()) {
+                val out = org.json.JSONObject()
+                out.put("model", model)
+                out.put("choices", org.json.JSONArray().put(org.json.JSONObject().apply {
+                    put("message", org.json.JSONObject().put("role", "assistant").put("content", content.toString()))
+                    put("finish_reason", "length")
+                }))
+                usageJson?.let { out.put("usage", org.json.JSONObject(it)) }
+                return true to out.toString()
+            }
             false to (e.message ?: e.toString())
         } finally {
             conn?.disconnect()
@@ -154,6 +183,12 @@ object SseAggregator {
         var sawAuthFail = false
         var lastErr = ""
         while (true) {
+            // ⚠️ 半截内容纪律（移植自 dsh-phone buddy-adapter.js:410「已吐了一半再重放」/
+            // :1662「本轮不重发」）：轮换只允许发生在**零内容失败**上。chatCompletion 保证
+            // 已聚合出非空 content 后的中断/异常一律按截断结果返回 ok=true，走不到这里；
+            // 因此本轮请求若已向调用方吐出过可见内容，绝不会换号重发——换号重放会产生
+            // 两段拼接（前半 A 账号 + 后半 B 账号）甚至重复播报的回答，正确行为是保留
+            // 已有内容/原错误返回给调用方。
             val (ok, body) = chatCompletion(baseUrl, currentKey, effectiveBody, cancelled, channel, model)
 
             if (ok) return true to body

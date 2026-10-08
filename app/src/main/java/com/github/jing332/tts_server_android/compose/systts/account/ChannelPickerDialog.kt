@@ -41,7 +41,7 @@ fun loginKindOf(provider: String): String = when (provider) {
     "codebuddy", "workbuddy" -> LoginFlowKind.WEBVIEW // workbuddy 同为 auth/state 轮询链（10-09 接入）
     "cline", "minimax", "zcode", "qoder" -> LoginFlowKind.DEVICE_CODE
     "raccoon" -> LoginFlowKind.QRCODE
-    "loomy" -> LoginFlowKind.SMS
+    "loomy", "autoclaw" -> LoginFlowKind.SMS // autoclaw 10-08：短信验证码（SmsLoginDialog provider 分流）
     "trae", "gemini", "lobsterai", "codearts" -> LoginFlowKind.CALLBACK
     "opencode" -> LoginFlowKind.OPENCODE // 一键匿名+控制台引导（无 OAuth 流，官方形态）
     else -> LoginFlowKind.CREDENTIAL

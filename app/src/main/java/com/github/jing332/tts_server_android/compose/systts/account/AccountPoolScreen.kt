@@ -96,7 +96,8 @@ fun AccountPoolScreen(onBack: () -> Unit) {
     var deviceLoginChannel by remember { mutableStateOf<String?>(null) }
     var credentialChannel by remember { mutableStateOf<String?>(null) }
     var qrcodeLoginOpen by remember { mutableStateOf(false) }
-    var smsLoginOpen by remember { mutableStateOf(false) }
+    // 短信登录（10-08 autoclaw 增）：记 provider 字符串（loomy/autoclaw），null=不弹
+    var smsLoginOpen by remember { mutableStateOf<String?>(null) }
     var callbackChannel by remember { mutableStateOf<String?>(null) }
     var opencodeLoginOpen by remember { mutableStateOf(false) }
     val timeFmt = remember { SimpleDateFormat("MM-dd HH:mm", Locale.getDefault()) }
@@ -304,7 +305,7 @@ fun AccountPoolScreen(onBack: () -> Unit) {
                     }
                     LoginFlowKind.DEVICE_CODE -> deviceLoginChannel = ch.id
                     LoginFlowKind.QRCODE -> qrcodeLoginOpen = true
-                    LoginFlowKind.SMS -> smsLoginOpen = true
+                    LoginFlowKind.SMS -> smsLoginOpen = ch.id
                     LoginFlowKind.CALLBACK -> callbackChannel = ch.id
                     LoginFlowKind.OPENCODE -> opencodeLoginOpen = true
                     else -> credentialChannel = ch.id
@@ -340,11 +341,12 @@ fun AccountPoolScreen(onBack: () -> Unit) {
             },
         )
     }
-    if (smsLoginOpen) {
+    smsLoginOpen?.let { smsProvider ->
         SmsLoginDialog(
-            onDismiss = { smsLoginOpen = false },
+            provider = smsProvider,
+            onDismiss = { smsLoginOpen = null },
             onDone = { nick ->
-                smsLoginOpen = false
+                smsLoginOpen = null
                 context.toast("已添加：$nick")
                 reload()
             },

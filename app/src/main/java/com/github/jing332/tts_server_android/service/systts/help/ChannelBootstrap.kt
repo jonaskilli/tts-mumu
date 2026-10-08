@@ -26,5 +26,6 @@ object ChannelBootstrap {
         ChatChannels.register(LoomyChannel)
         ChatChannels.register(RaccoonChannel)
         ChatChannels.register(QoderChannel)
+        ChatChannels.register(AutoclawChannel) // 10-08 第 13 渠道（短信登录，SmsLoginDialog provider=autoclaw）
     }
 }
