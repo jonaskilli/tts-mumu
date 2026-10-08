@@ -44,7 +44,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.rotate
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
@@ -244,7 +243,6 @@ internal fun SwitchPreference(
     title: @Composable () -> Unit,
     subTitle: @Composable () -> Unit,
     icon: (@Composable () -> Unit)? = null,
-    iconContainerColor: Color? = null,
 
     checked: Boolean,
     onCheckedChange: (Boolean) -> Unit,
@@ -264,7 +262,6 @@ internal fun SwitchPreference(
         title = title,
         subTitle = subTitle,
         icon = icon,
-        iconContainerColor = iconContainerColor,
         content = {
             Switch(
                 checked = checked,
@@ -287,8 +284,6 @@ internal fun BasePreferenceWidget(
     // 图标槽（10-10 用户令：照预览 D「矢量 + 圆底」——所有设置行统一戴一枚圆角底衬）。
     // 改为可空：不传图标就不出底衬，避免出现一块空的圆角色块。
     icon: (@Composable () -> Unit)? = null,
-    /** 图标底衬色；不传则用主题色 14%（危险行可传 error 系保持同色系） */
-    iconContainerColor: Color? = null,
     /** 行可点又没有自带右侧控件时是否补 ›（纯动作行可关掉，见调用点） */
     showChevron: Boolean = true,
     content: (@Composable RowScope.() -> Unit)? = null,
@@ -308,15 +303,19 @@ internal fun BasePreferenceWidget(
         .semantics(true) {}
     ) {
         if (icon != null) {
-            // 40dp 圆角底衬 + 24dp 矢量图标 = 60%，M3 对矢量图标规定的比例
+            // 图标底衬（10-10 用户拍板 E 案：中性灰 + 缩到 36dp）。
+            // 前版是 40dp + primary@14%，在「绿色」主题（primary #006D3A，饱和度 1.00）下
+            // 渲染成明显的薄荷绿块，整列一行行发绿（用户实机反馈「改完好丑」）；
+            // 根因=底衬跟着主色走，主色越饱和底衬越跳 ⇒ 改为**不掺主色**的中性灰，
+            // 主题色只留在图标上（跨主题都稳：换蓝/红主题也不会变成一片蓝/一片红）。
+            // 36dp 与图标 24dp 同为 2:3，比例不变（此前 40:24 是 M3 对矢量图标的 60%）。
             Box(
                 modifier = Modifier
                     .align(Alignment.CenterVertically)
-                    .size(40.dp)
-                    .clip(RoundedCornerShape(12.dp))
+                    .size(36.dp)
+                    .clip(RoundedCornerShape(11.dp))
                     .background(
-                        iconContainerColor
-                            ?: MaterialTheme.colorScheme.primary.copy(alpha = 0.14f)
+                        MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.08f)
                     ),
                 contentAlignment = Alignment.Center
             ) {

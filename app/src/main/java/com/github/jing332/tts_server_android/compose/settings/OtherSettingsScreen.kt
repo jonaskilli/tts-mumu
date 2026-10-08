@@ -139,8 +139,9 @@ internal fun ColumnScope.OtherSettingsScreen(
                     tint = MaterialTheme.colorScheme.error
                 )
             },
-            // 危险行动作与图标都是 error 系，底衬跟着同色，不跟着全站主题绿（10-10 圆底批）
-            iconContainerColor = MaterialTheme.colorScheme.error.copy(alpha = 0.14f),
+            // 底衬不再单独给红：10-10 E 案后全站底衬是中性灰，红图标压灰底本就干净
+            //（原先给红底衬的前提是「不压主题绿底」，该前提已随底衬改色失效）。
+            // 危险信号由 error 红的标题 + 图标承担，不必再叠一层色块。
         )
     }
     }
