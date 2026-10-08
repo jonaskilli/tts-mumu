@@ -598,46 +598,45 @@ object AccountPool {
         val ch = ChatChannels.byProvider(acc.provider)
         val baseUrl = ch?.chatBaseUrl ?: "https://$CHAT_HOST/v2"
         val displayName = ch?.displayName ?: "CodeBuddy"
-        // 模型清单按渠道取（workbuddy 是静态表，不落 CodeBuddy 的 /v3/config）
-        val model = ch?.fetchModels(acc.accessToken)?.firstOrNull()
-            ?: runCatching { fetchModels(acc.accessToken).first.first() }
-                .getOrElse { builtinModels().first() }
         val ifaces = KeyListFile.readInterfaces(tagRuleId)
         val keys = KeyListFile.readKeys(tagRuleId)
-        val value = "$baseUrl@@$model@@${acc.accessToken}"
-        // 去重判据与分组同口径：同站点+同钥+同模型
+        // 组归并（10-10 用户定稿：一个平台一个分组，几个账号都进同一组）：
+        // 判据只看站点（sameApiSite），同站即归组——组名被用户改过也能归上。
+        // 组级 Key 只在**建组时**写（首个账号的）；后来者的凭据全靠密钥条目自身 key 段。
+        val targetIfc = ifaces.firstOrNull { KeyListFile.sameApiSite(it.baseUrl, baseUrl) }
+        // 模型清单不自动塞（10-10 用户令）：组里有什么模型完全由用户「拉取模型」决定，
+        // 账号登录只落分组+密钥条目，杜绝「乱七八糟不匹配的模型」。
+        // 条目去重判据：同站点+同钥（模型段不再参与——同账号只落一条）
         val dup = keys.any {
             val p = KeyListFile.parseKeyValue(it.value)
             p != null && !p.isDirect && KeyListFile.sameApiSite(p.url, baseUrl) &&
-                p.key == acc.accessToken && p.model == model
+                p.key == acc.accessToken
         }
-        if (dup) return false to "已在密钥管理（$displayName / $model），无需重复添加"
+        if (dup) return false to "已在密钥管理（$displayName），无需重复添加"
 
-        // 接口分组：同站点同名复用并把模型补进清单（⚠️ 不覆盖已有组级 Key——组级 Key
-        // 属于先到的账号，后来者靠密钥条目自身的 key 段对话，覆盖会顶掉别人的凭据）；
-        // 没有则按渠道新建组（带组级 Key）
-        val updatedIfaces = if (ifaces.any { KeyListFile.sameApiSite(it.baseUrl, baseUrl) && it.name == displayName }) {
-            ifaces.map {
-                if (KeyListFile.sameApiSite(it.baseUrl, baseUrl) && it.name == displayName && model !in it.models)
-                    it.copy(models = it.models + model)
-                else it
-            }
-        } else {
-            ifaces + KeyListFile.ApiInterface(
-                name = displayName,
-                baseUrl = baseUrl,
-                apiKey = acc.accessToken,
-                models = listOf(model),
-            )
-        }
+        // 条目模型段取该组第一个模型（对话链按组模型发；组暂无模型=空串占位，
+        // 用户拉模型后重进池页会幂等补齐为真模型名）
+        val model = targetIfc?.models?.firstOrNull().orEmpty()
+        val value = "$baseUrl@@$model@@${acc.accessToken}"
+
+        val updatedIfaces = if (targetIfc != null) ifaces
+        else ifaces + KeyListFile.ApiInterface(
+            name = displayName,
+            baseUrl = baseUrl,
+            apiKey = acc.accessToken,
+            models = emptyList(), // 模型清单留空，等用户拉取
+        )
         val newKeys = keys + KeyListFile.KeyEntry(
-            name = KeyListFile.dedupName(model, keys.map { it.name }.toSet()),
+            name = KeyListFile.dedupName(
+                model.ifEmpty { "${displayName}Key" },
+                keys.map { it.name }.toSet()
+            ),
             keyCode = KeyListFile.nextKeyCode(keys),
             value = value,
         )
         KeyListFile.saveInterfaces(tagRuleId, updatedIfaces)
         KeyListFile.saveKeys(tagRuleId, newKeys)
-        return true to "已添加：$displayName / $model"
+        return true to "已添加：$displayName（模型请在该分组拉取）"
     }
 
     /**
