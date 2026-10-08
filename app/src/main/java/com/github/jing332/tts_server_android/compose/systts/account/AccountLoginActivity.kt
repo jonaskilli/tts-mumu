@@ -71,6 +71,11 @@ class AccountLoginActivity : ComposeActivity() {
             finish()
             return
         }
+        // 清 Cookie（10-10 实锤：WebView 共享全局 CookieManager，登录第二个号时页面上
+        // 还带着第一个号的会话，轮询 2s 内拿到的是旧号 token → 同身份被判「已更新」，
+        // 永远加不进第二个号）。在 WebView 创建前清一次，不影响已登录的其他 app。
+        android.webkit.CookieManager.getInstance().removeAllCookies(null)
+        android.webkit.CookieManager.getInstance().flush()
 
         // 轮询凭据：浏览器登录成功前 token 接口返回未授权/空，成功即返回 access_token。
         // 5 分钟上限，到点静默结束（用户可自行关闭页面）

@@ -106,6 +106,9 @@ fun AccountPoolScreen(onBack: () -> Unit) {
         accounts = withContext(Dispatchers.IO) {
             // 存量迁移（10-08）：旧版 addAsKey 落的裸域名会 302 空流，进页顺手修（幂等）
             runCatching { AccountPool.migrateLegacyKeyUrls(KeyListFile.DEFAULT_TAG_RULE_ID) }
+            // 渠道错位迁移（10-10）：旧版 addAsKey 把 workbuddy 等渠道硬挂 CodeBuddy 上游
+            // → 网关 401 + 「copilot」串组，进页顺手改回各自渠道（幂等）
+            runCatching { AccountPool.migrateWrongChannelKeyUrls(KeyListFile.DEFAULT_TAG_RULE_ID) }
             AccountPool.load()
         }
     }

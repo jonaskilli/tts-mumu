@@ -583,19 +583,25 @@ object AccountPool {
     // ==================== 一键添加为密钥（10-08：账号即凭据，照原插件免手填） ====================
 
     /**
-     * 把账号直接落成密钥管理的一条密钥：网址=CodeBuddy 上游、Key=该账号 access_token、
+     * 把账号直接落成密钥管理的一条密钥：网址=该账号渠道的上游、Key=该账号 access_token、
      * 模型=清单第一个（拉不到用内置默认）。接口分组同名复用、密钥条目按（站点+钥+模型）
      * 去重——重复点不会堆重复条目。免复制粘贴、免见令牌本体（原插件「登录即用」的形态）。
      * @param tagRuleId 密钥归属规则（现两入口都传 mingwuyan）
      * @return (是否新增, 提示)；已存在= false + 说明文案
      */
     fun addAsKey(tagRuleId: String, acc: Account): Pair<Boolean, String> {
-        // 必须带 /v2（10-08 真机实锤）：裸 https://copilot.tencent.com 拼出 /chat/completions
-        // 被网关 302 跳 www.codebuddy.cn，HttpURLConnection 静默跟随且 POST 降 GET，
-        // 拿回 200 非 SSE 页面 → 「流式响应无内容 finish=null」。鉴权/拉模型路径本来就带 /v2。
-        val baseUrl = "https://$CHAT_HOST/v2"
-        val model = runCatching { fetchModels(acc.accessToken).first.first() }
-            .getOrElse { builtinModels().first() }
+        // 按渠道取上游与展示名（10-10 实锤修复：原先所有渠道硬编码 CodeBuddy 上游，
+        // workbuddy 号被落到 copilot.tencent.com/v2 → 网关 401，还被 heal 自愈成
+        // 「copilot」组并把 CodeBuddy 组级 Key 覆盖掉，模型串组）。
+        // 渠道实现在 ChatChannels 注册表里，codebuddy 不迁（历史原因见 ChatChannel.kt 头注）。
+        ChannelBootstrap.install() // 幂等
+        val ch = ChatChannels.byProvider(acc.provider)
+        val baseUrl = ch?.chatBaseUrl ?: "https://$CHAT_HOST/v2"
+        val displayName = ch?.displayName ?: "CodeBuddy"
+        // 模型清单按渠道取（workbuddy 是静态表，不落 CodeBuddy 的 /v3/config）
+        val model = ch?.fetchModels(acc.accessToken)?.firstOrNull()
+            ?: runCatching { fetchModels(acc.accessToken).first.first() }
+                .getOrElse { builtinModels().first() }
         val ifaces = KeyListFile.readInterfaces(tagRuleId)
         val keys = KeyListFile.readKeys(tagRuleId)
         val value = "$baseUrl@@$model@@${acc.accessToken}"
@@ -605,18 +611,20 @@ object AccountPool {
             p != null && !p.isDirect && KeyListFile.sameApiSite(p.url, baseUrl) &&
                 p.key == acc.accessToken && p.model == model
         }
-        if (dup) return false to "已在密钥管理（CodeBuddy / $model），无需重复添加"
+        if (dup) return false to "已在密钥管理（$displayName / $model），无需重复添加"
 
-        // 接口分组：同站点同名复用并把模型补进清单；没有则新建「CodeBuddy」组（带组级 Key）
-        val updatedIfaces = if (ifaces.any { KeyListFile.sameApiSite(it.baseUrl, baseUrl) && it.name == "CodeBuddy" }) {
+        // 接口分组：同站点同名复用并把模型补进清单（⚠️ 不覆盖已有组级 Key——组级 Key
+        // 属于先到的账号，后来者靠密钥条目自身的 key 段对话，覆盖会顶掉别人的凭据）；
+        // 没有则按渠道新建组（带组级 Key）
+        val updatedIfaces = if (ifaces.any { KeyListFile.sameApiSite(it.baseUrl, baseUrl) && it.name == displayName }) {
             ifaces.map {
-                if (KeyListFile.sameApiSite(it.baseUrl, baseUrl) && it.name == "CodeBuddy" && model !in it.models)
-                    it.copy(models = it.models + model, apiKey = acc.accessToken)
+                if (KeyListFile.sameApiSite(it.baseUrl, baseUrl) && it.name == displayName && model !in it.models)
+                    it.copy(models = it.models + model)
                 else it
             }
         } else {
             ifaces + KeyListFile.ApiInterface(
-                name = "CodeBuddy",
+                name = displayName,
                 baseUrl = baseUrl,
                 apiKey = acc.accessToken,
                 models = listOf(model),
@@ -629,7 +637,7 @@ object AccountPool {
         )
         KeyListFile.saveInterfaces(tagRuleId, updatedIfaces)
         KeyListFile.saveKeys(tagRuleId, newKeys)
-        return true to "已添加：CodeBuddy / $model"
+        return true to "已添加：$displayName / $model"
     }
 
     /**
@@ -659,6 +667,76 @@ object AccountPool {
             KeyListFile.saveInterfaces(tagRuleId, newIfaces)
             KeyListFile.saveKeys(tagRuleId, newKeys)
             appLog(LogLevel.SUCCESS, "Jet：已把 $n 处旧网址补上 /v2（302 空流修复）")
+        }
+        return n
+    }
+
+    /**
+     * 渠道错位迁移（10-10 真机实锤）：旧版 addAsKey 把所有渠道硬编码 CodeBuddy 上游，
+     * workbuddy 等渠道的号被落到 copilot.tencent.com/v2 → 网关 401，还被 heal 自愈出
+     * 「copilot」组、顶掉 CodeBuddy 组级 Key。按账号渠道把密钥条目网址段改回各自上游、
+     * 把落错的接口组归位（组级 Key 先还原给本站账号，无人认领才整组改挂该渠道上游），
+     * 改挂后同站+同钥的重复组合并（模型取并集）。幂等：站点已一致的不动。
+     * @return 修过的条目/组数（0=无需迁移）
+     */
+    fun migrateWrongChannelKeyUrls(tagRuleId: String): Int {
+        ChannelBootstrap.install() // 幂等
+        val accounts = load()
+        val channelByToken = accounts.mapNotNull { acc ->
+            ChatChannels.byProvider(acc.provider)?.let { ch -> acc.accessToken to ch }
+        }.toMap()
+        if (channelByToken.isEmpty()) return 0
+        var n = 0
+        var keys = KeyListFile.readKeys(tagRuleId)
+        val ifaces = KeyListFile.readInterfaces(tagRuleId)
+
+        // ① 密钥条目：key 段命中账号、站点与该渠道上游不符 → 网址段改回渠道上游
+        keys = keys.map { e ->
+            val p = KeyListFile.parseKeyValue(e.value) ?: return@map e
+            if (p.isDirect) return@map e
+            val ch = channelByToken[p.key] ?: return@map e
+            if (KeyListFile.sameApiSite(p.url, ch.chatBaseUrl)) e
+            else { n++; e.copy(value = "${ch.chatBaseUrl}@@${p.model}@@${p.key}") }
+        }
+
+        // ② 接口组：组级 Key 命中账号但站点与该渠道上游不符 →
+        //    本站有该渠道（与组同站）的密钥条目 = 组级 Key 被别人顶了，还原给本站条目；
+        //    没有 = 整组落错站，改挂该渠道上游并按渠道改名
+        val allNames = ifaces.map { it.name }.toMutableSet()
+        val rebased = ifaces.map { ifc ->
+            val acc = accounts.firstOrNull { it.accessToken == ifc.apiKey.trim() } ?: return@map ifc
+            val ch = ChatChannels.byProvider(acc.provider) ?: return@map ifc
+            if (KeyListFile.sameApiSite(ifc.baseUrl, ch.chatBaseUrl)) return@map ifc
+            n++
+            val nativeKey = keys.firstNotNullOfOrNull { e ->
+                val p = KeyListFile.parseKeyValue(e.value)
+                if (p == null || p.isDirect || !KeyListFile.sameApiSite(p.url, ifc.baseUrl)) null
+                else channelByToken[p.key]
+                    ?.takeIf { KeyListFile.sameApiSite(it.chatBaseUrl, ifc.baseUrl) }
+                    ?.let { p.key }
+            }
+            if (nativeKey != null) ifc.copy(apiKey = nativeKey)
+            else {
+                val nm = KeyListFile.uniqueIfcName(ch.displayName, allNames)
+                allNames.add(nm)
+                ifc.copy(baseUrl = ch.chatBaseUrl, name = nm)
+            }
+        }
+
+        // ③ 改挂后同站+同钥的组去重合并（保先出现的名字，模型取并集）
+        val merged = LinkedHashMap<String, KeyListFile.ApiInterface>()
+        rebased.forEach { ifc ->
+            val k = ifc.baseUrl.trimEnd('/') + "@" + ifc.apiKey.trim()
+            val ex = merged[k]
+            merged[k] = if (ex == null) ifc else ex.copy(models = (ex.models + ifc.models).distinct())
+        }
+        val newIfaces = merged.values.toList()
+
+        val ifcChanged = newIfaces != ifaces
+        if (n > 0 || ifcChanged) {
+            if (ifcChanged) KeyListFile.saveInterfaces(tagRuleId, newIfaces)
+            KeyListFile.saveKeys(tagRuleId, keys)
+            if (n > 0) appLog(LogLevel.SUCCESS, "Jet：已把 $n 处错挂到 CodeBuddy 上游的条目/分组改回各自渠道（401 修复）")
         }
         return n
     }
