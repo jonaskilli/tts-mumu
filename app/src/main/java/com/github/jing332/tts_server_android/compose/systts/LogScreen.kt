@@ -791,24 +791,37 @@ private fun LogEntryBody(
             .remapMetaColor(metaColor, voiceColor)
         var s = base
         if (isRequestHead) {
-            // 前缀 = 首个"："及之前的段（"请求音频："）；前缀 span 染深绿盖过级别色，
-            // 正文色不在此处理——由外层 Text 的统一 color（onSurface）兜
+            // 排版实验 1008（字号真分层，用户 10-08 拍板）：主行内三段三个字号——
+            // 前缀 13sp / 正文 14sp（<b> 加粗承担字重）/ 声音信息 12sp。
+            // 段界：前缀=首个"："及之前；声音信息=哨兵色 span（remapMetaColor 后已是
+            // 雾紫/石板灰目标色）；两者之间=正文。
             val prefixEnd = base.text.indexOf("：").let { if (it >= 0) it + 1 else 0 }
-            if (prefixEnd > 0) {
-                s = buildAnnotatedString {
-                    append(base.text)
-                    base.spanStyles.forEach { r ->
-                        // 与前缀区间重叠的 span（级别色绿）改染前缀色；
-                        // 不重叠的 span（正文 <b>、哨兵色次级段）原样保留
-                        val overlapsPrefix = r.start < prefixEnd
-                        addStyle(
-                            if (overlapsPrefix) r.item.copy(
-                                color = if (darkTheme) RequestPrefixColorDark else RequestPrefixColorLight
-                            ) else r.item,
-                            r.start,
-                            r.end
+            // 声音信息段起点 = 首个哨兵色重映射 span 的 start（remapMetaColor 只对
+            // MetaColorSentinel/VoiceMetaSentinel 换色，其余 span 不动，可靠定位）
+            val metaStart = base.spanStyles
+                .firstOrNull { it.item.color == voiceColor }?.start ?: base.text.length
+            s = buildAnnotatedString {
+                append(base.text)
+                base.spanStyles.forEach { r ->
+                    var item = r.item
+                    if (r.start < prefixEnd) {
+                        // 前缀：染深绿 + 13sp
+                        item = item.copy(
+                            color = if (darkTheme) RequestPrefixColorDark else RequestPrefixColorLight,
+                            fontSize = 13.sp,
                         )
+                    } else if (r.start >= metaStart && metaStart < base.text.length) {
+                        // 声音信息：哨兵色已换好目标色，只压到 12sp
+                        item = item.copy(fontSize = 12.sp)
                     }
+                    addStyle(item, r.start, r.end)
+                }
+                // 前缀段可能无 span 覆盖（级别色是 Text 整体 color，不是 span）：
+                // 显式补一个 13sp span
+                if (prefixEnd > 0) addStyle(SpanStyle(fontSize = 13.sp), 0, prefixEnd)
+                // 声音信息段若无 span 覆盖（整段哨兵色必有 span，此处兜底）：补 12sp
+                if (metaStart < base.text.length) {
+                    addStyle(SpanStyle(fontSize = 12.sp), metaStart, base.text.length)
                 }
             }
         }
@@ -834,8 +847,8 @@ private fun LogEntryBody(
         style = MaterialTheme.typography.bodyMedium.copy(
             fontSize = fontSize,
             lineHeight = lineHeight,
-            // 排版实验 1008（A）：请求主行半粗，与结果行拉开字重
-            fontWeight = if (isRequestHead) FontWeight.SemiBold else null,
+            // 字号真分层后撤主行整体半粗：正文 <b> 自带字重，先前 SemiBold 叠加
+            // 是"主行三段看着没分层"的根源（前缀/声音信息被衬得过轻）
         ),
         modifier = if (highlight) Modifier
             .clip(RoundedCornerShape(4.dp))
