@@ -122,9 +122,18 @@ object AccountPool {
         if (acc.provider == "codebuddy") return queryCredits(acc)
         ChannelBootstrap.install()
         val ch = ChatChannels.byProvider(acc.provider) ?: return Pair(-1.0, "未知渠道：${acc.provider}")
-        val v: Double = ch.queryCredits(acc)
+        // 明细优先（10-10 分池）：实现了 queryCreditDetail 的渠道一次请求拿到合计+两桶；
+        // 未实现的走 queryCredits 单值，分池字段清成 -1（UI 不显示分池行）。
+        val detail = runCatching { ch.queryCreditDetail(acc) }.getOrNull()
+        val v: Double = detail?.total ?: ch.queryCredits(acc)
         if (v.isNaN()) return Pair(-1.0, "该渠道无余额接口")
-        return Pair(Math.round(v * 100.0) / 100.0, "")
+        val rounded = Math.round(v * 100.0) / 100.0
+        val permR = detail?.let { Math.round(it.permanent * 100.0) / 100.0 } ?: -1.0
+        val ephR = detail?.let { Math.round(it.ephemeral * 100.0) / 100.0 } ?: -1.0
+        save(load().map {
+            if (it.id == acc.id) it.copy(credits = rounded, permanentCredits = permR, ephemeralCredits = ephR) else it
+        })
+        return Pair(rounded, "")
     }
 
     // 轮询「等待登录完成」去重：上游 body 不变就不重复打（2s 一次会刷屏）
@@ -140,6 +149,12 @@ object AccountPool {
     private const val PATH_CHECKIN = "/v2/billing/meter/daily-checkin"              // POST {}，重复领取=HTTP400+业务码
     private const val PATH_CHECKIN_STATUS = "/v2/billing/meter/checkin-activity-status" // POST {}，今日已签/连续天数
     private const val PATH_CREDITS = "/v2/billing/meter/get-user-resource"          // POST {}，Accounts[] 求和
+
+    /**
+     * 「临时积分」窗口（10-10 分池）：距扣费截止不足此值的包算临时（再不用就作废）。
+     * 与插件同值 15 天（buddy-balance-rank.ts BUDDY_EXPIRING_WINDOW_DAYS，用户 2026-09-29 定）。
+     */
+    const val CREDIT_EXPIRING_WINDOW_MS = 15L * 24 * 3600_000L
 
     // billing 头族（credits.js checkinHeaders 权威形状；Accept/Content-Type 由 httpJson 统一带）
     const val API_DOMAIN = "copilot.tencent.com"
@@ -174,6 +189,13 @@ object AccountPool {
         val expiresAt: Long = 0L,
         // 最近一次积分查询结果（0=未知）。余额=资源包合计，实测含小数（如 3930.73），Double 保真
         val credits: Double = 0.0,
+        // 积分分池（10-10 移植插件 splitBuddyCreditsByExpiry 语义）：把余额按「会不会很快作废」
+        // 拆两桶显示——距扣费截止 <15 天的算临时（ephemeralCredits；再不用就没了、优先消耗），
+        // 其余算长期（permanentCredits）。窗口与插件同值（15 天，buddy-balance-rank.ts）。
+        // 两者均为 -1.0 = 该渠道没有「会不会作废」这个维度（不显示分池行）；
+        // 只有支持的渠道（codebuddy/workbuddy/trae/lobsterai/loomy/raccoon）填真值。
+        val permanentCredits: Double = -1.0,
+        val ephemeralCredits: Double = -1.0,
         // 最近一次成功签到时刻（epoch ms；0=从未）。展示层沿用（池页「签到 HH:mm」）
         val lastCheckinAt: Long = 0L,
         // 最近一次成功签到的 UTC+8 日期串（YYYY-MM-DD；""=从未）。⚠️ 10-10 对账 TOP5 第 5 条：
@@ -315,6 +337,9 @@ object AccountPool {
                         refreshToken = o.optString("refreshToken"),
                         expiresAt = o.optLong("expiresAt"),
                         credits = o.optDouble("credits", 0.0),
+                        // 分池缺键 = 该渠道无此维度（或旧数据），-1 让 UI 不显示分池行
+                        permanentCredits = o.optDouble("permanentCredits", -1.0),
+                        ephemeralCredits = o.optDouble("ephemeralCredits", -1.0),
                         lastCheckinAt = o.optLong("lastCheckinAt"),
                         lastCheckinDate = o.optString("lastCheckinDate"),
                         enabled = o.optBoolean("enabled", true),
@@ -342,6 +367,9 @@ object AccountPool {
                 put("refreshToken", a.refreshToken)
                 put("expiresAt", a.expiresAt)
                 put("credits", a.credits)
+                // 分池只在取到真值时落盘（-1 = 该渠道无此维度，不写键；读回给默认值）
+                if (a.permanentCredits >= 0.0) put("permanentCredits", a.permanentCredits)
+                if (a.ephemeralCredits >= 0.0) put("ephemeralCredits", a.ephemeralCredits)
                 put("lastCheckinAt", a.lastCheckinAt)
                 if (a.lastCheckinDate.isNotEmpty()) put("lastCheckinDate", a.lastCheckinDate)
                 put("enabled", a.enabled)
@@ -1015,6 +1043,12 @@ object AccountPool {
         }.getOrNull()
         var total = 0.0
         var found = false
+        // 分池（10-10）：同一份响应顺手算两桶——包带 DeductionEndTime，距今不足
+        // 窗口（15 天）的算临时，其余算长期。窗口与插件同值（buddy-balance-rank.ts）。
+        var permanent = 0.0
+        var ephemeral = 0.0
+        var splitFound = false
+        val now = System.currentTimeMillis()
         if (accounts != null) {
             for (i in 0 until accounts.length()) {
                 val p = accounts.optJSONObject(i) ?: continue
@@ -1022,11 +1056,23 @@ object AccountPool {
                 val v = firstNumber(p, "CycleCapacityRemainPrecise", "CycleCapacityRemain") ?: continue
                 total += v
                 found = true
+                // 到期时刻（epoch ms）：拿不到 = 归长期（插件：unknown 归 permanent 桶）
+                if (v > 0) {
+                    val end = firstNumber(p, "DeductionEndTime")
+                    if (end != null && end > 0 && end - now < CREDIT_EXPIRING_WINDOW_MS) ephemeral += v
+                    else permanent += v
+                    splitFound = true
+                }
             }
         }
         if (!found) return -1.0 to "响应无资源包字段：${briefBody(r.body)}"
         val credits = Math.round(total * 100.0) / 100.0
-        save(load().map { if (it.id == acc.id) acc.copy(credits = credits) else it })
+        // 拆分值仅在有包时落盘（splitFound）；无包渠道/无数据保持 -1（UI 不显示分池行）
+        val permR = if (splitFound) Math.round(permanent * 100.0) / 100.0 else -1.0
+        val ephR = if (splitFound) Math.round(ephemeral * 100.0) / 100.0 else -1.0
+        save(load().map {
+            if (it.id == acc.id) it.copy(credits = credits, permanentCredits = permR, ephemeralCredits = ephR) else it
+        })
         return credits to ""
     }
 
@@ -1084,5 +1130,142 @@ object AccountPool {
         val acc = load().firstOrNull { it.id == accountId } ?: return false
         save(load().map { if (it.id == accountId) acc.copy(enabled = value) else it })
         return true
+    }
+
+    // ==================== 重测 / 重置（10-10 移植插件 account-probe 语义） ====================
+
+    /**
+     * 逐模型重置结果：仍受限的模型回写**新**解禁时刻（上游时刻是滚动的，不写回
+     * 存储会一直停在第一次撞限流的旧时刻——旧时刻过期后 UI 不再显示限流、选号也会
+     * 误判为可用，插件同款补丁 [patch-codearts-probe-ratelimit]）。
+     */
+    data class RetestResult(
+        /** 该账号拥有限流标记的模型数（0 = 无标记，未发请求） */
+        val tested: Int,
+        /** 实测通过、已清除标记的模型 */
+        val cleared: List<String>,
+        /** 仍受限的模型（仍受限/无法确认） */
+        val stillLimited: List<String>,
+        /** 整体性错误（账号不存在/取号失败等）；非空时 tested/cleared 可能为 0 */
+        val error: String = "",
+    )
+
+    /**
+     * 重测单账号（插件 retestAccount 语义）：对**每个带限流标记的模型**各发一条真实
+     * 最小消息，正常返回的才清标记；仍受限的把上游给的新时刻写回。
+     * 无标记 → 一个请求都不发（返回 tested=0，与插件一致），这是与「测试」的区别。
+     *
+     * ⚠️ 会真实消耗模型额度。**顺序执行、不并发**（插件同律：并发容易触发真正想验证的限流，
+     * 反得假阳性）。
+     */
+    fun retestAccount(accountId: String): RetestResult {
+        val acc = load().firstOrNull { it.id == accountId }
+            ?: return RetestResult(0, emptyList(), emptyList(), "账号不存在")
+        val modelIds = acc.modelRateLimits.keys.toList()
+        if (modelIds.isEmpty()) return RetestResult(0, emptyList(), emptyList())
+        ChannelBootstrap.install()
+        val ch = ChatChannels.byProvider(acc.provider)
+        // 对话基址：非 codebuddy 渠道用渠道声明的 chatBaseUrl；codebuddy 走 /v2
+        //（与 addAsKey 落的密钥网址段同源，规格书 §1.4 POST {endpoint}/v2/chat/completions）
+        val base = ch?.chatBaseUrl ?: "https://$CHAT_HOST/v2"
+        val cleared = mutableListOf<String>()
+        val still = mutableListOf<String>()
+        for (model in modelIds) {
+            // 渠道请求体变换必须先走（chatCompletion 不代调 patchBody）：trae 的 SOLO 字段名、
+            // gemini 的嵌套键序、各家的 stream 处理都在这层，漏了会得到与真实对话不同的请求。
+            val raw = chatPayload(model, "只回复 pong", 16, 0)
+            val bodyJson = ch?.patchBody(raw, model) ?: raw
+            val (ok, body) = SseAggregator.chatCompletion(
+                base, acc.accessToken,
+                bodyJson,
+                channel = ch, model = model,
+                extraHeaders = ch?.perRequestHeaders(model) ?: emptyMap(),
+            )
+            if (ok) {
+                cleared.add(model)
+            } else {
+                still.add(model)
+                // 仍受限：上游给的新解禁时刻写回（滚动时刻，不写回会停在旧时刻）
+                val m = Regex("HTTP (\\d{3})").find(body)
+                val status = m?.groupValues?.get(1)?.toIntOrNull() ?: 0
+                val cls = ch?.classifyError(status, body)
+                val rateLimited = cls == ChatChannel.ErrClass.RATE_LIMIT ||
+                    (cls == null && (status == 429 || body.contains("频率限制") || body.contains("reset at", true) || body.contains("11140")))
+                if (rateLimited) {
+                    val resetAt = parseResetTime(body)
+                        ?: ch?.let { System.currentTimeMillis() + it.rateLimitFallbackMs }
+                        ?: System.currentTimeMillis() + if (body.contains("11140")) 30 * 60_000L else 3_600_000L
+                    markRateLimited(accountId, model, resetAt)
+                }
+            }
+        }
+        if (cleared.isNotEmpty()) clearModelRateLimits(accountId, cleared)
+        appLog(LogLevel.INFO, "「${acc.nickname}」重测：${cleared.size} 通 / ${still.size} 仍受限（测 ${modelIds.size} 个模型）")
+        return RetestResult(modelIds.size, cleared, still)
+    }
+
+    /** 重测某渠道**全部**账号（含已停用——插件同语义：停用号的消息照样发） */
+    fun retestAllAccounts(provider: String): Pair<Int, Int> {
+        val list = load().filter { it.provider == provider }
+        var cleared = 0
+        var tested = 0
+        for (a in list) {
+            val r = retestAccount(a.id)
+            tested += r.tested
+            cleared += r.cleared.size
+        }
+        return cleared to tested
+    }
+
+    /** 清某账号**指定**模型的限流标记（重测通过者用；返回是否确有变更） */
+    fun clearModelRateLimits(accountId: String, models: List<String>): Boolean {
+        val acc = load().firstOrNull { it.id == accountId } ?: return false
+        if (models.isEmpty()) return false
+        val next = acc.modelRateLimits.filterKeys { it !in models }
+        if (next.size == acc.modelRateLimits.size) return false
+        save(load().map { if (it.id == accountId) acc.copy(modelRateLimits = next) else it })
+        return true
+    }
+
+    /** 重置某渠道**全部**账号的限流标记（不发送任何请求；返回被清账号数） */
+    fun resetAllAccounts(provider: String): Int {
+        val list = load()
+        var changed = 0
+        val next = list.map { a ->
+            if (a.provider == provider && a.modelRateLimits.isNotEmpty()) {
+                changed++
+                a.copy(modelRateLimits = emptyMap())
+            } else a
+        }
+        if (changed > 0) save(next)
+        appLog(LogLevel.INFO, "重置全部限流标记：${provider} 共 ${changed} 个账号")
+        return changed
+    }
+
+    /**
+     * 最小对话请求体（重测用）。`max_tokens` 取 16：够回一个 pong，又不至于被
+     * 「max_tokens 超上限才拒」的渠道按尺寸拦（校验的是上限不是下限）。
+     * `stream` 不在此写死——无渠道实现时 SseAggregator 会自动补 `stream=true`
+     * （codebuddy 上游只收流式），有渠道实现时由 patchBody 自行处理。
+     */
+    private fun chatPayload(model: String, text: String, maxTokens: Int, temperature: Double): String =
+        org.json.JSONObject()
+            .put("model", model)
+            .put("messages", org.json.JSONArray().put(
+                org.json.JSONObject().put("role", "user").put("content", text)
+            ))
+            .put("max_tokens", maxTokens)
+            .put("temperature", temperature)
+            .toString()
+
+    /** 从错误体解析服务端给的解禁时刻（与 SseAggregator.parseResetTime 同口径） */
+    private fun parseResetTime(body: String): Long? {
+        val epoch = Regex("\"reset_at\"\\s*:\\s*(\\d{10,13})").find(body)?.groupValues?.get(1)?.toLongOrNull()
+        if (epoch != null) return if (epoch < 10_000_000_000L) epoch * 1000 else epoch
+        val m = Regex("(\\d{4}-\\d{2}-\\d{2}[ T]\\d{2}:\\d{2}:\\d{2})").find(body) ?: return null
+        return runCatching {
+            java.time.LocalDateTime.parse(m.groupValues[1].replace(' ', 'T'))
+                .atZone(java.time.ZoneId.of("UTC+8")).toInstant().toEpochMilli()
+        }.getOrNull()
     }
 }

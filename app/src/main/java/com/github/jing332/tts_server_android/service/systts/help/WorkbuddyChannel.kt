@@ -192,4 +192,53 @@ object WorkbuddyChannel : ChatChannel {
             }
         } catch (_: Exception) { Double.NaN }
     }
+
+    /**
+     * 余额明细（10-10 分池，同 codebuddy 口径）：与 queryCredits 同一端点/同一份响应，
+     * 额外按包的 DeductionEndTime 分「长期 / 临时」两桶（窗口 15 天，插件同值）。
+     */
+    override fun queryCreditDetail(acc: AccountPool.Account): CreditDetail? {
+        return try {
+            val r = AccountPool.channelPost(
+                "$ENDPOINT/v2/billing/meter/get-user-resource",
+                mapOf(
+                    "Authorization" to "Bearer ${acc.accessToken}",
+                    "X-Domain" to DOMAIN,
+                    "X-Product" to "SaaS",
+                    "X-Product-Code" to "workbuddy",
+                    "User-Agent" to uaFor(""),
+                ), "{}",
+            )
+            if (!r.ok) null
+            else {
+                val d = JSONObject(r.body).optJSONObject("data")
+                    ?.optJSONObject("Response")?.optJSONObject("Data") ?: return null
+                val accs = d.optJSONArray("Accounts") ?: return null
+                var total = 0.0
+                var permanent = 0.0
+                var ephemeral = 0.0
+                var found = false
+                val now = System.currentTimeMillis()
+                for (i in 0 until accs.length()) {
+                    val p = accs.optJSONObject(i) ?: continue
+                    if (p.optInt("Status", 0) == 3) continue
+                    val v = AccountPool.firstNumberOf(p, "CycleCapacityRemainPrecise", "CycleCapacityRemain") ?: continue
+                    total += v
+                    found = true
+                    // 拿不到到期时刻 = 归长期（插件 splitBuddyCreditsByExpiry 同口径）
+                    if (v > 0) {
+                        val end = AccountPool.firstNumberOf(p, "DeductionEndTime")
+                        if (end != null && end > 0 && end - now < AccountPool.CREDIT_EXPIRING_WINDOW_MS) ephemeral += v
+                        else permanent += v
+                    }
+                }
+                if (!found) null
+                else CreditDetail(
+                    Math.round(total * 100.0) / 100.0,
+                    Math.round(permanent * 100.0) / 100.0,
+                    Math.round(ephemeral * 100.0) / 100.0,
+                )
+            }
+        } catch (_: Exception) { null }
+    }
 }

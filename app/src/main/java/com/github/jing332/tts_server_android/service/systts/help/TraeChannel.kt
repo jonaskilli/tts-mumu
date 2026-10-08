@@ -255,6 +255,50 @@ object TraeChannel : ChatChannel {
         } catch (_: Exception) { Double.NaN }
     }
 
+    /**
+     * 余额明细（10-10 分池）：与 queryCredits 同一端点/同一份响应，额外按包的到期时刻
+     * 分「长期 / 临时」两桶（窗口 15 天）。
+     *
+     * 到期字段双读（两份材料不一致，取并集避免漏）：
+     *  - `deductionEndTime`（毫秒）——规格书 §5 line「资源包含 deductionEndTime(30 天到期)」
+     *  - `expire_time`（**秒级** Unix，需 ×1000）——插件 trae-credits.ts 抓包取证为条目级字段
+     * 拿不到到期时刻 = 归长期（插件同口径）。
+     */
+    override fun queryCreditDetail(acc: AccountPool.Account): CreditDetail? {
+        return try {
+            val r = AccountPool.channelPost(
+                "$UG_HOST/trae/api/v2/pay/ide_user_ent_usage",
+                checkinHeaders(acc) + mapOf("Content-Type" to "application/json"),
+                JSONObject().put("require_usage", true).put("req_source", 2).toString(),
+            )
+            if (!r.ok) null
+            else {
+                val d = JSONObject(r.body).optJSONObject("data") ?: return null
+                val packs = d.optJSONArray("user_entitlement_pack_list") ?: return null
+                var total = 0.0
+                var permanent = 0.0
+                var ephemeral = 0.0
+                val now = System.currentTimeMillis()
+                for (i in 0 until packs.length()) {
+                    val p = packs.optJSONObject(i) ?: continue
+                    val v = p.optDouble("credits_limit", 0.0) - p.optDouble("credits_amount", 0.0)
+                    total += v
+                    if (v > 0) {
+                        val ms = p.optDouble("deductionEndTime", 0.0).takeIf { it > 0 }
+                            ?: (p.optDouble("expire_time", 0.0) * 1000.0).takeIf { it > 0 }
+                        if (ms != null && ms - now < AccountPool.CREDIT_EXPIRING_WINDOW_MS) ephemeral += v
+                        else permanent += v
+                    }
+                }
+                CreditDetail(
+                    Math.round(total * 100.0) / 100.0,
+                    Math.round(permanent * 100.0) / 100.0,
+                    Math.round(ephemeral * 100.0) / 100.0,
+                )
+            }
+        } catch (_: Exception) { null }
+    }
+
     override fun fetchModels(accessToken: String): List<String> = listOf(
         "DeepSeek-V4-Flash-Official", "Doubao-Seed-2.1-Pro", "seed-code-pro-0430",
         "Doubao-Seed-2.1-Turbo", "Doubao-Seed-2.0-Code", "glm-5.2", "DeepSeek-V4-Pro",

@@ -134,6 +134,34 @@ object RaccoonChannel : ChatChannel {
         } catch (_: Exception) { Double.NaN }
     }
 
+    /**
+     * 余额明细（10-10 分池）：Raccoon 服务端按语义分开下发各桶（插件 raccoon-credits.ts）——
+     * `daily_points` = 每日积分（当日刷新，今天不用就没了）算临时，其余
+     * （`reward_points` 奖励 / `monthly_points` 会员 / `topup_points` 充值）算长期。
+     * `available_points` 缺失 = 形状不对返回 null（不编造，与 queryCredits 同口径）。
+     */
+    override fun queryCreditDetail(acc: AccountPool.Account): CreditDetail? {
+        return try {
+            val r = AccountPool.channelGet("$POINTS/balance", baseHeaders(acc.accessToken))
+            if (!r.ok) null
+            else {
+                val d = JSONObject(r.body).optJSONObject("data") ?: return null
+                if (!d.has("available_points")) return null
+                val total = d.optDouble("available_points", Double.NaN)
+                val daily = d.optDouble("daily_points", 0.0)
+                val reward = d.optDouble("reward_points", 0.0)
+                val monthly = d.optDouble("monthly_points", 0.0)
+                val topup = d.optDouble("topup_points", 0.0)
+                val permanent = reward + monthly + topup
+                CreditDetail(
+                    Math.round(total * 100.0) / 100.0,
+                    Math.round(permanent * 100.0) / 100.0,
+                    Math.round(daily * 100.0) / 100.0,
+                )
+            }
+        } catch (_: Exception) { null }
+    }
+
     override fun fetchModels(accessToken: String): List<String> = listOf(
         "sn-sensenova-6-8-flash", "sn-sensenova-6-8-flash-lite", "sn-glm-5-3",
         "sn-deepseek-v4-flash", "sn-kimi-k3", "sn-qwen-3.8-max",

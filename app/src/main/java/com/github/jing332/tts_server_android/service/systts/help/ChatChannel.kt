@@ -67,6 +67,16 @@ interface ChatChannel {
     /** 余额（返回 NaN=不支持；正常返回积分/额度数值） */
     fun queryCredits(acc: AccountPool.Account): Double = Double.NaN
 
+    /**
+     * 余额明细（10-10 移植插件「长期/临时」两桶）：**一次请求**同时给出合计与两桶，
+     * 避免 UI 先问合计再问分池发两次请求。
+     * 距扣费截止不足 15 天的算临时（再不用就作废、优先消耗），其余算长期
+     * （窗口与插件同值，见 AccountPool.CREDIT_EXPIRING_WINDOW_MS）。
+     * 返回 null = 该渠道没有「会不会作废」这个维度（默认；UI 不显示分池行，
+     * 走 queryCredits 单值即可）。
+     */
+    fun queryCreditDetail(acc: AccountPool.Account): CreditDetail? = null
+
     /** 模型清单（拉取或静态表；失败返回空表由调用方兜底） */
     fun fetchModels(accessToken: String): List<String>
 
@@ -85,6 +95,13 @@ interface ChatChannel {
 
     enum class ErrClass { RATE_LIMIT, AUTH, OTHER }
 }
+
+/**
+ * 余额明细（10-10「长期/临时」分池）：合计 + 两桶。
+ * permanent = 距扣费截止 ≥15 天（或拿不到到期时刻）的部分；
+ * ephemeral = 距扣费截止 <15 天、再不用就作废的部分。
+ */
+data class CreditDetail(val total: Double, val permanent: Double, val ephemeral: Double)
 
 /** 渠道注册表：provider 字符串 → 实现。新渠道在这里挂一行。 */
 object ChatChannels {

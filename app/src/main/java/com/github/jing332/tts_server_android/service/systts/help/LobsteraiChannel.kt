@@ -162,6 +162,68 @@ object LobsteraiChannel : ChatChannel {
         } catch (_: Exception) { Double.NaN }
     }
 
+    /**
+     * 余额明细（10-10 分池）：与 queryCredits 同一端点/同一份响应，额外按 creditItems[]
+     * 的 expiresAt 分「长期 / 临时」两桶（窗口 15 天）。
+     * expiresAt 实测是 ISO 8601（如 "2026-10-23T01:21:23"；插件同款解析，空格分隔也兼容）；
+     * 解析不出 = 归长期（插件同口径）。
+     */
+    override fun queryCreditDetail(acc: AccountPool.Account): CreditDetail? {
+        return try {
+            val r = AccountPool.channelGet(
+                "$SERVER/api/user/profile-summary",
+                mapOf("Authorization" to "Bearer ${acc.accessToken}") + capabilityHeaders(),
+            )
+            if (!r.ok) null
+            else {
+                val d = JSONObject(r.body).optJSONObject("data") ?: return null
+                val totalRaw = d.optDouble("totalCreditsRemaining", Double.NaN)
+                if (totalRaw.isNaN()) return null
+                val total = if (totalRaw < 0) 0.0 else totalRaw
+                var permanent = 0.0
+                var ephemeral = 0.0
+                var split = false
+                val items = d.optJSONArray("creditItems")
+                val now = System.currentTimeMillis()
+                if (items != null) {
+                    for (i in 0 until items.length()) {
+                        val it = items.optJSONObject(i) ?: continue
+                        val v = it.optDouble("creditsRemaining", Double.NaN)
+                        if (v.isNaN() || v <= 0) continue
+                        split = true
+                        val expMs = parseIsoMs(it.optString("expiresAt"))
+                        if (expMs != null && expMs > 0 && expMs - now < AccountPool.CREDIT_EXPIRING_WINDOW_MS) ephemeral += v
+                        else permanent += v
+                    }
+                }
+                if (!split) null
+                else CreditDetail(
+                    Math.round(total * 100.0) / 100.0,
+                    Math.round(permanent * 100.0) / 100.0,
+                    Math.round(ephemeral * 100.0) / 100.0,
+                )
+            }
+        } catch (_: Exception) { null }
+    }
+
+    /** 到期串 → epoch ms；纯数字按秒/毫秒两种量级猜，ISO 8601 走解析；失败返回 null */
+    private fun parseIsoMs(s: String): Long? {
+        val t = s.trim()
+        if (t.isEmpty()) return null
+        t.toLongOrNull()?.let { n ->
+            // 10 位=秒级、13 位=毫秒级；其余量级按解析失败处理
+            return when {
+                n >= 1_000_000_000_000L -> n
+                n >= 1_000_000_000L -> n * 1000L
+                else -> null
+            }
+        }
+        return runCatching {
+            java.time.LocalDateTime.parse(t.replace(' ', 'T'))
+                .atZone(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli()
+        }.getOrNull()
+    }
+
     override fun fetchModels(accessToken: String): List<String> = listOf(
         "deepseek-v4-flash", "deepseek-v4-pro", "MiniMax-M3", "MiniMax-M2.7",
         "qwen3.7-max", "qwen3.7-plus", "qwen3.6-plus", "kimi-k2.7-code", "kimi-k2.7-code-highspeed",

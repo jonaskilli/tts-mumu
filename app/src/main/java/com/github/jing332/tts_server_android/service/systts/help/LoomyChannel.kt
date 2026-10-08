@@ -161,6 +161,38 @@ object LoomyChannel : ChatChannel {
         } catch (_: Exception) { Double.NaN }
     }
 
+    /**
+     * 余额明细（10-10 分池）：Loomy 服务端**直接给两个命名池**（插件 loomy-credits.ts）——
+     * `balance` = 永久积分（注册奖励+新手任务），`dailyBalance` = 每日赠送池（每天刷新、
+     * 消耗后不回补，今天不用就浪费）。故 here「临时桶」= dailyBalance（本就是当日刷新、
+     * 不必按 15 天窗口算），「长期桶」= balance。
+     * 两者都缺（响应形状不对）返回 null，不编造。
+     */
+    override fun queryCreditDetail(acc: AccountPool.Account): CreditDetail? {
+        return try {
+            val r = AccountPool.channelGet(
+                "$API_BASE/points/records?pageNo=1&pageSize=1&recordType=all",
+                mapOf("token" to acc.accessToken),
+            )
+            if (!r.ok) null
+            else {
+                val d = JSONObject(r.body).optJSONObject("data") ?: return null
+                val permanent = d.optDouble("balance", Double.NaN)
+                val daily = d.optDouble("dailyBalance", Double.NaN)
+                if (permanent.isNaN() && daily.isNaN()) return null
+                val p = if (permanent.isNaN()) 0.0 else permanent
+                val e = if (daily.isNaN()) 0.0 else daily
+                // 合计优先用服务端的 availableBalance（与 queryCredits 同源），缺则两桶相加
+                val total = d.optDouble("availableBalance", Double.NaN).takeIf { !it.isNaN() } ?: (p + e)
+                CreditDetail(
+                    Math.round(total * 100.0) / 100.0,
+                    Math.round(p * 100.0) / 100.0,
+                    Math.round(e * 100.0) / 100.0,
+                )
+            }
+        } catch (_: Exception) { null }
+    }
+
     override fun fetchModels(accessToken: String): List<String> {
         return try {
             val r = AccountPool.channelGet("$API_BASE/models", mapOf("token" to accessToken))

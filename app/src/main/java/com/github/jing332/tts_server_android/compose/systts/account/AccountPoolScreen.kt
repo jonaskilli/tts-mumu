@@ -21,6 +21,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Bolt
 import androidx.compose.material.icons.filled.CleaningServices
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.EventAvailable
@@ -87,6 +88,8 @@ fun AccountPoolScreen(onBack: () -> Unit) {
     var version by remember { mutableIntStateOf(0) }
     // 操作中账号（转圈定位到行）
     var busyId by remember { mutableStateOf<String?>(null) }
+    // 批量限流操作进行中（组头两键禁点；重测会逐个真发请求，耗时长）
+    var busyAll by remember { mutableStateOf(false) }
     // 待确认删除的账号（10-08 移植插件「删除」动作；删除不可逆，弹窗确认）
     var confirmDelete by remember { mutableStateOf<AccountPool.Account?>(null) }
     // 渠道选择弹窗（10-09 全渠道批）：选完按登录形态分流
@@ -146,6 +149,28 @@ fun AccountPoolScreen(onBack: () -> Unit) {
     }
 
     fun reload() { version++ }
+
+    /** 重测某渠道全部账号（含已停用）：逐个真发最小消息，顺序执行不并发（插件同律，防假阳性） */
+    fun retestAll(provider: String) {
+        scope.launch {
+            busyAll = true
+            val (cleared, tested) = withContext(Dispatchers.IO) { AccountPool.retestAllAccounts(provider) }
+            busyAll = false
+            notify(if (tested == 0) "该渠道没有限流标记，无需重测" else "重测完成：${cleared} 通 / ${tested - cleared} 仍受限")
+            reload()
+        }
+    }
+
+    /** 重置某渠道全部账号的限流标记（不发任何请求） */
+    fun resetAll(provider: String) {
+        scope.launch {
+            busyAll = true
+            val n = withContext(Dispatchers.IO) { AccountPool.resetAllAccounts(provider) }
+            busyAll = false
+            notify(if (n > 0) "已重置 $n 个账号的限流标记" else "该渠道没有限流标记")
+            reload()
+        }
+    }
 
     // 登录页结果回传：成功 = 轮询已拿到凭据并落盘，回来重读列表即可（无需手动刷新）
     val loginLauncher = rememberLauncherForActivityResult(
@@ -264,6 +289,22 @@ fun AccountPoolScreen(onBack: () -> Unit) {
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
+                        // 批量键（10-10 移植插件「重测所有 / 重置所有」）：对本渠道**全部**
+                        // 账号（含已停用——插件同语义：停用号的消息照样发）执行。仅当该组至少
+                        // 有一个账号带限流标记时才显示（没标记的批量重测一个请求都不发）。
+                        if (groupAccounts.any { it.modelRateLimits.isNotEmpty() }) {
+                            Spacer(Modifier.width(4.dp))
+                            FlatIconAction(
+                                icon = Icons.Default.Bolt,
+                                contentDescription = "重测所有（真发消息验证，消耗额度）",
+                                enabled = !busyAll,
+                            ) { retestAll(provider) }
+                            FlatIconAction(
+                                icon = Icons.Default.CleaningServices,
+                                contentDescription = "重置所有（直接清标记，不发请求）",
+                                enabled = !busyAll,
+                            ) { resetAll(provider) }
+                        }
                     }
                 }
                 itemsIndexed(groupAccounts, key = { _, acc -> acc.id }) { idx, acc ->
@@ -312,10 +353,28 @@ fun AccountPoolScreen(onBack: () -> Unit) {
                             reload()
                         }
                     },
-                    onClearLimits = {
+                    onRetest = {
+                        // 重测（10-10 移植插件 account-probe）：对每个带限流标记的模型**真发一条
+                        // 最小消息**，通了的才清标记；仍受限的把上游新解禁时刻写回。会消耗额度。
+                        scope.launch {
+                            busyId = acc.id
+                            val r = withContext(Dispatchers.IO) { AccountPool.retestAccount(acc.id) }
+                            busyId = null
+                            when {
+                                r.error.isNotEmpty() -> notify("重测失败：${r.error}")
+                                r.tested == 0 -> notify("该账号没有限流标记，无需重测")
+                                else -> {
+                                    notify("重测「${acc.nickname}」：${r.cleared.size} 通 / ${r.stillLimited.size} 仍受限")
+                                    reload()
+                                }
+                            }
+                        }
+                    },
+                    onResetLimits = {
+                        // 重置（不发送任何请求）：直接清掉该账号全部限流标记
                         scope.launch {
                             val n = withContext(Dispatchers.IO) { AccountPool.clearRateLimits(acc.id) }
-                            notify(if (n) "已清除限流标记" else "无限流标记")
+                            notify(if (n) "已重置限流标记" else "无限流标记")
                             if (n) reload()
                         }
                     },
@@ -342,7 +401,9 @@ fun AccountPoolScreen(onBack: () -> Unit) {
                 Column {
                     Text("账号名右侧：⏻ 停用/启用（不参与自动选号）· 🗑 删除", style = MaterialTheme.typography.bodyMedium)
                     Spacer(Modifier.height(6.dp))
-                    Text("下方工具条：签到 · 续期 · 查积分（有限流标记时多一个「清限流」）", style = MaterialTheme.typography.bodyMedium)
+                    Text("下方工具条：签到 · 续期 · 查积分（有限流标记时多「重测」「重置」）", style = MaterialTheme.typography.bodyMedium)
+                    Spacer(Modifier.height(6.dp))
+                    Text("重测 = 真发一条消息验证能否恢复，通了的才清标记（消耗额度）；重置 = 直接清掉限流标记。组头同款两键作用于该平台全部账号。", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     Spacer(Modifier.height(8.dp))
                     Text(
                         "账号落池即自动进密钥管理，无需手动添加。",
@@ -492,7 +553,8 @@ private fun AccountRow(
     onQueryCredits: () -> Unit,
     onToggleEnabled: () -> Unit,
     onDelete: () -> Unit,
-    onClearLimits: () -> Unit,
+    onRetest: () -> Unit,
+    onResetLimits: () -> Unit,
 ) {
     Column(
         // 丙案（10-10 用户拍板）：第一行 序号+昵称+状态胶囊（零图标）；第二行 信息副行；
@@ -552,6 +614,18 @@ private fun AccountRow(
                 if (acc.credits != 0.0) {
                     append(" · 积分 ")
                     append(if (acc.credits % 1.0 == 0.0) acc.credits.toLong().toString() else acc.credits.toString())
+                    // 分池（10-10 移植插件，用户令「一个平台下方展示两个池」）：支持的渠道
+                    // （codebuddy/workbuddy/trae/lobsterai/loomy/raccoon）在合计后跟
+                    // 「长期 X · 临时 Y」——临时 = 距到期 <15 天、再不用就作废的部分，优先消耗。
+                    // 两值均 -1 = 该渠道没有这个维度，整段不显示（不凭空造数）。
+                    // 池名标签：loomy 服务端那个池就叫「永久积分」，其余渠道用「长期」（插件同口径）。
+                    if (acc.permanentCredits >= 0.0 && acc.ephemeralCredits >= 0.0) {
+                        val longLabel = if (acc.provider == "loomy") "永久" else "长期"
+                        append("　").append(longLabel).append(" ")
+                        append(if (acc.permanentCredits % 1.0 == 0.0) acc.permanentCredits.toLong().toString() else acc.permanentCredits.toString())
+                        append(" · 临时 ")
+                        append(if (acc.ephemeralCredits % 1.0 == 0.0) acc.ephemeralCredits.toLong().toString() else acc.ephemeralCredits.toString())
+                    }
                 }
                 if (acc.lastCheckinAt > 0) append(" · 签到 ${timeFmt.format(Date(acc.lastCheckinAt))}")
                 // 限流中（10-08 移植）：模型名+解禁时刻；已解禁的不显示（标记自然失效）
@@ -564,7 +638,9 @@ private fun AccountRow(
             },
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
-            maxLines = 1,
+            // 10-10：加了「长期/临时」分池后内容变长（渠道+过期+积分+分池+签到+限流），
+            // 单行必然截断——放开到两行，信息完整可读（用户令「要显示全部不要省略」同口径）
+            maxLines = 2,
             overflow = TextOverflow.Ellipsis,
             modifier = Modifier.padding(start = 30.dp)
         )
@@ -572,8 +648,10 @@ private fun AccountRow(
         // 全部动作一键直达、谁也不进长按菜单。
         // 10-10 二令：字符字形（☑⟳⧉）有豆腐块风险且与 🏦 彩色 emoji 风格打架——
         // 换 Material 矢量图标（原行内键同款四枚），单色同字体渲染永不缺字形
-        // 10-10 三令：长按菜单整体退役 → 菜单里的「清除限流」并入本工具条（仅有限流标记时出现，
-        // 与旧菜单「有标记才显示」同口径）。「复制令牌」不再提供（用户令：不要）。
+        // 10-10 四令（移植插件 account-probe）：两个限流键**仅在有标记时出现**（没标记
+        // 重测一个请求都不发、秒回，显示只会让人以为按钮失灵）——
+        //   重测 = 真发一条最小消息验真，通了的清标记（会消耗额度）；
+        //   重置 = 不发送任何请求，直接清掉全部标记。
         Row(
             Modifier.fillMaxWidth().padding(top = 4.dp),
             horizontalArrangement = Arrangement.SpaceEvenly,
@@ -583,7 +661,8 @@ private fun AccountRow(
             ToolAction(Icons.Default.Refresh, "续期", busy) { onRefresh() }
             ToolAction(Icons.Default.Savings, "查积分", busy) { onQueryCredits() }
             if (acc.modelRateLimits.isNotEmpty()) {
-                ToolAction(Icons.Default.CleaningServices, "清限流", busy) { onClearLimits() }
+                ToolAction(Icons.Default.Bolt, "重测", busy) { onRetest() }
+                ToolAction(Icons.Default.CleaningServices, "重置", busy) { onResetLimits() }
             }
         }
     }
