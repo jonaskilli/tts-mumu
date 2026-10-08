@@ -13,10 +13,13 @@ import org.json.JSONObject
  * 无需 WASM 签名）。对话置 available=false（UI 显示「待接入」，等 WASM 移植评估：
  * Android 侧可试 WebView 跑 WASM 或嵌入 qjs/wasm 运行时——单独二期任务）。
  *
- * ⚠️ **签到 = /sash/ 活动领取，待接**（10-10）：插件里 qoder 有活动签到，但 claim
- * 依赖 Cosy-MachineToken 头族（规格书 §4.8）且 claim body 必须空串——与对话同被
- * 机器签名链锁死，本期走 ChatChannel 默认「无签到接口」。细节见类内「签到待接」注。
- */
+ * ⚠️ **签到 = /sash/ 活动领取（10-10 已接，协议=规格书 §4.8 + 插件 qoder-credits.ts）**：
+ * 拉活动列表（带完整头族）→ 筛 CLAIM_BENEFIT/CLAIMABLE → 逐个 claim（body 空串）。
+ * 可领项下发依赖机器头族（Cosy-ClientType:'10' + 成对 Cosy-MachineToken/MachineType），
+ * token/type 从账号 extra 手填字段读取（用户从桌面端 machine_token.json 抄），
+     * 没填则跳过领取并日志说明，不影响签到余额主链。coversToday 口径（10:00 UTC+8
+     * 刷新）与 CheckinPolicy 对齐，见「签到/余额」节注释。
+     */
 object QoderChannel : ChatChannel {
     override val id = "qoder"
     override val displayName = "Qoder 阿里"
@@ -100,17 +103,217 @@ object QoderChannel : ChatChannel {
 
     override fun chatHeaders(accessToken: String): Map<String, String> = emptyMap() // available=false 不走
 
+    /**
+     * 403 三义（规格书 §4.5，插件 model-queue.ts 的事故修正——旧实现把所有 401/403
+     * 当认证失败导致排队永远等不到）：对话锁死期间本分类是占位，解锁时按此接线。
+     *  - `10605`（model_queued）→ RATE_LIMIT：按服务端 retryAfterSeconds 等待重试，不是认证问题；
+     *  - `duplicate_request` → OTHER：不刷新直接重发（重发语义在轮换层，这里不标 AUTH）；
+     *  - `105`（auth_error）或 401 → AUTH：**唯一**该走续期的情形。
+     */
     override fun classifyError(httpStatus: Int, body: String): ChatChannel.ErrClass = when {
-        body.contains("105") && body.contains("auth") -> ChatChannel.ErrClass.AUTH
         httpStatus == 401 -> ChatChannel.ErrClass.AUTH
-        body.contains("10605") -> ChatChannel.ErrClass.RATE_LIMIT // model_queued
+        httpStatus == 403 && body.contains("105") && body.contains("auth") -> ChatChannel.ErrClass.AUTH
+        httpStatus == 403 && body.contains("duplicate_request") -> ChatChannel.ErrClass.OTHER // 重发，勿续期
+        body.contains("10605") -> ChatChannel.ErrClass.RATE_LIMIT // model_queued（403/流内帧都可能有）
         body.contains("110") -> ChatChannel.ErrClass.RATE_LIMIT // billing 日额
         else -> ChatChannel.ErrClass.OTHER
     }
 
     // ==================== 签到 / 余额（/sash/ 无需 WASM） ====================
 
-    // （签到本期不接，说明见上方「签到待接」注与文件头。）
+    /*
+     * 签到 = /sash/ 活动领取（10-10 已接，对账 TOP5 第 5 条；协议=规格书 §4.8，
+     * 权威实现=插件 qoder-credits.ts / qoder-machine.ts，本节注释只留与实现决策相关的坑）：
+     *
+     * ① 头族消融实测（插件 2026-09-21 抓包）：`Cosy-ClientType: '10'`（桌面 app 身份，
+     *    注意余额查询用的 '5' 是 CLI 身份、两者不要合并）是前提，但**必要不充分**——
+     *    必须再带成对的 `Cosy-MachineToken` + `Cosy-MachineType`，缺任一服务端只回
+     *    1 条 VIEW_DETAILS（无 CLAIM_BENEFIT），症状=「没有可领取的活动」且无法与
+     *    「已领完」区分。Cosy-MachineId/Version/MachineOS/Hostname/MachineCode 实测非必需。
+     * ② machine token 官方来源 = 桌面端 `%APPDATA%\Qoder\SharedClientCache\cache\machine_token.json`
+     *    的 `{token, type}`（由 runtime-info.exe 生成；旧文件 token 依然有效，不做时效校验）。
+     *    Android 拿不到该文件 → 用户手填进账号 extra（字段名 cosy_machine_token，JSON 形状
+     *    照 machine_token.json 原文，见本节常量注释）。没填 = 保守降级：跳过领取并日志说明，
+     *    余额主链（queryCredits）不受影响。插件教训：**发空串头会坏事，漏发才是安全降级**。
+     * ③ claim：POST /sash/api/v1/me/campaigns/{id}/claim，**body 必须空串**（抓包
+     *    content-length:0；发 {} 未经验证不做）。幂等判据是响应体 `replayed:true`
+     *    （重复领取也 200，但无 benefit、claimedAt 是旧时间）——只看状态码会把
+     *    「今天已领」误报成「领取成功 +100」。
+     * ④ coversToday：活动每日 10:00（UTC+8）刷新，刷新前查到的 CLAIMED 属于昨天——
+     *    本文件在「无可领项但有 CLAIMED」分支按该口径回话（刷新前=未刷新提示，刷新后=
+     *    已领取）；「成功是否记到今天」的落盘判据仍收口在 CheckinPolicy/
+     *    AccountCheckinReceiver（不直信上游文案），两处语义对齐不重复落表。
+     * ⑤ 本实现不落盘记账：成功与否由 AccountCheckinReceiver 统一写 lastCheckinDate
+     *    （与 zcode 同款纪律）。
+     */
+
+    /** extra 字段名：用户手填的 machine 身份（值 = machine_token.json 原文或其 {token,type} 部分）。 */
+    private const val EXTRA_MACHINE = "cosy_machine_token"
+
+    // /sash/ 端点（挂 OPEN_API_BASE；活动刷新时刻 10:00 UTC+8 只在 CheckinPolicy 注释里管）
+    private const val CAMPAIGNS_PATH = "/sash/api/v1/me/campaigns"
+    private const val CLAIM_SUFFIX = "/claim"
+
+    /**
+     * 从账号 extra 读机器身份（手填字段）。
+     *
+     * 容忍两种写法（都来自官方文件原文，用户直接整贴最不容易错）：
+     *  - 完整 machine_token.json 原文：`{"token":"…","type":"…","updateAt":…}`
+     *  - 只留成对两键的精简 JSON：`{"token":"…","type":"…"}`
+     *
+     * ⚠️ token 与 type **必须成对且都非空**（缺一服务端即退化下发，见①消融），
+     * 形状不符一律视为没填（不凑半对头发）。
+     */
+    private fun machineIdentity(acc: AccountPool.Account): Pair<String, String>? {
+        val raw = acc.extraStr(EXTRA_MACHINE)
+        if (raw.isEmpty()) return null
+        return try {
+            val o = JSONObject(raw)
+            val token = o.optString("token")
+            val type = o.optString("type")
+            if (token.isNotEmpty() && type.isNotEmpty()) token to type else null
+        } catch (_: Exception) {
+            null // 整段填坏了当没填：主链照常，领取侧由 checkIn 日志说明
+        }
+    }
+
+    /** /sash/ 公共请求头（活动端点用 '10' 桌面身份；有机器身份则成对并入，无则漏发降级）。 */
+    private fun sashHeaders(acc: AccountPool.Account, withMachine: Boolean): Map<String, String> {
+        val h = linkedMapOf(
+            "Accept" to "application/json",
+            "Authorization" to "Bearer ${acc.accessToken}",
+            "Cosy-ClientType" to "10", // 桌面 app 身份（余额查询的 '5' 是 CLI 身份，两身份不合并）
+            "User-Agent" to "Qoder",
+        )
+        if (withMachine) {
+            val id = machineIdentity(acc)
+            if (id != null) {
+                h["Cosy-MachineToken"] = id.first
+                h["Cosy-MachineType"] = id.second // 必须成对（缺任一服务端退化，见①）
+            }
+        }
+        return h
+    }
+
+    /**
+     * claim 专用 POST：body 必须是**空串**（content-length:0）。
+     *
+     * ⚠️ 不走 AccountPool.channelPost——它对空 body 不开 doOutput，多数网关会当作
+     * 无 Content-Length 的普通 POST，虽大致等价，但这里照抓包原文收口（显式
+     * doOutput + content-length:0），把「body 形状」这个已实测的坑钉死在实现里。
+     */
+    private fun claimPost(url: String, headers: Map<String, String>): ChannelHttpResp {
+        var conn: java.net.HttpURLConnection? = null
+        return try {
+            conn = (java.net.URL(url).openConnection() as java.net.HttpURLConnection).apply {
+                requestMethod = "POST"
+                connectTimeout = 10_000
+                readTimeout = 30_000
+                doOutput = true
+                setFixedLengthStreamingMode(0) // 抓包 content-length:0
+                headers.forEach { (k, v) -> setRequestProperty(k, v) }
+                if (!headers.containsKey("Content-Type"))
+                    setRequestProperty("Content-Type", "application/json; charset=utf-8")
+            }
+            val code = conn.responseCode
+            val stream = if (code >= 400) conn.errorStream else conn.inputStream
+            val text = stream?.bufferedReader(Charsets.UTF_8)?.use { it.readText() } ?: ""
+            ChannelHttpResp(code in 200..299, code, text)
+        } catch (e: Exception) {
+            ChannelHttpResp(false, -1, e.message ?: e.toString())
+        } finally {
+            conn?.disconnect()
+        }
+    }
+
+    /** 活动列表响应里的一条活动（只保留判据所需字段）。 */
+    private data class Campaign(val campaignId: String, val actionType: String, val claimStatus: String, val amount: Double)
+
+    /** 解析 campaigns[]：形状非法返回空表（不判「无活动」，与失败区分靠调用方看 HTTP）。 */
+    private fun parseCampaigns(body: String): List<Campaign> {
+        val arr = JSONObject(body).optJSONArray("campaigns") ?: return emptyList()
+        return (0 until arr.length()).mapNotNull { i ->
+            val c = arr.optJSONObject(i) ?: return@mapNotNull null
+            val id = c.optString("campaignId")
+            if (id.isEmpty()) return@mapNotNull null
+            Campaign(
+                campaignId = id,
+                actionType = c.optString("actionType"),
+                claimStatus = c.optString("claimStatus"),
+                amount = c.optJSONObject("benefit")?.optDouble("amount", 0.0) ?: 0.0,
+            )
+        }
+    }
+
+    /**
+     * 签到 = 领取该账号当前所有可领活动（CLAIM_BENEFIT + CLAIMABLE；一个账号可能同时
+     * 挂每日 100 与运营活动，逐个领而非只领第一个——照插件）。
+     *
+     * 返回 (true, "…") 计签到成功（含 replayed 的幂等回放——重复领取无害，记账层
+     * coversToday 判据不受它影响）；(false, "…") 只在不影响记账语义的分支用：
+     *  - 没填 machine token → 明说「已跳过」（AccountCheckinReceiver 按文案计跳过不记账，
+     *    与「暂不支持」同路），不标死账号；
+     *  - 401/403(105) → 提示凭据失效，走主链续期分类，不在这里标死账号。
+     */
+    override fun checkIn(acc: AccountPool.Account): Pair<Boolean, String> {
+        // 机器身份必须先在：没填就不打活动接口（头不全服务端只回 VIEW_DETAILS，
+        // 「无可领项」与「已领完」无法区分——插件真实缺陷的方向性教训：宁可跳过，
+        // 不能把空态误报成「已领」）。⚠️ 文案含「暂不支持」：AccountCheckinReceiver
+        // 按「无签到接口/暂不支持」计跳过不记账（本任务不越界改它），且不标死账号。
+        if (machineIdentity(acc) == null)
+            return false to "Qoder 活动自动领取暂不支持：账号 extra 未填机器身份（cosy_machine_token，取桌面端 machine_token.json 的 token/type 成对填入），签到/余额主链不受影响"
+
+        return try {
+            // ① 拉活动列表（完整头族）
+            val r = AccountPool.channelGet("$OPEN_API_BASE$CAMPAIGNS_PATH", sashHeaders(acc, withMachine = true))
+            if (!r.ok)
+                return false to "Qoder 活动列表查询失败：HTTP ${r.code}（凭据失效请在账号页续期后重试）"
+            val campaigns = parseCampaigns(r.body)
+            // 权威判据：CLAIM_BENEFIT 且当前 CLAIMABLE（VIEW_DETAILS 是跳转项，不领）
+            val targets = campaigns.filter { it.actionType == "CLAIM_BENEFIT" && it.claimStatus == "CLAIMABLE" }
+            if (targets.isEmpty()) {
+                val claimedBefore = campaigns.any { it.actionType == "CLAIM_BENEFIT" && it.claimStatus == "CLAIMED" }
+                if (claimedBefore) {
+                    // coversToday 口径：活动每日 10:00（UTC+8）刷新，刷新前看到的那条 CLAIMED
+                    // 属于**昨天**——报「今日已领」是谎报且方向不可逆（用户会以为今天不必再领，
+                    // 官方 IDE 里却还没刷新）。刷新前一律报「未刷新」不记账；刷新后才算今天已领
+                    // （真·已领取返回 true，让记账层把当天记上，重复触发就此打住）。
+                    val refreshed = (System.currentTimeMillis() + CheckinPolicy.UTC8_OFFSET_MS) / 3_600_000L % 24 >= 10
+                    return if (refreshed) true to "Qoder 今日活动已领取（无可领项）"
+                    else false to "Qoder 每日活动尚未刷新（每日 10:00 UTC+8），当前是昨天那一轮，10 点后再试（自动领取暂不支持 10 点前的轮次，不算失败）"
+                }
+                // 三态不可区分：未刷新中的空档 / 账号本就无此类活动 / 机器身份没配对生效——
+                // 保守报「无可领」不记账，不谎报已领（插件「无可领≠已领」的方向性教训）。
+                // ⚠️ 文案带「暂不支持」= 记账层按跳过算（非可操作空态，不算失败制造假警报）
+                return false to "Qoder 当前没有可领取的活动（若官方客户端里可领，请检查 extra 机器身份 token/type 是否成对填对；账号无活动时暂不支持自动领取）"
+            }
+            // ② 逐个 claim（幂等：replayed:true=服务端回放上次结果，仍算成功）
+            var total = 0.0
+            var claimedCount = 0
+            var firstErr = ""
+            for (t in targets) {
+                val cr = claimPost("$OPEN_API_BASE$CAMPAIGNS_PATH/${java.net.URLEncoder.encode(t.campaignId, "UTF-8")}$CLAIM_SUFFIX", sashHeaders(acc, withMachine = true))
+                if (!cr.ok) {
+                    // 不标死账号：非 2xx 只记原因继续下一个（claim 失败常见=排名竞争/临时限流）
+                    if (firstErr.isEmpty()) firstErr = "HTTP ${cr.code}：${cr.body.take(120)}"
+                    continue
+                }
+                val o = JSONObject(cr.body)
+                if (o.optBoolean("replayed", false)) {
+                    claimedCount++ // 重复领取（回放旧结果）：无害，按已处理计
+                } else if (o.optString("status").let { it.isNotEmpty() && it != "CLAIMED" }) {
+                    if (firstErr.isEmpty()) firstErr = "领取未成功（status=${o.optString("status")}）"
+                } else {
+                    claimedCount++
+                    total += o.optJSONObject("benefit")?.optDouble("amount", 0.0) ?: t.amount
+                }
+            }
+            if (claimedCount > 0) true to "Qoder 活动领取成功 ${claimedCount}/${targets.size} 项，+${total.toLong()} credits"
+            else false to "Qoder 活动领取失败：$firstErr"
+        } catch (e: Exception) {
+            false to "Qoder 活动领取异常：${e.message}"
+        }
+    }
 
     override fun queryCredits(acc: AccountPool.Account): Double {
         return try {
