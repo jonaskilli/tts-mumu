@@ -644,7 +644,9 @@ internal fun LogScreen(
                                         )
                                     }
                                     HorizontalDivider(
-                                        modifier = Modifier.padding(vertical = 6.dp),
+                                        // 前置区↔主行：与主行↔成员那条同款，间距一并收 2dp
+                                        //（10-10 用户令：两条同款线不对称，一条 2 一条 6 看着不齐）
+                                        modifier = Modifier.padding(vertical = 2.dp),
                                         color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.10f)
                                     )
                                 }

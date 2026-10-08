@@ -365,9 +365,10 @@ internal fun TtsLogScreen(vm: TtsLogViewModel = viewModel()) {
                     color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)
                 )
 
-                // 搜索控制行：漏斗 + 匹配数 + 上一处/下一处跳转（log-ui-1008 ④拍板：
-                // 漏斗住进搜索控制行——顶栏三键隐藏后级别筛选仍可用，搜索和等级筛选同开；
-                // 「只看匹配」chip 随②搜索即筛选一并退役）
+                // 搜索控制行：匹配数 + 上一处/下一处跳转。
+                // ⚠️ 漏斗键本行撤（10-10）：恢复「四键常驻」后顶栏已有级别筛选键，
+                // 搜索时本行再出一个是重复入口；原「漏斗住进本行」的前提
+                //（顶栏三键搜索态隐藏）已被四键常驻推翻，见顶栏 actions 注释。
                 AnimatedVisibility(
                     visible = isSearchActive && searchQuery.isNotBlank(),
                     enter = fadeIn(),
@@ -380,14 +381,13 @@ internal fun TtsLogScreen(vm: TtsLogViewModel = viewModel()) {
                         horizontalArrangement = Arrangement.spacedBy(2.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        IconButton(onClick = { vm.showFilterDialog.value = true }) {
-                            Icon(Icons.Default.FilterList, stringResource(R.string.filter))
-                        }
                         Text(
                             text = "${matchCount} 处匹配",
                             style = MaterialTheme.typography.labelMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.padding(start = 8.dp)
                         )
+                        Spacer(Modifier.weight(1f))
                         IconButton(onClick = { jumpToMatch(false) }) {
                             Icon(Icons.Default.KeyboardArrowUp, "上一处")
                         }
