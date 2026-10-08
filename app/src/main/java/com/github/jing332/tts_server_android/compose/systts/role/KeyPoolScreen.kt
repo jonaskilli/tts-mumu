@@ -88,6 +88,8 @@ private class PoolRowInfo(
     val tail: String?,
     val stale: Boolean,
     val norm: String,
+    // 计费倍率展示串（10-10）：站点|模型 查 modelRates；null=该站无数据不显示
+    val rate: String? = null,
 )
 
 /** 池值 → 展示信息：优先按归一化值对回密钥条目；对不上 = 已删除条目的残留值 */
@@ -95,6 +97,8 @@ private fun resolvePoolRow(
     value: String,
     keys: List<KeyListFile.KeyEntry>,
     titleByEntry: Map<String, String>,
+    ifcByEntry: Map<String, KeyListFile.ApiInterface> = emptyMap(),
+    modelRates: Map<String, String> = emptyMap(),
 ): PoolRowInfo {
     val norm = KeyListFile.normalizePoolValue(value)
     val entry = keys.firstOrNull { KeyListFile.normalizePoolValue(it.value) == norm }
@@ -113,7 +117,12 @@ private fun resolvePoolRow(
     val groupTitle = titleByEntry[entry.name]
     // 10-08 用户定稿：尾段走 KeyListFile.keyTail（>4 显尾4 / 3~4 显尾2 / ≤2 全显，与主页同口径）
     val tail = KeyListFile.parseKeyValue(entry.value)?.key?.let { KeyListFile.keyTail(it) }
-    return PoolRowInfo(KeyListFile.displayName(entry), groupTitle, tail, false, norm)
+    // 倍率（10-10）：按条目所属组站点+模型查（与主页同键口径）
+    val rate = ifcByEntry[entry.name]?.let { ifc ->
+        KeyListFile.parseKeyValue(entry.value)?.model?.takeIf { it.isNotBlank() }
+            ?.let { m -> modelRates[KeyListFile.rateKey(ifc.baseUrl, m)] }
+    }
+    return PoolRowInfo(KeyListFile.displayName(entry), groupTitle, tail, false, norm, rate)
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -124,6 +133,8 @@ internal fun KeyPoolScreen(
     ifaces: List<KeyListFile.ApiInterface>,
     // 10-08 卡片化：完整 TestOutcome（含用时/结论/锁定）——池卡渲染与主页同构的结果条
     testByValue: Map<String, KeyListFile.TestOutcome>,
+    // 模型倍率表（10-10）：键=站点|模型 → 展示串；池页模型行倍率胶囊同主页
+    modelRates: Map<String, String> = emptyMap(),
     testingValue: String?,
     batchTesting: Boolean,
     selectionMode: Boolean,
@@ -145,12 +156,16 @@ internal fun KeyPoolScreen(
         if (selectionMode) onToggleSelectionMode() else onBack()
     }
     // 归属分组映射（照主页 buildKeyGroups 的顺序口径：第一个命中的接口组，否则 未分组）
-    val titleByEntry = remember(keys, ifaces) {
-        val m = mutableMapOf<String, String>()
-        buildKeyGroups(keys, ifaces).forEach { g -> g.entries.forEach { m[it.name] = g.title } }
-        m
-    }
-    val scrollBehavior = TopAppBarDefaults.pinnedScrollBehavior()
+    // + 条目→所属分组本体（10-10 倍率用：拿 baseUrl 查 modelRates）——一次遍历建两表
+    val (titleByEntry, ifcByEntry) = remember(keys, ifaces) {
+        val titles = mutableMapOf<String, String>()
+        val ifcMap = mutableMapOf<String, KeyListFile.ApiInterface>()
+        buildKeyGroups(keys, ifaces).forEach { g ->
+            g.entries.forEach { titles[it.name] = g.title }
+            g.ifc?.let { ifc -> g.entries.forEach { ifcMap[it.name] = ifc } }
+        }
+        titles to ifcMap
+    }    val scrollBehavior = TopAppBarDefaults.pinnedScrollBehavior()
     Scaffold(
         modifier = Modifier.fillMaxSize().nestedScroll(scrollBehavior.nestedScrollConnection),
         topBar = {
@@ -248,7 +263,7 @@ internal fun KeyPoolScreen(
                 }
             } else {
                 itemsIndexed(pool, key = { _, value -> "p:" + KeyListFile.normalizePoolValue(value) }) { idx, value ->
-                    val row = resolvePoolRow(value, keys, titleByEntry)
+                    val row = resolvePoolRow(value, keys, titleByEntry, ifcByEntry, modelRates)
                     val norm = row.norm
                     val testing = testingValue == norm
                     // 长按拖动排序（放手落位、序号自动重排）；多选/整批测试中禁拖
@@ -341,14 +356,31 @@ private fun PoolRow(
             }
             // 名字区 weight(1f)：独占剩余宽度（0920 教训——名字格与弹性空格不许双 weight，
             // 各抢一半会把名字挤成半宽提前换行）
-            Text(
-                info.display,
-                // 10-09 五令（字号 A 案同构）：bodyMedium(16)→14sp，与主页模型名同档
-                style = MaterialTheme.typography.bodyMedium.copy(fontSize = 14.sp),
-                maxLines = 2,
-                overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.weight(1f)
-            )
+            // 10-10 倍率甲案同构：名字后跟灰底倍率胶囊——Row 包住名字+胶囊，名字
+            // weight(1f,fill=false) 拿剩余宽度（短名不留空、长名两行内换行不挤坏胶囊）
+            Row(Modifier.weight(1f), verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    info.display,
+                    // 10-09 五令（字号 A 案同构）：bodyMedium(16)→14sp，与主页模型名同档
+                    style = MaterialTheme.typography.bodyMedium.copy(fontSize = 14.sp),
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f, fill = false)
+                )
+                if (!selectionMode && info.rate != null) {
+                    Spacer(Modifier.width(5.dp))
+                    Text(
+                        info.rate,
+                        style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp),
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 1,
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(5.dp))
+                            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.7f))
+                            .padding(horizontal = 5.dp, vertical = 1.dp)
+                    )
+                }
+            }
             if (!selectionMode) {
                 // 测试结果圆点：名字后、紧挨闪电前（0920 定稿，与主页同位置）——
                 // 与闪电因果相邻、不被序号徽章抢视线、垂直成一列好扫。

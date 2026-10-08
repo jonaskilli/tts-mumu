@@ -1555,6 +1555,8 @@ fun KeyManagerScreen(tagRuleId: String, onBack: () -> Unit) {
             // 10-08 卡片化：传完整 TestOutcome（含用时/结论/锁定）——池卡要渲染与主页
             // 同构的单行结果条，只有 verdict 拼不出文字
             testByValue = testResults,
+            // 模型倍率表（10-10）：池页模型行同主页显示倍率胶囊（键=站点|模型）
+            modelRates = modelRates,
             testingValue = testingValue,
             batchTesting = testingPoolAll,
             selectionMode = poolSelection,
