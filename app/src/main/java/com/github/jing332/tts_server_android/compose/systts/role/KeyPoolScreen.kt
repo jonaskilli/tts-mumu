@@ -165,7 +165,8 @@ internal fun KeyPoolScreen(
             g.ifc?.let { ifc -> g.entries.forEach { ifcMap[it.name] = ifc } }
         }
         titles to ifcMap
-    }    val scrollBehavior = TopAppBarDefaults.pinnedScrollBehavior()
+    }
+    val scrollBehavior = TopAppBarDefaults.pinnedScrollBehavior()
     Scaffold(
         modifier = Modifier.fillMaxSize().nestedScroll(scrollBehavior.nestedScrollConnection),
         topBar = {
