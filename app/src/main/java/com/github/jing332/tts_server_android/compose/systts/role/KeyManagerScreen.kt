@@ -1435,13 +1435,28 @@ fun KeyManagerScreen(tagRuleId: String, onBack: () -> Unit) {
                 // 10-09 二令（装机反馈）：账号池入口回顶栏——操作行四胶囊放不下（「账号池」
                 // 胶囊挤压其余三键、视觉挤成一团）；顶栏动作区图标化后足够容纳，纯图标
                 // 误触风险已随「含义进 contentDescription+点开是独立子页」可接受
+                // 10-09 三令：账号池入口要重点突出——纯图标退场，改 TextButton（图标+文字）。
+                // 顶栏动作区已图标化（导入/导出本就无文字），一个文字键放得下且视觉重心立住；
+                // 「密」标题竖排风险不再（当时根因=动作区总宽过大，现只多一个短文字键）
                 actions = {
-                    // 账号池（10-09 二令：回顶栏，person 图标；多渠道登录/签到/续期在那边）
-                    IconButton(onClick = { showAccountPool = true }) {
+                    // 账号池（10-09 二令回顶栏 / 三令改图标+文字；多渠道登录/签到/续期在那边）
+                    TextButton(
+                        onClick = { showAccountPool = true },
+                        contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp),
+                        // 高度对齐 IconButton 48 热区；高度In设 min 防文字换行顶高顶栏
+                        modifier = Modifier.heightIn(min = 48.dp)
+                    ) {
                         Icon(
                             Icons.Default.People,
-                            contentDescription = stringResource(R.string.account_pool_title),
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant
+                            contentDescription = null,
+                            modifier = Modifier.size(18.dp),
+                            tint = MaterialTheme.colorScheme.primary
+                        )
+                        Spacer(Modifier.width(4.dp))
+                        Text(
+                            stringResource(R.string.account_pool_title),
+                            style = MaterialTheme.typography.labelLarge,
+                            color = MaterialTheme.colorScheme.primary
                         )
                     }
                     // 导入（纯图标；一步导入逻辑不变）
