@@ -303,22 +303,26 @@ object SseAggregator {
             if (authFailed) {
                 sawAuthFail = true
                 // 401/403(105 auth_error)：现场续期一次再试同账号（唯一该走续期的情形）
-                if (current.refreshToken.isNotEmpty()) {
+                // 判空用 if 非 let：continue 不能出现在 inline lambda（语言版本 2.2 前禁）
+                val refreshed = if (current.refreshToken.isNotEmpty()) {
                     channel.refresh(current)?.let { r ->
-                        AccountPool.saveRefreshed(current.id, r.first, r.second, r.third)
-                        val refreshed = current.copy(accessToken = r.first, refreshToken = r.second, expiresAt = r.third)
-                        // 显式非空 Pair（同上，解构前断言）
-                        val retry: Pair<Boolean, String> = channel.chatViaChannel(refreshed, bodyJson, model, cancelled)
-                            ?: return false to "渠道对话路径意外返回空（chatViaChannel 契约破坏）"
-                        val (ok2, body2) = retry
-                        if (ok2) return true to body2
-                        val status2 = Regex("HTTP (\\d{3})").find(body2)?.groupValues?.get(1)?.toIntOrNull() ?: 0
-                        lastErr = body2
-                        if (status2 != 401 && status2 != 403 && errClass != ChatChannel.ErrClass.AUTH) {
-                            tried.add(current.id)
-                            current = refreshed
-                            continue
-                        }
+                        Triple(r.first, r.second, r.third)
+                    }
+                } else null
+                if (refreshed != null) {
+                    AccountPool.saveRefreshed(current.id, refreshed.first, refreshed.second, refreshed.third)
+                    val renewed = current.copy(accessToken = refreshed.first, refreshToken = refreshed.second, expiresAt = refreshed.third)
+                    // 显式非空 Pair（解构前断言）
+                    val retry: Pair<Boolean, String> = channel.chatViaChannel(renewed, bodyJson, model, cancelled)
+                        ?: return false to "渠道对话路径意外返回空（chatViaChannel 契约破坏）"
+                    val (ok2, body2) = retry
+                    if (ok2) return true to body2
+                    val status2 = Regex("HTTP (\\d{3})").find(body2)?.groupValues?.get(1)?.toIntOrNull() ?: 0
+                    lastErr = body2
+                    if (status2 != 401 && status2 != 403 && errClass != ChatChannel.ErrClass.AUTH) {
+                        tried.add(current.id)
+                        current = renewed
+                        continue
                     }
                 }
             }
