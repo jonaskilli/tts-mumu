@@ -309,9 +309,9 @@ fun AccountPoolScreen(onBack: () -> Unit) {
         CallbackLoginDialog(
             provider = chId,
             onDismiss = { callbackChannel = null },
-            onDone = { nick ->
+            onDone = {
                 callbackChannel = null
-                context.toast("已添加：$nick")
+                context.toast("已添加")
                 reload()
             },
         )
