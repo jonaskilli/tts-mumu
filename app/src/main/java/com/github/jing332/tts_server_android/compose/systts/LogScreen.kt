@@ -419,12 +419,13 @@ internal fun LogScreen(
                 )
             }
 
+        // 排版实验 1008（用户 10-08 拍板①）：成员行 forceColor 压制撤除，kidBody 色系
+        // 退役——卡内恢复级别色/来源色（25cbf5f 的插件灰青/规则灰紫在卡内重新可见）
         val darkTheme = isSystemInDarkTheme()
-        // 卡片底色与成员字色（浅/深）
-        val cardBgOk = if (darkTheme) Color(0xFF232527) else Color(0xFFF6F5F8)
+        // 卡片底色（浅/深）；排版实验 1008（拍板②）：#F6F5F8→#F1F0F4——与页面底
+        // #FBF7F1 拉开一档，卡片形制本身可见
+        val cardBgOk = if (darkTheme) Color(0xFF232527) else Color(0xFFF1F0F4)
         val cardBgErr = if (darkTheme) Color(0xFF3A2626) else Color(0xFFFDF0F0)
-        val kidBodyColor = if (darkTheme) Color(0xFFA8B0B8) else Color(0xFF5F6A72)
-        val kidBodyErrColor = if (darkTheme) Color(0xFFD99090) else Color(0xFF8C4A4A)
         // 获取成功前缀：石板灰 Blue Grey 800/200
         // 发音人信息：棕褐 #7D6B5D / 深色主题 #A08B7A
         val metaColor = if (darkTheme) Color(0xFFB0BEC5) else Color(0xFF37474F)
@@ -609,7 +610,9 @@ internal fun LogScreen(
                                         // 非多选：点卡弹快捷面板（换发音人），锚定请求主行
                                         else Modifier.clickable { quickPanelEntry = head }
                                     )
-                                    .padding(start = 11.dp, end = 11.dp, top = 8.dp, bottom = 8.dp)
+                                    // 排版实验 1008（拍板③，用户 10-08）：卡内衬 11→5dp——
+                                    // 外距10+内衬5≈全站16dp 左缘线；成员行缩进同步撤（拍板④）
+                                    .padding(start = 5.dp, end = 11.dp, top = 8.dp, bottom = 8.dp)
                             ) {
                                 // 前置区：本次请求前的规则分析行（级别色照旧，字号小一档）
                                 if (item.pre.isNotEmpty()) {
@@ -687,10 +690,12 @@ internal fun LogScreen(
                                         color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.10f)
                                     )
                                 }
-                                // 成员行：结果子行/插件过程行，缩进+小一档+卡内次级色
+                                // 成员行：结果子行/插件过程行。排版实验 1008（拍板④，用户
+                                // 10-08）：撤 10dp 缩进与主行平齐——归属已由卡+分隔线+字号
+                                // 表达，缩进是第四重冗余，还压窄插件长句的可读宽度
                                 item.members.forEach { mIdx ->
                                     val m = list[mIdx]
-                                    Column(Modifier.padding(start = 10.dp, top = 6.dp)) {
+                                    Column(Modifier.padding(top = 6.dp)) {
                                         Row {
                                             Text(
                                                 // 排版实验 1008（P3，用户 10-08 午后令）：成员行
@@ -714,8 +719,10 @@ internal fun LogScreen(
                                             fontSize = 13.sp,
                                             lineHeight = 18.sp,
                                             isMatch = isMatchEntry(m, searchQuery),
-                                            forceColor = if (item.isError) kidBodyErrColor else kidBodyColor,
-                                            // 排版实验 1008（E）：卡内错误行加粗+⚠，突出于成功行
+                                            // 排版实验 1008（用户 10-08 拍板①）：撤 forceColor
+                                            // 统一压制——卡内恢复各自行本来的级别色/来源色
+                                            // （获取成功本就是石板灰；插件回灰青；规则回灰紫），
+                                            // 层次交给字号 14/13 与分隔线；E 的错误加粗保留
                                             emphasizeError = true,
                                             highlight = m == locateHighlight,
                                         )
