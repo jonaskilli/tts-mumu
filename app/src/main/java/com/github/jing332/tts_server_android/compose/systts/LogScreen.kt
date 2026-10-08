@@ -584,7 +584,10 @@ internal fun LogScreen(
                                     voiceColor = voiceColor,
                                     // 排版实验 1008（A 二轮，用户 10-08 午后令）：主行 16→14sp
                                     fontSize = 14.sp,
-                                    lineHeight = fontSize * 1.3f, // 排版实验 1008（行距定版）：统一字号×1.3 节奏，疏密靠字号差递减
+                                    // 行距定版：统一字号×1.3 节奏（37731502442 修 CI 红：
+                                    // 原 `fontSize * 1.3f` 引用的是 LogEntryBody 的命名参数，
+                                    // 调用点作用域无此变量——Unresolved reference，静守卫盲区）
+                                    lineHeight = 18.2.sp, // 14×1.3
                                     // 命中高亮已在整行背景，正文不再叠一层
                                     isMatch = false,
                                     highlight = log == locateHighlight,
@@ -704,7 +707,8 @@ internal fun LogScreen(
                                     // 排版实验 1008（A 二轮，用户 10-08 午后令）：主行 16→14sp，
                                     // 半粗保留；与成员行 13sp/前置行 12sp 每档差 1sp 层层递减
                                     fontSize = 14.sp,
-                                    lineHeight = fontSize * 1.3f, // 排版实验 1008（行距定版）：统一字号×1.3 节奏，疏密靠字号差递减
+                                    // 行距定版：统一字号×1.3 节奏（37731502442 修 CI 红，同 587 行）
+                                    lineHeight = 18.2.sp, // 14×1.3
                                     isMatch = isMatchEntry(head, searchQuery),
                                     // 排版实验 1008（C）：只染"请求音频："前缀，正文回默认色
                                     isRequestHead = true,

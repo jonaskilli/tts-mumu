@@ -42,6 +42,7 @@ import androidx.compose.material.icons.filled.DeleteSweep
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.FileDownload
 import androidx.compose.material.icons.filled.FileUpload
+import androidx.compose.material.icons.filled.People
 import androidx.compose.material.icons.filled.Restore
 import androidx.compose.material.icons.filled.Save
 import androidx.compose.material.icons.filled.Schedule
@@ -1431,9 +1432,18 @@ fun KeyManagerScreen(tagRuleId: String, onBack: () -> Unit) {
                 // ①导入/导出撤文字只留图标（用户令：文字删除；含义由 contentDescription 承载）
                 // ②页面级多选 ☑ 整个删除（用户：感觉没用——单条启停/删除在卡内都有，
                 // 整组启停在组头胶囊；随删 page 级 selectionMode 底栏与其状态链）
+                // 10-09 二令（装机反馈）：账号池入口回顶栏——操作行四胶囊放不下（「账号池」
+                // 胶囊挤压其余三键、视觉挤成一团）；顶栏动作区图标化后足够容纳，纯图标
+                // 误触风险已随「含义进 contentDescription+点开是独立子页」可接受
                 actions = {
-                    // 10-09 A1（用户拍板）：账号池入口撤顶栏图标、挪进操作行四胶囊
-                    // （顶栏三图标=导入/导出易误触的根治；池是入口性页面与拉取模型并排）
+                    // 账号池（10-09 二令：回顶栏，person 图标；多渠道登录/签到/续期在那边）
+                    IconButton(onClick = { showAccountPool = true }) {
+                        Icon(
+                            Icons.Default.People,
+                            contentDescription = stringResource(R.string.account_pool_title),
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
                     // 导入（纯图标；一步导入逻辑不变）
                     IconButton(
                         onClick = {
@@ -1514,11 +1524,9 @@ fun KeyManagerScreen(tagRuleId: String, onBack: () -> Unit) {
                     // 与它无关——根本不均分宽），SpaceBetween 首键贴左/尾键贴右、两缝自动均分，
                     // 与下方组卡同宽对齐；键左右内距 12→18 兜住文字呼吸。
                     // 高度 44dp 不动（10-07 定的，加厚显挤）
-                    // 10-09 A1（用户拍板）：操作行四键=新增密钥/拉取模型/账号池/池(N)——
-                    // 账号池误触根治（顶栏图标挪下来）；全员 contentPadding 18→14 + 字号
-                    // 14→13sp 兜住宽度（原三键 283dp+新键 ≈367dp > 320dp 可用宽，缩后 ≈340dp
-                    // 在 SpaceBetween 下两缝各约 10dp 可容）；「启用池(N)」改「池(N)」对应
-                    // 子页标题省 2 字宽
+                    // 10-09 二令（装机反馈）：四胶囊放不下——账号池回顶栏，操作行回三键
+                    // （新增密钥/拉取模型/池(N)），contentPadding 回 18、字号回 14sp（A1 的
+                    // 收缩兜底一并退役）
                     Row(
                         Modifier.fillMaxWidth()
                             .padding(horizontal = 8.dp, vertical = 6.dp),
@@ -1528,30 +1536,22 @@ fun KeyManagerScreen(tagRuleId: String, onBack: () -> Unit) {
                         OutlinedButton(
                             onClick = { showAdd = true },
                             modifier = Modifier.heightIn(min = 44.dp),
-                            contentPadding = PaddingValues(horizontal = 14.dp, vertical = 11.dp)
+                            contentPadding = PaddingValues(horizontal = 18.dp, vertical = 11.dp)
                         ) {
                             Text(stringResource(R.string.role_key_add), maxLines = 1, style = MaterialTheme.typography.labelLarge)
                         }
                         OutlinedButton(
                             onClick = { showPullModels = true },
                             modifier = Modifier.heightIn(min = 44.dp),
-                            contentPadding = PaddingValues(horizontal = 14.dp, vertical = 11.dp)
+                            contentPadding = PaddingValues(horizontal = 18.dp, vertical = 11.dp)
                         ) {
                             Text(stringResource(R.string.role_key_fetch), maxLines = 1, style = MaterialTheme.typography.labelLarge)
-                        }
-                        // 账号池入口（10-09 A1：从顶栏挪入操作行——多渠道登录/签到/续期在那边）
-                        OutlinedButton(
-                            onClick = { showAccountPool = true },
-                            modifier = Modifier.heightIn(min = 44.dp),
-                            contentPadding = PaddingValues(horizontal = 14.dp, vertical = 11.dp)
-                        ) {
-                            Text(stringResource(R.string.account_pool_title), maxLines = 1, style = MaterialTheme.typography.labelLarge)
                         }
                         // 启用池子页入口：调轮换顺序 / 移出 / 整批测试在那边做
                         FilledTonalButton(
                             onClick = { showPool = true },
                             modifier = Modifier.heightIn(min = 44.dp),
-                            contentPadding = PaddingValues(horizontal = 14.dp, vertical = 11.dp)
+                            contentPadding = PaddingValues(horizontal = 18.dp, vertical = 11.dp)
                         ) {
                             Text(stringResource(R.string.role_key_pool_short, pool.size), maxLines = 1, style = MaterialTheme.typography.labelLarge)
                         }
