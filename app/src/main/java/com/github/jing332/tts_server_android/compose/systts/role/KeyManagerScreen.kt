@@ -42,7 +42,7 @@ import androidx.compose.material.icons.filled.DeleteSweep
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.FileDownload
 import androidx.compose.material.icons.filled.FileUpload
-import androidx.compose.material.icons.filled.People
+import androidx.compose.material.icons.filled.FlightTakeoff
 import androidx.compose.material.icons.filled.Restore
 import androidx.compose.material.icons.filled.Save
 import androidx.compose.material.icons.filled.Schedule
@@ -350,8 +350,9 @@ private fun KeyEntryRow(
             // 点击（0920 实机反馈：只有名字前小空隙能点），条件挂载才干净
             Text(
                 KeyListFile.displayName(entry),
-                // 条目名 15sp（10-07 归档：与插件/替换两卡同名档，14sp 原为无拍板默认值）
-                style = MaterialTheme.typography.bodyMedium.copy(fontSize = 15.sp),
+                // 10-09 五令（字号 A 案）：15→14sp——与插件/替换两卡模型名同档，
+                // 长模型名（aion-labs/aion-2.0 类）截断概率降；组名 15 半粗扛层级
+                style = MaterialTheme.typography.bodyMedium.copy(fontSize = 14.sp),
                 color = MaterialTheme.colorScheme.onSurface,
                 maxLines = 2,
                 overflow = TextOverflow.Ellipsis,
@@ -461,9 +462,9 @@ private fun KeyEntryRow(
                 isWarn -> stringResource(R.string.role_key_test_warn_short) + lockedSuffix
                 else -> testOutcome.reason.ifEmpty { testOutcome.message }
             }
-            // 红态恒可展开（显示不全就是展开的理由；展开=全文一次+复制，见下方分支）
-            // 10-08 六令（装机反馈）：黄态不再可展开——收起行摘要比全文还长（「详情」点开
-            // 反而变短，反了）；结论+锁名一行已了结，黄态没有「详情」的必要
+            // 红态恒可展开；绿/黄原不可展开——10-09 六令细化：详情键改**超一行才出**，
+            // 截断时三态都可展开（展开=TestOutcome 全文，含写法名/状态码等底层信息，
+            // 必比摘要多东西），未截断则无详情键（一行了结就不给第二态）
             val hasExpandable = !isPass && !isWarn
             var expanded by rememberSaveable(entry.name) { mutableStateOf(false) }
             val clipboard = LocalClipboardManager.current
@@ -485,6 +486,9 @@ private fun KeyEntryRow(
                     // 10-08 用户令（推翻「同 Row 固定用时列」提案）：展开全文**从行首起、
                     // 折行也回行首**——第二行挂用时右缘=每行白一段，没必要。用时只是
                     // 行首普通前缀，连成一段自然折行；收起→展开文字左缘始终不动
+                    // 10-09 六令：绿/黄截断也能进来（详情键动态化）——绿/黄展开渲染
+                    // TestOutcome 全文（必比摘要多），红照旧 reason 全文；展开分支不再
+                    // 限红态，hasExpandable 语义改为「详情点开过」
                     Text(
                         timingPrefix + testOutcome.message,
                         style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.sp),
@@ -544,6 +548,10 @@ private fun KeyEntryRow(
                     // 10-08 六令：黄态删「详情」键与展开分支——收起行摘要比全文长、
                     // 展开反而变短（反了）；结论+锁名一行已够。黄态收起行尾挂
                     // 「自定义思考 ›」直键（修思考入口常驻，无需先展开）
+                    // 10-09 六令细化（用户拍板）：详情键=**超一行才出**——onTextLayout 的
+                    // hasVisualOverflow 动态判（截断即出、放得下即无），三态统一；
+                    // 点开=完整 TestOutcome 全文（含写法名/状态码等底层信息），必比摘要多
+                    var truncated by remember(entry.name, collapsedText) { mutableStateOf(false) }
                     if (timingPrefix.isNotEmpty()) {
                         Text(
                             timingPrefix,
@@ -558,10 +566,11 @@ private fun KeyEntryRow(
                         color = barColor,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
+                        onTextLayout = { truncated = it.hasVisualOverflow },
                         modifier = Modifier.weight(1f)
                     )
-                    if (hasExpandable) {
-                        // 红态收起尾挂「详情」（黄态已删——摘要即全文要点，无可展开）
+                    if (truncated) {
+                        // 截断时三态统一挂「详情」（绿/黄展开=TestOutcome 全文，红=reason 全文）
                         Text(
                             "详情",
                             style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.sp),
@@ -682,11 +691,13 @@ private fun GroupHeaderBlock(
     val context = LocalContext.current
     // 10-07 连体卡：组头并入组 ElevatedCard（不再裸排）——组=一张卡，折叠时只剩组头行。
     // 卡片间距/边距由调用处的组卡层负责，此处不再吃 top 16
-    // 10-08 配色 C 案（用户拍板）：组头区包 primary 8% 绿带当「卡名条」，与转白的模型区
-    // 拉开层次（组界一眼清）；primary 跟主题，深浅色模式各自成立
+    // 10-08 配色 C 案（用户拍板）：组头区包 primary 绿带当「卡名条」，与模型区拉开层次。
+    // 10-09 四令（装机反馈：折叠卡整卡绿连排糊成一团）绿带减淡 8%→5%——
+    // 绿的面积太大是「不好看」的本质，减淡后折叠卡退成似有若无的一层底；
+    // 绿胶囊/账号池标/状态字相对更跳。primary 跟主题，深浅色模式各自成立
     Column(
         Modifier.fillMaxWidth().background(
-            MaterialTheme.colorScheme.primary.copy(alpha = 0.08f)
+            MaterialTheme.colorScheme.primary.copy(alpha = 0.05f)
         )
     ) {
         Column(Modifier.padding(vertical = 4.dp)) {
@@ -768,10 +779,12 @@ private fun GroupHeaderBlock(
                         ) {
                             Text(
                                 grp.title,
-                                style = MaterialTheme.typography.titleMedium,
+                                style = MaterialTheme.typography.titleMedium.copy(fontSize = 15.sp),
                                 // 10-08 用户令：组名不染绿——原「有启用染 TEST_PASS_COLOR+Bold、
                                 // 全停黑字 SemiBold」的双态撤掉，统一黑字；启用态已有 1/1 胶囊承担，
                                 // 组名不再重复编码
+                                // 10-09 五令：16→15sp（字号 A 案）——模型名降 14 后组名只靠
+                                // 半粗字重扛层级；原 titleMedium(16) 与卡内模型行落差过大
                                 fontWeight = FontWeight.SemiBold,
                                 color = MaterialTheme.colorScheme.onSurface,
                                 maxLines = 1,
@@ -1439,7 +1452,8 @@ fun KeyManagerScreen(tagRuleId: String, onBack: () -> Unit) {
                 // 顶栏动作区已图标化（导入/导出本就无文字），一个文字键放得下且视觉重心立住；
                 // 「密」标题竖排风险不再（当时根因=动作区总宽过大，现只多一个短文字键）
                 actions = {
-                    // 账号池（10-09 二令回顶栏 / 三令改图标+文字；多渠道登录/签到/续期在那边）
+                    // 账号池（10-09 二令回顶栏 / 三令改图标+文字 / 四令改名 Jet 与 DSH
+                    // Jet Hub 呼应）：FlightTakeoff 图标 + 「Jet」文字
                     TextButton(
                         onClick = { showAccountPool = true },
                         contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp),
@@ -1447,7 +1461,7 @@ fun KeyManagerScreen(tagRuleId: String, onBack: () -> Unit) {
                         modifier = Modifier.heightIn(min = 48.dp)
                     ) {
                         Icon(
-                            Icons.Default.People,
+                            Icons.Default.FlightTakeoff,
                             contentDescription = null,
                             modifier = Modifier.size(18.dp),
                             tint = MaterialTheme.colorScheme.primary

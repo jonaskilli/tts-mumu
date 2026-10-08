@@ -336,7 +336,8 @@ private fun PoolRow(
             // 各抢一半会把名字挤成半宽提前换行）
             Text(
                 info.display,
-                style = MaterialTheme.typography.bodyMedium,
+                // 10-09 五令（字号 A 案同构）：bodyMedium(16)→14sp，与主页模型名同档
+                style = MaterialTheme.typography.bodyMedium.copy(fontSize = 14.sp),
                 maxLines = 2,
                 overflow = TextOverflow.Ellipsis,
                 modifier = Modifier.weight(1f)
@@ -446,6 +447,8 @@ private fun PoolTestResultBar(
         isWarn -> stringResource(R.string.role_key_test_warn_short) + lockedSuffix
         else -> testOutcome.reason.ifEmpty { testOutcome.message }
     }
+    // 红态恒可展开；绿/黄原不可展开——10-09 六令：详情键超一行才出（truncated 动态判），
+    // 截断时三态都可展开
     val hasExpandable = !isPass
     var expanded by rememberSaveable(testOutcome.message) { mutableStateOf(false) }
     val clipboard = LocalClipboardManager.current
@@ -512,6 +515,9 @@ private fun PoolTestResultBar(
                 Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically
             ) {
+                // 10-09 六令同构：详情键**超一行才出**——onTextLayout hasVisualOverflow
+                // 动态判，三态统一；点开=TestOutcome 全文
+                var truncated by remember(testOutcome.message) { mutableStateOf(false) }
                 if (timingPrefix.isNotEmpty()) {
                     Text(
                         timingPrefix,
@@ -526,10 +532,11 @@ private fun PoolTestResultBar(
                     color = barColor,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
+                    onTextLayout = { truncated = it.hasVisualOverflow },
                     modifier = Modifier.weight(1f)
                 )
-                if (hasExpandable) {
-                    // 黄/红收起尾挂「详情」（与主页同位同词）
+                if (truncated) {
+                    // 截断时挂「详情」（与主页同位同词）；右距 2→8 与动作键右线齐
                     Text(
                         stringResource(R.string.role_key_pool_detail),
                         style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.sp),
@@ -538,7 +545,7 @@ private fun PoolTestResultBar(
                         modifier = Modifier
                             .clip(RoundedCornerShape(4.dp))
                             .clickable { expanded = true }
-                            .padding(start = 6.dp, end = 2.dp)
+                            .padding(start = 6.dp, end = 8.dp)
                     )
                 }
             }

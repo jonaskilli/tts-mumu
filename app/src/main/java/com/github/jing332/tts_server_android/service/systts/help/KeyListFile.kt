@@ -1146,8 +1146,10 @@ object KeyListFile {
             }
             val suffix = when {
                 !ok -> ""
-                off == false -> "；思考未关闭"   // 10-06 用户：术语统一「未关闭」（原「仍开启」）
-                else -> "；思考已关"
+                // 10-09 六令（文案统一方案一）：全链三段式「·」分隔——分号/冒号口径退役；
+                // 「未关闭」词形统一为「未关」（与 auto 探测路黄态摘要串同词）
+                off == false -> " · 思考未关"
+                else -> " · 思考已关"
             }
             return TestOutcome(v, off, msg + suffix, reason = if (!ok) msg else "")
         }
@@ -1163,9 +1165,10 @@ object KeyListFile {
             val (ok, off, msg) = testOnce(t, locked, lockedCustom)
             if (ok) {
                 val v = if (off == false) TestVerdict.PASS_THINKING else TestVerdict.PASS
-                val suffix = if (off == false) "；思考未关闭（锁定：$locked）" else "；思考已关（锁定：$locked）"
-                // ⚠️ locked 必须回传（10-06 漏改修复）：界面靠它判断「已锁定→不给『去设置』」，
-                // 漏传会让锁定命中的黄态被误判为「未锁定」而多出没必要的设置入口
+                // 10-09 六令（文案统一方案一）：三段式「已锁定 x」（与 auto 探测路同构；
+                // 原括号「（锁定：x）」口径退役）——locked 必须回传：界面靠它判断
+                // 「已锁定→不给『去设置』」，漏传会误出设置入口
+                val suffix = if (off == false) " · 思考未关 · 已锁定 $locked" else " · 思考已关 · 已锁定 $locked"
                 return TestOutcome(v, off, msg + suffix, locked = locked)
             }
             // 锁定写法突然不通（平台行为变了）→ 落到全量试探
@@ -1214,7 +1217,8 @@ object KeyListFile {
                 saveThinkingParam(tagRuleId, t.baseUrl, t.model, m, mCustom)
                 return TestOutcome(
                     TestVerdict.PASS, true,
-                    "思考适配完成：该模型锁定「$m」（思考已关，$msg）",
+                    // 10-09 六令（文案统一方案一）：三段式「·」分隔，冒号/括号口径退役
+                    "$msg · 思考已关 · 已锁定 $m",
                     locked = m
                 )
             }

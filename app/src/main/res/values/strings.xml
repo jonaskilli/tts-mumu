@@ -778,11 +778,11 @@
     <string name="role_list_merge_target_title">选择保留的角色</string>
     <string name="role_list_merge_target_hint">其余角色名将并入所选角色的别名</string>
     <string name="role_list_merge_toast">已合并 %1$d 个角色</string>
-    <string name="account_pool_title">账号池</string>
+    <string name="account_pool_title">Jet</string>
     <string name="account_pool_login">登录账号</string>
     <string name="account_pool_empty">暂无账号，点右上角 + 登录</string>
     <string name="account_pool_refresh_ok">续期成功</string>
-    <string name="account_pool_source_tag">账号池</string>
+    <string name="account_pool_source_tag">Jet</string>
     <string name="role_key_title">密钥</string>
     <string name="role_key_current">当前</string>
     <string name="role_key_set_current">设为当前</string>
@@ -933,7 +933,7 @@
     <string name="role_key_test_fail_toast_simple">测试未通过，详情见卡片下方</string>
     <string name="role_key_test_result_copy">复制结果</string>
     <string name="role_key_test_pass_only">测试通过</string>
-    <string name="role_key_test_warn_short">可用 · 思考未关（可能拖慢分配）</string>
+    <string name="role_key_test_warn_short">可用 · 思考未关，可能拖慢分配</string>
     <string name="role_key_probe_progress">探测中：%1$s</string>
     <string name="role_key_model_filter">🔍 搜索过滤模型</string>
     <string name="role_key_model_input_hint">输入模型名</string>
