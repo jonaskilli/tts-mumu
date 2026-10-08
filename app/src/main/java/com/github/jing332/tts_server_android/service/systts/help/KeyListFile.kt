@@ -210,19 +210,21 @@ object KeyListFile {
     }
 
     /** 合并写倍率（只覆盖传入的键，旧键保留——不同组先后拉取各写各的）；失败返回 false */
-    fun saveModelRates(tagRuleId: String, rates: Map<String, String>): Boolean = try {
+    fun saveModelRates(tagRuleId: String, rates: Map<String, String>): Boolean {
         if (rates.isEmpty()) return true
-        val d = dir(tagRuleId)
-        if (!d.exists()) d.mkdirs()
-        val root = if (modelRatesFile(tagRuleId).exists())
-            runCatching { JSONObject(modelRatesFile(tagRuleId).readText()) }.getOrElse { JSONObject() }
-        else JSONObject()
-        rates.forEach { (k, v) -> root.put(k, v) }
-        modelRatesFile(tagRuleId).writeText(root.toString(2))
-        true
-    } catch (e: Exception) {
-        Log.w(TAG, "saveModelRates failed: ${e.message}")
-        false
+        return try {
+            val d = dir(tagRuleId)
+            if (!d.exists()) d.mkdirs()
+            val root = if (modelRatesFile(tagRuleId).exists())
+                runCatching { JSONObject(modelRatesFile(tagRuleId).readText()) }.getOrElse { JSONObject() }
+            else JSONObject()
+            rates.forEach { (k, v) -> root.put(k, v) }
+            modelRatesFile(tagRuleId).writeText(root.toString(2))
+            true
+        } catch (e: Exception) {
+            Log.w(TAG, "saveModelRates failed: ${e.message}")
+            false
+        }
     }
 
     // ==================== 分配专用键标记（assign_marker.json，10-09）====================
