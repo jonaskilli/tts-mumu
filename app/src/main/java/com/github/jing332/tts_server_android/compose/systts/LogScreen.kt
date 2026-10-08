@@ -87,10 +87,11 @@ import kotlin.math.abs
 private val MetaColorSentinel = Color(0xFFFF00FF)       // 获取成功前缀 → 石板灰
 private val VoiceMetaSentinel = Color(0xFF00FFFF)       // 发音人信息 → 雾紫
 
-// 排版实验 1008（用户拍板 A/C/D/E，回退基线 7f0d647）：请求行"请求音频："前缀专用色
-// （深绿），正文不再跟级别色——纯绿满屏太抢，只染前缀、书名/正文回默认色
-private val RequestPrefixColorLight = Color(0xFF2E7D32)
-private val RequestPrefixColorDark = Color(0xFF81C784)
+// 排版实验 1008（用户 10-08 拍板「撤吧，灰」）：请求行"请求音频："前缀撤级别绿——
+// 每卡必有、信息量为零的词占最显眼色正好反了（9-13 去彩色化同方向），改中性灰，
+// 与时间行同档；黄警/红错的对比度由此上来。字号分层保留（前缀 13sp）
+private val RequestPrefixColorLight = Color(0xFF79747E)
+private val RequestPrefixColorDark = Color(0xFF938F99)
 
 // 把命中哨兵色的段落整体换成目标色，让"请求音频"正文(纯绿)与
 // 获取成功前缀(石板灰)/发音人信息(雾紫)层次分明但不抢眼
@@ -134,8 +135,10 @@ internal class LogGroups(val items: List<Item>, val entryToList: IntArray) {
             val pre: List<Int>,
             val head: Int,
             val members: List<Int>,
-            // 卡内任一成员 W/E（获取失败/重试/规则报警）→ 整卡粉底
-            val isError: Boolean,
+            // 排版实验 1008（报错三件套，用户 10-08 拍板）：卡内最高错误级别——
+            // 0=无错（灰底）1=仅 WARN（淡琥珀底）2=含 ERROR（红粉底）。
+            // 原 isError: Boolean 升级，扫一眼分清"出错"还是"只是警告"
+            val errorLevel: Int,
         ) : Item()
     }
 
@@ -156,18 +159,19 @@ internal class LogGroups(val items: List<Item>, val entryToList: IntArray) {
             var pre = ArrayList<Int>()
             var head = -1
             var members = ArrayList<Int>()
-            var cardError = false
+            var cardErrorLevel = 0
 
             fun closeCard() {
                 if (head >= 0)
-                    raw.add(Item.Card(pre.toList(), head, members.toList(), cardError))
+                    raw.add(Item.Card(pre.toList(), head, members.toList(), cardErrorLevel))
                 head = -1
                 members = ArrayList()
                 pre = ArrayList()
-                cardError = false
+                cardErrorLevel = 0
             }
             fun markError(e: LogEntry) {
-                if (e.level == LogLevel.WARN || e.level == LogLevel.ERROR) cardError = true
+                if (e.level == LogLevel.ERROR) cardErrorLevel = 2
+                else if (e.level == LogLevel.WARN && cardErrorLevel < 1) cardErrorLevel = 1
             }
             // 排版实验 1008（P2，用户 10-08 午后拍板）：规则分析行的"时间邻接"判定——
             // 只有望距新请求 ≤10s 的悬置分析行才配做该卡前置区；超 10s = AI 慢思考/隔批
@@ -423,8 +427,10 @@ internal fun LogScreen(
         // 退役——卡内恢复级别色/来源色（25cbf5f 的插件灰青/规则灰紫在卡内重新可见）
         val darkTheme = isSystemInDarkTheme()
         // 卡片底色（浅/深）；排版实验 1008（拍板②）：#F6F5F8→#F1F0F4——与页面底
-        // #FBF7F1 拉开一档，卡片形制本身可见
+        // #FBF7F1 拉开一档，卡片形制本身可见。报错三件套（拍板）：粉底分两档——
+        // 仅 WARN 淡琥珀、含 ERROR 红粉，扫一眼分清"出错"还是"只是警告"
         val cardBgOk = if (darkTheme) Color(0xFF232527) else Color(0xFFF1F0F4)
+        val cardBgWarn = if (darkTheme) Color(0xFF3A3226) else Color(0xFFFDF8E8)
         val cardBgErr = if (darkTheme) Color(0xFF3A2626) else Color(0xFFFDF0F0)
         // 获取成功前缀：石板灰 Blue Grey 800/200
         // 发音人信息：棕褐 #7D6B5D / 深色主题 #A08B7A
@@ -589,7 +595,12 @@ internal fun LogScreen(
                             val head = list[item.head]
                             val groupLogs = (item.pre + item.head + item.members).map { list[it] }
                             val groupChecked = groupLogs.all { it in checkedEntries }
-                            val cardBg = if (item.isError) cardBgErr else cardBgOk
+                            // 报错三件套①：底色三档（灰/淡琥珀/红粉）
+                            val cardBg = when (item.errorLevel) {
+                                2 -> cardBgErr
+                                1 -> cardBgWarn
+                                else -> cardBgOk
+                            }
                             Column(
                                 modifier = Modifier
                                     // 排版实验 1008（D）：卡外距 6→10dp，两侧留白与密钥页口径靠拢
@@ -655,6 +666,24 @@ internal fun LogScreen(
                                     // 「原文」定位键（用户 10-08 甲方案）：筛选/搜索态显示，
                                     // 占行尾剩余空间靠右；点卡片主体仍是快捷面板，互不抢
                                     if (showLocateKey) {
+                                        // 报错三件套③：粉卡在定位键前挂级别角标——不用展开
+                                        // 就知道卡里是 E 还是 W（P2 收紧后分析行常落卡外，
+                                        // 这是找报错卡最快的锚点）
+                                        if (item.errorLevel > 0) {
+                                            Text(
+                                                text = if (item.errorLevel == 2) "E" else "W",
+                                                style = MaterialTheme.typography.labelSmall,
+                                                color = MaterialTheme.colorScheme.onPrimaryContainer,
+                                                modifier = Modifier
+                                                    .padding(start = 6.dp)
+                                                    .background(
+                                                        if (item.errorLevel == 2) MaterialTheme.colorScheme.error
+                                                        else Color(0xFFFFC107),
+                                                        RoundedCornerShape(6.dp)
+                                                    )
+                                                    .padding(horizontal = 5.dp, vertical = 1.dp)
+                                            )
+                                        }
                                         Spacer(Modifier.weight(1f))
                                         Text(
                                             text = "⟲ 原文",
@@ -832,9 +861,12 @@ private fun LogEntryBody(
                 }
             }
         }
-        if (emphasizeError && entry.level == LogLevel.ERROR) {
+        // 报错三件套②：W 行与 E 行同获加粗+行首标记（E=✖ 重一级，W=⚠）——
+        // 撤 forceColor 后粉底是唯一信号会漏掉黄警，行内自证
+        if (emphasizeError && (entry.level == LogLevel.ERROR || entry.level == LogLevel.WARN)) {
+            val mark = if (entry.level == LogLevel.ERROR) "✖ " else "⚠ "
             s = buildAnnotatedString {
-                append("⚠ ")
+                append(mark)
                 append(s.text)
                 s.spanStyles.forEach { addStyle(it.item, it.start + 2, it.end + 2) }
                 addStyle(SpanStyle(fontWeight = FontWeight.Bold), 0, s.text.length + 2)
