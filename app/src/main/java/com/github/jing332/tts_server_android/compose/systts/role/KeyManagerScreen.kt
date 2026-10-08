@@ -258,6 +258,8 @@ private fun KeyEntryRow(
     testing: Boolean,
     // 探测进度（10-03 九改）：测试中显示的「探测中：第 N/M 种写法「xxx」」；null=不显示
     probeProgress: String? = null,
+    // 模型计费倍率（10-10 甲案）：展示串（"x0.8"/"免费"/"x12→x6"）；null=该站无数据不显示
+    modelRate: String? = null,
     selectionMode: Boolean,
     checked: Boolean,
     // 来源标签（10-06 方案B）：密钥 key 段命中账号池 access_token → 名字后绿标「账号池」。
@@ -380,6 +382,10 @@ private fun KeyEntryRow(
                         maxLines = 2,
                         overflow = TextOverflow.Ellipsis,
                         modifier = Modifier
+                            // weight(fill=false)：胶囊先量、名字拿剩余宽度——短名不留空
+                            //（胶囊紧跟名字），长名在两行内换行后省略（10-10 倍率甲案；
+                            // 不加 weight 的话长名会吃满整行把胶囊挤成 0 宽）
+                            .weight(1f, fill = false)
                             // 多选/组内删除模式点名字=勾选；常规模式点名字=复制模型名
                             //（10-03 拍板，📋 键退役）+ 长按弹分配菜单（10-09）
                             .then(
@@ -395,6 +401,21 @@ private fun KeyEntryRow(
                         // 分配专用标记（10-09）：名字后一枚 🚀——只读小标，权威开关在
                         // 编辑弹窗 Switch / 长按菜单（10-10 改：进名字区紧跟模型名）
                         Text("🚀", fontSize = 14.sp)
+                    }
+                    // 计费倍率（10-10 甲案）：名字后灰底小胶囊，跟 🚀 之后。
+                    // 模型名 maxLines=2 可换行，倍率跟在文字流后不挤坏长名；无数据显示时整体缺席
+                    if (!selectionMode && modelRate != null) {
+                        Spacer(Modifier.width(5.dp))
+                        Text(
+                            modelRate,
+                            style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp),
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            maxLines = 1,
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(5.dp))
+                                .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.7f))
+                                .padding(horizontal = 5.dp, vertical = 1.dp)
+                        )
                     }
                 }
                 if (!selectionMode) {
@@ -1064,6 +1085,8 @@ fun KeyManagerScreen(tagRuleId: String, onBack: () -> Unit) {
     var version by remember { mutableIntStateOf(0) }
     var keys by remember { mutableStateOf<List<KeyListFile.KeyEntry>>(emptyList()) }
     var ifaces by remember { mutableStateOf<List<KeyListFile.ApiInterface>>(emptyList()) }
+    // 模型倍率缓存（10-10）：键=站点|模型 → 展示串（"x0.8"/"免费"/"x12→x6"）；空=不显示
+    var modelRates by remember { mutableStateOf<Map<String, String>>(emptyMap()) }
     // 启用池（miyue.txt 启用集，按序 = 规则轮换顺序）；元素为归一化值（normalizePoolValue）
     var pool by remember { mutableStateOf<List<String>>(emptyList()) }
     // 测试结果记忆（归一化密钥值 → 完整结果）：持久化到 key_test_results.json，
@@ -1155,6 +1178,9 @@ fun KeyManagerScreen(tagRuleId: String, onBack: () -> Unit) {
         if (assignMarker == null) {
             assignMarker = withIO { KeyListFile.readAssignMarker(tagRuleId) }
         }
+        // 模型倍率缓存（10-10）：每次 version++ 重读（拉取完落盘即刷新显示；
+        // 与测试结果不同——倍率只增不因会话变，重读无覆盖风险）
+        modelRates = withIO { KeyListFile.readModelRates(tagRuleId) }
         // 折叠记忆：只在首次进页面时从盘上读（后续 version++ 重载不覆盖用户当场切换的折叠）
         if (collapsed == null) {
             collapsed = withIO { KeyListFile.readCollapsedGroups(tagRuleId) }
@@ -1811,6 +1837,12 @@ fun KeyManagerScreen(tagRuleId: String, onBack: () -> Unit) {
                                     testOutcome = testResults[norm],
                                     testing = testingValue == norm,
                                     probeProgress[norm],
+                                    // 模型倍率（10-10 甲案）：组站点|模型 查缓存；无数据传 null 不显示
+                                    modelRate = grp.ifc?.let { ifc ->
+                                        KeyListFile.parseKeyValue(entry.value)?.model
+                                            ?.takeIf { it.isNotBlank() }
+                                            ?.let { m -> modelRates[KeyListFile.rateKey(ifc.baseUrl, m)] }
+                                    },
                                     // 组内删除模式：复选框顶替行首对勾、动作区隐藏、勾中染浅红。
                                     // 10-08：页面级 ☑ 多选已删，selectionMode 只剩 isDeleting 一个来源
                                     selectionMode = isDeleting,
@@ -2151,7 +2183,7 @@ fun KeyManagerScreen(tagRuleId: String, onBack: () -> Unit) {
             ifaces = ifaces,
             initialIfcName = pullForIfc,
             onDismiss = { showPullModels = false; pullForIfc = null },
-            onConfirm = { url, apiKey, groupName, pickedModels ->
+            onConfirm = { url, apiKey, groupName, pickedModels, pulledRates ->
                 showPullModels = false
                 pullForIfc = null
                 scope.launch {
@@ -2183,6 +2215,13 @@ fun KeyManagerScreen(tagRuleId: String, onBack: () -> Unit) {
                             if (toAdd.isNotEmpty()) KeyListFile.saveKeys(tagRuleId, merged)
                             // 拉到的模型登记进分组 models
                             KeyListFile.addModelsToInterface(tagRuleId, ifc.name, pickedModels)
+                            // 倍率落盘（10-10）：键=站点|模型，只写本次抓到的（合并写，旧键保留）
+                            if (pulledRates.isNotEmpty()) {
+                                KeyListFile.saveModelRates(
+                                    tagRuleId,
+                                    pulledRates.mapKeys { (m, _) -> KeyListFile.rateKey(ifc.baseUrl, m) }
+                                )
+                            }
                         }
                         toast(R.string.role_key_pull_done, toAdd.size, entries.size - toAdd.size)
                         // 拉取完成后自动展开并滚到该组（10-08：结果落在组里，折叠/屏外都看不见）
@@ -3102,8 +3141,9 @@ private fun ModelPullDialog(
     ifaces: List<KeyListFile.ApiInterface>,
     initialIfcName: String? = null,
     onDismiss: () -> Unit,
-    // onConfirm(网址, 密钥, 分组名, 选中的模型)；分组名留空 = 按网址短名自动提取
-    onConfirm: (String, String, String, List<String>) -> Unit,
+    // onConfirm(网址, 密钥, 分组名, 选中的模型, 倍率表)；分组名留空 = 按网址短名自动提取
+    // rates：本次拉取抓回的 模型→倍率展示串（可能为空=该站无倍率数据）
+    onConfirm: (String, String, String, List<String>, Map<String, String>) -> Unit,
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -3117,6 +3157,8 @@ private fun ModelPullDialog(
     var urlText by remember { mutableStateOf(TextFieldValue(initialIfc?.baseUrl.orEmpty())) }
     var keyText by remember { mutableStateOf(TextFieldValue(initialIfc?.apiKey.orEmpty())) }
     var models by remember { mutableStateOf<List<String>>(emptyList()) }
+    // 拉取时顺手抓回的倍率（10-10）：模型→展示串；空=该站无倍率数据（不显示）
+    var rates by remember { mutableStateOf<Map<String, String>>(emptyMap()) }
     var selected by remember { mutableStateOf<Set<String>>(emptySet()) }
     var loading by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf("") }
@@ -3145,11 +3187,12 @@ private fun ModelPullDialog(
         val k = targetIfc?.apiKey ?: key
         scope.launch {
             loading = true; error = ""
-            val r = withIO { KeyListFile.fetchModels(u, k) }
+            val r = withIO { KeyListFile.fetchModelsWithRates(u, k) }
             loading = false
-            if (r.first == null) error = r.second
+            if (r.first == null) error = r.third
             else {
                 models = r.first ?: emptyList()
+                rates = r.second
                 selected = emptySet() // 默认不勾选
                 formCollapsed = true
             }
@@ -3383,7 +3426,7 @@ private fun ModelPullDialog(
                                 val u = targetIfc?.baseUrl ?: url
                                 val k = targetIfc?.apiKey ?: key
                                 // 并入已有组 ⇒ 名字交空
-                                onConfirm(u, k, if (targetIfc != null) "" else finalName, selected.sorted())
+                                onConfirm(u, k, if (targetIfc != null) "" else finalName, selected.sorted(), rates)
                             }
                         ) {
                             Text(stringResource(R.string.role_key_add_selected, selected.size))

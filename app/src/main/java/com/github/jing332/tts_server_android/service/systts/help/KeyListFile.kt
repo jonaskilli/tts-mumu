@@ -176,6 +176,55 @@ object KeyListFile {
         false
     }
 
+    // ==================== 模型计费倍率缓存（model_rates.json，10-10）====================
+    // 倍率是「拉取模型」时从上游目录顺手抓回的展示数据（各渠道字段不同：CodeBuddy
+    // discountedCreditsRate / raccoon billing_effective_multiplier / qoder price_factor /
+    // loomy 藏在 name 里的 ·xN.N——见各渠道实现）。与测试结果同款旁挂文件：
+    // key_list.json / miyue 都不动，纯 app 自用展示。键=「站点|模型」（同一模型在不同
+    // 站点倍率不同，必须按站点隔离）。没有该渠道倍率数据时整个键缺席（UI 不显示）。
+
+    private fun modelRatesFile(tagRuleId: String) = File(dir(tagRuleId), "model_rates.json")
+
+    /** 倍率键：站点归一 + 模型（sameApiSite 的站点粒度） */
+    fun rateKey(baseUrl: String, model: String): String =
+        normalizeBaseUrl(openAiBaseUrl(baseUrl)) + "|" + model
+
+    /** 读倍率缓存（键=rateKey）；文件缺失/损坏返回空表 */
+    fun readModelRates(tagRuleId: String): Map<String, String> = try {
+        val f = modelRatesFile(tagRuleId)
+        if (!f.exists()) emptyMap()
+        else {
+            val obj = JSONObject(f.readText())
+            val out = mutableMapOf<String, String>()
+            val it = obj.keys()
+            while (it.hasNext()) {
+                val k = it.next()
+                val v = obj.optString(k)
+                if (v.isNotEmpty()) out[k] = v
+            }
+            out
+        }
+    } catch (e: Exception) {
+        Log.w(TAG, "readModelRates failed: ${e.message}")
+        emptyMap()
+    }
+
+    /** 合并写倍率（只覆盖传入的键，旧键保留——不同组先后拉取各写各的）；失败返回 false */
+    fun saveModelRates(tagRuleId: String, rates: Map<String, String>): Boolean = try {
+        if (rates.isEmpty()) return true
+        val d = dir(tagRuleId)
+        if (!d.exists()) d.mkdirs()
+        val root = if (modelRatesFile(tagRuleId).exists())
+            runCatching { JSONObject(modelRatesFile(tagRuleId).readText()) }.getOrElse { JSONObject() }
+        else JSONObject()
+        rates.forEach { (k, v) -> root.put(k, v) }
+        modelRatesFile(tagRuleId).writeText(root.toString(2))
+        true
+    } catch (e: Exception) {
+        Log.w(TAG, "saveModelRates failed: ${e.message}")
+        false
+    }
+
     // ==================== 分配专用键标记（assign_marker.json，10-09）====================
     // 语义：全站唯一一把「分配专用」键——姓名/别名分析优先用它（轮换取钥顺序的头一把）。
     // 标记不进 KeyEntry 结构（key_list.json 不动），单独落本文件：key_test_results.json
@@ -1106,16 +1155,92 @@ object KeyListFile {
  * ⚠️ 旧版用 optString(i) 取元素 ⇒ 标准 {data:[{id}]} 会把整个对象当模型名写进密钥。
  */
     fun fetchModels(baseUrl: String, apiKey: String): Pair<List<String>?, String> {
-        // CodeBuddy 上游（10-08 接线）：无标准 /models，走 /v3/config 专用解析
-        //（agent 引用优先+非对话模型过滤；拉不到回落内置清单不阻断添加流程）
+        val (list, _, err) = fetchModelsWithRates(baseUrl, apiKey)
+        return list to err
+    }
+
+    /**
+     * 拉模型 + 顺手抓计费倍率（10-10）：返回 (模型列表, 倍率表(模型→展示串), 错误)。
+     * 倍率表可能为空 = 该站/该渠道无倍率数据（UI 不显示，不编造）。
+     * 抓取是**宽松扫描**（10-10 决策）：各渠道字段名不一（raccoon billing_effective_multiplier/
+     * billing_multiplier、qoder price_factor、CodeBuddy discountedCreditsRate），且层级未真机核实，
+     * 因此按「字段名含 rate/multiplier/factor 且为数值」泛匹配，再叠加模型名内嵌 `·xN.N` 解析；
+     * 两者都取不到就不写（宁可没有，不写错的倍率）。
+     */
+    fun fetchModelsWithRates(baseUrl: String, apiKey: String): Triple<List<String>?, Map<String, String>, String> {
         if (AccountPool.isChatHost(baseUrl)) {
-            val (list, err) = AccountPool.fetchModels(apiKey)
-            return list to err
+            val (list, rates, err) = AccountPool.fetchModelsWithRates(apiKey)
+            return Triple(list, rates, err)
         }
         val resp = httpJson(openAiBaseUrl(baseUrl) + "/models", "GET", apiKey, null)
-        if (!resp.ok) return null to "HTTP ${resp.code}，${briefBody(resp.body)}"
-        return parseModelList(resp.body) to ""
+        if (!resp.ok) return Triple(null, emptyMap(), "HTTP ${resp.code}，${briefBody(resp.body)}")
+        return Triple(parseModelList(resp.body), parseRatesFromModels(resp.body), "")
     }
+
+    /**
+     * 从 /models 响应体抓倍率：data[]/models[] 每个条目对象里扫计费字段；
+     * 条目自带 name/description 里的 `· xN.N` 也认（loomy 型）。返回 模型→展示串。
+     */
+    fun parseRatesFromModels(body: String): Map<String, String> {
+        val out = mutableMapOf<String, String>()
+        val arr = try {
+            val o = JSONObject(body)
+            o.optJSONArray("data") ?: o.optJSONArray("models")
+        } catch (_: Exception) {
+            runCatching { JSONArray(body) }.getOrNull()
+        } ?: return out
+        for (i in 0 until arr.length()) {
+            val m = arr.optJSONObject(i) ?: continue
+            val id = m.optString("id").trim().ifEmpty { m.optString("model").trim() }
+            if (id.isEmpty()) continue
+            rateOfEntry(m)?.let { out[id] = it }
+        }
+        return out
+    }
+
+    /** 单条目倍率：先扫计费字段（生效价/原价），再兜底模型名内嵌 `· xN.N` */
+    private fun rateOfEntry(m: JSONObject): String? {
+        // 生效倍率候选（越小越"享折扣"）：各渠道字段名泛匹配
+        val effKeys = arrayOf(
+            "billing_effective_multiplier", "billingEffectiveMultiplier",
+            "discountedCreditsRate", "discounted_credits_rate",
+            "price_factor", "priceFactor", "effective_multiplier",
+        )
+        val origKeys = arrayOf(
+            "billing_multiplier", "billingMultiplier",
+            "creditsRate", "credits_rate", "original_multiplier",
+        )
+        fun num(keys: Array<String>): Double? {
+            for (k in keys) if (m.has(k) && !m.isNull(k)) {
+                val d = m.optDouble(k, Double.NaN)
+                if (!d.isNaN()) return d
+            }
+            return null
+        }
+        val eff = num(effKeys)
+        val orig = num(origKeys)
+        // 状态提示优先（限免等）：文案由上游给就照抄
+        val note = m.optString("billing_status_note")
+        val status = m.optString("billing_status")
+        if (eff != null) {
+            if (eff == 0.0) return "免费"
+            val e = trimNum(eff)
+            val o = orig?.let { trimNum(it) }
+            return when {
+                o != null && o != e -> "x$o→x$e"
+                note.isNotEmpty() -> "x$e·$note"
+                status == "discount" -> "x$e"
+                else -> "x$e"
+            }
+        }
+        // 名字里带 · xN.N（loomy；三种括号风格混用，取最后一次匹配）
+        val text = m.optString("name") + " " + m.optString("description")
+        return Regex("[x×]\\s*(\\d+(?:\\.\\d+)?)").findAll(text).lastOrNull()
+            ?.groupValues?.get(1)?.let { "x$it" }
+    }
+
+    private fun trimNum(d: Double): String =
+        if (d % 1.0 == 0.0) d.toLong().toString() else d.toString().trimEnd('0').trimEnd('.')
 
     /** 从 /models 响应体取模型名（data[].id / 裸字符串 / models 字段 / 顶层数组） */
     private fun parseModelList(body: String): List<String> {

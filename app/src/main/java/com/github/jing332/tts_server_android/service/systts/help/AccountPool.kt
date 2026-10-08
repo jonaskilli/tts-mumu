@@ -507,11 +507,23 @@ object AccountPool {
      * maxOutputTokens≤256（补全类）。返回 (模型 id 列表, err)；解析失败给内置兜底清单。
      */
     fun fetchModels(token: String): Pair<List<String>, String> {
+        val (list, _, err) = fetchModelsWithRates(token)
+        return list to err
+    }
+
+    /**
+     * 拉模型 + 顺手抓计费倍率（10-10）。倍率来源 = /v3/config 每条模型元数据里的计费
+     * 字段（CodeBuddy 系促销补 `discountedCreditsRate`）+ 模型名内嵌 `·xN.N`。
+     * 字段名/层级未真机核实 → 宽松扫描（含 rate/multiplier/factor 的数值字段），
+     * 取不到就不写（UI 不显示，宁缺勿错）。返回 (清单, 倍率表, err)。
+     */
+    fun fetchModelsWithRates(token: String): Triple<List<String>, Map<String, String>, String> {
         val r = httpJson("$UPSTREAM_BASE/v3/config", "GET", billingHeaders(token), null)
-        if (!r.ok) return builtinModels() to "HTTP ${r.code}，用内置清单（${briefBody(r.body)}）"
+        if (!r.ok) return Triple(builtinModels(), emptyMap(), "HTTP ${r.code}，用内置清单（${briefBody(r.body)}）")
         return try {
-            val d = JSONObject(r.body).optJSONObject("data") ?: return builtinModels() to "响应无 data，用内置清单"
-            // data.models 元数据表（过滤判据用）
+            val d = JSONObject(r.body).optJSONObject("data")
+                ?: return Triple(builtinModels(), emptyMap(), "响应无 data，用内置清单")
+            // data.models 元数据表（过滤判据 + 倍率来源）
             val metaById = HashMap<String, JSONObject>()
             d.optJSONArray("models")?.let { arr ->
                 for (i in 0 until arr.length()) {
@@ -520,7 +532,9 @@ object AccountPool {
                     if (id.isNotEmpty()) metaById[id] = m
                 }
             }
-            // agent 引用 id 集合（保序：先 preferred agent 后其余——实测 cli/craft 已覆盖，其余兜底）
+            val rates = mutableMapOf<String, String>()
+            metaById.forEach { (id, m) -> rateOfConfigEntry(m)?.let { rates[id] = it } }
+            // agent 引用 id 集合（保序：先 preferred agent 后其余）
             val agentIds = LinkedHashSet<String>()
             val agents = d.optJSONArray("agents")
             val preferredFirst = ArrayList<JSONArray?>()
@@ -560,11 +574,44 @@ object AccountPool {
             }
             agentIds.forEach { push(it) }
             metaById.keys.forEach { push(it) }
-            if (out.isEmpty()) builtinModels() to "清单为空，用内置清单"
-            else out.toList() to ""
+            val list = if (out.isEmpty()) builtinModels() else out.toList()
+            Triple(list, rates, if (out.isEmpty()) "清单为空，用内置清单" else "")
         } catch (e: Exception) {
-            builtinModels() to "解析失败用内置清单：${e.message}"
+            Triple(builtinModels(), emptyMap(), "解析失败用内置清单：${e.message}")
         }
+    }
+
+    /** /v3/config 单条目倍率：扫计费数值字段；免费/折扣文案照上游；无则名字内嵌 xN.N */
+    private fun rateOfConfigEntry(m: JSONObject): String? {
+        val effKeys = arrayOf(
+            "discountedCreditsRate", "discounted_credits_rate",
+            "billing_effective_multiplier", "effectiveMultiplier", "effective_multiplier",
+            "price_factor", "priceFactor",
+        )
+        val origKeys = arrayOf("creditsRate", "credits_rate", "billing_multiplier", "originalMultiplier")
+        fun num(keys: Array<String>): Double? {
+            for (k in keys) if (m.has(k) && !m.isNull(k)) {
+                val dd = m.optDouble(k, Double.NaN)
+                if (!dd.isNaN()) return dd
+            }
+            return null
+        }
+        val eff = num(effKeys)
+        if (eff != null) {
+            if (eff == 0.0) return "免费"
+            val e = if (eff % 1.0 == 0.0) eff.toLong().toString() else eff.toString()
+            val orig = num(origKeys)
+            val o = orig?.let { if (it % 1.0 == 0.0) it.toLong().toString() else it.toString() }
+            val note = m.optString("billing_status_note")
+            return when {
+                o != null && o != e -> "x$o→x$e"
+                note.isNotEmpty() -> "x$e·$note"
+                else -> "x$e"
+            }
+        }
+        val text = m.optString("name") + " " + m.optString("description")
+        return Regex("[x×]\\s*(\\d+(?:\\.\\d+)?)").findAll(text).lastOrNull()
+            ?.groupValues?.get(1)?.let { "x$it" }
     }
 
     /** 内置兜底清单（10-08 全模型实测 14/14 后按真清单收录；/v3/config 拉不到时不至于无模型可选） */
