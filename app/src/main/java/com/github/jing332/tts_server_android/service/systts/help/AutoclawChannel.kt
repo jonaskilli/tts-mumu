@@ -30,6 +30,25 @@ object AutoclawChannel : ChatChannel {
     private const val APP_ID = "100003"
     private const val APP_KEY = "38d2391985e2369a5fb8227d8e6cd5e5"
 
+    /**
+     * 对话请求体 system 段协议前缀（源码 AUTOCLAW_SYSTEM_PREFIX 原文逐字照抄，
+     * 权威源=临时文件/dsh-phone-src/vendor/dsh-codearts-auth/src/autoclaw.ts）。
+     * 对话接口要求客户端身份和 Tooling 段，缺失时实机返回 HTTP 406/网关 502。
+     * 注意：前缀末尾自带一个 \n；与已有 system 提示词拼接时中间再加一个 \n
+     * （源码 autoclawSystem：PREFIX + `\n${system}`，即两段之间隔一个空行）。
+     */
+    private const val AUTOCLAW_SYSTEM_PREFIX =
+        "You are a personal assistant running inside OpenClaw.\n\n## Tooling\nAvailable tools are policy-filtered. Names are case-sensitive; call exactly as listed.\n"
+
+    /**
+     * 源码 autoclawSystem 同语义：已有前缀则原样返回（幂等）；
+     * 否则前缀开头，非空 system 用 \n 隔开接在后（前缀自身末尾已带 \n）。
+     */
+    private fun autoclawSystem(system: String?): String {
+        return if (system?.startsWith(AUTOCLAW_SYSTEM_PREFIX) == true) system
+        else AUTOCLAW_SYSTEM_PREFIX + (if (system.isNullOrEmpty()) "" else "\n$system")
+    }
+
     // ==================== 签名头族（autoclawHeaders 逐字段照抄） ====================
 
     /**
@@ -177,9 +196,8 @@ object AutoclawChannel : ChatChannel {
      * 头族按 OpenAI 形发（照源码 stream() 的 OpenAI 分支：autoclawHeaders() 基座 +
      * X-Authorization/X-Client-Type/X-Trace-Id/X-Request-Id/x_trace_id +
      * Accept: text/event-stream；Authorization: Bearer 由 SseAggregator 统一加）。
-     * TODO ①源码还发 X-Request-Model: {model}，但 SseAggregator 无按请求注头钩子，
-     *     暂缺（上游以 body.model 为准，实测缺口待真机验证后补）；
-     * TODO ②Anthropic 形模型（models[].api=anthropic-messages）走 /v1/messages +
+     * X-Request-Model: {model} 由 perRequestHeaders 按-请求注（见下方）。
+     * TODO ①Anthropic 形模型（models[].api=anthropic-messages）走 /v1/messages +
      *     anthropic-version 头 + Anthropic SSE 事件流，当前 SseAggregator 只支持
      *     OpenAI 形——与 minimax 同策略，留待后续批次接。
      */
@@ -192,6 +210,46 @@ object AutoclawChannel : ChatChannel {
         "Accept" to "text/event-stream",
         "Content-Type" to "application/json; charset=utf-8",
     )
+
+    /**
+     * 按-请求注头（ChatChannel.perRequestHeaders 落地）：源码 stream() 还发
+     * X-Request-Model: {model}（autoclaw.ts Object.assign 段逐字段照抄），此前
+     * chatHeaders 拿不到 model 只能缺——现由 SseAggregator 在 extraHeaders 处合并。
+     */
+    override fun perRequestHeaders(model: String): Map<String, String> =
+        if (model.isNotEmpty()) mapOf("X-Request-Model" to model) else emptyMap()
+
+    /**
+     * 请求体变换：解析 messages，给 system 角色消息（OpenAI 形 role:"system"）的
+     * content 前拼 AUTOCLAW_SYSTEM_PREFIX（已带前缀则不重复，幂等，源码
+     * autoclawSystem 同语义）；没有 system 消息则新建一条插在最前。其余字段原样保留。
+     */
+    override fun patchBody(bodyJson: String, model: String): String {
+        return try {
+            val o = JSONObject(bodyJson)
+            val messages = o.optJSONArray("messages") ?: JSONArray()
+            var inserted = false
+            for (i in 0 until messages.length()) {
+                val m = messages.optJSONObject(i) ?: continue
+                if (m.optString("role") == "system") {
+                    m.put("content", autoclawSystem(m.optString("content").ifEmpty { null }))
+                    inserted = true
+                    break // 源码 autoclawSystem 只处理首条 system 段；多 system 非本客户端形态
+                }
+            }
+            if (!inserted) {
+                // 没有 system 消息：新建一条插在最前（源码语义：前缀必须开头）
+                val sys = JSONObject().put("role", "system").put("content", autoclawSystem(null))
+                val arr = JSONArray()
+                arr.put(sys)
+                for (i in 0 until messages.length()) arr.put(messages.get(i))
+                o.put("messages", arr)
+            }
+            o.toString()
+        } catch (_: Exception) {
+            bodyJson // 解析失败透传原样，由上游按原路径报错
+        }
+    }
 
     override fun classifyError(httpStatus: Int, body: String): ChatChannel.ErrClass = when {
         httpStatus == 401 || httpStatus == 403 -> ChatChannel.ErrClass.AUTH

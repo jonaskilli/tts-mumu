@@ -37,6 +37,13 @@ interface ChatChannel {
     fun patchBody(bodyJson: String, model: String): String = bodyJson
 
     /**
+     * 按-请求注头（10-08 钩子落地）：需要 model 的头族（如 AutoClaw 的
+     * X-Request-Model: {model}）在这里返回，SseAggregator 每次对话请求时合并进
+     * extraHeaders。默认空表=无按请求头。
+     */
+    fun perRequestHeaders(model: String): Map<String, String> = emptyMap()
+
+    /**
      * 响应解析：非流式 JSON 串 → 标准 OpenAI 形（choices[0].message.content）。
      * 默认原样（本来就标准）；Anthropic 族的渠道在此翻译。
      */

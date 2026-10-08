@@ -12,6 +12,10 @@ import kotlinx.coroutines.withContext
  * 账号池每日签到调度（10-06）：AlarmManager 每日 9 点 + 开机补签，
  * 遍历启用中的账号逐个签到（过期先续期再签）。跟 keepalive 的 AlarmKeepAliveReceiver
  * 同款机制（项目未引入 WorkManager，不为此单加依赖）。
+ *
+ * ⚠️ 10-10 对账 TOP5 第 5 条：今日已签判据 = lastCheckinDate（UTC+8 日期串），
+ * 记账收口在本类 checkinAll（判据实现 = CheckinPolicy，coversToday 语义照插件
+ * ClaimOutcome.coversToday——「查到已签」≠「今天已签」，不直信上游文案）。
  */
 class AccountCheckinReceiver : BroadcastReceiver() {
     companion object {
@@ -38,17 +42,42 @@ class AccountCheckinReceiver : BroadcastReceiver() {
         }
     }
 
-    /** 全量签到：启用中的账号，过期的先续期。返回 "成功x/共y" 摘要 */
+    /**
+     * 全量签到：启用中的账号，过期的先续期。返回 "成功x/共y" 摘要。
+     *
+     * ⚠️「今天是否已签」判据（10-10 对账 TOP5 第 5 条）：按 **lastCheckinDate（UTC+8
+     * 日期串）=== 今天（UTC+8）** 判，不等价于「查到已签」——qoder 活动每日 10:00（UTC+8）
+     * 才刷新，上午查到的 already-claimed 是昨天的，直信上游文案 = 当天整天静默漏领
+     * （插件 ClaimOutcome.coversToday 同款语义；判据实现在 CheckinPolicy）。
+     * 未签才打渠道接口；成功后统一在此写 lastCheckinAt + lastCheckinDate（UTC+8）
+     * （各渠道 checkIn 只报结果不落盘，记账收口在这层）。
+     */
     fun checkinAll(): String {
         val accounts = AccountPool.load().filter { it.enabled }
         if (accounts.isEmpty()) return "无账号"
         var ok = 0
+        var skipped = 0
         accounts.forEach { acc ->
+            // coversToday：按 UTC+8 比对签到日；从未签到（lastCheckinAt<=0）不算已签
+            if (CheckinPolicy.coversToday(acc.lastCheckinAt)) {
+                skipped++
+                return@forEach
+            }
             val target = if (acc.isExpired()) AccountPool.refreshAny(acc).first ?: acc else acc
-            val (success, _) = AccountPool.checkInAny(target)
-            if (success) ok++
+            val (success, msg) = AccountPool.checkInAny(target)
+            if (success) {
+                ok++
+                // 记账统一收口在这层（渠道实现只报结果不落盘；codebuddy 的 checkIn
+                // 内部已写同值，这里按 UTC+8 日期重写一遍，幂等）。
+                AccountPool.markCheckedIn(target.id)
+            } else if (msg.contains("无签到接口") || msg.contains("暂不支持")) {
+                // 「渠道不支持 / 需人机验证」计为跳过：不算失败（照插件 isUnsupportedCheckin
+                // 语义——记失败制造假警报），也不记账（照 coversToday 语义——记「今天已跑」
+                // 会把当天真的漏签掩盖掉）。zcode（需 captcha）、qoder（待接）走这条。
+                skipped++
+            }
         }
-        return "签到 $ok/${accounts.size}"
+        return if (skipped > 0) "签到 $ok/${accounts.size}（$skipped 个已签/跳过）" else "签到 $ok/${accounts.size}"
     }
 }
 

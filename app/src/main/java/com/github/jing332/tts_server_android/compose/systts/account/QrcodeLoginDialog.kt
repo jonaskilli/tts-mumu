@@ -77,17 +77,19 @@ fun QrcodeLoginDialog(
                     // JWT exp 优先（RaccoonChannel 私有逻辑不可见，这里简单解析）；兜底 +3h
                     val expiresAt = jwtExpMs(at)
                         ?: (System.currentTimeMillis() + 3L * 3600_000L)
-                    val acc = AccountPool.Account(
-                        id = "raccoon-${System.currentTimeMillis().toString(16)}",
-                        provider = "raccoon",
-                        nickname = "小浣熊",
-                        accessToken = at,
-                        refreshToken = rt,
-                        expiresAt = expiresAt,
-                    )
-                    AccountPool.save(AccountPool.load().filterNot { it.id == acc.id } + acc)
+                    // 10-10 登录去重：identity = access_token 的 JWT sub；解不出传 null 诚实降级
+                    val acc = AccountPool.upsert("raccoon", AccountPool.jwtSub(at)) { existing ->
+                        AccountPool.Account(
+                            id = existing?.id ?: "raccoon-${System.currentTimeMillis().toString(16)}",
+                            provider = "raccoon",
+                            nickname = existing?.nickname ?: "小浣熊",
+                            accessToken = at,
+                            refreshToken = rt,
+                            expiresAt = expiresAt,
+                        ).withExtra("_uid", AccountPool.jwtSub(at) ?: "")
+                    }
                     phase = "SUCCESS"
-                    onDone(acc.nickname)
+                    onDone(if (acc.isUpdate) "${acc.nickname}(已更新)" else acc.nickname)
                     return@LaunchedEffect
                 }
                 else -> Unit // 未知状态一律当 pending（引擎已兜底，双保险）

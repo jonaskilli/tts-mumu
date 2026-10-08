@@ -171,16 +171,18 @@ fun DeviceCodeDialog(
                                     if (reg.err.isNotEmpty()) {
                                         pollErr = reg.err
                                     } else {
-                                        val acc = AccountPool.Account(
-                                            id = "cline-${System.currentTimeMillis().toString(16)}",
-                                            provider = "cline",
-                                            nickname = reg.email.ifEmpty { "Cline" },
-                                            accessToken = reg.accessToken,
-                                            refreshToken = reg.refreshToken,
-                                            expiresAt = reg.expiresAt,
-                                        )
-                                        AccountPool.save(AccountPool.load().filterNot { it.id == acc.id } + acc)
-                                        doneNick = acc.nickname
+                                        // 10-10 登录去重：identity = register 返回的 accountId（clineUserId）
+                                        val acc = AccountPool.upsert("cline", reg.accountId.ifEmpty { null }) { existing ->
+                                            AccountPool.Account(
+                                                id = existing?.id ?: "cline-${System.currentTimeMillis().toString(16)}",
+                                                provider = "cline",
+                                                nickname = reg.email.ifEmpty { "Cline" },
+                                                accessToken = reg.accessToken,
+                                                refreshToken = reg.refreshToken,
+                                                expiresAt = reg.expiresAt,
+                                            ).withExtra("_uid", reg.accountId)
+                                        }
+                                        doneNick = if (acc.isUpdate) "${acc.nickname}(已更新)" else acc.nickname
                                     }
                                 }
                                 else -> Unit
@@ -203,14 +205,17 @@ fun DeviceCodeDialog(
                                     val rt = token.optString("refresh_token")
                                     // ⚠️ §9.2：token 非 JWT——expiresAt 必须自算落盘
                                     val expiresAt = System.currentTimeMillis() + token.optLong("expires_in", 0L) * 1000L
-                                    val acc = AccountPool.Account(
-                                        id = "minimax-${System.currentTimeMillis().toString(16)}",
-                                        provider = "minimax",
-                                        nickname = "MiniMax",
-                                        accessToken = at, refreshToken = rt, expiresAt = expiresAt,
-                                    )
-                                    AccountPool.save(AccountPool.load().filterNot { it.id == acc.id } + acc)
-                                    doneNick = acc.nickname
+                                    // 10-10 登录去重：identity = token 响应的 account_id（有则用，无则不去重）
+                                    val accountId = token.optString("account_id")
+                                    val acc = AccountPool.upsert("minimax", accountId.ifEmpty { null }) { existing ->
+                                        AccountPool.Account(
+                                            id = existing?.id ?: "minimax-${System.currentTimeMillis().toString(16)}",
+                                            provider = "minimax",
+                                            nickname = existing?.nickname ?: "MiniMax",
+                                            accessToken = at, refreshToken = rt, expiresAt = expiresAt,
+                                        ).withExtra("_uid", accountId)
+                                    }
+                                    doneNick = if (acc.isUpdate) "${acc.nickname}(已更新)" else acc.nickname
                                 }
                                 else -> Unit
                             }
@@ -226,15 +231,21 @@ fun DeviceCodeDialog(
                                 "PENDING" -> Unit
                                 "ERROR" -> pollErr = pr.err
                                 "READY" -> {
-                                    val acc = AccountPool.Account(
-                                        id = "zcode-${System.currentTimeMillis().toString(16)}",
-                                        provider = "zcode",
-                                        nickname = if (pr.userId.length >= 11) "智谱 ${pr.userId.take(3)}****${pr.userId.takeLast(4)}" else "ZCode",
-                                        accessToken = pr.jwt, refreshToken = "",
-                                        expiresAt = 0L, // JWT 无 exp，静态凭据（失效靠上游 401）
-                                    ).withExtra("device_mid", zcodeDeviceMid) // ⚠️ §10.2 必须稳定持久化，且不能拿它认账号
-                                    AccountPool.save(AccountPool.load().filterNot { it.id == acc.id } + acc)
-                                    doneNick = acc.nickname
+                                    // 10-10 登录去重：identity = pollLogin 的 userId（已有）。
+                                    // device_mid §10.2 要求稳定持久化：更新已有账号时沿用旧值，不换新
+                                    val acc = AccountPool.upsert("zcode", pr.userId.ifEmpty { null }) { existing ->
+                                        AccountPool.Account(
+                                            id = existing?.id ?: "zcode-${System.currentTimeMillis().toString(16)}",
+                                            provider = "zcode",
+                                            nickname = if (pr.userId.length >= 11) "智谱 ${pr.userId.take(3)}****${pr.userId.takeLast(4)}" else "ZCode",
+                                            accessToken = pr.jwt, refreshToken = "",
+                                            expiresAt = 0L, // JWT 无 exp，静态凭据（失效靠上游 401）
+                                        )
+                                            // ⚠️ §10.2 必须稳定持久化，且不能拿它认账号
+                                            .withExtra("device_mid", existing?.extraStr("device_mid")?.ifEmpty { null } ?: zcodeDeviceMid)
+                                            .withExtra("_uid", pr.userId)
+                                    }
+                                    doneNick = if (acc.isUpdate) "${acc.nickname}(已更新)" else acc.nickname
                                 }
                                 else -> Unit
                             }

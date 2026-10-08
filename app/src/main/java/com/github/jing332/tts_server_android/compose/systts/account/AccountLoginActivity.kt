@@ -87,29 +87,39 @@ class AccountLoginActivity : ComposeActivity() {
             repeat(150) {
                 if (!polling) return@launch
                 // provider 分流（10-09 全渠道批）：codebuddy 走原轮询+落盘；
-                // workbuddy 走 WorkbuddyChannel.pollToken（响应相对秒换算），成功自落盘
+                // workbuddy 走 WorkbuddyChannel.pollToken（响应相对秒换算），成功经 upsert 落盘
+                // 10-10 登录去重：identity = access_token 的 JWT sub（pollToken 不回 user_id，
+                // 规格书 §2.2 的 GET /v2/plugin/login/account 才有——本期 pragmatic 取 sub；
+                // 解不出传 null = 诚实降级不去重）。身份值同时写进 extra._uid
                 val nickname: String? = withContext(Dispatchers.IO) {
                     when (provider) {
                         "workbuddy" -> {
                             val q = com.github.jing332.tts_server_android.service.systts.help.WorkbuddyChannel.pollToken(loginState)
                             if (q.status == "OK") {
-                                val acc = com.github.jing332.tts_server_android.service.systts.help.AccountPool.Account(
-                                    id = "workbuddy-${System.currentTimeMillis().toString(16)}",
-                                    provider = "workbuddy",
-                                    nickname = "WorkBuddy",
-                                    accessToken = q.accessToken,
-                                    refreshToken = q.refreshToken,
-                                    expiresAt = q.expiresAt,
-                                )
-                                com.github.jing332.tts_server_android.service.systts.help.AccountPool.save(
-                                    com.github.jing332.tts_server_android.service.systts.help.AccountPool.load()
-                                        .filterNot { it.id == acc.id } + acc
-                                )
-                                acc.nickname
+                                val acc = com.github.jing332.tts_server_android.service.systts.help.AccountPool.upsert(
+                                    "workbuddy",
+                                    com.github.jing332.tts_server_android.service.systts.help.AccountPool.jwtSub(q.accessToken),
+                                ) { existing ->
+                                    com.github.jing332.tts_server_android.service.systts.help.AccountPool.Account(
+                                        id = existing?.id ?: "workbuddy-${System.currentTimeMillis().toString(16)}",
+                                        provider = "workbuddy",
+                                        nickname = existing?.nickname ?: "WorkBuddy",
+                                        accessToken = q.accessToken,
+                                        refreshToken = q.refreshToken,
+                                        expiresAt = q.expiresAt,
+                                    ).withExtra(
+                                        "_uid",
+                                        com.github.jing332.tts_server_android.service.systts.help.AccountPool.jwtSub(q.accessToken) ?: ""
+                                    )
+                                }
+                                if (acc.isUpdate) "WorkBuddy(已更新)" else acc.nickname
                             } else null
                         }
                         else -> com.github.jing332.tts_server_android.service.systts.help.AccountPool
-                            .pollToken(loginState, null).first?.nickname
+                            .pollToken(loginState, null).let { (acc, _) ->
+                                // 10-10 登录去重：走更新路径时昵称旁标「(已更新)」
+                                acc?.let { if (it.isUpdate) "${it.nickname}(已更新)" else it.nickname }
+                            }
                     }
                 }
                 if (nickname != null) {

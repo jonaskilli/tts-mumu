@@ -9,15 +9,27 @@ import org.json.JSONObject
  * 模型目录解密全走官方内嵌 298KB WASM（qoder-auth-wasm），普通 Bearer 一律
  * `403 Signature invalid`——全清单唯一没有纯手写复刻路径的环节。
  *
- * 本期落**可复刻部分**：设备码登录引擎（PKCE 轮询）+ 续期 + 签到/余额（/sash/ 端点
+ * 本期落**可复刻部分**：设备码登录引擎（PKCE 轮询）+ 续期 + 余额（/sash/ 端点
  * 无需 WASM 签名）。对话置 available=false（UI 显示「待接入」，等 WASM 移植评估：
  * Android 侧可试 WebView 跑 WASM 或嵌入 qjs/wasm 运行时——单独二期任务）。
+ *
+ * ⚠️ **签到 = /sash/ 活动领取，待接**（10-10）：插件里 qoder 有活动签到，但 claim
+ * 依赖 Cosy-MachineToken 头族（规格书 §4.8）且 claim body 必须空串——与对话同被
+ * 机器签名链锁死，本期走 ChatChannel 默认「无签到接口」。细节见类内「签到待接」注。
  */
 object QoderChannel : ChatChannel {
     override val id = "qoder"
     override val displayName = "Qoder 阿里"
     override val chatBaseUrl = "https://api2.qoder.sh/algo/api/v2"
     override val available = false // 对话待 WASM 链
+
+    // ⚠️ 签到待接（10-10 对账 TOP5 第 5 条）：qoder 的「签到」= /sash/ 活动领取，claim
+    // 依赖 Cosy-MachineToken 头族（规格书 §4.8，WASM 机器签名，与对话同链锁死）且
+    // claim body 必须是空串——本期不实现，checkIn 走 ChatChannel 默认（「无签到接口」，
+    // AccountCheckinReceiver 计为跳过不记账）。将来接入时注意 coversToday 口径：
+    // qoder 活动每日 10:00（UTC+8）才刷新，10 点前上游报的 already-claimed 是昨天的
+    // （插件 ClaimOutcome.coversToday 定位的真实缺陷），记账只认本地 lastCheckinDate
+    // （UTC+8），不直信上游文案。
 
     private const val AUTH_BASE = "https://qoder.com"
     private const val OPEN_API_BASE = "https://openapi.qoder.sh"
@@ -97,6 +109,8 @@ object QoderChannel : ChatChannel {
     }
 
     // ==================== 签到 / 余额（/sash/ 无需 WASM） ====================
+
+    // （签到本期不接，说明见上方「签到待接」注与文件头。）
 
     override fun queryCredits(acc: AccountPool.Account): Double {
         return try {

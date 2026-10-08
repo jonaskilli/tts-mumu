@@ -189,7 +189,10 @@ object SseAggregator {
             // 因此本轮请求若已向调用方吐出过可见内容，绝不会换号重发——换号重放会产生
             // 两段拼接（前半 A 账号 + 后半 B 账号）甚至重复播报的回答，正确行为是保留
             // 已有内容/原错误返回给调用方。
-            val (ok, body) = chatCompletion(baseUrl, currentKey, effectiveBody, cancelled, channel, model)
+            // 按-请求注头（10-08 钩子落地）：渠道需要 model 的头族（如 AutoClaw
+            // X-Request-Model）在这里生成，随 extraHeaders 合并进每次请求
+            val (ok, body) = chatCompletion(baseUrl, currentKey, effectiveBody, cancelled, channel, model,
+                extraHeaders = channel?.perRequestHeaders(model) ?: emptyMap())
 
             if (ok) return true to body
 
@@ -227,7 +230,8 @@ object SseAggregator {
                         if (channel != null) {
                             AccountPool.saveRefreshed(current.id, newAccess, newRefresh, newExpires)
                         }
-                        val (ok2, body2) = chatCompletion(baseUrl, newAccess, effectiveBody, cancelled, channel, model)
+                        val (ok2, body2) = chatCompletion(baseUrl, newAccess, effectiveBody, cancelled, channel, model,
+                            extraHeaders = channel?.perRequestHeaders(model) ?: emptyMap())
                         if (ok2) return true to body2
                         val status2 = Regex("HTTP (\\d{3})").find(body2)?.groupValues?.get(1)?.toIntOrNull() ?: 0
                         lastErr = body2

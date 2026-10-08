@@ -103,6 +103,20 @@ object AccountPool {
         return ch.checkIn(acc)
     }
 
+    /**
+     * 签到成功后的记账（10-10 对账 TOP5 第 5 条）：写 lastCheckinAt（epoch ms，展示沿用）
+     * + lastCheckinDate（UTC+8 日期串，「今天是否已签」的判据，见 CheckinPolicy）。
+     * codebuddy 的 checkIn 内部已写，勿重复调；其它渠道由 AccountCheckinReceiver 统一调。
+     */
+    fun markCheckedIn(accountId: String) {
+        val acc = load().firstOrNull { it.id == accountId } ?: return
+        val now = System.currentTimeMillis()
+        save(load().map {
+            if (it.id == accountId) it.copy(lastCheckinAt = now, lastCheckinDate = CheckinPolicy.utc8Today(now))
+            else it
+        })
+    }
+
     /** 余额按渠道路由（NaN=不支持，调用方显示「未知」）。⚠️ 本类 queryCredits 返回 Pair（codebuddy 旧签名），ChatChannel.queryCredits 返回 Double（渠道新签名） */
     fun queryCreditsAny(acc: Account): Pair<Double, String> {
         if (acc.provider == "codebuddy") return queryCredits(acc)
@@ -160,8 +174,13 @@ object AccountPool {
         val expiresAt: Long = 0L,
         // 最近一次积分查询结果（0=未知）。余额=资源包合计，实测含小数（如 3930.73），Double 保真
         val credits: Double = 0.0,
-        // 最近一次成功签到时刻（epoch ms；0=从未）
+        // 最近一次成功签到时刻（epoch ms；0=从未）。展示层沿用（池页「签到 HH:mm」）
         val lastCheckinAt: Long = 0L,
+        // 最近一次成功签到的 UTC+8 日期串（YYYY-MM-DD；""=从未）。⚠️ 10-10 对账 TOP5 第 5 条：
+        // 「今天是否已签」的记账判据用它（=== CheckinPolicy.utc8Today()）——按 UTC+8 算术
+        // 平移取日，不用本机时区，也不直信上游「今日已签」文案（qoder 活动每日 10:00 UTC+8
+        // 刷新，上午查到的 already-claimed 是昨天的；插件 ClaimOutcome.coversToday 同款语义）。
+        val lastCheckinDate: String = "",
         val enabled: Boolean = true,
         val createdAt: Long = System.currentTimeMillis(),
         // 模型级限流标记（10-08 移植插件 modelRateLimits）：模型名 → 重置时刻 epoch ms。
@@ -171,6 +190,9 @@ object AccountPool {
         // lobsterai 的 uuid/firstKeyfrom、trae 的 machine_id/device_id 等），JSON 串。
         // 渠道实现自己读写，AccountPool 不解释内容。
         val extra: String = "{}",
+        // 本次落盘是否走了「更新已有账号」路径（10-10 登录去重）。仅 upsert 返回值上有意义
+        // （供调用方 toast 标「(已更新)」）；save/load 不落盘不读回，恒为 false。
+        val isUpdate: Boolean = false,
     ) {
         /** access_token 是否已过期（留 10 分钟余量；未知不算过期） */
         fun isExpired(now: Long = System.currentTimeMillis()): Boolean =
@@ -204,6 +226,77 @@ object AccountPool {
         val dailyCredit: Long,
     )
 
+    // ==================== 登录去重统一落盘（10-10 对账 TOP5 第 3 条） ====================
+
+    // extra 里的内部身份键（下划线前缀=内部字段）：upsert 按它匹配同渠道已有账号
+    private const val EXTRA_UID = "_uid"
+
+    /**
+     * 登录落盘统一入口（照插件 findAccountIdByIdentityField 语义）：
+     * identity 非空且池里有同 provider + 同 extra._uid 的账号 → 复用其 id/enabled/createdAt/
+     * 列表位置，用 make(existing) 产出的新条目原位替换（token 等字段刷新）；
+     * 否则走 make(null) 新增（append 到列表尾）。identity 传 null/空 = 不去重直接新增
+     * （诚实降级：缺身份判据就明说，不做猜测试的匹配）。
+     *
+     * 与插件「不看 enabled」一致：停用的账号同样占位，重复添加它仍是更新而非新增。
+     * 返回的 Account.isUpdate=true 表示走了更新路径（调用方 toast 标「(已更新)」）。
+     * 身份值同时写进 extra._uid（渠道调用方负责，或由 make 产出条目携带）。
+     */
+    fun upsert(provider: String, identity: String?, make: (existing: Account?) -> Account): Account {
+        val list = load()
+        var isUpdate = false
+        val acc: Account = if (!identity.isNullOrEmpty()) {
+            val existing = list.firstOrNull {
+                it.provider == provider && it.extraStr(EXTRA_UID) == identity
+            }
+            if (existing != null) {
+                isUpdate = true
+                make(existing).copy(
+                    id = existing.id,
+                    enabled = existing.enabled,
+                    createdAt = existing.createdAt,
+                    // 更新≠重建：余额/签到记账/限流标记是账号的历史状态，重登不该清零
+                    //（raccoon 重登若丢 lastCheckinAt/Date 会当天重复签到）。token 等以 make 产出为准
+                    credits = existing.credits,
+                    lastCheckinAt = existing.lastCheckinAt,
+                    lastCheckinDate = existing.lastCheckinDate,
+                    modelRateLimits = existing.modelRateLimits,
+                    isUpdate = true,
+                )
+            } else make(null)
+        } else make(null)
+        val next = if (isUpdate) list.map { if (it.id == acc.id) acc else it }
+        else list.filterNot { it.id == acc.id } + acc
+        save(next)
+        appLog(
+            if (isUpdate) LogLevel.INFO else LogLevel.SUCCESS,
+            if (isUpdate) "登录成功，已有账号「${acc.nickname}」（$provider）凭据已更新"
+            else "登录成功，新账号「${acc.nickname}」（$provider）已落盘"
+        )
+        return acc
+    }
+
+    /**
+     * JWT payload sub（base64url 解析不验签，照 WorkbuddyChannel/SseAggregator 的 jwtExp 模式）。
+     * 解析不出返回 null（调用方传 null 给 upsert = 诚实降级不去重）。
+     * internal 而非 private：workbuddy/raccoon 的落盘点在 compose 层，跨包要取身份值
+     * （照 logLine 的先例——单份实现放本类，别处各抄一份迟早抄岔）。
+     */
+    internal fun jwtSub(token: String): String? = try {
+        val parts = token.split(".")
+        if (parts.size < 2) null
+        else {
+            val payload = String(
+                android.util.Base64.decode(
+                    parts[1], android.util.Base64.NO_WRAP or android.util.Base64.URL_SAFE
+                ), Charsets.UTF_8
+            )
+            JSONObject(payload).optString("sub").takeIf { it.isNotEmpty() }
+        }
+    } catch (_: Exception) {
+        null
+    }
+
     fun load(): List<Account> = try {
         if (!stateFile.exists()) emptyList()
         else {
@@ -223,6 +316,7 @@ object AccountPool {
                         expiresAt = o.optLong("expiresAt"),
                         credits = o.optDouble("credits", 0.0),
                         lastCheckinAt = o.optLong("lastCheckinAt"),
+                        lastCheckinDate = o.optString("lastCheckinDate"),
                         enabled = o.optBoolean("enabled", true),
                         createdAt = o.optLong("createdAt"),
                         modelRateLimits = limits,
@@ -249,6 +343,7 @@ object AccountPool {
                 put("expiresAt", a.expiresAt)
                 put("credits", a.credits)
                 put("lastCheckinAt", a.lastCheckinAt)
+                if (a.lastCheckinDate.isNotEmpty()) put("lastCheckinDate", a.lastCheckinDate)
                 put("enabled", a.enabled)
                 put("createdAt", a.createdAt)
                 if (a.modelRateLimits.isNotEmpty()) put("modelRateLimits", JSONObject(a.modelRateLimits))
@@ -642,21 +737,19 @@ object AccountPool {
             }
             val nick = o?.optString("nickname").orEmpty()
                 .ifEmpty { o?.optString("username").orEmpty() }
-                .ifEmpty { existing?.nickname ?: "CodeBuddy" }
-            val acc = Account(
-                id = existing?.id ?: "codebuddy-${System.currentTimeMillis().toString(16)}",
-                nickname = nick,
-                accessToken = access,
-                refreshToken = refresh,
-                expiresAt = expiresAt,
-                credits = existing?.credits ?: 0.0,
-                lastCheckinAt = existing?.lastCheckinAt ?: 0L,
-                enabled = existing?.enabled ?: true,
-                createdAt = existing?.createdAt ?: System.currentTimeMillis(),
-            )
-            val list = load().filterNot { it.id == acc.id } + acc
-            save(list)
-            appLog(LogLevel.SUCCESS, "登录成功，账号「${acc.nickname}」已落盘（expiresAt=${acc.expiresAt}）")
+            // 10-10 登录去重（对账 TOP5 第 3 条）：identity = access_token 的 JWT sub，
+            // 同号重登复用原条目（id/顺序/启用状态/记账不变）；解不出 sub 传 null 诚实降级。
+            // 身份值同时写进 extra._uid
+            val sub = jwtSub(access)
+            val acc = upsert("codebuddy", sub) { found ->
+                Account(
+                    id = found?.id ?: "codebuddy-${System.currentTimeMillis().toString(16)}",
+                    nickname = nick.ifEmpty { found?.nickname ?: existing?.nickname ?: "CodeBuddy" },
+                    accessToken = access,
+                    refreshToken = refresh,
+                    expiresAt = expiresAt,
+                ).withExtra("_uid", sub ?: "")
+            }
             acc to ""
         } catch (e: Exception) {
             null to "解析失败：${briefBody(r.body)}"
@@ -731,6 +824,10 @@ object AccountPool {
      * 每日签到（/v2/billing/meter/daily-checkin，10-07 实测定版；旧 credits/claim 端点已废）。
      * 先查状态：今日已签直接报成功，不再打必 400 的签到接口（重复领取=HTTP400+业务码，
      * 真实原因在 body 的 msg，不能只看状态码）。401 只在本链路续期重试一次。
+     * ⚠️ coversToday 判据（10-10 对账 TOP5 第 5 条）：这里直信 today_checked_in 仅限
+     * codebuddy——该字段是服务端当日实时状态（非「昨日痕迹」），且成功路径的记账已改为
+     * 写 lastCheckinDate（UTC+8，见下），重复触发的最终拦截在 checkinAll 按
+     * lastCheckinDate === utc8Today() 判，上游文案不再参与记账。
      * 返回 (成功?, 提示)。
      */
     fun checkIn(acc: Account, retried: Boolean = false): Pair<Boolean, String> {
@@ -756,7 +853,8 @@ object AccountPool {
         val o = parseJson(r.body)
         if (o != null && o.optInt("code", -1) != 0)
             return false to "业务码 ${o.optInt("code")}：${o.optString("msg").ifEmpty { "领取失败" }}"
-        val updated = acc.copy(lastCheckinAt = System.currentTimeMillis())
+        val now = System.currentTimeMillis()
+        val updated = acc.copy(lastCheckinAt = now, lastCheckinDate = CheckinPolicy.utc8Today(now))
         save(load().map { if (it.id == acc.id) updated else it })
         return true to "签到成功"
     }

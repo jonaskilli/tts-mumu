@@ -43,11 +43,15 @@ object AccountRefreshScheduler {
         handler.postDelayed({ tick(context) }, CHECK_INTERVAL_MS)
     }
 
-    /** 一轮续期：启用中的账号，距过期 ≤1h（或已过期）才发请求。返回 "续期x/共y" */
+    /**
+     * 一轮续期：**不看 enabled**（10-09 对账铁律修正，插件 refresh-scheduler 同语义）——
+     * 停用只退出自动选号，续期照跑；否则停用几天的账号凭据烂掉，重新启用即废号。
+     * 距过期 ≤1h（或已过期/未知）才发请求。返回 "续期x/共y"。
+     */
     fun runRound(): String {
         if (!running.compareAndSet(false, true)) return "上一轮进行中"
         try {
-            val accounts = AccountPool.load().filter { it.enabled }
+            val accounts = AccountPool.load()
             if (accounts.isEmpty()) return "无账号"
             val now = System.currentTimeMillis()
             var ok = 0

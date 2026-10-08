@@ -100,6 +100,62 @@ object ZcodeChannel : ChatChannel {
 
     override fun refresh(acc: AccountPool.Account): Triple<String, String, Long>? = null // 无续期
 
+    // ==================== 签到（补活跃信号 + 查可领；claim 需 captcha 不自动做） ====================
+
+    // 客户端活跃上报端点（免 Authorization）；可领活动预览端点（免 Authorization，需 X-Device-Mid）
+    private const val EVENT_REPORT_URL = "https://zcode.z.ai/api/v1/event/report"
+    private const val BILLING_PREVIEW_URL = "https://zcode.z.ai/api/v1/zcode-plan/billing/preview"
+
+    /**
+     * zcode 签到（10-10 对账 TOP5 第 5 条，协议 = 插件 zcode-upstream.ts 照抄）：
+     *
+     * ① **补活跃上报不能省**：服务端不主动推送活动，preview 内容依赖客户端活跃信号——
+     *    不补 `POST /api/v1/event/report {app_launch, app_daily_active}` 两条事件，
+     *    preview 恒为 `plans:[]`，「今天可领」永远是「没有可领」（插件注释原文结论）。
+     *    幂等（服务端按 device_mid+日期去重）。鉴权要求实测：event/report 与 preview
+     *    都**不需要** Authorization，但**必须**带 X-Device-Mid（缺则 400 code 3001）。
+     * ② 查 preview（GET ?app_version=&platform=win32）确认是否有可领活动。
+     * ③ **claim 不自动做**：`POST /zcode-plan/billing/claim` 需要 `Authorization` +
+     *    阿里云 captcha 双头（x-aliyun-captcha-verify-param/-region，每个 plan 现产
+     *    新 param），app 无法自动过验证——照插件排除表（isAutoCheckinExcluded）语义，
+     *    明确返回 false 不白耗配额。用户可手动在官方客户端领取。
+     *
+     * ⚠️ 本实现不落盘记账：成功与否由 AccountCheckinReceiver 统一写 lastCheckinDate。
+     */
+    override fun checkIn(acc: AccountPool.Account): Pair<Boolean, String> {
+        val mid = acc.extraStr("device_mid")
+        if (mid.isEmpty() || acc.accessToken.isEmpty())
+            return false to "ZCode 缺 device_mid/JWT（重新登录账号池账号后重试）"
+        val headers = baseHeaders() + mapOf("X-Device-Mid" to mid)
+        // ① 补活跃信号：两个事件各发一条，body 形状照 zcode-upstream.ts reportZcodeActivation 原文
+        for (event in listOf("app_launch", "app_daily_active")) {
+            val body = JSONObject()
+                .put("event", event)
+                .put("device_mid", mid)
+                .put("platform", "win32")
+                .put("app_version", APP_VERSION)
+                .toString()
+            AccountPool.channelPost(EVENT_REPORT_URL, headers, body) // 上报失败不阻塞（幂等，下次再补）
+        }
+        // ② 查可领活动（只确认状态，不领取）
+        return try {
+            val r = DeviceCodeLogin.get(
+                "$BILLING_PREVIEW_URL?app_version=$APP_VERSION&platform=win32",
+                headers,
+            )
+            if (!r.ok) false to "ZCode 活动查询失败：HTTP ${r.code}"
+            else {
+                val plans = JSONObject(r.body).optJSONObject("data")?.optJSONArray("plans")
+                if (plans != null && plans.length() > 0)
+                    false to "ZCode 签到需要人机验证，暂不支持自动签到（有 ${plans.length()} 个可领活动）"
+                else
+                    false to "ZCode 签到需要人机验证，暂不支持自动签到"
+            }
+        } catch (e: Exception) {
+            false to "ZCode 活动查询异常：${e.message}"
+        }
+    }
+
     // ==================== 模型 / 余额 ====================
 
     override fun fetchModels(accessToken: String): List<String> = listOf("GLM-5.3-Flash", "GLM-5.3")
