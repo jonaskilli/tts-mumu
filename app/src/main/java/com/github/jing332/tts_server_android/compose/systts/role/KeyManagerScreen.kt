@@ -461,6 +461,8 @@ private fun KeyEntryRow(
                 else -> testOutcome.reason.ifEmpty { testOutcome.message }
             }
             // 红态恒可展开（显示不全就是展开的理由；展开=全文一次+复制，见下方分支）
+            // 10-08 六令（装机反馈）：黄态不再可展开——收起行摘要比全文还长（「详情」点开
+            // 反而变短，反了）；结论+锁名一行已了结，黄态没有「详情」的必要
             val hasExpandable = !isPass && !isWarn
             var expanded by rememberSaveable(entry.name) { mutableStateOf(false) }
             val clipboard = LocalClipboardManager.current
@@ -528,61 +530,6 @@ private fun KeyEntryRow(
                                 .padding(horizontal = 8.dp, vertical = 6.dp)
                         )
                     }
-                } else if (expanded && isWarn) {
-                    // 黄态展开态（10-08 三令落码；同日再令推翻固定用时列）：换行**回行首**——
-                    // 用时与全文连成一段（timingPrefix 只是行首普通前缀），自然折行，
-                    // 第二行回行首不再挂用时右缘（用户：每行白一段没必要）。
-                    // 10-08 四令：全文改绿态同款分段口径（KeyListFile 侧 message 已重组，
-                    // 这里直接渲染 message 一遍；收起行整个退场，不留「详情」残留）
-                    Text(
-                        testOutcome.message,
-                        style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.sp),
-                        color = barColor
-                    )
-                    Row(
-                        Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.End,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text(
-                            stringResource(R.string.role_key_thinking_entry),
-                            style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.sp),
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            fontWeight = FontWeight.SemiBold,
-                            modifier = Modifier
-                                .clip(RoundedCornerShape(4.dp))
-                                .clickable { onEditThinking() }
-                                .padding(horizontal = 8.dp, vertical = 6.dp)
-                        )
-                        Spacer(Modifier.width(24.dp))
-                        Text(
-                            stringResource(R.string.role_key_test_result_copy),
-                            style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.sp),
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            fontWeight = FontWeight.SemiBold,
-                            modifier = Modifier
-                                .clip(RoundedCornerShape(4.dp))
-                                .clickable {
-                                    clipboard.setText(AnnotatedString(testOutcome.message))
-                                    android.widget.Toast.makeText(
-                                        context, context.getString(R.string.copied),
-                                        android.widget.Toast.LENGTH_SHORT
-                                    ).show()
-                                }
-                                .padding(horizontal = 8.dp, vertical = 6.dp)
-                        )
-                        Spacer(Modifier.width(24.dp))
-                        Text(
-                            "收起",
-                            style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.sp),
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            fontWeight = FontWeight.SemiBold,
-                            modifier = Modifier
-                                .clip(RoundedCornerShape(6.dp))
-                                .clickable { expanded = false }
-                                .padding(horizontal = 8.dp, vertical = 6.dp)
-                        )
-                    }
                 } else {
                 Row(
                     Modifier.fillMaxWidth(),
@@ -593,9 +540,9 @@ private fun KeyEntryRow(
                     // 扫视锚点不丢——模型行灯槽（乙案保留）仍是行内状态锚。
                     // 10-08 二令：黄/红改单行（原 2 行+黄态独立动作行=三段太高；
                     // 换行还总从「可用」下方起——用时前置是独立 Text，正文在自己框里折）。
-                    // 10-08 四令：黄态收起行下**常驻动作行**「自定义思考 ›｜详情」——
-                    // 黄态是要处理的警告，修思考入口不再藏进展开态（用户拍板②改）；
-                    // 「详情」右距 2→8dp，与展开态动作键右线对齐（用户②后句）
+                    // 10-08 六令：黄态删「详情」键与展开分支——收起行摘要比全文长、
+                    // 展开反而变短（反了）；结论+锁名一行已够。黄态收起行尾挂
+                    // 「自定义思考 ›」直键（修思考入口常驻，无需先展开）
                     if (timingPrefix.isNotEmpty()) {
                         Text(
                             timingPrefix,
@@ -613,7 +560,7 @@ private fun KeyEntryRow(
                         modifier = Modifier.weight(1f)
                     )
                     if (hasExpandable) {
-                        // 红态收起尾挂「详情」（黄态详情挪去下方常驻动作行）
+                        // 红态收起尾挂「详情」（黄态已删——摘要即全文要点，无可展开）
                         Text(
                             "详情",
                             style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.sp),
@@ -625,13 +572,8 @@ private fun KeyEntryRow(
                                 .padding(start = 6.dp, end = 8.dp)
                         )
                     }
-                }
-                if (isWarn) {
-                    Row(
-                        Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.End,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
+                    if (isWarn) {
+                        // 黄态收起行尾「自定义思考 ›」直键（原独立动作行撤，省一行高）
                         Text(
                             stringResource(R.string.role_key_thinking_entry),
                             style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.sp),
@@ -640,18 +582,7 @@ private fun KeyEntryRow(
                             modifier = Modifier
                                 .clip(RoundedCornerShape(4.dp))
                                 .clickable { onEditThinking() }
-                                .padding(horizontal = 8.dp, vertical = 6.dp)
-                        )
-                        Spacer(Modifier.width(24.dp))
-                        Text(
-                            "详情",
-                            style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.sp),
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            fontWeight = FontWeight.SemiBold,
-                            modifier = Modifier
-                                .clip(RoundedCornerShape(4.dp))
-                                .clickable { expanded = true }
-                                .padding(horizontal = 8.dp, vertical = 6.dp)
+                                .padding(start = 6.dp, end = 8.dp)
                         )
                     }
                 }
