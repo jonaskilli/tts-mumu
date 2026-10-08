@@ -37,6 +37,9 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarDuration
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
@@ -56,7 +59,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.github.jing332.common.utils.toast
 import com.github.jing332.tts_server_android.R
 import com.github.jing332.tts_server_android.compose.nav.NavTopAppBar
 import com.github.jing332.tts_server_android.compose.systts.OrderBadge
@@ -65,6 +67,7 @@ import com.github.jing332.tts_server_android.service.systts.help.ChannelBootstra
 import com.github.jing332.tts_server_android.service.systts.help.ChatChannels
 import com.github.jing332.tts_server_android.service.systts.help.KeyListFile
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.text.SimpleDateFormat
@@ -105,6 +108,26 @@ fun AccountPoolScreen(onBack: () -> Unit) {
     androidx.activity.compose.BackHandler(onBack = onBack)
     val timeFmt = remember { SimpleDateFormat("MM-dd HH:mm", Locale.getDefault()) }
 
+    // 页内提示（10-10 用户令「提示要显示全部不要省略」）：原先走系统 Toast，
+    // 而 Android 12+ 对纯文本 Toast **强制截断为两行**——渠道侧的长文案
+    //（如 Qoder「每日 10:00 UTC+8 刷新…」上百字）只显示前半截、看完不知所以。
+    // 改页内 Snackbar：不限行数自动换行，位置同在屏幕底部，读数体验不变。
+    // 用 notifyJob 顶掉上一条（showSnackbar 默认是排队，连点账号会一条条积压；
+    // Toast 是即时替换语义，这里保持一致）。
+    val snackbarHostState = remember { SnackbarHostState() }
+    var notifyJob by remember { mutableStateOf<Job?>(null) }
+    fun notify(msg: String) {
+        if (msg.isBlank()) return
+        notifyJob?.cancel()
+        notifyJob = scope.launch {
+            snackbarHostState.showSnackbar(
+                message = msg,
+                // 长文多给读数时间（Snackbar 上限 10s）；短提示 4s 不拖沓
+                duration = if (msg.length > 30) SnackbarDuration.Long else SnackbarDuration.Short,
+            )
+        }
+    }
+
     LaunchedEffect(version) {
         accounts = withContext(Dispatchers.IO) {
             // 存量迁移（10-08）：旧版 addAsKey 落的裸域名会 302 空流，进页顺手修（幂等）
@@ -129,12 +152,13 @@ fun AccountPoolScreen(onBack: () -> Unit) {
         ActivityResultContracts.StartActivityForResult()
     ) { result ->
         if (result.resultCode == android.app.Activity.RESULT_OK) {
-            context.toast("登录成功：${result.data?.getStringExtra("nickname") ?: ""}")
+            notify("登录成功：${result.data?.getStringExtra("nickname") ?: ""}")
             reload()
         }
     }
 
     Scaffold(
+        snackbarHost = { SnackbarHost(snackbarHostState) },
         topBar = {
             NavTopAppBar(
                 title = { Text(stringResource(R.string.account_pool_title)) },
@@ -171,7 +195,7 @@ fun AccountPoolScreen(onBack: () -> Unit) {
                                     else "签到 $ok/${list.size}"
                                 }
                                 busyId = null
-                                context.toast(summary)
+                                notify(summary)
                                 reload()
                             }
                         },
@@ -254,9 +278,9 @@ fun AccountPoolScreen(onBack: () -> Unit) {
                             val (updated, err) = withContext(Dispatchers.IO) { AccountPool.refreshAny(acc) }
                             busyId = null
                             if (updated != null) {
-                                context.toast(R.string.account_pool_refresh_ok)
+                                notify(context.getString(R.string.account_pool_refresh_ok))
                                 reload()
-                            } else context.toast("续期失败：$err")
+                            } else notify("续期失败：$err")
                         }
                     },
                     onCheckIn = {
@@ -264,7 +288,7 @@ fun AccountPoolScreen(onBack: () -> Unit) {
                             busyId = acc.id
                             val (ok, msg) = withContext(Dispatchers.IO) { AccountPool.checkInAny(acc) }
                             busyId = null
-                            context.toast(msg)
+                            notify(msg)
                             if (ok) reload()
                         }
                     },
@@ -275,9 +299,9 @@ fun AccountPoolScreen(onBack: () -> Unit) {
                             busyId = null
                             if (c >= 0) {
                                 // 余额=资源包合计，实测含小数（如 3930.73），整数位不打 .0
-                                context.toast("积分：${if (c % 1.0 == 0.0) c.toLong().toString() else c.toString()}")
+                                notify("积分：${if (c % 1.0 == 0.0) c.toLong().toString() else c.toString()}")
                                 reload()
-                            } else context.toast("查询失败：$err")
+                            } else notify("查询失败：$err")
                         }
                     },
                     onCopyToken = {
@@ -287,20 +311,20 @@ fun AccountPoolScreen(onBack: () -> Unit) {
                         cb.setPrimaryClip(
                             android.content.ClipData.newPlainText("token", acc.accessToken)
                         )
-                        context.toast("令牌已复制，去密钥管理添加密钥时粘贴到 Key 段")
+                        notify("令牌已复制，去密钥管理添加密钥时粘贴到 Key 段")
                     },
                     onToggleEnabled = {
                         // 停用/启用（10-08 移植）：停用只退出自动选号，签到/续期照跑（插件同语义）
                         scope.launch {
                             withContext(Dispatchers.IO) { AccountPool.setEnabled(acc.id, !acc.enabled) }
-                            context.toast(if (acc.enabled) "已停用「${acc.nickname}」" else "已启用「${acc.nickname}」")
+                            notify(if (acc.enabled) "已停用「${acc.nickname}」" else "已启用「${acc.nickname}」")
                             reload()
                         }
                     },
                     onClearLimits = {
                         scope.launch {
                             val n = withContext(Dispatchers.IO) { AccountPool.clearRateLimits(acc.id) }
-                            context.toast(if (n) "已清除限流标记" else "无限流标记")
+                            notify(if (n) "已清除限流标记" else "无限流标记")
                             if (n) reload()
                         }
                     },
@@ -365,7 +389,7 @@ fun AccountPoolScreen(onBack: () -> Unit) {
                             }
                         }
                         if (url == null || url.isEmpty()) {
-                            context.toast("获取登录地址失败：$err")
+                            notify("获取登录地址失败：$err")
                         } else {
                             loginLauncher.launch(
                                 android.content.Intent(context, AccountLoginActivity::class.java)
@@ -398,7 +422,7 @@ fun AccountPoolScreen(onBack: () -> Unit) {
             onDismiss = { credentialChannel = null },
             onDone = { nick ->
                 credentialChannel = null
-                context.toast("已添加：$nick")
+                notify("已添加：$nick")
                 reload()
             },
         )
@@ -408,7 +432,7 @@ fun AccountPoolScreen(onBack: () -> Unit) {
             onDismiss = { qrcodeLoginOpen = false },
             onDone = { nick ->
                 qrcodeLoginOpen = false
-                context.toast("已添加：$nick")
+                notify("已添加：$nick")
                 reload()
             },
         )
@@ -419,7 +443,7 @@ fun AccountPoolScreen(onBack: () -> Unit) {
             onDismiss = { smsLoginOpen = null },
             onDone = { nick ->
                 smsLoginOpen = null
-                context.toast("已添加：$nick")
+                notify("已添加：$nick")
                 reload()
             },
         )
@@ -430,7 +454,7 @@ fun AccountPoolScreen(onBack: () -> Unit) {
             onDismiss = { callbackChannel = null },
             onDone = {
                 callbackChannel = null
-                context.toast("已添加")
+                notify("已添加")
                 reload()
             },
         )
@@ -440,7 +464,7 @@ fun AccountPoolScreen(onBack: () -> Unit) {
             onDismiss = { opencodeLoginOpen = false },
             onDone = { nick ->
                 opencodeLoginOpen = false
-                context.toast("已添加：$nick")
+                notify("已添加：$nick")
                 reload()
             },
         )
@@ -456,7 +480,7 @@ fun AccountPoolScreen(onBack: () -> Unit) {
                     scope.launch {
                         withContext(Dispatchers.IO) { AccountPool.remove(victim.id) }
                         confirmDelete = null
-                        context.toast("已删除「${victim.nickname}」")
+                        notify("已删除「${victim.nickname}」")
                         reload()
                     }
                 }) { Text("删除", color = MaterialTheme.colorScheme.error) }
