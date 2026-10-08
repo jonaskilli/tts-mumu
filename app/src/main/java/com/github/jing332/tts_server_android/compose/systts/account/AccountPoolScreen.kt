@@ -4,8 +4,6 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.combinedClickable
-import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -23,13 +21,14 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.CleaningServices
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.EventAvailable
+import androidx.compose.material.icons.filled.PowerSettingsNew
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Savings
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
@@ -62,6 +61,7 @@ import androidx.compose.ui.unit.sp
 import com.github.jing332.tts_server_android.R
 import com.github.jing332.tts_server_android.compose.nav.NavTopAppBar
 import com.github.jing332.tts_server_android.compose.systts.OrderBadge
+import com.github.jing332.tts_server_android.compose.systts.role.FlatIconAction
 import com.github.jing332.tts_server_android.service.systts.help.AccountPool
 import com.github.jing332.tts_server_android.service.systts.help.ChannelBootstrap
 import com.github.jing332.tts_server_android.service.systts.help.ChatChannels
@@ -304,15 +304,6 @@ fun AccountPoolScreen(onBack: () -> Unit) {
                             } else notify("查询失败：$err")
                         }
                     },
-                    onCopyToken = {
-                        // 令牌是长串，走系统 ClipboardManager（LocalClipboardManager 对超长串无优势且此处非 Compose 作用域惯用）
-                        val cb = context.getSystemService(android.content.Context.CLIPBOARD_SERVICE)
-                                as android.content.ClipboardManager
-                        cb.setPrimaryClip(
-                            android.content.ClipData.newPlainText("token", acc.accessToken)
-                        )
-                        notify("令牌已复制，去密钥管理添加密钥时粘贴到 Key 段")
-                    },
                     onToggleEnabled = {
                         // 停用/启用（10-08 移植）：停用只退出自动选号，签到/续期照跑（插件同语义）
                         scope.launch {
@@ -342,21 +333,19 @@ fun AccountPoolScreen(onBack: () -> Unit) {
         }
     }
 
-    // 删除确认弹窗（删除不可逆；连带说明：密钥条目不随删，由用户在密钥页自行管理）
-    // 渠道选择弹窗（10-09 全渠道批）：选完按登录形态分流
-    // 首次进页图例（乙方案）：账号行工具条的含义，只弹一次
+    // 首次进页图例（乙方案）：账号行各键含义，只弹一次
     if (showLegend) {
         AlertDialog(
             onDismissRequest = { showLegend = false; prefs.edit().putBoolean("legend_shown", true).apply() },
-            title = { Text("账号行工具条说明") },
+            title = { Text("账号行说明") },
             text = {
                 Column {
-                    Text("签到（每日领积分）", style = MaterialTheme.typography.bodyMedium)
-                    Text("续期（手动刷新令牌）", style = MaterialTheme.typography.bodyMedium)
-                    Text("查积分（查余额）", style = MaterialTheme.typography.bodyMedium)
+                    Text("账号名右侧：⏻ 停用/启用（不参与自动选号）· 🗑 删除", style = MaterialTheme.typography.bodyMedium)
+                    Spacer(Modifier.height(6.dp))
+                    Text("下方工具条：签到 · 续期 · 查积分（有限流标记时多一个「清限流」）", style = MaterialTheme.typography.bodyMedium)
                     Spacer(Modifier.height(8.dp))
                     Text(
-                        "账号落池即自动进密钥管理，无需手动添加。长按账号行：复制令牌 / 停用 / 清限流 / 删除。",
+                        "账号落池即自动进密钥管理，无需手动添加。",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
@@ -492,7 +481,6 @@ fun AccountPoolScreen(onBack: () -> Unit) {
     }
 }
 
-@OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun AccountRow(
     acc: AccountPool.Account,
@@ -502,71 +490,23 @@ private fun AccountRow(
     onRefresh: () -> Unit,
     onCheckIn: () -> Unit,
     onQueryCredits: () -> Unit,
-    onCopyToken: () -> Unit,
     onToggleEnabled: () -> Unit,
     onDelete: () -> Unit,
     onClearLimits: () -> Unit,
 ) {
-    // 长按菜单（10-08 移植插件账号卡片能力）：停用/启用、清限流（有标记才显示）、删除
-    var menuOpen by remember { mutableStateOf(false) }
     Column(
         // 丙案（10-10 用户拍板）：第一行 序号+昵称+状态胶囊（零图标）；第二行 信息副行；
         // 第三段 工具条（签到/续期/查积分/复制令牌 四键带文字标签整行宽）。
         // 行间分隔线由列表层画（同启用池 0.6dp 半透明）。
-        // 长按 = 管理菜单（删除/停用/清限流）
+        // 10-10 二令（用户）：长按菜单整体取消——启停/删除不再藏菜单，提到卡面第一行右端
+        //（两个行内图标键）；菜单里有价值的细项（复制令牌 / 清除限流）并入下方工具条。
         Modifier
             .fillMaxWidth()
             .padding(vertical = 10.dp)
-            .combinedClickable(onClick = {}, onLongClick = { menuOpen = true })
     ) {
-        DropdownMenu(
-            expanded = menuOpen,
-            onDismissRequest = { menuOpen = false },
-            // 10-10 用户令（弹窗位置）：默认锚在整行 top-start = 永远弹屏幕左上角。
-            // 右移下移对准动作图标区（右上角），菜单出现在长按行旁而不是屏幕角落
-            offset = androidx.compose.ui.unit.DpOffset(x = (-40).dp, y = 40.dp)
-        ) {
-            // 乙方案（10-09 用户拍板）：长按菜单兼作图例——先列五个图标动作的文字说明
-            //（点了不执行，纯查阅；图标行含义在此可见），再列管理动作（点即执行）
-            DropdownMenuItem(
-                text = { Text("☑ 签到（每日领积分）", style = MaterialTheme.typography.bodySmall) },
-                onClick = { menuOpen = false; onCheckIn() }
-            )
-            DropdownMenuItem(
-                text = { Text("⟳ 续期（手动刷新令牌）", style = MaterialTheme.typography.bodySmall) },
-                onClick = { menuOpen = false; onRefresh() }
-            )
-            DropdownMenuItem(
-                text = { Text("🏦 查积分（查余额）", style = MaterialTheme.typography.bodySmall) },
-                onClick = { menuOpen = false; onQueryCredits() }
-            )
-            DropdownMenuItem(
-                text = { Text("⧉ 复制令牌（access_token）", style = MaterialTheme.typography.bodySmall) },
-                onClick = { menuOpen = false; onCopyToken() }
-            )
-            // 「添加为密钥」菜单项已撤（10-10 用户令）：登录落盘即自动进密钥池，
-            // 进页还有幂等补齐，无需手动动作
-            DropdownMenuItem(
-                text = { Text("⸺", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.outlineVariant) },
-                onClick = {}
-            )
-            DropdownMenuItem(
-                text = { Text(if (acc.enabled) "停用（不参与自动选号）" else "启用") },
-                onClick = { menuOpen = false; onToggleEnabled() }
-            )
-            if (acc.modelRateLimits.isNotEmpty())
-                DropdownMenuItem(
-                    text = { Text("清除限流标记（${acc.modelRateLimits.size} 项）") },
-                    onClick = { menuOpen = false; onClearLimits() }
-                )
-            DropdownMenuItem(
-                text = { Text("删除账号", color = MaterialTheme.colorScheme.error) },
-                onClick = { menuOpen = false; onDelete() }
-            )
-        }
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-            // 丙案（10-10 用户拍板「两行全宽图标排」）：第一行 = 序号+名字+状态胶囊，
-            // **零图标**——五个动作整体下移副行下方的工具条（整行宽、带文字标签）
+            // 第一行 = 序号 + 名字 + 状态胶囊 + 两个管理图标（⏻ 启停 / 🗑 删除）。
+            // 频率高的签到/续期/查积分仍在下方工具条（整行宽、带文字标签）。
             OrderBadge(number = index + 1)
             Spacer(Modifier.width(10.dp))
             Text(
@@ -582,6 +522,20 @@ private fun AccountRow(
                 acc.isExpired() -> StatusChip("已过期", MaterialTheme.colorScheme.errorContainer)
                 else -> StatusChip("有效", MaterialTheme.colorScheme.primaryContainer)
             }
+            // 管理键（10-10 用户令：原长按菜单的启停/删除提到卡面，一眼可见可点）
+            // 复用密钥页 FlatIconAction 口径：18dp 图标 / 36dp 热区
+            Spacer(Modifier.width(2.dp))
+            FlatIconAction(
+                icon = Icons.Default.PowerSettingsNew,
+                contentDescription = if (acc.enabled) "停用（不参与自动选号）" else "启用",
+                enabled = !busy,
+            ) { onToggleEnabled() }
+            FlatIconAction(
+                icon = Icons.Default.Delete,
+                contentDescription = "删除账号",
+                tint = MaterialTheme.colorScheme.error,
+                enabled = !busy,
+            ) { onDelete() }
         }
         // 副行：过期/积分/签到时间/限流（缩进对齐名字列 = 徽章 20 + 间距 10 = 30dp，同启用池）
         Spacer(Modifier.height(2.dp))
@@ -614,11 +568,12 @@ private fun AccountRow(
             overflow = TextOverflow.Ellipsis,
             modifier = Modifier.padding(start = 30.dp)
         )
-        // 丙案工具条（10-10 用户拍板）：整行宽四键均排，图标 18dp 下带 10sp 文字标签，
+        // 丙案工具条（10-10 用户拍板）：整行宽均排，图标 18dp 下带 10sp 文字标签，
         // 全部动作一键直达、谁也不进长按菜单。
         // 10-10 二令：字符字形（☑⟳⧉）有豆腐块风险且与 🏦 彩色 emoji 风格打架——
         // 换 Material 矢量图标（原行内键同款四枚），单色同字体渲染永不缺字形
-        // 「添加为密钥」已退役（登录落盘即自动进密钥池，无需手动）
+        // 10-10 三令：长按菜单整体退役 → 菜单里的「清除限流」并入本工具条（仅有限流标记时出现，
+        // 与旧菜单「有标记才显示」同口径）。「复制令牌」不再提供（用户令：不要）。
         Row(
             Modifier.fillMaxWidth().padding(top = 4.dp),
             horizontalArrangement = Arrangement.SpaceEvenly,
@@ -627,8 +582,9 @@ private fun AccountRow(
             ToolAction(Icons.Default.EventAvailable, "签到", busy) { onCheckIn() }
             ToolAction(Icons.Default.Refresh, "续期", busy) { onRefresh() }
             ToolAction(Icons.Default.Savings, "查积分", busy) { onQueryCredits() }
-            // 复制令牌撤出工具条（10-10 用户令：自动落键后无日常场景，跨端粘贴又绕；
-            // 长按菜单保留该项兜底）
+            if (acc.modelRateLimits.isNotEmpty()) {
+                ToolAction(Icons.Default.CleaningServices, "清限流", busy) { onClearLimits() }
+            }
         }
     }
 }
