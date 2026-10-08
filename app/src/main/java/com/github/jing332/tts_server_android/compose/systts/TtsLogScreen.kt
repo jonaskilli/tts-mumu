@@ -342,21 +342,21 @@ internal fun TtsLogScreen(vm: TtsLogViewModel = viewModel()) {
                         
                         // 排版实验 1008（甲案）：三键不再搜索态隐藏——框已瘦身到 0.6，
                         // 标题槽余量足够四键与框并存（10-06 的隐藏口径取消）
-                        {
-                            // 筛选按钮
-                            IconButton(onClick = { vm.showFilterDialog.value = true }) {
-                                Icon(Icons.Default.FilterList, stringResource(R.string.filter))
-                            }
+                        // （37733831376 修 CI 红：3779dba 撤 if 门控时留了孤儿 lambda——
+                        //   条件删了大括号没删，四键整体脱挂 actions）
+                        // 筛选按钮
+                        IconButton(onClick = { vm.showFilterDialog.value = true }) {
+                            Icon(Icons.Default.FilterList, stringResource(R.string.filter))
+                        }
 
-                            // 文件夹按钮 - 先弹日志文件列表自由选择（用户 09-08），点击文件再用外部查看器打开
-                            IconButton(onClick = { showLogFilesDialog = true }) {
-                                Icon(Icons.Default.FolderOpen, stringResource(R.string.open_log_folder))
-                            }
+                        // 文件夹按钮 - 先弹日志文件列表自由选择（用户 09-08），点击文件再用外部查看器打开
+                        IconButton(onClick = { showLogFilesDialog = true }) {
+                            Icon(Icons.Default.FolderOpen, stringResource(R.string.open_log_folder))
+                        }
 
-                            // 清空按钮
-                            IconButton(onClick = { vm.clear() }) {
-                                Icon(Icons.Default.DeleteOutline, stringResource(id = R.string.clear_log))
-                            }
+                        // 清空按钮
+                        IconButton(onClick = { vm.clear() }) {
+                            Icon(Icons.Default.DeleteOutline, stringResource(id = R.string.clear_log))
                         }
                     }
                 )
