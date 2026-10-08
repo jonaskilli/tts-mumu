@@ -63,6 +63,16 @@
             android:name=".compose.systts.account.AccountLoginActivity"
             android:exported="false"
             android:label="@string/account_pool_login" />
+        <!-- Jet Hub 插件 UI 宿主（10-10）：WebView 跑插件原版前端 + 手机适配层 -->
+        <activity
+            android:name=".compose.systts.account.JetHubActivity"
+            android:exported="false"
+            android:label="@string/account_pool_title" />
+        <!-- Jet Hub 的「新建账号」登录宿主（复用原生 13 渠道登录流） -->
+        <activity
+            android:name=".compose.systts.account.JetHubLoginActivity"
+            android:exported="false"
+            android:label="@string/account_pool_login" />
         <receiver
             android:name=".service.systts.help.AccountCheckinReceiver"
             android:exported="false" />

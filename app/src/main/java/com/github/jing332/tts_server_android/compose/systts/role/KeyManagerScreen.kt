@@ -120,6 +120,7 @@ import org.json.JSONArray
 import org.json.JSONObject
 import com.github.jing332.tts_server_android.R
 import com.github.jing332.tts_server_android.compose.nav.NavTopAppBar
+import com.github.jing332.tts_server_android.compose.systts.account.JetHubActivity
 import com.github.jing332.tts_server_android.service.systts.help.AccountPool
 import com.github.jing332.tts_server_android.service.systts.help.CharacterRecordsFile
 import com.github.jing332.tts_server_android.service.systts.help.KeyListFile
@@ -1604,8 +1605,12 @@ fun KeyManagerScreen(tagRuleId: String, onBack: () -> Unit) {
                 actions = {
                     // 账号池（10-09 二令回顶栏 / 三令改图标+文字 / 四令改名 Jet 与 DSH
                     // Jet Hub 呼应）：FlightTakeoff 图标 + 「Jet」文字
+                    // 10-10 五令（用户「照抄插件版式」）：入口改指 JetHubActivity——
+                    // WebView 跑插件原版前端（assets/jethub）+ 官方手机适配层，
+                    // 版式与插件一致，不再是原生手描。原 AccountPoolScreen 保留兜底
+                    //（JetHubLoginActivity 的「新建账号」仍在用它的登录分流）。
                     TextButton(
-                        onClick = { showAccountPool = true },
+                        onClick = { JetHubActivity.start(context) },
                         contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp),
                         // 高度对齐 IconButton 48 热区；高度In设 min 防文字换行顶高顶栏
                         modifier = Modifier.heightIn(min = 48.dp)
