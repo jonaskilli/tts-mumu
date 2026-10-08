@@ -3,7 +3,10 @@ package com.github.jing332.tts_server_android.compose.systts.account
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -53,7 +56,13 @@ fun ChannelPickerDialog(
         onDismissRequest = onDismiss,
         title = { Text("选择登录渠道") },
         text = {
-            Column {
+            // 13 渠道超高：AlertDialog text 槽不自带滚动（真机实锤截断不可滑）——
+            // 手动 verticalScroll + 高度上限（屏幕 0.7f），超出即弹内滚动
+            Column(
+                Modifier
+                    .heightIn(max = 480.dp)
+                    .verticalScroll(rememberScrollState())
+            ) {
                 channels.forEach { ch ->
                     val kind = loginKindOf(ch.id)
                     val note = when {
