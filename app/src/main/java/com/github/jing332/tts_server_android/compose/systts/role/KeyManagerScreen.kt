@@ -1166,6 +1166,16 @@ fun KeyManagerScreen(tagRuleId: String, onBack: () -> Unit) {
     // 偏重启用确认：待确认启用的条目（togglePool 判偏重时置值，弹窗确认后走 doTogglePool）。
     // 声明必须在 togglePool 之前——Kotlin 局部函数只引用先声明的变量（37736194147 实锤）
     var enableConfirmFor by remember { mutableStateOf<KeyListFile.KeyEntry?>(null) }
+    /** togglePool 的执行段（偏重确认弹窗「仍要启用」也走这里）——声明在 togglePool 之前（同 37736194147 作用域铁律） */
+    fun doTogglePool(entry: KeyListFile.KeyEntry, norm: String) {
+        if (norm in pool) {
+            savePoolList(pool - norm)
+            toast(R.string.role_key_disabled, KeyListFile.displayName(entry))
+        } else {
+            savePoolList(pool + norm)
+            toast(R.string.role_key_enabled, KeyListFile.displayName(entry), pool.size + 1)
+        }
+    }
     /** 启用/停用一把密钥（点卡片）：在池里则摘除，不在则追加到队尾（= 轮换顺序最后）。
      *  裸 Key 禁止启用（池是扁平 @@ 串，裸段会错位）：先在编辑框补全为完整格式再启用。
      *  10-09 偏重启用确认：有测试结果且判定「偏重」（思考未关 或 用时 ≥ HEAVY_MODEL_MS 3s，
@@ -1194,16 +1204,6 @@ fun KeyManagerScreen(tagRuleId: String, onBack: () -> Unit) {
             }
         }
         doTogglePool(entry, norm)
-    }
-    /** togglePool 的执行段（偏重确认弹窗「仍要启用」也走这里） */
-    fun doTogglePool(entry: KeyListFile.KeyEntry, norm: String) {
-        if (norm in pool) {
-            savePoolList(pool - norm)
-            toast(R.string.role_key_disabled, KeyListFile.displayName(entry))
-        } else {
-            savePoolList(pool + norm)
-            toast(R.string.role_key_enabled, KeyListFile.displayName(entry), pool.size + 1)
-        }
     }
     /** 设为/取消分配专用（10-09 长按菜单快捷通道）：写盘（manual=true，全站唯一）后重读镜像 */
     fun toggleAssign(entry: KeyListFile.KeyEntry) {
