@@ -512,20 +512,25 @@ internal fun LogScreen(
                     } else Modifier
                 ),
             state = listState,
-            // 左右基准线：维持 10-05 恢复的旧版口径（容器 0），卡自带 6dp 外距、
-            // 裸行/日期签 4~8dp 内距，不再额外加容器 gutter
+            // 左右基准线（10-10 用户拍板 B 案：统一 16）：容器仍 0，但**裸行/日期签文字/
+            // 卡内正文三项同落 16dp 全站 ListGutter 内容线**。
+            // 历史：10-05 恢复过「容器 0 + 行内 4」的旧版口径，当时卡片带 16dp 外边距、
+            // 卡内文字在 24dp，裸行 4dp 属「贴边族」合理；10-10 卡片改底色通边（撤外边距、
+            // 内衬 16）后卡内文字落到 16dp，裸行却没跟着动 ⇒ 裸行成了全页最靠左的一列
+            //（比日期签还左），页面出现三条左线。此为那次改卡片漏掉的对齐。
             contentPadding = PaddingValues(horizontal = 0.dp)
         ) {
                 itemsIndexed(currentGroups.items, key = { index, _ -> index }) { _, item ->
                     when (item) {
                         is LogGroups.Item.Header -> {
-                            // 日期签：每天第一条上方出现一次（10-06：日期不再逐行重复）
+                            // 日期签：每天第一条上方出现一次（10-06：日期不再逐行重复）。
+                            // 签盒 start 7 + 签内衬 9 = 签文字 16，与裸行/卡内正文同线
                             Text(
                                 text = item.date,
                                 style = MaterialTheme.typography.labelSmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 modifier = Modifier
-                                    .padding(start = 8.dp, top = 10.dp, bottom = 4.dp)
+                                    .padding(start = 7.dp, top = 10.dp, bottom = 4.dp)
                                     .background(
                                         MaterialTheme.colorScheme.surfaceVariant,
                                         RoundedCornerShape(9.dp)
@@ -558,7 +563,10 @@ internal fun LogScreen(
                                             )
                                         else Modifier
                                     )
-                                    .padding(horizontal = 4.dp, vertical = 3.5.dp)
+                                    // 10-10 B 案：裸行左缘 4→16，与卡内正文/日期签文字同落
+                                    // 全站 ListGutter 16dp 线（原本 4dp 是卡片带外边距时代的
+                                    // 「贴边族」口径，卡片改通边后失效）。纵向 3.5 未动。
+                                    .padding(horizontal = 16.dp, vertical = 3.5.dp)
                             ) {
                                 Row(verticalAlignment = Alignment.CenterVertically) {
                                     if (selectionMode) {
