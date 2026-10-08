@@ -1390,17 +1390,8 @@ fun KeyManagerScreen(tagRuleId: String, onBack: () -> Unit) {
             testingValue = null
             probeProgress.remove(norm)
             recordTestResult(norm, r)
-            // 10-05 文案终稿：Toast 只报结论+用时，名字不报（卡片就在眼前、模型名还长）
-            if (r.verdict == KeyListFile.TestVerdict.PASS) {
-                toast(R.string.role_key_test_ok_toast, timingOf(r.message).ifEmpty { "OK" })
-            } else {
-                // 黄/红：卡底提示条已常驻（可展开看全文）——Toast 只报一句结论，不重复详情
-                toast(
-                    if (r.verdict == KeyListFile.TestVerdict.PASS_THINKING)
-                        R.string.role_key_test_warn_toast
-                    else R.string.role_key_test_fail_toast_simple
-                )
-            }
+            // 10-10 用户令「全撤」：测试结果 Toast 一并撤——结论已落各模型卡下方结果条
+            //（用时/结论/详情常驻可展开），Toast 是同一段话在屏底再闪一遍，纯重复
         }
     }
     fun testKey(entry: KeyListFile.KeyEntry) {
@@ -1416,9 +1407,10 @@ fun KeyManagerScreen(tagRuleId: String, onBack: () -> Unit) {
         }
         scope.launch {
             testingGroup = grp.title
-            toast(R.string.role_key_test_batch_start, grp.title, targets.size)
+            // 10-10 用户令「全撤」：批次开始/完成 Toast 一并撤（组头转圈 + 各行各自转圈是
+            // 进行中反馈；结果落各卡结果条，汇总 Toast 也是重复）
             val gate = Semaphore(4)
-            val results = targets.map { e ->
+            targets.map { e ->
                 async {
                     gate.withPermit {
                         val norm = KeyListFile.normalizePoolValue(e.value)
@@ -1430,15 +1422,12 @@ fun KeyManagerScreen(tagRuleId: String, onBack: () -> Unit) {
                         }
                         probeProgress.remove(norm)
                         recordTestResult(norm, r)
-                        r.verdict != KeyListFile.TestVerdict.FAIL
                     }
                 }
             }.awaitAll()
             testingGroup = null
-            // 汇总 Toast 报数；逐条原因看各卡片底部提示条（10-03 五改：组测不弹框）
-            val okCount = results.count { it }
-            toast(R.string.role_key_test_batch_done, grp.title, okCount, targets.size - okCount)
-            // 组测完成后自动展开并滚到该组（10-08：结果条都在各模型卡里，折叠/在屏外都看不见）
+            // 10-10 用户令「全撤」：完成汇总 Toast 撤（10-03 五改已是「组测不弹框」，
+            // 现连同这句汇总一并去）——结果看各卡结果条；组头转圈停下即「跑完了」
             expandAndReveal(grp.title)
         }
     }
@@ -1450,10 +1439,9 @@ fun KeyManagerScreen(tagRuleId: String, onBack: () -> Unit) {
         }
         scope.launch {
             testingPoolAll = true
-            val title = context.getString(R.string.role_key_pool_title)
-            toast(R.string.role_key_test_batch_start, title, pool.size)
+            // 10-10 用户令「全撤」：池测开始/完成 Toast 同撤（池页 ⚡ + 各行转圈为进行中反馈）
             val gate = Semaphore(4)
-            val results = pool.map { v ->
+            pool.map { v ->
                 async {
                     gate.withPermit {
                         val norm = KeyListFile.normalizePoolValue(v)
@@ -1464,14 +1452,11 @@ fun KeyManagerScreen(tagRuleId: String, onBack: () -> Unit) {
                         }
                         probeProgress.remove(norm)
                         recordTestResult(norm, r)
-                        r.verdict != KeyListFile.TestVerdict.FAIL
                     }
                 }
             }.awaitAll()
             testingPoolAll = false
-            // 同组测口径：汇总 Toast 报数；逐条原因看行内提示条
-            val okCount = results.count { it }
-            toast(R.string.role_key_test_batch_done, title, okCount, results.size - okCount)
+            // 10-10 用户令「全撤」：池测完成汇总 Toast 撤（结果看各卡结果条）
         }
     }
     // 批量删除（照插件 deleteMultipleBooks）。被删条目若在启用池里，从池里一并摘除
