@@ -209,8 +209,8 @@ object SseAggregator {
             tried.add(current.id)
             lastErr = if (lastErr.isEmpty()) body else lastErr
 
-            // 换号：启用中、未试过、该模型不限流、未过期
-            val next = AccountPool.pickAccount(model, tried)
+            // 换号：同 provider（10-09 实锤补站隔离）、启用中、未试过、该模型不限流、未过期
+            val next = AccountPool.pickAccount(model, current.provider, tried)
             if (next == null) {
                 val head = if (rateLimited) "该模型所有账号均受限" else if (sawAuthFail) "所有账号均被拒绝" else "所有账号均失败"
                 return false to "$head（已试 ${tried.size} 个账号）：${lastErr.take(180)}"

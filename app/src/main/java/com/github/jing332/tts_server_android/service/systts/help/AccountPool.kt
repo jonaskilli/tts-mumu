@@ -807,13 +807,16 @@ object AccountPool {
     /**
      * 选号（照插件 getAvailableAccount 语义）：启用中的账号按**落盘顺序**（=列表展示序，
      * 插件「拖拽顺序即优先级」在 app 里对应账号池列表顺序）取第一个满足：
-     * ① enabled ② 该模型不在限流期（空模型不过滤）③ 非 expired（过期的跳过——
+     * ① enabled ② **provider 与目标渠道一致**（10-09 真机实锤补：匿名 public 被拿到腾讯站
+     * 打=「*尾blic」事故——账号池凭据曾设计为全站通用，但各站凭据互不通用，必须隔离）
+     * ③ 该模型不在限流期（空模型不过滤）④ 非 expired（过期的跳过——
      * 插件里凭据过期由续期调度兜着，选号侧不选它；app 侧请求链的 401 会现场续期一次）。
      * excludeIds：换号循环排除已试过的。无候选返回 null。
      */
-    fun pickAccount(model: String, excludeIds: Set<String> = emptySet()): Account? {
+    fun pickAccount(model: String, provider: String, excludeIds: Set<String> = emptySet()): Account? {
         val now = System.currentTimeMillis()
         return load().filter { it.enabled && it.id !in excludeIds }
+            .filter { it.provider == provider }
             .filter { !it.isExpired(now) && !it.isRateLimitedFor(model, now) }
             .firstOrNull()
     }
