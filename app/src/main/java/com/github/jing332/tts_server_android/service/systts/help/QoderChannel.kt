@@ -352,7 +352,7 @@ object QoderChannel : ChatChannel {
         acc: AccountPool.Account,
         bodyJson: String,
         model: String,
-        cancelled: Cancelled,
+        cancelled: SseAggregator.Cancelled,
     ): Pair<Boolean, String> {
         return try {
             // uid：加密链必备（runtime auth fields 的身份来源）；缺了提示重登，不崩

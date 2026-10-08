@@ -283,7 +283,10 @@ object SseAggregator {
         var sawAuthFail = false
         var lastErr = ""
         while (true) {
-            val (ok, body) = channel.chatViaChannel(current, bodyJson, model, cancelled)
+            // 显式非空 Pair：chatViaChannel 声明返回可空，解构须先断言（编译器要求）
+            val callResult: Pair<Boolean, String> = channel.chatViaChannel(current, bodyJson, model, cancelled)
+                ?: return false to "渠道对话路径意外返回空（chatViaChannel 契约破坏）"
+            val (ok, body) = callResult
             if (ok) return true to body
 
             // 错误分类（渠道实现；与通用循环同一套判据）
@@ -304,7 +307,10 @@ object SseAggregator {
                     channel.refresh(current)?.let { r ->
                         AccountPool.saveRefreshed(current.id, r.first, r.second, r.third)
                         val refreshed = current.copy(accessToken = r.first, refreshToken = r.second, expiresAt = r.third)
-                        val (ok2, body2) = channel.chatViaChannel(refreshed, bodyJson, model, cancelled)
+                        // 显式非空 Pair（同上，解构前断言）
+                        val retry: Pair<Boolean, String> = channel.chatViaChannel(refreshed, bodyJson, model, cancelled)
+                            ?: return false to "渠道对话路径意外返回空（chatViaChannel 契约破坏）"
+                        val (ok2, body2) = retry
                         if (ok2) return true to body2
                         val status2 = Regex("HTTP (\\d{3})").find(body2)?.groupValues?.get(1)?.toIntOrNull() ?: 0
                         lastErr = body2

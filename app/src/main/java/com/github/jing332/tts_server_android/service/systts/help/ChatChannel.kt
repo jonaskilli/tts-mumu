@@ -80,7 +80,7 @@ interface ChatChannel {
         acc: AccountPool.Account,
         bodyJson: String,
         model: String,
-        cancelled: Cancelled = Cancelled { false },
+        cancelled: SseAggregator.Cancelled = SseAggregator.Cancelled { false },
     ): Pair<Boolean, String>? = null
 
     enum class ErrClass { RATE_LIMIT, AUTH, OTHER }
