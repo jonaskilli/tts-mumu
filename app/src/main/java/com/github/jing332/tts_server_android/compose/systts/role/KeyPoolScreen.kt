@@ -1,6 +1,7 @@
 package com.github.jing332.tts_server_android.compose.systts.role
 
 import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.HorizontalDivider
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -29,10 +30,8 @@ import androidx.compose.material.icons.filled.Checklist
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.RemoveCircleOutline
-import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.ElevatedCard
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -50,6 +49,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.compositeOver
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
@@ -252,16 +252,24 @@ internal fun KeyPoolScreen(
                     // 长按拖动排序（放手落位、序号自动重排）；多选/整批测试中禁拖
                     val dragModifier = if (selectionMode || batchTesting) Modifier
                     else Modifier.detectReorderAfterLongPress(reorderState)
-                    // 10-08 卡片化：条目各自成 ElevatedCard（与主页组卡同容器/边距/白底），
-                    // 行间分割线撤（卡自然分隔）；卡间距 8dp
-                    ElevatedCard(
-                        modifier = Modifier
+                    // 10-10 用户令（照主页模型卡）：独立 ElevatedCard 撤——改白底 Column
+                    // 平铺（主页条目=连体卡内分区，无卡中卡）；多选勾中=12% 浅红（同主页
+                    // cardColor 两态，compositeOver 防透页面底）；卡间 1dp 分隔线（连体卡
+                    // 分区观感），垂直 4dp 节奏保留
+                    val cardColor = if (selectionMode && checked)
+                        MaterialTheme.colorScheme.error.copy(alpha = 0.12f)
+                            .compositeOver(MaterialTheme.colorScheme.surface)
+                    else MaterialTheme.colorScheme.surface
+                    Column(
+                        Modifier
                             .fillMaxWidth()
-                            .padding(start = 4.dp, end = 0.dp, top = 4.dp, bottom = 4.dp),
-                        colors = CardDefaults.elevatedCardColors(
-                            containerColor = MaterialTheme.colorScheme.surface
-                        )
+                            .background(cardColor)
+                            .then(dragModifier)
                     ) {
+                        if (idx > 0) HorizontalDivider(
+                            thickness = 1.dp,
+                            color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f)
+                        )
                         PoolRow(
                             orderNum = idx + 1,
                             info = row,
@@ -270,7 +278,6 @@ internal fun KeyPoolScreen(
                             selectionMode = selectionMode,
                             checked = norm in checked,
                             batchTesting = batchTesting,
-                            dragModifier = dragModifier,
                             onToggleCheck = { onToggleCheck(norm) },
                             onTest = { onTest(value, row.display) },
                             onCopy = { onCopy(row.display) },
@@ -303,7 +310,6 @@ private fun PoolRow(
     selectionMode: Boolean,
     checked: Boolean,
     batchTesting: Boolean,
-    dragModifier: Modifier,
     onToggleCheck: () -> Unit,
     onTest: () -> Unit,
     onCopy: () -> Unit,
@@ -311,9 +317,8 @@ private fun PoolRow(
     onRemove: () -> Unit,
 ) {
     Column(
-        // 长按拖动排序挂整行（用户 0920 反馈拖动失效：dragModifier 传进来后没挂载，
-        // 0920 排版改动时弄丢的回归）。多选/整批测试时 dragModifier 是空 Modifier，自然禁拖
-        Modifier.fillMaxWidth().padding(vertical = 8.dp).then(dragModifier)
+        // 拖拽手势已上移挂卡容器（10-10：连体卡化后手势随整卡，原行内 dragModifier 参数撤）
+        Modifier.fillMaxWidth().padding(vertical = 8.dp)
     ) {
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
             if (selectionMode) {
