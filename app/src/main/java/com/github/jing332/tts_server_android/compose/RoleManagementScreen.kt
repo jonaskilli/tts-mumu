@@ -1,5 +1,6 @@
 package com.github.jing332.tts_server_android.compose
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -11,6 +12,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.pager.PagerState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Book
 import androidx.compose.material.icons.filled.Key
@@ -32,10 +34,13 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
@@ -53,6 +58,7 @@ import com.github.jing332.tts_server_android.compose.systts.role.RoleListScreen
 import com.github.jing332.tts_server_android.conf.SpeechRuleConfig
 import com.github.jing332.tts_server_android.model.rhino.speech_rule.SpeechRuleEngine
 import com.github.jing332.tts_server_android.service.systts.SystemTtsService
+import com.github.jing332.tts_server_android.service.systts.help.KeyListFile
 import kotlinx.coroutines.flow.conflate
 
 /** 朗读规则 id（角色数据/标签池所属规则，与插件约定一致） */
@@ -172,6 +178,13 @@ fun RoleManagementScreen(sharedVM: SharedViewModel, pagerState: PagerState) {
     // 密钥管理=独立全屏页面（09-14 由弹窗改页，不再需要开关状态）；备份恢复仍是弹窗
     var showBackupCenter by remember { mutableStateOf(false) }
     var backupVersion by remember { mutableIntStateOf(0) } // 恢复/导入等大动作后强制内置列表重读
+    // 顶栏「密钥」后的启用池计数（10-10 用户令·甲案）：与密钥页「启用池(N)」同源口径——
+    // 读 miyue 链当前池值条数，不是密钥总条数。ON_RESUME 后 reloadKey++ 一并刷新
+    //（密钥页里增删/移出池后返回本页即同步）。
+    var poolCount by remember { mutableIntStateOf(0) }
+    LaunchedEffect(reloadKey) {
+        poolCount = withIO { KeyListFile.readPool(ROLE_RULE_ID).size }
+    }
     Scaffold(
         modifier = Modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
         topBar = {
@@ -201,6 +214,27 @@ fun RoleManagementScreen(sharedVM: SharedViewModel, pagerState: PagerState) {
                                 stringResource(R.string.role_entry_key),
                                 style = MaterialTheme.typography.labelLarge
                             )
+                            // 启用池计数胶囊（10-10 用户令·甲案）：不进密钥页就知道池里几个密钥。
+                            // 数值 = 密钥页「启用池(N)」同源（miyue 池值条数）；胶囊里必带「启用」
+                            // 二字（10-10 用户反馈：光一个数字会读成「密钥共 N 个」），
+                            // 池空不显示（0 无意义，且不给顶栏添噪）。
+                            if (poolCount > 0) {
+                                Spacer(Modifier.width(4.dp))
+                                Box(
+                                    Modifier
+                                        .clip(RoundedCornerShape(50))
+                                        .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.12f))
+                                        .padding(horizontal = 6.dp, vertical = 1.dp),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Text(
+                                        stringResource(R.string.role_entry_key_pool_badge, poolCount),
+                                        style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp),
+                                        color = MaterialTheme.colorScheme.primary,
+                                        fontWeight = FontWeight.SemiBold,
+                                    )
+                                }
+                            }
                         }
                     }
                     Box(

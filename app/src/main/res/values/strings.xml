@@ -971,6 +971,7 @@
     <string name="role_key_test_batch_done">「%1$s」测试完成：%2$d 通 / %3$d 不通</string>
     <string name="backup_title">备份恢复</string>
     <string name="role_entry_key">密钥</string>
+    <string name="role_entry_key_pool_badge">启用 %1$d</string>
     <string name="role_entry_backup">备份</string>
     <string name="backup_export_book">导出当前书籍到剪贴板</string>
     <string name="backup_import_book">从剪贴板导入书籍</string>
