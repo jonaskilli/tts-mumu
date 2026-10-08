@@ -678,6 +678,15 @@ internal fun LogScreen(
                                     isRequestHead = true,
                                     highlight = head == locateHighlight,
                                 )
+                                // 主行与成员区分隔线（用户 10-08 午后追问补）：请求正文与
+                                // 获取成功/插件过程行之间此前只有缩进，加一条与前置区同款
+                                // 细线（10% 透明度）标出"请求→结果"的内容分界
+                                if (item.members.isNotEmpty()) {
+                                    HorizontalDivider(
+                                        modifier = Modifier.padding(vertical = 6.dp),
+                                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.10f)
+                                    )
+                                }
                                 // 成员行：结果子行/插件过程行，缩进+小一档+卡内次级色
                                 item.members.forEach { mIdx ->
                                     val m = list[mIdx]
