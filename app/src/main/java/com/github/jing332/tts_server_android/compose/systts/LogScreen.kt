@@ -426,11 +426,12 @@ internal fun LogScreen(
         // 排版实验 1008（用户 10-08 拍板①）：成员行 forceColor 压制撤除，kidBody 色系
         // 退役——卡内恢复级别色/来源色（25cbf5f 的插件灰青/规则灰紫在卡内重新可见）
         val darkTheme = isSystemInDarkTheme()
-        // 卡片底色（用户 10-08 拍板对齐全站）：surfaceVariant@20%——与设置页分区卡/
-        // 编辑页 SectionCard 同源（SettingsWidgets 同款注释：比页面底略深一眼认出分区、
-        // 不抢内容），深浅色主题自动正确，此前手写的浅/深死值全部退役。
+        // 卡片底色（10-10 用户拍板：加深到 50%）。原值 surfaceVariant@20% 是照设置页分区卡
+        // 对齐的，但那是「一张大卡占半屏」的页；日志是一屏十几条窄卡，20% 时卡底与页底
+        // 亮度差仅 2.2%（#F7F8F0 vs #FDFDF6），肉眼分不出边界 ⇒ 用户反馈「卡片不清晰」。
+        // 50% 与列表页卡片同浓度（亮度差 5.8%），边界一眼可见，色相仍是中性不抢正文。
         // 报错分档保留信号色：仅 WARN 淡琥珀、含 ERROR 红粉（信号色允许偏离底色系）
-        val cardBgOk = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.20f)
+        val cardBgOk = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.50f)
         val cardBgWarn = if (darkTheme) Color(0xFF3A3226) else Color(0xFFFDF8E8)
         val cardBgErr = if (darkTheme) Color(0xFF3A2626) else Color(0xFFFDF0F0)
         // 获取成功前缀：石板灰 Blue Grey 800/200
@@ -615,11 +616,14 @@ internal fun LogScreen(
                             }
                             Column(
                                 modifier = Modifier
-                                    // 底色贴边（10-10 用户令）：撤卡外距 16dp 与圆角——底色
-                                    // 通到屏幕左右边缘，正文边距由卡内衬 16dp 承担
-                                    // （原 16 外距+8 内衬=文字左缘 24dp，页面显空）
+                                    // 卡片形态（10-10 用户拍板 B 案：缩进 8 + 圆角 8）：
+                                    // 由「底色贴边」回到带缩进的圆角卡。圆角必须配缩进——铺满整屏时
+                                    // 圆角会落在屏幕边缘被切掉，看着像缺角（两者不能并存）。
+                                    // 全站规则「容器 + 行内 = 16」：卡缘 8 + 卡内衬 8 = 文字落 16dp，
+                                    // 与裸行/日期签文字同一条 ListGutter 线（不破 10-10 刚统一的左线）。
                                     .fillMaxWidth()
-                                    .padding(vertical = 3.dp)
+                                    .padding(horizontal = 8.dp, vertical = 3.dp)
+                                    .clip(RoundedCornerShape(8.dp))
                                     .background(cardBg)
                                     .then(
                                         if (selectionMode) Modifier.clickable {
@@ -632,8 +636,9 @@ internal fun LogScreen(
                                         // 非多选：点卡弹快捷面板（换发音人），锚定请求主行
                                         else Modifier.clickable { quickPanelEntry = head }
                                     )
-                                    // 卡内水平衬 16dp（贴边后文字边距 = 此值，全站 ListGutter 线）
-                                    .padding(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 8.dp)
+                                    // 卡内水平衬 8dp（卡缘 8 + 此值 = 文字 16dp 全站 ListGutter 线；
+                                    // 原贴边形态下这里曾直接扛 16 承担全部文字边距）
+                                    .padding(start = 8.dp, end = 8.dp, top = 8.dp, bottom = 8.dp)
                             ) {
                                 // 前置区：本次请求前的规则分析行（级别色照旧，字号小一档）
                                 if (item.pre.isNotEmpty()) {
