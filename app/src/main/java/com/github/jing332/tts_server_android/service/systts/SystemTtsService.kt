@@ -482,8 +482,16 @@ class SystemTtsService : TextToSpeechService(), IEventDispatcher {
                     callback.error(TextToSpeech.ERROR_SYNTHESIS)
                 } finally {
                     // 🛠️ 结案铁律：确保必须调用 done()，防止队列挂起
-                    callback.done()
+                    // ⚠️ 顺序铁律：先注销 lastTtsCallback，再 done()。
+                    // done() 是跨进程回调，客户端收到后立刻把下一段送进来（onSynthesizeText
+                    // 开头的「破窗」会来取 lastTtsCallback），若此时引用还在，破窗就会对
+                    // 一段**已经正常念完**的合成补一个 error(ERROR_SYNTHESIS)=-3，
+                    // 客户端据此判本段失败并整段重新合成——表现为「同一段话被请求两次」
+                    // （章头标题段最短、送得最快，最容易中招）。
+                    // 提前注销只影响「记上一个回调」的指针，不影响任何在途合成；
+                    // 真正卡死未完成的回调仍会被破窗正常清掉。
                     if (lastTtsCallback == callback) lastTtsCallback = null
+                    callback.done()
                 }
             }
 
