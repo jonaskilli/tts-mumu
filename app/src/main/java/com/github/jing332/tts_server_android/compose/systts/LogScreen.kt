@@ -189,6 +189,25 @@ internal class LogGroups(val items: List<Item>, val entryToList: IntArray) {
                 if (a == 0L || r == 0L) return true // 时间缺失不设防，走旧归组
                 return r - a in 0..10_000
             }
+            // 收上一张卡并把「悬置的规则分析行」交给新卡做前置区。
+            // ⚠️ 必须先保存 pending：closeCard() 的职责含清空 pre，若先调它再读 pre，
+            // 悬置行会被清成空列表后直接丢弃（既不进卡、也不落裸行）——表现为
+            // 「朗读规则日志在列表里看不到，但全选复制拿得到」（复制走未归组的 displayLogs）。
+            // head>=0 时 pre 属于正在收的那张卡（由 closeCard 消费）；head<0 时 pre 才是
+            // 「等本请求的悬置行」，故只在该情形把 pending 交还 pre。
+            fun openCard(requestIdx: Int) {
+                val pending = if (head < 0) pre else ArrayList<Int>()
+                closeCard()
+                if (pending.isNotEmpty()) {
+                    val attached = ArrayList<Int>()
+                    pending.forEach { pIdx ->
+                        if (timeGapOk(pIdx, requestIdx)) attached.add(pIdx)
+                        else raw.add(Item.Bare(pIdx))
+                    }
+                    pre = attached
+                }
+                head = requestIdx
+            }
 
             list.forEachIndexed { i, e ->
                 when {
@@ -214,18 +233,7 @@ internal class LogGroups(val items: List<Item>, val entryToList: IntArray) {
                     }
                     // "请求音频"主行：开新卡（旧卡先收，悬置分析行随卡归入前置区；
                     // P2 收紧：悬置行里距本请求超 10s 的先落裸行，不进前置区）
-                    e.configId != 0L -> {
-                        closeCard()
-                        if (pre.isNotEmpty()) {
-                            val attached = ArrayList<Int>()
-                            pre.forEach { pIdx ->
-                                if (timeGapOk(pIdx, i)) attached.add(pIdx)
-                                else raw.add(Item.Bare(pIdx))
-                            }
-                            pre = attached
-                        }
-                        head = i
-                    }
+                    e.configId != 0L -> openCard(i)
                     // 其他主行（重试/备用TTS/系统消息）：有卡归卡，ERROR=失败终点收卡；
                     // 无卡时先落袋悬置分析行（保持时序）再落裸行
                     else -> {
