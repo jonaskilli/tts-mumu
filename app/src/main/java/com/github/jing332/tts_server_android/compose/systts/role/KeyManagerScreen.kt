@@ -583,8 +583,11 @@ private fun KeyEntryRow(
                     // 10-09 六令：绿/黄截断也能进来（详情键动态化）——绿/黄展开渲染
                     // TestOutcome 全文（必比摘要多），红照旧 reason 全文；展开分支不再
                     // 限红态，hasExpandable 语义改为「详情点开过」
+                    // 10-10 修（用户实机截图「572ms · 572ms · 思考未关…」用时两遍）：
+                    // timingPrefix 就是从 message 里 regex 抽出来的（timingOf(message)），
+                    // 再拼回去必然重复——黄/绿态 message 本就以用时开头。只渲染 message。
                     Text(
-                        timingPrefix + testOutcome.message,
+                        testOutcome.message,
                         style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.sp),
                         color = barColor
                     )
@@ -632,10 +635,10 @@ private fun KeyEntryRow(
                 } else {
                 // 收起行（10-10 用户令：详情/自定义思考两键下移第二行——原先与摘要挤
                 // 同一行，长摘要+两键互相挤压）
-                Row(
-                    Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
+                // 10-10 修（用户实机截图「收起行只剩 572ms ·、摘要整段不见」）：外层改
+                // **Column**——动作行带 fillMaxWidth，嵌在摘要 Row 内部会把父行宽度先吃光，
+                // 摘要的 weight(1f) 分到 0 宽 ⇒ 摘要不可见。拆成「摘要行 + 动作行」两兄弟。
+                Column(Modifier.fillMaxWidth()) {
                     // 行首圆点已撤（10-08 用户令）：整行文字本身就是状态色（绿/黄/红），
                     // 圆点是重复编码；撤后文字左缘齐模型名文字线。
                     // 扫视锚点不丢——模型行灯槽（乙案保留）仍是行内状态锚。
@@ -648,23 +651,28 @@ private fun KeyEntryRow(
                     // hasVisualOverflow 动态判（截断即出、放得下即无），三态统一；
                     // 点开=完整 TestOutcome 全文（含写法名/状态码等底层信息），必比摘要多
                     var truncated by remember(entry.name, collapsedText) { mutableStateOf(false) }
-                    if (timingPrefix.isNotEmpty()) {
+                    Row(
+                        Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        if (timingPrefix.isNotEmpty()) {
+                            Text(
+                                timingPrefix,
+                                style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.sp),
+                                color = barColor,
+                                maxLines = 1
+                            )
+                        }
                         Text(
-                            timingPrefix,
+                            collapsedText,
                             style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.sp),
                             color = barColor,
-                            maxLines = 1
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            onTextLayout = { truncated = it.hasVisualOverflow },
+                            modifier = Modifier.weight(1f)
                         )
                     }
-                    Text(
-                        collapsedText,
-                        style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.sp),
-                        color = barColor,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                        onTextLayout = { truncated = it.hasVisualOverflow },
-                        modifier = Modifier.weight(1f)
-                    )
                     // 第二行动作行（10-10 用户令）：「详情」（截断才出）+「自定义思考›」
                     // （黄态才出）——原与摘要同排挤一行，摘要截断时两键还互相顶
                     if (truncated || isWarn) {
