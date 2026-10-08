@@ -436,7 +436,7 @@ private fun AccountRow(
             onDismissRequest = { menuOpen = false },
             // 10-10 用户令（弹窗位置）：默认锚在整行 top-start = 永远弹屏幕左上角。
             // 右移下移对准动作图标区（右上角），菜单出现在长按行旁而不是屏幕角落
-            offset = androidx.compose.ui.unit.IntOffset(x = -40, y = 40)
+            offset = androidx.compose.ui.unit.DpOffset(x = (-40).dp, y = 40.dp)
         ) {
             // 乙方案（10-09 用户拍板）：长按菜单兼作图例——先列五个图标动作的文字说明
             //（点了不执行，纯查阅；图标行含义在此可见），再列管理动作（点即执行）
