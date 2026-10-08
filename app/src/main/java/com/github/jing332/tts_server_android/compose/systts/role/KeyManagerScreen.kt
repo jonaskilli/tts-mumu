@@ -268,14 +268,18 @@ private fun KeyEntryRow(
     onDelete: () -> Unit,
 ) {
     val context = LocalContext.current
-    // 卡片底色两态：多选/组内删除勾中=12% 浅红 > 默认灰白。
+    // 卡片底色两态：多选/组内删除勾中=12% 浅红 > 默认卡面白。
     // 启用态不再染底/描边（10-03 对勾方案：启用视觉全归行首对勾，0920 描边口径一并退役）
     // compositeOver：近似半透明色叠在卡面上，避免半透明直接给 ElevatedCard 透出页面底色
+    // 10-08 五令（装机反馈：组卡/模型区分不开）：surfaceContainerLow → surface——
+    // 豆绿主题的中性槽由 themedNeutral 掺 4% 主色派生（Theme.kt NEUTRAL_TINT），本就带绿，
+    // 与组头 primary 8% 绿带色相撞、明度只差 2~3 灰阶（截图实测 #E6F1E9 vs #E9F0E9）；
+    // 回 surface（纯卡面白 #FAFAF3）后绿带↔模型区是色相差，恒定成立
     val cardColor = when {
         selectionMode && checked ->
             MaterialTheme.colorScheme.error.copy(alpha = 0.12f)
-                .compositeOver(MaterialTheme.colorScheme.surfaceContainerLow)
-        else -> MaterialTheme.colorScheme.surfaceContainerLow
+                .compositeOver(MaterialTheme.colorScheme.surface)
+        else -> MaterialTheme.colorScheme.surface
     }
 
     // 10-07 连体卡：条目行并入组 ElevatedCard。勾中浅红底改由本区块 background 表达
