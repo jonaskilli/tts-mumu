@@ -1173,7 +1173,7 @@ object AccountPool {
         for (model in modelIds) {
             // 渠道请求体变换必须先走（chatCompletion 不代调 patchBody）：trae 的 SOLO 字段名、
             // gemini 的嵌套键序、各家的 stream 处理都在这层，漏了会得到与真实对话不同的请求。
-            val raw = chatPayload(model, "只回复 pong", 16, 0)
+            val raw = chatPayload(model, "只回复 pong", 16, 0.0)
             val bodyJson = ch?.patchBody(raw, model) ?: raw
             val (ok, body) = SseAggregator.chatCompletion(
                 base, acc.accessToken,
