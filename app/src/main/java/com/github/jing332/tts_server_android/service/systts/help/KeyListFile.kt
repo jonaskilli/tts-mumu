@@ -113,6 +113,14 @@ object KeyListFile {
     // 红态收起行显示它而非整段 message；三路失败[短路/全拒/手动]回填）
     data class TestOutcome(val verdict: TestVerdict, val thinkingOff: Boolean?, val message: String, val locked: String? = null, val reason: String = "")
 
+    /**
+     * 「偏重模型」用时线（10-09 用户实测校准）：真机分布 1.3~5.4s，原 8s 线一条都筛不出来；
+     * 3s 线筛出 glm-5.3-flash / hy4-preview / kimi-k3-1 与黄态（思考未关）键。
+     * 两处共用：①启用偏重键前的确认弹窗（KeyManagerScreen.togglePool）；
+     * ②⚡ 测试自动佩戴的用时上限（maybeAutoAssign，< 本值才参与）。
+     */
+    const val HEAVY_MODEL_MS = 3_000L
+
     // ==================== 测试结果持久化（10-05 用户拍板：保存到下次测试）====================
     // 语义=「上次测试结论」而非「本次会话临时状态」：退出页面再进不丢，重测即覆盖，
     // 手动可清（组头 🗑 菜单「清除测试结果」）。键=归一化密钥值（normalizePoolValue，
@@ -166,6 +174,102 @@ object KeyListFile {
     } catch (e: Exception) {
         Log.w(TAG, "saveTestResults failed: ${e.message}")
         false
+    }
+
+    // ==================== 分配专用键标记（assign_marker.json，10-09）====================
+    // 语义：全站唯一一把「分配专用」键——姓名/别名分析优先用它（轮换取钥顺序的头一把）。
+    // 标记不进 KeyEntry 结构（key_list.json 不动），单独落本文件：key_test_results.json
+    // 同目录、纯 app 自用、不进三方协议。键 = 归一化密钥值（normalizePoolValue，同测试结果表口径）。
+    // manual=true = 用户手动设置（编辑弹窗 Switch / 长按菜单）；false = ⚡ 测试自动佩戴。
+    // 全站唯一：setAssignMarker 写入即清掉其它键的标记，文件里恒至多一条。
+
+    /** 分配标记条目：setAt=设置时刻(ms)，manual=是否用户手动设置 */
+    data class AssignMarker(val setAt: Long, val manual: Boolean)
+
+    private fun assignMarkerFile(tagRuleId: String) = File(dir(tagRuleId), "assign_marker.json")
+
+    /** 读当前分配标记（全站唯一，至多一条）；文件缺失/损坏/为空返回 null */
+    fun readAssignMarker(tagRuleId: String): Pair<String, AssignMarker>? = try {
+        val f = assignMarkerFile(tagRuleId)
+        if (!f.exists()) null
+        else {
+            val obj = JSONObject(f.readText())
+            val it = obj.keys()
+            if (!it.hasNext()) null
+            else {
+                val k = it.next()
+                val o = obj.optJSONObject(k) ?: return null
+                k to AssignMarker(o.optLong("setAt"), o.optBoolean("manual"))
+            }
+        }
+    } catch (e: Exception) {
+        Log.w(TAG, "readAssignMarker failed: ${e.message}")
+        null
+    }
+
+    /** 该键（归一化值）当前是否持有分配标记 */
+    fun hasAssignMarker(tagRuleId: String, normalizedValue: String): Boolean =
+        normalizedValue.isNotEmpty() && readAssignMarker(tagRuleId)?.first == normalizedValue
+
+    /** 设为分配专用（全站唯一：其它键的标记一律清掉，整文件覆盖写）；失败返回 false */
+    fun setAssignMarker(tagRuleId: String, normalizedValue: String, manual: Boolean): Boolean = try {
+        val d = dir(tagRuleId)
+        if (!d.exists()) d.mkdirs()
+        val root = JSONObject()
+        if (normalizedValue.isNotEmpty()) {
+            root.put(
+                normalizedValue,
+                JSONObject().put("setAt", System.currentTimeMillis()).put("manual", manual)
+            )
+        }
+        assignMarkerFile(tagRuleId).writeText(root.toString(2))
+        true
+    } catch (e: Exception) {
+        Log.w(TAG, "setAssignMarker failed: ${e.message}")
+        false
+    }
+
+    /** 取消分配专用（幂等：标记本就不在这把上=已是目标状态，照常返回 true）；失败返回 false */
+    fun clearAssignMarker(tagRuleId: String, normalizedValue: String): Boolean = try {
+        val cur = readAssignMarker(tagRuleId)
+        if (cur != null && cur.first == normalizedValue) {
+            assignMarkerFile(tagRuleId).writeText(JSONObject().toString(2))
+        }
+        true
+    } catch (e: Exception) {
+        Log.w(TAG, "clearAssignMarker failed: ${e.message}")
+        false
+    }
+
+    /**
+     * ⚡ 测试成功路径的自动佩戴判定（10-09）：绿态（思考已关）且用时 <HEAVY_MODEL_MS(3s，
+     * 用户实测校准) 才参与——黄态/慢键不自动佩戴。
+     *  ① 全站当前无分配标记 → 直接佩戴（manual=false）；
+     *  ② 现分配键 manual=true → 永不被自动转移（用户手动拍板的专用键，机器不夺）；
+     *  ③ 现分配键已被删除（标记成了孤儿）→ 视同无标记，直接佩戴；
+     *  ④ 现键 manual=false 且新键用时 < 现键用时的一半 → 转移佩戴（明显更快才换）。
+     * 现键的用时取 key_test_results.json 里它**最新一次测试**的 message（重测即覆盖写、
+     * 读取即读文件当前值=最新结论）——解析与上面同一条 Regex("(\d+)\s*ms")；
+     * 现键从未测过（取不到用时）→ 无从比较，不转移。
+     */
+    private fun maybeAutoAssign(tagRuleId: String, normValue: String, message: String) {
+        if (normValue.isEmpty()) return
+        val ms = Regex("(\\d+)\\s*ms").find(message)?.groupValues?.get(1)?.toLongOrNull() ?: return
+        if (ms >= HEAVY_MODEL_MS) return
+        val cur = readAssignMarker(tagRuleId)
+        if (cur == null) {
+            setAssignMarker(tagRuleId, normValue, manual = false)
+            return
+        }
+        if (cur.first == normValue || cur.second.manual) return
+        val curExists = readKeys(tagRuleId).any { normalizePoolValue(it.value) == cur.first }
+        if (!curExists) {
+            setAssignMarker(tagRuleId, normValue, manual = false)
+            return
+        }
+        val curMs = readTestResults(tagRuleId)[cur.first]?.message
+            ?.let { Regex("(\\d+)\\s*ms").find(it)?.groupValues?.get(1)?.toLongOrNull() } ?: return
+        if (ms * 2 < curMs) setAssignMarker(tagRuleId, normValue, manual = false)
     }
 
     // ==================== 思考模式（接口级）====================
@@ -1151,6 +1255,11 @@ object KeyListFile {
                 off == false -> " · 思考未关"
                 else -> " · 思考已关"
             }
+            // 自动佩戴（10-09）：绿态（PASS=思考已关）才参与；黄态不佩戴。
+            // 用时 <3s（HEAVY_MODEL_MS）才参与自动佩戴，快过现键一半才转移——判定在 maybeAutoAssign 内部
+            if (v == TestVerdict.PASS && off == true) {
+                maybeAutoAssign(tagRuleId, normTarget, msg + suffix)
+            }
             return TestOutcome(v, off, msg + suffix, reason = if (!ok) msg else "")
         }
 
@@ -1169,6 +1278,10 @@ object KeyListFile {
                 // 原括号「（锁定：x）」口径退役）——locked 必须回传：界面靠它判断
                 // 「已锁定→不给『去设置』」，漏传会误出设置入口
                 val suffix = if (off == false) " · 思考未关 · 已锁定 $locked" else " · 思考已关 · 已锁定 $locked"
+                // 自动佩戴（10-09）：绿态且思考已关；黄态（思考未关）不参与
+                if (v == TestVerdict.PASS && off == true) {
+                    maybeAutoAssign(tagRuleId, normTarget, msg + suffix)
+                }
                 return TestOutcome(v, off, msg + suffix, locked = locked)
             }
             // 锁定写法突然不通（平台行为变了）→ 落到全量试探
@@ -1215,10 +1328,13 @@ object KeyListFile {
             }
             if (off != false) {
                 saveThinkingParam(tagRuleId, t.baseUrl, t.model, m, mCustom)
+                val okMsg = "$msg · 思考已关 · 已锁定 $m"
+                // 自动佩戴（10-09）：全量试探的绿态路——判定放成功返回前，message 带用时
+                maybeAutoAssign(tagRuleId, normTarget, okMsg)
                 return TestOutcome(
                     TestVerdict.PASS, true,
                     // 10-09 六令（文案统一方案一）：三段式「·」分隔，冒号/括号口径退役
-                    "$msg · 思考已关 · 已锁定 $m",
+                    okMsg,
                     locked = m
                 )
             }

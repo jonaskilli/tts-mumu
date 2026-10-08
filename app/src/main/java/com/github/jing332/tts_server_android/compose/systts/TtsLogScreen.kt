@@ -97,19 +97,20 @@ internal fun TtsLogScreen(vm: TtsLogViewModel = viewModel()) {
     // 日志文件列表弹窗（用户 09-08：文件夹点开自由选择文件，不再直接扔给外部查看器）
     var showLogFilesDialog by remember { mutableStateOf(false) }
     var searchQuery by remember { mutableStateOf("") }
-    // 只看匹配：开启后按搜索词过滤列表，关闭则完整列表+高亮定位
-    var filterMatches by rememberSaveable { mutableStateOf(false) }
+    // 「只看匹配」退役（10-08 log-ui-1008 ②拍板）：搜索即筛选——输入立刻只剩
+    // 匹配条目，不再两段式开关绕弯；跳转目标直接在过滤后的列表里
     val listState = rememberLazyListState()
     val scope = rememberCoroutineScope()
 
     fun LogEntry.matchesQuery(q: String): Boolean =
         message.contains(q, ignoreCase = true) || time.contains(q, ignoreCase = true)
 
-    // 基础列表 = 等级/插件筛选结果；开「只看匹配」时再按搜索词过滤
+    // 基础列表 = 等级/插件筛选结果；搜索词非空即按关键字实时过滤（10-08 ②拍板：
+    // 打字列表跟着缩，不再是「搜完只跳转、列表纹丝不动」）
     val displayLogs by remember(vm) {
         derivedStateOf {
             val q = searchQuery.trim()
-            if (filterMatches && q.isNotEmpty())
+            if (q.isNotEmpty())
                 vm.filteredLogs.filter { it.matchesQuery(q) }
             else
                 vm.filteredLogs
@@ -134,7 +135,7 @@ internal fun TtsLogScreen(vm: TtsLogViewModel = viewModel()) {
     // 跳到该条目所在卡并高亮。完整流归组单独建（与 displayLogs 归组不同实例）。
     val isFiltered by remember(vm) {
         derivedStateOf {
-            searchQuery.trim().isNotEmpty() || filterMatches ||
+            searchQuery.trim().isNotEmpty() ||
                 vm.selectedLevels.isNotEmpty() ||
                 vm.showPluginLogs.value || vm.showSpeechRuleLogs.value
         }
@@ -143,9 +144,8 @@ internal fun TtsLogScreen(vm: TtsLogViewModel = viewModel()) {
     var locateHighlight by remember { mutableStateOf<LogEntry?>(null) }
 
     fun locateOriginal(entry: LogEntry) {
-        // 1) 清全部筛选（搜索词/只看匹配/级别勾选/插件/规则缓冲开关）
+        // 1) 清全部筛选（搜索词/级别勾选/插件/规则缓冲开关）
         searchQuery = ""
-        filterMatches = false
         vm.clearFilter()
         vm.showPluginLogs.value = false
         vm.showSpeechRuleLogs.value = false
@@ -165,9 +165,9 @@ internal fun TtsLogScreen(vm: TtsLogViewModel = viewModel()) {
         }
     }
 
-    // 搜索词变化/开关过滤 → 跳到最近一条匹配(高亮由 LogScreen 渲染)；跳转目标按
-    // 归组映射换算：命中卡内任一行即落到整张卡
-    LaunchedEffect(searchQuery, filterMatches) {
+    // 搜索词变化 → 跳到最近一条匹配(高亮由 LogScreen 渲染)；列表本身已实时过滤，
+    // 跳转目标按归组映射换算：命中卡内任一行即落到整张卡
+    LaunchedEffect(searchQuery) {
         val q = searchQuery.trim()
         if (q.isNotEmpty()) {
             val idx = displayLogs.indexOfLast { it.matchesQuery(q) }
@@ -318,11 +318,10 @@ internal fun TtsLogScreen(vm: TtsLogViewModel = viewModel()) {
                                         },
                                         expanded = false,
                                         onExpandedChange = { },
-                                        // 排版实验 1008（用户 10-08 拍板 甲案）：0.95→0.6——
-                                        // 框瘦身让位，筛选/文件夹/清空三键搜索态原位保留
-                                        //（10-06 的「三键隐藏」取消）；框 ≈200dp，
-                                        // placeholder「搜索日志」四字 + 清除键放得下
-                                        modifier = Modifier.fillMaxWidth(0.6f)
+                                        // 搜索态专属框（log-ui-1008 ④拍板：搜索态顶栏只留
+                                        // 搜索+返回，三键隐藏）——框回 0.95 宽 ≈280dp，
+                                        // placeholder 四字+清除键放得下
+                                        modifier = Modifier.fillMaxWidth(0.95f)
                                     ) {}
                                 }
                             }
@@ -340,23 +339,26 @@ internal fun TtsLogScreen(vm: TtsLogViewModel = viewModel()) {
                             )
                         }
                         
-                        // 排版实验 1008（甲案）：三键不再搜索态隐藏——框已瘦身到 0.6，
-                        // 标题槽余量足够四键与框并存（10-06 的隐藏口径取消）
-                        // （37733831376 修 CI 红：3779dba 撤 if 门控时留了孤儿 lambda——
-                        //   条件删了大括号没删，四键整体脱挂 actions）
-                        // 筛选按钮
-                        IconButton(onClick = { vm.showFilterDialog.value = true }) {
-                            Icon(Icons.Default.FilterList, stringResource(R.string.filter))
-                        }
+                        // 漏斗/文件夹/清空三键：非搜索态才显示（log-ui-1008 ④拍板
+                        // 回归 10-06 口径——搜索态顶栏只留搜索框+返回；级别筛选改由
+                        // 搜索控制行里的漏斗键承担，不因隐藏而失入口）。
+                        // 退出搜索三键原位恢复。整个 if 挂在 actions 里，无孤儿 lambda
+                        // （37733831376 教训：撤门控时条件与大括号必须一起动）
+                        if (!isSearchActive) {
+                            // 筛选按钮
+                            IconButton(onClick = { vm.showFilterDialog.value = true }) {
+                                Icon(Icons.Default.FilterList, stringResource(R.string.filter))
+                            }
 
-                        // 文件夹按钮 - 先弹日志文件列表自由选择（用户 09-08），点击文件再用外部查看器打开
-                        IconButton(onClick = { showLogFilesDialog = true }) {
-                            Icon(Icons.Default.FolderOpen, stringResource(R.string.open_log_folder))
-                        }
+                            // 文件夹按钮 - 先弹日志文件列表自由选择（用户 09-08），点击文件再用外部查看器打开
+                            IconButton(onClick = { showLogFilesDialog = true }) {
+                                Icon(Icons.Default.FolderOpen, stringResource(R.string.open_log_folder))
+                            }
 
-                        // 清空按钮
-                        IconButton(onClick = { vm.clear() }) {
-                            Icon(Icons.Default.DeleteOutline, stringResource(id = R.string.clear_log))
+                            // 清空按钮
+                            IconButton(onClick = { vm.clear() }) {
+                                Icon(Icons.Default.DeleteOutline, stringResource(id = R.string.clear_log))
+                            }
                         }
                     }
                 )
@@ -367,7 +369,9 @@ internal fun TtsLogScreen(vm: TtsLogViewModel = viewModel()) {
                     color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)
                 )
 
-                // 搜索控制行：匹配数 + 上一处/下一处跳转 + 只看匹配开关
+                // 搜索控制行：漏斗 + 匹配数 + 上一处/下一处跳转（log-ui-1008 ④拍板：
+                // 漏斗住进搜索控制行——顶栏三键隐藏后级别筛选仍可用，搜索和等级筛选同开；
+                // 「只看匹配」chip 随②搜索即筛选一并退役）
                 AnimatedVisibility(
                     visible = isSearchActive && searchQuery.isNotBlank(),
                     enter = fadeIn(),
@@ -380,6 +384,9 @@ internal fun TtsLogScreen(vm: TtsLogViewModel = viewModel()) {
                         horizontalArrangement = Arrangement.spacedBy(2.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
+                        IconButton(onClick = { vm.showFilterDialog.value = true }) {
+                            Icon(Icons.Default.FilterList, stringResource(R.string.filter))
+                        }
                         Text(
                             text = "${matchCount} 处匹配",
                             style = MaterialTheme.typography.labelMedium,
@@ -391,15 +398,6 @@ internal fun TtsLogScreen(vm: TtsLogViewModel = viewModel()) {
                         IconButton(onClick = { jumpToMatch(true) }) {
                             Icon(Icons.Default.KeyboardArrowDown, "下一处")
                         }
-                        Spacer(Modifier.weight(1f))
-                        FilterChip(
-                            selected = filterMatches,
-                            onClick = { filterMatches = !filterMatches },
-                            label = { Text("只看匹配") },
-                            colors = FilterChipDefaults.filterChipColors(
-                                selectedContainerColor = MaterialTheme.colorScheme.secondaryContainer
-                            )
-                        )
                     }
                 }
 

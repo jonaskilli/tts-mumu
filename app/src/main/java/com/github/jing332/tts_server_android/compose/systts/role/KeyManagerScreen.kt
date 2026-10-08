@@ -2,9 +2,11 @@ package com.github.jing332.tts_server_android.compose.systts.role
 
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Arrangement
@@ -67,6 +69,7 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBarDefaults
@@ -246,6 +249,7 @@ internal fun FlatIconAction(
  * 10-07 连体卡重构：条目不再各自成卡（原 ElevatedCard 撤），改为组卡内的一个区块，
  * 行间分隔线由组卡统一画；底色口径保留——多选/组内删除勾中=12% 浅红，否则透明随组卡。
  */
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun KeyEntryRow(
     entry: KeyListFile.KeyEntry,
@@ -256,8 +260,12 @@ private fun KeyEntryRow(
     probeProgress: String? = null,
     selectionMode: Boolean,
     checked: Boolean,
-    // 来源标签（10-06 方案B）：密钥 key 段命中账号池 access_token → 名字后绿标「账号池」
+    // 来源标签（10-06 方案B）：密钥 key 段命中账号池 access_token → 名字后绿标「账号池」。
+    // ⚠️ 10-09 用户令：账号池绿标撤除（腾空间给分配专用 🚀）——参数保留但不再渲染，
+    // 调用侧照常传值，恢复时把下方 fromPool 渲染块的 if 注释放开即可
     fromPool: Boolean = false,
+    // 分配专用（10-09）：该键（归一化值）当前持有 assign_marker.json 的唯一标记
+    hasAssign: Boolean = false,
     onToggleCheck: () -> Unit,
     onTogglePool: () -> Unit,
     onCopy: () -> Unit,
@@ -266,9 +274,14 @@ private fun KeyEntryRow(
     // 提示条「思考设置 ›」入口（10-07）：单独回调，进去时直达思考区（展开+预选自定义 JSON），
     // 与上面 onEdit（✏/编辑键，打开完整编辑弹窗的原形态）区分开
     onEditThinking: () -> Unit = onEdit,
+    // 长按模型名菜单（10-09）：设为/取消分配专用（权威开关在编辑弹窗 Switch，此处是快捷通道）
+    onToggleAssign: () -> Unit = {},
     onDelete: () -> Unit,
 ) {
     val context = LocalContext.current
+    // 长按模型名菜单（10-09）：只在普通模式生效——多选/组内删除模式点名字仍是勾选，
+    // 菜单入口随 combinedClickable 条件挂载，勾选语义零影响
+    var nameMenu by remember { mutableStateOf(false) }
     // 卡片底色两态：多选/组内删除勾中=12% 浅红 > 默认卡面白。
     // 启用态不再染底/描边（10-03 对勾方案：启用视觉全归行首对勾，0920 描边口径一并退役）
     // compositeOver：近似半透明色叠在卡面上，避免半透明直接给 ElevatedCard 透出页面底色
@@ -348,35 +361,86 @@ private fun KeyEntryRow(
             // 名字区 weight(1f)。多选模式下点名字 = 勾选（整行即复选框的延伸）。
             // clickable 只在多选时挂载：非多选挂着 enabled=false 也拦掉整卡的启用切换
             // 点击（0920 实机反馈：只有名字前小空隙能点），条件挂载才干净
-            Text(
-                KeyListFile.displayName(entry),
-                // 10-09 五令（字号 A 案）：15→14sp——与插件/替换两卡模型名同档，
-                // 长模型名（aion-labs/aion-2.0 类）截断概率降；组名 15 半粗扛层级
-                style = MaterialTheme.typography.bodyMedium.copy(fontSize = 14.sp),
-                color = MaterialTheme.colorScheme.onSurface,
-                maxLines = 2,
-                overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.weight(1f)
-                    // 多选/组内删除模式点名字=勾选；常规模式点名字=复制模型名（10-03 拍板，📋 键退役）
-                    .then(
-                        if (selectionMode) Modifier.clickable { onToggleCheck() }
-                        else Modifier.clickable { onCopy() }
-                    )
-            )
-            // 来源标签（10-06 方案B）：密钥取自账号池（key 段=某账号 access_token）→ 绿底胶囊。
-            // 放名字后、测试灯槽前；不占名字 weight，长名字省略号照旧
-            if (fromPool && !selectionMode) {
+            // 10-09：普通模式点名字=复制（原样）+ **长按=分配专用菜单**（combinedClickable，
+            // ExperimentalFoundationApi）——多选/组内删除模式没有长按，勾选语义不动。
+            // 菜单锚点 = 包住名字 Text 的 Box（weight 上移到 Box）
+            Box(modifier = Modifier.weight(1f)) {
                 Text(
-                    stringResource(R.string.account_pool_source_tag),
-                    style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp),
-                    color = MaterialTheme.colorScheme.primary,
+                    KeyListFile.displayName(entry),
+                    // 10-09 五令（字号 A 案）：15→14sp——与插件/替换两卡模型名同档，
+                    // 长模型名（aion-labs/aion-2.0 类）截断概率降；组名 15 半粗扛层级
+                    style = MaterialTheme.typography.bodyMedium.copy(fontSize = 14.sp),
+                    // 分配专用键（10-09）：染主色加粗（预览稿 assign-final-preview 定稿视觉）
+                    color = if (hasAssign) MaterialTheme.colorScheme.primary
+                    else MaterialTheme.colorScheme.onSurface,
+                    fontWeight = if (hasAssign) FontWeight.Bold else null,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
                     modifier = Modifier
-                        .clip(RoundedCornerShape(6.dp))
-                        .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.12f))
-                        .padding(horizontal = 5.dp, vertical = 1.dp)
+                        // 多选/组内删除模式点名字=勾选；常规模式点名字=复制模型名
+                        //（10-03 拍板，📋 键退役）+ 长按弹分配菜单（10-09）
+                        .then(
+                            if (selectionMode) Modifier.clickable { onToggleCheck() }
+                            else Modifier.combinedClickable(
+                                onClick = { onCopy() },
+                                onLongClick = { nameMenu = true }
+                            )
+                        )
                 )
+                if (!selectionMode) {
+                    DropdownMenu(expanded = nameMenu, onDismissRequest = { nameMenu = false }) {
+                        DropdownMenuItem(
+                            text = {
+                                Text(
+                                    if (hasAssign) "🚀 取消分配专用（当前已设）"
+                                    else "🚀 设为分配专用（当前未设）",
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = if (hasAssign) MaterialTheme.colorScheme.onSurface
+                                    else MaterialTheme.colorScheme.primary,
+                                    fontWeight = if (hasAssign) null else FontWeight.SemiBold,
+                                )
+                            },
+                            onClick = {
+                                nameMenu = false
+                                onToggleAssign()
+                            }
+                        )
+                        DropdownMenuItem(
+                            text = {
+                                Text(
+                                    "📋 复制模型名",
+                                    style = MaterialTheme.typography.bodyMedium
+                                )
+                            },
+                            onClick = {
+                                nameMenu = false
+                                onCopy()
+                            }
+                        )
+                    }
+                }
+            }
+            // 分配专用标记（10-09）：名字后一枚 🚀（原账号池标签位置，14sp）——
+            // 只读小标，权威开关在编辑弹窗 Switch / 长按菜单
+            if (hasAssign && !selectionMode) {
+                Text("🚀", fontSize = 14.sp)
                 Spacer(Modifier.width(4.dp))
             }
+            // 来源标签（10-06 方案B）：密钥取自账号池（key 段=某账号 access_token）→ 绿底胶囊。
+            // ⚠️ 10-09 用户令：绿标撤除腾空间（分配专用 🚀 顶位）——渲染块注释保留，
+            // fromPool 参数与调用侧取值原样留着，用户要恢复时解开即可
+            // if (fromPool && !selectionMode) {
+            //     Text(
+            //         stringResource(R.string.account_pool_source_tag),
+            //         style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp),
+            //         color = MaterialTheme.colorScheme.primary,
+            //         modifier = Modifier
+            //             .clip(RoundedCornerShape(6.dp))
+            //             .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.12f))
+            //             .padding(horizontal = 5.dp, vertical = 1.dp)
+            //     )
+            //     Spacer(Modifier.width(4.dp))
+            // }
             if (!selectionMode) {
                 // 固定宽图标区：测试灯槽 36 + 三键 108 = 144dp（10-07 二改：恢复测试结果点——
                 // 与启用池 PoolRow 同构：名字后、闪电前 36dp 槽内 8dp 圆点，三色与提示条同源；
@@ -986,6 +1050,9 @@ fun KeyManagerScreen(tagRuleId: String, onBack: () -> Unit) {
     // 「保存到下次测试」语义（10-05 用户拍板）——退出页面再进不丢、重测即覆盖、可手动清。
     // 10-03 三改：从只存三态升级为存 TestOutcome——模型行下方的常驻提示条要显示原因文字
     var testResults by remember { mutableStateOf<Map<String, KeyListFile.TestOutcome>>(emptyMap()) }
+    // 分配专用键标记（10-09）：assign_marker.json 的内存镜像——
+    // 当前持有标记的归一化密钥值（null=全站无分配键）
+    var assignMarker by remember { mutableStateOf<Pair<String, KeyListFile.AssignMarker>?>(null) }
     // 是否已从盘上读过结果表（防 version++ 重载/ON_RESUME 刷新时用旧盘值覆盖当场新测的结果）
     var testResultsLoaded by remember { mutableStateOf(false) }
     // 组折叠状态：持久化到 key_ui_state.json（null=尚未从盘上读，防重载覆盖用户当场切换）
@@ -1063,6 +1130,11 @@ fun KeyManagerScreen(tagRuleId: String, onBack: () -> Unit) {
             testResults = withIO { KeyListFile.readTestResults(tagRuleId) }
             testResultsLoaded = true
         }
+        // 分配专用标记（10-09）：进页读一次；之后随 toggleAssign/测试自动佩戴当场更新
+        //（读文件很轻，但与折叠记忆同款防覆盖——version++ 重载不推翻用户当场切的状态）
+        if (assignMarker == null) {
+            assignMarker = withIO { KeyListFile.readAssignMarker(tagRuleId) }
+        }
         // 折叠记忆：只在首次进页面时从盘上读（后续 version++ 重载不覆盖用户当场切换的折叠）
         if (collapsed == null) {
             collapsed = withIO { KeyListFile.readCollapsedGroups(tagRuleId) }
@@ -1092,7 +1164,10 @@ fun KeyManagerScreen(tagRuleId: String, onBack: () -> Unit) {
         }
     }
     /** 启用/停用一把密钥（点卡片）：在池里则摘除，不在则追加到队尾（= 轮换顺序最后）。
-     *  裸 Key 禁止启用（池是扁平 @@ 串，裸段会错位）：先在编辑框补全为完整格式再启用 */
+     *  裸 Key 禁止启用（池是扁平 @@ 串，裸段会错位）：先在编辑框补全为完整格式再启用。
+     *  10-09 偏重启用确认：有测试结果且判定「偏重」（思考未关 或 用时 ≥ HEAVY_MODEL_MS 3s，
+     *  用户实测校准：真机分布 1.3~5.4s，3s 线筛出 glm-5.3-flash/hy4-preview/kimi-k3-1
+     *  与黄态思考未关键）时，启用前弹一次确认——确认才真正启用；停用不拦、无测试结果不拦 */
     fun togglePool(entry: KeyListFile.KeyEntry) {
         val p = KeyListFile.parseKeyValue(entry.value)
         if (p != null && p.isDirect) {
@@ -1104,12 +1179,51 @@ fun KeyManagerScreen(tagRuleId: String, onBack: () -> Unit) {
             toast(R.string.role_key_value_empty)
             return
         }
+        if (norm !in pool) {
+            val r = testResults[norm]
+            if (r != null) {
+                val ms = Regex("(\\d+)\\s*ms").find(r.message)?.groupValues?.get(1)?.toLongOrNull()
+                val heavy = r.thinkingOff == false || (ms ?: 0L) >= KeyListFile.HEAVY_MODEL_MS
+                if (heavy) {
+                    enableConfirmFor = entry
+                    return
+                }
+            }
+        }
+        doTogglePool(entry, norm)
+    }
+    /** togglePool 的执行段（偏重确认弹窗「仍要启用」也走这里） */
+    fun doTogglePool(entry: KeyListFile.KeyEntry, norm: String) {
         if (norm in pool) {
             savePoolList(pool - norm)
             toast(R.string.role_key_disabled, KeyListFile.displayName(entry))
         } else {
             savePoolList(pool + norm)
             toast(R.string.role_key_enabled, KeyListFile.displayName(entry), pool.size + 1)
+        }
+    }
+    /** 设为/取消分配专用（10-09 长按菜单快捷通道）：写盘（manual=true，全站唯一）后重读镜像 */
+    fun toggleAssign(entry: KeyListFile.KeyEntry) {
+        val norm = KeyListFile.normalizePoolValue(entry.value)
+        if (norm.isEmpty()) {
+            toast(R.string.role_key_value_empty)
+            return
+        }
+        scope.launch {
+            val nowHas = withIO { KeyListFile.hasAssignMarker(tagRuleId, norm) }
+            val ok = withIO {
+                if (nowHas) KeyListFile.clearAssignMarker(tagRuleId, norm)
+                else KeyListFile.setAssignMarker(tagRuleId, norm, manual = true)
+            }
+            if (ok) {
+                assignMarker = withIO { KeyListFile.readAssignMarker(tagRuleId) }
+                android.widget.Toast.makeText(
+                    context,
+                    if (nowHas) "已取消分配专用：" + KeyListFile.displayName(entry)
+                    else "🚀 已设为分配专用：" + KeyListFile.displayName(entry),
+                    android.widget.Toast.LENGTH_SHORT
+                ).show()
+            } else toast(R.string.role_list_failed)
         }
     }
     /** 调轮换顺序：把 fromNorm 那把挪到 toNorm 的位置（启用池页拖动回调） */
@@ -1354,6 +1468,8 @@ fun KeyManagerScreen(tagRuleId: String, onBack: () -> Unit) {
 
     // 弹窗状态
     var showAdd by remember { mutableStateOf(false) }
+    // 偏重启用确认（10-09）：行首对勾启用「偏重」键（思考未关 或 测试耗时 ≥3s=HEAVY_MODEL_MS）前弹一次
+    var enableConfirmFor by remember { mutableStateOf<KeyListFile.KeyEntry?>(null) }
     var renameFor by remember { mutableStateOf<KeyListFile.KeyEntry?>(null) }
     // 提示条「思考设置 ›」进来的编辑弹窗（10-07）：与 renameFor 同一个弹窗，但直达思考自定义区。
     // 两条路分开存，避免「✏ 编辑」也被强制跳思考区
@@ -1677,10 +1793,13 @@ fun KeyManagerScreen(tagRuleId: String, onBack: () -> Unit) {
                                     selectionMode = isDeleting,
                                     checked = entry.name in deleteChecked,
                                     // 来源标签（10-06 方案B）：key 段命中账号池 access_token → 绿标「账号池」
+                                    // ⚠️ 10-09 用户令：绿标不再渲染（参数保留，KeyEntryRow 内已注释渲染块）
                                     fromPool = run {
                                         val k = KeyListFile.parseKeyValue(entry.value)
                                         k != null && k.key.isNotEmpty() && k.key in poolTokens
                                     },
+                                    // 分配专用（10-09）：该键持有 assign_marker.json 唯一标记 → 🚀 + 主色名
+                                    hasAssign = assignMarker?.first == norm,
                                     onToggleCheck = {
                                         deleteChecked = if (entry.name in deleteChecked)
                                             deleteChecked - entry.name
@@ -1696,6 +1815,8 @@ fun KeyManagerScreen(tagRuleId: String, onBack: () -> Unit) {
                                     onEdit = { renameFor = entry },
                                     // 提示条「思考设置 ›」→ 直达自定义 JSON 区（10-07 用户令）
                                     onEditThinking = { thinkingFor = entry },
+                                    // 长按模型名菜单（10-09）：设为/取消分配专用快捷通道
+                                    onToggleAssign = { toggleAssign(entry) },
                                     onDelete = { deleteFor = entry }
                                 )
                             } // forEachIndexed（条目区块已并入组卡，无独立 item）
@@ -1760,6 +1881,37 @@ fun KeyManagerScreen(tagRuleId: String, onBack: () -> Unit) {
             },
             dismissButton = {
                 TextButton(onClick = { deleteGroupConfirm = null }) {
+                    Text(stringResource(R.string.cancel))
+                }
+            }
+        )
+    }
+
+    // 偏重启用确认（10-09）：该键最新测试「偏重」（思考未关 或 用时 ≥HEAVY_MODEL_MS 3s，
+    // 用户实测校准线）→ 启用前问一次。只在有测试结果时弹（无结果不拦）；停用永不拦。
+    // 判定与拦截在 togglePool 内
+    enableConfirmFor?.let { entry ->
+        val norm = KeyListFile.normalizePoolValue(entry.value)
+        val r = testResults[norm]
+        val ms = r?.message?.let { m -> Regex("(\\d+)\\s*ms").find(m)?.groupValues?.get(1)?.toLongOrNull() }
+        val why = when {
+            r == null -> ""
+            r.thinkingOff == false -> "思考未关闭，会拖慢角色分配，仍要启用？"
+            ms != null -> "该模型测试耗时 ${"%.1f".format(ms / 1000.0)}s，会拖慢角色分配，仍要启用？"
+            else -> ""
+        }
+        AlertDialog(
+            onDismissRequest = { enableConfirmFor = null },
+            title = { Text("🚀 仍要启用？") },
+            text = { Text(why) },
+            confirmButton = {
+                TextButton(onClick = {
+                    enableConfirmFor = null
+                    doTogglePool(entry, norm)
+                }) { Text(stringResource(R.string.confirm)) }
+            },
+            dismissButton = {
+                TextButton(onClick = { enableConfirmFor = null }) {
                     Text(stringResource(R.string.cancel))
                 }
             }
@@ -1845,6 +1997,9 @@ fun KeyManagerScreen(tagRuleId: String, onBack: () -> Unit) {
             initial = entry,
             existing = keys,
             jumpToThinkingCustom = thinkingFor != null,
+            onAssignChanged = {
+                scope.launch { assignMarker = withIO { KeyListFile.readAssignMarker(tagRuleId) } }
+            },
             onDismiss = { renameFor = null; thinkingFor = null },
             onDelete = { renameFor = null; thinkingFor = null; deleteFor = entry },
             onConfirm = { name, value, overwrite, thinkMode, thinkCustom ->
@@ -2035,8 +2190,11 @@ private fun KeyEditDialog(
     // 用户落到就是 JSON 输入框（用户 10-07：黄色那个应该直接跳转到自定义 JSON 界面）。
     // 常规 ✏ 编辑进=false，保持老形态（自动/手动 二选一未展开）
     jumpToThinkingCustom: Boolean = false,
+    // 分配专用 Switch 写盘成功后回调（10-09）：主页重读 assign_marker 镜像，列表 🚀 即时刷新
+    onAssignChanged: () -> Unit = {},
     onConfirm: (String, String, Boolean, String, String) -> Unit,
 ) {
+    val scope = rememberCoroutineScope()
     val existingNames = existing.map { it.name }.toSet()
     // 预填光标落末尾（照插件 setSelection）
     val initValue = initial?.value.orEmpty()
@@ -2146,6 +2304,57 @@ private fun KeyEditDialog(
                     )
                 }
                 Spacer(Modifier.height(10.dp))
+
+                // ===== 分配专用 Switch（10-09）：权威开关（长按菜单是快捷通道，两处状态同步）=====
+                // 编辑已有条目才显示（新增时密钥还没落盘，无 normalizedValue 可挂标记）
+                if (initial != null) {
+                    // 只在进入弹窗时读一次盘（开/关 Switch 即时写盘 + 更新本地态）
+                    var assignOn by remember(initial.name) {
+                        mutableStateOf(
+                            KeyListFile.hasAssignMarker(
+                                tagRuleId,
+                                KeyListFile.normalizePoolValue(initial.value)
+                            )
+                        )
+                    }
+                    Row(
+                        Modifier.fillMaxWidth().padding(vertical = 4.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column(Modifier.weight(1f)) {
+                            Text(
+                                "🚀 分配专用",
+                                style = MaterialTheme.typography.bodyMedium
+                            )
+                            Text(
+                                "姓名/别名分析优先用这把（建议选快的模型）",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                        Switch(
+                            checked = assignOn,
+                            onCheckedChange = { on ->
+                                val norm = KeyListFile.normalizePoolValue(initial.value)
+                                scope.launch {
+                                    val ok = withIO {
+                                        if (on) KeyListFile.setAssignMarker(tagRuleId, norm, manual = true)
+                                        else KeyListFile.clearAssignMarker(tagRuleId, norm)
+                                    }
+                                    if (ok) {
+                                        assignOn = on
+                                        onAssignChanged()
+                                    } else {
+                                        android.widget.Toast.makeText(
+                                            context, context.getString(R.string.role_list_failed),
+                                            android.widget.Toast.LENGTH_SHORT
+                                        ).show()
+                                    }
+                                }
+                            }
+                        )
+                    }
+                }
 
                 // ===== 思考模式（10-05 方案一：折叠一行，点击展开——原整段平铺把按钮行
                 // 推得离密钥栏太远，用户不知道按钮是给谁的；功能零搬家）=====

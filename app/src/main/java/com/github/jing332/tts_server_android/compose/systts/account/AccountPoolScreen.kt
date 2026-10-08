@@ -213,7 +213,8 @@ fun AccountPoolScreen(onBack: () -> Unit) {
                                 AccountPool.addAsKey(KeyListFile.DEFAULT_TAG_RULE_ID, acc)
                             }
                             busyId = null
-                            context.toast(msg)
+                            // 落键引导（10-09）：密钥条目未进启用池朗读用不上——把下一步路标指给用户
+                            context.toast(if (msg.startsWith("已添加")) "$msg——去密钥页勾选进启用池后朗读可用" else msg)
                         }
                     },
                     onToggleEnabled = {
