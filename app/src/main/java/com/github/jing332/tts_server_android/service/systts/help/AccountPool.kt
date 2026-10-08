@@ -43,7 +43,7 @@ object AccountPool {
                     level = level,
                     time = java.time.LocalDateTime.now()
                         .format(java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")),
-                    message = "[账号池] $msg",
+                    message = "[Jet] $msg",
                 )
             )
         }
@@ -658,7 +658,7 @@ object AccountPool {
         if (n > 0) {
             KeyListFile.saveInterfaces(tagRuleId, newIfaces)
             KeyListFile.saveKeys(tagRuleId, newKeys)
-            appLog(LogLevel.SUCCESS, "账号池：已把 $n 处旧网址补上 /v2（302 空流修复）")
+            appLog(LogLevel.SUCCESS, "Jet：已把 $n 处旧网址补上 /v2（302 空流修复）")
         }
         return n
     }

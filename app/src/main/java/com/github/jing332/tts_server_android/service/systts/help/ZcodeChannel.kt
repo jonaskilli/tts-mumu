@@ -125,7 +125,7 @@ object ZcodeChannel : ChatChannel {
     override fun checkIn(acc: AccountPool.Account): Pair<Boolean, String> {
         val mid = acc.extraStr("device_mid")
         if (mid.isEmpty() || acc.accessToken.isEmpty())
-            return false to "ZCode 缺 device_mid/JWT（重新登录账号池账号后重试）"
+            return false to "ZCode 缺 device_mid/JWT（重新登录 Jet 账号后重试）"
         val headers = baseHeaders() + mapOf("X-Device-Mid" to mid)
         // ① 补活跃信号：两个事件各发一条，body 形状照 zcode-upstream.ts reportZcodeActivation 原文
         for (event in listOf("app_launch", "app_daily_active")) {

@@ -79,7 +79,7 @@ class AccountLoginActivity : ComposeActivity() {
             com.github.jing332.common.LogEntry(
                 level = android.util.Log.INFO,
                 time = java.time.LocalDateTime.now().format(java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")),
-                message = "[账号池] 登录轮询启动（上限 5 分钟）——完成登录后本页会自动关闭"
+                message = "[Jet] 登录轮询启动（上限 5 分钟）——完成登录后本页会自动关闭"
             )
         )
         var polling = true
@@ -135,7 +135,7 @@ class AccountLoginActivity : ComposeActivity() {
                     com.github.jing332.common.LogEntry(
                         level = android.util.Log.WARN,
                         time = java.time.LocalDateTime.now().format(java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")),
-                        message = "[账号池] 登录轮询 5 分钟超时退出（未拿到凭据）——各次轮询失败原因见上方[账号池]日志"
+                        message = "[Jet] 登录轮询 5 分钟超时退出（未拿到凭据）——各次轮询失败原因见上方[Jet]日志"
                     )
                 )
                 finish()
