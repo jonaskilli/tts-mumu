@@ -232,7 +232,7 @@ object AutoclawChannel : ChatChannel {
             val out = ArrayList<String>()
             for (i in 0 until models.length()) {
                 // 源码也收字符串形态（typeof raw === 'string' → {id: raw}）
-                if (models.isNull(i) || !models.has(i)) continue
+                if (models.isNull(i)) continue
                 val m = models.optJSONObject(i)
                 if (m == null) {
                     val raw = models.optString(i)
