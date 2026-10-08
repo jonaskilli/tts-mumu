@@ -456,8 +456,10 @@ private fun PoolTestResultBar(
             .padding(start = 32.dp, end = 0.dp, top = 2.dp, bottom = 2.dp)
     ) {
         if (expanded && hasExpandable) {
+            // 10-08 四令同构：黄态 message 已自带行首用时（KeyListFile 分段口径），直接渲染
+            // 一遍；红态 message 不含用时，保留行首前缀——分态处理防用时重复两遍
             Row(Modifier.fillMaxWidth()) {
-                if (timingPrefix.isNotEmpty()) {
+                if (timingPrefix.isNotEmpty() && !isWarn) {
                     Text(
                         timingPrefix,
                         style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.sp),

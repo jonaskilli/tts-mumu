@@ -458,8 +458,6 @@ private fun KeyEntryRow(
             }
             // 红态恒可展开（显示不全就是展开的理由；展开=全文一次+复制，见下方分支）
             val hasExpandable = !isPass && !isWarn
-            // 「思考设置」只给黄态（绿已关、红是连接/鉴权错设置改不了）
-            val showFixEntry = isWarn
             var expanded by rememberSaveable(entry.name) { mutableStateOf(false) }
             val clipboard = LocalClipboardManager.current
             Column(
@@ -474,6 +472,8 @@ private fun KeyEntryRow(
                 // 同一段话读两遍（401 详情尤其明显）；展开后只渲染全文一次。
                 // 10-08 用户令「结果条前方灯去掉」：展开态首行圆点一并撤（同理由——整行
                 // 文字已是红色，圆点重复编码），全文左缘与收起行/模型名同一条线
+                // 10-08 四令（装机反馈）：黄态展开的分支原先套在收起行的 else 里——展开后
+                // 收起行+「详情」不肯退场，同一段话两遍。重构为三分支互斥：红展开/黄展开/收起。
                 if (expanded && hasExpandable) {
                     // 10-08 用户令（推翻「同 Row 固定用时列」提案）：展开全文**从行首起、
                     // 折行也回行首**——第二行挂用时右缘=每行白一段，没必要。用时只是
@@ -524,57 +524,14 @@ private fun KeyEntryRow(
                                 .padding(horizontal = 8.dp, vertical = 6.dp)
                         )
                     }
-                } else {
-                Row(
-                    Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    // 行首圆点已撤（10-08 用户令）：整行文字本身就是状态色（绿/黄/红），
-                    // 圆点是重复编码；撤后文字左缘齐模型名文字线。
-                    // 扫视锚点不丢——模型行灯槽（乙案保留）仍是行内状态锚。
-                    // 10-08 二令：黄/红改单行（原 2 行+黄态独立动作行=三段太高；
-                    // 换行还总从「可用」下方起——用时前置是独立 Text，正文在自己框里折）。
-                    // 单行后正文永远吃不满，黄态动作键（自定义思考/复制）挪进展开态，
-                    // 收起态尾挂「展开 ›」；红态「详情」同位同词形
-                    if (timingPrefix.isNotEmpty()) {
-                        Text(
-                            timingPrefix,
-                            style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.sp),
-                            color = barColor,
-                            maxLines = 1
-                        )
-                    }
+                } else if (expanded && isWarn) {
+                    // 黄态展开态（10-08 三令落码；同日再令推翻固定用时列）：换行**回行首**——
+                    // 用时与全文连成一段（timingPrefix 只是行首普通前缀），自然折行，
+                    // 第二行回行首不再挂用时右缘（用户：每行白一段没必要）。
+                    // 10-08 四令：全文改绿态同款分段口径（KeyListFile 侧 message 已重组，
+                    // 这里直接渲染 message 一遍；收起行整个退场，不留「详情」残留）
                     Text(
-                        collapsedText,
-                        style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.sp),
-                        color = barColor,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                        modifier = Modifier.weight(1f)
-                    )
-                    if (hasExpandable || isWarn) {
-                        // 黄/红收起态统一「详情」（10-08 三令：黄态「展开 ›」词形不齐——
-                        // 两态语义同为「点开看全文」，同位同词）
-                        Text(
-                            "详情",
-                            style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.sp),
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            fontWeight = FontWeight.SemiBold,
-                            modifier = Modifier
-                                .clip(RoundedCornerShape(4.dp))
-                                .clickable { expanded = true }
-                                .padding(start = 6.dp, end = 2.dp)
-                        )
-                    }
-                }
-                // 黄态展开态（10-08 三令）：换行与行首「xxxms ·」对齐——
-                // 黄态展开态（10-08 三令落码；同日再令推翻固定用时列）：换行**回行首**——
-                // 用时与全文连成一段（timingPrefix 只是行首普通前缀），自然折行，
-                // 第二行回行首不再挂用时右缘（用户：每行白一段没必要）。
-                // 动作行（自定义思考 ›｜复制结果｜收起）随后
-                if (expanded && isWarn) {
-                    Text(
-                        timingPrefix + testOutcome.message,
+                        testOutcome.message,
                         style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.sp),
                         color = barColor
                     )
@@ -619,6 +576,77 @@ private fun KeyEntryRow(
                             modifier = Modifier
                                 .clip(RoundedCornerShape(6.dp))
                                 .clickable { expanded = false }
+                                .padding(horizontal = 8.dp, vertical = 6.dp)
+                        )
+                    }
+                } else {
+                Row(
+                    Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    // 行首圆点已撤（10-08 用户令）：整行文字本身就是状态色（绿/黄/红），
+                    // 圆点是重复编码；撤后文字左缘齐模型名文字线。
+                    // 扫视锚点不丢——模型行灯槽（乙案保留）仍是行内状态锚。
+                    // 10-08 二令：黄/红改单行（原 2 行+黄态独立动作行=三段太高；
+                    // 换行还总从「可用」下方起——用时前置是独立 Text，正文在自己框里折）。
+                    // 10-08 四令：黄态收起行下**常驻动作行**「自定义思考 ›｜详情」——
+                    // 黄态是要处理的警告，修思考入口不再藏进展开态（用户拍板②改）；
+                    // 「详情」右距 2→8dp，与展开态动作键右线对齐（用户②后句）
+                    if (timingPrefix.isNotEmpty()) {
+                        Text(
+                            timingPrefix,
+                            style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.sp),
+                            color = barColor,
+                            maxLines = 1
+                        )
+                    }
+                    Text(
+                        collapsedText,
+                        style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.sp),
+                        color = barColor,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.weight(1f)
+                    )
+                    if (hasExpandable) {
+                        // 红态收起尾挂「详情」（黄态详情挪去下方常驻动作行）
+                        Text(
+                            "详情",
+                            style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.sp),
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            fontWeight = FontWeight.SemiBold,
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(4.dp))
+                                .clickable { expanded = true }
+                                .padding(start = 6.dp, end = 8.dp)
+                        )
+                    }
+                }
+                if (isWarn) {
+                    Row(
+                        Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.End,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            stringResource(R.string.role_key_thinking_entry),
+                            style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.sp),
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            fontWeight = FontWeight.SemiBold,
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(4.dp))
+                                .clickable { onEditThinking() }
+                                .padding(horizontal = 8.dp, vertical = 6.dp)
+                        )
+                        Spacer(Modifier.width(24.dp))
+                        Text(
+                            "详情",
+                            style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.sp),
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            fontWeight = FontWeight.SemiBold,
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(4.dp))
+                                .clickable { expanded = true }
                                 .padding(horizontal = 8.dp, vertical = 6.dp)
                         )
                     }

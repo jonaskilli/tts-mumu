@@ -1224,7 +1224,10 @@ object KeyListFile {
             saveThinkingParam(tagRuleId, t.baseUrl, t.model, yellow.first, "")
             return TestOutcome(
                 TestVerdict.PASS_THINKING, false,
-                "各写法均无法关闭思考，已锁定「${yellow.first}」保证可分配：${yellow.second}",
+                // 10-08 四令（装机反馈）：全文照绿态分段口径「用时 · 结论 · 已锁定 x」——
+                // 原稿用时在尾部「保证可分配：4191ms」，与收起行首的用时前缀重复两遍，
+                // 且冒号接时长读不通；用时提到句首说一遍，与绿态同构
+                "${yellow.second} · 各写法均无法关闭思考 · 已锁定「${yellow.first}」保证可分配",
                 locked = yellow.first
             )
         }
