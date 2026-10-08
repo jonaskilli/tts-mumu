@@ -82,7 +82,9 @@ import com.github.jing332.common.LogLevel
 import com.github.jing332.common.utils.toast
 import com.github.jing332.tts_server_android.R
 import com.github.jing332.tts_server_android.compose.systts.role.FlatTextAction
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withFrameNanos
 import java.io.File
 
 @OptIn(ExperimentalMaterial3Api::class, androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
@@ -126,6 +128,42 @@ internal fun TtsLogScreen(vm: TtsLogViewModel = viewModel()) {
     // 归组结果（10-06 全链卡）：与 LogScreen 共用同一实例——搜索跳转要把条目下标
     // 换算成列表项下标（一张卡=一个列表项），必须用同一份归组才不会错位
     val logGroups = remember(displayLogs) { LogGroups.build(displayLogs) }
+
+    // ——「原文」定位（用户 10-08 午后拍板 甲方案）——
+    // 筛选/搜索态下列表是收窄视图；点卡上的「⟲ 原文」= 清全部筛选回到完整流，
+    // 跳到该条目所在卡并高亮。完整流归组单独建（与 displayLogs 归组不同实例）。
+    val isFiltered by remember(vm) {
+        derivedStateOf {
+            searchQuery.trim().isNotEmpty() || filterMatches ||
+                vm.selectedLevels.isNotEmpty() ||
+                vm.showPluginLogs.value || vm.showSpeechRuleLogs.value
+        }
+    }
+    val fullGroups = remember(vm.filteredLogs) { LogGroups.build(vm.filteredLogs) }
+    var locateHighlight by remember { mutableStateOf<LogEntry?>(null) }
+
+    fun locateOriginal(entry: LogEntry) {
+        // 1) 清全部筛选（搜索词/只看匹配/级别勾选/插件/规则缓冲开关）
+        searchQuery = ""
+        filterMatches = false
+        vm.clearFilter()
+        vm.showPluginLogs.value = false
+        vm.showSpeechRuleLogs.value = false
+        // 2) 在完整流里找到该条目的卡头，滚动过去并高亮闪现
+        val fullList = vm.filteredLogs
+        val idx = fullList.indexOfFirst { it == entry }.let { found ->
+            if (found >= 0) found else return
+        }
+        locateHighlight = entry
+        scope.launch {
+            // 状态更新后重组出完整列表再滚：等一帧让 displayLogs 生效
+            withFrameNanos { }
+            listState.animateScrollToItem(fullGroups.listItemFor(idx))
+            // 高亮停留约 2s 后撤掉（LogEntryBody 按引用比对）
+            kotlinx.coroutines.delay(2000)
+            if (locateHighlight == entry) locateHighlight = null
+        }
+    }
 
     // 搜索词变化/开关过滤 → 跳到最近一条匹配(高亮由 LogScreen 渲染)；跳转目标按
     // 归组映射换算：命中卡内任一行即落到整张卡
@@ -438,6 +476,10 @@ internal fun TtsLogScreen(vm: TtsLogViewModel = viewModel()) {
             onCheckedChange = { checkedEntries = it },
             // 共享归组（10-06 全链卡）：与上面搜索跳转用同一实例，条目↔列表项不错位
             groups = logGroups,
+            // 「原文」定位（用户 10-08 午后 甲方案）：筛选/搜索态显示，点击回调清筛选+跳原位
+            showLocateKey = isFiltered,
+            onLocateOriginal = { entry -> locateOriginal(entry) },
+            locateHighlight = locateHighlight,
         )
     }
 

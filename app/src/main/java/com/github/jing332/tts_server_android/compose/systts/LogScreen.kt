@@ -169,6 +169,22 @@ internal class LogGroups(val items: List<Item>, val entryToList: IntArray) {
             fun markError(e: LogEntry) {
                 if (e.level == LogLevel.WARN || e.level == LogLevel.ERROR) cardError = true
             }
+            // 排版实验 1008（P2，用户 10-08 午后拍板）：规则分析行的"时间邻接"判定——
+            // 只有望距新请求 ≤10s 的悬置分析行才配做该卡前置区；超 10s = AI 慢思考/隔批
+            // 残留，与那张卡无因果，落裸行（修"分析成功挂在 29 秒前的旧请求卡里"误导）
+            fun timeGapOk(analysisIdx: Int, requestIdx: Int): Boolean {
+                fun millis(t: String): Long = runCatching {
+                    val h = t.substring(11, 13).toLong()
+                    val m = t.substring(14, 16).toLong()
+                    val s = t.substring(17, 19).toLong()
+                    val ms = t.substring(20, 23).toLong()
+                    ((h * 60 + m) * 60 + s) * 1000 + ms
+                }.getOrDefault(0L)
+                val a = millis(list[analysisIdx].time)
+                val r = millis(list[requestIdx].time)
+                if (a == 0L || r == 0L) return true // 时间缺失不设防，走旧归组
+                return r - a in 0..10_000
+            }
 
             list.forEachIndexed { i, e ->
                 when {
@@ -192,9 +208,18 @@ internal class LogGroups(val items: List<Item>, val entryToList: IntArray) {
                             members.add(i); markError(e)
                         } else pre.add(i)
                     }
-                    // "请求音频"主行：开新卡（旧卡先收，悬置分析行随卡归入前置区）
+                    // "请求音频"主行：开新卡（旧卡先收，悬置分析行随卡归入前置区；
+                    // P2 收紧：悬置行里距本请求超 10s 的先落裸行，不进前置区）
                     e.configId != 0L -> {
                         closeCard()
+                        if (pre.isNotEmpty()) {
+                            val attached = ArrayList<Int>()
+                            pre.forEach { pIdx ->
+                                if (timeGapOk(pIdx, i)) attached.add(pIdx)
+                                else raw.add(Item.Bare(pIdx))
+                            }
+                            pre = attached
+                        }
                         head = i
                     }
                     // 其他主行（重试/备用TTS/系统消息）：有卡归卡，ERROR=失败终点收卡；
@@ -273,6 +298,12 @@ internal fun LogScreen(
     // 归组结果（10-06 全链卡）：由 TtsLogScreen 传入同一实例（搜索跳转要用映射）；
     // 缺省内部构建。转发器按位置传参、不传此参，走内部构建、全裸行零影响
     groups: LogGroups? = null,
+    // 「原文」定位键（用户 10-08 午后 甲方案）：非空=true=当前处于筛选/搜索态，
+    // 卡右上角显示小键；点击回调把该条目交回上层（清筛选+跳完整流原位）
+    showLocateKey: Boolean = false,
+    onLocateOriginal: (LogEntry) -> Unit = {},
+    // 定位高亮：命中条目黄底闪现（完整流里看到前后文），上层 2s 后清除
+    locateHighlight: LogEntry? = null,
 ) {
     ControlBottomBarVisibility(listState, LocalBottomBarBehavior.current)
     val scope = rememberCoroutineScope()
@@ -543,10 +574,12 @@ internal fun LogScreen(
                                     darkTheme = darkTheme,
                                     metaColor = metaColor,
                                     voiceColor = voiceColor,
-                                    fontSize = 16.sp,
-                                    lineHeight = MaterialTheme.typography.bodyMedium.lineHeight * 0.9f,
+                                    // 排版实验 1008（A 二轮，用户 10-08 午后令）：主行 16→14sp
+                                    fontSize = 14.sp,
+                                    lineHeight = MaterialTheme.typography.bodyMedium.lineHeight * 1.15f, // 排版实验 1008（P1）：0.9→1.15 解正文/发音人段挤压
                                     // 命中高亮已在整行背景，正文不再叠一层
                                     isMatch = false,
+                                    highlight = log == locateHighlight,
                                 )
                             }
                         }
@@ -559,6 +592,9 @@ internal fun LogScreen(
                             Column(
                                 modifier = Modifier
                                     // 排版实验 1008（D）：卡外距 6→10dp，两侧留白与密钥页口径靠拢
+                                    // 用户 10-08 午后补令：底色必须撑满右缘——Column 缺 fillMaxWidth
+                                    // 时按内容收缩，短文本卡右侧露底色空档
+                                    .fillMaxWidth()
                                     .padding(horizontal = 10.dp, vertical = 3.dp)
                                     .clip(RoundedCornerShape(12.dp))
                                     .background(cardBg)
@@ -588,6 +624,7 @@ internal fun LogScreen(
                                             fontSize = 12.sp,
                                             lineHeight = 16.sp,
                                             isMatch = isMatchEntry(p, searchQuery),
+                                            highlight = p == locateHighlight,
                                         )
                                     }
                                     HorizontalDivider(
@@ -612,18 +649,34 @@ internal fun LogScreen(
                                         text = "\t${head.level.toLogLevelChar()}",
                                         style = MaterialTheme.typography.bodySmall
                                     )
+                                    // 「原文」定位键（用户 10-08 甲方案）：筛选/搜索态显示，
+                                    // 占行尾剩余空间靠右；点卡片主体仍是快捷面板，互不抢
+                                    if (showLocateKey) {
+                                        Spacer(Modifier.weight(1f))
+                                        Text(
+                                            text = "⟲ 原文",
+                                            style = MaterialTheme.typography.labelMedium,
+                                            color = MaterialTheme.colorScheme.primary,
+                                            modifier = Modifier
+                                                .clip(RoundedCornerShape(9.dp))
+                                                .clickable { onLocateOriginal(head) }
+                                                .padding(horizontal = 8.dp, vertical = 2.dp)
+                                        )
+                                    }
                                 }
                                 LogEntryBody(
                                     entry = head,
                                     darkTheme = darkTheme,
                                     metaColor = metaColor,
                                     voiceColor = voiceColor,
-                                    // 排版实验 1008（A）：主行 16sp 半粗，与成员行 13sp 拉开层级
-                                    fontSize = 16.sp,
-                                    lineHeight = MaterialTheme.typography.bodyMedium.lineHeight * 0.9f,
+                                    // 排版实验 1008（A 二轮，用户 10-08 午后令）：主行 16→14sp，
+                                    // 半粗保留；与成员行 13sp/前置行 12sp 每档差 1sp 层层递减
+                                    fontSize = 14.sp,
+                                    lineHeight = MaterialTheme.typography.bodyMedium.lineHeight * 1.15f, // 排版实验 1008（P1）：0.9→1.15 解正文/发音人段挤压
                                     isMatch = isMatchEntry(head, searchQuery),
                                     // 排版实验 1008（C）：只染"请求音频："前缀，正文回默认色
                                     isRequestHead = true,
+                                    highlight = head == locateHighlight,
                                 )
                                 // 成员行：结果子行/插件过程行，缩进+小一档+卡内次级色
                                 item.members.forEach { mIdx ->
@@ -631,7 +684,9 @@ internal fun LogScreen(
                                     Column(Modifier.padding(start = 10.dp, top = 6.dp)) {
                                         Row {
                                             Text(
-                                                text = m.time,
+                                                // 排版实验 1008（P3，用户 10-08 午后令）：成员行
+                                                // 时间去日期——日期与卡顶日期签重复，只留时分秒毫秒
+                                                text = m.time.substring(11),
                                                 style = MaterialTheme.typography.bodySmall,
                                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                                             )
@@ -653,6 +708,7 @@ internal fun LogScreen(
                                             forceColor = if (item.isError) kidBodyErrColor else kidBodyColor,
                                             // 排版实验 1008（E）：卡内错误行加粗+⚠，突出于成功行
                                             emphasizeError = true,
+                                            highlight = m == locateHighlight,
                                         )
                                     }
                                 }
@@ -717,6 +773,8 @@ private fun LogEntryBody(
     isRequestHead: Boolean = false,
     // 排版实验 1008（E）：卡内错误行加粗 + ⚠ 行首标，让错误在粉卡里突出于成功行
     emphasizeError: Boolean = false,
+    // 「原文」定位命中（用户 10-08 甲方案）：黄底高亮闪现，由上层定时清除
+    highlight: Boolean = false,
 ) {
     val spanned = remember(entry.message, darkTheme, metaColor, voiceColor, isRequestHead, emphasizeError) {
         val base = HtmlCompat.fromHtml(entry.message, HtmlCompat.FROM_HTML_MODE_COMPACT)
@@ -770,7 +828,10 @@ private fun LogEntryBody(
             // 排版实验 1008（A）：请求主行半粗，与结果行拉开字重
             fontWeight = if (isRequestHead) FontWeight.SemiBold else null,
         ),
-        modifier = if (isMatch) Modifier
+        modifier = if (highlight) Modifier
+            .clip(RoundedCornerShape(4.dp))
+            .background(Color(0xFFFFE082))
+        else if (isMatch) Modifier
             .clip(RoundedCornerShape(4.dp))
             .background(MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.5f))
         else Modifier
