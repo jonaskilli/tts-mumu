@@ -13,7 +13,8 @@ import javax.crypto.spec.SecretKeySpec
  * ⚠️ 判 429 必须数字边界锚定（4291 误命中=30 分钟零输出，插件真实事故）。
  *
  * 登录 = Portal 授权 + PKCE + DPoP(ES256) + 本地回调（端口≥10000）——第二期 WebView 宿主；
- * 本期落凭据直填（用户从插件导出的 AK/SK/ST）+ 续期 + 对话 + 签到主体。
+ * 本期落凭据直填（用户从插件导出的 AK/SK/ST）+ 续期（10-10 接线 DPoP：ES256 私钥 JWK
+ * 持久化到 extra.dpop_private_key_jwk，token 请求带 DPoP 头）+ 对话 + 签到主体。
  */
 object CodeartsChannel : ChatChannel {
     override val id = "codearts"
@@ -79,30 +80,155 @@ object CodeartsChannel : ChatChannel {
 
     // ==================== 续期（STS token 端点 + DPoP） ====================
 
+    // STS token 端点（照插件 oauth.ts STS_TOKEN_ENDPOINT）。DPoP htu 用完整 URL。
+    private const val STS_TOKEN_URL = "https://$STS_HOST/v1/oauth2/tokens"
+
+    /** extra 里存 DPoP ES256 私钥 JWK 的键（含 x/y 公钥分量，公钥从同一 JWK 重建） */
+    private const val EXTRA_DPOP_JWK = "dpop_private_key_jwk"
+
+    /**
+     * 取（或首次生成）DPoP ES256 密钥对：私钥 JWK 持久化到 Account.extra 的
+     * dpop_private_key_jwk（路径新建），已有该字段直接复用不重新生成。
+     * 返回 (私钥 JWK 对象, 公钥 JWK 对象)；生成成功但调用方未落盘时下次会重生成——
+     * 所以调用方 refresh() 必须把私钥 JWK 写回 extra。
+     */
+    private fun ensureDpopJwk(acc: AccountPool.Account): Pair<JSONObject, JSONObject>? {
+        val stored = acc.extraStr(EXTRA_DPOP_JWK)
+        if (stored.isNotEmpty()) {
+            val o = try { JSONObject(stored) } catch (_: Exception) { null }
+            // 已存且四分量齐（kty/crv/x/y/d）→ 复用
+            if (o != null && o.optString("d").isNotEmpty() && o.optString("x").isNotEmpty() &&
+                o.optString("y").isNotEmpty() && o.optString("kty") == "EC") return o to o
+        }
+        // 生成 EC P-256 密钥对（java.security），JWK 手拼：x/y/d = 各大数定长 32 字节 base64url 无填充
+        return try {
+            val kpg = java.security.KeyPairGenerator.getInstance("EC")
+            val ecSpec = java.security.spec.ECGenParameterSpec("secp256r1")
+            kpg.initialize(ecSpec)
+            val kp = kpg.generateKeyPair()
+            val pub = kp.public as java.security.interfaces.ECPublicKey
+            val priv = kp.private as java.security.interfaces.ECPrivateKey
+            val jwk = JSONObject()
+                .put("kty", "EC")
+                .put("crv", "P-256")
+                .put("x", b64u32(pub.w.x))
+                .put("y", b64u32(pub.w.y))
+                .put("d", b64u32(priv.s))
+            jwk.toString() to jwk
+        } catch (_: Exception) {
+            null
+        }
+    }
+
+    /** 大数 → 定长 32 字节（P-256 坐标/标量宽度）base64url 无填充（前零填充，不截断更长值） */
+    private fun b64u32(v: java.math.BigInteger): String {
+        val raw = v.toByteArray() // 补符号位形式：正数首字节可能多一个 0x00
+        val fixed = ByteArray(32)
+        // 取末 32 字节（不足则前零填充在 fixed 里天然完成）
+        val src = if (raw.size > 32) raw.copyOfRange(raw.size - 32, raw.size) else raw
+        // 右对齐拷贝：raw 短 → 前面留零；raw 恰 33（带 0x00）→ src 已截到 32
+        System.arraycopy(src, 0, fixed, 32 - src.size, src.size)
+        return android.util.Base64.encodeToString(
+            fixed, android.util.Base64.NO_WRAP or android.util.Base64.NO_PADDING or android.util.Base64.URL_SAFE
+        )
+    }
+
+    /**
+     * 签发 DPoP JWS（dpop+jwt）：header {alg:ES256, typ:dpop+jwt, jwk:公钥}，
+     * payload {htm, htu, iat:秒级, jti:UUID}（照插件 oauth.ts signDpopJws 形状）。
+     * ⚠️ SHA256withECDSA 输出 DER 编码，JWS 要求 raw R||S 各 32 字节共 64 字节——
+     * 必须解 DER 转 raw（最易错点，node 侧已对拍验证）。
+     */
+    private fun signDpopJws(privJwk: JSONObject, pubJwk: JSONObject, htm: String, htu: String): String {
+        fun b64u(bytes: ByteArray) = android.util.Base64.encodeToString(
+            bytes, android.util.Base64.NO_WRAP or android.util.Base64.NO_PADDING or android.util.Base64.URL_SAFE
+        )
+        val header = JSONObject()
+            .put("alg", "ES256")
+            .put("typ", "dpop+jwt")
+            .put("jwk", JSONObject()
+                .put("kty", pubJwk.optString("kty"))
+                .put("crv", pubJwk.optString("crv"))
+                .put("x", pubJwk.optString("x"))
+                .put("y", pubJwk.optString("y"))) // 只给公钥分量，不带 d
+        val payload = JSONObject()
+            .put("htm", htm)
+            .put("htu", htu)
+            .put("iat", System.currentTimeMillis() / 1000)
+            .put("jti", DeviceCodeLogin.randomUuid())
+        val signingInput = b64u(header.toString().toByteArray(Charsets.UTF_8)) + "." +
+            b64u(payload.toString().toByteArray(Charsets.UTF_8))
+        // P-256 曲线参数从命名组推导（不手写曲线常量）
+        val ecParams = java.security.AlgorithmParameters.getInstance("EC")
+            .run { init(java.security.spec.ECGenParameterSpec("secp256r1")); getParameterSpec(java.security.spec.ECParameterSpec::class.java) }
+        val privKey = java.security.KeyFactory.getInstance("EC").generatePrivate(
+            java.security.spec.ECPrivateKeySpec(
+                java.math.BigInteger(1, b64uDecode(privJwk.optString("d"))), ecParams)
+        )
+        val sig = java.security.Signature.getInstance("SHA256withECDSA")
+        sig.initSign(privKey)
+        sig.update(signingInput.toByteArray(Charsets.US_ASCII))
+        return signingInput + "." + b64u(derToRaw(sig.sign()))
+    }
+
+    private fun b64uDecode(s: String): ByteArray = android.util.Base64.decode(
+        s, android.util.Base64.NO_WRAP or android.util.Base64.NO_PADDING or android.util.Base64.URL_SAFE
+    )
+
+    /** ECDSA 签名 DER(0x30 len 0x02 rlen r 0x02 slen s) → JWS raw R||S 各 32 字节 */
+    private fun derToRaw(der: ByteArray): ByteArray {
+        var i = 2 // 跳过 0x30 + 总长
+        val rLen = der[i + 1].toInt() and 0xff; val r = der.copyOfRange(i + 2, i + 2 + rLen); i += 2 + rLen
+        val sLen = der[i + 1].toInt() and 0xff; val s = der.copyOfRange(i + 2, i + 2 + sLen)
+        val out = ByteArray(64)
+        // DER 整数高零字节（含 0x00 符号位）剥掉后右对齐拷 32 字节
+        val rTrim = r.dropWhile { it == 0.toByte() }.toByteArray()
+        val sTrim = s.dropWhile { it == 0.toByte() }.toByteArray()
+        System.arraycopy(rTrim, 0, out, 32 - rTrim.size, rTrim.size)
+        System.arraycopy(sTrim, 0, out, 64 - sTrim.size, sTrim.size)
+        return out
+    }
+
     override fun refresh(acc: AccountPool.Account): Triple<String, String, Long>? {
-        // STS 刷新要 DPoP(ES256) 头 + refresh_token form 体；DPoP 密钥对在 extra 持久化
-        // （第二期 WebView 登录一并落 ES256 生成；本期凭据直填路径 ST 由用户侧给全）
+        // STS 刷新要 DPoP(ES256) 头 + refresh_token form 体；DPoP 私钥 JWK 在 extra 持久化
         val refreshToken = acc.refreshToken
         val verifier = acc.extraStr("code_verifier")
         if (refreshToken.isEmpty() || verifier.isEmpty()) return null
+        // 凭据直填（无 refresh_token）账号不走续期：上面 refreshToken 空已挡，这里不报错直接 null
+        val (privJwkObj, pubJwk) = ensureDpopJwk(acc) ?: return null
+        val dpop = try {
+            signDpopJws(privJwkObj, pubJwk, "POST", STS_TOKEN_URL)
+        } catch (_: Exception) { return null }
         val form = "client_id=codearts-agent&code_verifier=${java.net.URLEncoder.encode(verifier, "UTF-8")}" +
             "&grant_type=refresh_token&refresh_token=${java.net.URLEncoder.encode(refreshToken, "UTF-8")}"
-        val r = AccountPool.channelPost("https://$STS_HOST/v1/oauth2/tokens", mapOf("Content-Type" to "application/x-www-form-urlencoded"), form)
+        val r = AccountPool.channelPost(STS_TOKEN_URL, mapOf(
+            "DPoP" to dpop,
+            "Content-Type" to "application/x-www-form-urlencoded",
+        ), form)
         if (!r.ok) return null
         val o = try { JSONObject(r.body) } catch (_: Exception) { return null }
-        // 终态：invalid_grant / ExpiredRefreshToken（⚠️ InvalidDPoPHeader 不是终态）
+        // 终态判定（照插件 oauth.ts requestToken）：**只认 refresh_token 自己失效的两种信号**
+        // —— invalid_grant / error_code 含 ExpiredRefreshToken。
+        // ⚠️ InvalidDPoPHeader（及 401 invalid_dpop 类）**不是终态**：时钟偏差让 iat 落窗口外、
+        // proof 被判重放、网关抖动都是**一次请求层面**的拒绝，与 refresh_token 寿命无关；
+        // 当终态会把材料完好的账号一步标死（插件真实事故，10-09 对账表三 #4 必抄项）。
+        // 本渠道 classifyError/调度器对这类失败只记日志，下轮照试——保持普通失败语义即可。
         val errCode = o.optString("error_code") + o.optString("error")
         if (errCode.contains("invalid_grant") || errCode.contains("ExpiredRefreshToken")) return null
         val c = o.optJSONObject("credentials") ?: return null
         val newAk = c.optString("access_key_id")
         if (newAk.isEmpty()) return null
-        // 落 extra（调用方 AccountRefreshScheduler 只更新 token 三元组——AK/SK 变化需走 saveExtras）
+        // 落 extra（调用方 AccountRefreshScheduler 只更新 token 三元组——AK/SK 变化需走 saveExtras）；
+        // DPoP 私钥 JWK 首次生成时一并写回（ensureDpopJwk 语义：不落盘下次会重生成）
         pendingExtraUpdate = JSONObject()
             .put("access_key_id", newAk)
             .put("secret_access_key", c.optString("secret_access_key"))
             .put("security_token", c.optString("security_token"))
+            .put(EXTRA_DPOP_JWK, privJwkObj.toString())
         val expiresAt = parseIsoOrPlus(c.optString("expiration"), 24 * 3600_000L)
-        return Triple(newAk, acc.refreshToken, expiresAt)
+        // 响应给新 refresh_token 直接覆盖（插件 credentialFromTokenResponse 同款；不轮换语义未明）
+        val newRefresh = o.optString("refresh_token").ifEmpty { refreshToken }
+        return Triple(newAk, newRefresh, expiresAt)
     }
 
     /** refresh() 给 AccountPool 的 AK/SK/ST 落盘载荷（线程安全：调度器单线程串行） */
