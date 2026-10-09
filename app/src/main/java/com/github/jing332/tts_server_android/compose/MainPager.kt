@@ -145,7 +145,7 @@ fun AnimatedContentScope.MainPager(sharedVM: SharedViewModel) {
                     Surface(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .bottomBarHeight(scrollBehavior.state.heightOffset, bottomBarHeightPx),
+                            .bottomBarHeight({ scrollBehavior.state.heightOffset }, bottomBarHeightPx),
                         color = MaterialTheme.colorScheme.surfaceContainer
                     ) {
                         Column {
