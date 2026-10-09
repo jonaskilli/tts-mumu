@@ -10,16 +10,16 @@ import androidx.compose.ui.graphics.Color
 // 列表顺序固定：[lowest, low, container, high, highest, dim, bright]，消费方=Theme.kt themedNeutral()。
 
 internal val lightSurfaceTones: Map<AppTheme, List<Color>> = mapOf(
-    AppTheme.DEFAULT to listOf(Color(0xFFF8FFF2), Color(0xFFF1F9EB), Color(0xFFEBF4E5), Color(0xFFE5EEDF), Color(0xFFE0E8DA), Color(0xFFD8E1D3), Color(0xFFF5FEEF)),
-    AppTheme.GREEN to listOf(Color(0xFFF2FFF6), Color(0xFFEBFAEF), Color(0xFFE5F5E9), Color(0xFFE0EFE4), Color(0xFFDAE9DE), Color(0xFFD3E2D7), Color(0xFFEFFFF3)),
-    AppTheme.RED to listOf(Color(0xFFFFF9F5), Color(0xFFFFF2EE), Color(0xFFFFECE8), Color(0xFFFCE7E2), Color(0xFFF6E1DD), Color(0xFFEFDAD6), Color(0xFFFFF6F2)),
-    AppTheme.PINK to listOf(Color(0xFFFFF9FC), Color(0xFFFFF1F5), Color(0xFFFFECEF), Color(0xFFFBE6EA), Color(0xFFF6E0E4), Color(0xFFEED9DD), Color(0xFFFFF6FA)),
-    AppTheme.BLUE to listOf(Color(0xFFFBFDFF), Color(0xFFF4F6FF), Color(0xFFEEF0FF), Color(0xFFE9EAFA), Color(0xFFE3E4F4), Color(0xFFDCDDED), Color(0xFFF8FAFF)),
-    AppTheme.CYAN to listOf(Color(0xFFECFFFE), Color(0xFFE5FBF7), Color(0xFFDFF5F1), Color(0xFFDAF0EB), Color(0xFFD4EAE6), Color(0xFFCDE3DF), Color(0xFFE9FFFB)),
-    AppTheme.ORANGE to listOf(Color(0xFFFFFBEF), Color(0xFFFFF4E8), Color(0xFFFDEEE3), Color(0xFFF7E9DD), Color(0xFFF1E3D7), Color(0xFFEADCD0), Color(0xFFFFF8ED)),
-    AppTheme.PURPLE to listOf(Color(0xFFFFFBFF), Color(0xFFFBF4FF), Color(0xFFF5EEFD), Color(0xFFEFE8F7), Color(0xFFEAE3F1), Color(0xFFE2DCEA), Color(0xFFFFF8FF)),
-    AppTheme.BROWN to listOf(Color(0xFFFFFAF2), Color(0xFFFFF3EB), Color(0xFFFFEDE5), Color(0xFFFAE7E0), Color(0xFFF5E2DA), Color(0xFFEDDBD3), Color(0xFFFFF7EF)),
-    AppTheme.GRAY to listOf(Color(0xFFEEFFFF), Color(0xFFE7FAFF), Color(0xFFE1F4FD), Color(0xFFDBEEF8), Color(0xFFD6E8F2), Color(0xFFCFE1EB), Color(0xFFEBFEFF)),
+    AppTheme.DEFAULT to listOf(Color(0xFFFCFFF9), Color(0xFFF4F8F2), Color(0xFFEFF2EC), Color(0xFFE9ECE7), Color(0xFFE3E6E1), Color(0xFFDCDFDA), Color(0xFFF9FCF6)),
+    AppTheme.GREEN to listOf(Color(0xFFF9FFFB), Color(0xFFF2F8F4), Color(0xFFEDF2EE), Color(0xFFE7ECE8), Color(0xFFE1E7E3), Color(0xFFDAE0DB), Color(0xFFF7FCF8)),
+    AppTheme.RED to listOf(Color(0xFFFFFCFA), Color(0xFFFDF5F3), Color(0xFFF7EFED), Color(0xFFF1E9E8), Color(0xFFECE4E2), Color(0xFFE5DDDB), Color(0xFFFFF9F7)),
+    AppTheme.PINK to listOf(Color(0xFFFFFCFD), Color(0xFFFDF5F6), Color(0xFFF7EFF0), Color(0xFFF1E9EB), Color(0xFFECE3E5), Color(0xFFE4DCDE), Color(0xFFFFF9FA)),
+    AppTheme.BLUE to listOf(Color(0xFFFDFDFF), Color(0xFFF6F6FC), Color(0xFFF0F0F6), Color(0xFFEAEBF0), Color(0xFFE5E5EB), Color(0xFFDDDEE4), Color(0xFFFAFAFF)),
+    AppTheme.CYAN to listOf(Color(0xFFF7FFFE), Color(0xFFF0F8F7), Color(0xFFEAF3F1), Color(0xFFE5EDEB), Color(0xFFDFE7E5), Color(0xFFD8E0DE), Color(0xFFF4FDFB)),
+    AppTheme.ORANGE to listOf(Color(0xFFFFFDF8), Color(0xFFFBF6F1), Color(0xFFF5F0EB), Color(0xFFF0EAE6), Color(0xFFEAE4E0), Color(0xFFE3DDD9), Color(0xFFFFFAF5)),
+    AppTheme.PURPLE to listOf(Color(0xFFFFFDFF), Color(0xFFF8F5FB), Color(0xFFF2F0F5), Color(0xFFEDEAF0), Color(0xFFE7E4EA), Color(0xFFE0DDE3), Color(0xFFFCFAFF)),
+    AppTheme.BROWN to listOf(Color(0xFFFFFCF9), Color(0xFFFCF5F2), Color(0xFFF7EFEC), Color(0xFFF1EAE7), Color(0xFFEBE4E1), Color(0xFFE4DDDA), Color(0xFFFFF9F6)),
+    AppTheme.GRAY to listOf(Color(0xFFF8FFFF), Color(0xFFF1F8FB), Color(0xFFEBF2F5), Color(0xFFE5ECF0), Color(0xFFE0E6EA), Color(0xFFD9DFE3), Color(0xFFF5FCFF)),
 )
 
 internal val darkSurfaceTones: Map<AppTheme, List<Color>> = mapOf(
