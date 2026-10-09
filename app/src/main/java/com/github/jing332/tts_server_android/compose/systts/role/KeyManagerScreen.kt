@@ -1181,24 +1181,12 @@ fun KeyManagerScreen(tagRuleId: String, onBack: () -> Unit) {
             version++
         }
     }
-    // 偏重启用确认：待确认启用的条目（togglePool 判偏重时置值，弹窗确认后走 doTogglePool）。
-    // 声明必须在 togglePool 之前——Kotlin 局部函数只引用先声明的变量（37736194147 实锤）
-    var enableConfirmFor by remember { mutableStateOf<KeyListFile.KeyEntry?>(null) }
-    /** togglePool 的执行段（偏重确认弹窗「仍要启用」也走这里）——声明在 togglePool 之前（同 37736194147 作用域铁律） */
-    fun doTogglePool(entry: KeyListFile.KeyEntry, norm: String) {
-        if (norm in pool) {
-            savePoolList(pool - norm)
-            toast(R.string.role_key_disabled, KeyListFile.displayName(entry))
-        } else {
-            savePoolList(pool + norm)
-            toast(R.string.role_key_enabled, KeyListFile.displayName(entry), pool.size + 1)
-        }
-    }
+    // 偏重启用确认已整链退役（10-10 用户令「想用就用」）：黄态/重键点启用都直接进池，
+    // 不再有任何弹窗——密钥测试结论只作展示（黄/红/用时），不拦截操作。
+    // enableConfirmFor/doTogglePool/确认弹窗一并删（doTogglePool 逻辑折回 togglePool）。
+
     /** 启用/停用一把密钥（点卡片）：在池里则摘除，不在则追加到队尾（= 轮换顺序最后）。
-     *  裸 Key 禁止启用（池是扁平 @@ 串，裸段会错位）：先在编辑框补全为完整格式再启用。
-     *  偏重启用确认（10-09 立，10-10 用户令收窄）：只有「重键」（用时 ≥ HEAVY_MODEL_MS 3s，
-     *  用户实测校准：真机分布 1.3~5.4s，3s 线筛出 glm-5.3-flash/hy4-preview/kimi-k3-1）
-     *  才弹一次确认；黄态（思考未关）不再拦——用户令「就当他是正常的密钥」。停用不拦、无测试结果不拦 */
+     *  裸 Key 禁止启用（池是扁平 @@ 串，裸段会错位）：先在编辑框补全为完整格式再启用。 */
     fun togglePool(entry: KeyListFile.KeyEntry) {
         val p = KeyListFile.parseKeyValue(entry.value)
         if (p != null && p.isDirect) {
@@ -1210,17 +1198,13 @@ fun KeyManagerScreen(tagRuleId: String, onBack: () -> Unit) {
             toast(R.string.role_key_value_empty)
             return
         }
-        if (norm !in pool) {
-            val r = testResults[norm]
-            if (r != null) {
-                val ms = Regex("(\\d+)\\s*ms").find(r.message)?.groupValues?.get(1)?.toLongOrNull()
-                if ((ms ?: 0L) >= KeyListFile.HEAVY_MODEL_MS) {
-                    enableConfirmFor = entry
-                    return
-                }
-            }
+        if (norm in pool) {
+            savePoolList(pool - norm)
+            toast(R.string.role_key_disabled, KeyListFile.displayName(entry))
+        } else {
+            savePoolList(pool + norm)
+            toast(R.string.role_key_enabled, KeyListFile.displayName(entry), pool.size + 1)
         }
-        doTogglePool(entry, norm)
     }
     /** 设为/取消分配专用（10-09 长按菜单快捷通道）：写盘（manual=true，全站唯一）后重读镜像 */
     fun toggleAssign(entry: KeyListFile.KeyEntry) {
@@ -1918,36 +1902,7 @@ fun KeyManagerScreen(tagRuleId: String, onBack: () -> Unit) {
         )
     }
 
-    // 偏重启用确认（10-09 立，10-10 收窄）：只有「重键」（用时 ≥HEAVY_MODEL_MS 3s，
-    // 用户实测校准线）→ 启用前问一次；黄态（思考未关）不再拦（用户令「就当他是正常的密钥」）。
-    // 只在有测试结果时弹（无结果不拦）；停用永不拦。判定与拦截在 togglePool 内
-    enableConfirmFor?.let { entry ->
-        val norm = KeyListFile.normalizePoolValue(entry.value)
-        val r = testResults[norm]
-        val ms = r?.message?.let { m -> Regex("(\\d+)\\s*ms").find(m)?.groupValues?.get(1)?.toLongOrNull() }
-        val why = when {
-            r == null -> ""
-            r.thinkingOff == false -> "" // 黄态已被 togglePool 放行，弹窗只会由重键触发
-            ms != null -> "该模型测试耗时 ${"%.1f".format(ms / 1000.0)}s，会拖慢角色分配，仍要启用？"
-            else -> ""
-        }
-        AlertDialog(
-            onDismissRequest = { enableConfirmFor = null },
-            title = { Text("🚀 仍要启用？") },
-            text = { Text(why) },
-            confirmButton = {
-                TextButton(onClick = {
-                    enableConfirmFor = null
-                    doTogglePool(entry, norm)
-                }) { Text(stringResource(R.string.confirm)) }
-            },
-            dismissButton = {
-                TextButton(onClick = { enableConfirmFor = null }) {
-                    Text(stringResource(R.string.cancel))
-                }
-            }
-        )
-    }
+    // 偏重启用确认弹窗已随整链退役（10-10 用户令「想用就用」），见 togglePool 处注释
 
     // 组内批量删除确认（「多选删除子项」勾中 N 条 → 二次确认，组保留）
     groupDeleteConfirm?.let { gTitle ->
