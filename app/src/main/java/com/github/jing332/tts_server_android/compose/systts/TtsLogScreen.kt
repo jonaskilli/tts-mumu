@@ -232,6 +232,12 @@ internal fun TtsLogScreen(vm: TtsLogViewModel = viewModel()) {
 
     Scaffold(
         modifier = Modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
+        // 10-10 深夜白条真根因：本页躺在 MainPager 的 pager 里，外层已 pad bottom=bottomPad
+        // （含底栏+手势条）；内层 Scaffold 默认 contentWindowInsets=systemBars 会把手势条
+        // **再算进** paddingValues.calculateBottomPadding()，LogScreen 又按它垫一次
+        // → 手势条高度双重避让=列表末尾与底栏之间的白条（装机截图复现，8dp Spacer 修复没治到根）。
+        // 内容避让全由外层负责，本 Scaffold 的 insets 归零；多选底栏自行贴合即可
+        contentWindowInsets = androidx.compose.foundation.layout.WindowInsets(0, 0, 0, 0),
         bottomBar = {
             // 多选底栏（照密钥页）：全选 |（右）复制(N)。放 Scaffold bottomBar：列表自动让位。
             // 不加 navigationBarsPadding——本页在 MainPager 的 pager 里，外层已让出底栏+手势条高度
