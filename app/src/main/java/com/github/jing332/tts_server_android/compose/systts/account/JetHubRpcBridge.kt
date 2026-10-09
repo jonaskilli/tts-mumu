@@ -81,6 +81,12 @@ class JetHubRpcBridge(private val context: android.content.Context) {
         "account.retestAll" -> accountRetestAll(p)
         "account.test" -> accountTest(p)
         "credits.balances" -> creditsBalances(p)
+        // 签到三件套（10-10 晚批）：一键领取（面板级）/ 单卡签到 / 单卡续期。
+        // app 侧能力全在（AccountPool.checkInAny/refreshAny 按渠道路由 13 渠道），
+        // 桥只做形状翻译——照插件服务端 jet-hub-rpc.ts 的响应契约。
+        "credits.claimAll" -> creditsClaimAll(p)
+        "account.checkin" -> accountCheckin(p)
+        "account.refresh" -> accountRefresh(p)
         "backup.status" -> JSONObject().put("accounts", AccountPool.load().size).put("withoutExpiry", 0)
         // 登录：app 走自己的原生登录页（桥的 create 已把用户送过去），
         // 这里以「该渠道账号数变化」为完成判据——用户回来时列表已刷新。
@@ -349,6 +355,94 @@ class JetHubRpcBridge(private val context: android.content.Context) {
         val res = JSONObject().put("accounts", out)
         windowDays?.let { res.put("windowDays", it) }
         return res
+    }
+
+    // ==================== 签到/续期（10-10 晚批） ====================
+
+    /**
+     * 签到结果的插件形状（照 ClaimOutcome 联合类型 + computeClaimSummary）。
+     * kind: claimed(带 credit/unit) / already-claimed / inactive / failed(带 code)。
+     * app 侧 checkInAny 只回 (Boolean, String)，靠文案归类：
+     *  - 成功 → claimed（额度增量 app 侧拿不到，回 0——汇总的「共 +N」由明细行支撑，
+     *    每行 message 带上游原话；这比编一个数字诚实）。
+     *  - 文案含「已签/已领」→ already-claimed；含「无签到接口/暂不支持」→ inactive；
+     *  - 其余 → failed。
+     */
+    private fun claimOutcome(success: Boolean, msg: String): JSONObject {
+        if (success) {
+            return JSONObject()
+                .put("kind", "claimed").put("credit", 0).put("streakDays", 0).put("isStreakDay", false)
+                .put("message", msg)
+        }
+        val kind = when {
+            msg.contains("已签") || msg.contains("已领") -> "already-claimed"
+            msg.contains("无签到接口") || msg.contains("暂不支持") -> "inactive"
+            else -> "failed"
+        }
+        val o = JSONObject().put("kind", kind).put("message", msg)
+        if (kind == "failed") o.put("code", -1)
+        return o
+    }
+
+    /** 单渠道一键领取（面板级按钮）：串行签到该渠道全部账号（含停用，照插件口径） */
+    private fun creditsClaimAll(p: JSONObject): JSONObject {
+        val appId = toAppProvider(p.optString("provider"))
+        val list = AccountPool.load().filter { it.provider == appId }
+        val results = JSONArray()
+        var claimed = 0; var already = 0; var inactive = 0; var failed = 0
+        list.forEach { a ->
+            // 渠道无签到接口时不再逐账号白打：整体记 inactive（一条汇总，等同插件 inactive 分支）
+            val (success, msg) = runCatching { AccountPool.checkInAny(a) }
+                .getOrElse { false to (it.message ?: "签到失败") }
+            if (msg.contains("无签到接口") || msg.contains("暂不支持")) {
+                inactive++
+                results.put(JSONObject().put("accountId", a.id).put("nickname", a.nickname)
+                    .put("outcome", JSONObject().put("kind", "inactive").put("message", msg)))
+            } else {
+                val outcome = claimOutcome(success, msg)
+                when (outcome.optString("kind")) {
+                    "claimed" -> { claimed++; AccountPool.markCheckedIn(a.id) }
+                    "already-claimed" -> already++
+                    "failed" -> failed++
+                }
+                results.put(JSONObject().put("accountId", a.id).put("nickname", a.nickname)
+                    .put("outcome", outcome))
+            }
+        }
+        val summary = JSONObject()
+            .put("claimed", claimed).put("totalCredit", 0.0)
+            .put("alreadyClaimed", already).put("inactive", inactive).put("failed", failed)
+            .put("coversToday", claimed + already)
+            .put("totalByUnit", JSONObject().put("token", 0).put("credit", 0))
+        return JSONObject().put("results", results).put("summary", summary)
+    }
+
+    /** 单卡签到：签到 + 记账（markCheckedIn 收口，照 AccountCheckinReceiver 口径） */
+    private fun accountCheckin(p: JSONObject): JSONObject {
+        val id = p.optString("accountId")
+        val acc = AccountPool.load().firstOrNull { it.id == id }
+            ?: throw IllegalStateException("账号不存在：$id")
+        val (success, msg) = runCatching { AccountPool.checkInAny(acc) }
+            .getOrElse { false to (it.message ?: "签到失败") }
+        if (success) AccountPool.markCheckedIn(id)
+        return JSONObject()
+            .put("accountId", id).put("nickname", acc.nickname)
+            .put("success", success).put("message", msg)
+            .put("outcome", claimOutcome(success, msg))
+    }
+
+    /** 单卡续期：凭据刷新（过期前手动续；渠道不支持时如实报错） */
+    private fun accountRefresh(p: JSONObject): JSONObject {
+        val id = p.optString("accountId")
+        val acc = AccountPool.load().firstOrNull { it.id == id }
+            ?: throw IllegalStateException("账号不存在：$id")
+        val (updated, err) = runCatching { AccountPool.refreshAny(acc) }
+            .getOrElse { null to (it.message ?: "续期失败") }
+        if (updated == null) throw IllegalStateException(err.ifEmpty { "续期失败" })
+        return JSONObject()
+            .put("accountId", id).put("nickname", acc.nickname)
+            .put("expiresAt", if (updated.expiresAt > 0) updated.expiresAt else JSONObject.NULL)
+            .put("message", "续期成功")
     }
 
     // ==================== 工具 ====================

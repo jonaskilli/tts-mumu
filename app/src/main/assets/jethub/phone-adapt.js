@@ -5,7 +5,7 @@
  *
  * 本脚本只剩两件事：
  * 1. 给 body 打 dsh-phone-mobile 标记（jet-phone.css 的选择器靠它生效）；
- * 2. React 重渲染更新 aria-selected 后，把选中的 chip 滚动到可视区。
+ * 2. React 重渲染更新 aria-selected 后，把选中的宽条滚动到可视区。
  * 不做任何 DOM 移动/插入——全部样式覆盖都由 CSS 完成，React 无感。
  */
 (() => {
@@ -23,7 +23,7 @@
     const selected = rail.querySelector('.dim-jh-provider[aria-selected="true"]');
     if (!selected) return;
     // scrollIntoView 会连带滚动页面纵向，改手动算横向偏移。
-    // 用 rect 差值算（chip 的 offsetParent 因 display:contents 不一定是 rail）
+    // 用 rect 差值算（宽条的 offsetParent 因 display:contents 不一定是 rail）
     const railRect = rail.getBoundingClientRect();
     const selRect = selected.getBoundingClientRect();
     const target = rail.scrollLeft + (selRect.left - railRect.left)

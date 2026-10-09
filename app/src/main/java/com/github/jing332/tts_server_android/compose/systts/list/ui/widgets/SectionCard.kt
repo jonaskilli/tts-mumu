@@ -42,9 +42,9 @@ internal fun SectionCard(
         modifier = modifier,
         colors = CardDefaults.cardColors(
             // 10-10 v3（真机「框套框」实锤）：编辑页分区卡是表单容器——卡内全是 OutlinedTextField
-            // 描边框，白卡+细边再套一层框必然打架。表单卡改灰底无边（#F3F3F3），
-            // 输入框描边成为唯一的框（灰底白框=M3 官方标准层级）；
-            // 全站口径随之明确：表单卡=灰底无边，展示卡=白底发丝线（设置/列表仍白卡）。
+            // 描边框，卡+细边再套一层框必然打架。表单卡灰底无边，输入框描边成为唯一的框
+            // （灰底白框=M3 官方标准层级）；10-10 晚回退纯白批后 surfaceContainerHigh
+            // 恢复带主题色相的淡青灰档，淡底上灰底表单卡仍清晰分层。
             containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
         ),
         shape = MaterialTheme.shapes.large,
@@ -66,7 +66,9 @@ internal fun SectionCard(
                     Text(
                         title,
                         modifier = Modifier.padding(start = 6.dp),
-                        style = MaterialTheme.typography.titleSmall,
+                        // 16sp（titleMedium）：原 titleSmall 14sp 与卡内正文同大甚至更小，
+                        // 分区标题被内容压过（10-10 用户实机指认「音色来源」比卡内字小）
+                        style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.Bold,
                     )
                     Spacer(Modifier.weight(1f))

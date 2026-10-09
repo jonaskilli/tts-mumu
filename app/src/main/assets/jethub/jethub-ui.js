@@ -7357,6 +7357,19 @@
      */
     zcode: Object.freeze({ balance: true, dailyCheckin: true }),
     /**
+     * AutoClaw（智谱系渠道，UTTS app 侧 13 渠道之一）：**只有余额**，没有签到。
+     *
+     * - **余额**：app 侧 `AutoclawChannel.queryCredits` 有实现（queryCredits 端点通）。
+     * - **每日签到**：app 侧 `AutoclawChannel` **无 checkIn 实现** —— 渠道的
+     *   checkIn 路径只会返回「该渠道无签到接口」。登记 `dailyCheckin: false`
+     *   让面板不渲染签到按钮、不发必然失败的请求（与 cline 的登记理由同型）。
+     * - **续期**：app 侧 refresh 有实现；续期能力不在本表登记（走
+     *   `account.refresh` 端点的渠道级判断，app 侧不支持时桥会报错并显示原因）。
+     *
+     * ⚠️ app 侧 provider 同名 `autoclaw`（与插件 PROVIDERS 表的 id 一致，无需映射）。
+     */
+    autoclaw: Object.freeze({ balance: true, dailyCheckin: false }),
+    /**
      * OpenCode：**显示**额度行，但语义不是「余额」而是「**通道可用性**」。
      *
      * ## 为什么不是 `balance: false`（2026-10-02 改，用户报障「只有 opencode 没有显示」）
@@ -8824,6 +8837,7 @@
   var ZCODE_ICON = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAYAAABzenr0AAAAgklEQVR42u3XsRGAIAyF4UxgYe0g7j+FpZtgRwN36stLAhruqP+v4ICIdNaybsViy92yCj+CeMW7CO94gwgFRMUrIgFTAPbzgPe/Aa5nAInTAGicAtDE1QBtXAVgxGEAeuIpAFYYArDj81xEoQDLd+A1ID8k3wTkXDDEaDbEcBo1nl/XXoK4yMqvMgAAAABJRU5ErkJggg==";
   var OPENCODE_ICON = "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCI+PHJlY3Qgd2lkdGg9IjI0IiBoZWlnaHQ9IjI0IiByeD0iNSIgZmlsbD0iIzEyMTYxZCIvPjxwYXRoIGQ9Ik02LjUgOC41IDEwLjUgMTJsLTQgMy41IiBzdHJva2U9IiNmZmYiIHN0cm9rZS13aWR0aD0iMS44IiBmaWxsPSJub25lIiBzdHJva2UtbGluZWNhcD0icm91bmQiIHN0cm9rZS1saW5lam9pbj0icm91bmQiLz48cGF0aCBkPSJNMTIuNSAxNmg1IiBzdHJva2U9IiNmZmYiIHN0cm9rZS13aWR0aD0iMS44IiBmaWxsPSJub25lIiBzdHJva2UtbGluZWNhcD0icm91bmQiLz48L3N2Zz4=";
   var GEMINI_ICON = "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCI+PGRlZnM+PGxpbmVhckdyYWRpZW50IGlkPSJnIiB4MT0iMCIgeTE9IjAiIHgyPSIxIiB5Mj0iMSI+PHN0b3Agb2Zmc2V0PSIwIiBzdG9wLWNvbG9yPSIjNDI4NUY0Ii8+PHN0b3Agb2Zmc2V0PSIxIiBzdG9wLWNvbG9yPSIjOUI3MkNCIi8+PC9saW5lYXJHcmFkaWVudD48L2RlZnM+PHBhdGggZD0iTTEyIDJjLjQgMy45IDIuMSA2LjYgNiA4LTMuOSAxLjQtNS42IDQuMS02IDgtLjQtMy45LTIuMS02LjYtNi04IDMuOS0xLjQgNS42LTQuMSA2LThaIiBmaWxsPSJ1cmwoI2cpIi8+PHBhdGggZD0iTTE5LjUgMTRjLjIgMS43LjkgMi45IDIuNiAzLjUtMS43LjYtMi40IDEuOC0yLjYgMy41LS4yLTEuNy0uOS0yLjktMi42LTMuNSAxLjctLjYgMi40LTEuOCAyLjYtMy41WiIgZmlsbD0idXJsKCNnKSIvPjwvc3ZnPg==";
+  var AUTOCLAW_ICON = "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCI+PGRlZnM+PGxpbmVhckdyYWRpZW50IGlkPSJnIiB4MT0iMCIgeTE9IjAiIHgyPSIxIiB5Mj0iMSI+PHN0b3Agb2Zmc2V0PSIwIiBzdG9wLWNvbG9yPSIjNEY4REY3Ii8+PHN0b3Agb2Zmc2V0PSIxIiBzdG9wLWNvbG9yPSIjOUI3MkNCIi8+PC9saW5lYXJHcmFkaWVudD48L2RlZnM+PHJlY3QgeD0iMS41IiB5PSIxLjUiIHdpZHRoPSIyMSIgaGVpZ2h0PSIyMSIgcng9IjUiIGZpbGw9InVybCgjZykiLz48cGF0aCBkPSJNMTMuNCA0LjggOC4yIDEzLjFoMy40bC0xIDYuMSA1LjQtOC40aC0zLjVaIiBmaWxsPSIjZmZmIi8+PC9zdmc+";
   var AGGREGATE_ICON = "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCI+PGNpcmNsZSBjeD0iNSIgY3k9IjUiIHI9IjIuNiIgZmlsbD0iIzRGOERGNyIvPjxjaXJjbGUgY3g9IjUiIGN5PSIxOSIgcj0iMi42IiBmaWxsPSIjOUI3MkNCIi8+PGNpcmNsZSBjeD0iMTkiIGN5PSIxMiIgcj0iMi42IiBmaWxsPSIjNEY4REY3Ii8+PHBhdGggZD0iTTcgNi4yIDE2LjQgMTFNNyAxNy44IDE2LjQgMTMiIHN0cm9rZT0iIzlCNzJDQiIgc3Ryb2tlLXdpZHRoPSIxLjciIHN0cm9rZS1saW5lY2FwPSJyb3VuZCIgZmlsbD0ibm9uZSIvPjxjaXJjbGUgY3g9IjEyIiBjeT0iMTIiIHI9IjEuNSIgZmlsbD0iIzlCNzJDQiIvPjwvc3ZnPg==";
   var PROVIDERS = Object.freeze([
     { id: "codearts", label: "CodeArts (华为云)", icon: CODEARTS_ICON, logoClass: "codearts" },
@@ -8865,6 +8879,21 @@
      * 「弹窗 + 登录轮询」路径。
      */
     { id: "zcode", label: "ZCode (智谱)", icon: ZCODE_ICON, logoClass: "zcode" },
+    /**
+     * AutoClaw（智谱系渠道）—— UTTS app 侧 13 渠道之一。
+     *
+     * ⚠️ app 侧 provider 同名 `autoclaw`，**无需映射**（不同于插件叫 `buddy`、
+     * app 叫 `codebuddy` 那条桥内转换）。id 也保持纯小写字母（不带连字符）。
+     *
+     * ⚠️ 能力（app 侧已核实）：余额**有**（queryCredits）、签到**无**
+     * （渠道 checkIn 返回「该渠道无签到接口」）、续期**有**（refresh）。
+     * 能力表见 `credits-capabilities.js`：balance:true, dailyCheckin:false。
+     *
+     * ⚠️ label 用「AutoClaw (智谱)」：与 app ChatChannels.displayName
+     * 「AutoClaw 智谱」呼应，但保持本表「渠道名 (厂商)」的既有格式；
+     * 长度短于 WorkBuddy 那条最长行（141px 实测），不会撑破 rail。
+     */
+    { id: "autoclaw", label: "AutoClaw (智谱)", icon: AUTOCLAW_ICON, logoClass: "autoclaw" },
     /**
      * OpenCode。
      *
@@ -9081,6 +9110,13 @@
     windowDays,
     showRateLimitActions,
     drag,
+    // ⚠️ UTTS app Jet 桥的快捷行（签到 / 续期）：传了才渲染对应按钮。
+    // 命名刻意避开既有 `onRetest` / `onReset`，续期也不叫 `onRefresh`（防撞名），
+    // busy 标识用 `checkinBusyId` / `refreshBusyId`（无则恒显普通文字）。
+    onCheckin,
+    onRefreshAccount,
+    checkinBusyId,
+    refreshBusyId,
     // ⚠️ opencode 专属：传了才渲染「代理」「指纹」两个按钮（见按钮区注释）。
     // 前者额外需要 current 代理串，故签名与 onRetest 略有不同。
     onOpenProxy,
@@ -9215,6 +9251,26 @@
           className: "dim-jh-ttlBadge",
           title: `模型 ${modelId}`
         }, `${modelId} · ${formatTime(resetAt)}`))
+      ) : null,
+      // 快捷行（签到 / 续期，UTTS app 的 Jet 桥能力）：放在 rateLimits 之后、
+      // accountActions 之前 —— 它是高频操作，比低频的「重测/重置/删除」行更靠上。
+      // ⚠️ 两个回调都是「存在才渲染」：能力表不支持签到的渠道（如 AutoClaw）
+      // 只出现「续期」，不出现一个点了必然失败的按钮。
+      onCheckin || onRefreshAccount ? React2.createElement(
+        "div",
+        { className: "dim-jh-quickActions" },
+        onCheckin ? React2.createElement("button", {
+          className: "dim-jh-btn",
+          // 本账号任一快捷操作在途就禁用（两条 RPC 共用一次重入闸门）；
+          // busy 是面板级（重测等）在途状态，一并禁用防并发。
+          disabled: busy || checkinBusyId === account.id || refreshBusyId === account.id,
+          onClick: () => onCheckin(account.id)
+        }, checkinBusyId === account.id ? "签到中…" : "签到") : null,
+        onRefreshAccount ? React2.createElement("button", {
+          className: "dim-jh-btn",
+          disabled: busy || checkinBusyId === account.id || refreshBusyId === account.id,
+          onClick: () => onRefreshAccount(account.id)
+        }, refreshBusyId === account.id ? "续期中…" : "续期") : null
       ) : null,
       React2.createElement(
         "div",
@@ -10682,11 +10738,14 @@ ${TOKEN_LEGEND}`;
       };
     }, [provider]);
     const [claiming, setClaiming] = React2.useState(false);
+    const [accountBusy, setAccountBusy] = React2.useState(null);
     const [claimNotice, setClaimNotice] = React2.useState(null);
     const [onboarding, setOnboarding] = React2.useState(null);
     const [onboardingLoading, setOnboardingLoading] = React2.useState(false);
     const [onboardingNotice, setOnboardingNotice] = React2.useState(null);
     const canClaimOnboarding = supportsOnboardingTasks(provider);
+    const canCheckinAccount = supportsDailyCheckin(provider);
+    const canRefreshAccount = true;
     const canLockPermanent = supportsPermanentLock(provider);
     const lockCopy = permanentLockCopy(provider, expiryWindowDays);
     const [permanentLocked, setPermanentLocked] = React2.useState(false);
@@ -11145,6 +11204,48 @@ ${TOKEN_LEGEND}`;
         if (mounted.current) setProbeBusy(null);
       }
     };
+    const runAccountCheckin = async (accountId) => {
+      if (accountBusy) return;
+      setAccountBusy({ kind: "checkin", id: accountId });
+      setProbeNotice(null);
+      try {
+        const res = await rpcCall("account.checkin", { accountId });
+        if (!mounted.current) return;
+        setProbeNotice({
+          tone: res.success ? "ok" : "warn",
+          text: `${res.nickname || "账号"}：${res.message || "签到完成"}`,
+          details: []
+        });
+        await loadAccounts();
+      } catch (caught) {
+        console.error("[jet-hub] account checkin failed:", caught);
+        if (!mounted.current) return;
+        setProbeNotice({ tone: "error", text: `签到失败：${caught?.message || "未知错误"}`, details: [] });
+      } finally {
+        if (mounted.current) setAccountBusy(null);
+      }
+    };
+    const runAccountRefresh = async (accountId) => {
+      if (accountBusy) return;
+      setAccountBusy({ kind: "refresh", id: accountId });
+      setProbeNotice(null);
+      try {
+        const res = await rpcCall("account.refresh", { accountId });
+        if (!mounted.current) return;
+        setProbeNotice({
+          tone: "ok",
+          text: `${res.nickname || "账号"}：${res.message || "续期完成"}`,
+          details: res.expiresAt ? [`新有效期至 ${formatTime(res.expiresAt) || "未知"}`] : []
+        });
+        await loadAccounts();
+      } catch (caught) {
+        console.error("[jet-hub] account refresh failed:", caught);
+        if (!mounted.current) return;
+        setProbeNotice({ tone: "error", text: `续期失败：${caught?.message || "未知错误"}`, details: [] });
+      } finally {
+        if (mounted.current) setAccountBusy(null);
+      }
+    };
     return React2.createElement(
       "section",
       { "aria-label": `${provider} 账号管理` },
@@ -11480,6 +11581,13 @@ ${TOKEN_LEGEND}`;
             // 与「一键领取积分」（每日签到）是**不同**的操作，故独立按钮。
             onClaimOnboarding: canClaimOnboarding ? (id) => void claimOnboarding(id) : void 0,
             onboardingBusy: onboardingLoading,
+            // 快捷行（签到 / 续期，UTTS app 的 Jet 桥能力）：存在才渲染，
+            // AccountCard 靠 props 存在性决定按钮（与 onTest / onOpenProxy 同型）。
+            // busy 标识传「当前在途的账号 id」，按钮文字据此切换、其余账号只禁用。
+            onCheckin: canCheckinAccount ? (id) => void runAccountCheckin(id) : void 0,
+            onRefreshAccount: canRefreshAccount ? (id) => void runAccountRefresh(id) : void 0,
+            checkinBusyId: accountBusy?.kind === "checkin" ? accountBusy.id : null,
+            refreshBusyId: accountBusy?.kind === "refresh" ? accountBusy.id : null,
             // 提交顺序期间禁用拖拽，避免并发提交互相覆盖。
             drag: reordering ? { enabled: false } : dragPropsFor(account, index)
           }))
@@ -13033,6 +13141,9 @@ ${model.name || ""}`.trim()
     };
     const renderProviderRow = (p) => {
       const closed = providerStatuses?.[p.id]?.closed === true;
+      const accountsStat = providerStatuses?.[p.id]?.accounts ?? null;
+      const accountsTotal = accountsStat?.total ?? 0;
+      const accountsEnabled = accountsStat?.enabled ?? 0;
       return React2.createElement(
         "div",
         { className: "dim-jh-providerRow", key: p.id, "data-provider": p.id },
@@ -13058,7 +13169,14 @@ ${model.name || ""}`.trim()
             "span",
             { className: "dim-jh-providerLabel" },
             React2.createElement("strong", null, p.label)
-          )
+          ),
+          // 账号数小牌：跟在名字后面。⚠️ 判据是 **total > 0** 而不是「读到状态」——
+          // provider.status 对没账号的渠道也回 total:0，按「读到就渲染」会挂出一排
+          // 恒为 0 的牌（真机预览实锤），让「还没读到」与「一个账号都没有」无法区分。
+          accountsStat && accountsTotal > 0 ? React2.createElement("span", {
+            className: "dim-jh-providerCount",
+            title: `已存 ${accountsTotal} 个账号（启用 ${accountsEnabled}）`
+          }, String(accountsTotal)) : null
         )
       );
     };
@@ -13299,6 +13417,9 @@ ${model.name || ""}`.trim()
  * 故容器保持透明（加白底反而会出现一圈突兀的方块）。
  */
 .dim-jh-providerIcon.zcode { background: transparent; }
+/* AutoClaw（智谱系渠道）：内联 SVG（蓝紫渐变圆角底 + 白色闪电），白底容器中显示清晰。
+   ⚠️ 本文件的样式整体是一个模板字符串 —— 注释里**不能出现反引号**（会提前终止）。 */
+.dim-jh-providerIcon.autoclaw { background: white; }
 /* Gemini Code Assist：内联 SVG 自带蓝紫渐变星形，白底容器中显示清晰。
    ⚠️ 本文件的样式整体是一个模板字符串 —— 注释里**不能出现反引号**（会提前终止）。 */
 .dim-jh-providerIcon.gemini { background: white; }
@@ -13310,6 +13431,9 @@ ${model.name || ""}`.trim()
 /* provider 文案：align dsh-im .dim-channelCopy */
 .dim-jh-providerLabel { min-width: 0; display: grid; }
 .dim-jh-providerLabel strong { overflow: hidden; color: inherit; font-size: 14px; line-height: 20px; font-weight: 680; text-overflow: ellipsis; white-space: nowrap; }
+/* 账号数小牌：供应商行名字后面的计数徽标（已存账号数）。
+   chip 按钮是纵向 flex，小牌自然落在短名下方，无需额外断点适配。 */
+.dim-jh-providerCount { min-width: 16px; height: 16px; padding: 0 4px; border-radius: 8px; background: var(--dsw-alias-bg-layer-3, #f0f1f3); color: #57606a; font-size: 10px; line-height: 16px; text-align: center; }
 
 /* ── 供应商级一键开关（左侧 rail 的分组 + 行尾开关）── */
 /* 分组：与 rail 同为 grid，组之间留出间隔。分组只是展示分组，不改变声明顺序。 */
@@ -13384,6 +13508,10 @@ ${model.name || ""}`.trim()
 
 /* 操作按钮：横向一行，右对齐 */
 .dim-jh-accountActions { display: flex; flex-direction: row; flex-wrap: nowrap; justify-content: flex-end; gap: 8px; margin-top: 12px; padding-top: 10px; border-top: 1px solid var(--dsw-alias-border-l2, #f0f1f3); }
+/* 快捷行（签到 / 续期，UTTS app 的 Jet 桥能力）：仿 accountActions 但左对齐、
+   无上边线、margin 更小 —— 它挂在 rateLimits 与 accountActions 之间，是高频操作，
+   视觉上要轻于底部的低频按钮行。 */
+.dim-jh-quickActions { display: flex; flex-direction: row; gap: 8px; margin-top: 10px; }
 
 /* 按钮：align dsh-im .dim-deliveryButton */
 .dim-jh-btn { font-size: 12px; line-height: 18px; padding: 4px 12px; border: 1px solid var(--dsw-alias-border-l2, #dfe1e5); border-radius: 8px; background: var(--dsw-alias-bg-layer-3, #fff); cursor: pointer; color: var(--dsw-alias-label-primary, #1f2329); white-space: nowrap; transition: border-color .15s ease, background .15s ease, color .15s ease; }
