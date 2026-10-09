@@ -22,7 +22,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
@@ -401,21 +401,41 @@ internal fun LogScreen(
         }
     }
     Box(modifier) {
+        // 回底键出现时机 A+B（10-10 装机反馈用户拍板）：
+        // A=离底超过 15 条目（约一屏半）才显示——翻一两行找东西不再闪键，翻远了才给一键直达；
+        // B=不在底部时有新日志到达（size 超过「上次在底部时」的基线）也显示——翻旧日志时
+        //   新请求进来，箭头提示「下面有新的」，一按即回。
+        // 旧逻辑=只要不在最底就常驻（出现太勤，用户反馈「时机该改改」）。
+        // 基线 lastSeenSizeAtBottom 在 isAtBottom=true 时同步；按键回底后 isFarFromBottom
+        // 转否且基线已同步，键自然消失。
+        var lastSeenSizeAtBottom by remember { mutableStateOf(list.size) }
+        val isFarFromBottom by remember {
+            derivedStateOf {
+                val layoutInfo = listState.layoutInfo
+                val visibleItemsInfo = layoutInfo.visibleItemsInfo
+                if (layoutInfo.totalItemsCount <= 0 || visibleItemsInfo.isEmpty()) {
+                    false
+                } else {
+                    val lastVisibleItem = visibleItemsInfo.last()
+                    // 离底 15 条目以上=一屏开外（行流单条约 40~60dp，15 条≈一屏半）
+                    layoutInfo.totalItemsCount - 1 - lastVisibleItem.index > 15
+                }
+            }
+        }
         val isAtBottom by remember {
             derivedStateOf {
                 val layoutInfo = listState.layoutInfo
                 val visibleItemsInfo = layoutInfo.visibleItemsInfo
-                if (layoutInfo.totalItemsCount <= 0) {
-                    true
-                } else {
-                    if (visibleItemsInfo.isEmpty()) true
-                    else {
-                        val lastVisibleItem = visibleItemsInfo.last()
-                        lastVisibleItem.index > layoutInfo.totalItemsCount - 5
-                    }
-                }
+                if (layoutInfo.totalItemsCount <= 0 || visibleItemsInfo.isEmpty()) true
+                else visibleItemsInfo.last().index >= layoutInfo.totalItemsCount - 1
             }
         }
+        // 滚回底部（或本来就在底）时同步基线：此后 size 增长才被视为「新到达」
+        LaunchedEffect(isAtBottom) {
+            if (isAtBottom) lastSeenSizeAtBottom = list.size
+        }
+        val hasNewBelow = list.size > lastSeenSizeAtBottom && !isAtBottom
+        val showJumpToBottom = isFarFromBottom || hasNewBelow
         LaunchedEffect(list.size) {
             if (autoScrollToBottom && currentGroups.items.isNotEmpty())
                 runCatching { listState.animateScrollToItem(currentGroups.items.lastIndex) }
@@ -569,11 +589,9 @@ internal fun LogScreen(
                                             .background(
                                                 MaterialTheme.colorScheme.primary.copy(alpha = 0.10f)
                                             )
-                                        else if (isMatch) Modifier
-                                            .clip(RoundedCornerShape(6.dp))
-                                            .background(
-                                                MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.5f)
-                                            )
+                                        // 搜索命中底色整撤（10-10 装机用户令）：图二搜索态命中项
+                                        // 整行淡绿块太重，命中信息由「N 处匹配」计数与跳转承担，
+                                        // 行本身保持素底
                                         else Modifier
                                     )
                                     // 10-10 B 案：裸行左缘 4→16，与卡内正文/日期签文字同落
@@ -797,7 +815,11 @@ internal fun LogScreen(
                     }
                 }
                 item {
-                    Spacer(Modifier.navigationBarsPadding())
+                    // 尾部 Spacer 曾用 navigationBarsPadding（手势条避让）——与本页上游
+                    // MainPager bottomPad（含手势条）+ TtsLogScreen calculateBottomPadding
+                    // 两层避让叠加，列表末尾与底栏之间多出一条空白（10-10 装机截图实锤）。
+                    // 改固定 8dp 只做行尾呼吸，手势条高度由上游两层负责
+                    Spacer(Modifier.height(8.dp))
                 }
             }
 
@@ -809,7 +831,7 @@ internal fun LogScreen(
                 // 键缩小后 48dp 遗留外距把键顶离屏底太远（用户 10-08：太靠上）→20dp，
                 // 拇指自然可及也不压底栏
                 .padding(bottom = 20.dp),
-            visible = !isAtBottom,
+            visible = showJumpToBottom,
             enter = fadeIn() + expandIn(expandFrom = Alignment.BottomCenter),
             exit = shrinkOut(shrinkTowards = Alignment.BottomCenter) + fadeOut(),
         ) {
@@ -1020,9 +1042,7 @@ private fun LogEntryBody(
         modifier = if (highlight) Modifier
             .clip(RoundedCornerShape(4.dp))
             .background(Color(0xFFFFE082))
-        else if (isMatch) Modifier
-            .clip(RoundedCornerShape(4.dp))
-            .background(MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.5f))
+        // 搜索命中底色整撤（10-10 装机用户令）：与裸行整行底同批，命中不再染行
         else Modifier
     )
 }

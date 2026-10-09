@@ -6,22 +6,20 @@ import com.github.jing332.tts_server_android.compose.ComposeActivity
 import com.github.jing332.tts_server_android.compose.theme.AppTheme
 
 /**
- * Jet 页「+ 新建账号」登录宿主（10-10 轻量化，用户定稿流程）：
- * 选供应商 → 新建 → 渠道选择弹窗 → 登录流程 → 成功回 Jet 页（账号区直接显示）。
+ * Jet Hub 插件 UI 的「新建账号」登录宿主（10-10）。
  *
- * 旧实现 setContent { AccountPoolScreen } 拉起整个原生池页——分组头/签到/续期全在，
- * 与 Jet 页（WebView 插件版）两层 UI 打架（用户截图吐槽）。现在只渲染登录链
- * （JetHubLoginHost），全量管理仍在设置入口的账号池页。
+ * 为什么单独起一个 Activity：插件前端点「+新建账号」要的是「拿一个 loginUrl + 轮询」，
+ * 而我们 13 个渠道的登录形态各不相同（WebView / 设备码 / 凭据直填 / 扫码 / 短信），
+ * 这些流程在 `AccountPoolScreen` 里已经全部接好。与其在桥里重写一遍，不如把这个
+ * 现成页面挂到一个独立 Activity 上——用户在这里走完任意渠道的登录，回到插件 UI 后
+ * 账号列表自动刷新（桥的 login.poll 以「账号集合变化」为完成判据）。
  */
 class JetHubLoginActivity : ComposeActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContent {
             AppTheme {
-                JetHubLoginHost(
-                    context = this,
-                    onFinished = { finishAfterTransition() },
-                )
+                AccountPoolScreen(onBack = { finishAfterTransition() })
             }
         }
     }
