@@ -131,33 +131,11 @@
     line-height: 14px;
   }
 
-  /* 顶部胶囊（10-10 用户令「标签太小需要大一点」）：字号 11→13、
-     图标 24→28、内边距放宽，账号数小牌同步放大 */
-  body.dsh-phone-mobile .dim-jh-provider {
-    gap: 7px;
-    padding: 9px 12px !important;
-  }
-  body.dsh-phone-mobile .dim-jh-providerIcon {
-    width: 28px !important;
-    height: 28px !important;
-    border-radius: 7px !important;
-  }
-  body.dsh-phone-mobile .dim-jh-providerIcon img {
-    width: 19px !important;
-    height: 19px !important;
-  }
-  body.dsh-phone-mobile .dim-jh-providerLabel strong {
-    font-size: 13px !important;
-    line-height: 17px !important;
-    max-width: 116px;
-  }
-  body.dsh-phone-mobile .dim-jh-providerCount {
-    min-width: 17px;
-    height: 17px;
-    padding: 0 4px;
-    border-radius: 9px;
-    font-size: 11px;
-    line-height: 17px;
+  /* 页头按钮加大（10-10 用户令「顶部标签太小」——指页头按钮排，非供应商胶囊）：
+     字号 13→15、内边距放宽；供应商胶囊维持原紧凑尺寸（用户令「供应商名不需要加大」） */
+  body.dsh-phone-mobile .dim-jh-headerActions .dim-jh-btn {
+    font-size: 15px !important;
+    padding: 9px 14px !important;
   }
 
   /* 页头「关闭」按钮隐藏（10-10 用户令「不需要」）：桌面 DSH 的退出口，
