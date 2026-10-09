@@ -191,21 +191,6 @@ internal class LogGroups(val items: List<Item>, val entryToList: IntArray) {
             val raw = ArrayList<Item>(list.size)
             var head = -1
             var members = ArrayList<Int>()
-            // 失败链悬置（10-10 装机截图三连实锤「失败后的重试/兜底/重试中源错误全散排」）：
-            // 失败=失败终点收卡后，「开始第N次重试」(主行)、「源错误」(重试中的结果子行)、
-            // 「使用兜底发音人」落在无卡区只能裸行——失败链被摊成四五块毫无关联。
-            // 语义上它们是**重试请求**的前奏（时序全在重试请求行之前），悬置在此，
-            // 下一个请求行开卡时整段并入其头部 members——失败组头行药丸推出
-            // 「失败(红)→重试N(灰)→切备用(黄)」……不对，失败与重试是**两张卡**：
-            // 失败组收卡时先清掉？不——悬置段跟的是「下一次开卡」，头行链正确形态：
-            // 失败组=「失败(红)」；重试组=「重试1(灰)→切备用(黄)→成功(绿)」（若重试中
-            // 再失败则继续悬置滚到下一张卡）。搜索/筛选收窄视图里悬置行跟随其请求行
-            // 同进退（同现或同缺），不会重演旧「前置区等不到开卡」的坑。
-            val pendingChain = ArrayList<Int>()
-            // 链开关：ERROR 收卡=失败终点→开链（其后的插件行/重试中错误/兜底全是重试链
-            // 前奏，即使链数组暂时空着也吸进来）；openCard 闭环、流结束落兜底时关链。
-            // 没有它，失败后紧随的插件行（重试 W 之前到达）会因链数组空而误落裸行
-            var chainOpen = false
 
             fun closeCard() {
                 if (head >= 0)
@@ -216,9 +201,6 @@ internal class LogGroups(val items: List<Item>, val entryToList: IntArray) {
             fun openCard(requestIdx: Int) {
                 closeCard()
                 head = requestIdx
-                members.addAll(pendingChain)
-                pendingChain.clear()
-                chainOpen = false
             }
 
             list.forEachIndexed { i, e ->
@@ -228,50 +210,33 @@ internal class LogGroups(val items: List<Item>, val entryToList: IntArray) {
                     // 插件日志一律独立裸行（10-10 用户终令「插件日志要拆开，一条归一条，
                     // 不并入请求组」）：无论何时产生（请求中/失败链期间）都不进组、不进
                     // 悬置链——与其他日志同格式独立成行（时间头/11sp/分隔线/定位键全同款）。
-                    // ⚠️ 推翻失败链批里「插件行跟进悬置链」的设计——用户澄清「纳入」指
-                    // 纳入统一格式体系（拆），不是塞进请求组（合）
                     e.isPluginLog -> raw.add(Item.Bare(i))
-                    // 结果/子行：有卡归卡（SUCCESS 顺带收卡；ERROR 也收卡=失败终点，
-                    // 其后的重试链悬置给重试请求卡）；无卡且链开着（失败链期间的
-                    // 重试中源错误）→ 归入悬置链；链没开=头部被筛掉的孤儿 → 裸行
+                    // 结果/子行：有卡归卡（SUCCESS 顺带收卡；ERROR 也收卡=失败终点——
+                    // 失败链悬置机制已撤销（10-10 终案「失败链按以前单条处理」），各行独立）
                     e.indent > 0 -> {
                         if (head >= 0) {
                             members.add(i)
-                            if (e.level == LogLevel.SUCCESS || e.level == LogLevel.ERROR) {
-                                closeCard()
-                                chainOpen = true
-                            }
-                        } else if (chainOpen) pendingChain.add(i)
-                        else raw.add(Item.Bare(i))
+                            if (e.level == LogLevel.SUCCESS || e.level == LogLevel.ERROR) closeCard()
+                        } else raw.add(Item.Bare(i))
                     }
                     // 规则日志一律落裸行（10-10 用户令：不进卡）。原「卡外悬置→下一张卡
                     // 做前置区」的机制整拆：搜索/筛选时收窄列表里经常没有跟得上的请求行，
                     // 悬置行等不到开卡就渲染不出来（表现为「勾了朗读规则也搜不到」）；
                     // 卡内也不再吸收规则行，避免分析行挂在无关请求卡顶造成误导
                     e.isSpeechRuleLog -> raw.add(Item.Bare(i))
-                    // "请求音频"主行：开新卡（悬置的失败链整段并入新卡头部，链关闭）
+                    // "请求音频"主行：开新卡（旧卡先收）
                     e.configId != 0L -> openCard(i)
                     // 其他主行（重试/备用TTS/兜底发音人/系统消息）：有卡归卡，ERROR=失败
-                    // 终点收卡+开链；无卡=失败链前奏 → 悬置给下一张卡，不落裸行
+                    // 终点收卡；无卡落裸行——失败链不再悬置并组（10-10 终案）
                     else -> {
                         if (head >= 0) {
                             members.add(i)
-                            if (e.level == LogLevel.ERROR) {
-                                closeCard()
-                                chainOpen = true
-                            }
-                        } else {
-                            pendingChain.add(i)
-                            chainOpen = true
-                        }
+                            if (e.level == LogLevel.ERROR) closeCard()
+                        } else raw.add(Item.Bare(i))
                     }
                 }
             }
             closeCard()
-            // 收尾：悬置链若到最后也没等来请求行（流刚开/重试后流结束/头部被筛），
-            // 兜底落裸行，保证不丢条目
-            pendingChain.forEach { raw.add(Item.Bare(it)) }
-            pendingChain.clear()
 
             // 插日期签 + 建条目→列表项映射
             val finalItems = ArrayList<Item>(raw.size + 4)
@@ -651,6 +616,12 @@ internal fun LogScreen(
                                         fontSize = 11.sp,
                                         color = MaterialTheme.colorScheme.onSurfaceVariant
                                     )
+                                    // 行级丸（10-10 终案）：重试 W 主行=重试N、兜底/备用主行=
+                                    // 切备用、失败主行=失败——失败链单条化后丸跟着各行走；
+                                    // 插件/规则/系统消息裸行 pillOf 返回 null 不渲染
+                                    pillOf(log)?.let {
+                                        Box(Modifier.padding(start = 6.dp)) { StatusPill(it) }
+                                    }
                                     Text(
                                         text = "\t${log.level.toLogLevelChar()}",
                                         style = MaterialTheme.typography.bodySmall,
@@ -712,13 +683,10 @@ internal fun LogScreen(
                             val memberEntries = item.members.map { list[it] }
                             val groupLogs = (listOf(item.head) + item.members).map { list[it] }
                             val groupChecked = groupLogs.all { it in checkedEntries }
-                            // 药丸组（时序推导）与丸后灰字（末结果数字/原因）
-                            val pills = remember(item.head, item.members) {
-                                derivePills(head, memberEntries)
-                            }
-                            val tailText = remember(item.head, item.members) {
-                                tailTextOf(head, memberEntries)
-                            }
+                            // 行级丸（10-10 终案）：请求行只带自己那颗丸（成功/失败）+
+                            // 本行数字/截短原因——不再汇总链路
+                            val pill = remember(item.head) { pillOf(head) }
+                            val tailText = remember(item.head) { tailTextOfRow(head) }
                             // 行流定稿（10-10 用户令）：成功=行头绿丸+灰数字，成员区整撤
                             // （结果信息已上头）；失败/重试/切备用的过程行仍要露出——
                             // 有非成功成员行时显示成员区（成功行本身不上，数字已在丸后）
@@ -768,15 +736,15 @@ internal fun LogScreen(
                                         style = MaterialTheme.typography.bodySmall,
                                         color = MaterialTheme.colorScheme.onSurfaceVariant
                                     )
-                                    pills.forEach { pill ->
-                                        Box(Modifier.padding(start = 6.dp)) { StatusPill(pill) }
+                                    pill?.let {
+                                        Box(Modifier.padding(start = 6.dp)) { StatusPill(it) }
                                     }
-                                    // 丸后灰字（成功=耗时·大小/失败=原因），与丸留 8dp 隙
+                                    // 丸后灰字（成功=大小·秒/失败主行=截短原因），与丸留 8dp 隙
                                     if (tailText != null) {
                                         Text(
                                             text = tailText,
                                             style = MaterialTheme.typography.bodySmall,
-                                            color = if (pills.lastOrNull()?.kind == LogPillKind.FAIL)
+                                            color = if (pill?.kind == LogPillKind.FAIL)
                                                 MaterialTheme.colorScheme.error
                                             else MaterialTheme.colorScheme.onSurfaceVariant,
                                             modifier = Modifier.padding(start = 8.dp)
@@ -894,68 +862,50 @@ internal fun LogScreen(
 private fun isMatchEntry(e: LogEntry, q: String): Boolean =
     q.isNotEmpty() && (e.message.contains(q, ignoreCase = true) || e.time.contains(q, ignoreCase = true))
 
-// 药丸状态推导（10-10 行流改版）：从归组的成员行里还原这次请求走过的路。
-// 顺序按日志时序：重试N/切备用(过程)→最终结果(成功/失败)。成功无结果行(头部被
-// 筛掉/还没来)时只显示过程丸。
-private fun derivePills(head: LogEntry, members: List<LogEntry>): List<LogPill> {
-    val pills = ArrayList<LogPill>()
-    var retryNo = 0
-    val plain = { s: String -> s.replace(Regex("<[^>]*>"), "") }
-    for (m in members) {
-        val msg = plain(m.message)
-        when {
-        // WARN 主行「开始第 N 次重试」：序号优先从文案提取（连败多轮时每轮各一组，
-        // 组内计数器会都从 1 起——10-10 仿真实锤），提取不到再退回组内递增
-        msg.contains("次重试") || msg.contains(" retry", true) -> {
-            val n = Regex("第 (\\d+) 次").find(msg)?.groupValues?.get(1)?.toIntOrNull()
-            retryNo++
-            pills.add(LogPill(LogPillKind.RETRY, "重试${n ?: retryNo}"))
+// 行级药丸推导（10-10 终案「失败链按以前单条处理+丸保留」）：每条日志按自己的
+// 级别/文案出一颗丸——重试 W 主行=重试N、兜底/备用 I 主行=切备用、成功请求行=成功、
+// ERROR 请求主行=失败。成员行（源错误等结果子行）不调此函数=无丸（✖ 前缀承担）。
+// 失败链悬置并组已撤销（各行独立），组头行不再汇总链路——丸只说自己。
+private fun pillOf(e: LogEntry): LogPill? {
+    val msg = e.message.replace(Regex("<[^>]*>"), "")
+    return when {
+        e.configId != 0L -> when (e.level) {
+            LogLevel.SUCCESS -> LogPill(LogPillKind.OK, "成功")
+            LogLevel.ERROR -> LogPill(LogPillKind.FAIL, "失败")
+            else -> null
         }
-            // WARN 主行「使用备用TTS：x」/「使用备用发音人：a → b」
-            // WARN 主行「使用备用TTS：x」/「使用备用发音人：a → b」/「使用兜底发音人：
-            // a → b（重试失败兜底）」——兜底与备用是两条来路（09-17 用户令分词），药丸
-            // 同为切备用黄（10-10 用户确认：兜底就是备用语义，头部一律黄丸）
-            msg.startsWith("使用备用") || msg.startsWith("使用兜底") ->
-                pills.add(LogPill(LogPillKind.STANDBY, "切备用"))
-            m.level == LogLevel.SUCCESS -> pills.add(LogPill(LogPillKind.OK, "成功"))
-            m.level == LogLevel.ERROR -> pills.add(LogPill(LogPillKind.FAIL, "失败"))
-        }
+        msg.contains("次重试") || msg.contains(" retry", true) ->
+            LogPill(LogPillKind.RETRY, "重试" + (Regex("第 (\\d+) 次").find(msg)?.groupValues?.get(1) ?: ""))
+        msg.startsWith("使用备用") || msg.startsWith("使用兜底") ->
+            LogPill(LogPillKind.STANDBY, "切备用")
+        e.level == LogLevel.ERROR && e.indent == 0 -> LogPill(LogPillKind.FAIL, "失败")
+        else -> null
     }
-    return pills
 }
 
-// 丸后灰字：成功=「耗时·大小」；失败=原因截短 40 字（10-10 用户拍板时间行④方案C：
-// 头行带截短红原因，完整「源错误： xxx」行回成员区显示——「源错误」提示不丢）。
-// 取最后一次出现的 ERROR（与末丸对应）；「获取失败：」有前缀取后缀，「源错误：」行
-// 无该前缀则整行保留；截短=超 40 全角字加「…」
-private fun tailTextOf(head: LogEntry, members: List<LogEntry>): String? {
-    val plain = { s: String -> s.replace(Regex("<[^>]*>"), "") }
-    var tail: String? = null
-    for (m in members) {
-        val msg = plain(m.message)
-        when {
-            m.level == LogLevel.SUCCESS ->
-                tail = msg.substringAfter("获取成功：", "").trim().ifEmpty { null }
-            m.level == LogLevel.ERROR ->
-                tail = msg.substringAfter("获取失败：", msg)
-                    .substringBefore("<br>").substringBefore("\n")
-                    .trim().ifEmpty { null }
-        }
+// 行级丸后灰字：成功=「大小 · 耗时秒」；失败主行=原因截短 40 字（时间行④方案C）。
+// 只看本行文案（组头行=请求行）。截短=超 40 全角字加「…」
+private fun tailTextOfRow(e: LogEntry): String? {
+    val msg = e.message.replace(Regex("<[^>]*>"), "")
+    val t = when {
+        e.level == LogLevel.SUCCESS ->
+            msg.substringAfter("获取成功：", "").trim().ifEmpty { null }
+        e.level == LogLevel.ERROR ->
+            msg.substringAfter("获取失败：", msg)
+                .substringBefore("<br>").substringBefore("\n")
+                .trim().ifEmpty { null }
+        else -> null
+    } ?: return null
+    var w = 0f
+    val out = StringBuilder()
+    var clipped = false
+    for (ch in t) {
+        val cw = if (ch.code < 0x2E80) 0.55f else 1.0f
+        if (w + cw > 40f) { clipped = true; break }
+        w += cw
+        out.append(ch)
     }
-    // 方案C：截短 40 全角字（weightedWidth 口径：全角 1 半角 0.55）
-    if (tail != null) {
-        var w = 0f
-        val out = StringBuilder()
-        var clipped = false
-        for (ch in tail) {
-            val cw = if (ch.code < 0x2E80) 0.55f else 1.0f
-            if (w + cw > 40f) { clipped = true; break }
-            w += cw
-            out.append(ch)
-        }
-        if (clipped) tail = out.toString().trimEnd() + "…"
-    }
-    return tail
+    return if (clipped) out.toString().trimEnd() + "…" else t
 }
 
 internal enum class LogPillKind { OK, FAIL, RETRY, STANDBY }
