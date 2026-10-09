@@ -880,9 +880,12 @@ class SystemTtsService : TextToSpeechService(), IEventDispatcher {
     private fun normalEvent(e: NormalEvent) {
         when (e) {
             is NormalEvent.Request ->
-                if (e.retries > 0)
-                    logW(getString(R.string.systts_log_start_retry, e.retries))
-                else {
+                if (e.retries > 0) {
+                    // 重试行瘦身（10-11 用户令）：正文「开始第 N 次重试」撤——裸行的
+                    // 「重试N」丸已表达，两处同文重复；保留 WARN 级别供级别筛选(E→W)可筛。
+                    // 空串落库会让行头只剩时间+丸，正是预览定稿的「05:07:27 (重试1)」形态
+                    logW("")
+                } else {
                     // "请求音频:"前缀走级别色(绿)普通, 正文 <b> 加粗, 次级信息哨兵色→石板灰；
                     // MDC 携带配置项 id + 实时角色名 供日志快捷面板定位（写完立即清理防串扰）
                     val configId = (e.request.config.tag as? SystemTtsV2)?.id ?: 0L
@@ -999,7 +1002,13 @@ class SystemTtsService : TextToSpeechService(), IEventDispatcher {
                     logE(getString(R.string.systts_log_failed, friendlyCause(e.cause)), e.cause)
                 }
             }
-            is ErrorEvent.RequestTimeout -> logW("超时：${SysTtsConfig.requestTimeout / 1000}秒")
+            // 超时行老版式对齐（10-11 用户令「超时行你也看看」）：超时=一种失败终点，
+            // 与源错误同待遇拼请求全文（超时秒数+正文粗+发音人信息），渲染层归组后
+            // 主体换成本条出「失败」胶囊——不再是 WARN 光秃秒数孤行，超时死哪段正文可见
+            is ErrorEvent.RequestTimeout -> logE(
+                "超时：${SysTtsConfig.requestTimeout / 1000}秒<br>" + e.request.text()
+            )
+
             ErrorEvent.ConfigEmpty -> {
                 logE(R.string.config_empty_error)
             }
@@ -1018,23 +1027,24 @@ class SystemTtsService : TextToSpeechService(), IEventDispatcher {
                     is StreamProcessorError.AudioDecoding -> logE(
                         getString(
                             R.string.audio_decoding_error,
-                            processor.error.toString() // 同上：不拼请求全文
+                            processor.error.toString() + "<br>" + e.request.text()
                         )
                     )
 
                     is StreamProcessorError.AudioSource -> logE(
                         getString(
                             R.string.audio_source_error,
-                            // 10-10 装机反馈：不再拼请求全文（正文在同行「请求音频」里已有，
-                            // 行流版失败原因还会在丸后红字重复一次，三处同文一大坨）
-                            processor.error.toString()
+                            // 老版格式回返（10-11 用户定稿「拿不准就按老版本，毕竟是起源」）：
+                            // 错误 + 换行 + 请求全文（正文粗体 + 发音人信息）——一次失败一条说完，
+                            // 渲染层按行拆段染红（错误/正文红，发音人信息不红）
+                            processor.error.toString() + "<br>" + e.request.text()
                         )
                     )
 
                     is StreamProcessorError.HandleError -> logE(
                         getString(
                             R.string.stream_handle_error,
-                            processor.error.toString()
+                            processor.error.toString() + "<br>" + e.request.text()
                         )
                     )
                 }

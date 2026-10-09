@@ -179,9 +179,13 @@ internal class LogGroups(
         // 搜索跳转/多选粒度/头行药丸推导用）。head=「请求音频」主行；
         // members=结果子行(indent>0)/插件过程行/其他主行(重试/备用/失败)。
         // 收组条件与旧卡一致：SUCCESS 结果、主行 ERROR（失败终点）、下一请求开组。
+        // absorbError=被本组吸收的源错误条目下标（10-11 老版式定稿）：源错误条目含
+        // 请求全文，失败时以它为主体渲染（胶囊源错误/英文红/正文红粗/发音人不红），
+        // 请求主行正文不再重复显示——同一次失败一条说完
         class Group(
             val head: Int,
             val members: List<Int>,
+            val absorbError: Int = -1,
         ) : Item()
     }
 
@@ -205,15 +209,26 @@ internal class LogGroups(
             // 是「该组以失败收场」——ERROR 子行/主行收卡时把 head 记进来，渲染侧查此表
             val failedHeads = HashSet<Int>()
             var groupFailed = false
+            // 连续同文源错误去重（10-11 老版式定稿配套）：记住上一条 ERROR 子行去 HTML
+            // 后的全文，重试风暴同文即丢；跨请求/文案变化重置
+            var lastErrorStripped: String? = null
+            // 老版式失败条（10-11 定稿）：本次开卡以来最近一条 ERROR 子行下标——
+            // 源错误条目含请求全文，收卡时它是组的渲染主体（absorbError）
+            var errMemberIdx = -1
 
             fun closeCard() {
                 if (head >= 0) {
-                    if (groupFailed) failedHeads.add(head)
-                    raw.add(Item.Group(head, members.toList()))
+                    if (groupFailed) {
+                        failedHeads.add(head)
+                        raw.add(Item.Group(head, members.toList(), absorbError = errMemberIdx))
+                    } else {
+                        raw.add(Item.Group(head, members.toList()))
+                    }
                 }
                 head = -1
                 members = ArrayList()
                 groupFailed = false
+                errMemberIdx = -1
             }
             fun openCard(requestIdx: Int) {
                 closeCard()
@@ -228,13 +243,26 @@ internal class LogGroups(
                     // 不并入请求组」）：无论何时产生（请求中/失败链期间）都不进组、不进
                     // 悬置链——与其他日志同格式独立成行（时间头/12sp/分隔线/定位键全同款）。
                     e.isPluginLog -> raw.add(Item.Bare(i))
-                    // ⚠️ ERROR 结果子行（源错误）也独立裸行（10-10 用户令「源错误详细信息
-                    // 不应该在失败块里」——至少五次强调）：与插件日志同待遇，单独成条不进
-                    // 成员区。收卡=失败终点（标记 groupFailed，头行渲染失败丸）
+                    // ⚠️ ERROR 结果子行（源错误）=失败终点（10-11 用户定稿「拿不准就按老版本」）：
+                    // 源错误条目本就含请求全文（服务端老版格式：错误+<br>+正文+发音人信息），
+                    // 归组成员区隐藏主行只渲染本条——即老版观感「胶囊源错误/英文红/正文红粗/
+                    // 发音人不红」一条说完。收卡=失败终点（groupFailed，渲染失败丸）。
+                    // 连续同文源错误去重（真机实锤：重试风暴同一句错误+正文原样刷两轮）：
+                    // 与上一条 ERROR 同文（去 HTML 后）则整条丢弃——重试必然同死法零新信息，
+                    // 文案变了（超时→401）照常显示。
                     e.indent > 0 && e.level == LogLevel.ERROR -> {
-                        if (head >= 0) groupFailed = true
+                        val hadHead = head >= 0
+                        if (hadHead) {
+                            groupFailed = true
+                            errMemberIdx = i
+                        }
+                        val stripped = e.message.replace(Regex("<[^>]*>"), "")
+                        val isDup = !stripped.isNullOrBlank() && stripped == lastErrorStripped
+                        lastErrorStripped = stripped
                         closeCard()
-                        raw.add(Item.Bare(i))
+                        // 有卡=已被组吸收（absorbError 渲染），不再落裸行避免双显；
+                        // 无卡=请求头被筛掉的孤儿，照旧裸行兜底
+                        if (!hadHead && !isDup) raw.add(Item.Bare(i))
                     }
                     // 结果/子行：有卡归卡（SUCCESS 顺带收卡）；无卡=头部被筛掉的孤儿 → 裸行
                     e.indent > 0 -> {
@@ -705,19 +733,27 @@ internal fun LogScreen(
                             val memberEntries = item.members.map { list[it] }
                             val groupLogs = (listOf(item.head) + item.members).map { list[it] }
                             val groupChecked = groupLogs.all { it in checkedEntries }
-                            // 行级丸（10-10 终案）：请求行只带自己那颗丸（成功/失败）+
-                            // 本行数字/截短原因——不再汇总链路
-                            // ⚠️ 成功丸/尾段必须从组内 SUCCESS 成员推导：成功「获取成功」
-                            // 子行已隐藏、其信息上头行，而请求主行本身是 INFO「请求音频：…」，
-                            // pillOf/tailTextOfRow 只看主行永远推不出成功丸——182baf3 只把失败
-                            // (failedHeads)接到了头行，成功链路漏接（真机实锤：成功行无任何提示）
+                            // 老版式失败条（10-11 用户定稿「拿不准就按老版本，毕竟是起源」）：
+                            // absorbError≥0 = 本组以源错误收场，渲染主体换成源错误条目
+                            //（服务端已拼回请求全文：错误+正文粗+发音人信息）——
+                            // 胶囊「源错误」+英文错误红+正文红粗+发音人信息不红，
+                            // 请求主行正文不再重复（同一次失败一条说完，老版观感）
+                            val absorbed = if (item.absorbError >= 0) list[item.absorbError] else null
+                            // 行级丸：成功=「成功」（从组内 SUCCESS 成员推导——成功子行隐藏
+                            // 信息上头行，主行是 INFO 推不出，aad9867 修）；失败=「源错误」
+                            //（有吸收条）/「失败」（其他死法：超时/获取失败等，文案跟错误类型走）
                             val successMember = memberEntries.firstOrNull { it.level == LogLevel.SUCCESS }
-                            val pill = remember(item.head, successMember) {
-                                if (successMember != null) LogPill(LogPillKind.OK, "成功")
-                                else pillOf(head, item.head, currentGroups.failedHeads)
+                            val pill = remember(item.head, successMember, absorbed) {
+                                when {
+                                    successMember != null -> LogPill(LogPillKind.OK, "成功")
+                                    absorbed != null -> LogPill(LogPillKind.FAIL, "源错误")
+                                    else -> pillOf(head, item.head, currentGroups.failedHeads)
+                                        ?: LogPill(LogPillKind.FAIL, "失败")
+                                }
                             }
-                            val tailText = remember(item.head, successMember) {
-                                tailTextOfRow(successMember ?: head)
+                            // 老版式失败条无丸后灰字（错误全文在正文区），成功尾段照旧
+                            val tailText = remember(item.head, successMember, absorbed) {
+                                if (absorbed != null) null else tailTextOfRow(successMember ?: head)
                             }
                             // 行流定稿（10-10 用户令）：成功=行头绿丸+灰数字，成员区整撤
                             // （结果信息已上头）；失败/重试/切备用的过程行仍要露出——
@@ -799,6 +835,25 @@ internal fun LogScreen(
                                         )
                                     }
                                 }
+                                // 老版式失败条（10-11 定稿）：渲染主体换成被吸收的源错误/
+                                // 超时条目（服务端已拼请求全文），请求主行正文不再重复——
+                                // 成功组不变（head 请求行照旧）。13sp 与成员行/裸行同档
+                                if (absorbed != null) {
+                                    LogEntryBody(
+                                        entry = absorbed,
+                                        darkTheme = darkTheme,
+                                        metaColor = metaColor,
+                                        voiceColor = voiceColor,
+                                        roleChipColor = roleChipColor,
+                                        pluginChipColor = pluginChipColor,
+                                        fontSize = 14.sp,
+                                        lineHeight = 18.2.sp, // 14×1.3
+                                        isMatch = isMatchEntry(absorbed, searchQuery),
+                                        emphasizeError = true,
+                                        oldStyleFail = true,
+                                        highlight = absorbed == locateHighlight,
+                                    )
+                                } else {
                                 LogEntryBody(
                                     entry = head,
                                     darkTheme = darkTheme,
@@ -816,6 +871,7 @@ internal fun LogScreen(
                                     isRequestHead = true,
                                     highlight = head == locateHighlight,
                                 )
+                                }
                                 // 过程成员行（10-10 用户令终版）：失败丸行（时间+丸，无文字）
                                 // 之后，**失败的详细信息单独列一行**——成员区 ERROR 行（完整
                                 // 「源错误： xxx」）必须显示；成功行不上（数字已进丸后）。
@@ -992,10 +1048,15 @@ private fun LogEntryBody(
     isRequestHead: Boolean = false,
     // 排版实验 1008（E）：错误行加粗 + ⚠ 行首标，让错误在行流里突出于成功行
     emphasizeError: Boolean = false,
+    // 老版式失败条分段染红（10-11 用户定稿「拿不准就按老版本」）：源错误/超时条目含
+    // 全文（错误 + <br> + <b>正文</b> + <br> + 发音人信息），老版观感=错误行与正文
+    // 正文红、发音人信息不红——条目级级别色做不到分段，这里按首个 <br> 分段实现：
+    // 发音人信息段（第二个 <br> 起）保持原哨兵色，前两段染老红
+    oldStyleFail: Boolean = false,
     // 「原文」定位命中（用户 10-08 甲方案）：黄底高亮闪现，由上层定时清除
     highlight: Boolean = false,
 ) {
-    val spanned = remember(entry.message, darkTheme, metaColor, voiceColor, roleChipColor, pluginChipColor, isRequestHead, emphasizeError) {
+    val spanned = remember(entry.message, darkTheme, metaColor, voiceColor, roleChipColor, pluginChipColor, isRequestHead, emphasizeError, oldStyleFail) {
         val base = HtmlCompat.fromHtml(entry.message, HtmlCompat.FROM_HTML_MODE_COMPACT)
             .toAnnotatedString()
             .remapMetaColor(metaColor, voiceColor, roleChipColor, pluginChipColor)
@@ -1037,6 +1098,23 @@ private fun LogEntryBody(
         }
         // 报错三件套②收口（10-10 用户令「最后的源错误信息加粗了，不应该」）：行首 ✖/⚠ 撤 +
         // **W/E 行加粗也撤**——用户明确不加粗；级别色（红/黄）本身就是信号，不再叠加任何强调
+        // 老版式失败条（10-11 定稿）：条目结构固定「错误串 + <br> + <b>正文</b> + <br> +
+        // 发音人信息」——第二段（正文）染老红，第一段（错误串）由条目级级别色染红，
+        // 第三段（发音人信息）保持哨兵重映射色不红。段界=换行符在文本中的下标
+        //（fromHtml 后 <br> 变 '\n'）
+        if (oldStyleFail) {
+            val nl1 = s.text.indexOf('\n')
+            val nl2 = if (nl1 >= 0) s.text.indexOf('\n', nl1 + 1) else -1
+            if (nl1 >= 0 && nl2 > nl1) {
+                val failRed = if (darkTheme) Color(0xFFE57373) else Color(0xFFF44336)
+                s = buildAnnotatedString {
+                    append(s.text)
+                    s.spanStyles.forEach { r -> addStyle(r.item, r.start, r.end) }
+                    // 正文段（两个换行之间）整体染老红，压过 <b> 的字重色
+                    addStyle(SpanStyle(color = failRed, fontWeight = FontWeight.Bold), nl1 + 1, nl2)
+                }
+            }
+        }
         s
     }
     val bodyColor = forceColor ?: when {
