@@ -12,13 +12,8 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.WindowInsets
-import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.pager.HorizontalPager
@@ -26,16 +21,13 @@ import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.material3.BottomAppBarDefaults
 import androidx.compose.material3.BottomAppBarScrollBehavior
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
-import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.NavigationBar
+import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalDensity
-import androidx.compose.ui.semantics.Role
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.DisposableEffect
@@ -94,9 +86,9 @@ fun AnimatedContentScope.MainPager(sharedVM: SharedViewModel) {
         !a11yTouchEnabled
     })
     ControlBottomBarVisibility(a11yTouchEnabled, scrollBehavior)
-    // 底栏满高的像素值（60dp）：布局式滚动隐藏用它算裁剪量
+    // 底栏满高的像素值（10-10 回官方 NavigationBar=80dp）：布局式滚动隐藏用它算裁剪量
     val density = LocalDensity.current
-    val bottomBarHeightPx = with(density) { 60.dp.toPx() }.roundToInt()
+    val bottomBarHeightPx = with(density) { 80.dp.toPx() }.roundToInt()
 
     val overlayController = rememberOverlayController()
 
@@ -135,79 +127,36 @@ fun AnimatedContentScope.MainPager(sharedVM: SharedViewModel) {
             Scaffold(
                 modifier = Modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
                 bottomBar = {
-                    // 自绘微信式底栏（替代 M3 NavigationBar）：M3 最低 80dp（32dp 胶囊撑高），
-                    // 微信/QQ同款 60dp：24dp 图标+3dp 图文缝+中文常显，选中态无胶囊、图标文字同染 primary。
-                    // 10-10 滚动隐藏 v2（真机实锤 v1 的 offset+clipToBounds 顺序错了：
-                    // offset 只挪绘制、布局高度不变，clip 在 offset 前执行=裁在原位，底栏平移后
-                    // 悬在内容中间，上下都露内容——见用户截图 19:08）。
-                    // v2 改布局式：直接把高度裁到 (60dp+offset)，Surface 本体随高度收走，
-                    // Scaffold 槽位同步缩小，内容区真的多出空间（也顺带修了 v1「藏了但不多看行」）。
+                    // 10-10 用户拍板「回 M3 官方 NavigationBar」：自绘微信式 60dp 退役——
+                    // 反正滚动时底栏会藏起来（浏览态不占屏），展开态用官方 80dp 胶囊式
+                    // 白得全套官方视觉/热区/无障碍（选中项图标包 secondaryContainer 胶囊+文字，
+                    // 未选中项只图标——官方原味）。滚动隐藏 v2 布局式裁剪继续适用
+                    // （bottomBarHeight 裁的是整体高度，官方 NavigationBar 当内容装进去即可）。
+                    // 手势条区域官方组件自带 navigationBarsPadding 处理，不再自拼 Spacer。
                     Surface(
                         modifier = Modifier
                             .fillMaxWidth()
                             .bottomBarHeight({ scrollBehavior.state.heightOffset }, bottomBarHeightPx),
                         color = MaterialTheme.colorScheme.surfaceContainer
                     ) {
-                        Column {
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .height(60.dp)
-                                    .padding(horizontal = 4.dp),
-                                horizontalArrangement = Arrangement.SpaceEvenly,
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                for (destination in PagerDestination.routes) {
-                                    val isSelected =
-                                        pagerState.currentPage == destination.index
-                                    // 微信式：无胶囊，选中态图标文字同染 primary，未选中 onSurfaceVariant
-                                    val contentColor =
-                                        if (isSelected) MaterialTheme.colorScheme.primary
-                                        else MaterialTheme.colorScheme.onSurfaceVariant
-                                    Column(
-                                        modifier = Modifier
-                                            .weight(1f)
-                                            .clip(MaterialTheme.shapes.medium)
-                                            .clickable(
-                                                role = Role.Tab,
-                                                onClick = {
-                                                    scope.launch {
-                                                        pagerState.animateScrollToPage(destination.index)
-                                                    }
-                                                }
-                                            )
-                                            .padding(vertical = 6.dp),
-                                        horizontalAlignment = Alignment.CenterHorizontally,
-                                        // 图文缝 3dp+垂直居中：微信松弛感的关键，贴死会显得紧巴巴
-                                        verticalArrangement = Arrangement.spacedBy(
-                                            3.dp,
-                                            Alignment.CenterVertically
-                                        )
-                                    ) {
-                                        CompositionLocalProvider(
-                                            LocalContentColor provides contentColor
-                                        ) {
-                                            Box(Modifier.size(24.dp)) {
-                                                destination.icon()
-                                            }
+                        NavigationBar(
+                            containerColor = Color.Transparent // 色由外层 Surface 统一给（含手势条区）
+                        ) {
+                            for (destination in PagerDestination.routes) {
+                                val isSelected = pagerState.currentPage == destination.index
+                                NavigationBarItem(
+                                    selected = isSelected,
+                                    onClick = {
+                                        scope.launch {
+                                            pagerState.animateScrollToPage(destination.index)
                                         }
-                                        Text(
-                                            stringResource(destination.strId),
-                                            style = MaterialTheme.typography.labelSmall,
-                                            color = contentColor,
-                                            maxLines = 1
-                                        )
-                                    }
-                                }
-                            }
-                            // 手势条区域与底栏同色：Android14+ 关闭导航栏半透明后，
-                            // 底栏下方会露出一条 Scaffold 背景色的缝（微信=白栏白手势区，无缝）
-                            Spacer(
-                                Modifier.height(
-                                    WindowInsets.navigationBars.asPaddingValues()
-                                        .calculateBottomPadding()
+                                    },
+                                    icon = { Box(Modifier.size(24.dp)) { destination.icon() } },
+                                    label = { Text(stringResource(destination.strId), maxLines = 1) },
+                                    // 官方默认 always；四项文字常显与否由官方形态接管（只亮选中项）
+                                    alwaysShowLabel = false
                                 )
-                            )
+                            }
                         }
                     }
                 }
