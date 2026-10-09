@@ -3,18 +3,33 @@
  * 供应商侧栏在窄屏下变成页面顶部的「换行胶囊网格」（图标+名称，一行 3~4 个
  * 自动换行，全部同屏可见），下方直接显示选中供应商的账号面板。
  *
- * 本脚本只剩两件事：
- * 1. 给 body 打 dsh-phone-mobile 标记（jet-phone.css 的选择器靠它生效）；
- * 2. 兼容旧滚动逻辑：换行布局下 rail 不再是滚动容器（overflow-x:hidden），
- *    adapt() 的滚动居中在 flex-wrap 下自然无操作（scrollWidth==clientWidth），
- *    保留代码以兼容上游改回横滚布局。
- * 不做任何 DOM 移动/插入——全部样式覆盖都由 CSS 完成，React 无感。
+ * 选中收起（10-10 用户令「选中后只显示当前供应商和账号」）：
+ * 1. 用户点选供应商 → body 打 jh-collapse，CSS 把网格收成一行
+ *    （只留选中胶囊 + 「切换 ▾」）；初载不收（保持全览）。
+ * 2. 点「切换 ▾」（rail 空白区）或当前选中胶囊 → 摘掉 jh-collapse 展开网格。
+ * 收起/展开纯 class 切换，DOM 一个节点不动，React 无感。
+ * 不做任何 DOM 移动/插入——全部样式覆盖都由 CSS 完成。
  */
 (() => {
   if (window.__jhPhoneAdapt) return;
   window.__jhPhoneAdapt = true;
   const media = window.matchMedia('(max-width: 700px)');
   document.body.classList.add('dsh-phone-mobile');
+
+  // 点选供应商 → 收起网格（事件委托到 rail，React 重渲染不丢监听）
+  document.addEventListener('click', (e) => {
+    if (!media.matches) return;
+    const rail = e.target.closest && e.target.closest('.dim-jh-rail');
+    if (!rail) return;
+    const chip = e.target.closest('.dim-jh-provider');
+    if (chip && chip.getAttribute('aria-selected') !== 'true') {
+      // 点了未选中的供应商：让它完成选择，随后收起
+      document.body.classList.add('jh-collapse');
+    } else if (!chip || chip.getAttribute('aria-selected') === 'true') {
+      // 点「切换 ▾」（rail 空白）或已选中的胶囊：展开网格
+      document.body.classList.remove('jh-collapse');
+    }
+  }, true);
 
   const adapt = () => {
     if (!media.matches) return;

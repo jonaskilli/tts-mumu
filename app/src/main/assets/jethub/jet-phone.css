@@ -1,9 +1,9 @@
 /* Jet Hub 手机融合版覆盖层（2026-10-10）
-   在 dsh-phone.css 之后加载：把左侧 228px 供应商侧栏改成页面顶部常驻的
-   「宽条选择条」（图标+全名的横排长条，可横向滚动、吸顶），下方直接显示
-   选中供应商的账号面板（无账号时是插件自带的空态）。
-   晚批改版：竖排小 chip → 横排宽条（用户令「供应商做成宽条形状」），
-   短名 ::after 定制方案退役（宽条装得下全名）。
+   在 dsh-phone.css 之后加载：把左侧 228px 供应商侧栏改成页面顶部的
+   「换行胶囊网格」（图标+名称，一行 3~4 个自动换行、全部同屏可点），
+   下方直接显示选中供应商的账号面板（无账号时是插件自带的空态）。
+   选中后网格收成一行（只留选中胶囊 + 「切换 ▾」），点切换再展开——
+   账号列表不占地方。两版迭代：竖排小 chip → 横排宽条 → 换行网格+选中收起。
 
    设计取舍：只覆盖样式、不动 DOM——分组容器用 display:contents 从布局里
    拆掉，按钮直接参与横排；React 重渲染（分组切换/选中态更新）只改
@@ -47,6 +47,28 @@
      app 未接渠道总开关，「已打开 (N)/已关闭 (N)」恒为固定计数/空组，纯摆设 */
   body.dsh-phone-mobile .dim-jh-railGroup { display: contents; }
   body.dsh-phone-mobile .dim-jh-railGroupTitle { display: none; }
+
+  /* 选中收起（10-10 用户令「选中后只显示当前供应商和账号」）：
+     网格收成一行，只留选中的胶囊；「切换 ▾」提示（rail ::after）点开重选。
+     收起由 phone-adapt.js 打 jh-collapse 类（用户点选后才收，初载不收）。 */
+  body.dsh-phone-mobile.jh-collapse .dim-jh-provider[aria-selected="false"] { display: none !important; }
+  /* ⚠️ display:none 必须 !important：chip 基础规则是 display:flex !important（同权重，
+     后声明者胜——实锤踩过：不带时收起态未选 chip 依然显示） */
+  body.dsh-phone-mobile.jh-collapse .dim-jh-rail::after {
+    content: "切换 ▾";
+    align-self: center;
+    flex: none;
+    margin-left: auto;
+    margin-right: 2px;
+    padding: 6px 10px;
+    border-radius: 10px;
+    font-size: 11px;
+    color: #1677ff;
+    background: #eef5ff;
+  }
+  /* 收起态 rail 内边距放宽：默认 10px 会把 margin-left:auto 顶到最右的
+     「切换」钮裁掉一半（实测踩过），收起态留足右缘空间 */
+  body.dsh-phone-mobile.jh-collapse .dim-jh-rail { padding-right: 14px !important; }
 
   /* 单行容器也拆掉，按钮直接成为 chip */
   body.dsh-phone-mobile .dim-jh-providerRow { display: contents; }
