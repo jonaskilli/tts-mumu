@@ -622,12 +622,8 @@ internal fun LogScreen(
                                     pillOf(log)?.let {
                                         Box(Modifier.padding(start = 6.dp)) { StatusPill(it) }
                                     }
-                                    Text(
-                                        text = "\t${log.level.toLogLevelChar()}",
-                                        style = MaterialTheme.typography.bodySmall,
-                                        fontSize = 12.sp,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                                    )
+                                    // ⚠️ 级别字母（I/W/E）整删（10-10 用户令「W,I 这种字母都删除」）：
+                                    // 丸已承担状态表达,字母冗余
                                     // 「原文」定位键（10-10 装机反馈用户令）：筛选/搜索态裸行
                                     // 同样可跳回完整流原位（此前只有请求组头行有，插件/规则
                                     // 日志搜到后没键回不去）；弹簧顶最右，样式同组头行
@@ -782,16 +778,16 @@ internal fun LogScreen(
                                     isRequestHead = true,
                                     highlight = head == locateHighlight,
                                 )
-                                // 过程成员行：失败/重试时露出（成功行不上，其数字已进丸后）。
-                                // ERROR 行全部显示（10-10 时间行④方案C 定稿）：头行红丸后只带
-                                // 截短 40 字原因，完整「源错误： xxx」行回成员区——截短版只是
-                                // 索引，完整版才有排查价值；头行与成员区不再互斥。
-                                // （上版「只去重最后一条」基于「头行=完整原因唯一出口」，已随
-                                // 方案C 失效；此变量保留名 lastErrIdx 以免误删历史语义注释）
+                                // 过程成员行（10-10 用户令「只要失败，不要后面的文字」终版）：
+                                // 失败丸行=时间+丸，无任何异常文字；成员区 ERROR 行（源错误）
+                                // 整撤——失败信息全部由丸表达，异常细节走长按复制原始日志。
+                                // 成功行不上（数字已进丸后）；WARN 重试/兜底等过程行不在成员区
+                                // （失败链单条化后它们已独立成裸行，见裸行分支）
                                 if (showMembers) {
                                     item.members.forEach { mIdx ->
                                         val m = list[mIdx]
                                         if (m.level == LogLevel.SUCCESS) return@forEach
+                                        if (m.level == LogLevel.ERROR) return@forEach
                                         Column(Modifier.padding(top = 2.dp)) {
                                             LogEntryBody(
                                                 entry = m,
@@ -883,18 +879,15 @@ private fun pillOf(e: LogEntry): LogPill? {
     }
 }
 
-// 行级丸后灰字：成功=「大小 · 耗时秒」；失败主行=原因截短 40 字（时间行④方案C）。
-// 只看本行文案（组头行=请求行）。截短=超 40 全角字加「…」
+// 行级丸后灰字：只服务成功行=「大小 · 耗时秒」（10-10 用户令：失败丸后不跟
+// IOException 文案、失败丸单独一行——失败行的异常细节走成员区完整源错误行）。
+// 截短 40 全角字逻辑保留（成功行数字不长，此处主要防御）。
 private fun tailTextOfRow(e: LogEntry): String? {
     val msg = e.message.replace(Regex("<[^>]*>"), "")
     val t = when {
         e.level == LogLevel.SUCCESS ->
             msg.substringAfter("获取成功：", "").trim().ifEmpty { null }
-        e.level == LogLevel.ERROR ->
-            msg.substringAfter("获取失败：", msg)
-                .substringBefore("<br>").substringBefore("\n")
-                .trim().ifEmpty { null }
-        else -> null
+        else -> null // 失败行不放原因（用户令）
     } ?: return null
     var w = 0f
     val out = StringBuilder()
