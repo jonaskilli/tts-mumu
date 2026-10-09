@@ -121,7 +121,6 @@ import org.json.JSONArray
 import org.json.JSONObject
 import com.github.jing332.tts_server_android.R
 import com.github.jing332.tts_server_android.compose.nav.NavTopAppBar
-import com.github.jing332.tts_server_android.compose.systts.account.JetHubActivity
 import com.github.jing332.tts_server_android.service.systts.help.AccountPool
 import com.github.jing332.tts_server_android.service.systts.help.CharacterRecordsFile
 import com.github.jing332.tts_server_android.service.systts.help.KeyListFile
@@ -1572,31 +1571,9 @@ fun KeyManagerScreen(tagRuleId: String, onBack: () -> Unit) {
                 // 顶栏动作区已图标化（导入/导出本就无文字），一个文字键放得下且视觉重心立住；
                 // 「密」标题竖排风险不再（当时根因=动作区总宽过大，现只多一个短文字键）
                 actions = {
-                    // 账号池（10-09 二令回顶栏 / 三令改图标+文字 / 四令改名 Jet 与 DSH
-                    // Jet Hub 呼应）：FlightTakeoff 图标 + 「Jet」文字
-                    // 10-10 五令（用户「照抄插件版式」）：入口改指 JetHubActivity——
-                    // WebView 跑插件原版前端（assets/jethub）+ 官方手机适配层，
-                    // 版式与插件一致，不再是原生手描。原 AccountPoolScreen 保留兜底
-                    //（JetHubLoginActivity 的「新建账号」仍在用它的登录分流）。
-                    TextButton(
-                        onClick = { JetHubActivity.start(context) },
-                        contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp),
-                        // 高度对齐 IconButton 48 热区；高度In设 min 防文字换行顶高顶栏
-                        modifier = Modifier.heightIn(min = 48.dp)
-                    ) {
-                        Icon(
-                            Icons.Default.FlightTakeoff,
-                            contentDescription = null,
-                            modifier = Modifier.size(18.dp),
-                            tint = MaterialTheme.colorScheme.primary
-                        )
-                        Spacer(Modifier.width(4.dp))
-                        Text(
-                            stringResource(R.string.account_pool_title),
-                            style = MaterialTheme.typography.labelLarge,
-                            color = MaterialTheme.colorScheme.primary
-                        )
-                    }
+                    // 账号池入口（10-09 三令 TextButton / 10-10 改指 JetHubActivity）已随
+                    // 「全删 Jet」（10-11 用户令「把 jet 删掉吧，我烦了」）整链退役：
+                    // Activity/桥/assets 全删，账号池管理回归 AccountPoolScreen 原生页。
                     // 导入（纯图标；一步导入逻辑不变）
                     IconButton(
                         onClick = {
