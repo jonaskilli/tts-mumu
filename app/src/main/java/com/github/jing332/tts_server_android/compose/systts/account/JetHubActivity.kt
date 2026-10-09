@@ -28,6 +28,8 @@ import androidx.activity.OnBackPressedCallback
 import androidx.activity.compose.LocalOnBackPressedDispatcherOwner
 import com.github.jing332.tts_server_android.R
 import com.github.jing332.tts_server_android.compose.ComposeActivity
+import com.github.jing332.tts_server_android.service.systts.help.AccountPool
+import com.github.jing332.tts_server_android.service.systts.help.KeyListFile
 import com.github.jing332.tts_server_android.compose.nav.NavTopAppBar
 import com.github.jing332.tts_server_android.compose.theme.AppTheme
 
@@ -76,10 +78,20 @@ class JetHubActivity : ComposeActivity() {
                 // 旧 BackHandler { finishAfterTransition() } 已删（10-10 返回链排查）：
                 // 它与新 callback 同时 enabled 会按注册序竞争，系统返回可能绕过弹窗拦截。
 
-                // 「新建账号」launcher：去原生登录页；回来后重载 WebView（插件 UI 重读账号）
+                // 「新建账号」launcher：去原生登录页；回来后①补跑 addAsKey（自动建密钥分组+拉
+                // 模型——此前只挂在原生池页进页时机，Jet 页直连登录成功后没人触发，TRAE 等
+                // 新渠道账号落了池却没分组，10-11 实锤）②重载 WebView（插件 UI 重读账号）
                 val loginLauncher = rememberLauncherForActivityResult(
                     ActivityResultContracts.StartActivityForResult()
                 ) {
+                    // 网络+文件 IO：独立线程跑，完不成也不阻塞 reload（密钥分组晚几秒出现可接受）
+                    kotlinx.coroutines.GlobalScope.launch(kotlinx.coroutines.Dispatchers.IO) {
+                        runCatching {
+                            AccountPool.load().forEach { acc ->
+                                runCatching { AccountPool.addAsKey(KeyListFile.DEFAULT_TAG_RULE_ID, acc) }
+                            }
+                        }
+                    }
                     runCatching { webView?.reload() }
                 }
                 val bridge = remember {
