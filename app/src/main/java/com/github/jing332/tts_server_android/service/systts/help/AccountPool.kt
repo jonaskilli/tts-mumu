@@ -681,17 +681,33 @@ object AccountPool {
         val targetIfc = ifaces.firstOrNull { KeyListFile.sameApiSite(it.baseUrl, baseUrl) }
         // 模型清单不自动塞（10-10 用户令）：组里有什么模型完全由用户「拉取模型」决定，
         // 账号登录只落分组+密钥条目，杜绝「乱七八糟不匹配的模型」。
+        // 条目模型段取该组第一个模型（对话链按组模型发；组暂无模型=空串占位）
+        val model = targetIfc?.models?.firstOrNull().orEmpty()
         // 条目去重判据：同站点+同钥（模型段不再参与——同账号只落一条）
-        val dup = keys.any {
+        val existing = keys.firstOrNull {
             val p = KeyListFile.parseKeyValue(it.value)
             p != null && !p.isDirect && KeyListFile.sameApiSite(p.url, baseUrl) &&
                 p.key == acc.accessToken
         }
-        if (dup) return false to "已在密钥管理（$displayName），无需重复添加"
-
-        // 条目模型段取该组第一个模型（对话链按组模型发；组暂无模型=空串占位，
-        // 用户拉模型后重进池页会幂等补齐为真模型名）
-        val model = targetIfc?.models?.firstOrNull().orEmpty()
+        if (existing != null) {
+            // 模型补齐（10-10 真机报障修复）：组里没拉到模型时落的空串占位条目，
+            // 密钥页一测试就报「模型名不能为空」。此前注释承诺「重进池页幂等补齐」
+            // 但补齐逻辑从没实现——去重分支直接秒回，占位永远是空的。现在真补：
+            // 组里已有模型 且 占位条目模型段还空着 → 回填第一个模型（条目名同步改，
+            // 与后落条目的命名口径一致）。幂等：模型段非空的条目原样秒回。
+            val parsed = KeyListFile.parseKeyValue(existing.value)
+            if (parsed != null && !parsed.isDirect && parsed.model.isEmpty() && model.isNotEmpty()) {
+                KeyListFile.saveKeys(tagRuleId, keys.map {
+                    if (it.keyCode == existing.keyCode) it.copy(
+                        value = "$baseUrl@@$model@@${acc.accessToken}",
+                        name = KeyListFile.dedupName(model, keys.map { k -> k.name }.toSet()),
+                    ) else it
+                })
+                appLog(LogLevel.SUCCESS, "Jet：$displayName 占位密钥已补齐模型 $model")
+                return false to "已补齐模型：$displayName → $model"
+            }
+            return false to "已在密钥管理（$displayName），无需重复添加"
+        }
         val value = "$baseUrl@@$model@@${acc.accessToken}"
 
         val updatedIfaces = if (targetIfc != null) ifaces
