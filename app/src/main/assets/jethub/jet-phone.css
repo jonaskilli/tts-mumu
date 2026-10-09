@@ -12,31 +12,30 @@
   /* 页面级禁横向滚动：兜底滚动 API 若波及视口，也不能把页面滚歪 */
   html, body { overflow-x: hidden; }
 
-  /* 侧栏 → 顶部横排选择条（覆盖 dsh-phone.css 的 display:none 两态方案） */
+  /* 侧栏 → 顶部换行网格（覆盖 dsh-phone.css 的 display:none 两态方案）：
+     十几个供应商一行放不下、横滚又会看不到全部——改成 flex-wrap 铺开，
+     一行 3~4 个小胶囊，全部同屏可见可点。 */
   body.dsh-phone-mobile .dim-jh-rail {
     display: flex !important;
     flex-direction: row;
+    flex-wrap: wrap;
     align-items: stretch;
     gap: 6px;
     width: 100% !important;
     max-width: 100%;
     box-sizing: border-box;
     flex: none;
-    padding: 8px 12px !important;
-    /* ⚠️ 必须 !important：dsh-phone.css 对 rail 写了 overflow:visible !important，
-       不带的话 rail 不是滚动容器，scrollLeft 赋值静默失效（实测踩坑） */
-    overflow-x: auto !important;
-    overflow-y: hidden !important;
+    padding: 8px 10px !important;
+    /* 换行布局没有横向溢出：禁横滚（防个别超宽 chip 把页面撑歪） */
+    overflow-x: hidden !important;
+    overflow-y: visible !important;
     border-right: 0 !important;
     border-bottom: 1px solid var(--dsw-alias-border-default, #e2e8f0);
-    -webkit-overflow-scrolling: touch;
-    scrollbar-width: none;
     position: sticky;
     top: 0;
     z-index: 5;
     background: #fafbfc;
   }
-  body.dsh-phone-mobile .dim-jh-rail::-webkit-scrollbar { display: none; }
 
   /* 页面根禁横向溢出：选择条内容超宽时由它自己滚动，
      不许把 body 撑出横向滚动（探针实测 docSW=1082 的元凶就是它）。 */
@@ -60,13 +59,12 @@
     flex-direction: row;
     align-items: center;
     justify-content: flex-start;
-    /* ⚠️ flex:none 必须：rail 是 flex 容器，默认 shrink 会让宽条总宽超屏时
-       被压瘪（名称缩成省略号，实测首犯）；禁收缩才能撑出横向滚动 */
-    flex: none;
-    gap: 7px;
+    flex: 0 0 auto;
+    gap: 6px;
     min-height: 0 !important;
-    min-width: 118px;
-    padding: 8px 12px !important;
+    min-width: 0;
+    max-width: 48%;
+    padding: 6px 9px !important;
     border-radius: 12px !important;
     border: 1px solid #eef0f3;
     background: #fff;
@@ -78,33 +76,37 @@
     color: #1677ff;
   }
   body.dsh-phone-mobile .dim-jh-providerIcon {
-    width: 26px !important;
-    height: 26px !important;
-    border-radius: 7px !important;
+    width: 24px !important;
+    height: 24px !important;
+    border-radius: 6px !important;
     flex: none;
   }
   body.dsh-phone-mobile .dim-jh-providerIcon img {
-    width: 18px !important;
-    height: 18px !important;
+    width: 16px !important;
+    height: 16px !important;
   }
-  /* 名称：单行省略号（宽条里放全名，如「CodeArts (华为云)」放不下时截断）。
-     不再用 font-size:0 + ::after 短名方案——宽条装得下全名。 */
+  /* 名称：单行省略号；宽条里放全名，超长的（WorkBuddy (国际版) 等）截断 */
   body.dsh-phone-mobile .dim-jh-providerLabel { display: block; min-width: 0; }
   body.dsh-phone-mobile .dim-jh-providerLabel strong {
     display: block;
-    font-size: 12px !important;
-    line-height: 15px !important;
+    font-size: 11px !important;
+    line-height: 14px !important;
     font-weight: 600;
-    max-width: 108px;
+    max-width: 96px;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
   }
   /* 供应商名旁的账号数小牌（插件 10-10 晚批新增的 dim-jh-providerCount）：
-     宽条内跟随名称右侧，收紧内边距适配横排布局 */
+     跟在名称右侧，收紧内边距适配胶囊布局 */
   body.dsh-phone-mobile .dim-jh-providerCount {
     flex: none;
-    margin-left: auto;
+    min-width: 14px;
+    height: 14px;
+    padding: 0 3px;
+    border-radius: 7px;
+    font-size: 9px;
+    line-height: 14px;
   }
 
   /* 面板标题与页头按钮保持紧凑（沿用 dsh-phone.css 基调，微调字号） */
