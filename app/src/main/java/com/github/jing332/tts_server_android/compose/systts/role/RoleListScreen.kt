@@ -124,19 +124,23 @@ private val releaseDotColors = listOf(
 private val BOOK_NAME_COLOR = Color(0xFF333333)
 
 /**
- * 浅一档的容器色（定案「方案一」）：secondaryContainer 向 background 插 40%。
+ * 浅一档的容器色：secondaryContainer 向 background 插值。
  *
  * 为什么必须这么写：各主题的 secondaryContainer 深浅不一，绿主题 #D2E8D4 上整页铺满
  * 书栏卡+标签框显得太深；直接改 Color2 的 29 槽基准会动到全 App，按主题各自的
  * secondaryContainer→background 插值则十主题通用、只影响本页。书栏卡与角色行标签框
  * 必须共用同一个函数（两处各算各的将来改比例就会岔色）。
  * 文字仍用 onSecondaryContainer：背景变浅对比度只会更大，不用换。
+ *
+ * 10-10 用户令「前三图颜色改为设置的底色」：插值 40%→65%——0.4 时 ≈#E2F1E4
+ * 比设置分区卡（surfaceContainerLow #F2F8F4）深一档显绿；65% 后 ≈#F1F8F3 与设置页
+ * 基本同色。书栏/标签框/试听垫底/账号池胶囊等所有 softContainer 消费点一并变浅。
  */
 @Composable
 internal fun softContainerColor(): Color = lerp(
     MaterialTheme.colorScheme.secondaryContainer,
     MaterialTheme.colorScheme.background,
-    0.4f,
+    0.65f,
 )
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)

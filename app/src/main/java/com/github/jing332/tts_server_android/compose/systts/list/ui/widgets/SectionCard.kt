@@ -42,10 +42,11 @@ internal fun SectionCard(
         modifier = modifier,
         colors = CardDefaults.cardColors(
             // 10-10 v3（真机「框套框」实锤）：编辑页分区卡是表单容器——卡内全是 OutlinedTextField
-            // 描边框，卡+细边再套一层框必然打架。表单卡灰底无边，输入框描边成为唯一的框
-            // （灰底白框=M3 官方标准层级）；10-10 晚回退纯白批后 surfaceContainerHigh
-            // 恢复带主题色相的淡青灰档，淡底上灰底表单卡仍清晰分层。
-            containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+            // 描边框，卡+细边再套一层框必然打架。表单卡灰底无边，输入框描边成为唯一的框。
+            // 10-10 用户令「前三图颜色改为设置的底色」：surfaceContainerHigh（#E7ECE8，绿灰偏深）
+            // → surfaceContainerLow（#F2F8F4，与设置分区卡同档浅绿）——编辑页卡与设置页卡同色，
+            // 卡比页底浅一档不再发深
+            containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
         ),
         shape = MaterialTheme.shapes.large,
     ) {

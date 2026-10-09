@@ -293,14 +293,14 @@ private fun KeyEntryRow(
     // 启用态不再染底/描边（10-03 对勾方案：启用视觉全归行首对勾，0920 描边口径一并退役）
     // compositeOver：近似半透明色叠在卡面上，避免半透明直接给 ElevatedCard 透出页面底色
     // 10-08 五令（装机反馈：组卡/模型区分不开）：surfaceContainerLow → surface——
-    // 豆绿主题的中性槽由 Theme.kt 派生（10-10 起按官方 tone 表，槽间已拉开 2~5 个 L*），
-    // 仍带主题色相，与组头 primary 8% 绿带色相相近；
-    // 回 surface（纯卡面白 #FAFAF3）后绿带↔模型区是色相差，恒定成立
+    // 10-10 用户令「前三图颜色改为设置的底色」又回 surfaceContainerLow（#F2F8F4，
+    // 与设置分区卡同档）：组卡 ElevatedCard 同步改了，条目行底必须跟卡面同色，
+    // 否则行底比卡面深一档出现「卡中卡」；红/黄结果字对比由组头绿带与药丸承担
     val cardColor = when {
         selectionMode && checked ->
             MaterialTheme.colorScheme.error.copy(alpha = 0.12f)
-                .compositeOver(MaterialTheme.colorScheme.surface)
-        else -> MaterialTheme.colorScheme.surface
+                .compositeOver(MaterialTheme.colorScheme.surfaceContainerLow)
+        else -> MaterialTheme.colorScheme.surfaceContainerLow
     }
 
     // 10-07 连体卡：条目行并入组 ElevatedCard。勾中浅红底改由本区块 background 表达
@@ -1766,13 +1766,15 @@ fun KeyManagerScreen(tagRuleId: String, onBack: () -> Unit) {
                     // 10-07 连体卡：一组一张卡——组头/元信息/条目/提示条全在卡内，条目间画分隔线
                     // 10-08 配色 C 案（用户拍板）：卡底转 surface（模型区白）——红/黄结果字
                     // 在白底对比度回来；组头绿带由 GroupHeaderBlock 自包（视觉=卡名条）
+                    // 10-10 用户令「前三图颜色改为设置的底色」：surface（#F8FAF5）→
+                    // surfaceContainerLow（#F2F8F4，与设置分区卡同档浅绿）
                     item(key = "g:" + grp.title) {
                         ElevatedCard(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .padding(start = 4.dp, end = 0.dp, top = 10.dp, bottom = 4.dp),
                             colors = CardDefaults.elevatedCardColors(
-                                containerColor = MaterialTheme.colorScheme.surface
+                                containerColor = MaterialTheme.colorScheme.surfaceContainerLow
                             )
                         ) {
                         GroupHeaderBlock(
