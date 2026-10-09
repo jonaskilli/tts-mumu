@@ -306,8 +306,12 @@ internal fun TtsLogScreen(vm: TtsLogViewModel = viewModel()) {
                                                 onSearch = { },
                                                 expanded = false,
                                                 onExpandedChange = { },
-                                                placeholder = { 
-                                                    Text(stringResource(R.string.search_logs))
+                                                // 占位符（10-10 用户令：缩成「搜索」二字）——
+                                                // 「搜索日志」四字在 0.95f 框（≈129dp）里放不下会被截；
+                                                // 复用现成的 R.string.search（值即「搜索」，与搜索键同词），
+                                                // 不动 strings.xml（避开多窗口撞字符串键）
+                                                placeholder = {
+                                                    Text(stringResource(R.string.search))
                                                 },
                                                 trailingIcon = {
                                                     if (searchQuery.isNotEmpty()) {
@@ -320,10 +324,11 @@ internal fun TtsLogScreen(vm: TtsLogViewModel = viewModel()) {
                                         },
                                         expanded = false,
                                         onExpandedChange = { },
-                                        // 搜索态专属框（10-10 用户令：恢复 3779dba 甲案——
-                                        // 框缩 0.6 宽 ≈200dp，右侧腾出常驻四键位；
-                                        // d6131f6 曾无说明回滚本改动，此为二次落地）
-                                        modifier = Modifier.fillMaxWidth(0.6f)
+                                        // 搜索框宽度（10-10 用户令：回退到「很早以前的格式」）——
+                                        // 曾为 0.95f，10-08 甲案瘦到 0.6f 给四键腾位，但 0.6×136dp
+                                        // =82dp 连占位符都放不下（只剩「搜」）。回退 0.95f（≈129dp）
+                                        // 后「搜索」二字够放；占位符同步缩成二字（见下方 placeholder）。
+                                        modifier = Modifier.fillMaxWidth(0.95f)
                                     ) {}
                                 }
                             }
