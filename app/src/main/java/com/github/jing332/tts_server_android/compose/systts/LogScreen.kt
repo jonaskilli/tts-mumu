@@ -736,9 +736,11 @@ internal fun LogScreen(
                                 // 头部行（10-10 装机反馈两令）：①撤丸间「→」——成功一行
                                 // 只有「时间 成功 大小·耗时」，箭头是多余符号（用户不认），
                                 // 保留 FlowRow 换行（药丸链过长仍折行不截断）；②对齐——
-                                // FlowRow verticalAlignment=CenterVertically，丸与文字同轴
+                                // ⚠️ FlowRow 没有 verticalAlignment 参数（CI 37959867285 实锤，
+                                // 静守卫盲区），主轴对齐走 verticalArrangement=Arrangement.Center；
+                                // 丸与文字垂直同轴另由丸内衬对齐（labelSmall 自身高度小）
                                 FlowRow(
-                                    verticalAlignment = Alignment.CenterVertically,
+                                    verticalArrangement = Arrangement.Center,
                                     modifier = Modifier.fillMaxWidth()
                                 ) {
                                     if (selectionMode) {
