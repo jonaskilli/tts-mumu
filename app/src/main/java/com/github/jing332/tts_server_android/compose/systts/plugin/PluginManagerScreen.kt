@@ -961,6 +961,17 @@ private fun Item(
     // 入库来源双选（10-10 用户令「留个口」）：null=待选 / "market"=音色广场 / "list"=现有列表
     var importSource by remember { mutableStateOf<String?>(null) }
     var showMarketplace by remember { mutableStateOf(false) }
+    // 该插件是否声明音色广场协议（引擎实测探测一次；决定入库入口分不走广场）
+    var supportsMarket by remember(plugin?.id) { mutableStateOf(false) }
+    LaunchedEffect(plugin?.id) {
+        val p = plugin ?: return@LaunchedEffect
+        supportsMarket = withContext(kotlinx.coroutines.Dispatchers.IO) {
+            runCatching {
+                val e = TtsPluginUiEngineV2(context, p)
+                try { e.eval(); e.supportsVoiceCatalog() } finally { runCatching { e.destroy() } }
+            }.getOrDefault(false)
+        }
+    }
     // 音色广场「入库」跳转自动弹出（10-10 衔接）：直接走广场路，不问来源
     LaunchedEffect(plugin?.id) {
         if (plugin != null && VoiceCatalogHandoff.peek(plugin.pluginId)) {
@@ -1214,9 +1225,15 @@ private fun Item(
                 context = context
             )
 
-            // 入库来源双选（10-10 用户令「留个口」）：从音色广场选 / 从现有声音列表选。
+            // 入库来源分流（10-10 用户两令合并）：普通插件（未声明音色广场协议）直接进
+            // 现有声音列表（不问——广场路对它没有独有价值，数据与列表路同源）；
+            // 广场协议插件保留双选（两个口都留：联网广场 / 现有列表）。
             // 广场跳转 handoff 自动走广场路（音色直接带着走，不问）
-            if (showImportByCategory && importSource == null && plugin != null) {
+            if (showImportByCategory && importSource == null && plugin != null && !supportsMarket) {
+                // 普通插件：直进现有列表（老弹窗 visible 条件吃 importSource=="list"）
+                importSource = "list"
+            }
+            if (showImportByCategory && importSource == null && plugin != null && supportsMarket) {
                 SourcePickerDialog(
                     onDismiss = { showImportByCategory = false },
                     onPick = { source ->
