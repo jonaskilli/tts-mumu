@@ -1,5 +1,6 @@
 package com.github.jing332.tts_server_android.compose.systts.list.ui
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -51,6 +52,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberModalBottomSheetState
@@ -79,6 +81,7 @@ import com.github.jing332.tts.speech.plugin.engine.VoiceCatalogFilterGroup
 import com.github.jing332.tts.speech.plugin.engine.VoiceCatalogFilterOption
 import com.github.jing332.tts.speech.plugin.engine.VoiceCatalogItem
 import com.github.jing332.tts_server_android.R
+import com.github.jing332.tts_server_android.compose.systts.role.softContainerColor
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
@@ -105,12 +108,20 @@ private const val CATALOG_SHEET_HEIGHT = 0.92f
  * 改用 M3 弹层窗口机制验证贴底动作行是否可用（选择弹窗是否跟进视实验结果定）。
  * 内容按用户 09-17 拍板的方案（两图）：搜索框（服务端搜索）+ 排序 + 「筛」；下面 quickFilters
  * 横滑 chips；再下面是结果摘要与卡片列表（圆形封面 / 名字·作者 / 使用次数 / 描述两行 / 标签）；
- * 滚到底自动续页；底部「选用（N）」把勾中的音色交给调用方回填声音列表与批量保存链路。
+ * 滚到底自动续页；底部动作行把勾中的音色交给调用方。
+ *
+ * 两种模式（10-10 用户拍板「广场合一」）：
+ * - **大厅模式**（importMode=false，编辑页）：标题「音色大厅」，底部只「加入列表(N)」=补进声音
+ *   下拉——选声音场景没有入库概念。
+ * - **入库模式**（importMode=true，插件管理页「音色分类入库」入口）：标题「音色分类入库」，
+ *   卡片加分类标签点选 + 顶部「等待分类/自动下一个」两开关，底部「导入(N)」= **入下拉列表 +
+ *   入库两动作一步**（未分类的照导，按原名落子分组不打标签——用户 10-10 令）。
+ *
+ * 勾选框统一在卡片最左（10-10 用户拍板，与全 app 列表惯例一致）。
  *
  * @param onAudition 卡片上的 🎧 —— 交给调用方的现有试听弹窗（同一个 AuditionDialog），弹窗本身不关
- * @param onPick 点「选用」时回调勾中的音色（调用方负责并进声音列表 + 勾选，随后自行关闭本弹窗）
- * @param onImport 点「入库(N)」时回调勾中的音色（10-10 衔接：交给调用方送去分类入库链；
- *        为 null 不渲染该键）
+ * @param onPick 点「加入列表(N)」时回调勾中的音色（调用方负责并进声音列表，随后自行关闭本弹窗）
+ * @param onImport 点「导入(N)」时回调勾中的音色（调用方负责入下拉+入库两动作；null=大厅模式不渲染）
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -121,7 +132,20 @@ fun PluginVoiceMarketplaceDialog(
     onAudition: (VoiceCatalogItem) -> Unit,
     onPick: (List<VoiceCatalogItem>) -> Unit,
     onImport: ((List<VoiceCatalogItem>) -> Unit)? = null,
+    // 入库模式两开关变化上报（等待分类/自动下一个；试听弹窗由调用方弹，开关语义在调用方落地）
+    onSwitchesChanged: (waitCategory: Boolean, autoNext: Boolean) -> Unit = { _, _ -> },
 ) {
+    val importMode = onImport != null
+    // 入库模式的两开关（10-10 恢复旧版语义，挪进广场顶部）：
+    // 等待分类=试听播完不自动关；自动下一个=点了分类自动切下一个。
+    // 试听弹窗是调用方弹的，开关状态经回调交出去
+    var waitCategorySwitch by remember { mutableStateOf(false) }
+    var autoNextSwitch by remember { mutableStateOf(false) }
+    LaunchedEffect(waitCategorySwitch, autoNextSwitch) {
+        onSwitchesChanged(waitCategorySwitch, autoNextSwitch)
+    }
+    // 卡片分类改派（入库模式）：voiceId → 分类名；交给调用方随导入落库
+    val categories = remember { mutableStateMapOf<String, String>() }
     val scope = rememberCoroutineScope()
     val keyboard = LocalSoftwareKeyboardController.current
 
@@ -199,7 +223,7 @@ fun PluginVoiceMarketplaceDialog(
                                 )
                         )
                     }
-                    // ---- 标题行：标题 + 已选数 + 关闭 ----
+                    // ---- 标题行：标题（模式决定叫什么）+ 已选数 + 关闭 ----
                     Row(
                         Modifier
                             .fillMaxWidth()
@@ -212,14 +236,18 @@ fun PluginVoiceMarketplaceDialog(
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
                         Text(
-                            stringResource(R.string.voice_catalog),
+                            // 入库模式叫「音色分类入库」（入口名一致），大厅模式「音色大厅」
+                            if (importMode) "音色分类入库" else stringResource(R.string.voice_catalog_hall),
                             style = MaterialTheme.typography.titleMedium,
                             fontWeight = FontWeight.Bold,
                         )
                         if (picked.isNotEmpty()) {
                             Spacer(Modifier.width(8.dp))
                             Text(
-                                stringResource(R.string.voice_catalog_picked, picked.size),
+                                // 入库模式带上已分类数（导入按勾选全导，分类数只是参考）
+                                if (importMode)
+                                    "已勾 ${picked.size}（已分类 ${picked.keys.count { it in categories }}）"
+                                else stringResource(R.string.voice_catalog_picked, picked.size),
                                 style = MaterialTheme.typography.labelMedium,
                                 color = MaterialTheme.colorScheme.primary,
                             )
@@ -228,6 +256,31 @@ fun PluginVoiceMarketplaceDialog(
                         // 「选用(N)」在底部动作行（ModalBottomSheet 实验的核心观察点）；「关闭」由 ✕ 兼任
                         IconButton(onClick = onDismissRequest) {
                             Icon(Icons.Filled.Close, stringResource(R.string.close))
+                        }
+                    }
+
+                    // ---- 入库模式：等待分类/自动下一个（10-10 恢复旧版语义）----
+                    if (importMode) {
+                        Row(
+                            Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = CATALOG_PANEL_PADDING),
+                            horizontalArrangement = Arrangement.spacedBy(18.dp)
+                        ) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                modifier = Modifier.clickable { waitCategorySwitch = !waitCategorySwitch }
+                            ) {
+                                Switch(checked = waitCategorySwitch, onCheckedChange = { waitCategorySwitch = it })
+                                Text("等待分类", style = MaterialTheme.typography.bodyMedium, modifier = Modifier.padding(start = 4.dp))
+                            }
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                modifier = Modifier.clickable { autoNextSwitch = !autoNextSwitch }
+                            ) {
+                                Switch(checked = autoNextSwitch, onCheckedChange = { autoNextSwitch = it })
+                                Text("自动下一个", style = MaterialTheme.typography.bodyMedium, modifier = Modifier.padding(start = 4.dp))
+                            }
                         }
                     }
 
@@ -368,6 +421,11 @@ fun PluginVoiceMarketplaceDialog(
                                         else picked[item.id] = item
                                     },
                                     onAudition = { onAudition(item) },
+                                    // 入库模式：卡片分类标签（点了即改派，随导入落库）
+                                    assignedCategory = categories[item.id],
+                                    onCategoryChange = if (importMode) ({ cat ->
+                                        categories.set(item.id, cat)
+                                    }) else null,
                                 )
                             }
 
@@ -423,8 +481,8 @@ fun PluginVoiceMarketplaceDialog(
                         }
                     }
 
-                    // ---- 底部动作行：「选用（N）」——⚠️ ModalBottomSheet 实验的核心观察点，
-                    // 实机看这行是否完整可见 ----
+                    // ---- 底部动作行：入库模式=「导入(N)」（入下拉+入库两动作一步）；大厅模式=「加入列表(N)」
+                    //      ——⚠️ ModalBottomSheet 实验的核心观察点，实机看这行是否完整可见 ----
                     Row(
                         Modifier
                             .fillMaxWidth()
@@ -432,15 +490,15 @@ fun PluginVoiceMarketplaceDialog(
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
                         Spacer(Modifier.weight(1f))
-                        // 动作键一律纯文字 TextButton（目目 09-17：不要框和填充色）
-                        if (onImport != null) {
+                        if (importMode) {
                             TextButton(
                                 enabled = picked.isNotEmpty(),
-                                onClick = { onImport(picked.values.toList()) },
+                                onClick = { onImport?.invoke(picked.values.toList()) },
                             ) {
-                                Text(stringResource(R.string.voice_catalog_import, picked.size))
+                                Text("导入(${picked.size})")
                             }
                         }
+                        // 大厅模式唯一出口；入库模式也保留（勾了只想加下拉不入库的场景）
                         TextButton(
                             enabled = picked.isNotEmpty(),
                             onClick = { onPick(picked.values.toList()) },
@@ -823,13 +881,16 @@ private fun FilterEntry(activeCount: Int, onClick: () -> Unit) {
     }
 }
 
-/** 一条音色：封面 + 名字/作者/使用次数/描述/标签 + 🎧 + 勾选 */
+/** 一条音色：勾选 + 封面 + 名字/作者/使用次数/描述/标签 + 🎧（勾选框统一在左，10-10 用户拍板） */
 @Composable
 private fun CatalogVoiceRow(
     item: VoiceCatalogItem,
     checked: Boolean,
     onToggle: () -> Unit,
     onAudition: () -> Unit,
+    // 入库模式下可点分类标签（点了即改派分类，不进试听弹窗）；null=大厅模式不显示
+    assignedCategory: String? = null,
+    onCategoryChange: ((String?) -> Unit)? = null,
 ) {
     val usageText = if (item.usageCount > 0) {
         stringResource(R.string.voice_catalog_usage, item.usageCount.toString())
@@ -847,6 +908,7 @@ private fun CatalogVoiceRow(
             ),
         verticalAlignment = Alignment.CenterVertically,
     ) {
+        Checkbox(checked = checked, onCheckedChange = { onToggle() })
         SubcomposeAsyncImage(
             model = item.icon,
             contentDescription = null,
@@ -919,12 +981,63 @@ private fun CatalogVoiceRow(
                             )
                         }
                     }
-                    if (item.tags.size > 3) {
+            if (item.tags.size > 3) {
+                Text(
+                    "+${item.tags.size - 3}",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+                }
+            }
+            // 入库模式：卡片上的分类标签（点开菜单选/换/取消，不必进试听）——
+            // 大厅模式 onCategoryChange 为 null 不显示
+            if (onCategoryChange != null) {
+                var showCategoryMenu by remember { mutableStateOf(false) }
+                Box {
+                    Surface(
+                        shape = MaterialTheme.shapes.small,
+                        color = if (assignedCategory != null) softContainerColor()
+                        else MaterialTheme.colorScheme.surface,
+                        tonalElevation = if (assignedCategory != null) 2.dp else 0.dp,
+                        border = if (assignedCategory == null)
+                            BorderStroke(1.dp, MaterialTheme.colorScheme.outline)
+                        else null,
+                        modifier = Modifier
+                            .padding(top = 4.dp)
+                            .clip(MaterialTheme.shapes.small)
+                            .clickable { showCategoryMenu = true }
+                    ) {
                         Text(
-                            "+${item.tags.size - 3}",
+                            assignedCategory ?: "分类",
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
                             style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            color = if (assignedCategory != null) MaterialTheme.colorScheme.onSecondaryContainer
+                            else MaterialTheme.colorScheme.onSurfaceVariant
                         )
+                    }
+                    AppDropdownMenu(
+                        expanded = showCategoryMenu,
+                        onDismissRequest = { showCategoryMenu = false }
+                    ) {
+                        DropdownMenuItem(
+                            text = { Text("默认") },
+                            onClick = {
+                                showCategoryMenu = false
+                                onCategoryChange(null)
+                            }
+                        )
+                        com.github.jing332.compose.widgets.VoiceCategories.COLUMNS.forEach { column ->
+                            column.forEach { cat ->
+                                DropdownMenuItem(
+                                    text = { Text(cat) },
+                                    onClick = {
+                                        showCategoryMenu = false
+                                        onCategoryChange(cat)
+                                    }
+                                )
+                            }
+                        }
                     }
                 }
             }
@@ -936,7 +1049,6 @@ private fun CatalogVoiceRow(
                 tint = MaterialTheme.colorScheme.primary,
             )
         }
-        Checkbox(checked = checked, onCheckedChange = { onToggle() })
     }
 }
 

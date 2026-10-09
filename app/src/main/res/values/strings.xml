@@ -411,6 +411,7 @@
 
     <!-- 音色广场（opt-in 协议 searchVoiceCatalog：Fish Audio 官网音色广场等插件） -->
     <string name="voice_catalog">音色广场</string>
+    <string name="voice_catalog_hall">音色大厅</string>
     <string name="voice_catalog_search">搜索音色</string>
     <string name="voice_catalog_clear">清除</string>
     <string name="voice_catalog_picked">已加入 %1$d 个音色</string>

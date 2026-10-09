@@ -1,6 +1,5 @@
 package com.github.jing332.tts_server_android.compose.systts.list.ui
 
-import android.content.Intent
 import android.util.Log
 import android.widget.LinearLayout
 import androidx.compose.animation.animateContentSize
@@ -16,8 +15,6 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Headset
 import androidx.compose.material.icons.filled.Info
 import com.github.jing332.tts_server_android.compose.systts.plugin.PluginImage
-import com.github.jing332.tts_server_android.compose.systts.plugin.PluginManagerActivity
-import com.github.jing332.tts_server_android.compose.systts.plugin.VoiceCatalogHandoff
 import androidx.compose.material.icons.filled.Speed
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -237,8 +234,10 @@ class PluginTtsUI : IConfigUI() {
             }
         } // if (auditionSystts != null)
 
-        // 音色广场（opt-in 协议 searchVoiceCatalog）：勾选后把音色**补进声音列表**，
-        // 供用户在下拉里选中试听——广场只负责"找得到音色"。
+        // 音色大厅（原「音色广场」，10-10 用户令：编辑页没有入库概念——选声音场景底部
+        // 只有「加入列表(N)」=补进声音下拉，入库走插件管理页「音色分类入库」入口的广场模式）。
+        // 旧「入库(N)」handoff 跳转链已撤（onImport 传 null 即隐藏该键，MarketplaceCategoryOverride
+        // 宿主桥接替）。
         if (showVoiceCatalog) {
             PluginVoiceMarketplaceDialog(
                 vm = vm,
@@ -273,31 +272,7 @@ class PluginTtsUI : IConfigUI() {
                     showVoiceCatalog = false
                     context.toast(context.getString(R.string.voice_catalog_picked, items.size))
                 },
-                onImport = { items ->
-                    // 广场 → 分类入库衔接（10-10 用户：广场只进下拉不进库，链路断着）：
-                    // 勾选音色塞进交接单例，跳插件管理页，该插件卡片自动弹入库弹窗、
-                    // 直接进声音列表阶段（分类=广场标签字面映射，试听可改）。广场音色
-                    // 仍补进下拉（同 onPick——本次不选它，下次进来还能在列表里看到）。
-                    val known = vm.voices.map { it.id }.toHashSet()
-                    items.forEach { item ->
-                        if (item.id !in known) vm.voices.add(
-                            com.github.jing332.tts.speech.plugin.engine.TtsPluginUiEngineV2.Voice(
-                                item.id,
-                                item.name,
-                                item.icon,
-                            )
-                        )
-                    }
-                    showVoiceCatalog = false
-                    plugin?.let { p ->
-                        VoiceCatalogHandoff.put(
-                            p.pluginId,
-                            items.map { VoiceCatalogHandoff.Item(it.id, it.name, it.tags.firstOrNull()) }
-                        )
-                        context.toast(context.getString(R.string.voice_catalog_imported, items.size))
-                        context.startActivity(Intent(context, PluginManagerActivity::class.java))
-                    }
-                },
+                onImport = null, // 大厅模式：无入库键（10-10 用户令）
             )
         }
 

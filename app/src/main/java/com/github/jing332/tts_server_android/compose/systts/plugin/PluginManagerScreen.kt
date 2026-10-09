@@ -957,9 +957,15 @@ private fun Item(
     val scope = rememberCoroutineScope()
     // 按插件音色分类入库：目标分组选择 + 导入进度
     var showImportByCategory by remember { mutableStateOf(false) }
-    // 音色广场「入库」跳转自动弹出（10-10 衔接）：只看不动，消费在弹窗内 take
+    // 入库来源双选（10-10 用户令「留个口」）：null=待选 / "market"=音色广场 / "list"=现有列表
+    var importSource by remember { mutableStateOf<String?>(null) }
+    var showMarketplace by remember { mutableStateOf(false) }
+    // 音色广场「入库」跳转自动弹出（10-10 衔接）：直接走广场路，不问来源
     LaunchedEffect(plugin?.id) {
-        if (plugin != null && VoiceCatalogHandoff.peek(plugin.pluginId)) showImportByCategory = true
+        if (plugin != null && VoiceCatalogHandoff.peek(plugin.pluginId)) {
+            importSource = "market"
+            showMarketplace = true
+        }
     }
     ElevatedCard(modifier = modifier
         .combinedClickable(
@@ -1201,13 +1207,210 @@ private fun Item(
             // 按插件音色分类入库：选分组 → 批量导入
             ImportByCategoryDialog(
                 plugin = plugin,
-                visible = showImportByCategory && plugin != null,
-                onDismiss = { showImportByCategory = false },
+                visible = showImportByCategory && importSource == "list" && plugin != null,
+                onDismiss = { showImportByCategory = false; importSource = null },
                 scope = scope,
                 context = context
             )
+
+            // 入库来源双选（10-10 用户令「留个口」）：从音色广场选 / 从现有声音列表选。
+            // 广场跳转 handoff 自动走广场路（音色直接带着走，不问）
+            if (showImportByCategory && importSource == null && plugin != null) {
+                SourcePickerDialog(
+                    onDismiss = { showImportByCategory = false },
+                    onPick = { source ->
+                        importSource = source
+                        if (source == "market") showMarketplace = true
+                        // "list" = 走老弹窗（visible 条件在上面）
+                    }
+                )
+            }
+
+            // 入库模式的音色广场（10-10 广场合一）：勾选/分类/试听后「导入」=入下拉+入库两动作一步
+            if (showMarketplace && plugin != null) {
+                MarketplaceImportDialog(
+                    plugin = plugin,
+                    onDismiss = { showMarketplace = false; importSource = null }
+                )
+            }
         }
     }
+}
+
+/**
+ * 入库模式的音色广场宿主（10-10 广场合一）：广场面板 importMode=true，
+ * 「导入(N)」= 勾选音色**入下拉列表 + 入库两动作一步**（用户拍板）：
+ *  - 已点分类的按分类进子分组打标签；未点分类的按原名落子分组不打标签（照导，不拦）。
+ *  - 导入完成后 Toast 汇总，面板关闭。
+ * 引擎用 Activity 作用域共享 VM（与编辑页同一实例；本页首次用会走 load() 初始化）。
+ */
+@Composable
+private fun MarketplaceImportDialog(
+    plugin: Plugin,
+    onDismiss: () -> Unit,
+) {
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    val vm: com.github.jing332.tts_server_android.compose.systts.list.ui.PluginTtsViewModel =
+        androidx.lifecycle.viewmodel.compose.viewModel()
+    // 引擎初始化（广场搜索依赖 engine.scope）：空 LinearLayout 只走 eval，无 UI 挂载
+    val dummyLayout = remember { android.widget.LinearLayout(context) }
+    LaunchedEffect(plugin.id) {
+        runCatching {
+            vm.load(
+                context, plugin,
+                com.github.jing332.database.entities.systts.source.PluginTtsSource(pluginId = plugin.pluginId),
+                dummyLayout
+            )
+        }.onFailure { context.displayErrorDialog(it) }
+    }
+    // 两开关（等待分类/自动下一个）经广场 onSwitchesChanged 上来；试听弹窗在本宿主弹
+    var waitCategory by remember { mutableStateOf(false) }
+    var autoNext by remember { mutableStateOf(false) }
+    var auditionItem by remember { mutableStateOf<com.github.jing332.tts.speech.plugin.engine.VoiceCatalogItem?>(null) }
+    var importing by remember { mutableStateOf(false) }
+
+    // 试听弹窗（复用 AuditionDialog：等待分类/自动下一个/分类点选/失败重播全都在）
+    auditionItem?.let { item ->
+        val auditionSystts = remember(item.id) {
+            com.github.jing332.database.entities.systts.SystemTtsV2(
+                displayName = item.name,
+                config = com.github.jing332.database.entities.systts.TtsConfigurationDTO(
+                    source = com.github.jing332.database.entities.systts.source.PluginTtsSource(
+                        pluginId = plugin.pluginId,
+                        voice = item.id
+                    )
+                )
+            )
+        }
+        val engine = remember { vm.engine }
+        AuditionDialog(
+            systts = auditionSystts,
+            engine = null, // 用 CachedEngineManager 路径（同编辑页行内 🎧 口径）
+            voiceId = item.id,
+            autoDismiss = !waitCategory,
+            onCategoryAssigned = { _, category ->
+                // 试听里点的分类写回广场卡片状态（MarketplaceDialog 的 categories map
+                // 由 onSwitchesChanged 同款回调传递不了 map——直接走重播态卡片改派：
+                // 这里通过 handoff 式内存单例回传）
+                MarketplaceCategoryOverride.put(item.id, category)
+                if (category != null && autoNext) {
+                    // 自动下一个：跳到列表中当前项的下一个（广场列表顺序）
+                    val items = vm.catalogItems
+                    val idx = items.indexOfFirst { it.id == item.id }
+                    if (idx in 0 until items.size - 1) auditionItem = items[idx + 1]
+                }
+            },
+            onDismissRequest = { auditionItem = null }
+        )
+    }
+
+    com.github.jing332.tts_server_android.compose.systts.list.ui.PluginVoiceMarketplaceDialog(
+        vm = vm,
+        // locale 空（本页没有语言选择）回落插件第一个语言，防按 locale 过滤的插件回空
+        locale = "",
+        onDismissRequest = onDismiss,
+        onAudition = { item -> auditionItem = item },
+        onPick = { picked ->
+            // 「加入列表(N)」在入库模式=只补下拉不入库（导入键才是两动作）。本宿主没有
+            // 当前配置的下拉可补——入库模式藏这键没必要，直接视为同导入。用户在编辑页
+            // 大厅模式才有"只加下拉"诉求（那路由编辑页自己的 onPick 处理）。
+            doMarketplaceImport(plugin, vm, picked, context, scope, onDismiss)
+        },
+        onImport = { picked ->
+            doMarketplaceImport(plugin, vm, picked, context, scope, onDismiss)
+        },
+        onSwitchesChanged = { w, a -> waitCategory = w; autoNext = a },
+    )
+}
+
+/** 广场勾选的分类改派（试听弹窗 → 宿主内存桥）：导入时读（与卡片点选的 map 合并语义） */
+object MarketplaceCategoryOverride {
+    val map = mutableMapOf<String, String?>()
+    fun put(voiceId: String, category: String?) {
+        if (category == null) map.remove(voiceId) else map[voiceId] = category
+    }
+    fun takeAll(): Map<String, String> {
+        val m = map.toMap()
+        map.clear()
+        return m
+    }
+}
+
+/** 入库模式「导入/加入列表」执行体：勾选音色 → PluginCategoryImporter.importVoices 落库（未分类照导） */
+private fun doMarketplaceImport(
+    plugin: Plugin,
+    vm: com.github.jing332.tts_server_android.compose.systts.list.ui.PluginTtsViewModel,
+    picked: List<com.github.jing332.tts.speech.plugin.engine.VoiceCatalogItem>,
+    context: android.content.Context,
+    scope: kotlinx.coroutines.CoroutineScope,
+    onDone: () -> Unit,
+) {
+    if (picked.isEmpty()) return
+    scope.launch {
+        // 手选分类（试听弹窗里点的）优先，否则广场标签映射
+        val overrides = MarketplaceCategoryOverride.takeAll()
+        val items = picked.map {
+            PluginCategoryImporter.VoiceItem(
+                poolId = "",
+                poolName = it.tags.firstOrNull().orEmpty(),
+                voiceId = it.id,
+                voiceName = it.name,
+                categoryOverride = overrides[it.id]
+                    ?: it.tags.firstOrNull()?.let { t -> PluginCategoryImporter.mapTagCategory(t) }
+            )
+        }
+        val count = runCatching {
+            PluginCategoryImporter.importVoices(context, plugin, items) { }
+        }.fold(
+            onSuccess = { it },
+            onFailure = { e ->
+                context.longToast("导入失败: ${e.message}")
+                return@launch
+            }
+        )
+        context.longToast("已导入 $count 个音色，已自动创建分组「${plugin.name}」")
+        onDone()
+    }
+}
+
+/** 入库来源双选弹窗（10-10 用户令「留个口」）：音色广场 / 现有声音列表 */
+@Composable
+private fun SourcePickerDialog(
+    onDismiss: () -> Unit,
+    onPick: (String) -> Unit,
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("选择音色来源") },
+        text = {
+            Column {
+                listOf(
+                    "market" to ("音色广场" to "联网搜索/筛选/试听，勾选后一键导入"),
+                    "list" to ("现有声音列表" to "老方式：按插件分类勾池子后逐个试听分类"),
+                ).forEach { (key, pair) ->
+                    Row(
+                        Modifier
+                            .fillMaxWidth()
+                            .clip(MaterialTheme.shapes.medium)
+                            .clickable { onPick(key) }
+                            .padding(vertical = 10.dp, horizontal = 4.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column(Modifier.weight(1f)) {
+                            Text(pair.first, style = MaterialTheme.typography.bodyLarge)
+                            Text(pair.second, style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = {},
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text(stringResource(R.string.cancel)) }
+        }
+    )
 }
 
 @Composable
