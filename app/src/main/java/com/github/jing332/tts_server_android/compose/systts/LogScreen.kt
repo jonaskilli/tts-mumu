@@ -160,7 +160,13 @@ private fun AnnotatedString.remapMetaColor(
  * 纯函数、确定性；TtsLogScreen 与 LogScreen 共用同一实例（搜索跳转要用条目→列表项
  * 映射）。转发器日志无 configId/indent/插件标记，全部落裸行、零影响。
  */
-internal class LogGroups(val items: List<Item>, val entryToList: IntArray) {
+internal class LogGroups(
+    val items: List<Item>,
+    val entryToList: IntArray,
+    // 以失败收场的组头行下标（10-10 行级丸配套）：请求行本身是 INFO，失败丸 ✕ 的
+    // 依据是「该组以失败收场」——ERROR 子行/主行收卡时由 build 记入
+    val failedHeads: Set<Int> = emptySet(),
+) {
     sealed class Item {
         class Header(val date: String) : Item()
         class Bare(val index: Int) : Item()
@@ -191,12 +197,19 @@ internal class LogGroups(val items: List<Item>, val entryToList: IntArray) {
             val raw = ArrayList<Item>(list.size)
             var head = -1
             var members = ArrayList<Int>()
+            // 失败组头行标记（10-10 行级丸配套）：请求行本身是 INFO，失败丸（✕）的依据
+            // 是「该组以失败收场」——ERROR 子行/主行收卡时把 head 记进来，渲染侧查此表
+            val failedHeads = HashSet<Int>()
+            var groupFailed = false
 
             fun closeCard() {
-                if (head >= 0)
+                if (head >= 0) {
+                    if (groupFailed) failedHeads.add(head)
                     raw.add(Item.Group(head, members.toList()))
+                }
                 head = -1
                 members = ArrayList()
+                groupFailed = false
             }
             fun openCard(requestIdx: Int) {
                 closeCard()
@@ -209,14 +222,21 @@ internal class LogGroups(val items: List<Item>, val entryToList: IntArray) {
                     // 走 indent 分支会进组——与「一律独立裸行」的终令相悖
                     // 插件日志一律独立裸行（10-10 用户终令「插件日志要拆开，一条归一条，
                     // 不并入请求组」）：无论何时产生（请求中/失败链期间）都不进组、不进
-                    // 悬置链——与其他日志同格式独立成行（时间头/11sp/分隔线/定位键全同款）。
+                    // 悬置链——与其他日志同格式独立成行（时间头/12sp/分隔线/定位键全同款）。
                     e.isPluginLog -> raw.add(Item.Bare(i))
-                    // 结果/子行：有卡归卡（SUCCESS 顺带收卡；ERROR 也收卡=失败终点——
-                    // 失败链悬置机制已撤销（10-10 终案「失败链按以前单条处理」），各行独立）
+                    // ⚠️ ERROR 结果子行（源错误）也独立裸行（10-10 用户令「源错误详细信息
+                    // 不应该在失败块里」——至少五次强调）：与插件日志同待遇，单独成条不进
+                    // 成员区。收卡=失败终点（标记 groupFailed，头行渲染失败丸）
+                    e.indent > 0 && e.level == LogLevel.ERROR -> {
+                        if (head >= 0) groupFailed = true
+                        closeCard()
+                        raw.add(Item.Bare(i))
+                    }
+                    // 结果/子行：有卡归卡（SUCCESS 顺带收卡）；无卡=头部被筛掉的孤儿 → 裸行
                     e.indent > 0 -> {
                         if (head >= 0) {
                             members.add(i)
-                            if (e.level == LogLevel.SUCCESS || e.level == LogLevel.ERROR) closeCard()
+                            if (e.level == LogLevel.SUCCESS) closeCard()
                         } else raw.add(Item.Bare(i))
                     }
                     // 规则日志一律落裸行（10-10 用户令：不进卡）。原「卡外悬置→下一张卡
@@ -227,11 +247,14 @@ internal class LogGroups(val items: List<Item>, val entryToList: IntArray) {
                     // "请求音频"主行：开新卡（旧卡先收）
                     e.configId != 0L -> openCard(i)
                     // 其他主行（重试/备用TTS/兜底发音人/系统消息）：有卡归卡，ERROR=失败
-                    // 终点收卡；无卡落裸行——失败链不再悬置并组（10-10 终案）
+                    // 终点收卡（标记 groupFailed）；无卡落裸行——失败链不再悬置并组（10-10 终案）
                     else -> {
                         if (head >= 0) {
                             members.add(i)
-                            if (e.level == LogLevel.ERROR) closeCard()
+                            if (e.level == LogLevel.ERROR) {
+                                groupFailed = true
+                                closeCard()
+                            }
                         } else raw.add(Item.Bare(i))
                     }
                 }
@@ -267,7 +290,7 @@ internal class LogGroups(val items: List<Item>, val entryToList: IntArray) {
                 }
                 finalItems.add(item)
             }
-            return LogGroups(finalItems, map)
+            return LogGroups(finalItems, map, failedHeads)
         }
     }
 }
@@ -618,8 +641,8 @@ internal fun LogScreen(
                                     )
                                     // 行级丸（10-10 终案）：重试 W 主行=重试N、兜底/备用主行=
                                     // 切备用、失败主行=失败——失败链单条化后丸跟着各行走；
-                                    // 插件/规则/系统消息裸行 pillOf 返回 null 不渲染
-                                    pillOf(log)?.let {
+                                    // 插件/规则/系统消息/源错误子行裸行 pillOf 返回 null 不渲染
+                                    pillOf(log, item.index)?.let {
                                         Box(Modifier.padding(start = 6.dp)) { StatusPill(it) }
                                     }
                                     // ⚠️ 级别字母（I/W/E）整删（10-10 用户令「W,I 这种字母都删除」）：
@@ -681,7 +704,7 @@ internal fun LogScreen(
                             val groupChecked = groupLogs.all { it in checkedEntries }
                             // 行级丸（10-10 终案）：请求行只带自己那颗丸（成功/失败）+
                             // 本行数字/截短原因——不再汇总链路
-                            val pill = remember(item.head) { pillOf(head) }
+                            val pill = remember(item.head) { pillOf(head, item.head, currentGroups.failedHeads) }
                             val tailText = remember(item.head) { tailTextOfRow(head) }
                             // 行流定稿（10-10 用户令）：成功=行头绿丸+灰数字，成员区整撤
                             // （结果信息已上头）；失败/重试/切备用的过程行仍要露出——
@@ -860,15 +883,15 @@ private fun isMatchEntry(e: LogEntry, q: String): Boolean =
     q.isNotEmpty() && (e.message.contains(q, ignoreCase = true) || e.time.contains(q, ignoreCase = true))
 
 // 行级药丸推导（10-10 终案「失败链按以前单条处理+丸保留」）：每条日志按自己的
-// 级别/文案出一颗丸——重试 W 主行=重试N、兜底/备用 I 主行=切备用、成功请求行=成功、
-// ERROR 请求主行=失败。成员行（源错误等结果子行）不调此函数=无丸（✖ 前缀承担）。
-// 失败链悬置并组已撤销（各行独立），组头行不再汇总链路——丸只说自己。
-private fun pillOf(e: LogEntry): LogPill? {
+// 级别/文案出一颗丸——重试 W 主行=重试N、兜底/备用 I 主行=切备用、成功请求行=✔、
+// 失败请求行=✕（依据 failedHeads：请求行本身是 INFO，失败标记由归组记入）、
+// ERROR 主行（无卡区失败终点）=✕。成员行（源错误等结果子行）已独立裸行=无丸。
+private fun pillOf(e: LogEntry, entryIndex: Int, failedHeads: Set<Int> = emptySet()): LogPill? {
     val msg = e.message.replace(Regex("<[^>]*>"), "")
     return when {
-        e.configId != 0L -> when (e.level) {
-            LogLevel.SUCCESS -> LogPill(LogPillKind.OK, "✔")   // U+2714 粗对勾（方案二，10-10 用户拍板）
-            LogLevel.ERROR -> LogPill(LogPillKind.FAIL, "✕")   // U+2715 乘号
+        e.configId != 0L -> when {
+            e.level == LogLevel.SUCCESS -> LogPill(LogPillKind.OK, "✔")   // U+2714 粗对勾（方案二）
+            entryIndex in failedHeads -> LogPill(LogPillKind.FAIL, "✕")   // U+2715 乘号
             else -> null
         }
         msg.contains("次重试") || msg.contains(" retry", true) ->
