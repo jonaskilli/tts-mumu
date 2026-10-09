@@ -59,28 +59,53 @@ private fun themedNeutral(
 ): ColorScheme {
     val tones = (if (darkTheme) darkSurfaceTones else lightSurfaceTones)[themeType]
         ?: return scheme
-    // 10-10 晚：浅色回退纯白底（ce2e3ce），回归带主题色相的淡底+淡灰卡——
-    // 上午的官方 tone 表阶梯引擎保留（层级差来自表本身），background/surface 用各主题原值
-    return scheme.copy(
-        surfaceContainerLowest = tones[0],
-        surfaceContainerLow = tones[1],
-        surfaceContainer = tones[2],
-        surfaceContainerHigh = tones[3],
-        surfaceContainerHighest = tones[4],
-        surfaceDim = tones[5],
-        surfaceBright = tones[6],
-    )
+    return if (darkTheme) {
+        scheme.copy(
+            surfaceContainerLowest = tones[0],
+            surfaceContainerLow = tones[1],
+            surfaceContainer = tones[2],
+            surfaceContainerHigh = tones[3],
+            surfaceContainerHighest = tones[4],
+            surfaceDim = tones[5],
+            surfaceBright = tones[6],
+        )
+    } else {
+        // 浅色 DSH 式纯白底（2026-10-10 用户拍板，参考 deepseek-harness）：
+        // 页底/顶栏/卡片/底栏全白，层级靠发丝线边框不靠染色；high/highest/dim 退为无彩灰当嵌套层。
+        // background/surface 一并覆写——各主题原值带自己的色相（如绿 #FBFDF8），与纯白卡同屏仍是两截。
+        scheme.copy(
+            background = Color.White,
+            surface = Color.White,
+            surfaceContainerLowest = tones[0],
+            surfaceContainerLow = tones[1],
+            surfaceContainer = tones[2],
+            surfaceContainerHigh = tones[3],
+            surfaceContainerHighest = tones[4],
+            surfaceDim = tones[5],
+            surfaceBright = tones[6],
+        )
+    }
 }
 
 /**
- * 动态取色（壁纸派生）没有静态表可查：按同一官方 tone 结构现算，
- * 色相/彩度取壁纸派生的 primary（彩度截到 3，与静态主题同中性度），锚到派生 background。
+ * 动态取色（壁纸派生）没有静态表可查：按同一结构现算。
+ * 浅色=纯白底 + 无彩灰嵌套槽（与静态主题同口径）；深色=官方暗色表锚派生 background。
  */
 private fun dynamicNeutral(scheme: ColorScheme, darkTheme: Boolean): ColorScheme {
-    val steps = if (darkTheme)
-        floatArrayOf(4f, 10f, 12f, 17f, 22f, 6f, 24f)
-    else
-        floatArrayOf(100f, 96f, 94f, 92f, 90f, 87f, 98f)
+    if (!darkTheme) {
+        return scheme.copy(
+            background = Color.White,
+            surface = Color.White,
+            surfaceContainerLowest = Color.White,
+            surfaceContainerLow = Color.White,
+            surfaceContainer = Color.White,
+            surfaceContainerHigh = Color(0xFFF3F3F3),
+            surfaceContainerHighest = Color(0xFFEEEEEE),
+            surfaceDim = Color(0xFFE8E8E8),
+            surfaceBright = Color.White,
+        )
+    }
+    val steps = floatArrayOf(4f, 10f, 12f, 17f, 22f, 6f, 24f)
     val bg = labL(scheme.background)
     val shift = bg - (if (darkTheme) 6f else 98f)   // 官方锚：surface 深色 tone6 / 浅色 98
     val p = scheme.primary

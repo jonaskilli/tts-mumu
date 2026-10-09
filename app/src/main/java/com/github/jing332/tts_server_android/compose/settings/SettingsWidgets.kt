@@ -1,5 +1,6 @@
 package com.github.jing332.tts_server_android.compose.settings
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.focusable
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -18,13 +19,13 @@ import androidx.compose.foundation.selection.toggleable
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.KeyboardArrowRight
-import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.LocalTextStyle
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedCard
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -205,15 +206,15 @@ internal fun SettingsGroup(
         // 收起时不出空卡片；展开才渲染卡片本体
         if (!collapsible || expanded) {
             if (card) {
-                Card(
+                OutlinedCard(
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(horizontal = sectionCardMargin),
-                    colors = CardDefaults.cardColors(
-                        // 10-10 晚回退纯白批（ce2e3ce）：分区卡回 surfaceContainerLow（L1 档，
-                        // 与列表页 ElevatedCard 同层）；页底恢复带主题色相淡底后靠色阶分层
-                        containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
+                    colors = CardDefaults.outlinedCardColors(
+                        // 10-10 DSH 式纯白底：卡=白底+发丝线边，层级靠线不靠染色（deepseek-harness 手法）
+                        containerColor = MaterialTheme.colorScheme.surface,
                     ),
+                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f)),
                 ) {
                     CompositionLocalProvider(
                         // 卡内行距固定 8dp（不再用 horizontalPadding - sectionCardMargin 的联动算法：

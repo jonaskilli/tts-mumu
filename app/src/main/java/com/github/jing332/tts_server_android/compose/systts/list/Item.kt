@@ -1,5 +1,6 @@
 package com.github.jing332.tts_server_android.compose.systts.list
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
@@ -21,8 +22,8 @@ import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Speed
 import androidx.compose.material.icons.filled.Output
 import androidx.compose.material3.Checkbox
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.DropdownMenuItem
-import androidx.compose.material3.ElevatedCard
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -116,10 +117,13 @@ internal fun Item(
     val markEmoji = VoiceMarksFile.emojiOf(marks)
     val nameWithMarks = if (markEmoji.isEmpty()) limitedName else "$limitedName $markEmoji"
 
-    // 10-10 晚回退纯白批（ce2e3ce）：配置卡回 ElevatedCard 默认色阶（surfaceContainerLow，
-    // 淡灰随主题走），页底恢复带主题色相淡底后靠色阶自然分层
-    ElevatedCard(
-        modifier = modifier
+    // 10-10 DSH 式纯白底：配置卡改白底+发丝线边（层级靠线不靠染色），不再吃 ElevatedCard 默认色阶
+    OutlinedCard(
+        modifier = modifier,
+        colors = CardDefaults.outlinedCardColors(
+            containerColor = MaterialTheme.colorScheme.surface,
+        ),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f)),
     ) {
         // 卡片中间区域单击：与右侧显式按钮互补
         // 默认(swapButton=false,右侧是编辑)：单击=试听；交换后(swapButton=true,右侧是试听)：单击=编辑
