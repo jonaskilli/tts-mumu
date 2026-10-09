@@ -95,12 +95,11 @@ fun SubGroupHeader(
             .fillMaxWidth()
             .background(
                 when (level) {
-                    // 背景随层级递减，配合箭头/字号体现多级子分组的从属关系（缩进已取消）
-                    // 10-10 全站色阶统一：三档改官方 tone 表 L3→L2→L1（surfaceContainerHigh/Container/Low），
-                    // 递减关系不变、档差比旧透明度配方更可辨
-                    0 -> MaterialTheme.colorScheme.surfaceContainerHigh
-                    1 -> MaterialTheme.colorScheme.surfaceContainer
-                    else -> MaterialTheme.colorScheme.surfaceContainerLow
+                    // 10-10 DSH 式纯白底下的层级带：结构行承担深淡，内容卡最浅（白+线）——
+                    // 纯白表里 High/Highest 才是灰、Low/Container 已并入白，映射按新表重排：
+                    // 一级(level0)最深 #EEEEEE，二级 #F3F3F3，更深层与二级同档（箭头/字号继续分）
+                    0 -> MaterialTheme.colorScheme.surfaceContainerHighest
+                    else -> MaterialTheme.colorScheme.surfaceContainerHigh
                 }
             )
             .clickable { if (!showOptions && !showExtraOptions) onClick() }

@@ -202,7 +202,8 @@ internal fun ReplaceRuleManagerScreen(
                         Row(
                             modifier = Modifier
                                 .clip(CircleShape)
-                                .background(MaterialTheme.colorScheme.surfaceContainerLow),
+                                // 10-10 纯白表对号：surfaceContainerLow 已并入白，搜索胶囊改灰档 High
+                                .background(MaterialTheme.colorScheme.surfaceContainerHigh),
                             verticalAlignment = Alignment.CenterVertically,
                         ) {
                             SearchTextField(

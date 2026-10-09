@@ -2817,9 +2817,9 @@ internal fun ListManagerScreen(
                             if (expanded) {
                                 Spacer(modifier = Modifier.height(8.dp))
                                 Surface(
-                                    // 10-10 全站色阶统一：卡内展开块落 L2（surfaceContainer），
-                                    // 嵌套层级比卡面（L1）深一档可辨；不再 surfaceVariant 手调透明度
-                                    color = MaterialTheme.colorScheme.surfaceContainer,
+                                    // 10-10 纯白表对号修正：卡内展开块=卡上的嵌套层，
+                                    // 用灰档 surfaceContainerHigh（#F3F3F3）；surfaceContainer 已并入白会隐形
+                                    color = MaterialTheme.colorScheme.surfaceContainerHigh,
                                     shape = MaterialTheme.shapes.small,
                                     modifier = Modifier
                                         .fillMaxWidth()
@@ -3014,7 +3014,9 @@ internal fun ListManagerScreen(
                                         .fillMaxWidth()
                                         .height(48.dp)
                                         .clip(CircleShape),
-                                    color = MaterialTheme.colorScheme.surfaceVariant,
+                                    // 10-10 纯白表统一：搜索胶囊与设置页/替换规则页同灰档（#F3F3F3），
+                                    // 不再用 surfaceVariant（绿主题下带绿灰，三处搜索框岔色）
+                                    color = MaterialTheme.colorScheme.surfaceContainerHigh,
                                     shape = CircleShape
                                 ) {
                                 SearchTextField(

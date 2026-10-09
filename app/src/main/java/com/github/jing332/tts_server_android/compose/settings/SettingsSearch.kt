@@ -64,8 +64,9 @@ fun SettingsSearchField(
     modifier: Modifier = Modifier,
     compact: Boolean = false,
 ) {
-    // 充色搜索条：无描边、全圆角；底色用 surfaceContainer（与底部导航栏同色的淡紫白，用户指定）
-    val container = MaterialTheme.colorScheme.surfaceContainer
+    // 充色搜索条：无描边、全圆角；10-10 纯白表下 surfaceContainer 已并入白，
+    // 搜索框改灰档 surfaceContainerHigh（#F3F3F3，=DSH 搜索框那种白底上的浅灰胶囊）
+    val container = MaterialTheme.colorScheme.surfaceContainerHigh
     if (compact) {
         // 与日志页「搜索日志」框同款：M3 SearchBarDefaults.InputField（自带垂直居中、
         // 全圆角胶囊、surfaceContainer 底色、trailing 清除），仅占位改「搜索设置项」。
