@@ -820,9 +820,12 @@ class SystemTtsService : TextToSpeechService(), IEventDispatcher {
                         val pnameFull = pname.replace('|', '｜')
                         val pnameLimited =
                             if (maxChars > 0) pnameFull.limitDisplayLength(maxChars) else pnameFull
-                        append("　<font color=\"" + PLUGIN_CHIP_COLOR + "\">")
+                        // 插件名=全角括号备注语缀尾（10-10 用户令「（豆包-猫箱）」，重落：
+                        // 首落改动被他窗连带收走后丢失——当时核对的只是 LogScreen 部分）。
+                        // 附属信息不与角色名平级抢视觉；渲染侧插件牌底色已撤、灰青字保留
+                        append("　<font color=\"" + PLUGIN_CHIP_COLOR + "\">（")
                         append(pnameLimited)
-                        append("</font>")
+                        append("）</font>")
                     }
                 }
             }
@@ -939,10 +942,14 @@ class SystemTtsService : TextToSpeechService(), IEventDispatcher {
 
             is NormalEvent.ReadAllFromStream -> {
                 if (e.size > 0) {
-                    // 冒号前后同字重(用户:获取成功行不要加粗)，整行走 SUCCESS 石板灰
+                    // 冒号前后同字重(用户:获取成功行不要加粗)，整行走 SUCCESS 石板灰。
+                    // 尾段无汉字标签（10-10 用户令「别加大小和耗时了」）+耗时秒留一位
+                    //（用户拍板甲案：1079ms→1.1s；<1s 显 0.6s，≥10s 照常 12.3s）
+                    val costSec = e.costTime / 1000.0
+                    val costText = String.format("%.1fs", costSec)
                     logS(
                         "<font color=\"" + META_INFO_COLOR + "\">获取成功：</font>" +
-                            "大小 " + e.size.sizeToReadable() + " · 耗时 " + e.costTime + "ms",
+                            e.size.sizeToReadable() + " · " + costText,
                         indent = 1
                     )
                 }
