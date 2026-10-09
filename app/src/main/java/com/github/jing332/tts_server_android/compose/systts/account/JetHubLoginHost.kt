@@ -80,11 +80,18 @@ fun JetHubLoginHost(context: Context, initialProvider: String, onFinished: () ->
                             Triple(state, url, err)
                         }
                     }
-                    val (state, url, _) = triple
+                    val (state, url, err) = triple
                     if (url == null || url.isEmpty()) {
+                        // 失败不能静默回（10-11 真机实锤「CodeBuddy 无法新建账号」看起来像
+                        // 点了没反应）：Toast 带原因，稍候再回 Jet 页
+                        android.widget.Toast.makeText(
+                            context, "获取登录地址失败：${err.ifEmpty { "未知错误" }}",
+                            android.widget.Toast.LENGTH_LONG
+                        ).show()
+                        kotlinx.coroutines.delay(1200)
                         onFinished()
                     } else {
-                        webviewLaunch?.invoke(
+                        webviewLaunch(
                             Intent(context, AccountLoginActivity::class.java)
                                 .putExtra(AccountLoginActivity.EXTRA_LOGIN_URL, url)
                                 .putExtra(AccountLoginActivity.EXTRA_LOGIN_STATE, state)
@@ -136,9 +143,15 @@ fun JetHubLoginHost(context: Context, initialProvider: String, onFinished: () ->
                                 Triple(state, url, err)
                             }
                         }
-                        val (state, url, _) = triple
+                        val (state, url, err) = triple
                         if (url == null || url.isEmpty()) {
-                            onFinished() // 拿不到登录地址无处可去，回 Jet 页
+                            // 失败不能静默回（同直连分支）：Toast 带原因再回 Jet 页
+                            android.widget.Toast.makeText(
+                                context, "获取登录地址失败：${err.ifEmpty { "未知错误" }}",
+                                android.widget.Toast.LENGTH_LONG
+                            ).show()
+                            kotlinx.coroutines.delay(1200)
+                            onFinished()
                         } else {
                             loginLauncher.launch(
                                 Intent(context, AccountLoginActivity::class.java)

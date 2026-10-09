@@ -1207,6 +1207,17 @@ object KeyListFile {
             val (list, rates, err) = AccountPool.fetchModelsWithRates(apiKey)
             return Triple(list, rates, err)
         }
+        // 渠道路由（10-11 真机实锤修 404）：渠道专协议上游（autoclaw/workbuddy/zcode 等）
+        // 没有通用 GET /models 端点——baseUrl 命中某渠道 chatBaseUrl 时走该渠道的
+        // fetchModels 实现（多为静态内置清单+个别网络拉取），不落到通用请求。
+        ChannelBootstrap.install()
+        ChatChannels.byBaseUrl(baseUrl)?.let { ch ->
+            val list = runCatching { ch.fetchModels(apiKey) }.getOrElse {
+                return Triple(null, emptyMap(), "${ch.displayName} 拉取失败：${it.message ?: "未知错误"}")
+            }
+            if (list.isEmpty()) return Triple(null, emptyMap(), "${ch.displayName} 未返回模型")
+            return Triple(list, emptyMap(), "")
+        }
         val resp = httpJson(openAiBaseUrl(baseUrl) + "/models", "GET", apiKey, null)
         if (!resp.ok) return Triple(null, emptyMap(), "HTTP ${resp.code}，${briefBody(resp.body)}")
         return Triple(parseModelList(resp.body), parseRatesFromModels(resp.body), "")

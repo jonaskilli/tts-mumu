@@ -114,4 +114,16 @@ object ChatChannels {
     fun byProvider(provider: String): ChatChannel? = registry[provider]
 
     fun all(): List<ChatChannel> = registry.values.toList()
+
+    /**
+     * 按上游基址反查渠道（10-11 手动「拉取模型」渠道路由用）。
+     * 渠道专协议上游（autoclaw/workbuddy/zcode 等）没有通用 GET /models 端点，
+     * 手动拉取若不路由到 ChatChannel.fetchModels 必然 404（真机实锤）。
+     * 归一=去尾斜杠逐字比较（chatBaseUrl 与分组 baseUrl 同源，够用；不引 KeyListFile
+     * 防循环依赖）。
+     */
+    fun byBaseUrl(baseUrl: String): ChatChannel? {
+        val norm = baseUrl.trim().trimEnd('/')
+        return registry.values.firstOrNull { it.chatBaseUrl.trim().trimEnd('/') == norm }
+    }
 }
