@@ -503,7 +503,9 @@ internal fun LogScreen(
                                 modifier = Modifier
                                     .padding(start = 7.dp, top = 10.dp, bottom = 4.dp)
                                     .background(
-                                        MaterialTheme.colorScheme.surfaceVariant,
+                                        // 10-10 纯白表归位：日期签=信息标签走灰阶 #EEEEEE，
+                                        // surfaceVariant 未被新管线覆写、绿主题下带绿灰
+                                        MaterialTheme.colorScheme.surfaceContainerHighest,
                                         RoundedCornerShape(9.dp)
                                     )
                                     .padding(horizontal = 9.dp, vertical = 2.dp)
