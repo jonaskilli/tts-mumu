@@ -7,6 +7,7 @@ import androidx.compose.material.icons.filled.Audiotrack
 import androidx.compose.material.icons.filled.Build
 import androidx.compose.material.icons.filled.ContentCut
 import androidx.compose.material.icons.filled.Group
+import androidx.compose.material.icons.filled.LibraryAdd
 import androidx.compose.material.icons.filled.Output
 import androidx.compose.material.icons.filled.Speed
 import androidx.compose.material.icons.automirrored.filled.MenuBook
@@ -19,6 +20,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
@@ -49,6 +51,11 @@ internal fun MenuMoreOptions(
     if (showImportSheet)
         ListImportBottomSheet(onDismissRequest = { showImportSheet = false })
 
+    // 按插件音色分类入库：选插件 → 插件管理页同一入库弹窗（10-10 主界面直达入口）
+    var showImportByCategory by remember { mutableStateOf(false) }
+    var importPlugin by remember { mutableStateOf<com.github.jing332.database.entities.plugin.Plugin?>(null) }
+    val importScope = rememberCoroutineScope()
+
     var showAudioParamsDialog by remember { mutableStateOf(false) }
     if (showAudioParamsDialog)
         GlobalAudioParamsDialog {
@@ -58,6 +65,25 @@ internal fun MenuMoreOptions(
 
     val context = LocalContext.current
     val activity = remember { context.asAppCompatActivity() }
+
+    // 按插件音色分类入库弹窗链（须在 context 声明之后）：选插件 → 插件管理页同一弹窗
+    if (showImportByCategory) {
+        com.github.jing332.tts_server_android.compose.systts.plugin.PluginSelectionDialog(
+            onDismissRequest = { showImportByCategory = false }
+        ) { selected ->
+            showImportByCategory = false
+            importPlugin = selected
+        }
+    }
+    importPlugin?.let { p ->
+        com.github.jing332.tts_server_android.compose.systts.plugin.ImportByCategoryDialog(
+            plugin = p,
+            visible = true,
+            onDismiss = { importPlugin = null },
+            scope = importScope,
+            context = context
+        )
+    }
     AppDropdownMenu(
         expanded = expanded,
         onDismissRequest = onDismissRequest
@@ -141,6 +167,19 @@ internal fun MenuMoreOptions(
             },
             leadingIcon = {
                 Icon(painterResource(id = R.drawable.ic_shortcut_plugin), null)
+            }
+        )
+
+        // 按插件音色分类入库（10-10 用户令：主界面直达，免进插件管理页找 ⋮）：
+        // 选插件 → 复用插件管理页同一弹窗（internal 引用，两处永远同款）
+        DropdownMenuItem(
+            text = { Text("按插件音色分类入库") },
+            onClick = {
+                onDismissRequest()
+                showImportByCategory = true
+            },
+            leadingIcon = {
+                Icon(Icons.Default.LibraryAdd, null)
             }
         )
 

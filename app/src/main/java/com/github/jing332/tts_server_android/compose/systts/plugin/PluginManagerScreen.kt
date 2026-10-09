@@ -1208,7 +1208,7 @@ private fun Item(
 }
 
 @Composable
-private fun ImportByCategoryDialog(
+internal fun ImportByCategoryDialog(
     plugin: Plugin?,
     visible: Boolean,
     onDismiss: () -> Unit,
