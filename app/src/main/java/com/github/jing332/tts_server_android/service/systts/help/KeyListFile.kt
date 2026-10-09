@@ -1615,13 +1615,19 @@ object KeyListFile {
     }
 
 /**
- * 密钥是否属于某接口（照插件 keyBelongsTo）：value 网址段同站 且 key 相同；纯 Key 不归属。
- * ⚠️ 旧版丢了「key 相同」这半：同站点两把 key 时，删接口 A 会连带删掉 B 的密钥。
+ * 密钥是否属于某接口（10-10 用户定稿「同供应商一组合一」）：判据=**网址段同站**即归属，
+ * 不再比 key——同渠道多账号各落一条（value=站@@模型@@各自token），全归同一分组，
+ * 组里逐条可勾进启用池、调用时按池序轮换（「调用的时候随便用加的所属账号」）。
+ * 旧判据（key 也要等于组级 apiKey）会让第 2+ 账号的条目掉进「未分组」，用户看到的就是
+ * 组外一堆莫名其妙的「模型密钥」。
+ * ⚠️ 历史坑变历史：旧注释记的「旧版丢了 key 相同这半，删接口 A 连带删 B」——那是插件
+ * 一 key 一组时代的顾虑；app 侧已定稿一平台一组，删组本就该同站全删（见
+ * deleteInterfaceCascade 同款判据）。若将来回到一 key 一组，两处要一起改回。
  */
     fun keyBelongsTo(entry: KeyEntry, ifc: ApiInterface): Boolean {
         val p = parseKeyValue(entry.value) ?: return false
         if (p.isDirect || p.url.isEmpty()) return false
-        return sameApiSite(p.url, ifc.baseUrl) && p.key == ifc.apiKey.trim()
+        return sameApiSite(p.url, ifc.baseUrl)
     }
 
     /** 删除接口连同其下所有密钥条目（照插件接口表单🗑）；返回 (新密钥表, 删除的密钥数) */
