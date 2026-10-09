@@ -67,6 +67,7 @@ import androidx.compose.material3.SnackbarDuration
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TextFieldDefaults
@@ -1241,6 +1242,11 @@ internal fun ImportByCategoryDialog(
     var progressText by remember { mutableStateOf("") }
     // 正在试听的声音行下标（-1 = 未试听）；弹窗内上一个/下一个按此下标走
     var auditionIndex by remember { mutableStateOf(-1) }
+    // 等待分类/自动下一个（10-10 用户令恢复旧版两开关，语义照 10-05 迁移前原样）：
+    // 等待分类=试听播完不自动关弹窗（autoDismiss=false），留时间点分类；
+    // 自动下一个=点了分类（真正分配，取消不算）后自动切下一个继续播
+    var waitCategorySwitch by remember { mutableStateOf(false) }
+    var autoNextSwitch by remember { mutableStateOf(false) }
 
     // 引擎贯穿弹窗生命周期：既用于拉池/声音，也用于试听合成；关闭时销毁
     val engine = remember(plugin.id) { TtsPluginUiEngineV2(context, plugin) }
@@ -1325,15 +1331,19 @@ internal fun ImportByCategoryDialog(
             text = AppConfig.testSampleText.value,
             engine = provider,
             voiceId = row.voiceId,
-            // 不带分类开关：本页试听恒等分类（自动关闭会来不及点分类标签）
-            autoDismiss = false,
+            // 等待分类开关（10-10 用户令恢复旧逻辑）：开=播完不自动关，留时间点分类
+            autoDismiss = !waitCategorySwitch,
             hasPrev = auditionIndex > 0,
             hasNext = auditionIndex < voices.size - 1,
             onCategoryAssigned = { _, category ->
                 categoryOverrides = if (category == null) categoryOverrides - row.key
                 else categoryOverrides + (row.key to category)
                 // 手选分类即视为待导入项（否则分好类却没勾、导入漏掉它）
-                if (category != null) selectedKeys = selectedKeys + row.key
+                if (category != null) {
+                    selectedKeys = selectedKeys + row.key
+                    // 自动下一个开关（旧逻辑原样）：真正分配分类才跳下一个，取消不跳
+                    if (autoNextSwitch && auditionIndex < voices.size - 1) auditionIndex++
+                }
             },
             onPrev = { if (auditionIndex > 0) auditionIndex-- },
             onNext = { if (auditionIndex < voices.size - 1) auditionIndex++ },
@@ -1426,8 +1436,31 @@ internal fun ImportByCategoryDialog(
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                             maxLines = 2,
                             overflow = TextOverflow.Ellipsis,
-                            modifier = Modifier.padding(bottom = 8.dp)
+                            modifier = Modifier.padding(bottom = 4.dp)
                         )
+                        // 等待分类/自动下一个（10-10 用户令恢复旧版两开关）：
+                        // 整行可点切对应开关，Toast 口径照 10-05 迁移前原样
+                        Row(
+                            Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(18.dp)
+                        ) {
+                            SwitchRow(
+                                label = "等待分类",
+                                checked = waitCategorySwitch,
+                                onToggle = {
+                                    waitCategorySwitch = it
+                                    context.toast(if (it) "已开启：试听后等待选择分类" else "已关闭：试听后自动关闭")
+                                }
+                            )
+                            SwitchRow(
+                                label = "自动下一个",
+                                checked = autoNextSwitch,
+                                onToggle = {
+                                    autoNextSwitch = it
+                                    context.toast(if (it) "已开启：选分类后自动试听下一个" else "已关闭：选分类后不自动切换")
+                                }
+                            )
+                        }
                         CheckRow(
                             checked = allVoicesSelected,
                             onChecked = {
@@ -1517,6 +1550,31 @@ internal fun ImportByCategoryDialog(
             }
         }
     )
+}
+
+/**
+ * 分类入库的开关行（10-10 恢复旧版两开关的行形态）：Switch + 标签一行，供「等待分类/自动下一个」。
+ */
+@Composable
+private fun SwitchRow(
+    label: String,
+    checked: Boolean,
+    onToggle: (Boolean) -> Unit,
+) {
+    Row(
+        modifier = Modifier
+            .clip(MaterialTheme.shapes.small)
+            .clickable { onToggle(!checked) }
+            .padding(vertical = 2.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Switch(checked = checked, onCheckedChange = { onToggle(it) })
+        Text(
+            text = label,
+            style = MaterialTheme.typography.bodyMedium,
+            modifier = Modifier.padding(start = 4.dp)
+        )
+    }
 }
 
 /**
