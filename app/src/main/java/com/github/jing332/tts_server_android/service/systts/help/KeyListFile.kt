@@ -1444,20 +1444,21 @@ object KeyListFile {
                 off == false -> TestVerdict.PASS_THINKING
                 else -> TestVerdict.PASS
             }
-            val suffix = when {
-                !ok -> ""
-                // 10-10 用户令（原文案「思考未关，可能拖慢分配」只说现象不说出路）：
-                // 改说法——讲清「这个写法关不掉思考」，并给出路（换写法/自定义）。
-                // 措辞与另两条黄态分支统一为「关不掉思考 + 需自定义」。
-                off == false -> " · 所选写法关不掉思考 · 需自定义"
-                else -> " · 思考已关"
+            // 10-10 用户令（文案二稿）：①书面化——「关不掉/需自定义」太口语，改「无法关闭/请自定义 JSON」；
+            // ②结论前置——黄态原把「思考未关」压在行尾，收起态单行截断时要点反被省略号吃掉
+            //（用户「重点也要放前面，不然都得展开才能看到」）。改「思考未关」起首、用时移句尾；
+            // 绿态保持用时前置（绿态的重点就是速度，10-08 定），按态各自把本态要点放首。
+            val text = when {
+                !ok -> msg
+                off == false -> "思考未关 · 所选写法无法关闭 · 请自定义 JSON · $msg"
+                else -> "$msg · 思考已关"
             }
             // 自动佩戴（10-09）：绿态（PASS=思考已关）才参与；黄态不佩戴。
             // 用时 <3s（HEAVY_MODEL_MS）才参与自动佩戴，快过现键一半才转移——判定在 maybeAutoAssign 内部
             if (v == TestVerdict.PASS && off == true) {
-                maybeAutoAssign(tagRuleId, normTarget, msg + suffix)
+                maybeAutoAssign(tagRuleId, normTarget, text)
             }
-            return TestOutcome(v, off, msg + suffix, reason = if (!ok) msg else "")
+            return TestOutcome(v, off, text, reason = if (!ok) msg else "")
         }
 
         // auto：先按锁定写法测一发（锁定后通常一发即走）；键 = 网址+模型（模型级锁定）。
@@ -1474,16 +1475,17 @@ object KeyListFile {
                 // 10-09 六令（文案统一方案一）：三段式「已锁定 x」（与 auto 探测路同构；
                 // 原括号「（锁定：x）」口径退役）——locked 必须回传：界面靠它判断
                 // 「已锁定→不给『去设置』」，漏传会误出设置入口
-                // 10-10 用户令：黄态文案与另两条黄态分支统一——说清「锁的是能用的写法、
-                // 它关不掉思考」并给出路（自定义），不再只说现象「思考未关」
-                val suffix = if (off == false)
-                    " · 已锁定「$locked」可分配 · 关不掉思考 · 需自定义"
-                else " · 思考已关 · 已锁定 $locked"
+                // 10-10 用户令（文案二稿）：黄态结论前置 + 书面化——「思考未关」起首（收起态
+                // 单行截断也先看到要点）、用时移句尾、「关不掉/需自定义」改「无法关闭/请自定义 JSON」；
+                // 绿态维持用时前置（本态要点是速度）
+                val text = if (off == false)
+                    "思考未关 · 已锁定 $locked 无法关闭 · 请自定义 JSON · $msg"
+                else "$msg · 思考已关 · 已锁定 $locked"
                 // 自动佩戴（10-09）：绿态且思考已关；黄态（思考未关）不参与
                 if (v == TestVerdict.PASS && off == true) {
-                    maybeAutoAssign(tagRuleId, normTarget, msg + suffix)
+                    maybeAutoAssign(tagRuleId, normTarget, text)
                 }
-                return TestOutcome(v, off, msg + suffix, locked = locked)
+                return TestOutcome(v, off, text, locked = locked)
             }
             // 锁定写法突然不通（平台行为变了）→ 落到全量试探
         }
@@ -1547,13 +1549,11 @@ object KeyListFile {
             saveThinkingParam(tagRuleId, t.baseUrl, t.model, yellow.first, "")
             return TestOutcome(
                 TestVerdict.PASS_THINKING, false,
-                // 10-08 四令（装机反馈）：全文照绿态分段口径「用时 · 结论 · 已锁定 x」——
-                // 原稿用时在尾部「保证可分配：4191ms」，与收起行首的用时前缀重复两遍，
-                // 且冒号接时长读不通；用时提到句首说一遍，与绿态同构
-                // 10-10 用户令：原文案「各写法均无法关闭思考」语义含糊（用户问「关闭逻辑
-                // 是什么」）——改为直说：试遍 7 种内置写法都关不掉思考，现锁定「x」只为
-                // 保证能分配（是"能用的写法"不是"能关思考的写法"），真要关请自定义填字段
-                "${yellow.second} · 内置写法都关不掉思考 · 已锁定「${yellow.first}」可分配 · 需自定义",
+                // 10-10 用户令（文案二稿）：书面化 + 结论前置——「思考未关」起首、
+                // 用时移句尾；「关不掉」「需自定义」改「均无法关闭」「请自定义 JSON」。
+                // 机制：7 种内置写法全试过都关不掉（锁的 x 只是"能跑通"的写法），
+                // 要关只能自定义填该平台真正认的字段。
+                "思考未关 · 内置写法均无法关闭 · 请自定义 JSON · 已锁定 ${yellow.first} · ${yellow.second}",
                 locked = yellow.first
             )
         }
