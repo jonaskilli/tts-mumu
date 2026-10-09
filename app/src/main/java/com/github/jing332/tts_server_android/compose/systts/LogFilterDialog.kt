@@ -91,12 +91,14 @@ fun LogFilterDialog(
                 ) {
                     // 插件日志开关（09-13 要求：文案去掉「日志」二字省宽度）
                     // 选中不要打对勾，容器色已足够表达选中态
+                    // 10-11 用户令「改下选中的颜色」：tertiaryContainer 淡蓝退役（fresh green
+                    // 单色系，全站不再有第三色相）——选中统一 secondaryContainer 淡绿
                     FilterChip(
                         selected = showPluginLogs,
                         onClick = { onPluginLogsToggle() },
                         label = { Text("插件") },
                         colors = FilterChipDefaults.filterChipColors(
-                            selectedContainerColor = MaterialTheme.colorScheme.tertiaryContainer
+                            selectedContainerColor = MaterialTheme.colorScheme.secondaryContainer
                         )
                     )
 
@@ -106,7 +108,7 @@ fun LogFilterDialog(
                         onClick = { onSpeechRuleLogsToggle() },
                         label = { Text("朗读规则") },
                         colors = FilterChipDefaults.filterChipColors(
-                            selectedContainerColor = MaterialTheme.colorScheme.tertiaryContainer
+                            selectedContainerColor = MaterialTheme.colorScheme.secondaryContainer
                         )
                     )
 
@@ -116,17 +118,17 @@ fun LogFilterDialog(
                         onClick = { onDebugLogsToggle() },
                         label = { Text("DEBUG") },
                         colors = FilterChipDefaults.filterChipColors(
-                            selectedContainerColor = MaterialTheme.colorScheme.tertiaryContainer
+                            selectedContainerColor = MaterialTheme.colorScheme.secondaryContainer
                         )
                     )
 
-                    // 实时滚动开关
+                    // 实时滚动开关（同上统一淡绿，原 primaryContainer 与 secondaryContainer 两档绿并存岔色）
                     FilterChip(
                         selected = autoScrollToBottom,
                         onClick = { onAutoScrollToggle() },
                         label = { Text("实时显示最新日志") },
                         colors = FilterChipDefaults.filterChipColors(
-                            selectedContainerColor = MaterialTheme.colorScheme.primaryContainer
+                            selectedContainerColor = MaterialTheme.colorScheme.secondaryContainer
                         )
                     )
                 }
