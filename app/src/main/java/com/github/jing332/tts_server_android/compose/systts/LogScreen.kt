@@ -785,16 +785,22 @@ internal enum class LogPillKind { OK, FAIL, RETRY, STANDBY }
 internal data class LogPill(val kind: LogPillKind, val text: String)
 
 // 状态药丸（10-10 行流定稿）：丸只装状态字，成功绿/失败红/重试灰/切备用黄；
-// 丸后灰字（耗时·大小/失败原因）由调用方另排
+// 丸后灰字（耗时·大小/失败原因）由调用方另排。
+// ⚠️ 不用 Pair 解构（when 分支混用 to 与 if 表达式时编译器推成 Any）——分两个 when
 @Composable
 private fun StatusPill(pill: LogPill) {
-    val (bg, fg) = when (pill.kind) {
-        LogPillKind.OK -> Color(0xFFE7F0E9) to Color(0xFF2E6B46)
-        LogPillKind.FAIL -> Color(0xFFF9E5E4) to Color(0xFFB3261E)
-        LogPillKind.RETRY -> if (isSystemInDarkTheme()) Color(0xFF2A2D33) else Color(0xFFEEF0F6) to
-                if (isSystemInDarkTheme()) Color(0xFF9AA0A8) else Color(0xFF5B6472)
-        LogPillKind.STANDBY -> if (isSystemInDarkTheme()) Color(0xFF3A3226) else Color(0xFFFBF1DC) to
-                if (isSystemInDarkTheme()) Color(0xFFC9A94E) else Color(0xFF8A6D1A)
+    val dark = isSystemInDarkTheme()
+    val bg = when (pill.kind) {
+        LogPillKind.OK -> Color(0xFFE7F0E9)
+        LogPillKind.FAIL -> Color(0xFFF9E5E4)
+        LogPillKind.RETRY -> if (dark) Color(0xFF2A2D33) else Color(0xFFEEF0F6)
+        LogPillKind.STANDBY -> if (dark) Color(0xFF3A3226) else Color(0xFFFBF1DC)
+    }
+    val fg = when (pill.kind) {
+        LogPillKind.OK -> Color(0xFF2E6B46)
+        LogPillKind.FAIL -> Color(0xFFB3261E)
+        LogPillKind.RETRY -> if (dark) Color(0xFF9AA0A8) else Color(0xFF5B6472)
+        LogPillKind.STANDBY -> if (dark) Color(0xFFC9A94E) else Color(0xFF8A6D1A)
     }
     Text(
         text = pill.text,
