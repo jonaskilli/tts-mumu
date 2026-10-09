@@ -93,7 +93,6 @@ import androidx.compose.ui.draw.scale
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.compositeOver
-import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalConfiguration
@@ -418,14 +417,8 @@ private fun KeyEntryRow(
                             maxLines = 1,
                             modifier = Modifier
                                 .clip(RoundedCornerShape(5.dp))
-                                // 10-10 纯白表：标签类胶囊改淡绿（同角色页标签 softContainerColor 口径）
-                                .background(
-                                    lerp(
-                                        MaterialTheme.colorScheme.secondaryContainer,
-                                        MaterialTheme.colorScheme.background,
-                                        0.4f
-                                    )
-                                )
+                                // 标签类胶囊淡绿：softContainerColor 单源（10-10 统一，原内联 lerp 0.4 与本体 0.65 已岔色）
+                                .background(softContainerColor())
                                 .padding(horizontal = 5.dp, vertical = 1.dp)
                         )
                     }
@@ -1021,13 +1014,8 @@ private fun GroupHeaderBlock(
                         if (ifc.apiKey.length > 2) {
                             Surface(
                                 shape = RoundedCornerShape(4.dp),
-                                // 10-10 纯白表：标签类胶囊用淡绿（同角色页标签 softContainerColor 口径：
-                                // secondaryContainer 向 background 插 40%），灰阶留给结构与可点字段
-                                color = lerp(
-                                    MaterialTheme.colorScheme.secondaryContainer,
-                                    MaterialTheme.colorScheme.background,
-                                    0.4f
-                                )
+                                // 标签类胶囊淡绿：softContainerColor 单源（10-10 统一）
+                                color = softContainerColor()
                             ) {
                                 Text(
                                     stringResource(

@@ -89,7 +89,6 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.material3.LocalTextStyle
@@ -1584,13 +1583,10 @@ private fun VoiceImportRow(
         }
         Surface(
             shape = MaterialTheme.shapes.small,
-            // 10-10 纯白表口径：标签类胶囊统一淡绿（secondaryContainer 向 background 插 40%，
-            // =角色页标签 softContainerColor 同款）；原 tertiaryContainer 青蓝是全站唯一的第三色相，退役
-            color = if (category != null) lerp(
-                MaterialTheme.colorScheme.secondaryContainer,
-                MaterialTheme.colorScheme.background,
-                0.4f
-            ) else MaterialTheme.colorScheme.surface,
+            // 标签类胶囊统一淡绿：softContainerColor 单源（10-10 统一，原内联 lerp 0.4 已岔色）；
+            // 原 tertiaryContainer 青蓝是全站唯一的第三色相，退役
+            color = if (category != null) com.github.jing332.tts_server_android.compose.systts.role.softContainerColor()
+            else MaterialTheme.colorScheme.surface,
             tonalElevation = if (category != null) 2.dp else 0.dp,
             border = if (category == null)
                 BorderStroke(1.dp, MaterialTheme.colorScheme.outline)

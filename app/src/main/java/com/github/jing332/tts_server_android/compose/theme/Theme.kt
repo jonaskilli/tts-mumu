@@ -73,19 +73,21 @@ private fun themedNeutral(
 }
 
 /**
- * 动态取色（壁纸派生）没有静态表可查：按同一官方 tone 结构现算，
- * 色相/彩度取壁纸派生的 primary（彩度截到 3，与静态主题同中性度），锚到派生 background。
+ * 动态取色（壁纸派生）没有静态表可查：按同一 fresh green 结构现算，
+ * 色相/彩度取壁纸派生的 primary（彩度截到 8，与静态表浅色同口径），锚到派生 background。
  */
 private fun dynamicNeutral(scheme: ColorScheme, darkTheme: Boolean): ColorScheme {
     val steps = if (darkTheme)
         floatArrayOf(4f, 10f, 12f, 17f, 22f, 6f, 24f)
     else
-        floatArrayOf(100f, 96f, 94f, 92f, 90f, 87f, 98f)
+        floatArrayOf(99f, 96.5f, 94.5f, 92.5f, 90.5f, 88f, 98f)
     val bg = labL(scheme.background)
-    val shift = bg - (if (darkTheme) 6f else 98f)   // 官方锚：surface 深色 tone6 / 浅色 98
+    val shift = bg - (if (darkTheme) 6f else 96.5f)   // 深锚官方 tone6；浅锚卡底 Low 槽 96.5（fresh green）
     val p = scheme.primary
     val (_, pa, pb) = labOf(p.red, p.green, p.blue)
-    val chroma = minOf(Math.hypot(pa.toDouble(), pb.toDouble()).toFloat(), 3f)
+    // 深色彩度截 3（官方暗色中性度）；浅色彩度截 8（fresh green，与静态表/desat_containers 同口径）
+    val chromaCap = if (darkTheme) 3.0 else 8.0
+    val chroma = minOf(Math.hypot(pa.toDouble(), pb.toDouble()).toFloat(), chromaCap.toFloat())
     val hue = Math.atan2(pb.toDouble(), pa.toDouble())
     fun tone(t: Float) = labColor((t + shift).coerceIn(0f, 100f), (chroma * Math.cos(hue)).toFloat(), (chroma * Math.sin(hue)).toFloat())
     return scheme.copy(

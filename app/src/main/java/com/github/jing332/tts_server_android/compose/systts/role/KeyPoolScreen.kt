@@ -53,7 +53,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.compositeOver
-import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
@@ -381,14 +380,8 @@ private fun PoolRow(
                         maxLines = 1,
                         modifier = Modifier
                             .clip(RoundedCornerShape(5.dp))
-                            // 10-10 纯白表：标签类胶囊改淡绿（同角色页标签 softContainerColor 口径）
-                            .background(
-                                lerp(
-                                    MaterialTheme.colorScheme.secondaryContainer,
-                                    MaterialTheme.colorScheme.background,
-                                    0.4f
-                                )
-                            )
+                            // 标签类胶囊淡绿：softContainerColor 单源（10-10 统一）
+                            .background(softContainerColor())
                             .padding(horizontal = 5.dp, vertical = 1.dp)
                     )
                 }
