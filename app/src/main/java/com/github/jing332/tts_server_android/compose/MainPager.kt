@@ -34,8 +34,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.clipToBounds
-import androidx.compose.foundation.layout.offset
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.Role
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
@@ -47,9 +46,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.layout.layout
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import kotlin.math.roundToInt
 import com.github.jing332.compose.widgets.ControlBottomBarVisibility
@@ -95,6 +94,9 @@ fun AnimatedContentScope.MainPager(sharedVM: SharedViewModel) {
         !a11yTouchEnabled
     })
     ControlBottomBarVisibility(a11yTouchEnabled, scrollBehavior)
+    // 底栏满高的像素值（60dp）：布局式滚动隐藏用它算裁剪量
+    val density = LocalDensity.current
+    val bottomBarHeightPx = with(density) { 60.dp.toPx() }.roundToInt()
 
     val overlayController = rememberOverlayController()
 
@@ -135,18 +137,15 @@ fun AnimatedContentScope.MainPager(sharedVM: SharedViewModel) {
                 bottomBar = {
                     // 自绘微信式底栏（替代 M3 NavigationBar）：M3 最低 80dp（32dp 胶囊撑高），
                     // 微信/QQ同款 60dp：24dp 图标+3dp 图文缝+中文常显，选中态无胶囊、图标文字同染 primary。
-                    // 10-10 接上滚动隐藏：exitAlwaysScrollBehavior 一直在记 heightOffset（往下滚→60dp、
-                    // 上滚→0），但底栏此前没消费它，永远全高——本 Modifier 是缺失的那半截。
-                    // offset 为负=向上平移；Scaffold bottomBar 槽不会自动裁剪，加了 clip 防止平移后露出底边。
+                    // 10-10 滚动隐藏 v2（真机实锤 v1 的 offset+clipToBounds 顺序错了：
+                    // offset 只挪绘制、布局高度不变，clip 在 offset 前执行=裁在原位，底栏平移后
+                    // 悬在内容中间，上下都露内容——见用户截图 19:08）。
+                    // v2 改布局式：直接把高度裁到 (60dp+offset)，Surface 本体随高度收走，
+                    // Scaffold 槽位同步缩小，内容区真的多出空间（也顺带修了 v1「藏了但不多看行」）。
                     Surface(
                         modifier = Modifier
                             .fillMaxWidth()
-                            // 10-10 接上滚动隐藏：exitAlwaysScrollBehavior 的引擎早已在
-                            // （nestedScroll 已接、无障碍控制也在），但底栏此前没消费 heightOffset，
-                            // 永远全高——这里补上消费端：往下滚→底栏平移出屏，往上滚→立刻回弹。
-                            // heightOffset 单位 px、负值=隐藏量（M3 官方 BottomAppBar 同款消费逻辑）。
-                            .bottomBarOffset({ scrollBehavior.state.heightOffset })
-                            .clipToBounds(),
+                            .bottomBarHeight(scrollBehavior.state.heightOffset, bottomBarHeightPx),
                         color = MaterialTheme.colorScheme.surfaceContainer
                     ) {
                         Column {
@@ -239,11 +238,15 @@ fun AnimatedContentScope.MainPager(sharedVM: SharedViewModel) {
 }
 
 /**
- * 按 [heightOffset]（负值=隐藏量，单位 px）向上平移——自绘底栏对
- * BottomAppBarScrollBehavior 的消费端。M3 官方 BottomAppBar 内部即此逻辑：
- * behavior 滚动时只记 heightOffset 值，官方控件靠这个 modifier 消费它；
- * lambda 每帧在 offset 块内读值（State），滚动时逐帧平移、无需重组。
- * Scaffold 的 bottomBar 槽不会自动裁剪平移出的部分，配合 clipToBounds 兜底。
+ * 底栏滚动隐藏 v2（布局式）：按 [heightOffset]（px，负=隐藏量）实时裁底栏高度——
+ * heightRequired(60dp+offset)，内容随高度收走（Row 顶对齐、贴边裁掉底行），
+ * Scaffold 槽位随高度同步缩小，滚动内容真的多出空间。
+ * v1（offset 平移+clipToBounds）真机实锤失效：offset 不改布局高度、clip 先于 offset
+ * 执行裁在原位，底栏悬在内容中间（用户截图 19:08）。
  */
-private fun Modifier.bottomBarOffset(heightOffset: () -> Float): Modifier =
-    offset { IntOffset(0, heightOffset().roundToInt()) }
+private fun Modifier.bottomBarHeight(heightOffsetState: () -> Float, fullHeightPx: Int): Modifier =
+    layout { measurable, constraints ->
+        val hidden = (-heightOffsetState()).roundToInt().coerceIn(0, fullHeightPx)
+        val placeable = measurable.measure(constraints.copy(minHeight = 0, maxHeight = fullHeightPx - hidden))
+        layout(placeable.width, placeable.height) { placeable.place(0, 0) }
+    }
