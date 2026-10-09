@@ -54,6 +54,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.TextRange
@@ -64,6 +65,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.drake.net.utils.withIO
@@ -854,6 +856,32 @@ private fun cutToTagBoxWidth(text: String, budget: Float = TAG_BUDGET): String {
 }
 
 /**
+ * 名字列最小宽（10-10 用户令「名字有占到一半屏幕的权利」）：
+ * 取竖排名称各行（含收藏【】、主角👑附件）按 16sp 估算的最长渲染宽，封顶=屏宽的 50%。
+ * 名字短时只按实际宽占位（剩余让给标签框），名字长时保住半屏不被标签框挤窄。
+ * 估宽口径：全角(≥0x2E80)≈16dp、半角≈9dp（16sp 下与 weightedWidth 同分布）；
+ * 加固定开销=圆点 6+点距 4+行首缩进 4=14dp。
+ */
+@Composable
+private fun nameColumnMinWidth(
+    nameList: List<String>,
+    isFav: Boolean,
+    isProtagonist: Boolean,
+): Dp {
+    val config = LocalConfiguration.current
+    val halfScreen = (config.screenWidthDp / 2).dp
+    var maxW = 0f
+    for (name in nameList) {
+        var w = 14f // 圆点 6 + 点距 4 + 行首缩进 4
+        if (isFav && name == nameList.first()) w += 2f // 【】两角约 2 全角宽的一半余量，粗估
+        for (ch in name) w += if (ch.code < 0x2E80) 9f else 16f
+        if (isProtagonist && name == nameList.first()) w += 20f // 👑+空格
+        if (w > maxW) maxW = w
+    }
+    return minOf(maxW.dp, halfScreen)
+}
+
+/**
  * 角色行（照插件 createListRow / v9 排布）：左名字列竖排（主名第一行，别名从第二行起各占一行，
  * 每行 = 性别圆点 + 名称 + 收藏【】 + 主角👑），整列垂直居中 → 右侧标签框对这一列上下居中；
  * 右动作列=发音人标签框 + 已点亮标记 emoji（❤️🚶😈，与换声弹窗同源 voice_marks.json）
@@ -898,6 +926,13 @@ private fun RoleRow(
             // 这里必须关掉按压反馈波纹，否则名字列自己的涟漪会叠成第二块灰。
             Column(
                 Modifier
+                    // 宽度分配新规则（10-10 用户令）：**名字有占到半屏的权利**——名字列
+                    // 最小宽=行内可用宽的 50%，标签框最多吃剩下的 50%；名字实际不长时
+                    //（最长一行 ≤ 半屏）只按实际宽占位，剩余全让给标签框。
+                    // 计宽对象=竖排全部名称行里**最长的一行**（含收藏【】与 👑 附件），
+                    // 按 16sp 全角≈16dp/半角≈9dp 估（与 weightedWidth 同口径的 dp 化）。
+                    // 多角色名竖排时取最长行：任何一行保住半屏即保住整列。
+                    .widthIn(min = nameColumnMinWidth(nameList, isFav, isProtagonist))
                     .weight(1f)
                     .combinedClickable(
                         onClick = onNameClick,
