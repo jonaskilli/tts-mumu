@@ -12,8 +12,11 @@ import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.gestures.scrollBy
 import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -272,7 +275,10 @@ internal class LogGroups(val items: List<Item>, val entryToList: IntArray) {
     }
 }
 
-@OptIn(ExperimentalFoundationApi::class, ExperimentalMaterial3Api::class)
+@OptIn(
+    ExperimentalFoundationApi::class, ExperimentalMaterial3Api::class,
+    ExperimentalLayoutApi::class // FlowRow（头部药丸链换行）
+)
 @Composable
 internal fun LogScreen(
     modifier: Modifier,
@@ -713,9 +719,13 @@ internal fun LogScreen(
                                 // 头部行（10-10 用户反馈「时间/成功/数字排列不适合」）：
                                 // 时间→丸组→丸后灰字从左到右聚拢成一组，撤掉原先顶开两端的
                                 // weight 弹簧——「何时→结果→量」因果顺读不断裂；「原文」键
-                                // 仍居最右（弹簧移到它之前，动作键留在右手位）
-                                Row(
-                                    verticalAlignment = Alignment.CenterVertically,
+                                // 仍居最右（弹簧移到它之前，动作键留在右手位）。
+                                // 药丸链过长的换行与顺序（10-10 用户问「过程过长会不会截断」）：
+                                // Row 放不下会静默溢出裁掉，改 FlowRow 自动换行；丸间插灰
+                                // 「→」体现先后链路（换行后第二行开头也是「→ 成功」接续可读）。
+                                // FlowRow 内时间戳/丸/灰字作为整项排布，normal 行距贴合
+                                FlowRow(
+                                    verticalArrangement = Arrangement.spacedBy((-2).dp),
                                     modifier = Modifier.fillMaxWidth()
                                 ) {
                                     if (selectionMode) {
@@ -734,17 +744,23 @@ internal fun LogScreen(
                                         style = MaterialTheme.typography.bodySmall,
                                         color = MaterialTheme.colorScheme.onSurfaceVariant
                                     )
-                                    pills.forEach { pill ->
-                                        Box(Modifier.padding(start = 6.dp)) { StatusPill(pill) }
+                                    pills.forEachIndexed { pIdx, pill ->
+                                        // 丸间灰「→」（10-10 用户拍板）：先后链路语汇，比丸小一号不抢
+                                        if (pIdx > 0) ArrowSep()
+                                        Box(Modifier.padding(start = if (pIdx == 0) 6.dp else 0.dp)) {
+                                            StatusPill(pill)
+                                        }
                                     }
+                                    // 丸后灰字（成功=耗时·大小/失败=原因）：也用「→」与丸链衔接
                                     if (tailText != null) {
+                                        ArrowSep()
                                         Text(
                                             text = tailText,
                                             style = MaterialTheme.typography.bodySmall,
                                             color = if (pills.lastOrNull()?.kind == LogPillKind.FAIL)
                                                 MaterialTheme.colorScheme.error
                                             else MaterialTheme.colorScheme.onSurfaceVariant,
-                                            modifier = Modifier.padding(start = 8.dp)
+                                            modifier = Modifier.padding(end = 8.dp)
                                         )
                                     }
                                     // 「原文」定位键（筛选/搜索态）：弹簧顶到最右，动作留右手位
@@ -776,11 +792,15 @@ internal fun LogScreen(
                                     isRequestHead = true,
                                     highlight = head == locateHighlight,
                                 )
-                                // 过程成员行：失败/重试时露出（成功行不上，其数字已进丸后）
+                                // 过程成员行：失败/重试时露出（成功行不上，其数字已进丸后）。
+                                // 终态 ERROR 行不上（10-10 用户令「源错误显示两遍」去重）：
+                                // 失败原因已在头行红丸后灰字展示，成员区再挂一行 ✖ 同文重复；
+                                // 重试/切备用等过程行保留（丸上只有状态字，详情在正文）
                                 if (showMembers) {
                                     item.members.forEach { mIdx ->
                                         val m = list[mIdx]
                                         if (m.level == LogLevel.SUCCESS) return@forEach
+                                        if (m.level == LogLevel.ERROR) return@forEach
                                         Column(Modifier.padding(top = 2.dp)) {
                                             LogEntryBody(
                                                 entry = m,
@@ -877,7 +897,11 @@ private fun derivePills(head: LogEntry, members: List<LogEntry>): List<LogPill> 
     return pills
 }
 
-// 丸后灰字：成功=「耗时·大小」；失败=原因。取最后一次出现的（与末丸对应）
+// 丸后灰字：成功=「耗时·大小」；失败=原因。取最后一次出现的（与末丸对应）。
+// 失败原因兜底提取（10-10 成员区 ERROR 去重后此函数成为失败原因唯一出口）：
+// 优先「获取失败：」后缀；「源错误： xxx」行（StreamProcessorError 子行）没有该前缀，
+// substringAfter 取不到就整行返回——但整行会带「源错误： 」前缀+可能拼的正文，压到
+// 首个 <br> 前并保留「源错误：」头（错误本体短，正文重复问题已在服务端 bce9d5f 撤）
 private fun tailTextOf(head: LogEntry, members: List<LogEntry>): String? {
     val plain = { s: String -> s.replace(Regex("<[^>]*>"), "") }
     var tail: String? = null
@@ -887,7 +911,9 @@ private fun tailTextOf(head: LogEntry, members: List<LogEntry>): String? {
             m.level == LogLevel.SUCCESS ->
                 tail = msg.substringAfter("获取成功：", "").trim().ifEmpty { null }
             m.level == LogLevel.ERROR ->
-                tail = msg.substringAfter("获取失败：", msg).trim().ifEmpty { null }
+                tail = msg.substringAfter("获取失败：", msg)
+                    .substringBefore("<br>").substringBefore("\n")
+                    .trim().ifEmpty { null }
         }
     }
     return tail
@@ -896,12 +922,22 @@ private fun tailTextOf(head: LogEntry, members: List<LogEntry>): String? {
 internal enum class LogPillKind { OK, FAIL, RETRY, STANDBY }
 internal data class LogPill(val kind: LogPillKind, val text: String)
 
+// 丸间/丸后灰「→」分隔符（10-10 用户拍板）：药丸链的先后语汇，小一号次级灰不抢丸
+@Composable
+private fun ArrowSep() {
+    Text(
+        text = "→",
+        style = MaterialTheme.typography.labelSmall,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        modifier = Modifier.padding(horizontal = 4.dp)
+    )
+}
+
 // 状态药丸（10-10 行流定稿）：丸只装状态字，成功绿/失败红/重试灰/切备用黄；
 // 丸后灰字（耗时·大小/失败原因）由调用方另排。
 // ⚠️ 不用 Pair 解构（when 分支混用 to 与 if 表达式时编译器推成 Any）——分两个 when
 @Composable
-private fun StatusPill(pill: LogPill) {
-    val dark = isSystemInDarkTheme()
+private fun StatusPill(pill: LogPill) {    val dark = isSystemInDarkTheme()
     val bg = when (pill.kind) {
         LogPillKind.OK -> Color(0xFFE7F0E9)
         LogPillKind.FAIL -> Color(0xFFF9E5E4)
