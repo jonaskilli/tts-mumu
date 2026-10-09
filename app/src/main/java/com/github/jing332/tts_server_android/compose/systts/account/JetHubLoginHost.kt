@@ -16,6 +16,9 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import com.github.jing332.tts_server_android.service.systts.help.AccountPool
+import com.github.jing332.tts_server_android.service.systts.help.ChannelBootstrap
+import com.github.jing332.tts_server_android.service.systts.help.ChatChannel
+import com.github.jing332.tts_server_android.service.systts.help.ChatChannels
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -33,8 +36,17 @@ import kotlinx.coroutines.withContext
  * 绝不停留。WEBVIEW 类需要 ActivityResult launcher，context 由宿主 Activity 传入。
  */
 @Composable
-fun JetHubLoginHost(context: Context, onFinished: () -> Unit) {
-    var showChannelPicker by remember { mutableStateOf(true) } // 进页即弹渠道选择
+fun JetHubLoginHost(context: Context, initialProvider: String, onFinished: () -> Unit) {
+    // 直连模式（10-10 用户定稿）：带 initialProvider 时不弹渠道选择，直接进该渠道的
+    // 登录流程；选好/失败后照样回 Jet 页。缺省（无 provider）退回渠道选择弹窗。
+    var showChannelPicker by remember { mutableStateOf(initialProvider.isEmpty()) }
+    // 直连的渠道立即分发：挑出 loginKind，一次 LaunchedEffect 完成分流
+    LaunchedEffect(initialProvider) {
+        if (initialProvider.isNotEmpty()) ChannelBootstrap.install()
+    }
+    var directChannel: ChatChannel? = if (initialProvider.isEmpty()) null
+    else ChatChannels.byProvider(initialProvider)
+    var directDispatched by remember { mutableStateOf(false) }
     var deviceLoginChannel by remember { mutableStateOf<String?>(null) }
     var credentialChannel by remember { mutableStateOf<String?>(null) }
     var qrcodeLoginOpen by remember { mutableStateOf(false) }
@@ -44,18 +56,62 @@ fun JetHubLoginHost(context: Context, onFinished: () -> Unit) {
     val scope = rememberCoroutineScope()
 
     // WEBVIEW 类登录需要 ActivityResult launcher（同 AccountPoolScreen 契约：
-    // AccountLoginActivity 回 setResult(OK, nickname)）。
+    // AccountLoginActivity 回 setResult(OK, nickname)）。直连与选择框两条路径共用。
+    // ⚠️ 必须声明在使用点（直连分发 LaunchedEffect）之前——Kotlin 局部变量先声明后用
+    // （CI 37964783699 实锤：Unresolved reference 'webviewLaunch'）。
     val loginLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.StartActivityForResult()
     ) { _ -> onFinished() } // 登录成功与取消都回 Jet 页；成功与否由 Jet 页 reload 后列表体现
+    val webviewLaunch: (Intent) -> Unit = { loginLauncher.launch(it) }
+
+    // 直连分发：把 initialProvider 当成 ChannelPickerDialog.onPick 的等价物执行一次
+    LaunchedEffect(directChannel, directDispatched) {
+        val ch = directChannel
+        if (ch != null && !directDispatched) {
+            directDispatched = true
+            when (loginKindOf(ch.id)) {
+                LoginFlowKind.WEBVIEW -> {
+                    val triple: Triple<String?, String?, String> = withContext(Dispatchers.IO) {
+                        if (ch.id == "workbuddy") {
+                            val s = com.github.jing332.tts_server_android.service.systts.help.WorkbuddyChannel.fetchLoginUrl()
+                            Triple(s.state, s.url, s.err)
+                        } else {
+                            val (state, url, err) = AccountPool.fetchLoginUrl()
+                            Triple(state, url, err)
+                        }
+                    }
+                    val (state, url, _) = triple
+                    if (url == null || url.isEmpty()) {
+                        onFinished()
+                    } else {
+                        webviewLaunch?.invoke(
+                            Intent(context, AccountLoginActivity::class.java)
+                                .putExtra(AccountLoginActivity.EXTRA_LOGIN_URL, url)
+                                .putExtra(AccountLoginActivity.EXTRA_LOGIN_STATE, state)
+                                .putExtra(AccountLoginActivity.EXTRA_PROVIDER, ch.id)
+                        )
+                    }
+                }
+                LoginFlowKind.DEVICE_CODE -> deviceLoginChannel = ch.id
+                LoginFlowKind.QRCODE -> qrcodeLoginOpen = true
+                LoginFlowKind.SMS -> smsLoginOpen = ch.id
+                LoginFlowKind.CALLBACK -> callbackChannel = ch.id
+                LoginFlowKind.OPENCODE -> opencodeLoginOpen = true
+                else -> credentialChannel = ch.id
+            }
+        }
+    }
 
     // 全部弹窗关闭（取消/完成）→ 回 Jet 页。本宿主不留任何停留态。
+    // ⚠️ 直连模式（directChannel 在途）不算空闲：分发前的空档期（fetchLoginUrl 网络往返）
+    // 任何一个弹窗 state 都还是关闭值——不加这半会进页瞬间就 finish（自查抓到）。
     LaunchedEffect(
         showChannelPicker, deviceLoginChannel, credentialChannel,
-        qrcodeLoginOpen, smsLoginOpen, callbackChannel, opencodeLoginOpen
+        qrcodeLoginOpen, smsLoginOpen, callbackChannel, opencodeLoginOpen, directChannel
     ) {
         val busy = showChannelPicker || deviceLoginChannel != null || credentialChannel != null ||
-            qrcodeLoginOpen || smsLoginOpen != null || callbackChannel != null || opencodeLoginOpen
+            qrcodeLoginOpen || smsLoginOpen != null || callbackChannel != null || opencodeLoginOpen ||
+            directChannel != null
         if (!busy) onFinished()
     }
 
