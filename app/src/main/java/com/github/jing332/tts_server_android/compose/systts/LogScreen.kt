@@ -998,15 +998,8 @@ private fun LogEntryBody(
                 }
             }
         }
-        // 报错三件套②收口（10-10 用户拍板丸改符号方案二配套）：行首 ✖/⚠ **撤**——
-        // 丸已成体系（✔/✕/重试N/切备用），行首标与新红叉丸撞形且降级语义；
-        // W/E 行加粗保留（级别强调仍在，只是不再叠符号）
-        if (emphasizeError && (entry.level == LogLevel.ERROR || entry.level == LogLevel.WARN)) {
-            s = buildAnnotatedString {
-                append(s.text)
-                addStyle(SpanStyle(fontWeight = FontWeight.Bold), 0, s.text.length)
-            }
-        }
+        // 报错三件套②收口（10-10 用户令「最后的源错误信息加粗了，不应该」）：行首 ✖/⚠ 撤 +
+        // **W/E 行加粗也撤**——用户明确不加粗；级别色（红/黄）本身就是信号，不再叠加任何强调
         s
     }
     val bodyColor = forceColor ?: when {
