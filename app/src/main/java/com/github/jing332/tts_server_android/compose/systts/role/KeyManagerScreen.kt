@@ -128,6 +128,7 @@ import com.github.jing332.tts_server_android.service.systts.help.CharacterRecord
 import com.github.jing332.tts_server_android.service.systts.help.KeyListFile
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.withPermit
@@ -1380,8 +1381,10 @@ fun KeyManagerScreen(tagRuleId: String, onBack: () -> Unit) {
     fun testKey(entry: KeyListFile.KeyEntry) {
         testRawValue(entry.value)
     }
-    // 整组测试并发 4 路（原为串行）。限 4：同站点共用额度，全发会撞 429、被记成「测试失败」；
-    // withIO 是真并行、testKey 纯阻塞且每次新建连接 ⇒ 并发安全，灯谁先回谁先亮
+    // 整组测试并发 2 路 + 每条错开 400ms（10-10 用户实测智谱整组测大面积 429——原并发 4 对
+    // 低频控站还是太密；1302=「账户已达到速率限制」是频控不是模型坏）。429 已属「写法无关失败」
+    // 首个即终止，不会越测越重；红字误导由 KeyListFile 的 429 专属文案纠正。withIO 是真并行、
+    // testKey 纯阻塞且每次新建连接 ⇒ 并发安全，灯谁先回谁先亮
     fun testGroup(grp: KeyGroup) {
         val targets = grp.entries.filter { it.value.isNotBlank() }
         if (targets.isEmpty()) {
@@ -1392,12 +1395,14 @@ fun KeyManagerScreen(tagRuleId: String, onBack: () -> Unit) {
             testingGroup = grp.title
             // 10-10 用户令「全撤」：批次开始/完成 Toast 一并撤（组头转圈 + 各行各自转圈是
             // 进行中反馈；结果落各卡结果条，汇总 Toast 也是重复）
-            val gate = Semaphore(4)
+            val gate = Semaphore(2)
             targets.map { e ->
                 async {
                     gate.withPermit {
+                        // 错峰：进闸先让 400ms，同波两条不齐发（频控按瞬间并发计，错开即躲）
+                        delay(400)
                         val norm = KeyListFile.normalizePoolValue(e.value)
-                        // 组测同一时刻可能多条在测（并发 4）——进度按各自归一化值分开记
+                        // 组测同一时刻可能多条在测（并发 2）——进度按各自归一化值分开记
                         val r = withIO {
                             KeyListFile.testWithThinking(tagRuleId, e.value) { p ->
                                 probeProgress[norm] = p
@@ -1414,7 +1419,7 @@ fun KeyManagerScreen(tagRuleId: String, onBack: () -> Unit) {
             expandAndReveal(grp.title)
         }
     }
-    // 密钥池整批测试：同 testGroup 的并发 4 路口径
+    // 密钥池整批测试：同 testGroup 的并发 2 路+错峰口径（智谱 429 实锤后同步收紧）
     fun testAllPool() {
         if (pool.isEmpty()) {
             toast(R.string.role_key_test_none)
@@ -1423,10 +1428,11 @@ fun KeyManagerScreen(tagRuleId: String, onBack: () -> Unit) {
         scope.launch {
             testingPoolAll = true
             // 10-10 用户令「全撤」：池测开始/完成 Toast 同撤（池页 ⚡ + 各行转圈为进行中反馈）
-            val gate = Semaphore(4)
+            val gate = Semaphore(2)
             pool.map { v ->
                 async {
                     gate.withPermit {
+                        delay(400)
                         val norm = KeyListFile.normalizePoolValue(v)
                         val r = withIO {
                             KeyListFile.testWithThinking(tagRuleId, v) { p ->
@@ -3267,17 +3273,32 @@ private fun ModelPullDialog(
                 }
                 Spacer(Modifier.height(4.dp))
                 // 「拉取」按钮只在没拉到模型时显示（标题已有「拉取模型」四字，
-                // 列表出来了按钮就多余）；loading 转圈也在这一行——分组模式首次拉取 / 失败重试都覆盖
+                // 列表出来了按钮就多余）。拉取中=状态行居中（转圈+文字），不再借用按钮位——
+                // 空弹窗右下角孤零零两个小件看着像残缺（10-10 用户指认，居中读作"正在干活"）
                 if (models.isEmpty()) {
-                    Row(
-                        Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.End,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        if (loading) LoadingIndicator(Modifier.size(22.dp))
-                        Spacer(Modifier.width(8.dp))
-                        TextButton(onClick = { fetch() }, enabled = !loading && ready) {
-                            Text(stringResource(if (loading) R.string.role_key_fetching else R.string.role_key_fetch))
+                    if (loading) {
+                        Row(
+                            Modifier.fillMaxWidth().padding(vertical = 16.dp),
+                            horizontalArrangement = Arrangement.Center,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            LoadingIndicator(Modifier.size(22.dp))
+                            Spacer(Modifier.width(10.dp))
+                            Text(
+                                stringResource(R.string.role_key_fetching),
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    } else {
+                        Row(
+                            Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.End,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            TextButton(onClick = { fetch() }, enabled = ready) {
+                                Text(stringResource(R.string.role_key_fetch))
+                            }
                         }
                     }
                 }

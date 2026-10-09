@@ -128,7 +128,9 @@ object KeyListFile {
 
     private fun testResultsFile(tagRuleId: String) = File(dir(tagRuleId), "key_test_results.json")
 
-    /** 读全部测试结果（键=归一化密钥值）；文件缺失/损坏返回空表 */
+    /** 读全部测试结果（键=归一化密钥值）；文件缺失/损坏返回空表。
+     *  读取时对历史版本的冗余文案做归一（10-10 用户指认图里一堆旧句式）——
+     *  缓存是「保存到下次测试」的，不重测就永远显示旧话术，读出来时转成现行三句式。 */
     fun readTestResults(tagRuleId: String): Map<String, TestOutcome> = try {
         val f = testResultsFile(tagRuleId)
         if (!f.exists()) emptyMap()
@@ -143,7 +145,7 @@ object KeyListFile {
                 out[k] = TestOutcome(
                     verdict = v,
                     thinkingOff = if (o.has("thinkingOff") && !o.isNull("thinkingOff")) o.optBoolean("thinkingOff") else null,
-                    message = o.optString("message"),
+                    message = normalizeLegacyTestMessage(v, o.optString("message")),
                     locked = o.optString("locked").takeIf { s -> s.isNotEmpty() },
                     reason = o.optString("reason"),
                 )
@@ -153,6 +155,22 @@ object KeyListFile {
     } catch (e: Exception) {
         Log.w(TAG, "readTestResults failed: ${e.message}")
         emptyMap()
+    }
+
+    // 旧文案归一（只读显示层，缓存文件不动——下次测试自然覆盖写回新句式）：
+    //  旧绿「思考适配完成：该模型锁定「multi」（思考已关，4216ms）」→「4216ms · 思考已关（已锁定 multi）」
+    //  旧黄「各写法均无法关闭思考，已锁定「thinking_mode」保证可分配：1317ms」等 →「1317ms · 兼容写法已锁定，思考未关 · 需自定义」
+    //  旧黄「…关不掉思考 · 需自定义」「…请自定义 JSON…」同上
+    // 提不出用时/锁名的条目保持原文（宁可不改，不编造）。
+    private fun normalizeLegacyTestMessage(verdict: TestVerdict, message: String): String {
+        val legacy = listOf("思考适配完成", "保证可分配", "关不掉思考", "无法关闭思考", "请自定义 JSON", "需自定义")
+        if (verdict == TestVerdict.FAIL || legacy.none { message.contains(it) }) return message
+        val ms = Regex("(\\d+)\\s*ms").find(message)?.groupValues?.get(1) ?: return message
+        val locked = Regex("「([A-Za-z0-9_.]+)」").find(message)?.groupValues?.get(1)
+        return when (verdict) {
+            TestVerdict.PASS -> if (locked != null) "$ms · 思考已关（已锁定 $locked）" else "$ms · 思考已关"
+            else -> "$ms · 兼容写法已锁定，思考未关 · 需自定义"
+        }
     }
 
     /** 全量覆盖写测试结果（空表=清空）；失败返回 false */
@@ -1152,6 +1170,21 @@ object KeyListFile {
         return if (compact.length > 180) compact.take(180) + "..." else compact.ifEmpty { "无响应内容" }
     }
 
+    /** 红态正文压缩（10-10 用户指认：整包 JSON 太冗余）——能解析出 message 字段就只留那句，
+     *  解析不出（非 JSON/无该字段）退回 briefBody 原口径；限长 120。 */
+    private fun briefErrorBody(body: String): String {
+        val msg = runCatching {
+            JSONObject(body).optString("message", "")
+        }.getOrNull().orEmpty().ifBlank {
+            runCatching {
+                JSONObject(body).optJSONObject("error")?.optString("message", "").orEmpty()
+            }.getOrNull().orEmpty()
+        }
+        if (msg.isBlank()) return briefBody(body)
+        val c = msg.replace(Regex("\\s+"), " ").trim()
+        return if (c.length > 120) c.take(120) + "..." else c
+    }
+
 /**
  * 拉取模型清单：GET {base}/models → data[].id（兼容裸字符串 / models 字段 / 顶层数组），保持返回顺序。
  * ⚠️ 旧版用 optString(i) 取元素 ⇒ 标准 {data:[{id}]} 会把整个对象当模型名写进密钥。
@@ -1396,7 +1429,10 @@ object KeyListFile {
             resp.code == -2 -> briefBody(resp.body)
             resp.code == 401 || resp.code == 403 -> "密钥无效或无权限（HTTP ${resp.code}）"
             resp.code == 404 -> "对话端点不存在（HTTP 404），请检查接口地址结尾/模型名"
-            else -> "HTTP ${resp.code}，${briefBody(resp.body)}"
+            // 429=频控不是模型坏（10-10 智谱整组测实锤 1302）——落红态会被缓存，文案必须
+            // 讲清「稍后重测就好」，否则误导成模型不通
+            resp.code == 429 -> "请求太密被限流（HTTP 429），不是模型不通——等一会儿重测即可"
+            else -> "HTTP ${resp.code}，${briefErrorBody(resp.body)}"
         })
     }
 
@@ -1444,12 +1480,13 @@ object KeyListFile {
                 off == false -> TestVerdict.PASS_THINKING
                 else -> TestVerdict.PASS
             }
-            // 10-10 用户令（黄态文案终稿）：「兼容写法已锁定，思考未关 · 关闭需自定义」——
+            // 10-10 用户令（黄态文案终稿）：「兼容写法已锁定，思考未关 · 需自定义」——
             // 一句话讲清因果：锁的是"能跑通"的写法，不等于思考已关；要真关得自定义。
+            // （二令压短：原「关闭需自定义」整句比单行宽两字被截，就差这两个字进一行）
             // 具体写法名（multi/thinking_type 等内部术语）不进文案，「自定义思考」弹窗里有。
             val text = when {
                 !ok -> msg
-                off == false -> "$msg · 兼容写法已锁定，思考未关 · 关闭需自定义"
+                off == false -> "$msg · 兼容写法已锁定，思考未关 · 需自定义"
                 else -> "$msg · 思考已关"
             }
             // 自动佩戴（10-09）：绿态（PASS=思考已关）才参与；黄态不佩戴。
@@ -1473,12 +1510,12 @@ object KeyListFile {
                 val v = if (off == false) TestVerdict.PASS_THINKING else TestVerdict.PASS
                 // 10-09 六令：locked 必须回传：界面靠它判断
                 // 「已锁定→不给『去设置』」，漏传会误出设置入口
-                // 10-10 用户令（文案终稿）：黄态=「用时 · 兼容写法已锁定，思考未关 · 关闭需自定义」
+                // 10-10 用户令（文案终稿）：黄态=「用时 · 兼容写法已锁定，思考未关 · 需自定义」
                 //（与手动档/auto 三分支同句——对用户而言三处都是同一件事：能用但思考没关）。
                 // 绿态=「思考已关（已锁定 x）」——括号把锁定降为补充说明，主结论一眼即得。
                 // locked 仍回传（UI 的「自动（锁定 x）」摘要行要用），只是不再写进结果条文案。
                 val text = if (off == false)
-                    "$msg · 兼容写法已锁定，思考未关 · 关闭需自定义"
+                    "$msg · 兼容写法已锁定，思考未关 · 需自定义"
                 else "$msg · 思考已关（已锁定 $locked）"
                 // 自动佩戴（10-09）：绿态且思考已关；黄态（思考未关）不参与
                 if (v == TestVerdict.PASS && off == true) {
@@ -1550,9 +1587,9 @@ object KeyListFile {
             return TestOutcome(
                 TestVerdict.PASS_THINKING, false,
                 // 10-10 用户令（黄态文案终稿）：与另两条黄态分支同句——「用时 · 兼容写法已锁定，
-                // 思考未关 · 关闭需自定义」。锁的具体写法名（yellow.first）不进文案（内部术语、
+                // 思考未关 · 需自定义」。锁的具体写法名（yellow.first）不进文案（内部术语、
                 // 弹窗内可见），yellow.second 即用时。
-                "${yellow.second} · 兼容写法已锁定，思考未关 · 关闭需自定义",
+                "${yellow.second} · 兼容写法已锁定，思考未关 · 需自定义",
                 locked = yellow.first
             )
         }

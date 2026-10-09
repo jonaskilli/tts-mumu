@@ -1105,17 +1105,17 @@ private fun Item(
                                 }
                             )
 
-                            // 按插件音色分类入库：遍历插件的全部音色分类，将各分类下音色批量导入所选分组
+                            // 音色分类入库（原「按插件音色分类入库」，10-10 用户令改名）：遍历插件的全部音色分类，将各分类下音色批量导入所选分组
                             if (plugin != null)
                                 DropdownMenuItem(
-                                    text = { Text("按插件音色分类入库") },
+                                    text = { Text("音色分类入库") },
                                     onClick = {
                                         showOptions = false
                                         showImportByCategory = true
                                     },
                                     leadingIcon = {
                                         // 用户 09-12：原 Input 与「导出 Output」同菜单易混，改「入库」语义
-                                        Icon(Icons.Default.LibraryAdd, "按插件音色分类入库")
+                                        Icon(Icons.Default.LibraryAdd, "音色分类入库")
                                     }
                                 )
 
@@ -1347,7 +1347,7 @@ internal fun ImportByCategoryDialog(
     AlertDialog(
         onDismissRequest = { if (!importing) onDismiss() },
         // 标题只留固定功能名：插件名长（如"墨听_阿里云QwenAudio…桥接版_v2"）会把大字标题撑出五六行
-        title = { Text(if (importing) "正在按插件音色分类入库" else "按插件音色分类入库") },
+        title = { Text(if (importing) "正在音色分类入库" else "音色分类入库") },
         text = {
             if (importing) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
