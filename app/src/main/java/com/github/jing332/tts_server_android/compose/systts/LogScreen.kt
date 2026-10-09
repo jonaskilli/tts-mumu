@@ -31,17 +31,22 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CheckBox
 import androidx.compose.material.icons.filled.CheckBoxOutlineBlank
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.KeyboardDoubleArrowDown
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.SmallFloatingActionButton
+import androidx.compose.material3.SwipeToDismissBox
+import androidx.compose.material3.SwipeToDismissBoxValue
 import androidx.compose.material3.Text
+import androidx.compose.material3.rememberSwipeToDismissBoxState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -281,6 +286,9 @@ internal fun LogScreen(
     onLocateOriginal: (LogEntry) -> Unit = {},
     // 定位高亮：命中条目黄底闪现（完整流里看到前后文），上层 2s 后清除
     locateHighlight: LogEntry? = null,
+    // 单条删除（10-10 M3 改造）：非空时裸行支持左滑删除。默认空=不启用——
+    // 转发器日志页（BasicConfigScreen 按位置传参）没有删除语义，行为保持不变
+    onRemoveEntry: ((LogEntry) -> Unit)? = null,
 ) {
     ControlBottomBarVisibility(listState, LocalBottomBarBehavior.current)
     val scope = rememberCoroutineScope()
@@ -300,6 +308,9 @@ internal fun LogScreen(
     val currentChecked by rememberUpdatedState(checkedEntries)
     val currentOnEnterSelection by rememberUpdatedState(onEnterSelection)
     val currentOnCheckedChange by rememberUpdatedState(onCheckedChange)
+    // 左滑删除回调也要最新值：SwipeToDismissBox 的 confirmValueChange 捕获的是
+    // 建 state 那一刻的 lambda，直接读参数会删到旧列表对象
+    val currentOnRemoveEntry by rememberUpdatedState(onRemoveEntry)
 
     // 归组结果：外部传入优先，否则内部构建（缓存随列表重建）
     val builtGroups = remember(list, groups) { groups ?: LogGroups.build(list) }
@@ -516,6 +527,8 @@ internal fun LogScreen(
                             val log = list[item.index]
                             val checked = log in checkedEntries
                             val isMatch = isMatchEntry(log, searchQuery)
+                            // 裸行内容一份定义，滑删/非滑删两分支共用（避免复制整段 Column）
+                            val bareContent: @Composable () -> Unit = {
                             Column(
                                 modifier = Modifier
                                     .fillMaxWidth()
@@ -575,6 +588,56 @@ internal fun LogScreen(
                                     isMatch = false,
                                     highlight = log == locateHighlight,
                                 )
+                            }
+                            }
+                            // 左滑删除（10-10 M3 改造）：裸行是「与请求挨不上的条目」，
+                            // 整条独立、删了不影响别的行；Group 卡一次请求管线多行纠缠
+                            //（成员行还承担时序推导），不做滑删。方向只开 EndToStart（向左），
+                            // StartToEnd 保持不动——本页长按拖选/换栏 pager 都在横轴上，让开。
+                            // 筛选/搜索收窄视图里同样生效：删的是 LogEntry 对象本身，
+                            // 位置收缩后其余命中项自然上移。转发器日志页不传回调=不启用。
+                            if (onRemoveEntry != null) {
+                                // 滑动状态以条目对象为键（key(log)）：列表删一条后其余条目
+                                // 前移、列表项 key（位置号）被后面的条目继承——若不按身份
+                                // 重置，前一行删完，继位的行会带着「已滑出」状态闪没。
+                                // confirmValueChange 删除成功后调用方列表立刻少一条，
+                                // 本列表项随后整体出组，state 不需要手动回弹。
+                                key(log) {
+                                val dismissState = rememberSwipeToDismissBoxState(
+                                    confirmValueChange = { value ->
+                                        if (value == SwipeToDismissBoxValue.EndToStart) {
+                                            currentOnRemoveEntry?.invoke(log)
+                                            true
+                                        } else false
+                                    }
+                                )
+                                SwipeToDismissBox(
+                                    state = dismissState,
+                                    enableDismissFromStartToEnd = false,
+                                    enableDismissFromEndToStart = true,
+                                    backgroundContent = {
+                                        Box(
+                                            Modifier
+                                                .fillMaxSize()
+                                                .background(
+                                                    MaterialTheme.colorScheme.errorContainer
+                                                ),
+                                            contentAlignment = Alignment.CenterEnd
+                                        ) {
+                                            Icon(
+                                                Icons.Default.Delete,
+                                                contentDescription = stringResource(R.string.delete),
+                                                tint = MaterialTheme.colorScheme.onErrorContainer,
+                                                modifier = Modifier.padding(end = 24.dp)
+                                            )
+                                        }
+                                    }
+                                ) {
+                                    bareContent()
+                                }
+                                }
+                            } else {
+                                bareContent()
                             }
                         }
 

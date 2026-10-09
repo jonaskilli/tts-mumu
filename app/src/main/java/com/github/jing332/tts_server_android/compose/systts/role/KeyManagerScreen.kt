@@ -58,7 +58,8 @@ import androidx.compose.material3.ElevatedCard
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
-import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
+import androidx.compose.material3.LoadingIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.HorizontalDivider
@@ -251,7 +252,8 @@ internal fun FlatIconAction(
  * 10-07 连体卡重构：条目不再各自成卡（原 ElevatedCard 撤），改为组卡内的一个区块，
  * 行间分隔线由组卡统一画；底色口径保留——多选/组内删除勾中=12% 浅红，否则透明随组卡。
  */
-@OptIn(ExperimentalFoundationApi::class)
+// 10-10 M3 Expressive：KeyEntryRow 测活等待换 LoadingIndicator（仍在实验 API，显式 OptIn）
+@OptIn(ExperimentalFoundationApi::class, ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 private fun KeyEntryRow(
     entry: KeyListFile.KeyEntry,
@@ -496,7 +498,8 @@ private fun KeyEntryRow(
                     }
                     if (testing) {
                         Box(Modifier.size(36.dp), contentAlignment = Alignment.Center) {
-                            CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp)
+                            // 10-10 M3 Expressive 改造：测活等待换 LoadingIndicator
+                            LoadingIndicator(Modifier.size(22.dp))
                         }
                     } else {
                         FlatIconAction(
@@ -747,6 +750,8 @@ private fun GroupEnablePill(
  * 组内删除模式下整块组头替换为「删除密钥 + 全选」标题行（0916 定稿形态恢复）。
  * 10-07：组尾「(N) + 三态方框」合并为纯数字胶囊 GroupEnablePill（省宽 + 不撞行首启用对勾）。
  */
+// 10-10 M3 Expressive：GroupHeaderBlock 组测活等待换 LoadingIndicator（实验 API，显式 OptIn）
+@OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 private fun GroupHeaderBlock(
     grp: KeyGroup,
@@ -897,9 +902,8 @@ private fun GroupHeaderBlock(
                                 ) { onPull() }
                                 if (testingThisGroup) {
                                     Box(Modifier.size(36.dp), contentAlignment = Alignment.Center) {
-                                        CircularProgressIndicator(
-                                            Modifier.size(18.dp), strokeWidth = 2.dp
-                                        )
+                                        // 10-10 M3 Expressive 改造：组测活等待换 LoadingIndicator
+                                        LoadingIndicator(Modifier.size(22.dp))
                                     }
                                 } else {
                                     FlatIconAction(
@@ -3105,6 +3109,8 @@ private fun InterfaceFormDialog(
  * 分组卡 🔍 = 分组模式（进来即按该组网址+密钥自动拉）。手动添加模型在标题行右上角。
  * 「已在组内」只按目标分组算（同站点 + 同密钥 + 同模型），别的接口拉过同一模型照样能存。
  */
+// 10-10 M3 Expressive：ModelPullDialog 拉取模型等待换 LoadingIndicator（实验 API，显式 OptIn）
+@OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 private fun ModelPullDialog(
     keys: List<KeyListFile.KeyEntry>,
@@ -3268,7 +3274,7 @@ private fun ModelPullDialog(
                         horizontalArrangement = Arrangement.End,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        if (loading) CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp)
+                        if (loading) LoadingIndicator(Modifier.size(22.dp))
                         Spacer(Modifier.width(8.dp))
                         TextButton(onClick = { fetch() }, enabled = !loading && ready) {
                             Text(stringResource(if (loading) R.string.role_key_fetching else R.string.role_key_fetch))

@@ -483,6 +483,10 @@ internal fun TtsLogScreen(vm: TtsLogViewModel = viewModel()) {
             showLocateKey = isFiltered,
             onLocateOriginal = { entry -> locateOriginal(entry) },
             locateHighlight = locateHighlight,
+            // 单条删除（10-10 M3 改造）：裸行左滑露出删除，松手即删——
+            // 接 VM 现成的内存列表（removeEntry 只清内存，不动磁盘日志文件）。
+            // 只删主时间流一条，插件/规则缓冲与磁盘文件按既有语义不动
+            onRemoveEntry = { entry -> vm.removeEntry(entry) },
         )
     }
 

@@ -7,9 +7,11 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
+import androidx.compose.material3.LoadingIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
@@ -48,6 +50,8 @@ import kotlinx.coroutines.withContext
  * 网络全程 Dispatchers.IO；签名/鉴权头各渠道引擎内部完成（LoomyChannel.authedHeaders /
  * AutoclawChannel.autoclawHeaders）。
  */
+// 10-10 M3 Expressive：LoadingIndicator 仍在实验 API，需显式 OptIn
+@OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 fun SmsLoginDialog(
     provider: String = "loomy", // 默认 loomy：既有调用零改动（10-08 前只有 loomy 一家）
@@ -132,7 +136,8 @@ fun SmsLoginDialog(
         },
         confirmButton = {
             if (submitting) {
-                CircularProgressIndicator(Modifier.padding(horizontal = 12.dp))
+                // 10-10 M3 Expressive 改造：提交等待换 LoadingIndicator
+                LoadingIndicator(Modifier.padding(horizontal = 12.dp).size(24.dp))
             } else {
                 TextButton(
                     enabled = phoneValid && msgId.isNotEmpty() && smsCode.length >= 4,
@@ -230,7 +235,7 @@ fun SmsLoginDialog(
                         }
                     },
                 ) {
-                    if (sending) CircularProgressIndicator(Modifier.padding(end = 6.dp))
+                    if (sending) LoadingIndicator(Modifier.padding(end = 6.dp).size(18.dp))
                     Text(if (countdown > 0) "重发(${countdown}s)" else "发送验证码")
                 }
             }

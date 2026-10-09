@@ -325,6 +325,13 @@ class TtsLogViewModel : ViewModel() {
         }
     }
 
+    /** 删除单条日志（10-10 M3 改造：日志条目左滑删除接这里）。按对象身份从主时间流移除；
+     *  只清内存列表——磁盘日志文件是 append 流（clear() 也是整文件重写才动它），
+     *  单条撤删除非整文件重写，成本不值当，与「清空」键的语义边界一致。 */
+    fun removeEntry(entry: LogEntry) {
+        logs.remove(entry)
+    }
+
     @Suppress("DEPRECATION")
     suspend fun pull() {
         runCatching {

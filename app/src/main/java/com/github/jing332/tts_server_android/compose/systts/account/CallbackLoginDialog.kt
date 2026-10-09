@@ -7,7 +7,8 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
-import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
+import androidx.compose.material3.LoadingIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -56,6 +57,8 @@ import org.json.JSONObject
  *    /oauth/callback；POST sts /v1/oauth2/tokens 换取（code_challenge_method 是 SHA-256，
  *    不加 auth_callback_url 参数）。
  */
+// 10-10 M3 Expressive：LoadingIndicator 仍在实验 API（波浪加载），需显式 OptIn
+@OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 fun CallbackLoginDialog(
     provider: String,
@@ -88,7 +91,8 @@ fun CallbackLoginDialog(
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {
                 if (!finished) {
-                    CircularProgressIndicator(Modifier.padding(bottom = 12.dp))
+                    // 10-10 M3 Expressive 改造：登录等待换 LoadingIndicator（波浪加载）
+                    LoadingIndicator(Modifier.padding(bottom = 12.dp))
                     Text("正在等待浏览器授权…", style = MaterialTheme.typography.bodyMedium)
                     Text(
                         "登录完成后本页自动确认，最长等待 6 分钟；浏览器未自动打开时点下方按钮。",

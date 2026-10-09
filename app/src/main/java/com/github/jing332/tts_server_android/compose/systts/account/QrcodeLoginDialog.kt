@@ -9,7 +9,8 @@ import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
+import androidx.compose.material3.LoadingIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -43,6 +44,8 @@ import kotlinx.coroutines.withContext
  * ⚠️ 轮询异常引擎侧已降级 pending（RaccoonChannel.pollQrcode），这里只按终态分流。
  * 二维码渲染第二期接（项目无 zxing/qrcode 依赖，不为此引新库）——当前显示链接全文+复制。
  */
+// 10-10 M3 Expressive：LoadingIndicator 仍在实验 API，需显式 OptIn
+@OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 fun QrcodeLoginDialog(
     onDismiss: () -> Unit,
@@ -110,7 +113,8 @@ fun QrcodeLoginDialog(
             ) {
                 when (phase) {
                     "LOADING" -> {
-                        CircularProgressIndicator(Modifier.padding(bottom = 12.dp))
+                        // 10-10 M3 Expressive 改造：生成登录码等待换 LoadingIndicator
+                        LoadingIndicator(Modifier.padding(bottom = 12.dp))
                         Text("正在生成登录码…", style = MaterialTheme.typography.bodySmall)
                     }
                     "PENDING" -> {

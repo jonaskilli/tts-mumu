@@ -31,9 +31,10 @@ import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.RemoveCircleOutline
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Checkbox
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ElevatedCard
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
+import androidx.compose.material3.LoadingIndicator
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -126,7 +127,7 @@ private fun resolvePoolRow(
     return PoolRowInfo(KeyListFile.displayName(entry), groupTitle, tail, false, norm, rate)
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 internal fun KeyPoolScreen(
     pool: List<String>,
@@ -185,10 +186,11 @@ internal fun KeyPoolScreen(
                     // ⚡测试（10-08 用户令）：测试全部胶囊撤，改纯图标——与模型行灰闪电同款
                     // （FlatIconAction onSurfaceVariant 18dp、36dp 热区），文案进 contentDescription。
                     // 整批测试中原位转小圈，测完回灰闪电
+                    // 10-10 M3 Expressive 改造：测活等待换 LoadingIndicator
                     val testAllEnabled = pool.isNotEmpty() && !batchTesting
                     if (batchTesting) {
                         Box(Modifier.size(36.dp), contentAlignment = Alignment.Center) {
-                            CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp)
+                            LoadingIndicator(Modifier.size(22.dp))
                         }
                     } else {
                         FlatIconAction(
@@ -407,9 +409,10 @@ private fun PoolRow(
                 }
                 // 闪电 = 单测按钮：常态灰（与其他图标同色），测试中原位转小圈，
                 // 转完回灰；测完不变色（结果看名字后圆点）
+                // 10-10 M3 Expressive 改造：测活等待换 LoadingIndicator
                 if (testing) {
                     Box(Modifier.size(36.dp), contentAlignment = Alignment.Center) {
-                        CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp)
+                        LoadingIndicator(Modifier.size(22.dp))
                     }
                 } else {
                     // 批量测试中禁点但不降透明度（0920 反馈：禁用置灰让闪电看着发灰、

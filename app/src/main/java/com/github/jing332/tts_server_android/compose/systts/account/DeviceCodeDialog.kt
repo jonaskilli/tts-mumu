@@ -16,7 +16,8 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
+import androidx.compose.material3.LoadingIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
@@ -65,6 +66,8 @@ import kotlinx.coroutines.withContext
  *   zcode   = §10.1/§10.2（服务端中介 poll 流；无 user_code 只有 authorize_url；
  *             device_mid 必须稳定持久化且不能拿它认账号）
  */
+// 10-10 M3 Expressive：LoadingIndicator 仍在实验 API，需显式 OptIn
+@OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 fun DeviceCodeDialog(
     provider: String,
@@ -330,7 +333,8 @@ fun DeviceCodeDialog(
                     )
 
                     !startReady -> {
-                        CircularProgressIndicator(Modifier.padding(bottom = 12.dp))
+                        // 10-10 M3 Expressive 改造：申请设备码等待换 LoadingIndicator
+                        LoadingIndicator(Modifier.padding(bottom = 12.dp))
                         Text("正在申请设备码…", style = MaterialTheme.typography.bodySmall)
                     }
 
@@ -393,10 +397,8 @@ fun DeviceCodeDialog(
                                 verticalAlignment = Alignment.CenterVertically,
                                 modifier = Modifier.padding(top = 8.dp),
                             ) {
-                                CircularProgressIndicator(
-                                    Modifier.padding(end = 8.dp).size(16.dp),
-                                    strokeWidth = 2.dp,
-                                )
+                                // 10-10 M3 Expressive 改造：轮询等待换 LoadingIndicator
+                                LoadingIndicator(Modifier.padding(end = 8.dp).size(20.dp))
                                 Text("等待授权中…第 $pollCount 次查询", style = MaterialTheme.typography.bodySmall)
                             }
                         }

@@ -42,6 +42,7 @@ import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBarDefaults
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -146,9 +147,20 @@ fun AccountPoolScreen(onBack: () -> Unit) {
             }
             AccountPool.load()
         }
+        // 下拉刷新（10-10 M3 改造）：数据真读回来才收圈（首次进页本来就没拉，收空圈无害）
+        isRefreshing = false
     }
 
     fun reload() { version++ }
+
+    // 下拉刷新（10-10 M3 改造）：接顶栏 Refresh 同款整页重载——LaunchedEffect(version)
+    // 会重读池、跑迁移、补落密钥，本页现成的「刷新」就是它，不另造数据流。
+    // 收圈时机在 LaunchedEffect 末尾（数据真回来才收），不在这里假完成。
+    var isRefreshing by remember { mutableStateOf(false) }
+    fun pullRefresh() {
+        isRefreshing = true
+        reload()
+    }
 
     /** 重测某渠道全部账号（含已停用）：逐个真发最小消息，顺序执行不并发（插件同律，防假阳性） */
     fun retestAll(provider: String) {
@@ -250,10 +262,17 @@ fun AccountPoolScreen(onBack: () -> Unit) {
                 }
             }
         }
+        // 下拉刷新（10-10 M3 改造）：PullToRefreshBox 包住整个列表区，动作同顶栏 Refresh
+        PullToRefreshBox(
+            isRefreshing = isRefreshing,
+            onRefresh = { pullRefresh() },
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(padding)
+        ) {
         LazyColumn(
             Modifier
                 .fillMaxSize()
-                .padding(padding)
         ) {
             if (accounts.isEmpty()) {
                 item {
@@ -389,6 +408,7 @@ fun AccountPoolScreen(onBack: () -> Unit) {
                 }
                 }
             }
+        }
         }
     }
 

@@ -12,7 +12,8 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
+import androidx.compose.material3.LoadingIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -81,6 +82,8 @@ internal fun loadPluginVoiceIds(context: Context, plugin: Plugin): Set<String> {
  * @param items 待切换的配置项（调用处已按来源筛好）
  * @param onConfirm 回调**只传命中的项**，由调用处执行落库
  */
+// 10-10 M3 Expressive：LoadingIndicator 仍在实验 API，需显式 OptIn
+@OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 internal fun SourceSwitchCheckDialog(
     title: String,
@@ -120,9 +123,9 @@ internal fun SourceSwitchCheckDialog(
                 Spacer(modifier = Modifier.height(8.dp))
                 when {
                     ids == null -> Row(verticalAlignment = Alignment.CenterVertically) {
-                        CircularProgressIndicator(
-                            modifier = Modifier.size(18.dp),
-                            strokeWidth = 2.dp
+                        // 10-10 M3 Expressive 改造：读插件音色清单等待换 LoadingIndicator
+                        LoadingIndicator(
+                            modifier = Modifier.size(20.dp)
                         )
                         Spacer(modifier = Modifier.width(8.dp))
                         Text(
