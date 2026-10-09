@@ -90,7 +90,9 @@ internal fun ColumnScope.SysttsSettingsScreen(
             onClick = { showResetLoudnessDialog = true },
             icon = { Icon(Icons.Default.Audiotrack, null) },
             title = { Text(stringResource(R.string.loudness_reset)) },
-            subTitle = { Text(stringResource(R.string.loudness_reset_summary, learnedCount)) }
+            subTitle = { Text(stringResource(R.string.loudness_reset_summary, learnedCount)) },
+            // 弹窗行不出 ›（10-09 口径：进新页面才加）
+            showChevron = false,
         )
     }
 
@@ -267,7 +269,7 @@ internal fun ColumnScope.SysttsSettingsScreen(
     }
     SettingItem(search, "重试附加", "retry append", "附加文本") {
         // 右侧不再重复第二个值（10-05 用户令）：本来副标题已写「未开启 / 已开启：xxx」，
-        // 行尾又摆同一个值，同一信息两遍；去掉后本行按"可点进弹窗"自动带 ›
+        // 行尾又摆同一个值，同一信息两遍；弹窗行不出 ›（10-09 口径：进新页面才加）
         BasePreferenceWidget(
             onClick = { showRetryAppendDialog = true },
             icon = { Icon(Icons.Default.EditNote, null) },
@@ -279,7 +281,8 @@ internal fun ColumnScope.SysttsSettingsScreen(
                     else
                         stringResource(id = R.string.retry_append_text_on, retryAppendText)
                 )
-            }
+            },
+            showChevron = false,
         )
     }
 

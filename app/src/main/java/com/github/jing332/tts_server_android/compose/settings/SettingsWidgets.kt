@@ -91,12 +91,7 @@ internal fun DropdownPreference(
     BasePreferenceWidget(modifier = modifier, icon = icon, onClick = {
         onExpandedChange(true)
     }, title = title, subTitle = subTitle) {
-        // 下拉行自带菜单锚点（零尺寸），右侧原本也是空白 —— 与其它可点行一致补 ›
-        Icon(
-            imageVector = Icons.Default.KeyboardArrowRight,
-            contentDescription = null,
-            tint = MaterialTheme.colorScheme.onSurfaceVariant
-        )
+        // 弹菜单不是「进下一页」：按 10-09 口径（进新页面才出 ›）不出箭头
         AppDropdownMenu(
             modifier = Modifier.align(Alignment.Top),
             expanded = expanded,
@@ -348,9 +343,9 @@ internal fun BasePreferenceWidget(
             if (content != null) {
                 content.invoke(this)
             } else if (onClick != null && showChevron) {
-                // 10-05 用户实机反馈「右边空空的」：可点的行原来右侧什么都没有（标题列 weight(1f)
-                // 把空白全留在右边），看着像没做完。补一个 › 作「进下一页／弹窗」的指示——
-                // 常规设置页习语；自带右侧控件（开关/滑杆值/下拉菜单）的行不受影响。
+                // › = 「进下一页」专用指示（10-09 用户定稿：进新页面才加，其他去掉）。
+                // 调用点约定：弹窗行 / 就地动作行传 showChevron = false；
+                // 无 content 且可点又不明示意图的（历史遗留调用点）保持出 › 不动。
                 Icon(
                     imageVector = Icons.Default.KeyboardArrowRight,
                     contentDescription = null,

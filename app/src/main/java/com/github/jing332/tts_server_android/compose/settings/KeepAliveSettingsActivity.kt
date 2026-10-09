@@ -156,7 +156,9 @@ class KeepAliveSettingsActivity : ComposeActivity() {
                             stringResource(R.string.manufacturer_whitelist_summary, manufacturer)
                         )
                     },
-                    icon = { Icon(Icons.Default.MobileFriendly, null) }
+                    icon = { Icon(Icons.Default.MobileFriendly, null) },
+                    // 弹窗行不出 ›（10-09 口径：进新页面才加）
+                    showChevron = false,
                 )
                 }
 

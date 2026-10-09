@@ -53,7 +53,9 @@ internal fun ColumnScope.OtherSettingsScreen(
                 Text(stringResource(R.string.about))
             }, icon = {
                 Icon(Icons.Default.Info, null)
-            }
+            },
+            // 弹窗行不出 ›（10-09 口径：进新页面才加）
+            showChevron = false,
         )
     }
 
@@ -139,9 +141,10 @@ internal fun ColumnScope.OtherSettingsScreen(
                     tint = MaterialTheme.colorScheme.error
                 )
             },
-            // 底衬不再单独给红：10-10 E 案后全站底衬是中性灰，红图标压灰底本就干净
-            //（原先给红底衬的前提是「不压主题绿底」，该前提已随底衬改色失效）。
-            // 危险信号由 error 红的标题 + 图标承担，不必再叠一层色块。
+            // 底衬不再单独给红：10-10 E 案后全站底衬是中性灰，红图标压灰底本就干净。
+            // 危险信号由 error 红的标题 + 图标承担。
+            // 弹确认框不出 ›（10-09 口径：进新页面才加）；同页「清空网页数据」早已同款
+            showChevron = false,
         )
     }
     }

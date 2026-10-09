@@ -208,6 +208,8 @@ fun SettingsScreen() {
                     onClick = { showThemeDialog = true },
                     title = { Text(stringResource(id = R.string.theme)) },
                     subTitle = { Text(stringResource(id = getAppTheme().stringResId)) },
+                    // 弹窗行不出 ›（10-09 口径：进新页面才加）
+                    showChevron = false,
                 )
                 }
 
@@ -329,7 +331,9 @@ fun SettingsScreen() {
                     onClick = { showPortDialog = true },
                     icon = { Icon(Icons.Default.Lan, null) },
                     title = { Text(stringResource(id = R.string.listen_port)) },
-                    subTitle = { Text(forwarderPort.toString()) }
+                    subTitle = { Text(forwarderPort.toString()) },
+                    // 弹窗行不出 ›（10-09 口径：进新页面才加）
+                    showChevron = false,
                 )
                 }
 

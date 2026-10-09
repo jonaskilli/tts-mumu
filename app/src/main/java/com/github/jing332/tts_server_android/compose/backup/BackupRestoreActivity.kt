@@ -244,13 +244,16 @@ class BackupRestoreActivity : ComposeActivity() {
                             title = { Text(stringResource(R.string.backup)) },
                             subTitle = { Text(stringResource(R.string.backup_entry_summary)) },
                             icon = { Icon(Icons.Default.Output, null) },
+                            // 弹窗行不出 ›（10-09 口径：进新页面才加）
+                            showChevron = false,
                         )
-                        BasePreferenceWidget(onClick = { showRestoreMenu = true }, title = { Text(stringResource(id = R.string.restore)) }, icon = { Icon(Icons.AutoMirrored.Filled.Input, null) })
+                        BasePreferenceWidget(onClick = { showRestoreMenu = true }, title = { Text(stringResource(id = R.string.restore)) }, icon = { Icon(Icons.AutoMirrored.Filled.Input, null) }, showChevron = false)
                         BasePreferenceWidget(
                             onClick = { showWebDavSettings = true },
                             title = { Text(stringResource(R.string.webdav_settings)) },
                             subTitle = { Text(if (AppConfig.isWebDavConfigured) AppConfig.webDavUrl.value else stringResource(R.string.not_configured)) },
-                            icon = { Icon(Icons.Default.Settings, null) }
+                            icon = { Icon(Icons.Default.Settings, null) },
+                            showChevron = false,
                         )
                     }
                 }
