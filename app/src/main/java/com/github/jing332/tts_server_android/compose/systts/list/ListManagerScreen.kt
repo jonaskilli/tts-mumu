@@ -3774,7 +3774,9 @@ internal fun ListManagerScreen(
                                                     modifier = Modifier
                                                         .fillMaxWidth()
                                                         .padding(horizontal = 8.dp, vertical = 2.dp),
-                                                    color = MaterialTheme.colorScheme.surfaceVariant,
+                                                    // 10-10 纯白表：结构分隔条归灰阶（同二级分组行族），
+                                                    // surfaceVariant 未被新管线覆写、绿主题下带绿灰
+                                                    color = MaterialTheme.colorScheme.surfaceContainerHigh,
                                                     shape = MaterialTheme.shapes.small
                                                 ) {
                                                     Text(
