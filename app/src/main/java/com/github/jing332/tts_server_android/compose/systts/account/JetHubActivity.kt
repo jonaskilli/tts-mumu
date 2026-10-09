@@ -6,7 +6,6 @@ import android.os.Bundle
 import android.view.ViewGroup
 import android.webkit.WebView
 import android.webkit.WebViewClient
-import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
@@ -25,6 +24,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.viewinterop.AndroidView
+import androidx.activity.OnBackPressedCallback
+import androidx.activity.compose.LocalOnBackPressedDispatcherOwner
 import com.github.jing332.tts_server_android.R
 import com.github.jing332.tts_server_android.compose.ComposeActivity
 import com.github.jing332.tts_server_android.compose.nav.NavTopAppBar
@@ -52,7 +53,28 @@ class JetHubActivity : ComposeActivity() {
         setContent {
             AppTheme {
                 val scrollBehavior = TopAppBarDefaults.pinnedScrollBehavior()
-                BackHandler { finishAfterTransition() }
+                // 返回链（10-10 排查）：插件弹窗（显示列表/供应商开关/网关/Token 用量等）
+                // 在桌面端靠 ESC 关闭，手机没有 ESC——系统返回要先给 WebView 机会关弹窗，
+                // 没弹窗才退本页（回密钥页）。
+                val backDispatcher = LocalOnBackPressedDispatcherOwner.current?.onBackPressedDispatcher
+                val backCallback = remember {
+                    object : androidx.activity.OnBackPressedCallback(true) {
+                        override fun handleOnBackPressed() {
+                            val wv = webView
+                            if (wv != null) {
+                                wv.evaluateJavascript("window.__jhBack && window.__jhBack()") { result ->
+                                    if (result != "true") finishAfterTransition()
+                                }
+                            } else finishAfterTransition()
+                        }
+                    }
+                }
+                androidx.compose.runtime.DisposableEffect(backDispatcher) {
+                    backDispatcher?.addCallback(backCallback)
+                    onDispose { backCallback.remove() }
+                }
+                // 旧 BackHandler { finishAfterTransition() } 已删（10-10 返回链排查）：
+                // 它与新 callback 同时 enabled 会按注册序竞争，系统返回可能绕过弹窗拦截。
 
                 // 「新建账号」launcher：去原生登录页；回来后重载 WebView（插件 UI 重读账号）
                 val loginLauncher = rememberLauncherForActivityResult(

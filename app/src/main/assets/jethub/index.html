@@ -55,6 +55,30 @@
       onClose: function () { try { AndroidBridge.close(); } catch (e) {} }
     });
   }
+  // 系统返回键桥（10-10 返回链排查）：插件弹窗在桌面端靠 ESC 关闭（jet-hub.js
+  // 各弹窗在 document 上监听 keydown Escape），手机没有 ESC——不拦的话弹窗开着
+  // 按系统返回会连 Jet 页一起退。宿主按返回先调这里：有弹窗
+  // （.dim-jh-modalOverlay）就注入 Escape 让插件自己关、返回 true；没弹窗返回
+  // false，宿主据此才真正退页。兜底：个别弹窗不认 ESC 时轮询三次仍关不掉就
+  // AndroidBridge.close() 退页，保证一次返回必有响应。
+  window.__jhBack = function () {
+    if (!document.querySelector('.dim-jh-modalOverlay')) return false;
+    var dispatch = function () {
+      try { document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true })); } catch (e) {}
+    };
+    dispatch();
+    var tries = 0;
+    var timer = setInterval(function () {
+      if (!document.querySelector('.dim-jh-modalOverlay')) { clearInterval(timer); return; }
+      if (++tries >= 3) {
+        clearInterval(timer);
+        try { AndroidBridge.close(); } catch (e) {}
+        return;
+      }
+      dispatch();
+    }, 200);
+    return true;
+  };
   if (window.JetHubUI) boot();
   else window.addEventListener('load', boot);
 })();
