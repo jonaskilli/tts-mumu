@@ -609,11 +609,11 @@ internal fun LogScreen(
                                     }
                                     // 时间去日期去毫秒（10-10 用户令，与请求组头行同口径）：
                                     // 日期签在列顶、毫秒无人看；裸行时间染次级灰与头行一致。
-                                    // 裸行整体缩号后时间/级别字同压 11sp（与正文同排）
+                                    // 时间/级别字随裸行正文 12sp（与正文同排）
                                     Text(
                                         text = log.time.drop(11).dropLast(4),
                                         style = MaterialTheme.typography.bodySmall,
-                                        fontSize = 11.sp,
+                                        fontSize = 12.sp,
                                         color = MaterialTheme.colorScheme.onSurfaceVariant
                                     )
                                     // 行级丸（10-10 终案）：重试 W 主行=重试N、兜底/备用主行=
@@ -625,7 +625,7 @@ internal fun LogScreen(
                                     Text(
                                         text = "\t${log.level.toLogLevelChar()}",
                                         style = MaterialTheme.typography.bodySmall,
-                                        fontSize = 11.sp,
+                                        fontSize = 12.sp,
                                         color = MaterialTheme.colorScheme.onSurfaceVariant
                                     )
                                     // 「原文」定位键（10-10 装机反馈用户令）：筛选/搜索态裸行
@@ -652,11 +652,11 @@ internal fun LogScreen(
                                     voiceColor = voiceColor,
                                     roleChipColor = roleChipColor,
                                     pluginChipColor = pluginChipColor,
-                                    // 裸行字号纠偏（10-10 用户令）：插件/朗读规则日志缩到
-                                    // **11sp=与声音信息段同号**（上版误解为全页统一 13）；
-                                    // 请求主行不受此令、维持 14sp（见 808 行调用点）
-                                    fontSize = 11.sp,
-                                    lineHeight = 14.5.sp, // 11×1.3≈14.3，取 14.5 保行距呼吸
+                                    // 裸行字号终版（10-10 用户令）：插件/朗读规则/重试/兜底等
+                                    // 裸行 11→12sp（11 压得偏小，用户拍板 12 更合适）；请求主行
+                                    // 不受此令、维持 14sp
+                                    fontSize = 12.sp,
+                                    lineHeight = 15.6.sp, // 12×1.3
                                     // 命中高亮已在整行背景，正文不再叠一层
                                     isMatch = false,
                                     highlight = log == locateHighlight,
