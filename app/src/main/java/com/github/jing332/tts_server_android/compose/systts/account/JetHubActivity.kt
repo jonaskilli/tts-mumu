@@ -84,8 +84,12 @@ class JetHubActivity : ComposeActivity() {
                 }
                 val bridge = remember {
                     JetHubRpcBridge(this).apply {
-                        onLaunchLogin = { _ ->
-                            loginLauncher.launch(Intent(this@JetHubActivity, JetHubLoginActivity::class.java))
+                        // provider 透传（10-10 用户定稿）：登录宿主直进该渠道登录流程，不弹选择框
+                        onLaunchLogin = { provider ->
+                            loginLauncher.launch(
+                                Intent(this@JetHubActivity, JetHubLoginActivity::class.java)
+                                    .putExtra(JetHubLoginActivity.EXTRA_PROVIDER, provider)
+                            )
                         }
                     }
                 }
