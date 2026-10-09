@@ -242,7 +242,9 @@ class PluginTtsUI : IConfigUI() {
         if (showVoiceCatalog) {
             PluginVoiceMarketplaceDialog(
                 vm = vm,
-                locale = tts.locale,
+                // locale 空（新选插件还没选语言）回落第一个可用语言——部分插件广场按 locale
+                // 过滤，空串会静默回空列表（10-10 用户实机「大厅列表空」的 app 侧缺口）
+                locale = tts.locale.ifBlank { vm.locales.firstOrNull()?.first.orEmpty() },
                 onDismissRequest = { showVoiceCatalog = false },
                 onAudition = { item ->
                     // 与行内 🎧 同源：试该音色、不带草稿。广场音色不在 vm.voices 里

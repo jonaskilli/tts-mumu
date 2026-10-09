@@ -1339,6 +1339,8 @@ internal fun ImportByCategoryDialog(
             onNext = { if (auditionIndex < voices.size - 1) auditionIndex++ },
             assignedCategory = categoryOverrides[row.key],
             progressText = "${auditionIndex + 1}/${voices.size}",
+            // 完成（10-10 用户令「没有保存键」）：分类点标签即已实时写入，此键=明确出口回列表
+            onFinish = { auditionIndex = -1 },
             onDismissRequest = { auditionIndex = -1 }
         )
     }
@@ -1417,6 +1419,15 @@ internal fun ImportByCategoryDialog(
                 // 声音列表：每行 🎧 试听 + 勾选；顶部全选行。默认全选（省事流直接导入）
                 LazyColumn(Modifier.fillMaxWidth().heightIn(max = 420.dp)) {
                     item {
+                        // 插件名：与阶段 0 同款次级行（10-10 用户实机：进列表阶段不知道在给哪个插件入库）
+                        Text(
+                            text = plugin.name,
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            maxLines = 2,
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier.padding(bottom = 8.dp)
+                        )
                         CheckRow(
                             checked = allVoicesSelected,
                             onChecked = {

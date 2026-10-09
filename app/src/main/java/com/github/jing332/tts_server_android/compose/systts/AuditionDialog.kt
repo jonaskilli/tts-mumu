@@ -2,6 +2,7 @@ package com.github.jing332.tts_server_android.compose.systts
 
 import android.content.Context
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -101,6 +102,9 @@ fun AuditionDialog(
     assignedCategory: String? = null,
     // 进度序号，如 "12/50"
     progressText: String? = null,
+    // 完成（10-10 用户令：批量分类态没有"保存键"，分完只能干关）：非 null 时底部动作行
+    // 右侧挂「完成」文字键——点了关弹窗回到列表（分类已实时写入列表数据，无需另存）
+    onFinish: (() -> Unit)? = null,
     onDismissRequest: () -> Unit,
 ) {
     val context = LocalContext.current
@@ -125,7 +129,10 @@ fun AuditionDialog(
         }
     }
 
-    LaunchedEffect(systts) {
+    // 试听执行代次（10-10 用户令「失败加重播键」）：每次 +1 重跑 LaunchedEffect 合成段；
+    // 重播=清错误再触发新一代
+    var attempt by remember { mutableStateOf(0) }
+    LaunchedEffect(systts, attempt) {
         error = ""
         info = ""
         launch(Dispatchers.IO) {
@@ -222,7 +229,6 @@ fun AuditionDialog(
             }
         }
     }
-
     AppDialog(
         onDismissRequest = onDismissRequest,
         // 退出键形态（目目 09-18 拍板方案①）：批量分类态=标题行「关闭」文字键——
@@ -288,6 +294,13 @@ fun AuditionDialog(
                             style = MaterialTheme.typography.bodySmall
                         )
                     }
+                    // 重播（10-10 用户令）：试听失败不必关弹窗重来，就地重发一次合成
+                    TextButton(
+                        onClick = { attempt++ },
+                        modifier = Modifier.padding(top = 4.dp)
+                    ) {
+                        Text("↻ 重播")
+                    }
                 }
 
                 if (error.isEmpty())
@@ -347,24 +360,32 @@ fun AuditionDialog(
         },
         buttons = {
             if (onPrev != null || onNext != null) {
-                // 分类/批量试听：只留切换按钮居中；退出键是右上角 ✕（见 title）——
-                // 底部三枚在弹窗实际内容宽 ~264dp 里塞不下，末尾会被挤成竖排
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(48.dp, Alignment.CenterHorizontally),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    if (onPrev != null) {
-                        TextButton(onClick = onPrev, enabled = hasPrev) {
-                            Icon(Icons.AutoMirrored.Filled.NavigateBefore, contentDescription = "上一个")
-                            Text("上一个")
+                // 分类/批量试听：切换按钮居中；批量分类态（onFinish 非空）右侧加「完成」——
+                // 用户 10-10 实机：分完类没有保存键、只能干关弹窗，不知道分没分上
+                Box(Modifier.fillMaxWidth()) {
+                    Row(
+                        modifier = Modifier.align(Alignment.Center),
+                        horizontalArrangement = Arrangement.spacedBy(48.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        if (onPrev != null) {
+                            TextButton(onClick = onPrev, enabled = hasPrev) {
+                                Icon(Icons.AutoMirrored.Filled.NavigateBefore, contentDescription = "上一个")
+                                Text("上一个")
+                            }
+                        }
+                        if (onNext != null) {
+                            TextButton(onClick = onNext, enabled = hasNext) {
+                                Text("下一个")
+                                Icon(Icons.AutoMirrored.Filled.NavigateNext, contentDescription = "下一个")
+                            }
                         }
                     }
-                    if (onNext != null) {
-                        TextButton(onClick = onNext, enabled = hasNext) {
-                            Text("下一个")
-                            Icon(Icons.AutoMirrored.Filled.NavigateNext, contentDescription = "下一个")
-                        }
+                    if (onFinish != null) {
+                        TextButton(
+                            onClick = onFinish,
+                            modifier = Modifier.align(Alignment.CenterEnd)
+                        ) { Text("完成") }
                     }
                 }
             } else {
