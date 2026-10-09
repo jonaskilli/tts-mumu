@@ -735,13 +735,15 @@ internal fun LogScreen(
                                     pill?.let {
                                         Box(Modifier.padding(start = 6.dp)) { StatusPill(it) }
                                     }
-                                    // 丸后灰字（成功=大小·秒/失败主行=截短原因），与丸留 8dp 隙
+                                    // 丸后灰字（成功=大小·秒/失败主行=截短原因），与丸留 8dp 隙。
+                                    // 失败原因红=旧正宗红 #F44336（10-10 用户令「错误的红色要用
+                                    // 以前正宗的红色」——colorScheme.error 在动态取色下偏暗紫红）
                                     if (tailText != null) {
                                         Text(
                                             text = tailText,
                                             style = MaterialTheme.typography.bodySmall,
                                             color = if (pill?.kind == LogPillKind.FAIL)
-                                                MaterialTheme.colorScheme.error
+                                                Color(if (darkTheme) 0xFFE57373 else 0xFFF44336)
                                             else MaterialTheme.colorScheme.onSurfaceVariant,
                                             modifier = Modifier.padding(start = 8.dp)
                                         )
@@ -778,16 +780,15 @@ internal fun LogScreen(
                                     isRequestHead = true,
                                     highlight = head == locateHighlight,
                                 )
-                                // 过程成员行（10-10 用户令「只要失败，不要后面的文字」终版）：
-                                // 失败丸行=时间+丸，无任何异常文字；成员区 ERROR 行（源错误）
-                                // 整撤——失败信息全部由丸表达，异常细节走长按复制原始日志。
-                                // 成功行不上（数字已进丸后）；WARN 重试/兜底等过程行不在成员区
-                                // （失败链单条化后它们已独立成裸行，见裸行分支）
+                                // 过程成员行（10-10 用户令终版）：失败丸行（时间+丸，无文字）
+                                // 之后，**失败的详细信息单独列一行**——成员区 ERROR 行（完整
+                                // 「源错误： xxx」）必须显示；成功行不上（数字已进丸后）。
+                                // WARN 重试/兜底等过程行不在成员区（失败链单条化后它们已
+                                // 独立成裸行，见裸行分支）
                                 if (showMembers) {
                                     item.members.forEach { mIdx ->
                                         val m = list[mIdx]
                                         if (m.level == LogLevel.SUCCESS) return@forEach
-                                        if (m.level == LogLevel.ERROR) return@forEach
                                         Column(Modifier.padding(top = 2.dp)) {
                                             LogEntryBody(
                                                 entry = m,
