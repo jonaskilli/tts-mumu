@@ -55,6 +55,15 @@ fun JetHubLoginHost(context: Context, initialProvider: String, onFinished: () ->
     var opencodeLoginOpen by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
 
+    // WEBVIEW 类登录需要 ActivityResult launcher（同 AccountPoolScreen 契约：
+    // AccountLoginActivity 回 setResult(OK, nickname)）。直连与选择框两条路径共用。
+    // ⚠️ 必须声明在使用点（直连分发 LaunchedEffect）之前——Kotlin 局部变量先声明后用
+    // （CI 37964783699 实锤：Unresolved reference 'webviewLaunch'）。
+    val loginLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.StartActivityForResult()
+    ) { _ -> onFinished() } // 登录成功与取消都回 Jet 页；成功与否由 Jet 页 reload 后列表体现
+    val webviewLaunch: (Intent) -> Unit = { loginLauncher.launch(it) }
+
     // 直连分发：把 initialProvider 当成 ChannelPickerDialog.onPick 的等价物执行一次
     LaunchedEffect(directChannel, directDispatched) {
         val ch = directChannel
@@ -92,14 +101,6 @@ fun JetHubLoginHost(context: Context, initialProvider: String, onFinished: () ->
             }
         }
     }
-
-    // WEBVIEW 类登录需要 ActivityResult launcher（同 AccountPoolScreen 契约：
-    // AccountLoginActivity 回 setResult(OK, nickname)）。directPath 的 WEBVIEW 分支
-    // 也经由它（webviewLaunch 引用同一个 launcher）。
-    val loginLauncher = rememberLauncherForActivityResult(
-        ActivityResultContracts.StartActivityForResult()
-    ) { _ -> onFinished() } // 登录成功与取消都回 Jet 页；成功与否由 Jet 页 reload 后列表体现
-    val webviewLaunch: (Intent) -> Unit = { loginLauncher.launch(it) }
 
     // 全部弹窗关闭（取消/完成）→ 回 Jet 页。本宿主不留任何停留态。
     // ⚠️ 直连模式（directChannel 在途）不算空闲：分发前的空档期（fetchLoginUrl 网络往返）
