@@ -15,7 +15,6 @@ import androidx.compose.material.icons.filled.Javascript
 import androidx.compose.material.icons.filled.MusicNote
 import androidx.compose.material.icons.filled.PhoneAndroid
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
-import androidx.compose.material3.FloatingActionButtonDefaults
 import androidx.compose.material3.FloatingActionButtonMenu
 import androidx.compose.material3.FloatingActionButtonMenuItem
 import androidx.compose.material3.Icon
@@ -96,7 +95,7 @@ fun FloatingAddConfigButtonGroup(
                 // private（CI 1eec315 批实锤），改在 content lambda 内画 primary 圆底、图标手动染白
                 Box(
                     modifier = Modifier
-                        .size(FloatingActionButtonDefaults.ContainedSize)
+                        .size(56.dp)
                         .clip(CircleShape)
                         .background(MaterialTheme.colorScheme.primary),
                     contentAlignment = Alignment.Center
