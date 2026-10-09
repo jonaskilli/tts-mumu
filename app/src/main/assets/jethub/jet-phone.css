@@ -1,0 +1,127 @@
+/* Jet Hub 手机融合版覆盖层（2026-10-10）
+   在 dsh-phone.css 之后加载：把左侧 228px 供应商侧栏改成页面顶部常驻的
+   「小图标选择条」（横排小 chip，可横向滚动、吸顶），下方直接显示选中
+   供应商的账号面板（无账号时是插件自带的空态）。
+
+   设计取舍：只覆盖样式、不动 DOM——分组容器用 display:contents 从布局里
+   拆掉，按钮直接参与横排；React 重渲染（分组切换/选中态更新）只改
+   aria-selected 与子树内容，CSS 选择器始终命中，适配层无感。
+   chip 上的短名用 data-provider + ::after 定制，原文以 font-size:0 隐藏。 */
+@media (max-width: 700px) {
+  /* 页面级禁横向滚动：兜底滚动 API 若波及视口，也不能把页面滚歪 */
+  html, body { overflow-x: hidden; }
+
+  /* 侧栏 → 顶部横排选择条（覆盖 dsh-phone.css 的 display:none 两态方案） */
+  body.dsh-phone-mobile .dim-jh-rail {
+    display: flex !important;
+    flex-direction: row;
+    align-items: stretch;
+    gap: 6px;
+    width: 100% !important;
+    max-width: 100%;
+    box-sizing: border-box;
+    flex: none;
+    padding: 8px 12px !important;
+    /* ⚠️ 必须 !important：dsh-phone.css 对 rail 写了 overflow:visible !important，
+       不带的话 rail 不是滚动容器，scrollLeft 赋值静默失效（实测踩坑） */
+    overflow-x: auto !important;
+    overflow-y: hidden !important;
+    border-right: 0 !important;
+    border-bottom: 1px solid var(--dsw-alias-border-default, #e2e8f0);
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+    position: sticky;
+    top: 0;
+    z-index: 5;
+    background: #fafbfc;
+  }
+  body.dsh-phone-mobile .dim-jh-rail::-webkit-scrollbar { display: none; }
+
+  /* 页面根禁横向溢出：选择条内容超宽时由它自己滚动，
+     不许把 body 撑出横向滚动（探针实测 docSW=1082 的元凶就是它）。 */
+  body.dsh-phone-mobile .dim-jh-page { overflow-x: hidden; max-width: 100vw; }
+  body.dsh-phone-mobile .dim-jh-layout { max-width: 100%; overflow: hidden !important; }
+  body.dsh-phone-mobile .dim-jh-panel { max-width: 100%; box-sizing: border-box; }
+
+  /* 分组容器拆出布局：组内按钮直接参与横排；分组标题变成行内小标签 */
+  body.dsh-phone-mobile .dim-jh-railGroup { display: contents; }
+  body.dsh-phone-mobile .dim-jh-railGroupTitle {
+    flex: none;
+    align-self: center;
+    margin: 0 2px;
+    padding: 2px 7px;
+    font-size: 10px !important;
+    line-height: 14px;
+    font-weight: 600;
+    color: #8f959e;
+    background: #f1f3f5;
+    border-radius: 999px;
+    white-space: nowrap;
+  }
+
+  /* 单行容器也拆掉，按钮直接成为 chip */
+  body.dsh-phone-mobile .dim-jh-providerRow { display: contents; }
+
+  /* chip：小图标上、短名下（覆盖 dsh-phone.css 的 72px 大卡形态） */
+  body.dsh-phone-mobile .dim-jh-provider {
+    display: flex !important;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 3px;
+    min-height: 0 !important;
+    min-width: 56px;
+    padding: 6px 8px !important;
+    border-radius: 12px !important;
+    border: 1px solid #eef0f3;
+    background: #fff;
+    box-shadow: none;
+  }
+  body.dsh-phone-mobile .dim-jh-provider[aria-selected="true"] {
+    border-color: #91caff;
+    background: #e8f3ff;
+    color: #1677ff;
+  }
+  body.dsh-phone-mobile .dim-jh-providerIcon {
+    width: 26px !important;
+    height: 26px !important;
+    border-radius: 7px !important;
+  }
+  body.dsh-phone-mobile .dim-jh-providerIcon img {
+    width: 18px !important;
+    height: 18px !important;
+  }
+  /* 短名：原文隐藏（font-size:0），按 data-provider 用 ::after 定制 */
+  body.dsh-phone-mobile .dim-jh-providerLabel { display: block; min-width: 0; }
+  body.dsh-phone-mobile .dim-jh-providerLabel strong {
+    display: block;
+    font-size: 0 !important;
+    line-height: 13px !important;
+    max-width: 64px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  body.dsh-phone-mobile .dim-jh-providerLabel strong::after {
+    font-size: 10px;
+    font-weight: 600;
+  }
+  body.dsh-phone-mobile [data-provider="codearts"]  .dim-jh-providerLabel strong::after { content: "CodeArts"; }
+  body.dsh-phone-mobile [data-provider="buddy"]     .dim-jh-providerLabel strong::after { content: "CodeBuddy"; }
+  body.dsh-phone-mobile [data-provider="workbuddy"] .dim-jh-providerLabel strong::after { content: "WorkBuddy"; }
+  body.dsh-phone-mobile [data-provider="lobsterai"] .dim-jh-providerLabel strong::after { content: "LobsterAI"; }
+  body.dsh-phone-mobile [data-provider="qoder"]     .dim-jh-providerLabel strong::after { content: "Qoder"; }
+  body.dsh-phone-mobile [data-provider="qodercn"]   .dim-jh-providerLabel strong::after { content: "Qoder CN"; }
+  body.dsh-phone-mobile [data-provider="trae"]      .dim-jh-providerLabel strong::after { content: "TRAE"; }
+  body.dsh-phone-mobile [data-provider="cline"]     .dim-jh-providerLabel strong::after { content: "Cline"; }
+  body.dsh-phone-mobile [data-provider="loomy"]     .dim-jh-providerLabel strong::after { content: "Loomy"; }
+  body.dsh-phone-mobile [data-provider="raccoon"]   .dim-jh-providerLabel strong::after { content: "Raccoon"; }
+  body.dsh-phone-mobile [data-provider="minimax"]   .dim-jh-providerLabel strong::after { content: "MiniMax"; }
+  body.dsh-phone-mobile [data-provider="zcode"]     .dim-jh-providerLabel strong::after { content: "ZCode"; }
+  body.dsh-phone-mobile [data-provider="opencode"]  .dim-jh-providerLabel strong::after { content: "OpenCode"; }
+  body.dsh-phone-mobile [data-provider="gemini"]    .dim-jh-providerLabel strong::after { content: "Gemini"; }
+  body.dsh-phone-mobile [data-provider="aggregate"] .dim-jh-providerLabel strong::after { content: "聚合"; }
+
+  /* 面板标题与页头按钮保持紧凑（沿用 dsh-phone.css 基调，微调字号） */
+  body.dsh-phone-mobile .dim-jh-panelTitle { font-size: 15px; }
+}

@@ -4,9 +4,11 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <title>Jet Hub</title>
-<!-- 手机适配层（照 dsh-phone-src/app/src/main/assets/dsh-phone.css，原样复用）：
-     把插件原版 UI 的左侧 228px 侧栏，在窄屏下改成「选择供应商」切换面板 -->
+<!-- 手机适配层：dsh-phone.css 是官方手机适配层（原样复用，窄屏把侧栏折成
+     切换面板的基线样式）；jet-phone.css 是本仓融合版覆盖层，把侧栏改成
+     页面顶部常驻的「小图标选择条」，账号面板直接显示在下方（2026-10-10） -->
 <link rel="stylesheet" href="dsh-phone.css">
+<link rel="stylesheet" href="jet-phone.css">
 <style>
   html, body { margin: 0; padding: 0; height: 100%; background: #fafbfc; }
   #jh-root { height: 100%; }

@@ -1,7 +1,12 @@
 /**
- * 手机适配层（精简版，供独立预览）：把插件原版 UI 的左侧 228px 侧栏，
- * 在窄屏下改成「选择供应商」切换面板——照 dsh-phone.js 的 .dim-jh-layout 那段逻辑，
- * 去掉与本预览无关的部分（技能投喂、settings 嵌入等）。
+ * 手机适配层（融合版 2026-10-10）：布局改由 jet-phone.css 承担——左侧 228px
+ * 供应商侧栏在窄屏下变成页面顶部常驻的「小图标选择条」，下方直接显示选中
+ * 供应商的账号面板（不再有「选择供应商/返回账号」两态切换）。
+ *
+ * 本脚本只剩两件事：
+ * 1. 给 body 打 dsh-phone-mobile 标记（jet-phone.css 的选择器靠它生效）；
+ * 2. React 重渲染更新 aria-selected 后，把选中的 chip 滚动到可视区。
+ * 不做任何 DOM 移动/插入——全部样式覆盖都由 CSS 完成，React 无感。
  */
 (() => {
   if (window.__jhPhoneAdapt) return;
@@ -10,51 +15,32 @@
   document.body.classList.add('dsh-phone-mobile');
 
   const adapt = () => {
-    document.querySelectorAll('.dim-jh-layout').forEach(layout => {
-      const rail = layout.querySelector('.dim-jh-rail');
-      if (!rail) return;
-      let header = layout.querySelector('.dsh-phone-provider');
-      if (!media.matches) {
-        header?.remove();
-        layout.classList.remove('dsh-phone-choosing');
-        return;
-      }
-      const selected = rail.querySelector('.dim-jh-provider[aria-selected="true"]');
-      if (!header) {
-        header = document.createElement('div');
-        header.className = 'dsh-phone-provider';
-        const title = document.createElement('span');
-        title.className = 'dsh-phone-selected';
-        const toggle = document.createElement('button');
-        toggle.className = 'dim-jh-btn';
-        toggle.type = 'button';
-        toggle.addEventListener('click', () => {
-          layout.classList.toggle('dsh-phone-choosing');
-          toggle.setAttribute('aria-expanded', String(layout.classList.contains('dsh-phone-choosing')));
-          toggle.textContent = layout.classList.contains('dsh-phone-choosing') ? '返回账号' : '选择供应商';
-        });
-        header.append(title, toggle);
-        layout.insertBefore(header, rail);
-        rail.addEventListener('click', event => {
-          if (!event.target.closest('.dim-jh-provider')) return;
-          layout.classList.remove('dsh-phone-choosing');
-          toggle.setAttribute('aria-expanded', 'false');
-          toggle.textContent = '选择供应商';
-        });
-        layout.classList.add('dsh-phone-choosing');
-        toggle.setAttribute('aria-expanded', 'true');
-        toggle.textContent = '返回账号';
-      }
-      const label = selected?.querySelector('.dim-jh-providerLabel strong')?.textContent || '供应商账号';
-      if (header.dataset.selected !== label) {
-        const title = header.querySelector('.dsh-phone-selected');
-        title.replaceChildren();
-        const icon = selected?.querySelector('.dim-jh-providerIcon');
-        if (icon) title.append(icon.cloneNode(true));
-        title.append(document.createTextNode(label));
-        header.dataset.selected = label;
-      }
-    });
+    if (!media.matches) return;
+    const layout = document.querySelector('.dim-jh-layout');
+    if (!layout) return;
+    const rail = layout.querySelector('.dim-jh-rail');
+    if (!rail) return;
+    const selected = rail.querySelector('.dim-jh-provider[aria-selected="true"]');
+    if (!selected) return;
+    // scrollIntoView 会连带滚动页面纵向，改手动算横向偏移。
+    // 用 rect 差值算（chip 的 offsetParent 因 display:contents 不一定是 rail）
+    const railRect = rail.getBoundingClientRect();
+    const selRect = selected.getBoundingClientRect();
+    const target = rail.scrollLeft + (selRect.left - railRect.left)
+      - (rail.clientWidth - selRect.width) / 2;
+    const max = rail.scrollWidth - rail.clientWidth;
+    const left = Math.max(0, Math.min(target, max));
+    if (Math.abs(rail.scrollLeft - left) > 1) {
+      rail.scrollLeft = left;
+      // React 重挂载/重渲染可能在本帧之后再重置 scrollLeft：延迟二次校验。
+      // ⚠️ 兜底用 rail.scrollTo（只滚 rail 自己）——scrollIntoView 会把
+      // 页面视口一起横向滚走（实测 rail 的 rect.left 变 -623，页头被滚出视野）。
+      setTimeout(() => {
+        if (Math.abs(rail.scrollLeft - left) > 1) {
+          rail.scrollTo({ left, behavior: 'instant' });
+        }
+      }, 120);
+    }
   };
 
   let pending = false;
