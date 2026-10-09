@@ -1347,7 +1347,7 @@ private fun localPoolsNameOf(
     vm: com.github.jing332.tts_server_android.compose.systts.list.ui.PluginTtsViewModel,
     poolId: String,
 ): String = runCatching {
-    vm.engine.getLocales().firstOrNull { it.first == poolId }?.second
+    vm.engine.getLocales().firstOrNull { it.key == poolId }?.value
 }.getOrNull().orEmpty()
 
 /** 入库模式「导入/加入列表」执行体：勾选音色 → PluginCategoryImporter.importVoices 落库（未分类照导） */

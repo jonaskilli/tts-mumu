@@ -174,7 +174,8 @@ fun PluginVoiceMarketplaceDialog(
     LaunchedEffect(localPoolLoading) { if (!localPoolLoading && localPools.isEmpty() && importMode) {
         // 入库模式才拉（大厅模式=编辑页已有语言/声音下拉，不必重复）
         localPoolLoading = true
-        val pools = runCatching { vm.engine.getLocales().map { it.first to it.second } }.getOrDefault(emptyList())
+        val pools: List<Pair<String, String>> =
+            runCatching { vm.engine.getLocales().map { it.key to it.value } }.getOrDefault(emptyList())
         localPools = pools
         localPoolLoading = false
     } }
