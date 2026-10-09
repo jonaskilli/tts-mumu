@@ -867,15 +867,15 @@ private fun pillOf(e: LogEntry): LogPill? {
     val msg = e.message.replace(Regex("<[^>]*>"), "")
     return when {
         e.configId != 0L -> when (e.level) {
-            LogLevel.SUCCESS -> LogPill(LogPillKind.OK, "成功")
-            LogLevel.ERROR -> LogPill(LogPillKind.FAIL, "失败")
+            LogLevel.SUCCESS -> LogPill(LogPillKind.OK, "✔")   // U+2714 粗对勾（方案二，10-10 用户拍板）
+            LogLevel.ERROR -> LogPill(LogPillKind.FAIL, "✕")   // U+2715 乘号
             else -> null
         }
         msg.contains("次重试") || msg.contains(" retry", true) ->
             LogPill(LogPillKind.RETRY, "重试" + (Regex("第 (\\d+) 次").find(msg)?.groupValues?.get(1) ?: ""))
         msg.startsWith("使用备用") || msg.startsWith("使用兜底") ->
             LogPill(LogPillKind.STANDBY, "切备用")
-        e.level == LogLevel.ERROR && e.indent == 0 -> LogPill(LogPillKind.FAIL, "失败")
+        e.level == LogLevel.ERROR && e.indent == 0 -> LogPill(LogPillKind.FAIL, "✕")
         else -> null
     }
 }
@@ -998,15 +998,13 @@ private fun LogEntryBody(
                 }
             }
         }
-        // 报错三件套②：W 行与 E 行同获加粗+行首标记（E=✖ 重一级，W=⚠）——
-        // 撤 forceColor 后粉底是唯一信号会漏掉黄警，行内自证
+        // 报错三件套②收口（10-10 用户拍板丸改符号方案二配套）：行首 ✖/⚠ **撤**——
+        // 丸已成体系（✔/✕/重试N/切备用），行首标与新红叉丸撞形且降级语义；
+        // W/E 行加粗保留（级别强调仍在，只是不再叠符号）
         if (emphasizeError && (entry.level == LogLevel.ERROR || entry.level == LogLevel.WARN)) {
-            val mark = if (entry.level == LogLevel.ERROR) "✖ " else "⚠ "
             s = buildAnnotatedString {
-                append(mark)
                 append(s.text)
-                s.spanStyles.forEach { addStyle(it.item, it.start + 2, it.end + 2) }
-                addStyle(SpanStyle(fontWeight = FontWeight.Bold), 0, s.text.length + 2)
+                addStyle(SpanStyle(fontWeight = FontWeight.Bold), 0, s.text.length)
             }
         }
         s
