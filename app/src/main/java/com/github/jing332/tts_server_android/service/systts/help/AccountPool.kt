@@ -673,15 +673,31 @@ object AccountPool {
         val ch = ChatChannels.byProvider(acc.provider)
         val baseUrl = ch?.chatBaseUrl ?: "https://$CHAT_HOST/v2"
         val displayName = ch?.displayName ?: "CodeBuddy"
-        val ifaces = KeyListFile.readInterfaces(tagRuleId)
+        var ifaces = KeyListFile.readInterfaces(tagRuleId)
         val keys = KeyListFile.readKeys(tagRuleId)
         // 组归并（10-10 用户定稿：一个平台一个分组，几个账号都进同一组）：
         // 判据只看站点（sameApiSite），同站即归组——组名被用户改过也能归上。
         // 组级 Key 只在**建组时**写（首个账号的）；后来者的凭据全靠密钥条目自身 key 段。
-        val targetIfc = ifaces.firstOrNull { KeyListFile.sameApiSite(it.baseUrl, baseUrl) }
-        // 模型清单不自动塞（10-10 用户令）：组里有什么模型完全由用户「拉取模型」决定，
-        // 账号登录只落分组+密钥条目，杜绝「乱七八糟不匹配的模型」。
-        // 条目模型段取该组第一个模型（对话链按组模型发；组暂无模型=空串占位）
+        var targetIfc = ifaces.firstOrNull { KeyListFile.sameApiSite(it.baseUrl, baseUrl) }
+        // 自动拉模型（10-10 用户令，推翻同日早前「不自动塞」）：组没有模型清单就拉该渠道
+        // 全部模型填进组——新账号落地即可用，不再留「渠道名+Key」空占位条目等用户手动拉。
+        // 渠道专协议走 ChatChannel.fetchModels（13 渠道全实现），codebuddy 走内置实现。
+        // 只在 models 空时拉一次（幂等：已有清单不重拉，避免进池页每次都发网络请求）。
+        var fetchedModelsErr: String? = null
+        if (targetIfc != null && targetIfc.models.isEmpty()) {
+            val (list, err) = fetchModelsForChannel(acc.provider, acc.accessToken)
+            if (list.isNotEmpty()) {
+                targetIfc = targetIfc.copy(models = list)
+                KeyListFile.saveInterfaces(tagRuleId, ifaces.map {
+                    if (it.name == targetIfc!!.name) targetIfc!! else it
+                })
+                ifaces = KeyListFile.readInterfaces(tagRuleId)
+                appLog(LogLevel.SUCCESS, "Jet：${targetIfc.name} 自动拉取 ${list.size} 个模型")
+            } else {
+                fetchedModelsErr = err
+            }
+        }
+        // 模型清单（对话链按组模型发；拉取失败才落空占位，进池页下次再试）
         val model = targetIfc?.models?.firstOrNull().orEmpty()
         // 条目去重判据：同站点+同钥（模型段不再参与——同账号只落一条）
         val existing = keys.firstOrNull {
@@ -728,7 +744,11 @@ object AccountPool {
             name = displayName,
             baseUrl = baseUrl,
             apiKey = acc.accessToken,
-            models = emptyList(), // 模型清单留空，等用户拉取
+            // 新建组同样先自动拉一次模型（拉取失败才留空等用户手动/下次进页再试）
+            models = run {
+                val (list, _) = fetchModelsForChannel(acc.provider, acc.accessToken)
+                list
+            },
         )
         val newKeys = keys + KeyListFile.KeyEntry(
             name = KeyListFile.dedupName(
@@ -740,7 +760,25 @@ object AccountPool {
         )
         KeyListFile.saveInterfaces(tagRuleId, updatedIfaces)
         KeyListFile.saveKeys(tagRuleId, newKeys)
-        return true to "已添加：$displayName（模型请在该分组拉取）"
+        return true to "已添加：$displayName${fetchedModelsErr?.let { "（模型自动拉取失败：$it）" } ?: ""}"
+    }
+
+    /**
+     * 按渠道路由拉模型清单（10-10 自动拉模型批）：codebuddy 走内置 /v3/config 实现；
+     * 其余渠道走 ChatChannel.fetchModels（13 渠道全实现，多为内置静态清单+个别网络拉取）。
+     * 返回 (模型清单, 错误)；清单空时错误非空（内置静态清单渠道恒成功）。
+     */
+    fun fetchModelsForChannel(provider: String, accessToken: String): Pair<List<String>, String> {
+        if (provider == "codebuddy") return fetchModels(accessToken)
+        ChannelBootstrap.install()
+        val ch = ChatChannels.byProvider(provider) ?: return emptyList() to "未知渠道：$provider"
+        return try {
+            val list = ch.fetchModels(accessToken)
+            if (list.isEmpty()) emptyList() to "${ch.displayName} 未返回模型"
+            else list to ""
+        } catch (e: Exception) {
+            emptyList() to (e.message ?: "拉取失败")
+        }
     }
 
     /**
