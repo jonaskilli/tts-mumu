@@ -771,13 +771,16 @@ object AccountPool {
     fun fetchModelsForChannel(provider: String, accessToken: String): Pair<List<String>, String> {
         if (provider == "codebuddy") return fetchModels(accessToken)
         ChannelBootstrap.install()
-        val ch = ChatChannels.byProvider(provider) ?: return emptyList() to "未知渠道：$provider"
+        // ⚠️ Pair/List 类型显式标注（CI 37961283224 实锤）：elvis 右侧 emptyList() to "…"
+        // 在无标注时类型推断失败（Cannot infer type for this parameter），静守卫盲区
+        val ch: ChatChannel = ChatChannels.byProvider(provider)
+            ?: return Pair(emptyList<String>(), "未知渠道：$provider")
         return try {
-            val list = ch.fetchModels(accessToken)
-            if (list.isEmpty()) emptyList() to "${ch.displayName} 未返回模型"
-            else list to ""
+            val list: List<String> = ch.fetchModels(accessToken)
+            if (list.isEmpty()) Pair(emptyList<String>(), "${ch.displayName} 未返回模型")
+            else Pair(list, "")
         } catch (e: Exception) {
-            emptyList() to (e.message ?: "拉取失败")
+            Pair(emptyList<String>(), e.message ?: "拉取失败")
         }
     }
 
