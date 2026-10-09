@@ -690,6 +690,18 @@ object AccountPool {
                 p.key == acc.accessToken
         }
         if (existing != null) {
+            // 组缺失补建（10-10 真机死角）：条目在但组被删（旧包删组漏删残留/手动删过条目外的组）时，
+            // 去重分支此前直接秒回——组永远缺席，密钥页看不到分组（条目全落未分组）。
+            // 现在：targetIfc==null → 补建组（与新建分支同款形状），条目不动。
+            if (targetIfc == null) {
+                KeyListFile.saveInterfaces(tagRuleId, ifaces + KeyListFile.ApiInterface(
+                    name = displayName,
+                    baseUrl = baseUrl,
+                    apiKey = acc.accessToken,
+                    models = emptyList(),
+                ))
+                appLog(LogLevel.SUCCESS, "Jet：$displayName 分组已重建（条目已在）")
+            }
             // 模型补齐（10-10 真机报障修复）：组里没拉到模型时落的空串占位条目，
             // 密钥页一测试就报「模型名不能为空」。此前注释承诺「重进池页幂等补齐」
             // 但补齐逻辑从没实现——去重分支直接秒回，占位永远是空的。现在真补：
@@ -706,7 +718,8 @@ object AccountPool {
                 appLog(LogLevel.SUCCESS, "Jet：$displayName 占位密钥已补齐模型 $model")
                 return false to "已补齐模型：$displayName → $model"
             }
-            return false to "已在密钥管理（$displayName），无需重复添加"
+            return false to if (targetIfc == null) "已重建分组：$displayName（条目已在）"
+            else "已在密钥管理（$displayName），无需重复添加"
         }
         val value = "$baseUrl@@$model@@${acc.accessToken}"
 
