@@ -51,7 +51,6 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.platform.LocalConfiguration
@@ -126,24 +125,16 @@ private val releaseDotColors = listOf(
 private val BOOK_NAME_COLOR = Color(0xFF333333)
 
 /**
- * 浅一档的容器色：secondaryContainer 向 background 插值。
+ * 标签/书栏/胶囊统一淡绿（10-11 用户拍板终稿「标签、卡片、编辑页底色都用我选的绿」）：
+ * 直接取 surfaceContainerLow——即全站卡底那档（GREEN=#F2F8F4，用户选中的绿），
+ * 十主题自动对齐各自主题的卡底，不再各自 lerp。
  *
- * 为什么必须这么写：各主题的 secondaryContainer 深浅不一，绿主题 #D2E8D4 上整页铺满
- * 书栏卡+标签框显得太深；直接改 Color2 的 29 槽基准会动到全 App，按主题各自的
- * secondaryContainer→background 插值则十主题通用、只影响本页。书栏卡与角色行标签框
- * 必须共用同一个函数（两处各算各的将来改比例就会岔色）。
- * 文字仍用 onSecondaryContainer：背景变浅对比度只会更大，不用换。
- *
- * 10-10 用户令「前三图颜色改为设置的底色」：插值 40%→65%——0.4 时 ≈#E2F1E4
- * 比设置分区卡（surfaceContainerLow #F2F8F4）深一档显绿；65% 后 ≈#F1F8F3 与设置页
- * 基本同色。书栏/标签框/试听垫底/账号池胶囊等所有 softContainer 消费点一并变浅。
+ * 演进史：secondaryContainer→background 插值 0.4（深绿）→0.65（≈卡底但差 1~2 个 RGB）→
+ * 现在与卡底同源，标签=卡片=编辑页分区卡三处一个色，零岔色。
+ * 文字仍用 onSecondaryContainer：对比度只会更大。
  */
 @Composable
-internal fun softContainerColor(): Color = lerp(
-    MaterialTheme.colorScheme.secondaryContainer,
-    MaterialTheme.colorScheme.background,
-    0.65f,
-)
+internal fun softContainerColor(): Color = MaterialTheme.colorScheme.surfaceContainerLow
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
