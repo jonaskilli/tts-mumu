@@ -1671,10 +1671,17 @@ fun KeyManagerScreen(tagRuleId: String, onBack: () -> Unit) {
         val listState = rememberLazyListState()
         listStateRef = listState
         val groups = buildKeyGroups(keys, ifaces)
-        // 甲方案（10-09 用户拍板）：上浮只在进页时算一次——以 keys 实例为快照键记「哪些组
-        // 当时启用中」，页内启停只改对勾不重排（原实时排序导致编辑中分组跳走、用户追着找）。
-        // keys 引用变化（进页/导入/拉模型/删条目后重载）即重算快照；同一实例内 pool 变化不算。
-        val floatSnapshot = remember(keys) {
+        // 甲方案（10-09 用户拍板）：上浮只在进页时算一次——记「哪些组当时启用中」，
+        // 页内启停只改对勾不重排（原实时排序导致编辑中分组跳走、用户追着找）。
+        // 10-10 二轮修「勾选整屏上跳」：快照键从 keys **实例**改 keys **内容指纹**——
+        // savePoolList 落池后 version++ 全量重读，keys 引用必变，旧键下快照重算时
+        // 已带上刚勾的启用态 → 启用组按新快照上浮 = 勾一条整屏跳一段（实机多次）。
+        // 内容指纹=分组名+各组条目名串：池变化不改分组归属 → 指纹不变 → 快照不重算、
+        // 排序纹丝不动；导入/拉模型/删条目等真结构变化才重算重排（主界面 deb5ce1 同思想）。
+        val groupFingerprint = groups.joinToString("|") { g ->
+            g.title + "#" + g.entries.joinToString(",") { it.name }
+        }
+        val floatSnapshot = remember(groupFingerprint) {
             groups.associate { g ->
                 g.title to g.entries.any { KeyListFile.normalizePoolValue(it.value) in pool }
             }
