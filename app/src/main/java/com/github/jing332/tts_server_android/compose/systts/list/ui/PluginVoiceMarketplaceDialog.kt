@@ -82,6 +82,7 @@ import com.github.jing332.compose.widgets.DenseOutlinedField
 import com.github.jing332.tts.speech.plugin.engine.VoiceCatalogFilterGroup
 import com.github.jing332.tts.speech.plugin.engine.VoiceCatalogFilterOption
 import com.github.jing332.tts.speech.plugin.engine.VoiceCatalogItem
+import com.github.jing332.tts.speech.plugin.engine.TtsPluginUiEngineV2
 import com.github.jing332.tts_server_android.R
 import com.github.jing332.tts_server_android.compose.systts.role.softContainerColor
 import kotlinx.coroutines.delay
@@ -160,6 +161,34 @@ fun PluginVoiceMarketplaceDialog(
     val picked = remember { mutableStateMapOf<String, VoiceCatalogItem>() }
     // 列表滚动：换条件/重开都从头（索引 0）开始，别让上一次的位置或续页锚点把视口带偏
     val listState = rememberLazyListState()
+
+    // ---- 本地分类区（10-10 用户令：普通插件也要能在广场里列分类）----
+    // 数据源 = 引擎 getLocales/getVoices（所有插件都有，与广场协议无关）。
+    // 选中某分类 → 结果列表切成本地音色（联网搜索区与本地分类二选一显示，再点取消回搜索）。
+    // VoiceRow 带 poolId（试听链把它当 locale 传）；勾选/分类标签/导入与联网结果同一套状态。
+    var localPools by remember { mutableStateOf<List<Pair<String, String>>>(emptyList()) }
+    var localPoolLoading by remember { mutableStateOf(false) }
+    var selectedLocalPool by remember { mutableStateOf<String?>(null) }
+    var localVoices by remember { mutableStateOf<List<Triple<String, String, String>>>(emptyList()) } // (poolId, voiceId, name)
+    var localVoicesLoading by remember { mutableStateOf(false) }
+    LaunchedEffect(localPoolLoading) { if (!localPoolLoading && localPools.isEmpty() && importMode) {
+        // 入库模式才拉（大厅模式=编辑页已有语言/声音下拉，不必重复）
+        localPoolLoading = true
+        val pools = runCatching { vm.engine.getLocales().map { it.first to it.second } }.getOrDefault(emptyList())
+        localPools = pools
+        localPoolLoading = false
+    } }
+
+    fun loadLocalVoices(poolId: String) {
+        scope.launch {
+            localVoicesLoading = true
+            val rows = runCatching {
+                vm.engine.getVoices(poolId).map { Triple(poolId, it.id, it.name) }
+            }.getOrDefault(emptyList())
+            localVoices = rows
+            localVoicesLoading = false
+        }
+    }
 
     // 输入防抖：keyboard 的 Search 动作会立刻提交；不打字时这条只在停顿后落地
     LaunchedEffect(keyword) {
@@ -360,55 +389,160 @@ fun PluginVoiceMarketplaceDialog(
                         }
                     }
 
-                    // ---- 结果摘要 / 错误 ----
-                    val error = vm.catalogError
-                    if (error != null) {
-                        Row(
-                            Modifier
-                                .fillMaxWidth()
-                                .padding(
-                                start = CATALOG_PANEL_PADDING,
-                                end = 12.dp,
-                                top = 4.dp,
-                                bottom = 4.dp
-                            ),
-                            verticalAlignment = Alignment.CenterVertically,
-                        ) {
-                            Text(
-                                error,
-                                modifier = Modifier.weight(1f),
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.error,
-                                maxLines = 3,
-                                overflow = TextOverflow.Ellipsis,
-                            )
-                            TextButton(
-                                contentPadding = PaddingValues(horizontal = 8.dp),
-                                onClick = {
-                                    scope.launch {
-                                        vm.searchCatalog(locale, submittedKeyword, tags.sorted(), sortBy, append = false)
-                                    }
-                                },
+                    // ---- 本地分类区（10-10 用户令：普通插件也要能在广场里列分类）----
+                    // 入库模式恒显示（加载中转圈）；点分类 chip → 结果列表切本地音色，再点取消回联网搜索。
+                    if (importMode) {
+                        when {
+                            localPoolLoading -> Row(
+                                Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = CATALOG_PANEL_PADDING, vertical = 4.dp),
+                                verticalAlignment = Alignment.CenterVertically
                             ) {
-                                Text(stringResource(R.string.voice_catalog_retry))
+                                CircularProgressIndicator(Modifier.size(16.dp), strokeWidth = 2.dp)
+                                Text(
+                                    "正在读取插件分类…",
+                                    style = MaterialTheme.typography.labelMedium,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    modifier = Modifier.padding(start = 8.dp)
+                                )
+                            }
+                            localPools.isNotEmpty() -> LazyRow(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(top = 4.dp),
+                                contentPadding = PaddingValues(horizontal = CATALOG_PANEL_PADDING),
+                                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                            ) {
+                                items(localPools, key = { it.first }) { (poolId, poolName) ->
+                                    FilterChip(
+                                        selected = selectedLocalPool == poolId,
+                                        onClick = {
+                                            if (selectedLocalPool == poolId) {
+                                                selectedLocalPool = null // 再点取消，回联网搜索
+                                            } else {
+                                                selectedLocalPool = poolId
+                                                loadLocalVoices(poolId)
+                                            }
+                                        },
+                                        label = { Text(poolName, maxLines = 1) },
+                                    )
+                                }
                             }
                         }
-                    } else {
-                        Text(
-                            text = catalogSummary(vm),
-                            modifier = Modifier.padding(
-                                horizontal = CATALOG_PANEL_PADDING,
-                                vertical = 4.dp
-                            ),
-                            style = MaterialTheme.typography.labelMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
+                    }
+
+                    // ---- 结果摘要 / 错误 ----
+                    // 本地分类模式下不显示联网搜索的摘要/错误（两数据源互斥显示）
+                    if (selectedLocalPool == null) {
+                        val error = vm.catalogError
+                        if (error != null) {
+                            Row(
+                                Modifier
+                                    .fillMaxWidth()
+                                    .padding(
+                                    start = CATALOG_PANEL_PADDING,
+                                    end = 12.dp,
+                                    top = 4.dp,
+                                    bottom = 4.dp
+                                ),
+                                verticalAlignment = Alignment.CenterVertically,
+                            ) {
+                                Text(
+                                    error,
+                                    modifier = Modifier.weight(1f),
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.error,
+                                    maxLines = 3,
+                                    overflow = TextOverflow.Ellipsis,
+                                )
+                                TextButton(
+                                    contentPadding = PaddingValues(horizontal = 8.dp),
+                                    onClick = {
+                                        scope.launch {
+                                            vm.searchCatalog(locale, submittedKeyword, tags.sorted(), sortBy, append = false)
+                                        }
+                                    },
+                                ) {
+                                    Text(stringResource(R.string.voice_catalog_retry))
+                                }
+                            }
+                        } else {
+                            Text(
+                                text = catalogSummary(vm),
+                                modifier = Modifier.padding(
+                                    horizontal = CATALOG_PANEL_PADDING,
+                                    vertical = 4.dp
+                                ),
+                                style = MaterialTheme.typography.labelMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
                     }
 
                     HorizontalDivider()
 
                     // ---- 结果列表 ----
+                    // 双数据源（10-10 用户令）：选中本地分类 → 本地音色（getVoices）；否则联网搜索结果。
+                    // 勾选/分类标签/导入共用同一套状态（picked/categories 都按 voiceId 键）
                     Box(Modifier.weight(1f)) {
+                        if (selectedLocalPool != null) {
+                            // 本地分类音色列表（普通插件的主路；广场协议插件也能切过来看本地缓存）
+                            if (localVoicesLoading) {
+                                Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                                    CircularProgressIndicator(Modifier.size(28.dp), strokeWidth = 2.dp)
+                                }
+                            } else if (localVoices.isEmpty()) {
+                                Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                                    Text(
+                                        stringResource(R.string.voice_catalog_empty),
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    )
+                                }
+                            } else {
+                                LazyColumn(
+                                    modifier = Modifier.fillMaxSize(),
+                                    contentPadding = PaddingValues(vertical = 4.dp),
+                                ) {
+                                    items(localVoices, key = { it.second }) { (poolId, voiceId, name) ->
+                                        CatalogVoiceRow(
+                                            item = VoiceCatalogItem(
+                                                id = voiceId,
+                                                name = name,
+                                                icon = null,
+                                            ),
+                                            checked = voiceId in picked,
+                                            onToggle = {
+                                                if (picked.containsKey(voiceId)) picked.remove(voiceId)
+                                                else picked[voiceId] = VoiceCatalogItem(
+                                                    id = voiceId,
+                                                    name = name,
+                                                    // poolId 借 description 带给导入侧（本地分类名做 poolName）
+                                                    description = "locale:${poolId}",
+                                                )
+                                            },
+                                            onAudition = {
+                                                // 本地音色带 poolId（普通插件合成要用 locale）：
+                                                // 借 item.description 段带过去（调 harmless；宿主读它拼试听实体）
+                                                onAudition(
+                                                    VoiceCatalogItem(
+                                                        id = voiceId,
+                                                        name = name,
+                                                        description = "locale:${poolId}",
+                                                    )
+                                                )
+                                            },
+                                            assignedCategory = categories[voiceId],
+                                            onCategoryChange = if (importMode) ({ cat ->
+                                                if (cat == null) categories.remove(voiceId)
+                                                else categories.set(voiceId, cat)
+                                            }) else null,
+                                        )
+                                    }
+                                }
+                            }
+                        } else {
                         LazyColumn(
                             modifier = Modifier.fillMaxSize(),
                             state = listState,
@@ -482,6 +616,7 @@ fun PluginVoiceMarketplaceDialog(
                                     strokeWidth = 2.dp,
                                 )
                             }
+                        }
                         }
                     }
 

@@ -1273,12 +1273,15 @@ private fun MarketplaceImportDialog(
 
     // 试听弹窗（复用 AuditionDialog：等待分类/自动下一个/分类点选/失败重播全都在）
     auditionItem?.let { item ->
-        val auditionSystts = remember(item.id) {
+        // 本地分类音色带 locale 段（面板经 item.description 传 "locale:xxx"）；联网音色无段=空
+        val auditionLocale = item.description.takeIf { it.startsWith("locale:") }?.removePrefix("locale:").orEmpty()
+        val auditionSystts = remember(item.id, auditionLocale) {
             com.github.jing332.database.entities.systts.SystemTtsV2(
                 displayName = item.name,
                 config = com.github.jing332.database.entities.systts.TtsConfigurationDTO(
                     source = com.github.jing332.database.entities.systts.source.PluginTtsSource(
                         pluginId = plugin.pluginId,
+                        locale = auditionLocale,
                         voice = item.id
                     )
                 )
@@ -1339,6 +1342,14 @@ object MarketplaceCategoryOverride {
     }
 }
 
+/** 从 VM 引擎读某 poolId 的分类显示名（导入侧给本地音色定子分组名用；拉不到回空串） */
+private fun localPoolsNameOf(
+    vm: com.github.jing332.tts_server_android.compose.systts.list.ui.PluginTtsViewModel,
+    poolId: String,
+): String = runCatching {
+    vm.engine.getLocales().firstOrNull { it.first == poolId }?.second
+}.getOrNull().orEmpty()
+
 /** 入库模式「导入/加入列表」执行体：勾选音色 → PluginCategoryImporter.importVoices 落库（未分类照导） */
 private fun doMarketplaceImport(
     plugin: Plugin,
@@ -1353,9 +1364,13 @@ private fun doMarketplaceImport(
         // 手选分类（试听弹窗里点的）优先，否则广场标签映射
         val overrides = MarketplaceCategoryOverride.takeAll()
         val items = picked.map {
+            // 本地分类音色带 "locale:xxx" 段（面板勾选时写入）→ poolId=分类 id、poolName=分类名
+            // （importVoices 用 poolName 做未分类项的子分组名）；联网音色无段，走原口径
+            val localLocale = it.description.takeIf { d -> d.startsWith("locale:") }?.removePrefix("locale:")
+            val localPoolName = localLocale?.let { pid -> localPoolsNameOf(vm, pid) }.orEmpty()
             PluginCategoryImporter.VoiceItem(
-                poolId = "",
-                poolName = it.tags.firstOrNull().orEmpty(),
+                poolId = localLocale.orEmpty(),
+                poolName = localPoolName.ifBlank { it.tags.firstOrNull().orEmpty() },
                 voiceId = it.id,
                 voiceName = it.name,
                 categoryOverride = overrides[it.id]
