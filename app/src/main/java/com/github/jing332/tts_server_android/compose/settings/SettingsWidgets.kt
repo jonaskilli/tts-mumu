@@ -1,6 +1,5 @@
 package com.github.jing332.tts_server_android.compose.settings
 
-import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.focusable
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -16,7 +15,6 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.selection.toggleable
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.KeyboardArrowRight
@@ -303,23 +301,16 @@ internal fun BasePreferenceWidget(
         .semantics(true) {}
     ) {
         if (icon != null) {
-            // 图标底衬（10-10 用户拍板 E 案：中性灰 + 缩到 36dp）。
-            // 前版是 40dp + primary@14%，在「绿色」主题（primary #006D3A，饱和度 1.00）下
-            // 渲染成明显的薄荷绿块，整列一行行发绿（用户实机反馈「改完好丑」）；
-            // 根因=底衬跟着主色走，主色越饱和底衬越跳 ⇒ 改为**不掺主色**的中性灰，
-            // 主题色只留在图标上（跨主题都稳：换蓝/红主题也不会变成一片蓝/一片红）。
-            // 36dp 与图标 24dp 同为 2:3，比例不变（此前 40:24 是 M3 对矢量图标的 60%）。
+            // 图标槽 10-10 终稿：底衬整块删除（primary@14% 薄荷绿 → 中性灰 8% 两版都被否，
+            // 用户定「只留图标」）。36dp Box 保留只为对位——图标位/行高与带底衬时一致，
+            // 本身不画任何背景。
             Box(
                 modifier = Modifier
                     .align(Alignment.CenterVertically)
-                    .size(36.dp)
-                    .clip(RoundedCornerShape(11.dp))
-                    .background(
-                        MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.08f)
-                    ),
+                    .size(36.dp),
                 contentAlignment = Alignment.Center
             ) {
-                // 底衬内图标统一走主题色（显式 tint 的行——如「清空数据」的 error 红——仍以显式值为准）
+                // 图标统一染主题色（显式 tint 的行——如「清空数据」的 error 红——仍以显式值为准）
                 CompositionLocalProvider(
                     LocalContentColor provides MaterialTheme.colorScheme.primary
                 ) {
