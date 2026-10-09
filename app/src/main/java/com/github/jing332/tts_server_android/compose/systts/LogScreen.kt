@@ -604,6 +604,22 @@ internal fun LogScreen(
                                         style = MaterialTheme.typography.bodySmall,
                                         color = MaterialTheme.colorScheme.onSurfaceVariant
                                     )
+                                    // 「原文」定位键（10-10 装机反馈用户令）：筛选/搜索态裸行
+                                    // 同样可跳回完整流原位（此前只有请求组头行有，插件/规则
+                                    // 日志搜到后没键回不去）；弹簧顶最右，样式同组头行
+                                    if (showLocateKey) {
+                                        Spacer(Modifier.weight(1f))
+                                        Text(
+                                            text = "⟲ 原文",
+                                            style = MaterialTheme.typography.labelMedium,
+                                            color = MaterialTheme.colorScheme.primary,
+                                            modifier = Modifier
+                                                .padding(start = 8.dp)
+                                                .clip(RoundedCornerShape(9.dp))
+                                                .clickable { onLocateOriginal(log) }
+                                                .padding(horizontal = 8.dp, vertical = 2.dp)
+                                        )
+                                    }
                                 }
                                 LogEntryBody(
                                     entry = log,
@@ -612,12 +628,13 @@ internal fun LogScreen(
                                     voiceColor = voiceColor,
                                     roleChipColor = roleChipColor,
                                     pluginChipColor = pluginChipColor,
-                                    // 排版实验 1008（A 二轮，用户 10-08 午后令）：主行 16→14sp
-                                    fontSize = 14.sp,
+                                    // 字号全页统一小号（10-10 装机反馈用户令）：裸行 14→13sp，
+                                    // 与成员行/朗读规则日志同级（×1.3 行距=16.9）
+                                    fontSize = 13.sp,
                                     // 行距定版：统一字号×1.3 节奏（37731502442 修 CI 红：
                                     // 原 `fontSize * 1.3f` 引用的是 LogEntryBody 的命名参数，
                                     // 调用点作用域无此变量——Unresolved reference，静守卫盲区）
-                                    lineHeight = 18.2.sp, // 14×1.3
+                                    lineHeight = 17.sp, // 13×1.3≈16.9
                                     // 命中高亮已在整行背景，正文不再叠一层
                                     isMatch = false,
                                     highlight = log == locateHighlight,
@@ -716,16 +733,12 @@ internal fun LogScreen(
                                         else Modifier.clickable { quickPanelEntry = head }
                                     )
                             ) {
-                                // 头部行（10-10 用户反馈「时间/成功/数字排列不适合」）：
-                                // 时间→丸组→丸后灰字从左到右聚拢成一组，撤掉原先顶开两端的
-                                // weight 弹簧——「何时→结果→量」因果顺读不断裂；「原文」键
-                                // 仍居最右（弹簧移到它之前，动作键留在右手位）。
-                                // 药丸链过长的换行与顺序（10-10 用户问「过程过长会不会截断」）：
-                                // Row 放不下会静默溢出裁掉，改 FlowRow 自动换行；丸间插灰
-                                // 「→」体现先后链路（换行后第二行开头也是「→ 成功」接续可读）。
-                                // FlowRow 内时间戳/丸/灰字作为整项排布，normal 行距贴合
+                                // 头部行（10-10 装机反馈两令）：①撤丸间「→」——成功一行
+                                // 只有「时间 成功 大小·耗时」，箭头是多余符号（用户不认），
+                                // 保留 FlowRow 换行（药丸链过长仍折行不截断）；②对齐——
+                                // FlowRow verticalAlignment=CenterVertically，丸与文字同轴
                                 FlowRow(
-                                    verticalArrangement = Arrangement.spacedBy((-2).dp),
+                                    verticalAlignment = Alignment.CenterVertically,
                                     modifier = Modifier.fillMaxWidth()
                                 ) {
                                     if (selectionMode) {
@@ -744,23 +757,18 @@ internal fun LogScreen(
                                         style = MaterialTheme.typography.bodySmall,
                                         color = MaterialTheme.colorScheme.onSurfaceVariant
                                     )
-                                    pills.forEachIndexed { pIdx, pill ->
-                                        // 丸间灰「→」（10-10 用户拍板）：先后链路语汇，比丸小一号不抢
-                                        if (pIdx > 0) ArrowSep()
-                                        Box(Modifier.padding(start = if (pIdx == 0) 6.dp else 0.dp)) {
-                                            StatusPill(pill)
-                                        }
+                                    pills.forEach { pill ->
+                                        Box(Modifier.padding(start = 6.dp)) { StatusPill(pill) }
                                     }
-                                    // 丸后灰字（成功=耗时·大小/失败=原因）：也用「→」与丸链衔接
+                                    // 丸后灰字（成功=耗时·大小/失败=原因），与丸留 8dp 隙
                                     if (tailText != null) {
-                                        ArrowSep()
                                         Text(
                                             text = tailText,
                                             style = MaterialTheme.typography.bodySmall,
                                             color = if (pills.lastOrNull()?.kind == LogPillKind.FAIL)
                                                 MaterialTheme.colorScheme.error
                                             else MaterialTheme.colorScheme.onSurfaceVariant,
-                                            modifier = Modifier.padding(end = 8.dp)
+                                            modifier = Modifier.padding(start = 8.dp)
                                         )
                                     }
                                     // 「原文」定位键（筛选/搜索态）：弹簧顶到最右，动作留右手位
@@ -785,8 +793,10 @@ internal fun LogScreen(
                                     voiceColor = voiceColor,
                                     roleChipColor = roleChipColor,
                                     pluginChipColor = pluginChipColor,
-                                    fontSize = 14.sp,
-                                    lineHeight = 18.2.sp, // 14×1.3
+                                    // 字号全页统一小号（10-10 装机反馈用户令）：请求主行 14→13sp，
+                                    // 「请求音频：」前缀段在 LogEntryBody 内仍压到 12sp 分层
+                                    fontSize = 13.sp,
+                                    lineHeight = 17.sp, // 13×1.3≈16.9
                                     isMatch = isMatchEntry(head, searchQuery),
                                     // 排版实验 1008（C）：只染"请求音频："前缀，正文回默认色
                                     isRequestHead = true,
@@ -922,17 +932,6 @@ private fun tailTextOf(head: LogEntry, members: List<LogEntry>): String? {
 internal enum class LogPillKind { OK, FAIL, RETRY, STANDBY }
 internal data class LogPill(val kind: LogPillKind, val text: String)
 
-// 丸间/丸后灰「→」分隔符（10-10 用户拍板）：药丸链的先后语汇，小一号次级灰不抢丸
-@Composable
-private fun ArrowSep() {
-    Text(
-        text = "→",
-        style = MaterialTheme.typography.labelSmall,
-        color = MaterialTheme.colorScheme.onSurfaceVariant,
-        modifier = Modifier.padding(horizontal = 4.dp)
-    )
-}
-
 // 状态药丸（10-10 行流定稿）：丸只装状态字，成功绿/失败红/重试灰/切备用黄；
 // 丸后灰字（耗时·大小/失败原因）由调用方另排。
 // ⚠️ 不用 Pair 解构（when 分支混用 to 与 if 表达式时编译器推成 Any）——分两个 when
@@ -992,8 +991,8 @@ private fun LogEntryBody(
             .remapMetaColor(metaColor, voiceColor, roleChipColor, pluginChipColor)
         var s = base
         if (isRequestHead) {
-            // 排版实验 1008（字号真分层，用户 10-08 拍板）：主行内三段三个字号——
-            // 前缀 13sp / 正文 14sp（<b> 加粗承担字重）/ 声音信息 12sp。
+            // 字号分层随全页统一降一档（10-10 装机反馈用户令「统一为小的」）：
+            // 前缀 12sp / 正文 13sp（<b> 加粗承担字重）/ 声音信息 11sp。
             // 段界：前缀=首个"："及之前；声音信息=哨兵色 span（remapMetaColor 后已是
             // 雾紫/石板灰目标色）；两者之间=正文。
             val prefixEnd = base.text.indexOf("：").let { if (it >= 0) it + 1 else 0 }
@@ -1006,23 +1005,23 @@ private fun LogEntryBody(
                 base.spanStyles.forEach { r ->
                     var item = r.item
                     if (r.start < prefixEnd) {
-                        // 前缀：染深绿 + 13sp
+                        // 前缀：染深绿 + 12sp
                         item = item.copy(
                             color = if (darkTheme) RequestPrefixColorDark else RequestPrefixColorLight,
-                            fontSize = 13.sp,
+                            fontSize = 12.sp,
                         )
                     } else if (r.start >= metaStart && metaStart < base.text.length) {
-                        // 声音信息：哨兵色已换好目标色，只压到 12sp
-                        item = item.copy(fontSize = 12.sp)
+                        // 声音信息：哨兵色已换好目标色，只压到 11sp
+                        item = item.copy(fontSize = 11.sp)
                     }
                     addStyle(item, r.start, r.end)
                 }
                 // 前缀段可能无 span 覆盖（级别色是 Text 整体 color，不是 span）：
-                // 显式补一个 13sp span
-                if (prefixEnd > 0) addStyle(SpanStyle(fontSize = 13.sp), 0, prefixEnd)
-                // 声音信息段若无 span 覆盖（整段哨兵色必有 span，此处兜底）：补 12sp
+                // 显式补一个 12sp span
+                if (prefixEnd > 0) addStyle(SpanStyle(fontSize = 12.sp), 0, prefixEnd)
+                // 声音信息段若无 span 覆盖（整段哨兵色必有 span，此处兜底）：补 11sp
                 if (metaStart < base.text.length) {
-                    addStyle(SpanStyle(fontSize = 12.sp), metaStart, base.text.length)
+                    addStyle(SpanStyle(fontSize = 11.sp), metaStart, base.text.length)
                 }
             }
         }
@@ -1040,7 +1039,11 @@ private fun LogEntryBody(
         s
     }
     val bodyColor = forceColor ?: when {
-        entry.level == LogLevel.SUCCESS -> metaColor
+        // 成功行回旧绿（10-10 装机反馈用户令「成功的颜色用以前那个绿」）：行流版曾把
+        // SUCCESS 挂到石板灰 metaColor，用户不认——回 INFO 系正绿 #2E7D32/#81C784
+        //（10-08 降档后的现行 INFO 绿，即「获取成功」历史观感）
+        entry.level == LogLevel.SUCCESS ->
+            Color(if (darkTheme) 0xFF81C784 else 0xFF2E7D32)
         // 排版实验 1008（C）：请求主行正文回默认色（前缀已单独染色），其余行照旧级别色
         isRequestHead -> MaterialTheme.colorScheme.onSurface
         else -> Color(entry.level.toArgb(isDarkTheme = darkTheme))
