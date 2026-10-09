@@ -16,17 +16,47 @@
   const media = window.matchMedia('(max-width: 700px)');
   document.body.classList.add('dsh-phone-mobile');
 
-  // 点选供应商 → 收起网格（事件委托到 rail，React 重渲染不丢监听）
+  // 点选供应商 → 收起网格（事件委托到 rail，React 重渲染不丢监听）。
+  // ⚠️ 不能在点击瞬间立即收（10-10 真机报障「切换有时卡住」）：React 把
+  // aria-selected 更新到新 chip 慢一拍，立即 collapse 会把被点的 chip
+  // （aria-selected 还是 false）藏掉、旧 chip 留守——用户看到「点了没反应」。
+  // 修法：点击后只记下意图（pendingCollapse + 目标），等 MutationObserver
+  // 观察到 aria-selected 真正切到该 chip 再收；600ms 兜底（React 始终没跟上
+  // 就放弃收起，保持展开至少能再点，绝不出现「藏错人」）。
+  let pendingCollapseTarget = null;
+  let pendingCollapseTimer = 0;
+  const tryCollapse = () => {
+    if (!pendingCollapseTarget) return;
+    const chip = document.querySelector('.dim-jh-provider[data-provider="' + pendingCollapseTarget + '"]');
+    // 目标 chip 已是选中态（或已从 DOM 消失=列表重建中）才收
+    if (!chip || chip.getAttribute('aria-selected') === 'true') {
+      document.body.classList.add('jh-collapse');
+      clearPendingCollapse();
+    }
+  };
+  const clearPendingCollapse = () => {
+    pendingCollapseTarget = null;
+    if (pendingCollapseTimer) { clearTimeout(pendingCollapseTimer); pendingCollapseTimer = 0; }
+  };
   document.addEventListener('click', (e) => {
     if (!media.matches) return;
     const rail = e.target.closest && e.target.closest('.dim-jh-rail');
     if (!rail) return;
     const chip = e.target.closest('.dim-jh-provider');
     if (chip && chip.getAttribute('aria-selected') !== 'true') {
-      // 点了未选中的供应商：让它完成选择，随后收起
-      document.body.classList.add('jh-collapse');
+      const row = chip.closest('[data-provider]');
+      pendingCollapseTarget = row ? row.getAttribute('data-provider') : null;
+      if (pendingCollapseTarget) {
+        // 立即试一次（React 快时无感），慢时交给 observer/兜底
+        tryCollapse();
+        if (pendingCollapseTarget) {
+          clearTimeout(pendingCollapseTimer);
+          pendingCollapseTimer = setTimeout(clearPendingCollapse, 600);
+        }
+      }
     } else if (!chip || chip.getAttribute('aria-selected') === 'true') {
       // 点「切换 ▾」（rail 空白）或已选中的胶囊：展开网格
+      clearPendingCollapse();
       document.body.classList.remove('jh-collapse');
     }
   }, true);
@@ -43,7 +73,7 @@
     });
   };
   markCloseBtn();
-  new MutationObserver(markCloseBtn).observe(document.body, { childList: true, subtree: true });
+  new MutationObserver(() => { markCloseBtn(); tryCollapse(); }).observe(document.body, { childList: true, subtree: true });
 
   const adapt = () => {
     if (!media.matches) return;
