@@ -48,13 +48,13 @@ class CrashHandler(val context: Context) : Thread.UncaughtExceptionHandler {
         }
         if (BuildConfig.DEBUG) return
 
-        context.longToast("TTS Server已崩溃 上传日志中 稍后将会复制到剪贴板")
+        context.longToast("U·TTS已崩溃 上传日志中 稍后将会复制到剪贴板")
         val log = "\n${LocalDateTime.now()}" +
                 "\n版本代码：${AppConst.appInfo.versionCode}， 版本名称：${AppConst.appInfo.versionName}\n" +
                 "崩溃详情：\n${e.stackTraceToString()}"
 
         runOnUI {
-            ClipboardUtils.copyText("TTS-Server崩溃日志", log)
+            ClipboardUtils.copyText("U-TTS崩溃日志", log)
             context.longToast("已将日志复制到剪贴板")
         }
     }

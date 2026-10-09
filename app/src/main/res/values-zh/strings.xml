@@ -221,7 +221,7 @@
     <string name="as_standby">作为备用</string>
     <string name="direct_play">直接播放</string>
     <string name="systts_direct_play_help">关于【直接播放】</string>
-    <string name="systts_direct_play_help_msg">打开选项后，将直接由其TTS引擎进行流式播放；\n关闭选项后，将会经TTS Server中转音频，这会有些性能损耗(缓存的读写)，但对于多语音情况下，可降低同一引擎在声音切换时带来的初始化延迟。</string>
+    <string name="systts_direct_play_help_msg">打开选项后，将直接由其TTS引擎进行流式播放；\n关闭选项后，将会经 U·TTS 中转音频，这会有些性能损耗(缓存的读写)，但对于多语音情况下，可降低同一引擎在声音切换时带来的初始化延迟。</string>
     <string name="systts_replace_please_on_switch">⚠️右上角菜单开启【总开关】</string>
     <string name="md_checkbox_checked">已全选</string>
     <string name="md_checkbox_unchecked">全部未选</string>
@@ -557,7 +557,7 @@
     <!-- 后台保活 -->
     <string name="keep_alive_service">后台保活服务</string>
     <string name="keep_alive_service_desc">防止应用被系统杀死（墓碑冻结）</string>
-    <string name="keep_alive_service_title">TTS Server 后台保活</string>
+    <string name="keep_alive_service_title">U·TTS 后台保活</string>
     <string name="keep_alive_service_content">正在保持后台运行...</string>
     <string name="stop_keep_alive">停止保活</string>
 
@@ -574,15 +574,15 @@
     <string name="manufacturer_whitelist">厂商后台设置</string>
     <string name="manufacturer_whitelist_summary">%s 点击跳转到系统设置将本应用加入后台白名单</string>
     <string name="manufacturer_whitelist_title">厂商后台优化</string>
-    <string name="manufacturer_whitelist_message">不同厂商的系统对后台应用有不同的限制策略。为确保 TTS Server 能在后台持续运行，请将本应用加入以下白名单：\n\n1. 电池优化白名单\n2. 后台运行白名单\n3. 自启动管理\n\n点击确定将跳转到系统设置页面。</string>
-    <string name="keep_alive_help_message"><![CDATA[<b>为什么需要保活？</b><br/><br/>Android 系统会自动清理后台应用节省电量，各厂商（小米、华为、OPPO、vivo 等）还有额外限制，可能导致 TTS Server 被关闭。<br/><br/><b>推荐配置</b><br/><br/>一般用户：开启「电池优化白名单」即可<br/>需要稳定运行：白名单 + 后台保活服务<br/>极致保活：同时开启多种高级方案<br/><br/><b>保活方案说明</b><br/><br/><b>电池优化白名单</b><br/>系统功能，允许应用绕过电池优化限制，必开。<br/><br/><b>后台保活服务</b><br/>前台服务 + 唤醒锁，基础保活，推荐开启。<br/><br/><b>开机自启动</b><br/>设备重启后自动启动服务。<br/><br/><b>无障碍保活</b><br/>系统优先级最高，最稳定。需手动开启无障碍权限。<br/><br/><b>通知监听保活</b><br/>利用通知监听服务保活。需手动开启权限。<br/><br/><b>定时唤醒保活</b><br/>每分钟唤醒一次，耗电较高。<br/><br/><b>网络连接保活</b><br/>保持网络连接活跃，对转发器功能特别有用。<br/><br/><b>像素保活</b><br/>熄屏时显示1像素悬浮窗，亮屏自动隐藏，零打扰。<br/><br/><b>注意事项</b><br/><br/>1. 转发器运行时，保活通知会自动合并<br/>2. 部分厂商需额外设置「厂商后台设置」<br/>3. 同时开启多种方案效果更好，但耗电增加<br/>4. 本软件作为 TTS 引擎被调用，保活不抢占音频焦点]]></string>
+    <string name="manufacturer_whitelist_message">不同厂商的系统对后台应用有不同的限制策略。为确保 U·TTS 能在后台持续运行，请将本应用加入以下白名单：\n\n1. 电池优化白名单\n2. 后台运行白名单\n3. 自启动管理\n\n点击确定将跳转到系统设置页面。</string>
+    <string name="keep_alive_help_message"><![CDATA[<b>为什么需要保活？</b><br/><br/>Android 系统会自动清理后台应用节省电量，各厂商（小米、华为、OPPO、vivo 等）还有额外限制，可能导致 U·TTS 被关闭。<br/><br/><b>推荐配置</b><br/><br/>一般用户：开启「电池优化白名单」即可<br/>需要稳定运行：白名单 + 后台保活服务<br/>极致保活：同时开启多种高级方案<br/><br/><b>保活方案说明</b><br/><br/><b>电池优化白名单</b><br/>系统功能，允许应用绕过电池优化限制，必开。<br/><br/><b>后台保活服务</b><br/>前台服务 + 唤醒锁，基础保活，推荐开启。<br/><br/><b>开机自启动</b><br/>设备重启后自动启动服务。<br/><br/><b>无障碍保活</b><br/>系统优先级最高，最稳定。需手动开启无障碍权限。<br/><br/><b>通知监听保活</b><br/>利用通知监听服务保活。需手动开启权限。<br/><br/><b>定时唤醒保活</b><br/>每分钟唤醒一次，耗电较高。<br/><br/><b>网络连接保活</b><br/>保持网络连接活跃，对转发器功能特别有用。<br/><br/><b>像素保活</b><br/>熄屏时显示1像素悬浮窗，亮屏自动隐藏，零打扰。<br/><br/><b>注意事项</b><br/><br/>1. 转发器运行时，保活通知会自动合并<br/>2. 部分厂商需额外设置「厂商后台设置」<br/>3. 同时开启多种方案效果更好，但耗电增加<br/>4. 本软件作为 TTS 引擎被调用，保活不抢占音频焦点]]></string>
     <string name="keep_alive_help_title">使用帮助</string>
     <string name="keep_alive_help_summary">查看保活功能的使用说明和注意事项</string>
     <string name="desc_fab_add_config">添加配置</string>
-    <string name="keep_alive_accessibility_label">TTS Server 后台保活</string>
-    <string name="keep_alive_accessibility_desc">辅助 TTS Server 保持后台运行，防止被系统清理</string>
-    <string name="keep_alive_notification_label">TTS Server 通知保活</string>
-    <string name="keep_alive_notification_desc">通过监听通知来保持 TTS Server 后台运行</string>
+    <string name="keep_alive_accessibility_label">U·TTS 后台保活</string>
+    <string name="keep_alive_accessibility_desc">辅助 U·TTS 保持后台运行，防止被系统清理</string>
+    <string name="keep_alive_notification_label">U·TTS 通知保活</string>
+    <string name="keep_alive_notification_desc">通过监听通知来保持 U·TTS 后台运行</string>
     <string name="accessibility_keep_alive">无障碍保活</string>
     <string name="accessibility_keep_alive_summary">利用无障碍服务高优先级保活（需手动开启）</string>
     <string name="notification_keep_alive">通知监听保活</string>

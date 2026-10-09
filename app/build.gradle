@@ -134,10 +134,13 @@ android {
             //noinspection GrDeprecatedAPIUsage
             def abiName = output.getFilter(com.android.build.OutputFile.ABI)
             def suffix = variant.flavorName == "dev" ? "_dev" : ""
+            // 10-10 应用改名 U·TTS：APK 文件名去「Server」（原名 U-TTS-Server）。
+            // 文件名保持 ASCII 连字符形（U-TTS），不用应用显示名的间隔号——文件名里带「·」
+            // 在部分系统的下载/分享链路会出编码问题。
             if (abiName == null)
-                output.outputFileName = "U-TTS-Server-v${variant.versionName}${suffix}.apk"
+                output.outputFileName = "U-TTS-v${variant.versionName}${suffix}.apk"
             else
-                output.outputFileName = "U-TTS-Server-v${variant.versionName}${suffix}_${abiName}.apk"
+                output.outputFileName = "U-TTS-v${variant.versionName}${suffix}_${abiName}.apk"
         }
     }
 

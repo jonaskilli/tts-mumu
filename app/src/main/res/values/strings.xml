@@ -1,6 +1,6 @@
 <resources xmlns:tools="http://schemas.android.com/tools">
-    <string name="app_name">U·TTS Server</string>
-    <string name="app_name_dev">D·U·TTS Server</string>
+    <string name="app_name">U·TTS</string>
+    <string name="app_name_dev">D·U·TTS</string>
 
     <string name="app_switch">开关</string>
     <string name="help">帮助</string>
@@ -261,7 +261,7 @@
     <string name="as_standby">作为备用</string>
     <string name="direct_play">直接播放</string>
     <string name="systts_direct_play_help">关于【直接播放】</string>
-    <string name="systts_direct_play_help_msg">打开选项后，将直接由其TTS引擎进行流式播放；\n关闭选项后，将会经TTS Server中转音频，这会有些性能损耗(缓存的读写)，但对于多语音情况下，可降低同一引擎在声音切换时带来的初始化延迟。</string>
+    <string name="systts_direct_play_help_msg">打开选项后，将直接由其TTS引擎进行流式播放；\n关闭选项后，将会经 U·TTS 中转音频，这会有些性能损耗(缓存的读写)，但对于多语音情况下，可降低同一引擎在声音切换时带来的初始化延迟。</string>
     <string name="systts_replace_please_on_switch">⚠️右上角菜单开启【总开关】</string>
     <string name="md_checkbox_checked">已全选</string>
     <string name="md_checkbox_unchecked">全部未选</string>
@@ -680,7 +680,7 @@
     <!-- Background Keep Alive -->
     <string name="keep_alive_service">Keep Alive Service</string>
     <string name="keep_alive_service_desc">Prevent app from being killed by system (freeze)</string>
-    <string name="keep_alive_service_title">TTS Server Keep Alive</string>
+    <string name="keep_alive_service_title">U·TTS Keep Alive</string>
     <string name="keep_alive_service_content">Keeping background running...</string>
     <string name="stop_keep_alive">Stop Keep Alive</string>
     <string name="keep_alive_settings">Keep Alive Settings</string>
@@ -694,8 +694,8 @@
     <string name="manufacturer_whitelist">Manufacturer Settings</string>
     <string name="manufacturer_whitelist_summary">%s Click to jump to system settings to add this app to background whitelist</string>
     <string name="manufacturer_whitelist_title">Manufacturer Background Optimization</string>
-    <string name="manufacturer_whitelist_message">Different manufacturers have different restrictions on background apps. To ensure TTS Server can run continuously in the background, please add this app to the following whitelists:\n\n1. Battery optimization whitelist\n2. Background running whitelist\n3. Auto start management\n\nClick OK to jump to system settings.</string>
-    <string name="keep_alive_help_message"><![CDATA[<b>Why Keep Alive?</b><br/><br/>Android automatically cleans up background apps to save battery. Manufacturers (Xiaomi, Huawei, OPPO, vivo, etc.) have additional restrictions that may kill TTS Server.<br/><br/><b>Recommended Setup</b><br/><br/>Basic users: Enable "Battery Whitelist" only<br/>Need stability: Whitelist + Keep Alive Service<br/>Maximum keep-alive: Enable multiple advanced options<br/><br/><b>Keep-Alive Options</b><br/><br/><b>Battery Whitelist</b><br/>System feature to bypass battery optimization. Essential.<br/><br/><b>Keep Alive Service</b><br/>Foreground service + wake lock. Recommended baseline.<br/><br/><b>Boot Auto Start</b><br/>Automatically start service after device reboot.<br/><br/><b>Accessibility Keep Alive</b><br/>Highest system priority, most stable. Requires manual permission.<br/><br/><b>Notification Keep Alive</b><br/>Use notification listener service. Requires manual permission.<br/><br/><b>Alarm Keep Alive</b><br/>Wake up every minute. Higher battery usage.<br/><br/><b>Network Keep Alive</b><br/>Keep network connection active. Useful for forwarder.<br/><br/><b>Pixel Keep Alive</b><br/>1-pixel window when screen off, auto-hides when on. Zero disturbance.<br/><br/><b>Notes</b><br/><br/>1. Keep-alive merges with forwarder notification when running<br/>2. Some manufacturers need extra "Manufacturer Settings"<br/>3. Multiple options increase battery usage<br/>4. TTS engine mode does not occupy audio focus]]></string>
+    <string name="manufacturer_whitelist_message">Different manufacturers have different restrictions on background apps. To ensure U·TTS can run continuously in the background, please add this app to the following whitelists:\n\n1. Battery optimization whitelist\n2. Background running whitelist\n3. Auto start management\n\nClick OK to jump to system settings.</string>
+    <string name="keep_alive_help_message"><![CDATA[<b>Why Keep Alive?</b><br/><br/>Android automatically cleans up background apps to save battery. Manufacturers (Xiaomi, Huawei, OPPO, vivo, etc.) have additional restrictions that may kill U·TTS.<br/><br/><b>Recommended Setup</b><br/><br/>Basic users: Enable "Battery Whitelist" only<br/>Need stability: Whitelist + Keep Alive Service<br/>Maximum keep-alive: Enable multiple advanced options<br/><br/><b>Keep-Alive Options</b><br/><br/><b>Battery Whitelist</b><br/>System feature to bypass battery optimization. Essential.<br/><br/><b>Keep Alive Service</b><br/>Foreground service + wake lock. Recommended baseline.<br/><br/><b>Boot Auto Start</b><br/>Automatically start service after device reboot.<br/><br/><b>Accessibility Keep Alive</b><br/>Highest system priority, most stable. Requires manual permission.<br/><br/><b>Notification Keep Alive</b><br/>Use notification listener service. Requires manual permission.<br/><br/><b>Alarm Keep Alive</b><br/>Wake up every minute. Higher battery usage.<br/><br/><b>Network Keep Alive</b><br/>Keep network connection active. Useful for forwarder.<br/><br/><b>Pixel Keep Alive</b><br/>1-pixel window when screen off, auto-hides when on. Zero disturbance.<br/><br/><b>Notes</b><br/><br/>1. Keep-alive merges with forwarder notification when running<br/>2. Some manufacturers need extra "Manufacturer Settings"<br/>3. Multiple options increase battery usage<br/>4. TTS engine mode does not occupy audio focus]]></string>
     <string name="keep_alive_help_title">Help</string>
     <string name="keep_alive_help_summary">View usage instructions and notes for keep-alive features</string>
     <string name="system_not_support_please_manual_set">System not supported, please set manually</string>
@@ -703,10 +703,10 @@
     <string name="cancel">Cancel</string>
     <string name="navigate_back">Back</string>
     <string name="desc_fab_add_config">Add Config</string>
-    <string name="keep_alive_accessibility_label">TTS Server Keep Alive</string>
-    <string name="keep_alive_accessibility_desc">Help TTS Server run in background, prevent being killed by system</string>
-    <string name="keep_alive_notification_label">TTS Server Notification Keep Alive</string>
-    <string name="keep_alive_notification_desc">Keep TTS Server running by monitoring notifications</string>
+    <string name="keep_alive_accessibility_label">U·TTS Keep Alive</string>
+    <string name="keep_alive_accessibility_desc">Help U·TTS run in background, prevent being killed by system</string>
+    <string name="keep_alive_notification_label">U·TTS Notification Keep Alive</string>
+    <string name="keep_alive_notification_desc">Keep U·TTS running by monitoring notifications</string>
     <string name="accessibility_keep_alive">Accessibility Keep Alive</string>
     <string name="accessibility_keep_alive_summary">Use accessibility service for high priority keep alive (manual enable required)</string>
     <string name="notification_keep_alive">Notification Keep Alive</string>

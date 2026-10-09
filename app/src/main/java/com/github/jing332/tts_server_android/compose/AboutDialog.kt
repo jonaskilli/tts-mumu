@@ -101,7 +101,10 @@ fun AboutDialog(onDismissRequest: () -> Unit) {
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
                 Text(
-                    "Github - TTS Server",
+                    // 文字保留「TTS Server」：链接指向上游原项目（jing332/tts-server-android），
+                    // 那个项目就叫这个名字——本应用改名 U·TTS 后这里仍是"致敬上游"的准确标注，
+                    // 改成 U·TTS 反而会让点开的人对不上号。
+                    "Github - TTS Server（上游项目）",
                     color = MaterialTheme.colorScheme.primary,
                     fontWeight = FontWeight.Bold,
                     modifier = Modifier
