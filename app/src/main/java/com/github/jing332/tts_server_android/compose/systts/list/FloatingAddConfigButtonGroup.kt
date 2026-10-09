@@ -14,6 +14,7 @@ import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.FloatingActionButtonMenu
 import androidx.compose.material3.FloatingActionButtonMenuItem
 import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.ToggleFloatingActionButton
 import androidx.compose.material3.ToggleFloatingActionButtonDefaults.animateIcon
@@ -76,7 +77,11 @@ fun FloatingAddConfigButtonGroup(
                     )
                     .zIndex(1f),
                 checked = expended,
-                onCheckedChange = { expended = !expended }
+                onCheckedChange = { expended = !expended },
+                // 10-10 DSH 式配色：FAB=实心主题绿圆钮+白＋（对应 DSH 的蓝色发送键）——
+                // 页面转纯白底后，绿色收拢到少数动作点并给足饱和度
+                containerColor = MaterialTheme.colorScheme.primary,
+                contentColor = MaterialTheme.colorScheme.onPrimary,
             ) {
                 val imageVector by remember {
                     derivedStateOf {
