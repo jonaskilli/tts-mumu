@@ -322,6 +322,7 @@ internal fun KeyPoolScreen(
  * 多选模式：复选框顶替序号徽章，动作区隐藏。
  * 长按拖动排序挂整行内容（dragModifier），卡容器不参与拖拽手势。
  */
+@OptIn(ExperimentalMaterial3ExpressiveApi::class) // LoadingIndicator（10-10 Expressive 改造，CI 实锤函数级须标）
 @Composable
 private fun PoolRow(
     orderNum: Int,

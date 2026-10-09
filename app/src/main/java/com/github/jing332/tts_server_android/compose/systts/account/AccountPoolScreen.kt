@@ -132,6 +132,12 @@ fun AccountPoolScreen(onBack: () -> Unit) {
         }
     }
 
+    // 下拉刷新（10-10 M3 改造）：接顶栏 Refresh 同款整页重载——LaunchedEffect(version)
+    // 会重读池、跑迁移、补落密钥，本页现成的「刷新」就是它，不另造数据流。
+    // 收圈时机在 LaunchedEffect 末尾（数据真回来才收），不在这里假完成。
+    // ⚠️ 状态声明须在使用它的 LaunchedEffect(version) 之前（Kotlin 局部变量先声明后使用，CI 实锤）
+    var isRefreshing by remember { mutableStateOf(false) }
+
     LaunchedEffect(version) {
         accounts = withContext(Dispatchers.IO) {
             // 存量迁移（10-08）：旧版 addAsKey 落的裸域名会 302 空流，进页顺手修（幂等）
@@ -153,10 +159,6 @@ fun AccountPoolScreen(onBack: () -> Unit) {
 
     fun reload() { version++ }
 
-    // 下拉刷新（10-10 M3 改造）：接顶栏 Refresh 同款整页重载——LaunchedEffect(version)
-    // 会重读池、跑迁移、补落密钥，本页现成的「刷新」就是它，不另造数据流。
-    // 收圈时机在 LaunchedEffect 末尾（数据真回来才收），不在这里假完成。
-    var isRefreshing by remember { mutableStateOf(false) }
     fun pullRefresh() {
         isRefreshing = true
         reload()
