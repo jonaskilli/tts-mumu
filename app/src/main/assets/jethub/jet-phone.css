@@ -43,21 +43,10 @@
   body.dsh-phone-mobile .dim-jh-layout { max-width: 100%; overflow: hidden !important; }
   body.dsh-phone-mobile .dim-jh-panel { max-width: 100%; box-sizing: border-box; }
 
-  /* 分组容器拆出布局：组内按钮直接参与横排；分组标题变成行内小标签 */
+  /* 分组容器拆出布局：组内按钮直接参与横排；分组标题隐藏（用户令 2026-10-10）：
+     app 未接渠道总开关，「已打开 (N)/已关闭 (N)」恒为固定计数/空组，纯摆设 */
   body.dsh-phone-mobile .dim-jh-railGroup { display: contents; }
-  body.dsh-phone-mobile .dim-jh-railGroupTitle {
-    flex: none;
-    align-self: center;
-    margin: 0 2px;
-    padding: 2px 7px;
-    font-size: 10px !important;
-    line-height: 14px;
-    font-weight: 600;
-    color: #8f959e;
-    background: #f1f3f5;
-    border-radius: 999px;
-    white-space: nowrap;
-  }
+  body.dsh-phone-mobile .dim-jh-railGroupTitle { display: none; }
 
   /* 单行容器也拆掉，按钮直接成为 chip */
   body.dsh-phone-mobile .dim-jh-providerRow { display: contents; }
