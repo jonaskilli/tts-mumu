@@ -796,38 +796,45 @@ private fun MenuActionRow(
  * （定稿「男主1晓伊」式）；显示名以 tag 开头时不重复拼（防"男主1男主1"）；
  * 查不到配置返回 null（RoleRow 回落 tag + ⚠）。
  *
- * 两级收口：
- * ① **显示名本体限 8 个字**（「显示名不能超过 8 个字」）——超了直接切到
- *    8 字，末尾不补符号。常量就在本文件（TAG_DISPLAY_NAME_MAX_CHARS），**与日志行的
- *    12 字故意不同值**（同晚「这俩不要一样，那边也可以加省略号」：标签框是
- *    220dp 窄框、硬切不留符号；日志行宽度富余、放 12 字且带「…」）；
- *    标签框上限 220dp、字号 13sp，装得下"tag 前缀 + 8 个全角字"
- *    （最坏 5 字前缀 + 8 字 = 13 个全角字 ≈ 169dp 文本 + 20dp 内边距 ≈ 189dp）；
- * ② 再按框宽做一次权重字数截断兜底（全角 1.0 / 半角 0.55，预算 14.5 字 ≈ 208dp）
- *    ——tag 前缀特别长时才轮到它，保证框里既不出现「…」也不切到半个字。
- * 旧的「显示名限 20 字 + …」规则已撤（既有 8 字硬上限，20 字也装不进 220dp）。
+ * 宽度收口（10-10 用户拍板「版式不动，只换截断逻辑」）：**按段整丢、永不切半截词**。
+ * 旧两套字数上限（显示名 8 字硬切 + 连写 14.5 字权重预算）退役——它们按字符数切、
+ * 不认「｜」分段，制造了「稳重男声｜真音已」「睿智长」这类半截词（实机截图实锤，
+ * 且多数行是误切：220dp 框实际装得下约 15 全角字，旧预算算得太保守）。
+ * 新规则：先试全串；超宽才从尾部按「｜」整段丢（先丢「｜真音已验」类后缀段、
+ * 再丢「｜男/女」段，前缀段与名字段最后动）；丢段后仍超宽才按字切名字段尾部兜底。
+ * 预算 = 15 全角字（见 SEG_BUDGET 注释）。
  */
 private fun voiceTagText(tag: String, nameMap: Map<String, String>): String? {
     val disp = nameMap[tag] ?: return null
     val prefix = if (disp.startsWith(tag)) "" else tag
-    return cutToTagBoxWidth(prefix + disp.take(TAG_DISPLAY_NAME_MAX_CHARS))
+    val full = prefix + disp
+    if (weightedWidth(full) <= TAG_BUDGET) return full
+    // 超宽：把显示名按「｜」分段，从尾部整段丢（分隔符连同段一起丢，保前段完整）
+    val sep = if (disp.contains('｜')) '｜' else if (disp.contains('|')) '|' else return
+        cutToTagBoxWidth(full, TAG_BUDGET)
+    val segs = disp.split(sep).toMutableList()
+    while (segs.size > 1 && weightedWidth(prefix + segs.joinToString(sep.toString())) > TAG_BUDGET) {
+        segs.removeAt(segs.lastIndex)
+    }
+    return cutToTagBoxWidth(prefix + segs.joinToString(sep.toString()), TAG_BUDGET)
 }
 
-/** 角色行标签框专用的显示名上限：8 字，超出直接切、**不补符号**（他不要省略号）。
- *  与日志行的 12 字（可带「…」）**故意不同值**，勿合并。 */
-private const val TAG_DISPLAY_NAME_MAX_CHARS = 8
-
 /**
- * 标签框权重字数预算：全角字 1.0 / 半角 0.55（数字、字母、半角符号）。
- * 14.5 字 ≈ 13sp × 14.5 ≈ 188.5dp 文本宽 + 左右各 10dp 内边距 ≈ 208.5dp，
- * 落在标签框 220dp 上限之内，并留约 1 个全角字的安全余量
- * （不同字体下数字/字母的实际字宽有出入，留余量保证 Clip 永不切到半个字）。
- * 显示名已先按 8 字收口（TAG_DISPLAY_NAME_MAX_CHARS），这里只在 tag 前缀偏长时才轮到。
+ * 标签框预算：15 全角字 ≈ 13sp×15 = 195dp 文本 + 左右各 10dp 内边距 = 215dp，
+ * 落在标签框 220dp 上限内（比旧 14.5 预算多出的 0.5 字来自「段尾分隔符可省」的实测余量；
+ * cutToTagBoxWidth 兜底保证字体偏宽时也只截尾部、不溢出框）。
  */
-private const val TAG_BOX_CHAR_BUDGET = 14.5f
+private const val TAG_BUDGET = 15f
+
+/** 权重宽度：全角 1.0 / 半角 0.55（数字、字母、半角符号） */
+private fun weightedWidth(text: String): Float {
+    var w = 0f
+    for (ch in text) w += if (ch.code < 0x2E80) 0.55f else 1.0f
+    return w
+}
 
 /** 按标签框可用宽度截断文本：只截不补符号（不要省略号） */
-private fun cutToTagBoxWidth(text: String, budget: Float = TAG_BOX_CHAR_BUDGET): String {
+private fun cutToTagBoxWidth(text: String, budget: Float = TAG_BUDGET): String {
     var used = 0f
     val out = StringBuilder()
     for (ch in text) {
@@ -937,7 +944,7 @@ private fun RoleRow(
                     // 10-05 用户：失效 ⚠ 单独染红（error 色）——标签整体还是容器色文字，
                     // 感叹号红起来一眼可辨（AnnotatedString 分段着色）
                     val tagBase = voiceName
-                        ?: cutToTagBoxWidth(rec.voice, TAG_BOX_CHAR_BUDGET - 2f)
+                        ?: cutToTagBoxWidth(rec.voice, TAG_BUDGET - 2f)
                     val tagInvalid = voiceName == null
                     // 发音人标签框（失效标签加红色 ⚠）；点它=换声弹窗（标记 / 删除配置项都在里面）；
                     // 长按=随机分配（10-06 用户令，替代原标签后的 🔄 直键）——仅 14 类可换类别
