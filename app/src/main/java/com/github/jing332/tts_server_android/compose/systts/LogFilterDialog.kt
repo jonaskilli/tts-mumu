@@ -17,6 +17,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.compositeOver
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.github.jing332.tts_server_android.R
@@ -91,14 +92,17 @@ fun LogFilterDialog(
                 ) {
                     // 插件日志开关（09-13 要求：文案去掉「日志」二字省宽度）
                     // 选中不要打对勾，容器色已足够表达选中态
-                    // 10-11 用户令「改下选中的颜色」：tertiaryContainer 淡蓝退役（fresh green
-                    // 单色系，全站不再有第三色相）——选中统一 secondaryContainer 淡绿
+                    // 10-11 用户两令收敛：①tertiary 淡蓝退役（单色系）；②secondaryContainer
+                    // C=3 后与弹窗底只差 6.5 L*「根本看不见」→ 选中态改 primary@12% 叠色
+                    //（与日志行选中 primary@10% 同语汇，RGB 跨度 18 vs 6，一眼可辨）
                     FilterChip(
                         selected = showPluginLogs,
                         onClick = { onPluginLogsToggle() },
                         label = { Text("插件") },
                         colors = FilterChipDefaults.filterChipColors(
-                            selectedContainerColor = MaterialTheme.colorScheme.secondaryContainer
+                            selectedContainerColor = MaterialTheme.colorScheme.primary
+                                .copy(alpha = 0.12f)
+                                .compositeOver(MaterialTheme.colorScheme.surfaceContainerHigh)
                         )
                     )
 
@@ -108,7 +112,9 @@ fun LogFilterDialog(
                         onClick = { onSpeechRuleLogsToggle() },
                         label = { Text("朗读规则") },
                         colors = FilterChipDefaults.filterChipColors(
-                            selectedContainerColor = MaterialTheme.colorScheme.secondaryContainer
+                            selectedContainerColor = MaterialTheme.colorScheme.primary
+                                .copy(alpha = 0.12f)
+                                .compositeOver(MaterialTheme.colorScheme.surfaceContainerHigh)
                         )
                     )
 
@@ -118,17 +124,21 @@ fun LogFilterDialog(
                         onClick = { onDebugLogsToggle() },
                         label = { Text("DEBUG") },
                         colors = FilterChipDefaults.filterChipColors(
-                            selectedContainerColor = MaterialTheme.colorScheme.secondaryContainer
+                            selectedContainerColor = MaterialTheme.colorScheme.primary
+                                .copy(alpha = 0.12f)
+                                .compositeOver(MaterialTheme.colorScheme.surfaceContainerHigh)
                         )
                     )
 
-                    // 实时滚动开关（同上统一淡绿，原 primaryContainer 与 secondaryContainer 两档绿并存岔色）
+                    // 实时滚动开关（同款选中绿）
                     FilterChip(
                         selected = autoScrollToBottom,
                         onClick = { onAutoScrollToggle() },
                         label = { Text("实时显示最新日志") },
                         colors = FilterChipDefaults.filterChipColors(
-                            selectedContainerColor = MaterialTheme.colorScheme.secondaryContainer
+                            selectedContainerColor = MaterialTheme.colorScheme.primary
+                                .copy(alpha = 0.12f)
+                                .compositeOver(MaterialTheme.colorScheme.surfaceContainerHigh)
                         )
                     )
                 }
