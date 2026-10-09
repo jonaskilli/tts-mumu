@@ -1444,13 +1444,12 @@ object KeyListFile {
                 off == false -> TestVerdict.PASS_THINKING
                 else -> TestVerdict.PASS
             }
-            // 10-10 用户令（文案定稿）：黄态统一为「用时 · 已锁定兼容写法 · 思考未关 · 请自定义」。
-            // 「已锁定兼容写法」取代具体的写法名（multi/thinking_type 等内部术语，用户看不懂、
-            // 且摆在此处易被误读为"思考已处理"；锁了哪个写法在「自定义思考」弹窗里本就有）。
-            // 「兼容写法」直说锁的是"能跑通"的写法，与"思考关掉了"区分开。
+            // 10-10 用户令（黄态文案终稿）：「兼容写法已锁定，思考未关 · 关闭需自定义」——
+            // 一句话讲清因果：锁的是"能跑通"的写法，不等于思考已关；要真关得自定义。
+            // 具体写法名（multi/thinking_type 等内部术语）不进文案，「自定义思考」弹窗里有。
             val text = when {
                 !ok -> msg
-                off == false -> "$msg · 已锁定兼容写法 · 思考未关 · 请自定义"
+                off == false -> "$msg · 兼容写法已锁定，思考未关 · 关闭需自定义"
                 else -> "$msg · 思考已关"
             }
             // 自动佩戴（10-09）：绿态（PASS=思考已关）才参与；黄态不佩戴。
@@ -1472,15 +1471,15 @@ object KeyListFile {
             val (ok, off, msg) = testOnce(t, locked, lockedCustom)
             if (ok) {
                 val v = if (off == false) TestVerdict.PASS_THINKING else TestVerdict.PASS
-                // 10-09 六令（文案统一方案一）：三段式「已锁定 x」（与 auto 探测路同构；
-                // 原括号「（锁定：x）」口径退役）——locked 必须回传：界面靠它判断
+                // 10-09 六令：locked 必须回传：界面靠它判断
                 // 「已锁定→不给『去设置』」，漏传会误出设置入口
-                // 10-10 用户令（文案定稿）：黄态统一为「用时 · 已锁定兼容写法 · 思考未关 · 请自定义」
+                // 10-10 用户令（文案终稿）：黄态=「用时 · 兼容写法已锁定，思考未关 · 关闭需自定义」
                 //（与手动档/auto 三分支同句——对用户而言三处都是同一件事：能用但思考没关）。
+                // 绿态=「思考已关（已锁定 x）」——括号把锁定降为补充说明，主结论一眼即得。
                 // locked 仍回传（UI 的「自动（锁定 x）」摘要行要用），只是不再写进结果条文案。
                 val text = if (off == false)
-                    "$msg · 已锁定兼容写法 · 思考未关 · 请自定义"
-                else "$msg · 思考已关 · 已锁定 $locked"
+                    "$msg · 兼容写法已锁定，思考未关 · 关闭需自定义"
+                else "$msg · 思考已关（已锁定 $locked）"
                 // 自动佩戴（10-09）：绿态且思考已关；黄态（思考未关）不参与
                 if (v == TestVerdict.PASS && off == true) {
                     maybeAutoAssign(tagRuleId, normTarget, text)
@@ -1533,7 +1532,8 @@ object KeyListFile {
                 saveThinkingParam(tagRuleId, t.baseUrl, t.model, m, mCustom)
                 // 厂家档双写（10-08 B 方案）：主域归档这条已验证写法；写档失败不影响本模型锁定
                 saveThinkingVendor(tagRuleId, t.baseUrl, m)
-                val okMsg = "$msg · 思考已关 · 已锁定 $m"
+                // 10-10 用户令（绿态文案终稿）：「思考已关（已锁定 x）」——括号结构
+                val okMsg = "$msg · 思考已关（已锁定 $m）"
                 // 自动佩戴（10-09）：全量试探的绿态路——判定放成功返回前，message 带用时
                 maybeAutoAssign(tagRuleId, normTarget, okMsg)
                 return TestOutcome(
@@ -1549,10 +1549,10 @@ object KeyListFile {
             saveThinkingParam(tagRuleId, t.baseUrl, t.model, yellow.first, "")
             return TestOutcome(
                 TestVerdict.PASS_THINKING, false,
-                // 10-10 用户令（文案定稿）：与另两条黄态分支同句——「用时 · 已锁定兼容写法 ·
-                // 思考未关 · 请自定义」。锁的具体写法名（yellow.first）不进文案（内部术语、
+                // 10-10 用户令（黄态文案终稿）：与另两条黄态分支同句——「用时 · 兼容写法已锁定，
+                // 思考未关 · 关闭需自定义」。锁的具体写法名（yellow.first）不进文案（内部术语、
                 // 弹窗内可见），yellow.second 即用时。
-                "${yellow.second} · 已锁定兼容写法 · 思考未关 · 请自定义",
+                "${yellow.second} · 兼容写法已锁定，思考未关 · 关闭需自定义",
                 locked = yellow.first
             )
         }
