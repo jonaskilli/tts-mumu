@@ -5,6 +5,9 @@ import androidx.compose.material3.BottomAppBarScrollBehavior
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.derivedStateOf
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -30,11 +33,23 @@ fun ControlBottomBarVisibility(
 ) {
     val bottomAppBarState = bottomBarBehavior.state
 
-    // 列表回到顶部或内容不足以向上滚动时，确保底部栏可见；
-    // 修复：原条件 !(canScrollBackward || canScrollForward) 过于严格，
-    // 仅在列表完全不可滚动时才复位，导致用户滚动隐藏后回到顶部时底部栏不再出现。
-    LaunchedEffect(listState.canScrollBackward, listState.canScrollForward) {
-        if (!listState.canScrollBackward) {
+    // 「在顶或在底都常显」：列表滚到最顶或最底时强制回显底栏。
+    // 只有「在顶」的旧版（10-10 用户报障）：日志页常停在最底（最新日志），底栏被上滑
+    // 藏掉后要往回滑过一整条底栏高度（exitAlways 的回弹阈值，80dp 比旧 60dp 更明显）
+    // 才肯回来——「往上滑有时候看不到底栏，得到一定程度才能看到」即此。
+    // atTop 用 canScrollBackward，atBottom 用「末条可见且无向前余量」；
+    // 两键任一成立即瞬间复位（与 animateBottomBarToShow 同款，不做动画防掉帧）。
+    val atBottom by remember {
+        derivedStateOf {
+            val info = listState.layoutInfo
+            val visible = info.visibleItemsInfo
+            info.totalItemsCount <= 0 || visible.isEmpty() ||
+                (visible.last().index >= info.totalItemsCount - 1 &&
+                    visible.last().offset + visible.last().size <= info.viewportEndOffset)
+        }
+    }
+    LaunchedEffect(listState.canScrollBackward, atBottom) {
+        if (!listState.canScrollBackward || atBottom) {
             animateBottomBarToShow(bottomAppBarState)
         }
     }
