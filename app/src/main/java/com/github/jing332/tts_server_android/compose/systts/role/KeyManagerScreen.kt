@@ -121,7 +121,6 @@ import org.json.JSONArray
 import org.json.JSONObject
 import com.github.jing332.tts_server_android.R
 import com.github.jing332.tts_server_android.compose.nav.NavTopAppBar
-import com.github.jing332.tts_server_android.service.systts.help.AccountPool
 import com.github.jing332.tts_server_android.service.systts.help.CharacterRecordsFile
 import com.github.jing332.tts_server_android.service.systts.help.KeyListFile
 import kotlinx.coroutines.async
@@ -1080,12 +1079,6 @@ fun KeyManagerScreen(tagRuleId: String, onBack: () -> Unit) {
     var testingPoolAll by remember { mutableStateOf(false) }
     // 启用池子页（页内全屏覆盖，返回键退回）
     var showPool by remember { mutableStateOf(false) }
-    // 账号池子页（10-06 方案B：页内全屏覆盖，返回键退回；登录/签到/积分/续期）
-    var showAccountPool by remember { mutableStateOf(false) }
-    // 账号池令牌集（10-06 来源标签）：密钥 value 里的 key 段命中任一账号 access_token → 行内显示「账号池」绿标
-    val poolTokens by remember(version) {
-        mutableStateOf(AccountPool.load().map { it.accessToken }.toSet())
-    }
     // 页面级 ☑ 多选已整体退役（10-08 用户令「多选没用」）：入口/底栏/跨组删除确认全删。
     // 组内多选删除仍在（组头 🗑 菜单），走独立的 deleteModeGroup/deleteChecked。
     // 启用池页的多选移出（状态同样 hoist 在主页）
@@ -1490,17 +1483,6 @@ fun KeyManagerScreen(tagRuleId: String, onBack: () -> Unit) {
 
     // 启用池子页：页内全屏覆盖（照 KeyManagerActivity 的独立全屏页模式，返回键退回主页）。
     // 状态全部 hoist 在主页（池、测试结果、测试中标记、多选），子页是纯展示 + 回调
-    // 账号池子页（10-06 方案B）：同级全屏覆盖，返回键退回密钥主页。
-    // 10-07 修「点不开」：本块漏了 return——启用池同款结构（覆盖后 return 终止主页渲染），
-    // 这里没 return 时 Compose 会把账号池 Scaffold 和主页 Scaffold 叠着组进同一布局，
-    // 实机表现即「点了账号池没反应」（后组内容的布局被前者吞/测距异常）。
-    if (showAccountPool) {
-        com.github.jing332.tts_server_android.compose.systts.account.AccountPoolScreen(
-            onBack = { showAccountPool = false }
-        )
-        return
-    }
-
     if (showPool) {
         KeyPoolScreen(
             pool = pool,
@@ -1794,12 +1776,6 @@ fun KeyManagerScreen(tagRuleId: String, onBack: () -> Unit) {
                                     // 10-08：页面级 ☑ 多选已删，selectionMode 只剩 isDeleting 一个来源
                                     selectionMode = isDeleting,
                                     checked = entry.name in deleteChecked,
-                                    // 来源标签（10-06 方案B）：key 段命中账号池 access_token → 绿标「账号池」
-                                    // ⚠️ 10-09 用户令：绿标不再渲染（参数保留，KeyEntryRow 内已注释渲染块）
-                                    fromPool = run {
-                                        val k = KeyListFile.parseKeyValue(entry.value)
-                                        k != null && k.key.isNotEmpty() && k.key in poolTokens
-                                    },
                                     // 分配专用（10-09）：该键持有 assign_marker.json 唯一标记 → 🚀 + 主色名
                                     hasAssign = assignMarker?.first == norm,
                                     onToggleCheck = {

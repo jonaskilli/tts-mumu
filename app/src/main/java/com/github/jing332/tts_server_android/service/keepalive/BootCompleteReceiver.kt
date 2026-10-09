@@ -39,9 +39,6 @@ class BootCompleteReceiver : BroadcastReceiver() {
                     // 调度 JobScheduler 保活任务
                     KeepAliveJobService.schedule(context)
 
-                    // 账号池每日签到闹钟（幂等重排；无账号时空转不产生任何开销）
-                    com.github.jing332.tts_server_android.service.systts.help.AccountCheckinScheduler.scheduleNext(context)
-
                     // 如果启用了定时唤醒保活
                     if (SysTtsConfig.isAlarmKeepAliveEnabled) {
                         AlarmKeepAliveReceiver.schedule(context)

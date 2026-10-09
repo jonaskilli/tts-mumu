@@ -1143,11 +1143,6 @@ object KeyListFile {
                 readTimeout = 15_000
                 setRequestProperty("Accept", "application/json")
                 if (!apiKey.isNullOrBlank()) setRequestProperty("Authorization", "Bearer $apiKey")
-                // CodeBuddy 上游（10-08）：/models 等请求也要身份头族，裸 Bearer 可能被静默空响应
-                if (AccountPool.isChatHost(url)) {
-                    if (!apiKey.isNullOrBlank())
-                        AccountPool.chatHeaders().forEach { (k, v) -> setRequestProperty(k, v) }
-                }
                 if (body != null) {
                     doOutput = true
                     setRequestProperty("Content-Type", "application/json; charset=utf-8")
@@ -1203,21 +1198,6 @@ object KeyListFile {
      * 两者都取不到就不写（宁可没有，不写错的倍率）。
      */
     fun fetchModelsWithRates(baseUrl: String, apiKey: String): Triple<List<String>?, Map<String, String>, String> {
-        if (AccountPool.isChatHost(baseUrl)) {
-            val (list, rates, err) = AccountPool.fetchModelsWithRates(apiKey)
-            return Triple(list, rates, err)
-        }
-        // 渠道路由（10-11 真机实锤修 404）：渠道专协议上游（autoclaw/workbuddy/zcode 等）
-        // 没有通用 GET /models 端点——baseUrl 命中某渠道 chatBaseUrl 时走该渠道的
-        // fetchModels 实现（多为静态内置清单+个别网络拉取），不落到通用请求。
-        ChannelBootstrap.install()
-        ChatChannels.byBaseUrl(baseUrl)?.let { ch ->
-            val list = runCatching { ch.fetchModels(apiKey) }.getOrElse {
-                return Triple(null, emptyMap(), "${ch.displayName} 拉取失败：${it.message ?: "未知错误"}")
-            }
-            if (list.isEmpty()) return Triple(null, emptyMap(), "${ch.displayName} 未返回模型")
-            return Triple(list, emptyMap(), "")
-        }
         val resp = httpJson(openAiBaseUrl(baseUrl) + "/models", "GET", apiKey, null)
         if (!resp.ok) return Triple(null, emptyMap(), "HTTP ${resp.code}，${briefBody(resp.body)}")
         return Triple(parseModelList(resp.body), parseRatesFromModels(resp.body), "")
@@ -1416,18 +1396,9 @@ object KeyListFile {
             chatPayload(t.model, "只回复 pong", 512, 0)
         }
         val t0 = System.currentTimeMillis()
-        // CodeBuddy 上游（10-08 接线）：只收流式（非流式 code 11101 拒）+ 必须完整对话头族
-        // （裸 Bearer HTTP 200 但零内容）——走 SseAggregator 流式桥聚合回非流式形状，
-        // 下面的 chatReplyOk/bodyHasThinking 解析零改动
-        val resp = if (AccountPool.isChatHost(t.chatUrl)) {
-            // 带账号池轮换（10-08 移植插件语义）：key 命中账号池账号 → 429/401/403 自动切号；
-            // 普通密钥单发行为不变。model 参与限流过滤（账号×模型标记）
-            val (ok, body) = SseAggregator.chatCompletionWithPool(t.chatUrl, t.apiKey, payload, t.model)
-            // code=-2 标记「桥内失败」避免与真实 HTTP 码混淆；body 已是「HTTP xxx：…」或聚合后 JSON
-            HttpResp(ok, if (ok) 200 else -2, body)
-        } else {
-            httpJson(t.chatUrl, "POST", t.apiKey, payload)
-        }
+        // 账号池（CodeBuddy 流式桥/轮换）已随账号池全链退役（10-11）：密钥测试回归
+        // 普通非流式 POST，OpenAI 兼容上游（智谱直连等）不受影响
+        val resp = httpJson(t.chatUrl, "POST", t.apiKey, payload)
         if (resp.ok && chatReplyOk(resp.body)) {
             val thinking = bodyHasThinking(resp.body)
             // 成功不回状态码（10-07 用户：HTTP 200 没信息量，能省则省）——绿/黄本身就是「通」的结论；

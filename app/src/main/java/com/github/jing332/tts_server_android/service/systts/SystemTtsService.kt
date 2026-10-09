@@ -171,10 +171,6 @@ class SystemTtsService : TextToSpeechService(), IEventDispatcher {
         // 必须在 onCreate 挂：规则分析在每轮朗读开头，晚挂会漏掉最早的原因日志
         SysttsLogger.hookConsole()
 
-        // 账号池静默续期调度（10-08 移植插件）：进程活着就每 30min 查一轮，
-        // 到期前 1h 内才真发请求；幂等 start，重复调用无副作用
-        com.github.jing332.tts_server_android.service.systts.help.AccountRefreshScheduler.start(this)
-
         registerGlobalReceiver(
             listOf(ACTION_NOTIFY_KILL_PROCESS, ACTION_NOTIFY_CANCEL), mNotificationReceiver
         )
