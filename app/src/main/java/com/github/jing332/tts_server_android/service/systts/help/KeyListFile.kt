@@ -1626,7 +1626,17 @@ object KeyListFile {
 
     /** 删除接口连同其下所有密钥条目（照插件接口表单🗑）；返回 (新密钥表, 删除的密钥数) */
     fun deleteInterfaceCascade(tagRuleId: String, ifc: ApiInterface, keys: List<KeyEntry>): Pair<List<KeyEntry>, Int> {
-        val kept = keys.filter { !keyBelongsTo(it, ifc) }
+        // ⚠️ 判据是「同站」而不是 keyBelongsTo（10-10 真机实锤）：keyBelongsTo 拿条目 key
+        // 与**组级 apiKey**（建组时首个账号的 token）比——多账号同组时第 2+ 账号的条目
+        // key 是各自 token，比不上 → 删组漏删它们 → 残留孤儿条目。残留条目 url 同站+key
+        // =账号 token，账号池 addAsKey 的去重判据（同站+同钥）恰好命中 → 秒回「已在密钥
+        // 管理」，但组已删、去重分支不建组 → **分组永远不重建**（用户报障「删了分组回不来」，
+        // 组位置还看得到一条莫名「模型密钥」=残留条目本体）。组删即组内全删：同站就是本组。
+        // 纯 Key 条目（无 url 段）与解析不动的条目不动——它们不归属任何站。
+        val kept = keys.filter { e ->
+            val p = parseKeyValue(e.value)
+            p == null || p.isDirect || !sameApiSite(p.url, ifc.baseUrl)
+        }
         val removed = keys.size - kept.size
         val ifaces = readInterfaces(tagRuleId).filter { it.name != ifc.name }
         saveInterfaces(tagRuleId, ifaces)
