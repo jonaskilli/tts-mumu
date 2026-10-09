@@ -127,16 +127,14 @@ private fun AnnotatedString.remapMetaColor(
                 r.start,
                 r.end
             )
-            // 角色名/插件名小牌补底色（10-10 用户反馈「角色名没有突出」）：HTML font
+            // 角色名小牌补底色（10-10 用户反馈「角色名没有突出」）：HTML font
             // 标签给不了背景，牌感只有字色太弱。此处按哨兵段落叠同色低透明度底 span
             //（SpanStyle 背景是直角矩形，无圆角——行内小牌可接受）。
-            // 底色取牌字色 alpha 0.14：白页上=浅灰绿/浅灰青，深色页=字色本已调亮，同式成立
+            // 底色取牌字色 alpha 0.14：白页上=浅灰绿/浅灰青，深色页=字色本已调亮，同式成立。
+            // 插件名不叠底（10-10 用户拍板）：改括号备注语缀尾，附属信息不与角色名平级
             when (r.item.color) {
                 RoleChipSentinel -> addStyle(
                     SpanStyle(background = roleChipColor.copy(alpha = 0.14f)), r.start, r.end
-                )
-                PluginChipSentinel -> addStyle(
-                    SpanStyle(background = pluginChipColor.copy(alpha = 0.14f)), r.start, r.end
                 )
                 else -> {}
             }
@@ -224,8 +222,12 @@ internal class LogGroups(val items: List<Item>, val entryToList: IntArray) {
                     e.isSpeechRuleLog -> raw.add(Item.Bare(i))
                     // "请求音频"主行：开新卡（旧卡先收）
                     e.configId != 0L -> openCard(i)
-                    // 其他主行（重试/备用TTS/系统消息）：有卡归卡，ERROR=失败终点收卡；
-                    // 无卡落裸行
+                    // 其他主行（重试/备用TTS/兜底发音人/系统消息）：有卡归卡，ERROR=失败
+                    // 终点收卡；无卡落裸行。
+                    // 失败链（失败子行+重试+兜底）整体留在失败请求的组里：头行药丸推出
+                    // 「失败(红)→重试N(灰)→切备用(黄)」，重试请求的组头只挂「成功(绿)」——
+                    // 10-10 用户实锤兜底黄丸缺失后验证：归组无需动，缺的只是 derivePills
+                    // 不认「使用兜底」（仿真 loggroup_sim.js 四场景复现确认）
                     else -> {
                         if (head >= 0) {
                             members.add(i)
@@ -708,7 +710,10 @@ internal fun LogScreen(
                                         else Modifier.clickable { quickPanelEntry = head }
                                     )
                             ) {
-                                // 头部行：时间（时分秒）+ 丸组靠右 + 丸后灰字
+                                // 头部行（10-10 用户反馈「时间/成功/数字排列不适合」）：
+                                // 时间→丸组→丸后灰字从左到右聚拢成一组，撤掉原先顶开两端的
+                                // weight 弹簧——「何时→结果→量」因果顺读不断裂；「原文」键
+                                // 仍居最右（弹簧移到它之前，动作键留在右手位）
                                 Row(
                                     verticalAlignment = Alignment.CenterVertically,
                                     modifier = Modifier.fillMaxWidth()
@@ -729,9 +734,8 @@ internal fun LogScreen(
                                         style = MaterialTheme.typography.bodySmall,
                                         color = MaterialTheme.colorScheme.onSurfaceVariant
                                     )
-                                    Spacer(Modifier.weight(1f))
                                     pills.forEach { pill ->
-                                        Box(Modifier.padding(start = 4.dp)) { StatusPill(pill) }
+                                        Box(Modifier.padding(start = 6.dp)) { StatusPill(pill) }
                                     }
                                     if (tailText != null) {
                                         Text(
@@ -743,8 +747,9 @@ internal fun LogScreen(
                                             modifier = Modifier.padding(start = 8.dp)
                                         )
                                     }
-                                    // 「原文」定位键（筛选/搜索态）：占最右， pill 后
+                                    // 「原文」定位键（筛选/搜索态）：弹簧顶到最右，动作留右手位
                                     if (showLocateKey) {
+                                        Spacer(Modifier.weight(1f))
                                         Text(
                                             text = "⟲ 原文",
                                             style = MaterialTheme.typography.labelMedium,
@@ -852,13 +857,19 @@ private fun derivePills(head: LogEntry, members: List<LogEntry>): List<LogPill> 
     for (m in members) {
         val msg = plain(m.message)
         when {
-            // WARN 主行「开始第 N 次重试」：每次出现递增编号
-            msg.contains("次重试") || msg.contains(" retry", true) -> {
-                retryNo++
-                pills.add(LogPill(LogPillKind.RETRY, "重试$retryNo"))
-            }
+        // WARN 主行「开始第 N 次重试」：序号优先从文案提取（连败多轮时每轮各一组，
+        // 组内计数器会都从 1 起——10-10 仿真实锤），提取不到再退回组内递增
+        msg.contains("次重试") || msg.contains(" retry", true) -> {
+            val n = Regex("第 (\\d+) 次").find(msg)?.groupValues?.get(1)?.toIntOrNull()
+            retryNo++
+            pills.add(LogPill(LogPillKind.RETRY, "重试${n ?: retryNo}"))
+        }
             // WARN 主行「使用备用TTS：x」/「使用备用发音人：a → b」
-            msg.startsWith("使用备用") -> pills.add(LogPill(LogPillKind.STANDBY, "切备用"))
+            // WARN 主行「使用备用TTS：x」/「使用备用发音人：a → b」/「使用兜底发音人：
+            // a → b（重试失败兜底）」——兜底与备用是两条来路（09-17 用户令分词），药丸
+            // 同为切备用黄（10-10 用户确认：兜底就是备用语义，头部一律黄丸）
+            msg.startsWith("使用备用") || msg.startsWith("使用兜底") ->
+                pills.add(LogPill(LogPillKind.STANDBY, "切备用"))
             m.level == LogLevel.SUCCESS -> pills.add(LogPill(LogPillKind.OK, "成功"))
             m.level == LogLevel.ERROR -> pills.add(LogPill(LogPillKind.FAIL, "失败"))
         }
