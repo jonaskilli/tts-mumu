@@ -643,15 +643,18 @@ internal fun LogScreen(
                                         )
                                     }
                                     // 时间去日期去毫秒（10-10 用户令，与请求组头行同口径）：
-                                    // 日期签在列顶、毫秒无人看；裸行时间染次级灰与头行一致
+                                    // 日期签在列顶、毫秒无人看；裸行时间染次级灰与头行一致。
+                                    // 裸行整体缩号后时间/级别字同压 11sp（与正文同排）
                                     Text(
                                         text = log.time.drop(11).dropLast(4),
                                         style = MaterialTheme.typography.bodySmall,
+                                        fontSize = 11.sp,
                                         color = MaterialTheme.colorScheme.onSurfaceVariant
                                     )
                                     Text(
                                         text = "\t${log.level.toLogLevelChar()}",
                                         style = MaterialTheme.typography.bodySmall,
+                                        fontSize = 11.sp,
                                         color = MaterialTheme.colorScheme.onSurfaceVariant
                                     )
                                     // 「原文」定位键（10-10 装机反馈用户令）：筛选/搜索态裸行
@@ -678,13 +681,11 @@ internal fun LogScreen(
                                     voiceColor = voiceColor,
                                     roleChipColor = roleChipColor,
                                     pluginChipColor = pluginChipColor,
-                                    // 字号全页统一小号（10-10 装机反馈用户令）：裸行 14→13sp，
-                                    // 与成员行/朗读规则日志同级（×1.3 行距=16.9）
-                                    fontSize = 13.sp,
-                                    // 行距定版：统一字号×1.3 节奏（37731502442 修 CI 红：
-                                    // 原 `fontSize * 1.3f` 引用的是 LogEntryBody 的命名参数，
-                                    // 调用点作用域无此变量——Unresolved reference，静守卫盲区）
-                                    lineHeight = 17.sp, // 13×1.3≈16.9
+                                    // 裸行字号纠偏（10-10 用户令）：插件/朗读规则日志缩到
+                                    // **11sp=与声音信息段同号**（上版误解为全页统一 13）；
+                                    // 请求主行不受此令、维持 14sp（见 808 行调用点）
+                                    fontSize = 11.sp,
+                                    lineHeight = 14.5.sp, // 11×1.3≈14.3，取 14.5 保行距呼吸
                                     // 命中高亮已在整行背景，正文不再叠一层
                                     isMatch = false,
                                     highlight = log == locateHighlight,
@@ -803,10 +804,11 @@ internal fun LogScreen(
                                     voiceColor = voiceColor,
                                     roleChipColor = roleChipColor,
                                     pluginChipColor = pluginChipColor,
-                                    // 字号全页统一小号（10-10 装机反馈用户令）：请求主行 14→13sp，
-                                    // 「请求音频：」前缀段在 LogEntryBody 内仍压到 12sp 分层
-                                    fontSize = 13.sp,
-                                    lineHeight = 17.sp, // 13×1.3≈16.9
+                                    // 请求主行回 14sp（10-10 字号令纠偏：「缩到与声音信息一样」
+                                    // 只指插件/规则裸行；主行恢复排版实验 1008 定版 14sp，
+                                    // 内三段分层回前缀13/正文14/声音12——见 LogEntryBody isRequestHead）
+                                    fontSize = 14.sp,
+                                    lineHeight = 18.2.sp, // 14×1.3
                                     isMatch = isMatchEntry(head, searchQuery),
                                     // 排版实验 1008（C）：只染"请求音频："前缀，正文回默认色
                                     isRequestHead = true,
@@ -1012,8 +1014,8 @@ private fun LogEntryBody(
             .remapMetaColor(metaColor, voiceColor, roleChipColor, pluginChipColor)
         var s = base
         if (isRequestHead) {
-            // 字号分层随全页统一降一档（10-10 装机反馈用户令「统一为小的」）：
-            // 前缀 12sp / 正文 13sp（<b> 加粗承担字重）/ 声音信息 11sp。
+            // 字号分层回 1008 定版（10-10 用户令纠偏：「缩到与声音信息一样」只指插件/
+            // 规则裸行；主行三段=前缀 13 / 正文 14（<b> 加粗承担字重）/ 声音信息 12）。
             // 段界：前缀=首个"："及之前；声音信息=哨兵色 span（remapMetaColor 后已是
             // 雾紫/石板灰目标色）；两者之间=正文。
             val prefixEnd = base.text.indexOf("：").let { if (it >= 0) it + 1 else 0 }
@@ -1026,23 +1028,23 @@ private fun LogEntryBody(
                 base.spanStyles.forEach { r ->
                     var item = r.item
                     if (r.start < prefixEnd) {
-                        // 前缀：染深绿 + 12sp
+                        // 前缀：染深绿 + 13sp
                         item = item.copy(
                             color = if (darkTheme) RequestPrefixColorDark else RequestPrefixColorLight,
-                            fontSize = 12.sp,
+                            fontSize = 13.sp,
                         )
                     } else if (r.start >= metaStart && metaStart < base.text.length) {
-                        // 声音信息：哨兵色已换好目标色，只压到 11sp
-                        item = item.copy(fontSize = 11.sp)
+                        // 声音信息：哨兵色已换好目标色，只压到 12sp
+                        item = item.copy(fontSize = 12.sp)
                     }
                     addStyle(item, r.start, r.end)
                 }
                 // 前缀段可能无 span 覆盖（级别色是 Text 整体 color，不是 span）：
-                // 显式补一个 12sp span
-                if (prefixEnd > 0) addStyle(SpanStyle(fontSize = 12.sp), 0, prefixEnd)
-                // 声音信息段若无 span 覆盖（整段哨兵色必有 span，此处兜底）：补 11sp
+                // 显式补一个 13sp span
+                if (prefixEnd > 0) addStyle(SpanStyle(fontSize = 13.sp), 0, prefixEnd)
+                // 声音信息段若无 span 覆盖（整段哨兵色必有 span，此处兜底）：补 12sp
                 if (metaStart < base.text.length) {
-                    addStyle(SpanStyle(fontSize = 11.sp), metaStart, base.text.length)
+                    addStyle(SpanStyle(fontSize = 12.sp), metaStart, base.text.length)
                 }
             }
         }
@@ -1060,11 +1062,10 @@ private fun LogEntryBody(
         s
     }
     val bodyColor = forceColor ?: when {
-        // 成功行回旧绿（10-10 装机反馈用户令「成功的颜色用以前那个绿」）：行流版曾把
-        // SUCCESS 挂到石板灰 metaColor，用户不认——回 INFO 系正绿 #2E7D32/#81C784
-        //（10-08 降档后的现行 INFO 绿，即「获取成功」历史观感）
-        entry.level == LogLevel.SUCCESS ->
-            Color(if (darkTheme) 0xFF81C784 else 0xFF2E7D32)
+        // ⚠️「成功回旧绿」纠偏（10-10 用户令）：只指头行**药丸里「成功」两字**（药丸
+        // 自身绿未动过），SUCCESS 正文行维持原口径=石板灰 metaColor——上版把正文也
+        // 染成 INFO 正绿是理解偏了，回退
+        entry.level == LogLevel.SUCCESS -> metaColor
         // 排版实验 1008（C）：请求主行正文回默认色（前缀已单独染色），其余行照旧级别色
         isRequestHead -> MaterialTheme.colorScheme.onSurface
         else -> Color(entry.level.toArgb(isDarkTheme = darkTheme))
