@@ -223,6 +223,14 @@ internal class LogGroups(val items: List<Item>, val entryToList: IntArray) {
 
             list.forEachIndexed { i, e ->
                 when {
+                    // ⚠️ 插件日志判断必须在 indent 分支之前：插件行天然 indent=1（子行形态），
+                    // 走 indent 分支会进组——与「一律独立裸行」的终令相悖
+                    // 插件日志一律独立裸行（10-10 用户终令「插件日志要拆开，一条归一条，
+                    // 不并入请求组」）：无论何时产生（请求中/失败链期间）都不进组、不进
+                    // 悬置链——与其他日志同格式独立成行（时间头/11sp/分隔线/定位键全同款）。
+                    // ⚠️ 推翻失败链批里「插件行跟进悬置链」的设计——用户澄清「纳入」指
+                    // 纳入统一格式体系（拆），不是塞进请求组（合）
+                    e.isPluginLog -> raw.add(Item.Bare(i))
                     // 结果/子行：有卡归卡（SUCCESS 顺带收卡；ERROR 也收卡=失败终点，
                     // 其后的重试链悬置给重试请求卡）；无卡且链开着（失败链期间的
                     // 重试中源错误）→ 归入悬置链；链没开=头部被筛掉的孤儿 → 裸行
@@ -233,14 +241,6 @@ internal class LogGroups(val items: List<Item>, val entryToList: IntArray) {
                                 closeCard()
                                 chainOpen = true
                             }
-                        } else if (chainOpen) pendingChain.add(i)
-                        else raw.add(Item.Bare(i))
-                    }
-                    // 插件过程行：卡内归卡；卡外=链开着（失败链期间）→ 跟进悬置链，
-                    // 链没开（平时散条）→ 裸行（原行为）
-                    e.isPluginLog -> {
-                        if (head >= 0) {
-                            members.add(i)
                         } else if (chainOpen) pendingChain.add(i)
                         else raw.add(Item.Bare(i))
                     }
