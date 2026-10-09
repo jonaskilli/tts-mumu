@@ -1196,9 +1196,9 @@ fun KeyManagerScreen(tagRuleId: String, onBack: () -> Unit) {
     }
     /** 启用/停用一把密钥（点卡片）：在池里则摘除，不在则追加到队尾（= 轮换顺序最后）。
      *  裸 Key 禁止启用（池是扁平 @@ 串，裸段会错位）：先在编辑框补全为完整格式再启用。
-     *  10-09 偏重启用确认：有测试结果且判定「偏重」（思考未关 或 用时 ≥ HEAVY_MODEL_MS 3s，
-     *  用户实测校准：真机分布 1.3~5.4s，3s 线筛出 glm-5.3-flash/hy4-preview/kimi-k3-1
-     *  与黄态思考未关键）时，启用前弹一次确认——确认才真正启用；停用不拦、无测试结果不拦 */
+     *  偏重启用确认（10-09 立，10-10 用户令收窄）：只有「重键」（用时 ≥ HEAVY_MODEL_MS 3s，
+     *  用户实测校准：真机分布 1.3~5.4s，3s 线筛出 glm-5.3-flash/hy4-preview/kimi-k3-1）
+     *  才弹一次确认；黄态（思考未关）不再拦——用户令「就当他是正常的密钥」。停用不拦、无测试结果不拦 */
     fun togglePool(entry: KeyListFile.KeyEntry) {
         val p = KeyListFile.parseKeyValue(entry.value)
         if (p != null && p.isDirect) {
@@ -1214,8 +1214,7 @@ fun KeyManagerScreen(tagRuleId: String, onBack: () -> Unit) {
             val r = testResults[norm]
             if (r != null) {
                 val ms = Regex("(\\d+)\\s*ms").find(r.message)?.groupValues?.get(1)?.toLongOrNull()
-                val heavy = r.thinkingOff == false || (ms ?: 0L) >= KeyListFile.HEAVY_MODEL_MS
-                if (heavy) {
+                if ((ms ?: 0L) >= KeyListFile.HEAVY_MODEL_MS) {
                     enableConfirmFor = entry
                     return
                 }
@@ -1919,16 +1918,16 @@ fun KeyManagerScreen(tagRuleId: String, onBack: () -> Unit) {
         )
     }
 
-    // 偏重启用确认（10-09）：该键最新测试「偏重」（思考未关 或 用时 ≥HEAVY_MODEL_MS 3s，
-    // 用户实测校准线）→ 启用前问一次。只在有测试结果时弹（无结果不拦）；停用永不拦。
-    // 判定与拦截在 togglePool 内
+    // 偏重启用确认（10-09 立，10-10 收窄）：只有「重键」（用时 ≥HEAVY_MODEL_MS 3s，
+    // 用户实测校准线）→ 启用前问一次；黄态（思考未关）不再拦（用户令「就当他是正常的密钥」）。
+    // 只在有测试结果时弹（无结果不拦）；停用永不拦。判定与拦截在 togglePool 内
     enableConfirmFor?.let { entry ->
         val norm = KeyListFile.normalizePoolValue(entry.value)
         val r = testResults[norm]
         val ms = r?.message?.let { m -> Regex("(\\d+)\\s*ms").find(m)?.groupValues?.get(1)?.toLongOrNull() }
         val why = when {
             r == null -> ""
-            r.thinkingOff == false -> "思考未关闭，会拖慢角色分配，仍要启用？"
+            r.thinkingOff == false -> "" // 黄态已被 togglePool 放行，弹窗只会由重键触发
             ms != null -> "该模型测试耗时 ${"%.1f".format(ms / 1000.0)}s，会拖慢角色分配，仍要启用？"
             else -> ""
         }
