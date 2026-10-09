@@ -34,6 +34,8 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.clipToBounds
+import androidx.compose.foundation.layout.offset
 import androidx.compose.ui.semantics.Role
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
@@ -47,7 +49,9 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
+import kotlin.math.roundToInt
 import com.github.jing332.compose.widgets.ControlBottomBarVisibility
 import com.github.jing332.compose.widgets.rememberA11TouchEnabled
 import com.github.jing332.tts_server_android.compose.settings.SettingsScreen
@@ -130,9 +134,19 @@ fun AnimatedContentScope.MainPager(sharedVM: SharedViewModel) {
                 modifier = Modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
                 bottomBar = {
                     // 自绘微信式底栏（替代 M3 NavigationBar）：M3 最低 80dp（32dp 胶囊撑高），
-                    // 微信/QQ同款 60dp：24dp 图标+3dp 图文缝+中文常显，选中态无胶囊、图标文字同染 primary
+                    // 微信/QQ同款 60dp：24dp 图标+3dp 图文缝+中文常显，选中态无胶囊、图标文字同染 primary。
+                    // 10-10 接上滚动隐藏：exitAlwaysScrollBehavior 一直在记 heightOffset（往下滚→60dp、
+                    // 上滚→0），但底栏此前没消费它，永远全高——本 Modifier 是缺失的那半截。
+                    // offset 为负=向上平移；Scaffold bottomBar 槽不会自动裁剪，加了 clip 防止平移后露出底边。
                     Surface(
-                        modifier = Modifier.fillMaxWidth(),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            // 10-10 接上滚动隐藏：exitAlwaysScrollBehavior 的引擎早已在
+                            // （nestedScroll 已接、无障碍控制也在），但底栏此前没消费 heightOffset，
+                            // 永远全高——这里补上消费端：往下滚→底栏平移出屏，往上滚→立刻回弹。
+                            // heightOffset 单位 px、负值=隐藏量（M3 官方 BottomAppBar 同款消费逻辑）。
+                            .bottomBarOffset({ scrollBehavior.state.heightOffset })
+                            .clipToBounds(),
                         color = MaterialTheme.colorScheme.surfaceContainer
                     ) {
                         Column {
@@ -223,3 +237,13 @@ fun AnimatedContentScope.MainPager(sharedVM: SharedViewModel) {
         }
     }
 }
+
+/**
+ * 按 [heightOffset]（负值=隐藏量，单位 px）向上平移——自绘底栏对
+ * BottomAppBarScrollBehavior 的消费端。M3 官方 BottomAppBar 内部即此逻辑：
+ * behavior 滚动时只记 heightOffset 值，官方控件靠这个 modifier 消费它；
+ * lambda 每帧在 offset 块内读值（State），滚动时逐帧平移、无需重组。
+ * Scaffold 的 bottomBar 槽不会自动裁剪平移出的部分，配合 clipToBounds 兜底。
+ */
+private fun Modifier.bottomBarOffset(heightOffset: () -> Float): Modifier =
+    offset { IntOffset(0, heightOffset().roundToInt()) }
