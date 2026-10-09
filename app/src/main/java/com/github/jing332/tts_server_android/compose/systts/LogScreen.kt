@@ -191,6 +191,21 @@ internal class LogGroups(val items: List<Item>, val entryToList: IntArray) {
             val raw = ArrayList<Item>(list.size)
             var head = -1
             var members = ArrayList<Int>()
+            // 失败链悬置（10-10 装机截图三连实锤「失败后的重试/兜底/重试中源错误全散排」）：
+            // 失败=失败终点收卡后，「开始第N次重试」(主行)、「源错误」(重试中的结果子行)、
+            // 「使用兜底发音人」落在无卡区只能裸行——失败链被摊成四五块毫无关联。
+            // 语义上它们是**重试请求**的前奏（时序全在重试请求行之前），悬置在此，
+            // 下一个请求行开卡时整段并入其头部 members——失败组头行药丸推出
+            // 「失败(红)→重试N(灰)→切备用(黄)」……不对，失败与重试是**两张卡**：
+            // 失败组收卡时先清掉？不——悬置段跟的是「下一次开卡」，头行链正确形态：
+            // 失败组=「失败(红)」；重试组=「重试1(灰)→切备用(黄)→成功(绿)」（若重试中
+            // 再失败则继续悬置滚到下一张卡）。搜索/筛选收窄视图里悬置行跟随其请求行
+            // 同进退（同现或同缺），不会重演旧「前置区等不到开卡」的坑。
+            val pendingChain = ArrayList<Int>()
+            // 链开关：ERROR 收卡=失败终点→开链（其后的插件行/重试中错误/兜底全是重试链
+            // 前奏，即使链数组暂时空着也吸进来）；openCard 闭环、流结束落兜底时关链。
+            // 没有它，失败后紧随的插件行（重试 W 之前到达）会因链数组空而误落裸行
+            var chainOpen = false
 
             fun closeCard() {
                 if (head >= 0)
@@ -201,45 +216,62 @@ internal class LogGroups(val items: List<Item>, val entryToList: IntArray) {
             fun openCard(requestIdx: Int) {
                 closeCard()
                 head = requestIdx
+                members.addAll(pendingChain)
+                pendingChain.clear()
+                chainOpen = false
             }
 
             list.forEachIndexed { i, e ->
                 when {
-                    // 结果/子行：有卡归卡（SUCCESS 顺带收卡），无卡=头部被筛掉的孤儿 → 裸行
+                    // 结果/子行：有卡归卡（SUCCESS 顺带收卡；ERROR 也收卡=失败终点，
+                    // 其后的重试链悬置给重试请求卡）；无卡且链开着（失败链期间的
+                    // 重试中源错误）→ 归入悬置链；链没开=头部被筛掉的孤儿 → 裸行
                     e.indent > 0 -> {
                         if (head >= 0) {
                             members.add(i)
-                            if (e.level == LogLevel.SUCCESS) closeCard()
-                        } else raw.add(Item.Bare(i))
+                            if (e.level == LogLevel.SUCCESS || e.level == LogLevel.ERROR) {
+                                closeCard()
+                                chainOpen = true
+                            }
+                        } else if (chainOpen) pendingChain.add(i)
+                        else raw.add(Item.Bare(i))
                     }
-                    // 插件过程行：卡内归卡，卡外散条
+                    // 插件过程行：卡内归卡；卡外=链开着（失败链期间）→ 跟进悬置链，
+                    // 链没开（平时散条）→ 裸行（原行为）
                     e.isPluginLog -> {
                         if (head >= 0) {
                             members.add(i)
-                        } else raw.add(Item.Bare(i))
+                        } else if (chainOpen) pendingChain.add(i)
+                        else raw.add(Item.Bare(i))
                     }
                     // 规则日志一律落裸行（10-10 用户令：不进卡）。原「卡外悬置→下一张卡
                     // 做前置区」的机制整拆：搜索/筛选时收窄列表里经常没有跟得上的请求行，
                     // 悬置行等不到开卡就渲染不出来（表现为「勾了朗读规则也搜不到」）；
                     // 卡内也不再吸收规则行，避免分析行挂在无关请求卡顶造成误导
                     e.isSpeechRuleLog -> raw.add(Item.Bare(i))
-                    // "请求音频"主行：开新卡（旧卡先收）
+                    // "请求音频"主行：开新卡（悬置的失败链整段并入新卡头部，链关闭）
                     e.configId != 0L -> openCard(i)
                     // 其他主行（重试/备用TTS/兜底发音人/系统消息）：有卡归卡，ERROR=失败
-                    // 终点收卡；无卡落裸行。
-                    // 失败链（失败子行+重试+兜底）整体留在失败请求的组里：头行药丸推出
-                    // 「失败(红)→重试N(灰)→切备用(黄)」，重试请求的组头只挂「成功(绿)」——
-                    // 10-10 用户实锤兜底黄丸缺失后验证：归组无需动，缺的只是 derivePills
-                    // 不认「使用兜底」（仿真 loggroup_sim.js 四场景复现确认）
+                    // 终点收卡+开链；无卡=失败链前奏 → 悬置给下一张卡，不落裸行
                     else -> {
                         if (head >= 0) {
                             members.add(i)
-                            if (e.level == LogLevel.ERROR) closeCard()
-                        } else raw.add(Item.Bare(i))
+                            if (e.level == LogLevel.ERROR) {
+                                closeCard()
+                                chainOpen = true
+                            }
+                        } else {
+                            pendingChain.add(i)
+                            chainOpen = true
+                        }
                     }
                 }
             }
             closeCard()
+            // 收尾：悬置链若到最后也没等来请求行（流刚开/重试后流结束/头部被筛），
+            // 兜底落裸行，保证不丢条目
+            pendingChain.forEach { raw.add(Item.Bare(it)) }
+            pendingChain.clear()
 
             // 插日期签 + 建条目→列表项映射
             val finalItems = ArrayList<Item>(raw.size + 4)
@@ -781,14 +813,16 @@ internal fun LogScreen(
                                     highlight = head == locateHighlight,
                                 )
                                 // 过程成员行：失败/重试时露出（成功行不上，其数字已进丸后）。
-                                // 终态 ERROR 行不上（10-10 用户令「源错误显示两遍」去重）：
-                                // 失败原因已在头行红丸后灰字展示，成员区再挂一行 ✖ 同文重复；
-                                // 重试/切备用等过程行保留（丸上只有状态字，详情在正文）
+                                // ERROR 行去重精化（10-10 两令合并）：只去重**组内最后一条**
+                                // ERROR（=本组终态，失败原因已在头行红丸后展示，再挂一行 ✖
+                                // 同文重复）；链并入的中途错误（重试组里「重试1→源错误→切备用」
+                                // 的源错误）是新信息，必须显示——上版一刀切把它们全藏了
                                 if (showMembers) {
+                                    val lastErrIdx = memberEntries.lastIndexOf { it.level == LogLevel.ERROR }
                                     item.members.forEach { mIdx ->
                                         val m = list[mIdx]
                                         if (m.level == LogLevel.SUCCESS) return@forEach
-                                        if (m.level == LogLevel.ERROR) return@forEach
+                                        if (m.level == LogLevel.ERROR && mIdx == lastErrIdx) return@forEach
                                         Column(Modifier.padding(top = 2.dp)) {
                                             LogEntryBody(
                                                 entry = m,
