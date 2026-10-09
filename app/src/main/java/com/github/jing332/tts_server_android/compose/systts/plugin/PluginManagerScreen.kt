@@ -632,7 +632,8 @@ fun PluginManagerScreen(sharedVM: SharedViewModel, onFinishActivity: () -> Unit)
                                     .fillMaxWidth()
                                     .height(48.dp)
                                     .clip(CircleShape),
-                                color = MaterialTheme.colorScheme.surfaceVariant,
+                                // 10-10 纯白表统一：与列表/设置/替换规则页搜索框同灰档 #F3F3F3
+                                color = MaterialTheme.colorScheme.surfaceContainerHigh,
                                 shape = CircleShape
                             ) {
                                 CompositionLocalProvider(LocalTextStyle provides MaterialTheme.typography.titleMedium) {

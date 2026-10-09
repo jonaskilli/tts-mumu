@@ -593,7 +593,8 @@ private fun getLevelColor(level: Int): Color {
         LogLevel.WARN -> Color(0xFFFFF3E0)
         LogLevel.INFO -> MaterialTheme.colorScheme.secondaryContainer
         LogLevel.DEBUG -> MaterialTheme.colorScheme.primaryContainer
-        else -> MaterialTheme.colorScheme.surfaceVariant
+        // 10-10 纯白表：UNKNOWN 档本意中性灰，surfaceVariant 未被新管线覆写、绿主题下带绿灰，改灰档
+        else -> MaterialTheme.colorScheme.surfaceContainerHighest
     }
 }
 
