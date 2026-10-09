@@ -130,14 +130,18 @@ private fun AnnotatedString.remapMetaColor(
                 r.start,
                 r.end
             )
-            // 角色名小牌补底色（10-10 用户反馈「角色名没有突出」）：HTML font
-            // 标签给不了背景，牌感只有字色太弱。此处按哨兵段落叠同色低透明度底 span
+            // 角色名小牌补底色+字重（10-11 用户令「角色名不突出」二轮加强）：HTML font
+            // 标签给不了背景，仅字色牌感太弱。此处按哨兵段落叠同色底 span + Medium 字重
             //（SpanStyle 背景是直角矩形，无圆角——行内小牌可接受）。
-            // 底色取牌字色 alpha 0.14：白页上=浅灰绿/浅灰青，深色页=字色本已调亮，同式成立。
+            // 底色取牌字色 alpha 0.22（0.14 太淡，真机几乎看不出）：白页上=浅灰绿/浅灰青，
+            // 深色页=字色本已调亮，同式成立。
             // 插件名不叠底（10-10 用户拍板）：改括号备注语缀尾，附属信息不与角色名平级
             when (r.item.color) {
                 RoleChipSentinel -> addStyle(
-                    SpanStyle(background = roleChipColor.copy(alpha = 0.14f)), r.start, r.end
+                    SpanStyle(
+                        background = roleChipColor.copy(alpha = 0.22f),
+                        fontWeight = FontWeight.Medium,
+                    ), r.start, r.end
                 )
                 else -> {}
             }
@@ -163,7 +167,7 @@ private fun AnnotatedString.remapMetaColor(
 internal class LogGroups(
     val items: List<Item>,
     val entryToList: IntArray,
-    // 以失败收场的组头行下标（10-10 行级丸配套）：请求行本身是 INFO，失败丸 ✕ 的
+    // 以失败收场的组头行下标（10-10 行级丸配套）：请求行本身是 INFO，失败丸「失败」的
     // 依据是「该组以失败收场」——ERROR 子行/主行收卡时由 build 记入
     val failedHeads: Set<Int> = emptySet(),
 ) {
@@ -197,7 +201,7 @@ internal class LogGroups(
             val raw = ArrayList<Item>(list.size)
             var head = -1
             var members = ArrayList<Int>()
-            // 失败组头行标记（10-10 行级丸配套）：请求行本身是 INFO，失败丸（✕）的依据
+            // 失败组头行标记（10-10 行级丸配套）：请求行本身是 INFO，失败丸（失败）的依据
             // 是「该组以失败收场」——ERROR 子行/主行收卡时把 head 记进来，渲染侧查此表
             val failedHeads = HashSet<Int>()
             var groupFailed = false
@@ -636,7 +640,7 @@ internal fun LogScreen(
                                     Text(
                                         text = log.time.drop(11).dropLast(4),
                                         style = MaterialTheme.typography.bodySmall,
-                                        fontSize = 12.sp,
+                                        fontSize = 13.sp,
                                         color = MaterialTheme.colorScheme.onSurfaceVariant
                                     )
                                     // 行级丸（10-10 终案）：重试 W 主行=重试N、兜底/备用主行=
@@ -671,11 +675,10 @@ internal fun LogScreen(
                                     voiceColor = voiceColor,
                                     roleChipColor = roleChipColor,
                                     pluginChipColor = pluginChipColor,
-                                    // 裸行字号终版（10-10 用户令）：插件/朗读规则/重试/兜底等
-                                    // 裸行 11→12sp（11 压得偏小，用户拍板 12 更合适）；请求主行
-                                    // 不受此令、维持 14sp
-                                    fontSize = 12.sp,
-                                    lineHeight = 15.6.sp, // 12×1.3
+                                    // 裸行字号终版二轮（10-11 用户令）：12 还是小，提到 13——
+                                    // 与成员行/主行前缀同档，四档收敛为三档（13/14/前缀13）
+                                    fontSize = 13.sp,
+                                    lineHeight = 16.9.sp, // 13×1.3
                                     // 命中高亮已在整行背景，正文不再叠一层
                                     isMatch = false,
                                     highlight = log == locateHighlight,
@@ -704,8 +707,18 @@ internal fun LogScreen(
                             val groupChecked = groupLogs.all { it in checkedEntries }
                             // 行级丸（10-10 终案）：请求行只带自己那颗丸（成功/失败）+
                             // 本行数字/截短原因——不再汇总链路
-                            val pill = remember(item.head) { pillOf(head, item.head, currentGroups.failedHeads) }
-                            val tailText = remember(item.head) { tailTextOfRow(head) }
+                            // ⚠️ 成功丸/尾段必须从组内 SUCCESS 成员推导：成功「获取成功」
+                            // 子行已隐藏、其信息上头行，而请求主行本身是 INFO「请求音频：…」，
+                            // pillOf/tailTextOfRow 只看主行永远推不出成功丸——182baf3 只把失败
+                            // (failedHeads)接到了头行，成功链路漏接（真机实锤：成功行无任何提示）
+                            val successMember = memberEntries.firstOrNull { it.level == LogLevel.SUCCESS }
+                            val pill = remember(item.head, successMember) {
+                                if (successMember != null) LogPill(LogPillKind.OK, "成功")
+                                else pillOf(head, item.head, currentGroups.failedHeads)
+                            }
+                            val tailText = remember(item.head, successMember) {
+                                tailTextOfRow(successMember ?: head)
+                            }
                             // 行流定稿（10-10 用户令）：成功=行头绿丸+灰数字，成员区整撤
                             // （结果信息已上头）；失败/重试/切备用的过程行仍要露出——
                             // 有非成功成员行时显示成员区（成功行本身不上，数字已在丸后）
@@ -883,22 +896,23 @@ private fun isMatchEntry(e: LogEntry, q: String): Boolean =
     q.isNotEmpty() && (e.message.contains(q, ignoreCase = true) || e.time.contains(q, ignoreCase = true))
 
 // 行级药丸推导（10-10 终案「失败链按以前单条处理+丸保留」）：每条日志按自己的
-// 级别/文案出一颗丸——重试 W 主行=重试N、兜底/备用 I 主行=切备用、成功请求行=✔、
-// 失败请求行=✕（依据 failedHeads：请求行本身是 INFO，失败标记由归组记入）、
-// ERROR 主行（无卡区失败终点）=✕。成员行（源错误等结果子行）已独立裸行=无丸。
+// 级别/文案出一颗丸——重试 W 主行=重试N、兜底/备用 I 主行=切备用、成功请求行=成功、
+// 失败请求行=失败（依据 failedHeads：请求行本身是 INFO，失败标记由归组记入）、
+// ERROR 主行（无卡区失败终点）=失败。成员行（源错误等结果子行）已独立裸行=无丸。
+// 丸字=汉字「成功/失败」（10-11 用户令：✔/✕ 符号加了不好看，换回文字）
 private fun pillOf(e: LogEntry, entryIndex: Int, failedHeads: Set<Int> = emptySet()): LogPill? {
     val msg = e.message.replace(Regex("<[^>]*>"), "")
     return when {
         e.configId != 0L -> when {
-            e.level == LogLevel.SUCCESS -> LogPill(LogPillKind.OK, "✔")   // U+2714 粗对勾（方案二）
-            entryIndex in failedHeads -> LogPill(LogPillKind.FAIL, "✕")   // U+2715 乘号
+            e.level == LogLevel.SUCCESS -> LogPill(LogPillKind.OK, "成功")
+            entryIndex in failedHeads -> LogPill(LogPillKind.FAIL, "失败")
             else -> null
         }
         msg.contains("次重试") || msg.contains(" retry", true) ->
             LogPill(LogPillKind.RETRY, "重试" + (Regex("第 (\\d+) 次").find(msg)?.groupValues?.get(1) ?: ""))
         msg.startsWith("使用备用") || msg.startsWith("使用兜底") ->
             LogPill(LogPillKind.STANDBY, "切备用")
-        e.level == LogLevel.ERROR && e.indent == 0 -> LogPill(LogPillKind.FAIL, "✕")
+        e.level == LogLevel.ERROR && e.indent == 0 -> LogPill(LogPillKind.FAIL, "失败")
         else -> null
     }
 }
