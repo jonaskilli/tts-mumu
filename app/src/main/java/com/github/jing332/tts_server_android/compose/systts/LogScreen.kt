@@ -127,6 +127,19 @@ private fun AnnotatedString.remapMetaColor(
                 r.start,
                 r.end
             )
+            // 角色名/插件名小牌补底色（10-10 用户反馈「角色名没有突出」）：HTML font
+            // 标签给不了背景，牌感只有字色太弱。此处按哨兵段落叠同色低透明度底 span
+            //（SpanStyle 背景是直角矩形，无圆角——行内小牌可接受）。
+            // 底色取牌字色 alpha 0.14：白页上=浅灰绿/浅灰青，深色页=字色本已调亮，同式成立
+            when (r.item.color) {
+                RoleChipSentinel -> addStyle(
+                    SpanStyle(background = roleChipColor.copy(alpha = 0.14f)), r.start, r.end
+                )
+                PluginChipSentinel -> addStyle(
+                    SpanStyle(background = pluginChipColor.copy(alpha = 0.14f)), r.start, r.end
+                )
+                else -> {}
+            }
         }
     }
 }
