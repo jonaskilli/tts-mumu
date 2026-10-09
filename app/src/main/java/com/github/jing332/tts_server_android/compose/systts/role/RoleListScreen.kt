@@ -810,8 +810,11 @@ private fun voiceTagText(tag: String, nameMap: Map<String, String>): String? {
     val full = prefix + disp
     if (weightedWidth(full) <= TAG_BUDGET) return full
     // 超宽：把显示名按「｜」分段，从尾部整段丢（分隔符连同段一起丢，保前段完整）
-    val sep = if (disp.contains('｜')) '｜' else if (disp.contains('|')) '|' else return
-        cutToTagBoxWidth(full, TAG_BUDGET)
+    // ⚠️ 无分隔符时直接按字切兜底——三分支 if-else 不能把 return 挂尾支（Kotlin 会解析成裸 return+Unit）
+    val hasFullwidth = disp.contains('｜')
+    val hasAscii = disp.contains('|')
+    if (!hasFullwidth && !hasAscii) return cutToTagBoxWidth(full, TAG_BUDGET)
+    val sep = if (hasFullwidth) '｜' else '|'
     val segs = disp.split(sep).toMutableList()
     while (segs.size > 1 && weightedWidth(prefix + segs.joinToString(sep.toString())) > TAG_BUDGET) {
         segs.removeAt(segs.lastIndex)
