@@ -117,9 +117,10 @@ private fun AnnotatedString.remapMetaColor(metaColor: Color, voiceColor: Color):
 /**
  * 日志归组模型（10-06 全链卡改版）。渲染单位从"逐条日志"升级为归组项：
  * - Card：一次请求管线。head="请求音频"主行（configId≠0，MDC 只在请求行携带）；
- *   pre=开卡前悬置的朗读规则分析行（时间邻接归因：先有分析后有请求）；
  *   members=结果子行(indent>0)/插件过程行/卡打开期间的其他主行(重试/备用)。
  *   收卡条件：SUCCESS 结果、主行 ERROR（失败终点）、下一张卡开卡。
+ *   朗读规则日志不进卡（10-10 用户令）：一律落裸行——原「卡外悬置→下一张卡做前置区」
+ *   在搜索/筛选的收窄列表里等不到开卡，是「勾了朗读规则搜不到」的根因。
  * - Bare：与请求挨不上的条目——插件/规则散条、系统消息、头部被级别筛掉的孤儿子行。
  *   白底、级别色照旧，形制与卡片天然区分。
  * - Header：日期签，每天第一条上方出现一次。
@@ -132,7 +133,6 @@ internal class LogGroups(val items: List<Item>, val entryToList: IntArray) {
         class Header(val date: String) : Item()
         class Bare(val index: Int) : Item()
         class Card(
-            val pre: List<Int>,
             val head: Int,
             val members: List<Int>,
             // 排版实验 1008（报错三件套，用户 10-08 拍板）：卡内最高错误级别——
@@ -150,62 +150,29 @@ internal class LogGroups(val items: List<Item>, val entryToList: IntArray) {
     fun entriesOf(item: Item): List<Int> = when (item) {
         is Item.Header -> emptyList()
         is Item.Bare -> listOf(item.index)
-        is Item.Card -> item.pre + item.head + item.members
+        is Item.Card -> listOf(item.head) + item.members
     }
 
     companion object {
         fun build(list: List<LogEntry>): LogGroups {
             val raw = ArrayList<Item>(list.size)
-            var pre = ArrayList<Int>()
             var head = -1
             var members = ArrayList<Int>()
             var cardErrorLevel = 0
 
             fun closeCard() {
                 if (head >= 0)
-                    raw.add(Item.Card(pre.toList(), head, members.toList(), cardErrorLevel))
+                    raw.add(Item.Card(head, members.toList(), cardErrorLevel))
                 head = -1
                 members = ArrayList()
-                pre = ArrayList()
                 cardErrorLevel = 0
             }
             fun markError(e: LogEntry) {
                 if (e.level == LogLevel.ERROR) cardErrorLevel = 2
                 else if (e.level == LogLevel.WARN && cardErrorLevel < 1) cardErrorLevel = 1
             }
-            // 排版实验 1008（P2，用户 10-08 午后拍板）：规则分析行的"时间邻接"判定——
-            // 只有望距新请求 ≤10s 的悬置分析行才配做该卡前置区；超 10s = AI 慢思考/隔批
-            // 残留，与那张卡无因果，落裸行（修"分析成功挂在 29 秒前的旧请求卡里"误导）
-            fun timeGapOk(analysisIdx: Int, requestIdx: Int): Boolean {
-                fun millis(t: String): Long = runCatching {
-                    val h = t.substring(11, 13).toLong()
-                    val m = t.substring(14, 16).toLong()
-                    val s = t.substring(17, 19).toLong()
-                    val ms = t.substring(20, 23).toLong()
-                    ((h * 60 + m) * 60 + s) * 1000 + ms
-                }.getOrDefault(0L)
-                val a = millis(list[analysisIdx].time)
-                val r = millis(list[requestIdx].time)
-                if (a == 0L || r == 0L) return true // 时间缺失不设防，走旧归组
-                return r - a in 0..10_000
-            }
-            // 收上一张卡并把「悬置的规则分析行」交给新卡做前置区。
-            // ⚠️ 必须先保存 pending：closeCard() 的职责含清空 pre，若先调它再读 pre，
-            // 悬置行会被清成空列表后直接丢弃（既不进卡、也不落裸行）——表现为
-            // 「朗读规则日志在列表里看不到，但全选复制拿得到」（复制走未归组的 displayLogs）。
-            // head>=0 时 pre 属于正在收的那张卡（由 closeCard 消费）；head<0 时 pre 才是
-            // 「等本请求的悬置行」，故只在该情形把 pending 交还 pre。
             fun openCard(requestIdx: Int) {
-                val pending = if (head < 0) pre else ArrayList<Int>()
                 closeCard()
-                if (pending.isNotEmpty()) {
-                    val attached = ArrayList<Int>()
-                    pending.forEach { pIdx ->
-                        if (timeGapOk(pIdx, requestIdx)) attached.add(pIdx)
-                        else raw.add(Item.Bare(pIdx))
-                    }
-                    pre = attached
-                }
                 head = requestIdx
             }
 
@@ -225,32 +192,24 @@ internal class LogGroups(val items: List<Item>, val entryToList: IntArray) {
                             members.add(i); markError(e)
                         } else raw.add(Item.Bare(i))
                     }
-                    // 规则日志：卡内=过程行；卡外=悬置，等下一张卡做前置区
-                    e.isSpeechRuleLog -> {
-                        if (head >= 0) {
-                            members.add(i); markError(e)
-                        } else pre.add(i)
-                    }
-                    // "请求音频"主行：开新卡（旧卡先收，悬置分析行随卡归入前置区；
-                    // P2 收紧：悬置行里距本请求超 10s 的先落裸行，不进前置区）
+                    // 规则日志一律落裸行（10-10 用户令：不进卡）。原「卡外悬置→下一张卡
+                    // 做前置区」的机制整拆：搜索/筛选时收窄列表里经常没有跟得上的请求行，
+                    // 悬置行等不到开卡就渲染不出来（表现为「勾了朗读规则也搜不到」）；
+                    // 卡内也不再吸收规则行，避免分析行挂在无关请求卡顶造成误导
+                    e.isSpeechRuleLog -> raw.add(Item.Bare(i))
+                    // "请求音频"主行：开新卡（旧卡先收）
                     e.configId != 0L -> openCard(i)
                     // 其他主行（重试/备用TTS/系统消息）：有卡归卡，ERROR=失败终点收卡；
-                    // 无卡时先落袋悬置分析行（保持时序）再落裸行
+                    // 无卡落裸行
                     else -> {
                         if (head >= 0) {
                             members.add(i); markError(e)
                             if (e.level == LogLevel.ERROR) closeCard()
-                        } else {
-                            pre.forEach { raw.add(Item.Bare(it)) }
-                            pre = ArrayList()
-                            raw.add(Item.Bare(i))
-                        }
+                        } else raw.add(Item.Bare(i))
                     }
                 }
             }
             closeCard()
-            // 收尾悬置的分析行（后面没有请求跟上）落裸行，防丢失
-            pre.forEach { raw.add(Item.Bare(it)) }
 
             // 插日期签 + 建条目→列表项映射
             val finalItems = ArrayList<Item>(raw.size + 4)
@@ -275,7 +234,7 @@ internal class LogGroups(val items: List<Item>, val entryToList: IntArray) {
                 // finalItems.size 即本 item 即将占据的下标
                 when (item) {
                     is Item.Bare -> map[item.index] = finalItems.size
-                    is Item.Card -> (item.pre + item.head + item.members)
+                    is Item.Card -> (listOf(item.head) + item.members)
                         .forEach { map[it] = finalItems.size }
                     is Item.Header -> {}
                 }
@@ -614,7 +573,7 @@ internal fun LogScreen(
 
                         is LogGroups.Item.Card -> {
                             val head = list[item.head]
-                            val groupLogs = (item.pre + item.head + item.members).map { list[it] }
+                            val groupLogs = (listOf(item.head) + item.members).map { list[it] }
                             val groupChecked = groupLogs.all { it in checkedEntries }
                             // 报错三件套①：底色三档（灰/淡琥珀/红粉）
                             val cardBg = when (item.errorLevel) {
@@ -648,29 +607,6 @@ internal fun LogScreen(
                                     // 原贴边形态下这里曾直接扛 16 承担全部文字边距）
                                     .padding(start = 8.dp, end = 8.dp, top = 8.dp, bottom = 8.dp)
                             ) {
-                                // 前置区：本次请求前的规则分析行（级别色照旧，字号小一档）
-                                if (item.pre.isNotEmpty()) {
-                                    item.pre.forEach { preIdx ->
-                                        val p = list[preIdx]
-                                        LogEntryBody(
-                                            entry = p,
-                                            darkTheme = darkTheme,
-                                            metaColor = metaColor,
-                                            voiceColor = voiceColor,
-                                            // 排版实验 1008（A）：前置分析行 13→12sp（第三档）
-                                            fontSize = 12.sp,
-                                            lineHeight = 16.sp, // 12×1.3≈15.6，取16
-                                            isMatch = isMatchEntry(p, searchQuery),
-                                            highlight = p == locateHighlight,
-                                        )
-                                    }
-                                    HorizontalDivider(
-                                        // 前置区↔主行：与主行↔成员那条同款，间距一并收 2dp
-                                        //（10-10 用户令：两条同款线不对称，一条 2 一条 6 看着不齐）
-                                        modifier = Modifier.padding(vertical = 2.dp),
-                                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.10f)
-                                    )
-                                }
                                 // 请求主行（结构=时间行+正文）
                                 Row(verticalAlignment = Alignment.CenterVertically) {
                                     if (selectionMode) {
@@ -737,8 +673,8 @@ internal fun LogScreen(
                                     highlight = head == locateHighlight,
                                 )
                                 // 主行与成员区分隔线（用户 10-08 午后追问补）：请求正文与
-                                // 获取成功/插件过程行之间此前只有缩进，加一条与前置区同款
-                                // 细线（10% 透明度）标出"请求→结果"的内容分界
+                                // 获取成功/插件过程行之间此前只有缩进，加一条 10% 透明度
+                                // 细线标出"请求→结果"的内容分界
                                 // 10-10 用户令：线与正文间距 6+6 太空（总隙 ≈19dp），收到 2+0
                                 if (item.members.isNotEmpty()) {
                                     HorizontalDivider(
