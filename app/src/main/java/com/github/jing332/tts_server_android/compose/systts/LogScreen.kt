@@ -815,21 +815,15 @@ internal fun LogScreen(
                                     highlight = head == locateHighlight,
                                 )
                                 // 过程成员行：失败/重试时露出（成功行不上，其数字已进丸后）。
-                                // ERROR 行去重精化（10-10 两令合并）：只去重**组内最后一条**
-                                // ERROR（=本组终态，失败原因已在头行红丸后展示，再挂一行 ✖
-                                // 同文重复）；链并入的中途错误（重试组里「重试1→源错误→切备用」
-                                // 的源错误）是新信息，必须显示——上版一刀切把它们全藏了
+                                // ERROR 行全部显示（10-10 时间行④方案C 定稿）：头行红丸后只带
+                                // 截短 40 字原因，完整「源错误： xxx」行回成员区——截短版只是
+                                // 索引，完整版才有排查价值；头行与成员区不再互斥。
+                                // （上版「只去重最后一条」基于「头行=完整原因唯一出口」，已随
+                                // 方案C 失效；此变量保留名 lastErrIdx 以免误删历史语义注释）
                                 if (showMembers) {
-                                    // ⚠️ lastIndexOf{} 内联重载在此上下文类型推断失败（CI
-                                    // 37965799206 实锤），改显式循环求组内最后一条 ERROR 下标
-                                    var lastErrIdx = -1
-                                    memberEntries.forEachIndexed { ei, me ->
-                                        if (me.level == LogLevel.ERROR) lastErrIdx = ei
-                                    }
                                     item.members.forEach { mIdx ->
                                         val m = list[mIdx]
                                         if (m.level == LogLevel.SUCCESS) return@forEach
-                                        if (m.level == LogLevel.ERROR && mIdx == lastErrIdx) return@forEach
                                         Column(Modifier.padding(top = 2.dp)) {
                                             LogEntryBody(
                                                 entry = m,
@@ -930,11 +924,10 @@ private fun derivePills(head: LogEntry, members: List<LogEntry>): List<LogPill> 
     return pills
 }
 
-// 丸后灰字：成功=「耗时·大小」；失败=原因。取最后一次出现的（与末丸对应）。
-// 失败原因兜底提取（10-10 成员区 ERROR 去重后此函数成为失败原因唯一出口）：
-// 优先「获取失败：」后缀；「源错误： xxx」行（StreamProcessorError 子行）没有该前缀，
-// substringAfter 取不到就整行返回——但整行会带「源错误： 」前缀+可能拼的正文，压到
-// 首个 <br> 前并保留「源错误：」头（错误本体短，正文重复问题已在服务端 bce9d5f 撤）
+// 丸后灰字：成功=「耗时·大小」；失败=原因截短 40 字（10-10 用户拍板时间行④方案C：
+// 头行带截短红原因，完整「源错误： xxx」行回成员区显示——「源错误」提示不丢）。
+// 取最后一次出现的 ERROR（与末丸对应）；「获取失败：」有前缀取后缀，「源错误：」行
+// 无该前缀则整行保留；截短=超 40 全角字加「…」
 private fun tailTextOf(head: LogEntry, members: List<LogEntry>): String? {
     val plain = { s: String -> s.replace(Regex("<[^>]*>"), "") }
     var tail: String? = null
@@ -948,6 +941,19 @@ private fun tailTextOf(head: LogEntry, members: List<LogEntry>): String? {
                     .substringBefore("<br>").substringBefore("\n")
                     .trim().ifEmpty { null }
         }
+    }
+    // 方案C：截短 40 全角字（weightedWidth 口径：全角 1 半角 0.55）
+    if (tail != null) {
+        var w = 0f
+        val out = StringBuilder()
+        var clipped = false
+        for (ch in tail) {
+            val cw = if (ch.code < 0x2E80) 0.55f else 1.0f
+            if (w + cw > 40f) { clipped = true; break }
+            w += cw
+            out.append(ch)
+        }
+        if (clipped) tail = out.toString().trimEnd() + "…"
     }
     return tail
 }
