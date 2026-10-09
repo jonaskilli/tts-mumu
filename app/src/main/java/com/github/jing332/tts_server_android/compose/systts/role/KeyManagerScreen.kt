@@ -1198,12 +1198,22 @@ fun KeyManagerScreen(tagRuleId: String, onBack: () -> Unit) {
             toast(R.string.role_key_value_empty)
             return
         }
+        // 同组同模型联动（10-10 用户定稿「调用自动换账号」）：同渠道同模型的条目是
+        // 不同账号的同名密钥（名字带序号），勾一条=全部一起进/出启用池——
+        // 用户只点一下，多账号轮换自动生效；不想让某账号参与就去池页停用该账号。
+        // 判据与 keyBelongsTo 同源：同站（openAiBaseUrl 归一）+同模型段。
+        val siblings = keys.filter { e ->
+            val q = KeyListFile.parseKeyValue(e.value)
+            q != null && !q.isDirect && p != null &&
+                KeyListFile.sameApiSite(q.url, p.url) && q.model == p.model
+        }.map { KeyListFile.normalizePoolValue(it.value) }.filter { it.isNotEmpty() }
         if (norm in pool) {
-            savePoolList(pool - norm)
+            savePoolList(pool - siblings.toSet())
             toast(R.string.role_key_disabled, KeyListFile.displayName(entry))
         } else {
-            savePoolList(pool + norm)
-            toast(R.string.role_key_enabled, KeyListFile.displayName(entry), pool.size + 1)
+            val next = pool + siblings.toSet()
+            savePoolList(next)
+            toast(R.string.role_key_enabled, KeyListFile.displayName(entry), next.size)
         }
     }
     /** 设为/取消分配专用（10-09 长按菜单快捷通道）：写盘（manual=true，全站唯一）后重读镜像 */
