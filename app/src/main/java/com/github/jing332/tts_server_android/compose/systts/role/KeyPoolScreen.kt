@@ -478,18 +478,10 @@ private fun PoolTestResultBar(
         isWarn -> TEST_WARN_COLOR
         else -> MaterialTheme.colorScheme.error
     }
-    val passTiming = timingOf(testOutcome.message)
-    val timingPrefix = if (passTiming.isEmpty()) "" else "$passTiming · "
-    val lockedSuffix = testOutcome.locked?.takeIf { it.isNotEmpty() }
-        ?.let { " · 已锁定 ${it}" } ?: ""
-    val collapsedText = when {
-        isPass -> stringResource(R.string.role_key_test_pass_only) + lockedSuffix
-        isWarn -> stringResource(R.string.role_key_test_warn_short) + lockedSuffix
-        else -> testOutcome.reason.ifEmpty { testOutcome.message }
-    }
-    // 红态恒可展开；绿/黄原不可展开——10-09 六令：详情键超一行才出（truncated 动态判），
-    // 截断时三态都可展开
-    val hasExpandable = !isPass
+    // 单行 / 展开共用同一段文字（10-10 用户令，与主页 KeyManagerScreen 同口径）：
+    // 原收起用 pass_only/warn_short 摘要是「另一句话」、展开用 message，两态换句；
+    // 改一源=message（本身即「用时 · 结论 · 已锁定 x」），收起=截断、展开=同段显示完整。
+    val fullText = testOutcome.message
     var expanded by rememberSaveable(testOutcome.message) { mutableStateOf(false) }
     val clipboard = LocalClipboardManager.current
     val context = LocalContext.current
@@ -498,25 +490,13 @@ private fun PoolTestResultBar(
             // 左缘=文字总线 32（序号盒右缘）；右缘 0 与图标盒同线（主页同口径）
             .padding(start = 32.dp, end = 0.dp, top = 2.dp, bottom = 2.dp)
     ) {
-        if (expanded && hasExpandable) {
-            // 10-08 四令同构：黄态 message 已自带行首用时（KeyListFile 分段口径），直接渲染
-            // 一遍；红态 message 不含用时，保留行首前缀——分态处理防用时重复两遍
-            Row(Modifier.fillMaxWidth()) {
-                if (timingPrefix.isNotEmpty() && !isWarn) {
-                    Text(
-                        timingPrefix,
-                        style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.sp),
-                        color = barColor,
-                        maxLines = 1
-                    )
-                }
-                Text(
-                    testOutcome.message,
-                    style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.sp),
-                    color = barColor,
-                    modifier = Modifier.weight(1f)
-                )
-            }
+        if (expanded) {
+            // 展开＝同一段完整显示（10-10 用户令：不再拼前缀、不换另一句）
+            Text(
+                fullText,
+                style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.sp),
+                color = barColor
+            )
             Row(
                 Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.End,
@@ -539,6 +519,18 @@ private fun PoolTestResultBar(
                         .padding(horizontal = 8.dp, vertical = 6.dp)
                 )
                 Spacer(Modifier.width(24.dp))
+                // 10-10 用户令：展开态也给「自定义思考」（与主页同构；池页此前只在收起态挂）
+                Text(
+                    stringResource(R.string.role_key_thinking_entry),
+                    style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.sp),
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    fontWeight = FontWeight.SemiBold,
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(6.dp))
+                        .clickable { onEditThinking() }
+                        .padding(horizontal = 8.dp, vertical = 6.dp)
+                )
+                Spacer(Modifier.width(24.dp))
                 Text(
                     stringResource(R.string.role_key_pool_collapse),
                     style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.sp),
@@ -555,19 +547,10 @@ private fun PoolTestResultBar(
                 Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                // 10-09 六令同构：详情键**超一行才出**——onTextLayout hasVisualOverflow
-                // 动态判，三态统一；点开=TestOutcome 全文
+                // 同段截断（10-10）：一源=fullText，收起只是 maxLines=1
                 var truncated by remember(testOutcome.message) { mutableStateOf(false) }
-                if (timingPrefix.isNotEmpty()) {
-                    Text(
-                        timingPrefix,
-                        style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.sp),
-                        color = barColor,
-                        maxLines = 1
-                    )
-                }
                 Text(
-                    collapsedText,
+                    fullText,
                     style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.sp),
                     color = barColor,
                     maxLines = 1,
@@ -575,6 +558,19 @@ private fun PoolTestResultBar(
                     onTextLayout = { truncated = it.hasVisualOverflow },
                     modifier = Modifier.weight(1f)
                 )
+                // 动作行（10-10 用户令，与主页同序）：自定义思考（黄态才出，在左）+ 详情（截断才出，在右）
+                if (isWarn) {
+                    Text(
+                        stringResource(R.string.role_key_thinking_entry),
+                        style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.sp),
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        fontWeight = FontWeight.SemiBold,
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(4.dp))
+                            .clickable { onEditThinking() }
+                            .padding(start = 6.dp, end = 8.dp)
+                    )
+                }
                 if (truncated) {
                     // 截断时挂「详情」（与主页同位同词）；右距 2→8 与动作键右线齐
                     Text(

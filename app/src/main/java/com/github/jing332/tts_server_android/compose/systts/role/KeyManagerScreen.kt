@@ -539,27 +539,13 @@ private fun KeyEntryRow(
                 isWarn -> TEST_WARN_COLOR
                 else -> MaterialTheme.colorScheme.error
             }
-            // 用时（「123ms」）从 message 提取；提不出=空串不显示
-            val passTiming = timingOf(testOutcome.message)
-            // 用时前缀徽标：统一放行首「● 123ms ·」位置——三态都能看到测试花的时间
-            val timingPrefix = if (passTiming.isEmpty()) "" else "$passTiming · "
-            // 锁定提示（10-08 用户令：测试完自动设了思考模式要显示出来）——
-            // green/warn 且 locked 非空 → 收起行尾部「已锁定 xxx」；点「详情」可见全文
-            val lockedSuffix = testOutcome.locked?.takeIf { it.isNotEmpty() }
-                ?.let { " · 已锁定 ${it}" } ?: ""
-            // 收起行文字（用时已独立前置；红=原始错误全文，靠 maxLines 截断）
-            val collapsedText = when {
-                isPass -> stringResource(R.string.role_key_test_pass_only) + lockedSuffix
-                isWarn -> stringResource(R.string.role_key_test_warn_short) + lockedSuffix
-                else -> testOutcome.reason.ifEmpty { testOutcome.message }
-            }
-            // 红态恒可展开；绿/黄原不可展开——10-09 六令细化：详情键改**超一行才出**，
-            // 截断时三态都可展开（展开=TestOutcome 全文，含写法名/状态码等底层信息，
-            // 必比摘要多东西），未截断则无详情键（一行了结就不给第二态）
-            // 10-10 实锤修复：门槛原为 !isPass && !isWarn——黄态被排除但详情键照出，
-            // 点击置 expanded=true 而 549 行渲染条件不成立 → 「详情点不动」；
-            // 与池页 KeyPoolScreen 同构条目对齐改 !isPass
-            val hasExpandable = !isPass
+            // 单行 / 展开**共用同一段文字**（10-10 用户令：「展开和折叠用的不是一条信息」——
+            // 原收起用 pass_only/warn_short 拼的摘要串、展开用 testOutcome.message，是两句
+            // 不同的话，展开反而换了句；用户要的是"同一段话，展开只是显示完"）。
+            // 改为一源：message 本身就是完整句「用时 · 结论 · 已锁定 x」（用时也已在句首，
+            // 不再另拼 timingPrefix）。收起=同段截断一行，展开=同段完整显示。
+            // 红态同理：reason 已并入 message 首段（见 KeyListFile 全拒分支），不再走另一串。
+            val fullText = testOutcome.message
             var expanded by rememberSaveable(entry.name) { mutableStateOf(false) }
             val clipboard = LocalClipboardManager.current
             Column(
@@ -570,31 +556,15 @@ private fun KeyEntryRow(
                     // 乙案压扁：top 0（模型行底距已让 3dp）、bottom 8→5，行高再省 3dp
                     .padding(start = KEY_RESULT_BAR_START, end = 0.dp, top = 0.dp, bottom = 5.dp)
             ) {
-                // 10-07 用户令：展开态首行让位——原实现首行（截断 reason）+ 下方全文并列，
-                // 同一段话读两遍（401 详情尤其明显）；展开后只渲染全文一次。
-                // 10-08 用户令「结果条前方灯去掉」：展开态首行圆点一并撤（同理由——整行
-                // 文字已是红色，圆点重复编码），全文左缘与收起行/模型名同一条线
-                // 10-08 四令（装机反馈）：黄态展开的分支原先套在收起行的 else 里——展开后
-                // 收起行+「详情」不肯退场，同一段话两遍。重构为三分支互斥：红展开/黄展开/收起。
-                if (expanded && hasExpandable) {
-                    // 10-08 用户令（推翻「同 Row 固定用时列」提案）：展开全文**从行首起、
-                    // 折行也回行首**——第二行挂用时右缘=每行白一段，没必要。用时只是
-                    // 行首普通前缀，连成一段自然折行；收起→展开文字左缘始终不动
-                    // 10-09 六令：绿/黄截断也能进来（详情键动态化）——绿/黄展开渲染
-                    // TestOutcome 全文（必比摘要多），红照旧 reason 全文；展开分支不再
-                    // 限红态，hasExpandable 语义改为「详情点开过」
-                    // 10-10 修（用户实机截图「572ms · 572ms · 思考未关…」用时两遍）：
-                    // timingPrefix 就是从 message 里 regex 抽出来的（timingOf(message)），
-                    // 再拼回去必然重复——黄/绿态 message 本就以用时开头。只渲染 message。
+                // 10-10 用户令（终稿形态）：
+                //  · 展开=同一段文字显示完整（不再换另一句），底部三键＝复制结果 / 自定义思考 / 收起
+                //  · 收起=同段截断一行，动作行＝自定义思考（左）+ 详情（右）（10-10 令：两键换位）
+                if (expanded) {
                     Text(
-                        testOutcome.message,
+                        fullText,
                         style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.sp),
                         color = barColor
                     )
-                    // 底部动作行（右对齐）：复制结果 + 收起（红态展开后「收起」在底部，与复制同排）
-                    // 间距 12→24（10-07 用户：两键挨太近像连成一个词）——两键性质不同
-                    // （复制 vs 折叠），且都靠右排，加大间距不占额外行宽。
-                    // 垂直热区 2→6：原热区仅 11sp 文字+4dp 太薄，点着飘；提高后键高 ≈23dp
                     Row(
                         Modifier.fillMaxWidth().padding(top = 4.dp),
                         horizontalArrangement = Arrangement.End,
@@ -621,6 +591,19 @@ private fun KeyEntryRow(
                                 .padding(horizontal = 8.dp, vertical = 6.dp)
                         )
                         Spacer(Modifier.width(24.dp))
+                        // 10-10 用户令：展开态也给「自定义思考」——黄态关不掉思考时，
+                        // 展开看完原因就地改写法，不必先收起再找键
+                        Text(
+                            stringResource(R.string.role_key_thinking_entry),
+                            style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.sp),
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            fontWeight = FontWeight.SemiBold,
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(6.dp))
+                                .clickable { onEditThinking() }
+                                .padding(horizontal = 8.dp, vertical = 6.dp)
+                        )
+                        Spacer(Modifier.width(24.dp))
                         Text(
                             "收起",
                             style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.sp),
@@ -633,38 +616,14 @@ private fun KeyEntryRow(
                         )
                     }
                 } else {
-                // 收起行（10-10 用户令：详情/自定义思考两键下移第二行——原先与摘要挤
-                // 同一行，长摘要+两键互相挤压）
-                // 10-10 修（用户实机截图「收起行只剩 572ms ·、摘要整段不见」）：外层改
-                // **Column**——动作行带 fillMaxWidth，嵌在摘要 Row 内部会把父行宽度先吃光，
-                // 摘要的 weight(1f) 分到 0 宽 ⇒ 摘要不可见。拆成「摘要行 + 动作行」两兄弟。
                 Column(Modifier.fillMaxWidth()) {
-                    // 行首圆点已撤（10-08 用户令）：整行文字本身就是状态色（绿/黄/红），
-                    // 圆点是重复编码；撤后文字左缘齐模型名文字线。
-                    // 扫视锚点不丢——模型行灯槽（乙案保留）仍是行内状态锚。
-                    // 10-08 二令：黄/红改单行（原 2 行+黄态独立动作行=三段太高；
-                    // 换行还总从「可用」下方起——用时前置是独立 Text，正文在自己框里折）。
-                    // 10-08 六令：黄态删「详情」键与展开分支——收起行摘要比全文长、
-                    // 展开反而变短（反了）；结论+锁名一行已够。黄态收起行尾挂
-                    // 「自定义思考 ›」直键（修思考入口常驻，无需先展开）
-                    // 10-09 六令细化（用户拍板）：详情键=**超一行才出**——onTextLayout 的
-                    // hasVisualOverflow 动态判（截断即出、放得下即无），三态统一；
-                    // 点开=完整 TestOutcome 全文（含写法名/状态码等底层信息），必比摘要多
-                    var truncated by remember(entry.name, collapsedText) { mutableStateOf(false) }
+                    var truncated by remember(entry.name, fullText) { mutableStateOf(false) }
                     Row(
                         Modifier.fillMaxWidth(),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        if (timingPrefix.isNotEmpty()) {
-                            Text(
-                                timingPrefix,
-                                style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.sp),
-                                color = barColor,
-                                maxLines = 1
-                            )
-                        }
                         Text(
-                            collapsedText,
+                            fullText,
                             style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.sp),
                             color = barColor,
                             maxLines = 1,
@@ -673,29 +632,14 @@ private fun KeyEntryRow(
                             modifier = Modifier.weight(1f)
                         )
                     }
-                    // 第二行动作行（10-10 用户令）：「详情」（截断才出）+「自定义思考›」
-                    // （黄态才出）——原与摘要同排挤一行，摘要截断时两键还互相顶
+                    // 动作行（10-10 用户令：两键换位 → 自定义思考在左、详情在右）
                     if (truncated || isWarn) {
                         Row(
                             Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.End,
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            if (truncated) {
-                                // 截断时三态统一挂「详情」（绿/黄展开=TestOutcome 全文，红=reason 全文）
-                                Text(
-                                    "详情",
-                                    style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.sp),
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    fontWeight = FontWeight.SemiBold,
-                                    modifier = Modifier
-                                        .clip(RoundedCornerShape(4.dp))
-                                        .clickable { expanded = true }
-                                        .padding(start = 6.dp, end = 8.dp, top = 2.dp, bottom = 2.dp)
-                                )
-                            }
                             if (isWarn) {
-                                // 黄态「自定义思考 ›」直键（原独立动作行撤，省一行高）
                                 Text(
                                     stringResource(R.string.role_key_thinking_entry),
                                     style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.sp),
@@ -704,6 +648,18 @@ private fun KeyEntryRow(
                                     modifier = Modifier
                                         .clip(RoundedCornerShape(4.dp))
                                         .clickable { onEditThinking() }
+                                        .padding(start = 6.dp, end = 8.dp, top = 2.dp, bottom = 2.dp)
+                                )
+                            }
+                            if (truncated) {
+                                Text(
+                                    "详情",
+                                    style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.sp),
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    fontWeight = FontWeight.SemiBold,
+                                    modifier = Modifier
+                                        .clip(RoundedCornerShape(4.dp))
+                                        .clickable { expanded = true }
                                         .padding(start = 6.dp, end = 8.dp, top = 2.dp, bottom = 2.dp)
                                 )
                             }
