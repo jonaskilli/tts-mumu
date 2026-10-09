@@ -818,7 +818,12 @@ internal fun LogScreen(
                                 // 同文重复）；链并入的中途错误（重试组里「重试1→源错误→切备用」
                                 // 的源错误）是新信息，必须显示——上版一刀切把它们全藏了
                                 if (showMembers) {
-                                    val lastErrIdx = memberEntries.lastIndexOf { it.level == LogLevel.ERROR }
+                                    // ⚠️ lastIndexOf{} 内联重载在此上下文类型推断失败（CI
+                                    // 37965799206 实锤），改显式循环求组内最后一条 ERROR 下标
+                                    var lastErrIdx = -1
+                                    memberEntries.forEachIndexed { ei, me ->
+                                        if (me.level == LogLevel.ERROR) lastErrIdx = ei
+                                    }
                                     item.members.forEach { mIdx ->
                                         val m = list[mIdx]
                                         if (m.level == LogLevel.SUCCESS) return@forEach
