@@ -1015,21 +1015,23 @@ class SystemTtsService : TextToSpeechService(), IEventDispatcher {
                     is StreamProcessorError.AudioDecoding -> logE(
                         getString(
                             R.string.audio_decoding_error,
-                            processor.error.toString() + "<br>" + e.request.text()
+                            processor.error.toString() // 同上：不拼请求全文
                         )
                     )
 
                     is StreamProcessorError.AudioSource -> logE(
                         getString(
                             R.string.audio_source_error,
-                            processor.error.toString() + "<br>" + e.request.text()
+                            // 10-10 装机反馈：不再拼请求全文（正文在同行「请求音频」里已有，
+                            // 行流版失败原因还会在丸后红字重复一次，三处同文一大坨）
+                            processor.error.toString()
                         )
                     )
 
                     is StreamProcessorError.HandleError -> logE(
                         getString(
                             R.string.stream_handle_error,
-                            processor.error.toString() + "<br>" + e.request.text()
+                            processor.error.toString()
                         )
                     )
                 }

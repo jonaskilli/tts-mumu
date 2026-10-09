@@ -35,6 +35,7 @@ import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.KeyboardDoubleArrowDown
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FloatingActionButton
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.SmallFloatingActionButton
@@ -532,6 +533,11 @@ internal fun LogScreen(
                             Column(
                                 modifier = Modifier
                                     .fillMaxWidth()
+                                    // 左滑删除底层透底修复（10-10 装机截图实锤）：裸行无底色时
+                                    // SwipeToDismissBox 的 errorContainer 粉底+垃圾桶整行常驻透出。
+                                    // 前景补页底色（background=页底，浅色纯白/深色锚同色）盖住
+                                    // 底层，左滑时才从右侧露出删除提示
+                                    .background(MaterialTheme.colorScheme.background)
                                     .then(
                                         if (selectionMode) Modifier.clickable { onToggleCheck(log) }
                                         else Modifier
@@ -639,6 +645,12 @@ internal fun LogScreen(
                             } else {
                                 bareContent()
                             }
+                            // 条目间分隔线（10-10 用户令「分隔线需要加」）：行流撤卡后行间只剩
+                            // 空白，加发丝线恢复条目边界；日期签前不画（签自带灰底已是边界）。
+                            // 放滑删盒外=线不跟着滑走。口径沿用顶栏分隔线 outlineVariant@50%
+                            HorizontalDivider(
+                                color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)
+                            )
                         }
 
                         is LogGroups.Item.Group -> {
@@ -762,6 +774,10 @@ internal fun LogScreen(
                                     }
                                 }
                             }
+                            // 条目间分隔线（10-10 用户令）：与裸行分支同款，组与组之间画线
+                            HorizontalDivider(
+                                color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)
+                            )
                         }
                     }
                 }
