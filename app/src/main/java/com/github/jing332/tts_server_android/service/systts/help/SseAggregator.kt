@@ -43,10 +43,9 @@ object SseAggregator {
         // （Anthropic 族渠道在 patchBody 里自行处理 stream；这里只对无渠道实现者覆写）
         val body = try {
             val o = org.json.JSONObject(bodyJson)
-            if (channel == null) {
-                o.put("stream", true)
-                o.put("stream_options", org.json.JSONObject().put("include_usage", true))
-            }
+            // 强制 stream=true：上游仅收流式；stream_options 带回 usage 供测试口径
+            o.put("stream", true)
+            o.put("stream_options", org.json.JSONObject().put("include_usage", true))
             o.toString()
         } catch (e: Exception) {
             return false to "请求体不是合法 JSON：${e.message}"
