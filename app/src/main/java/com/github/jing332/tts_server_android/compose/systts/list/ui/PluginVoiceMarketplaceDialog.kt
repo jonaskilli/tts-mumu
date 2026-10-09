@@ -109,6 +109,8 @@ private const val CATALOG_SHEET_HEIGHT = 0.92f
  *
  * @param onAudition 卡片上的 🎧 —— 交给调用方的现有试听弹窗（同一个 AuditionDialog），弹窗本身不关
  * @param onPick 点「选用」时回调勾中的音色（调用方负责并进声音列表 + 勾选，随后自行关闭本弹窗）
+ * @param onImport 点「入库(N)」时回调勾中的音色（10-10 衔接：交给调用方送去分类入库链；
+ *        为 null 不渲染该键）
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -118,6 +120,7 @@ fun PluginVoiceMarketplaceDialog(
     onDismissRequest: () -> Unit,
     onAudition: (VoiceCatalogItem) -> Unit,
     onPick: (List<VoiceCatalogItem>) -> Unit,
+    onImport: ((List<VoiceCatalogItem>) -> Unit)? = null,
 ) {
     val scope = rememberCoroutineScope()
     val keyboard = LocalSoftwareKeyboardController.current
@@ -430,6 +433,14 @@ fun PluginVoiceMarketplaceDialog(
                     ) {
                         Spacer(Modifier.weight(1f))
                         // 动作键一律纯文字 TextButton（目目 09-17：不要框和填充色）
+                        if (onImport != null) {
+                            TextButton(
+                                enabled = picked.isNotEmpty(),
+                                onClick = { onImport(picked.values.toList()) },
+                            ) {
+                                Text(stringResource(R.string.voice_catalog_import, picked.size))
+                            }
+                        }
                         TextButton(
                             enabled = picked.isNotEmpty(),
                             onClick = { onPick(picked.values.toList()) },

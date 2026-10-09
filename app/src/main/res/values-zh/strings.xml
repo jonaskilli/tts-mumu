@@ -366,6 +366,8 @@
     <string name="voice_catalog_filter_empty">该插件没有提供筛选条件</string>
     <string name="voice_catalog_filter_group_count">已选 %1$d</string>
     <string name="voice_catalog_filter_option_search">搜索标签</string>
+    <string name="voice_catalog_import">入库（%1$d）</string>
+    <string name="voice_catalog_imported">已带 %1$d 个音色去入库</string>
     <string name="voice_catalog_filter_option_empty">没有匹配的标签</string>
     <string name="replace_rule">替换规则</string>
     <string name="speech_rule">朗读规则</string>

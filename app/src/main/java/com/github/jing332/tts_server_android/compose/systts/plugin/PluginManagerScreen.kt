@@ -4,7 +4,9 @@ import android.content.Context
 import android.content.Intent
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Box
@@ -952,6 +954,10 @@ private fun Item(
     val scope = rememberCoroutineScope()
     // 按插件音色分类入库：目标分组选择 + 导入进度
     var showImportByCategory by remember { mutableStateOf(false) }
+    // 音色广场「入库」跳转自动弹出（10-10 衔接）：只看不动，消费在弹窗内 take
+    LaunchedEffect(plugin?.id) {
+        if (plugin != null && VoiceCatalogHandoff.peek(plugin.pluginId)) showImportByCategory = true
+    }
     ElevatedCard(modifier = modifier
         .combinedClickable(
             onClick = { if (isSelectionMode) onToggleSelection() else if (hasDefVars) onSetVars() },
@@ -1211,6 +1217,9 @@ private fun ImportByCategoryDialog(
 ) {
     if (!visible || plugin == null) return
 
+    // 音色广场交接（10-10 衔接）：非空=从广场「入库」跳过来，直接以这批音色进声音列表阶段
+    val handoffItems = remember(plugin.id) { VoiceCatalogHandoff.take(plugin.pluginId) }
+
     // 插件音色分类列表：poolId → poolName
     data class CategoryItem(val poolId: String, val poolName: String, val mappedName: String?)
 
@@ -1258,7 +1267,22 @@ private fun ImportByCategoryDialog(
         }
     }
 
+    // 引擎初始化与首批拉取；handoff 非空时走广场交接分支（不 eval 引擎——音色清单已在手）
     LaunchedEffect(plugin.id) {
+        // 广场交接优先（10-10）：带音色来就直接进声音列表阶段，不查插件、不走勾池子
+        if (handoffItems != null) {
+            // 伪池 poolId=""（key="\u0000<voiceId>"）；importVoices 只用 voiceId/voiceName/分类
+            voices = handoffItems.map { VoiceRow("", "", it.voiceId, it.voiceName) }
+            selectedKeys = voices.map { it.key }.toSet()
+            // 广场标签能映射成标准人群名的，预填为该音色的分类（试听/胶囊可改）
+            categoryOverrides = handoffItems.mapNotNull { item ->
+                item.tag?.let { PluginCategoryImporter.mapTagCategory(it) }?.let { tag ->
+                    "\u0000${item.voiceId}" to tag
+                }
+            }.toMap()
+            stage = 1
+            return@LaunchedEffect
+        }
         // 初始化引擎并拉分类列表（getLocales/getVoices 为纯数据方法，不涉及合成）
         runCatching {
             engine.eval()
@@ -1411,31 +1435,24 @@ private fun ImportByCategoryDialog(
                     }
                     items(voices, key = { it.key }) { row ->
                         val idx = voices.indexOfFirst { it.key == row.key }
-                        CheckRow(
+                        // 行版式 10-10 搬旧编辑页多选弹窗（10-05 迁链时只搬了功能没搬版式，用户实机否决）：
+                        // 勾选框独立点击；名字单行省略（插件原始长名不折行）；已分类行尾挂可点胶囊
+                        // （点胶囊直接重选分类，不必重新进试听）；未分类行尾留 🎧。
+                        VoiceImportRow(
                             checked = row.key in selectedKeys,
-                            onChecked = null,
-                            label = row.voiceName,
-                            onClick = {
+                            name = row.voiceName,
+                            category = categoryOverrides[row.key],
+                            onChecked = {
                                 selectedKeys = if (row.key in selectedKeys) selectedKeys - row.key
                                 else selectedKeys + row.key
                             },
-                            trailing = {
-                                // 已试听后手选分类的，行尾标出分类名（导入依据一目了然）
-                                categoryOverrides[row.key]?.let { cat ->
-                                    Text(
-                                        text = cat,
-                                        style = MaterialTheme.typography.bodySmall,
-                                        color = MaterialTheme.colorScheme.primary,
-                                        modifier = Modifier.padding(end = 4.dp)
-                                    )
-                                }
-                                IconButton(onClick = { if (idx >= 0) auditionIndex = idx }) {
-                                    Icon(
-                                        Icons.Default.Headset,
-                                        stringResource(id = R.string.audition)
-                                    )
-                                }
-                            }
+                            onCategoryChange = { cat ->
+                                categoryOverrides = if (cat == null) categoryOverrides - row.key
+                                else categoryOverrides + (row.key to cat)
+                                // 手选分类即视为待导入项（否则分好类却没勾、导入漏掉它）
+                                if (cat != null) selectedKeys = selectedKeys + row.key
+                            },
+                            onAudition = { if (idx >= 0) auditionIndex = idx }
                         )
                     }
                 }
@@ -1527,5 +1544,86 @@ private fun CheckRow(
                 .weight(1f)
         )
         trailing?.invoke()
+    }
+}
+
+/**
+ * 分类入库声音行（版式 10-10 搬自旧编辑页多选弹窗，当时 10-05 迁链只搬功能没搬版式被否）：
+ * 勾选框（独立点击）+ 名字（单行省略）+ 行尾 🎧 + 胶囊：已分类=tertiary 底分类名，
+ * 未分类=描边「分类」占位；点胶囊弹菜单选/换/取消分类，不必进试听。
+ */
+@Composable
+private fun VoiceImportRow(
+    checked: Boolean,
+    name: String,
+    category: String?,
+    onChecked: () -> Unit,
+    onCategoryChange: (String?) -> Unit,
+    onAudition: () -> Unit,
+) {
+    var showCategoryMenu by remember { mutableStateOf(false) }
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 4.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Checkbox(checked = checked, onCheckedChange = { onChecked() })
+        Text(
+            text = name,
+            style = MaterialTheme.typography.bodyMedium,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier
+                .padding(start = 4.dp)
+                .weight(1f)
+        )
+        IconButton(onClick = onAudition) {
+            Icon(Icons.Default.Headset, stringResource(id = R.string.audition))
+        }
+        Surface(
+            shape = MaterialTheme.shapes.small,
+            color = if (category != null) MaterialTheme.colorScheme.tertiaryContainer
+            else MaterialTheme.colorScheme.surface,
+            tonalElevation = if (category != null) 2.dp else 0.dp,
+            border = if (category == null)
+                BorderStroke(1.dp, MaterialTheme.colorScheme.outline)
+            else null,
+            modifier = Modifier
+                .padding(end = 12.dp)
+                .clip(MaterialTheme.shapes.small)
+                .clickable { showCategoryMenu = true }
+        ) {
+            Text(
+                category ?: "分类",
+                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                style = MaterialTheme.typography.labelSmall,
+                color = if (category != null) MaterialTheme.colorScheme.onTertiaryContainer
+                else MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+        AppDropdownMenu(
+            expanded = showCategoryMenu,
+            onDismissRequest = { showCategoryMenu = false }
+        ) {
+            DropdownMenuItem(
+                text = { Text("默认") },
+                onClick = {
+                    showCategoryMenu = false
+                    onCategoryChange(null)
+                }
+            )
+            com.github.jing332.compose.widgets.VoiceCategories.COLUMNS.forEach { column ->
+                column.forEach { cat ->
+                    DropdownMenuItem(
+                        text = { Text(cat) },
+                        onClick = {
+                            showCategoryMenu = false
+                            onCategoryChange(cat)
+                        }
+                    )
+                }
+            }
+        }
     }
 }

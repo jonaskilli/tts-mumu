@@ -1,5 +1,6 @@
 package com.github.jing332.tts_server_android.compose.systts.list.ui
 
+import android.content.Intent
 import android.util.Log
 import android.widget.LinearLayout
 import androidx.compose.animation.animateContentSize
@@ -15,6 +16,8 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Headset
 import androidx.compose.material.icons.filled.Info
 import com.github.jing332.tts_server_android.compose.systts.plugin.PluginImage
+import com.github.jing332.tts_server_android.compose.systts.plugin.PluginManagerActivity
+import com.github.jing332.tts_server_android.compose.systts.plugin.VoiceCatalogHandoff
 import androidx.compose.material.icons.filled.Speed
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -41,6 +44,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.drake.net.utils.withIO
+import com.github.jing332.common.utils.startActivity
 import com.github.jing332.common.utils.toast
 import com.github.jing332.compose.widgets.AppSpinner
 import com.github.jing332.compose.widgets.LocalSelectionRowHorizontalPadding
@@ -266,6 +270,31 @@ class PluginTtsUI : IConfigUI() {
                     }
                     showVoiceCatalog = false
                     context.toast(context.getString(R.string.voice_catalog_picked, items.size))
+                },
+                onImport = { items ->
+                    // 广场 → 分类入库衔接（10-10 用户：广场只进下拉不进库，链路断着）：
+                    // 勾选音色塞进交接单例，跳插件管理页，该插件卡片自动弹入库弹窗、
+                    // 直接进声音列表阶段（分类=广场标签字面映射，试听可改）。广场音色
+                    // 仍补进下拉（同 onPick——本次不选它，下次进来还能在列表里看到）。
+                    val known = vm.voices.map { it.id }.toHashSet()
+                    items.forEach { item ->
+                        if (item.id !in known) vm.voices.add(
+                            com.github.jing332.tts.speech.plugin.engine.TtsPluginUiEngineV2.Voice(
+                                item.id,
+                                item.name,
+                                item.icon,
+                            )
+                        )
+                    }
+                    showVoiceCatalog = false
+                    plugin?.let { p ->
+                        VoiceCatalogHandoff.put(
+                            p.pluginId,
+                            items.map { VoiceCatalogHandoff.Item(it.id, it.name, it.tags.firstOrNull()) }
+                        )
+                        context.toast(context.getString(R.string.voice_catalog_imported, items.size))
+                        context.startActivity(Intent(context, PluginManagerActivity::class.java))
+                    }
                 },
             )
         }
