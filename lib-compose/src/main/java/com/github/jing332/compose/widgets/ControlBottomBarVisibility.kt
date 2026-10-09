@@ -7,7 +7,10 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableLongStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -33,12 +36,16 @@ fun ControlBottomBarVisibility(
 ) {
     val bottomAppBarState = bottomBarBehavior.state
 
-    // 「在顶或在底都常显」：列表滚到最顶或最底时强制回显底栏。
-    // 只有「在顶」的旧版（10-10 用户报障）：日志页常停在最底（最新日志），底栏被上滑
-    // 藏掉后要往回滑过一整条底栏高度（exitAlways 的回弹阈值，80dp 比旧 60dp 更明显）
-    // 才肯回来——「往上滑有时候看不到底栏，得到一定程度才能看到」即此。
-    // atTop 用 canScrollBackward，atBottom 用「末条可见且无向前余量」；
-    // 两键任一成立即瞬间复位（与 animateBottomBarToShow 同款，不做动画防掉帧）。
+    // 「在顶/在底常显 + 下滑即回显」（10-10 用户三轮反馈收敛）：
+    // ①exitAlways 的回弹阈值=一整条底栏高度（80dp）——长列表中间只滑一小段不回弹，
+    //   「往上滑一段时间再往下滑要滑过一页多一点才出现」即此（用户实测复述）；
+    // ②atTop（canScrollBackward=false）/ atBottom（末条贴视口底）两位置强制回显——
+    //   「本来在日志底部、底栏在，再往下滑一直在」即此。
+    // ③新增**下滑即回显**：监听列表滚动，捕获「向下滚动」（内容上移、往回看方向）的
+    //   位移即瞬间复位底栏，不等 80dp 阈值——与 Android 原生设置页行为一致。
+    //   firstVisibleItemIndex 减小或同条目 offset 减小都算向下滚；用 derivedStateOf
+    //   比较前后值，浅色 LaunchedEffect 触发复位。
+    val atTop = !listState.canScrollBackward
     val atBottom by remember {
         derivedStateOf {
             val info = listState.layoutInfo
@@ -48,8 +55,22 @@ fun ControlBottomBarVisibility(
                     visible.last().offset + visible.last().size <= info.viewportEndOffset)
         }
     }
-    LaunchedEffect(listState.canScrollBackward, atBottom) {
-        if (!listState.canScrollBackward || atBottom) {
+    // 向下滚动检测：记录上一帧的（首可见下标，首可见偏移），有减小即向回滚
+    var lastScrollPos by remember { mutableLongStateOf(Long.MAX_VALUE) }
+    val scrollingDown by remember {
+        derivedStateOf {
+            val info = listState.layoutInfo
+            val visible = info.visibleItemsInfo
+            if (visible.isEmpty()) return@derivedStateOf false
+            val pos = visible.first().index.toLong() * 1_000_000L +
+                (visible.first().offset.coerceAtLeast(0)).toLong()
+            val down = pos < lastScrollPos
+            lastScrollPos = pos
+            down
+        }
+    }
+    LaunchedEffect(atTop, atBottom, scrollingDown) {
+        if (atTop || atBottom || scrollingDown) {
             animateBottomBarToShow(bottomAppBarState)
         }
     }
