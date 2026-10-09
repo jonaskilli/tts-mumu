@@ -3893,10 +3893,11 @@ internal fun ListManagerScreen(
                 modifier = Modifier
                     .align(Alignment.BottomEnd)
                     .padding(12.dp)
-                    // 距底栏顶边恒定16dp（M3标准）：60dp底栏行 + 16dp视觉缝 - 菜单容器自带16dp按钮下内边距 = 60dp；
+                    // 距底栏顶边恒定16dp（M3标准）：80dp底栏行 + 16dp视觉缝 - 菜单容器自带16dp按钮下内边距 = 80dp；
+                    // 10-10 底栏回官方 NavigationBar（60→80dp）后同步此常量（旧值60dp实机「+」贴底栏）；
                     // 手势条inset由外层Box已垫的导航条inset与底栏Spacer同源相抵，故用常量而非listBottomPadding
-                    //（后者含inset，换三键导航/全面屏手势会漂移，实测旧算法视觉缝约38dp）
-                    .padding(bottom = 60.dp),
+                    //（后者含inset，换三键导航/全面屏手势会漂移）
+                    .padding(bottom = 80.dp),
                 visible = true,
                 addBgm = {
                     navigateToEdit(SystemTtsV2(groupId = DEFAULT_GROUP_ID, config = BgmConfiguration()))
