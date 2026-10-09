@@ -201,6 +201,7 @@ fun Long.sizeToReadable(locale: Locale = Locale.getDefault()): String {
     val unit = 1024
     if (bytes < unit) return "$bytes B"
     val exp = (ln(bytes.toDouble()) / ln(unit.toDouble())).toInt()
-    val pre = "KMGTPE"[exp - 1] + "i"
+    // K/M 不带 i（10-10 用户令：KiB 生僻，通用写法 KB/MB）；换算仍按 1024
+    val pre = "KMGTPE"[exp - 1]
     return String.format(locale, "%.1f %sB", bytes / unit.toDouble().pow(exp.toDouble()), pre)
 }

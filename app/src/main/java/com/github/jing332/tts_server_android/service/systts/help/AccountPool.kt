@@ -1199,58 +1199,7 @@ object AccountPool {
     fun setEnabled(accountId: String, value: Boolean): Boolean {
         val acc = load().firstOrNull { it.id == accountId } ?: return false
         save(load().map { if (it.id == accountId) acc.copy(enabled = value) else it })
-        // 启用池联动（10-10 用户定稿）：停用账号 = 它的密钥条目自动撤出启用池
-        //（朗读不再轮到它）；启用 = 若其条目曾因停用被撤（标记见 removedByDisable），
-        // 且同站同模型条目仍在池（组处于启用态）→ 自动加回队尾。判定走密钥文件实况。
-        runCatching {
-            val tag = KeyListFile.DEFAULT_TAG_RULE_ID
-            val baseUrl = chatBaseUrlOf(acc.provider)
-            val keys = KeyListFile.readKeys(tag)
-            val mine = keys.filter { e ->
-                val p = KeyListFile.parseKeyValue(e.value)
-                p != null && !p.isDirect && p.key == acc.accessToken
-            }
-            if (mine.isEmpty()) return@runCatching
-            val pool = KeyListFile.readPool(tag)
-            val norms = mine.map { KeyListFile.normalizePoolValue(it.value) }.filter { it.isNotEmpty() }
-            if (!value) {
-                val removed = pool.filter { it in norms.toSet() }
-                if (removed.isNotEmpty()) {
-                    KeyListFile.savePool(tag, pool - removed.toSet())
-                    removedByDisable[acc.id] = removed.toSet()
-                    appLog(LogLevel.INFO, "账号「${acc.nickname}」已停用，${removed.size} 条密钥自动撤出启用池")
-                }
-            } else {
-                val wasRemoved = removedByDisable.remove(acc.id)
-                if (wasRemoved != null) {
-                    // 同站同模型兄弟条目仍在池（组启用态）才回池：整组被用户撤了就不硬塞
-                    val siblingInPool = keys.any { e ->
-                        val p = KeyListFile.parseKeyValue(e.value)
-                        p != null && !p.isDirect && sameApiSite(p.url, baseUrl) &&
-                            e.value !in wasRemoved &&
-                            KeyListFile.normalizePoolValue(e.value) in pool.toSet()
-                    }
-                    if (siblingInPool) {
-                        KeyListFile.savePool(tag, pool + wasRemoved)
-                        appLog(LogLevel.INFO, "账号「${acc.nickname}」已启用，${wasRemoved.size} 条密钥自动回启用池")
-                    }
-                }
-            }
-        }
         return true
-    }
-
-    /**
-     * 停用期间被联动撤出启用池的钥串（accountId → 撤出的规范化值集合）。
-     * 仅内存（重启丢失=联动记忆丢失，重启后重新启用不自动回池，用户手动勾一次即可）。
-     */
-    private val removedByDisable = mutableMapOf<String, Set<String>>()
-
-    /** 渠道上游基址（启用池联动判据用；与 addAsKey 同源） */
-    private fun chatBaseUrlOf(provider: String): String {
-        if (provider == "codebuddy") return "https://$CHAT_HOST/v2"
-        ChannelBootstrap.install()
-        return ChatChannels.byProvider(provider)?.chatBaseUrl ?: "https://$CHAT_HOST/v2"
     }
 
     // ==================== 重测 / 重置（10-10 移植插件 account-probe 语义） ====================
