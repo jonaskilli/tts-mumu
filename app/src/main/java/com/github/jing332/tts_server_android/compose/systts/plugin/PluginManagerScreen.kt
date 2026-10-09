@@ -1266,8 +1266,9 @@ internal fun ImportByCategoryDialog(
             }
             withContext(Dispatchers.Main) {
                 voices = rows
-                // 默认全选（省事流：进列表直接点导入=原「整池盲入」行为）
-                selectedKeys = rows.map { it.key }.toSet()
+                // 默认全不选（10-10 用户令「只导入自己试听分类过的」）：勾选由「点分类」驱动
+                // ——试听里点了分类标签才自动勾上；盲入流（全选直导）由全选行手动触发
+                selectedKeys = emptySet()
                 categoryOverrides = emptyMap()
                 loadingVoices = false
                 stage = 1
@@ -1281,6 +1282,7 @@ internal fun ImportByCategoryDialog(
         if (handoffItems != null) {
             // 伪池 poolId=""（key="\u0000<voiceId>"）；importVoices 只用 voiceId/voiceName/分类
             voices = handoffItems.map { VoiceRow("", "", it.voiceId, it.voiceName) }
+            // 广场带进来的音色本身就是用户在广场勾过的 → 保留勾选（与普通入口默认全不选不同）
             selectedKeys = voices.map { it.key }.toSet()
             // 广场标签能映射成标准人群名的，预填为该音色的分类（试听/胶囊可改）
             categoryOverrides = handoffItems.mapNotNull { item ->
@@ -1306,7 +1308,9 @@ internal fun ImportByCategoryDialog(
     val allSelected = categories.isNotEmpty() && selectedPoolIds.size == categories.size
     val hasSelection = selectedPoolIds.isNotEmpty()
     val allVoicesSelected = voices.isNotEmpty() && selectedKeys.size == voices.size
-    val importCount = voices.count { it.key in selectedKeys }
+    // 导入只认「已分类」的（10-10 用户令「只导入自己试听分类过的」）：勾了但没分类不算数——
+    // 未分类项入库会按原名落子分组不打标签（盲入产物），正是用户不要的
+    val importCount = voices.count { it.key in selectedKeys && categoryOverrides[it.key] != null }
 
     // 试听弹窗：复用编辑页同一组件（🎧 试听 + 三列分类标签 + 上一个/下一个 + 进度）
     if (auditionIndex in voices.indices) {
@@ -1470,8 +1474,10 @@ internal fun ImportByCategoryDialog(
                             },
                             label = if (allVoicesSelected) "取消全选" else "全选",
                             trailing = {
+                                // 已分类计数（10-10 用户令「只导入自己试听分类过的」）：
+                                // 导入只认已分类的，这个数才是真正会导的数量
                                 Text(
-                                    "已选 ${selectedKeys.size}/${voices.size}",
+                                    "已分类 ${importCount}/${voices.size}",
                                     style = MaterialTheme.typography.bodySmall,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
@@ -1519,7 +1525,10 @@ internal fun ImportByCategoryDialog(
                     enabled = !importing && importCount > 0,
                     onClick = {
                         importing = true
-                        val items = voices.filter { it.key in selectedKeys }.map {
+                        // 与 importCount 同口径：只导已分类的（勾了但没分类的不进这批）
+                        val items = voices.filter {
+                            it.key in selectedKeys && categoryOverrides[it.key] != null
+                        }.map {
                             PluginCategoryImporter.VoiceItem(
                                 poolId = it.poolId,
                                 poolName = it.poolName,
