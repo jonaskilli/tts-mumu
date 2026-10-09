@@ -31,6 +31,20 @@
     }
   }, true);
 
+  // 页头「关闭」按钮打隐藏标记（10-10 用户令）：它是桌面 DSH 的退出口，
+  // 手机端返回键已接管。识别依据：页头按钮里唯一不带 title 的（其余按钮
+  // 全部有 hover 说明）。React 重渲染会重建按钮节点，MutationObserver 里补打。
+  const markCloseBtn = () => {
+    if (!media.matches) return;
+    document.querySelectorAll('.dim-jh-header .dim-jh-btn').forEach((b) => {
+      if (!b.hasAttribute('title') && b.textContent.trim() === '关闭') {
+        b.classList.add('jh-hideClose');
+      }
+    });
+  };
+  markCloseBtn();
+  new MutationObserver(markCloseBtn).observe(document.body, { childList: true, subtree: true });
+
   const adapt = () => {
     if (!media.matches) return;
     const layout = document.querySelector('.dim-jh-layout');

@@ -131,6 +131,41 @@
     line-height: 14px;
   }
 
+  /* 顶部胶囊（10-10 用户令「标签太小需要大一点」）：字号 11→13、
+     图标 24→28、内边距放宽，账号数小牌同步放大 */
+  body.dsh-phone-mobile .dim-jh-provider {
+    gap: 7px;
+    padding: 9px 12px !important;
+  }
+  body.dsh-phone-mobile .dim-jh-providerIcon {
+    width: 28px !important;
+    height: 28px !important;
+    border-radius: 7px !important;
+  }
+  body.dsh-phone-mobile .dim-jh-providerIcon img {
+    width: 19px !important;
+    height: 19px !important;
+  }
+  body.dsh-phone-mobile .dim-jh-providerLabel strong {
+    font-size: 13px !important;
+    line-height: 17px !important;
+    max-width: 116px;
+  }
+  body.dsh-phone-mobile .dim-jh-providerCount {
+    min-width: 17px;
+    height: 17px;
+    padding: 0 4px;
+    border-radius: 9px;
+    font-size: 11px;
+    line-height: 17px;
+  }
+
+  /* 页头「关闭」按钮隐藏（10-10 用户令「不需要」）：桌面 DSH 的退出口，
+     手机端返回键已接管（JetHubActivity OnBackPressedCallback + __jhBack），
+     留着只会误触连页一起退。按钮由 phone-adapt.js 打 jh-hideClose 标记类
+     （页头唯一不带 title 的按钮，React 重渲染后 MutationObserver 会补打）。 */
+  body.dsh-phone-mobile .dim-jh-btn.jh-hideClose { display: none !important; }
+
   /* 面板标题与页头按钮保持紧凑（沿用 dsh-phone.css 基调，微调字号） */
   body.dsh-phone-mobile .dim-jh-panelTitle { font-size: 15px; }
 }
