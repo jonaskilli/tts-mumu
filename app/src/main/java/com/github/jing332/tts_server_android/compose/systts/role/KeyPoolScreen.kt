@@ -52,6 +52,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.compositeOver
+import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
@@ -373,11 +374,18 @@ private fun PoolRow(
                     Text(
                         info.rate,
                         style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp),
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        color = MaterialTheme.colorScheme.onSecondaryContainer,
                         maxLines = 1,
                         modifier = Modifier
                             .clip(RoundedCornerShape(5.dp))
-                            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.7f))
+                            // 10-10 纯白表：标签类胶囊改淡绿（同角色页标签 softContainerColor 口径）
+                            .background(
+                                lerp(
+                                    MaterialTheme.colorScheme.secondaryContainer,
+                                    MaterialTheme.colorScheme.background,
+                                    0.4f
+                                )
+                            )
                             .padding(horizontal = 5.dp, vertical = 1.dp)
                     )
                 }

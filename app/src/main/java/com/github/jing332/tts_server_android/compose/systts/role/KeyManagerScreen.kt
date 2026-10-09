@@ -92,6 +92,7 @@ import androidx.compose.ui.draw.scale
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.compositeOver
+import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalConfiguration
@@ -410,11 +411,18 @@ private fun KeyEntryRow(
                         Text(
                             modelRate,
                             style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp),
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            color = MaterialTheme.colorScheme.onSecondaryContainer,
                             maxLines = 1,
                             modifier = Modifier
                                 .clip(RoundedCornerShape(5.dp))
-                                .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.7f))
+                                // 10-10 纯白表：标签类胶囊改淡绿（同角色页标签 softContainerColor 口径）
+                                .background(
+                                    lerp(
+                                        MaterialTheme.colorScheme.secondaryContainer,
+                                        MaterialTheme.colorScheme.background,
+                                        0.4f
+                                    )
+                                )
                                 .padding(horizontal = 5.dp, vertical = 1.dp)
                         )
                     }
@@ -1008,14 +1016,20 @@ private fun GroupHeaderBlock(
                         if (ifc.apiKey.length > 2) {
                             Surface(
                                 shape = RoundedCornerShape(4.dp),
-                                color = MaterialTheme.colorScheme.surfaceContainerHighest
+                                // 10-10 纯白表：标签类胶囊用淡绿（同角色页标签 softContainerColor 口径：
+                                // secondaryContainer 向 background 插 40%），灰阶留给结构与可点字段
+                                color = lerp(
+                                    MaterialTheme.colorScheme.secondaryContainer,
+                                    MaterialTheme.colorScheme.background,
+                                    0.4f
+                                )
                             ) {
                                 Text(
                                     stringResource(
                                         R.string.role_key_tail, KeyListFile.keyTail(ifc.apiKey)
                                     ),
                                     style = MaterialTheme.typography.labelSmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    color = MaterialTheme.colorScheme.onSecondaryContainer,
                                     modifier = Modifier.padding(horizontal = 5.dp, vertical = 1.dp)
                                 )
                             }

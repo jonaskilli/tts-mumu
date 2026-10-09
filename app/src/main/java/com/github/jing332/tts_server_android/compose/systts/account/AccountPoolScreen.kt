@@ -703,7 +703,9 @@ private fun StatusChip(text: String, bg: androidx.compose.ui.graphics.Color) {
     Text(
         text,
         style = MaterialTheme.typography.labelSmall,
-        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        // 10-10 纯白表：chip 文字取 onSurface——「有效/已过期」绿红底上的字都够深，
+        // 停用灰底上的字也同深，三档状态读感一致（onSurfaceVariant 太浅像禁用占位）
+        color = MaterialTheme.colorScheme.onSurface,
         modifier = Modifier
             .clip(RoundedCornerShape(8.dp))
             .background(bg)
