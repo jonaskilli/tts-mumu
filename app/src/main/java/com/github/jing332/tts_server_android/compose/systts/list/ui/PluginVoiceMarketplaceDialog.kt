@@ -55,6 +55,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -75,6 +76,7 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import coil3.compose.SubcomposeAsyncImage
+import com.github.jing332.compose.widgets.AppDropdownMenu
 import com.github.jing332.compose.widgets.CenterTextImage
 import com.github.jing332.compose.widgets.DenseOutlinedField
 import com.github.jing332.tts.speech.plugin.engine.VoiceCatalogFilterGroup
@@ -424,7 +426,9 @@ fun PluginVoiceMarketplaceDialog(
                                     // 入库模式：卡片分类标签（点了即改派，随导入落库）
                                     assignedCategory = categories[item.id],
                                     onCategoryChange = if (importMode) ({ cat ->
-                                        categories.set(item.id, cat)
+                                        // mutableStateMapOf 不收 null 值：取消分类=移键
+                                        if (cat == null) categories.remove(item.id)
+                                        else categories.set(item.id, cat)
                                     }) else null,
                                 )
                             }

@@ -109,6 +109,7 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.github.jing332.common.utils.longToast
 import com.github.jing332.common.utils.toast
+import com.github.jing332.tts_server_android.ui.view.AppDialogs.displayErrorDialog
 import com.github.jing332.compose.rememberLazyListReorderCache
 import com.github.jing332.compose.widgets.AppDialog
 import com.github.jing332.compose.widgets.ShadowedDraggableItem
@@ -1326,8 +1327,9 @@ private fun MarketplaceImportDialog(
 
 /** 广场勾选的分类改派（试听弹窗 → 宿主内存桥）：导入时读（与卡片点选的 map 合并语义） */
 object MarketplaceCategoryOverride {
-    val map = mutableMapOf<String, String?>()
+    val map = mutableMapOf<String, String>()
     fun put(voiceId: String, category: String?) {
+        // null=取消分类=移键（map 只存「已分类」项）
         if (category == null) map.remove(voiceId) else map[voiceId] = category
     }
     fun takeAll(): Map<String, String> {
