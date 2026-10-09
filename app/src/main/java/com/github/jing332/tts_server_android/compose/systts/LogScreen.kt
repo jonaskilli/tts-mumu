@@ -571,10 +571,17 @@ internal fun LogScreen(
                                             else MaterialTheme.colorScheme.onSurfaceVariant
                                         )
                                     }
-                                    Text(text = log.time, style = MaterialTheme.typography.bodySmall)
+                                    // 时间去日期去毫秒（10-10 用户令，与请求组头行同口径）：
+                                    // 日期签在列顶、毫秒无人看；裸行时间染次级灰与头行一致
+                                    Text(
+                                        text = log.time.drop(11).dropLast(4),
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
                                     Text(
                                         text = "\t${log.level.toLogLevelChar()}",
-                                        style = MaterialTheme.typography.bodySmall
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
                                     )
                                 }
                                 LogEntryBody(
