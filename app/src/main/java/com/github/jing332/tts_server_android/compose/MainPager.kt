@@ -24,6 +24,7 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
+import androidx.compose.material3.NavigationBarItemDefaults
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -154,7 +155,13 @@ fun AnimatedContentScope.MainPager(sharedVM: SharedViewModel) {
                                     icon = { Box(Modifier.size(24.dp)) { destination.icon() } },
                                     label = { Text(stringResource(destination.strId), maxLines = 1) },
                                     // 官方默认 always；四项文字常显与否由官方形态接管（只亮选中项）
-                                    alwaysShowLabel = false
+                                    alwaysShowLabel = false,
+                                    // 10-10 用户令：去掉选中项的 secondaryContainer 胶囊（active indicator）——
+                                    // 该胶囊虽是 M3 官方 NavigationBar 规范形态（02c0cca 回官方组件时带来），
+                                    // 用户不喜欢；选中态改由官方默认的图标/文字变色（primary vs onSurfaceVariant）承担
+                                    colors = NavigationBarItemDefaults.colors(
+                                        indicatorColor = Color.Transparent,
+                                    ),
                                 )
                             }
                         }
