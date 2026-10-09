@@ -184,11 +184,11 @@ internal fun TtsLogScreen(vm: TtsLogViewModel = viewModel()) {
         if (q.isEmpty()) return
         val matches = displayLogs.indices.filter { displayLogs[it].matchesQuery(q) }
         if (matches.isEmpty()) return
-        // 可视首项（可能是卡/裸行/日期签）→ 取该列表项的首个条目下标做锚
+        // 可视首项（可能是组/裸行/日期签）→ 取该列表项的首个条目下标做锚
         val firstVisible = listState.firstVisibleItemIndex
         val anchorEntry = when (val item = logGroups.items.getOrNull(firstVisible)) {
             is LogGroups.Item.Bare -> item.index
-            is LogGroups.Item.Card -> item.head
+            is LogGroups.Item.Group -> item.head
             else -> firstVisible
         }
         val target = if (forward)

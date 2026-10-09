@@ -34,7 +34,6 @@ import androidx.compose.material.icons.filled.CheckBoxOutlineBlank
 import androidx.compose.material.icons.filled.KeyboardDoubleArrowDown
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FloatingActionButton
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.SmallFloatingActionButton
@@ -86,6 +85,8 @@ import kotlin.math.abs
 // SystemTtsService 拼接次级信息所用哨兵色，此处按主题重映射
 private val MetaColorSentinel = Color(0xFFFF00FF)       // 获取成功前缀 → 石板灰
 private val VoiceMetaSentinel = Color(0xFF00FFFF)       // 发音人信息 → 雾紫
+private val RoleChipSentinel = Color(0xFF0F0F0F)        // 角色名小牌 → 灰绿牌字色
+private val PluginChipSentinel = Color(0xFF0E0E0E)      // 插件名小牌 → 灰青牌字色
 
 // 排版实验 1008（用户 10-08 拍板「撤吧，灰」）：请求行"请求音频："前缀撤级别绿——
 // 每卡必有、信息量为零的词占最显眼色正好反了（9-13 去彩色化同方向），改中性灰，
@@ -94,15 +95,25 @@ private val RequestPrefixColorLight = Color(0xFF79747E)
 private val RequestPrefixColorDark = Color(0xFF938F99)
 
 // 把命中哨兵色的段落整体换成目标色，让"请求音频"正文(纯绿)与
-// 获取成功前缀(石板灰)/发音人信息(雾紫)层次分明但不抢眼
-private fun AnnotatedString.remapMetaColor(metaColor: Color, voiceColor: Color): AnnotatedString {
-    if (spanStyles.none { it.item.color == MetaColorSentinel || it.item.color == VoiceMetaSentinel }) return this
+// 获取成功前缀(石板灰)/发音人信息(雾紫)/角色牌(灰绿)/插件牌(灰青)层次分明但不抢眼
+private fun AnnotatedString.remapMetaColor(
+    metaColor: Color,
+    voiceColor: Color,
+    roleChipColor: Color,
+    pluginChipColor: Color,
+): AnnotatedString {
+    if (spanStyles.none {
+            it.item.color == MetaColorSentinel || it.item.color == VoiceMetaSentinel ||
+                    it.item.color == RoleChipSentinel || it.item.color == PluginChipSentinel
+        }) return this
     return buildAnnotatedString {
         append(this@remapMetaColor.text)
         spanStyles.forEach { r ->
             val newColor = when (r.item.color) {
                 MetaColorSentinel -> metaColor
                 VoiceMetaSentinel -> voiceColor
+                RoleChipSentinel -> roleChipColor
+                PluginChipSentinel -> pluginChipColor
                 else -> r.item.color
             }
             addStyle(
@@ -115,14 +126,15 @@ private fun AnnotatedString.remapMetaColor(metaColor: Color, voiceColor: Color):
 }
 
 /**
- * 日志归组模型（10-06 全链卡改版）。渲染单位从"逐条日志"升级为归组项：
- * - Card：一次请求管线。head="请求音频"主行（configId≠0，MDC 只在请求行携带）；
+ * 日志归组模型（10-06 全链卡改版，10-10 行流改版）。渲染单位从"逐条日志"升级为归组项：
+ * - Group：一次请求管线。head="请求音频"主行（configId≠0，MDC 只在请求行携带）；
  *   members=结果子行(indent>0)/插件过程行/卡打开期间的其他主行(重试/备用)。
- *   收卡条件：SUCCESS 结果、主行 ERROR（失败终点）、下一张卡开卡。
- *   朗读规则日志不进卡（10-10 用户令）：一律落裸行——原「卡外悬置→下一张卡做前置区」
+ *   收组条件：SUCCESS 结果、主行 ERROR（失败终点）、下一请求开组。
+ *   朗读规则日志不进组（10-10 用户令）：一律落裸行——原「卡外悬置→下一张卡做前置区」
  *   在搜索/筛选的收窄列表里等不到开卡，是「勾了朗读规则搜不到」的根因。
+ *   10-10 行流改版：渲染不再画卡（容器全撤），归组仅用于①头行药丸推导（重试/切备用/
+ *   失败状态从 members 推）②搜索跳转落整组 ③多选整组勾选。
  * - Bare：与请求挨不上的条目——插件/规则散条、系统消息、头部被级别筛掉的孤儿子行。
- *   白底、级别色照旧，形制与卡片天然区分。
  * - Header：日期签，每天第一条上方出现一次。
  *
  * 纯函数、确定性；TtsLogScreen 与 LogScreen 共用同一实例（搜索跳转要用条目→列表项
@@ -132,13 +144,14 @@ internal class LogGroups(val items: List<Item>, val entryToList: IntArray) {
     sealed class Item {
         class Header(val date: String) : Item()
         class Bare(val index: Int) : Item()
-        class Card(
+
+        // 一次请求管线的归组（10-10 行流改版：渲染层不再画卡，只保留归组供
+        // 搜索跳转/多选粒度/头行药丸推导用）。head=「请求音频」主行；
+        // members=结果子行(indent>0)/插件过程行/其他主行(重试/备用/失败)。
+        // 收组条件与旧卡一致：SUCCESS 结果、主行 ERROR（失败终点）、下一请求开组。
+        class Group(
             val head: Int,
             val members: List<Int>,
-            // 排版实验 1008（报错三件套，用户 10-08 拍板）：卡内最高错误级别——
-            // 0=无错（灰底）1=仅 WARN（淡琥珀底）2=含 ERROR（红粉底）。
-            // 原 isError: Boolean 升级，扫一眼分清"出错"还是"只是警告"
-            val errorLevel: Int,
         ) : Item()
     }
 
@@ -150,7 +163,7 @@ internal class LogGroups(val items: List<Item>, val entryToList: IntArray) {
     fun entriesOf(item: Item): List<Int> = when (item) {
         is Item.Header -> emptyList()
         is Item.Bare -> listOf(item.index)
-        is Item.Card -> listOf(item.head) + item.members
+        is Item.Group -> listOf(item.head) + item.members
     }
 
     companion object {
@@ -158,18 +171,12 @@ internal class LogGroups(val items: List<Item>, val entryToList: IntArray) {
             val raw = ArrayList<Item>(list.size)
             var head = -1
             var members = ArrayList<Int>()
-            var cardErrorLevel = 0
 
             fun closeCard() {
                 if (head >= 0)
-                    raw.add(Item.Card(head, members.toList(), cardErrorLevel))
+                    raw.add(Item.Group(head, members.toList()))
                 head = -1
                 members = ArrayList()
-                cardErrorLevel = 0
-            }
-            fun markError(e: LogEntry) {
-                if (e.level == LogLevel.ERROR) cardErrorLevel = 2
-                else if (e.level == LogLevel.WARN && cardErrorLevel < 1) cardErrorLevel = 1
             }
             fun openCard(requestIdx: Int) {
                 closeCard()
@@ -182,14 +189,13 @@ internal class LogGroups(val items: List<Item>, val entryToList: IntArray) {
                     e.indent > 0 -> {
                         if (head >= 0) {
                             members.add(i)
-                            markError(e)
                             if (e.level == LogLevel.SUCCESS) closeCard()
                         } else raw.add(Item.Bare(i))
                     }
                     // 插件过程行：卡内归卡，卡外散条
                     e.isPluginLog -> {
                         if (head >= 0) {
-                            members.add(i); markError(e)
+                            members.add(i)
                         } else raw.add(Item.Bare(i))
                     }
                     // 规则日志一律落裸行（10-10 用户令：不进卡）。原「卡外悬置→下一张卡
@@ -203,7 +209,7 @@ internal class LogGroups(val items: List<Item>, val entryToList: IntArray) {
                     // 无卡落裸行
                     else -> {
                         if (head >= 0) {
-                            members.add(i); markError(e)
+                            members.add(i)
                             if (e.level == LogLevel.ERROR) closeCard()
                         } else raw.add(Item.Bare(i))
                     }
@@ -218,7 +224,7 @@ internal class LogGroups(val items: List<Item>, val entryToList: IntArray) {
             raw.forEach { item ->
                 val anchorIdx = when (item) {
                     is Item.Bare -> item.index
-                    is Item.Card -> item.head
+                    is Item.Group -> item.head
                     is Item.Header -> -1
                 }
                 if (anchorIdx >= 0) {
@@ -234,7 +240,7 @@ internal class LogGroups(val items: List<Item>, val entryToList: IntArray) {
                 // finalItems.size 即本 item 即将占据的下标
                 when (item) {
                     is Item.Bare -> map[item.index] = finalItems.size
-                    is Item.Card -> (listOf(item.head) + item.members)
+                    is Item.Group -> (listOf(item.head) + item.members)
                         .forEach { map[it] = finalItems.size }
                     is Item.Header -> {}
                 }
@@ -391,20 +397,17 @@ internal fun LogScreen(
             }
 
         // 排版实验 1008（用户 10-08 拍板①）：成员行 forceColor 压制撤除，kidBody 色系
-        // 退役——卡内恢复级别色/来源色（25cbf5f 的插件灰青/规则灰紫在卡内重新可见）
+        // 退役——行流恢复级别色/来源色（插件灰青/规则灰紫可见）
         val darkTheme = isSystemInDarkTheme()
-        // 卡片底色（10-10 用户拍板：加深到 50%）。原值 surfaceVariant@20% 是照设置页分区卡
-        // 对齐的，但那是「一张大卡占半屏」的页；日志是一屏十几条窄卡，20% 时卡底与页底
-        // 亮度差仅 2.2%（#F7F8F0 vs #FDFDF6），肉眼分不出边界 ⇒ 用户反馈「卡片不清晰」。
-        // 50% 与列表页卡片同浓度（亮度差 5.8%），边界一眼可见，色相仍是中性不抢正文。
-        // 报错分档保留信号色：仅 WARN 淡琥珀、含 ERROR 红粉（信号色允许偏离底色系）
-        val cardBgOk = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.50f)
-        val cardBgWarn = if (darkTheme) Color(0xFF3A3226) else Color(0xFFFDF8E8)
-        val cardBgErr = if (darkTheme) Color(0xFF3A2626) else Color(0xFFFDF0F0)
+        // 10-10 行流改版：卡片容器全撤，cardBg 三档随卡同亡；报错信号改由
+        // 失败红丸+红原因字承担（StatusPill）
         // 获取成功前缀：石板灰 Blue Grey 800/200
         // 发音人信息：棕褐 #7D6B5D / 深色主题 #A08B7A
         val metaColor = if (darkTheme) Color(0xFFB0BEC5) else Color(0xFF37474F)
         val voiceColor = if (darkTheme) Color(0xFFA08B7A) else Color(0xFF7D6B5D)
+        // 角色名小牌：灰绿（10-10 预览拍板色）；插件名小牌：灰青
+        val roleChipColor = if (darkTheme) Color(0xFF9FB8A4) else Color(0xFF4E6E57)
+        val pluginChipColor = if (darkTheme) Color(0xFF9AA0A8) else Color(0xFF5B6472)
 
         LazyColumn(
             Modifier
@@ -558,6 +561,8 @@ internal fun LogScreen(
                                     darkTheme = darkTheme,
                                     metaColor = metaColor,
                                     voiceColor = voiceColor,
+                                    roleChipColor = roleChipColor,
+                                    pluginChipColor = pluginChipColor,
                                     // 排版实验 1008（A 二轮，用户 10-08 午后令）：主行 16→14sp
                                     fontSize = 14.sp,
                                     // 行距定版：统一字号×1.3 节奏（37731502442 修 CI 红：
@@ -571,44 +576,46 @@ internal fun LogScreen(
                             }
                         }
 
-                        is LogGroups.Item.Card -> {
+                        is LogGroups.Item.Group -> {
                             val head = list[item.head]
+                            val memberEntries = item.members.map { list[it] }
                             val groupLogs = (listOf(item.head) + item.members).map { list[it] }
                             val groupChecked = groupLogs.all { it in checkedEntries }
-                            // 报错三件套①：底色三档（灰/淡琥珀/红粉）
-                            val cardBg = when (item.errorLevel) {
-                                2 -> cardBgErr
-                                1 -> cardBgWarn
-                                else -> cardBgOk
+                            // 药丸组（时序推导）与丸后灰字（末结果数字/原因）
+                            val pills = remember(item.head, item.members) {
+                                derivePills(head, memberEntries)
                             }
+                            val tailText = remember(item.head, item.members) {
+                                tailTextOf(head, memberEntries)
+                            }
+                            // 行流定稿（10-10 用户令）：成功=行头绿丸+灰数字，成员区整撤
+                            // （结果信息已上头）；失败/重试/切备用的过程行仍要露出——
+                            // 有非成功成员行时显示成员区（成功行本身不上，数字已在丸后）
+                            val showMembers = memberEntries.any { it.level != LogLevel.SUCCESS }
                             Column(
                                 modifier = Modifier
-                                    // 卡片形态（10-10 用户拍板 B 案：缩进 8 + 圆角 8）：
-                                    // 由「底色贴边」回到带缩进的圆角卡。圆角必须配缩进——铺满整屏时
-                                    // 圆角会落在屏幕边缘被切掉，看着像缺角（两者不能并存）。
-                                    // 全站规则「容器 + 行内 = 16」：卡缘 8 + 卡内衬 8 = 文字落 16dp，
-                                    // 与裸行/日期签文字同一条 ListGutter 线（不破 10-10 刚统一的左线）。
+                                    // 行流：容器全撤，左缘直接落全站 16dp ListGutter 线；
+                                    // 行间用纵向间距分隔（首行顶 6dp，行与行 8dp 由外层间隔表达——
+                                    // 这里用统一 vertical 6dp，视觉等同旧行距但无线）
                                     .fillMaxWidth()
-                                    .padding(horizontal = 8.dp, vertical = 3.dp)
-                                    .clip(RoundedCornerShape(8.dp))
-                                    .background(cardBg)
+                                    .padding(horizontal = 16.dp, vertical = 6.dp)
                                     .then(
                                         if (selectionMode) Modifier.clickable {
-                                            // 卡=多选粒度：整组勾/整组取消
+                                            // 组=多选粒度：整组勾/整组取消
                                             if (groupChecked)
                                                 onCheckedChange(checkedEntries - groupLogs.toSet())
                                             else
                                                 onCheckedChange(checkedEntries + groupLogs.toSet())
                                         }
-                                        // 非多选：点卡弹快捷面板（换发音人），锚定请求主行
+                                        // 非多选：点行弹快捷面板（换发音人），锚定请求主行
                                         else Modifier.clickable { quickPanelEntry = head }
                                     )
-                                    // 卡内水平衬 8dp（卡缘 8 + 此值 = 文字 16dp 全站 ListGutter 线；
-                                    // 原贴边形态下这里曾直接扛 16 承担全部文字边距）
-                                    .padding(start = 8.dp, end = 8.dp, top = 8.dp, bottom = 8.dp)
                             ) {
-                                // 请求主行（结构=时间行+正文）
-                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                // 头部行：时间（时分秒）+ 丸组靠右 + 丸后灰字
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    modifier = Modifier.fillMaxWidth()
+                                ) {
                                     if (selectionMode) {
                                         Icon(
                                             imageVector = if (groupChecked) Icons.Default.CheckBox
@@ -619,38 +626,34 @@ internal fun LogScreen(
                                             else MaterialTheme.colorScheme.onSurfaceVariant
                                         )
                                     }
-                                    Text(text = head.time, style = MaterialTheme.typography.bodySmall)
                                     Text(
-                                        text = "\t${head.level.toLogLevelChar()}",
-                                        style = MaterialTheme.typography.bodySmall
+                                        // 时间去日期去毫秒（10-10 用户令）：日期签在列顶、毫秒无人看
+                                        text = head.time.drop(11).dropLast(4),
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
                                     )
-                                    // 「原文」定位键（用户 10-08 甲方案）：筛选/搜索态显示，
-                                    // 占行尾剩余空间靠右；点卡片主体仍是快捷面板，互不抢
+                                    Spacer(Modifier.weight(1f))
+                                    pills.forEach { pill ->
+                                        Box(Modifier.padding(start = 4.dp)) { StatusPill(pill) }
+                                    }
+                                    if (tailText != null) {
+                                        Text(
+                                            text = tailText,
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = if (pills.lastOrNull()?.kind == LogPillKind.FAIL)
+                                                MaterialTheme.colorScheme.error
+                                            else MaterialTheme.colorScheme.onSurfaceVariant,
+                                            modifier = Modifier.padding(start = 8.dp)
+                                        )
+                                    }
+                                    // 「原文」定位键（筛选/搜索态）：占最右， pill 后
                                     if (showLocateKey) {
-                                        // 报错三件套③：粉卡在定位键前挂级别角标——不用展开
-                                        // 就知道卡里是 E 还是 W（P2 收紧后分析行常落卡外，
-                                        // 这是找报错卡最快的锚点）
-                                        if (item.errorLevel > 0) {
-                                            Text(
-                                                text = if (item.errorLevel == 2) "E" else "W",
-                                                style = MaterialTheme.typography.labelSmall,
-                                                color = MaterialTheme.colorScheme.onPrimaryContainer,
-                                                modifier = Modifier
-                                                    .padding(start = 6.dp)
-                                                    .background(
-                                                        if (item.errorLevel == 2) MaterialTheme.colorScheme.error
-                                                        else Color(0xFFFFC107),
-                                                        RoundedCornerShape(6.dp)
-                                                    )
-                                                    .padding(horizontal = 5.dp, vertical = 1.dp)
-                                            )
-                                        }
-                                        Spacer(Modifier.weight(1f))
                                         Text(
                                             text = "⟲ 原文",
                                             style = MaterialTheme.typography.labelMedium,
                                             color = MaterialTheme.colorScheme.primary,
                                             modifier = Modifier
+                                                .padding(start = 8.dp)
                                                 .clip(RoundedCornerShape(9.dp))
                                                 .clickable { onLocateOriginal(head) }
                                                 .padding(horizontal = 8.dp, vertical = 2.dp)
@@ -662,62 +665,35 @@ internal fun LogScreen(
                                     darkTheme = darkTheme,
                                     metaColor = metaColor,
                                     voiceColor = voiceColor,
-                                    // 排版实验 1008（A 二轮，用户 10-08 午后令）：主行 16→14sp，
-                                    // 半粗保留；与成员行 13sp/前置行 12sp 每档差 1sp 层层递减
+                                    roleChipColor = roleChipColor,
+                                    pluginChipColor = pluginChipColor,
                                     fontSize = 14.sp,
-                                    // 行距定版：统一字号×1.3 节奏（37731502442 修 CI 红，同 587 行）
                                     lineHeight = 18.2.sp, // 14×1.3
                                     isMatch = isMatchEntry(head, searchQuery),
                                     // 排版实验 1008（C）：只染"请求音频："前缀，正文回默认色
                                     isRequestHead = true,
                                     highlight = head == locateHighlight,
                                 )
-                                // 主行与成员区分隔线（用户 10-08 午后追问补）：请求正文与
-                                // 获取成功/插件过程行之间此前只有缩进，加一条 10% 透明度
-                                // 细线标出"请求→结果"的内容分界
-                                // 10-10 用户令：线与正文间距 6+6 太空（总隙 ≈19dp），收到 2+0
-                                if (item.members.isNotEmpty()) {
-                                    HorizontalDivider(
-                                        modifier = Modifier.padding(vertical = 2.dp),
-                                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.10f)
-                                    )
-                                }
-                                // 成员行：结果子行/插件过程行。排版实验 1008（拍板④，用户
-                                // 10-08）：撤 10dp 缩进与主行平齐——归属已由卡+分隔线+字号
-                                // 表达，缩进是第四重冗余，还压窄插件长句的可读宽度
-                                item.members.forEach { mIdx ->
-                                    val m = list[mIdx]
-                                    Column(Modifier.padding(top = 2.dp)) {
-                                        Row {
-                                            Text(
-                                                // 排版实验 1008（P3，用户 10-08 午后令）：成员行
-                                                // 时间去日期——日期与卡顶日期签重复，只留时分秒毫秒
-                                                text = m.time.substring(11),
-                                                style = MaterialTheme.typography.bodySmall,
-                                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                                            )
-                                            Text(
-                                                text = "\t${m.level.toLogLevelChar()}",
-                                                style = MaterialTheme.typography.bodySmall,
-                                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                                // 过程成员行：失败/重试时露出（成功行不上，其数字已进丸后）
+                                if (showMembers) {
+                                    item.members.forEach { mIdx ->
+                                        val m = list[mIdx]
+                                        if (m.level == LogLevel.SUCCESS) return@forEach
+                                        Column(Modifier.padding(top = 2.dp)) {
+                                            LogEntryBody(
+                                                entry = m,
+                                                darkTheme = darkTheme,
+                                                metaColor = metaColor,
+                                                voiceColor = voiceColor,
+                                                roleChipColor = roleChipColor,
+                                                pluginChipColor = pluginChipColor,
+                                                fontSize = 13.sp,
+                                                lineHeight = 17.sp, // 13×1.3≈16.9
+                                                isMatch = isMatchEntry(m, searchQuery),
+                                                emphasizeError = true,
+                                                highlight = m == locateHighlight,
                                             )
                                         }
-                                        LogEntryBody(
-                                            entry = m,
-                                            darkTheme = darkTheme,
-                                            metaColor = metaColor,
-                                            voiceColor = voiceColor,
-                                            // 排版实验 1008（A）：成员行 14→13sp，与主行 16sp 拉开
-                                            fontSize = 13.sp,
-                                            lineHeight = 17.sp, // 13×1.3≈16.9
-                                            isMatch = isMatchEntry(m, searchQuery),
-                                            // 排版实验 1008（用户 10-08 拍板①）：撤 forceColor
-                                            // 统一压制——卡内恢复各自行本来的级别色/来源色
-                                            // （获取成功本就是石板灰；插件回灰青；规则回灰紫），
-                                            // 层次交给字号 14/13 与分隔线；E 的错误加粗保留
-                                            emphasizeError = true,
-                                            highlight = m == locateHighlight,
-                                        )
                                     }
                                 }
                             }
@@ -765,6 +741,72 @@ internal fun LogScreen(
 private fun isMatchEntry(e: LogEntry, q: String): Boolean =
     q.isNotEmpty() && (e.message.contains(q, ignoreCase = true) || e.time.contains(q, ignoreCase = true))
 
+// 药丸状态推导（10-10 行流改版）：从归组的成员行里还原这次请求走过的路。
+// 顺序按日志时序：重试N/切备用(过程)→最终结果(成功/失败)。成功无结果行(头部被
+// 筛掉/还没来)时只显示过程丸。
+private fun derivePills(head: LogEntry, members: List<LogEntry>): List<LogPill> {
+    val pills = ArrayList<LogPill>()
+    var retryNo = 0
+    val plain = { s: String -> s.replace(Regex("<[^>]*>"), "") }
+    for (m in members) {
+        val msg = plain(m.message)
+        when {
+            // WARN 主行「开始第 N 次重试」：每次出现递增编号
+            msg.contains("次重试") || msg.contains(" retry", true) -> {
+                retryNo++
+                pills.add(LogPill(LogPillKind.RETRY, "重试$retryNo"))
+            }
+            // WARN 主行「使用备用TTS：x」/「使用备用发音人：a → b」
+            msg.startsWith("使用备用") -> pills.add(LogPill(LogPillKind.STANDBY, "切备用"))
+            m.level == LogLevel.SUCCESS -> pills.add(LogPill(LogPillKind.OK, "成功"))
+            m.level == LogLevel.ERROR -> pills.add(LogPill(LogPillKind.FAIL, "失败"))
+        }
+    }
+    return pills
+}
+
+// 丸后灰字：成功=「耗时·大小」；失败=原因。取最后一次出现的（与末丸对应）
+private fun tailTextOf(head: LogEntry, members: List<LogEntry>): String? {
+    val plain = { s: String -> s.replace(Regex("<[^>]*>"), "") }
+    var tail: String? = null
+    for (m in members) {
+        val msg = plain(m.message)
+        when {
+            m.level == LogLevel.SUCCESS ->
+                tail = msg.substringAfter("获取成功：", "").trim().ifEmpty { null }
+            m.level == LogLevel.ERROR ->
+                tail = msg.substringAfter("获取失败：", msg).trim().ifEmpty { null }
+        }
+    }
+    return tail
+}
+
+internal enum class LogPillKind { OK, FAIL, RETRY, STANDBY }
+internal data class LogPill(val kind: LogPillKind, val text: String)
+
+// 状态药丸（10-10 行流定稿）：丸只装状态字，成功绿/失败红/重试灰/切备用黄；
+// 丸后灰字（耗时·大小/失败原因）由调用方另排
+@Composable
+private fun StatusPill(pill: LogPill) {
+    val (bg, fg) = when (pill.kind) {
+        LogPillKind.OK -> Color(0xFFE7F0E9) to Color(0xFF2E6B46)
+        LogPillKind.FAIL -> Color(0xFFF9E5E4) to Color(0xFFB3261E)
+        LogPillKind.RETRY -> if (isSystemInDarkTheme()) Color(0xFF2A2D33) else Color(0xFFEEF0F6) to
+                if (isSystemInDarkTheme()) Color(0xFF9AA0A8) else Color(0xFF5B6472)
+        LogPillKind.STANDBY -> if (isSystemInDarkTheme()) Color(0xFF3A3226) else Color(0xFFFBF1DC) to
+                if (isSystemInDarkTheme()) Color(0xFFC9A94E) else Color(0xFF8A6D1A)
+    }
+    Text(
+        text = pill.text,
+        style = MaterialTheme.typography.labelSmall,
+        color = fg,
+        modifier = Modifier
+            .clip(RoundedCornerShape(50))
+            .background(bg)
+            .padding(horizontal = 9.dp, vertical = 2.dp)
+    )
+}
+
 // 单条日志正文渲染：HTML → AnnotatedString + 哨兵色重映射，级别色或指定色
 @Composable
 private fun LogEntryBody(
@@ -772,24 +814,28 @@ private fun LogEntryBody(
     darkTheme: Boolean,
     metaColor: Color,
     voiceColor: Color,
+    // 角色名/插件名小牌字色（10-10 行流定稿；背景色 span 由 HTML font 标签来不了，
+    // 牌感靠字色+前后空隙表达，字号 12sp 由声音信息段统一压）
+    roleChipColor: Color,
+    pluginChipColor: Color,
     fontSize: TextUnit,
     lineHeight: TextUnit,
     isMatch: Boolean,
-    // 非空=成员行统一用卡内次级色（石板灰/粉卡暗红），级别色让位
+    // 非空=成员行统一用次级色（石板灰/暗红），级别色让位
     forceColor: Color? = null,
     // 排版实验 1008（C）：请求主行——"请求音频："前缀染深绿、其余回默认色。
     // 请求行 HTML 结构固定：`请求音频：` + <b>正文</b>（+ 哨兵色次级段），
     // 据此把首段（正文之前的裸文本）与前缀分开着色
     isRequestHead: Boolean = false,
-    // 排版实验 1008（E）：卡内错误行加粗 + ⚠ 行首标，让错误在粉卡里突出于成功行
+    // 排版实验 1008（E）：错误行加粗 + ⚠ 行首标，让错误在行流里突出于成功行
     emphasizeError: Boolean = false,
     // 「原文」定位命中（用户 10-08 甲方案）：黄底高亮闪现，由上层定时清除
     highlight: Boolean = false,
 ) {
-    val spanned = remember(entry.message, darkTheme, metaColor, voiceColor, isRequestHead, emphasizeError) {
+    val spanned = remember(entry.message, darkTheme, metaColor, voiceColor, roleChipColor, pluginChipColor, isRequestHead, emphasizeError) {
         val base = HtmlCompat.fromHtml(entry.message, HtmlCompat.FROM_HTML_MODE_COMPACT)
             .toAnnotatedString()
-            .remapMetaColor(metaColor, voiceColor)
+            .remapMetaColor(metaColor, voiceColor, roleChipColor, pluginChipColor)
         var s = base
         if (isRequestHead) {
             // 排版实验 1008（字号真分层，用户 10-08 拍板）：主行内三段三个字号——

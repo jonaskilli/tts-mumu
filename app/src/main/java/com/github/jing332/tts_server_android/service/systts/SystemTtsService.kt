@@ -45,6 +45,7 @@ import com.github.jing332.database.dbm
 import com.github.jing332.database.entities.systts.AudioParams
 import com.github.jing332.database.entities.systts.SystemTtsV2
 import com.github.jing332.database.entities.systts.TtsConfigurationDTO
+import com.github.jing332.database.entities.systts.source.PluginTtsSource
 import com.github.jing332.tts.ConfigType
 import com.github.jing332.tts.MixSynthesizer
 import com.github.jing332.tts.SynthesizerConfig
@@ -109,6 +110,12 @@ class SystemTtsService : TextToSpeechService(), IEventDispatcher {
         private const val META_INFO_COLOR = "#FF00FF"
         // 发音人信息专用哨兵色；渲染时在 LogScreen 按主题重映射为雾紫
         private const val VOICE_META_COLOR = "#00FFFF"
+        // 角色名小牌哨兵色（10-10 行流定稿）；LogScreen 按主题重映射为灰绿牌色
+        private const val ROLE_CHIP_COLOR = "#0F0F0F"
+        // 插件名小牌哨兵色；LogScreen 按主题重映射为灰青牌色
+        private const val PLUGIN_CHIP_COLOR = "#0E0E0E"
+        // pluginId→插件名缓存（声音行尾牌用）：运行期不变，负结果也缓存（空串）
+        private val pluginNameCache = java.util.concurrent.ConcurrentHashMap<String, String>()
         private val logger = KotlinLogging.logger(TAG)
         private val logFileLock = Any()
 
@@ -788,15 +795,36 @@ class SystemTtsService : TextToSpeechService(), IEventDispatcher {
                     dispFull.startsWith(tagName) -> disp
                     else -> "$tagName，$disp"
                 }
-                // 角色名只认朗读规则实时分析出的角色名（handleText 透传），旁白等无角色名不显【】段；
-                // 09-13 角色名不突出 → <b> 加粗（与“请求音频”正文同风格）；
-                // 后接逗号与其余字段同制（声音部分为空时不补悬挂逗号）
+                // 角色名只认朗读规则实时分析出的角色名（handleText 透传），旁白等无角色名不显牌；
+                // 10-10 用户令：【】加粗改灰绿小牌（行流定稿，与插件名牌同语汇）；
+                // 小牌用背景色 span（LogScreen 侧不重映射此色，见哨兵色表）
                 if (roleName.isNotBlank()) {
-                    append("<b>【").append(roleName).append("】</b>")
+                    append("<font color=\"" + ROLE_CHIP_COLOR + "\"><b>")
+                    append(roleName)
+                    append("</b></font>")
                     if (voiceText.isNotEmpty()) append("，")
                 }
                 append(voiceText)
                 if (paramsInfo.isNotEmpty()) append("，").append(paramsInfo)
+                // 插件名小牌缀行尾（10-10 用户令）：插件驱动的配置才显示；本地音效无插件名不加。
+                // 限字数复用「限制显示名称长度」滑杆（与显示名同一上限），超出「…」。
+                // pluginId→插件名缓存：configInfo 每请求拼装一次，查库不能逐请求走；
+                // 插件名运行期不变，ConcurrentHashMap 常驻即可（插件总量两位数，无泄漏之忧）；
+                // 查不到(含已删插件)也缓存空串，防止每请求重复打库
+                (config.source as? PluginTtsSource)?.let { src ->
+                    val pname = pluginNameCache.computeIfAbsent(src.pluginId) { pid ->
+                        runCatching { dbm.pluginDao.getByPluginId(pid)?.name ?: "" }
+                            .getOrDefault("")
+                    }
+                    if (pname.isNotBlank()) {
+                        val pnameFull = pname.replace('|', '｜')
+                        val pnameLimited =
+                            if (maxChars > 0) pnameFull.limitDisplayLength(maxChars) else pnameFull
+                        append("　<font color=\"" + PLUGIN_CHIP_COLOR + "\">")
+                        append(pnameLimited)
+                        append("</font>")
+                    }
+                }
             }
             "<font color=\"" + VOICE_META_COLOR + "\">" + meta + "</font>"
         } else ""
