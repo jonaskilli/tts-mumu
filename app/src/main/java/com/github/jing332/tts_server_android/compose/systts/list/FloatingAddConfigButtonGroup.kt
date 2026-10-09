@@ -1,12 +1,8 @@
 package com.github.jing332.tts_server_android.compose.systts.list
 
 import androidx.activity.compose.BackHandler
-import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.AddCard
@@ -18,7 +14,6 @@ import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.FloatingActionButtonMenu
 import androidx.compose.material3.FloatingActionButtonMenuItem
 import androidx.compose.material3.Icon
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.ToggleFloatingActionButton
 import androidx.compose.material3.ToggleFloatingActionButtonDefaults.animateIcon
@@ -32,7 +27,6 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.vector.rememberVectorPainter
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
@@ -89,24 +83,16 @@ fun FloatingAddConfigButtonGroup(
                         if (checkedProgress > 0.5f) Icons.Filled.Close else Icons.Filled.Add
                     }
                 }
-                // 10-10 DSH 式配色：FAB=实心主题绿圆钮+白＋（对应 DSH 的蓝色发送键）——
-                // 页面转纯白底后，绿色收拢到少数动作点并给足饱和度。
-                // 不走 containerColor 参数：Expressive 版 ToggleFloatingActionButton 的带色重载是
-                // private（CI 1eec315 批实锤），改在 content lambda 内画 primary 圆底、图标手动染白
-                Box(
-                    modifier = Modifier
-                        .size(56.dp)
-                        .clip(CircleShape)
-                        .background(MaterialTheme.colorScheme.primary),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(
-                        painter = rememberVectorPainter(imageVector),
-                        contentDescription = stringResource(R.string.desc_fab_add_config),
-                        tint = MaterialTheme.colorScheme.onPrimary,
-                        modifier = Modifier.animateIcon({ checkedProgress })
-                    )
-                }
+                // 10-10 二轮修「两个圈」：官方 ToggleFloatingActionButton 默认容器就有色
+                // （primaryContainer→primary 动画，实锤自 material3 1.4.0-alpha09 字节码：
+                // ToggleFloatingActionButtonDefaults.containerColor = lerp(primaryContainer, primary)），
+                // 此前在官方浅绿圆底上又手画 56dp primary 圆 = 外浅内深两个圈（用户实机截图指出）。
+                // 删手画圆底与手动染白，图标用官方默认染色（iconColor=onPrimaryContainer→onPrimary）
+                Icon(
+                    painter = rememberVectorPainter(imageVector),
+                    contentDescription = stringResource(R.string.desc_fab_add_config),
+                    modifier = Modifier.animateIcon({ checkedProgress })
+                )
             }
         }
     ) {
