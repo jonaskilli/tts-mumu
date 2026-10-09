@@ -96,9 +96,11 @@ fun SubGroupHeader(
             .background(
                 when (level) {
                     // 背景随层级递减，配合箭头/字号体现多级子分组的从属关系（缩进已取消）
-                    0 -> MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
-                    1 -> MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.25f)
-                    else -> MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.12f)
+                    // 10-10 全站色阶统一：三档改官方 tone 表 L3→L2→L1（surfaceContainerHigh/Container/Low），
+                    // 递减关系不变、档差比旧透明度配方更可辨
+                    0 -> MaterialTheme.colorScheme.surfaceContainerHigh
+                    1 -> MaterialTheme.colorScheme.surfaceContainer
+                    else -> MaterialTheme.colorScheme.surfaceContainerLow
                 }
             )
             .clickable { if (!showOptions && !showExtraOptions) onClick() }

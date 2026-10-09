@@ -13,6 +13,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
+import kotlin.math.cbrt
+import kotlin.math.pow
 import com.github.jing332.tts_server_android.conf.AppConfig
 
 /**
@@ -38,53 +40,96 @@ fun appTheme(
         AppTheme.GRAY -> grayTheme(darkTheme)
     }
     // 动态取色（Android 12+ 壁纸派生）：中性色本就与彩色同种子派生、整族和谐，不覆写
-    return if (themeType == AppTheme.DYNAMIC_COLOR) base else themedNeutral(base, darkTheme)
+    return if (themeType == AppTheme.DYNAMIC_COLOR) dynamicNeutral(base, darkTheme) else themedNeutral(base, themeType, darkTheme)
 }
 
 /**
- * 补齐 M3 1.2 新增、而 Color2.kt 没生成的中性容器槽（surfaceContainer 系 + surfaceDim/Bright）。
+ * surfaceContainer 七槽——M3 官方 baseline tone 阶梯（2026-10-10 起 replacing 自创偏移表）。
  *
- * 为什么必须补：这 7 个槽缺失会回落库默认的淡紫白，跟各主题自己的暖底同屏两种色相。
- * 取各主题的 surface 当底、再掺一点该主题 primary ⇒ 每个主题一套自己的底色。
- * （此前是 10 个主题统一米豆绿，被推翻：各主题底色本就不同，不许强改成默认底色。）
- *
- * ⚠️ 只补这 7 个槽，background/surface/outline/inverse* 一律透传各主题原值——
- * 顺手覆写会把各主题自己的色相抹平，那正是要避免的。
+ * 旧法：surface 各通道 ±固定值再掺 4% primary——相邻槽只差 2~4 个 RGB 灰阶，
+ * 与页底/列表卡/设置卡/底栏全挤在 3% 亮度带里，层级肉眼读不出（用户实测「层级关系一般」）。
+ * 新法：tone 抄官方表（浅 100/96/94/92/90/87/98、深 4/10/12/17/22/6/24，Material Theme Builder 同款），
+ * 层级差来自官方表本身（相邻槽 2~5 个 L* 步长）；静态主题查 SurfaceTones.kt 预生成表，
+ * 深色锚到各主题 background（官方锚 surface=tone6，本 app 页底=background），其余原样。
  */
-private fun themedNeutral(scheme: ColorScheme, darkTheme: Boolean): ColorScheme {
-    // 相对 surface 的通道偏移：Low / Container / High / Highest / Dim / Bright / Lowest
-    val d = if (!darkTheme) intArrayOf(-4, -8, -14, -20, -28, -2, 5)
-    else intArrayOf(8, 12, 23, 34, 0, 38, -5)
-    fun slot(i: Int) = tinted(scheme.surface, scheme.primary, d[i].toFloat())
+private fun themedNeutral(
+    scheme: ColorScheme,
+    themeType: AppTheme,
+    darkTheme: Boolean,
+): ColorScheme {
+    val tones = (if (darkTheme) darkSurfaceTones else lightSurfaceTones)[themeType]
+        ?: return scheme
     return scheme.copy(
-        surfaceContainerLow = slot(0),
-        surfaceContainer = slot(1),
-        surfaceContainerHigh = slot(2),
-        surfaceContainerHighest = slot(3),
-        surfaceDim = slot(4),
-        surfaceBright = slot(5),
-        surfaceContainerLowest = slot(6),
+        surfaceContainerLowest = tones[0],
+        surfaceContainerLow = tones[1],
+        surfaceContainer = tones[2],
+        surfaceContainerHigh = tones[3],
+        surfaceContainerHighest = tones[4],
+        surfaceDim = tones[5],
+        surfaceBright = tones[6],
     )
 }
 
-/** 主色掺入比例：够各主题区分色相，又不至于把中性底染成彩块 */
-private const val NEUTRAL_TINT = 0.04f
-
 /**
- * 以 surface 为底，各通道平移 [delta] 定明度阶梯，再掺 [NEUTRAL_TINT] 比例的 primary 带上主题色相；
- * 掺色会压暗，最后把整体亮度拉回平移后的基准，否则各槽之间的明度关系就乱了。
+ * 动态取色（壁纸派生）没有静态表可查：按同一官方 tone 结构现算，
+ * 色相/彩度取壁纸派生的 primary（彩度截到 3，与静态主题同中性度），锚到派生 background。
  */
-private fun tinted(surface: Color, primary: Color, delta: Float): Color {
-    val s = floatArrayOf(surface.red, surface.green, surface.blue)
-    val p = floatArrayOf(primary.red, primary.green, primary.blue)
-    val base = FloatArray(3) { (s[it] * 255f + delta).coerceIn(0f, 255f) }
-    val mixed = FloatArray(3) { base[it] + (p[it] * 255f - base[it]) * NEUTRAL_TINT }
-    val back = (base.sum() - mixed.sum()) / 3f
-    return Color(
-        ((mixed[0] + back) / 255f).coerceIn(0f, 1f),
-        ((mixed[1] + back) / 255f).coerceIn(0f, 1f),
-        ((mixed[2] + back) / 255f).coerceIn(0f, 1f),
+private fun dynamicNeutral(scheme: ColorScheme, darkTheme: Boolean): ColorScheme {
+    val steps = if (darkTheme)
+        floatArrayOf(4f, 10f, 12f, 17f, 22f, 6f, 24f)
+    else
+        floatArrayOf(100f, 96f, 94f, 92f, 90f, 87f, 98f)
+    val bg = labL(scheme.background)
+    val shift = bg - (if (darkTheme) 6f else 98f)   // 官方锚：surface 深色 tone6 / 浅色 98
+    val p = scheme.primary
+    val (_, pa, pb) = labOf(p.red, p.green, p.blue)
+    val chroma = minOf(Math.hypot(pa.toDouble(), pb.toDouble()).toFloat(), 3f)
+    val hue = Math.atan2(pb.toDouble(), pa.toDouble())
+    fun tone(t: Float) = labColor((t + shift).coerceIn(0f, 100f), (chroma * Math.cos(hue)).toFloat(), (chroma * Math.sin(hue)).toFloat())
+    return scheme.copy(
+        surfaceContainerLowest = tone(steps[0]),
+        surfaceContainerLow = tone(steps[1]),
+        surfaceContainer = tone(steps[2]),
+        surfaceContainerHigh = tone(steps[3]),
+        surfaceContainerHighest = tone(steps[4]),
+        surfaceDim = tone(steps[5]),
+        surfaceBright = tone(steps[6]),
     )
+}
+
+// ---- CIELAB（D65）最小实现：tone 即 L*，供动态取色现算 ----
+private fun labL(color: Color): Float = labOf(color.red, color.green, color.blue)[0]
+
+private fun labOf(r: Float, g: Float, b: Float): FloatArray {
+    fun lin(c: Float) = if (c <= 0.04045f) c / 12.92f else ((c + 0.055f) / 1.055f).pow(2.4f)
+    fun f(t: Float) = if (t > 216f / 24389f) cbrt(t) else (24389f / 27f * t + 16f) / 116f
+    val rl = lin(r); val gl = lin(g); val bl = lin(b)
+    val x = (0.4124564f * rl + 0.3575761f * gl + 0.1804375f * bl) / 0.95047f
+    val y = 0.2126729f * rl + 0.7151522f * gl + 0.0721750f * bl
+    val z = (0.0193339f * rl + 0.1191920f * gl + 0.9503041f * bl) / 1.08883f
+    val fx = f(x); val fy = f(y); val fz = f(z)
+    return floatArrayOf(116f * fy - 16f, 500f * (fx - fy), 200f * (fy - fz))
+}
+
+private fun labColor(L: Float, a: Float, b: Float): Color {
+    val fy = (L + 16f) / 116f
+    val fx = fy + a / 500f
+    val fz = fy - b / 200f
+    fun finv(t: Float): Float {
+        val t3 = t * t * t
+        return if (t3 > 216f / 24389f) t3 else (116f * t - 16f) / (24389f / 27f)
+    }
+    val x = finv(fx) * 0.95047f
+    val y = finv(fy)
+    val z = finv(fz) * 1.08883f
+    var rl = 3.2404542f * x - 1.5371385f * y - 0.4985314f * z
+    var gl = -0.9692660f * x + 1.8760108f * y + 0.0415560f * z
+    var bl = 0.0556434f * x - 0.2040259f * y + 1.0572252f * z
+    fun gam(c: Float): Float {
+        val v = c.coerceIn(0f, 1f)
+        return if (v <= 0.0031308f) 12.92f * v else 1.055f * v.pow(1f / 2.4f) - 0.055f
+    }
+    return Color(gam(rl), gam(gl), gam(bl))
 }
 
 //全局主题状态

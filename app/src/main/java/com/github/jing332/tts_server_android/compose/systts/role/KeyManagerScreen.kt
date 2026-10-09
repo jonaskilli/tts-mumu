@@ -289,8 +289,8 @@ private fun KeyEntryRow(
     // 启用态不再染底/描边（10-03 对勾方案：启用视觉全归行首对勾，0920 描边口径一并退役）
     // compositeOver：近似半透明色叠在卡面上，避免半透明直接给 ElevatedCard 透出页面底色
     // 10-08 五令（装机反馈：组卡/模型区分不开）：surfaceContainerLow → surface——
-    // 豆绿主题的中性槽由 themedNeutral 掺 4% 主色派生（Theme.kt NEUTRAL_TINT），本就带绿，
-    // 与组头 primary 8% 绿带色相撞、明度只差 2~3 灰阶（截图实测 #E6F1E9 vs #E9F0E9）；
+    // 豆绿主题的中性槽由 Theme.kt 派生（10-10 起按官方 tone 表，槽间已拉开 2~5 个 L*），
+    // 仍带主题色相，与组头 primary 8% 绿带色相相近；
     // 回 surface（纯卡面白 #FAFAF3）后绿带↔模型区是色相差，恒定成立
     val cardColor = when {
         selectionMode && checked ->

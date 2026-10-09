@@ -215,9 +215,9 @@ internal fun SettingsGroup(
                         .fillMaxWidth()
                         .padding(horizontal = sectionCardMargin),
                     colors = CardDefaults.cardColors(
-                        // 与配置项编辑页 SectionCard 同款底色（surfaceVariant@20%）：
-                        // 与编辑页视觉统一，且比页面底略深一眼认出分区、不抢内容
-                        containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.20f),
+                        // 10-10 全站色阶统一：分区卡=官方 tone 表 surfaceContainerLow（L1 档），
+                        // 与列表页 ElevatedCard 同层；不再 surfaceVariant 手调透明度
+                        containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
                     ),
                 ) {
                     CompositionLocalProvider(

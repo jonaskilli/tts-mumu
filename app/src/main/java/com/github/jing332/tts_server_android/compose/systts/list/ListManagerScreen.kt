@@ -2817,7 +2817,9 @@ internal fun ListManagerScreen(
                             if (expanded) {
                                 Spacer(modifier = Modifier.height(8.dp))
                                 Surface(
-                                    color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+                                    // 10-10 全站色阶统一：卡内展开块落 L2（surfaceContainer），
+                                    // 嵌套层级比卡面（L1）深一档可辨；不再 surfaceVariant 手调透明度
+                                    color = MaterialTheme.colorScheme.surfaceContainer,
                                     shape = MaterialTheme.shapes.small,
                                     modifier = Modifier
                                         .fillMaxWidth()
