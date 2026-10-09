@@ -641,58 +641,16 @@ internal fun LogScreen(
                                 )
                             }
                             }
-                            // 左滑删除（10-10 M3 改造）：裸行是「与请求挨不上的条目」，
-                            // 整条独立、删了不影响别的行；Group 卡一次请求管线多行纠缠
-                            //（成员行还承担时序推导），不做滑删。方向只开 EndToStart（向左），
-                            // StartToEnd 保持不动——本页长按拖选/换栏 pager 都在横轴上，让开。
-                            // 筛选/搜索收窄视图里同样生效：删的是 LogEntry 对象本身，
-                            // 位置收缩后其余命中项自然上移。转发器日志页不传回调=不启用。
-                            if (onRemoveEntry != null) {
-                                // 滑动状态以条目对象为键（key(log)）：列表删一条后其余条目
-                                // 前移、列表项 key（位置号）被后面的条目继承——若不按身份
-                                // 重置，前一行删完，继位的行会带着「已滑出」状态闪没。
-                                // confirmValueChange 删除成功后调用方列表立刻少一条，
-                                // 本列表项随后整体出组，state 不需要手动回弹。
-                                key(log) {
-                                val dismissState = rememberSwipeToDismissBoxState(
-                                    confirmValueChange = { value ->
-                                        if (value == SwipeToDismissBoxValue.EndToStart) {
-                                            currentOnRemoveEntry?.invoke(log)
-                                            true
-                                        } else false
-                                    }
-                                )
-                                SwipeToDismissBox(
-                                    state = dismissState,
-                                    enableDismissFromStartToEnd = false,
-                                    enableDismissFromEndToStart = true,
-                                    backgroundContent = {
-                                        Box(
-                                            Modifier
-                                                .fillMaxSize()
-                                                .background(
-                                                    MaterialTheme.colorScheme.errorContainer
-                                                ),
-                                            contentAlignment = Alignment.CenterEnd
-                                        ) {
-                                            Icon(
-                                                Icons.Default.Delete,
-                                                contentDescription = stringResource(R.string.delete),
-                                                tint = MaterialTheme.colorScheme.onErrorContainer,
-                                                modifier = Modifier.padding(end = 24.dp)
-                                            )
-                                        }
-                                    }
-                                ) {
-                                    bareContent()
-                                }
-                                }
-                            } else {
-                                bareContent()
-                            }
+                            // 左滑删除整撤（10-10 装机用户令「只是看日志而已，为啥要有删除」
+                            // +「上次都让你改结果还是这样」——10-10 白天 M3 三件套批加的该功能
+                            // 本身不该存在：日志是只读流，删除走顶栏垃圾桶清空+多选勾删两通道）。
+                            // SwipeToDismissBox 包装层与透底修复（前景补 background）随之退役；
+                            // onRemoveEntry 参数保留（默认 null，转发器页历来不传），调用方
+                            // TtsLogScreen 已不再传=全站关闭。下批把参数与 VM removeEntry 一并清。
+                            bareContent()
                             // 条目间分隔线（10-10 用户令「分隔线需要加」）：行流撤卡后行间只剩
                             // 空白，加发丝线恢复条目边界；日期签前不画（签自带灰底已是边界）。
-                            // 放滑删盒外=线不跟着滑走。口径沿用顶栏分隔线 outlineVariant@50%
+                            // 口径沿用顶栏分隔线 outlineVariant@50%
                             HorizontalDivider(
                                 color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)
                             )
