@@ -760,14 +760,18 @@ internal fun LogScreen(
                             val absorbed = if (item.absorbError >= 0) list[item.absorbError] else null
                             // 行级丸：成功=「成功」（从组内 SUCCESS 成员推导——成功子行隐藏
                             // 信息上头行，主行是 INFO 推不出，aad9867 修）；失败=「源错误」
-                            //（有吸收条）/「失败」（其他死法：超时/获取失败等，文案跟错误类型走）
+                            //（有吸收条）/「失败」（其他死法：超时/获取失败等，文案跟错误类型走）。
+                            // ⚠️ 未决不兜底（10-11 用户实报「请求音频刚发出就标失败，成功后翻绿」）：
+                            // 请求行发出到结果子行到达有几秒空窗——组开着、SUCCESS 没到、
+                            // failedHeads 也没记，旧兜底 `?: LogPill(FAIL,"失败")` 把空窗误画成红丸。
+                            // 改为没有失败证据就不出丸（结果到了由 SUCCESS/failedHeads/源错误
+                            // 接管），等待期行头只有时间，与「过程未知」的语义一致
                             val successMember = memberEntries.firstOrNull { it.level == LogLevel.SUCCESS }
-                            val pill = remember(item.head, successMember, absorbed) {
+                            val pill = remember(item.head, successMember, absorbed, currentGroups) {
                                 when {
                                     successMember != null -> LogPill(LogPillKind.OK, "成功")
                                     absorbed != null -> LogPill(LogPillKind.FAIL, "源错误")
                                     else -> pillOf(head, item.head, currentGroups.failedHeads)
-                                        ?: LogPill(LogPillKind.FAIL, "失败")
                                 }
                             }
                             // 失败次数进丸（10-11 用户令「相同原因的失败视为相同，日志可以×2、×3」）：
@@ -775,8 +779,11 @@ internal fun LogScreen(
                             //（失败全文条，重试风暴都折在它身上），否则是组头请求行自己
                             //（应用层失败行也参与折叠，见 TtsLogViewModel.mergeInto 的主列表分支）
                             val failCount = (absorbed ?: head).repeatCount
-                            val pillShown = if (failCount > 1 && pill.kind != LogPillKind.OK)
-                                pill.copy(text = "${pill.text} ×$failCount") else pill
+                            // pill 可空（未决无丸，见上）：×N 后缀只在有丸时追加
+                            val pillShown = pill?.let {
+                                if (failCount > 1 && it.kind != LogPillKind.OK)
+                                    it.copy(text = "${it.text} ×$failCount") else it
+                            }
                             // 老版式失败条无丸后灰字（错误全文在正文区），成功尾段照旧
                             val tailText = remember(item.head, successMember, absorbed) {
                                 if (absorbed != null) null else tailTextOfRow(successMember ?: head)
