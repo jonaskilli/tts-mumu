@@ -762,6 +762,10 @@ private fun GroupHeaderBlock(
     onMenuDeleteMulti: () -> Unit,
     onMenuDismiss: () -> Unit,
     testingThisGroup: Boolean,
+    // 组内删除模式（10-11 用户令）：标题行右侧「全选」——
+    // 选中数/总数（判「已全选」走反选文案）与切换回调由调用处传（勾选态在调用处持有）
+    deleteCheckedCount: Int = 0,
+    onToggleDeleteAll: () -> Unit = {},
 ) {
     val context = LocalContext.current
     // 10-07 连体卡：组头并入组 ElevatedCard（不再裸排）——组=一张卡，折叠时只剩组头行。
@@ -777,13 +781,16 @@ private fun GroupHeaderBlock(
     ) {
         Column(Modifier.padding(vertical = 4.dp)) {
             if (deleteMode) {
-                // 组内删除模式标题行（10-05 改：全选挪到底部动作行与 取消/删除(N) 同排——
-                // 「选谁+执行」都在底部一排，视线不用上下跑；标题恢复 titleMedium SemiBold
-                // 与组名同档（原 bodyLarge Medium 太弱）。左右缩进对齐条目名文字列（28dp）；
-                // end=8（右线=卡右缘 8）
+                // 组内删除模式标题行（10-11 用户令改版）：
+                // ①标题**靠左贴卡缘**——原文案 start=28dp 对齐条目名文字列，读起来像
+                //   列表里的一项而不像标题；标题是块级元素，不该跟列表项文字对齐。
+                // ②「全选」从底部动作行**挪到标题行右侧**——全选作用于整个列表，
+                //   与「取消/删除」并排会被读成同级动作；放标题行右端=「这一整块都能全选」。
                 Row(
+                    // 标题靠左贴卡缘（start=0）；end=0 让「全选」的 10dp 内边距直接落卡右缘
+                    //（FlatTextAction 自带左右 10dp，若再给 end=8 会离卡缘 18dp）
                     Modifier.fillMaxWidth()
-                        .padding(start = 28.dp, end = 8.dp, top = 4.dp),
+                        .padding(start = 0.dp, end = 0.dp, top = 4.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text(
@@ -792,6 +799,14 @@ private fun GroupHeaderBlock(
                         fontWeight = FontWeight.SemiBold,
                         color = MaterialTheme.colorScheme.onSurface,
                         modifier = Modifier.weight(1f)
+                    )
+                    FlatTextAction(
+                        // 已全选则显示「取消全选」（与页面级多选同口径，见下方书籍删除弹窗）
+                        if (deleteCheckedCount > 0 && deleteCheckedCount == grp.entries.size)
+                            stringResource(R.string.deselect_all)
+                        else stringResource(R.string.select_all),
+                        MaterialTheme.colorScheme.onSurfaceVariant,
+                        onToggleDeleteAll,
                     )
                 }
             } else {
@@ -1746,6 +1761,15 @@ fun KeyManagerScreen(tagRuleId: String, onBack: () -> Unit) {
                             },
                             onMenuDismiss = { menuGroup = null },
                             testingThisGroup = testingGroup == grp.title,
+                            // 组头标题行右侧「全选」（10-11 用户令）：勾选态在调用处，
+                            // 传已选数供判「已全选→显示取消全选」，回调做整组全选/反选
+                            deleteCheckedCount = selCount,
+                            onToggleDeleteAll = {
+                                val allSel = grp.entries.all { it.name in deleteChecked }
+                                val names = grp.entries.map { it.name }.toSet()
+                                deleteChecked =
+                                    if (allSel) deleteChecked - names else deleteChecked + names
+                            },
                         )
                         // 组内删除模式进组时自动展开（折叠组没法多选子项），退出恢复原折叠
                         if (!isCollapsed || isDeleting) {
@@ -1798,25 +1822,15 @@ fun KeyManagerScreen(tagRuleId: String, onBack: () -> Unit) {
                                     onDelete = { deleteFor = entry }
                                 )
                             } // forEachIndexed（条目区块已并入组卡，无独立 item）
-                        // 组内删除模式动作行（条目区块之后，10-05 改）：全选挪下来与 取消/删除(N)
-                        // 同排——选谁+执行一条线（原全选在顶部标题行，视线跑两趟）；
-                        // 全选靠左、执行键靠右，三键都是无框文字键
+                        // 组内删除模式动作行（条目区块之后）：取消/删除(N) 靠右。
+                        // 10-11 用户令：「全选」已挪到组头标题行右侧（作用于整个列表，
+                        // 与执行键并排会被读成同级动作），此处只剩执行两键
                         if (isDeleting) {
                                 Row(
                                     Modifier.fillMaxWidth()
                                         .padding(start = 28.dp, end = 8.dp, top = 2.dp, bottom = 4.dp),
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
-                                    FlatTextAction(
-                                        stringResource(R.string.select_all),
-                                        MaterialTheme.colorScheme.onSurfaceVariant
-                                    ) {
-                                        // 全组全选/反选（原 GroupHeaderBlock 顶部全选的内联逻辑随键搬迁）
-                                        val allSel = grp.entries.all { it.name in deleteChecked }
-                                        val names = grp.entries.map { it.name }.toSet()
-                                        deleteChecked =
-                                            if (allSel) deleteChecked - names else deleteChecked + names
-                                    }
                                     Spacer(Modifier.weight(1f))
                                     FlatTextAction(
                                         stringResource(R.string.cancel),
