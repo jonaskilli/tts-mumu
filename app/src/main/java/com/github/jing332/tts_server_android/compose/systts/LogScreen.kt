@@ -86,6 +86,7 @@ import com.github.jing332.common.toLogLevelChar
 import com.github.jing332.compose.ComposeExtensions.toAnnotatedString
 import com.github.jing332.compose.widgets.ControlBottomBarVisibility
 import com.github.jing332.tts_server_android.R
+import com.github.jing332.tts_server_android.compose.systts.role.softContainerColor
 import com.github.jing332.tts_server_android.compose.LocalBottomBarBehavior
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeoutOrNull
@@ -657,31 +658,34 @@ internal fun LogScreen(
                                     .padding(horizontal = 16.dp, vertical = 3.5.dp)
                             ) {
                                 Row(verticalAlignment = Alignment.CenterVertically) {
-                                    if (selectionMode) {
-                                        Icon(
-                                            imageVector = if (checked) Icons.Default.CheckBox
-                                            else Icons.Default.CheckBoxOutlineBlank,
-                                            contentDescription = null,
-                                            modifier = Modifier.padding(end = 4.dp).size(16.dp),
-                                            tint = if (checked) MaterialTheme.colorScheme.primary
-                                            else MaterialTheme.colorScheme.onSurfaceVariant
+                                    // 行内元素套 Row(CenterVertically)：与组头行同因——FlowRow
+                                    // 行内元素顶对齐，丸比时间文字高，中心错位（10-11 用户令）
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        if (selectionMode) {
+                                            Icon(
+                                                imageVector = if (checked) Icons.Default.CheckBox
+                                                else Icons.Default.CheckBoxOutlineBlank,
+                                                contentDescription = null,
+                                                modifier = Modifier.padding(end = 4.dp).size(16.dp),
+                                                tint = if (checked) MaterialTheme.colorScheme.primary
+                                                else MaterialTheme.colorScheme.onSurfaceVariant
+                                            )
+                                        }
+                                        // 时间去日期去毫秒（10-10 用户令，与请求组头行同口径）：
+                                        // 日期签在列顶、毫秒无人看；裸行时间染次级灰与头行一致。
+                                        // 合并组走 headTimeText 出「首末完整时间」（10-11 用户令）。
+                                        Text(
+                                            text = headTimeText(log),
+                                            style = MaterialTheme.typography.bodySmall,
+                                            fontSize = 13.sp,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant
                                         )
-                                    }
-                                    // 时间去日期去毫秒（10-10 用户令，与请求组头行同口径）：
-                                    // 日期签在列顶、毫秒无人看；裸行时间染次级灰与头行一致。
-                                    // 合并组走 headTimeText 出「首末完整时间」（10-11 用户令）。
-                                    // 时间/级别字随裸行正文 12sp（与正文同排）
-                                    Text(
-                                        text = headTimeText(log),
-                                        style = MaterialTheme.typography.bodySmall,
-                                        fontSize = 13.sp,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                                    )
-                                    // 行级丸（10-10 终案）：重试 W 主行=重试N、兜底/备用主行=
-                                    // 切备用、失败主行=失败——失败链单条化后丸跟着各行走；
-                                    // 插件/规则/系统消息/源错误子行裸行 pillOf 返回 null 不渲染
-                                    pillOf(log, item.index)?.let {
-                                        Box(Modifier.padding(start = 6.dp)) { StatusPill(it) }
+                                        // 行级丸（10-10 终案）：重试 W 主行=重试N、兜底/备用主行=
+                                        // 切备用、失败主行=失败——失败链单条化后丸跟着各行走；
+                                        // 插件/规则/系统消息/源错误子行裸行 pillOf 返回 null 不渲染
+                                        pillOf(log, item.index)?.let {
+                                            Box(Modifier.padding(start = 6.dp)) { StatusPill(it) }
+                                        }
                                     }
                                     // ⚠️ 级别字母（I/W/E）整删（10-10 用户令「W,I 这种字母都删除」）：
                                     // 丸已承担状态表达,字母冗余
@@ -689,17 +693,18 @@ internal fun LogScreen(
                                     // 筛选/搜索态裸行同样可跳回完整流原位（此前只有请求组头行有，
                                     // 插件/规则日志搜到后没键回不去）；弹簧顶最右，样式同组头行。
                                     // 10-11 换法：①撤 ⟲ 符号（"撤销/重来"语义，与"跳回原位"不搭）；
-                                    // ②颜色由 primary 降为次级灰——原借用正文强调色，与插件/规则日志
-                                    // 正文同色系抢注意力（用户实机反馈"颜色重复"）；③文案改「回原位」直说功能
+                                    // ②颜色沿用 primary 字 + 淡紫底（softContainerColor，与全站分类胶囊同款）——
+                                    // 底色把"可点的钮"和正文隔开，比裸灰字醒目、又不与日志正文混读（10-11 用户定稿）
                                     if (showLocateKey) {
                                         Spacer(Modifier.weight(1f))
                                         Text(
                                             text = "回原位",
                                             style = MaterialTheme.typography.labelMedium,
-                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                            color = MaterialTheme.colorScheme.primary,
                                             modifier = Modifier
                                                 .padding(start = 8.dp)
                                                 .clip(RoundedCornerShape(9.dp))
+                                                .background(softContainerColor())
                                                 .clickable { onLocateOriginal(log) }
                                                 .padding(horizontal = 8.dp, vertical = 2.dp)
                                         )
@@ -812,46 +817,58 @@ internal fun LogScreen(
                                     verticalArrangement = Arrangement.Center,
                                     modifier = Modifier.fillMaxWidth()
                                 ) {
-                                    if (selectionMode) {
-                                        Icon(
-                                            imageVector = if (groupChecked) Icons.Default.CheckBox
-                                            else Icons.Default.CheckBoxOutlineBlank,
-                                            contentDescription = null,
-                                            modifier = Modifier.padding(end = 4.dp).size(16.dp),
-                                            tint = if (groupChecked) MaterialTheme.colorScheme.primary
-                                            else MaterialTheme.colorScheme.onSurfaceVariant
-                                        )
-                                    }
-                                    Text(
-                                        // 时间去日期去毫秒（10-10 用户令）：日期签在列顶、毫秒无人看。
-                                        // 合并组走 headTimeText 出「首末完整时间」（10-11 用户令）
-                                        text = groupHeadTime,
-                                        style = MaterialTheme.typography.bodySmall,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                                    )
-                                    pillShown?.let {
-                                        Box(Modifier.padding(start = 6.dp)) { StatusPill(it) }
-                                    }
-                                    // 丸后灰字（成功=大小·秒/失败主行=截短原因），与丸留 8dp 隙。
-                                    // 失败原因红=旧正宗红 #F44336（10-10 用户令「错误的红色要用
-                                    // 以前正宗的红色」——colorScheme.error 在动态取色下偏暗紫红）
-                                    if (tailText != null) {
+                                    // 行内元素套 Row(CenterVertically)（10-11 用户令「药丸内的文字
+                                    // 和时间不在一个水平线上」）：FlowRow 的 verticalArrangement
+                                    // 只管**行与行**的纵向排布，行内元素是顶对齐的——丸（labelSmall
+                                    // +2dp 内衬）比时间文字高，顶对齐后中心错位。套一层 Row 纵向居中即齐。
+                                    // 「回原位」键留在 FlowRow 里用 weight 顶右（Row 内 weight 只管行内）。
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        if (selectionMode) {
+                                            Icon(
+                                                imageVector = if (groupChecked) Icons.Default.CheckBox
+                                                else Icons.Default.CheckBoxOutlineBlank,
+                                                contentDescription = null,
+                                                modifier = Modifier.padding(end = 4.dp).size(16.dp),
+                                                tint = if (groupChecked) MaterialTheme.colorScheme.primary
+                                                else MaterialTheme.colorScheme.onSurfaceVariant
+                                            )
+                                        }
                                         Text(
-                                            text = tailText,
+                                            // 时间去日期去毫秒（10-10 用户令）：日期签在列顶、毫秒无人看。
+                                            // 合并组走 headTimeText 出「首末完整时间」（10-11 用户令）。
+                                            // 字号 12→13sp（10-11 用户令「时间字号太小」）——与裸行时间
+                                            // 同档，主行头收敛为 13/14/13
+                                            text = groupHeadTime,
                                             style = MaterialTheme.typography.bodySmall,
-                                            color = if (pillShown?.kind == LogPillKind.FAIL)
-                                                Color(if (darkTheme) 0xFFE57373 else 0xFFF44336)
-                                            else MaterialTheme.colorScheme.onSurfaceVariant,
-                                            modifier = Modifier.padding(start = 8.dp)
+                                            fontSize = 13.sp,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant
                                         )
+                                        pillShown?.let {
+                                            Box(Modifier.padding(start = 6.dp)) { StatusPill(it) }
+                                        }
+                                        // 丸后灰字（成功=大小·秒/失败主行=截短原因），与丸留 8dp 隙。
+                                        // 失败原因红=旧正宗红 #F44336（10-10 用户令「错误的红色要用
+                                        // 以前正宗的红色」——colorScheme.error 在动态取色下偏暗紫红）
+                                        if (tailText != null) {
+                                            Text(
+                                                text = tailText,
+                                                style = MaterialTheme.typography.bodySmall,
+                                                fontSize = 13.sp,
+                                                color = if (pillShown?.kind == LogPillKind.FAIL)
+                                                    Color(if (darkTheme) 0xFFE57373 else 0xFFF44336)
+                                                else MaterialTheme.colorScheme.onSurfaceVariant,
+                                                modifier = Modifier.padding(start = 8.dp)
+                                            )
+                                        }
                                     }
-                                    // 「原文」定位键（筛选/搜索态）：弹簧顶到最右，动作留右手位
+                                    // 「回原位」定位键（筛选/搜索态）：弹簧顶到最右，动作留右手位。
+                                    // 10-11 换显示：撤 ⟲ 符号 + 颜色降次级灰 + 文案「回原位」（与裸行同口径）
                                     if (showLocateKey) {
                                         Spacer(Modifier.weight(1f))
                                         Text(
-                                            text = "⟲ 原文",
+                                            text = "回原位",
                                             style = MaterialTheme.typography.labelMedium,
-                                            color = MaterialTheme.colorScheme.primary,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
                                             modifier = Modifier
                                                 .padding(start = 8.dp)
                                                 .clip(RoundedCornerShape(9.dp))
@@ -1129,17 +1146,19 @@ private fun LogEntryBody(
                             fontSize = 13.sp,
                         )
                     } else if (r.start >= metaStart && metaStart < base.text.length) {
-                        // 声音信息：哨兵色已换好目标色，只压到 12sp
-                        item = item.copy(fontSize = 12.sp)
+                        // 声音信息：哨兵色已换好目标色。字号 12→13sp（10-11 用户令
+                        // 「时间和下方声音条的字号太小」）——与裸行/成员行同档，
+                        // 与正文 14sp 仍保一档差
+                        item = item.copy(fontSize = 13.sp)
                     }
                     addStyle(item, r.start, r.end)
                 }
                 // 前缀段可能无 span 覆盖（级别色是 Text 整体 color，不是 span）：
                 // 显式补一个 13sp span
                 if (prefixEnd > 0) addStyle(SpanStyle(fontSize = 13.sp), 0, prefixEnd)
-                // 声音信息段若无 span 覆盖（整段哨兵色必有 span，此处兜底）：补 12sp
+                // 声音信息段若无 span 覆盖（整段哨兵色必有 span，此处兜底）：补 13sp
                 if (metaStart < base.text.length) {
-                    addStyle(SpanStyle(fontSize = 12.sp), metaStart, base.text.length)
+                    addStyle(SpanStyle(fontSize = 13.sp), metaStart, base.text.length)
                 }
             }
         }
