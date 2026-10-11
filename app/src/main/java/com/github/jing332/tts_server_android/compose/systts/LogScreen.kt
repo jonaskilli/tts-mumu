@@ -1077,12 +1077,19 @@ private fun StatusPill(pill: LogPill) {    val dark = isSystemInDarkTheme()
     }
     Text(
         text = pill.text,
-        style = MaterialTheme.typography.labelSmall,
+        // 丸加大（10-11 用户令「丸加大」+「胶囊中间不够醒目」）：11→12.5sp、字重 Medium、
+        // 内衬 9/2 → 11/3。根因是丸比两边的灰字（时间 13sp、尾信息 13sp）都小一档，
+        // 成了"两个灰的夹一个更小的彩的"，视觉上跳不出来；丸做大一档后自然成为行内重心。
+        // 位置不动——「时间在左」是为时间列对齐（丸宽随文案变，前置会把时间顶得参差不齐）
+        style = MaterialTheme.typography.labelSmall.copy(
+            fontSize = 12.5.sp,
+            fontWeight = FontWeight.Medium,
+        ),
         color = fg,
         modifier = Modifier
             .clip(RoundedCornerShape(50))
             .background(bg)
-            .padding(horizontal = 9.dp, vertical = 2.dp)
+            .padding(horizontal = 11.dp, vertical = 3.dp)
     )
 }
 
@@ -1193,19 +1200,77 @@ private fun LogEntryBody(
         isRequestHead -> MaterialTheme.colorScheme.onSurface
         else -> Color(entry.level.toArgb(isDarkTheme = darkTheme))
     }
+    val bodyStyle = MaterialTheme.typography.bodyMedium.copy(
+        fontSize = fontSize,
+        lineHeight = lineHeight,
+        // 字号真分层后撤主行整体半粗：正文 <b> 自带字重，先前 SemiBold 叠加
+        // 是"主行三段看着没分层"的根源（前缀/声音信息被衬得过轻）
+    )
+    val hlModifier = if (highlight) Modifier
+        .clip(RoundedCornerShape(4.dp))
+        .background(Color(0xFFFFE082))
+    // 搜索命中底色整撤（10-10 装机用户令）：与裸行整行底同批，命中不再染行
+    else Modifier
+
+    // 角色名做成**真圆角丸**（10-11 用户令「那个人名也做成丸吧，不然不突出」）：
+    // 行内 SpanStyle 的背景只能画直角矩形、给不了圆角（见 remapMetaColor 注释），
+    // 所以只靠加底色永远做不出状态丸那种圆角胶囊。这里把角色名那一段从正文里切出来
+    //（AnnotatedString.subSequence 保留 span 样式），单独渲染成一颗圆角 Surface 丸，
+    // 其余文本照旧走 Text。角色名恒为发音人信息段的**首元素**（服务端 configInfo 里
+    // 角色牌拼在 voiceText 之前），故「丸 + 其余」并排即原读序，不动字序与语义。
+    val chip = spanned.spanStyles.firstOrNull { it.item.color == roleChipColor }
+    if (chip != null && chip.start < chip.end && chip.end <= spanned.text.length) {
+        val chipName = spanned.text.substring(chip.start, chip.end)
+        var before = spanned.subSequence(0, chip.start)
+        val after = spanned.subSequence(chip.end, spanned.text.length)
+        // 段末换行去掉：下面用 Column 显式分行（丸必须独占一行开头），留着会多出空行
+        if (before.text.endsWith("\n")) before = before.subSequence(0, before.text.length - 1)
+        Column(modifier = hlModifier) {
+            if (before.text.isNotEmpty()) {
+                Text(text = before, color = bodyColor, style = bodyStyle)
+            }
+            Row(verticalAlignment = Alignment.Top) {
+                RoleNamePill(chipName, roleChipColor, fontSize)
+                if (after.text.isNotEmpty()) {
+                    Text(
+                        text = after,
+                        color = bodyColor,
+                        style = bodyStyle,
+                        modifier = Modifier.weight(1f),
+                    )
+                }
+            }
+        }
+    } else {
+        Text(
+            text = spanned,
+            color = bodyColor,
+            style = bodyStyle,
+            modifier = hlModifier,
+        )
+    }
+}
+
+/**
+ * 角色名丸（10-11 用户令「那个人名也做成丸吧，不然不突出」）：
+ * 与状态丸（StatusPill）同一套圆角胶囊语汇——RoundedCornerShape(50) + 淡底 + 彩色字，
+ * 只是内容装的是人名。底色取角色牌字色 alpha 0.22（与既有小牌口径一致），
+ * 字色=roleChipColor（灰绿 light / 亮灰绿 dark）。
+ * 字号跟正文档（请求主行 14sp），比旁边的发音人信息段（13sp）大一档，
+ * 让名字成为这一行的视觉落点。
+ */
+@Composable
+private fun RoleNamePill(name: String, color: Color, fontSize: TextUnit) {
     Text(
-        text = spanned,
-        color = bodyColor,
+        text = name,
         style = MaterialTheme.typography.bodyMedium.copy(
             fontSize = fontSize,
-            lineHeight = lineHeight,
-            // 字号真分层后撤主行整体半粗：正文 <b> 自带字重，先前 SemiBold 叠加
-            // 是"主行三段看着没分层"的根源（前缀/声音信息被衬得过轻）
+            fontWeight = FontWeight.Medium,
         ),
-        modifier = if (highlight) Modifier
-            .clip(RoundedCornerShape(4.dp))
-            .background(Color(0xFFFFE082))
-        // 搜索命中底色整撤（10-10 装机用户令）：与裸行整行底同批，命中不再染行
-        else Modifier
+        color = color,
+        modifier = Modifier
+            .clip(RoundedCornerShape(50))
+            .background(color.copy(alpha = 0.22f))
+            .padding(horizontal = 7.dp, vertical = 1.dp),
     )
 }

@@ -1512,10 +1512,10 @@ internal fun ImportByCategoryDialog(
             }
             withContext(Dispatchers.Main) {
                 voices = rows
-                // 默认全选（10-11 铁律「勾选即入库」配套）：勾选就是导入范围，全选后一键可导，
-                // 不再出现「没分类→导入键灰着点不动」的死状态（旧口径「默认全不选、点分类才勾」
-                // 是 10-10「只导已分类」的产物，已随该令推翻）。不要的在列表里取消勾选。
-                selectedKeys = rows.map { it.key }.toSet()
+                // 默认全不选（10-11 用户令）：勾选由用户自己驱动——试听里点分类标签会自动勾上
+                // （分类即视为待导入项），要整批导就点全选行。
+                // 铁律「勾选即入库」只管"勾了就一定导"，不改变"默认勾不勾"。
+                selectedKeys = emptySet()
                 categoryOverrides = emptyMap()
                 loadingVoices = false
                 stage = 1

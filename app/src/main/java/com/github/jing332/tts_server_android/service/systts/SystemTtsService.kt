@@ -818,8 +818,11 @@ class SystemTtsService : TextToSpeechService(), IEventDispatcher {
                             if (maxChars > 0) pnameFull.limitDisplayLength(maxChars) else pnameFull
                         // 插件名=全角括号备注语缀尾（10-10 用户令「（豆包-猫箱）」，重落：
                         // 首落改动被他窗连带收走后丢失——当时核对的只是 LogScreen 部分）。
-                        // 附属信息不与角色名平级抢视觉；渲染侧插件牌底色已撤、灰青字保留
-                        append("　<font color=\"" + PLUGIN_CHIP_COLOR + "\">（")
+                        // 附属信息不与角色名平级抢视觉；渲染侧插件牌底色已撤、灰青字保留。
+                        // 10-11 用户令：撤插件名前的全角空格（原为 "　<font…>（"）——
+                        // 括号本身就是分隔符，插件名又自带灰青色，三重分隔里那个空格多余；
+                        // 且它占一个全角宽，窄屏上白白挤掉正文的换行空间
+                        append("<font color=\"" + PLUGIN_CHIP_COLOR + "\">（")
                         append(pnameLimited)
                         append("）</font>")
                     }
