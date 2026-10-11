@@ -154,8 +154,10 @@ class TtsLogViewModel : ViewModel() {
                     chars.addAndGet(stamped.message.length.toLong())
                 } else {
                     // 并入末条：先扣旧串长度、再加新串长度（message 保留首条原文，
-                    // 只更新计数与末条时间，避免长度记账漂移）
-                    chars.addAndGet(merged.newLen - merged.oldLen)
+                    // 只更新计数与末条时间，避免长度记账漂移）。
+                    // ⚠️ chars 是 AtomicLong，addAndGet 只收 Long——两个 Int 相减必须显式 toLong()
+                    //（CI 38138740502 实锤：Argument type mismatch: actual Int, but Long was expected）
+                    chars.addAndGet((merged.newLen - merged.oldLen).toLong())
                 }
                 // 条数裁剪
                 val overflow = target.size - AUX_MAX
