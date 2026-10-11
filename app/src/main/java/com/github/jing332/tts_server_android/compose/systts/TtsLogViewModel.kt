@@ -144,11 +144,19 @@ class TtsLogViewModel : ViewModel() {
                 val stamped = stampTime(entry)
                 val target = if (isPlugin) pluginLogs else speechRuleLogs
                 val chars = if (isPlugin) pluginChars else ruleChars
-                // 连续同模式折叠已于 10-05 用户令去掉（原「×N」）：用户看日志时对 ×2 困惑
-                // （以为同一动作发了两次请求），宁可多几行也要每条独立成行、时序一目了然。
-                // 条数与字符总量熔断仍在（防刷屏/防 OOM 靠它们，不靠折叠）
-                target.add(stamped)
-                chars.addAndGet(stamped.message.length.toLong())
+                // 相邻同因合并（10-11 用户令「相同原因的失败视为相同，日志可以×2、×3」）：
+                // 与末条同指纹则并入计数，不再新增条目。10-05 曾因「×2 让人困惑」撤掉折叠，
+                // 但那时的真根因是 SysttsLogger 监听器重复注册（同一条日志被投递两遍，
+                // 已在 1bf6a74 修为 RouteSink 单例）——现在折叠反映的是真实重复次数。
+                val merged = mergeInto(target, stamped)
+                if (merged == null) {
+                    target.add(stamped)
+                    chars.addAndGet(stamped.message.length.toLong())
+                } else {
+                    // 并入末条：先扣旧串长度、再加新串长度（message 保留首条原文，
+                    // 只更新计数与末条时间，避免长度记账漂移）
+                    chars.addAndGet(merged.newLen - merged.oldLen)
+                }
                 // 条数裁剪
                 val overflow = target.size - AUX_MAX
                 if (overflow >= AUX_PRUNE) {
@@ -164,13 +172,77 @@ class TtsLogViewModel : ViewModel() {
                 }
             }
             else -> {
-                logs.add(entry)
+                // 主流程日志同样折叠（10-11 用户令「不管是插件还是朗读规则还是正常的日志」）：
+                // 应用层失败链重试风暴同因刷屏也收成一条 ×N
+                val merged = mergeInto(logs, entry)
+                if (merged == null) {
+                    logs.add(entry)
+                }
                 val overflow = logs.size - MAX_LOGS
                 if (overflow >= PRUNE_BATCH) {
                     repeat(overflow) { logs.removeAt(0) }
                 }
             }
         }
+    }
+
+    /** 合并结果：新长度与旧长度之差（供字符记账） */
+    private class MergeResult(val oldLen: Int, val newLen: Int)
+
+    /** 重试行判据（「开始第 N 次重试」）：折叠时它不算「打断相邻」的日志 */
+    private fun isRetryRow(e: LogEntry): Boolean =
+        e.level == LogLevel.WARN && e.message.contains("次重试")
+
+    /**
+     * 相邻同因合并（10-11 用户令）：
+     * 与本条**同级别**、且**原因指纹相同**的最近一条失败/警告，把本条并入它——
+     * 计数 +1、记下末条时间（行头显示「首末完整时间」），message 保留首条原文。
+     * 返回 null 表示未合并（调用方照常 add）。
+     *
+     * 「相邻」的口径（关键）：**重试行不打断相邻**。真实失败链是
+     *   请求音频 → 获取失败 → 「开始第 1 次重试」 → 获取失败 → 到达上限 → 切兜底 → 成功
+     * 两次「获取失败」中间夹着重试行；若按字面严格相邻，用户要的 ×2 永远折不出来
+     *（10-11 模拟实锤：严格口径下两条获取失败各 ×1）。重试行属于同一条失败链的
+     * 过程噪声，故向后越过它去找上一条失败；合并时把被越过的重试行一并吸收
+     *（次数已由 ×N 表达，留着重试行反而是同一件事说两遍）。
+     * 非重试行的其他日志（切备用/成功/请求音频）照旧打断相邻——这正是用户要的
+     *「相邻」的本意：不跨事件合并。
+     *
+     * 指纹口径（`failureFingerprint`）：去 HTML 标签 → 去首尾空白 → 去掉插件内部
+     * 重试序号 `[0]`/`[1]`（序号不是失败原因，不去掉则同一次失败的各次重试会被
+     * 当成不同原因而折不起来）。数字本身保留：HTTP-404 与 HTTP-401 是不同原因。
+     */
+    private fun mergeInto(target: MutableList<LogEntry>, entry: LogEntry): MergeResult? {
+        if (entry.level != LogLevel.ERROR && entry.level != LogLevel.WARN) return null
+        val fp = failureFingerprint(entry.message) ?: return null
+        // 向后越过重试行，找最近一条非重试日志
+        var i = target.lastIndex
+        while (i >= 0 && isRetryRow(target[i])) i--
+        if (i < 0) return null
+        val last = target[i]
+        if (last.level != entry.level) return null
+        if (fp != failureFingerprint(last.message)) return null
+        val oldLen = last.message.length
+        val merged = last.copy(
+            repeatCount = last.repeatCount + 1,
+            // 末条时间：首末范围用。末条本身也可能是合并来的，它的 endTime 已是更新的那个
+            endTime = entry.time.ifEmpty { last.endTime },
+        )
+        target[i] = merged
+        // 吸收被越过的重试行（i 之后的都只可能是重试行——上面循环保证了这一点）
+        if (i < target.lastIndex) {
+            repeat(target.size - 1 - i) { target.removeAt(target.lastIndex) }
+        }
+        return MergeResult(oldLen, merged.message.length)
+    }
+
+    /** 失败原因指纹（同因判据）；空正文返回 null=不参与合并 */
+    private fun failureFingerprint(message: String): String? {
+        val s = message
+            .replace(Regex("<[^>]*>"), "")
+            .replace(Regex("\\[\\d+]"), "") // 插件内部重试序号 [0]/[1]
+            .trim()
+        return s.ifEmpty { null }
     }
     
     fun toggleLevel(level: Int) {

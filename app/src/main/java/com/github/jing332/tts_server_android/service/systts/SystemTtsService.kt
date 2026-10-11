@@ -881,10 +881,13 @@ class SystemTtsService : TextToSpeechService(), IEventDispatcher {
         when (e) {
             is NormalEvent.Request ->
                 if (e.retries > 0) {
-                    // 重试行瘦身（10-11 用户令）：正文「开始第 N 次重试」撤——裸行的
-                    // 「重试N」丸已表达，两处同文重复；保留 WARN 级别供级别筛选(E→W)可筛。
-                    // 空串落库会让行头只剩时间+丸，正是预览定稿的「05:07:27 (重试1)」形态
-                    logW("")
+                    // 重试行（10-11 用户令修正）：正文**必须保留**「第 N 次重试」字样——
+                    // 行头「重试N」丸的判据是 pillOf 从 message 里正则取「第 (\d+) 次」，
+                    // 前一轮把正文撤成空串（logW("")）导致丸也推不出来，真机上表现为
+                    // 「只有时间戳、下面空白」的一行（10-11 用户实报）。
+                    // 现口径：服务端保留原文供丸解析，**渲染层对重试行不画正文**
+                    //（丸已表达同一信息，见 LogScreen 裸行分支），两处不重复、也不空行。
+                    logW("开始第 ${e.retries} 次重试")
                 } else {
                     // "请求音频:"前缀走级别色(绿)普通, 正文 <b> 加粗, 次级信息哨兵色→石板灰；
                     // MDC 携带配置项 id + 实时角色名 供日志快捷面板定位（写完立即清理防串扰）
@@ -998,8 +1001,16 @@ class SystemTtsService : TextToSpeechService(), IEventDispatcher {
                     val tag = msg.substringAfter("功能标签(").substringBefore(")")
                     logE(getString(R.string.functional_fallback_failed, tag))
                 } else {
-                    // 只显示归因文本，异常原文与堆栈仍进logcat便于排查
-                    logE(getString(R.string.systts_log_failed, friendlyCause(e.cause)), e.cause)
+                    // 老版式失败全文（10-11 用户令「第一次失败的格式要用以前的格式，
+                    // 从时间文本到失败原因都是红的」）：错误串 + <br> + 请求全文
+                    //（正文粗 + 发音人信息）——渲染层按 <br> 拆段：错误串红、正文红粗、
+                    // 发音人信息不红（见 LogScreen oldStyleFail 分支）。
+                    // 此前只打错误串，正文与发音人信息散在请求主行里，失败条不成一体
+                    logE(
+                        getString(R.string.systts_log_failed, friendlyCause(e.cause)) +
+                            "<br>" + e.request.text(),
+                        e.cause
+                    )
                 }
             }
             // 超时行老版式对齐（10-11 用户令「超时行你也看看」）：超时=一种失败终点，

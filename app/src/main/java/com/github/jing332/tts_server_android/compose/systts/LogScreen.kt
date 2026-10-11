@@ -282,11 +282,22 @@ internal class LogGroups(
                     // 终点收卡（标记 groupFailed）；无卡落裸行——失败链不再悬置并组（10-10 终案）
                     else -> {
                         if (head >= 0) {
-                            members.add(i)
-                            if (e.level == LogLevel.ERROR) {
+                            // 老版式失败全文条（10-11）：本条含请求全文（错误 + <br> +
+                            // 正文 + 发音人信息）时，让它当本组渲染主体（absorbError）——
+                            // 渲染侧改画它、不再画请求主行正文，避免同一段正文出现两遍。
+                            // ⚠️ 此时**不进 members**：absorbError 与成员区都会画一遍
+                            //（成员区只跳过 SUCCESS），进了就双重渲染。
+                            // 用「含 <br>」判别：配置为空/系统消息这类无正文的 ERROR
+                            // 不进吸收（保持原样：主行正文照旧显示）。
+                            val isFullFail = e.level == LogLevel.ERROR && e.message.contains("<br>")
+                            if (isFullFail) {
                                 groupFailed = true
-                                closeCard()
+                                errMemberIdx = i
+                            } else {
+                                members.add(i)
+                                if (e.level == LogLevel.ERROR) groupFailed = true
                             }
+                            closeCard()
                         } else raw.add(Item.Bare(i))
                     }
                 }
@@ -658,9 +669,10 @@ internal fun LogScreen(
                                     }
                                     // 时间去日期去毫秒（10-10 用户令，与请求组头行同口径）：
                                     // 日期签在列顶、毫秒无人看；裸行时间染次级灰与头行一致。
+                                    // 合并组走 headTimeText 出「首末完整时间」（10-11 用户令）。
                                     // 时间/级别字随裸行正文 12sp（与正文同排）
                                     Text(
-                                        text = log.time.drop(11).dropLast(4),
+                                        text = headTimeText(log),
                                         style = MaterialTheme.typography.bodySmall,
                                         fontSize = 13.sp,
                                         color = MaterialTheme.colorScheme.onSurfaceVariant
@@ -673,15 +685,18 @@ internal fun LogScreen(
                                     }
                                     // ⚠️ 级别字母（I/W/E）整删（10-10 用户令「W,I 这种字母都删除」）：
                                     // 丸已承担状态表达,字母冗余
-                                    // 「原文」定位键（10-10 装机反馈用户令）：筛选/搜索态裸行
-                                    // 同样可跳回完整流原位（此前只有请求组头行有，插件/规则
-                                    // 日志搜到后没键回不去）；弹簧顶最右，样式同组头行
+                                    // 「回原位」定位键（10-10 装机反馈用户令，10-11 用户令换显示）：
+                                    // 筛选/搜索态裸行同样可跳回完整流原位（此前只有请求组头行有，
+                                    // 插件/规则日志搜到后没键回不去）；弹簧顶最右，样式同组头行。
+                                    // 10-11 换法：①撤 ⟲ 符号（"撤销/重来"语义，与"跳回原位"不搭）；
+                                    // ②颜色由 primary 降为次级灰——原借用正文强调色，与插件/规则日志
+                                    // 正文同色系抢注意力（用户实机反馈"颜色重复"）；③文案改「回原位」直说功能
                                     if (showLocateKey) {
                                         Spacer(Modifier.weight(1f))
                                         Text(
-                                            text = "⟲ 原文",
+                                            text = "回原位",
                                             style = MaterialTheme.typography.labelMedium,
-                                            color = MaterialTheme.colorScheme.primary,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
                                             modifier = Modifier
                                                 .padding(start = 8.dp)
                                                 .clip(RoundedCornerShape(9.dp))
@@ -704,6 +719,12 @@ internal fun LogScreen(
                                     // 命中高亮已在整行背景，正文不再叠一层
                                     isMatch = false,
                                     highlight = log == locateHighlight,
+                                    // 重试行不画正文（10-11 用户令修正）：服务端保留「开始第 N 次
+                                    // 重试」原文只为让「重试N」丸解析得到，行头丸已表达同一信息，
+                                    // 正文再画一遍是重复。此前把正文撤成空串导致丸也推不出来
+                                    //（真机表现为「只有时间、下面空白」的一行），此处改为
+                                    // 服务端留原文 + 渲染层不画正文，既不重复也不空行
+                                    suppressBody = pillOf(log, item.index)?.kind == LogPillKind.RETRY,
                                 )
                             }
                             }
@@ -744,10 +765,20 @@ internal fun LogScreen(
                                         ?: LogPill(LogPillKind.FAIL, "失败")
                                 }
                             }
+                            // 失败次数进丸（10-11 用户令「相同原因的失败视为相同，日志可以×2、×3」）：
+                            // 组的失败次数取**渲染主体那条**的 repeatCount——有吸收条时是吸收条
+                            //（失败全文条，重试风暴都折在它身上），否则是组头请求行自己
+                            //（应用层失败行也参与折叠，见 TtsLogViewModel.mergeInto 的主列表分支）
+                            val failCount = (absorbed ?: head).repeatCount
+                            val pillShown = if (failCount > 1 && pill.kind != LogPillKind.OK)
+                                pill.copy(text = "${pill.text} ×$failCount") else pill
                             // 老版式失败条无丸后灰字（错误全文在正文区），成功尾段照旧
                             val tailText = remember(item.head, successMember, absorbed) {
                                 if (absorbed != null) null else tailTextOfRow(successMember ?: head)
                             }
+                            // 组头时间（10-11 用户令「首末完整」）：有吸收条时用失败条的首末范围，
+                            // 否则用组头请求行自己（失败链的时间跨度落在失败条上）
+                            val groupHeadTime = headTimeText(absorbed ?: head)
                             // 行流定稿（10-10 用户令）：成功=行头绿丸+灰数字，成员区整撤
                             // （结果信息已上头）；失败/重试/切备用的过程行仍要露出——
                             // 有非成功成员行时显示成员区（成功行本身不上，数字已在丸后）
@@ -792,12 +823,13 @@ internal fun LogScreen(
                                         )
                                     }
                                     Text(
-                                        // 时间去日期去毫秒（10-10 用户令）：日期签在列顶、毫秒无人看
-                                        text = head.time.drop(11).dropLast(4),
+                                        // 时间去日期去毫秒（10-10 用户令）：日期签在列顶、毫秒无人看。
+                                        // 合并组走 headTimeText 出「首末完整时间」（10-11 用户令）
+                                        text = groupHeadTime,
                                         style = MaterialTheme.typography.bodySmall,
                                         color = MaterialTheme.colorScheme.onSurfaceVariant
                                     )
-                                    pill?.let {
+                                    pillShown?.let {
                                         Box(Modifier.padding(start = 6.dp)) { StatusPill(it) }
                                     }
                                     // 丸后灰字（成功=大小·秒/失败主行=截短原因），与丸留 8dp 隙。
@@ -807,7 +839,7 @@ internal fun LogScreen(
                                         Text(
                                             text = tailText,
                                             style = MaterialTheme.typography.bodySmall,
-                                            color = if (pill?.kind == LogPillKind.FAIL)
+                                            color = if (pillShown?.kind == LogPillKind.FAIL)
                                                 Color(if (darkTheme) 0xFFE57373 else 0xFFF44336)
                                             else MaterialTheme.colorScheme.onSurfaceVariant,
                                             modifier = Modifier.padding(start = 8.dp)
@@ -949,9 +981,13 @@ private fun isMatchEntry(e: LogEntry, q: String): Boolean =
 // 失败请求行=失败（依据 failedHeads：请求行本身是 INFO，失败标记由归组记入）、
 // ERROR 主行（无卡区失败终点）=失败。成员行（源错误等结果子行）已独立裸行=无丸。
 // 丸字=汉字「成功/失败」（10-11 用户令：✔/✕ 符号加了不好看，换回文字）
+//
+// 10-11 用户令「相同原因的失败视为相同，日志可以×2、×3」：合并组的丸带次数后缀
+//（`失败 ×3`）。次数由 ViewModel 折叠时记入 repeatCount；=1 时不加后缀（与现状一致）。
+// 重试/切备用丸也吃同一后缀（重试2 ×3 = 同一次重试重复出现 3 次）。
 private fun pillOf(e: LogEntry, entryIndex: Int, failedHeads: Set<Int> = emptySet()): LogPill? {
     val msg = e.message.replace(Regex("<[^>]*>"), "")
-    return when {
+    val base = when {
         e.configId != 0L -> when {
             e.level == LogLevel.SUCCESS -> LogPill(LogPillKind.OK, "成功")
             entryIndex in failedHeads -> LogPill(LogPillKind.FAIL, "失败")
@@ -963,7 +999,20 @@ private fun pillOf(e: LogEntry, entryIndex: Int, failedHeads: Set<Int> = emptySe
             LogPill(LogPillKind.STANDBY, "切备用")
         e.level == LogLevel.ERROR && e.indent == 0 -> LogPill(LogPillKind.FAIL, "失败")
         else -> null
-    }
+    } ?: return null
+    return if (e.repeatCount > 1) base.copy(text = "${base.text} ×${e.repeatCount}") else base
+}
+
+/**
+ * 行头时间文案（10-11 用户令「首末完整，每次时间都要完整，不能只写秒钟」）：
+ * 未合并（repeatCount<=1 或 endTime 空）→ 单个 `HH:mm:ss`（现状不变）；
+ * 已合并 → `HH:mm:ss–HH:mm:ss` 首末两个**完整**时间，中间用 en dash。
+ * 时间源格式 `yyyy-MM-dd HH:mm:ss.SSS`，去日期去毫秒后长度恰为 8。
+ */
+private fun headTimeText(e: LogEntry): String {
+    val start = e.time.drop(11).dropLast(4)
+    val end = e.endTime.takeIf { it.length >= 19 }?.drop(11)?.dropLast(4)
+    return if (e.repeatCount > 1 && !end.isNullOrBlank() && end != start) "$start–$end" else start
 }
 
 // 行级丸后灰字：只服务成功行=「大小 · 耗时秒」（10-10 用户令：失败丸后不跟
@@ -1048,7 +1097,12 @@ private fun LogEntryBody(
     oldStyleFail: Boolean = false,
     // 「原文」定位命中（用户 10-08 甲方案）：黄底高亮闪现，由上层定时清除
     highlight: Boolean = false,
+    // 不画正文（10-11 用户令）：重试行用——服务端保留「开始第 N 次重试」原文供
+    // pillOf 解析出「重试N」丸，丸已表达同一信息，正文再画一遍是重复。
+    // 行头（时间+丸）照常渲染，故不会出现「只有时间、下面空白」的空行
+    suppressBody: Boolean = false,
 ) {
+    if (suppressBody) return
     val spanned = remember(entry.message, darkTheme, metaColor, voiceColor, roleChipColor, pluginChipColor, isRequestHead, emphasizeError, oldStyleFail) {
         val base = HtmlCompat.fromHtml(entry.message, HtmlCompat.FROM_HTML_MODE_COMPACT)
             .toAnnotatedString()
