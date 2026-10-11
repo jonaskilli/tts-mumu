@@ -140,6 +140,9 @@ fun PluginVoiceMarketplaceDialog(
     onImport: ((List<VoiceCatalogItem>) -> Unit)? = null,
     // 入库模式两开关变化上报（等待分类/自动下一个；试听弹窗由调用方弹，开关语义在调用方落地）
     onSwitchesChanged: (waitCategory: Boolean, autoNext: Boolean) -> Unit = { _, _ -> },
+    // 来源切换条（10-11 用户令：联网广场 / 自带分类 在弹窗顶部直接切）；
+    // 宿主传入；null = 不显示（编辑页大厅无入库概念，不切）
+    sourceSegment: (@Composable () -> Unit)? = null,
     // 勾选/分类两张表（10-11 用户实机「试听分了类卡片不显示、不勾选」）：
     // 默认值保住大厅模式（编辑页）调用方不用改；入库模式由宿主传入，试听分类与卡片共用同一份状态
     picked: SnapshotStateMap<String, VoiceCatalogItem> = remember { mutableStateMapOf<String, VoiceCatalogItem>() },
@@ -294,6 +297,10 @@ fun PluginVoiceMarketplaceDialog(
                             Icon(Icons.Filled.Close, stringResource(R.string.close))
                         }
                     }
+
+                    // ---- 来源切换条（10-11 用户令：联网广场 / 自带分类 在弹窗顶部直接切）----
+                    // 由宿主传入；null = 不显示（编辑页大厅无入库概念，不切）
+                    sourceSegment?.invoke()
 
                     // ---- 入库模式：等待分类/自动下一个（10-10 恢复旧版语义）----
                     if (importMode) {

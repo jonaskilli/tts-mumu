@@ -6,6 +6,7 @@ import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
@@ -64,6 +65,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.material3.SnackbarDuration
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
@@ -1227,33 +1229,41 @@ private fun Item(
                 visible = showImportByCategory && importSource == "list" && plugin != null,
                 onDismiss = { showImportByCategory = false; importSource = null },
                 scope = scope,
-                context = context
+                context = context,
+                // 支持广场协议的插件：弹窗顶部显示来源切换条，点「联网广场」换去广场弹层
+                onSwitchToMarket = if (supportsMarket) {
+                    {
+                        showImportByCategory = false
+                        importSource = "market"
+                        showMarketplace = true
+                    }
+                } else null
             )
 
-            // 入库来源分流（10-10 用户两令合并）：普通插件（未声明音色广场协议）直接进
-            // 现有声音列表（不问——广场路对它没有独有价值，数据与列表路同源）；
-            // 广场协议插件保留双选（两个口都留：联网广场 / 现有列表）。
-            // 广场跳转 handoff 自动走广场路（音色直接带着走，不问）
+            // 入库来源分流（10-11 用户令「甲案」改）：来源切换条进了弹窗顶部，
+            // 所以不再先弹来源双选——
+            // · 普通插件（未声明广场协议）：直进自带分类弹窗（切换条不显示，无广场可切）
+            // · 广场协议插件：直进联网广场弹层（弹层顶部有切换条，可切回自带分类）
+            // handoff 跳转仍自动走广场路（音色直接带着走）
             if (showImportByCategory && importSource == null && plugin != null && !supportsMarket) {
-                // 普通插件：直进现有列表（老弹窗 visible 条件吃 importSource=="list"）
                 importSource = "list"
             }
             if (showImportByCategory && importSource == null && plugin != null && supportsMarket) {
-                SourcePickerDialog(
-                    onDismiss = { showImportByCategory = false },
-                    onPick = { source ->
-                        importSource = source
-                        if (source == "market") showMarketplace = true
-                        // "list" = 走老弹窗（visible 条件在上面）
-                    }
-                )
+                importSource = "market"
+                showMarketplace = true
             }
 
             // 入库模式的音色广场（10-10 广场合一）：勾选/分类/试听后「导入」=入下拉+入库两动作一步
             if (showMarketplace && plugin != null) {
                 MarketplaceImportDialog(
                     plugin = plugin,
-                    onDismiss = { showMarketplace = false; importSource = null }
+                    onDismiss = { showMarketplace = false; importSource = null },
+                    // 弹层顶部切换条点「自带分类」：换回自带分类弹窗
+                    onSwitchToLocal = {
+                        showMarketplace = false
+                        importSource = "list"
+                        showImportByCategory = true
+                    }
                 )
             }
         }
@@ -1271,6 +1281,8 @@ private fun Item(
 private fun MarketplaceImportDialog(
     plugin: Plugin,
     onDismiss: () -> Unit,
+    // 弹层顶部切换条点「自带分类」的回调（10-11 甲案）：换回自带分类弹窗
+    onSwitchToLocal: () -> Unit,
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -1360,6 +1372,8 @@ private fun MarketplaceImportDialog(
         onSwitchesChanged = { w, a -> waitCategory = w; autoNext = a },
         picked = picked,
         categories = categories,
+        // 弹层顶部来源切换条（10-11 甲案）：当前选中联网广场，点「自带分类」换弹窗
+        sourceSegment = { ImportSourceSegment(selected = "market", onPick = { if (it == "list") onSwitchToLocal.invoke() }) },
     )
 }
 
@@ -1412,43 +1426,66 @@ private fun doMarketplaceImport(
     }
 }
 
-/** 入库来源双选弹窗（10-10 用户令「留个口」）：音色广场 / 现有声音列表 */
+/**
+ * 入库来源切换条（10-11 用户令「联网广场 / 自带分类」合一）：两段等宽、整段可点，选中段白底+主题色+对勾。
+ * 联网广场弹层与自带分类弹窗共用同一构件，观感一致。
+ * （原「来源双选弹窗」SourcePickerDialog 已随甲案退役：切换条进了弹窗顶部，不再先弹双选。）
+ */
 @Composable
-private fun SourcePickerDialog(
-    onDismiss: () -> Unit,
+private fun ImportSourceSegment(
+    selected: String,
     onPick: (String) -> Unit,
 ) {
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text("选择音色来源") },
-        text = {
-            Column {
-                listOf(
-                    "market" to ("音色广场" to "联网搜索/筛选/试听，勾选后一键导入"),
-                    "list" to ("现有声音列表" to "老方式：按插件分类勾池子后逐个试听分类"),
-                ).forEach { (key, pair) ->
-                    Row(
-                        Modifier
-                            .fillMaxWidth()
-                            .clip(MaterialTheme.shapes.medium)
-                            .clickable { onPick(key) }
-                            .padding(vertical = 10.dp, horizontal = 4.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Column(Modifier.weight(1f)) {
-                            Text(pair.first, style = MaterialTheme.typography.bodyLarge)
-                            Text(pair.second, style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        }
-                    }
-                }
-            }
-        },
-        confirmButton = {},
-        dismissButton = {
-            TextButton(onClick = onDismiss) { Text(stringResource(R.string.cancel)) }
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .background(
+                MaterialTheme.colorScheme.surfaceContainerHighest,
+                RoundedCornerShape(22.dp)
+            )
+            .padding(3.dp),
+        horizontalArrangement = Arrangement.spacedBy(3.dp)
+    ) {
+        ImportSourceOpt("market", "联网广场", selected, onPick, Modifier.weight(1f))
+        ImportSourceOpt("list", "自带分类", selected, onPick, Modifier.weight(1f))
+    }
+}
+
+@Composable
+private fun ImportSourceOpt(
+    key: String,
+    label: String,
+    selected: String,
+    onPick: (String) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val on = selected == key
+    Row(
+        modifier
+            .height(36.dp)
+            .background(
+                if (on) MaterialTheme.colorScheme.surface else Color.Transparent,
+                RoundedCornerShape(18.dp)
+            )
+            .clickable { if (!on) onPick(key) },
+        horizontalArrangement = Arrangement.Center,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        if (on) {
+            Text(
+                "✓",
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.primary
+            )
+            Spacer(Modifier.width(4.dp))
         }
-    )
+        Text(
+            label,
+            style = MaterialTheme.typography.bodyMedium,
+            fontWeight = if (on) FontWeight.Bold else FontWeight.Normal,
+            color = if (on) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
+        )
+    }
 }
 
 @Composable
@@ -1458,6 +1495,8 @@ internal fun ImportByCategoryDialog(
     onDismiss: () -> Unit,
     scope: kotlinx.coroutines.CoroutineScope,
     context: Context,
+    // 支持音色广场协议的插件才显示来源切换条；null=不显示（普通插件只有自带分类一条道）
+    onSwitchToMarket: (() -> Unit)? = null,
 ) {
     if (!visible || plugin == null) return
 
@@ -1613,7 +1652,20 @@ internal fun ImportByCategoryDialog(
     AlertDialog(
         onDismissRequest = { if (!importing) onDismiss() },
         // 标题只留固定功能名：插件名长（如"墨听_阿里云QwenAudio…桥接版_v2"）会把大字标题撑出五六行
-        title = { Text(if (importing) "正在音色分类入库" else "音色分类入库") },
+        title = {
+            Column {
+                Text(if (importing) "正在音色分类入库" else "音色分类入库")
+                // 来源切换条（10-11 用户令「甲案」）：联网广场 / 自带分类 在弹窗顶部直接切。
+                // 只有支持广场协议的插件才显示（普通插件没有联网广场可切）；点联网广场=换去广场弹层。
+                if (onSwitchToMarket != null) {
+                    Spacer(Modifier.height(12.dp))
+                    ImportSourceSegment(
+                        selected = "list",
+                        onPick = { if (it == "market") onSwitchToMarket.invoke() }
+                    )
+                }
+            }
+        },
         text = {
             if (importing) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
