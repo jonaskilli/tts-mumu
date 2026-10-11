@@ -273,6 +273,9 @@ class PluginTtsUI : IConfigUI() {
                     context.toast(context.getString(R.string.voice_catalog_picked, items.size))
                 },
                 onImport = null, // 大厅模式：无入库键（10-10 用户令）
+                // 来源切换条（10-11 用户令「大厅也两种」）：弹窗内部自渲染（hallSource 状态在弹窗里），
+                // 联网广场 / 自带分类 同弹窗切视图；出口不变仍是「加入并勾选」。
+                // 普通插件（未声明广场协议）没有大厅入口，不受影响。
             )
         }
 

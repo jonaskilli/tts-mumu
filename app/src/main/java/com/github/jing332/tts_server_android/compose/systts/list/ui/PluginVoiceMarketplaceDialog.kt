@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
@@ -69,6 +70,7 @@ import androidx.compose.runtime.snapshots.SnapshotStateMap
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.res.stringResource
@@ -165,6 +167,9 @@ fun PluginVoiceMarketplaceDialog(
     var tags by remember { mutableStateOf<Set<String>>(emptySet()) }
     var sortBy by remember { mutableStateOf(CATALOG_SORT_SCORE) }
     var filterSheetOpen by remember { mutableStateOf(false) }
+    // 大厅模式内部视图（10-11 用户令「大厅也两种」）：0=联网广场 1=自带分类。
+    // 入库模式的来源切换在弹窗外互跳（甲案），不走这个状态。
+    var hallSource by remember { mutableStateOf(0) }
     // 勾选集合（入参 picked，map 而非 id 集合：翻页/重搜会换掉 catalogItems，勾过的条目本体得留住）
     // 列表滚动：换条件/重开都从头（索引 0）开始，别让上一次的位置或续页锚点把视口带偏
     val listState = rememberLazyListState()
@@ -178,8 +183,10 @@ fun PluginVoiceMarketplaceDialog(
     var selectedLocalPool by remember { mutableStateOf<String?>(null) }
     var localVoices by remember { mutableStateOf<List<Triple<String, String, String>>>(emptyList()) } // (poolId, voiceId, name)
     var localVoicesLoading by remember { mutableStateOf(false) }
-    LaunchedEffect(localPoolLoading) { if (!localPoolLoading && localPools.isEmpty() && importMode) {
-        // 入库模式才拉（大厅模式=编辑页已有语言/声音下拉，不必重复）
+    LaunchedEffect(localPoolLoading) { if (!localPoolLoading && localPools.isEmpty() && (importMode || sourceSegment != null)) {
+        // 入库模式拉（10-10）；大厅模式也拉（10-11 用户令「大厅也两种」：顶部切换条切到
+        // 自带分类时要看插件自带分类——编辑页虽有语言/声音下拉，但那是选完语言再翻的状态，
+        // 大厅里横滑分类 chips 直接看全部分类更快）。插件管理页宿主传了 sourceSegment 同理。
         localPoolLoading = true
         val pools: List<Pair<String, String>> =
             runCatching { vm.engine.getLocales().map { it.key to it.value } }.getOrDefault(emptyList())
@@ -195,6 +202,21 @@ fun PluginVoiceMarketplaceDialog(
             }.getOrDefault(emptyList())
             localVoices = rows
             localVoicesLoading = false
+        }
+    }
+
+    // 大厅「自带分类」视图：进入即列全部音色（10-11 用户令）。
+    // getVoices("") 部分插件不认（回空）——此时不阻塞，用户点具体分类 chip 再按池拉。
+    LaunchedEffect(hallSource, sourceSegment) {
+        if (sourceSegment == null && !importMode && hallSource == 1 && localVoices.isEmpty()) {
+            localVoicesLoading = true
+            scope.launch {
+                val rows = runCatching {
+                    vm.engine.getVoices("").map { Triple("", it.id, it.name) }
+                }.getOrDefault(emptyList())
+                localVoices = rows
+                localVoicesLoading = false
+            }
         }
     }
 
@@ -298,9 +320,25 @@ fun PluginVoiceMarketplaceDialog(
                         }
                     }
 
-                    // ---- 来源切换条（10-11 用户令：联网广场 / 自带分类 在弹窗顶部直接切）----
-                    // 由宿主传入；null = 不显示（编辑页大厅无入库概念，不切）
-                    sourceSegment?.invoke()
+                    // ---- 来源切换（10-11 用户令「大厅也两种」）----
+                    // 两种形态：
+                    // · 大厅模式（sourceSegment==null 且 !importMode）：弹窗内部自渲染 HallSourceSegment，
+                    //   hallSource 状态切换同弹窗内视图（联网广场 ↔ 自带分类），勾选共用 picked。
+                    // · 入库模式：宿主传的 sourceSegment 是跨弹窗互跳（甲案），原样 invoke。
+                    if (sourceSegment != null) {
+                        sourceSegment.invoke()
+                    } else if (!importMode) {
+                        HallSourceSegment(
+                            selected = hallSource,
+                            onSelect = { s ->
+                                if (hallSource != s) {
+                                    hallSource = s
+                                    // 切回联网广场时视口回顶（本地列表滚动位置与联网列表无关）
+                                    if (s == 0) listState.scrollToItem(0)
+                                }
+                            }
+                        )
+                    }
 
                     // ---- 入库模式：等待分类/自动下一个（10-10 恢复旧版语义）----
                     if (importMode) {
@@ -328,7 +366,8 @@ fun PluginVoiceMarketplaceDialog(
                     }
 
                     // ---- 搜索 + 排序 + 筛选 ----
-                    Row(
+                    // 大厅模式切到「自带分类」时整块收起（联网搜索与本地分类互斥，10-11 用户令）
+                    if (!(sourceSegment == null && !importMode && hallSource == 1)) Row(
                         Modifier
                             .fillMaxWidth()
                             .padding(horizontal = CATALOG_PANEL_PADDING),
@@ -383,7 +422,8 @@ fun PluginVoiceMarketplaceDialog(
                     }
 
                     // ---- quickFilters 横滑 chips（协议里的"官方快捷筛选"）----
-                    if (vm.catalogQuickFilters.isNotEmpty()) {
+                    // 大厅「自带分类」视图下收起（与搜索行同口径）
+                    if (vm.catalogQuickFilters.isNotEmpty() && !(sourceSegment == null && !importMode && hallSource == 1)) {
                         LazyRow(
                             modifier = Modifier
                                 .fillMaxWidth()
@@ -402,8 +442,9 @@ fun PluginVoiceMarketplaceDialog(
                     }
 
                     // ---- 本地分类区（10-10 用户令：普通插件也要能在广场里列分类）----
-                    // 入库模式恒显示（加载中转圈）；点分类 chip → 结果列表切本地音色，再点取消回联网搜索。
-                    if (importMode) {
+                    // 入库模式恒显示（加载中转圈）；10-11 起大厅模式（有来源切换条）也显示——
+                    // 用户令「大厅也两种」。点分类 chip → 结果列表切本地音色，再点取消回联网搜索。
+                    if (importMode || sourceSegment != null) {
                         when {
                             localPoolLoading -> Row(
                                 Modifier
@@ -445,8 +486,10 @@ fun PluginVoiceMarketplaceDialog(
                     }
 
                     // ---- 结果摘要 / 错误 ----
-                    // 本地分类模式下不显示联网搜索的摘要/错误（两数据源互斥显示）
-                    if (selectedLocalPool == null) {
+                    // 本地分类模式下不显示联网搜索的摘要/错误（两数据源互斥显示）；
+                    // 大厅「自带分类」视图同理收起（10-11 用户令）
+                    val hallLocalView = sourceSegment == null && !importMode && hallSource == 1
+                    if (selectedLocalPool == null && !hallLocalView) {
                         val error = vm.catalogError
                         if (error != null) {
                             Row(
@@ -496,9 +539,11 @@ fun PluginVoiceMarketplaceDialog(
 
                     // ---- 结果列表 ----
                     // 双数据源（10-10 用户令）：选中本地分类 → 本地音色（getVoices）；否则联网搜索结果。
-                    // 勾选/分类标签/导入共用同一套状态（picked/categories 都按 voiceId 键）
+                    // 10-11 增：大厅「自带分类」视图强制走本地列表——未选具体分类时列全部音色
+                    // （getVoices("")，插件不认则空列表）；勾选/分类标签/导入共用同一套状态（picked/categories 都按 voiceId 键）
                     Box(Modifier.weight(1f)) {
-                        if (selectedLocalPool != null) {
+                        val useLocalList = selectedLocalPool != null || hallLocalView
+                        if (useLocalList) {
                             // 本地分类音色列表（普通插件的主路；广场协议插件也能切过来看本地缓存）
                             if (localVoicesLoading) {
                                 Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
@@ -1231,6 +1276,69 @@ private fun catalogSummary(vm: PluginTtsViewModel): String = when {
 /** 选中集合的 toggle（chips / 筛选项共用一套语义：点一次切一次） */
 private fun Set<String>.toggle(id: String): Set<String> =
     if (id in this) this - id else this + id
+
+/**
+ * 大厅来源切换条（10-11 用户令「大厅也两种」）：两段等宽、整段可点，选中段白底+主题色+对勾。
+ * 与入库侧 ImportSourceSegment（PluginManagerScreen）同款观感，但这是**同弹窗内切视图**——
+ * 入库侧是跨弹窗互跳（甲案），两侧实现不同、外观刻意一致。
+ */
+@Composable
+private fun HallSourceSegment(
+    selected: Int,
+    onSelect: (Int) -> Unit,
+) {
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .padding(horizontal = CATALOG_PANEL_PADDING, vertical = 6.dp)
+            .background(
+                MaterialTheme.colorScheme.surfaceContainerHighest,
+                RoundedCornerShape(22.dp)
+            )
+            .padding(3.dp),
+        horizontalArrangement = Arrangement.spacedBy(3.dp)
+    ) {
+        HallSourceOpt(0, "联网广场", selected, onSelect, Modifier.weight(1f))
+        HallSourceOpt(1, "自带分类", selected, onSelect, Modifier.weight(1f))
+    }
+}
+
+@Composable
+private fun HallSourceOpt(
+    key: Int,
+    label: String,
+    selected: Int,
+    onSelect: (Int) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val on = selected == key
+    Row(
+        modifier
+            .height(36.dp)
+            .background(
+                if (on) MaterialTheme.colorScheme.surface else Color.Transparent,
+                RoundedCornerShape(18.dp)
+            )
+            .clickable { if (!on) onSelect(key) },
+        horizontalArrangement = Arrangement.Center,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        if (on) {
+            Text(
+                "✓",
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.primary
+            )
+            Spacer(Modifier.width(4.dp))
+        }
+        Text(
+            label,
+            style = MaterialTheme.typography.bodyMedium,
+            fontWeight = if (on) FontWeight.Bold else FontWeight.Normal,
+            color = if (on) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
+        )
+    }
+}
 
 /** 生效筛选条数：只数筛选组里的（quickFilters 的 chips 本身就摆在主界面，不再重复计数） */
 private fun countFilterSelections(groups: List<VoiceCatalogFilterGroup>, selected: Set<String>): Int {
