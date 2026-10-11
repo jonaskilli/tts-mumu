@@ -919,14 +919,20 @@ private fun RoleRow(
             // 这里必须关掉按压反馈波纹，否则名字列自己的涟漪会叠成第二块灰。
             Column(
                 Modifier
-                    // 宽度分配新规则（10-10 用户令）：**名字有占到半屏的权利**——名字列
-                    // 最小宽=行内可用宽的 50%，标签框最多吃剩下的 50%；名字实际不长时
-                    //（最长一行 ≤ 半屏）只按实际宽占位，剩余全让给标签框。
+                    // 宽度分配 v2（10-11 用户令两条：①「左边短右边格外长时，右边能占左边的地」
+                    // ②「左边长右边短时，左边也能占右边的地——能放下的话两边都完整」）：
+                    // 名字列先量，最小宽=竖排名称最长行估宽（10-10「半屏权利」保留），
+                    // max=屏宽−68（48=标签框触控下限+10 间距+10 余量）——名字只按**内容**占宽
+                    // 不贪多，这个 max 只在名字长到快满行时兜底，保证标签框永远剩 48dp 触控位；
+                    // 标签短时名字超过半屏也照常展开（右边闲置的地归左边，对称于标签侧 weight）。
+                    // 旧法 weight(1f) 是名字列先吃满剩余、标签框再拿剩下的——标签顶到 220dp
+                    // 上限先量先得时，长名反被挤成两三个字（装机实锤）；权重本就该在标签侧。
                     // 计宽对象=竖排全部名称行里**最长的一行**（含收藏【】与 👑 附件），
                     // 按 16sp 全角≈16dp/半角≈9dp 估（与 weightedWidth 同口径的 dp 化）。
-                    // 多角色名竖排时取最长行：任何一行保住半屏即保住整列。
-                    .widthIn(min = nameColumnMinWidth(nameList, isFav, isProtagonist))
-                    .weight(1f)
+                    .widthIn(
+                        min = nameColumnMinWidth(nameList, isFav, isProtagonist),
+                        max = (LocalConfiguration.current.screenWidthDp - 68).dp
+                    )
                     .combinedClickable(
                         onClick = onNameClick,
                         onLongClick = onNameLongClick,
@@ -985,11 +991,15 @@ private fun RoleRow(
                     // 长按=随机分配（10-06 用户令，替代原标签后的 🔄 直键）——仅 14 类可换类别
                     // 响应，单例类别长按无动作（原直键在单例类别本就不渲染，口径一致）；
                     // minimumInteractiveComponentSize 照旧保 48dp 触控（原 Surface(onClick) 同款）
+                    // 宽度 v2（10-11）：挂 weight(1f, fill=false)——名字列先量后，剩余空间全归
+                    // 标签框（名字短时标签能稳定吃满 220dp 上限装全 15 字），上限仍 220dp 封顶；
+                    // fill=false 短标签按内容收缩不虚占。名字长时两边碰撞，名字半屏权利优先。
                     Surface(
                         shape = RoundedCornerShape(8.dp),
                         // 浅一档容器色（「方案一」）：与书栏卡共用 softContainerColor 同色
                         color = softContainerColor(),
                         modifier = Modifier
+                            .weight(1f, fill = false)
                             .combinedClickable(
                                 onClick = onTagClick,
                                 onLongClick = onReassign.takeIf {
