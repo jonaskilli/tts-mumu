@@ -1063,17 +1063,22 @@ internal data class LogPill(val kind: LogPillKind, val text: String)
 // ⚠️ 不用 Pair 解构（when 分支混用 to 与 if 表达式时编译器推成 Any）——分两个 when
 @Composable
 private fun StatusPill(pill: LogPill) {    val dark = isSystemInDarkTheme()
+    // 丸配色「淡底重字」（10-11 用户从三案中拍板）：底再淡一档、字色加重一档——
+    // 底只做「有个胶囊形状」的暗示，状态信号全交给字色。对比另两案：
+    //   · 原案（M3 淡底+常规字）底浅字也浅，在米白页上信号偏弱
+    //   · 另一案「加深」（底深一档+字加粗）更醒目，但丸的色块感重、一屏多丸时吵
+    // 深色主题的 RETRY/STANDBY 原本就有各自的深底值，维持不动（本次只调浅色口径）
     val bg = when (pill.kind) {
-        LogPillKind.OK -> Color(0xFFE7F0E9)
-        LogPillKind.FAIL -> Color(0xFFF9E5E4)
-        LogPillKind.RETRY -> if (dark) Color(0xFF2A2D33) else Color(0xFFEEF0F6)
-        LogPillKind.STANDBY -> if (dark) Color(0xFF3A3226) else Color(0xFFFBF1DC)
+        LogPillKind.OK -> Color(0xFFF2F8F4)
+        LogPillKind.FAIL -> Color(0xFFFDEEED)
+        LogPillKind.RETRY -> if (dark) Color(0xFF2A2D33) else Color(0xFFF3F5F8)
+        LogPillKind.STANDBY -> if (dark) Color(0xFF3A3226) else Color(0xFFFDF7E7)
     }
     val fg = when (pill.kind) {
-        LogPillKind.OK -> Color(0xFF2E6B46)
-        LogPillKind.FAIL -> Color(0xFFB3261E)
-        LogPillKind.RETRY -> if (dark) Color(0xFF9AA0A8) else Color(0xFF5B6472)
-        LogPillKind.STANDBY -> if (dark) Color(0xFFC9A94E) else Color(0xFF8A6D1A)
+        LogPillKind.OK -> Color(0xFF2E7D46)
+        LogPillKind.FAIL -> Color(0xFFC62828)
+        LogPillKind.RETRY -> if (dark) Color(0xFF9AA0A8) else Color(0xFF4A5568)
+        LogPillKind.STANDBY -> if (dark) Color(0xFFC9A94E) else Color(0xFF9A7B14)
     }
     Text(
         text = pill.text,
