@@ -334,7 +334,8 @@ fun PluginVoiceMarketplaceDialog(
                                 if (hallSource != s) {
                                     hallSource = s
                                     // 切回联网广场时视口回顶（本地列表滚动位置与联网列表无关）
-                                    if (s == 0) listState.scrollToItem(0)
+                                    // scrollToItem 是挂起函数，回调里须 launch（CI 38148965367 实锤）
+                                    if (s == 0) scope.launch { listState.scrollToItem(0) }
                                 }
                             }
                         )
