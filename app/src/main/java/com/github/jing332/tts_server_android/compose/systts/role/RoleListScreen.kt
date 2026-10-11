@@ -850,10 +850,12 @@ private fun cutToTagBoxWidth(text: String, budget: Float = TAG_BUDGET): String {
 
 /**
  * 名字列最小宽（10-10 用户令「名字有占到一半屏幕的权利」）：
- * 取竖排名称各行（含收藏【】、主角👑附件）按 16sp 估算的最长渲染宽，封顶=屏宽的 50%。
+ * 取竖排名称各行（含收藏【】、主角👑附件）按 16sp 估算的最长渲染宽，封顶=行内容宽的一半。
  * 名字短时只按实际宽占位（剩余让给标签框），名字长时保住半屏不被标签框挤窄。
  * 估宽口径：全角(≥0x2E80)≈16dp、半角≈9dp（16sp 下与 weightedWidth 同分布）；
  * 加固定开销=圆点 6+点距 4+行首缩进 4=14dp。
+ * 封顶口径（10-11 v3 改）：从「屏宽/2」改为「屏宽/2 − gutter」——名字列与标签框同处
+ * 行内容区（已扣两侧各 16dp gutter），半屏应指**行内容宽的一半**，用屏宽一半会多算 16dp。
  */
 @Composable
 private fun nameColumnMinWidth(
@@ -862,7 +864,7 @@ private fun nameColumnMinWidth(
     isProtagonist: Boolean,
 ): Dp {
     val config = LocalConfiguration.current
-    val halfScreen = (config.screenWidthDp / 2).dp
+    val halfRow = (config.screenWidthDp / 2 - ListGutter.value).dp
     var maxW = 0f
     for (name in nameList) {
         var w = 14f // 圆点 6 + 点距 4 + 行首缩进 4
@@ -871,7 +873,7 @@ private fun nameColumnMinWidth(
         if (isProtagonist && name == nameList.first()) w += 20f // 👑+空格
         if (w > maxW) maxW = w
     }
-    return minOf(maxW.dp, halfScreen)
+    return minOf(maxW.dp, halfRow)
 }
 
 /**
@@ -919,19 +921,19 @@ private fun RoleRow(
             // 这里必须关掉按压反馈波纹，否则名字列自己的涟漪会叠成第二块灰。
             Column(
                 Modifier
-                    // 宽度分配 v2（10-11 用户令两条：①「左边短右边格外长时，右边能占左边的地」
-                    // ②「左边长右边短时，左边也能占右边的地——能放下的话两边都完整」）：
-                    // 名字列先量，最小宽=竖排名称最长行估宽（10-10「半屏权利」保留），
-                    // max=屏宽−68（48=标签框触控下限+10 间距+10 余量）——名字只按**内容**占宽
-                    // 不贪多，这个 max 只在名字长到快满行时兜底，保证标签框永远剩 48dp 触控位；
-                    // 标签短时名字超过半屏也照常展开（右边闲置的地归左边，对称于标签侧 weight）。
-                    // 旧法 weight(1f) 是名字列先吃满剩余、标签框再拿剩下的——标签顶到 220dp
-                    // 上限先量先得时，长名反被挤成两三个字（装机实锤）；权重本就该在标签侧。
+                    // 宽度分配 v3（10-11 用户拍板方案④「回到旧格式观感 + 补掉它的洞」）：
+                    // 名字列按内容量占宽，**上限=行内容宽的一半**——名字再长也留半屏给标签，
+                    // 不再像旧格式（标签优先）那样被挤到 7 个字。
+                    // 标签侧改回「按内容宽 + 右缘齐线」（去 weight），靠右侧弹性槽承载：
+                    //   · 名字短 → 名字按实际宽，标签可超半屏（右推靠齐，旧格式观感）
+                    //   · 名字长 → 名字封顶半屏，标签拿到剩下的一半
+                    // 旧法 weight(1f) 是名字先吃满剩余，标签顶到 220dp 上限先量先得时
+                    // 长名反被挤成两三个字（10-11 装机实锤）；权重本就该在标签侧。
                     // 计宽对象=竖排全部名称行里**最长的一行**（含收藏【】与 👑 附件），
                     // 按 16sp 全角≈16dp/半角≈9dp 估（与 weightedWidth 同口径的 dp 化）。
                     .widthIn(
                         min = nameColumnMinWidth(nameList, isFav, isProtagonist),
-                        max = (LocalConfiguration.current.screenWidthDp - 68).dp
+                        max = (LocalConfiguration.current.screenWidthDp / 2 - ListGutter.value).dp
                     )
                     .combinedClickable(
                         onClick = onNameClick,
@@ -977,8 +979,17 @@ private fun RoleRow(
             // 右侧动作列：只剩发音人标签框（voice 空不渲染，照插件）；
             // 标签后接已点亮的标记 emoji（顺序同管理弹窗 getVoiceMarkLabel，未点亮不渲染）
             if (rec.voice.isNotBlank()) {
+                // 固定间距 10dp
                 Spacer(Modifier.width(10.dp))
-                Row(verticalAlignment = Alignment.CenterVertically) {
+                // 弹性槽（10-11 方案④）：占住剩余空间、内容靠右 → 标签**右缘齐线**（旧格式观感）。
+                // 用 weight 而非裸 Spacer 是关键：weight 让槽以「剩余空间」为上限去量标签，
+                // 名字长时槽自动收缩、标签跟着收窄（不会撑破行）；裸 Spacer+按内容量标签
+                // 会在「名字长+标签长」时总和超出屏宽而溢出。
+                Row(
+                    Modifier.weight(1f),
+                    horizontalArrangement = Arrangement.End,
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
                     // 标签文本：正常态由 voiceTagText 按框宽截好；失效态（查不到配置）
                     // 回落 tag + ⚠——⚠ 本身也占宽，故先让出 2 字预算再拼，
                     // 否则尾巴又会被框挤掉（框里不要出现「…」）
@@ -991,15 +1002,14 @@ private fun RoleRow(
                     // 长按=随机分配（10-06 用户令，替代原标签后的 🔄 直键）——仅 14 类可换类别
                     // 响应，单例类别长按无动作（原直键在单例类别本就不渲染，口径一致）；
                     // minimumInteractiveComponentSize 照旧保 48dp 触控（原 Surface(onClick) 同款）
-                    // 宽度 v2（10-11）：挂 weight(1f, fill=false)——名字列先量后，剩余空间全归
-                    // 标签框（名字短时标签能稳定吃满 220dp 上限装全 15 字），上限仍 220dp 封顶；
-                    // fill=false 短标签按内容收缩不虚占。名字长时两边碰撞，名字半屏权利优先。
+                    // 宽度 v3（10-11 方案④）：去 weight，标签**按内容宽**（上限仍 220dp）——
+                    // 位置由外层弹性槽（Arrangement.End）贴到行尾（右缘齐线，旧格式的观感）。
+                    // 名字短时标签可超半屏；两边都长时名字已被上限保了半屏，标签拿到剩下的
                     Surface(
                         shape = RoundedCornerShape(8.dp),
                         // 浅一档容器色（「方案一」）：与书栏卡共用 softContainerColor 同色
                         color = softContainerColor(),
                         modifier = Modifier
-                            .weight(1f, fill = false)
                             .combinedClickable(
                                 onClick = onTagClick,
                                 onLongClick = onReassign.takeIf {
