@@ -63,6 +63,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarDuration
 import androidx.compose.material3.SnackbarHost
@@ -1292,6 +1293,11 @@ private fun MarketplaceImportDialog(
     var autoNext by remember { mutableStateOf(false) }
     var auditionItem by remember { mutableStateOf<com.github.jing332.tts.speech.plugin.engine.VoiceCatalogItem?>(null) }
     var importing by remember { mutableStateOf(false) }
+    // 勾选/分类两张表提到宿主（10-11 用户实机「试听里分了类，卡片不显示分类也不勾选」）：
+    // 原先把它们藏在广场面板内部，试听弹窗在宿主这层，分类只能写进 MarketplaceCategoryOverride
+    // 旁路单例——卡片读自己的 map，两条线不通。现在同一份状态两边共读，试听里点分类即时回显。
+    val picked = remember { androidx.compose.runtime.mutableStateMapOf<String, com.github.jing332.tts.speech.plugin.engine.VoiceCatalogItem>() }
+    val categories = remember { androidx.compose.runtime.mutableStateMapOf<String, String>() }
 
     // 试听弹窗（复用 AuditionDialog：等待分类/自动下一个/分类点选/失败重播全都在）
     auditionItem?.let { item ->
@@ -1315,11 +1321,17 @@ private fun MarketplaceImportDialog(
             engine = null, // 用 CachedEngineManager 路径（同编辑页行内 🎧 口径）
             voiceId = item.id,
             autoDismiss = !waitCategory,
+            // 已分配分类回显（回看上一个音色时知道分过没）
+            assignedCategory = categories[item.id],
             onCategoryAssigned = { _, category ->
-                // 试听里点的分类写回广场卡片状态（MarketplaceDialog 的 categories map
-                // 由 onSwitchesChanged 同款回调传递不了 map——直接走重播态卡片改派：
-                // 这里通过 handoff 式内存单例回传）
-                MarketplaceCategoryOverride.put(item.id, category)
+                // 试听里点的分类直写宿主那张表（10-11）：卡片标签/勾选/计数同一帧刷新；
+                // 取消分类=移键（mutableStateMapOf 不收 null 值）
+                if (category == null) categories.remove(item.id)
+                else {
+                    categories[item.id] = category
+                    // 与老入库弹窗口径一致：手选分类即视为待导入项，自动勾上
+                    if (item.id !in picked) picked[item.id] = item
+                }
                 if (category != null && autoNext) {
                     // 自动下一个：跳到列表中当前项的下一个（广场列表顺序）
                     val items = vm.catalogItems
@@ -1337,31 +1349,19 @@ private fun MarketplaceImportDialog(
         locale = "",
         onDismissRequest = onDismiss,
         onAudition = { item -> auditionItem = item },
-        onPick = { picked ->
+        onPick = { items ->
             // 「加入列表(N)」在入库模式=只补下拉不入库（导入键才是两动作）。本宿主没有
             // 当前配置的下拉可补——入库模式藏这键没必要，直接视为同导入。用户在编辑页
             // 大厅模式才有"只加下拉"诉求（那路由编辑页自己的 onPick 处理）。
-            doMarketplaceImport(plugin, vm, picked, context, scope, onDismiss)
+            doMarketplaceImport(plugin, vm, items, categories.toMap(), context, scope, onDismiss)
         },
-        onImport = { picked ->
-            doMarketplaceImport(plugin, vm, picked, context, scope, onDismiss)
+        onImport = { items ->
+            doMarketplaceImport(plugin, vm, items, categories.toMap(), context, scope, onDismiss)
         },
         onSwitchesChanged = { w, a -> waitCategory = w; autoNext = a },
+        picked = picked,
+        categories = categories,
     )
-}
-
-/** 广场勾选的分类改派（试听弹窗 → 宿主内存桥）：导入时读（与卡片点选的 map 合并语义） */
-object MarketplaceCategoryOverride {
-    val map = mutableMapOf<String, String>()
-    fun put(voiceId: String, category: String?) {
-        // null=取消分类=移键（map 只存「已分类」项）
-        if (category == null) map.remove(voiceId) else map[voiceId] = category
-    }
-    fun takeAll(): Map<String, String> {
-        val m = map.toMap()
-        map.clear()
-        return m
-    }
 }
 
 /** 从 VM 引擎读某 poolId 的分类显示名（导入侧给本地音色定子分组名用；拉不到回空串） */
@@ -1376,14 +1376,14 @@ private fun doMarketplaceImport(
     plugin: Plugin,
     vm: com.github.jing332.tts_server_android.compose.systts.list.ui.PluginTtsViewModel,
     picked: List<com.github.jing332.tts.speech.plugin.engine.VoiceCatalogItem>,
+    // 宿主那张卡片分类表（10-11：卡片点选与试听点选写同一张，这里直接读，不再走旁路单例）
+    categories: Map<String, String>,
     context: android.content.Context,
     scope: kotlinx.coroutines.CoroutineScope,
     onDone: () -> Unit,
 ) {
     if (picked.isEmpty()) return
     scope.launch {
-        // 手选分类（试听弹窗里点的）优先，否则广场标签映射
-        val overrides = MarketplaceCategoryOverride.takeAll()
         val items = picked.map {
             // 本地分类音色带 "locale:xxx" 段（面板勾选时写入）→ poolId=分类 id、poolName=分类名
             // （importVoices 用 poolName 做未分类项的子分组名）；联网音色无段，走原口径
@@ -1394,7 +1394,8 @@ private fun doMarketplaceImport(
                 poolName = localPoolName.ifBlank { it.tags.firstOrNull().orEmpty() },
                 voiceId = it.id,
                 voiceName = it.name,
-                categoryOverride = overrides[it.id]
+                // 分类优先级：卡片/试听手选的分类 > 广场标签字面映射
+                categoryOverride = categories[it.id]
                     ?: it.tags.firstOrNull()?.let { t -> PluginCategoryImporter.mapTagCategory(t) }
             )
         }
@@ -1490,6 +1491,12 @@ internal fun ImportByCategoryDialog(
     // 自动下一个=点了分类（真正分配，取消不算）后自动切下一个继续播
     var waitCategorySwitch by remember { mutableStateOf(false) }
     var autoNextSwitch by remember { mutableStateOf(false) }
+    // 入库方式两条道（10-11 用户令：「直接根据自带的声音分类入库 / 再去试听入库」两种，**默认试听**）：
+    // 试听分类=false：逐条试听后手选分类才算数（现行行为，默认）；
+    // 直接入库=true：不要求试听，勾了就用插件自带分类名映射落库（池名 → 标准人群名）。
+    // 老弹窗原先只认「试听手选分类」，插件自带分类映射的结果被 importCount 过滤掉，
+    // 于是图五「已分类 0/7、导入 0 个音色」灰着不可点——这条道等于不通。
+    var directMode by remember { mutableStateOf(false) }
 
     // 引擎贯穿弹窗生命周期：既用于拉池/声音，也用于试听合成；关闭时销毁
     val engine = remember(plugin.id) { TtsPluginUiEngineV2(context, plugin) }
@@ -1549,9 +1556,15 @@ internal fun ImportByCategoryDialog(
     val allSelected = categories.isNotEmpty() && selectedPoolIds.size == categories.size
     val hasSelection = selectedPoolIds.isNotEmpty()
     val allVoicesSelected = voices.isNotEmpty() && selectedKeys.size == voices.size
-    // 导入只认「已分类」的（10-10 用户令「只导入自己试听分类过的」）：勾了但没分类不算数——
-    // 未分类项入库会按原名落子分组不打标签（盲入产物），正是用户不要的
-    val importCount = voices.count { it.key in selectedKeys && categoryOverrides[it.key] != null }
+    // 真正会计入导入的行（两条道口径不同，导入键与计数必须同源）：
+    // - 试听分类道（默认）：只认「已分类」的——勾了但没分类不算数，未分类项入库会按原名落子分组
+    //   不打标签（盲入产物），正是用户不要的；
+    // - 直接入库道：勾了就导，分类取插件自带池名映射（拉不到映射就按原名落子分组）。
+    val importRows = when {
+        directMode -> voices.filter { it.key in selectedKeys }
+        else -> voices.filter { it.key in selectedKeys && categoryOverrides[it.key] != null }
+    }
+    val importCount = importRows.size
 
     // 试听弹窗：复用编辑页同一组件（🎧 试听 + 三列分类标签 + 上一个/下一个 + 进度）
     if (auditionIndex in voices.indices) {
@@ -1686,27 +1699,66 @@ internal fun ImportByCategoryDialog(
                             modifier = Modifier.padding(bottom = 4.dp)
                         )
                         // 等待分类/自动下一个（10-10 用户令恢复旧版两开关）：
-                        // 整行可点切对应开关，Toast 口径照 10-05 迁移前原样
-                        Row(
-                            Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(18.dp)
-                        ) {
-                            SwitchRow(
-                                label = "等待分类",
-                                checked = waitCategorySwitch,
-                                onToggle = {
-                                    waitCategorySwitch = it
-                                    context.toast(if (it) "已开启：试听后等待选择分类" else "已关闭：试听后自动关闭")
-                                }
-                            )
-                            SwitchRow(
-                                label = "自动下一个",
-                                checked = autoNextSwitch,
-                                onToggle = {
-                                    autoNextSwitch = it
-                                    context.toast(if (it) "已开启：选分类后自动试听下一个" else "已关闭：选分类后不自动切换")
-                                }
-                            )
+                        // 整行可点切对应开关，Toast 口径照 10-05 迁移前原样。
+                        // 只在「试听分类」道显示：直接入库道不试听，这两个开关无处生效（死控件）
+                        if (!directMode) {
+                            Row(
+                                Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(18.dp)
+                            ) {
+                                SwitchRow(
+                                    label = "等待分类",
+                                    checked = waitCategorySwitch,
+                                    onToggle = {
+                                        waitCategorySwitch = it
+                                        context.toast(if (it) "已开启：试听后等待选择分类" else "已关闭：试听后自动关闭")
+                                    }
+                                )
+                                SwitchRow(
+                                    label = "自动下一个",
+                                    checked = autoNextSwitch,
+                                    onToggle = {
+                                        autoNextSwitch = it
+                                        context.toast(if (it) "已开启：选分类后自动试听下一个" else "已关闭：选分类后不自动切换")
+                                    }
+                                )
+                            }
+                        }
+                        // 入库两条道（10-11 用户令，默认「试听分类」）：互斥单选，别拿 Switch——
+                        // 上面已有「等待分类/自动下一个」两个真开关，再来两个同款会读成独立开关。
+                        Column(Modifier.fillMaxWidth()) {
+                            Row(
+                                Modifier
+                                    .fillMaxWidth()
+                                    .clip(MaterialTheme.shapes.small)
+                                    .clickable { directMode = false }
+                                    .padding(vertical = 2.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                RadioButton(selected = !directMode, onClick = { directMode = false })
+                                Text("试听分类", style = MaterialTheme.typography.bodyMedium)
+                                Text(
+                                    "（逐条试听后点分类才算数）",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                            Row(
+                                Modifier
+                                    .fillMaxWidth()
+                                    .clip(MaterialTheme.shapes.small)
+                                    .clickable { directMode = true }
+                                    .padding(vertical = 2.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                RadioButton(selected = directMode, onClick = { directMode = true })
+                                Text("直接按自带分类入库", style = MaterialTheme.typography.bodyMedium)
+                                Text(
+                                    "（勾了就导，按插件分类名映射）",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
                         }
                         CheckRow(
                             checked = allVoicesSelected,
@@ -1715,10 +1767,11 @@ internal fun ImportByCategoryDialog(
                             },
                             label = if (allVoicesSelected) "取消全选" else "全选",
                             trailing = {
-                                // 已分类计数（10-10 用户令「只导入自己试听分类过的」）：
-                                // 导入只认已分类的，这个数才是真正会导的数量
+                                // 计数跟当前道的口径走（与导入键同源 importRows）：
+                                // 试听道=已分类数；直接道=勾选数（两者都会导）
                                 Text(
-                                    "已分类 ${importCount}/${voices.size}",
+                                    if (directMode) "已勾 ${selectedKeys.size}/${voices.size}"
+                                    else "已分类 ${importCount}/${voices.size}",
                                     style = MaterialTheme.typography.bodySmall,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
@@ -1766,10 +1819,9 @@ internal fun ImportByCategoryDialog(
                     enabled = !importing && importCount > 0,
                     onClick = {
                         importing = true
-                        // 与 importCount 同口径：只导已分类的（勾了但没分类的不进这批）
-                        val items = voices.filter {
-                            it.key in selectedKeys && categoryOverrides[it.key] != null
-                        }.map {
+                        // 与 importCount 同源（importRows）：两条道的取舍已在那边算好，这里不再二次过滤，
+                        // 否则「直接入库」道勾好的行会被这里静默丢掉（计数与实导不一致）
+                        val items = importRows.map {
                             PluginCategoryImporter.VoiceItem(
                                 poolId = it.poolId,
                                 poolName = it.poolName,

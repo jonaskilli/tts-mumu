@@ -2,7 +2,6 @@ package com.github.jing332.tts_server_android.compose.systts
 
 import android.content.Context
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -360,12 +359,13 @@ fun AuditionDialog(
         },
         buttons = {
             if (onPrev != null || onNext != null) {
-                // 分类/批量试听：切换按钮居中；批量分类态（onFinish 非空）右侧加「完成」——
-                // 用户 10-10 实机：分完类没有保存键、只能干关弹窗，不知道分没分上
-                Box(Modifier.fillMaxWidth()) {
+                // 分类/批量试听：切换按钮一行居中；批量分类态（onFinish 非空）的「完成」另起一行靠右。
+                // 10-11 用户实机：「完成」原与「下一个」同层抢位（align Center 与 CenterEnd 叠在
+                // 同一个 Box 里），窄屏两键贴死——拆成上下两行，各占一行互不挤压。
+                Column(Modifier.fillMaxWidth()) {
                     Row(
-                        modifier = Modifier.align(Alignment.Center),
-                        horizontalArrangement = Arrangement.spacedBy(48.dp),
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.Center,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         if (onPrev != null) {
@@ -382,10 +382,13 @@ fun AuditionDialog(
                         }
                     }
                     if (onFinish != null) {
-                        TextButton(
-                            onClick = onFinish,
-                            modifier = Modifier.align(Alignment.CenterEnd)
-                        ) { Text("完成") }
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.End,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            TextButton(onClick = onFinish) { Text("完成") }
+                        }
                     }
                 }
             } else {

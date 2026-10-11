@@ -65,6 +65,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshots.SnapshotStateMap
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -125,6 +126,8 @@ private const val CATALOG_SHEET_HEIGHT = 0.92f
  * @param onAudition 卡片上的 🎧 —— 交给调用方的现有试听弹窗（同一个 AuditionDialog），弹窗本身不关
  * @param onPick 点「加入列表(N)」时回调勾中的音色（调用方负责并进声音列表，随后自行关闭本弹窗）
  * @param onImport 点「导入(N)」时回调勾中的音色（调用方负责入下拉+入库两动作；null=大厅模式不渲染）
+ * @param picked 勾选集合（入库模式由宿主持有：试听弹窗里点的分类要落回同一张表，卡片才会即时刷新）
+ * @param categories 卡片/试听分类改派 voiceId → 分类名（同上，由宿主持有并随导入交给落库侧）
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -137,6 +140,10 @@ fun PluginVoiceMarketplaceDialog(
     onImport: ((List<VoiceCatalogItem>) -> Unit)? = null,
     // 入库模式两开关变化上报（等待分类/自动下一个；试听弹窗由调用方弹，开关语义在调用方落地）
     onSwitchesChanged: (waitCategory: Boolean, autoNext: Boolean) -> Unit = { _, _ -> },
+    // 勾选/分类两张表（10-11 用户实机「试听分了类卡片不显示、不勾选」）：
+    // 默认值保住大厅模式（编辑页）调用方不用改；入库模式由宿主传入，试听分类与卡片共用同一份状态
+    picked: SnapshotStateMap<String, VoiceCatalogItem> = remember { mutableStateMapOf<String, VoiceCatalogItem>() },
+    categories: SnapshotStateMap<String, String> = remember { mutableStateMapOf<String, String>() },
 ) {
     val importMode = onImport != null
     // 入库模式的两开关（10-10 恢复旧版语义，挪进广场顶部）：
@@ -147,8 +154,6 @@ fun PluginVoiceMarketplaceDialog(
     LaunchedEffect(waitCategorySwitch, autoNextSwitch) {
         onSwitchesChanged(waitCategorySwitch, autoNextSwitch)
     }
-    // 卡片分类改派（入库模式）：voiceId → 分类名；交给调用方随导入落库
-    val categories = remember { mutableStateMapOf<String, String>() }
     val scope = rememberCoroutineScope()
     val keyboard = LocalSoftwareKeyboardController.current
 
@@ -157,8 +162,7 @@ fun PluginVoiceMarketplaceDialog(
     var tags by remember { mutableStateOf<Set<String>>(emptySet()) }
     var sortBy by remember { mutableStateOf(CATALOG_SORT_SCORE) }
     var filterSheetOpen by remember { mutableStateOf(false) }
-    // 勾选集合用 map 而不是 id 集合：翻页/重搜会换掉 catalogItems，勾过的条目本体得留住
-    val picked = remember { mutableStateMapOf<String, VoiceCatalogItem>() }
+    // 勾选集合（入参 picked，map 而非 id 集合：翻页/重搜会换掉 catalogItems，勾过的条目本体得留住）
     // 列表滚动：换条件/重开都从头（索引 0）开始，别让上一次的位置或续页锚点把视口带偏
     val listState = rememberLazyListState()
 
@@ -536,8 +540,18 @@ fun PluginVoiceMarketplaceDialog(
                                             },
                                             assignedCategory = categories[voiceId],
                                             onCategoryChange = if (importMode) ({ cat ->
+                                                // 卡片手选分类（10-11 与老弹窗口径对齐）：分好类即视为待导入项
+                                                // 并自动勾选，否则分完类没勾、导入漏掉它
                                                 if (cat == null) categories.remove(voiceId)
-                                                else categories.set(voiceId, cat)
+                                                else {
+                                                    categories.set(voiceId, cat)
+                                                    if (voiceId !in picked) picked[voiceId] = VoiceCatalogItem(
+                                                        id = voiceId,
+                                                        name = name,
+                                                        // poolId 借 description 带给导入侧（本地分类名做 poolName）
+                                                        description = "locale:${poolId}",
+                                                    )
+                                                }
                                             }) else null,
                                         )
                                     }
@@ -563,7 +577,12 @@ fun PluginVoiceMarketplaceDialog(
                                     onCategoryChange = if (importMode) ({ cat ->
                                         // mutableStateMapOf 不收 null 值：取消分类=移键
                                         if (cat == null) categories.remove(item.id)
-                                        else categories.set(item.id, cat)
+                                        else {
+                                            categories.set(item.id, cat)
+                                            // 卡片手选分类（10-11 与老弹窗口径对齐）：分好类即自动勾选，
+                                            // 否则分完类没勾、导入漏掉它
+                                            if (item.id !in picked) picked[item.id] = item
+                                        }
                                     }) else null,
                                 )
                             }

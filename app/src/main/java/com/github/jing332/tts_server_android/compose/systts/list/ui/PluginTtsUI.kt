@@ -236,8 +236,8 @@ class PluginTtsUI : IConfigUI() {
 
         // 音色大厅（原「音色广场」，10-10 用户令：编辑页没有入库概念——选声音场景底部
         // 只有「加入列表(N)」=补进声音下拉，入库走插件管理页「音色分类入库」入口的广场模式）。
-        // 旧「入库(N)」handoff 跳转链已撤（onImport 传 null 即隐藏该键，MarketplaceCategoryOverride
-        // 宿主桥接替）。
+        // 旧「入库(N)」handoff 跳转链已撤（onImport 传 null 即隐藏该键；入库模式的分类状态由
+        // 插件管理页宿主自己持有，见 MarketplaceImportDialog）。
         if (showVoiceCatalog) {
             PluginVoiceMarketplaceDialog(
                 vm = vm,
