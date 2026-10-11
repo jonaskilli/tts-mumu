@@ -1060,6 +1060,21 @@ private fun Item(
                         maxLines = 2,
                         overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
                     )
+                    // 变量提示（10-11 用户令）：位置移到**插件名与作者行之间**——
+                    // 原文案挂卡底居中（align CenterHorizontally），与它服务的插件名隔着一行作者信息，
+                    // 单看像条独立公告；夹进名字下方后读作「这个插件要说的事」。
+                    // 字号 13sp 与配色沿用原口径（bodyMedium 降档 + primary 高亮=可操作提示）；
+                    // 多选模式不显示（原卡底写法的 !isSelectionMode 条件一并保留）
+                    if (needSetVars && !isSelectionMode) {
+                        Spacer(Modifier.height(2.dp))
+                        Text(
+                            text = stringResource(id = R.string.systts_plugin_please_set_vars),
+                            style = MaterialTheme.typography.bodyMedium.copy(fontSize = 13.sp),
+                            color = MaterialTheme.colorScheme.primary,
+                            maxLines = 1,
+                            overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                        )
+                    }
                     Spacer(Modifier.height(4.dp))
                     Text(
                         text = desc,
@@ -1204,17 +1219,7 @@ private fun Item(
                 }
             }
 
-            if (needSetVars && !isSelectionMode)
-                Text(
-                    text = stringResource(id = R.string.systts_plugin_please_set_vars),
-                    modifier = Modifier.align(Alignment.CenterHorizontally),
-                    // 13sp（10-06 用户令）：原 15sp 与插件名同级、比它服务的描述行(bodySmall 12sp)
-                    // 还大 3sp，层级倒挂——看着比版本信息更抢眼。降到 13sp（全站既有档：
-                    // 描述行/列表层标同档），读作"次级提示"而非"标题"；
-                    // primary 高亮保留（它是可操作提示，染色正确）
-                    style = MaterialTheme.typography.bodyMedium.copy(fontSize = 13.sp),
-                    color = MaterialTheme.colorScheme.primary
-                )
+            // 变量提示已移到插件名与作者行之间（10-11 用户令），此处不再重复渲染
 
             // 按插件音色分类入库：选分组 → 批量导入
             ImportByCategoryDialog(
