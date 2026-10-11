@@ -360,9 +360,6 @@ internal fun LogScreen(
     onLocateOriginal: (LogEntry) -> Unit = {},
     // 定位高亮：命中条目黄底闪现（完整流里看到前后文），上层 2s 后清除
     locateHighlight: LogEntry? = null,
-    // 单条删除（10-10 M3 改造）：非空时裸行支持左滑删除。默认空=不启用——
-    // 转发器日志页（BasicConfigScreen 按位置传参）没有删除语义，行为保持不变
-    onRemoveEntry: ((LogEntry) -> Unit)? = null,
 ) {
     ControlBottomBarVisibility(listState, LocalBottomBarBehavior.current)
     val scope = rememberCoroutineScope()
@@ -382,9 +379,6 @@ internal fun LogScreen(
     val currentChecked by rememberUpdatedState(checkedEntries)
     val currentOnEnterSelection by rememberUpdatedState(onEnterSelection)
     val currentOnCheckedChange by rememberUpdatedState(onCheckedChange)
-    // 左滑删除回调也要最新值：SwipeToDismissBox 的 confirmValueChange 捕获的是
-    // 建 state 那一刻的 lambda，直接读参数会删到旧列表对象
-    val currentOnRemoveEntry by rememberUpdatedState(onRemoveEntry)
 
     // 归组结果：外部传入优先，否则内部构建（缓存随列表重建）
     val builtGroups = remember(list, groups) { groups ?: LogGroups.build(list) }
@@ -716,9 +710,8 @@ internal fun LogScreen(
                             // 左滑删除整撤（10-10 装机用户令「只是看日志而已，为啥要有删除」
                             // +「上次都让你改结果还是这样」——10-10 白天 M3 三件套批加的该功能
                             // 本身不该存在：日志是只读流，删除走顶栏垃圾桶清空+多选勾删两通道）。
-                            // SwipeToDismissBox 包装层与透底修复（前景补 background）随之退役；
-                            // onRemoveEntry 参数保留（默认 null，转发器页历来不传），调用方
-                            // TtsLogScreen 已不再传=全站关闭。下批把参数与 VM removeEntry 一并清。
+                            // SwipeToDismissBox 包装层、透底修复（前景补 background）、
+                            // onRemoveEntry 参数与 VM.removeEntry 已于 10-11 一并清干净。
                             bareContent()
                             // 条目间分隔线（10-10 用户令「分隔线需要加」）：行流撤卡后行间只剩
                             // 空白，加发丝线恢复条目边界；日期签前不画（签自带灰底已是边界）。

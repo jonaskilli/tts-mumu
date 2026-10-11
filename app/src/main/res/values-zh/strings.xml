@@ -190,7 +190,6 @@
     <string name="systts_log_decode_failed">解码失败：%1$s</string>
     <string name="systts_log_canceled">已取消：%1$s</string>
     <string name="systts_log_finished_playing">播放完毕：%1$s</string>
-    <string name="systts_log_start_retry">开始第 %1$d 次重试</string>
     <string name="unlimited">无限制</string>
     <string name="file">文件</string>
     <string name="select_file">选择文件</string>

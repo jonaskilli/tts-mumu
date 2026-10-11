@@ -489,8 +489,6 @@ internal fun TtsLogScreen(vm: TtsLogViewModel = viewModel()) {
             showLocateKey = isFiltered,
             onLocateOriginal = { entry -> locateOriginal(entry) },
             locateHighlight = locateHighlight,
-            // 左滑删除已整撤（10-10 装机用户令：日志是只读流，滑删不该存在）——
-            // 不再传 onRemoveEntry；VM.removeEntry 留存未删（下批清理），勿再接线
         )
     }
 
