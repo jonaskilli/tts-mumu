@@ -125,16 +125,18 @@ private val releaseDotColors = listOf(
 private val BOOK_NAME_COLOR = Color(0xFF333333)
 
 /**
- * 标签/书栏/胶囊统一淡绿（10-11 用户拍板终稿「标签、卡片、编辑页底色都用我选的绿」）：
- * 直接取 surfaceContainerLow——即全站卡底那档（GREEN=#F2F8F4，用户选中的绿），
- * 十主题自动对齐各自主题的卡底，不再各自 lerp。
+ * 标签/书栏/胶囊统一底色（2026-10-11 Radix 版，用户拍板「标签用 step4」）：
+ * 取 secondaryContainer——Color2 浅色里已改为 Radix accent step4（GREEN=#D6F1DF），
+ * 比卡底（surfaceContainerLow=accent step2 #F4FBF6）深两档，标签块在页底/卡上都看得见；
+ * 十主题自动对齐各自 Radix 族的 step4，深色走各族 dark 表。
  *
- * 演进史：secondaryContainer→background 插值 0.4（深绿）→0.65（≈卡底但差 1~2 个 RGB）→
- * 现在与卡底同源，标签=卡片=编辑页分区卡三处一个色，零岔色。
+ * 演进史：secondaryContainer→background 插值 0.4→0.65→14f217c 与卡底同源（=surfaceContainerLow，
+ * 装机实锤「标签太淡」：与页底只差 9/5/4 个 RGB，块看不见）→ 本版改回 secondaryContainer 但
+ * 色阶已整体换 Radix，标签(step4)与卡底(step2)天生分开，不再撞色。
  * 文字仍用 onSecondaryContainer：对比度只会更大。
  */
 @Composable
-internal fun softContainerColor(): Color = MaterialTheme.colorScheme.surfaceContainerLow
+internal fun softContainerColor(): Color = MaterialTheme.colorScheme.secondaryContainer
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable

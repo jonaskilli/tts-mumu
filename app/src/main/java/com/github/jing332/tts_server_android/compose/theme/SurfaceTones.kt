@@ -2,24 +2,27 @@ package com.github.jing332.tts_server_android.compose.theme
 
 import androidx.compose.ui.graphics.Color
 
-// 10 套静态主题的 surfaceContainer 七槽（2026-10-10 生成，勿手改；生成器=临时文件/gen_surface_tones.py）。
-// 浅色=fresh green 体系（用户拍板以设置页浅绿 #F2F8F4 为卡底基底全站重排）：
-//   tone 阶梯 Lowest=99 Low=96.5 Container=94.5 High=92.5 Highest=90.5 Dim=88 Bright=98，
-//   整表平移使 GREEN Low 槽精确=#F2F8F4；色相随主题 primary、彩度≤8（清新淡彩，非灰阶）。
-// 深色=M3 官方 baseline 暗色表 4/10/12/17/22/6/24，整表锚到各主题 background，色相取 primary（彩度≤3）。
+// 10 套静态主题的 surfaceContainer 七槽（2026-10-11 Radix 版，勿手改；生成器=临时文件/gen_radix_tones.py）。
+// 数据源=@radix-ui/colors 3.0.0（MIT，shadcn/ui 同款）sRGB 主值，2026-10-11 抓取。
+// 浅色映射（用户 10-11 拍板「标签 step4、卡底保持选中的绿」）：
+//   Lowest=accent step1（页底）Low=accent step2（卡底，GREEN=#F4FBF6≈旧#F2F8F4）
+//   Container/High/Highest=配对中性灰 step3/4/5（sage/mauve/slate/sand，结构与嵌套层不带 accent 彩度）
+//   Dim=中性 step3，Bright=accent step1。
+// 标签/选中档不在本表：Color2 浅色 secondaryContainer=accent step4，softContainerColor() 取之。
+// 深色表维持 10-10 版未动（官方 baseline 锚 background；深色未装机验收过，不随本批盲改）。
 // 列表顺序固定：[lowest, low, container, high, highest, dim, bright]，消费方=Theme.kt themedNeutral()。
 
 internal val lightSurfaceTones: Map<AppTheme, List<Color>> = mapOf(
-    AppTheme.DEFAULT to listOf(Color(0xFFFCFFF9), Color(0xFFF4F8F2), Color(0xFFEFF2EC), Color(0xFFE9ECE7), Color(0xFFE3E6E1), Color(0xFFDCDFDA), Color(0xFFF9FCF6)),
-    AppTheme.GREEN to listOf(Color(0xFFF9FFFB), Color(0xFFF2F8F4), Color(0xFFEDF2EE), Color(0xFFE7ECE8), Color(0xFFE1E7E3), Color(0xFFDAE0DB), Color(0xFFF7FCF8)),
-    AppTheme.RED to listOf(Color(0xFFFFFCFA), Color(0xFFFDF5F3), Color(0xFFF7EFED), Color(0xFFF1E9E8), Color(0xFFECE4E2), Color(0xFFE5DDDB), Color(0xFFFFF9F7)),
-    AppTheme.PINK to listOf(Color(0xFFFFFCFD), Color(0xFFFDF5F6), Color(0xFFF7EFF0), Color(0xFFF1E9EB), Color(0xFFECE3E5), Color(0xFFE4DCDE), Color(0xFFFFF9FA)),
-    AppTheme.BLUE to listOf(Color(0xFFFDFDFF), Color(0xFFF6F6FC), Color(0xFFF0F0F6), Color(0xFFEAEBF0), Color(0xFFE5E5EB), Color(0xFFDDDEE4), Color(0xFFFAFAFF)),
-    AppTheme.CYAN to listOf(Color(0xFFF7FFFE), Color(0xFFF0F8F7), Color(0xFFEAF3F1), Color(0xFFE5EDEB), Color(0xFFDFE7E5), Color(0xFFD8E0DE), Color(0xFFF4FDFB)),
-    AppTheme.ORANGE to listOf(Color(0xFFFFFDF8), Color(0xFFFBF6F1), Color(0xFFF5F0EB), Color(0xFFF0EAE6), Color(0xFFEAE4E0), Color(0xFFE3DDD9), Color(0xFFFFFAF5)),
-    AppTheme.PURPLE to listOf(Color(0xFFFFFDFF), Color(0xFFF8F5FB), Color(0xFFF2F0F5), Color(0xFFEDEAF0), Color(0xFFE7E4EA), Color(0xFFE0DDE3), Color(0xFFFCFAFF)),
-    AppTheme.BROWN to listOf(Color(0xFFFFFCF9), Color(0xFFFCF5F2), Color(0xFFF7EFEC), Color(0xFFF1EAE7), Color(0xFFEBE4E1), Color(0xFFE4DDDA), Color(0xFFFFF9F6)),
-    AppTheme.GRAY to listOf(Color(0xFFF8FFFF), Color(0xFFF1F8FB), Color(0xFFEBF2F5), Color(0xFFE5ECF0), Color(0xFFE0E6EA), Color(0xFFD9DFE3), Color(0xFFF5FCFF)),
+    AppTheme.DEFAULT to listOf(Color(0xFFFBFEFD), Color(0xFFF4FBF7), Color(0xFFEEF1F0), Color(0xFFE6E9E8), Color(0xFFDFE2E0), Color(0xFFEEF1F0), Color(0xFFFBFEFD)),
+    AppTheme.GREEN to listOf(Color(0xFFFBFEFC), Color(0xFFF4FBF6), Color(0xFFEEF1F0), Color(0xFFE6E9E8), Color(0xFFDFE2E0), Color(0xFFEEF1F0), Color(0xFFFBFEFC)),
+    AppTheme.RED to listOf(Color(0xFFFFFCFC), Color(0xFFFFF7F7), Color(0xFFF2EFF3), Color(0xFFEAE7EC), Color(0xFFE3DFE6), Color(0xFFF2EFF3), Color(0xFFFFFCFC)),
+    AppTheme.PINK to listOf(Color(0xFFFFFCFE), Color(0xFFFEF7FB), Color(0xFFF2EFF3), Color(0xFFEAE7EC), Color(0xFFE3DFE6), Color(0xFFF2EFF3), Color(0xFFFFFCFE)),
+    AppTheme.BLUE to listOf(Color(0xFFFBFDFF), Color(0xFFF4FAFF), Color(0xFFF0F0F3), Color(0xFFE8E8EC), Color(0xFFE0E1E6), Color(0xFFF0F0F3), Color(0xFFFBFDFF)),
+    AppTheme.CYAN to listOf(Color(0xFFFAFDFE), Color(0xFFF2FAFB), Color(0xFFF0F0F3), Color(0xFFE8E8EC), Color(0xFFE0E1E6), Color(0xFFF0F0F3), Color(0xFFFAFDFE)),
+    AppTheme.ORANGE to listOf(Color(0xFFFEFCFB), Color(0xFFFFF7ED), Color(0xFFF1F0EF), Color(0xFFE9E8E6), Color(0xFFE2E1DE), Color(0xFFF1F0EF), Color(0xFFFEFCFB)),
+    AppTheme.PURPLE to listOf(Color(0xFFFEFCFE), Color(0xFFFBF7FE), Color(0xFFF2EFF3), Color(0xFFEAE7EC), Color(0xFFE3DFE6), Color(0xFFF2EFF3), Color(0xFFFEFCFE)),
+    AppTheme.BROWN to listOf(Color(0xFFFEFDFC), Color(0xFFFCF9F6), Color(0xFFF1F0EF), Color(0xFFE9E8E6), Color(0xFFE2E1DE), Color(0xFFF1F0EF), Color(0xFFFEFDFC)),
+    AppTheme.GRAY to listOf(Color(0xFFFCFCFC), Color(0xFFF9F9F9), Color(0xFFF0F0F0), Color(0xFFE8E8E8), Color(0xFFE0E0E0), Color(0xFFF0F0F0), Color(0xFFFCFCFC)),
 )
 
 internal val darkSurfaceTones: Map<AppTheme, List<Color>> = mapOf(
