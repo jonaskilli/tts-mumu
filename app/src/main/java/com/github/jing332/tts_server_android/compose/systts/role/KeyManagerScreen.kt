@@ -2495,6 +2495,8 @@ private fun InterfaceFormDialog(
         val msg = if (args.isEmpty()) context.getString(resId) else context.getString(resId, *args)
         android.widget.Toast.makeText(context, msg, android.widget.Toast.LENGTH_SHORT).show()
     }
+    // 复制键（10-11）：接口地址/API Key 标签行右侧的「复制」写到系统剪贴板
+    val clipboard = LocalClipboardManager.current
 
     // 保存：名称留空按网址短名兜底；改网址/密钥时同步改写组内条目的 value
     // ⚠️ 只改 模型接口中心.json 不改条目 ⇒ 旧条目仍指旧地址，整组掉进「未分组」
@@ -2642,11 +2644,27 @@ private fun InterfaceFormDialog(
                     modifier = Modifier.fillMaxWidth(),
                 )
                 Spacer(Modifier.height(6.dp))
-                Text(
-                    stringResource(R.string.role_key_ifc_url),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
+                // 标签行右侧挂复制键（10-11 用户令：地址/Key 加复制）——照密钥编辑弹窗
+                // 10-07 惯例（复制/删除放标签行）：键在字段框内会占宽度，多行框里图标还漂
+                Row(
+                    Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        stringResource(R.string.role_key_ifc_url),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Spacer(Modifier.weight(1f))
+                    TextButton(
+                        enabled = url.text.isNotBlank(),
+                        contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp),
+                        onClick = {
+                            clipboard.setText(AnnotatedString(url.text.trim()))
+                            toast(R.string.copied)
+                        }
+                    ) { Text(stringResource(R.string.copy)) }
+                }
                 // 地址可能很长，允许多行
                 OutlinedTextField(
                     value = url,
@@ -2691,11 +2709,25 @@ private fun InterfaceFormDialog(
                     )
                 }
                 Spacer(Modifier.height(6.dp))
-                Text(
-                    stringResource(R.string.role_key_ifc_key),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
+                Row(
+                    Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        stringResource(R.string.role_key_ifc_key),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Spacer(Modifier.weight(1f))
+                    TextButton(
+                        enabled = key.isNotBlank(),
+                        contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp),
+                        onClick = {
+                            clipboard.setText(AnnotatedString(key.trim()))
+                            toast(R.string.copied)
+                        }
+                    ) { Text(stringResource(R.string.copy)) }
+                }
                 // Key 可能很长，允许多行
                 OutlinedTextField(
                     value = key, onValueChange = { key = it },
