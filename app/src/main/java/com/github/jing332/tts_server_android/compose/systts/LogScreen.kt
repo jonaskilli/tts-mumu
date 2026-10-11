@@ -862,16 +862,17 @@ internal fun LogScreen(
                                         }
                                     }
                                     // 「回原位」定位键（筛选/搜索态）：弹簧顶到最右，动作留右手位。
-                                    // 10-11 换显示：撤 ⟲ 符号 + 颜色降次级灰 + 文案「回原位」（与裸行同口径）
+                                    // 10-11 换显示：淡紫底胶囊（与裸行同口径）
                                     if (showLocateKey) {
                                         Spacer(Modifier.weight(1f))
                                         Text(
                                             text = "回原位",
                                             style = MaterialTheme.typography.labelMedium,
-                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                            color = MaterialTheme.colorScheme.primary,
                                             modifier = Modifier
                                                 .padding(start = 8.dp)
                                                 .clip(RoundedCornerShape(9.dp))
+                                                .background(softContainerColor())
                                                 .clickable { onLocateOriginal(head) }
                                                 .padding(horizontal = 8.dp, vertical = 2.dp)
                                         )
