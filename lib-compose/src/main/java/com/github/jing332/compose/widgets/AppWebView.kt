@@ -70,10 +70,12 @@ fun AppWebView(
         val msg = showAlertDialog!!.second
         val result = showAlertDialog!!.third
         AlertDialog(onDismissRequest = {
-            containerColor = androidx.compose.material3.MaterialTheme.colorScheme.surfaceContainerLow,
             result.cancel()
             showAlertDialog = null
         },
+            // 弹窗底统一（10-12 用户令）：M3 默认 surfaceContainerHigh 带绿，与三个大面板近白不同色。
+            // ⚠️ 必须放在 onDismissRequest 的 lambda **之外**（脚本自动插入时插进了 lambda 里，CI 实锤语法错）
+            containerColor = androidx.compose.material3.MaterialTheme.colorScheme.surfaceContainerLow,
             title = { Text(webUrl) },
             text = { Text(msg) },
             confirmButton = {
