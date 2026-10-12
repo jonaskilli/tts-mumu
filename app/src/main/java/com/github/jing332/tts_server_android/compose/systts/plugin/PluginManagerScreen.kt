@@ -1505,6 +1505,39 @@ private fun ImportSourceOpt(
     }
 }
 
+/**
+ * 入库动作胶囊（10-12 用户令「上方两个选项做成胶囊」）：
+ * 「试听分类 / 直接入库」是同一层级的两种走法，用胶囊画并列关系——与来源切换胶囊同高(36)同圆角(18)，
+ * 摆在同一竖列里读起来是一套控件；裸 TextButton 的观感与上面的来源条不搭。
+ * 不可用（没勾分类/导入中）时整体降不透明度，不用 disabled 灰字串色。
+ */
+@Composable
+private fun ImportActionChip(
+    label: String,
+    enabled: Boolean,
+    onClick: () -> Unit,
+) {
+    Box(
+        modifier = Modifier
+            .height(36.dp)
+            .clip(RoundedCornerShape(18.dp))
+            .background(
+                if (enabled) MaterialTheme.colorScheme.secondaryContainer
+                else MaterialTheme.colorScheme.surfaceContainerHighest.copy(alpha = 0.45f)
+            )
+            .clickable(enabled = enabled) { onClick() }
+            .padding(horizontal = 16.dp),
+        contentAlignment = Alignment.Center,
+    ) {
+        Text(
+            label,
+            style = MaterialTheme.typography.labelLarge,
+            color = if (enabled) MaterialTheme.colorScheme.onSecondaryContainer
+            else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
+        )
+    }
+}
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 internal fun ImportByCategoryDialog(
@@ -1698,7 +1731,7 @@ internal fun ImportByCategoryDialog(
         }
         // 标题行：标题 + 关闭（广场同构）
         Row(
-            Modifier.fillMaxWidth().padding(start = 16.dp, end = 12.dp, top = 8.dp, bottom = 4.dp),
+            Modifier.fillMaxWidth().padding(start = 24.dp, end = 12.dp, top = 8.dp, bottom = 4.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             Text(
@@ -1718,60 +1751,62 @@ internal fun ImportByCategoryDialog(
             ImportSourceSegment(
                 selected = "list",
                 onPick = { if (it == "market") onSwitchToMarket.invoke() },
-                modifier = Modifier.padding(horizontal = 16.dp)
+                modifier = Modifier.padding(horizontal = 24.dp)
             )
         }
         if (stage == 0) {
+            // 两动作改**胶囊**（10-12 用户令「上方两个选项做成胶囊」）：与来源切换胶囊同高同圆角，
+            // 摆在一起才读得出「两种走法并列」；原 TextButton 是裸字键，跟上面的来源条不像一套控件
             Row(
-                Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 6.dp),
+                Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 6.dp),
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                TextButton(
+                ImportActionChip(
+                    label = "试听分类",
                     enabled = !importing && hasSelection,
-                    onClick = {
-                        val pools = categories.filter { it.poolId in selectedPoolIds }
-                        if (pools.isNotEmpty()) loadVoices(pools)
-                    }
-                ) { Text("试听分类") }
-                TextButton(
+                ) {
+                    val pools = categories.filter { it.poolId in selectedPoolIds }
+                    if (pools.isNotEmpty()) loadVoices(pools)
+                }
+                ImportActionChip(
+                    label = if (importing) "导入中" else "直接入库",
                     enabled = !importing && hasSelection,
-                    onClick = {
-                        // 直接入库：勾了池子就导，不列音色、不试听（原 confirmButton 逻辑原样搬迁）
-                        importing = true
-                        val pools = categories.filter { it.poolId in selectedPoolIds }
-                        scope.launch {
-                            val items = withContext(kotlinx.coroutines.Dispatchers.IO) {
-                                pools.flatMap { p ->
-                                    runCatching { engine.getVoices(p.poolId) }.getOrNull().orEmpty()
-                                        .filter { it.id.isNotBlank() }
-                                        .map { v ->
-                                            PluginCategoryImporter.VoiceItem(
-                                                poolId = p.poolId,
-                                                poolName = p.poolName,
-                                                voiceId = v.id,
-                                                voiceName = v.name,
-                                                categoryOverride = null,
-                                            )
-                                        }
-                                }
+                ) {
+                    // 直接入库：勾了池子就导，不列音色、不试听（原 confirmButton 逻辑原样搬迁）
+                    importing = true
+                    val pools = categories.filter { it.poolId in selectedPoolIds }
+                    scope.launch {
+                        val items = withContext(kotlinx.coroutines.Dispatchers.IO) {
+                            pools.flatMap { p ->
+                                runCatching { engine.getVoices(p.poolId) }.getOrNull().orEmpty()
+                                    .filter { it.id.isNotBlank() }
+                                    .map { v ->
+                                        PluginCategoryImporter.VoiceItem(
+                                            poolId = p.poolId,
+                                            poolName = p.poolName,
+                                            voiceId = v.id,
+                                            voiceName = v.name,
+                                            categoryOverride = null,
+                                        )
+                                    }
                             }
-                            if (items.isEmpty()) {
-                                importing = false
-                                context.toast("所选分类下没有音色")
-                                return@launch
-                            }
-                            val result = runCatching {
-                                PluginCategoryImporter.importVoices(context, plugin, items) { progressText = it }
-                            }
-                            result.fold(
-                                onSuccess = { count -> context.longToast("已导入 $count 个音色，已自动创建分组「${plugin.name}」") },
-                                onFailure = { e -> context.longToast("导入失败: ${e.message}") }
-                            )
-                            importing = false
-                            onDismiss()
                         }
+                        if (items.isEmpty()) {
+                            importing = false
+                            context.toast("所选分类下没有音色")
+                            return@launch
+                        }
+                        val result = runCatching {
+                            PluginCategoryImporter.importVoices(context, plugin, items) { progressText = it }
+                        }
+                        result.fold(
+                            onSuccess = { count -> context.longToast("已导入 $count 个音色，已自动创建分组「${plugin.name}」") },
+                            onFailure = { e -> context.longToast("导入失败: ${e.message}") }
+                        )
+                        importing = false
+                        onDismiss()
                     }
-                ) { Text(if (importing) "导入中" else "直接入库") }
+                }
             }
         }
         // 内容区（10-12 崩溃修复）：外层**不带** verticalScroll——stage1 的 LazyColumn
@@ -1781,7 +1816,7 @@ internal fun ImportByCategoryDialog(
             Modifier
                 .weight(1f)
                 .fillMaxWidth()
-                .padding(horizontal = 16.dp)
+                .padding(horizontal = 24.dp)
         ) {
             if (importing) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
@@ -1937,21 +1972,22 @@ internal fun ImportByCategoryDialog(
                 }
             }
         }
-        // 底部动作行（与广场弹窗同构）：左侧「上一步/取消」、右侧「导入(N)」。
-        // stage 0 的「试听分类/直接入库」两动作已上移到来源胶囊下方（10-12 用户令）
-        Row(
-            Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 6.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            if (stage == 1 && categories.isNotEmpty()) {
-                TextButton(enabled = !importing, onClick = { stage = 0; auditionIndex = -1 }) { Text("上一步") }
-            } else {
-                TextButton(enabled = !importing, onClick = onDismiss) { Text("取消") }
-            }
-            Spacer(Modifier.weight(1f))
-            if (stage == 1) {
+        // 底部动作行（与广场弹窗同构）：左侧「上一步」、右侧「导入(N)」。
+        // ⚠️ stage 0 **整行不渲染**（10-12 用户令「底部少一行」）：首屏两动作已上移成胶囊，
+        // 此处只剩一个「取消」，而标题行右侧 ✕ 就是取消——留着是同一动作重复占一行
+        if (stage == 1) {
+            Row(
+                Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 24.dp, vertical = 6.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                if (categories.isNotEmpty()) {
+                    TextButton(enabled = !importing, onClick = { stage = 0; auditionIndex = -1 }) { Text("上一步") }
+                } else {
+                    TextButton(enabled = !importing, onClick = onDismiss) { Text("取消") }
+                }
+                Spacer(Modifier.weight(1f))
                 TextButton(
                     enabled = !importing && importCount > 0,
                     onClick = {

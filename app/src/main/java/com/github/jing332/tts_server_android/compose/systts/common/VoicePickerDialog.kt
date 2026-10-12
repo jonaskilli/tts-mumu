@@ -77,7 +77,6 @@ import com.github.jing332.database.entities.systts.TtsConfigurationDTO
 import com.github.jing332.database.entities.systts.source.PluginTtsSource
 import com.github.jing332.tts.PreviewState
 import com.github.jing332.tts_server_android.compose.systts.role.genderDotColor
-import com.github.jing332.tts_server_android.compose.systts.role.softContainerColor
 import com.github.jing332.tts.TaggedTtsPreviewPlayer
 import com.github.jing332.tts.CachedEngineManager
 import com.github.jing332.tts_server_android.R
@@ -1064,15 +1063,9 @@ fun VoicePickerDialog(
             else pendingVoice?.let { narrationEntityByVoice(it) } ?: entity.takeIf { !anchorMissing }
             // 09-11 重排（用户拍板）：「当前发音人」小标签独占一行，▶ 键与发音人名同一行
             //（此前 ▶ 垂直居中在两行文字块上，与名字行错位）；名字加省略号防长名硬裁
-            // 方案A 强调（10-05 用户选型）：整块垫 softContainerColor 圆角底 + 性别色圆点
-            // （genderDotColor 同角色列表口径，tag=「显示谁就圆点谁」的 topMarkKey）+ 名称加粗；
-            // 底块不加水平内边距——名字/▶/⋮ 仍钉在 16 内容线上，不破坏刚做的竖列对齐
+            // 方案A 强调块退役（10-12 用户令「当前发音人下的底色去掉」）：Surface 垫底撤，
+            // 结构照旧（标签行+名字行），无底不加内衬
             if (!addMode) {
-            Surface(
-                shape = RoundedCornerShape(10.dp),
-                color = softContainerColor(),
-                modifier = Modifier.fillMaxWidth(),
-            ) {
             Column(Modifier.fillMaxWidth().padding(vertical = 7.dp)) {
                 Text(
                     // 标题已改叫「角色卡（角色名）」（终版），本行回归纯「当前发音人」
@@ -1201,7 +1194,6 @@ fun VoicePickerDialog(
                     )
                 }
             }
-            } // Surface（当前发音人底块）收尾
 
             // ===== 终值（播放链同源三层乘积；三维恒显，用户 09-10）=====
             // 最终值恒为 配置×插件×全局（三层草稿实时跟随；音高 09-10 起同规格走草稿；

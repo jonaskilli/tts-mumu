@@ -677,7 +677,7 @@ internal fun LogScreen(
                                         Text(
                                             text = headTimeText(log),
                                             style = MaterialTheme.typography.bodySmall,
-                                            fontSize = 13.sp,
+                                            fontSize = 12.sp,
                                             color = MaterialTheme.colorScheme.onSurfaceVariant
                                         )
                                         // 行级丸（10-10 终案）：重试 W 主行=重试N、兜底/备用主行=
@@ -788,9 +788,11 @@ internal fun LogScreen(
                             val tailText = remember(item.head, successMember, absorbed) {
                                 if (absorbed != null) null else tailTextOfRow(successMember ?: head)
                             }
-                            // 组头时间（10-11 用户令「首末完整」）：有吸收条时用失败条的首末范围，
-                            // 否则用组头请求行自己（失败链的时间跨度落在失败条上）
-                            val groupHeadTime = headTimeText(absorbed ?: head)
+                            // 组头时间（10-12 用户令「请求音频和获取成功显示 a→b」）：
+                            // 成功组=请求时间→成功子行时间；失败组=吸收条自己的首末（既有口径），
+                            // 无吸收条时退回组头请求行单时间
+                            val groupHeadTime = if (absorbed != null) headTimeText(absorbed)
+                            else groupTimeText(head, successMember)
                             // 行流定稿（10-10 用户令）：成功=行头绿丸+灰数字，成员区整撤
                             // （结果信息已上头）；失败/重试/切备用的过程行仍要露出——
                             // 有非成功成员行时显示成员区（成功行本身不上，数字已在丸后）
@@ -841,13 +843,11 @@ internal fun LogScreen(
                                             )
                                         }
                                         Text(
-                                            // 时间去日期去毫秒（10-10 用户令）：日期签在列顶、毫秒无人看。
-                                            // 合并组走 headTimeText 出「首末完整时间」（10-11 用户令）。
-                                            // 字号 12→13sp（10-11 用户令「时间字号太小」）——与裸行时间
-                                            // 同档，主行头收敛为 13/14/13
+                                            // 时间字号 13→12sp（10-12 用户令「时间栏字号缩小一号」）：
+                                            // 与正文 14sp 拉开两档，进一步让行内重心落在丸上
                                             text = groupHeadTime,
                                             style = MaterialTheme.typography.bodySmall,
-                                            fontSize = 13.sp,
+                                            fontSize = 12.sp,
                                             color = MaterialTheme.colorScheme.onSurfaceVariant
                                         )
                                         pillShown?.let {
@@ -1029,15 +1029,28 @@ private fun pillOf(e: LogEntry, entryIndex: Int, failedHeads: Set<Int> = emptySe
 }
 
 /**
- * 行头时间文案（10-11 用户令「首末完整，每次时间都要完整，不能只写秒钟」）：
- * 未合并（repeatCount<=1 或 endTime 空）→ 单个 `HH:mm:ss`（现状不变）；
- * 已合并 → `HH:mm:ss–HH:mm:ss` 首末两个**完整**时间，中间用 en dash。
+ * 行头时间文案（10-11 用户令「首末完整」，10-12 用户令「请求→成功给区间」）：
+ * - 请求组（成功）：`HH:mm:ss→HH:mm:ss` = 请求时间 → 获取成功时间（用户口径「a→b」）；
+ * - 合并失败（repeatCount>1）：`HH:mm:ss–HH:mm:ss` 首末两个完整时间（既有口径不动）；
+ * - 其余（重试/切备用/裸行/插件规则）：单个 `HH:mm:ss`。
  * 时间源格式 `yyyy-MM-dd HH:mm:ss.SSS`，去日期去毫秒后长度恰为 8。
  */
 private fun headTimeText(e: LogEntry): String {
     val start = e.time.drop(11).dropLast(4)
     val end = e.endTime.takeIf { it.length >= 19 }?.drop(11)?.dropLast(4)
     return if (e.repeatCount > 1 && !end.isNullOrBlank() && end != start) "$start–$end" else start
+}
+
+/**
+ * 请求组行头时间（10-12 用户令「请求音频和获取成功显示 a→b」）：
+ * 起点=请求行时间，终点=结果行时间（成功子行/失败源错误条），中间用箭头连接；
+ * 只有终点确实晚于起点才出区间（同一秒或取不到终点时退回单时间）。
+ */
+private fun groupTimeText(startEntry: LogEntry, endEntry: LogEntry?): String {
+    val start = startEntry.time.drop(11).dropLast(4)
+    if (start.length != 8) return headTimeText(startEntry)
+    val end = endEntry?.time?.takeIf { it.length >= 19 }?.drop(11)?.dropLast(4) ?: return start
+    return if (end != start) "$start→$end" else start
 }
 
 // 行级丸后灰字：只服务成功行=「大小 · 耗时秒」（10-10 用户令：失败丸后不跟
@@ -1087,22 +1100,28 @@ private fun StatusPill(pill: LogPill) {    val dark = isSystemInDarkTheme()
         LogPillKind.RETRY -> if (dark) Color(0xFF9AA0A8) else Color(0xFF4A5568)
         LogPillKind.STANDBY -> if (dark) Color(0xFFC9A94E) else Color(0xFF9A7B14)
     }
-    Text(
-        text = pill.text,
-        // 丸加大（10-11 用户令「丸加大」+「胶囊中间不够醒目」）：11→12.5sp、字重 Medium、
-        // 内衬 9/2 → 11/3。根因是丸比两边的灰字（时间 13sp、尾信息 13sp）都小一档，
-        // 成了"两个灰的夹一个更小的彩的"，视觉上跳不出来；丸做大一档后自然成为行内重心。
-        // 位置不动——「时间在左」是为时间列对齐（丸宽随文案变，前置会把时间顶得参差不齐）
-        style = MaterialTheme.typography.labelSmall.copy(
-            fontSize = 12.5.sp,
-            fontWeight = FontWeight.Medium,
-        ),
-        color = fg,
+    // 丸内文字用 Box 居中（10-12 用户令「字一定要居中对齐」）：Text 直接挂 padding 时
+    // 字形上下留白随字重/字体基线浮动，视觉偏上；Box(contentAlignment=Center) + Text 无内衬
+    // 再把内衬给 Box，字在胶囊里几何居中。
+    // 丸尺寸同步缩一档（10-12 用户令「时间栏字号缩小一号，胶囊也要调整」）：
+    // 12.5sp → 12sp（与缩小后的时间 12sp 同档）、内衬 11/3 → 10/3（宽度随之下收）
+    Box(
         modifier = Modifier
             .clip(RoundedCornerShape(50))
             .background(bg)
-            .padding(horizontal = 11.dp, vertical = 3.dp)
-    )
+            .padding(horizontal = 10.dp, vertical = 3.dp),
+        contentAlignment = Alignment.Center,
+    ) {
+        Text(
+            text = pill.text,
+            style = MaterialTheme.typography.labelSmall.copy(
+                fontSize = 12.sp,
+                lineHeight = 12.sp,
+                fontWeight = FontWeight.Medium,
+            ),
+            color = fg,
+        )
+    }
 }
 
 // 单条日志正文渲染：HTML → AnnotatedString + 哨兵色重映射，级别色或指定色
@@ -1264,25 +1283,31 @@ private fun LogEntryBody(
 }
 
 /**
- * 角色名丸（10-11 用户令「那个人名也做成丸吧，不然不突出」）：
- * 与状态丸（StatusPill）同一套圆角胶囊语汇——RoundedCornerShape(50) + 淡底 + 彩色字，
- * 只是内容装的是人名。底色取角色牌字色 alpha 0.22（与既有小牌口径一致），
- * 字色=roleChipColor（灰绿 light / 亮灰绿 dark）。
- * 字号跟正文档（请求主行 14sp），比旁边的发音人信息段（13sp）大一档，
- * 让名字成为这一行的视觉落点。
+ * 角色名丸（10-11 用户令「那个人名也做成丸吧，不然不突出」；10-12 用户令「跟时间旁边一样的胶囊」）：
+ * 与状态丸（StatusPill）**同一套几何**——RoundedCornerShape(50) + Box 居中 + 12sp Medium +
+ * 内衬 10/3，底色同取「淡底重字」的淡底；差别只在字色=角色牌色（灰绿/亮灰绿）。
+ * 此前底色取牌字色 alpha 0.22，比状态丸实一档、大小也不齐——用户要求两者看起来是同一种丸。
  */
 @Composable
 private fun RoleNamePill(name: String, color: Color, fontSize: TextUnit) {
-    Text(
-        text = name,
-        style = MaterialTheme.typography.bodyMedium.copy(
-            fontSize = fontSize,
-            fontWeight = FontWeight.Medium,
-        ),
-        color = color,
+    val dark = isSystemInDarkTheme()
+    Box(
         modifier = Modifier
             .clip(RoundedCornerShape(50))
-            .background(color.copy(alpha = 0.22f))
-            .padding(horizontal = 7.dp, vertical = 1.dp),
-    )
+            // 淡底与状态丸 OK 档同源（#F2F8F4 / 深色 #2A2D33）——「这是谁」用中性淡底，
+            // 状态信号才用彩色淡底，同一页两种丸一眼分得开
+            .background(if (dark) Color(0xFF2A2D33) else Color(0xFFF2F8F4))
+            .padding(horizontal = 10.dp, vertical = 3.dp),
+        contentAlignment = Alignment.Center,
+    ) {
+        Text(
+            text = name,
+            style = MaterialTheme.typography.labelSmall.copy(
+                fontSize = 12.sp,
+                lineHeight = 12.sp,
+                fontWeight = FontWeight.Medium,
+            ),
+            color = color,
+        )
+    }
 }

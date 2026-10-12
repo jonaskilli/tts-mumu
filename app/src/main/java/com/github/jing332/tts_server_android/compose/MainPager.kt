@@ -12,8 +12,10 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.pager.HorizontalPager
@@ -35,11 +37,7 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.runtime.setValue
-import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -88,22 +86,24 @@ fun AnimatedContentScope.MainPager(sharedVM: SharedViewModel) {
     MigrationTips()
 
     val a11yTouchEnabled = rememberA11TouchEnabled()
-    // 实测满高（含手势条 inset）：旧值写死 80dp 漏了手势条——带手势条机型上「卡一半」的根因之一。
-    // 初始给估算值，onSizeChanged 量到真实值即替换（首帧后生效）
     val density = LocalDensity.current
-    val bottomBarHeightState = remember { mutableStateOf(with(density) { 128.dp.roundToPx() }) }
-    // 自建 state 把 heightOffsetLimit 设为**实测满高**（10-12 二轮根修）：
-    // 默认 exitAlways 的 limit=48dp（BottomAppBarDefaults 反编译实锤，exitAlways 首参可传
-    // 自建 state、limit 可写）——官方 NavigationBar 满高 80dp+手势条远超 48dp，原版只能藏一半。
-    // limit=满高后，隐藏/回弹/出现全走官方原生逻辑；实测值出来后 LaunchedEffect 同步 limit
+    // 底栏满高 = 官方 NavigationBar 内容 80dp + 手势条 inset（官方组件自带 navigationBarsPadding）。
+    // ⚠️ 三修定稿（10-12 装机二轮回滚/到底不出现）：前两版用 onSizeChanged 实测——但底栏一旦
+    // 开始隐藏，外层 bottomBarHeight 就把可用高度裁到 (满高−已藏)，量到的高度跟着缩水 ⇒
+    // 「越藏越藏不动、回滚也算不对」的反馈环（挂 Surface 或挂 NavigationBar 都不行，两者同受约束）。
+    // 改为确定性计算：WindowInsets.navigationBars 取手势条高度，不加任何测量依赖
+    val navBarInsetPx = WindowInsets.navigationBars.getBottom(density)
+    val bottomBarHeightPx = with(density) { 80.dp.roundToPx() } + navBarInsetPx
+    // 自建 state 把 heightOffsetLimit 设为**满高**（默认 exitAlways 的 limit=48dp——BottomAppBarDefaults
+    // 反编译实锤，首参可传自建 state 且 limit 可写）：limit=满高后隐藏/回弹/出现全走官方原生逻辑
     val bottomAppBarState = rememberBottomAppBarState(
-        initialHeightOffsetLimit = with(density) { -128.dp.toPx() },
+        initialHeightOffsetLimit = -bottomBarHeightPx.toFloat(),
         initialHeightOffset = 0f,
         initialContentOffset = 0f
     )
-    androidx.compose.runtime.LaunchedEffect(bottomBarHeightState.value) {
-        // 满高实测值出来后同步 limit（负值=可向上收起的高度）
-        bottomAppBarState.heightOffsetLimit = -bottomBarHeightState.value.toFloat()
+    androidx.compose.runtime.LaunchedEffect(bottomBarHeightPx) {
+        // 手势条高度变化（横竖屏/三键导航切换）时同步 limit
+        bottomAppBarState.heightOffsetLimit = -bottomBarHeightPx.toFloat()
     }
     val scrollBehavior = BottomAppBarDefaults.exitAlwaysScrollBehavior(
         state = bottomAppBarState,
@@ -157,13 +157,7 @@ fun AnimatedContentScope.MainPager(sharedVM: SharedViewModel) {
                     Surface(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .onSizeChanged { size ->
-                                // 实测满高（含手势条）：比写死常量准。变化才写，避免每帧重组
-                                if (size.height > 0 && bottomBarHeightState.value != size.height) {
-                                    bottomBarHeightState.value = size.height
-                                }
-                            }
-                            .bottomBarHeight({ scrollBehavior.state.heightOffset }, bottomBarHeightState.value),
+                            .bottomBarHeight({ scrollBehavior.state.heightOffset }, bottomBarHeightPx),
                         color = MaterialTheme.colorScheme.surfaceContainer
                     ) {
                         NavigationBar(

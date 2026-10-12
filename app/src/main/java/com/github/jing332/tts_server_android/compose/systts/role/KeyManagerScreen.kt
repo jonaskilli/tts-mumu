@@ -754,10 +754,12 @@ private fun GroupHeaderBlock(
                 // ②「全选」从底部动作行**挪到标题行右侧**——全选作用于整个列表，
                 //   与「取消/删除」并排会被读成同级动作；放标题行右端=「这一整块都能全选」。
                 Row(
-                    // 标题靠左贴卡缘（start=0）；end=0 让「全选」的 10dp 内边距直接落卡右缘
+                    // 标题与条目行首方框字形左缘对齐（10-12 用户令「太靠左了，跟方框左侧对齐」）：
+                    // 方框盒 32×36+requiredSize(48) ⇒ 18dp 字形居中 ⇒ 字形左缘≈15dp；
+                    // 取 16 = 方框字形线，同时落全站内容线。end=0 让「全选」的 10dp 内边距直接落卡右缘
                     //（FlatTextAction 自带左右 10dp，若再给 end=8 会离卡缘 18dp）
                     Modifier.fillMaxWidth()
-                        .padding(start = 0.dp, end = 0.dp, top = 4.dp),
+                        .padding(start = 16.dp, end = 0.dp, top = 4.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text(

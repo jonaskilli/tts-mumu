@@ -94,17 +94,16 @@ internal fun Item(
     ) {
         Row(modifier = Modifier.fillMaxSize()) {
             // 多选模式显示选中状态, 非多选模式显示启用开关
-            // 对勾盒改密钥页同款（10-12 用户令「参照密钥管理界面的对勾处理，能做到文字对齐」）：
-            // 32×36 视觉盒（字形右缘≈文字线）+ requiredSize(48) 热区外扩（四周各溢出 8/6dp，
-            // 等效外扩不占布局空间）+ Checkbox 只画不摸（onCheckedChange=null，点击由盒接管）。
-            // 二轮修（用户实拍「框都往上飘」）：行 Row 未设 verticalAlignment、对勾盒也没
-            // .align(CenterVertically)，Compose 默认顶对齐——密钥页同行其他元素恰好
-            // CenterVertically 才显得齐。补 align 即回密钥页观感
+            // 对勾盒口径（10-12 用户令「参照密钥管理页实现符号和文字的左对齐，字号不变」）：
+            // 替换页组头走共享 GroupItem（8dp 行内距 + 24dp 箭头 ⇒ 组名文字线 32dp），
+            // 条目行若用 32dp 盒（+卡外距 8 ⇒ 文字线 40dp）就比组名右一截。盒宽收 24dp——
+            // 字形仍居中、视觉大小不变，文字线回到 32dp 与组名同线；
+            // 热区靠 requiredSize(48) 外扩，触控不缩水。垂直居中同密钥页（行 Row 默认顶对齐）
             if (isSelectionMode) {
                 Box(
                     modifier = Modifier
                         .align(Alignment.CenterVertically)
-                        .size(width = 32.dp, height = 36.dp)
+                        .size(width = 24.dp, height = 36.dp)
                         .requiredSize(width = 48.dp, height = 48.dp)
                         .clip(CircleShape)
                         .clickable { onToggleSelection() },
@@ -120,7 +119,7 @@ internal fun Item(
                 Box(
                     modifier = Modifier
                         .align(Alignment.CenterVertically)
-                        .size(width = 32.dp, height = 36.dp)
+                        .size(width = 24.dp, height = 36.dp)
                         .requiredSize(width = 48.dp, height = 48.dp)
                         .toggleable(
                             value = isEnabled,

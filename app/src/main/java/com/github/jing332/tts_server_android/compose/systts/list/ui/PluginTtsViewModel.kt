@@ -93,6 +93,11 @@ class PluginTtsViewModel(app: Application) : AndroidViewModel(app) {
 
     // 修正：初始化为 false，确保 UI 层能初步渲染容器以触发 load
     var isLoading by mutableStateOf(false)
+    // 「本插件引擎已整轮加载完成」（10-12 广场抢跑二修）：isLoading 在 load 起跑前也是 false，
+    // 广场弹窗同帧组合时按它判就绪会误判，engine.scope 未建就进 JS → 调用挂死、面板永远
+    // 停在「正在加载音色…」（装机实拍）。此标志只在 load 尾部/异常收敛处置 true，是唯一可靠就绪信号
+    var engineReady by mutableStateOf(false)
+        private set
     val locales = mutableStateListOf<Pair<String, String>>()
     val voices = mutableStateListOf<TtsPluginUiEngineV2.Voice>()
 
@@ -103,7 +108,11 @@ class PluginTtsViewModel(app: Application) : AndroidViewModel(app) {
         linearLayout: LinearLayout,
     ) =
         withIO {
-            withMain { isLoading = true }
+            withMain {
+                isLoading = true
+                // 新一轮加载开始：就绪标志先落回 false（换插件/重载时旧标志不能留）
+                engineReady = false
+            }
             // 换插件/重载：广场状态整体作废（含把在途请求的代数顶掉，晚到的结果一律丢弃）
             withMain { resetCatalog() }
             try {
@@ -134,8 +143,14 @@ class PluginTtsViewModel(app: Application) : AndroidViewModel(app) {
             } catch (t: Throwable) {
                 throw t
             } finally {
-                // 用 NonCancellable 确保协程取消时也能清理 loading 状态，避免卡在加载态
-                withContext(NonCancellable) { withMain { isLoading = false } }
+                // 用 NonCancellable 确保协程取消时也能清理 loading 状态，避免卡在加载态；
+                // engineReady 同步置真（异常也置——引擎没起来时广场会照常报错，好过永远转圈）
+                withContext(NonCancellable) {
+                    withMain {
+                        isLoading = false
+                        engineReady = true
+                    }
+                }
             }
         }
 
