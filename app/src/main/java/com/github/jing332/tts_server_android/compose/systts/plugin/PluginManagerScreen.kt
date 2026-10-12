@@ -1494,6 +1494,7 @@ private fun ImportSourceOpt(
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 internal fun ImportByCategoryDialog(
     plugin: Plugin?,

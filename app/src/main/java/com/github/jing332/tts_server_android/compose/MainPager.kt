@@ -149,11 +149,11 @@ fun AnimatedContentScope.MainPager(sharedVM: SharedViewModel) {
                             .fillMaxWidth()
                             .onSizeChanged { size ->
                                 // 实测满高（含手势条）：比写死常量准。变化才写，避免每帧重组
-                                if (size.height > 0 && bottomBarHeightState.intValue != size.height) {
-                                    bottomBarHeightState.intValue = size.height
+                                if (size.height > 0 && bottomBarHeightState.value != size.height) {
+                                    bottomBarHeightState.value = size.height
                                 }
                             }
-                            .bottomBarHeight({ scrollBehavior.state.heightOffset }, bottomBarHeightState.intValue),
+                            .bottomBarHeight({ scrollBehavior.state.heightOffset }, bottomBarHeightState.value),
                         color = MaterialTheme.colorScheme.surfaceContainer
                     ) {
                         NavigationBar(
