@@ -217,14 +217,19 @@ internal fun TtsLogScreen(vm: TtsLogViewModel = viewModel()) {
     }
     // 返回键先退多选（页面级；钥匙=与密钥页同一交互口径）
     androidx.activity.compose.BackHandler(enabled = selectionMode) { exitSelection() }
-    // 复制：按列表顺序拼接「时间 | 级别 | message」，多条之间以空行分隔
+    // 复制：按列表顺序拼接「时间 | 级别 | 正文」，多条之间以空行分隔
+    // ⚠️ 正文必须**转纯文本**再复制（10-12 用户实报）：message 是渲染用的富文本
+    //（<font color="#00FFFF"> 哨兵色 / <b> / <br>），直接复制出去粘到别处全是标签，
+    // 既不好读也没法直接发给别人。转换口径见 toPlainText。
     fun copyChecked() {
         if (checkedEntries.isEmpty()) {
             context.toast(R.string.log_select_none)
             return
         }
         val text = displayLogs.filter { it in checkedEntries }
-            .joinToString(separator = "\n\n") { "${it.time} | ${it.getLevelChar()} | ${it.message}" }
+            .joinToString(separator = "\n\n") {
+                "${it.time} | ${it.getLevelChar()} | ${it.message.toPlainText()}"
+            }
         clipboard.setText(AnnotatedString(text))
         exitSelection()
         context.toast(R.string.copied)
@@ -603,6 +608,18 @@ private fun getLevelColor(level: Int): Color {
         else -> MaterialTheme.colorScheme.surfaceContainerHighest
     }
 }
+
+// 富文本 → 纯文本（复制用，10-12 用户实报「复制出来全是标签」）：
+// ① <br> / <br/> → 换行；② 其余标签（<font …>、<b>、</…>）整个删掉；
+// ③ 顺手还原常见实体（&lt; &gt; &amp; &nbsp;）——粘到聊天框里能直接读。
+// 只用正则做，不引 HTML 解析器：日志正文的标签集是固定的这几种（见 SystemTtsService 拼装处）。
+internal fun String.toPlainText(): String = this
+    .replace(Regex("(?i)<br\\s*/?>"), "\n")
+    .replace(Regex("(?s)<[^>]*>"), "")
+    .replace("&lt;", "<")
+    .replace("&gt;", ">")
+    .replace("&amp;", "&")
+    .replace("&nbsp;", " ")
 
 // 用外部查看器打开文件/目录（text/plain 优先，通用类型兜底）
 // 目录必须走 */*（text/plain 会把目录 URI 丢给文本编辑器，打不开）

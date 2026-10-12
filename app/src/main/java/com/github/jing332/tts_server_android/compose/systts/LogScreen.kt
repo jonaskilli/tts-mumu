@@ -303,8 +303,19 @@ internal class LogGroups(
                             if (head >= 0) {
                                 retryCount++
                             } else {
+                                // ⚠️ 挂到「上一张组」前要验明身份（10-12 自审）：重试必然跟在一次
+                                // 失败之后，所以只认**失败组**（failedHeads 记过），且与它最后一条
+                                // 相隔不超过 60 秒——否则请求行被筛选掉时，重试会挂到上一张不相干
+                                // 的组上（跨句错挂）。两条都不满足就退回裸行，宁可多一行也别错挂
                                 val last = raw.lastOrNull()
-                                if (last is Item.Group) {
+                                val lastIdx = (last as? Item.Group)?.let { g ->
+                                    if (failedHeads.contains(g.head)) {
+                                        val tailIdx = if (g.absorbError >= 0) g.absorbError
+                                        else g.members.lastOrNull() ?: g.head
+                                        list[tailIdx].time
+                                    } else null
+                                }
+                                if (last is Item.Group && lastIdx != null && withinSeconds(lastIdx, e.time, 60)) {
                                     raw[raw.size - 1] = Item.Group(
                                         last.head, last.members, last.absorbError, last.retryCount + 1
                                     )
@@ -1094,6 +1105,17 @@ private fun groupTimeText(startEntry: LogEntry, endEntry: LogEntry?): String {
     } ?: return start
     val end = endRaw.drop(11).dropLast(4)
     return if (end != start) "$start→$end" else start
+}
+
+/** 两个日志时间是否相隔不超过 seconds 秒（重试挂「上一张失败组」的身份校验用；格式 yyyy-MM-dd HH:mm:ss.SSS） */
+private fun withinSeconds(a: String, b: String, seconds: Int): Boolean {
+    if (a.length < 19 || b.length < 19) return false
+    val fmt = java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss.SSS", java.util.Locale.US)
+    return runCatching {
+        val ta = fmt.parse(a)?.time ?: return@runCatching false
+        val tb = fmt.parse(b)?.time ?: return@runCatching false
+        kotlin.math.abs(tb - ta) <= seconds * 1000L
+    }.getOrDefault(false)
 }
 
 // 行级丸后灰字：只服务成功行=「大小 · 耗时秒」（10-10 用户令：失败丸后不跟
