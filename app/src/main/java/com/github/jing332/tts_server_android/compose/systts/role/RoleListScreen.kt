@@ -51,6 +51,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.platform.LocalConfiguration
@@ -125,18 +126,20 @@ private val releaseDotColors = listOf(
 private val BOOK_NAME_COLOR = Color(0xFF333333)
 
 /**
- * 标签/书栏/胶囊统一底色（2026-10-11 Radix 版，用户拍板「标签用 step4」）：
- * 取 secondaryContainer——Color2 浅色里已改为 Radix accent step4（GREEN=#D6F1DF），
- * 比卡底（surfaceContainerLow=accent step2 #F4FBF6）深两档，标签块在页底/卡上都看得见；
- * 十主题自动对齐各自 Radix 族的 step4，深色走各族 dark 表。
+ * 标签/书栏/胶囊统一底色（回 B 版 7c84303 口径，2026-10-12 用户令恢复「MD3 官方色版」试看）：
+ * secondaryContainer 向 background 插 40%——「浅一档容器色（方案一）」，原值整页铺满嫌深，
+ * 插后仍带主题色相；与角色行标签框/书栏卡同源保同色。
  *
- * 演进史：secondaryContainer→background 插值 0.4→0.65→14f217c 与卡底同源（=surfaceContainerLow，
- * 装机实锤「标签太淡」：与页底只差 9/5/4 个 RGB，块看不见）→ 本版改回 secondaryContainer 但
- * 色阶已整体换 Radix，标签(step4)与卡底(step2)天生分开，不再撞色。
+ * 演进史：0.4（B 版原状）→0.65→14f217c 与卡底同源→815e3a5 Radix 版改取 secondaryContainer
+ * （step4）→ 本次整体回退 Radix 与 fresh green，恢复 B 版原公式。
  * 文字仍用 onSecondaryContainer：对比度只会更大。
  */
 @Composable
-internal fun softContainerColor(): Color = MaterialTheme.colorScheme.secondaryContainer
+internal fun softContainerColor(): Color = lerp(
+    MaterialTheme.colorScheme.secondaryContainer,
+    MaterialTheme.colorScheme.background,
+    0.4f
+)
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
