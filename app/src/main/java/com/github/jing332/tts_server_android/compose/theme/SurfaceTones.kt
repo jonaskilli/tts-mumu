@@ -9,13 +9,18 @@ import androidx.compose.ui.graphics.Color
 //   Lowest=step1（页底） Low=step2（卡底） Container=step3（弹窗底/搜索框/次级分组条）
 //   High=step3→step4 六成混白（主分组条深槽） Highest=step4→step5 三成混白（最深嵌套槽）
 //   Dim=step3 Bright=step1。
+// 10-12 L2（用户实拍「卡片色丑」挑定）：**只把 GREEN 一套**的三个结构槽整体提亮一档
+//   （container E6F6EB→EAF7EF、high DCF3E4→E2F4E8、highest D1EEDB→DAF1E1），
+//   三级台阶 3.24/3.13/3.15 全部保留（app 自己接受的最小台阶=页底→卡片 2.52）。
+//   其余 9 套**没动**：它们的级差本来就窄（DEFAULT 3.01、GRAY 1.75、BROWN 2.37），
+//   跟着压会连区域都分不出；要用那几套时按同一口径单独算。
 // 标签/选中档不在本表：Color2 浅色 secondaryContainer=accent step4，softContainerColor() 取之（不动）。
 // 深色表维持 10-10 版未动（未装机验收过，不随本批盲改）。
 // 列表顺序固定：[lowest, low, container, high, highest, dim, bright]，消费方=Theme.kt themedNeutral()。
 
 internal val lightSurfaceTones: Map<AppTheme, List<Color>> = mapOf(
     AppTheme.DEFAULT to listOf(Color(0xFFFBFEFD), Color(0xFFF4FBF7), Color(0xFFE6F7ED), Color(0xFFDCF3E7), Color(0xFFD0EFDF), Color(0xFFE6F7ED), Color(0xFFFBFEFD)),
-    AppTheme.GREEN to listOf(Color(0xFFFBFEFC), Color(0xFFF4FBF6), Color(0xFFE6F6EB), Color(0xFFDCF3E4), Color(0xFFD1EEDB), Color(0xFFE6F6EB), Color(0xFFFBFEFC)),
+    AppTheme.GREEN to listOf(Color(0xFFFBFEFC), Color(0xFFF4FBF6), Color(0xFFEAF7EF), Color(0xFFE2F4E8), Color(0xFFDAF1E1), Color(0xFFEAF7EF), Color(0xFFFBFEFC)),
     AppTheme.RED to listOf(Color(0xFFFFFCFC), Color(0xFFFFF7F7), Color(0xFFFEEBEC), Color(0xFFFFE1E2), Color(0xFFFFD7D8), Color(0xFFFEEBEC), Color(0xFFFFFCFC)),
     AppTheme.PINK to listOf(Color(0xFFFFFCFE), Color(0xFFFEF7FB), Color(0xFFFEE9F5), Color(0xFFFCE1F1), Color(0xFFFAD8ED), Color(0xFFFEE9F5), Color(0xFFFFFCFE)),
     AppTheme.BLUE to listOf(Color(0xFFFBFDFF), Color(0xFFF4FAFF), Color(0xFFE6F4FE), Color(0xFFDCF1FF), Color(0xFFCFECFF), Color(0xFFE6F4FE), Color(0xFFFBFDFF)),
