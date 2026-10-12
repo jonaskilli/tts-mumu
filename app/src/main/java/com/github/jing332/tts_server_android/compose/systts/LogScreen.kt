@@ -1260,14 +1260,25 @@ private fun LogEntryBody(
             if (before.text.isNotEmpty()) {
                 Text(text = before, color = bodyColor, style = bodyStyle)
             }
-            Row(verticalAlignment = Alignment.Top) {
-                RoleNamePill(chipName, roleChipColor, fontSize)
+            // 丸与后随文字**按基线对齐**（10-12 用户问「能跟其他文字对齐吗」）：原来
+            // Row(Top) + 丸是 Box，Box 不报文字基线，只能顶边对齐 ⇒ 丸里那两个字比旁边
+            // 发音人信息低一个内衬（3dp），看着像没对齐。改用 alignByBaseline：两边第一行
+            // 的基线重合，后随文字换行也不影响
+            Row {
+                RoleNamePill(
+                    chipName,
+                    roleChipColor,
+                    fontSize,
+                    modifier = Modifier.alignByBaseline(),
+                )
                 if (after.text.isNotEmpty()) {
                     Text(
                         text = after,
                         color = bodyColor,
                         style = bodyStyle,
-                        modifier = Modifier.weight(1f),
+                        modifier = Modifier
+                            .weight(1f)
+                            .alignByBaseline(),
                     )
                 }
             }
@@ -1284,30 +1295,36 @@ private fun LogEntryBody(
 
 /**
  * 角色名丸（10-11 用户令「那个人名也做成丸吧，不然不突出」；10-12 用户令「跟时间旁边一样的胶囊」）：
- * 与状态丸（StatusPill）**同一套几何**——RoundedCornerShape(50) + Box 居中 + 12sp Medium +
- * 内衬 10/3，底色同取「淡底重字」的淡底；差别只在字色=角色牌色（灰绿/亮灰绿）。
+ * 与状态丸（StatusPill）**同一套几何**——RoundedCornerShape(50) + 12sp Medium + 内衬 10/3，
+ * 底色同取「淡底重字」的淡底；差别只在字色=角色牌色（灰绿/亮灰绿）。
  * 此前底色取牌字色 alpha 0.22，比状态丸实一档、大小也不齐——用户要求两者看起来是同一种丸。
+ *
+ * ⚠️ 必须用带底色的 **Text** 而不是 Box 包 Text（10-12 二修）：Box 不向上报文字基线，
+ * 外层 Row 的 alignByBaseline 会退化成顶边对齐，丸里字比旁边文字低一个内衬。
+ * Text 自己会报基线，padding 由修饰符给（基线随顶内衬下移），基线对齐才算真的对上。
+ * lineHeight 钉成 fontSize：行盒不高出字身，胶囊上下内衬才是真正的对称。
  */
 @Composable
-private fun RoleNamePill(name: String, color: Color, fontSize: TextUnit) {
+private fun RoleNamePill(
+    name: String,
+    color: Color,
+    fontSize: TextUnit,
+    modifier: Modifier = Modifier,
+) {
     val dark = isSystemInDarkTheme()
-    Box(
-        modifier = Modifier
+    Text(
+        text = name,
+        style = MaterialTheme.typography.labelSmall.copy(
+            fontSize = 12.sp,
+            lineHeight = 12.sp,
+            fontWeight = FontWeight.Medium,
+        ),
+        color = color,
+        modifier = modifier
             .clip(RoundedCornerShape(50))
             // 淡底与状态丸 OK 档同源（#F2F8F4 / 深色 #2A2D33）——「这是谁」用中性淡底，
             // 状态信号才用彩色淡底，同一页两种丸一眼分得开
             .background(if (dark) Color(0xFF2A2D33) else Color(0xFFF2F8F4))
             .padding(horizontal = 10.dp, vertical = 3.dp),
-        contentAlignment = Alignment.Center,
-    ) {
-        Text(
-            text = name,
-            style = MaterialTheme.typography.labelSmall.copy(
-                fontSize = 12.sp,
-                lineHeight = 12.sp,
-                fontWeight = FontWeight.Medium,
-            ),
-            color = color,
-        )
-    }
+    )
 }
