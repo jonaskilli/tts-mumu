@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.requiredSize
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.shape.CircleShape
@@ -93,13 +94,15 @@ internal fun Item(
     ) {
         Row(modifier = Modifier.fillMaxSize()) {
             // 多选模式显示选中状态, 非多选模式显示启用开关
-            // 10-07 统一插件卡/朗读规则页写法：视觉 17dp（0.85 缩放）、外层 48dp 盒吃触摸，
-            // 内层 Checkbox 只画不摸（onCheckedChange=null）
+            // 对勾盒改密钥页同款（10-12 用户令「参照密钥管理界面的对勾处理，能做到文字对齐」）：
+            // 32×36 视觉盒（字形右缘≈文字线）+ requiredSize(48) 热区外扩（四周各溢出 8/6dp，
+            // 等效外扩不占布局空间）+ Checkbox 只画不摸（onCheckedChange=null，点击由盒接管）。
+            // 原 48dp 盒+M3 Checkbox（自带 4dp 内衬）导致方框离文字远、行首空一截
             if (isSelectionMode) {
                 Box(
                     modifier = Modifier
-                        .align(Alignment.CenterVertically)
-                        .size(48.dp)
+                        .size(width = 32.dp, height = 36.dp)
+                        .requiredSize(width = 48.dp, height = 48.dp)
                         .clip(CircleShape)
                         .clickable { onToggleSelection() },
                     contentAlignment = Alignment.Center
@@ -113,8 +116,8 @@ internal fun Item(
             } else {
                 Box(
                     modifier = Modifier
-                        .align(Alignment.CenterVertically)
-                        .size(48.dp)
+                        .size(width = 32.dp, height = 36.dp)
+                        .requiredSize(width = 48.dp, height = 48.dp)
                         .toggleable(
                             value = isEnabled,
                             role = Role.Switch,

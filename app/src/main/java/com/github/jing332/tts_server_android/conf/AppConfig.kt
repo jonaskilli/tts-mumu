@@ -48,14 +48,17 @@ object AppConfig {
         registerTypeConverters(
             save = { it.id },
             restore = { value ->
-                AppTheme.values().find { it.id == value } ?: AppTheme.DEFAULT
+                // 「默认」主题档退役（10-12 用户令）：存量值兜底改选绿色（弹窗已不列出默认档）
+                AppTheme.values().find { it.id == value }?.takeIf { it != AppTheme.DEFAULT }
+                    ?: AppTheme.GREEN
             }
         )
     }
 
     private val dataSaverPref by lazy { DataSaverPreferences((app as Context).getSharedPreferences("app", 0)) }
 
-    val theme by lazy { mutableDataSaverStateOf(dataSaverPref, "theme", AppTheme.DEFAULT) }
+    // 「默认」档退役后新装机初始主题=绿色（10-12 用户令）
+    val theme by lazy { mutableDataSaverStateOf(dataSaverPref, "theme", AppTheme.GREEN) }
     val limitTagLength by lazy { mutableDataSaverStateOf(dataSaverPref, "limitTagLength", 0) }
 
     // 显示名限长（10-06 用户二调：默认 15 字——20 偏长、去省略号后 16 字宽度封顶；

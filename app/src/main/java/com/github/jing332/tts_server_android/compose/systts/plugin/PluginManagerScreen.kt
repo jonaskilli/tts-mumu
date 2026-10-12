@@ -2048,70 +2048,62 @@ private fun VoiceImportRow(
     onAudition: () -> Unit,
 ) {
     var showCategoryMenu by remember { mutableStateOf(false) }
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(vertical = 4.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Checkbox(checked = checked, onCheckedChange = { onChecked() })
-        Text(
-            text = name,
-            style = MaterialTheme.typography.bodyMedium,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-            modifier = Modifier
-                .padding(start = 4.dp)
-                .weight(1f)
-        )
-        IconButton(onClick = onAudition) {
-            Icon(Icons.Default.Headset, stringResource(id = R.string.audition))
-        }
-        Surface(
-            shape = MaterialTheme.shapes.small,
-            // 标签类胶囊统一淡绿：softContainerColor 单源（10-10 统一，原内联 lerp 0.4 已岔色）；
-            // 原 tertiaryContainer 青蓝是全站唯一的第三色相，退役
-            color = if (category != null) com.github.jing332.tts_server_android.compose.systts.role.softContainerColor()
-            else MaterialTheme.colorScheme.surface,
-            tonalElevation = if (category != null) 2.dp else 0.dp,
-            border = if (category == null)
-                BorderStroke(1.dp, MaterialTheme.colorScheme.outline)
-            else null,
-            modifier = Modifier
-                .padding(end = 12.dp)
-                .clip(MaterialTheme.shapes.small)
-                .clickable { showCategoryMenu = true }
-        ) {
-            Text(
-                category ?: "分类",
-                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
-                style = MaterialTheme.typography.labelSmall,
-                color = if (category != null) MaterialTheme.colorScheme.onSecondaryContainer
-                else MaterialTheme.colorScheme.onSurfaceVariant
-            )
-        }
-        AppDropdownMenu(
-            expanded = showCategoryMenu,
-            onDismissRequest = { showCategoryMenu = false }
-        ) {
-            DropdownMenuItem(
-                text = { Text("默认") },
-                onClick = {
-                    showCategoryMenu = false
-                    onCategoryChange(null)
-                }
-            )
-            com.github.jing332.compose.widgets.VoiceCategories.COLUMNS.forEach { column ->
-                column.forEach { cat ->
-                    DropdownMenuItem(
-                        text = { Text(cat) },
-                        onClick = {
-                            showCategoryMenu = false
-                            onCategoryChange(cat)
-                        }
-                    )
+    // 勾选框+名字改走 CheckRow（10-12 用户令「勾选框跟上方全选行对齐」）：与全选行/分类行
+    // 同一构件，勾选框内衬/字距绝对同列；🎧 与分类胶囊作 trailing 挂行尾
+    CheckRow(
+        checked = checked,
+        label = name,
+        onChecked = onChecked,
+        trailing = {
+            IconButton(onClick = onAudition) {
+                Icon(Icons.Default.Headset, stringResource(id = R.string.audition))
+            }
+            Surface(
+                shape = MaterialTheme.shapes.small,
+                // 标签类胶囊统一淡绿：softContainerColor 单源（10-10 统一，原内联 lerp 0.4 已岔色）；
+                // 原 tertiaryContainer 青蓝是全站唯一的第三色相，退役
+                color = if (category != null) com.github.jing332.tts_server_android.compose.systts.role.softContainerColor()
+                else MaterialTheme.colorScheme.surface,
+                tonalElevation = if (category != null) 2.dp else 0.dp,
+                border = if (category == null)
+                    BorderStroke(1.dp, MaterialTheme.colorScheme.outline)
+                else null,
+                modifier = Modifier
+                    .padding(end = 12.dp)
+                    .clip(MaterialTheme.shapes.small)
+                    .clickable { showCategoryMenu = true }
+            ) {
+                Text(
+                    category ?: "分类",
+                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                    style = MaterialTheme.typography.labelSmall,
+                    color = if (category != null) MaterialTheme.colorScheme.onSecondaryContainer
+                    else MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+            AppDropdownMenu(
+                expanded = showCategoryMenu,
+                onDismissRequest = { showCategoryMenu = false }
+            ) {
+                DropdownMenuItem(
+                    text = { Text("默认") },
+                    onClick = {
+                        showCategoryMenu = false
+                        onCategoryChange(null)
+                    }
+                )
+                com.github.jing332.compose.widgets.VoiceCategories.COLUMNS.forEach { column ->
+                    column.forEach { cat ->
+                        DropdownMenuItem(
+                            text = { Text(cat) },
+                            onClick = {
+                                showCategoryMenu = false
+                                onCategoryChange(cat)
+                            }
+                        )
+                    }
                 }
             }
         }
-    }
+    )
 }

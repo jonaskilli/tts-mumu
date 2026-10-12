@@ -138,16 +138,18 @@ private fun labColor(L: Float, a: Float, b: Float): Color {
 
 //全局主题状态
 private val themeTypeState: MutableState<AppTheme> by lazy(mode = LazyThreadSafetyMode.SYNCHRONIZED) {
-    mutableStateOf(AppTheme.DEFAULT)
+    // 「默认」档退役（10-12 用户令）：初始/兜底态=绿色
+    mutableStateOf(AppTheme.GREEN)
 }
 
 @Composable
 private fun InitTheme() {
     val theme = try {
-        AppConfig.theme.value
+        // 存量选了「默认」的兜底改选绿色（弹窗已不列出默认档）
+        AppConfig.theme.value.takeIf { it != AppTheme.DEFAULT } ?: AppTheme.GREEN
     } catch (e: Exception) {
         e.printStackTrace()
-        AppTheme.DEFAULT
+        AppTheme.GREEN
     }
     setAppTheme(themeType = theme)
 }

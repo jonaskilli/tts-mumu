@@ -72,7 +72,11 @@ fun ThemeSelectionDialog(
 
 
                 FlowRow {
-                    AppTheme.values().forEach {
+                    // 「默认」档退役（10-12 用户令「把默认主题删掉」）：弹窗不再列出——
+                    // 它与「绿色」同种子色但走独立的 bean_green 表（Radix 时代两者的容器/结构
+                    // 色值已分岔），删档后主题二选一不再有岔色。存量选了默认的由 AppConfig
+                    // 读取处兜底改选绿色（Theme.kt 初始态同）
+                    AppTheme.values().filter { it != AppTheme.DEFAULT }.forEach {
                         val leadingIcon: @Composable () -> Unit =
                             { Icon(Icons.Default.Check, stringResource(R.string.theme)) }
                         val selected = currentTheme.id == it.id
