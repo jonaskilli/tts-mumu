@@ -834,50 +834,59 @@ class SystemTtsService : TextToSpeechService(), IEventDispatcher {
 
     private fun RequestPayload.text(): String = textOnly() + "<br>" + configInfo()
 
-    // 失败原因归因：把异常类型/HTTP状态码翻译成用户可读文本，
-    // 沿cause链查找——插件异常常被Rhino/桥接层包装，真实类型在底层
+    // 失败原因归因：把异常类型/HTTP状态码翻译成用户可读文本。
+    // ⚠️ 判定优先级（10-12 修正）：**消息里的 HTTP 状态码先于异常类型**——原实现沿链边收
+    // 消息边做类型判定，链里一旦撞上 JSONException 就直接返回「返回内容解析失败」，
+    // 把外层消息里明写的 404/401 盖掉。10-12 用户实拍实锤：插件原文
+    // 「通义千问免登录认证下载失败… Body is not a String, HTTP-404=」被应用层总结成
+    // 「获取失败：返回内容解析失败」，排障直接跑偏（真因是插件远端 404）。
+    // 现顺序：超时类型 → 消息里的状态码 → 异常类型 → 消息关键词 → 原文兜底
     private fun friendlyCause(t: Throwable?): String {
         if (t == null) return getString(R.string.systts_log_cause_unknown)
 
-        val messages = StringBuilder()
+        val chain = ArrayList<Throwable>(4)
         var cur: Throwable? = t
-        while (cur != null) {
-            when (cur) {
-                is java.net.SocketTimeoutException ->
-                    return getString(R.string.systts_log_cause_timeout)
-                is java.net.UnknownHostException ->
-                    return getString(R.string.systts_log_cause_no_network)
-                is java.net.ConnectException, is javax.net.ssl.SSLException ->
-                    return getString(R.string.systts_log_cause_connect)
-                is java.io.FileNotFoundException ->
-                    return getString(R.string.systts_log_cause_not_found)
-                is org.json.JSONException ->
-                    return getString(R.string.systts_log_cause_parse)
-            }
-            cur.message?.let { messages.append(it).append(' ') }
+        while (cur != null && chain.size < 16) {
+            chain.add(cur)
             cur = cur.cause
         }
-
-        val msg = messages.toString()
-        return when {
-            Regex("(?i)timed?\\s?out").containsMatchIn(msg) ->
-                getString(R.string.systts_log_cause_timeout)
-            Regex("(?<![0-9])(401|403)(?![0-9])").containsMatchIn(msg) ->
-                getString(R.string.systts_log_cause_auth)
-            Regex("(?<![0-9])429(?![0-9])").containsMatchIn(msg) ->
-                getString(R.string.systts_log_cause_rate_limit)
-            Regex("(?<![0-9])404(?![0-9])").containsMatchIn(msg) ->
-                getString(R.string.systts_log_cause_not_found)
-            Regex("(?<![0-9])5[0-9]{2}(?![0-9])").containsMatchIn(msg) ->
-                getString(R.string.systts_log_cause_server)
-            Regex("(?i)json|unexpected token").containsMatchIn(msg) ->
-                getString(R.string.systts_log_cause_parse)
-            // 归不到已知类型时带出异常原文：只报类名（如 IllegalStateException）无法定位，
-            // 09-17 实报「获取失败：IllegalStateException」看不出是引擎没找到还是别的
-            // 限 120 字：足够露出 PluginTtsSource 的 pluginId（前缀引擎查找失败时靠它定位）
-            msg.isEmpty() -> t.javaClass.simpleName
-            else -> t.javaClass.simpleName + "：" + msg.take(120)
+        // ① 超时类型无歧义，优先定性
+        if (chain.any { it is java.net.SocketTimeoutException }) {
+            return getString(R.string.systts_log_cause_timeout)
         }
+
+        val msg = chain.joinToString(" ") { it.message.orEmpty() }
+        // ② 消息里的 HTTP 状态码（插件原文常把真实码写在外层消息里）
+        if (Regex("(?<![0-9])(401|403)(?![0-9])").containsMatchIn(msg))
+            return getString(R.string.systts_log_cause_auth)
+        if (Regex("(?<![0-9])429(?![0-9])").containsMatchIn(msg))
+            return getString(R.string.systts_log_cause_rate_limit)
+        if (Regex("(?<![0-9])404(?![0-9])").containsMatchIn(msg))
+            return getString(R.string.systts_log_cause_not_found)
+        if (Regex("(?<![0-9])5[0-9]{2}(?![0-9])").containsMatchIn(msg))
+            return getString(R.string.systts_log_cause_server)
+
+        // ③ 异常类型
+        if (chain.any { it is org.json.JSONException })
+            return getString(R.string.systts_log_cause_parse)
+        if (chain.any { it is java.io.FileNotFoundException })
+            return getString(R.string.systts_log_cause_not_found)
+        if (chain.any { it is java.net.UnknownHostException })
+            return getString(R.string.systts_log_cause_no_network)
+        if (chain.any { it is java.net.ConnectException || it is javax.net.ssl.SSLException })
+            return getString(R.string.systts_log_cause_connect)
+
+        // ④ 消息关键词
+        if (Regex("(?i)timed?\\s?out").containsMatchIn(msg))
+            return getString(R.string.systts_log_cause_timeout)
+        if (Regex("(?i)json|unexpected token").containsMatchIn(msg))
+            return getString(R.string.systts_log_cause_parse)
+
+        // ⑤ 归不到已知类型时带出异常原文：只报类名（如 IllegalStateException）无法定位，
+        // 09-17 实报「获取失败：IllegalStateException」看不出是引擎没找到还是别的
+        // 限 120 字：足够露出 PluginTtsSource 的 pluginId（前缀引擎查找失败时靠它定位）
+        return if (msg.isBlank()) t.javaClass.simpleName
+        else t.javaClass.simpleName + "：" + msg.take(120)
     }
 
     private fun normalEvent(e: NormalEvent) {

@@ -136,6 +136,15 @@ class TtsLogViewModel : ViewModel() {
             entry.copy(time = auxTimeFormatter.format(System.currentTimeMillis()))
         else entry
 
+    // 「相邻」判据必须看**到达序**，不是各缓冲自己的末条（10-12 用户实拍实锤）：
+    // 插件/朗读规则日志走独立缓冲，缓冲内相邻 ≠ 屏幕上相邻——千问插件持续 404 时，
+    // 34 个**不同句子**各失败一次，在插件缓冲里是连续 34 条同指纹 ⇒ 被折成「失败 ×34」
+    //（截图 11:48:50–11:49:47），而屏幕上这 34 条之间夹着 源错误/重试/切备用/成功。
+    // 这里记住到达序上最后一次落库的条目与它属于哪条缓冲：插件/规则只在「上一条就是本缓冲末条」
+    // 时才允许折叠；主流程任何一条进来都把相邻打断。
+    private var lastArrival: LogEntry? = null
+    private var lastArrivalKind: Int = -1 // 0=主流程 1=插件 2=朗读规则
+
     private fun routeEntry(entry: LogEntry) {
         val isPlugin = entry.isPluginLog
         val isRule = entry.isSpeechRuleLog
@@ -144,11 +153,14 @@ class TtsLogViewModel : ViewModel() {
                 val stamped = stampTime(entry)
                 val target = if (isPlugin) pluginLogs else speechRuleLogs
                 val chars = if (isPlugin) pluginChars else ruleChars
+                val kind = if (isPlugin) 1 else 2
                 // 相邻同因合并（10-11 用户令「相同原因的失败视为相同，日志可以×2、×3」）：
                 // 与末条同指纹则并入计数，不再新增条目。10-05 曾因「×2 让人困惑」撤掉折叠，
                 // 但那时的真根因是 SysttsLogger 监听器重复注册（同一条日志被投递两遍，
                 // 已在 1bf6a74 修为 RouteSink 单例）——现在折叠反映的是真实重复次数。
-                val merged = mergeInto(target, stamped)
+                // ⚠️ 只有「屏幕上相邻」才折（10-12）：见上方 lastArrival 注释
+                val contiguous = lastArrivalKind == kind && lastArrival === target.lastOrNull()
+                val merged = if (contiguous) mergeInto(target, stamped) else null
                 if (merged == null) {
                     target.add(stamped)
                     chars.addAndGet(stamped.message.length.toLong())
@@ -159,6 +171,8 @@ class TtsLogViewModel : ViewModel() {
                     //（CI 38138740502 实锤：Argument type mismatch: actual Int, but Long was expected）
                     chars.addAndGet((merged.newLen - merged.oldLen).toLong())
                 }
+                lastArrival = target.lastOrNull()
+                lastArrivalKind = kind
                 // 条数裁剪
                 val overflow = target.size - AUX_MAX
                 if (overflow >= AUX_PRUNE) {
@@ -175,11 +189,14 @@ class TtsLogViewModel : ViewModel() {
             }
             else -> {
                 // 主流程日志同样折叠（10-11 用户令「不管是插件还是朗读规则还是正常的日志」）：
-                // 应用层失败链重试风暴同因刷屏也收成一条 ×N
+                // 应用层失败链重试风暴同因刷屏也收成一条 ×N。
+                // 主流程沿用「重试行不打断相邻」的老口径（同一次请求内的重试链要折出 ×2）
                 val merged = mergeInto(logs, entry)
                 if (merged == null) {
                     logs.add(entry)
                 }
+                lastArrival = logs.lastOrNull()
+                lastArrivalKind = 0
                 val overflow = logs.size - MAX_LOGS
                 if (overflow >= PRUNE_BATCH) {
                     repeat(overflow) { logs.removeAt(0) }
