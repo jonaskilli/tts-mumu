@@ -1800,9 +1800,12 @@ internal fun ImportByCategoryDialog(
             Modifier
                 .fillMaxWidth()
                 // 独立模式照旧占屏 92%（自己开壳，壳给了全屏高度）；
-                // 嵌入模式改用 weight(1f)：它被塞进宿主那个 weight(1f) 的 Box 里，
-                // 高度不再有界，用 fillMaxHeight 会塌成 0。宿主 Column 的 ColumnScope 一路传得进来
-                .then(if (embedded) Modifier.weight(1f) else Modifier.fillMaxHeight(0.92f))
+                // 嵌入模式改用 fillMaxSize：本组件整块由面板的 localPanelSlot 渲染，
+                // 外面套着宿主那个 Box(Modifier.weight(1f))（高度有界），填满即可。
+                // ⚠️ 这里**不能用 Modifier.weight**：weight 是 ColumnScope 成员，而本组件的
+                // 根 Column 在「槽 lambda」里，作用域里没有 ColumnScope——CI 38231081690 实锤
+                // Unresolved reference 'weight'（1805:46）
+                .then(if (embedded) Modifier.fillMaxSize() else Modifier.fillMaxHeight(0.92f))
                 .navigationBarsPadding()
                 .imePadding()
         ) {
