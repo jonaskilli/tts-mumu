@@ -28,6 +28,37 @@ fun ControlBottomBarVisibility(
     }
 }
 
+/**
+ * 竖滚容器（verticalScroll 的 ScrollState）版回显：设置页/角色页不是 LazyList，
+ * 没有列表状态可接——用 scrollState.value 判「向下滚」（值变小）即回显。
+ * 「往下滑底栏不出现」(10-12 用户报) 即此缺口：exitAlways 只认 nestedScroll 上抛的
+ * 位移，设页的 Column.verticalScroll 不在 bottomBar 的 nestedScroll 连接里滚起来
+ * 不触发隐藏，但别的页面藏下去后切过来会保持隐藏（exitAlways 不自动回弹），竖滚
+ * 一动就该回显。
+ */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun ControlBottomBarVisibility(
+    scrollState: androidx.compose.foundation.ScrollState,
+    bottomBarBehavior: BottomAppBarScrollBehavior,
+) {
+    val bottomAppBarState = bottomBarBehavior.state
+    var lastValue by remember { mutableStateOf(scrollState.value) }
+    val scrollingDown by remember {
+        derivedStateOf {
+            val v = scrollState.value
+            val down = v < lastValue
+            lastValue = v
+            down
+        }
+    }
+    LaunchedEffect(scrollingDown) {
+        if (scrollingDown) animateBottomBarToShow(bottomAppBarState)
+    }
+    // 刚进入本页（还没滚动）也回显一次，避免带着上一页的隐藏状态停留
+    LaunchedEffect(Unit) { animateBottomBarToShow(bottomAppBarState) }
+}
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ControlBottomBarVisibility(

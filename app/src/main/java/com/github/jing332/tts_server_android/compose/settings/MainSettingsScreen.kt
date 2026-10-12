@@ -67,6 +67,7 @@ import com.github.jing332.tts_server_android.compose.nav.NavTopAppBar
 import com.github.jing332.tts_server_android.compose.systts.plugin.PluginManagerActivity
 import com.github.jing332.tts_server_android.compose.systts.replace.ReplaceManagerActivity
 import com.github.jing332.tts_server_android.compose.systts.role.KeyManagerActivity
+import com.github.jing332.tts_server_android.compose.LocalBottomBarBehavior
 import com.github.jing332.tts_server_android.compose.systts.speechrule.SpeechRuleManagerActivity
 import com.github.jing332.tts_server_android.compose.theme.getAppTheme
 import com.github.jing332.tts_server_android.compose.theme.setAppTheme
@@ -87,6 +88,12 @@ fun SettingsScreen() {
     // 分离后主页状态在子页期间不被挂载，位置保持；子页每次进入从头开始。
     val mainScrollState = rememberScrollState()
     val subScrollState = remember(openSection) { ScrollState(0) }
+    // 设置页滚动回显底栏（10-12 用户报「往下滑底栏不出现」）：竖滚容器没有 LazyList 态，
+    // 走 ScrollState 重载判向下滚即回显；进页也强制回显一次
+    com.github.jing332.compose.widgets.ControlBottomBarVisibility(
+        if (openSection == null) mainScrollState else subScrollState,
+        LocalBottomBarBehavior.current
+    )
     // 子页内不做搜索过滤（子页顶栏没有搜索框）：查询强制为空 ⇒ search 恒不激活，条目全部渲染
     val search = rememberSettingsSearch(if (openSection != null) "" else query)
     // 系统返回键：子页时先退回主页

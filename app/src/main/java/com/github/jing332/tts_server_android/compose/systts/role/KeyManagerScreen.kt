@@ -2656,14 +2656,20 @@ private fun InterfaceFormDialog(
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                     Spacer(Modifier.weight(1f))
-                    TextButton(
-                        enabled = url.text.isNotBlank(),
-                        contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp),
-                        onClick = {
-                            clipboard.setText(AnnotatedString(url.text.trim()))
-                            toast(R.string.copied)
-                        }
-                    ) { Text(stringResource(R.string.copy)) }
+                    // 复制键小型化（10-12 用户令「复制键太大」）：TextButton 最小高 40dp 撑大了行，
+                    // 改裸文字胶囊（与日志页「回原位」同语汇），只有文字本身的大小
+                    Text(
+                        stringResource(R.string.copy),
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(9.dp))
+                            .clickable(enabled = url.text.isNotBlank()) {
+                                clipboard.setText(AnnotatedString(url.text.trim()))
+                                toast(R.string.copied)
+                            }
+                            .padding(horizontal = 8.dp, vertical = 2.dp)
+                    )
                 }
                 // 地址可能很长，允许多行
                 OutlinedTextField(
@@ -2719,14 +2725,19 @@ private fun InterfaceFormDialog(
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                     Spacer(Modifier.weight(1f))
-                    TextButton(
-                        enabled = key.isNotBlank(),
-                        contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp),
-                        onClick = {
-                            clipboard.setText(AnnotatedString(key.trim()))
-                            toast(R.string.copied)
-                        }
-                    ) { Text(stringResource(R.string.copy)) }
+                    // 同上：裸文字胶囊小型化
+                    Text(
+                        stringResource(R.string.copy),
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(9.dp))
+                            .clickable(enabled = key.isNotBlank()) {
+                                clipboard.setText(AnnotatedString(key.trim()))
+                                toast(R.string.copied)
+                            }
+                            .padding(horizontal = 8.dp, vertical = 2.dp)
+                    )
                 }
                 // Key 可能很长，允许多行
                 OutlinedTextField(

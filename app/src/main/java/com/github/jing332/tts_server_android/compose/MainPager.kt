@@ -34,7 +34,11 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -87,9 +91,15 @@ fun AnimatedContentScope.MainPager(sharedVM: SharedViewModel) {
         !a11yTouchEnabled
     })
     ControlBottomBarVisibility(a11yTouchEnabled, scrollBehavior)
-    // 底栏满高的像素值（10-10 回官方 NavigationBar=80dp）：布局式滚动隐藏用它算裁剪量
+    // 底栏满高的像素值：官方 NavigationBar 内容 80dp + 自带 navigationBarsPadding（手势条）。
+    // ⚠️ 旧值写死 80dp 漏了手势条 inset——带手势条的机型上真实满高=80dp+导航条高度，
+    // 于是①隐藏上限不够（永远剩导航条那么高收不回去=「卡一半」）②内容避让同错
+    // （paddingValues.calculateBottomPadding() 短一截=列表末尾被栏压住看不全）。
+    // 10-12 用户实机复现，改动态量测：包一层 Box 记下实际量到的高度（首帧后生效）
     val density = LocalDensity.current
-    val bottomBarHeightPx = with(density) { 80.dp.toPx() }.roundToInt()
+    // 实测满高（含手势条 inset）：旧值写死 80dp 漏了手势条——带手势条机型上「卡一半」的根因之一。
+    // 初始给估算值，onSizeChanged 量到真实值即替换（首帧后生效）
+    val bottomBarHeightState = remember { mutableStateOf(with(density) { 128.dp.roundToPx() }) }
 
     val overlayController = rememberOverlayController()
 
@@ -137,7 +147,13 @@ fun AnimatedContentScope.MainPager(sharedVM: SharedViewModel) {
                     Surface(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .bottomBarHeight({ scrollBehavior.state.heightOffset }, bottomBarHeightPx),
+                            .onSizeChanged { size ->
+                                // 实测满高（含手势条）：比写死常量准。变化才写，避免每帧重组
+                                if (size.height > 0 && bottomBarHeightState.intValue != size.height) {
+                                    bottomBarHeightState.intValue = size.height
+                                }
+                            }
+                            .bottomBarHeight({ scrollBehavior.state.heightOffset }, bottomBarHeightState.intValue),
                         color = MaterialTheme.colorScheme.surfaceContainer
                     ) {
                         NavigationBar(
@@ -194,15 +210,26 @@ fun AnimatedContentScope.MainPager(sharedVM: SharedViewModel) {
 }
 
 /**
- * 底栏滚动隐藏 v2（布局式）：按 [heightOffset]（px，负=隐藏量）实时裁底栏高度——
- * heightRequired(60dp+offset)，内容随高度收走（Row 顶对齐、贴边裁掉底行），
- * Scaffold 槽位随高度同步缩小，滚动内容真的多出空间。
- * v1（offset 平移+clipToBounds）真机实锤失效：offset 不改布局高度、clip 先于 offset
- * 执行裁在原位，底栏悬在内容中间（用户截图 19:08）。
+ * 底栏滚动隐藏 v3（布局式+上限校正）：按 [heightOffset]（px，负=隐藏量）实时裁底栏高度。
+ * ⚠️ exitAlwaysScrollBehavior 的默认隐藏上限是 48dp（M3 BottomAppBar 默认 heightOffsetLimit），
+ * 而官方 NavigationBar 满高 80dp+手势条——上限小于真实可藏量 ⇒ 长列表下滑永远「卡一半」
+ * （10-12 用户实机复现，此前两轮只修布局没修上限，根因漏了这层）。修法：隐藏量直接取
+ * offset 与满高的较大者（offsetLimit 不可从外部改，这里兜底全藏）。
  */
 private fun Modifier.bottomBarHeight(heightOffsetState: () -> Float, fullHeightPx: Int): Modifier =
     layout { measurable, constraints ->
-        val hidden = (-heightOffsetState()).roundToInt().coerceIn(0, fullHeightPx)
-        val placeable = measurable.measure(constraints.copy(minHeight = 0, maxHeight = fullHeightPx - hidden))
+        val offset = (-heightOffsetState()).roundToInt()
+        // offset 超 48dp 的部分 exitAlways 自己不再增长——向「贴着滚动方向持续下滑=全藏」
+        // 的目标补齐：滚得越深按比例补到满高（offsetLimit 截断前的原始终点≈一屏滚动），
+        // 简化为：offset ≥ 48dp 后线性放大到 fullHeight（系数=full/48 的补偿）
+        val hidden = if (offset <= 0) 0
+        else if (offset >= fullHeightPx) fullHeightPx
+        else {
+            // exitAlways 在 offsetLimit(48dp) 处停住；把 [0,48dp] 的进度映射到 [0,fullHeight]
+            val limitPx = 48.dp.roundToPx()
+            val progress = (offset.toFloat() / limitPx).coerceIn(0f, 1f)
+            (fullHeightPx * progress).roundToInt()
+        }
+        val placeable = measurable.measure(constraints.copy(minHeight = 0, maxHeight = (fullHeightPx - hidden).coerceAtLeast(0)))
         layout(placeable.width, placeable.height) { placeable.place(0, 0) }
     }

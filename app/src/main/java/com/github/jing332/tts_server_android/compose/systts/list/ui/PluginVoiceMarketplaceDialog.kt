@@ -228,7 +228,19 @@ fun PluginVoiceMarketplaceDialog(
     }
 
     // 条件变化即重查第一页（首次进入也走这里：打开广场立刻有一屏内容可看）；先把视口拉回顶部
+    // ⚠️ 先等 vm.load() 完成（isLoading=false）再首查（10-12 用户报「联网广场一直正在加载」）：
+    // 入库宿主是 LaunchedEffect 里跑 load（引擎 eval/协议探测要几百 ms），面板同帧组合后
+    // 旧逻辑立刻 searchCatalog——Rhino scope 未就绪，JS 调用挂死/报错，loading 永远转圈。
+    // isLoading 从 true→false 即引擎就绪信号；进面板时若已是 false（编辑页同 VM 已加载）直接查
     LaunchedEffect(submittedKeyword, tags, sortBy, locale) {
+        if (vm.isLoading) {
+            // 轮询等就绪（isLoading 无 flow，百 ms 步进足够；上限 10s 防死等）
+            var waited = 0
+            while (vm.isLoading && waited < 10_000) {
+                delay(100)
+                waited += 100
+            }
+        }
         listState.scrollToItem(0)
         vm.searchCatalog(locale, submittedKeyword, tags.sorted(), sortBy, append = false)
     }
@@ -342,26 +354,40 @@ fun PluginVoiceMarketplaceDialog(
                     }
 
                     // ---- 入库模式：等待分类/自动下一个（10-10 恢复旧版语义）----
+                    // 两开关各 weight(1f)（10-12 用户报「自动下一个折行」）：Switch 固定宽挤压文字，
+                    // 等分后 4 字标签一行放下
                     if (importMode) {
                         Row(
                             Modifier
                                 .fillMaxWidth()
                                 .padding(horizontal = CATALOG_PANEL_PADDING),
-                            horizontalArrangement = Arrangement.spacedBy(18.dp)
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)
                         ) {
                             Row(
                                 verticalAlignment = Alignment.CenterVertically,
-                                modifier = Modifier.clickable { waitCategorySwitch = !waitCategorySwitch }
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .clickable { waitCategorySwitch = !waitCategorySwitch }
                             ) {
                                 Switch(checked = waitCategorySwitch, onCheckedChange = { waitCategorySwitch = it })
-                                Text("等待分类", style = MaterialTheme.typography.bodyMedium, modifier = Modifier.padding(start = 4.dp))
+                                Text(
+                                    "等待分类", style = MaterialTheme.typography.bodyMedium,
+                                    maxLines = 1, overflow = TextOverflow.Ellipsis,
+                                    modifier = Modifier.padding(start = 4.dp)
+                                )
                             }
                             Row(
                                 verticalAlignment = Alignment.CenterVertically,
-                                modifier = Modifier.clickable { autoNextSwitch = !autoNextSwitch }
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .clickable { autoNextSwitch = !autoNextSwitch }
                             ) {
                                 Switch(checked = autoNextSwitch, onCheckedChange = { autoNextSwitch = it })
-                                Text("自动下一个", style = MaterialTheme.typography.bodyMedium, modifier = Modifier.padding(start = 4.dp))
+                                Text(
+                                    "自动下一个", style = MaterialTheme.typography.bodyMedium,
+                                    maxLines = 1, overflow = TextOverflow.Ellipsis,
+                                    modifier = Modifier.padding(start = 4.dp)
+                                )
                             }
                         }
                     }
