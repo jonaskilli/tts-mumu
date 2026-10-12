@@ -967,15 +967,33 @@ private fun Item(
     // 入库来源双选（10-10 用户令「留个口」）：null=待选 / "market"=音色广场 / "list"=现有列表
     var importSource by remember { mutableStateOf<String?>(null) }
     var showMarketplace by remember { mutableStateOf(false) }
-    // 该插件是否声明音色广场协议（引擎实测探测一次；决定入库入口分不走广场）
+    // 该插件是否声明音色广场协议（引擎实测；决定入库入口走广场还是自带分类）。
+    // ⚠️ 探测时机（10-12 用户报「⋮ 有时点不动」）：原先进卡即 eval 整份插件 JS——列表里
+    // 每张卡入组合都跑一次，多插件同屏时主线程被重组+eval 风暴卡住，⋮ 点击丢帧失灵。
+    // 改按需探测：点开「音色分类入库」才跑（结果按插件 id 缓存，重开不再重探）
     var supportsMarket by remember(plugin?.id) { mutableStateOf(false) }
-    LaunchedEffect(plugin?.id) {
+    var probedPluginId by remember { mutableStateOf<String?>(null) }
+    LaunchedEffect(plugin?.id, showImportByCategory) {
         val p = plugin ?: return@LaunchedEffect
+        if (!showImportByCategory || probedPluginId == p.id) {
+            // 已探测过：直接按缓存结论分流（重开弹窗不再 eval）
+            if (showImportByCategory && importSource == null) {
+                importSource = if (supportsMarket) "market" else "list"
+                if (supportsMarket) showMarketplace = true
+            }
+            return@LaunchedEffect
+        }
         supportsMarket = withContext(kotlinx.coroutines.Dispatchers.IO) {
             runCatching {
                 val e = TtsPluginUiEngineV2(context, p)
                 try { e.eval(); e.supportsVoiceCatalog() } finally { runCatching { e.destroy() } }
             }.getOrDefault(false)
+        }
+        probedPluginId = p.id
+        // 探测完再分流（原先进卡就分流，现在顺延到探测后——用户无感，仅晚几百毫秒）
+        if (showImportByCategory && importSource == null) {
+            importSource = if (supportsMarket) "market" else "list"
+            if (supportsMarket) showMarketplace = true
         }
     }
     // 音色广场「入库」跳转自动弹出（10-10 衔接）：直接走广场路，不问来源
@@ -1244,18 +1262,8 @@ private fun Item(
                 } else null
             )
 
-            // 入库来源分流（10-11 用户令「甲案」改）：来源切换条进了弹窗顶部，
-            // 所以不再先弹来源双选——
-            // · 普通插件（未声明广场协议）：直进自带分类弹窗（切换条不显示，无广场可切）
-            // · 广场协议插件：直进联网广场弹层（弹层顶部有切换条，可切回自带分类）
-            // handoff 跳转仍自动走广场路（音色直接带着走）
-            if (showImportByCategory && importSource == null && plugin != null && !supportsMarket) {
-                importSource = "list"
-            }
-            if (showImportByCategory && importSource == null && plugin != null && supportsMarket) {
-                importSource = "market"
-                showMarketplace = true
-            }
+            // 入库来源分流：已并入上方 LaunchedEffect（点开入库后探测完成统一分流）——
+            // 原两段 if 在组合期写状态，与按需探测竞态，收敛到探测完成处
 
             // 入库模式的音色广场（10-10 广场合一）：勾选/分类/试听后「导入」=入下拉+入库两动作一步
             if (showMarketplace && plugin != null) {
@@ -1331,11 +1339,19 @@ private fun MarketplaceImportDialog(
             )
         }
         val engine = remember { vm.engine }
+        // 上一个/下一个（10-12 用户令「试听弹窗补齐，照无广场插件的试听界面」）：
+        // 序列=广场列表当前顺序；重播键 AuditionDialog 自带（失败就地重发）
+        val catalogList = vm.catalogItems
+        val curIdx = catalogList.indexOfFirst { it.id == item.id }
         AuditionDialog(
             systts = auditionSystts,
             engine = null, // 用 CachedEngineManager 路径（同编辑页行内 🎧 口径）
             voiceId = item.id,
             autoDismiss = !waitCategory,
+            hasPrev = curIdx > 0,
+            hasNext = curIdx in 0 until catalogList.size - 1,
+            onPrev = { if (curIdx > 0) auditionItem = catalogList[curIdx - 1] },
+            onNext = { if (curIdx in 0 until catalogList.size - 1) auditionItem = catalogList[curIdx + 1] },
             // 已分配分类回显（回看上一个音色时知道分过没）
             assignedCategory = categories[item.id],
             onCategoryAssigned = { _, category ->
@@ -1349,9 +1365,7 @@ private fun MarketplaceImportDialog(
                 }
                 if (category != null && autoNext) {
                     // 自动下一个：跳到列表中当前项的下一个（广场列表顺序）
-                    val items = vm.catalogItems
-                    val idx = items.indexOfFirst { it.id == item.id }
-                    if (idx in 0 until items.size - 1) auditionItem = items[idx + 1]
+                    if (curIdx in 0 until catalogList.size - 1) auditionItem = catalogList[curIdx + 1]
                 }
             },
             onDismissRequest = { auditionItem = null }
@@ -1365,12 +1379,9 @@ private fun MarketplaceImportDialog(
         locale = vm.locales.firstOrNull()?.first.orEmpty(),
         onDismissRequest = onDismiss,
         onAudition = { item -> auditionItem = item },
-        onPick = { items ->
-            // 「加入列表(N)」在入库模式=只补下拉不入库（导入键才是两动作）。本宿主没有
-            // 当前配置的下拉可补——入库模式藏这键没必要，直接视为同导入。用户在编辑页
-            // 大厅模式才有"只加下拉"诉求（那路由编辑页自己的 onPick 处理）。
-            doMarketplaceImport(plugin, vm, items, categories.toMap(), context, scope, onDismiss)
-        },
+        // onPick=null（10-12 用户令去重）：入库模式底部只剩「导入(N)」一键——
+        // 「加入列表(N)」在本宿主与导入同函数纯重复
+        onPick = null,
         onImport = { items ->
             doMarketplaceImport(plugin, vm, items, categories.toMap(), context, scope, onDismiss)
         },
@@ -1763,12 +1774,14 @@ internal fun ImportByCategoryDialog(
                 ) { Text(if (importing) "导入中" else "直接入库") }
             }
         }
+        // 内容区（10-12 崩溃修复）：外层**不带** verticalScroll——stage1 的 LazyColumn
+        // 嵌在可滚 Column 里会被测出无限高约束（IllegalStateException 实锤 11:27）。
+        // stage0 的长分类列表改由 LazyColumn 承载滚动（header/分类行作 item），stage1 照旧
         Column(
             Modifier
                 .weight(1f)
                 .fillMaxWidth()
                 .padding(horizontal = 16.dp)
-                .verticalScroll(rememberScrollState())
         ) {
             if (importing) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
@@ -1777,33 +1790,37 @@ internal fun ImportByCategoryDialog(
                     Text(progressText, style = MaterialTheme.typography.bodyMedium)
                 }
             } else if (stage == 0) {
-                Column(Modifier.verticalScroll(rememberScrollState())) {
-                    // 插件名：次级信息行，小字最多两行省略，归属可见又不抢标题
-                    Text(
-                        text = plugin.name,
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        maxLines = 2,
-                        overflow = TextOverflow.Ellipsis,
-                        modifier = Modifier.padding(bottom = 10.dp)
-                    )
-                    // 全选行与分类行共用 CheckRow，勾选框绝对同列
-                    CheckRow(
-                        checked = allSelected,
-                        onChecked = {
-                            selectedPoolIds = if (allSelected) emptySet() else categories.map { it.poolId }.toSet()
-                        },
-                        label = if (allSelected) "取消全选" else "全选",
-                        trailing = {
-                            Text(
-                                "已选 ${selectedPoolIds.size}/${categories.size}",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
-                    )
-                    HorizontalDivider(Modifier.padding(bottom = 2.dp))
-                    categories.forEach { item ->
+                // 分类列表用 LazyColumn（原 verticalScroll Column 在新大面板里与外层
+                // 结构冲突的隐患一并消掉）；全选行作首 item，与 stage1 版式同构
+                LazyColumn(Modifier.fillMaxWidth()) {
+                    item {
+                        // 插件名：次级信息行，小字最多两行省略，归属可见又不抢标题
+                        Text(
+                            text = plugin.name,
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            maxLines = 2,
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier.padding(bottom = 10.dp)
+                        )
+                        // 全选行与分类行共用 CheckRow，勾选框绝对同列
+                        CheckRow(
+                            checked = allSelected,
+                            onChecked = {
+                                selectedPoolIds = if (allSelected) emptySet() else categories.map { it.poolId }.toSet()
+                            },
+                            label = if (allSelected) "取消全选" else "全选",
+                            trailing = {
+                                Text(
+                                    "已选 ${selectedPoolIds.size}/${categories.size}",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                        )
+                        HorizontalDivider(Modifier.padding(bottom = 2.dp))
+                    }
+                    items(categories, key = { it.poolId }) { item ->
                         CheckRow(
                             checked = item.poolId in selectedPoolIds,
                             onChecked = null,

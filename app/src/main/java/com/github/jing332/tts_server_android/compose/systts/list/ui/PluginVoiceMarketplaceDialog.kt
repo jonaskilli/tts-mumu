@@ -138,7 +138,7 @@ fun PluginVoiceMarketplaceDialog(
     locale: String,
     onDismissRequest: () -> Unit,
     onAudition: (VoiceCatalogItem) -> Unit,
-    onPick: (List<VoiceCatalogItem>) -> Unit,
+    onPick: ((List<VoiceCatalogItem>) -> Unit)?,
     onImport: ((List<VoiceCatalogItem>) -> Unit)? = null,
     // 入库模式两开关变化上报（等待分类/自动下一个；试听弹窗由调用方弹，开关语义在调用方落地）
     onSwitchesChanged: (waitCategory: Boolean, autoNext: Boolean) -> Unit = { _, _ -> },
@@ -736,12 +736,15 @@ fun PluginVoiceMarketplaceDialog(
                                 Text("导入(${picked.size})")
                             }
                         }
-                        // 大厅模式唯一出口；入库模式也保留（勾了只想加下拉不入库的场景）
-                        TextButton(
-                            enabled = picked.isNotEmpty(),
-                            onClick = { onPick(picked.values.toList()) },
-                        ) {
-                            Text(stringResource(R.string.voice_catalog_pick, picked.size))
+                        // 「加入列表(N)」：仅大厅模式渲染（选声音场景的出口）。入库模式的宿主
+                        // 没有下拉可补、onPick 与导入同函数纯重复（10-12 用户令去重），传 null 即不显示
+                        if (onPick != null) {
+                            TextButton(
+                                enabled = picked.isNotEmpty(),
+                                onClick = { onPick(picked.values.toList()) },
+                            ) {
+                                Text(stringResource(R.string.voice_catalog_pick, picked.size))
+                            }
                         }
                     }
                 }
