@@ -674,7 +674,12 @@ fun VoicePickerDialog(
                 // M3 底部面板：仅顶部两角 28dp 圆角，底边贴屏——系统栏间距交给内层 Column 的
                 // navigationBarsPadding，面板本体不缩，视觉上仍是「从底部升起」
                 shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp),
-                color = MaterialTheme.colorScheme.surfaceContainerHigh,
+                // 面板底改近白（10-12 用户令，D 案）：原 surfaceContainerHigh 是中绿档，整屏铺绿
+                // 被用户判「丑到出奇」。改用 surfaceContainerLow（=卡片底色档）——
+                // 全站 13 个底部面板里 10 个走的就是官方默认（=Low），本弹窗并进多数派；
+                // 广场 / 分类入库两个大面板同步改到同档，三个「大面板」观感一致（4 处一起改）。
+                // 绿色只留在分类胶囊、选中项、「最终：语速…」这些点缀上，层级反而更清楚
+                color = MaterialTheme.colorScheme.surfaceContainerLow,
             ) {
                 Column(Modifier.navigationBarsPadding()) {
                     // 拖拽把（「做成底部弹窗的样式」）：M3 底部弹窗的识别特征就是

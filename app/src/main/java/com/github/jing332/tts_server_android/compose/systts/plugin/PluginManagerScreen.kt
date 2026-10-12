@@ -1707,7 +1707,9 @@ internal fun ImportByCategoryDialog(
     androidx.compose.material3.ModalBottomSheet(
         onDismissRequest = { if (!importing) onDismiss() },
         sheetState = sheetState,
-        containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+        // 面板底改近白（10-12 用户令 D 案）：与换声弹窗/联网广场面板同档（surfaceContainerLow），
+        // 三个「大面板」一族统一，绿色只做点缀
+        containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
         dragHandle = null,
         contentWindowInsets = { WindowInsets(0, 0, 0, 0) },
     ) {

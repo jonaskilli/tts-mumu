@@ -254,7 +254,9 @@ fun PluginVoiceMarketplaceDialog(
         onDismissRequest = onDismissRequest,
         sheetState = sheetState,
         // 视觉与原 Dialog 方案一致：顶部两角圆角、同色、自绘拖拽把（保持像素级不变）
-        containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+        // 面板底改近白（10-12 用户令 D 案）：与换声弹窗/分类入库面板同档（surfaceContainerLow），
+        // 绿色只做点缀——三个「大面板」一族统一，详见 VoicePickerDialog 同名注释
+        containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
         dragHandle = null,
         // 系统栏间距自己管（内层 Column navigationBarsPadding），避免默认 insets 叠加双份
         contentWindowInsets = { WindowInsets(0, 0, 0, 0) },
@@ -794,7 +796,9 @@ private fun CatalogFilterSheet(
         onDismissRequest = onDismissRequest,
         sheetState = sheetState,
         // 视觉与原 Dialog 方案一致：顶部两角圆角、同色、自绘拖拽把（保持像素级不变）
-        containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+        // 面板底改近白（10-12 用户令 D 案）：与换声弹窗/分类入库面板同档（surfaceContainerLow），
+        // 绿色只做点缀——三个「大面板」一族统一，详见 VoicePickerDialog 同名注释
+        containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
         dragHandle = null,
         // 系统栏间距自己管（内层 Column navigationBarsPadding），避免默认 insets 叠加双份
         contentWindowInsets = { WindowInsets(0, 0, 0, 0) },
