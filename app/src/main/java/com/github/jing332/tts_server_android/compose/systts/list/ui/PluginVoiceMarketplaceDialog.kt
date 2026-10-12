@@ -57,7 +57,7 @@ import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.rememberModalBottomSheetState
+import androidx.compose.material3.SheetValue
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -145,6 +145,9 @@ fun PluginVoiceMarketplaceDialog(
     // 来源切换条（10-11 用户令：联网广场 / 自带分类 在弹窗顶部直接切）；
     // 宿主传入；null = 不显示（编辑页大厅无入库概念，不切）
     sourceSegment: (@Composable () -> Unit)? = null,
+    // 以「已展开」开局（10-12 用户令「切来源胶囊时不要从底部再弹」）：宿主在第二次及以后
+    // 打开（含两个来源弹层互切）传 true —— 面板直接出现在位，不再滑入一遍
+    instantOpen: Boolean = false,
     // 勾选/分类两张表（10-11 用户实机「试听分了类卡片不显示、不勾选」）：
     // 默认值保住大厅模式（编辑页）调用方不用改；入库模式由宿主传入，试听分类与卡片共用同一份状态
     picked: SnapshotStateMap<String, VoiceCatalogItem> = remember { mutableStateMapOf<String, VoiceCatalogItem>() },
@@ -249,7 +252,13 @@ fun PluginVoiceMarketplaceDialog(
     // 系统排版下移出屏约一个导航栏高，贴屏幕底的内容必被裁、钉窗口压不住。ModalBottomSheet
     // 走的是 M3 自己的弹层窗口机制，与自绘 Dialog 不同路——**实机若底部动作行完整可见
     // ⇒ 底部弹窗形态复活**，选择弹窗可跟进换内核；仍被裁则认命维持居中/标题行形态。
-    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    val sheetState = androidx.compose.material3.rememberSheetState(
+        skipPartiallyExpanded = true,
+        // 第二次及以后（含来源互切）：以已展开开局 —— 不再有滑入动画，视觉上就是「换内容」。
+        // 大厅模式（编辑页）不传 instantOpen ⇒ 恒为 Hidden，行为与改动前逐字节一致
+        initialValue = if (instantOpen) androidx.compose.material3.SheetValue.Expanded
+        else androidx.compose.material3.SheetValue.Hidden,
+    )
     ModalBottomSheet(
         onDismissRequest = onDismissRequest,
         sheetState = sheetState,
@@ -791,7 +800,13 @@ private fun CatalogFilterSheet(
     // 系统排版下移出屏约一个导航栏高，贴屏幕底的内容必被裁、钉窗口压不住。ModalBottomSheet
     // 走的是 M3 自己的弹层窗口机制，与自绘 Dialog 不同路——**实机若底部动作行完整可见
     // ⇒ 底部弹窗形态复活**，选择弹窗可跟进换内核；仍被裁则认命维持居中/标题行形态。
-    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    val sheetState = androidx.compose.material3.rememberSheetState(
+        skipPartiallyExpanded = true,
+        // 第二次及以后（含来源互切）：以已展开开局 —— 不再有滑入动画，视觉上就是「换内容」。
+        // 大厅模式（编辑页）不传 instantOpen ⇒ 恒为 Hidden，行为与改动前逐字节一致
+        initialValue = if (instantOpen) androidx.compose.material3.SheetValue.Expanded
+        else androidx.compose.material3.SheetValue.Hidden,
+    )
     ModalBottomSheet(
         onDismissRequest = onDismissRequest,
         sheetState = sheetState,

@@ -1245,6 +1245,15 @@ private fun Item(
 
             // 变量提示已移到插件名与作者行之间（10-11 用户令），此处不再重复渲染
 
+            // 切来源胶囊时不从底部再弹（10-12 用户令）：第一次打开照旧滑入；之后（含两个
+            // 弹层互切）以「已展开」开局——直接换内容，不再有第二次上滑动画。
+            // 说明：两套弹层仍是各自的 ModalBottomSheet（合成一个壳要重写 1300+ 行，风险大），
+            // 但视觉上不再有「又弹一次」，用户要的效果就是这样
+            var importSheetOpenedOnce by remember { mutableStateOf(false) }
+            androidx.compose.runtime.LaunchedEffect(showImportByCategory, showMarketplace) {
+                if (showImportByCategory || showMarketplace) importSheetOpenedOnce = true
+            }
+
             // 按插件音色分类入库：选分组 → 批量导入
             ImportByCategoryDialog(
                 plugin = plugin,
@@ -1252,6 +1261,7 @@ private fun Item(
                 onDismiss = { showImportByCategory = false; importSource = null },
                 scope = scope,
                 context = context,
+                instantOpen = importSheetOpenedOnce,
                 // 支持广场协议的插件：弹窗顶部显示来源切换条，点「联网广场」换去广场弹层
                 onSwitchToMarket = if (supportsMarket) {
                     {
@@ -1270,6 +1280,7 @@ private fun Item(
                 MarketplaceImportDialog(
                     plugin = plugin,
                     onDismiss = { showMarketplace = false; importSource = null },
+                    instantOpen = importSheetOpenedOnce,
                     // 弹层顶部切换条点「自带分类」：换回自带分类弹窗
                     onSwitchToLocal = {
                         showMarketplace = false
@@ -1295,6 +1306,8 @@ private fun MarketplaceImportDialog(
     onDismiss: () -> Unit,
     // 弹层顶部切换条点「自带分类」的回调（10-11 甲案）：换回自带分类弹窗
     onSwitchToLocal: () -> Unit,
+    // 以「已展开」开局（10-12）：从另一个来源弹层切过来时不再从底部滑入，直接换内容
+    instantOpen: Boolean = false,
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -1390,6 +1403,8 @@ private fun MarketplaceImportDialog(
         categories = categories,
         // 弹层顶部来源切换条（10-11 甲案）：当前选中联网广场，点「自带分类」换弹窗
         sourceSegment = { ImportSourceSegment(selected = "market", onPick = { if (it == "list") onSwitchToLocal.invoke() }) },
+        // 以「已展开」开局（10-12）：从自带分类切过来时不再从底部滑入
+        instantOpen = instantOpen,
     )
 }
 
@@ -1548,6 +1563,8 @@ internal fun ImportByCategoryDialog(
     context: Context,
     // 支持音色广场协议的插件才显示来源切换条；null=不显示（普通插件只有自带分类一条道）
     onSwitchToMarket: (() -> Unit)? = null,
+    // 以「已展开」开局（10-12 用户令「切来源胶囊时不要从底部再弹」）
+    instantOpen: Boolean = false,
 ) {
     if (!visible || plugin == null) return
 
@@ -1703,7 +1720,12 @@ internal fun ImportByCategoryDialog(
     // 大面板形态（10-12 用户令「自带分类的界面要适应联网广场的界面」）：与广场弹窗同款
     // ModalBottomSheet（92% 高、拖拽把、顶部来源胶囊），替掉原 AlertDialog——
     // 两个入库界面同构，切换时不再「太跳」
-    val sheetState = androidx.compose.material3.rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    val sheetState = androidx.compose.material3.rememberSheetState(
+        skipPartiallyExpanded = true,
+        // 以已展开开局（10-12）：从联网广场切过来时直接换内容，不再从底部滑入一遍
+        initialValue = if (instantOpen) androidx.compose.material3.SheetValue.Expanded
+        else androidx.compose.material3.SheetValue.Hidden,
+    )
     androidx.compose.material3.ModalBottomSheet(
         onDismissRequest = { if (!importing) onDismiss() },
         sheetState = sheetState,
