@@ -1247,39 +1247,69 @@ private fun Item(
 
             // 变量提示已移到插件名与作者行之间（10-11 用户令），此处不再重复渲染
 
-            // 按插件音色分类入库：选分组 → 批量导入
-            ImportByCategoryDialog(
-                plugin = plugin,
-                visible = showImportByCategory && importSource == "list" && plugin != null,
-                onDismiss = { showImportByCategory = false; importSource = null },
-                scope = scope,
-                context = context,
-                // 支持广场协议的插件：弹窗顶部显示来源切换条，点「联网广场」换去广场弹层
-                onSwitchToMarket = if (supportsMarket) {
-                    {
-                        showImportByCategory = false
-                        importSource = "market"
-                        showMarketplace = true
-                    }
-                } else null
-            )
+            // 按插件音色分类入库（10-12 合壳）：带广场协议的插件**只渲染一个壳**——
+            // 广场面板那条 ModalBottomSheet，来源切到「自带分类」时把 ImportByCategoryDialog
+            // 以 embedded 模式塞进它的内容区（localPanel 槽）。两个界面共用一个壳 ⇒
+            // 来源胶囊互切不再从底部重新滑入，标题/来源条也只有一份。
+            // 无广场插件照老路：ImportByCategoryDialog 自己开壳（embedded 默认 false）。
+            if (plugin != null && (showImportByCategory || showMarketplace)) {
+                if (supportsMarket) {
+                    // importSource 为 null 的极小窗口按 "market" 画（探测分流只晚几百毫秒）
+                    val src = importSource ?: "market"
+                    // 显式标类型：槽 lambda 里含非局部 return，交给推断容易把返回类型推成别的
+                    val localPanel: (@Composable () -> Unit)? = if (src == "list") {
+                        {
+                            ImportByCategoryDialog(
+                                plugin = plugin,
+                                visible = true,
+                                onDismiss = {
+                                    showImportByCategory = false
+                                    showMarketplace = false
+                                    importSource = null
+                                },
+                                scope = scope,
+                                context = context,
+                                // null：来源条归壳画（嵌入模式不画自己的壳内装饰），
+                                // 有广场时「试听分类/直接入库」会落到标题下那一段
+                                onSwitchToMarket = null,
+                                embedded = true,
+                            )
+                        }
+                    } else null
+                    MarketplaceImportDialog(
+                        plugin = plugin,
+                        onDismiss = {
+                            showImportByCategory = false
+                            showMarketplace = false
+                            importSource = null
+                        },
+                        selectedSource = src,
+                        // 只翻来源、不关弹层（合壳要点）：壳留着，内容区换块
+                        onPickSource = { picked -> importSource = picked },
+                        localPanel = localPanel,
+                    )
+                } else {
+                    // 无广场插件：自带分类弹层（老路，行为与改动前一致）
+                    ImportByCategoryDialog(
+                        plugin = plugin,
+                        visible = showImportByCategory,
+                        onDismiss = {
+                            showImportByCategory = false
+                            showMarketplace = false
+                            importSource = null
+                        },
+                        scope = scope,
+                        context = context,
+                        onSwitchToMarket = null,
+                    )
+                }
+            }
 
             // 入库来源分流：已并入上方 LaunchedEffect（点开入库后探测完成统一分流）——
             // 原两段 if 在组合期写状态，与按需探测竞态，收敛到探测完成处
 
-            // 入库模式的音色广场（10-10 广场合一）：勾选/分类/试听后「导入」=入下拉+入库两动作一步
-            if (showMarketplace && plugin != null) {
-                MarketplaceImportDialog(
-                    plugin = plugin,
-                    onDismiss = { showMarketplace = false; importSource = null },
-                    // 弹层顶部切换条点「自带分类」：换回自带分类弹窗
-                    onSwitchToLocal = {
-                        showMarketplace = false
-                        importSource = "list"
-                        showImportByCategory = true
-                    }
-                )
-            }
+            // 入库模式的音色广场（10-10 广场合一）已并入上方「只渲染一个壳」那段（10-12 合壳）：
+            // 原独立的那次 MarketplaceImportDialog 调用删掉，避免同屏两个弹层
         }
     }
 }
@@ -1295,8 +1325,14 @@ private fun Item(
 private fun MarketplaceImportDialog(
     plugin: Plugin,
     onDismiss: () -> Unit,
-    // 弹层顶部切换条点「自带分类」的回调（10-11 甲案）：换回自带分类弹窗
-    onSwitchToLocal: () -> Unit,
+    // 当前入库来源（10-12 合壳）："market"=联网广场 / "list"=自带分类。
+    // 壳只有一个，切换只翻这个值 ⇒ 来源胶囊互切时不再有第二次上滑
+    selectedSource: String,
+    // 弹层顶部切换条点另一来源的回调（10-12 合壳）：宿主只翻 importSource、**不关弹层**
+    onPickSource: (String) -> Unit,
+    // 「自带分类」嵌入槽（10-12 合壳）：非 null 时广场面板不画「搜索/筛选/列表」整段，
+    // 改画它（内容=ImportByCategoryDialog(embedded=true)）。null = 纯联网广场（老路）
+    localPanel: (@Composable () -> Unit)? = null,
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -1394,8 +1430,11 @@ private fun MarketplaceImportDialog(
         onSwitchesChanged = { w, a -> waitCategory = w; autoNext = a },
         picked = picked,
         categories = categories,
-        // 弹层顶部来源切换条（10-11 甲案）：当前选中联网广场，点「自带分类」换弹窗
-        sourceSegment = { ImportSourceSegment(selected = "market", onPick = { if (it == "list") onSwitchToLocal.invoke() }) },
+        // 弹层顶部来源切换条（10-12 合壳）：选中态跟宿主 selectedSource 走（不再写死 "market"），
+        // 点另一段只上报来源、由宿主翻 importSource——**不关弹层**，于是没有第二次上滑
+        sourceSegment = { ImportSourceSegment(selected = selectedSource, onPick = { onPickSource(it) }) },
+        // 来源=自带分类时把「自带分类」面板嵌进同一个壳（内容区替换掉广场的搜索/列表）
+        localPanelSlot = localPanel,
     )
 }
 
@@ -1554,6 +1593,10 @@ internal fun ImportByCategoryDialog(
     context: Context,
     // 支持音色广场协议的插件才显示来源切换条；null=不显示（普通插件只有自带分类一条道）
     onSwitchToMarket: (() -> Unit)? = null,
+    // 嵌入模式（10-12 合壳）：不画自己的 ModalBottomSheet、也不画拖拽把/标题/来源条——
+    // 这几样由宿主那个唯一的壳提供，本组件只渲染「内容区 + 底部动作行」。
+    // 独立模式（默认）行为与改动前逐字节一致
+    embedded: Boolean = false,
 ) {
     if (!visible || plugin == null) return
 
@@ -1748,26 +1791,22 @@ internal fun ImportByCategoryDialog(
         )
     }
 
-    // 大面板形态（10-12 用户令「自带分类的界面要适应联网广场的界面」）：与广场弹窗同款
-    // ModalBottomSheet（92% 高、拖拽把、顶部来源胶囊），替掉原 AlertDialog——
-    // 两个入库界面同构，切换时不再「太跳」
-    val sheetState = androidx.compose.material3.rememberModalBottomSheetState(skipPartiallyExpanded = true)
-    androidx.compose.material3.ModalBottomSheet(
-        onDismissRequest = { if (!importing) onDismiss() },
-        sheetState = sheetState,
-        // 面板底改近白（10-12 用户令 D 案）：与换声弹窗/联网广场面板同档（surfaceContainerLow），
-        // 三个「大面板」一族统一，绿色只做点缀
-        containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
-        dragHandle = null,
-        contentWindowInsets = { WindowInsets(0, 0, 0, 0) },
-    ) {
+    // 面板主体（10-12 合壳）：抽成一个带「是否画壳内装饰」开关的 lambda——
+    // 独立模式（embedded=false）照旧画自己的弹层 + 拖拽把/标题/来源条；
+    // 嵌入模式（embedded=true）把这些**交给宿主那唯一的壳**，本组件只出「内容区 + 底部动作行」。
+    // 用 lambda 而不是新建函数：阶段/勾选/导入中这些状态全在作用域内，搬家零拷贝
+    val panelBody: @Composable (chrome: Boolean) -> Unit = { chrome ->
         Column(
             Modifier
                 .fillMaxWidth()
-                .fillMaxHeight(0.92f)
+                // 独立模式照旧占屏 92%（自己开壳，壳给了全屏高度）；
+                // 嵌入模式改用 weight(1f)：它被塞进宿主那个 weight(1f) 的 Box 里，
+                // 高度不再有界，用 fillMaxHeight 会塌成 0。宿主 Column 的 ColumnScope 一路传得进来
+                .then(if (embedded) Modifier.weight(1f) else Modifier.fillMaxHeight(0.92f))
                 .navigationBarsPadding()
                 .imePadding()
         ) {
+        if (chrome) {
         // 拖拽把（与广场弹窗同款自绘）
         Box(Modifier.fillMaxWidth().padding(top = 8.dp), contentAlignment = Alignment.Center) {
             Box(
@@ -1804,6 +1843,7 @@ internal fun ImportByCategoryDialog(
                 modifier = Modifier.padding(horizontal = 24.dp)
             )
         }
+        } // if (chrome)：拖拽把/标题/来源条三段收尾（嵌入模式由宿主壳提供）
         // 「试听分类 / 直接入库」＝**两个选项**，不是胶囊（10-12 用户令）：用连通分段框
         //（＝备份弹窗「完整备份/分享备份」那套：圆角外框 + 竖分隔 + 选中段带 ✓ 底色深一档）。
         // 位置分两种：无广场插件摆在标题下（本块）；带广场插件挪到**下方右侧**（见底部动作行）——
@@ -2029,9 +2069,25 @@ internal fun ImportByCategoryDialog(
                 }
             }
         }
+        } // panelBody 的 Column 收尾
+        } // panelBody lambda 收尾
+        // 独立模式（老路，无广场插件）：自己开一个壳；
+        // 嵌入模式（10-12 合壳，有广场插件）：只出内容——壳由宿主那唯一的 ModalBottomSheet 提供，
+        // 拖拽把/标题/来源条也归它画，于是来源胶囊互切时不再有第二次上滑
+        if (embedded) {
+            panelBody(false)
+        } else {
+            androidx.compose.material3.ModalBottomSheet(
+                onDismissRequest = { if (!importing) onDismiss() },
+                sheetState = androidx.compose.material3.rememberModalBottomSheetState(skipPartiallyExpanded = true),
+                containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
+                dragHandle = null,
+                contentWindowInsets = { WindowInsets(0, 0, 0, 0) },
+            ) {
+                panelBody(true)
+            }
         }
     }
-}
 
 /**
  * 分类入库对话框的统一选择行：勾选框 + 标签（占满）+ 右侧元信息。

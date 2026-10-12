@@ -145,6 +145,11 @@ fun PluginVoiceMarketplaceDialog(
     // 来源切换条（10-11 用户令：联网广场 / 自带分类 在弹窗顶部直接切）；
     // 宿主传入；null = 不显示（编辑页大厅无入库概念，不切）
     sourceSegment: (@Composable () -> Unit)? = null,
+    // 「自带分类」嵌入槽（10-12 合壳）：非 null 时，入库模式那个壳里的
+    // 「搜索/排序/筛选 + 快捷 chips + 本地分类行 + 结果摘要 + 结果列表」整段不画，
+    // 改画这个槽——槽里是 ImportByCategoryDialog(embedded=true) 的内容区（拖拽把/标题/来源条
+    // 归本壳，故槽只出内容区 + 底部动作行）。null = 现行为（联网广场自带这整段）。
+    localPanelSlot: (@Composable () -> Unit)? = null,
     // 勾选/分类两张表（10-11 用户实机「试听分了类卡片不显示、不勾选」）：
     // 默认值保住大厅模式（编辑页）调用方不用改；入库模式由宿主传入，试听分类与卡片共用同一份状态
     picked: SnapshotStateMap<String, VoiceCatalogItem> = remember { mutableStateMapOf<String, VoiceCatalogItem>() },
@@ -352,360 +357,365 @@ fun PluginVoiceMarketplaceDialog(
                         LaunchedEffect(Unit) { onSwitchesChanged(true, true) }
                     }
 
-                    // ---- 搜索 + 排序 + 筛选 ----
-                    // 大厅模式切到「自带分类」时整块收起（联网搜索与本地分类互斥，10-11 用户令）
-                    if (!(sourceSegment == null && !importMode && hallSource == 1)) Row(
-                        Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = CATALOG_PANEL_PADDING),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        DenseOutlinedField(
-                            modifier = Modifier.weight(1f),
-                            value = keyword,
-                            onValueChange = { keyword = it },
-                            singleLine = true,
-                            maxLines = 1,
-                            // maxLines=1（目目 09-17：label 折成两行是 DecorationBox 在未聚焦态
-                            // 对 label 的宽度约束比文字实际所需更窄所致，单行后不再分两行）
-                            label = {
-                                Text(
-                                    stringResource(R.string.voice_catalog_search),
-                                    maxLines = 1,
-                                    // 只 maxLines 不给 ellipsis 会把「色」硬裁掉（09-17 实机：
-                                    // 未聚焦态 label 约束宽度比文字实际所需窄一字）
-                                    overflow = TextOverflow.Ellipsis,
-                                )
-                            },
-                            leadingIcon = {
-                                Icon(
-                                    Icons.Filled.Search,
-                                    contentDescription = null,
-                                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                                )
-                            },
-                            trailingIcon = {
-                                if (keyword.isNotBlank()) IconButton(onClick = { keyword = "" }) {
-                                    Icon(Icons.Filled.Clear, stringResource(R.string.voice_catalog_clear))
-                                }
-                            },
-                            keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
-                            keyboardActions = KeyboardActions(
-                                onSearch = {
-                                    submittedKeyword = keyword
-                                    keyboard?.hide()
-                                }
-                            ),
-                        )
-                        SortMenu(
-                            options = sortOptions,
-                            current = sortBy,
-                            onSelect = { sortBy = it },
-                        )
-                        FilterEntry(
-                            activeCount = countFilterSelections(vm.catalogFilterGroups, tags),
-                            onClick = { filterSheetOpen = true },
-                        )
-                    }
-
-                    // ---- quickFilters 横滑 chips（协议里的"官方快捷筛选"）----
-                    // 大厅「自带分类」视图下收起（与搜索行同口径）
-                    if (vm.catalogQuickFilters.isNotEmpty() && !(sourceSegment == null && !importMode && hallSource == 1)) {
-                        LazyRow(
-                            modifier = Modifier
+                    // 「自带分类」嵌入槽二选一（10-12 合壳）：槽非 null 时下面整段不画，改画槽内容
+                    if (localPanelSlot == null) {
+                        // ---- 搜索 + 排序 + 筛选 ----
+                        // 大厅模式切到「自带分类」时整块收起（联网搜索与本地分类互斥，10-11 用户令）
+                        if (!(sourceSegment == null && !importMode && hallSource == 1)) Row(
+                            Modifier
                                 .fillMaxWidth()
-                                .padding(top = 4.dp),
-                            contentPadding = PaddingValues(horizontal = CATALOG_PANEL_PADDING),
-                            horizontalArrangement = Arrangement.spacedBy(6.dp),
+                                .padding(horizontal = CATALOG_PANEL_PADDING),
+                            verticalAlignment = Alignment.CenterVertically,
                         ) {
-                            items(vm.catalogQuickFilters, key = { it.id }) { option ->
-                                FilterChip(
-                                    selected = option.id in tags,
-                                    onClick = { tags = tags.toggle(option.id) },
-                                    label = { Text(option.label, maxLines = 1) },
-                                )
-                            }
+                            DenseOutlinedField(
+                                modifier = Modifier.weight(1f),
+                                value = keyword,
+                                onValueChange = { keyword = it },
+                                singleLine = true,
+                                maxLines = 1,
+                                // maxLines=1（目目 09-17：label 折成两行是 DecorationBox 在未聚焦态
+                                // 对 label 的宽度约束比文字实际所需更窄所致，单行后不再分两行）
+                                label = {
+                                    Text(
+                                        stringResource(R.string.voice_catalog_search),
+                                        maxLines = 1,
+                                        // 只 maxLines 不给 ellipsis 会把「色」硬裁掉（09-17 实机：
+                                        // 未聚焦态 label 约束宽度比文字实际所需窄一字）
+                                        overflow = TextOverflow.Ellipsis,
+                                    )
+                                },
+                                leadingIcon = {
+                                    Icon(
+                                        Icons.Filled.Search,
+                                        contentDescription = null,
+                                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    )
+                                },
+                                trailingIcon = {
+                                    if (keyword.isNotBlank()) IconButton(onClick = { keyword = "" }) {
+                                        Icon(Icons.Filled.Clear, stringResource(R.string.voice_catalog_clear))
+                                    }
+                                },
+                                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
+                                keyboardActions = KeyboardActions(
+                                    onSearch = {
+                                        submittedKeyword = keyword
+                                        keyboard?.hide()
+                                    }
+                                ),
+                            )
+                            SortMenu(
+                                options = sortOptions,
+                                current = sortBy,
+                                onSelect = { sortBy = it },
+                            )
+                            FilterEntry(
+                                activeCount = countFilterSelections(vm.catalogFilterGroups, tags),
+                                onClick = { filterSheetOpen = true },
+                            )
                         }
-                    }
 
-                    // ---- 本地分类区（10-10 用户令：普通插件也要能在广场里列分类）----
-                    // 入库模式恒显示（加载中转圈）；10-11 起大厅模式（有来源切换条）也显示——
-                    // 用户令「大厅也两种」。点分类 chip → 结果列表切本地音色，再点取消回联网搜索。
-                    if (importMode || sourceSegment != null) {
-                        when {
-                            localPoolLoading -> Row(
-                                Modifier
-                                    .fillMaxWidth()
-                                    .padding(horizontal = CATALOG_PANEL_PADDING, vertical = 4.dp),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                CircularProgressIndicator(Modifier.size(16.dp), strokeWidth = 2.dp)
-                                Text(
-                                    "正在读取插件分类…",
-                                    style = MaterialTheme.typography.labelMedium,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    modifier = Modifier.padding(start = 8.dp)
-                                )
-                            }
-                            localPools.isNotEmpty() -> LazyRow(
+                        // ---- quickFilters 横滑 chips（协议里的"官方快捷筛选"）----
+                        // 大厅「自带分类」视图下收起（与搜索行同口径）
+                        if (vm.catalogQuickFilters.isNotEmpty() && !(sourceSegment == null && !importMode && hallSource == 1)) {
+                            LazyRow(
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .padding(top = 4.dp),
                                 contentPadding = PaddingValues(horizontal = CATALOG_PANEL_PADDING),
                                 horizontalArrangement = Arrangement.spacedBy(6.dp),
                             ) {
-                                items(localPools, key = { it.first }) { (poolId, poolName) ->
+                                items(vm.catalogQuickFilters, key = { it.id }) { option ->
                                     FilterChip(
-                                        selected = selectedLocalPool == poolId,
+                                        selected = option.id in tags,
+                                        onClick = { tags = tags.toggle(option.id) },
+                                        label = { Text(option.label, maxLines = 1) },
+                                    )
+                                }
+                            }
+                        }
+
+                        // ---- 本地分类区（10-10 用户令：普通插件也要能在广场里列分类）----
+                        // 入库模式恒显示（加载中转圈）；10-11 起大厅模式（有来源切换条）也显示——
+                        // 用户令「大厅也两种」。点分类 chip → 结果列表切本地音色，再点取消回联网搜索。
+                        if (importMode || sourceSegment != null) {
+                            when {
+                                localPoolLoading -> Row(
+                                    Modifier
+                                        .fillMaxWidth()
+                                        .padding(horizontal = CATALOG_PANEL_PADDING, vertical = 4.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    CircularProgressIndicator(Modifier.size(16.dp), strokeWidth = 2.dp)
+                                    Text(
+                                        "正在读取插件分类…",
+                                        style = MaterialTheme.typography.labelMedium,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        modifier = Modifier.padding(start = 8.dp)
+                                    )
+                                }
+                                localPools.isNotEmpty() -> LazyRow(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(top = 4.dp),
+                                    contentPadding = PaddingValues(horizontal = CATALOG_PANEL_PADDING),
+                                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                                ) {
+                                    items(localPools, key = { it.first }) { (poolId, poolName) ->
+                                        FilterChip(
+                                            selected = selectedLocalPool == poolId,
+                                            onClick = {
+                                                if (selectedLocalPool == poolId) {
+                                                    selectedLocalPool = null // 再点取消，回联网搜索
+                                                } else {
+                                                    selectedLocalPool = poolId
+                                                    loadLocalVoices(poolId)
+                                                }
+                                            },
+                                            label = { Text(poolName, maxLines = 1) },
+                                        )
+                                    }
+                                }
+                            }
+                        }
+
+                        // ---- 结果摘要 / 错误 ----
+                        // 本地分类模式下不显示联网搜索的摘要/错误（两数据源互斥显示）；
+                        // 大厅「自带分类」视图同理收起（10-11 用户令）
+                        val hallLocalView = sourceSegment == null && !importMode && hallSource == 1
+                        if (selectedLocalPool == null && !hallLocalView) {
+                            val error = vm.catalogError
+                            if (error != null) {
+                                Row(
+                                    Modifier
+                                        .fillMaxWidth()
+                                        .padding(
+                                        start = CATALOG_PANEL_PADDING,
+                                        end = 12.dp,
+                                        top = 4.dp,
+                                        bottom = 4.dp
+                                    ),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                ) {
+                                    Text(
+                                        error,
+                                        modifier = Modifier.weight(1f),
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.error,
+                                        maxLines = 3,
+                                        overflow = TextOverflow.Ellipsis,
+                                    )
+                                    TextButton(
+                                        contentPadding = PaddingValues(horizontal = 8.dp),
                                         onClick = {
-                                            if (selectedLocalPool == poolId) {
-                                                selectedLocalPool = null // 再点取消，回联网搜索
-                                            } else {
-                                                selectedLocalPool = poolId
-                                                loadLocalVoices(poolId)
+                                            scope.launch {
+                                                vm.searchCatalog(locale, submittedKeyword, tags.sorted(), sortBy, append = false)
                                             }
                                         },
-                                        label = { Text(poolName, maxLines = 1) },
-                                    )
-                                }
-                            }
-                        }
-                    }
-
-                    // ---- 结果摘要 / 错误 ----
-                    // 本地分类模式下不显示联网搜索的摘要/错误（两数据源互斥显示）；
-                    // 大厅「自带分类」视图同理收起（10-11 用户令）
-                    val hallLocalView = sourceSegment == null && !importMode && hallSource == 1
-                    if (selectedLocalPool == null && !hallLocalView) {
-                        val error = vm.catalogError
-                        if (error != null) {
-                            Row(
-                                Modifier
-                                    .fillMaxWidth()
-                                    .padding(
-                                    start = CATALOG_PANEL_PADDING,
-                                    end = 12.dp,
-                                    top = 4.dp,
-                                    bottom = 4.dp
-                                ),
-                                verticalAlignment = Alignment.CenterVertically,
-                            ) {
-                                Text(
-                                    error,
-                                    modifier = Modifier.weight(1f),
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.error,
-                                    maxLines = 3,
-                                    overflow = TextOverflow.Ellipsis,
-                                )
-                                TextButton(
-                                    contentPadding = PaddingValues(horizontal = 8.dp),
-                                    onClick = {
-                                        scope.launch {
-                                            vm.searchCatalog(locale, submittedKeyword, tags.sorted(), sortBy, append = false)
-                                        }
-                                    },
-                                ) {
-                                    Text(stringResource(R.string.voice_catalog_retry))
-                                }
-                            }
-                        } else {
-                            Text(
-                                text = catalogSummary(vm),
-                                modifier = Modifier.padding(
-                                    horizontal = CATALOG_PANEL_PADDING,
-                                    vertical = 4.dp
-                                ),
-                                style = MaterialTheme.typography.labelMedium,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            )
-                        }
-                    }
-
-                    HorizontalDivider()
-
-                    // ---- 结果列表 ----
-                    // 双数据源（10-10 用户令）：选中本地分类 → 本地音色（getVoices）；否则联网搜索结果。
-                    // 10-11 增：大厅「自带分类」视图强制走本地列表——未选具体分类时列全部音色
-                    // （getVoices("")，插件不认则空列表）；勾选/分类标签/导入共用同一套状态（picked/categories 都按 voiceId 键）
-                    Box(Modifier.weight(1f)) {
-                        val useLocalList = selectedLocalPool != null || hallLocalView
-                        if (useLocalList) {
-                            // 本地分类音色列表（普通插件的主路；广场协议插件也能切过来看本地缓存）
-                            if (localVoicesLoading) {
-                                Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                                    CircularProgressIndicator(Modifier.size(28.dp), strokeWidth = 2.dp)
-                                }
-                            } else if (localVoices.isEmpty()) {
-                                Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                                    Text(
-                                        stringResource(R.string.voice_catalog_empty),
-                                        style = MaterialTheme.typography.bodyMedium,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    )
+                                    ) {
+                                        Text(stringResource(R.string.voice_catalog_retry))
+                                    }
                                 }
                             } else {
-                                LazyColumn(
-                                    modifier = Modifier.fillMaxSize(),
-                                    contentPadding = PaddingValues(vertical = 4.dp),
-                                ) {
-                                    items(localVoices, key = { it.second }) { (poolId, voiceId, name) ->
-                                        CatalogVoiceRow(
-                                            item = VoiceCatalogItem(
-                                                id = voiceId,
-                                                name = name,
-                                                icon = null,
-                                            ),
-                                            checked = voiceId in picked,
-                                            onToggle = {
-                                                if (picked.containsKey(voiceId)) picked.remove(voiceId)
-                                                else picked[voiceId] = VoiceCatalogItem(
+                                Text(
+                                    text = catalogSummary(vm),
+                                    modifier = Modifier.padding(
+                                        horizontal = CATALOG_PANEL_PADDING,
+                                        vertical = 4.dp
+                                    ),
+                                    style = MaterialTheme.typography.labelMedium,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
+                            }
+                        }
+
+                        HorizontalDivider()
+
+                        // ---- 结果列表 ----
+                        // 双数据源（10-10 用户令）：选中本地分类 → 本地音色（getVoices）；否则联网搜索结果。
+                        // 10-11 增：大厅「自带分类」视图强制走本地列表——未选具体分类时列全部音色
+                        // （getVoices("")，插件不认则空列表）；勾选/分类标签/导入共用同一套状态（picked/categories 都按 voiceId 键）
+                        Box(Modifier.weight(1f)) {
+                            val useLocalList = selectedLocalPool != null || hallLocalView
+                            if (useLocalList) {
+                                // 本地分类音色列表（普通插件的主路；广场协议插件也能切过来看本地缓存）
+                                if (localVoicesLoading) {
+                                    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                                        CircularProgressIndicator(Modifier.size(28.dp), strokeWidth = 2.dp)
+                                    }
+                                } else if (localVoices.isEmpty()) {
+                                    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                                        Text(
+                                            stringResource(R.string.voice_catalog_empty),
+                                            style = MaterialTheme.typography.bodyMedium,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        )
+                                    }
+                                } else {
+                                    LazyColumn(
+                                        modifier = Modifier.fillMaxSize(),
+                                        contentPadding = PaddingValues(vertical = 4.dp),
+                                    ) {
+                                        items(localVoices, key = { it.second }) { (poolId, voiceId, name) ->
+                                            CatalogVoiceRow(
+                                                item = VoiceCatalogItem(
                                                     id = voiceId,
                                                     name = name,
-                                                    // poolId 借 description 带给导入侧（本地分类名做 poolName）
-                                                    description = "locale:${poolId}",
-                                                )
-                                            },
-                                            onAudition = {
-                                                // 本地音色带 poolId（普通插件合成要用 locale）：
-                                                // 借 item.description 段带过去（调 harmless；宿主读它拼试听实体）
-                                                onAudition(
-                                                    VoiceCatalogItem(
-                                                        id = voiceId,
-                                                        name = name,
-                                                        description = "locale:${poolId}",
-                                                    )
-                                                )
-                                            },
-                                            assignedCategory = categories[voiceId],
-                                            onCategoryChange = if (importMode) ({ cat ->
-                                                // 卡片手选分类（10-11 与老弹窗口径对齐）：分好类即视为待导入项
-                                                // 并自动勾选，否则分完类没勾、导入漏掉它
-                                                if (cat == null) categories.remove(voiceId)
-                                                else {
-                                                    categories.set(voiceId, cat)
-                                                    if (voiceId !in picked) picked[voiceId] = VoiceCatalogItem(
+                                                    icon = null,
+                                                ),
+                                                checked = voiceId in picked,
+                                                onToggle = {
+                                                    if (picked.containsKey(voiceId)) picked.remove(voiceId)
+                                                    else picked[voiceId] = VoiceCatalogItem(
                                                         id = voiceId,
                                                         name = name,
                                                         // poolId 借 description 带给导入侧（本地分类名做 poolName）
                                                         description = "locale:${poolId}",
                                                     )
-                                                }
-                                            }) else null,
-                                        )
+                                                },
+                                                onAudition = {
+                                                    // 本地音色带 poolId（普通插件合成要用 locale）：
+                                                    // 借 item.description 段带过去（调 harmless；宿主读它拼试听实体）
+                                                    onAudition(
+                                                        VoiceCatalogItem(
+                                                            id = voiceId,
+                                                            name = name,
+                                                            description = "locale:${poolId}",
+                                                        )
+                                                    )
+                                                },
+                                                assignedCategory = categories[voiceId],
+                                                onCategoryChange = if (importMode) ({ cat ->
+                                                    // 卡片手选分类（10-11 与老弹窗口径对齐）：分好类即视为待导入项
+                                                    // 并自动勾选，否则分完类没勾、导入漏掉它
+                                                    if (cat == null) categories.remove(voiceId)
+                                                    else {
+                                                        categories.set(voiceId, cat)
+                                                        if (voiceId !in picked) picked[voiceId] = VoiceCatalogItem(
+                                                            id = voiceId,
+                                                            name = name,
+                                                            // poolId 借 description 带给导入侧（本地分类名做 poolName）
+                                                            description = "locale:${poolId}",
+                                                        )
+                                                    }
+                                                }) else null,
+                                            )
+                                        }
+                                    }
+                                }
+                            } else {
+                            LazyColumn(
+                                modifier = Modifier.fillMaxSize(),
+                                state = listState,
+                                contentPadding = PaddingValues(vertical = 4.dp),
+                            ) {
+                                items(vm.catalogItems, key = { it.id }) { item ->
+                                    CatalogVoiceRow(
+                                        item = item,
+                                        checked = item.id in picked,
+                                        onToggle = {
+                                            if (picked.containsKey(item.id)) picked.remove(item.id)
+                                            else picked[item.id] = item
+                                        },
+                                        onAudition = { onAudition(item) },
+                                        // 入库模式：卡片分类标签（点了即改派，随导入落库）
+                                        assignedCategory = categories[item.id],
+                                        onCategoryChange = if (importMode) ({ cat ->
+                                            // mutableStateMapOf 不收 null 值：取消分类=移键
+                                            if (cat == null) categories.remove(item.id)
+                                            else {
+                                                categories.set(item.id, cat)
+                                                // 卡片手选分类（10-11 与老弹窗口径对齐）：分好类即自动勾选，
+                                                // 否则分完类没勾、导入漏掉它
+                                                if (item.id !in picked) picked[item.id] = item
+                                            }
+                                        }) else null,
+                                    )
+                                }
+
+                                // 续页位：滚到底（该位进入组合）即自动续下一页；零新增时 VM 已把 hasMore
+                                // 置否，不会空转。
+                                //
+                                // ⚠️ 空列表时**不能**挂这个带 key 的 item（09-17 实机「一打开停在中间」）：
+                                // 首屏只有它一项时，LazyList 会把它记成「首个可见项的 key」，第一页 30 条
+                                // 插到它前面后，滚动位置会跟着这个 key 一起走，于是开场就停在第 30 项。
+                                // 故只在已有条目时才挂它；空态转圈见下方 overlay。
+                                //
+                                // ⚠️ 续页判断必须写在 LaunchedEffect **里面**：写在 if 上会让
+                                // 自己一置 loading 就退出组合、把刚发起的请求取消掉。
+                                if (vm.catalogItems.isNotEmpty()) {
+                                    item(key = "catalog_footer") {
+                                        LaunchedEffect(vm.catalogItems.size) {
+                                            if (vm.catalogHasMore && !vm.catalogLoading) {
+                                                vm.searchCatalog(locale, submittedKeyword, tags.sorted(), sortBy, append = true)
+                                            }
+                                        }
+                                        Box(
+                                            Modifier
+                                                .fillMaxWidth()
+                                                .padding(12.dp),
+                                            contentAlignment = Alignment.Center,
+                                        ) {
+                                            when {
+                                                vm.catalogLoading -> CircularProgressIndicator(
+                                                    modifier = Modifier.size(20.dp),
+                                                    strokeWidth = 2.dp,
+                                                )
+
+                                                !vm.catalogHasMore && vm.catalogItems.isNotEmpty() -> Text(
+                                                    stringResource(R.string.voice_catalog_no_more),
+                                                    style = MaterialTheme.typography.labelSmall,
+                                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                                )
+
+                                                else -> Unit
+                                            }
+                                        }
                                     }
                                 }
                             }
-                        } else {
-                        LazyColumn(
-                            modifier = Modifier.fillMaxSize(),
-                            state = listState,
-                            contentPadding = PaddingValues(vertical = 4.dp),
+                            // 加载中但还没有条目：列表区居中转圈（状态文案已由上方摘要行给，不重复）
+                            if (vm.catalogItems.isEmpty() && vm.catalogLoading) {
+                                Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                                    CircularProgressIndicator(
+                                        modifier = Modifier.size(28.dp),
+                                        strokeWidth = 2.dp,
+                                    )
+                                }
+                            }
+                            }
+                        }
+
+                        // ---- 底部动作行：入库模式=「导入(N)」（入下拉+入库两动作一步）；大厅模式=「加入列表(N)」
+                        //      ——⚠️ ModalBottomSheet 实验的核心观察点，实机看这行是否完整可见 ----
+                        Row(
+                            Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = CATALOG_PANEL_PADDING, vertical = 6.dp),
+                            verticalAlignment = Alignment.CenterVertically,
                         ) {
-                            items(vm.catalogItems, key = { it.id }) { item ->
-                                CatalogVoiceRow(
-                                    item = item,
-                                    checked = item.id in picked,
-                                    onToggle = {
-                                        if (picked.containsKey(item.id)) picked.remove(item.id)
-                                        else picked[item.id] = item
-                                    },
-                                    onAudition = { onAudition(item) },
-                                    // 入库模式：卡片分类标签（点了即改派，随导入落库）
-                                    assignedCategory = categories[item.id],
-                                    onCategoryChange = if (importMode) ({ cat ->
-                                        // mutableStateMapOf 不收 null 值：取消分类=移键
-                                        if (cat == null) categories.remove(item.id)
-                                        else {
-                                            categories.set(item.id, cat)
-                                            // 卡片手选分类（10-11 与老弹窗口径对齐）：分好类即自动勾选，
-                                            // 否则分完类没勾、导入漏掉它
-                                            if (item.id !in picked) picked[item.id] = item
-                                        }
-                                    }) else null,
-                                )
+                            Spacer(Modifier.weight(1f))
+                            if (importMode) {
+                                TextButton(
+                                    enabled = picked.isNotEmpty(),
+                                    onClick = { onImport?.invoke(picked.values.toList()) },
+                                ) {
+                                    Text("导入(${picked.size})")
+                                }
                             }
-
-                            // 续页位：滚到底（该位进入组合）即自动续下一页；零新增时 VM 已把 hasMore
-                            // 置否，不会空转。
-                            //
-                            // ⚠️ 空列表时**不能**挂这个带 key 的 item（09-17 实机「一打开停在中间」）：
-                            // 首屏只有它一项时，LazyList 会把它记成「首个可见项的 key」，第一页 30 条
-                            // 插到它前面后，滚动位置会跟着这个 key 一起走，于是开场就停在第 30 项。
-                            // 故只在已有条目时才挂它；空态转圈见下方 overlay。
-                            //
-                            // ⚠️ 续页判断必须写在 LaunchedEffect **里面**：写在 if 上会让
-                            // 自己一置 loading 就退出组合、把刚发起的请求取消掉。
-                            if (vm.catalogItems.isNotEmpty()) {
-                                item(key = "catalog_footer") {
-                                    LaunchedEffect(vm.catalogItems.size) {
-                                        if (vm.catalogHasMore && !vm.catalogLoading) {
-                                            vm.searchCatalog(locale, submittedKeyword, tags.sorted(), sortBy, append = true)
-                                        }
-                                    }
-                                    Box(
-                                        Modifier
-                                            .fillMaxWidth()
-                                            .padding(12.dp),
-                                        contentAlignment = Alignment.Center,
-                                    ) {
-                                        when {
-                                            vm.catalogLoading -> CircularProgressIndicator(
-                                                modifier = Modifier.size(20.dp),
-                                                strokeWidth = 2.dp,
-                                            )
-
-                                            !vm.catalogHasMore && vm.catalogItems.isNotEmpty() -> Text(
-                                                stringResource(R.string.voice_catalog_no_more),
-                                                style = MaterialTheme.typography.labelSmall,
-                                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                            )
-
-                                            else -> Unit
-                                        }
-                                    }
+                            // 「加入列表(N)」：仅大厅模式渲染（选声音场景的出口）。入库模式的宿主
+                            // 没有下拉可补、onPick 与导入同函数纯重复（10-12 用户令去重），传 null 即不显示
+                            if (onPick != null) {
+                                TextButton(
+                                    enabled = picked.isNotEmpty(),
+                                    onClick = { onPick(picked.values.toList()) },
+                                ) {
+                                    Text(stringResource(R.string.voice_catalog_pick, picked.size))
                                 }
                             }
                         }
-                        // 加载中但还没有条目：列表区居中转圈（状态文案已由上方摘要行给，不重复）
-                        if (vm.catalogItems.isEmpty() && vm.catalogLoading) {
-                            Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                                CircularProgressIndicator(
-                                    modifier = Modifier.size(28.dp),
-                                    strokeWidth = 2.dp,
-                                )
-                            }
-                        }
-                        }
-                    }
-
-                    // ---- 底部动作行：入库模式=「导入(N)」（入下拉+入库两动作一步）；大厅模式=「加入列表(N)」
-                    //      ——⚠️ ModalBottomSheet 实验的核心观察点，实机看这行是否完整可见 ----
-                    Row(
-                        Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = CATALOG_PANEL_PADDING, vertical = 6.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        Spacer(Modifier.weight(1f))
-                        if (importMode) {
-                            TextButton(
-                                enabled = picked.isNotEmpty(),
-                                onClick = { onImport?.invoke(picked.values.toList()) },
-                            ) {
-                                Text("导入(${picked.size})")
-                            }
-                        }
-                        // 「加入列表(N)」：仅大厅模式渲染（选声音场景的出口）。入库模式的宿主
-                        // 没有下拉可补、onPick 与导入同函数纯重复（10-12 用户令去重），传 null 即不显示
-                        if (onPick != null) {
-                            TextButton(
-                                enabled = picked.isNotEmpty(),
-                                onClick = { onPick(picked.values.toList()) },
-                            ) {
-                                Text(stringResource(R.string.voice_catalog_pick, picked.size))
-                            }
-                        }
+                    } else {
+                        Box(Modifier.weight(1f)) { localPanelSlot.invoke() }
                     }
                 }
             }
