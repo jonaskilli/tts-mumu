@@ -821,11 +821,10 @@ internal fun LogScreen(
                             val tailText = remember(item.head, successMember, absorbed) {
                                 if (absorbed != null) null else tailTextOfRow(successMember ?: head)
                             }
-                            // 组头时间（10-12 用户令「请求音频和获取成功显示 a→b」）：
-                            // 成功组=请求时间→成功子行时间；失败组=吸收条自己的首末（既有口径），
-                            // 无吸收条时退回组头请求行单时间
-                            val groupHeadTime = if (absorbed != null) headTimeText(absorbed)
-                            else groupTimeText(head, successMember)
+                            // 组头时间（10-12 用户令「起始时间到结束时间都会有」）：成功组=请求→成功，
+                            // 失败组=请求→失败（合并过的取末次失败时间）。起点统一是**请求行**，
+                            // 不再是「吸收条自己的时间」——同一页所有成对行都读成「从发起到有结果」
+                            val groupHeadTime = groupTimeText(head, successMember ?: absorbed)
                             // 行流定稿（10-10 用户令）：成功=行头绿丸+灰数字，成员区整撤
                             // （结果信息已上头）；失败/重试/切备用的过程行仍要露出——
                             // 有非成功成员行时显示成员区（成功行本身不上，数字已在丸后）
@@ -1071,27 +1070,29 @@ private fun pillOf(e: LogEntry, entryIndex: Int, failedHeads: Set<Int> = emptySe
 }
 
 /**
- * 行头时间文案（10-11 用户令「首末完整」，10-12 用户令「请求→成功给区间」）：
- * - 请求组（成功）：`HH:mm:ss→HH:mm:ss` = 请求时间 → 获取成功时间（用户口径「a→b」）；
- * - 合并失败（repeatCount>1）：`HH:mm:ss–HH:mm:ss` 首末两个完整时间（既有口径不动）；
- * - 其余（重试/切备用/裸行/插件规则）：单个 `HH:mm:ss`。
+ * 行头时间文案（10-11 用户令「首末完整」，10-12 用户令「所有日志时间统一 + 起始→结束」）：
+ * 全站只有一种写法：`HH:mm:ss`（单点）或 `HH:mm:ss→HH:mm:ss`（区间，一律箭头）。
+ * 历史遗留的 en dash（合并失败曾用 `–`）已撤——同一页不该出现两种连接符。
  * 时间源格式 `yyyy-MM-dd HH:mm:ss.SSS`，去日期去毫秒后长度恰为 8。
  */
 private fun headTimeText(e: LogEntry): String {
     val start = e.time.drop(11).dropLast(4)
     val end = e.endTime.takeIf { it.length >= 19 }?.drop(11)?.dropLast(4)
-    return if (e.repeatCount > 1 && !end.isNullOrBlank() && end != start) "$start–$end" else start
+    return if (e.repeatCount > 1 && !end.isNullOrBlank() && end != start) "$start→$end" else start
 }
 
 /**
- * 请求组行头时间（10-12 用户令「请求音频和获取成功显示 a→b」）：
- * 起点=请求行时间，终点=结果行时间（成功子行/失败源错误条），中间用箭头连接；
- * 只有终点确实晚于起点才出区间（同一秒或取不到终点时退回单时间）。
+ * 成对行的时间区间（10-12 用户令「起始时间到结束时间会有吗」）：起点=请求行时间，
+ * 终点=结果行时间（成功子行 / 失败全文条；合并过的取它的末条时间 endTime）。
+ * 只有终点确实晚于起点才出区间；取不到终点或同一秒 → 退回单时间。
  */
 private fun groupTimeText(startEntry: LogEntry, endEntry: LogEntry?): String {
     val start = startEntry.time.drop(11).dropLast(4)
     if (start.length != 8) return headTimeText(startEntry)
-    val end = endEntry?.time?.takeIf { it.length >= 19 }?.drop(11)?.dropLast(4) ?: return start
+    val endRaw = endEntry?.let { e ->
+        e.endTime.takeIf { it.length >= 19 } ?: e.time.takeIf { it.length >= 19 }
+    } ?: return start
+    val end = endRaw.drop(11).dropLast(4)
     return if (end != start) "$start→$end" else start
 }
 
