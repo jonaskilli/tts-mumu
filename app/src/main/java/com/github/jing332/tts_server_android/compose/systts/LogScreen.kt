@@ -897,11 +897,16 @@ internal fun LogScreen(
                                             Box(Modifier.padding(start = 6.dp)) { StatusPill(it) }
                                         }
                                         // 重试次数小丸（10-12 用户令「重试和失败紧密联系，别单独占一行」）：
-                                        // 重试行已不落行，次数挂在这里跟在状态丸后面
+                                        // 重试行已不落行，次数挂在这里跟在状态丸后面。
+                                        // 文案口径同用户令：**只有 1 次就写「重试」，2 次以上才写「重试×N」**
                                         if (item.retryCount > 0) {
                                             Box(Modifier.padding(start = 6.dp)) {
                                                 StatusPill(
-                                                    LogPill(LogPillKind.RETRY, "重试${item.retryCount}")
+                                                    LogPill(
+                                                        LogPillKind.RETRY,
+                                                        if (item.retryCount == 1) "重试"
+                                                        else "重试×${item.retryCount}"
+                                                    )
                                                 )
                                             }
                                         }
@@ -1071,7 +1076,11 @@ private fun pillOf(e: LogEntry, entryIndex: Int, failedHeads: Set<Int> = emptySe
             else -> null
         }
         msg.contains("次重试") || msg.contains(" retry", true) ->
-            LogPill(LogPillKind.RETRY, "重试" + (Regex("第 (\\d+) 次").find(msg)?.groupValues?.get(1) ?: ""))
+            // 重试丸文案（10-12 用户令）：只有 1 次就写「重试」，2 次以上才带次数
+            LogPill(LogPillKind.RETRY, run {
+                val n = Regex("第 (\\d+) 次").find(msg)?.groupValues?.get(1)
+                if (n == null || n == "1") "重试" else "重试$n"
+            })
         msg.startsWith("使用备用") || msg.startsWith("使用兜底") ->
             LogPill(LogPillKind.STANDBY, "切备用")
         e.level == LogLevel.ERROR && e.indent == 0 -> LogPill(LogPillKind.FAIL, "失败")
