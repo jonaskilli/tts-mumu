@@ -972,7 +972,7 @@ private fun Item(
     // 每张卡入组合都跑一次，多插件同屏时主线程被重组+eval 风暴卡住，⋮ 点击丢帧失灵。
     // 改按需探测：点开「音色分类入库」才跑（结果按插件 id 缓存，重开不再重探）
     var supportsMarket by remember(plugin?.id) { mutableStateOf(false) }
-    var probedPluginId by remember { mutableStateOf<String?>(null) }
+    var probedPluginId by remember { mutableStateOf<Long?>(null) }
     LaunchedEffect(plugin?.id, showImportByCategory) {
         val p = plugin ?: return@LaunchedEffect
         if (!showImportByCategory || probedPluginId == p.id) {
