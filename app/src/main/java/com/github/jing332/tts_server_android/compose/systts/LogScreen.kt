@@ -131,18 +131,15 @@ private fun AnnotatedString.remapMetaColor(
                 r.start,
                 r.end
             )
-            // 角色名小牌补底色+字重（10-11 用户令「角色名不突出」二轮加强）：HTML font
-            // 标签给不了背景，仅字色牌感太弱。此处按哨兵段落叠同色底 span + Medium 字重
-            //（SpanStyle 背景是直角矩形，无圆角——行内小牌可接受）。
-            // 底色取牌字色 alpha 0.22（0.14 太淡，真机几乎看不出）：白页上=浅灰绿/浅灰青，
-            // 深色页=字色本已调亮，同式成立。
-            // 插件名不叠底（10-10 用户拍板）：改括号备注语缀尾，附属信息不与角色名平级
+            // 角色名（10-12 三改，用户令「声音行的角色名，干脆换颜色处理吧，不然它总是跟
+            // 其他文字对齐不了」）：**撤掉圆角丸与底色 span**，回到纯字色 + Medium 字重。
+            // 演进：10-11 做成直角底 span → 又改成真圆角丸（RoleNamePill）→ 10-12 用户否掉。
+            // 根因是「丸」作为独立 Box/Text 与后随文字只能靠 alignByBaseline 硬凑，
+            // 内衬一进一出就对不齐；纯字色是同一条 Text 里的 span，天然同基线。
+            // ⚠️ 别再改回丸：用户已连续两版不满意，本条为终稿口径。
             when (r.item.color) {
                 RoleChipSentinel -> addStyle(
-                    SpanStyle(
-                        background = roleChipColor.copy(alpha = 0.22f),
-                        fontWeight = FontWeight.Medium,
-                    ), r.start, r.end
+                    SpanStyle(fontWeight = FontWeight.Medium), r.start, r.end
                 )
                 else -> {}
             }
@@ -818,16 +815,10 @@ internal fun LogScreen(
                                     else -> pillOf(head, item.head, currentGroups.failedHeads)
                                 }
                             }
-                            // 失败次数进丸（10-11 用户令「相同原因的失败视为相同，日志可以×2、×3」）：
-                            // 组的失败次数取**渲染主体那条**的 repeatCount——有吸收条时是吸收条
-                            //（失败全文条，重试风暴都折在它身上），否则是组头请求行自己
-                            //（应用层失败行也参与折叠，见 TtsLogViewModel.mergeInto 的主列表分支）
-                            val failCount = (absorbed ?: head).repeatCount
-                            // pill 可空（未决无丸，见上）：×N 后缀只在有丸时追加
-                            val pillShown = pill?.let {
-                                if (failCount > 1 && it.kind != LogPillKind.OK)
-                                    it.copy(text = "${it.text} ×$failCount") else it
-                            }
+                            // 丸不带 ×N（10-12 用户令整体撤除，理由见 pillOf 上方注释）。
+                            // 旧的 failCount/pillShown 后缀拼装一并删掉——同一信息在
+                            // 「失败 ×2 / 重试×2 / 失败×3」三枚丸里重复出现，用户读成乱的
+                            val pillShown = pill
                             // 老版式失败条无丸后灰字（错误全文在正文区），成功尾段照旧
                             val tailText = remember(item.head, successMember, absorbed) {
                                 if (absorbed != null) null else tailTextOfRow(successMember ?: head)
@@ -893,40 +884,27 @@ internal fun LogScreen(
                                             fontSize = 12.sp,
                                             color = MaterialTheme.colorScheme.onSurfaceVariant
                                         )
-                                        // 丸链（10-12 用户令「[失败] [重试] [失败×2] 改成这样，
-                                        // 不然不知道过程」）：有重试时把过程摊开成三枚——
-                                        // ①状态丸不带次数（失败/超时…）②重试丸（1 次写「重试」，
-                                        // ≥2 次写「重试×N」）③累计次数丸「失败×N」（N>1 才出）。
-                                        // 没有重试时维持原样：单枚「失败 ×N」（插件日志折 34 条那类，
-                                        // 拆成「失败+失败×34」反而多一枚没信息的丸）
-                                        val retryPill = if (item.retryCount > 0) LogPill(
-                                            LogPillKind.RETRY,
-                                            if (item.retryCount == 1) "重试" else "重试×${item.retryCount}"
-                                        ) else null
-                                        val showProcess = retryPill != null && pillShown != null &&
-                                            pillShown.kind != LogPillKind.OK
-                                        if (showProcess) {
-                                            // ① 状态丸去掉 ×N 后缀（次数由第③枚承担）
-                                            val plain = pillShown!!.copy(
-                                                text = pillShown!!.text.substringBefore(" ×")
-                                            )
-                                            Box(Modifier.padding(start = 6.dp)) { StatusPill(plain) }
-                                            Box(Modifier.padding(start = 6.dp)) { StatusPill(retryPill!!) }
-                                            if (failCount > 1) {
-                                                Box(Modifier.padding(start = 6.dp)) {
-                                                    StatusPill(LogPill(LogPillKind.FAIL, "失败×$failCount"))
-                                                }
-                                            }
-                                        } else {
-                                            pillShown?.let {
-                                                Box(Modifier.padding(start = 6.dp)) { StatusPill(it) }
-                                            }
-                                            // 成功但重试过：过程同样要看得见 → [成功] [重试]
-                                            retryPill?.let {
-                                                Box(Modifier.padding(start = 6.dp)) { StatusPill(it) }
-                                            }
+                                        // 丸链（10-12 三改，用户令「这个乘几是不是错误的改法…干脆去掉吧；
+                                        // 重试要不要另外起一行，你来定吧」）：
+                                        // ①所有丸一律不带 ×N（两套语义打架，理由见 pillOf 上方注释）；
+                                        // ②重试丸**不另起一行**，仍并排在状态丸后——用户 10-12 上午刚定过
+                                        //   「重试和失败是紧密联系的，别单独占一行」，另起行会把一次失败
+                                        //   撑成三行，听书时刷屏；并排时「失败 重试」已把过程说清。
+                                        // ③「失败×N」第三枚累计丸整撤（它就是用户点名那个乘几）。
+                                        // 元素次序维持「时间 → 丸」（10-12 用户令「其他不变」）：
+                                        // 曾把成功丸提到时间前，用户明确否掉，别再动。
+                                        val retryPill = if (item.retryCount > 0)
+                                            LogPill(LogPillKind.RETRY, "重试") else null
+                                        pillShown?.let {
+                                            Box(Modifier.padding(start = 6.dp)) { StatusPill(it) }
                                         }
-                                        // 丸后灰字（成功=大小·秒/失败主行=截短原因），与丸留 8dp 隙。
+                                        // 成功但重试过：过程同样要看得见 → [成功] [重试]
+                                        retryPill?.let {
+                                            Box(Modifier.padding(start = 6.dp)) { StatusPill(it) }
+                                        }
+                                        // 丸后灰字（成功=「耗时，大小」/失败主行=截短原因），与丸留 8dp 隙。
+                                        // 10-12 用户令「后两项交换下位置，并用逗号隔开，其他不变」：
+                                        // 重排已在 tailTextOfRow 里做完（1.2s，103.0 KB），此处只管画。
                                         // 失败原因红=旧正宗红 #F44336（10-10 用户令「错误的红色要用
                                         // 以前正宗的红色」——colorScheme.error 在动态取色下偏暗紫红）
                                         if (tailText != null) {
@@ -1080,29 +1058,27 @@ private fun isMatchEntry(e: LogEntry, q: String): Boolean =
 // ERROR 主行（无卡区失败终点）=失败。成员行（源错误等结果子行）已独立裸行=无丸。
 // 丸字=汉字「成功/失败」（10-11 用户令：✔/✕ 符号加了不好看，换回文字）
 //
-// 10-11 用户令「相同原因的失败视为相同，日志可以×2、×3」：合并组的丸带次数后缀
-//（`失败 ×3`）。次数由 ViewModel 折叠时记入 repeatCount；=1 时不加后缀（与现状一致）。
-// 重试/切备用丸也吃同一后缀（重试2 ×3 = 同一次重试重复出现 3 次）。
+// 丸上的「×N」后缀已于 10-12 整体撤除（用户令「我怀疑这个乘几是不是错误的改法，因为它总是
+// 显示的有问题，要不干脆去掉吧」）。撤除根因：同一个 ×N 在两类位置上语义不同——
+// 插件/规则裸行是「同因折叠了几条」（ViewModel 的 repeatCount），请求组头读起来却是
+// 「本组重试了几次」，同页两种读法必然误读。次数对「听书时哪儿断了」也无用。
+// 需要次数时看正文里的重试行（「开始第 N 次重试」原文照旧保留）。
 private fun pillOf(e: LogEntry, entryIndex: Int, failedHeads: Set<Int> = emptySet()): LogPill? {
     val msg = e.message.replace(Regex("<[^>]*>"), "")
-    val base = when {
+    return when {
         e.configId != 0L -> when {
             e.level == LogLevel.SUCCESS -> LogPill(LogPillKind.OK, "成功")
             entryIndex in failedHeads -> LogPill(LogPillKind.FAIL, "失败")
             else -> null
         }
         msg.contains("次重试") || msg.contains(" retry", true) ->
-            // 重试丸文案（10-12 用户令）：只有 1 次就写「重试」，2 次以上才带次数
-            LogPill(LogPillKind.RETRY, run {
-                val n = Regex("第 (\\d+) 次").find(msg)?.groupValues?.get(1)
-                if (n == null || n == "1") "重试" else "重试$n"
-            })
+            // 重试丸只报「重试过」这一事实，不带次数（10-12 与撤 ×N 同口径）
+            LogPill(LogPillKind.RETRY, "重试")
         msg.startsWith("使用备用") || msg.startsWith("使用兜底") ->
             LogPill(LogPillKind.STANDBY, "切备用")
         e.level == LogLevel.ERROR && e.indent == 0 -> LogPill(LogPillKind.FAIL, "失败")
         else -> null
-    } ?: return null
-    return if (e.repeatCount > 1) base.copy(text = "${base.text} ×${e.repeatCount}") else base
+    }
 }
 
 /**
@@ -1143,8 +1119,9 @@ private fun withinSeconds(a: String, b: String, seconds: Int): Boolean {
     }.getOrDefault(false)
 }
 
-// 行级丸后灰字：只服务成功行=「大小 · 耗时秒」（10-10 用户令：失败丸后不跟
-// IOException 文案、失败丸单独一行——失败行的异常细节走成员区完整源错误行）。
+// 行级丸后灰字：只服务成功行=「耗时，大小」（10-12 用户令「1.2s，103KB 后两项交换下位置，
+// 并用逗号隔开，其他不变」——原为「103.0 KB · 1.2s」：①两项交换，耗时在前；②「·」改中文逗号）。
+// 失败丸后不跟 IOException 文案、失败丸单独一行——失败行的异常细节走成员区完整源错误行。
 // 截短 40 全角字逻辑保留（成功行数字不长，此处主要防御）。
 private fun tailTextOfRow(e: LogEntry): String? {
     val msg = e.message.replace(Regex("<[^>]*>"), "")
@@ -1153,16 +1130,21 @@ private fun tailTextOfRow(e: LogEntry): String? {
             msg.substringAfter("获取成功：", "").trim().ifEmpty { null }
         else -> null // 失败行不放原因（用户令）
     } ?: return null
+    // 服务端原文形如「103.0 KB · 1.2s」：按用户给的示例「1.2s，103KB」重排 ——
+    // **耗时在前、大小在后**，中间用中文逗号（＝把后两项交换位置）。
+    // 拆不开（格式变了）就原样返回，不让排序逻辑吃掉内容。
+    val parts = t.split("·").map { it.trim() }.filter { it.isNotEmpty() }
+    val reordered = if (parts.size == 2) "${parts[1]}，${parts[0]}" else t
     var w = 0f
     val out = StringBuilder()
     var clipped = false
-    for (ch in t) {
+    for (ch in reordered) {
         val cw = if (ch.code < 0x2E80) 0.55f else 1.0f
         if (w + cw > 40f) { clipped = true; break }
         w += cw
         out.append(ch)
     }
-    return if (clipped) out.toString().trimEnd() + "…" else t
+    return if (clipped) out.toString().trimEnd() + "…" else reordered
 }
 
 internal enum class LogPillKind { OK, FAIL, RETRY, STANDBY }
@@ -1333,88 +1315,19 @@ private fun LogEntryBody(
     // 搜索命中底色整撤（10-10 装机用户令）：与裸行整行底同批，命中不再染行
     else Modifier
 
-    // 角色名做成**真圆角丸**（10-11 用户令「那个人名也做成丸吧，不然不突出」）：
-    // 行内 SpanStyle 的背景只能画直角矩形、给不了圆角（见 remapMetaColor 注释），
-    // 所以只靠加底色永远做不出状态丸那种圆角胶囊。这里把角色名那一段从正文里切出来
-    //（AnnotatedString.subSequence 保留 span 样式），单独渲染成一颗圆角 Surface 丸，
-    // 其余文本照旧走 Text。角色名恒为发音人信息段的**首元素**（服务端 configInfo 里
-    // 角色牌拼在 voiceText 之前），故「丸 + 其余」并排即原读序，不动字序与语义。
-    val chip = spanned.spanStyles.firstOrNull { it.item.color == roleChipColor }
-    if (chip != null && chip.start < chip.end && chip.end <= spanned.text.length) {
-        val chipName = spanned.text.substring(chip.start, chip.end)
-        var before = spanned.subSequence(0, chip.start)
-        val after = spanned.subSequence(chip.end, spanned.text.length)
-        // 段末换行去掉：下面用 Column 显式分行（丸必须独占一行开头），留着会多出空行
-        if (before.text.endsWith("\n")) before = before.subSequence(0, before.text.length - 1)
-        Column(modifier = hlModifier) {
-            if (before.text.isNotEmpty()) {
-                Text(text = before, color = bodyColor, style = bodyStyle)
-            }
-            // 丸与后随文字**按基线对齐**（10-12 用户问「能跟其他文字对齐吗」）：原来
-            // Row(Top) + 丸是 Box，Box 不报文字基线，只能顶边对齐 ⇒ 丸里那两个字比旁边
-            // 发音人信息低一个内衬（3dp），看着像没对齐。改用 alignByBaseline：两边第一行
-            // 的基线重合，后随文字换行也不影响
-            Row {
-                RoleNamePill(
-                    chipName,
-                    roleChipColor,
-                    fontSize,
-                    modifier = Modifier.alignByBaseline(),
-                )
-                if (after.text.isNotEmpty()) {
-                    Text(
-                        text = after,
-                        color = bodyColor,
-                        style = bodyStyle,
-                        modifier = Modifier
-                            .weight(1f)
-                            .alignByBaseline(),
-                    )
-                }
-            }
-        }
-    } else {
-        Text(
-            text = spanned,
-            color = bodyColor,
-            style = bodyStyle,
-            modifier = hlModifier,
-        )
-    }
-}
-
-/**
- * 角色名丸（10-11 用户令「那个人名也做成丸吧，不然不突出」；10-12 用户令「跟时间旁边一样的胶囊」）：
- * 与状态丸（StatusPill）**同一套几何**——RoundedCornerShape(50) + 12sp Medium + 内衬 10/3，
- * 底色同取「淡底重字」的淡底；差别只在字色=角色牌色（灰绿/亮灰绿）。
- * 此前底色取牌字色 alpha 0.22，比状态丸实一档、大小也不齐——用户要求两者看起来是同一种丸。
- *
- * ⚠️ 必须用带底色的 **Text** 而不是 Box 包 Text（10-12 二修）：Box 不向上报文字基线，
- * 外层 Row 的 alignByBaseline 会退化成顶边对齐，丸里字比旁边文字低一个内衬。
- * Text 自己会报基线，padding 由修饰符给（基线随顶内衬下移），基线对齐才算真的对上。
- * lineHeight 钉成 fontSize：行盒不高出字身，胶囊上下内衬才是真正的对称。
- */
-@Composable
-private fun RoleNamePill(
-    name: String,
-    color: Color,
-    fontSize: TextUnit,
-    modifier: Modifier = Modifier,
-) {
-    val dark = isSystemInDarkTheme()
+    // 正文整体一条 Text（10-12 三改）：角色名不再是独立丸——它只是同一条
+    // AnnotatedString 里的一个 span（字色 = roleChipColor，见 remapMetaColor），
+    // 天然与后随文字同基线、同排版，不存在「对齐不了」。
+    // 撤掉的旧路径：把角色名 subSequence 切出来单画 RoleNamePill 圆角丸 + Row(alignByBaseline)——
+    // 丸自带内衬/行盒，与旁文只能靠基线硬凑，用户连续两版不满意（10-11 起、10-12 终否）。
     Text(
-        text = name,
-        style = MaterialTheme.typography.labelSmall.copy(
-            fontSize = 12.sp,
-            lineHeight = 12.sp,
-            fontWeight = FontWeight.Medium,
-        ),
-        color = color,
-        modifier = modifier
-            .clip(RoundedCornerShape(50))
-            // 淡底与状态丸 OK 档同源（#F2F8F4 / 深色 #2A2D33）——「这是谁」用中性淡底，
-            // 状态信号才用彩色淡底，同一页两种丸一眼分得开
-            .background(if (dark) Color(0xFF2A2D33) else Color(0xFFF2F8F4))
-            .padding(horizontal = 10.dp, vertical = 3.dp),
+        text = spanned,
+        color = bodyColor,
+        style = bodyStyle,
+        modifier = hlModifier,
     )
 }
+
+// RoleNamePill（角色名圆角丸）已于 10-12 随「角色名改纯字色」整体删除——
+// 它只被正文渲染那一处调用，用户否掉丸形态后即成死代码。
+// 若要复活「丸」形态，先读 remapMetaColor 与 LogEntryBody 里的终稿注释（为什么撤）。

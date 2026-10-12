@@ -95,11 +95,14 @@ fun SubGroupHeader(
             .fillMaxWidth()
             .background(
                 when (level) {
-                    // 10-10 DSH 式纯白底下的层级带：结构行承担深淡，内容卡最浅（白+线）——
-                    // 纯白表里 High/Highest 才是灰、Low/Container 已并入白，映射按新表重排：
-                    // 一级(level0)最深 #EEEEEE，二级 #F3F3F3，更深层与二级同档（箭头/字号继续分）
-                    0 -> MaterialTheme.colorScheme.surfaceContainerHighest
-                    else -> MaterialTheme.colorScheme.surfaceContainerHigh
+                    // 10-12 用户令「这个分组的颜色还是太重了…绿色调了几种都不太满意」→ 选定 B 案
+                    //「主题色再淡一档」：一级子分组 surfaceContainer(#EAF7EF)、更深层
+                    // surfaceContainerLow(#F4FBF6)。比 10-10 的 Highest/High（#DAF1E1/#E2F4E8）
+                    // 各浅一档半，仍是主题色相、不再压过内容卡；层级差由缩进+字号继续承担。
+                    // ⚠️ 走的仍是主题槽（十套主题各自成立、深色自动镜像），不要写死色值。
+                    // 一级分组行（GroupItem）保持白底不变——三级台阶=白 / 淡主题色 / 更淡。
+                    0 -> MaterialTheme.colorScheme.surfaceContainer
+                    else -> MaterialTheme.colorScheme.surfaceContainerLow
                 }
             )
             .clickable { if (!showOptions && !showExtraOptions) onClick() }

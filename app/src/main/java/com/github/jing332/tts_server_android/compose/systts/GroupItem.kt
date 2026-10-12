@@ -43,6 +43,7 @@ import androidx.compose.ui.semantics.expand
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.state.ToggleableState
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.github.jing332.tts_server_android.R
@@ -80,6 +81,13 @@ fun GroupItem(
     extraActions: (@Composable ColumnScope.(() -> Unit) -> Unit)? = null,
     // 多选模式下点击分组名/行是否切换选中：true=点击行选中(系统TTS默认), false=仅右侧方框选中, 点击名/行展开(替换规则)
     selectOnRowClick: Boolean = true,
+    // 折叠箭头盒宽（10-12 用户令「替换规则页分组文字与规则名对齐」）：本盒右缘即组名文字线。
+    // 默认 32（系统TTS/插件页维持原样）；替换规则页传 48，与条目行对勾盒的实际占位对齐——
+    // ⚠️ 条目行那侧写的是 `.size(24或32).requiredSize(48)`，**requiredSize 会真的占 48dp 布局宽**
+    //（依赖源码 SizeNode.measure 返回 layout(placeable.width…)，而 placeable 按 48 约束量出；
+    //  不是注释里写的「不占布局空间」）。所以那边无论 size 填 24 还是 32，文字线恒在 8+48=56dp，
+    // 组头必须同样 48 才齐——4230b07 把 24 改回 32 却「啥也没变」，就是被 requiredSize 压着。
+    arrowBoxWidth: Dp = 32.dp,
 ) {
     val view = LocalView.current
     val context = LocalContext.current
@@ -153,11 +161,12 @@ fun GroupItem(
         // 但一级行有数字徽章、子分组行没有——老形式里子分组箭头对的是一级行**徽章中部**，
         // 两级名字列天然同起点，层级靠"名字列对名字列"读；箭头对箭头反而让子分组名字凸出。
         // 图标盒 24dp（默认），子分组 20dp 保持不变
-        // 10-12：箭头外套 32×36 盒（与密钥页组头同规格、也与配置项行的对勾盒同宽）——
-        // 组名文字线因此落在 40dp，和条目行文字线重合；替换页上一版靠"收窄条目对勾盒"对齐，
-        // 结果字形贴字、整行发挤（用户实拍），改由本侧对齐。图标仍 24dp、视觉大小不变
+        // 10-12：箭头外套固定盒（与密钥页组头同规格）——盒右缘即组名文字线。
+        // 宽度由 arrowBoxWidth 决定：默认 32（系统TTS/插件页原样），替换规则页传 48
+        // 去对齐条目行的对勾盒实际占位（requiredSize(48) 真的占宽，见参数注释）。
+        // 图标仍 24dp、视觉大小不变。
         Box(
-            modifier = Modifier.size(width = 32.dp, height = 36.dp),
+            modifier = Modifier.size(width = arrowBoxWidth, height = 36.dp),
             contentAlignment = Alignment.Center,
         ) {
             Icon(

@@ -24,7 +24,6 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
@@ -1488,9 +1487,13 @@ private fun doMarketplaceImport(
 }
 
 /**
- * 入库来源切换条（10-11 用户令「联网广场 / 自带分类」合一）：两段等宽、整段可点，选中段白底+主题色+对勾。
- * 联网广场弹层与自带分类弹窗共用同一构件，观感一致。
- * （原「来源双选弹窗」SourcePickerDialog 已随甲案退役：切换条进了弹窗顶部，不再先弹双选。）
+ * 入库来源切换条（10-11 用户令「联网广场 / 自带分类」合一）。
+ *
+ * 10-12 三改（用户令「要跟备份的顶部胶囊的处理方式一样」）：换成与备份弹窗**同一个构件**
+ * [SoftSegmentedTextToggle]（官方 SegmentedButton：描边连通 + 竖分隔 + 选中段 ✓ + 底色深一档）。
+ * 上一版是自绘「浅底槽 + 白底浮起丸」——那形状 09-11 就被用户否过一次（见 SoftSegmentedTextToggle
+ * 类注释），10-11 又在这里复活，属于走回头路；来源是**二选一**，正是分段控件的语义，直接复用。
+ * （原 ImportSourceOpt 自绘项随本改删除。）
  */
 @Composable
 private fun ImportSourceSegment(
@@ -1498,89 +1501,31 @@ private fun ImportSourceSegment(
     onPick: (String) -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    Row(
-        modifier
-            .fillMaxWidth()
-            .background(
-                MaterialTheme.colorScheme.surfaceContainerHighest,
-                RoundedCornerShape(22.dp)
-            )
-            .padding(3.dp),
-        horizontalArrangement = Arrangement.spacedBy(3.dp)
-    ) {
-        ImportSourceOpt("market", "联网广场", selected, onPick, Modifier.weight(1f))
-        ImportSourceOpt("list", "自带分类", selected, onPick, Modifier.weight(1f))
-    }
-}
-
-@Composable
-private fun ImportSourceOpt(
-    key: String,
-    label: String,
-    selected: String,
-    onPick: (String) -> Unit,
-    modifier: Modifier = Modifier,
-) {
-    val on = selected == key
-    Row(
-        modifier
-            .height(36.dp)
-            .background(
-                if (on) MaterialTheme.colorScheme.surface else Color.Transparent,
-                RoundedCornerShape(18.dp)
-            )
-            .clickable { if (!on) onPick(key) },
-        horizontalArrangement = Arrangement.Center,
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        if (on) {
-            Text(
-                "✓",
-                style = MaterialTheme.typography.labelMedium,
-                color = MaterialTheme.colorScheme.primary
-            )
-            Spacer(Modifier.width(4.dp))
-        }
-        Text(
-            label,
-            style = MaterialTheme.typography.bodyMedium,
-            fontWeight = if (on) FontWeight.Bold else FontWeight.Normal,
-            color = if (on) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
-        )
-    }
+    SoftSegmentedTextToggle(
+        options = listOf("联网广场", "自带分类"),
+        selectedIndex = if (selected == "market") 0 else 1,
+        onSelect = { idx ->
+            val key = if (idx == 0) "market" else "list"
+            if (key != selected) onPick(key)
+        },
+        modifier = modifier,
+    )
 }
 
 /**
- * 入库动作胶囊（10-12 用户令「上方两个选项做成胶囊」）：
- * 「试听分类 / 直接入库」是同一层级的两种走法，用胶囊画并列关系——与来源切换胶囊同高(36)同圆角(18)，
- * 摆在同一竖列里读起来是一套控件；裸 TextButton 的观感与上面的来源条不搭。
- * 不可用（没勾分类/导入中）时整体降不透明度，不用 disabled 灰字串色。
+ * 入库动作键（10-12 二改，用户令「我看其他的胶囊，他都没有这种分类选择的意义，完全是大错误」）：
+ * 「试听分类 / 直接入库」是**点一下就走**的动作，没有持久选中态——上一版画成
+ * `secondaryContainer` 底胶囊，与「已选中」同色，用户读成"选中了"。
+ * 现改回普通文字键（TextButton，主题色字、无底），动作与选中态不再撞形。
+ * （原 ImportActionChip 自绘胶囊随本改删除。）
  */
 @Composable
-private fun ImportActionChip(
+private fun ImportActionButton(
     label: String,
     enabled: Boolean,
     onClick: () -> Unit,
 ) {
-    Box(
-        modifier = Modifier
-            .height(36.dp)
-            .clip(RoundedCornerShape(18.dp))
-            .background(
-                if (enabled) MaterialTheme.colorScheme.secondaryContainer
-                else MaterialTheme.colorScheme.surfaceContainerHighest.copy(alpha = 0.45f)
-            )
-            .clickable(enabled = enabled) { onClick() }
-            .padding(horizontal = 16.dp),
-        contentAlignment = Alignment.Center,
-    ) {
-        Text(
-            label,
-            style = MaterialTheme.typography.labelLarge,
-            color = if (enabled) MaterialTheme.colorScheme.onSecondaryContainer
-            else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
-        )
-    }
+    TextButton(enabled = enabled, onClick = onClick) { Text(label) }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -1805,7 +1750,17 @@ internal fun ImportByCategoryDialog(
                 // ⚠️ 这里**不能用 Modifier.weight**：weight 是 ColumnScope 成员，而本组件的
                 // 根 Column 在「槽 lambda」里，作用域里没有 ColumnScope——CI 38231081690 实锤
                 // Unresolved reference 'weight'（1805:46）
-                .then(if (embedded) Modifier.fillMaxSize() else Modifier.fillMaxHeight(0.92f))
+                //
+                // 导入中改「按内容收高」（10-12 用户令「显得界面好空」）：导入态只有一行进度字，
+                // 还硬占 92% 就是一大片空白。此时外层不给高度、内容区也不挂 weight ⇒ 弹层
+                // 自然收成「拖拽把+标题+一行进度+底部动作行」的小条；列表态（stage0/1）照旧 92%。
+                // ⚠️ 两个 modifier 必须同时改：外层不 fill 而内容区仍 weight(1f) 的话，
+                // Column 会按 weight 撑满可用高度，等于没改。
+                .then(
+                    if (importing) Modifier
+                    else if (embedded) Modifier.fillMaxSize()
+                    else Modifier.fillMaxHeight(0.92f)
+                )
                 .navigationBarsPadding()
                 .imePadding()
         ) {
@@ -1847,35 +1802,36 @@ internal fun ImportByCategoryDialog(
             )
         }
         } // if (chrome)：拖拽把/标题/来源条三段收尾（嵌入模式由宿主壳提供）
-        // 「试听分类 / 直接入库」＝**两个选项**，不是胶囊（10-12 用户令）：用连通分段框
-        //（＝备份弹窗「完整备份/分享备份」那套：圆角外框 + 竖分隔 + 选中段带 ✓ 底色深一档）。
+        // 「试听分类 / 直接入库」＝**两个动作键**（10-12 二改，用户令「其他的胶囊都没有
+        // 分类选择的意义，完全是大错误」）：它们是点完即走的动作，没有选中态，画成分段/胶囊
+        // 会被读成「已选中某一项」。改回普通文字键，靠右并排。
         // 位置分两种：无广场插件摆在标题下（本块）；带广场插件挪到**下方右侧**（见底部动作行）——
-        // 那边顶部已有「联网广场/自带分类」来源分段，两个分段框叠在一起会读混
+        // 那边顶部已有「联网广场/自带分类」来源分段，两组并排会读混
         if (stage == 0 && onSwitchToMarket == null) {
-            SoftSegmentedTextToggle(
-                options = listOf("试听分类", "直接入库"),
-                // 两条走法点完即走（进声音列表 / 直接导库），没有持久选中态 ⇒ -1
-                selectedIndex = -1,
-                onSelect = { idx ->
-                    if (!importing && hasSelection) {
-                        if (idx == 0) {
-                            val pools = categories.filter { it.poolId in selectedPoolIds }
-                            if (pools.isNotEmpty()) loadVoices(pools)
-                        } else {
-                            doDirectImport()
-                        }
-                    }
-                },
-                modifier = Modifier
+            Row(
+                Modifier
+                    .fillMaxWidth()
                     .padding(horizontal = 24.dp, vertical = 6.dp),
-            )
+                horizontalArrangement = Arrangement.End,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                ImportActionButton(label = "试听分类", enabled = !importing && hasSelection) {
+                    val pools = categories.filter { it.poolId in selectedPoolIds }
+                    if (pools.isNotEmpty()) loadVoices(pools)
+                }
+                ImportActionButton(label = "直接入库", enabled = !importing && hasSelection) {
+                    doDirectImport()
+                }
+            }
         }
         // 内容区（10-12 崩溃修复）：外层**不带** verticalScroll——stage1 的 LazyColumn
         // 嵌在可滚 Column 里会被测出无限高约束（IllegalStateException 实锤 11:27）。
-        // stage0 的长分类列表改由 LazyColumn 承载滚动（header/分类行作 item），stage1 照旧
+        // stage0 的长分类列表改由 LazyColumn 承载滚动（header/分类行作 item），stage1 照旧。
+        // weight(1f) 在导入态撤掉（10-12 用户令「显得界面好空」）：导入态外层不给高度，
+        // 这里若还挂 weight 会把 Column 重新撑满 ⇒ 收高失效，见根 Column 同名注释
         Column(
             Modifier
-                .weight(1f)
+                .then(if (importing) Modifier else Modifier.weight(1f))
                 .fillMaxWidth()
                 .padding(horizontal = 24.dp)
         ) {
@@ -1950,7 +1906,12 @@ internal fun ImportByCategoryDialog(
                 Text("该插件无音色")
             } else {
                 // 声音列表：每行 🎧 试听 + 勾选；顶部全选行。默认全选（省事流直接导入）
-                LazyColumn(Modifier.fillMaxWidth().heightIn(max = 420.dp)) {
+                // 高度改 fillMaxSize（10-12 用户令「这个下方依然是被遮挡」）：原写死
+                // `heightIn(max = 420.dp)` 是旧版「按内容撑高的小弹窗」留下的口径——
+                // 面板改成 92% 大壳后，420 比可用高度小得多，列表挤在上半、末行被 420 边界
+                // 切断（半行文字），下面留一大片空白，看着就像「被挡住」。
+                // 外层 Column 有 weight(1f)（高度有界），这里填满即贴到底部动作行，末行不再被截。
+                LazyColumn(Modifier.fillMaxSize()) {
                     item {
                         // 插件名：与阶段 0 同款次级行（10-10 用户实机：进列表阶段不知道在给哪个插件入库）
                         Text(

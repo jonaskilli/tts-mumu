@@ -70,7 +70,6 @@ import androidx.compose.runtime.snapshots.SnapshotStateMap
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.res.stringResource
@@ -1280,66 +1279,25 @@ private fun Set<String>.toggle(id: String): Set<String> =
     if (id in this) this - id else this + id
 
 /**
- * 大厅来源切换条（10-11 用户令「大厅也两种」）：两段等宽、整段可点，选中段白底+主题色+对勾。
- * 与入库侧 ImportSourceSegment（PluginManagerScreen）同款观感，但这是**同弹窗内切视图**——
- * 入库侧是跨弹窗互跳（甲案），两侧实现不同、外观刻意一致。
+ * 大厅来源切换条（10-11 用户令「大厅也两种」）。
+ *
+ * 10-12 二改（用户令「顶部那个切换的胶囊，你要跟备份的顶部胶囊的处理方式一样」）：
+ * 换装成与备份弹窗同一个构件 [com.github.jing332.tts_server_android.compose.SoftSegmentedTextToggle]
+ * （官方 SegmentedButton：描边连通 + 竖分隔 + 选中段 ✓ + 底色深一档）。
+ * 原自绘「浅底槽 + 白底浮起丸」两处（本处 + 入库侧 ImportSourceSegment）一起退役——
+ * 只改一处等于没统一。本处是**同弹窗内切视图**，入库侧是跨弹窗互跳，行为不同但外观刻意一致。
  */
 @Composable
 private fun HallSourceSegment(
     selected: Int,
     onSelect: (Int) -> Unit,
 ) {
-    Row(
-        Modifier
-            .fillMaxWidth()
-            .padding(horizontal = CATALOG_PANEL_PADDING, vertical = 6.dp)
-            .background(
-                MaterialTheme.colorScheme.surfaceContainerHighest,
-                RoundedCornerShape(22.dp)
-            )
-            .padding(3.dp),
-        horizontalArrangement = Arrangement.spacedBy(3.dp)
-    ) {
-        HallSourceOpt(0, "联网广场", selected, onSelect, Modifier.weight(1f))
-        HallSourceOpt(1, "自带分类", selected, onSelect, Modifier.weight(1f))
-    }
-}
-
-@Composable
-private fun HallSourceOpt(
-    key: Int,
-    label: String,
-    selected: Int,
-    onSelect: (Int) -> Unit,
-    modifier: Modifier = Modifier,
-) {
-    val on = selected == key
-    Row(
-        modifier
-            .height(36.dp)
-            .background(
-                if (on) MaterialTheme.colorScheme.surface else Color.Transparent,
-                RoundedCornerShape(18.dp)
-            )
-            .clickable { if (!on) onSelect(key) },
-        horizontalArrangement = Arrangement.Center,
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        if (on) {
-            Text(
-                "✓",
-                style = MaterialTheme.typography.labelMedium,
-                color = MaterialTheme.colorScheme.primary
-            )
-            Spacer(Modifier.width(4.dp))
-        }
-        Text(
-            label,
-            style = MaterialTheme.typography.bodyMedium,
-            fontWeight = if (on) FontWeight.Bold else FontWeight.Normal,
-            color = if (on) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
-        )
-    }
+    com.github.jing332.tts_server_android.compose.SoftSegmentedTextToggle(
+        options = listOf("联网广场", "自带分类"),
+        selectedIndex = selected,
+        onSelect = { if (it != selected) onSelect(it) },
+        modifier = Modifier.padding(horizontal = CATALOG_PANEL_PADDING, vertical = 6.dp),
+    )
 }
 
 /** 生效筛选条数：只数筛选组里的（quickFilters 的 chips 本身就摆在主界面，不再重复计数） */

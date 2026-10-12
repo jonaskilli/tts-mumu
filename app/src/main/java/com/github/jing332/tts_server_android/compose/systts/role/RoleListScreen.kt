@@ -139,13 +139,15 @@ private val BOOK_NAME_COLOR = Color(0xFF333333)
 @Composable
 internal fun softContainerColor(): Color = MaterialTheme.colorScheme.secondaryContainer
 
-// 角色列表「发音人标签」专用色（10-12 用户令「直接用角色管理v10的那个绿色就好，省事儿」）：
-// 取自角色管理插件 v10 主题「翠绿」—— main #009452 / tint #ECF8F1 / border #A8DDBE。
-// ⚠️ 单独一档，不并进上面的 softContainerColor：那档还挂在书栏卡、回原位键、分类胶囊等处，
-// 改它会连带一整片；这里只服务角色行的标签框。深色主题仍走 secondaryContainer（v10 色是浅色口径）
-internal val RoleTagContainer = Color(0xFFECF8F1)
-internal val RoleTagBorder = Color(0xFFA8DDBE)
-internal val RoleTagText = Color(0xFF009452)
+// 角色列表「发音人标签」专用色（10-12 用户令「上次改的这个标签不行，还是得退回，并且再提出
+// 几种底色的方案」→ 选定方案②）：
+// 底 #F0FAF3（极淡绿）／ 字 #006D3A（主题绿，GREEN 浅色 primary）／ 无描边。
+// 演进：10-12 上一版取 v10 翠绿档（#ECF8F1 底 + #A8DDBE 描边 + #009452 字）被用户否掉；
+// 本档最轻——块感靠字色与极淡底，不再有描边，「一片浅色块」的观感去掉。
+// ⚠️ 单独一档，不并进 softContainerColor（那档还挂在书栏卡、回原位键、分类胶囊等处）。
+// 深色主题仍走 secondaryContainer（本档是浅色口径）
+internal val RoleTagContainer = Color(0xFFF0FAF3)
+internal val RoleTagText = Color(0xFF006D3A)
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
@@ -981,8 +983,12 @@ private fun RoleRow(
                             },
                             style = MaterialTheme.typography.bodyLarge.copy(fontSize = 16.sp),
                             color = MaterialTheme.colorScheme.onSurface,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
+                            // 名字换行显示完全（10-12 用户令「这个角色名也必须能够换行，也就是说
+                            // 角色名必须要显示完全」）：原写死 maxLines=1 + 省略号，长名被截成
+                            // 「王尘、吕宵、高…」，用户看不到全名。改为在名字列宽度内自由折行——
+                            // 列宽上限仍是「行内容宽的一半」（保标签位置），名长时在该宽度内换行、
+                            // 整名列因此变高，右侧标签仍对整列垂直居中（外层 Row 已 CenterVertically）。
+                            // 不设 maxLines 上限：角色名普遍短，个别长名多占一两行也优于丢字。
                         )
                     }
                     if (idx < nameList.lastIndex) Spacer(Modifier.height(2.dp))
@@ -1019,11 +1025,10 @@ private fun RoleRow(
                     // 名字短时标签可超半屏；两边都长时名字已被上限保了半屏，标签拿到剩下的
                     Surface(
                         shape = RoundedCornerShape(8.dp),
-                        // 标签底色（10-12）：浅色走 v10 翠绿专用档（浅底 + 细描边 + 翠绿字），
-                        // 深色仍用全站 secondaryContainer（v10 那套是浅色口径，暗底上不可用）
+                        // 标签底色（10-12 二改）：浅色走极淡绿档（底 #F0FAF3 + 主题绿字，无描边），
+                        // 深色仍用全站 secondaryContainer（本档是浅色口径，暗底上不可用）
                         color = if (isSystemInDarkTheme()) softContainerColor() else RoleTagContainer,
-                        border = if (isSystemInDarkTheme()) null
-                        else BorderStroke(1.dp, RoleTagBorder),
+                        border = null,
                         modifier = Modifier
                             .combinedClickable(
                                 onClick = onTagClick,
