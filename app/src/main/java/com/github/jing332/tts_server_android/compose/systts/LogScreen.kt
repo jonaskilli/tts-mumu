@@ -187,6 +187,10 @@ internal class LogGroups(
             val head: Int,
             val members: List<Int>,
             val absorbError: Int = -1,
+            // 本组内发生过的重试次数（10-12 用户令「重试和失败是紧密联系的，别单独占一行」）：
+            // 重试行不再落成独立行，改在组头行灯位后挂一枚「重试N」小丸；
+            // 组已收卡时挂到刚收的那张组上（见 build 里 retry 分支）
+            val retryCount: Int = 0,
         ) : Item()
     }
 
@@ -198,7 +202,11 @@ internal class LogGroups(
     fun entriesOf(item: Item): List<Int> = when (item) {
         is Item.Header -> emptyList()
         is Item.Bare -> listOf(item.index)
-        is Item.Group -> listOf(item.head) + item.members
+        // ⚠️ 吸收条必须算进本组（10-12 用户实报「有些信息无法复制了」）：absorbError 是
+        // 失败全文条（真因 + 正文 + 发音人信息），10-11 起由组头代画、**不进 members**——
+        // 于是组的勾选集合（原 head+members）拿不到它，勾上整组复制/搜索定位都少了真因那一行。
+        is Item.Group -> listOf(item.head) + item.members +
+            listOfNotNull(item.absorbError.takeIf { it >= 0 })
     }
 
     companion object {
@@ -216,20 +224,23 @@ internal class LogGroups(
             // 老版式失败条（10-11 定稿）：本次开卡以来最近一条 ERROR 子行下标——
             // 源错误条目含请求全文，收卡时它是组的渲染主体（absorbError）
             var errMemberIdx = -1
+            // 本组内重试次数（10-12）：重试行不单独占行，挂到组头做小丸
+            var retryCount = 0
 
             fun closeCard() {
                 if (head >= 0) {
                     if (groupFailed) {
                         failedHeads.add(head)
-                        raw.add(Item.Group(head, members.toList(), absorbError = errMemberIdx))
+                        raw.add(Item.Group(head, members.toList(), absorbError = errMemberIdx, retryCount = retryCount))
                     } else {
-                        raw.add(Item.Group(head, members.toList()))
+                        raw.add(Item.Group(head, members.toList(), retryCount = retryCount))
                     }
                 }
                 head = -1
                 members = ArrayList()
                 groupFailed = false
                 errMemberIdx = -1
+                retryCount = 0
             }
             fun openCard(requestIdx: Int) {
                 closeCard()
@@ -282,7 +293,26 @@ internal class LogGroups(
                     // 其他主行（重试/备用TTS/兜底发音人/系统消息）：有卡归卡，ERROR=失败
                     // 终点收卡（标记 groupFailed）；无卡落裸行——失败链不再悬置并组（10-10 终案）
                     else -> {
-                        if (head >= 0) {
+                        // ⚠️ 重试行先拦（10-12 用户令「重试没别的信息，单独占一行浪费空间，
+                        // 它和失败是紧密联系的」）：不落行、只把次数挂到组头做「重试N」小丸。
+                        // 两种落点：①本组还开着 → 记在本次开卡上且**不关组**（后面那次失败与
+                        // 本次重试同属一条失败链）；②上一次失败已收卡 → 挂到刚收的那张组上。
+                        // 前面既没开卡也没有组（头部被筛掉的孤儿）→ 退回裸行，不至于把日志吞掉
+                        val isRetryRow = e.level == LogLevel.WARN && e.message.contains("次重试")
+                        if (isRetryRow) {
+                            if (head >= 0) {
+                                retryCount++
+                            } else {
+                                val last = raw.lastOrNull()
+                                if (last is Item.Group) {
+                                    raw[raw.size - 1] = Item.Group(
+                                        last.head, last.members, last.absorbError, last.retryCount + 1
+                                    )
+                                } else {
+                                    raw.add(Item.Bare(i))
+                                }
+                            }
+                        } else if (head >= 0) {
                             // 老版式失败全文条（10-11）：本条含请求全文（错误 + <br> +
                             // 正文 + 发音人信息）时，让它当本组渲染主体（absorbError）——
                             // 渲染侧改画它、不再画请求主行正文，避免同一段正文出现两遍。
@@ -750,7 +780,7 @@ internal fun LogScreen(
                         is LogGroups.Item.Group -> {
                             val head = list[item.head]
                             val memberEntries = item.members.map { list[it] }
-                            val groupLogs = (listOf(item.head) + item.members).map { list[it] }
+                            val groupLogs = currentGroups.entriesOf(item).map { list[it] }
                             val groupChecked = groupLogs.all { it in checkedEntries }
                             // 老版式失败条（10-11 用户定稿「拿不准就按老版本，毕竟是起源」）：
                             // absorbError≥0 = 本组以源错误收场，渲染主体换成源错误条目
@@ -770,7 +800,10 @@ internal fun LogScreen(
                             val pill = remember(item.head, successMember, absorbed, currentGroups) {
                                 when {
                                     successMember != null -> LogPill(LogPillKind.OK, "成功")
-                                    absorbed != null -> LogPill(LogPillKind.FAIL, "源错误")
+                                    // 丸只报状态（10-12 用户令）：原来写「源错误」——那是**原因**，
+                                    // 不该占丸位。现在一律「失败」，原因交给正文首行（服务端
+                                    // 已改成「源错误：…」开头，见 SystemTtsService.errorEvent）
+                                    absorbed != null -> LogPill(LogPillKind.FAIL, "失败")
                                     else -> pillOf(head, item.head, currentGroups.failedHeads)
                                 }
                             }
@@ -852,6 +885,15 @@ internal fun LogScreen(
                                         )
                                         pillShown?.let {
                                             Box(Modifier.padding(start = 6.dp)) { StatusPill(it) }
+                                        }
+                                        // 重试次数小丸（10-12 用户令「重试和失败紧密联系，别单独占一行」）：
+                                        // 重试行已不落行，次数挂在这里跟在状态丸后面
+                                        if (item.retryCount > 0) {
+                                            Box(Modifier.padding(start = 6.dp)) {
+                                                StatusPill(
+                                                    LogPill(LogPillKind.RETRY, "重试${item.retryCount}")
+                                                )
+                                            }
                                         }
                                         // 丸后灰字（成功=大小·秒/失败主行=截短原因），与丸留 8dp 隙。
                                         // 失败原因红=旧正宗红 #F44336（10-10 用户令「错误的红色要用

@@ -834,6 +834,20 @@ class SystemTtsService : TextToSpeechService(), IEventDispatcher {
 
     private fun RequestPayload.text(): String = textOnly() + "<br>" + configInfo()
 
+    // 是否「源错误」（插件/JS 引擎抛出的错，即朗读源本身的问题）：10-12 用于给失败条选首行文案
+    //（源错误：… / 获取失败：…）。判据=cause 链里出现 Rhino 的异常类型——插件调用经
+    // JavaException/EvaluatorException 桥上来，应用层归因（解析/超时/网络）不会带这两类
+    private fun isSourceError(t: Throwable?): Boolean {
+        var cur = t
+        var depth = 0
+        while (cur != null && depth++ < 16) {
+            val n = cur.javaClass.name
+            if (n.startsWith("org.mozilla.javascript")) return true
+            cur = cur.cause
+        }
+        return false
+    }
+
     // 失败原因归因：把异常类型/HTTP状态码翻译成用户可读文本。
     // ⚠️ 判定优先级（10-12 修正）：**消息里的 HTTP 状态码先于异常类型**——原实现沿链边收
     // 消息边做类型判定，链里一旦撞上 JSONException 就直接返回「返回内容解析失败」，
@@ -1018,8 +1032,13 @@ class SystemTtsService : TextToSpeechService(), IEventDispatcher {
                     //（正文粗 + 发音人信息）——渲染层按 <br> 拆段：错误串红、正文红粗、
                     // 发音人信息不红（见 LogScreen oldStyleFail 分支）。
                     // 此前只打错误串，正文与发音人信息散在请求主行里，失败条不成一体
+                    // 10-12 用户令：丸位置只报「失败」，**原因**放正文首行——插件/引擎抛出的
+                    // 走「源错误：…」，其余（解析/网络等应用层归因）保持「获取失败：…」
+                    val prefixRes =
+                        if (isSourceError(e.cause)) R.string.systts_log_source_failed
+                        else R.string.systts_log_failed
                     logE(
-                        getString(R.string.systts_log_failed, friendlyCause(e.cause)) +
+                        getString(prefixRes, friendlyCause(e.cause)) +
                             "<br>" + e.request.text(),
                         e.cause
                     )
