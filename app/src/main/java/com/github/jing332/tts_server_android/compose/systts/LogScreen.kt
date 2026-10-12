@@ -893,21 +893,37 @@ internal fun LogScreen(
                                             fontSize = 12.sp,
                                             color = MaterialTheme.colorScheme.onSurfaceVariant
                                         )
-                                        pillShown?.let {
-                                            Box(Modifier.padding(start = 6.dp)) { StatusPill(it) }
-                                        }
-                                        // 重试次数小丸（10-12 用户令「重试和失败紧密联系，别单独占一行」）：
-                                        // 重试行已不落行，次数挂在这里跟在状态丸后面。
-                                        // 文案口径同用户令：**只有 1 次就写「重试」，2 次以上才写「重试×N」**
-                                        if (item.retryCount > 0) {
-                                            Box(Modifier.padding(start = 6.dp)) {
-                                                StatusPill(
-                                                    LogPill(
-                                                        LogPillKind.RETRY,
-                                                        if (item.retryCount == 1) "重试"
-                                                        else "重试×${item.retryCount}"
-                                                    )
-                                                )
+                                        // 丸链（10-12 用户令「[失败] [重试] [失败×2] 改成这样，
+                                        // 不然不知道过程」）：有重试时把过程摊开成三枚——
+                                        // ①状态丸不带次数（失败/超时…）②重试丸（1 次写「重试」，
+                                        // ≥2 次写「重试×N」）③累计次数丸「失败×N」（N>1 才出）。
+                                        // 没有重试时维持原样：单枚「失败 ×N」（插件日志折 34 条那类，
+                                        // 拆成「失败+失败×34」反而多一枚没信息的丸）
+                                        val retryPill = if (item.retryCount > 0) LogPill(
+                                            LogPillKind.RETRY,
+                                            if (item.retryCount == 1) "重试" else "重试×${item.retryCount}"
+                                        ) else null
+                                        val showProcess = retryPill != null && pillShown != null &&
+                                            pillShown.kind != LogPillKind.OK
+                                        if (showProcess) {
+                                            // ① 状态丸去掉 ×N 后缀（次数由第③枚承担）
+                                            val plain = pillShown!!.copy(
+                                                text = pillShown!!.text.substringBefore(" ×")
+                                            )
+                                            Box(Modifier.padding(start = 6.dp)) { StatusPill(plain) }
+                                            Box(Modifier.padding(start = 6.dp)) { StatusPill(retryPill!!) }
+                                            if (failCount > 1) {
+                                                Box(Modifier.padding(start = 6.dp)) {
+                                                    StatusPill(LogPill(LogPillKind.FAIL, "失败×$failCount"))
+                                                }
+                                            }
+                                        } else {
+                                            pillShown?.let {
+                                                Box(Modifier.padding(start = 6.dp)) { StatusPill(it) }
+                                            }
+                                            // 成功但重试过：过程同样要看得见 → [成功] [重试]
+                                            retryPill?.let {
+                                                Box(Modifier.padding(start = 6.dp)) { StatusPill(it) }
                                             }
                                         }
                                         // 丸后灰字（成功=大小·秒/失败主行=截短原因），与丸留 8dp 隙。
