@@ -230,7 +230,9 @@ internal fun TtsLogScreen(vm: TtsLogViewModel = viewModel()) {
             .joinToString(separator = "\n\n") {
                 // 折叠次数写进文本（10-12 用户令）：×N 原来只体现在丸上，复制出去就丢了次数
                 val times = if (it.repeatCount > 1) "（×${it.repeatCount}）" else ""
-                "${it.time} | ${it.getLevelChar()} | ${it.message.toPlainText()}$times"
+                // 失败全文条截到「原因」那段再转纯文本（10-12 用户令）：正文与发音人信息
+                // 由同组的请求行带出，不去重就是同一段正文复制两遍
+                "${it.time} | ${it.getLevelChar()} | ${it.message.trimFailureTail().toPlainText()}$times"
             }
         clipboard.setText(AnnotatedString(text))
         exitSelection()
@@ -622,6 +624,22 @@ internal fun String.toPlainText(): String = this
     .replace("&gt;", ">")
     .replace("&amp;", "&")
     .replace("&nbsp;", " ")
+
+/**
+ * 失败全文条只保留「原因」一段（10-12 用户令，复制去重）：
+ * 应用层失败条是**全文条**（原因 + <br> + 正文粗 + 发音人信息），而同一组里的请求行
+ * 已经带了正文与发音人信息 ⇒ 整条复制出去会重复一遍。屏幕上没关系（组头代画、正文只画一次），
+ * 复制是逐条取原文，所以在这里截掉重复部分。
+ * ⚠️ 只认「应用层失败前缀」，插件/规则的原始错误行照旧整条保留（它们的正文不是重复内容，
+ * 截了就是丢信息）。判定要在 toPlainText 之前做——`<br>` 那时还没变成换行。
+ */
+internal fun String.trimFailureTail(): String {
+    if (!contains("<br>")) return this
+    val head = substringBefore("<br>")
+    val isAppFailure = head.startsWith("获取失败：") || head.startsWith("源错误：") ||
+        head.startsWith("超时：") || head.startsWith("获取失败:")
+    return if (isAppFailure) head else this
+}
 
 // 用外部查看器打开文件/目录（text/plain 优先，通用类型兜底）
 // 目录必须走 */*（text/plain 会把目录 URI 丢给文本编辑器，打不开）
