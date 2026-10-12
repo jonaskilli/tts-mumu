@@ -27,9 +27,10 @@ fun Int.toArgb(isDarkTheme: Boolean = false): Long =
     when (this) {
         LogLevel.TRACE -> if (isDarkTheme) 0xFFB0BEC5 else 0xFF9E9E9E
         LogLevel.DEBUG -> if (isDarkTheme) 0xFF64B5F6 else 0xFF2196F3
-        // INFO：10-08 排版实验曾由 #4CAF50 降为 #2E7D32（"纯绿满屏太抢"）；
-        // 10-12 用户令「日志栏这个绿色改为以前的那个强调绿」→ 回 #4CAF50（旧强调绿）
-        LogLevel.INFO -> if (isDarkTheme) 0xFF81C784 else 0xFF4CAF50
+        // INFO：10-13 用户令「朗读规则日志/插件日志的绿色也要用那个强调绿（方框对勾的绿）」
+        // → 由 #4CAF50 改 ACCENT_GREEN(#109D58)。深色主题维持浅一档的 #81C784：
+        // 暗底上 #109D58 对比度不足（本文件是全站日志级别色的唯一来源）
+        LogLevel.INFO -> if (isDarkTheme) 0xFF81C784 else ACCENT_GREEN
         LogLevel.WARN -> if (isDarkTheme) 0xFFFFD54F else 0xFFFFC107
         LogLevel.ERROR -> if (isDarkTheme) 0xFFE57373 else 0xFFF44336
         // SUCCESS 跟随主题：深色用白、浅色用黑

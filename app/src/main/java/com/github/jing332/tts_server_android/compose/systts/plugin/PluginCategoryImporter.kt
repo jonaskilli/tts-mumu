@@ -30,6 +30,13 @@ import java.util.concurrent.Executors
  */
 object PluginCategoryImporter {
 
+    /**
+     * 批量入库的每批条数（10-13 提速）：原实现逐条 `insert`，每条各自开一次 Room 事务，
+     * 上百条时事务开销累积成肉眼可见的卡顿。攒成一批一次写，事务数从 O(n) 降到 O(n/50)。
+     * 50 是折中：够大以摊薄开销，又保证进度回调节奏不会一次憋太久。
+     */
+    private const val IMPORT_BATCH = 50
+
     /** 标准人群关键词：与列表页整理标签共用同一套词表（取最长匹配） */
     private val TAG_KEYWORDS = listOf(
         "女童", "少女", "女青年", "女中年", "女老年",
@@ -129,6 +136,20 @@ object PluginCategoryImporter {
             var orderSeq = 0
             val categoryCountMap = mutableMapOf<String, Int>()
             var processed = 0
+            // 待写批次（10-13 提速）：攒够 IMPORT_BATCH 条走一次 insertAll
+            val pending = mutableListOf<SystemTtsV2>()
+
+            // 逐子分组统计一次，而不是**每条音色**查一次（10-13 用户报「导入速度很慢」）：
+            // 旧写法在每条音色里 `dbm.systemTtsV2.getByGroup(targetGroupId).count { … }` ——
+            // 把整个分组的**全部行**读回内存再在 Kotlin 侧过滤计数，代价 O(组内条数)，
+            // 而它被放在 forEach 里 ⇒ 整体 O(n²)：导入 300 条要读 300 次全组、累计 4.5 万行。
+            // 现在只读一次整组、在内存里 groupBy 计数。语义完全不变
+            //（各子分组序号起点仍接库中已有数量、避免重号）。
+            val existingByCategory: Map<String, Int> = withContext(Dispatchers.IO) {
+                dbm.systemTtsV2.getTtsListByGroupId(targetGroupId)
+                    .groupingBy { it.categoryPath }.eachCount()
+            }
+            categoryCountMap.putAll(existingByCategory)
 
             items.forEach { item ->
                 val rawName = item.poolName.trim()
@@ -141,14 +162,11 @@ object PluginCategoryImporter {
                 processed++
                 onProgress("正在导入 ${processed}：${item.voiceName}")
 
-                // 各子分组序号起点接库中已有数量，避免重号
-                val cachedCount = categoryCountMap.getOrDefault(subGroupName, 0)
-                val existing = if (cachedCount == 0) {
-                    withContext(Dispatchers.IO) {
-                        dbm.systemTtsV2.getByGroup(targetGroupId).count { it.categoryPath == subGroupName }
-                    }
-                } else cachedCount
-                val seq = existing + 1
+                // 各子分组序号起点接库中已有数量，避免重号。
+                // 数量已在循环外一次性查好（见 existingByCategory），这里只做内存自增——
+                // ⚠️ 别再改回「查不到就现场 getByGroup(...).count{}」：那是 O(n²) 的真凶，
+                // 而且逻辑上也不需要（查不到的键=库里本来就没有该分类，起点就是 0）
+                val seq = categoryCountMap.getOrDefault(subGroupName, 0) + 1
                 categoryCountMap[subGroupName] = seq
 
                 // 无映射分类不打标签（空 SpeechRuleInfo）；旁白为单一角色分类不带序号
@@ -189,20 +207,29 @@ object PluginCategoryImporter {
                     source = src.copy(voice = item.voiceId)
                 )
 
-                // 批量导入默认不启用：避免未知发音人立刻影响当前朗读
-                withContext(Dispatchers.IO) {
-                    dbm.systemTtsV2.insert(
-                        SystemTtsV2(
-                            id = baseId + idSeq++,
-                            displayName = item.voiceName,
-                            groupId = targetGroupId,
-                            isEnabled = false,
-                            order = baseOrder + orderSeq++,
-                            categoryPath = subGroupName,
-                            config = newConfig
-                        )
-                    )
+                // 批量导入默认不启用：避免未知发音人立刻影响当前朗读。
+                // 10-13 提速：不再逐条 insert（每条各自开一次事务），先攒进 pending，
+                // 每 IMPORT_BATCH 条一次性 insertAll；进度回调仍逐条上报（界面观感不变）。
+                pending += SystemTtsV2(
+                    id = baseId + idSeq++,
+                    displayName = item.voiceName,
+                    groupId = targetGroupId,
+                    isEnabled = false,
+                    order = baseOrder + orderSeq++,
+                    categoryPath = subGroupName,
+                    config = newConfig
+                )
+                if (pending.size >= IMPORT_BATCH) {
+                    val batch = pending.toList()
+                    pending.clear()
+                    withContext(Dispatchers.IO) { dbm.systemTtsV2.insertAll(batch) }
                 }
+            }
+            // 收尾：最后不足一批的余量
+            if (pending.isNotEmpty()) {
+                val batch = pending.toList()
+                pending.clear()
+                withContext(Dispatchers.IO) { dbm.systemTtsV2.insertAll(batch) }
             }
             return idSeq
         } finally {

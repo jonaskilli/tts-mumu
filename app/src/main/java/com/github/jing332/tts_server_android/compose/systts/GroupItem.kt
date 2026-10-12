@@ -81,12 +81,10 @@ fun GroupItem(
     extraActions: (@Composable ColumnScope.(() -> Unit) -> Unit)? = null,
     // 多选模式下点击分组名/行是否切换选中：true=点击行选中(系统TTS默认), false=仅右侧方框选中, 点击名/行展开(替换规则)
     selectOnRowClick: Boolean = true,
-    // 折叠箭头盒宽（10-12 用户令「替换规则页分组文字与规则名对齐」）：本盒右缘即组名文字线。
-    // 默认 32（系统TTS/插件页维持原样）；替换规则页传 48，与条目行对勾盒的实际占位对齐——
-    // ⚠️ 条目行那侧写的是 `.size(24或32).requiredSize(48)`，**requiredSize 会真的占 48dp 布局宽**
-    //（依赖源码 SizeNode.measure 返回 layout(placeable.width…)，而 placeable 按 48 约束量出；
-    //  不是注释里写的「不占布局空间」）。所以那边无论 size 填 24 还是 32，文字线恒在 8+48=56dp，
-    // 组头必须同样 48 才齐——4230b07 把 24 改回 32 却「啥也没变」，就是被 requiredSize 压着。
+    // 折叠箭头盒宽：默认 32dp，盒右缘即组名文字线。
+    // 10-12 曾给替换规则页传 48（去对齐条目行的 requiredSize(48) 占位）；10-13 用户令
+    // 「替换规则也要回从前，撤掉让参照密钥管理改的那几批」——条目行已回 M3 原生 Checkbox，
+    // 替换页不再传本参数，全站统一默认值。保留参数（系统TTS/插件页本就走默认，行为不变）。
     arrowBoxWidth: Dp = 32.dp,
 ) {
     val view = LocalView.current
@@ -161,9 +159,7 @@ fun GroupItem(
         // 但一级行有数字徽章、子分组行没有——老形式里子分组箭头对的是一级行**徽章中部**，
         // 两级名字列天然同起点，层级靠"名字列对名字列"读；箭头对箭头反而让子分组名字凸出。
         // 图标盒 24dp（默认），子分组 20dp 保持不变
-        // 10-12：箭头外套固定盒（与密钥页组头同规格）——盒右缘即组名文字线。
-        // 宽度由 arrowBoxWidth 决定：默认 32（系统TTS/插件页原样），替换规则页传 48
-        // 去对齐条目行的对勾盒实际占位（requiredSize(48) 真的占宽，见参数注释）。
+        // 10-12：箭头外套固定盒——盒右缘即组名文字线，宽度由 arrowBoxWidth 决定。
         // 图标仍 24dp、视觉大小不变。
         Box(
             modifier = Modifier.size(width = arrowBoxWidth, height = 36.dp),

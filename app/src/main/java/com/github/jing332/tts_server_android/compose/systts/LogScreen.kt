@@ -79,6 +79,7 @@ import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.text.HtmlCompat
+import com.github.jing332.common.ACCENT_GREEN
 import com.github.jing332.common.LogEntry
 import com.github.jing332.common.LogLevel
 import com.github.jing332.common.toArgb
@@ -1167,7 +1168,9 @@ private fun StatusPill(pill: LogPill) {    val dark = isSystemInDarkTheme()
         LogPillKind.STANDBY -> if (dark) Color(0xFF3A3226) else Color(0xFFFDF7E7)
     }
     val fg = when (pill.kind) {
-        LogPillKind.OK -> Color(0xFF2E7D46)
+        // 成功丸字（10-13 统一）：由 #2E7D46 改全站强调绿（＝勾选框那个绿）。
+        // 底仍是同色系极淡底（#F2F8F4）不动——底/字一起换会连带改掉丸的块感
+        LogPillKind.OK -> Color(ACCENT_GREEN)
         LogPillKind.FAIL -> Color(0xFFC62828)
         LogPillKind.RETRY -> if (dark) Color(0xFF9AA0A8) else Color(0xFF4A5568)
         LogPillKind.STANDBY -> if (dark) Color(0xFFC9A94E) else Color(0xFF9A7B14)
@@ -1260,6 +1263,12 @@ private fun LogEntryBody(
                         // 声音信息：哨兵色已换好目标色。字号 12→13sp（10-11 用户令
                         // 「时间和下方声音条的字号太小」）——与裸行/成员行同档，
                         // 与正文 14sp 仍保一档差
+                        item = item.copy(fontSize = 13.sp)
+                    } else if (r.item.color == roleChipColor) {
+                        // 角色名（10-13 拆段后的新分支）：它现在**不再**被声音信息那段 font 罩住
+                        //（服务端已把外层 font 拆成三段，见 SystemTtsService.configInfo），
+                        // 所以拿不到上面那支的 13sp。此处显式补回 13sp，保住与改前同一字号；
+                        // 颜色由 remapMetaColor 的 RoleChipSentinel 分支给
                         item = item.copy(fontSize = 13.sp)
                     }
                     addStyle(item, r.start, r.end)

@@ -10,7 +10,6 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.selection.toggleable
@@ -1352,6 +1351,11 @@ private fun MarketplaceImportDialog(
     var waitCategory by remember { mutableStateOf(false) }
     var autoNext by remember { mutableStateOf(false) }
     var auditionItem by remember { mutableStateOf<com.github.jing332.tts.speech.plugin.engine.VoiceCatalogItem?>(null) }
+    // 试听序列（10-13）：由广场面板上报**当前真正列出的那串**。原实现拿 item.id 去
+    // vm.catalogItems 里查下标——那只在联网结果列表里成立；「自带分类」列的是本地音色，
+    // 查不到恒得 -1，「点了分类自动跳下一个」永远不触发（用户实报「没试听完就选了分类，
+    // 应该跳到下一个声音」）。改为按面板上报的序列算，两条链同一口径。
+    var auditionSeq by remember { mutableStateOf<List<com.github.jing332.tts.speech.plugin.engine.VoiceCatalogItem>>(emptyList()) }
     var importing by remember { mutableStateOf(false) }
     // 勾选/分类两张表提到宿主（10-11 用户实机「试听里分了类，卡片不显示分类也不勾选」）：
     // 原先把它们藏在广场面板内部，试听弹窗在宿主这层，分类只能写进 MarketplaceCategoryOverride
@@ -1377,8 +1381,9 @@ private fun MarketplaceImportDialog(
         }
         val engine = remember { vm.engine }
         // 上一个/下一个（10-12 用户令「试听弹窗补齐，照无广场插件的试听界面」）：
-        // 序列=广场列表当前顺序；重播键 AuditionDialog 自带（失败就地重发）
-        val catalogList = vm.catalogItems
+        // 序列=**面板当前列出的那串**（10-13 改：原为 vm.catalogItems，本地分类链查不到下标）；
+        // 重播键 AuditionDialog 自带（失败就地重发）
+        val catalogList = auditionSeq
         val curIdx = catalogList.indexOfFirst { it.id == item.id }
         AuditionDialog(
             systts = auditionSystts,
@@ -1427,6 +1432,9 @@ private fun MarketplaceImportDialog(
             doMarketplaceImport(plugin, vm, items, categories.toMap(), context, scope, onDismiss)
         },
         onSwitchesChanged = { w, a -> waitCategory = w; autoNext = a },
+        // 面板当前列出的序列（10-13）：试听弹窗的「上一个/下一个」与「点了分类跳下一个」
+        // 都按它算，本地分类链与联网链行为一致
+        onAuditionListChanged = { seq -> auditionSeq = seq },
         picked = picked,
         categories = categories,
         // 弹层顶部来源切换条（10-12 合壳）：选中态跟宿主 selectedSource 走（不再写死 "market"），
@@ -1487,6 +1495,13 @@ private fun doMarketplaceImport(
 }
 
 /**
+ * 导入中面板的固定高度（10-13 用户令「这个一般就估计用五行的高度」）：
+ * 列表行距实测 207px ≈ 59dp（图一两个勾选框中心差 ÷ 3.5px/dp），五行 ≈ 296dp，取整 300dp。
+ * 导入态用固定高而不是按内容收高——进度字换行（长音色名很常见）时面板高度不再跳。
+ */
+private val IMPORT_PANEL_HEIGHT = 300.dp
+
+/**
  * 入库来源切换条（10-11 用户令「联网广场 / 自带分类」合一）。
  *
  * 10-12 三改（用户令「要跟备份的顶部胶囊的处理方式一样」）：换成与备份弹窗**同一个构件**
@@ -1508,24 +1523,13 @@ private fun ImportSourceSegment(
             val key = if (idx == 0) "market" else "list"
             if (key != selected) onPick(key)
         },
-        modifier = modifier,
+        // 左右 24dp 内距（10-13 用户令「图一顶部这个宽度也要同备份那里的胶囊」）：
+        // 本构件在两个宿主里出现过两种宽度——自带分类弹窗里传了 padding、合壳壳里没传，
+        // 于是合壳那条分段框**顶到弹层左右边缘**（截图实测：选中段右缘 x=1256/1260，
+        // 距屏只剩 1.5dp），备份弹窗那条则在 AlertDialog 的 24dp 内容内距里。
+        // 把内距收进本构件，两个宿主自动同宽，调用点不必再各自传（传了会叠加成 48dp）。
+        modifier = modifier.padding(horizontal = 24.dp),
     )
-}
-
-/**
- * 入库动作键（10-12 二改，用户令「我看其他的胶囊，他都没有这种分类选择的意义，完全是大错误」）：
- * 「试听分类 / 直接入库」是**点一下就走**的动作，没有持久选中态——上一版画成
- * `secondaryContainer` 底胶囊，与「已选中」同色，用户读成"选中了"。
- * 现改回普通文字键（TextButton，主题色字、无底），动作与选中态不再撞形。
- * （原 ImportActionChip 自绘胶囊随本改删除。）
- */
-@Composable
-private fun ImportActionButton(
-    label: String,
-    enabled: Boolean,
-    onClick: () -> Unit,
-) {
-    TextButton(enabled = enabled, onClick = onClick) { Text(label) }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -1751,13 +1755,16 @@ internal fun ImportByCategoryDialog(
                 // 根 Column 在「槽 lambda」里，作用域里没有 ColumnScope——CI 38231081690 实锤
                 // Unresolved reference 'weight'（1805:46）
                 //
-                // 导入中改「按内容收高」（10-12 用户令「显得界面好空」）：导入态只有一行进度字，
-                // 还硬占 92% 就是一大片空白。此时外层不给高度、内容区也不挂 weight ⇒ 弹层
-                // 自然收成「拖拽把+标题+一行进度+底部动作行」的小条；列表态（stage0/1）照旧 92%。
+                // 导入态高度（10-13 用户令「图四，这个导入，也不合适，这个一般就估计用五行
+                // 的高度」）：上一版是「按内容收高」——只有一行进度字时就缩成
+                // 「拖拽把+标题+来源条+一行进度」的小条，实测整块仅 218dp（截图量得面板顶边
+                // 距屏底 765px ÷ 3.5px/dp），比五行还矮，看着像被截了一半。
+                // 现改为**固定约五行高**：列表行距实测 207px ≈ 59dp（图一两个勾选框中心差），
+                // 五行 ≈ 296dp，取整 300dp。进度字换行变长也不再改变面板高度（不再跳）。
                 // ⚠️ 两个 modifier 必须同时改：外层不 fill 而内容区仍 weight(1f) 的话，
                 // Column 会按 weight 撑满可用高度，等于没改。
                 .then(
-                    if (importing) Modifier
+                    if (importing) Modifier.height(IMPORT_PANEL_HEIGHT)
                     else if (embedded) Modifier.fillMaxSize()
                     else Modifier.fillMaxHeight(0.92f)
                 )
@@ -1798,31 +1805,34 @@ internal fun ImportByCategoryDialog(
             ImportSourceSegment(
                 selected = "list",
                 onPick = { if (it == "market") onSwitchToMarket.invoke() },
-                modifier = Modifier.padding(horizontal = 24.dp)
+                // 内距由 ImportSourceSegment 自带（10-13）：此处再传会叠成 48dp
             )
         }
         } // if (chrome)：拖拽把/标题/来源条三段收尾（嵌入模式由宿主壳提供）
-        // 「试听分类 / 直接入库」＝**两个动作键**（10-12 二改，用户令「其他的胶囊都没有
-        // 分类选择的意义，完全是大错误」）：它们是点完即走的动作，没有选中态，画成分段/胶囊
-        // 会被读成「已选中某一项」。改回普通文字键，靠右并排。
-        // 位置分两种：无广场插件摆在标题下（本块）；带广场插件挪到**下方右侧**（见底部动作行）——
-        // 那边顶部已有「联网广场/自带分类」来源分段，两组并排会读混
-        if (stage == 0 && onSwitchToMarket == null) {
-            Row(
-                Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 24.dp, vertical = 6.dp),
-                horizontalArrangement = Arrangement.End,
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                ImportActionButton(label = "试听分类", enabled = !importing && hasSelection) {
-                    val pools = categories.filter { it.poolId in selectedPoolIds }
-                    if (pools.isNotEmpty()) loadVoices(pools)
-                }
-                ImportActionButton(label = "直接入库", enabled = !importing && hasSelection) {
-                    doDirectImport()
-                }
-            }
+        // 位置分两种（10-13 用户令「图三那个同备份的切换胶囊」「这个放右下」）：
+        //  · 无广场插件（图三，embedded=false，自己开壳）：标题下摆分段胶囊（本块）；
+        //  · 带广场插件（图一，embedded=true，嵌在广场壳里）：**挪到下方右侧**（见底部动作行）。
+        // ⚠️ 判据必须用 embedded，**不能用 onSwitchToMarket**：合壳那个调用点传的就是
+        // onSwitchToMarket=null（来源条归宿主壳画），拿它判会把图一那侧也误当成"无广场"，
+        // 结果图一的分段留在顶上、底部那行又不渲染（底部条件是 onSwitchToMarket != null）——
+        // 两头都不出，键整个消失。embedded 才是"我是不是嵌在广场壳里"的唯一真判据。
+        if (stage == 0 && !embedded) {
+            SoftSegmentedTextToggle(
+                options = listOf("试听分类", "直接入库"),
+                selectedIndex = -1,
+                onSelect = { idx ->
+                    // 分段构件没有 enabled 形参：不可用态靠这里挡（与两条文字键时代同口径）
+                    if (!importing && hasSelection) {
+                        if (idx == 0) {
+                            val pools = categories.filter { it.poolId in selectedPoolIds }
+                            if (pools.isNotEmpty()) loadVoices(pools)
+                        } else {
+                            doDirectImport()
+                        }
+                    }
+                },
+                modifier = Modifier.padding(horizontal = 24.dp, vertical = 6.dp),
+            )
         }
         // 内容区（10-12 崩溃修复）：外层**不带** verticalScroll——stage1 的 LazyColumn
         // 嵌在可滚 Column 里会被测出无限高约束（IllegalStateException 实锤 11:27）。
@@ -1968,11 +1978,13 @@ internal fun ImportByCategoryDialog(
             }
         }
         // 底部动作行（与广场弹窗同构）：左侧「上一步」、右侧「导入(N)」。
-        // ⚠️ 无广场插件的 stage 0 **整行不渲染**（10-12 用户令「底部少一行」）：那边两个选项
-        // 已在标题下成段（SoftSegmentedTextToggle），此处只剩一个「取消」，与标题行 ✕ 重复。
-        // 但**带广场插件**的 stage 0 要这行（10-12 用户令「两动作放下面右侧」）：顶端已有
-        // 「联网广场/自带分类」来源分段，两个选项落到右下就不打架
-        if (stage == 1 || (stage == 0 && onSwitchToMarket != null)) {
+        // ⚠️ 无广场插件（embedded=false）的 stage 0 **整行不渲染**：那边两个动作已在标题下
+        // 成段（SoftSegmentedTextToggle），此处只剩一个「取消」，与标题行 ✕ 重复。
+        // 带广场插件（embedded=true）的 stage 0 要这行：两个动作落到右下（10-13 用户令
+        // 「这个放右下」），顶端是宿主壳画的来源分段，两者不打架。
+        // ⚠️ 判据必须与上面那段**互补**（上面用 !embedded）：两边都用 onSwitchToMarket 判的话，
+        // 合壳调用点传的正是 null ⇒ 顶段不画、底行也不画，两个键直接消失。
+        if (stage == 1 || (stage == 0 && embedded)) {
             Row(
                 Modifier
                     .fillMaxWidth()
@@ -1987,7 +1999,9 @@ internal fun ImportByCategoryDialog(
                     }
                     Spacer(Modifier.weight(1f))
                 } else {
-                    // 带广场的 stage 0：两个**选项**（不是胶囊，10-12 用户令）靠右
+                    // 带广场的 stage 0（图一）：两个动作键靠右（10-13 用户令「这个放右下」）。
+                    // 保持普通文字键形态——顶部已有「联网广场/自带分类」来源分段，这里再来一条
+                    // 分段会读成"两组来源"；右下放文字键与左下/右下的动作行语汇一致
                     Spacer(Modifier.weight(1f))
                     TextButton(
                         enabled = !importing && hasSelection,

@@ -153,6 +153,13 @@ fun PluginVoiceMarketplaceDialog(
     // 默认值保住大厅模式（编辑页）调用方不用改；入库模式由宿主传入，试听分类与卡片共用同一份状态
     picked: SnapshotStateMap<String, VoiceCatalogItem> = remember { mutableStateMapOf<String, VoiceCatalogItem>() },
     categories: SnapshotStateMap<String, String> = remember { mutableStateMapOf<String, String>() },
+    // 当前**正在列出的音色序列**（10-13 用户令「联网广场的试听分类要跟普通插件的试听分类一样，
+    // 假如没试听完就选了分类，就应该跳到下一个声音」）：
+    // 宿主原来拿 item.id 去 `vm.catalogItems` 里查下标——那只在联网结果列表里成立。
+    // 「自带分类」那条链列的是本地音色（localVoices），根本不在 catalogItems 里，
+    // indexOfFirst 恒回 -1，「点了分类跳下一个」的判据 `curIdx in 0 until size-1` 于是永远为假。
+    // 改成由本弹窗把**当前真正列出的那串**上报给宿主，宿主按同一串算上下一个，两条链行为一致。
+    onAuditionListChanged: (List<VoiceCatalogItem>) -> Unit = {},
 ) {
     val importMode = onImport != null
     // 入库模式两行为已固定（10-12 用户令「让它常开，直接删掉这两个功能」）：等待分类=开、
@@ -536,6 +543,17 @@ fun PluginVoiceMarketplaceDialog(
                         // （getVoices("")，插件不认则空列表）；勾选/分类标签/导入共用同一套状态（picked/categories 都按 voiceId 键）
                         Box(Modifier.weight(1f)) {
                             val useLocalList = selectedLocalPool != null || hallLocalView
+                            // 当前列出的序列上报给宿主（10-13）：两条链各自成串——本地音色不在
+                            // vm.catalogItems 里，宿主只有拿到这一串才能算「下一个」。
+                            // key 直接用列表本身：LaunchedEffect 的 key 按 equals 比较，
+                            // 内容不变时每次重组新建的等值 List 不会重跑（不写宿主状态、不引起
+                            // 重组回环），内容真变了（换池/翻页/换屏）才上报
+                            val localAuditionSeq = if (useLocalList) localVoices.map { (pid, vid, nm) ->
+                                VoiceCatalogItem(id = vid, name = nm, description = "locale:$pid")
+                            } else vm.catalogItems
+                            LaunchedEffect(localAuditionSeq) {
+                                onAuditionListChanged(localAuditionSeq)
+                            }
                             if (useLocalList) {
                                 // 本地分类音色列表（普通插件的主路；广场协议插件也能切过来看本地缓存）
                                 if (localVoicesLoading) {

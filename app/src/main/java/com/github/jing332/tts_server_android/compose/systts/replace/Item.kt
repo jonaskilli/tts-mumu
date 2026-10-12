@@ -2,16 +2,10 @@ package com.github.jing332.tts_server_android.compose.systts.replace
 
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.combinedClickable
-import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.requiredSize
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.selection.toggleable
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.DeleteForever
 import androidx.compose.material.icons.filled.Edit
@@ -36,8 +30,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.scale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
@@ -46,7 +38,6 @@ import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.github.jing332.tts_server_android.R
 import com.github.jing332.tts_server_android.compose.systts.ConfigDeleteDialog
@@ -94,52 +85,37 @@ internal fun Item(
     ) {
         Row(modifier = Modifier.fillMaxSize()) {
             // 多选模式显示选中状态, 非多选模式显示启用开关
-            // 对勾盒（10-12 二改）：上一版把盒收窄到 24dp 去对齐组名，结果字形与文字只剩 3dp
-            // 间隙、整行发挤（用户实拍「改完太挤了」）。改回 32dp 盒（＝密钥页规格，14dp 自然间隙），
-            // 对齐改由**组头侧**解决——GroupItem 的箭头盒同步放宽到 32dp，两边文字线都落在 40dp
+            // 10-13 用户令「替换规则也要回从前，就撤掉 10-12 的修改，就是让参照密钥管理改的那几批」：
+            // 10-12 那几笔（9bd520e 收盒到 24 / 063c4ab 回 32 / 4cd4f57 加 requiredSize(48) 热区）
+            // 全撤，**回到 M3 原生 Checkbox**——不再自绘 Box + requiredSize 外扩。
+            // 那些改动是为了「对勾字形与组名文字线对齐」，一路改了四版、越改越紧；
+            // 回原版后对勾盒由 Checkbox 自己定（48dp 触摸盒 + 4dp 内衬），文字线不再硬凑。
+            // ⚠️ 别再走「自绘盒 + requiredSize 对齐」这条路。
             if (isSelectionMode) {
-                Box(
-                    modifier = Modifier
-                        .align(Alignment.CenterVertically)
-                        .size(width = 32.dp, height = 36.dp)
-                        .requiredSize(width = 48.dp, height = 48.dp)
-                        .clip(CircleShape)
-                        .clickable { onToggleSelection() },
-                    contentAlignment = Alignment.Center
-                ) {
-                    Checkbox(
-                        checked = isSelected,
-                        onCheckedChange = null,
-                        modifier = Modifier.scale(0.85f),
-                    )
-                }
+                Checkbox(
+                    modifier = Modifier.align(Alignment.CenterVertically),
+                    checked = isSelected,
+                    onCheckedChange = { onToggleSelection() }
+                )
             } else {
-                Box(
+                Checkbox(
                     modifier = Modifier
                         .align(Alignment.CenterVertically)
-                        .size(width = 24.dp, height = 36.dp)
-                        .requiredSize(width = 48.dp, height = 48.dp)
-                        .toggleable(
-                            value = isEnabled,
-                            role = Role.Switch,
-                            onValueChange = { onCheckedChange(it) }
-                        )
                         .semantics {
+                            role = Role.Switch
                             context
                                 .getString(
                                     if (isEnabled) R.string.rule_enabled_desc else R.string.rule_disabled_desc,
                                     name
                                 )
-                                .let { contentDescription = it }
+                                .let {
+                                    contentDescription = it
+                                    stateDescription = it
+                                }
                         },
-                    contentAlignment = Alignment.Center
-                ) {
-                    Checkbox(
-                        checked = isEnabled,
-                        onCheckedChange = null,
-                        modifier = Modifier.scale(0.85f),
-                    )
-                }
+                    checked = isEnabled,
+                    onCheckedChange = onCheckedChange
+                )
             }
             Text(
                 name,

@@ -15,7 +15,6 @@ import androidx.compose.ui.semantics.CustomAccessibilityAction
 import androidx.compose.ui.semantics.customActions
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.state.ToggleableState
-import androidx.compose.ui.unit.dp
 import com.github.jing332.tts_server_android.R
 import com.github.jing332.tts_server_android.compose.systts.GroupItem
 
@@ -69,11 +68,9 @@ internal fun Group(
         onToggleSelect = onToggleSelect,
         // 第9项: 替换规则多选时, 点击右侧方框=选中, 点击分组名/图标=展开
         selectOnRowClick = false,
-        // 组名文字线对齐条目行（10-12 用户令「分组的文字和下面规则的名字，到底这几次都改的啥啊」）：
-        // 条目行对勾盒写 `.size(24/32).requiredSize(48)`——**requiredSize 真的占 48dp 布局宽**
-        //（依赖源码 SizeNode.measure 自证：返回 layout(placeable.width…)，placeable 按 48 约束量出），
-        // 加卡外距 8 ⇒ 规则名文字线恒在 56dp；组头盒必须同样 48 才齐（默认 32 会让组名偏左 16dp）。
-        arrowBoxWidth = 48.dp,
+        // arrowBoxWidth 不再传（10-13 用户令「替换规则也要回从前，撤掉 10-12 让参照密钥管理改的那几批」）：
+        // 那条 48dp 是配合条目行 requiredSize(48) 硬凑文字线用的；条目行已回 M3 原生 Checkbox，
+        // 组头也随之回默认 32dp，两边都回原版观感。c14de95 那笔对齐实验整撤。
         actions = { dismiss ->
             DropdownMenuItem(
                 leadingIcon = {

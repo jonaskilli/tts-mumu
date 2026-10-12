@@ -3,7 +3,6 @@ package com.github.jing332.tts_server_android.compose.systts.role
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.BorderStroke
-import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
@@ -69,6 +68,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.drake.net.utils.withIO
+import com.github.jing332.common.ACCENT_GREEN
 import com.github.jing332.database.dbm
 import com.github.jing332.database.entities.systts.TtsConfigurationDTO
 import com.github.jing332.tts_server_android.R
@@ -132,22 +132,16 @@ private val BOOK_NAME_COLOR = Color(0xFF333333)
  * 十主题自动对齐各自 Radix 族的 step4，深色走各族 dark 表。
  *
  * 演进史：secondaryContainer→background 插值 0.4→0.65→14f217c 与卡底同源（=surfaceContainerLow，
- * 装机实锤「标签太淡」：与页底只差 9/5/4 个 RGB，块看不见）→ 本版改回 secondaryContainer 但
+ * 装机实锤「标签太淡」：与页底只差 9/5/4 个 RGB，块看不见）→ 改回 secondaryContainer 但
  * 色阶已整体换 Radix，标签(step4)与卡底(step2)天生分开，不再撞色。
  * 文字仍用 onSecondaryContainer：对比度只会更大。
+ *
+ * 10-12 晚本页「发音人标签」曾另立一档硬编码浅色（底 #F0FAF3 / 字 #006D3A），
+ * 10-13 用户实拍发现「它不跟随主题而变化」⇒ 该档退役，退回下面这个单源。
+ * ⚠️ 别再给本页标签引浅色专用色值：十套主题 × 深浅色共 20 组，硬编码只能覆盖一组。
  */
 @Composable
 internal fun softContainerColor(): Color = MaterialTheme.colorScheme.secondaryContainer
-
-// 角色列表「发音人标签」专用色（10-12 用户令「上次改的这个标签不行，还是得退回，并且再提出
-// 几种底色的方案」→ 选定方案②）：
-// 底 #F0FAF3（极淡绿）／ 字 #006D3A（主题绿，GREEN 浅色 primary）／ 无描边。
-// 演进：10-12 上一版取 v10 翠绿档（#ECF8F1 底 + #A8DDBE 描边 + #009452 字）被用户否掉；
-// 本档最轻——块感靠字色与极淡底，不再有描边，「一片浅色块」的观感去掉。
-// ⚠️ 单独一档，不并进 softContainerColor（那档还挂在书栏卡、回原位键、分类胶囊等处）。
-// 深色主题仍走 secondaryContainer（本档是浅色口径）
-internal val RoleTagContainer = Color(0xFFF0FAF3)
-internal val RoleTagText = Color(0xFF006D3A)
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
@@ -1025,9 +1019,9 @@ private fun RoleRow(
                     // 名字短时标签可超半屏；两边都长时名字已被上限保了半屏，标签拿到剩下的
                     Surface(
                         shape = RoundedCornerShape(8.dp),
-                        // 标签底色（10-12 二改）：浅色走极淡绿档（底 #F0FAF3 + 主题绿字，无描边），
-                        // 深色仍用全站 secondaryContainer（本档是浅色口径，暗底上不可用）
-                        color = if (isSystemInDarkTheme()) softContainerColor() else RoleTagContainer,
+                        // 标签底色（10-13 退回）：走全站单源 softContainerColor()（=secondaryContainer），
+                        // 十套主题与深浅色自动成立。10-12 那版浅色硬编码极淡绿档已退役——它不跟主题变色
+                        color = softContainerColor(),
                         border = null,
                         modifier = Modifier
                             .combinedClickable(
@@ -1049,8 +1043,8 @@ private fun RoleRow(
                                 }
                             },
                             style = MaterialTheme.typography.bodySmall.copy(fontSize = 13.sp),
-                            color = if (isSystemInDarkTheme()) MaterialTheme.colorScheme.onSecondaryContainer
-                            else RoleTagText,
+                            // 字色（10-13 退回）：与底同源，onSecondaryContainer 对比度只会更大
+                            color = MaterialTheme.colorScheme.onSecondaryContainer,
                             maxLines = 1,
                             // 文本已在 voiceTagText 里按框宽收口，正常不会溢出；这里用
                             // Clip 而不是 Ellipsis——万一字体比我估的宽，也绝不吐「…」
@@ -1120,7 +1114,7 @@ private fun ReleaseDialog(
                                 processed.value = processed.value + name
                                 onFix(rec.name, name)
                             }) {
-                                Text(stringResource(R.string.role_release_fix), color = Color(0xFF2E7D32))
+                                Text(stringResource(R.string.role_release_fix), color = Color(ACCENT_GREEN))
                             }
                             TextButton(onClick = {
                                 processed.value = processed.value + name

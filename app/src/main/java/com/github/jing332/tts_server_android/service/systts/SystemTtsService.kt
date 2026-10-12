@@ -791,17 +791,44 @@ class SystemTtsService : TextToSpeechService(), IEventDispatcher {
                     dispFull.startsWith(tagName) -> disp
                     else -> "$tagName，$disp"
                 }
-                // 角色名只认朗读规则实时分析出的角色名（handleText 透传），旁白等无角色名不显牌；
-                // 10-10 用户令：【】加粗改灰绿小牌（行流定稿，与插件名牌同语汇）；
-                // 小牌用背景色 span（LogScreen 侧不重映射此色，见哨兵色表）
+                // 角色名只认朗读规则实时分析出的角色名（handleText 透传），旁白等无角色名不显；
+                //
+                // 10-13 修正（用户实报「角色名也没有改颜色呀，你上次不是说要改吗」）：
+                // 旧写法把**整段身份信息**包在一个 `<font color=VOICE_META_COLOR>` 里，
+                // 角色名/插件名各自再套一层 font 嵌在里面。截图实锤这两层嵌套**都没生效**：
+                // 角色名段该是 G>R 的灰绿（roleChipColor #4E6E57）、插件名段该是 B>R 的灰青
+                //（pluginChipColor #5B6472），实测两段的色相特征占比都是 0，与旁白发音人段
+                // 的 RGB 完全一致——即外层灰紫把两个内层 font 一起盖掉了。
+                //
+                // 根因在渲染链的 span 叠加：HtmlCompat.fromHtml 产出的 Spanned 里，
+                // 嵌套 font 会落成**区间互相包含**的多个 ForegroundColorSpan，再由
+                // ComposeExtensions.toAnnotatedString 逐个 addStyle 到同一条 AnnotatedString。
+                // Compose 对区间重叠的 span 取「列表中靠后者」，于是外层灰紫胜出。
+                //（外层与内层的先后由 Spanned 的 span 顺序决定，属平台实现细节；本机无 JDK
+                // 无法编译验证，故不依赖这个顺序——直接消除嵌套，让结论与顺序无关。）
+                //
+                // 修法：**不再套外层 font**，角色名 / 声音信息 / 插件名各自只包一层自己的 font。
+                // 区间不再包含，就没有谁盖谁的问题。
                 if (roleName.isNotBlank()) {
                     append("<font color=\"" + ROLE_CHIP_COLOR + "\"><b>")
                     append(roleName)
                     append("</b></font>")
-                    if (voiceText.isNotEmpty()) append("，")
+                    // 分隔逗号留在**声音信息自己的 font 里**：不给它套 font 的话，它会落回
+                    // 正文默认色，在灰绿角色名与灰紫声音信息之间冒出一个第三色的标点。
+                    // （旧写法整段共用一个外层 font，逗号自然是灰紫；拆段后必须显式补上。）
+                    if (voiceText.isNotEmpty())
+                        append("<font color=\"" + VOICE_META_COLOR + "\">，</font>")
                 }
-                append(voiceText)
-                if (paramsInfo.isNotEmpty()) append("，").append(paramsInfo)
+                if (voiceText.isNotEmpty()) {
+                    append("<font color=\"" + VOICE_META_COLOR + "\">")
+                    append(voiceText)
+                    append("</font>")
+                }
+                if (paramsInfo.isNotEmpty()) {
+                    append("<font color=\"" + VOICE_META_COLOR + "\">，")
+                    append(paramsInfo)
+                    append("</font>")
+                }
                 // 插件名小牌缀行尾（10-10 用户令）：插件驱动的配置才显示；本地音效无插件名不加。
                 // 限字数复用「限制显示名称长度」滑杆（与显示名同一上限），超出「…」。
                 // pluginId→插件名缓存：configInfo 每请求拼装一次，查库不能逐请求走；
@@ -822,13 +849,15 @@ class SystemTtsService : TextToSpeechService(), IEventDispatcher {
                         // 10-11 用户令：撤插件名前的全角空格（原为 "　<font…>（"）——
                         // 括号本身就是分隔符，插件名又自带灰青色，三重分隔里那个空格多余；
                         // 且它占一个全角宽，窄屏上白白挤掉正文的换行空间
+                        // ⚠️ 括号留在**这个 font 内部**：只包名字会让括号落到默认色，
+                        // 视觉上把「（豆包-猫箱）」切成两截色。括号前不加逗号（原口径，括号自身即分隔）
                         append("<font color=\"" + PLUGIN_CHIP_COLOR + "\">（")
                         append(pnameLimited)
                         append("）</font>")
                     }
                 }
             }
-            "<font color=\"" + VOICE_META_COLOR + "\">" + meta + "</font>"
+            meta
         } else ""
     }
 

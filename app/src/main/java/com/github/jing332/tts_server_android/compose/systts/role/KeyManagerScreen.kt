@@ -118,6 +118,7 @@ import androidx.lifecycle.compose.LocalLifecycleOwner
 import com.drake.net.utils.withIO
 import org.json.JSONArray
 import org.json.JSONObject
+import com.github.jing332.common.ACCENT_GREEN
 import com.github.jing332.tts_server_android.R
 import com.github.jing332.tts_server_android.compose.nav.NavTopAppBar
 import com.github.jing332.tts_server_android.service.systts.help.CharacterRecordsFile
@@ -185,11 +186,11 @@ internal fun FlatTextAction(text: String, color: Color, onClick: () -> Unit) {
 }
 
 /**
- * 测试通过的绿点：M3 没有 success 槽，也不能跟随主题走（红主题下「通过」会变红），
- * 只能用固定语义绿——这里的固定是有意的，别顺手换成 colorScheme。
- * （密钥池页的测试灯同用此色，故开放给同包的 KeyPoolScreen）
+ * 测试通过的绿点（10-13 统一）：改取全站强调绿 [ACCENT_GREEN]（＝勾选框那个绿），
+ * 原来单独一支 #2E7D32。仍**不能跟随主题**（红主题下「通过」会变红），固定语义绿是有意的，
+ * 别顺手换成 colorScheme。（密钥池页的测试灯同用此色，故开放给同包的 KeyPoolScreen）
  */
-internal val TEST_PASS_COLOR = Color(0xFF2E7D32)
+internal val TEST_PASS_COLOR = Color(ACCENT_GREEN)
 
 /** 测试通过的黄点（10-03）：可达但思考仍开启（分配可能失败/慢）——固定琥珀，理由同绿点 */
 internal val TEST_WARN_COLOR = Color(0xFFF9A825)

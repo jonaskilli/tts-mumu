@@ -89,6 +89,13 @@ interface SystemTtsV2Dao {
     @Query("SELECT DISTINCT categoryPath FROM system_tts_v2 WHERE groupId = :groupId AND categoryPath != '' ORDER BY categoryPath ASC")
     fun getCategoryPathsByGroup(groupId: Long): List<String>
 
+    /**
+     * 批量插入（10-13 插件入库提速）：一次事务写多条，省掉逐条 insert 各自开事务的开销。
+     * 与原 `insert(vararg)` 同为 REPLACE 策略，语义一致。
+     */
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    fun insertAll(tts: List<SystemTtsV2>)
+
     @Query("UPDATE system_tts_v2 SET categoryPath = :categoryPath WHERE id = :id")
     fun updateCategoryPath(id: Long, categoryPath: String)
 
