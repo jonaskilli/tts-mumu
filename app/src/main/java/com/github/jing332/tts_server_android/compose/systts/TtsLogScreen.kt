@@ -228,7 +228,9 @@ internal fun TtsLogScreen(vm: TtsLogViewModel = viewModel()) {
         }
         val text = displayLogs.filter { it in checkedEntries }
             .joinToString(separator = "\n\n") {
-                "${it.time} | ${it.getLevelChar()} | ${it.message.toPlainText()}"
+                // 折叠次数写进文本（10-12 用户令）：×N 原来只体现在丸上，复制出去就丢了次数
+                val times = if (it.repeatCount > 1) "（×${it.repeatCount}）" else ""
+                "${it.time} | ${it.getLevelChar()} | ${it.message.toPlainText()}$times"
             }
         clipboard.setText(AnnotatedString(text))
         exitSelection()
