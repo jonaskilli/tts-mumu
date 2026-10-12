@@ -227,6 +227,7 @@ class KeepAliveSettingsActivity : ComposeActivity() {
         // 厂商白名单引导对话框
         if (showManufacturerWhitelistDialog) {
             androidx.compose.material3.AlertDialog(
+                containerColor = androidx.compose.material3.MaterialTheme.colorScheme.surfaceContainerLow,
                 onDismissRequest = { showManufacturerWhitelistDialog = false },
                 title = { Text(stringResource(R.string.manufacturer_whitelist_title)) },
                 text = { Text(stringResource(R.string.manufacturer_whitelist_message)) },

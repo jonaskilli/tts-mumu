@@ -440,6 +440,7 @@ internal fun ListManagerScreen(
     if (showSubGroupExtractToGroup != null) {
         val (group, path) = showSubGroupExtractToGroup!!
         AlertDialog(
+            containerColor = androidx.compose.material3.MaterialTheme.colorScheme.surfaceContainerLow,
             onDismissRequest = { showSubGroupExtractToGroup = null },
             title = { Text("转为一级分组") },
             text = { Text("将子分组 \"${path.substringAfterLast('/')}\" 移出为独立的一级分组？") },
@@ -1118,6 +1119,7 @@ internal fun ListManagerScreen(
 
         if (hasSubGroups) {
             AlertDialog(
+                containerColor = androidx.compose.material3.MaterialTheme.colorScheme.surfaceContainerLow,
                 onDismissRequest = { showConvertToSubGroup = null },
                 title = { Text("无法转换") },
                 text = { Text("当前分组包含子分组，无法转换为子分组。请先释放所有子分组。") },
@@ -1131,6 +1133,7 @@ internal fun ListManagerScreen(
             // 用户 09-12：选项列表统一为圆圈单选 + 底部确认（与「合并同类配置项」同款）
             var convertTargetId by remember { mutableStateOf<Long?>(null) }
             AlertDialog(
+                containerColor = androidx.compose.material3.MaterialTheme.colorScheme.surfaceContainerLow,
                 onDismissRequest = { showConvertToSubGroup = null },
                 title = { Text("转为子分组") },
                 text = {
@@ -1225,6 +1228,7 @@ internal fun ListManagerScreen(
         // 用户 09-12 拍板方案B：先点圆圈选中目标分组，再按底部「合并」确认（防手滑，合并会删除源分组）
         var mergeTargetId by remember(sourceGroup.id) { mutableStateOf<Long?>(null) }
         AlertDialog(
+            containerColor = androidx.compose.material3.MaterialTheme.colorScheme.surfaceContainerLow,
             onDismissRequest = { showMergeGroup = null },
             // 用户 09-12 拍板：套列表类弹窗宽版，标题不再折行；圆角维持 MD3 官方
             modifier = Modifier.fillMaxWidth(0.9f),
@@ -1391,6 +1395,7 @@ internal fun ListManagerScreen(
             }.toMap()
         }
         AlertDialog(
+            containerColor = androidx.compose.material3.MaterialTheme.colorScheme.surfaceContainerLow,
             onDismissRequest = { showRenamePrefix = null },
             title = { Text("修改子分组前缀") },
             text = {
@@ -1515,6 +1520,7 @@ internal fun ListManagerScreen(
         // 用户 09-12：选项列表统一为圆圈单选 + 底部确认（与「合并同类配置项」同款）
         var convertMultiTargetId by remember { mutableStateOf<Long?>(null) }
         AlertDialog(
+            containerColor = androidx.compose.material3.MaterialTheme.colorScheme.surfaceContainerLow,
             onDismissRequest = { showConvertToSubGroupMulti = false },
             title = { Text("转为子分组") },
             text = {
@@ -1669,6 +1675,7 @@ internal fun ListManagerScreen(
         // 用户 09-12：选项列表统一为圆圈单选 + 底部确认（与「合并同类配置项」同款）
         var extractPath by remember(targetGroup.id) { mutableStateOf<String?>(null) }
         AlertDialog(
+            containerColor = androidx.compose.material3.MaterialTheme.colorScheme.surfaceContainerLow,
             onDismissRequest = { showExtractSubGroup = null },
             title = { Text("移动子分组") },
             text = {
@@ -1827,6 +1834,7 @@ internal fun ListManagerScreen(
         // 选中项 = 目标一级分组(路径为空) 或 其下某个子分组(带路径)
         var moveEnabledTarget by remember { mutableStateOf<Pair<Long, String>?>(null) }
         AlertDialog(
+            containerColor = androidx.compose.material3.MaterialTheme.colorScheme.surfaceContainerLow,
             onDismissRequest = { showMoveEnabledDialog = null },
             // 用户 09-11 晚终裁：列表类弹窗宽度回宽版（0.92 屏宽，原版观感）；圆角维持 MD3 官方
             modifier = Modifier.fillMaxWidth(0.92f),
@@ -1986,6 +1994,7 @@ internal fun ListManagerScreen(
         // 用户 09-12：目标分组列表统一为圆圈单选 + 底部确认（源子分组仍为多选勾选）
         var moveSubGroupsTargetId by remember { mutableStateOf<Long?>(null) }
         AlertDialog(
+            containerColor = androidx.compose.material3.MaterialTheme.colorScheme.surfaceContainerLow,
             onDismissRequest = { showMoveSubGroupsDialog = null },
             // 用户 09-11 晚终裁：列表类弹窗宽度回宽版（0.92 屏宽，原版观感）；圆角维持 MD3 官方
             modifier = Modifier.fillMaxWidth(0.92f),
@@ -2144,6 +2153,7 @@ internal fun ListManagerScreen(
         // 用户 09-12：目标分组列表统一为圆圈单选 + 底部确认（与「合并同类配置项」同款）
         var moveSingleTargetId by remember { mutableStateOf<Long?>(null) }
         AlertDialog(
+            containerColor = androidx.compose.material3.MaterialTheme.colorScheme.surfaceContainerLow,
             onDismissRequest = { showMoveSingleSubGroupDialog = null },
             // 用户 09-11 晚终裁：列表类弹窗宽度回宽版（0.92 屏宽，原版观感）；圆角维持 MD3 官方
             modifier = Modifier.fillMaxWidth(0.92f),
@@ -2247,6 +2257,7 @@ internal fun ListManagerScreen(
         val screenHeight = LocalConfiguration.current.screenHeightDp.dp
 
         AlertDialog(
+            containerColor = androidx.compose.material3.MaterialTheme.colorScheme.surfaceContainerLow,
             onDismissRequest = { showConvertSubGroupsToTopLevel = null },
             // 用户 09-11 晚终裁：列表类弹窗宽度回宽版（0.92 屏宽，原版观感）；圆角维持 MD3 官方
             modifier = Modifier.fillMaxWidth(0.92f),
@@ -2441,6 +2452,7 @@ internal fun ListManagerScreen(
     if (showDeleteSelectedDialog) {
         val deleteTargets = models.filter { it.group.id in selectedGroupIds }
         AlertDialog(
+            containerColor = androidx.compose.material3.MaterialTheme.colorScheme.surfaceContainerLow,
             onDismissRequest = { showDeleteSelectedDialog = false },
             title = { Text("删除分组") },
             text = { Text("确定删除选中的 ${deleteTargets.size} 个分组及其音色配置吗？") },
@@ -2727,6 +2739,7 @@ internal fun ListManagerScreen(
     var pendingInvalidDelete by remember { mutableStateOf<PendingInvalidDelete?>(null) }
     if (showInvalidDetail && invalidSourceCounts.isNotEmpty()) {
         AlertDialog(
+            containerColor = androidx.compose.material3.MaterialTheme.colorScheme.surfaceContainerLow,
             onDismissRequest = {
                 showInvalidDetail = false
                 expandedSources = emptySet()
@@ -2967,6 +2980,7 @@ internal fun ListManagerScreen(
     var showRestartDialog by remember { mutableStateOf(false) }
     if (showRestartDialog) {
         AlertDialog(
+            containerColor = androidx.compose.material3.MaterialTheme.colorScheme.surfaceContainerLow,
             onDismissRequest = { showRestartDialog = false },
             title = { Text("选择操作") },
             text = {
@@ -3990,6 +4004,7 @@ private data class PendingInvalidDelete(
 private fun CrashDialog(text: String, onDismiss: () -> Unit) {
     val clipboard = LocalClipboardManager.current
     AlertDialog(
+        containerColor = androidx.compose.material3.MaterialTheme.colorScheme.surfaceContainerLow,
         onDismissRequest = onDismiss,
         title = { Text("检测到上次异常记录") },
         text = {

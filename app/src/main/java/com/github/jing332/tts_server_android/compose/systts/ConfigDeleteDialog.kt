@@ -20,6 +20,7 @@ fun ConfigDeleteDialog(
     onConfirm: () -> Unit,
 ) {
     AlertDialog(
+        containerColor = androidx.compose.material3.MaterialTheme.colorScheme.surfaceContainerLow,
         onDismissRequest = onDismissRequest,
         title = { Text(title) },
         text = {

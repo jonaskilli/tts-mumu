@@ -3,6 +3,7 @@ package com.github.jing332.tts_server_android.compose.systts.role
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
@@ -137,6 +138,14 @@ private val BOOK_NAME_COLOR = Color(0xFF333333)
  */
 @Composable
 internal fun softContainerColor(): Color = MaterialTheme.colorScheme.secondaryContainer
+
+// 角色列表「发音人标签」专用色（10-12 用户令「直接用角色管理v10的那个绿色就好，省事儿」）：
+// 取自角色管理插件 v10 主题「翠绿」—— main #009452 / tint #ECF8F1 / border #A8DDBE。
+// ⚠️ 单独一档，不并进上面的 softContainerColor：那档还挂在书栏卡、回原位键、分类胶囊等处，
+// 改它会连带一整片；这里只服务角色行的标签框。深色主题仍走 secondaryContainer（v10 色是浅色口径）
+internal val RoleTagContainer = Color(0xFFECF8F1)
+internal val RoleTagBorder = Color(0xFFA8DDBE)
+internal val RoleTagText = Color(0xFF009452)
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
@@ -567,6 +576,7 @@ fun RoleListScreen(
         val hasMerged = CharacterRecordsFile.splitAliases(rec.aliases)
             .any { it.trim() != rec.name.trim() }
         AlertDialog(
+            containerColor = androidx.compose.material3.MaterialTheme.colorScheme.surfaceContainerLow,
             onDismissRequest = { menuFor = null },
             title = { Text(stringResource(R.string.role_menu_title)) },
             text = {
@@ -622,6 +632,7 @@ fun RoleListScreen(
     // ===== 合并+跟随角色：在标记里选目标 =====
     mergeFollowFor?.let { candidates ->
         AlertDialog(
+            containerColor = androidx.compose.material3.MaterialTheme.colorScheme.surfaceContainerLow,
             onDismissRequest = { mergeFollowFor = null },
             title = { Text(stringResource(R.string.role_merge_follow_title)) },
             text = {
@@ -712,6 +723,7 @@ fun RoleListScreen(
     deleteIdx?.let { targets ->
         val names = targets.mapNotNull { records.getOrNull(it)?.name }
         AlertDialog(
+            containerColor = androidx.compose.material3.MaterialTheme.colorScheme.surfaceContainerLow,
             onDismissRequest = { deleteIdx = null },
             title = { Text(stringResource(R.string.role_list_delete_title)) },
             text = { Text(stringResource(R.string.role_list_delete_text, names.size, names.take(5).joinToString("、"))) },
@@ -1007,8 +1019,11 @@ private fun RoleRow(
                     // 名字短时标签可超半屏；两边都长时名字已被上限保了半屏，标签拿到剩下的
                     Surface(
                         shape = RoundedCornerShape(8.dp),
-                        // 浅一档容器色（「方案一」）：与书栏卡共用 softContainerColor 同色
-                        color = softContainerColor(),
+                        // 标签底色（10-12）：浅色走 v10 翠绿专用档（浅底 + 细描边 + 翠绿字），
+                        // 深色仍用全站 secondaryContainer（v10 那套是浅色口径，暗底上不可用）
+                        color = if (isSystemInDarkTheme()) softContainerColor() else RoleTagContainer,
+                        border = if (isSystemInDarkTheme()) null
+                        else BorderStroke(1.dp, RoleTagBorder),
                         modifier = Modifier
                             .combinedClickable(
                                 onClick = onTagClick,
@@ -1029,7 +1044,8 @@ private fun RoleRow(
                                 }
                             },
                             style = MaterialTheme.typography.bodySmall.copy(fontSize = 13.sp),
-                            color = MaterialTheme.colorScheme.onSecondaryContainer,
+                            color = if (isSystemInDarkTheme()) MaterialTheme.colorScheme.onSecondaryContainer
+                            else RoleTagText,
                             maxLines = 1,
                             // 文本已在 voiceTagText 里按框宽收口，正常不会溢出；这里用
                             // Clip 而不是 Ellipsis——万一字体比我估的宽，也绝不吐「…」
@@ -1067,6 +1083,7 @@ private fun ReleaseDialog(
     val allNames = (listOf(rec.name) + CharacterRecordsFile.splitAliases(rec.aliases))
         .distinctBy { it.trim() }
     AlertDialog(
+        containerColor = androidx.compose.material3.MaterialTheme.colorScheme.surfaceContainerLow,
         onDismissRequest = onDismiss,
         title = { Text(stringResource(R.string.role_release_title)) },
         text = {
@@ -1131,6 +1148,7 @@ private fun EditNamesDialog(
         )
     }
     AlertDialog(
+        containerColor = androidx.compose.material3.MaterialTheme.colorScheme.surfaceContainerLow,
         onDismissRequest = onDismiss,
         title = { Text(stringResource(R.string.role_list_menu_rename)) },
         text = {

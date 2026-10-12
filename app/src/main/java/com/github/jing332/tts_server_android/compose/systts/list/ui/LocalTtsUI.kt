@@ -77,6 +77,7 @@ class LocalTtsUI() : IConfigUI() {
         var showPcmSampleRateHelpDialog by remember { mutableStateOf(false) }
         if (showDirectPlayHelpDialog)
             AlertDialog(
+                containerColor = androidx.compose.material3.MaterialTheme.colorScheme.surfaceContainerLow,
                 onDismissRequest = { showDirectPlayHelpDialog = false },
                 title = { Text(stringResource(id = R.string.systts_direct_play_help)) },
                 text = { Text(stringResource(id = R.string.systts_direct_play_help_msg)) },
@@ -88,6 +89,7 @@ class LocalTtsUI() : IConfigUI() {
             )
         if (showPcmSampleRateHelpDialog)
             AlertDialog(
+                containerColor = androidx.compose.material3.MaterialTheme.colorScheme.surfaceContainerLow,
                 onDismissRequest = { showPcmSampleRateHelpDialog = false },
                 title = { Text(stringResource(id = R.string.systts_pcm_sample_rate_help)) },
                 text = { Text(stringResource(id = R.string.systts_pcm_sample_rate_help_msg)) },

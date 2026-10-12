@@ -15,6 +15,7 @@ fun TextFieldDialog(
     onConfirm: () -> Unit
 ) {
     AlertDialog(onDismissRequest = onDismissRequest,
+        containerColor = androidx.compose.material3.MaterialTheme.colorScheme.surfaceContainerLow,
         title = {
             Text(title)
         },

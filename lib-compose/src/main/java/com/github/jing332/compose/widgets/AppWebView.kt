@@ -70,6 +70,7 @@ fun AppWebView(
         val msg = showAlertDialog!!.second
         val result = showAlertDialog!!.third
         AlertDialog(onDismissRequest = {
+            containerColor = androidx.compose.material3.MaterialTheme.colorScheme.surfaceContainerLow,
             result.cancel()
             showAlertDialog = null
         },

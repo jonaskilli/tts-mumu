@@ -44,6 +44,7 @@ fun LoadingDialog(
     text: String? = null
 ) {
     AlertDialog(
+        containerColor = androidx.compose.material3.MaterialTheme.colorScheme.surfaceContainerLow,
         onDismissRequest = onDismissRequest,
         properties = DialogProperties(dismissOnBackPress = dismissOnBackPress),
         confirmButton = {},

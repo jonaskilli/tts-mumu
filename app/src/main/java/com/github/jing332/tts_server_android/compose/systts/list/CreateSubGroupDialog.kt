@@ -56,6 +56,7 @@ fun CreateSubGroupDialog(
     val allFilteredSelected = filteredItems.isNotEmpty() && filteredItems.all { selectedIds.contains(it.id) }
 
     AlertDialog(
+        containerColor = androidx.compose.material3.MaterialTheme.colorScheme.surfaceContainerLow,
         onDismissRequest = onDismissRequest,
         title = { Text("新建子分组") },
         text = {

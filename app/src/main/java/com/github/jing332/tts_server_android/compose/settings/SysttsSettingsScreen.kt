@@ -68,6 +68,7 @@ internal fun ColumnScope.SysttsSettingsScreen(
     var showResetLoudnessDialog by remember { mutableStateOf(false) }
     if (showResetLoudnessDialog) {
         AlertDialog(
+            containerColor = androidx.compose.material3.MaterialTheme.colorScheme.surfaceContainerLow,
             onDismissRequest = { showResetLoudnessDialog = false },
             title = { Text(stringResource(R.string.loudness_reset)) },
             text = { Text(stringResource(R.string.loudness_reset_confirm, learnedCount)) },

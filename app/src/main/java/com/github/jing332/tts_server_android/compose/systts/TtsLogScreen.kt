@@ -510,6 +510,7 @@ internal fun TtsLogScreen(vm: TtsLogViewModel = viewModel()) {
             java.text.SimpleDateFormat("MM-dd HH:mm", java.util.Locale.getDefault())
         }
         AlertDialog(
+            containerColor = androidx.compose.material3.MaterialTheme.colorScheme.surfaceContainerLow,
             onDismissRequest = { showLogFilesDialog = false },
             title = { Text("日志文件") },
             text = {

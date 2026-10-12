@@ -2,9 +2,11 @@ package com.github.jing332.tts_server_android.compose.systts
 
 import android.content.Context
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.selection.SelectionContainer
@@ -36,7 +38,6 @@ import com.github.jing332.common.audio.AudioPlayer
 import com.github.jing332.common.utils.messageChain
 import com.github.jing332.common.utils.toParamText
 import com.github.jing332.common.utils.sizeToReadable
-import com.github.jing332.compose.widgets.AppDialog
 import com.github.jing332.compose.widgets.LoadingContent
 import com.github.jing332.database.entities.systts.AudioParams
 import com.github.jing332.database.entities.systts.SystemTtsV2
@@ -65,7 +66,11 @@ import splitties.init.appCtx
 
 private val logger = KotlinLogging.logger("AuditionDialog")
 
-@OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
+@OptIn(
+    androidx.compose.foundation.layout.ExperimentalLayoutApi::class,
+    // ModalBottomSheet / rememberModalBottomSheetState 是实验 API（10-12 换底部弹层引入）
+    androidx.compose.material3.ExperimentalMaterial3Api::class,
+)
 @Composable
 fun AuditionDialog(
     systts: SystemTtsV2,
@@ -228,13 +233,31 @@ fun AuditionDialog(
             }
         }
     }
-    AppDialog(
+    // 试听弹窗改**底部弹层**（10-12 用户令「这个试听弹窗固定不住，你得不要让它下移」）：
+    // 原来走 AppDialog（=自绘 Compose Dialog 窗口），两类毛病都来自那个内核：
+    //   ① 本机（iQOO/OriginOS）系统排版会把 Dialog 窗口下移约一个导航栏高，贴底内容被裁；
+    //   ② Dialog 按内容居中，合成中/出错时正文长度变化会让整块往下长，看着就是「飘」。
+    // M3 的 ModalBottomSheet 走自己的弹层窗口机制、锚定底部，两个毛病一起消掉；
+    // 三个槽（标题/正文/按钮）原样搬进 Column，行为不变
+    androidx.compose.material3.ModalBottomSheet(
         onDismissRequest = onDismissRequest,
+        sheetState = androidx.compose.material3.rememberModalBottomSheetState(skipPartiallyExpanded = true),
+        // 面板底统一（与换声弹窗/广场面板同色）
+        containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
+        dragHandle = null,
+        contentWindowInsets = { androidx.compose.foundation.layout.WindowInsets(0, 0, 0, 0) },
+    ) {
+        Column(
+            Modifier
+                .fillMaxWidth()
+                .navigationBarsPadding()
+                .padding(horizontal = 24.dp, vertical = 4.dp)
+        ) {
         // 退出键形态（目目 09-18 拍板方案①）：批量分类态=标题行「关闭」文字键——
         // 图标 ✕ 实机太不显眼（24/28dp 都试过），文字键直白且顶部锚定零溢出风险
         // （三枚键同排塞底部历史失败：内容宽 ~264dp 塞不下，末尾被挤成竖排）；
         // 单条试听态底部本就有「关闭」，标题行不再重复放退出键
-        title = {
+            // ---- 标题行（原 AppDialog.title 槽，原样搬入）----
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
                     stringResource(id = R.string.audition),
@@ -246,8 +269,7 @@ fun AuditionDialog(
                     }
                 }
             }
-        },
-        content = {
+            // ---- 正文（原 AppDialog.content 槽）----
             Column(Modifier.verticalScroll(rememberScrollState())) {
                 // 当前试听的声音名：分类时明确知道在给哪个发音人分配
                 if (systts.displayName.isNotBlank()) {
@@ -356,8 +378,8 @@ fun AuditionDialog(
                 }
 
             }
-        },
-        buttons = {
+            // ---- 按钮（原 AppDialog.buttons 槽）：Box 提供 BoxScope 接收者，签名不变 ----
+            Box(Modifier.fillMaxWidth()) {
             if (onPrev != null || onNext != null) {
                 // 分类/批量试听：切换按钮一行居中；批量分类态（onFinish 非空）的「完成」另起一行靠右。
                 // 10-11 用户实机：「完成」原与「下一个」同层抢位（align Center 与 CenterEnd 叠在
@@ -398,6 +420,6 @@ fun AuditionDialog(
                 }
             }
         }
-    )
-
+        }
+    }
 }

@@ -24,6 +24,7 @@ fun PluginSelectionDialog(onDismissRequest: () -> Unit, onSelect: (Plugin) -> Un
     val plugins = dbm.pluginDao.allEnabled
     if (plugins.isEmpty()) {
         AlertDialog(onDismissRequest = onDismissRequest,
+            containerColor = androidx.compose.material3.MaterialTheme.colorScheme.surfaceContainerLow,
             title = { Text(stringResource(id = R.string.select_plugin)) },
             text = {
                 Text(

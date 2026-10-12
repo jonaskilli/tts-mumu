@@ -94,16 +94,14 @@ internal fun Item(
     ) {
         Row(modifier = Modifier.fillMaxSize()) {
             // 多选模式显示选中状态, 非多选模式显示启用开关
-            // 对勾盒口径（10-12 用户令「参照密钥管理页实现符号和文字的左对齐，字号不变」）：
-            // 替换页组头走共享 GroupItem（8dp 行内距 + 24dp 箭头 ⇒ 组名文字线 32dp），
-            // 条目行若用 32dp 盒（+卡外距 8 ⇒ 文字线 40dp）就比组名右一截。盒宽收 24dp——
-            // 字形仍居中、视觉大小不变，文字线回到 32dp 与组名同线；
-            // 热区靠 requiredSize(48) 外扩，触控不缩水。垂直居中同密钥页（行 Row 默认顶对齐）
+            // 对勾盒（10-12 二改）：上一版把盒收窄到 24dp 去对齐组名，结果字形与文字只剩 3dp
+            // 间隙、整行发挤（用户实拍「改完太挤了」）。改回 32dp 盒（＝密钥页规格，14dp 自然间隙），
+            // 对齐改由**组头侧**解决——GroupItem 的箭头盒同步放宽到 32dp，两边文字线都落在 40dp
             if (isSelectionMode) {
                 Box(
                     modifier = Modifier
                         .align(Alignment.CenterVertically)
-                        .size(width = 24.dp, height = 36.dp)
+                        .size(width = 32.dp, height = 36.dp)
                         .requiredSize(width = 48.dp, height = 48.dp)
                         .clip(CircleShape)
                         .clickable { onToggleSelection() },

@@ -141,6 +141,7 @@ import com.github.jing332.tts_server_android.constant.AppConst
 import com.github.jing332.tts_server_android.service.systts.SystemTtsService
 import com.github.jing332.tts_server_android.utils.MyTools
 import com.drake.net.utils.withIO
+import com.github.jing332.tts_server_android.compose.SoftSegmentedTextToggle
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.conflate
 import kotlinx.coroutines.launch
@@ -216,6 +217,7 @@ fun PluginManagerScreen(sharedVM: SharedViewModel, onFinishActivity: () -> Unit)
             dbm.systemTtsV2.getByPluginId(plugin.pluginId).size
         }
         AlertDialog(
+            containerColor = androidx.compose.material3.MaterialTheme.colorScheme.surfaceContainerLow,
             onDismissRequest = { showDeleteDialog = null },
             title = { Text(stringResource(id = R.string.delete)) },
             text = {
@@ -1368,6 +1370,10 @@ private fun MarketplaceImportDialog(
                     if (curIdx in 0 until catalogList.size - 1) auditionItem = catalogList[curIdx + 1]
                 }
             },
+            // 「完成」键（10-12 用户令「音色广场的插件试听分类时，下方不是应该有个完成键吗」）：
+            // 传了 onFinish，AuditionDialog 就在底部动作行右侧挂「完成」——批量分类态没有保存键，
+            // 分完类只能靠 ✕ 干关，用户要一个明确的收尾动作
+            onFinish = { auditionItem = null },
             onDismissRequest = { auditionItem = null }
         )
     }
@@ -1578,8 +1584,12 @@ internal fun ImportByCategoryDialog(
     // 等待分类/自动下一个（10-10 用户令恢复旧版两开关，语义照 10-05 迁移前原样）：
     // 等待分类=试听播完不自动关弹窗（autoDismiss=false），留时间点分类；
     // 自动下一个=点了分类（真正分配，取消不算）后自动切下一个继续播
-    var waitCategorySwitch by remember { mutableStateOf(false) }
-    var autoNextSwitch by remember { mutableStateOf(false) }
+    // 两行为固定为「开」（10-12 用户令「让它常开，直接把这两个功能删掉，不用给它开或关」）：
+    //   等待分类=开 ⇒ autoDismiss=false，试听播完不自动关，留时间点分类
+    //   自动下一个=开 ⇒ **点了分类**才自动跳下一个（只看不点不动作，不影响「只试听」）
+    // 影响面已核：这两个状态只被下面两处读，删拨杆不动其他功能。原 SwitchRow 一并退役
+    val waitCategorySwitch = true
+    val autoNextSwitch = true
     // 入库方式两条道（10-11 用户定稿）：**不用模式开关**，改成选池子那屏底部的两个动作键——
     // 「试听分类」=进声音列表逐条听（点分类只改派落库分类，不影响导不导）；「直接入库」=不列音色、
     // 不试听，勾了池子直接按池名映射落库。
@@ -1610,6 +1620,44 @@ internal fun ImportByCategoryDialog(
                 loadingVoices = false
                 stage = 1
             }
+        }
+    }
+
+    // 「直接入库」：勾了池子就直接导，不列音色、不试听（原 confirmButton 逻辑原样搬来）。
+    // 10-12 抽成本地函数：分段框（无广场）与底部选项（带广场）两处都要用，避免各写一份
+    fun doDirectImport() {
+        importing = true
+        val pools = categories.filter { it.poolId in selectedPoolIds }
+        scope.launch {
+            val items = withContext(Dispatchers.IO) {
+                pools.flatMap { p ->
+                    runCatching { engine.getVoices(p.poolId) }.getOrNull().orEmpty()
+                        .filter { it.id.isNotBlank() }
+                        .map { v ->
+                            PluginCategoryImporter.VoiceItem(
+                                poolId = p.poolId,
+                                poolName = p.poolName,
+                                voiceId = v.id,
+                                voiceName = v.name,
+                                categoryOverride = null,
+                            )
+                        }
+                }
+            }
+            if (items.isEmpty()) {
+                importing = false
+                context.toast("所选分类下没有音色")
+                return@launch
+            }
+            val result = runCatching {
+                PluginCategoryImporter.importVoices(context, plugin, items) { progressText = it }
+            }
+            result.fold(
+                onSuccess = { count -> context.longToast("已导入 $count 个音色，已自动创建分组「${plugin.name}」") },
+                onFailure = { e -> context.longToast("导入失败: ${e.message}") }
+            )
+            importing = false
+            onDismiss()
         }
     }
 
@@ -1756,60 +1804,28 @@ internal fun ImportByCategoryDialog(
                 modifier = Modifier.padding(horizontal = 24.dp)
             )
         }
-        if (stage == 0) {
-            // 两动作改**胶囊**（10-12 用户令「上方两个选项做成胶囊」）：与来源切换胶囊同高同圆角，
-            // 摆在一起才读得出「两种走法并列」；原 TextButton 是裸字键，跟上面的来源条不像一套控件
-            Row(
-                Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 6.dp),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                ImportActionChip(
-                    label = "试听分类",
-                    enabled = !importing && hasSelection,
-                ) {
-                    val pools = categories.filter { it.poolId in selectedPoolIds }
-                    if (pools.isNotEmpty()) loadVoices(pools)
-                }
-                ImportActionChip(
-                    label = if (importing) "导入中" else "直接入库",
-                    enabled = !importing && hasSelection,
-                ) {
-                    // 直接入库：勾了池子就导，不列音色、不试听（原 confirmButton 逻辑原样搬迁）
-                    importing = true
-                    val pools = categories.filter { it.poolId in selectedPoolIds }
-                    scope.launch {
-                        val items = withContext(kotlinx.coroutines.Dispatchers.IO) {
-                            pools.flatMap { p ->
-                                runCatching { engine.getVoices(p.poolId) }.getOrNull().orEmpty()
-                                    .filter { it.id.isNotBlank() }
-                                    .map { v ->
-                                        PluginCategoryImporter.VoiceItem(
-                                            poolId = p.poolId,
-                                            poolName = p.poolName,
-                                            voiceId = v.id,
-                                            voiceName = v.name,
-                                            categoryOverride = null,
-                                        )
-                                    }
-                            }
+        // 「试听分类 / 直接入库」＝**两个选项**，不是胶囊（10-12 用户令）：用连通分段框
+        //（＝备份弹窗「完整备份/分享备份」那套：圆角外框 + 竖分隔 + 选中段带 ✓ 底色深一档）。
+        // 位置分两种：无广场插件摆在标题下（本块）；带广场插件挪到**下方右侧**（见底部动作行）——
+        // 那边顶部已有「联网广场/自带分类」来源分段，两个分段框叠在一起会读混
+        if (stage == 0 && onSwitchToMarket == null) {
+            SoftSegmentedTextToggle(
+                options = listOf("试听分类", "直接入库"),
+                // 两条走法点完即走（进声音列表 / 直接导库），没有持久选中态 ⇒ -1
+                selectedIndex = -1,
+                onSelect = { idx ->
+                    if (!importing && hasSelection) {
+                        if (idx == 0) {
+                            val pools = categories.filter { it.poolId in selectedPoolIds }
+                            if (pools.isNotEmpty()) loadVoices(pools)
+                        } else {
+                            doDirectImport()
                         }
-                        if (items.isEmpty()) {
-                            importing = false
-                            context.toast("所选分类下没有音色")
-                            return@launch
-                        }
-                        val result = runCatching {
-                            PluginCategoryImporter.importVoices(context, plugin, items) { progressText = it }
-                        }
-                        result.fold(
-                            onSuccess = { count -> context.longToast("已导入 $count 个音色，已自动创建分组「${plugin.name}」") },
-                            onFailure = { e -> context.longToast("导入失败: ${e.message}") }
-                        )
-                        importing = false
-                        onDismiss()
                     }
-                }
-            }
+                },
+                modifier = Modifier
+                    .padding(horizontal = 24.dp, vertical = 6.dp),
+            )
         }
         // 内容区（10-12 崩溃修复）：外层**不带** verticalScroll——stage1 的 LazyColumn
         // 嵌在可滚 Column 里会被测出无限高约束（IllegalStateException 实锤 11:27）。
@@ -1902,35 +1918,8 @@ internal fun ImportByCategoryDialog(
                             overflow = TextOverflow.Ellipsis,
                             modifier = Modifier.padding(bottom = 4.dp)
                         )
-                        // 等待分类/自动下一个（10-10 用户令恢复旧版两开关）：
-                        // 整行可点切对应开关，Toast 口径照 10-05 迁移前原样。
-                        // 两开关各 weight(1f)（10-12 用户报「自动下一个折行」）：Switch 固定宽
-                        // + spacedBy 挤压文字导致标签折行，等分后 3~4 字标签一行放下
-                        Row(
-                            Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(6.dp)
-                        ) {
-                            Box(Modifier.weight(1f)) {
-                                SwitchRow(
-                                    label = "等待分类",
-                                    checked = waitCategorySwitch,
-                                    onToggle = {
-                                        waitCategorySwitch = it
-                                        context.toast(if (it) "已开启：试听后等待选择分类" else "已关闭：试听后自动关闭")
-                                    }
-                                )
-                            }
-                            Box(Modifier.weight(1f)) {
-                                SwitchRow(
-                                    label = "自动下一个",
-                                    checked = autoNextSwitch,
-                                    onToggle = {
-                                        autoNextSwitch = it
-                                        context.toast(if (it) "已开启：选分类后自动试听下一个" else "已关闭：选分类后不自动切换")
-                                    }
-                                )
-                            }
-                        }
+                        // 两开关整撤（10-12 用户令「让它常开，把这两个功能删掉」）：行为已固定，
+                        // 不再需要用户拨；SwitchRow 这一对组件随之退役
                         CheckRow(
                             checked = allVoicesSelected,
                             onChecked = {
@@ -1975,21 +1964,40 @@ internal fun ImportByCategoryDialog(
             }
         }
         // 底部动作行（与广场弹窗同构）：左侧「上一步」、右侧「导入(N)」。
-        // ⚠️ stage 0 **整行不渲染**（10-12 用户令「底部少一行」）：首屏两动作已上移成胶囊，
-        // 此处只剩一个「取消」，而标题行右侧 ✕ 就是取消——留着是同一动作重复占一行
-        if (stage == 1) {
+        // ⚠️ 无广场插件的 stage 0 **整行不渲染**（10-12 用户令「底部少一行」）：那边两个选项
+        // 已在标题下成段（SoftSegmentedTextToggle），此处只剩一个「取消」，与标题行 ✕ 重复。
+        // 但**带广场插件**的 stage 0 要这行（10-12 用户令「两动作放下面右侧」）：顶端已有
+        // 「联网广场/自带分类」来源分段，两个选项落到右下就不打架
+        if (stage == 1 || (stage == 0 && onSwitchToMarket != null)) {
             Row(
                 Modifier
                     .fillMaxWidth()
                     .padding(horizontal = 24.dp, vertical = 6.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                if (categories.isNotEmpty()) {
-                    TextButton(enabled = !importing, onClick = { stage = 0; auditionIndex = -1 }) { Text("上一步") }
+                if (stage == 1) {
+                    if (categories.isNotEmpty()) {
+                        TextButton(enabled = !importing, onClick = { stage = 0; auditionIndex = -1 }) { Text("上一步") }
+                    } else {
+                        TextButton(enabled = !importing, onClick = onDismiss) { Text("取消") }
+                    }
+                    Spacer(Modifier.weight(1f))
                 } else {
-                    TextButton(enabled = !importing, onClick = onDismiss) { Text("取消") }
+                    // 带广场的 stage 0：两个**选项**（不是胶囊，10-12 用户令）靠右
+                    Spacer(Modifier.weight(1f))
+                    TextButton(
+                        enabled = !importing && hasSelection,
+                        onClick = {
+                            val pools = categories.filter { it.poolId in selectedPoolIds }
+                            if (pools.isNotEmpty()) loadVoices(pools)
+                        }
+                    ) { Text("试听分类") }
+                    TextButton(
+                        enabled = !importing && hasSelection,
+                        onClick = { doDirectImport() }
+                    ) { Text(if (importing) "导入中" else "直接入库") }
                 }
-                Spacer(Modifier.weight(1f))
+                if (stage == 1) {
                 TextButton(
                     enabled = !importing && importCount > 0,
                     onClick = {
@@ -2018,34 +2026,10 @@ internal fun ImportByCategoryDialog(
                         }
                     }
                 ) { Text(if (importing) "导入中" else "导入 $importCount 个音色") }
+                }
             }
         }
         }
-    }
-}
-
-/**
- * 分类入库的开关行（10-10 恢复旧版两开关的行形态）：Switch + 标签一行，供「等待分类/自动下一个」。
- */
-@Composable
-private fun SwitchRow(
-    label: String,
-    checked: Boolean,
-    onToggle: (Boolean) -> Unit,
-) {
-    Row(
-        modifier = Modifier
-            .clip(MaterialTheme.shapes.small)
-            .clickable { onToggle(!checked) }
-            .padding(vertical = 2.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Switch(checked = checked, onCheckedChange = { onToggle(it) })
-        Text(
-            text = label,
-            style = MaterialTheme.typography.bodyMedium,
-            modifier = Modifier.padding(start = 4.dp)
-        )
     }
 }
 

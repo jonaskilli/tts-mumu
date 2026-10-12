@@ -151,14 +151,8 @@ fun PluginVoiceMarketplaceDialog(
     categories: SnapshotStateMap<String, String> = remember { mutableStateMapOf<String, String>() },
 ) {
     val importMode = onImport != null
-    // 入库模式的两开关（10-10 恢复旧版语义，挪进广场顶部）：
-    // 等待分类=试听播完不自动关；自动下一个=点了分类自动切下一个。
-    // 试听弹窗是调用方弹的，开关状态经回调交出去
-    var waitCategorySwitch by remember { mutableStateOf(false) }
-    var autoNextSwitch by remember { mutableStateOf(false) }
-    LaunchedEffect(waitCategorySwitch, autoNextSwitch) {
-        onSwitchesChanged(waitCategorySwitch, autoNextSwitch)
-    }
+    // 入库模式两行为已固定（10-12 用户令「让它常开，直接删掉这两个功能」）：等待分类=开、
+    // 自动下一个=开，拨杆整撤；上报宿主的口径放在下方 importMode 分支里（LaunchedEffect 双开）
     val scope = rememberCoroutineScope()
     val keyboard = LocalSoftwareKeyboardController.current
 
@@ -348,43 +342,14 @@ fun PluginVoiceMarketplaceDialog(
                         )
                     }
 
-                    // ---- 入库模式：等待分类/自动下一个（10-10 恢复旧版语义）----
-                    // 两开关各 weight(1f)（10-12 用户报「自动下一个折行」）：Switch 固定宽挤压文字，
-                    // 等分后 4 字标签一行放下
+                    // ---- 入库模式：两开关整撤（10-12 用户令「让它常开，直接把这两个功能删掉」）----
+                    // 原「等待分类 / 自动下一个」两个拨杆不再出现：行为固定为
+                    //   等待分类=开（试听播完不自动关，留时间点分类）
+                    //   自动下一个=开（**点了分类**才自动跳下一个；只看不点不动作）
+                    // 影响面已核：这两个状态只被 autoDismiss 与「分配后跳下一个」两处读，无其他引用。
+                    // 仍按老口径把「双开」上报给宿主，宿主侧逻辑（autoDismiss/跳下一个）不用改
                     if (importMode) {
-                        Row(
-                            Modifier
-                                .fillMaxWidth()
-                                .padding(horizontal = CATALOG_PANEL_PADDING),
-                            horizontalArrangement = Arrangement.spacedBy(6.dp)
-                        ) {
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                modifier = Modifier
-                                    .weight(1f)
-                                    .clickable { waitCategorySwitch = !waitCategorySwitch }
-                            ) {
-                                Switch(checked = waitCategorySwitch, onCheckedChange = { waitCategorySwitch = it })
-                                Text(
-                                    "等待分类", style = MaterialTheme.typography.bodyMedium,
-                                    maxLines = 1, overflow = TextOverflow.Ellipsis,
-                                    modifier = Modifier.padding(start = 4.dp)
-                                )
-                            }
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                modifier = Modifier
-                                    .weight(1f)
-                                    .clickable { autoNextSwitch = !autoNextSwitch }
-                            ) {
-                                Switch(checked = autoNextSwitch, onCheckedChange = { autoNextSwitch = it })
-                                Text(
-                                    "自动下一个", style = MaterialTheme.typography.bodyMedium,
-                                    maxLines = 1, overflow = TextOverflow.Ellipsis,
-                                    modifier = Modifier.padding(start = 4.dp)
-                                )
-                            }
-                        }
+                        LaunchedEffect(Unit) { onSwitchesChanged(true, true) }
                     }
 
                     // ---- 搜索 + 排序 + 筛选 ----

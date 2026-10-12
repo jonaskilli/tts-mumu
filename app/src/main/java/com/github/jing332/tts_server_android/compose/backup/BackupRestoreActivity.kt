@@ -146,6 +146,7 @@ class BackupRestoreActivity : ComposeActivity() {
 
                 if (showRestoreMenu) {
                     AlertDialog(
+                        containerColor = androidx.compose.material3.MaterialTheme.colorScheme.surfaceContainerLow,
                         onDismissRequest = { showRestoreMenu = false },
                         title = { Text(stringResource(R.string.restore)) },
                         text = {
@@ -341,6 +342,7 @@ class BackupRestoreActivity : ComposeActivity() {
         if (isLoading) { LoadingDialog(onDismissRequest = { }) } 
         else {
             AlertDialog(
+                containerColor = androidx.compose.material3.MaterialTheme.colorScheme.surfaceContainerLow,
                 onDismissRequest = onDismissRequest,
                 title = { Text(stringResource(R.string.select_cloud_backup)) },
                 text = {

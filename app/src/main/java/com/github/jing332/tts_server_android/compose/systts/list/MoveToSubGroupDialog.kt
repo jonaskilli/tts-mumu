@@ -37,6 +37,7 @@ fun MoveToSubGroupDialog(
     val finalPath = if (isNewPath) newPath.trim() else selectedPath
 
     AlertDialog(
+        containerColor = androidx.compose.material3.MaterialTheme.colorScheme.surfaceContainerLow,
         onDismissRequest = onDismissRequest,
         title = { Text("移动到子分组") },
         text = {

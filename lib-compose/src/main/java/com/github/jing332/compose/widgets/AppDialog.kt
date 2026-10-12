@@ -78,6 +78,11 @@ fun AppDialog(
     modifier = modifier,
     onDismissRequest = onDismissRequest,
     properties = properties,
+    // 弹窗底统一（10-12 用户令「所有弹窗颜色统一」）：M3 AlertDialog 默认 surfaceContainerHigh
+    //（GREEN 下是带绿的 #E2F4E8），与三个大面板的近白（surfaceContainerLow #F4FBF6）不是一个色。
+    // 本文件是所有 AppDialog 的**共同入口**——改这一条即覆盖全部沿用它的弹窗（含试听弹窗、
+    // 分类入库、书籍管理等），不必逐个调用点改。⚠️ 用全限定名，免 import 依赖
+    containerColor = androidx.compose.material3.MaterialTheme.colorScheme.surfaceContainerLow,
     title = { title() },
     text = {
         // content 的接收者是 BoxScope：包一层 Box 保持旧签名兼容（调用方可无视，语义不变）。

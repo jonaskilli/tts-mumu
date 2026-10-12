@@ -67,6 +67,7 @@ fun ListImportBottomSheet(onDismissRequest: () -> Unit) {
     val msgText = successMsg.value
     if (msgText != null) {
         AlertDialog(
+            containerColor = androidx.compose.material3.MaterialTheme.colorScheme.surfaceContainerLow,
             onDismissRequest = {
                 successMsg.value = null
                 sheetVisible = false

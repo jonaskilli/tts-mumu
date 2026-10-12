@@ -1686,6 +1686,7 @@ fun VoicePickerDialog(
                 .orEmpty().isNotEmpty()
         }
         AlertDialog(
+            containerColor = androidx.compose.material3.MaterialTheme.colorScheme.surfaceContainerLow,
             onDismissRequest = { deleteConfirmTarget = null },
             title = { Text(stringResource(R.string.role_voice_del_title)) },
             text = {

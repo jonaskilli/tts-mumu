@@ -17,7 +17,6 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.compositeOver
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.github.jing332.tts_server_android.R
@@ -39,6 +38,7 @@ fun LogFilterDialog(
     onDismiss: () -> Unit
 ) {
     AlertDialog(
+        containerColor = androidx.compose.material3.MaterialTheme.colorScheme.surfaceContainerLow,
         onDismissRequest = onDismiss,
         title = { Text(stringResource(R.string.filter_log_level)) },
         text = {
@@ -65,8 +65,12 @@ fun LogFilterDialog(
                         selected = errorOnly,
                         onClick = onErrorsOnly,
                         label = { Text("只看错误") },
+                        // 红色语义保留（10-12 用户令）：这一枚不是普通开关，而是「排障态」——
+                        // 选中=只看错误，红底红字才把异常感表达出来；其余开关走全局统一口径
+                        //（弹窗底已改近白，errorContainer 在这上面比原来更醒目）
                         colors = FilterChipDefaults.filterChipColors(
-                            selectedContainerColor = MaterialTheme.colorScheme.errorContainer
+                            selectedContainerColor = MaterialTheme.colorScheme.errorContainer,
+                            selectedLabelColor = MaterialTheme.colorScheme.onErrorContainer,
                         )
                     )
                 }
@@ -99,11 +103,6 @@ fun LogFilterDialog(
                         selected = showPluginLogs,
                         onClick = { onPluginLogsToggle() },
                         label = { Text("插件") },
-                        colors = FilterChipDefaults.filterChipColors(
-                            selectedContainerColor = MaterialTheme.colorScheme.primary
-                                .copy(alpha = 0.12f)
-                                .compositeOver(MaterialTheme.colorScheme.surfaceContainerHigh)
-                        )
                     )
 
                     // 朗读规则日志开关
@@ -111,11 +110,6 @@ fun LogFilterDialog(
                         selected = showSpeechRuleLogs,
                         onClick = { onSpeechRuleLogsToggle() },
                         label = { Text("朗读规则") },
-                        colors = FilterChipDefaults.filterChipColors(
-                            selectedContainerColor = MaterialTheme.colorScheme.primary
-                                .copy(alpha = 0.12f)
-                                .compositeOver(MaterialTheme.colorScheme.surfaceContainerHigh)
-                        )
                     )
 
                     // DEBUG 日志开关（默认关闭；关后 D 级完全不进列表）
@@ -123,11 +117,6 @@ fun LogFilterDialog(
                         selected = showDebugLogs,
                         onClick = { onDebugLogsToggle() },
                         label = { Text("DEBUG") },
-                        colors = FilterChipDefaults.filterChipColors(
-                            selectedContainerColor = MaterialTheme.colorScheme.primary
-                                .copy(alpha = 0.12f)
-                                .compositeOver(MaterialTheme.colorScheme.surfaceContainerHigh)
-                        )
                     )
 
                     // 实时滚动开关（同款选中绿）
@@ -135,11 +124,6 @@ fun LogFilterDialog(
                         selected = autoScrollToBottom,
                         onClick = { onAutoScrollToggle() },
                         label = { Text("实时显示最新日志") },
-                        colors = FilterChipDefaults.filterChipColors(
-                            selectedContainerColor = MaterialTheme.colorScheme.primary
-                                .copy(alpha = 0.12f)
-                                .compositeOver(MaterialTheme.colorScheme.surfaceContainerHigh)
-                        )
                     )
                 }
             }

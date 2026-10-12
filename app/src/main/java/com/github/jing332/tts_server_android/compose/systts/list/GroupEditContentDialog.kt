@@ -53,6 +53,7 @@ fun GroupEditContentDialog(
     var showDeleteConfirm by remember { mutableStateOf(false) }
     if (showDeleteConfirm && selectedConfigs.isNotEmpty()) {
         AlertDialog(
+            containerColor = androidx.compose.material3.MaterialTheme.colorScheme.surfaceContainerLow,
             onDismissRequest = { showDeleteConfirm = false },
             title = { Text(stringResource(R.string.delete)) },
             text = { Text("确定要删除选中的 ${selectedConfigs.size} 个音色吗？") },
@@ -78,6 +79,7 @@ fun GroupEditContentDialog(
     }
 
     AlertDialog(
+        containerColor = androidx.compose.material3.MaterialTheme.colorScheme.surfaceContainerLow,
         onDismissRequest = onDismissRequest,
         // 用户 09-11 晚终裁：列表类弹窗宽度回宽版（0.9 屏宽，原版观感）；圆角维持 MD3 官方
         modifier = Modifier.fillMaxWidth(0.9f),

@@ -105,6 +105,7 @@ internal fun ColumnScope.OtherSettingsScreen(
     var showClearDataDialog by rememberSaveable { mutableStateOf(false) }
     if (showClearDataDialog) {
         AlertDialog(
+            containerColor = androidx.compose.material3.MaterialTheme.colorScheme.surfaceContainerLow,
             onDismissRequest = { showClearDataDialog = false },
             title = { Text("清空数据") },
             text = { Text("此操作将清除本应用的所有数据（包括配置、数据库、缓存等），效果等同于系统设置中的「清除数据」。操作不可恢复，确定继续吗？") },

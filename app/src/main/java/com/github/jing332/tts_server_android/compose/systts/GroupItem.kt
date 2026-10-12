@@ -153,14 +153,22 @@ fun GroupItem(
         // 但一级行有数字徽章、子分组行没有——老形式里子分组箭头对的是一级行**徽章中部**，
         // 两级名字列天然同起点，层级靠"名字列对名字列"读；箭头对箭头反而让子分组名字凸出。
         // 图标盒 24dp（默认），子分组 20dp 保持不变
-        Icon(
-            Icons.Default.ExpandMore,
-            contentDescription = stringResource(if (isExpanded) R.string.desc_collapse_group else R.string.desc_expand_group, name),
-            tint = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier
-                .rotate(rotationAngle)
-                .clickable { onClick() }
-        )
+        // 10-12：箭头外套 32×36 盒（与密钥页组头同规格、也与配置项行的对勾盒同宽）——
+        // 组名文字线因此落在 40dp，和条目行文字线重合；替换页上一版靠"收窄条目对勾盒"对齐，
+        // 结果字形贴字、整行发挤（用户实拍），改由本侧对齐。图标仍 24dp、视觉大小不变
+        Box(
+            modifier = Modifier.size(width = 32.dp, height = 36.dp),
+            contentAlignment = Alignment.Center,
+        ) {
+            Icon(
+                Icons.Default.ExpandMore,
+                contentDescription = stringResource(if (isExpanded) R.string.desc_collapse_group else R.string.desc_expand_group, name),
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier
+                    .rotate(rotationAngle)
+                    .clickable { onClick() }
+            )
+        }
 
         // 序号徽章：按当前列表顺序自动编号，排序变化自动重编。
         // 形状/配色统一走 OrderBadge（10-05 用户拍板「丙」胶囊：1 位数=正圆、两位数起自动变宽）；

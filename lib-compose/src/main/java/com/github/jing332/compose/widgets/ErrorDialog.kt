@@ -36,6 +36,7 @@ fun ErrorDialog(
     var isShow by remember { mutableStateOf(true) }
     if (isShow)
         AlertDialog(
+            containerColor = androidx.compose.material3.MaterialTheme.colorScheme.surfaceContainerLow,
             icon = { Icon(Icons.Filled.ErrorOutline, "", tint = MaterialTheme.colorScheme.error) },
             title = { Text(title) },
             text = {

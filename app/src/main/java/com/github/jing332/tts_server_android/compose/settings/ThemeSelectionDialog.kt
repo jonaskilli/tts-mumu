@@ -40,6 +40,7 @@ fun ThemeSelectionDialog(
     onChangeTheme: (AppTheme) -> Unit
 ) {
     AlertDialog(onDismissRequest = onDismissRequest,
+        containerColor = androidx.compose.material3.MaterialTheme.colorScheme.surfaceContainerLow,
         title = {
             Text(text = stringResource(id = R.string.theme))
         },

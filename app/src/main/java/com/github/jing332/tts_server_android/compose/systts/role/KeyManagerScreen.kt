@@ -1796,6 +1796,7 @@ fun KeyManagerScreen(tagRuleId: String, onBack: () -> Unit) {
         val grp = buildKeyGroups(keys, ifaces).firstOrNull { it.title == gTitle }
         val n = grp?.entries?.size ?: 0
         AlertDialog(
+            containerColor = androidx.compose.material3.MaterialTheme.colorScheme.surfaceContainerLow,
             onDismissRequest = { deleteGroupConfirm = null },
             title = { Text(stringResource(R.string.role_key_delete_group_title)) },
             text = { Text(stringResource(R.string.role_key_delete_group_text, gTitle, n)) },
@@ -1820,6 +1821,7 @@ fun KeyManagerScreen(tagRuleId: String, onBack: () -> Unit) {
         val grp = buildKeyGroups(keys, ifaces).firstOrNull { it.title == gTitle }
         val targets = grp?.entries?.filter { it.name in deleteChecked }?.map { it.name }.orEmpty()
         AlertDialog(
+            containerColor = androidx.compose.material3.MaterialTheme.colorScheme.surfaceContainerLow,
             onDismissRequest = { groupDeleteConfirm = null },
             title = { Text(stringResource(R.string.role_key_delete_title)) },
             text = { Text(stringResource(R.string.role_key_delete_batch_text, gTitle, targets.size)) },
@@ -1942,6 +1944,7 @@ fun KeyManagerScreen(tagRuleId: String, onBack: () -> Unit) {
     // 覆盖确认（照插件「覆盖确认」对话框：保留原 keyCode，换 value）
     overwriteFor?.let { (name, value, thinkPair) ->
         AlertDialog(
+            containerColor = androidx.compose.material3.MaterialTheme.colorScheme.surfaceContainerLow,
             onDismissRequest = { overwriteFor = null },
             title = { Text(stringResource(R.string.role_key_overwrite_title)) },
             text = { Text(stringResource(R.string.role_key_overwrite, name)) },
@@ -1988,6 +1991,7 @@ fun KeyManagerScreen(tagRuleId: String, onBack: () -> Unit) {
     // 删除密钥
     deleteFor?.let { entry ->
         AlertDialog(
+            containerColor = androidx.compose.material3.MaterialTheme.colorScheme.surfaceContainerLow,
             onDismissRequest = { deleteFor = null },
             title = { Text(stringResource(R.string.role_key_delete_title)) },
             text = { Text(stringResource(R.string.role_key_delete_text, KeyListFile.displayName(entry))) },
@@ -2126,6 +2130,7 @@ private fun KeyEditDialog(
         ).show()
     }
     AlertDialog(
+        containerColor = androidx.compose.material3.MaterialTheme.colorScheme.surfaceContainerLow,
         onDismissRequest = onDismiss,
         title = {
             Text(stringResource(if (initial == null) R.string.role_key_add else R.string.role_key_edit))
@@ -2603,6 +2608,7 @@ private fun InterfaceFormDialog(
     }
 
     AlertDialog(
+        containerColor = androidx.compose.material3.MaterialTheme.colorScheme.surfaceContainerLow,
         onDismissRequest = onDismiss,
         title = {
             // 标题行右上角 = 手动加模型；只在编辑已有分组时给（新组还没落盘，条目无处归属）
@@ -2909,6 +2915,7 @@ private fun InterfaceFormDialog(
     if (addModelVisible) {
         val target = initial
         AlertDialog(
+            containerColor = androidx.compose.material3.MaterialTheme.colorScheme.surfaceContainerLow,
             onDismissRequest = { addModelVisible = false },
             title = { Text(stringResource(R.string.role_key_manual_model)) },
             text = {
@@ -3286,6 +3293,7 @@ private fun ModelPullDialog(
     if (manualVisible) {
         var manual by remember { mutableStateOf("") }
         AlertDialog(
+            containerColor = androidx.compose.material3.MaterialTheme.colorScheme.surfaceContainerLow,
             onDismissRequest = { manualVisible = false },
             title = { Text(stringResource(R.string.role_key_manual_model)) },
             text = {
@@ -3442,6 +3450,7 @@ fun BackupCenterDialog(
         val undo = action == "undo"
         val unknownTime = stringResource(R.string.backup_time_unknown)
         AlertDialog(
+            containerColor = androidx.compose.material3.MaterialTheme.colorScheme.surfaceContainerLow,
             onDismissRequest = { confirmAction = null },
             title = {
                 Text(
@@ -3474,6 +3483,7 @@ fun BackupCenterDialog(
     // 自动备份设置（标题显当前状态 → 开启/关闭）
     if (autoSettingVisible) {
         AlertDialog(
+            containerColor = androidx.compose.material3.MaterialTheme.colorScheme.surfaceContainerLow,
             onDismissRequest = { autoSettingVisible = false },
             title = {
                 Text(
@@ -3514,6 +3524,7 @@ fun BackupCenterDialog(
     // 从剪贴板 / 文本导入书籍（照插件 restoreFromText）
     if (inputVisible) {
         AlertDialog(
+            containerColor = androidx.compose.material3.MaterialTheme.colorScheme.surfaceContainerLow,
             onDismissRequest = { inputVisible = false },
             title = { Text(stringResource(R.string.backup_import_book)) },
             text = {
@@ -3743,6 +3754,7 @@ fun BookManagerDialog(
     // 单本删除二次确认（照插件：提示删当前书会切默认）
     pendingDelete?.let { name ->
         AlertDialog(
+            containerColor = androidx.compose.material3.MaterialTheme.colorScheme.surfaceContainerLow,
             onDismissRequest = { pendingDelete = null },
             title = { Text(stringResource(R.string.role_book_delete_title)) },
             text = {
@@ -3878,6 +3890,7 @@ fun BookManagerDialog(
     if (addBookVisible) {
         var bookName by remember { mutableStateOf("") }
         AlertDialog(
+            containerColor = androidx.compose.material3.MaterialTheme.colorScheme.surfaceContainerLow,
             onDismissRequest = { addBookVisible = false },
             title = { Text(stringResource(R.string.role_book_add)) },
             text = {
