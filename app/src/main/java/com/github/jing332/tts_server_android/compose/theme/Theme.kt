@@ -61,15 +61,17 @@ fun softStructureColor(): Color = lerp(
 )
 
 /**
- * Switch 未选中轨道——结构层随 accent 淡彩后 Highest 槽带主题色（GREEN #DAF1E1），
- * 开关轨道用户要求中性（10-13 深夜「未开启的不应该有颜色」；纯白表时期本就是灰）：
- * 浅色取无彩灰 #E2E2E2（官方 baseline tone90 档），深色仍走 Highest 槽
- * （低亮度下带彩不明显，深色未验收不盲改）。五处 Switch 取用（设置项行/转发器/
- * 合并插入/仅UI模式/日志调试面板）。
+ * Switch 未选中轨道——沿革三稿（GREEN 浅色）：
+ * ① Highest 槽本色 #DAF1E1（10-13 晚）→ 用户令「未开启的不应该有颜色」太绿；
+ * ② 纯无彩灰 #E2E2E2（10-13 深夜）→ 用户令「还是得加颜色，不过以前那个不行」太死板；
+ * ③ 现行：中性灰往主题 Highest 槽混四成（GREEN ≈ #DFE8E2）——带一丝主题色相、
+ *    比旧档淡一截，十套主题 × 深浅色自动成立。深色仍走 Highest 槽（未验收不盲改）。
+ * 五处 Switch 取用（设置项行/转发器/合并插入/仅UI模式/日志调试面板）。
  */
 @Composable
 fun neutralSwitchUncheckedTrackColor(): Color =
-    if (MaterialTheme.colorScheme.background.luminance() > 0.5f) Color(0xFFE2E2E2)
+    if (MaterialTheme.colorScheme.background.luminance() > 0.5f)
+        lerp(Color(0xFFE2E2E2), MaterialTheme.colorScheme.surfaceContainerHighest, 0.4f)
     else MaterialTheme.colorScheme.surfaceContainerHighest
 
 /**

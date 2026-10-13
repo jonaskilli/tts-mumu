@@ -279,9 +279,6 @@ private fun KeyEntryRow(
     onDelete: () -> Unit,
 ) {
     val context = LocalContext.current
-    // 长按模型名菜单（10-09）：只在普通模式生效——多选/组内删除模式点名字仍是勾选，
-    // 菜单入口随 combinedClickable 条件挂载，勾选语义零影响
-    var nameMenu by remember { mutableStateOf(false) }
     // 卡片底色两态：多选/组内删除勾中=12% 浅红 > 默认卡面白。
     // 启用态不再染底/描边（10-03 对勾方案：启用视觉全归行首对勾，0920 描边口径一并退役）
     // compositeOver：近似半透明色叠在卡面上，避免半透明直接给 ElevatedCard 透出页面底色
@@ -379,13 +376,15 @@ private fun KeyEntryRow(
                             //（胶囊紧跟名字），长名在两行内换行后省略（10-10 倍率甲案；
                             // 不加 weight 的话长名会吃满整行把胶囊挤成 0 宽）
                             .weight(1f, fill = false)
-                            // 多选/组内删除模式点名字=勾选；常规模式点名字=复制模型名
-                            //（10-03 拍板，📋 键退役）+ 长按弹分配菜单（10-09）
+                            // 多选/组内删除模式点名字=勾选；常规模式**长按名字=复制模型名**
+                            //（10-13 深夜用户令「点击复制取消，改为长按直接复制，不用弹窗」）：
+                            // 原为「点击复制 + 长按弹菜单」，但菜单自分配专用退役（10-11）后
+                            // 只剩「复制模型名」一项、等于空壳，故点击语义撤除、长按直达复制。
                             .then(
                                 if (selectionMode) Modifier.clickable { onToggleCheck() }
                                 else Modifier.combinedClickable(
-                                    onClick = { onCopy() },
-                                    onLongClick = { nameMenu = true }
+                                    onClick = { },
+                                    onLongClick = { onCopy() }
                                 )
                             )
                     )
@@ -403,22 +402,6 @@ private fun KeyEntryRow(
                                 // 标签类胶囊淡绿：softContainerColor 单源（10-10 统一，原内联 lerp 0.4 与本体 0.65 已岔色）
                                 .background(softContainerColor())
                                 .padding(horizontal = 5.dp, vertical = 1.dp)
-                        )
-                    }
-                }
-                if (!selectionMode) {
-                    DropdownMenu(expanded = nameMenu, onDismissRequest = { nameMenu = false }) {
-                        DropdownMenuItem(
-                            text = {
-                                Text(
-                                    "📋 复制模型名",
-                                    style = MaterialTheme.typography.bodyMedium
-                                )
-                            },
-                            onClick = {
-                                nameMenu = false
-                                onCopy()
-                            }
                         )
                     }
                 }
