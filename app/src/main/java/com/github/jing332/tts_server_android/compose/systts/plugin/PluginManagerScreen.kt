@@ -1507,13 +1507,6 @@ private fun doMarketplaceImport(
 }
 
 /**
- * 导入中面板的固定高度（10-13 用户令「这个一般就估计用五行的高度」）：
- * 列表行距实测 207px ≈ 59dp（图一两个勾选框中心差 ÷ 3.5px/dp），五行 ≈ 296dp，取整 300dp。
- * 导入态用固定高而不是按内容收高——进度字换行（长音色名很常见）时面板高度不再跳。
- */
-private val IMPORT_PANEL_HEIGHT = 300.dp
-
-/**
  * 入库来源切换条（10-11 用户令「联网广场 / 自带分类」合一）。
  *
  * 10-12 三改（用户令「要跟备份的顶部胶囊的处理方式一样」）：换成与备份弹窗**同一个构件**
@@ -1576,6 +1569,9 @@ internal fun ImportByCategoryDialog(
     var selectedPoolIds by remember { mutableStateOf<Set<String>>(emptySet()) }
     // 0=选分类（勾池子）；1=选声音（试听/分类/勾选/导入）。无分类插件直接进 1
     var stage by remember { mutableStateOf(0) }
+    // 入库模式（10-13 晚定稿）：false=试听分类（默认）/ true=直接入库。
+    // 胶囊/圆圈只切这个标记，不再点了就执行——执行统一归「确定」键。
+    var directMode by remember { mutableStateOf(false) }
     var voices by remember { mutableStateOf<List<VoiceRow>>(emptyList()) }
     var selectedKeys by remember { mutableStateOf<Set<String>>(emptySet()) }
     // 试听时手动分配的分类：voiceKey → 分类名（女童…旁白）
@@ -1767,17 +1763,10 @@ internal fun ImportByCategoryDialog(
                 // 根 Column 在「槽 lambda」里，作用域里没有 ColumnScope——CI 38231081690 实锤
                 // Unresolved reference 'weight'（1805:46）
                 //
-                // 导入态高度（10-13 用户令「图四，这个导入，也不合适，这个一般就估计用五行
-                // 的高度」）：上一版是「按内容收高」——只有一行进度字时就缩成
-                // 「拖拽把+标题+来源条+一行进度」的小条，实测整块仅 218dp（截图量得面板顶边
-                // 距屏底 765px ÷ 3.5px/dp），比五行还矮，看着像被截了一半。
-                // 现改为**固定约五行高**：列表行距实测 207px ≈ 59dp（图一两个勾选框中心差），
-                // 五行 ≈ 296dp，取整 300dp。进度字换行变长也不再改变面板高度（不再跳）。
-                // ⚠️ 两个 modifier 必须同时改：外层不 fill 而内容区仍 weight(1f) 的话，
-                // Column 会按 weight 撑满可用高度，等于没改。
+                // 高度（10-13 晚定稿）：导入进度已改为居中弹窗，面板内不再有导入态固定高——
+                // 嵌入模式 fillMaxSize（宿主壳给高度有界），独立模式占屏 92%（自己开壳）。
                 .then(
-                    if (importing) Modifier.height(IMPORT_PANEL_HEIGHT)
-                    else if (embedded) Modifier.fillMaxSize()
+                    if (embedded) Modifier.fillMaxSize()
                     else Modifier.fillMaxHeight(0.92f)
                 )
                 .navigationBarsPadding()
@@ -1831,21 +1820,10 @@ internal fun ImportByCategoryDialog(
         if (stage == 0 && !embedded) {
             SoftSegmentedTextToggle(
                 options = listOf("试听分类", "直接入库"),
-                // 选中态固定 0（10-13 用户令「不带联网广场这个切换胶囊要参照备份这个，
-                // 是选中试听分类的状态」）：stage0=选分类屏，试听分类就是"当前所在"，
-                // 按备份弹窗口径画 ✓ + 选中底。点它=重进试听（无动作），点直接入库=执行导入。
-                selectedIndex = 0,
-                onSelect = { idx ->
-                    // 分段构件没有 enabled 形参：不可用态靠这里挡（与两条文字键时代同口径）
-                    if (!importing && hasSelection) {
-                        if (idx == 0) {
-                            val pools = categories.filter { it.poolId in selectedPoolIds }
-                            if (pools.isNotEmpty()) loadVoices(pools)
-                        } else {
-                            doDirectImport()
-                        }
-                    }
-                },
+                // 10-13 晚定稿：胶囊回归**纯模式选择**——点哪边亮哪边，选中态跟 directMode 走，
+                // 不再点了就执行（执行统一归底部「确定」键）。默认亮「试听分类」。
+                selectedIndex = if (directMode) 1 else 0,
+                onSelect = { idx -> if (!importing) directMode = idx == 1 },
                 modifier = Modifier.padding(horizontal = 24.dp, vertical = 6.dp),
             )
         }
@@ -1860,13 +1838,8 @@ internal fun ImportByCategoryDialog(
                 .fillMaxWidth()
                 .padding(horizontal = 24.dp)
         ) {
-            if (importing) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    CircularProgressIndicator(Modifier.size(24.dp), strokeWidth = 2.dp)
-                    Spacer(Modifier.width(12.dp))
-                    Text(progressText, style = MaterialTheme.typography.bodyMedium)
-                }
-            } else if (stage == 0) {
+            // 导入进度不再占面板内一块（10-13 晚定稿）：一律居中弹窗接管，见下方 if (importing)。
+            if (stage == 0) {
                 // 分类列表用 LazyColumn（原 verticalScroll Column 在新大面板里与外层
                 // 结构冲突的隐患一并消掉）；全选行作首 item，与 stage1 版式同构
                 LazyColumn(Modifier.fillMaxWidth()) {
@@ -1920,68 +1893,8 @@ internal fun ImportByCategoryDialog(
                             }
                         )
                     }
-                    // 动作行=**圆圈单选**（10-13 用户令「有广场的插件右下角要改为图三那种选中形式，
-                    // 默认选中试听分类」）：默认选中「试听分类」（它=当前所在流程，与顶部分段胶囊
-                    // 同口径），点它=重进试听列表；点直接入库=执行导入。语义不变仍是动作键
-                    //（10-11 用户令「点试听分类是跳屏的动作」），圆圈只是选中形式的视觉。
-                    // ⚠️ 无广场插件**不渲染本行**（10-13 用户令「无广场的右下角不要加东西」——
-                    // 顶部已有「试听分类|直接入库」分段胶囊，两边都长出来是重复）；按宿主分岔的
-                    // 判据=embedded（与上面分段胶囊同源，合壳调用点恒 embedded=true）。
-                    if (embedded) item {
-                        Row(
-                            Modifier
-                                .fillMaxWidth()
-                                .padding(top = 6.dp, bottom = 10.dp),
-                            horizontalArrangement = Arrangement.End,
-                            verticalAlignment = Alignment.CenterVertically,
-                        ) {
-                            Row(
-                                modifier = Modifier.selectable(
-                                    selected = true,
-                                    enabled = !importing && hasSelection,
-                                    onClick = {
-                                        val pools = categories.filter { it.poolId in selectedPoolIds }
-                                        if (pools.isNotEmpty()) loadVoices(pools)
-                                    }
-                                ),
-                                verticalAlignment = Alignment.CenterVertically,
-                            ) {
-                                RadioButton(
-                                    selected = true,
-                                    onClick = {
-                                        val pools = categories.filter { it.poolId in selectedPoolIds }
-                                        if (pools.isNotEmpty()) loadVoices(pools)
-                                    },
-                                    enabled = !importing && hasSelection,
-                                )
-                                Text(
-                                    "试听分类",
-                                    style = MaterialTheme.typography.bodyMedium.copy(fontSize = 15.sp),
-                                    modifier = Modifier.padding(start = 4.dp)
-                                )
-                            }
-                            Spacer(Modifier.width(12.dp))
-                            Row(
-                                modifier = Modifier.selectable(
-                                    selected = false,
-                                    enabled = !importing && hasSelection,
-                                    onClick = { doDirectImport() }
-                                ),
-                                verticalAlignment = Alignment.CenterVertically,
-                            ) {
-                                RadioButton(
-                                    selected = false,
-                                    onClick = { doDirectImport() },
-                                    enabled = !importing && hasSelection,
-                                )
-                                Text(
-                                    if (importing) "导入中" else "直接入库",
-                                    style = MaterialTheme.typography.bodyMedium.copy(fontSize = 15.sp),
-                                    modifier = Modifier.padding(start = 4.dp)
-                                )
-                            }
-                        }
-                    }
+                    // 旧「圆圈单选动作行」已撤（10-13 晚定稿）：模式对改到列表下方
+                    // 底部区（居右）+「确定」下一行右侧，见 panelBody 底部 stage 0 段。
                 }
             } else if (loadingVoices) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
@@ -2054,10 +1967,65 @@ internal fun ImportByCategoryDialog(
                 }
             }
         }
-        // 底部动作行：**只有 stage 1 渲染**（左「上一步」右「导入(N)」）。
-        // stage 0 的动作键各有去处：无广场插件=标题下分段胶囊（见 !embedded 段），
-        // 带广场插件=分类列表末项（见上方 LazyColumn 的 item 块，用户令「放声音分类的
-        // 下一行的右下角」）——本行不再掺和 stage 0，防止出两份键。
+        // ===== stage 0 底部（10-13 晚定稿）：模式 + 确定键 =====
+        //  · 无广场：模式胶囊在标题下（纯选择），这里只出「确定」（下一行右侧）。
+        //  · 有广场：模式对（试听分类/直接入库圆圈）**居右** + 「确定」下一行右侧
+        //   （用户令「这两个键应该在页面的右侧，也就是居右放」+「确定放下一行右侧」）。
+        // 确定行为两处一致：试听分类 → 进声音列表逐条听；直接入库 → 勾选分组直接落库
+        // （无列表页，进度走居中弹窗）。未勾任何分组时「确定」置灰。
+        if (stage == 0 && !importing) {
+            if (embedded) {
+                Row(
+                    Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 24.dp, top = 6.dp),
+                    horizontalArrangement = Arrangement.End,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Row(
+                        modifier = Modifier.selectable(selected = !directMode, onClick = { directMode = false }),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        RadioButton(selected = !directMode, onClick = null)
+                        Text(
+                            "试听分类",
+                            style = MaterialTheme.typography.bodyMedium.copy(fontSize = 15.sp),
+                            modifier = Modifier.padding(start = 4.dp, end = 12.dp)
+                        )
+                    }
+                    Row(
+                        modifier = Modifier.selectable(selected = directMode, onClick = { directMode = true }),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        RadioButton(selected = directMode, onClick = null)
+                        Text(
+                            "直接入库",
+                            style = MaterialTheme.typography.bodyMedium.copy(fontSize = 15.sp),
+                            modifier = Modifier.padding(start = 4.dp)
+                        )
+                    }
+                }
+            }
+            Row(
+                Modifier
+                    .fillMaxWidth()
+                    .padding(start = 24.dp, end = 24.dp, top = 6.dp, bottom = 6.dp),
+                horizontalArrangement = Arrangement.End
+            ) {
+                TextButton(
+                    enabled = hasSelection,
+                    onClick = {
+                        if (directMode) {
+                            doDirectImport()
+                        } else {
+                            val pools = categories.filter { it.poolId in selectedPoolIds }
+                            if (pools.isNotEmpty()) loadVoices(pools)
+                        }
+                    }
+                ) { Text("确定") }
+            }
+        }
+        // 底部动作行：stage 1（左「上一步」右「导入(N)」）——stage 0 的确定在上面那段。
         if (stage == 1) {
             Row(
                 Modifier
@@ -2110,13 +2078,9 @@ internal fun ImportByCategoryDialog(
         // 独立模式（老路，无广场插件）：自己开一个壳；
         // 嵌入模式（10-12 合壳，有广场插件）：只出内容——壳由宿主那唯一的 ModalBottomSheet 提供，
         // 拖拽把/标题/来源条也归它画，于是来源胶囊互切时不再有第二次上滑
-        if (embedded) {
-            panelBody(false)
-        } else if (importing) {
-            // 导入进行中 = 紧凑居中弹窗（10-13 用户令「我已经分类好了，点击导入，出来的
-            // 那个界面」改为居中；同日「只改导入的过程，这个改为居中」）：就一行转圈+进度，
-            // 大底弹层浪费空间；导入完成后整个弹窗关闭。
-            // （stage 0 分类勾选 / stage 1 声音列表维持原底弹层不动。）
+        if (importing) {
+            // 导入进行中 = 紧凑居中弹窗（10-13 晚用户令：有/无广场插件的音色分类入库一律这个，
+            // 不再有"有广场嵌大厅壳"的分支）。一行转圈+进度，完成后 Toast + 整个弹窗关闭。
             com.github.jing332.compose.widgets.AppDialog(
                 onDismissRequest = {},
                 title = { Text("正在音色分类入库") },
@@ -2132,6 +2096,8 @@ internal fun ImportByCategoryDialog(
                 },
                 buttons = {},
             )
+        } else if (embedded) {
+            panelBody(false)
         } else {
             androidx.compose.material3.ModalBottomSheet(
                 onDismissRequest = { if (!importing) onDismiss() },

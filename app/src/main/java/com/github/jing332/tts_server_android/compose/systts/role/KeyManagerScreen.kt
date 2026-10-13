@@ -744,7 +744,15 @@ private fun GroupHeaderBlock(
     // 绿胶囊/账号池标/状态字相对更跳。primary 跟主题，深浅色模式各自成立
     Column(
         Modifier.fillMaxWidth().background(
-            MaterialTheme.colorScheme.primary.copy(alpha = 0.05f)
+            // 10-13 晚用户令「密钥管理页也参照分组色和卡片色来改」：组头绿带（primary 5%）
+            // 撤，换配置列表 201f41a 同款「行比卡片浅」=页底与卡底之间半档
+            // lerp(background, surfaceContainerLow, 0.5)（GREEN ≈ #F8FCF7）。
+            // 卡片本体（ElevatedCard surfaceContainerLow）不动——结构（组头）退后、内容（模型区）最显。
+            // ⚠️ 全限定名调 lerp，免动 import 区。
+            androidx.compose.ui.graphics.lerp(
+                MaterialTheme.colorScheme.background,
+                MaterialTheme.colorScheme.surfaceContainerLow, 0.5f
+            )
         )
     ) {
         Column(Modifier.padding(vertical = 4.dp)) {

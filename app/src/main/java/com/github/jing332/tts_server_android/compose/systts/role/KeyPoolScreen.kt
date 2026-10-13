@@ -276,10 +276,13 @@ internal fun KeyPoolScreen(
                     // 平铺（主页条目=连体卡内分区，无卡中卡）；多选勾中=12% 浅红（同主页
                     // cardColor 两态，compositeOver 防透页面底）；卡间 1dp 分隔线（连体卡
                     // 分区观感），垂直 4dp 节奏保留
+                    // 10-13 晚用户令「启用池也参照分组色和卡片色」：行底与主页模型卡同档
+                    // surfaceContainerLow（原 surface 比主页浅一档，两页同素不同色）。
+                    // 多选勾中浅红 compositeOver 的基底随行底同步换。
                     val cardColor = if (selectionMode && norm in checked)
                         MaterialTheme.colorScheme.error.copy(alpha = 0.12f)
-                            .compositeOver(MaterialTheme.colorScheme.surface)
-                    else MaterialTheme.colorScheme.surface
+                            .compositeOver(MaterialTheme.colorScheme.surfaceContainerLow)
+                    else MaterialTheme.colorScheme.surfaceContainerLow
                     Column(
                         Modifier
                             .fillMaxWidth()

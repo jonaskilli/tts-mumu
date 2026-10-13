@@ -247,6 +247,9 @@ fun AuditionDialog(
             onDismissRequest = onDismissRequest,
             title = { Text(stringResource(id = R.string.audition)) },
             content = {
+                // AppDialog 的 content 槽是 BoxScope——多个子元素会**叠在同一位置**渲染
+                //（10-13 实机实锤：声音名与「音频大小…」两段叠字）。包一层 Column 竖排。
+                Column {
                 if (systts.displayName.isNotBlank()) {
                     Text(
                         systts.displayName,
@@ -281,6 +284,7 @@ fun AuditionDialog(
                             Text(info, style = MaterialTheme.typography.bodyMedium)
                         }
                     }
+                }
             },
             buttons = {
                 TextButton(onClick = onDismissRequest) {

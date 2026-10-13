@@ -750,6 +750,16 @@ internal fun LogScreen(
                                         )
                                     }
                                 }
+                                // 源错误失败条裸行（10-13 晚用户实锤「引用的正文字号不统一」）：
+                                // 同一份「源错误：…+引用正文+发音人」内容，组头吸收路径走
+                                // oldStyleFail 三段分层（错误串13/正文14粗/发音人13），裸行路径
+                                // 却整体 13sp——同屏一大会一小。判定=失败终点（ERROR 裸行）
+                                // 且消息带 <b> 与两段以上结构（服务端源错误全文的标志），
+                                // 命中即走同一分层；行高同步提到 18.2（=14×1.3，与组头同规格）。
+                                // 其余裸行（规则/插件消息）维持 13sp 不动。
+                                val bareFailStyle = log.level == LogLevel.ERROR && log.indent == 0 &&
+                                    log.message.contains("<b>") &&
+                                    log.message.count { it == '\n' } >= 2
                                 LogEntryBody(
                                     entry = log,
                                     darkTheme = darkTheme,
@@ -760,7 +770,8 @@ internal fun LogScreen(
                                     // 裸行字号终版二轮（10-11 用户令）：12 还是小，提到 13——
                                     // 与成员行/主行前缀同档，四档收敛为三档（13/14/前缀13）
                                     fontSize = 13.sp,
-                                    lineHeight = 16.9.sp, // 13×1.3
+                                    lineHeight = if (bareFailStyle) 18.2.sp else 16.9.sp, // 13×1.3（失败条=14×1.3）
+                                    oldStyleFail = bareFailStyle,
                                     // 命中高亮已在整行背景，正文不再叠一层
                                     isMatch = false,
                                     highlight = log == locateHighlight,
@@ -1297,13 +1308,14 @@ private fun LogEntryBody(
                 s = buildAnnotatedString {
                     append(s.text)
                     s.spanStyles.forEach { r -> addStyle(r.item, r.start, r.end) }
-                    // 正文段（两个换行之间）整体染老红，压过 <b> 的字重色
-                    addStyle(SpanStyle(color = failRed, fontWeight = FontWeight.Bold), nl1 + 1, nl2)
+                    // 正文段（两个换行之间）整体染老红，压过 <b> 的字重色。
+                    // 14sp 显式写死（10-13 晚用户实锤「引用的正文字号不统一」）：
+                    // 该段原先吃调用方基础字号——组头吸收路径基础 14sp、裸行基础 13sp，
+                    // 同一份源错误同屏两种正文字号。三段规格自此全局唯一：
+                    // 错误串 13 / 正文 14 粗 / 发音人 13，与调用方基础字号无关。
+                    addStyle(SpanStyle(color = failRed, fontWeight = FontWeight.Bold, fontSize = 14.sp), nl1 + 1, nl2)
                     // 字号分层（10-13 用户令「源错误这一句字号忽大忽小」根修）：
-                    // 失败条三段此前整体 14sp，而同样的内容在成员行/成功行里是 13sp——
-                    // 同屏两种字号来回跳，就是"忽大忽小"。统一对齐 13sp：
-                    // 错误串段 0..nl1 与发音人段 nl2.. 全 13sp；正文段（加粗）保 14sp
-                    //（与成功行正文 14sp 同档，加粗是它的身份标识，字号不再单独放大）
+                    // 错误串段 0..nl1 与发音人段 nl2.. 全 13sp（与成员行/成功行同档）
                     addStyle(SpanStyle(fontSize = 13.sp), 0, nl1)
                     addStyle(SpanStyle(fontSize = 13.sp), nl2, s.text.length)
                 }
