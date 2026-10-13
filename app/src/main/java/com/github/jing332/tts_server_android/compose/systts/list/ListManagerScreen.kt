@@ -2839,28 +2839,25 @@ internal fun ListManagerScreen(
                             // 展开后列出该来源下具体失效配置项名称
                             if (expanded) {
                                 Spacer(modifier = Modifier.height(8.dp))
-                                Surface(
-                                    // 10-10 纯白表对号修正：卡内展开块=卡上的嵌套层，
-                                    // 用灰档 surfaceContainerHigh（#F3F3F3）；surfaceContainer 已并入白会隐形
-                                    color = MaterialTheme.colorScheme.surfaceContainerHigh,
-                                    shape = MaterialTheme.shapes.small,
+                                // 10-13 深夜用户令「中间那个色块不要，统一为外圈的颜色」：
+                                // 原套 surfaceContainerHigh 色块（10-10 灰档），但弹窗本体是 Low 档，
+                                // 绿主题下整块泛绿、与外圈两层皮——撤掉 Surface 底色，只留缩进与文字
+                                Column(
                                     modifier = Modifier
                                         .fillMaxWidth()
                                         .padding(start = 28.dp, end = 4.dp)
                                 ) {
-                                    Column(modifier = Modifier.padding(vertical = 6.dp, horizontal = 10.dp)) {
-                                        items.forEach { itemName ->
-                                            Text(
-                                                text = itemName,
-                                                style = MaterialTheme.typography.bodyMedium,
-                                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                                maxLines = 1,
-                                                overflow = TextOverflow.Ellipsis,
-                                                modifier = Modifier
-                                                    .fillMaxWidth()
-                                                    .padding(vertical = 4.dp)
-                                            )
-                                        }
+                                    items.forEach { itemName ->
+                                        Text(
+                                            text = itemName,
+                                            style = MaterialTheme.typography.bodyMedium,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                            maxLines = 1,
+                                            overflow = TextOverflow.Ellipsis,
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .padding(vertical = 4.dp)
+                                        )
                                     }
                                 }
                             }
