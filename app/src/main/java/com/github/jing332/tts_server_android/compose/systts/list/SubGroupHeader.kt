@@ -95,14 +95,15 @@ fun SubGroupHeader(
             .fillMaxWidth()
             .background(
                 when (level) {
-                    // 10-13 深夜用户令「选 D 卡底同档」：一级子分组=surfaceContainerLow（与配置项卡片
-                    // 同档，GREEN 浅色 #F4FBF6），比页底深约 4 级、不比卡深——"头重脚轻"不犯，
-                    // 行/卡区分靠形状（行通栏 vs 卡圆角带边距）。更深层 surfaceContainerLowest(#FBFEFC)。
-                    // 沿革：曾取 surfaceContainer(#EAF7EF，10-13 验收嫌行比卡深) → 半档插值（方案 A，
-                    // 用户嫌与页底区分不够）→ 现行卡底同档。配置项卡片（Item）一概不动。
+                    // 10-13 深夜用户令「分组栏选 B」：一级子分组=surfaceContainer（GREEN 浅色 #EAF7EF），
+                    // 比页底深约 8 级、比卡底深 3 级——「整体寡淡」反馈后知情选择此档要层次感
+                    // （知悉 10-13 验收曾嫌「行比卡深、头重脚轻」的历史，见下方沿革）。
+                    // 更深层 surfaceContainerLowest(#FBFEFC)。
+                    // 沿革：surfaceContainer(#EAF7EF，10-13 验收嫌行比卡深) → 半档插值（方案 A，嫌区分不够）
+                    // → 卡底同档（D，仍嫌寡淡）→ 现行 B=surfaceContainer。配置项卡片（Item）一概不动。
                     // ⚠️ 走的仍是主题槽（十套主题各自成立、深色自动镜像），不要写死色值。
                     // 一级分组行（GroupItem）保持页底不变。
-                    0 -> MaterialTheme.colorScheme.surfaceContainerLow
+                    0 -> MaterialTheme.colorScheme.surfaceContainer
                     else -> MaterialTheme.colorScheme.surfaceContainerLowest
                 }
             )
