@@ -274,11 +274,11 @@ fun RoleListScreen(
         }
         Surface(
             shape = RoundedCornerShape(12.dp),
-            // 书栏底色（10-13 用户令「书栏跟标签一起用方案 A 的对半混」）：与角色行标签
-            // 同一公式——secondaryContainer 与卡底对半混（GREEN 浅色 ≈ #E0F6E8），
-            // 比原 secondaryContainer 淡一截、块感保留；整页色阶归一：
-            // 页底 → 书栏/标签（同深）→ 卡底。主题槽插值，十套主题与深色自动成立
-            color = lerp(softContainerColor(), MaterialTheme.colorScheme.surfaceContainerLow, 0.5f),
+            // 书栏底色（10-13 用户令「书栏跟标签一起用方案 A 的对半混」→ 同日改定方案 B）：
+            // 与角色行标签同一公式——secondaryContainer 与卡底混、比例 0.25（七成偏
+            // secondaryContainer，GREEN 浅色 ≈ #DEF3E5），比对半混深半档、块感更实；
+            // 整页色阶：页底 → 书栏/标签（同深）→ 卡底。主题槽插值，十套主题与深色自动成立
+            color = lerp(softContainerColor(), MaterialTheme.colorScheme.surfaceContainerLow, 0.25f),
             modifier = Modifier
                 .fillMaxWidth()
                 // 卡缘 = ListGutter 16（v3 边距统一）：与搜索框描边/列表行同线，
@@ -1022,10 +1022,11 @@ private fun RoleRow(
                     // 名字短时标签可超半屏；两边都长时名字已被上限保了半屏，标签拿到剩下的
                     Surface(
                         shape = RoundedCornerShape(8.dp),
-                        // 标签底色（10-13 用户选预览方案 A）：softContainerColor() 与卡底对半混——
-                        // 比当前档淡一截、仍保块感。用主题槽插值而非写死色值：十套主题与深浅色自动成立
-                        //（预览方案 A 的 #E0F6E8 即 GREEN 浅色下此式的计算结果）
-                        color = lerp(softContainerColor(), MaterialTheme.colorScheme.surfaceContainerLow, 0.5f),
+                        // 标签底色（10-13 用户定稿方案 B「混深改到七成 #DEF3E5，保守微调」）：
+                        // softContainerColor() 与卡底混、比例 0.25（七成偏 secondaryContainer，
+                        // GREEN 浅色 ≈ #DEF3E5）——比对半混深半档，块感比之前清楚；书栏同一公式同深。
+                        // 主题槽插值而非写死色值：十套主题与深浅色自动成立
+                        color = lerp(softContainerColor(), MaterialTheme.colorScheme.surfaceContainerLow, 0.25f),
                         border = null,
                         modifier = Modifier
                             .combinedClickable(
