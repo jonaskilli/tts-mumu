@@ -190,14 +190,18 @@ fun AnimatedContentScope.MainPager(sharedVM: SharedViewModel) {
                                     ),
                                 )
                             }
-                            // 浅分隔线：overlay 叠在底栏顶缘，不参与布局，滚动隐藏量法不受影响
-                            Box(
-                                Modifier
-                                    .fillMaxWidth()
-                                    .height(1.dp)
-                                    .background(MaterialTheme.colorScheme.outlineVariant)
-                            )
                         }
+                        // 浅分隔线：overlay 叠在底栏顶缘，不参与布局，滚动隐藏量法不受影响。
+                        // 修正（10-13 晚）：线原本写在 NavigationBar content 里——NavigationBar 是一行 Row，
+                        // 标签项靠 weight 分宽，这条 fillMaxWidth() 的线不参与分配先吃满整行，
+                        // 三个标签被挤成 0 宽全消失（装机实锤）。挪到外层 Box 平级叠顶缘才是真 overlay。
+                        Box(
+                            Modifier
+                                .align(Alignment.TopCenter)
+                                .fillMaxWidth()
+                                .height(1.dp)
+                                .background(MaterialTheme.colorScheme.outlineVariant)
+                        )
                         }
                     }
                 }
