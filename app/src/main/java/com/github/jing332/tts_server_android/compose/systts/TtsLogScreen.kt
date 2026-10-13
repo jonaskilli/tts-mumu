@@ -320,12 +320,11 @@ internal fun TtsLogScreen(vm: TtsLogViewModel = viewModel()) {
                                                 onSearch = { },
                                                 expanded = false,
                                                 onExpandedChange = { },
-                                                // 占位符（10-10 用户令：缩成「搜索」二字）——
-                                                // 「搜索日志」四字在 0.95f 框（≈129dp）里放不下会被截；
-                                                // 复用现成的 R.string.search（值即「搜索」，与搜索键同词），
-                                                // 不动 strings.xml（避开多窗口撞字符串键）
+                                                // 占位符（10-13 深夜用户令「日志搜索栏参照主页把文字显示全」）：
+                                                // 恢复 R.string.search_logs「搜索日志」四字——10-10 曾因 0.95f 框
+                                                // （≈129dp）放不下四字而缩成「搜索」，现宽度放开（见下 modifier）。
                                                 placeholder = {
-                                                    Text(stringResource(R.string.search))
+                                                    Text(stringResource(R.string.search_logs))
                                                 },
                                                 trailingIcon = {
                                                     if (searchQuery.isNotEmpty()) {
@@ -347,13 +346,13 @@ internal fun TtsLogScreen(vm: TtsLogViewModel = viewModel()) {
                                         },
                                         expanded = false,
                                         onExpandedChange = { },
-                                        // 搜索框宽度（10-10 用户令：回退到「很早以前的格式」）——
-                                        // 曾为 0.95f，10-08 甲案瘦到 0.6f 给四键腾位，但 0.6×136dp
-                                        // =82dp 连占位符都放不下（只剩「搜」）。回退 0.95f（≈129dp）
-                                        // 后「搜索」二字够放；占位符同步缩成二字（见下方 placeholder）。
+                                        // 搜索框宽度（10-13 深夜用户令「参照主页把文字显示全」）：
+                                        // 主页搜索框走 fillMaxWidth() 吃满标题位；本页原 0.95f（10-10 为
+                                        // 四键腾位）——标题位已被四键压窄、再乘 0.95 放不下「搜索日志」四字。
+                                        // 放开到 fillMaxWidth()（同主页口径），占位符同步恢复四字。
                                         // 高度同收 48dp（见 InputField 处注释）
                                         modifier = Modifier
-                                            .fillMaxWidth(0.95f)
+                                            .fillMaxWidth()
                                             .height(48.dp)
                                     ) {}
                                 }
