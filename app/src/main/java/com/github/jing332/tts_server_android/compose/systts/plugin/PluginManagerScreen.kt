@@ -647,8 +647,6 @@ fun PluginManagerScreen(sharedVM: SharedViewModel, onFinishActivity: () -> Unit)
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .height(48.dp)
-                                    // 丙案框线（10-13 深夜用户令）：1.5dp outlineVariant 浅线，底色浅结构档不变
-                                    .border(1.5.dp, MaterialTheme.colorScheme.outlineVariant, CircleShape)
                                     .clip(CircleShape),
                                 // 10-13 晚用户令「搜索胶囊浅一档」：五页统一 softStructureColor()
                                 // （结构槽 Container 往页底混六成），不再用灰档 High

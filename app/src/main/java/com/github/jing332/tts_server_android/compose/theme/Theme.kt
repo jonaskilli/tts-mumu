@@ -12,6 +12,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.lerp
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
 import kotlin.math.cbrt
@@ -46,17 +47,30 @@ fun appTheme(
 
 /**
  * 「浅结构档」——五页搜索胶囊共用（主界面底栏已退页底色，10-13 深夜用户令）：
- * 结构槽 surfaceContainer 往页底混四成（60% Container + 40% background），
- * 比卡底浅一档、比页底深约 6 级：胶囊在页面上看得见但不抢眼。
+ * 结构槽 surfaceContainer 往页底混七成（30% Container + 70% background），
+ * 比卡底浅一丝、比页底深约 8 级：胶囊在页面上能站出来。
+ * 沿革：0.6f（装机隐形）→ 0.4f（装机仍不显，框线方案一并否决）→ 现行 0.3f。
  * 运行时 lerp 而非预生成表：十套静态主题 × 深浅色 + 动态取色（Android 12+）全成立；
- * 深浅要再调，只改这里的 0.4f（越小越深、越大越浅）。
+ * 深浅要再调，只改这里的 0.3f（越小越深、越大越浅）。
  */
 @Composable
 fun softStructureColor(): Color = lerp(
     MaterialTheme.colorScheme.surfaceContainer,
     MaterialTheme.colorScheme.background,
-    0.4f,
+    0.3f,
 )
+
+/**
+ * Switch 未选中轨道——结构层随 accent 淡彩后 Highest 槽带主题色（GREEN #DAF1E1），
+ * 开关轨道用户要求中性（10-13 深夜「未开启的不应该有颜色」；纯白表时期本就是灰）：
+ * 浅色取无彩灰 #E2E2E2（官方 baseline tone90 档），深色仍走 Highest 槽
+ * （低亮度下带彩不明显，深色未验收不盲改）。五处 Switch 取用（设置项行/转发器/
+ * 合并插入/仅UI模式/日志调试面板）。
+ */
+@Composable
+fun neutralSwitchUncheckedTrackColor(): Color =
+    if (MaterialTheme.colorScheme.background.luminance() > 0.5f) Color(0xFFE2E2E2)
+    else MaterialTheme.colorScheme.surfaceContainerHighest
 
 /**
  * surfaceContainer 七槽——M3 官方 baseline tone 阶梯（2026-10-10 起 replacing 自创偏移表）。

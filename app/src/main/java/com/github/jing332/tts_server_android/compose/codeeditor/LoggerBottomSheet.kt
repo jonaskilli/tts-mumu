@@ -12,6 +12,8 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Switch
+import androidx.compose.material3.SwitchDefaults
+import com.github.jing332.tts_server_android.compose.theme.neutralSwitchUncheckedTrackColor
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
@@ -110,10 +112,17 @@ fun LoggerBottomSheetPreview() = AppTheme {
         var darkMode by remember { mutableStateOf(false) }
         Column(Modifier.align(Alignment.Center)) {
             Text("Dark theme")
-            Switch(darkMode, {
-                darkMode = it
-                show = true
-            })
+            Switch(
+                darkMode,
+                {
+                    darkMode = it
+                    show = true
+                },
+                // 未选中轨道中性化（10-13 深夜用户令「未开启的不应该有颜色」）
+                colors = SwitchDefaults.colors(
+                    uncheckedTrackColor = neutralSwitchUncheckedTrackColor()
+                )
+            )
         }
 
     }

@@ -35,6 +35,8 @@ import androidx.compose.material.icons.filled.SettingsBackupRestore
 import android.content.IntentFilter
 import androidx.compose.foundation.clickable
 import androidx.compose.material3.Switch
+import androidx.compose.material3.SwitchDefaults
+import com.github.jing332.tts_server_android.compose.theme.neutralSwitchUncheckedTrackColor
 import androidx.compose.ui.Alignment
 import com.github.jing332.compose.widgets.LocalBroadcastReceiver
 import com.github.jing332.compose.widgets.TextFieldDialog
@@ -363,7 +365,11 @@ fun SettingsScreen() {
                                     SystemTtsForwarderConfig.isAutoStart.value =
                                         !SysTtsForwarderService.isRunning
                                     context.switchSysTtsForwarder()
-                                }
+                                },
+                            // 未选中轨道中性化（10-13 深夜用户令「未开启的不应该有颜色」）
+                            colors = SwitchDefaults.colors(
+                                uncheckedTrackColor = neutralSwitchUncheckedTrackColor()
+                            )
                         )
                     }
                 )

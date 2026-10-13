@@ -26,6 +26,8 @@ import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.LocalTextStyle
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Switch
+import androidx.compose.material3.SwitchDefaults
+import com.github.jing332.tts_server_android.compose.theme.neutralSwitchUncheckedTrackColor
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.minimumInteractiveComponentSize
@@ -260,8 +262,11 @@ internal fun SwitchPreference(
                 checked = checked,
                 interactionSource = interactionSource,
                 onCheckedChange = null,
-                modifier = Modifier.align(Alignment.CenterVertically)
-
+                modifier = Modifier.align(Alignment.CenterVertically),
+                // 未选中轨道中性化（10-13 深夜用户令「未开启的不应该有颜色」：Highest 槽随 accent 带绿）
+                colors = SwitchDefaults.colors(
+                    uncheckedTrackColor = neutralSwitchUncheckedTrackColor()
+                )
             )
         }
     )
