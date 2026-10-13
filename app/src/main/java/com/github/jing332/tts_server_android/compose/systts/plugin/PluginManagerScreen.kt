@@ -13,6 +13,7 @@ import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -67,6 +68,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.material3.SnackbarDuration
@@ -1918,13 +1920,14 @@ internal fun ImportByCategoryDialog(
                             }
                         )
                     }
-                    // 动作行作**列表末项**（10-13 用户令「自带分类也是下方两个选项，已选中了
-                    // 试听分类，只需要点个确定。不要放右下角，应该放声音分类的下一行的右下角」）：
-                    // 紧跟最后一个分类行的下一行、右对齐，分类多时随列表滚动——不再是固定底栏
-                    //（固定底栏会把键钉在面板底部，与"分类下一行"的语义不符）。
-                    // 选中态固定 0（试听分类=当前所在屏，按备份弹窗口径画 ✓+选中底）；
-                    // 点它=重进试听，点直接入库=执行导入。
-                    item {
+                    // 动作行=**圆圈单选**（10-13 用户令「有广场的插件右下角要改为图三那种选中形式，
+                    // 默认选中试听分类」）：默认选中「试听分类」（它=当前所在流程，与顶部分段胶囊
+                    // 同口径），点它=重进试听列表；点直接入库=执行导入。语义不变仍是动作键
+                    //（10-11 用户令「点试听分类是跳屏的动作」），圆圈只是选中形式的视觉。
+                    // ⚠️ 无广场插件**不渲染本行**（10-13 用户令「无广场的右下角不要加东西」——
+                    // 顶部已有「试听分类|直接入库」分段胶囊，两边都长出来是重复）；按宿主分岔的
+                    // 判据=embedded（与上面分段胶囊同源，合壳调用点恒 embedded=true）。
+                    if (embedded) item {
                         Row(
                             Modifier
                                 .fillMaxWidth()
@@ -1932,17 +1935,51 @@ internal fun ImportByCategoryDialog(
                             horizontalArrangement = Arrangement.End,
                             verticalAlignment = Alignment.CenterVertically,
                         ) {
-                            TextButton(
-                                enabled = !importing && hasSelection,
-                                onClick = {
-                                    val pools = categories.filter { it.poolId in selectedPoolIds }
-                                    if (pools.isNotEmpty()) loadVoices(pools)
-                                }
-                            ) { Text("试听分类") }
-                            TextButton(
-                                enabled = !importing && hasSelection,
-                                onClick = { doDirectImport() }
-                            ) { Text(if (importing) "导入中" else "直接入库") }
+                            Row(
+                                modifier = Modifier.selectable(
+                                    selected = true,
+                                    enabled = !importing && hasSelection,
+                                    onClick = {
+                                        val pools = categories.filter { it.poolId in selectedPoolIds }
+                                        if (pools.isNotEmpty()) loadVoices(pools)
+                                    }
+                                ),
+                                verticalAlignment = Alignment.CenterVertically,
+                            ) {
+                                RadioButton(
+                                    selected = true,
+                                    onClick = {
+                                        val pools = categories.filter { it.poolId in selectedPoolIds }
+                                        if (pools.isNotEmpty()) loadVoices(pools)
+                                    },
+                                    enabled = !importing && hasSelection,
+                                )
+                                Text(
+                                    "试听分类",
+                                    style = MaterialTheme.typography.bodyMedium.copy(fontSize = 15.sp),
+                                    modifier = Modifier.padding(start = 4.dp)
+                                )
+                            }
+                            Spacer(Modifier.width(12.dp))
+                            Row(
+                                modifier = Modifier.selectable(
+                                    selected = false,
+                                    enabled = !importing && hasSelection,
+                                    onClick = { doDirectImport() }
+                                ),
+                                verticalAlignment = Alignment.CenterVertically,
+                            ) {
+                                RadioButton(
+                                    selected = false,
+                                    onClick = { doDirectImport() },
+                                    enabled = !importing && hasSelection,
+                                )
+                                Text(
+                                    if (importing) "导入中" else "直接入库",
+                                    style = MaterialTheme.typography.bodyMedium.copy(fontSize = 15.sp),
+                                    modifier = Modifier.padding(start = 4.dp)
+                                )
+                            }
                         }
                     }
                 }
