@@ -131,7 +131,11 @@ val blue_seed = Color(0xFF4285F4)
 //GREEN
 val green_md_theme_light_primary = Color(0xFF006D3A)
 val green_md_theme_light_onPrimary = Color(0xFFFFFFFF)
-val green_md_theme_light_primaryContainer = Color(0xFFE6F6EB)
+// 10-13 用户令「翻以前的记录，用以前的」：FAB 菜单丸恢复降饱和前的档（3d2b987 曾把全主题
+// 容器按 CIELAB C≤8 压淡，本枚 #82FAAB→#E6F6EB）。只恢复 GREEN 这一枚，其余 29 枚容器不动；
+// 菜单丸（M3 默认取 primaryContainer）与收拢态 FAB（lerp(primaryContainer, primary)）随之回老样，
+// 日志 DEBUG 药丸、库页徽章同槽同回（以前即此色）。深色档 #00522B 未动。
+val green_md_theme_light_primaryContainer = Color(0xFF82FAAB)
 val green_md_theme_light_onPrimaryContainer = Color(0xFF00210E)
 val green_md_theme_light_secondary = Color(0xFF4F6353)
 val green_md_theme_light_onSecondary = Color(0xFFFFFFFF)
