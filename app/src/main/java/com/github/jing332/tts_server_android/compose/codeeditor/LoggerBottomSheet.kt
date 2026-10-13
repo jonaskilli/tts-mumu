@@ -3,12 +3,14 @@ package com.github.jing332.tts_server_android.compose.codeeditor
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -28,13 +30,13 @@ import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.github.jing332.common.toArgb
-import com.github.jing332.compose.widgets.AppDialog
 import com.github.jing332.script.runtime.console.Console
 import com.github.jing332.script.runtime.console.LogListener
 import com.github.jing332.script.runtime.console.LogListenerManager
 import com.github.jing332.tts_server_android.compose.theme.AppTheme
 
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun LoggerBottomSheet(
     registry: LogListenerManager,
@@ -68,25 +70,20 @@ fun LoggerBottomSheet(
         }
     }
 
-    // 居中弹窗（10-13 用户令「适合居中弹窗的都要用居中弹窗…底部弹窗才是少见的特殊形式」）
-    AppDialog(
-        onDismissRequest = onDismissRequest,
-        title = { Text("日志") },
-        content = {
-            SelectionContainer(
-                modifier = Modifier
-                    .heightIn(max = 420.dp)
-                    .verticalScroll(rememberScrollState())
-            ) {
-                Text(
-                    logText, modifier = Modifier
-                        .padding(horizontal = 8.dp)
-                        .padding(bottom = 8.dp)
-                )
-            }
-        },
-        buttons = {},
-    )
+    ModalBottomSheet(onDismissRequest = onDismissRequest) {
+        SelectionContainer(
+            modifier = Modifier
+                .fillMaxHeight()
+                .verticalScroll(rememberScrollState())
+        ) {
+            Text(
+                logText, modifier = Modifier
+                    .fillMaxHeight()
+                    .padding(horizontal = 8.dp)
+                    .padding(bottom = 8.dp)
+            )
+        }
+    }
 }
 
 @Preview

@@ -2113,19 +2113,15 @@ internal fun ImportByCategoryDialog(
         if (embedded) {
             panelBody(false)
         } else {
-            // 居中弹窗（10-13 用户令「导入弹窗现在是居中弹窗吗…试听分类之后的导入我也要
-            // 居中弹窗」）：无广场插件的分类入库壳从底弹层换居中 AppDialog；stage0/1 的
-            // 列表内滚由 panelBody 自带（外层 fillMaxHeight(0.92f) 在弹窗内≈限高）。
-            com.github.jing332.compose.widgets.AppDialog(
+            androidx.compose.material3.ModalBottomSheet(
                 onDismissRequest = { if (!importing) onDismiss() },
-                title = {},
-                content = {
-                    Box(Modifier.fillMaxWidth()) {
-                        panelBody(true)
-                    }
-                },
-                buttons = {},
-            )
+                sheetState = androidx.compose.material3.rememberModalBottomSheetState(skipPartiallyExpanded = true),
+                containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
+                dragHandle = null,
+                contentWindowInsets = { WindowInsets(0, 0, 0, 0) },
+            ) {
+                panelBody(true)
+            }
         }
     }
 
