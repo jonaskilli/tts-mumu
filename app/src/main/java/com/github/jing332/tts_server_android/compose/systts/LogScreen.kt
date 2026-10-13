@@ -555,8 +555,9 @@ internal fun LogScreen(
         // 发音人信息：棕褐 #7D6B5D / 深色主题 #A08B7A
         val metaColor = if (darkTheme) Color(0xFFB0BEC5) else Color(0xFF37474F)
         val voiceColor = if (darkTheme) Color(0xFFA08B7A) else Color(0xFF7D6B5D)
-        // 角色名小牌：灰绿（10-10 预览拍板色）；插件名小牌：灰青
-        val roleChipColor = if (darkTheme) Color(0xFF9FB8A4) else Color(0xFF4E6E57)
+        // 角色名小牌：跟「请求音频」那颗老日志绿（10-13 用户令「声音行的人名也用一样的绿色」）；
+        // 插件名小牌：灰青
+        val roleChipColor = if (darkTheme) Color(0xFF81C784) else Color(ACCENT_GREEN)
         val pluginChipColor = if (darkTheme) Color(0xFF9AA0A8) else Color(0xFF5B6472)
 
         LazyColumn(
@@ -1298,6 +1299,13 @@ private fun LogEntryBody(
                     s.spanStyles.forEach { r -> addStyle(r.item, r.start, r.end) }
                     // 正文段（两个换行之间）整体染老红，压过 <b> 的字重色
                     addStyle(SpanStyle(color = failRed, fontWeight = FontWeight.Bold), nl1 + 1, nl2)
+                    // 字号分层（10-13 用户令「源错误这一句字号忽大忽小」根修）：
+                    // 失败条三段此前整体 14sp，而同样的内容在成员行/成功行里是 13sp——
+                    // 同屏两种字号来回跳，就是"忽大忽小"。统一对齐 13sp：
+                    // 错误串段 0..nl1 与发音人段 nl2.. 全 13sp；正文段（加粗）保 14sp
+                    //（与成功行正文 14sp 同档，加粗是它的身份标识，字号不再单独放大）
+                    addStyle(SpanStyle(fontSize = 13.sp), 0, nl1)
+                    addStyle(SpanStyle(fontSize = 13.sp), nl2, s.text.length)
                 }
             }
         }
