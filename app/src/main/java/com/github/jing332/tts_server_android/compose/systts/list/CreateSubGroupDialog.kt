@@ -24,7 +24,6 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.TextField
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -67,7 +66,9 @@ fun CreateSubGroupDialog(
                     modifier = Modifier.padding(bottom = 8.dp)
                 )
 
-                TextField(
+                // 描边输入框（10-13 晚用户实锤：filled TextField 的容器在绿主题下是深绿一块，
+                // 「不知道咋来的」——与全站输入框同款改描边，无底色）
+                OutlinedTextField(
                     value = subGroupName,
                     onValueChange = { subGroupName = it },
                     label = { Text("子分组名称") },

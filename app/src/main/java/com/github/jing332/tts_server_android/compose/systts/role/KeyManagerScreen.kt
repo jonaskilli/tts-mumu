@@ -3054,7 +3054,7 @@ private fun ModelPullDialog(
     Dialog(onDismissRequest = onDismiss) {
         Surface(
             shape = RoundedCornerShape(24.dp),
-            color = MaterialTheme.colorScheme.surfaceContainerHigh,
+            color = MaterialTheme.colorScheme.surfaceContainerLow,
             modifier = Modifier.fillMaxWidth().heightIn(max = 640.dp)
         ) {
             Column(Modifier.padding(16.dp)) {
@@ -3391,7 +3391,7 @@ fun BackupCenterDialog(
     ) {
         Surface(
             shape = RoundedCornerShape(28.dp),
-            color = MaterialTheme.colorScheme.surfaceContainerHigh,
+            color = MaterialTheme.colorScheme.surfaceContainerLow,
             modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 24.dp)
         ) {
             Column(Modifier.padding(start = 20.dp, end = 20.dp, top = 20.dp, bottom = 12.dp)) {
@@ -3695,7 +3695,7 @@ fun BookManagerDialog(
     ) {
         Surface(
             shape = RoundedCornerShape(28.dp),
-            color = MaterialTheme.colorScheme.surfaceContainerHigh,
+            color = MaterialTheme.colorScheme.surfaceContainerLow,
             modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 24.dp),
         ) {
             Column(
@@ -3797,7 +3797,7 @@ fun BookManagerDialog(
         ) {
             Surface(
                 shape = RoundedCornerShape(28.dp),
-                color = MaterialTheme.colorScheme.surfaceContainerHigh,
+                color = MaterialTheme.colorScheme.surfaceContainerLow,
                 modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 24.dp),
             ) {
                 Column(

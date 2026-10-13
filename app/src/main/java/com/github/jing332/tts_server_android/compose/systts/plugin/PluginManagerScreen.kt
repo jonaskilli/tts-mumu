@@ -1978,7 +1978,7 @@ internal fun ImportByCategoryDialog(
                 Row(
                     Modifier
                         .fillMaxWidth()
-                        .padding(horizontal = 24.dp, top = 6.dp),
+                        .padding(start = 24.dp, end = 24.dp, top = 6.dp),
                     horizontalArrangement = Arrangement.End,
                     verticalAlignment = Alignment.CenterVertically
                 ) {

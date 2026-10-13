@@ -932,20 +932,14 @@ private fun RoleRow(
             // 这里必须关掉按压反馈波纹，否则名字列自己的涟漪会叠成第二块灰。
             Column(
                 Modifier
-                    // 宽度分配 v3（10-11 用户拍板方案④「回到旧格式观感 + 补掉它的洞」）：
-                    // 名字列按内容量占宽，**上限=行内容宽的一半**——名字再长也留半屏给标签，
-                    // 不再像旧格式（标签优先）那样被挤到 7 个字。
-                    // 标签侧改回「按内容宽 + 右缘齐线」（去 weight），靠右侧弹性槽承载：
-                    //   · 名字短 → 名字按实际宽，标签可超半屏（右推靠齐，旧格式观感）
-                    //   · 名字长 → 名字封顶半屏，标签拿到剩下的一半
-                    // 旧法 weight(1f) 是名字先吃满剩余，标签顶到 220dp 上限先量先得时
-                    // 长名反被挤成两三个字（10-11 装机实锤）；权重本就该在标签侧。
-                    // 计宽对象=竖排全部名称行里**最长的一行**（含收藏【】与 👑 附件），
-                    // 按 16sp 全角≈16dp/半角≈9dp 估（与 weightedWidth 同口径的 dp 化）。
-                    .widthIn(
-                        min = nameColumnMinWidth(nameList, isFav, isProtagonist),
-                        max = (LocalConfiguration.current.screenWidthDp / 2 - ListGutter.value).dp
-                    )
+                    // 点击区（10-13 晚用户令「点击标签左侧都应该能选中角色……排除右侧的标签区域，
+                    // 左侧都是点击能选中的区域」）：名字列改 weight(1f) 吃满标签以外的整段——
+                    // 原先按内容量占宽（上限半屏），名字右侧的空白点不着。weight 对 weight：
+                    // 标签槽同为 weight(1f)，两槽对半 = 名字列上限仍半屏，原 widthIn(max=半屏)
+                    // 的封顶语义由对半分配天然承接（min 保留兜小屏）；无标签时名字列占整行。
+                    // 视觉不变：名字起线在左、标签仍右缘齐线。
+                    .weight(1f)
+                    .widthIn(min = nameColumnMinWidth(nameList, isFav, isProtagonist))
                     .combinedClickable(
                         onClick = onNameClick,
                         onLongClick = onNameLongClick,

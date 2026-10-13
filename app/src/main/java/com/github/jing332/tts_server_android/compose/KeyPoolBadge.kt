@@ -1,6 +1,7 @@
 package com.github.jing332.tts_server_android.compose
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -10,6 +11,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -26,11 +28,15 @@ import com.github.jing332.tts_server_android.R
 @Composable
 fun KeyPoolBadge(poolCount: Int, modifier: Modifier = Modifier) {
     val has = poolCount > 0
+    // 未启用红（10-13 晚用户令「未启用的红色不正宗，应该改为日志那个表示错误的红色」）：
+    // 日志失败条同款正宗红——浅色 #F44336 / 深色 #E57373（与 LogScreen 失败丸/源错误正文同源）；
+    // colorScheme.error 在动态取色下偏暗紫红，弃用。EnabledCountBadge 同批同款。
+    val emptyRed = if (isSystemInDarkTheme()) Color(0xFFE57373) else Color(0xFFF44336)
     Box(
         modifier
             .clip(RoundedCornerShape(50))
             .background(
-                (if (has) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error)
+                (if (has) MaterialTheme.colorScheme.primary else emptyRed)
                     .copy(alpha = 0.12f)
             )
             .padding(horizontal = 6.dp, vertical = 1.dp),
@@ -40,7 +46,7 @@ fun KeyPoolBadge(poolCount: Int, modifier: Modifier = Modifier) {
             if (has) stringResource(R.string.role_entry_key_pool_badge, poolCount)
             else stringResource(R.string.role_entry_key_pool_empty),
             style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp),
-            color = if (has) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error,
+            color = if (has) MaterialTheme.colorScheme.primary else emptyRed,
             fontWeight = FontWeight.SemiBold,
         )
     }
