@@ -974,17 +974,14 @@ class SystemTtsService : TextToSpeechService(), IEventDispatcher {
                             val authLike = reason != null &&
                                 Regex("(?i)密钥|api[ _-]?key|401|403|unauthor|forbidden|denied|invalid")
                                     .containsMatchIn(reason)
-                            when {
-                                !InnerThoughtAiClassifier.hasCurrentKey() -> logChild(
-                                    LogLevel.WARN,
-                                    getString(R.string.systts_log_fallback_no_key)
-                                )
-
-                                reason != null && authLike -> logChild(
-                                    LogLevel.WARN,
-                                    getString(R.string.systts_log_fallback_key_bad, reason)
-                                )
-                            }
+                            // 「未选当前密钥」分支已撤（10-13 晚）：规则侧空池本就打灰字
+                            // 「未启用密钥：跳过分析，直接用兜底发音人」，这条 W 级子行跟在
+                            // 每条兜底请求下重复报同一件事（实测日志一行兜底两处提没钥）。
+                            // 只留「密钥疑似失效」（reason 带 401/403 等鉴权词时）——那是灰字没有的信息
+                            if (reason != null && authLike) logChild(
+                                LogLevel.WARN,
+                                getString(R.string.systts_log_fallback_key_bad, reason)
+                            )
                         }
                     } finally {
                         org.slf4j.MDC.remove("configId")
