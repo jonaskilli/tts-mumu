@@ -4,8 +4,6 @@ import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import androidx.activity.compose.BackHandler
-import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -13,17 +11,14 @@ import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.ScrollState
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.MenuBook
 import androidx.compose.material.icons.automirrored.filled.ManageSearch
-
 import androidx.compose.material.icons.filled.ColorLens
 import androidx.compose.material.icons.filled.FileOpen
 import androidx.compose.material.icons.filled.HealthAndSafety
@@ -39,7 +34,6 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.material.icons.filled.SettingsBackupRestore
 import android.content.IntentFilter
 import androidx.compose.foundation.clickable
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Switch
 import androidx.compose.ui.Alignment
 import com.github.jing332.compose.widgets.LocalBroadcastReceiver
@@ -60,16 +54,14 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import com.github.jing332.tts_server_android.R
 import com.github.jing332.tts_server_android.compose.backup.BackupRestoreActivity
+import com.github.jing332.tts_server_android.compose.KeyPoolBadge
 import com.github.jing332.tts_server_android.compose.forwarder.systts.ForwarderWebDialog
 import com.github.jing332.tts_server_android.compose.nav.NavTopAppBar
 import com.github.jing332.tts_server_android.compose.systts.plugin.PluginManagerActivity
@@ -283,38 +275,20 @@ fun SettingsScreen() {
                                     .readPool("mingwuyan").size
                             }.getOrDefault(0)
                         }
+                        // 密钥行（10-13 再令「三个地方的密钥都要统一为图一形式…直接用标题改，
+                        // 而不是在末尾加」）：徽章搬进标题旁（KeyPoolBadge 三处共用），
+                        // 行尾的小钥匙图标+徽章（content 槽）撤；池空=红字「未启用」。
                         BasePreferenceWidget(
                             onClick = { KeyManagerActivity.start(context, "mingwuyan") },
-                            title = { Text(stringResource(id = R.string.role_key_title)) },
+                            title = {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Text(stringResource(id = R.string.role_key_title))
+                                    Spacer(Modifier.width(4.dp))
+                                    KeyPoolBadge(poolCount)
+                                }
+                            },
                             icon = { Icon(Icons.Default.Key, null) },
                             showChevron = false,
-                            content = {
-                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Icon(
-                                        Icons.Default.Key,
-                                        contentDescription = null,
-                                        modifier = Modifier.size(16.dp),
-                                        tint = MaterialTheme.colorScheme.onSurfaceVariant
-                                    )
-                                    Spacer(Modifier.width(4.dp))
-                                    if (poolCount > 0) {
-                                        Box(
-                                            Modifier
-                                                .clip(RoundedCornerShape(50))
-                                                .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.12f))
-                                                .padding(horizontal = 6.dp, vertical = 1.dp),
-                                            contentAlignment = Alignment.Center
-                                        ) {
-                                            Text(
-                                                stringResource(R.string.role_entry_key_pool_badge, poolCount),
-                                                style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp),
-                                                color = MaterialTheme.colorScheme.primary,
-                                                fontWeight = FontWeight.SemiBold,
-                                            )
-                                        }
-                                    }
-                                }
-                            }
                         )
                     }
                 }

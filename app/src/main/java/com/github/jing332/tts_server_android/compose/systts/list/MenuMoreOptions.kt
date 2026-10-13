@@ -11,19 +11,13 @@ import androidx.compose.material.icons.filled.Key
 import androidx.compose.material.icons.filled.Output
 import androidx.compose.material.icons.filled.Speed
 import androidx.compose.material.icons.automirrored.filled.MenuBook
-import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -32,17 +26,15 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import com.github.jing332.common.utils.startActivity
 import com.github.jing332.compose.widgets.AppDropdownMenu
 import com.github.jing332.compose.widgets.CheckedMenuItem
 import com.github.jing332.tts_server_android.R
+import com.github.jing332.tts_server_android.compose.KeyPoolBadge
 import com.github.jing332.tts_server_android.compose.asAppCompatActivity
 import com.github.jing332.tts_server_android.compose.systts.plugin.PluginManagerActivity
 import com.github.jing332.tts_server_android.compose.systts.replace.ReplaceManagerActivity
@@ -186,11 +178,24 @@ internal fun MenuMoreOptions(
         // 密钥管理直达（10-13 用户令「主界面三个点菜单替换规则下方加个密钥，点击后直通
         // 角色管理页的密钥界面」）：与设置页/角色管理页顶栏入口同参（固定 mingwuyan——
         // 密钥/角色数据都挂在 mingwuyan 规则目录下，三处入口共用同一 RULE_ID）。
-        // 10-13 补：尾部「启用 N」计数（用户令「首页三个点的密钥后面也要跟上启用数量，
-        // 但不用加图标」）——与角色管理页顶栏胶囊同源同款（readPool 条数，池空不显示）；
-        // 菜单是即点即现的短生命周期组合，直接同步读文件（毫秒级 json/文本读，可接受）。
+        // 10-13 再令「三个地方的密钥都要统一为图一形式…直接用标题改，而不是在末尾加」：
+        // 徽章搬进标题旁（KeyPoolBadge 三处共用），行尾的小钥匙图标+徽章撤；
+        // 池空=红字「未启用」。菜单是即点即现的短生命周期组合，直接同步读文件
+        //（毫秒级 json/文本读，可接受）。
+        val menuPoolCount = remember {
+            runCatching {
+                com.github.jing332.tts_server_android.service.systts.help.KeyListFile
+                    .readPool(KEY_TAG_RULE_ID).size
+            }.getOrDefault(0)
+        }
         DropdownMenuItem(
-            text = { Text("密钥") },
+            text = {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text("密钥")
+                    Spacer(Modifier.width(4.dp))
+                    KeyPoolBadge(menuPoolCount)
+                }
+            },
             onClick = {
                 onDismissRequest()
                 KeyManagerActivity.start(context, KEY_TAG_RULE_ID)
@@ -198,39 +203,6 @@ internal fun MenuMoreOptions(
             leadingIcon = {
                 Icon(Icons.Default.Key, null)
             },
-            trailingIcon = {
-                val poolCount = remember {
-                    runCatching {
-                        com.github.jing332.tts_server_android.service.systts.help.KeyListFile
-                            .readPool(KEY_TAG_RULE_ID).size
-                    }.getOrDefault(0)
-                }
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(
-                        Icons.Default.Key,
-                        contentDescription = null,
-                        modifier = Modifier.size(16.dp),
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                    Spacer(Modifier.width(4.dp))
-                    if (poolCount > 0) {
-                        Box(
-                            Modifier
-                                .clip(RoundedCornerShape(50))
-                                .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.12f))
-                                .padding(horizontal = 6.dp, vertical = 1.dp),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Text(
-                                stringResource(R.string.role_entry_key_pool_badge, poolCount),
-                                style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp),
-                                color = MaterialTheme.colorScheme.primary,
-                                fontWeight = FontWeight.SemiBold,
-                            )
-                        }
-                    }
-                }
-            }
         )
         HorizontalDivider()
         DropdownMenuItem(text = {

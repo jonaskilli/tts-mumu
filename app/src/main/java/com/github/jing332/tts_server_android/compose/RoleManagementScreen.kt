@@ -1,6 +1,5 @@
 package com.github.jing332.tts_server_android.compose
 
-import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -12,7 +11,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.pager.PagerState
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Book
 import androidx.compose.material.icons.filled.Key
@@ -34,13 +32,10 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
@@ -214,27 +209,13 @@ fun RoleManagementScreen(sharedVM: SharedViewModel, pagerState: PagerState) {
                                 stringResource(R.string.role_entry_key),
                                 style = MaterialTheme.typography.labelLarge
                             )
-                            // 启用池计数胶囊（10-10 用户令·甲案）：不进密钥页就知道池里几个密钥。
-                            // 数值 = 密钥页「启用池(N)」同源（miyue 池值条数）；胶囊里必带「启用」
-                            // 二字（10-10 用户反馈：光一个数字会读成「密钥共 N 个」），
-                            // 池空不显示（0 无意义，且不给顶栏添噪）。
-                            if (poolCount > 0) {
-                                Spacer(Modifier.width(4.dp))
-                                Box(
-                                    Modifier
-                                        .clip(RoundedCornerShape(50))
-                                        .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.12f))
-                                        .padding(horizontal = 6.dp, vertical = 1.dp),
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    Text(
-                                        stringResource(R.string.role_entry_key_pool_badge, poolCount),
-                                        style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp),
-                                        color = MaterialTheme.colorScheme.primary,
-                                        fontWeight = FontWeight.SemiBold,
-                                    )
-                                }
-                            }
+                            // 启用池计数徽章（10-13 用户令·三处密钥入口统一为图一形式）：
+                            // 池里有钥=「启用 N」（数值 = 密钥页「启用池(N)」同源，miyue 池值条数；
+                            // 必带「启用」二字，10-10 用户反馈：光一个数字会读成「密钥共 N 个」）；
+                            // 池空=红字「未启用」（用户令「假如说没有启用的话，要用红字写一下，未启用」
+                            // ——原口径「池空不显示」作废）。构件=KeyPoolBadge（三处共用）。
+                            Spacer(Modifier.width(4.dp))
+                            KeyPoolBadge(poolCount)
                         }
                     }
                     Box(
