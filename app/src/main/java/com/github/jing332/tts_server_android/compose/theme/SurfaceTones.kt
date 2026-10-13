@@ -20,10 +20,10 @@ import androidx.compose.ui.graphics.Color
 
 internal val lightSurfaceTones: Map<AppTheme, List<Color>> = mapOf(
     AppTheme.DEFAULT to listOf(Color(0xFFFBFEFD), Color(0xFFF4FBF7), Color(0xFFE6F7ED), Color(0xFFDCF3E7), Color(0xFFD0EFDF), Color(0xFFE6F7ED), Color(0xFFFBFEFD)),
-    // 10-13 晚（用户挑色「A·微深，我想比这个再浅一点」）：GREEN 卡底（Low 槽）#F4FBF6 → #EFF6F1，
-    //   落在现状与 #ECF3EE 之间偏浅处。组头带=lerp(background, Low, 0.5) 自动跟移、仍比卡浅。
-    //   只动 GREEN 这一颗，其余槽与九套主题未动。
-    AppTheme.GREEN to listOf(Color(0xFFFBFEFC), Color(0xFFEFF6F1), Color(0xFFEAF7EF), Color(0xFFE2F4E8), Color(0xFFDAF1E1), Color(0xFFEAF7EF), Color(0xFFFBFEFC)),
+    // 10-13 深夜用户令「配置项卡片色用以前的，现在的太深了」：GREEN 卡底（Low 槽）#EFF6F1 回滚 → #F4FBF6
+    //   （反转 80738f6 当晚挑的「微深一档」；#F4FBF6 = 10-11 V1 起用了两天的旧卡底）。
+    //   组头带=lerp(background, Low, 0.5) 自动跟移（≈#F8FCF7）。只动 GREEN 这一颗，其余槽与九套主题未动。
+    AppTheme.GREEN to listOf(Color(0xFFFBFEFC), Color(0xFFF4FBF6), Color(0xFFEAF7EF), Color(0xFFE2F4E8), Color(0xFFDAF1E1), Color(0xFFEAF7EF), Color(0xFFFBFEFC)),
     AppTheme.RED to listOf(Color(0xFFFFFCFC), Color(0xFFFFF7F7), Color(0xFFFEEBEC), Color(0xFFFFE1E2), Color(0xFFFFD7D8), Color(0xFFFEEBEC), Color(0xFFFFFCFC)),
     AppTheme.PINK to listOf(Color(0xFFFFFCFE), Color(0xFFFEF7FB), Color(0xFFFEE9F5), Color(0xFFFCE1F1), Color(0xFFFAD8ED), Color(0xFFFEE9F5), Color(0xFFFFFCFE)),
     AppTheme.BLUE to listOf(Color(0xFFFBFDFF), Color(0xFFF4FAFF), Color(0xFFE6F4FE), Color(0xFFDCF1FF), Color(0xFFCFECFF), Color(0xFFE6F4FE), Color(0xFFFBFDFF)),
