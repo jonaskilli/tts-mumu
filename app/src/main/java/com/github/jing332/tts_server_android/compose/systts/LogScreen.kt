@@ -754,12 +754,14 @@ internal fun LogScreen(
                                 // 同一份「源错误：…+引用正文+发音人」内容，组头吸收路径走
                                 // oldStyleFail 三段分层（错误串13/正文14粗/发音人13），裸行路径
                                 // 却整体 13sp——同屏一大会一小。判定=失败终点（ERROR 裸行）
-                                // 且消息带 <b> 与两段以上结构（服务端源错误全文的标志），
+                                // 且消息带 <b> 与两段以上 <br> 结构（服务端源错误全文的标志；
+                                // ⚠️ 原判据数 '\n' 字符是错的——entry.message 是原始 HTML，
+                                // <br> 是标签不是换行符，永远数出 0，分层从未生效），
                                 // 命中即走同一分层；行高同步提到 18.2（=14×1.3，与组头同规格）。
                                 // 其余裸行（规则/插件消息）维持 13sp 不动。
                                 val bareFailStyle = log.level == LogLevel.ERROR && log.indent == 0 &&
-                                    log.message.contains("<b>") &&
-                                    log.message.count { it == '\n' } >= 2
+                                    log.message.contains("<b>", ignoreCase = true) &&
+                                    Regex("<br", RegexOption.IGNORE_CASE).findAll(log.message).count() >= 2
                                 LogEntryBody(
                                     entry = log,
                                     darkTheme = darkTheme,
