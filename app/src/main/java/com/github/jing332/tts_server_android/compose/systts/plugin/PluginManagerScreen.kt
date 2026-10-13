@@ -1819,7 +1819,10 @@ internal fun ImportByCategoryDialog(
         if (stage == 0 && !embedded) {
             SoftSegmentedTextToggle(
                 options = listOf("试听分类", "直接入库"),
-                selectedIndex = -1,
+                // 选中态固定 0（10-13 用户令「不带联网广场这个切换胶囊要参照备份这个，
+                // 是选中试听分类的状态」）：stage0=选分类屏，试听分类就是"当前所在"，
+                // 按备份弹窗口径画 ✓ + 选中底。点它=重进试听（无动作），点直接入库=执行导入。
+                selectedIndex = 0,
                 onSelect = { idx ->
                     // 分段构件没有 enabled 形参：不可用态靠这里挡（与两条文字键时代同口径）
                     if (!importing && hasSelection) {
