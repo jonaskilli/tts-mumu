@@ -2112,6 +2112,26 @@ internal fun ImportByCategoryDialog(
         // 拖拽把/标题/来源条也归它画，于是来源胶囊互切时不再有第二次上滑
         if (embedded) {
             panelBody(false)
+        } else if (importing) {
+            // 导入进行中 = 紧凑居中弹窗（10-13 用户令「我已经分类好了，点击导入，出来的
+            // 那个界面」改为居中；同日「只改导入的过程，这个改为居中」）：就一行转圈+进度，
+            // 大底弹层浪费空间；导入完成后整个弹窗关闭。
+            // （stage 0 分类勾选 / stage 1 声音列表维持原底弹层不动。）
+            com.github.jing332.compose.widgets.AppDialog(
+                onDismissRequest = {},
+                title = { Text("正在音色分类入库") },
+                content = {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.padding(vertical = 8.dp)
+                    ) {
+                        CircularProgressIndicator(Modifier.size(24.dp), strokeWidth = 2.dp)
+                        Spacer(Modifier.width(12.dp))
+                        Text(progressText, style = MaterialTheme.typography.bodyMedium)
+                    }
+                },
+                buttons = {},
+            )
         } else {
             androidx.compose.material3.ModalBottomSheet(
                 onDismissRequest = { if (!importing) onDismiss() },
