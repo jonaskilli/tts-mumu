@@ -11,6 +11,7 @@ import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
 import kotlin.math.cbrt
@@ -42,6 +43,20 @@ fun appTheme(
     // 动态取色（Android 12+ 壁纸派生）：浅色同样走纯白底（与静态主题同口径），深色用官方暗表现算
     return if (themeType == AppTheme.DYNAMIC_COLOR) dynamicNeutral(base, darkTheme) else themedNeutral(base, themeType, darkTheme)
 }
+
+/**
+ * 「浅结构档」——搜索胶囊与主界面底栏共用（10-13 晚用户令，方案一基准档=六成混白）：
+ * 结构槽 surfaceContainer 往页底混六成（40% Container + 60% background），
+ * 比卡底浅一档、比页底深半档，胶囊/底栏还在但不抢眼。
+ * 运行时 lerp 而非预生成表：十套静态主题 × 深浅色 + 动态取色（Android 12+）全成立；
+ * 深浅要再调，只改这里的 0.6f（越小越深、越大越浅）。
+ */
+@Composable
+fun softStructureColor(): Color = lerp(
+    MaterialTheme.colorScheme.surfaceContainer,
+    MaterialTheme.colorScheme.background,
+    0.6f,
+)
 
 /**
  * surfaceContainer 七槽——M3 官方 baseline tone 阶梯（2026-10-10 起 replacing 自创偏移表）。

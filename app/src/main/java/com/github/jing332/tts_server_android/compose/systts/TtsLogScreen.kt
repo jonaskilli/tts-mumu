@@ -55,6 +55,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBarDefaults
 import com.github.jing332.tts_server_android.compose.nav.NavTopAppBar
+import com.github.jing332.tts_server_android.compose.theme.softStructureColor
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
@@ -332,7 +333,13 @@ internal fun TtsLogScreen(vm: TtsLogViewModel = viewModel()) {
                                                             Icon(Icons.Default.Clear, stringResource(R.string.clear))
                                                         }
                                                     }
-                                                }
+                                                },
+                                                // 10-13 晚用户令「搜索胶囊浅一档」：与设置/列表/规则/插件页统一浅结构档
+                                                colors = SearchBarDefaults.inputFieldColors(
+                                                    focusedContainerColor = softStructureColor(),
+                                                    unfocusedContainerColor = softStructureColor(),
+                                                    disabledContainerColor = softStructureColor(),
+                                                )
                                             )
                                         },
                                         expanded = false,

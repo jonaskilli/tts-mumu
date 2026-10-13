@@ -18,6 +18,7 @@ import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.AlertDialog
+import com.github.jing332.tts_server_android.compose.theme.softStructureColor
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
@@ -647,8 +648,9 @@ fun PluginManagerScreen(sharedVM: SharedViewModel, onFinishActivity: () -> Unit)
                                     .fillMaxWidth()
                                     .height(48.dp)
                                     .clip(CircleShape),
-                                // 10-10 纯白表统一：与列表/设置/替换规则页搜索框同灰档 #F3F3F3
-                                color = MaterialTheme.colorScheme.surfaceContainerHigh,
+                                // 10-13 晚用户令「搜索胶囊浅一档」：五页统一 softStructureColor()
+                                // （结构槽 Container 往页底混六成），不再用灰档 High
+                                color = softStructureColor(),
                                 shape = CircleShape
                             ) {
                                 CompositionLocalProvider(LocalTextStyle provides MaterialTheme.typography.titleMedium) {

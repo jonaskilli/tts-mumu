@@ -24,6 +24,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import androidx.compose.foundation.layout.ColumnScope
+import com.github.jing332.tts_server_android.compose.theme.softStructureColor
 
 class SettingsSearch(private val query: String) {
     fun active(): Boolean = query.isNotBlank()
@@ -64,9 +65,9 @@ fun SettingsSearchField(
     modifier: Modifier = Modifier,
     compact: Boolean = false,
 ) {
-    // 充色搜索条：无描边、全圆角；10-10 纯白表下 surfaceContainer 已并入白，
-    // 搜索框改灰档 surfaceContainerHigh（#F3F3F3，=DSH 搜索框那种白底上的浅灰胶囊）
-    val container = MaterialTheme.colorScheme.surfaceContainerHigh
+    // 充色搜索条：无描边、全圆角；10-13 晚用户令「搜索胶囊浅一档」——五页统一 softStructureColor()
+    // （结构槽 Container 往页底混六成），不再用灰档 surfaceContainerHigh
+    val container = softStructureColor()
     if (compact) {
         // 与日志页「搜索日志」框同款：M3 SearchBarDefaults.InputField（自带垂直居中、
         // 全圆角胶囊、surfaceContainer 底色、trailing 清除），仅占位改「搜索设置项」。
@@ -89,6 +90,12 @@ fun SettingsSearchField(
                         }
                     }
                 },
+                // M3 默认取 surfaceContainer 档，显式染成浅结构档（API 实锤自 1.4.0-alpha09 源码）
+                colors = SearchBarDefaults.inputFieldColors(
+                    focusedContainerColor = softStructureColor(),
+                    unfocusedContainerColor = softStructureColor(),
+                    disabledContainerColor = softStructureColor(),
+                ),
                 modifier = modifier.padding(end = 12.dp)
             )
         }

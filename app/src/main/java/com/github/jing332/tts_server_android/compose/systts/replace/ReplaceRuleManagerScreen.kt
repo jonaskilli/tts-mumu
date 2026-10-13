@@ -36,6 +36,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBarDefaults
 import com.github.jing332.tts_server_android.compose.nav.NavTopAppBar
+import com.github.jing332.tts_server_android.compose.theme.softStructureColor
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
@@ -202,8 +203,9 @@ internal fun ReplaceRuleManagerScreen(
                         Row(
                             modifier = Modifier
                                 .clip(CircleShape)
-                                // 10-10 纯白表对号：surfaceContainerLow 已并入白，搜索胶囊改灰档 High
-                                .background(MaterialTheme.colorScheme.surfaceContainerHigh),
+                                // 10-13 晚用户令「搜索胶囊浅一档」：五页统一 softStructureColor()
+                                // （结构槽 Container 往页底混六成），不再用灰档 High
+                                .background(softStructureColor()),
                             verticalAlignment = Alignment.CenterVertically,
                         ) {
                             SearchTextField(

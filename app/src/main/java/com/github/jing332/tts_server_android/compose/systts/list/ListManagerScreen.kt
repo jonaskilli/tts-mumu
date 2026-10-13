@@ -63,6 +63,7 @@ import androidx.compose.material.icons.filled.CheckBox
 import androidx.compose.material.icons.filled.CheckBoxOutlineBlank
 import androidx.compose.material.icons.filled.Checklist
 import androidx.compose.material3.Surface
+import com.github.jing332.tts_server_android.compose.theme.softStructureColor
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
@@ -3028,9 +3029,9 @@ internal fun ListManagerScreen(
                                         .fillMaxWidth()
                                         .height(48.dp)
                                         .clip(CircleShape),
-                                    // 10-10 纯白表统一：搜索胶囊与设置页/替换规则页同灰档（#F3F3F3），
-                                    // 不再用 surfaceVariant（绿主题下带绿灰，三处搜索框岔色）
-                                    color = MaterialTheme.colorScheme.surfaceContainerHigh,
+                                    // 10-13 晚用户令「搜索胶囊浅一档」：五页统一 softStructureColor()
+                                    // （结构槽 Container 往页底混六成），不再用灰档 surfaceContainerHigh
+                                    color = softStructureColor(),
                                     shape = CircleShape
                                 ) {
                                 SearchTextField(

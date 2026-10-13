@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -50,6 +51,7 @@ import kotlin.math.roundToInt
 import com.github.jing332.compose.widgets.ControlBottomBarVisibility
 import com.github.jing332.compose.widgets.rememberA11TouchEnabled
 import com.github.jing332.tts_server_android.compose.settings.SettingsScreen
+import com.github.jing332.tts_server_android.compose.theme.softStructureColor
 import com.github.jing332.tts_server_android.compose.systts.MigrationTips
 import com.github.jing332.tts_server_android.compose.systts.TtsLogScreen
 import com.github.jing332.tts_server_android.compose.systts.list.ListManagerScreen
@@ -154,12 +156,16 @@ fun AnimatedContentScope.MainPager(sharedVM: SharedViewModel) {
                     // 未选中项只图标——官方原味）。滚动隐藏 v2 布局式裁剪继续适用
                     // （bottomBarHeight 裁的是整体高度，官方 NavigationBar 当内容装进去即可）。
                     // 手势条区域官方组件自带 navigationBarsPadding 处理，不再自拼 Spacer。
+                    // 10-13 晚用户令「底栏也按方案一」：softStructureColor()（Container 往页底混六成），
+                    // 比卡底更贴页底；顶缘 1dp outlineVariant 浅线压住「底栏与页底几乎齐平后没分界」。
+                    // 线走 overlay 画（不占布局），80dp+inset 的滚动隐藏量法不动；深浅色同口径。
                     Surface(
                         modifier = Modifier
                             .fillMaxWidth()
                             .bottomBarHeight({ scrollBehavior.state.heightOffset }, bottomBarHeightPx),
-                        color = MaterialTheme.colorScheme.surfaceContainer
+                        color = softStructureColor()
                     ) {
+                        Box {
                         NavigationBar(
                             containerColor = Color.Transparent // 色由外层 Surface 统一给（含手势条区）
                         ) {
@@ -184,6 +190,14 @@ fun AnimatedContentScope.MainPager(sharedVM: SharedViewModel) {
                                     ),
                                 )
                             }
+                            // 浅分隔线：overlay 叠在底栏顶缘，不参与布局，滚动隐藏量法不受影响
+                            Box(
+                                Modifier
+                                    .fillMaxWidth()
+                                    .height(1.dp)
+                                    .background(MaterialTheme.colorScheme.outlineVariant)
+                            )
+                        }
                         }
                     }
                 }
