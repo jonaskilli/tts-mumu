@@ -37,6 +37,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.rotate
+import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.state.ToggleableState
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -95,14 +96,18 @@ fun SubGroupHeader(
             .fillMaxWidth()
             .background(
                 when (level) {
-                    // 10-12 用户令「这个分组的颜色还是太重了…绿色调了几种都不太满意」→ 选定 B 案
-                    //「主题色再淡一档」：一级子分组 surfaceContainer(#EAF7EF)、更深层
-                    // surfaceContainerLow(#F4FBF6)。比 10-10 的 Highest/High（#DAF1E1/#E2F4E8）
-                    // 各浅一档半，仍是主题色相、不再压过内容卡；层级差由缩进+字号继续承担。
-                    // ⚠️ 走的仍是主题槽（十套主题各自成立、深色自动镜像），不要写死色值。
-                    // 一级分组行（GroupItem）保持白底不变——三级台阶=白 / 淡主题色 / 更淡。
-                    0 -> MaterialTheme.colorScheme.surfaceContainer
-                    else -> MaterialTheme.colorScheme.surfaceContainerLow
+                    // 10-13 用户令「行比卡片浅合理就行…要浅、跟配置项卡片有区分、清爽干净」→ 方案 A：
+                    // 一级子分组=页底与卡底之间半档（lerp(background, surfaceContainerLow, 0.5)，
+                    // GREEN 浅色 ≈ #F8FCF7）、更深层 surfaceContainerLowest(#FBFEFC)。
+                    // 行比卡片浅=内容（卡片）最显、结构（行）退后；区分靠形状（行通栏 vs 卡圆角
+                    // 带边距）+这点色阶，头重脚轻从根上消失。配置项卡片（Item，卡底 #F4FBF6）一概不动。
+                    // ⚠️ 走的仍是主题槽插值（十套主题各自成立、深色自动镜像），不要写死色值。
+                    // 一级分组行（GroupItem）保持页底不变。
+                    0 -> lerp(
+                        MaterialTheme.colorScheme.background,
+                        MaterialTheme.colorScheme.surfaceContainerLow, 0.5f
+                    )
+                    else -> MaterialTheme.colorScheme.surfaceContainerLowest
                 }
             )
             .clickable { if (!showOptions && !showExtraOptions) onClick() }
