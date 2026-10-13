@@ -101,7 +101,11 @@ fun GroupItem(
     Row(
         modifier = modifier
             .fillMaxWidth()
-            .background(MaterialTheme.colorScheme.surface)
+            // 10-13 用户令「底色差异，要统一」：四个分页的 Scaffold 全用 M3 默认 containerColor
+            //（=background），唯独本行铺 surface——GREEN 下 #FAF9FD vs 页底 #FEFBFF 差一档，
+            // 系统TTS/替换规则页的组头横条比页底发暗，与日志页（纯 background）对不上。
+            // 改铺 background 全站页底归一。sticky header 依旧不透明，盖得住滚过的卡片行。
+            .background(MaterialTheme.colorScheme.background)
             .semantics(true) {
                 stateDescription =  when (toggleableState) {
                     ToggleableState.On -> context.getString(R.string.group_all_enabled, "")
