@@ -45,17 +45,17 @@ fun appTheme(
 }
 
 /**
- * 「浅结构档」——搜索胶囊与主界面底栏共用（10-13 晚用户令，方案一基准档=六成混白）：
- * 结构槽 surfaceContainer 往页底混六成（40% Container + 60% background），
- * 比卡底浅一档、比页底深半档，胶囊/底栏还在但不抢眼。
+ * 「浅结构档」——五页搜索胶囊共用（主界面底栏已退页底色，10-13 深夜用户令）：
+ * 结构槽 surfaceContainer 往页底混四成（60% Container + 40% background），
+ * 比卡底浅一档、比页底深约 6 级：胶囊在页面上看得见但不抢眼。
  * 运行时 lerp 而非预生成表：十套静态主题 × 深浅色 + 动态取色（Android 12+）全成立；
- * 深浅要再调，只改这里的 0.6f（越小越深、越大越浅）。
+ * 深浅要再调，只改这里的 0.4f（越小越深、越大越浅）。
  */
 @Composable
 fun softStructureColor(): Color = lerp(
     MaterialTheme.colorScheme.surfaceContainer,
     MaterialTheme.colorScheme.background,
-    0.6f,
+    0.4f,
 )
 
 /**

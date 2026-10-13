@@ -51,7 +51,6 @@ import kotlin.math.roundToInt
 import com.github.jing332.compose.widgets.ControlBottomBarVisibility
 import com.github.jing332.compose.widgets.rememberA11TouchEnabled
 import com.github.jing332.tts_server_android.compose.settings.SettingsScreen
-import com.github.jing332.tts_server_android.compose.theme.softStructureColor
 import com.github.jing332.tts_server_android.compose.systts.MigrationTips
 import com.github.jing332.tts_server_android.compose.systts.TtsLogScreen
 import com.github.jing332.tts_server_android.compose.systts.list.ListManagerScreen
@@ -156,14 +155,14 @@ fun AnimatedContentScope.MainPager(sharedVM: SharedViewModel) {
                     // 未选中项只图标——官方原味）。滚动隐藏 v2 布局式裁剪继续适用
                     // （bottomBarHeight 裁的是整体高度，官方 NavigationBar 当内容装进去即可）。
                     // 手势条区域官方组件自带 navigationBarsPadding 处理，不再自拼 Spacer。
-                    // 10-13 晚用户令「底栏也按方案一」：softStructureColor()（Container 往页底混六成），
-                    // 比卡底更贴页底；顶缘 1dp outlineVariant 浅线压住「底栏与页底几乎齐平后没分界」。
-                    // 线走 overlay 画（不占布局），80dp+inset 的滚动隐藏量法不动；深浅色同口径。
+                    // 10-13 深夜用户令「底栏要跟上方空白区域一样的颜色」：底栏=background 页底色，
+                    // 与页底的分界只靠顶缘 1dp outlineVariant 浅线（overlay 画法，不占布局，
+                    // 80dp+inset 的滚动隐藏量法不动）；搜索胶囊仍走 softStructureColor()（0.4f 档）。
                     Surface(
                         modifier = Modifier
                             .fillMaxWidth()
                             .bottomBarHeight({ scrollBehavior.state.heightOffset }, bottomBarHeightPx),
-                        color = softStructureColor()
+                        color = MaterialTheme.colorScheme.background
                     ) {
                         Box {
                         NavigationBar(
