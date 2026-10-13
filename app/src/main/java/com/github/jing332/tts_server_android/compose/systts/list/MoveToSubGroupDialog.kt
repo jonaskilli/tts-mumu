@@ -10,10 +10,10 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.TextField
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -121,7 +121,9 @@ fun MoveToSubGroupDialog(
                 }
 
                 if (isNewPath || existingPaths.isEmpty()) {
-                    TextField(
+                    // 描边输入框（10-13 晚：与 CreateSubGroupDialog 同批——filled 的容器在
+                    // 绿主题下是深绿一块，全站输入框统一描边款）
+                    OutlinedTextField(
                         value = newPath,
                         onValueChange = { newPath = it },
                         label = { Text("子分组名称") },
