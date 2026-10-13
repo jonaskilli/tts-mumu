@@ -194,12 +194,14 @@ fun AnimatedContentScope.MainPager(sharedVM: SharedViewModel) {
                         // 修正（10-13 晚）：线原本写在 NavigationBar content 里——NavigationBar 是一行 Row，
                         // 标签项靠 weight 分宽，这条 fillMaxWidth() 的线不参与分配先吃满整行，
                         // 三个标签被挤成 0 宽全消失（装机实锤）。挪到外层 Box 平级叠顶缘才是真 overlay。
+                        // 10-13 深夜用户令「线要更隐形」：裸 outlineVariant（100%）是全仓唯一没降档的线，
+                        // 改 0.5f——与日志页条目间线同档（LogScreen 799/1022），全仓线材口径一致。
                         Box(
                             Modifier
                                 .align(Alignment.TopCenter)
                                 .fillMaxWidth()
                                 .height(1.dp)
-                                .background(MaterialTheme.colorScheme.outlineVariant)
+                                .background(MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
                         )
                         }
                     }
