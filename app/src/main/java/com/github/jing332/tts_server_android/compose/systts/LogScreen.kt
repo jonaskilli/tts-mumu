@@ -920,13 +920,15 @@ internal fun LogScreen(
                                         // 丸后灰字（成功=「耗时，大小」/失败主行=截短原因），与丸留 8dp 隙。
                                         // 10-12 用户令「后两项交换下位置，并用逗号隔开，其他不变」：
                                         // 重排已在 tailTextOfRow 里做完（1.2s，103.0 KB），此处只管画。
+                                        // 10-13 深夜用户令「胶囊后边的文字大小跟时间大小不一致」：13sp→12sp，
+                                        // 与同一行的时间栏（12sp）和状态丸（12sp）统一（原按正文档给 13sp，没跟同行对齐）。
                                         // 失败原因红=旧正宗红 #F44336（10-10 用户令「错误的红色要用
                                         // 以前正宗的红色」——colorScheme.error 在动态取色下偏暗紫红）
                                         if (tailText != null) {
                                             Text(
                                                 text = tailText,
                                                 style = MaterialTheme.typography.bodySmall,
-                                                fontSize = 13.sp,
+                                                fontSize = 12.sp,
                                                 color = if (pillShown?.kind == LogPillKind.FAIL)
                                                     Color(if (darkTheme) 0xFFE57373 else 0xFFF44336)
                                                 else MaterialTheme.colorScheme.onSurfaceVariant,
