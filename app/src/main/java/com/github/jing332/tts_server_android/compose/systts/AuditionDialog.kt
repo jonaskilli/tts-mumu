@@ -38,6 +38,7 @@ import com.github.jing332.common.audio.AudioPlayer
 import com.github.jing332.common.utils.messageChain
 import com.github.jing332.common.utils.toParamText
 import com.github.jing332.common.utils.sizeToReadable
+import com.github.jing332.compose.widgets.AppDialog
 import com.github.jing332.compose.widgets.LoadingContent
 import com.github.jing332.database.entities.systts.AudioParams
 import com.github.jing332.database.entities.systts.SystemTtsV2
@@ -233,7 +234,63 @@ fun AuditionDialog(
             }
         }
     }
-    // 试听弹窗改**底部弹层**（10-12 用户令「这个试听弹窗固定不住，你得不要让它下移」）：
+    // —— 弹窗形态按用途分岔（10-13 用户令「这种又不是分类，所以不需要那么大的底部弹窗。
+    // 得做个区分」）：
+    //  · 单条试听（非分类流，如声音下拉行内 🎧）：就一段音频信息+关闭，用**紧凑居中 AppDialog**
+    //   ——大底部弹层纯属浪费空间；
+    //  · 分类/批量试听流（分类标签三列+上一个/下一个+完成）：内容多、操作键要常驻，
+    //    维持 10-12 的底部弹层（内容长、锚底不飘）。
+    // 两态共享上面的引擎/播放/合成逻辑，只分壳。
+    val categoryMode = onCategoryAssigned != null || onPrev != null || onNext != null
+    if (!categoryMode) {
+        AppDialog(
+            onDismissRequest = onDismissRequest,
+            title = { Text(stringResource(id = R.string.audition)) },
+            content = {
+                if (systts.displayName.isNotBlank()) {
+                    Text(
+                        systts.displayName,
+                        style = MaterialTheme.typography.titleMedium,
+                        modifier = Modifier.padding(bottom = 6.dp)
+                    )
+                }
+                if (error.isNotEmpty()) {
+                    SelectionContainer {
+                        Text(
+                            error,
+                            color = MaterialTheme.colorScheme.error,
+                            style = MaterialTheme.typography.bodySmall
+                        )
+                    }
+                    // 重播（10-10 用户令）：试听失败不必关弹窗重来，就地重发一次合成
+                    TextButton(
+                        onClick = { attempt++ },
+                        modifier = Modifier.padding(top = 4.dp)
+                    ) {
+                        Text("↻ 重播")
+                    }
+                }
+                if (error.isEmpty())
+                    LoadingContent(
+                        modifier = Modifier
+                            .padding(top = 8.dp)
+                            .fillMaxWidth(),
+                        isLoading = info.isEmpty()
+                    ) {
+                        SelectionContainer {
+                            Text(info, style = MaterialTheme.typography.bodyMedium)
+                        }
+                    }
+            },
+            buttons = {
+                TextButton(onClick = onDismissRequest) {
+                    Text(stringResource(id = R.string.close))
+                }
+            }
+        )
+        return
+    }
+    // 分类/批量试听流：底部弹层（10-12 用户令「这个试听弹窗固定不住，你得不要让它下移」）：
     // 原来走 AppDialog（=自绘 Compose Dialog 窗口），两类毛病都来自那个内核：
     //   ① 本机（iQOO/OriginOS）系统排版会把 Dialog 窗口下移约一个导航栏高，贴底内容被裁；
     //   ② Dialog 按内容居中，合成中/出错时正文长度变化会让整块往下长，看着就是「飘」。

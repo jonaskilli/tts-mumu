@@ -477,6 +477,25 @@ class PluginTtsUI : IConfigUI() {
                                 values = vm.voices.map { it.id },
                                 entries = vm.voices.map { it.name },
                                 icons = vm.voices.map { it.icon },
+                                // 头像与插件栏同款 PluginImage（10-13 用户令「头像样子不对…要统一」：
+                                // 原走默认渲染=32dp 圆+0.625 首字，与插件栏 28dp/0.57 两个样）；
+                                // 加载失败/无图标回退名称首字
+                                itemContent = { isSelected, entry, icon, _ ->
+                                    PluginImage(model = icon, name = entry)
+                                    Text(
+                                        entry,
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        modifier = Modifier
+                                            .weight(1f)
+                                            .padding(
+                                                horizontal = LocalSelectionRowHorizontalPadding.current,
+                                                vertical = 12.dp
+                                            ),
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis,
+                                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+                                    )
+                                },
                                 onSelectedChange = { voice, name ->
                                     if (voice == tts.voice || vm.isLoading) return@AppSpinner
 
