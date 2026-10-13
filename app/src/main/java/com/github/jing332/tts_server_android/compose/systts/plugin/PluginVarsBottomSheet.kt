@@ -3,21 +3,18 @@ package com.github.jing332.tts_server_android.compose.systts.plugin
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
-import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Login
-import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
-import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -28,12 +25,13 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import com.github.jing332.compose.widgets.AppDialog
 import com.github.jing332.database.entities.plugin.Plugin
 import com.github.jing332.tts_server_android.R
 import com.github.jing332.tts_server_android.compose.systts.plugin.login.LoginData
 import com.github.jing332.tts_server_android.compose.systts.plugin.login.PluginLoginActivityResult
 
-@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 internal fun PluginVarsBottomSheet(
     onDismissRequest: () -> Unit,
@@ -52,25 +50,23 @@ internal fun PluginVarsBottomSheet(
             )
     }
 
-    val state = rememberModalBottomSheetState(skipPartiallyExpanded = false)
-
-    ModalBottomSheet(
-        sheetState = state,
+    // 居中弹窗（10-13 用户令「适合居中弹窗的都要用居中弹窗…底部弹窗才是少见的特殊形式」）
+    AppDialog(
         onDismissRequest = onDismissRequest,
-    ) {
-        Text(
-            text = plugin.name,
-            style = MaterialTheme.typography.titleLarge,
-            modifier = Modifier
-                .padding(8.dp)
-                .fillMaxWidth(),
-            textAlign = TextAlign.Center
-        )
-        Column(
-            Modifier
-                .fillMaxHeight(1f)
-                .verticalScroll(rememberScrollState())
-        ) {
+        title = {
+            Text(
+                text = plugin.name,
+                style = MaterialTheme.typography.titleLarge,
+                modifier = Modifier.fillMaxWidth(),
+                textAlign = TextAlign.Center
+            )
+        },
+        content = {
+            Column(
+                Modifier
+                    .heightIn(max = 420.dp)
+                    .verticalScroll(rememberScrollState())
+            ) {
             plugin.defVars.forEach {
                 val key = it.key
                 val hint = it.value["hint"] ?: ""
@@ -155,8 +151,9 @@ internal fun PluginVarsBottomSheet(
                 )
             }
 
-        }
-    }
+            }
+        },
+    )
 }
 
 /**

@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
@@ -78,6 +79,7 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import coil3.compose.SubcomposeAsyncImage
+import com.github.jing332.compose.widgets.AppDialog
 import com.github.jing332.compose.widgets.AppDropdownMenu
 import com.github.jing332.compose.widgets.CenterTextImage
 import com.github.jing332.compose.widgets.DenseOutlinedField
@@ -779,144 +781,92 @@ private fun CatalogFilterSheet(
         it.presentation.equals("dropdown", ignoreCase = true) || it.maxSelections == 1
     }
 
-    // ⚠️ 实验包（09-17 晚拍板）：Compose Dialog 窗口在本机（iQOO Neo8 / vivo OriginOS）被
-    // 系统排版下移出屏约一个导航栏高，贴屏幕底的内容必被裁、钉窗口压不住。ModalBottomSheet
-    // 走的是 M3 自己的弹层窗口机制，与自绘 Dialog 不同路——**实机若底部动作行完整可见
-    // ⇒ 底部弹窗形态复活**，选择弹窗可跟进换内核；仍被裁则认命维持居中/标题行形态。
-    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
-    ModalBottomSheet(
+    // 居中弹窗（10-13 用户令「适合居中弹窗的都要用居中弹窗…底部弹窗才是少见的特殊形式」）
+    AppDialog(
         onDismissRequest = onDismissRequest,
-        sheetState = sheetState,
-        // 视觉与原 Dialog 方案一致：顶部两角圆角、同色、自绘拖拽把（保持像素级不变）
-        // 面板底改近白（10-12 用户令 D 案）：与换声弹窗/分类入库面板同档（surfaceContainerLow），
-        // 绿色只做点缀——三个「大面板」一族统一，详见 VoicePickerDialog 同名注释
-        containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
-        dragHandle = null,
-        // 系统栏间距自己管（内层 Column navigationBarsPadding），避免默认 insets 叠加双份
-        contentWindowInsets = { WindowInsets(0, 0, 0, 0) },
-    ) {
-        Column(
-            Modifier
-                .fillMaxWidth()
-                .fillMaxHeight(CATALOG_SHEET_HEIGHT)
-                .navigationBarsPadding()
-                // 键盘让位：搜索/筛选一弹键盘时内容整体浮上去
-                .imePadding()
-                // 面板本体先吃掉落在空白处的点击，防止误触 scrim 关窗；
-                // 无指示色、无动作，纯粹占位（子级自己消费过的点击不受影响）
-                .clickable(
-                    indication = null,
-                    interactionSource = remember { MutableInteractionSource() },
-                ) {}
-        ) {
-                    // 拖拽把：M3 底部弹窗的识别特征（自绘样式标记、不可拖动）
-                    Box(
-                        Modifier
-                            .fillMaxWidth()
-                            .padding(top = 8.dp),
-                        contentAlignment = Alignment.Center,
-                    ) {
-                        Box(
-                            Modifier
-                                .size(width = 32.dp, height = 4.dp)
-                                .background(
-                                    MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f),
-                                    RoundedCornerShape(2.dp),
-                                )
-                        )
-                    }
+        title = {
+            Row(
+                Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(
+                    stringResource(R.string.voice_catalog_filter),
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold,
+                )
+                Spacer(Modifier.weight(1f))
+                IconButton(onClick = onDismissRequest) {
+                    Icon(Icons.Filled.Close, stringResource(R.string.close))
+                }
+            }
+        },
+        content = {
+            Column(
+                Modifier
+                    .fillMaxWidth()
+                    .heightIn(max = 420.dp)
+                    .verticalScroll(rememberScrollState())
+                    .padding(horizontal = CATALOG_PANEL_PADDING, vertical = 8.dp),
+            ) {
+                if (groups.isEmpty()) {
+                    Text(
+                        stringResource(R.string.voice_catalog_filter_empty),
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+
+                // 下拉类：两列
+                dropdownGroups.chunked(2).forEach { row ->
                     Row(
                         Modifier
                             .fillMaxWidth()
-                            .padding(
-                                start = CATALOG_PANEL_PADDING,
-                                end = 12.dp,
-                                top = 8.dp,
-                                bottom = 4.dp
-                            ),
-                        verticalAlignment = Alignment.CenterVertically,
+                            .padding(vertical = 2.dp),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
                     ) {
-                        Text(
-                            stringResource(R.string.voice_catalog_filter),
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.Bold,
-                        )
-                        Spacer(Modifier.weight(1f))
-                        // 「清空/确定」在底部动作行（ModalBottomSheet 实验的核心观察点）；「关闭」由 ✕ 兼任
-                        IconButton(onClick = onDismissRequest) {
-                            Icon(Icons.Filled.Close, stringResource(R.string.close))
-                        }
-                    }
-                    HorizontalDivider()
-
-                    Column(
-                        Modifier
-                            .weight(1f)
-                            .fillMaxWidth()
-                            .verticalScroll(rememberScrollState())
-                            .padding(horizontal = CATALOG_PANEL_PADDING, vertical = 8.dp),
-                    ) {
-                        if (groups.isEmpty()) {
-                            Text(
-                                stringResource(R.string.voice_catalog_filter_empty),
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            )
-                        }
-
-                        // 下拉类：两列
-                        dropdownGroups.chunked(2).forEach { row ->
-                            Row(
-                                Modifier
-                                    .fillMaxWidth()
-                                    .padding(vertical = 2.dp),
-                                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                            ) {
-                                row.forEach { group ->
-                                    DropdownFilterGroup(
-                                        modifier = Modifier.weight(1f),
-                                        group = group,
-                                        selected = draft,
-                                        onToggle = { draft = draft.toggle(it) },
-                                    )
-                                }
-                                // 奇数个时补空位，保持两列宽度一致
-                                if (row.size == 1) Spacer(Modifier.weight(1f))
-                            }
-                        }
-
-                        chipGroups.forEach { group ->
-                            ChipFilterGroup(
+                        row.forEach { group ->
+                            DropdownFilterGroup(
+                                modifier = Modifier.weight(1f),
                                 group = group,
                                 selected = draft,
                                 onToggle = { draft = draft.toggle(it) },
                             )
                         }
-                    }
-
-                    // ---- 底部动作行：清空 + 应用（N）——⚠️ ModalBottomSheet 实验的核心观察点，
-                    // 实机看这行是否完整可见 ----
-                    Row(
-                        Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = CATALOG_PANEL_PADDING, vertical = 6.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        // 动作键一律纯文字 TextButton（目目 09-17：不要框和填充色）
-                        TextButton(
-                            enabled = draft.isNotEmpty(),
-                            onClick = { draft = emptySet() },
-                        ) {
-                            Text(stringResource(R.string.voice_catalog_filter_clear))
-                        }
-                        Spacer(Modifier.weight(1f))
-                        TextButton(onClick = { onApply(draft) }) {
-                            Text(stringResource(R.string.voice_catalog_filter_apply, draft.size))
-                        }
+                        // 奇数个时补空位，保持两列宽度一致
+                        if (row.size == 1) Spacer(Modifier.weight(1f))
                     }
                 }
+
+                chipGroups.forEach { group ->
+                    ChipFilterGroup(
+                        group = group,
+                        selected = draft,
+                        onToggle = { draft = draft.toggle(it) },
+                    )
+                }
             }
-    }
+        },
+        buttons = {
+            // ---- 动作行：清空 + 应用（N）----
+            Row(
+                Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                // 动作键一律纯文字 TextButton（目目 09-17：不要框和填充色）
+                TextButton(
+                    enabled = draft.isNotEmpty(),
+                    onClick = { draft = emptySet() },
+                ) {
+                    Text(stringResource(R.string.voice_catalog_filter_clear))
+                }
+                Spacer(Modifier.weight(1f))
+                TextButton(onClick = { onApply(draft) }) {
+                    Text(stringResource(R.string.voice_catalog_filter_apply, draft.size))
+                }
+            }
+        },
+    )
+}
 
 /** 下拉类筛选组：单选直接落值，多选（maxSelections != 1）用勾选项列表 */
 @Composable

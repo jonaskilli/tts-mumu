@@ -7,20 +7,18 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import com.github.jing332.compose.widgets.AppDialog
 import com.github.jing332.database.entities.systts.SystemTtsV2
 import com.github.jing332.database.entities.systts.TtsConfigurationDTO
 import com.github.jing332.database.entities.systts.source.PluginTtsSource
 import kotlinx.coroutines.runBlocking
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun QuickEditBottomSheet(
     onDismissRequest: () -> Unit,
@@ -35,7 +33,9 @@ fun QuickEditBottomSheet(
     val callbacks = rememberSaveCallBacks()
     val scope = rememberCoroutineScope()
 
-    ModalBottomSheet(onDismissRequest = {
+    // 居中弹窗（10-13 用户令「适合居中弹窗的都要用居中弹窗…底部弹窗才是少见的特殊形式」）
+    AppDialog(
+        onDismissRequest = {
         val ret = runBlocking {
             for (callback in callbacks) {
                 if (!callback.onSave()) return@runBlocking false
@@ -44,7 +44,9 @@ fun QuickEditBottomSheet(
         }
 
         if (ret) onDismissRequest()
-    }) {
+    },
+    title = {},
+    content = {
         Column(
             Modifier
                 .padding(top = 12.dp)
@@ -82,5 +84,7 @@ fun QuickEditBottomSheet(
             }
             Spacer(modifier = Modifier.height(48.dp))
         }
-    }
+        },
+        buttons = {},
+    )
 }
