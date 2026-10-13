@@ -24,6 +24,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import androidx.compose.foundation.layout.ColumnScope
+import androidx.compose.foundation.border
+import androidx.compose.foundation.shape.CircleShape
 import com.github.jing332.tts_server_android.compose.theme.softStructureColor
 
 class SettingsSearch(private val query: String) {
@@ -96,7 +98,10 @@ fun SettingsSearchField(
                     unfocusedContainerColor = softStructureColor(),
                     disabledContainerColor = softStructureColor(),
                 ),
-                modifier = modifier.padding(end = 12.dp)
+                modifier = modifier
+                    .padding(end = 12.dp)
+                    // 丙案框线（10-13 深夜用户令）：1.5dp outlineVariant 浅线，底色浅结构档不变
+                    .border(1.5.dp, MaterialTheme.colorScheme.outlineVariant, CircleShape)
             )
         }
         return

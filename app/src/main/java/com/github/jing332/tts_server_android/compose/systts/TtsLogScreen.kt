@@ -55,6 +55,8 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBarDefaults
 import com.github.jing332.tts_server_android.compose.nav.NavTopAppBar
+import androidx.compose.foundation.border
+import androidx.compose.foundation.shape.CircleShape
 import com.github.jing332.tts_server_android.compose.theme.softStructureColor
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -348,7 +350,10 @@ internal fun TtsLogScreen(vm: TtsLogViewModel = viewModel()) {
                                         // 曾为 0.95f，10-08 甲案瘦到 0.6f 给四键腾位，但 0.6×136dp
                                         // =82dp 连占位符都放不下（只剩「搜」）。回退 0.95f（≈129dp）
                                         // 后「搜索」二字够放；占位符同步缩成二字（见下方 placeholder）。
-                                        modifier = Modifier.fillMaxWidth(0.95f)
+                                        modifier = Modifier
+                                            .fillMaxWidth(0.95f)
+                                            // 丙案框线（10-13 深夜用户令）：1.5dp outlineVariant 浅线，底色浅结构档不变
+                                            .border(1.5.dp, MaterialTheme.colorScheme.outlineVariant, CircleShape)
                                     ) {}
                                 }
                             }

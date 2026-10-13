@@ -37,7 +37,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.rotate
-import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.state.ToggleableState
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -96,17 +95,14 @@ fun SubGroupHeader(
             .fillMaxWidth()
             .background(
                 when (level) {
-                    // 10-13 用户令「行比卡片浅合理就行…要浅、跟配置项卡片有区分、清爽干净」→ 方案 A：
-                    // 一级子分组=页底与卡底之间半档（lerp(background, surfaceContainerLow, 0.5)，
-                    // GREEN 浅色 ≈ #F8FCF7）、更深层 surfaceContainerLowest(#FBFEFC)。
-                    // 行比卡片浅=内容（卡片）最显、结构（行）退后；区分靠形状（行通栏 vs 卡圆角
-                    // 带边距）+这点色阶，头重脚轻从根上消失。配置项卡片（Item，卡底 #F4FBF6）一概不动。
-                    // ⚠️ 走的仍是主题槽插值（十套主题各自成立、深色自动镜像），不要写死色值。
+                    // 10-13 深夜用户令「选 D 卡底同档」：一级子分组=surfaceContainerLow（与配置项卡片
+                    // 同档，GREEN 浅色 #F4FBF6），比页底深约 4 级、不比卡深——"头重脚轻"不犯，
+                    // 行/卡区分靠形状（行通栏 vs 卡圆角带边距）。更深层 surfaceContainerLowest(#FBFEFC)。
+                    // 沿革：曾取 surfaceContainer(#EAF7EF，10-13 验收嫌行比卡深) → 半档插值（方案 A，
+                    // 用户嫌与页底区分不够）→ 现行卡底同档。配置项卡片（Item）一概不动。
+                    // ⚠️ 走的仍是主题槽（十套主题各自成立、深色自动镜像），不要写死色值。
                     // 一级分组行（GroupItem）保持页底不变。
-                    0 -> lerp(
-                        MaterialTheme.colorScheme.background,
-                        MaterialTheme.colorScheme.surfaceContainerLow, 0.5f
-                    )
+                    0 -> MaterialTheme.colorScheme.surfaceContainerLow
                     else -> MaterialTheme.colorScheme.surfaceContainerLowest
                 }
             )
