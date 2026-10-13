@@ -39,6 +39,7 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.material.icons.filled.SettingsBackupRestore
 import android.content.IntentFilter
 import androidx.compose.foundation.clickable
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Switch
 import androidx.compose.ui.Alignment
 import com.github.jing332.compose.widgets.LocalBroadcastReceiver

@@ -197,7 +197,7 @@ internal fun MenuMoreOptions(
             leadingIcon = {
                 Icon(Icons.Default.Key, null)
             },
-            trailing = {
+            trailingIcon = {
                 val poolCount = remember {
                     runCatching {
                         com.github.jing332.tts_server_android.service.systts.help.KeyListFile
