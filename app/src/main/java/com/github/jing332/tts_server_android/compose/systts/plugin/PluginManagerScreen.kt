@@ -1381,10 +1381,19 @@ private fun MarketplaceImportDialog(
         }
         val engine = remember { vm.engine }
         // 上一个/下一个（10-12 用户令「试听弹窗补齐，照无广场插件的试听界面」）：
-        // 序列=**面板当前列出的那串**（10-13 改：原为 vm.catalogItems，本地分类链查不到下标）；
+        // 定位两段兜底：先在面板上报的当前列表（onAuditionListChanged）里查；
+        // 查不到（含上报的是另一屏列表、或上报尚未到达）再回退 vm.catalogItems。
+        // 任一段命中即可定位——修「点完分类之后上一个/下一个都不显示」
+        //（10-13 用户实报：curIdx=-1 时 hasPrev/hasNext 恒 false，两键灰死）。
+        // ⚠️ catalogList 必须与 curIdx **同源**（命中哪段就用哪段整串）：
+        // 混用两串会让「下一个」从另一屏的列表里取错音色。
         // 重播键 AuditionDialog 自带（失败就地重发）
-        val catalogList = auditionSeq
-        val curIdx = catalogList.indexOfFirst { it.id == item.id }
+        val seqPair = listOf(
+            auditionSeq.indexOfFirst { it.id == item.id }.takeIf { it >= 0 } to auditionSeq,
+            vm.catalogItems.indexOfFirst { it.id == item.id }.takeIf { it >= 0 } to vm.catalogItems,
+        ).firstOrNull { it.first != null }
+        val catalogList = seqPair?.second ?: emptyList()
+        val curIdx = seqPair?.first ?: -1
         AuditionDialog(
             systts = auditionSystts,
             engine = null, // 用 CachedEngineManager 路径（同编辑页行内 🎧 口径）
@@ -1908,6 +1917,33 @@ internal fun ImportByCategoryDialog(
                             }
                         )
                     }
+                    // 动作行作**列表末项**（10-13 用户令「自带分类也是下方两个选项，已选中了
+                    // 试听分类，只需要点个确定。不要放右下角，应该放声音分类的下一行的右下角」）：
+                    // 紧跟最后一个分类行的下一行、右对齐，分类多时随列表滚动——不再是固定底栏
+                    //（固定底栏会把键钉在面板底部，与"分类下一行"的语义不符）。
+                    // 选中态固定 0（试听分类=当前所在屏，按备份弹窗口径画 ✓+选中底）；
+                    // 点它=重进试听，点直接入库=执行导入。
+                    item {
+                        Row(
+                            Modifier
+                                .fillMaxWidth()
+                                .padding(top = 6.dp, bottom = 10.dp),
+                            horizontalArrangement = Arrangement.End,
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            TextButton(
+                                enabled = !importing && hasSelection,
+                                onClick = {
+                                    val pools = categories.filter { it.poolId in selectedPoolIds }
+                                    if (pools.isNotEmpty()) loadVoices(pools)
+                                }
+                            ) { Text("试听分类") }
+                            TextButton(
+                                enabled = !importing && hasSelection,
+                                onClick = { doDirectImport() }
+                            ) { Text(if (importing) "导入中" else "直接入库") }
+                        }
+                    }
                 }
             } else if (loadingVoices) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
@@ -1980,14 +2016,11 @@ internal fun ImportByCategoryDialog(
                 }
             }
         }
-        // 底部动作行（与广场弹窗同构）：左侧「上一步」、右侧「导入(N)」。
-        // ⚠️ 无广场插件（embedded=false）的 stage 0 **整行不渲染**：那边两个动作已在标题下
-        // 成段（SoftSegmentedTextToggle），此处只剩一个「取消」，与标题行 ✕ 重复。
-        // 带广场插件（embedded=true）的 stage 0 要这行：两个动作落到右下（10-13 用户令
-        // 「这个放右下」），顶端是宿主壳画的来源分段，两者不打架。
-        // ⚠️ 判据必须与上面那段**互补**（上面用 !embedded）：两边都用 onSwitchToMarket 判的话，
-        // 合壳调用点传的正是 null ⇒ 顶段不画、底行也不画，两个键直接消失。
-        if (stage == 1 || (stage == 0 && embedded)) {
+        // 底部动作行：**只有 stage 1 渲染**（左「上一步」右「导入(N)」）。
+        // stage 0 的动作键各有去处：无广场插件=标题下分段胶囊（见 !embedded 段），
+        // 带广场插件=分类列表末项（见上方 LazyColumn 的 item 块，用户令「放声音分类的
+        // 下一行的右下角」）——本行不再掺和 stage 0，防止出两份键。
+        if (stage == 1) {
             Row(
                 Modifier
                     .fillMaxWidth()
@@ -2001,22 +2034,6 @@ internal fun ImportByCategoryDialog(
                         TextButton(enabled = !importing, onClick = onDismiss) { Text("取消") }
                     }
                     Spacer(Modifier.weight(1f))
-                } else {
-                    // 带广场的 stage 0（图一）：两个动作键靠右（10-13 用户令「这个放右下」）。
-                    // 保持普通文字键形态——顶部已有「联网广场/自带分类」来源分段，这里再来一条
-                    // 分段会读成"两组来源"；右下放文字键与左下/右下的动作行语汇一致
-                    Spacer(Modifier.weight(1f))
-                    TextButton(
-                        enabled = !importing && hasSelection,
-                        onClick = {
-                            val pools = categories.filter { it.poolId in selectedPoolIds }
-                            if (pools.isNotEmpty()) loadVoices(pools)
-                        }
-                    ) { Text("试听分类") }
-                    TextButton(
-                        enabled = !importing && hasSelection,
-                        onClick = { doDirectImport() }
-                    ) { Text(if (importing) "导入中" else "直接入库") }
                 }
                 if (stage == 1) {
                 TextButton(

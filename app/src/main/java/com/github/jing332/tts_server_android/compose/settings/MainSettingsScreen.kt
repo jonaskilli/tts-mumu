@@ -4,6 +4,8 @@ import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -11,9 +13,11 @@ import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.ScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -55,11 +59,14 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.github.jing332.tts_server_android.R
 import com.github.jing332.tts_server_android.compose.backup.BackupRestoreActivity
 import com.github.jing332.tts_server_android.compose.forwarder.systts.ForwarderWebDialog
@@ -265,11 +272,48 @@ fun SettingsScreen() {
                     // tagRuleId 用 "mingwuyan"，与 RoleManagementScreen.ROLE_RULE_ID 同值——
                     // 该常量是 RoleManagementScreen 的 private，外部取不到，此处以字面量对齐
                     // （两处同值：密钥/角色数据都挂在 mingwuyan 规则目录下）。
+                    // 10-13 补：行尾「启用 N」计数（用户令「设置页的密钥后面也要跟上启用数量」，
+                    // 同日改口「要加图标」）——与角色管理页顶栏胶囊同源同款（readPool 条数），
+                    // 池空不显示；showChevron=false 让位给计数（点击进密钥页的语义由整行承担）。
                     SettingItem(search, "密钥", "key", "密钥管理", "接口") {
+                        val poolCount = remember {
+                            runCatching {
+                                com.github.jing332.tts_server_android.service.systts.help.KeyListFile
+                                    .readPool("mingwuyan").size
+                            }.getOrDefault(0)
+                        }
                         BasePreferenceWidget(
                             onClick = { KeyManagerActivity.start(context, "mingwuyan") },
                             title = { Text(stringResource(id = R.string.role_key_title)) },
-                            icon = { Icon(Icons.Default.Key, null) }
+                            icon = { Icon(Icons.Default.Key, null) },
+                            showChevron = false,
+                            content = {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Icon(
+                                        Icons.Default.Key,
+                                        contentDescription = null,
+                                        modifier = Modifier.size(16.dp),
+                                        tint = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                    Spacer(Modifier.width(4.dp))
+                                    if (poolCount > 0) {
+                                        Box(
+                                            Modifier
+                                                .clip(RoundedCornerShape(50))
+                                                .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.12f))
+                                                .padding(horizontal = 6.dp, vertical = 1.dp),
+                                            contentAlignment = Alignment.Center
+                                        ) {
+                                            Text(
+                                                stringResource(R.string.role_entry_key_pool_badge, poolCount),
+                                                style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp),
+                                                color = MaterialTheme.colorScheme.primary,
+                                                fontWeight = FontWeight.SemiBold,
+                                            )
+                                        }
+                                    }
+                                }
+                            }
                         )
                     }
                 }

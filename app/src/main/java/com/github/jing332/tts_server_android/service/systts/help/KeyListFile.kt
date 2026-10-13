@@ -893,10 +893,17 @@ object KeyListFile {
             else e
         }
         if (migrated != keys) saveKeys(tagRuleId, migrated)
-        val raw = readCurrentRaw(tagRuleId).trim()
-        if (raw.isNotEmpty()) {
-            val fixed = parsePoolValues(raw).joinToString("@@")
-            if (fixed != raw) saveCurrentRaw(tagRuleId, fixed)
+        // 10-13 旧钥复活通道封堵（用户实报「没启用过密钥，规则却发起请求收到 401」）：
+        // readCurrentRaw 是 miyue→gengxin→backup **取第一个非空**的兜底链——miyue 已空
+        // （=用户没启用任何钥）而 gengxin/backup 残留旧钥时，这里会把旧值当"当前值"
+        // normalize 后三写回 miyue ⇒ 没启用的钥被"复活"进启用池，规则读到就发请求。
+        // 修法：**只信 miyue.txt 本身**——启用池的真源就是它（规则也只读它）；
+        // 它空 = 池空，格式化回写只对 miyue 自身非空时做，绝不从旁路文件回灌。
+        // gengxin/backup 从此只作展示兜底（readCurrentRaw），不再反向写回池。
+        val miyueRaw = try { File(File(BASE_DIR, tagRuleId), "miyue.txt").readText().trim() } catch (e: Exception) { "" }
+        if (miyueRaw.isNotEmpty()) {
+            val fixed = parsePoolValues(miyueRaw).joinToString("@@")
+            if (fixed != miyueRaw) saveCurrentRaw(tagRuleId, fixed)
         }
         // pool_cleared.flag 随「池空自动启用第一条」兜底一并退役（1002），顺手清掉历史残留文件
         try { File(File(BASE_DIR, tagRuleId), "pool_cleared.flag").delete() } catch (e: Exception) {

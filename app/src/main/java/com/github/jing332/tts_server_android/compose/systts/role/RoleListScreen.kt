@@ -67,6 +67,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.graphics.lerp
 import com.drake.net.utils.withIO
 import com.github.jing332.common.ACCENT_GREEN
 import com.github.jing332.database.dbm
@@ -273,9 +274,11 @@ fun RoleListScreen(
         }
         Surface(
             shape = RoundedCornerShape(12.dp),
-            // 浅一档容器色（「方案一」）：secondaryContainer 原值整页铺满嫌深，
-            // 向 background 插 40%，仍带主题色相；与角色行标签框共用 softContainerColor 保同色
-            color = softContainerColor(),
+            // 书栏底色（10-13 用户令「书栏跟标签一起用方案 A 的对半混」）：与角色行标签
+            // 同一公式——secondaryContainer 与卡底对半混（GREEN 浅色 ≈ #E0F6E8），
+            // 比原 secondaryContainer 淡一截、块感保留；整页色阶归一：
+            // 页底 → 书栏/标签（同深）→ 卡底。主题槽插值，十套主题与深色自动成立
+            color = lerp(softContainerColor(), MaterialTheme.colorScheme.surfaceContainerLow, 0.5f),
             modifier = Modifier
                 .fillMaxWidth()
                 // 卡缘 = ListGutter 16（v3 边距统一）：与搜索框描边/列表行同线，
@@ -1019,9 +1022,10 @@ private fun RoleRow(
                     // 名字短时标签可超半屏；两边都长时名字已被上限保了半屏，标签拿到剩下的
                     Surface(
                         shape = RoundedCornerShape(8.dp),
-                        // 标签底色（10-13 退回）：走全站单源 softContainerColor()（=secondaryContainer），
-                        // 十套主题与深浅色自动成立。10-12 那版浅色硬编码极淡绿档已退役——它不跟主题变色
-                        color = softContainerColor(),
+                        // 标签底色（10-13 用户选预览方案 A）：softContainerColor() 与卡底对半混——
+                        // 比当前档淡一截、仍保块感。用主题槽插值而非写死色值：十套主题与深浅色自动成立
+                        //（预览方案 A 的 #E0F6E8 即 GREEN 浅色下此式的计算结果）
+                        color = lerp(softContainerColor(), MaterialTheme.colorScheme.surfaceContainerLow, 0.5f),
                         border = null,
                         modifier = Modifier
                             .combinedClickable(
