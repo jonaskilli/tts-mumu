@@ -39,6 +39,7 @@ import androidx.compose.ui.Alignment
 import com.github.jing332.compose.widgets.LocalBroadcastReceiver
 import com.github.jing332.compose.widgets.TextFieldDialog
 import com.github.jing332.common.utils.toast
+import com.github.jing332.database.dbm
 import com.github.jing332.tts_server_android.service.forwarder.system.SysTtsForwarderService
 import com.github.jing332.tts_server_android.service.forwarder.ForwarderServiceManager.switchSysTtsForwarder
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -61,6 +62,7 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.unit.dp
 import com.github.jing332.tts_server_android.R
 import com.github.jing332.tts_server_android.compose.backup.BackupRestoreActivity
+import com.github.jing332.tts_server_android.compose.EnabledCountBadge
 import com.github.jing332.tts_server_android.compose.KeyPoolBadge
 import com.github.jing332.tts_server_android.compose.forwarder.systts.ForwarderWebDialog
 import com.github.jing332.tts_server_android.compose.nav.NavTopAppBar
@@ -239,18 +241,34 @@ fun SettingsScreen() {
                 }
 
                 SettingItem(search, "朗读规则", "规则", "speech", "rule") {
+                        // 启用徽章（10-13 用户令「主界面右上角菜单和设置页的朗读规则和插件也要
+                        // 后面显示已启用x，未启用」）：紧贴标题（图一形式）；朗读规则全局最多启用一条。
+                        val ruleCount = remember { dbm.speechRuleDao.allEnabled.size }
                         BasePreferenceWidget(
                             // 显式 Intent：本文件 import 了 ContextCompat.startActivity（要 Intent 的静态重载），
                             // 它遮蔽 Context.startActivity(Class) —— 直接传 Class 会编译报「期望 Intent」
                             onClick = { context.startActivity(Intent(context, SpeechRuleManagerActivity::class.java)) },
-                            title = { Text(stringResource(id = R.string.speech_rule_manager)) },
+                            title = {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Text(stringResource(id = R.string.speech_rule_manager))
+                                    Spacer(Modifier.width(4.dp))
+                                    EnabledCountBadge(ruleCount)
+                                }
+                            },
                             icon = { Icon(Icons.AutoMirrored.Default.MenuBook, null) }
                         )
                     }
                     SettingItem(search, "插件", "plugin", "插件管理") {
+                        val pluginCount = remember { dbm.pluginDao.allEnabled.size }
                         BasePreferenceWidget(
                             onClick = { context.startActivity(Intent(context, PluginManagerActivity::class.java)) },
-                            title = { Text(stringResource(id = R.string.plugin_manager)) },
+                            title = {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Text(stringResource(id = R.string.plugin_manager))
+                                    Spacer(Modifier.width(4.dp))
+                                    EnabledCountBadge(pluginCount)
+                                }
+                            },
                             icon = { Icon(painterResource(id = R.drawable.ic_shortcut_plugin), null) }
                         )
                     }

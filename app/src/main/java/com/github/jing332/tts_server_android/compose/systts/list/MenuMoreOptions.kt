@@ -31,9 +31,11 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.github.jing332.common.utils.startActivity
+import com.github.jing332.database.dbm
 import com.github.jing332.compose.widgets.AppDropdownMenu
 import com.github.jing332.compose.widgets.CheckedMenuItem
 import com.github.jing332.tts_server_android.R
+import com.github.jing332.tts_server_android.compose.EnabledCountBadge
 import com.github.jing332.tts_server_android.compose.KeyPoolBadge
 import com.github.jing332.tts_server_android.compose.asAppCompatActivity
 import com.github.jing332.tts_server_android.compose.systts.plugin.PluginManagerActivity
@@ -136,8 +138,19 @@ internal fun MenuMoreOptions(
         )
 
         HorizontalDivider()
+        // 朗读规则/插件行尾跟启用徽章（10-13 用户令「主界面右上角菜单和设置页的朗读规则和
+        // 插件也要后面显示已启用x，未启用两种显示方式」）：与密钥行同款=紧贴标题（图一形式）；
+        // 朗读规则全局最多启用一条、插件看启用条数，count=0 → 红字「未启用」。
+        // 同步读 DB（allEnabled，毫秒级查询；菜单即点即现，短生命周期可接受）。
+        val ruleCount = remember { dbm.speechRuleDao.allEnabled.size }
         DropdownMenuItem(
-            text = { Text(stringResource(id = R.string.speech_rule_manager)) },
+            text = {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(stringResource(id = R.string.speech_rule_manager))
+                    Spacer(Modifier.width(4.dp))
+                    EnabledCountBadge(ruleCount)
+                }
+            },
             onClick = {
                 onDismissRequest()
                 context.startActivity(SpeechRuleManagerActivity::class.java)
@@ -147,8 +160,15 @@ internal fun MenuMoreOptions(
             }
         )
 
+        val pluginCount = remember { dbm.pluginDao.allEnabled.size }
         DropdownMenuItem(
-            text = { Text(stringResource(id = R.string.plugin_manager)) },
+            text = {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(stringResource(id = R.string.plugin_manager))
+                    Spacer(Modifier.width(4.dp))
+                    EnabledCountBadge(pluginCount)
+                }
+            },
             onClick = {
                 onDismissRequest()
                 context.startActivity(PluginManagerActivity::class.java)
