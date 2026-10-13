@@ -12,12 +12,14 @@ import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.clip
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -37,10 +39,9 @@ import androidx.compose.material.icons.filled.FolderOpen
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material.icons.filled.Search
-import androidx.compose.material3.DockedSearchBar
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.LocalTextStyle
-import androidx.compose.material3.SearchBarDefaults
+import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.HorizontalDivider
@@ -82,6 +83,7 @@ import com.github.jing332.common.LogEntry
 import com.github.jing332.common.LogLevel
 import com.github.jing332.common.utils.toast
 import com.github.jing332.tts_server_android.R
+import com.github.jing332.compose.widgets.DenseTextField
 import com.github.jing332.tts_server_android.compose.systts.role.FlatTextAction
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -310,51 +312,44 @@ internal fun TtsLogScreen(vm: TtsLogViewModel = viewModel()) {
                                     Text(text = stringResource(id = R.string.log))
                                 }
                             } else {
-                                // 搜索框 - 使用 DockedSearchBar，沉浸式样式，bodyLarge 字体
+                                // 搜索框（10-13 深夜用户令「参照主页把高度显示全」）：
+                                // 原走 DockedSearchBar 壳（10-10「沉浸式样式」遗留），但它永远
+                                // expanded=false、不需要下拉建议，壳只贡献一圈内边距——内外都压 48dp
+                                // 时内层胶囊被挤成约 40dp，装机看着比主页矮一截（用户实报）。
+                                // 改主页同款：Surface(48dp 胶囊) + DenseTextField(透明底)，
+                                // 无壳、高度实打实 48dp；文字/占位符/清除键口径不变。
                                 CompositionLocalProvider(LocalTextStyle provides MaterialTheme.typography.bodyLarge) {
-                                    DockedSearchBar(
-                                        inputField = {
-                                            SearchBarDefaults.InputField(
-                                                query = searchQuery,
-                                                onQueryChange = { searchQuery = it },
-                                                onSearch = { },
-                                                expanded = false,
-                                                onExpandedChange = { },
-                                                // 占位符（10-13 深夜用户令「日志搜索栏参照主页把文字显示全」）：
-                                                // 恢复 R.string.search_logs「搜索日志」四字——10-10 曾因 0.95f 框
-                                                // （≈129dp）放不下四字而缩成「搜索」，现宽度放开（见下 modifier）。
-                                                placeholder = {
-                                                    Text(stringResource(R.string.search_logs))
-                                                },
-                                                trailingIcon = {
-                                                    if (searchQuery.isNotEmpty()) {
-                                                        IconButton(onClick = { searchQuery = "" }) {
-                                                            Icon(Icons.Default.Clear, stringResource(R.string.clear))
-                                                        }
-                                                    }
-                                                },
-                                                // 10-13 深夜用户令「搜索栏高度跟其他页统一」：DockedSearchBar
-                                                // 默认 56dp 比其他四页 48dp 高一头，外层+此处双重强约束收到 48
-                                                modifier = Modifier.height(48.dp),
-                                                // 10-13 晚用户令「搜索胶囊浅一档」：与设置/列表/规则/插件页统一浅结构档
-                                                colors = SearchBarDefaults.inputFieldColors(
-                                                    focusedContainerColor = softStructureColor(),
-                                                    unfocusedContainerColor = softStructureColor(),
-                                                    disabledContainerColor = softStructureColor(),
-                                                )
-                                            )
-                                        },
-                                        expanded = false,
-                                        onExpandedChange = { },
-                                        // 搜索框宽度（10-13 深夜用户令「参照主页把文字显示全」）：
-                                        // 主页搜索框走 fillMaxWidth() 吃满标题位；本页原 0.95f（10-10 为
-                                        // 四键腾位）——标题位已被四键压窄、再乘 0.95 放不下「搜索日志」四字。
-                                        // 放开到 fillMaxWidth()（同主页口径），占位符同步恢复四字。
-                                        // 高度同收 48dp（见 InputField 处注释）
+                                    Surface(
                                         modifier = Modifier
                                             .fillMaxWidth()
                                             .height(48.dp)
-                                    ) {}
+                                            .clip(CircleShape),
+                                        color = softStructureColor(),
+                                        shape = CircleShape
+                                    ) {
+                                        DenseTextField(
+                                            modifier = Modifier.fillMaxSize().padding(horizontal = 12.dp),
+                                            value = searchQuery,
+                                            onValueChange = { searchQuery = it },
+                                            singleLine = true,
+                                            colors = TextFieldDefaults.colors(
+                                                focusedContainerColor = Color.Transparent,
+                                                unfocusedContainerColor = Color.Transparent,
+                                                focusedIndicatorColor = Color.Transparent,
+                                                unfocusedIndicatorColor = Color.Transparent
+                                            ),
+                                            placeholder = {
+                                                Text(stringResource(R.string.search_logs), maxLines = 1)
+                                            },
+                                            trailingIcon = {
+                                                if (searchQuery.isNotEmpty()) {
+                                                    IconButton(onClick = { searchQuery = "" }) {
+                                                        Icon(Icons.Default.Clear, stringResource(R.string.clear))
+                                                    }
+                                                }
+                                            }
+                                        )
+                                    }
                                 }
                             }
                         }
