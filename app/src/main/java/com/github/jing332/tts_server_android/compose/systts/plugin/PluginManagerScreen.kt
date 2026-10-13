@@ -1763,11 +1763,13 @@ internal fun ImportByCategoryDialog(
                 // 根 Column 在「槽 lambda」里，作用域里没有 ColumnScope——CI 38231081690 实锤
                 // Unresolved reference 'weight'（1805:46）
                 //
-                // 高度（10-13 晚定稿）：导入进度已改为居中弹窗，面板内不再有导入态固定高——
-                // 嵌入模式 fillMaxSize（宿主壳给高度有界），独立模式占屏 92%（自己开壳）。
+                // 高度（10-13 晚二次反馈「这个底部弹窗实在太高了……放分类的下一行右侧」）：
+                // stage 0（选分类）按内容收高——分类少时面板跟着矮下来，模式/确定紧跟列表；
+                // stage 1（声音列表）才占屏 92%；嵌入模式 fillMaxSize（高度归宿主壳管）。
                 .then(
                     if (embedded) Modifier.fillMaxSize()
-                    else Modifier.fillMaxHeight(0.92f)
+                    else if (stage == 1) Modifier.fillMaxHeight(0.92f)
+                    else Modifier
                 )
                 .navigationBarsPadding()
                 .imePadding()
@@ -1834,7 +1836,9 @@ internal fun ImportByCategoryDialog(
         // 这里若还挂 weight 会把 Column 重新撑满 ⇒ 收高失效，见根 Column 同名注释
         Column(
             Modifier
-                .then(if (importing) Modifier else Modifier.weight(1f))
+                // weight 只给 stage 1（声音列表要贴底动作行）；stage 0 按内容收高，
+                // 模式/确定紧跟分类列表（10-13 晚二次反馈）。
+                .then(if (importing || stage == 0) Modifier else Modifier.weight(1f))
                 .fillMaxWidth()
                 .padding(horizontal = 24.dp)
         ) {
