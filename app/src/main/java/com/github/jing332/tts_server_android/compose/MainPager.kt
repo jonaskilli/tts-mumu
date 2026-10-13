@@ -27,7 +27,6 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
-import androidx.compose.material3.NavigationBarItemDefaults
 import androidx.compose.material3.rememberBottomAppBarState
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
@@ -181,12 +180,11 @@ fun AnimatedContentScope.MainPager(sharedVM: SharedViewModel) {
                                     label = { Text(stringResource(destination.strId), maxLines = 1) },
                                     // 官方默认 always；四项文字常显与否由官方形态接管（只亮选中项）
                                     alwaysShowLabel = false,
-                                    // 10-10 用户令：去掉选中项的 secondaryContainer 胶囊（active indicator）——
-                                    // 该胶囊虽是 M3 官方 NavigationBar 规范形态（02c0cca 回官方组件时带来），
-                                    // 用户不喜欢；选中态改由官方默认的图标/文字变色（primary vs onSurfaceVariant）承担
-                                    colors = NavigationBarItemDefaults.colors(
-                                        indicatorColor = Color.Transparent,
-                                    ),
+                                    // 10-13 深夜用户令「恢复之前版的一部分：底色不加、给选中的按钮加颜色」：
+                                    // 撤 10-10「去掉 active indicator」的覆盖（indicatorColor=Transparent），
+                                    // 回 M3 官方默认——选中项图标包 secondaryContainer 淡绿胶囊（GREEN #D6F1DF）
+                                    // + primary 图标/文字色（#006D3A）。底栏底色仍为页底色（不动）。
+                                    // 依据：02c0cca 官方胶囊版本就没传 colors，走的即此默认。
                                 )
                             }
                         }
