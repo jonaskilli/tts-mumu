@@ -897,7 +897,7 @@ private fun RoleRow(
     val nameList = (listOf(rec.name) + CharacterRecordsFile.splitAliases(rec.aliases))
         .distinctBy { it.trim() }
     // 10-14 用户令三改定稿：名字列=按内容占宽、封顶半屏（超半屏折行不省略）；
-    // 标签框=weight(1f, fill=false) 吃剩余空间，15 字位放不下直接截断（不打「…」）。
+    // 标签槽=weight(1f) 吃剩余+挂名字点击（空白点选），15 字位放不下直接截断（不打「…」）。
     val halfRow = ((LocalConfiguration.current.screenWidthDp - 2 * ListGutter.value) / 2).dp
     Surface(
         // 选中态（用户 09-14 二次修）：整行染色保留，但加 12dp 圆角、
@@ -982,14 +982,23 @@ private fun RoleRow(
             if (rec.voice.isNotBlank()) {
                 // 固定间距 10dp
                 Spacer(Modifier.width(10.dp))
-                // 弹性槽（10-14 三改终态）：weight(1f, fill=false) 吃「行宽−名字列」的剩余，
-                // 标签框=内容宽（上限 220dp）——名字短时框=内容宽、15 字位全显；
-                // 两边都长时框被压到剩余空间、文本直接截断不打「…」（10-14 用户令
-                // 「不打省略号，直接不显示」）。
+                // 弹性槽（10-14 终稿）：weight(1f) 吃「行宽−名字列」的全部剩余（fill=true），
+                // 标签框靠 Arrangement.End 贴右缘=内容宽（上限 220dp）——名字短时框=内容宽、
+                // 15 字位全显；两边都长时框被压到剩余空间、文本直接截断不打「…」。
+                // 空白点选（10-13 晚口径恢复，用户令「半屏宽还愁选中区不够长吗」）：
+                // 本槽自身挂名字的点击/长按处理——点标签左侧空白=选中角色/菜单，
+                // 点标签框=换声（Surface 自己的 handler 在上层，互不干扰）。
                 // 演进：10-13 晚对半 weight（标签压短实锤）→ 338588a 内容宽（标签越中线、
-                // 名字列被挤窄实锤）→ 本版=名字列封顶半屏 + 标签吃剩余+截断。
+                // 名字列被挤窄实锤）→ 名字列封顶半屏 + 本槽吃剩余+截断+空白点选。
                 Row(
-                    Modifier.weight(1f, fill = false),
+                    Modifier
+                        .weight(1f)
+                        .combinedClickable(
+                            onClick = onNameClick,
+                            onLongClick = onNameLongClick,
+                            indication = null,
+                            interactionSource = remember { MutableInteractionSource() },
+                        ),
                     horizontalArrangement = Arrangement.End,
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
