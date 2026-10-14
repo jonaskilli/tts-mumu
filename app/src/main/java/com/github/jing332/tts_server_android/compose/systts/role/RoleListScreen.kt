@@ -21,6 +21,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -70,10 +71,12 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.graphics.lerp
 import com.drake.net.utils.withIO
 import com.github.jing332.common.ACCENT_GREEN
+import com.github.jing332.compose.widgets.ControlBottomBarVisibility
 import com.github.jing332.database.dbm
 import com.github.jing332.database.entities.systts.TtsConfigurationDTO
 import com.github.jing332.tts_server_android.R
 import com.github.jing332.tts_server_android.compose.ListGutter
+import com.github.jing332.tts_server_android.compose.LocalBottomBarBehavior
 import com.github.jing332.tts_server_android.compose.systts.common.VoicePickerDialog
 import com.github.jing332.tts_server_android.service.systts.help.CharacterRecordsFile
 import com.github.jing332.tts_server_android.service.systts.help.KeyListFile
@@ -208,6 +211,14 @@ fun RoleListScreen(
         val msg = if (args.isEmpty()) context.getString(resId) else context.getString(resId, *args)
         android.widget.Toast.makeText(context, msg, android.widget.Toast.LENGTH_SHORT).show()
     }
+
+    // ===== 底栏回显钩子（10-14 用户实报「滑动时有时候底栏出不来」，老大难收口）=====
+    // 病根：本页是全站唯一没挂回显钩子的滚动列表页——日志/系统TTS列表/设置三页都有
+    // ControlBottomBarVisibility，唯独角色管理漏了。底栏隐藏靠 M3 exitAlways（列表上滑收起），
+    // 但它的自动回弹阈值=一整条底栏高（80dp），列表中间轻轻往回滑一点不出来；
+    // 滑到列表底部继续上滑更不回。挂上同款钩子：往回滑一点、滑到顶、滑到底都立即复位底栏。
+    val listState = rememberLazyListState()
+    ControlBottomBarVisibility(listState, LocalBottomBarBehavior.current)
 
     // ===== 搜索 + 多选标记 =====
     var keyword by rememberSaveable { mutableStateOf("") }
@@ -468,6 +479,7 @@ fun RoleListScreen(
         // ===== 平铺角色列表（完全展开）=====
         LazyColumn(
             Modifier.weight(1f),
+            state = listState,
             // 左右基准线 16（v3 边距统一，M3 gutter）：行内水平 padding 归零后，
             // 圆点/文字/选中块直接落这条线，与搜索框描边（16）、书籍卡缘（16）同线
             contentPadding = androidx.compose.foundation.layout.PaddingValues(
