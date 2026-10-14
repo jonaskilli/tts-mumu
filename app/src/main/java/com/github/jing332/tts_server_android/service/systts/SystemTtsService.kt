@@ -115,6 +115,10 @@ class SystemTtsService : TextToSpeechService(), IEventDispatcher {
         private const val ROLE_CHIP_COLOR = "#0F0F0F"
         // 插件名小牌哨兵色；LogScreen 按主题重映射为灰青牌色
         private const val PLUGIN_CHIP_COLOR = "#0E0E0E"
+        // 日志行尾插件名小牌的字数上限（10-14 用户令「6 个太多了，限 5 个」；显示宽度口径：
+        // 汉字算 1、英文/数字算半——fish audio 9 字符≈4.5 位放得下，本悦读官方中文54…截成
+        // 「本悦读官方…」）。与显示名滑杆（maxChars）解耦：滑杆管角色行显示名，本常量只管插件牌。
+        private const val PLUGIN_NAME_MAX_WIDTH = 5
         // pluginId→插件名缓存（声音行尾牌用）：运行期不变，负结果也缓存（空串）
         private val pluginNameCache = java.util.concurrent.ConcurrentHashMap<String, String>()
         private val logger = KotlinLogging.logger(TAG)
@@ -842,16 +846,20 @@ class SystemTtsService : TextToSpeechService(), IEventDispatcher {
                     }
                     if (pname.isNotBlank()) {
                         val pnameFull = pname.replace('|', '｜')
-                        val pnameLimited =
-                            if (maxChars > 0) pnameFull.limitDisplayLength(maxChars) else pnameFull
                         // 插件名=全角括号备注语缀尾（10-10 用户令「（豆包-猫箱）」，重落：
                         // 首落改动被他窗连带收走后丢失——当时核对的只是 LogScreen 部分）。
                         // 附属信息不与角色名平级抢视觉；渲染侧插件牌底色已撤、灰青字保留。
                         // 10-11 用户令：撤插件名前的全角空格（原为 "　<font…>（"）——
                         // 括号本身就是分隔符，插件名又自带灰青色，三重分隔里那个空格多余；
                         // 且它占一个全角宽，窄屏上白白挤掉正文的换行空间
+                        // 10-14 用户令（预览页三改定稿）：名字限 5 字位——曾试过「无括号+
+                        // 全角空格分隔」「「短名」直角引号」两版，装机观感回摆「还是原来的
+                        // 括号形式更好，只把字数限一下」。截取=显示宽度口径（汉字 1、
+                        // 英文/数字半），超长一律「…」收尾；maxChars=0（不限）时跳过截取。
                         // ⚠️ 括号留在**这个 font 内部**：只包名字会让括号落到默认色，
                         // 视觉上把「（豆包-猫箱）」切成两截色。括号前不加逗号（原口径，括号自身即分隔）
+                        val pnameLimited =
+                            if (maxChars > 0) pnameFull.limitDisplayLength(PLUGIN_NAME_MAX_WIDTH) else pnameFull
                         append("<font color=\"" + PLUGIN_CHIP_COLOR + "\">（")
                         append(pnameLimited)
                         append("）</font>")
