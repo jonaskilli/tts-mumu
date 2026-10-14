@@ -966,7 +966,12 @@ private fun RoleRow(
             ) {
                 // 照 v9 排布：主名第一行，别名从第二行起逐个竖排，每行都带性别色圆点
                 nameList.forEachIndexed { idx, name ->
-                    Row(verticalAlignment = Alignment.CenterVertically) {
+                    // 10-14 甲案（用户拍板「别名换行排版不行」）：Row 改 Top 对齐 + 圆点 top 9dp
+                    // 钉在首行文字中线（16sp/行高 24sp 的几何中心）——原 CenterVertically 会把
+                    // 圆点垂直居中到整段折行高度，长别名折两行时圆点跑到末行旁、首行左侧空着
+                    //（装机截图实锤）。折行续行本就在 Text 框内（圆点右侧）缩进，圆点归位即正。
+                    // 单行名字几何不变（9dp = 单行行高的中线）。
+                    Row(verticalAlignment = Alignment.Top) {
                         // 性别色圆点：只看发音人分类标签（tag 本身即「分类词+序号」，见 genderDotColor 注释）
                         // 0919 缩到 6dp（用户：8dp 圆点视觉太重；色相是性别信息载体，缩尺寸不降饱和）
                         // 4dp 曾压不住场，6dp 为缩小后与名字行仍相称的下限
@@ -975,6 +980,7 @@ private fun RoleRow(
                         Spacer(
                             Modifier
                                 .padding(start = 4.dp)
+                                .padding(top = 9.dp)
                                 .size(6.dp)
                                 .background(genderDotColor(rec.voice), CircleShape)
                         )
