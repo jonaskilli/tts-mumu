@@ -872,34 +872,6 @@ private fun cutToTagBoxWidth(text: String, budget: Float = TAG_BUDGET): String {
 }
 
 /**
- * 名字列最小宽（10-10 用户令「名字有占到一半屏幕的权利」）：
- * 取竖排名称各行（含收藏【】、主角👑附件）按 16sp 估算的最长渲染宽，封顶=行内容宽的一半。
- * 名字短时只按实际宽占位（剩余让给标签框），名字长时保住半屏不被标签框挤窄。
- * 估宽口径：全角(≥0x2E80)≈16dp、半角≈9dp（16sp 下与 weightedWidth 同分布）；
- * 加固定开销=圆点 6+点距 4+行首缩进 4=14dp。
- * 封顶口径（10-11 v3 改）：从「屏宽/2」改为「屏宽/2 − gutter」——名字列与标签框同处
- * 行内容区（已扣两侧各 16dp gutter），半屏应指**行内容宽的一半**，用屏宽一半会多算 16dp。
- */
-@Composable
-private fun nameColumnMinWidth(
-    nameList: List<String>,
-    isFav: Boolean,
-    isProtagonist: Boolean,
-): Dp {
-    val config = LocalConfiguration.current
-    val halfRow = (config.screenWidthDp / 2 - ListGutter.value).dp
-    var maxW = 0f
-    for (name in nameList) {
-        var w = 14f // 圆点 6 + 点距 4 + 行首缩进 4
-        if (isFav && name == nameList.first()) w += 2f // 【】两角约 2 全角宽的一半余量，粗估
-        for (ch in name) w += if (ch.code < 0x2E80) 9f else 16f
-        if (isProtagonist && name == nameList.first()) w += 20f // 👑+空格
-        if (w > maxW) maxW = w
-    }
-    return minOf(maxW.dp, halfRow)
-}
-
-/**
  * 角色行（照插件 createListRow / v9 排布）：左名字列竖排（主名第一行，别名从第二行起各占一行，
  * 每行 = 性别圆点 + 名称 + 收藏【】 + 主角👑），整列垂直居中 → 右侧标签框对这一列上下居中；
  * 右动作列=发音人标签框 + 已点亮标记 emoji（❤️🚶😈，与换声弹窗同源 voice_marks.json）
@@ -924,6 +896,9 @@ private fun RoleRow(
     // 名字列竖排的全部名称（照 v9：第一行主名，别名从第二行起各占一行）
     val nameList = (listOf(rec.name) + CharacterRecordsFile.splitAliases(rec.aliases))
         .distinctBy { it.trim() }
+    // 10-14 用户令三改定稿：名字列=按内容占宽、封顶半屏（超半屏折行不省略）；
+    // 标签框=weight(1f, fill=false) 吃剩余空间，15 字位放不下就框内省略号。
+    val halfRow = ((LocalConfiguration.current.screenWidthDp - 2 * ListGutter.value) / 2).dp
     Surface(
         // 选中态（用户 09-14 二次修）：整行染色保留，但加 12dp 圆角、
         // 色阶从 surfaceContainerHighest 降到 surfaceContainerHigh 浅一档——
@@ -944,14 +919,13 @@ private fun RoleRow(
             // 这里必须关掉按压反馈波纹，否则名字列自己的涟漪会叠成第二块灰。
             Column(
                 Modifier
-                    // 点击区（10-13 晚用户令「点击标签左侧都应该能选中角色……排除右侧的标签区域，
-                    // 左侧都是点击能选中的区域」）：名字列改 weight(1f) 吃满标签以外的整段——
-                    // 原先按内容量占宽（上限半屏），名字右侧的空白点不着。weight 对 weight：
-                    // 标签槽同为 weight(1f)，两槽对半 = 名字列上限仍半屏，原 widthIn(max=半屏)
-                    // 的封顶语义由对半分配天然承接（min 保留兜小屏）；无标签时名字列占整行。
-                    // 视觉不变：名字起线在左、标签仍右缘齐线。
-                    .weight(1f)
-                    .widthIn(min = nameColumnMinWidth(nameList, isFav, isProtagonist))
+                    // 10-14 用户令三改定稿：名字列=**按内容占宽、封顶半屏**——名字短时不占满，
+                    // 省下的空间给标签框（标签 15 字位全显）；名字长（主名或别名）顶到半屏后
+                    // 折行续排，不省略不折叠（10-12「显示完全」口径保持）。
+                    // 半屏=（屏宽−两侧 gutter 32dp）/2。点击区=名字文字本身（10-13 晚的
+                    // 「空白也可点选」随对半 weight 方案一并退役——两边都长时二者不可兼得，
+                    // 名字显示完全优先）。视觉：名字起线在左、标签仍右缘齐线。
+                    .widthIn(max = halfRow)
                     .combinedClickable(
                         onClick = onNameClick,
                         onLongClick = onNameLongClick,
@@ -995,9 +969,9 @@ private fun RoleRow(
                             // 名字换行显示完全（10-12 用户令「这个角色名也必须能够换行，也就是说
                             // 角色名必须要显示完全」）：原写死 maxLines=1 + 省略号，长名被截成
                             // 「王尘、吕宵、高…」，用户看不到全名。改为在名字列宽度内自由折行——
-                            // 列宽上限仍是「行内容宽的一半」（保标签位置），名长时在该宽度内换行、
-                            // 整名列因此变高，右侧标签仍对整列垂直居中（外层 Row 已 CenterVertically）。
-                            // 不设 maxLines 上限：角色名普遍短，个别长名多占一两行也优于丢字。
+                            // 10-14 用户令推平：主名/别名**同待遇**，各有半屏宽的权力，
+                            // 超宽折行、永不省略；名字列保证半屏（见下方 fillMaxWidth(0.5f)），
+                            // 标签框不许越界（另见标签槽注释）。
                         )
                     }
                     if (idx < nameList.lastIndex) Spacer(Modifier.height(2.dp))
@@ -1008,13 +982,13 @@ private fun RoleRow(
             if (rec.voice.isNotBlank()) {
                 // 固定间距 10dp
                 Spacer(Modifier.width(10.dp))
-                // 弹性槽（10-11 方案④）：占住剩余空间、内容靠右 → 标签**右缘齐线**（旧格式观感）。
-                // 10-14 修（用户实报「标签更短了」）：去掉本槽的 weight(1f)——10-13 晚为「点标签
-                // 左侧也能选中」把名字列与标签槽改成对半 weight 后，标签框被压死在半行宽
-                //（≈11~12 字位），而文本按 15 字位预算生成，超出的被框悄悄裁掉=标签变短。
-                // 改回内容宽（上限 220dp 不变）：名字列 weight(1f) 会吞掉标签左侧全部空白，
-                // 「标签左侧都能选中角色」的口径反而覆盖得更全，标签长度恢复 10-11 口径。
+                // 弹性槽（10-14 三改终态）：weight(1f, fill=false) 吃「行宽−名字列」的剩余，
+                // 标签框=内容宽（上限 220dp）——名字短时框=内容宽、15 字位全显；
+                // 两边都长时框被压到剩余空间、文本框内打「…」（10-14 用户令「两边都缩减」）。
+                // 演进：10-13 晚对半 weight（标签压短实锤）→ 338588a 内容宽（标签越中线、
+                // 名字列被挤窄实锤）→ 本版=名字列封顶半屏 + 标签吃剩余+省略号。
                 Row(
+                    Modifier.weight(1f, fill = false),
                     horizontalArrangement = Arrangement.End,
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
@@ -1064,10 +1038,10 @@ private fun RoleRow(
                             // 字色（10-13 退回）：与底同源，onSecondaryContainer 对比度只会更大
                             color = MaterialTheme.colorScheme.onSecondaryContainer,
                             maxLines = 1,
-                            // 文本已在 voiceTagText 里按框宽收口，正常不会溢出；这里用
-                            // Clip 而不是 Ellipsis——万一字体比我估的宽，也绝不吐「…」
-                            // （不要省略号；预算留了约 1 个全角字的余量兜底）
-                            overflow = TextOverflow.Clip,
+                            // 10-14 用户令：名字列封顶半屏后，两边都长时本框被压到
+                            // 「行宽−名字列」，15 字位文本放不下就框内打「…」；
+                            // 名字短时框=内容宽，15 字位全显不触发省略。
+                            overflow = TextOverflow.Ellipsis,
                             modifier = Modifier
                                 .padding(horizontal = 10.dp, vertical = 5.dp)
                                 .widthIn(max = 220.dp)
