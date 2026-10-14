@@ -133,17 +133,13 @@ private fun AnnotatedString.remapMetaColor(
                 r.end
             )
             // 角色名（10-12 三改，用户令「声音行的角色名，干脆换颜色处理吧，不然它总是跟
-            // 其他文字对齐不了」）：**撤掉圆角丸与底色 span**，回到纯字色 + Medium 字重。
+            // 其他文字对齐不了」）：**撤掉圆角丸与底色 span**，回到纯字色。
+            // 10-14 用户令「不能加粗」：Medium 字重与 HTML <b> 一并撤（服务端已同步去 <b>），
+            // 角色名=普通字重 + 靛蓝→纯绿（见 roleChipColor），区分度全靠颜色。
             // 演进：10-11 做成直角底 span → 又改成真圆角丸（RoleNamePill）→ 10-12 用户否掉。
             // 根因是「丸」作为独立 Box/Text 与后随文字只能靠 alignByBaseline 硬凑，
             // 内衬一进一出就对不齐；纯字色是同一条 Text 里的 span，天然同基线。
             // ⚠️ 别再改回丸：用户已连续两版不满意，本条为终稿口径。
-            when (r.item.color) {
-                RoleChipSentinel -> addStyle(
-                    SpanStyle(fontWeight = FontWeight.Medium), r.start, r.end
-                )
-                else -> {}
-            }
         }
     }
 }

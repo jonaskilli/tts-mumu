@@ -815,9 +815,11 @@ class SystemTtsService : TextToSpeechService(), IEventDispatcher {
                 // 修法：**不再套外层 font**，角色名 / 声音信息 / 插件名各自只包一层自己的 font。
                 // 区间不再包含，就没有谁盖谁的问题。
                 if (roleName.isNotBlank()) {
-                    append("<font color=\"" + ROLE_CHIP_COLOR + "\"><b>")
+                    // 10-14 用户令「不能加粗」：角色名撤 <b>，纯色不加粗（此前 HTML 套 <b>
+                    // 渲染出粗体，预览页对照后拍板撤）。区分度由颜色自己扛（深纯绿 vs 棕褐）。
+                    append("<font color=\"" + ROLE_CHIP_COLOR + "\">")
                     append(roleName)
-                    append("</b></font>")
+                    append("</font>")
                     // 分隔逗号留在**声音信息自己的 font 里**：不给它套 font 的话，它会落回
                     // 正文默认色，在灰绿角色名与灰紫声音信息之间冒出一个第三色的标点。
                     // （旧写法整段共用一个外层 font，逗号自然是灰紫；拆段后必须显式补上。）
