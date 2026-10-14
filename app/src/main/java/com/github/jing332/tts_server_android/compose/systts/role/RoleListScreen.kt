@@ -897,7 +897,7 @@ private fun RoleRow(
     val nameList = (listOf(rec.name) + CharacterRecordsFile.splitAliases(rec.aliases))
         .distinctBy { it.trim() }
     // 10-14 用户令三改定稿：名字列=按内容占宽、封顶半屏（超半屏折行不省略）；
-    // 标签框=weight(1f, fill=false) 吃剩余空间，15 字位放不下就框内省略号。
+    // 标签框=weight(1f, fill=false) 吃剩余空间，15 字位放不下直接截断（不打「…」）。
     val halfRow = ((LocalConfiguration.current.screenWidthDp - 2 * ListGutter.value) / 2).dp
     Surface(
         // 选中态（用户 09-14 二次修）：整行染色保留，但加 12dp 圆角、
@@ -970,8 +970,8 @@ private fun RoleRow(
                             // 角色名必须要显示完全」）：原写死 maxLines=1 + 省略号，长名被截成
                             // 「王尘、吕宵、高…」，用户看不到全名。改为在名字列宽度内自由折行——
                             // 10-14 用户令推平：主名/别名**同待遇**，各有半屏宽的权力，
-                            // 超宽折行、永不省略；名字列保证半屏（见下方 fillMaxWidth(0.5f)），
-                            // 标签框不许越界（另见标签槽注释）。
+                            // 超宽折行、永不省略；名字列封顶半屏（widthIn(max=halfRow)，
+                            // 见上方名字列注释），标签框不许越界（另见标签槽注释）。
                         )
                     }
                     if (idx < nameList.lastIndex) Spacer(Modifier.height(2.dp))
@@ -984,9 +984,10 @@ private fun RoleRow(
                 Spacer(Modifier.width(10.dp))
                 // 弹性槽（10-14 三改终态）：weight(1f, fill=false) 吃「行宽−名字列」的剩余，
                 // 标签框=内容宽（上限 220dp）——名字短时框=内容宽、15 字位全显；
-                // 两边都长时框被压到剩余空间、文本框内打「…」（10-14 用户令「两边都缩减」）。
+                // 两边都长时框被压到剩余空间、文本直接截断不打「…」（10-14 用户令
+                // 「不打省略号，直接不显示」）。
                 // 演进：10-13 晚对半 weight（标签压短实锤）→ 338588a 内容宽（标签越中线、
-                // 名字列被挤窄实锤）→ 本版=名字列封顶半屏 + 标签吃剩余+省略号。
+                // 名字列被挤窄实锤）→ 本版=名字列封顶半屏 + 标签吃剩余+截断。
                 Row(
                     Modifier.weight(1f, fill = false),
                     horizontalArrangement = Arrangement.End,
@@ -1004,9 +1005,10 @@ private fun RoleRow(
                     // 长按=随机分配（10-06 用户令，替代原标签后的 🔄 直键）——仅 14 类可换类别
                     // 响应，单例类别长按无动作（原直键在单例类别本就不渲染，口径一致）；
                     // minimumInteractiveComponentSize 照旧保 48dp 触控（原 Surface(onClick) 同款）
-                    // 宽度 v3（10-11 方案④）：去 weight，标签**按内容宽**（上限仍 220dp）——
-                    // 位置由外层弹性槽（Arrangement.End）贴到行尾（右缘齐线，旧格式的观感）。
-                    // 名字短时标签可超半屏；两边都长时名字已被上限保了半屏，标签拿到剩下的
+                    // 宽度（10-14 三改终态）：本槽 weight(1f, fill=false) 吃「行宽−名字列」剩余，
+                    // 框=内容宽（上限 220dp）——名字短时框=内容宽、15 字位全显；两边都长时
+                    // 框被压到剩余、文本直接截断（Clip，不打「…」）。位置 Arrangement.End
+                    // 贴行尾（右缘齐线，旧格式观感）。
                     Surface(
                         shape = RoundedCornerShape(8.dp),
                         // 标签底色（10-13 用户定稿方案 B「混深改到七成 #DEF3E5，保守微调」）：
@@ -1038,10 +1040,10 @@ private fun RoleRow(
                             // 字色（10-13 退回）：与底同源，onSecondaryContainer 对比度只会更大
                             color = MaterialTheme.colorScheme.onSecondaryContainer,
                             maxLines = 1,
-                            // 10-14 用户令：名字列封顶半屏后，两边都长时本框被压到
-                            // 「行宽−名字列」，15 字位文本放不下就框内打「…」；
-                            // 名字短时框=内容宽，15 字位全显不触发省略。
-                            overflow = TextOverflow.Ellipsis,
+                            // 10-14 用户令再改：两边都长时本框被压到「行宽−名字列」，
+                            // 15 字位文本放不下就**直接截断**（Clip，不打「…」——用户令
+                            // 「不打省略号，直接不显示」）；名字短时框=内容宽，全显不触发。
+                            overflow = TextOverflow.Clip,
                             modifier = Modifier
                                 .padding(horizontal = 10.dp, vertical = 5.dp)
                                 .widthIn(max = 220.dp)
