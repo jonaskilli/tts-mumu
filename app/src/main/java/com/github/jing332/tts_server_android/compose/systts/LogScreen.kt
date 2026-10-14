@@ -555,12 +555,11 @@ internal fun LogScreen(
         // 发音人信息：棕褐 #7D6B5D / 深色主题 #A08B7A
         val metaColor = if (darkTheme) Color(0xFFB0BEC5) else Color(0xFF37474F)
         val voiceColor = if (darkTheme) Color(0xFFA08B7A) else Color(0xFF7D6B5D)
-        // 角色名小牌：靛蓝（10-14 用户令，蓝系八候选里挑定 #3949AB/#9FA8DA）——
-        // 原跟「请求音频」同款老日志绿（10-13「人名也用一样的绿色」），实机撞色：
-        // 与成功丸同族绿分不清状态和人名。灰蓝跟插件名灰青(#5B6472)太近、深靛明度贴正文
-        // 信号弱，靛蓝饱和/明度居中，与棕褐声音段/灰青插件名/成功绿/正文黑全拉开。
+        // 角色名小牌：用户调色台自选纯绿 #009908（10-14，浅色）/ 深色配对 #33CC33（同轴提亮）——
+        // 演进：老日志绿（撞成功丸）→ 靛蓝 #3949AB（装机嫌突兀）→ 调色台自定纯绿。
+        // 与成功丸的区分靠明度差：丸=淡底 #F2F8F4 + 浅草绿字，人名=深纯绿加粗。
         // 插件名小牌：灰青
-        val roleChipColor = if (darkTheme) Color(0xFF9FA8DA) else Color(0xFF3949AB)
+        val roleChipColor = if (darkTheme) Color(0xFF33CC33) else Color(0xFF009908)
         val pluginChipColor = if (darkTheme) Color(0xFF9AA0A8) else Color(0xFF5B6472)
 
         LazyColumn(
