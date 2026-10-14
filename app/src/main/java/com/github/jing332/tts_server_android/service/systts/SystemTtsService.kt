@@ -856,12 +856,14 @@ class SystemTtsService : TextToSpeechService(), IEventDispatcher {
                         // 且它占一个全角宽，窄屏上白白挤掉正文的换行空间
                         // 10-14 用户令（预览页三改定稿）：名字限 5 字位——曾试过「无括号+
                         // 全角空格分隔」「「短名」直角引号」两版，装机观感回摆「还是原来的
-                        // 括号形式更好，只把字数限一下」。截取=显示宽度口径（汉字 1、
-                        // 英文/数字半），超长一律「…」收尾；maxChars=0（不限）时跳过截取。
+                        // 括号形式更好，只把字数限一下」。截取=码点 5（讯飞配音pro+官网…→
+                        // 讯飞配音p），不补省略号（10-06 口径）。
+                        // ⚠️ 16:49 装机实锤 bug：原写法 `if (maxChars > 0) 限长 else 全名`——
+                        // 显示名滑杆=0（不限）时整条跳过，插件名全须全尾（用户实拍）。
+                        // 修正=无条件限长：插件牌只认 PLUGIN_NAME_MAX_WIDTH，与滑杆彻底解耦。
                         // ⚠️ 括号留在**这个 font 内部**：只包名字会让括号落到默认色，
                         // 视觉上把「（豆包-猫箱）」切成两截色。括号前不加逗号（原口径，括号自身即分隔）
-                        val pnameLimited =
-                            if (maxChars > 0) pnameFull.limitDisplayLength(PLUGIN_NAME_MAX_WIDTH) else pnameFull
+                        val pnameLimited = pnameFull.limitDisplayLength(PLUGIN_NAME_MAX_WIDTH)
                         append("<font color=\"" + PLUGIN_CHIP_COLOR + "\">（")
                         append(pnameLimited)
                         append("）</font>")
