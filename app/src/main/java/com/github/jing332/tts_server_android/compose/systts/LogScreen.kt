@@ -96,7 +96,7 @@ import kotlin.math.abs
 // SystemTtsService 拼接次级信息所用哨兵色，此处按主题重映射
 private val MetaColorSentinel = Color(0xFFFF00FF)       // 获取成功前缀 → 石板灰
 private val VoiceMetaSentinel = Color(0xFF00FFFF)       // 发音人信息 → 雾紫
-private val RoleChipSentinel = Color(0xFF0F0F0F)        // 角色名小牌 → 灰绿牌字色
+private val RoleChipSentinel = Color(0xFF0F0F0F)        // 角色名小牌 → 靛蓝牌字色（10-14 用户令）
 private val PluginChipSentinel = Color(0xFF0E0E0E)      // 插件名小牌 → 灰青牌字色
 
 // 排版实验 1008（用户 10-08 拍板「撤吧，灰」）：请求行"请求音频："前缀撤级别绿——
@@ -106,7 +106,7 @@ private val RequestPrefixColorLight = Color(0xFF79747E)
 private val RequestPrefixColorDark = Color(0xFF938F99)
 
 // 把命中哨兵色的段落整体换成目标色，让"请求音频"正文(纯绿)与
-// 获取成功前缀(石板灰)/发音人信息(雾紫)/角色牌(灰绿)/插件牌(灰青)层次分明但不抢眼
+// 获取成功前缀(石板灰)/发音人信息(雾紫)/角色牌(靛蓝)/插件牌(灰青)层次分明但不抢眼
 private fun AnnotatedString.remapMetaColor(
     metaColor: Color,
     voiceColor: Color,
@@ -555,9 +555,12 @@ internal fun LogScreen(
         // 发音人信息：棕褐 #7D6B5D / 深色主题 #A08B7A
         val metaColor = if (darkTheme) Color(0xFFB0BEC5) else Color(0xFF37474F)
         val voiceColor = if (darkTheme) Color(0xFFA08B7A) else Color(0xFF7D6B5D)
-        // 角色名小牌：跟「请求音频」那颗老日志绿（10-13 用户令「声音行的人名也用一样的绿色」）；
+        // 角色名小牌：靛蓝（10-14 用户令，蓝系八候选里挑定 #3949AB/#9FA8DA）——
+        // 原跟「请求音频」同款老日志绿（10-13「人名也用一样的绿色」），实机撞色：
+        // 与成功丸同族绿分不清状态和人名。灰蓝跟插件名灰青(#5B6472)太近、深靛明度贴正文
+        // 信号弱，靛蓝饱和/明度居中，与棕褐声音段/灰青插件名/成功绿/正文黑全拉开。
         // 插件名小牌：灰青
-        val roleChipColor = if (darkTheme) Color(0xFF81C784) else Color(ACCENT_GREEN)
+        val roleChipColor = if (darkTheme) Color(0xFF9FA8DA) else Color(0xFF3949AB)
         val pluginChipColor = if (darkTheme) Color(0xFF9AA0A8) else Color(0xFF5B6472)
 
         LazyColumn(

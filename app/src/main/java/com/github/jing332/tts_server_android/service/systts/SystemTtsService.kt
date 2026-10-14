@@ -110,7 +110,8 @@ class SystemTtsService : TextToSpeechService(), IEventDispatcher {
         private const val META_INFO_COLOR = "#FF00FF"
         // 发音人信息专用哨兵色；渲染时在 LogScreen 按主题重映射为雾紫
         private const val VOICE_META_COLOR = "#00FFFF"
-        // 角色名小牌哨兵色（10-10 行流定稿）；LogScreen 按主题重映射为灰绿牌色
+        // 角色名小牌哨兵色（10-10 行流定稿）；LogScreen 按主题重映射为靛蓝牌色
+        // （10-14 用户令：原灰绿与「成功」丸同族绿撞色，换靛蓝——五候选蓝系里挑定）
         private const val ROLE_CHIP_COLOR = "#0F0F0F"
         // 插件名小牌哨兵色；LogScreen 按主题重映射为灰青牌色
         private const val PLUGIN_CHIP_COLOR = "#0E0E0E"
