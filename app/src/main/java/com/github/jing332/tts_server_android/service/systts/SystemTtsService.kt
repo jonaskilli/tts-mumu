@@ -115,10 +115,11 @@ class SystemTtsService : TextToSpeechService(), IEventDispatcher {
         private const val ROLE_CHIP_COLOR = "#0F0F0F"
         // 插件名小牌哨兵色；LogScreen 按主题重映射为灰青牌色
         private const val PLUGIN_CHIP_COLOR = "#0E0E0E"
-        // 日志行尾插件名小牌的字数上限（10-14 用户令「6 个太多了，限 5 个」；显示宽度口径：
-        // 汉字算 1、英文/数字算半——fish audio 9 字符≈4.5 位放得下，本悦读官方中文54…截成
-        // 「本悦读官方…」）。与显示名滑杆（maxChars）解耦：滑杆管角色行显示名，本常量只管插件牌。
-        private const val PLUGIN_NAME_MAX_WIDTH = 5
+        // 日志行尾插件名小牌的字数上限（10-14 两令：先「限 5 个」后「留四个字，不要五个字」）。
+        // 按码点切（limitDisplayLength：码点安全 + 竖线段回退 + 清尾，不补省略号——10-06 口径）。
+        // 与显示名滑杆（maxChars）解耦：滑杆管角色行显示名，本常量只管插件牌（16:49 实锤：
+        // 滑杆=0 时旧写法整条跳过限长，插件名全须全尾）。
+        private const val PLUGIN_NAME_MAX_CHARS = 4
         // pluginId→插件名缓存（声音行尾牌用）：运行期不变，负结果也缓存（空串）
         private val pluginNameCache = java.util.concurrent.ConcurrentHashMap<String, String>()
         private val logger = KotlinLogging.logger(TAG)
@@ -854,16 +855,16 @@ class SystemTtsService : TextToSpeechService(), IEventDispatcher {
                         // 10-11 用户令：撤插件名前的全角空格（原为 "　<font…>（"）——
                         // 括号本身就是分隔符，插件名又自带灰青色，三重分隔里那个空格多余；
                         // 且它占一个全角宽，窄屏上白白挤掉正文的换行空间
-                        // 10-14 用户令（预览页三改定稿）：名字限 5 字位——曾试过「无括号+
-                        // 全角空格分隔」「「短名」直角引号」两版，装机观感回摆「还是原来的
-                        // 括号形式更好，只把字数限一下」。截取=码点 5（讯飞配音pro+官网…→
-                        // 讯飞配音p），不补省略号（10-06 口径）。
+                        // 10-14 用户令两改：先「限 5 个」后「留四个字，不要五个字」——曾试过
+                        // 「无括号+全角空格分隔」「「短名」直角引号」两版，装机观感回摆
+                        // 「还是原来的括号形式更好，只把字数限一下」。截取=码点 4
+                        // （讯飞配音pro+官网…→讯飞配音），不补省略号（10-06 口径）。
                         // ⚠️ 16:49 装机实锤 bug：原写法 `if (maxChars > 0) 限长 else 全名`——
                         // 显示名滑杆=0（不限）时整条跳过，插件名全须全尾（用户实拍）。
-                        // 修正=无条件限长：插件牌只认 PLUGIN_NAME_MAX_WIDTH，与滑杆彻底解耦。
+                        // 修正=无条件限长：插件牌只认 PLUGIN_NAME_MAX_CHARS，与滑杆彻底解耦。
                         // ⚠️ 括号留在**这个 font 内部**：只包名字会让括号落到默认色，
                         // 视觉上把「（豆包-猫箱）」切成两截色。括号前不加逗号（原口径，括号自身即分隔）
-                        val pnameLimited = pnameFull.limitDisplayLength(PLUGIN_NAME_MAX_WIDTH)
+                        val pnameLimited = pnameFull.limitDisplayLength(PLUGIN_NAME_MAX_CHARS)
                         append("<font color=\"" + PLUGIN_CHIP_COLOR + "\">（")
                         append(pnameLimited)
                         append("）</font>")
