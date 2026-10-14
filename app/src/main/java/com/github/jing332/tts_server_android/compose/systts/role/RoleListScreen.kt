@@ -1009,11 +1009,12 @@ private fun RoleRow(
                 // 固定间距 10dp
                 Spacer(Modifier.width(10.dp))
                 // 弹性槽（10-11 方案④）：占住剩余空间、内容靠右 → 标签**右缘齐线**（旧格式观感）。
-                // 用 weight 而非裸 Spacer 是关键：weight 让槽以「剩余空间」为上限去量标签，
-                // 名字长时槽自动收缩、标签跟着收窄（不会撑破行）；裸 Spacer+按内容量标签
-                // 会在「名字长+标签长」时总和超出屏宽而溢出。
+                // 10-14 修（用户实报「标签更短了」）：去掉本槽的 weight(1f)——10-13 晚为「点标签
+                // 左侧也能选中」把名字列与标签槽改成对半 weight 后，标签框被压死在半行宽
+                //（≈11~12 字位），而文本按 15 字位预算生成，超出的被框悄悄裁掉=标签变短。
+                // 改回内容宽（上限 220dp 不变）：名字列 weight(1f) 会吞掉标签左侧全部空白，
+                // 「标签左侧都能选中角色」的口径反而覆盖得更全，标签长度恢复 10-11 口径。
                 Row(
-                    Modifier.weight(1f),
                     horizontalArrangement = Arrangement.End,
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
