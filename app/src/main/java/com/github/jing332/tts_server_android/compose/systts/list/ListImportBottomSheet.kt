@@ -32,6 +32,7 @@ import com.github.jing332.database.entities.systts.TtsConfigurationDTO
 import com.github.jing332.database.entities.systts.v1.GroupWithV1TTS
 import com.github.jing332.tts.speech.plugin.engine.TtsPluginUiEngineV2
 import com.github.jing332.tts_server_android.R
+import com.github.jing332.tts_server_android.compose.MainActivity
 import com.github.jing332.tts_server_android.compose.systts.ConfigImportBottomSheet
 import com.github.jing332.tts_server_android.compose.systts.plugin.PluginManagerActivity
 import com.github.jing332.tts_server_android.compose.systts.plugin.parsePluginsJson
@@ -62,7 +63,9 @@ fun ListImportBottomSheet(onDismissRequest: () -> Unit) {
     // 导入结果文案（成功/失败原因），非 null 时弹出模态对话框
     var successMsg = remember { mutableStateOf<String?>(null) }
     // 导入成功后待跳转的管理页（10-07 用户令：结果弹窗点「确定」后跳过去看结果）。
-    // LIST 不跳（主页 ⋮ 导入时用户本来就在列表页）；null=不跳
+    // LIST 也跳主页（10-15 用户令「配置列表也要跳」）：内部主页导入时 MainActivity
+    // 是 singleTask 原地复用（onNewIntent，列表 Room Flow 自动刷新，观感=刷新一下）；
+    // 外部「打开方式」导入则真跳回主界面看结果。旧口径「LIST 不跳」随外部入口作废。
     var pendingNav = remember { mutableStateOf<Class<*>?>(null) }
 
     // 先取局部 val 再判空：局部 val 支持 smart cast，MutableState.value 属性不支持
@@ -153,12 +156,14 @@ fun ListImportBottomSheet(onDismissRequest: () -> Unit) {
                             SystemTtsService.notifyUpdateConfig()
                         }
                         // 导入成功待跳转（10-07 用户令）：按实际识别出的类型跳对应管理页，
-                        // 点结果弹窗「确定」后触发；LIST 不跳（主页导入本来就在列表页）
+                        // 点结果弹窗「确定」后触发；LIST 跳主页（10-15 用户令，singleTask
+                        // 原地复用=内部导入观感即刷新，外部导入则切回主界面看结果）
                         pendingNav.value = when (result.type) {
                             ImportType.SPEECH_RULE -> SpeechRuleManagerActivity::class.java
                             ImportType.PLUGIN -> PluginManagerActivity::class.java
                             ImportType.REPLACE_RULE -> ReplaceManagerActivity::class.java
                             ImportType.KEY -> KeyManagerActivity::class.java
+                            ImportType.LIST -> MainActivity::class.java
                             else -> null
                         }
                         successMsg.value = result.typeName
