@@ -115,7 +115,25 @@ object ImportConfigFactory {
                 if (pair != null && pair.size == 2 && pair[1] is JsonObject &&
                     (pair[1] as JsonObject)["value"] != null
                 ) return ImportType.KEY
-                (element[0] as? JsonObject)?.detect()
+                val first = element[0] as? JsonObject
+                // 分组数组（group+list）：扫到第一个**非空** list 再判型——
+                // 首组常是空「默认分组」，只看它会误判 LIST，替换规则条目随后被
+                // 配置列表 v1 解析器要求 tts 字段而炸（10-15 实报 replace_rules.json）。
+                // 全组皆空时无从判型，维持旧口径 LIST（空组列表更可能是配置导出）。
+                if (first != null && first["group"] != null) {
+                    for (g in element) {
+                        val obj = g as? JsonObject ?: continue
+                        val list = obj["list"] as? JsonArray ?: continue
+                        if (list.isEmpty()) continue
+                        val item = list[0] as? JsonObject
+                            ?: return ImportType.LIST
+                        return if (item["pattern"] != null || item["replacement"] != null)
+                            ImportType.REPLACE_RULE
+                        else ImportType.LIST
+                    }
+                    return ImportType.LIST
+                }
+                first?.detect()
             }
             else -> null
         }
