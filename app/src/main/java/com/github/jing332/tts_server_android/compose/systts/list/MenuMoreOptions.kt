@@ -62,7 +62,12 @@ internal fun MenuMoreOptions(
 
     var showImportSheet by remember { mutableStateOf(false) }
     if (showImportSheet)
-        ListImportBottomSheet(onDismissRequest = { showImportSheet = false })
+        // B 方案（10-15）：主界面=配置列表页，ownType=LIST——导出配置列表不跳（人本来
+        // 就在主页），导出插件/规则/替换/密钥才跳对应管理页
+        ListImportBottomSheet(
+            onDismissRequest = { showImportSheet = false },
+            ownType = com.github.jing332.tts_server_android.ui.systts.ImportType.LIST,
+        )
 
     val context = LocalContext.current
     val activity = remember { context.asAppCompatActivity() }

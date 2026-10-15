@@ -25,25 +25,35 @@ enum class ImportType(val id: String, @StringRes val strResId: Int) {
 }
 
 object ImportConfigFactory {
+    /**
+     * @param onExternal true = 外部入口（ImportConfigActivity：文件管理器「打开方式」/ ttsrv 链接），
+     *   导入成功后一律跳识别出的类型对应管理页（用户此刻停在导入中转页，不跳=踢回文件管理器）；
+     *   false = app 内部 ⋮ 菜单导入——10-15 B 方案：识别出的类型 = 发起页类型时不跳（人本来
+     *   就在那），导出**别的**类型才跳（判据由各面板 ownType 实现，见各 ImportBottomSheet）。
+     *   内核 doAutoImport 四面板同一套，跳转只关乎「人在哪」，与文件内容无关。
+     */
     fun getBottomSheet(
         type: String,
         onBadFormat: () -> Unit,
+        onExternal: Boolean = true,
     ): @Composable (() -> Unit) -> Unit {
+        // B 方案：内部菜单调用时传发起页自身类型；null=外部入口全跳
+        val ownType = if (onExternal) null else ImportType.values().find { it.id == type }
         return when (ImportType.values().find { it.id == type }) {
             ImportType.LIST -> {
-                { ListImportBottomSheet(it) }
+                { ListImportBottomSheet(it, ownType = ownType) }
             }
 
             ImportType.PLUGIN -> {
-                { PluginImportBottomSheet(it) }
+                { PluginImportBottomSheet(it, ownType = ownType) }
             }
 
             ImportType.REPLACE_RULE -> {
-                { ReplaceRuleImportBottomSheet(it) }
+                { ReplaceRuleImportBottomSheet(it, ownType = ownType) }
             }
 
             ImportType.SPEECH_RULE -> {
-                { SpeechRuleImportBottomSheet(it) }
+                { SpeechRuleImportBottomSheet(it, ownType = ownType) }
             }
 
             // KEY 不出面板：doAutoImport 导入即完成（写库+toast），无手动导入入口

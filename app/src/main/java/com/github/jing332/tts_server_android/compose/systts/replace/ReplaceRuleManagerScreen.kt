@@ -95,7 +95,12 @@ internal fun ReplaceRuleManagerScreen(
 
     var showImportSheet by remember { mutableStateOf(false) }
     if (showImportSheet)
-        ReplaceRuleImportBottomSheet(onDismissRequest = { showImportSheet = false })
+        // B 方案（10-15）：本页=替换规则页，ownType=REPLACE_RULE——导出替换不跳，
+        // 导出别的类型才跳对应管理页
+        ReplaceRuleImportBottomSheet(
+            onDismissRequest = { showImportSheet = false },
+            ownType = com.github.jing332.tts_server_android.ui.systts.ImportType.REPLACE_RULE,
+        )
 
     var showExportSheet by remember { mutableStateOf<List<GroupWithReplaceRule>?>(null) }
     if (showExportSheet != null)

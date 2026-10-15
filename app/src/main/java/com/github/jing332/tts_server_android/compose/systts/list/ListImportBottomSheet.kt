@@ -50,7 +50,7 @@ import com.drake.net.utils.withIO
 import kotlinx.coroutines.CoroutineScope
 
 @Composable
-fun ListImportBottomSheet(onDismissRequest: () -> Unit) {
+fun ListImportBottomSheet(onDismissRequest: () -> Unit, ownType: ImportType? = null) {
     val context = LocalContext.current
     // 导入协程作用域：独立于 BottomSheet 生命周期，关闭面板后导入仍继续
     val importScope = rememberCoroutineScope()
@@ -63,9 +63,10 @@ fun ListImportBottomSheet(onDismissRequest: () -> Unit) {
     // 导入结果文案（成功/失败原因），非 null 时弹出模态对话框
     var successMsg = remember { mutableStateOf<String?>(null) }
     // 导入成功后待跳转的管理页（10-07 用户令：结果弹窗点「确定」后跳过去看结果）。
-    // LIST 也跳主页（10-15 用户令「配置列表也要跳」）：内部主页导入时 MainActivity
-    // 是 singleTask 原地复用（onNewIntent，列表 Room Flow 自动刷新，观感=刷新一下）；
-    // 外部「打开方式」导入则真跳回主界面看结果。旧口径「LIST 不跳」随外部入口作废。
+    // 10-15 B 方案定稿：跳转判「发起页」——ownType = 打开本面板的页面类型（内部 ⋮ 菜单），
+    // 识别出的类型 == ownType 时不跳（人本来就在那），导出**别的**类型才跳（含 LIST→主页）；
+    // ownType = null 表示外部入口（文件管理器「打开方式」/ ttsrv 链接），一律跳。
+    // 只有 Success 分支会设 pendingNav，失败走错误弹窗不跳。
     var pendingNav = remember { mutableStateOf<Class<*>?>(null) }
 
     // 先取局部 val 再判空：局部 val 支持 smart cast，MutableState.value 属性不支持
@@ -155,9 +156,8 @@ fun ListImportBottomSheet(onDismissRequest: () -> Unit) {
                             }
                             SystemTtsService.notifyUpdateConfig()
                         }
-                        // 导入成功待跳转（10-07 用户令）：按实际识别出的类型跳对应管理页，
-                        // 点结果弹窗「确定」后触发；LIST 跳主页（10-15 用户令，singleTask
-                        // 原地复用=内部导入观感即刷新，外部导入则切回主界面看结果）
+                        // 导入成功待跳转（仅 Success 走到这）：识别类型=发起页不跳（B 方案），
+                        // 其他类型才跳；外部入口（ownType=null）全跳
                         pendingNav.value = when (result.type) {
                             ImportType.SPEECH_RULE -> SpeechRuleManagerActivity::class.java
                             ImportType.PLUGIN -> PluginManagerActivity::class.java
@@ -165,7 +165,7 @@ fun ListImportBottomSheet(onDismissRequest: () -> Unit) {
                             ImportType.KEY -> KeyManagerActivity::class.java
                             ImportType.LIST -> MainActivity::class.java
                             else -> null
-                        }
+                        }?.takeIf { ownType == null || result.type != ownType }
                         successMsg.value = result.typeName
                     }
                 }

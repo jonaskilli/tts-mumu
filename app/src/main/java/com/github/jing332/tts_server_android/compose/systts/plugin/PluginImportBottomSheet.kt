@@ -16,6 +16,7 @@ import com.github.jing332.common.utils.startActivity
 import com.github.jing332.compose.widgets.LoadingDialog
 import com.github.jing332.database.entities.plugin.Plugin
 import com.github.jing332.tts_server_android.R
+import com.github.jing332.tts_server_android.compose.MainActivity
 import com.github.jing332.tts_server_android.compose.systts.ConfigImportBottomSheet
 import com.github.jing332.tts_server_android.compose.systts.list.AutoImportResult
 import com.github.jing332.tts_server_android.compose.systts.list.doAutoImport
@@ -38,7 +39,7 @@ import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 
 @Composable
-fun PluginImportBottomSheet(onDismissRequest: () -> Unit) {
+fun PluginImportBottomSheet(onDismissRequest: () -> Unit, ownType: ImportType? = null) {
     val context = LocalContext.current
     // 导入协程作用域：独立于 BottomSheet 生命周期，关闭面板后导入仍继续
     val importScope = rememberCoroutineScope()
@@ -51,7 +52,9 @@ fun PluginImportBottomSheet(onDismissRequest: () -> Unit) {
     // 导入结果文案（成功/失败原因），非 null 时弹出模态对话框
     var successMsg = remember { mutableStateOf<String?>(null) }
     // 导入成功后待跳转的管理页（10-07 用户令：点「确定」后跳过去看结果）。
-    // doAutoImport 全类型自识别——按实际识别出的类型跳，不固定本页类型；LIST 不跳
+    // doAutoImport 全类型自识别——按实际识别出的类型定目标页。10-15 B 方案：ownType =
+    // 打开面板的页面类型（内部菜单），识别类型=ownType 不跳、别的类型才跳；
+    // null=外部入口全跳。只有 Success 会设 pendingNav，失败走错误弹窗不跳。
     var pendingNav = remember { mutableStateOf<Class<*>?>(null) }
 
     // 先取局部 val 再判空：局部 val 支持 smart cast，MutableState.value 属性不支持
@@ -127,8 +130,9 @@ fun PluginImportBottomSheet(onDismissRequest: () -> Unit) {
                             ImportType.PLUGIN -> PluginManagerActivity::class.java
                             ImportType.REPLACE_RULE -> ReplaceManagerActivity::class.java
                             ImportType.KEY -> KeyManagerActivity::class.java
+                            ImportType.LIST -> MainActivity::class.java
                             else -> null
-                        }
+                        }?.takeIf { ownType == null || result.type != ownType }
                         successMsg.value = result.typeName
                     }
                 }

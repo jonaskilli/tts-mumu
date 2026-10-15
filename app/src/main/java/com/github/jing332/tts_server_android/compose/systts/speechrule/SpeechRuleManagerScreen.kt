@@ -136,7 +136,12 @@ fun SpeechRuleManagerScreen(sharedVM: SharedViewModel, finish: () -> Unit) {
 
     var showImportSheet by remember { mutableStateOf(false) }
     if (showImportSheet)
-        SpeechRuleImportBottomSheet(onDismissRequest = { showImportSheet = false })
+        // B 方案（10-15）：本页=朗读规则页，ownType=SPEECH_RULE——导出规则不跳，
+        // 导出别的类型才跳对应管理页
+        SpeechRuleImportBottomSheet(
+            onDismissRequest = { showImportSheet = false },
+            ownType = com.github.jing332.tts_server_android.ui.systts.ImportType.SPEECH_RULE,
+        )
 
     var showExportSheet by remember { mutableStateOf<List<SpeechRule>?>(null) }
     if (showExportSheet != null)

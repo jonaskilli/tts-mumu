@@ -193,7 +193,12 @@ fun PluginManagerScreen(sharedVM: SharedViewModel, onFinishActivity: () -> Unit)
 
     var showImportConfig by remember { mutableStateOf(false) }
     if (showImportConfig) {
-        PluginImportBottomSheet(onDismissRequest = { showImportConfig = false })
+        // B 方案（10-15）：本页=插件页，ownType=PLUGIN——导出插件不跳（人本来就在这），
+        // 导出别的类型（列表/规则/替换/密钥）才跳对应管理页
+        PluginImportBottomSheet(
+            onDismissRequest = { showImportConfig = false },
+            ownType = com.github.jing332.tts_server_android.ui.systts.ImportType.PLUGIN,
+        )
     }
 
     var showExportConfig by remember { mutableStateOf<List<Plugin>?>(null) }
