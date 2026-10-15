@@ -161,7 +161,8 @@ fun ListImportBottomSheet(onDismissRequest: () -> Unit, ownType: ImportType? = n
                         // 其他类型才跳；外部入口（ownType=null）全跳。目标页 Intent 由
                         // importTargetIntent 统一构造（KEY 带 tagRuleId，防错目录）
                         pendingNav.value = importTargetIntent(context, result.type)
-                            ?.takeIf { ownType == null || result.type != ownType }                        successMsg.value = result.typeName
+                            ?.takeIf { ownType == null || result.type != ownType }
+                        successMsg.value = result.typeName
                     }
                 }
             }
