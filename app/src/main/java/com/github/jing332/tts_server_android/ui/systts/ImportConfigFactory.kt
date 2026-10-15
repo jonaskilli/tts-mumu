@@ -26,18 +26,22 @@ enum class ImportType(val id: String, @StringRes val strResId: Int) {
 
 object ImportConfigFactory {
     /**
-     * @param onExternal true = 外部入口（ImportConfigActivity：文件管理器「打开方式」/ ttsrv 链接），
-     *   导入成功后一律跳识别出的类型对应管理页（用户此刻停在导入中转页，不跳=踢回文件管理器）；
-     *   false = app 内部 ⋮ 菜单导入——10-15 B 方案：识别出的类型 = 发起页类型时不跳（人本来
-     *   就在那），导出**别的**类型才跳（判据由各面板 ownType 实现，见各 ImportBottomSheet）。
-     *   内核 doAutoImport 四面板同一套，跳转只关乎「人在哪」，与文件内容无关。
+     * 构造导入面板（外部入口专用，10-15）。
+     *
+     * ⚠️ 当前**唯一调用方是 ImportConfigActivity**（文件管理器「打开方式」/ ttsrv 链接）——
+     * 它走默认 onExternal=true，面板 ownType=null ⇒ 导入成功后一律跳识别出的类型对应页
+     * （人停在导入中转页，不跳=被踢回文件管理器）。
+     *
+     * app 内部 4 个 ⋮ 菜单**不经此处**：直接调对应面板并传自己的 ownType（B 方案：识别
+     * 类型=发起页不跳，导出别的类型才跳）。onExternal=false 分支为将来内部复用预留，
+     * 目前无调用方。
      */
     fun getBottomSheet(
         type: String,
         onBadFormat: () -> Unit,
         onExternal: Boolean = true,
     ): @Composable (() -> Unit) -> Unit {
-        // B 方案：内部菜单调用时传发起页自身类型；null=外部入口全跳
+        // null=外部入口全跳；非 null=内部发起页类型（识别同类型时不跳）
         val ownType = if (onExternal) null else ImportType.values().find { it.id == type }
         return when (ImportType.values().find { it.id == type }) {
             ImportType.LIST -> {

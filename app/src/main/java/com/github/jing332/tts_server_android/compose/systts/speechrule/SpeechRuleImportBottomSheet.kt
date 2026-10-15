@@ -1,5 +1,6 @@
 package com.github.jing332.tts_server_android.compose.systts.speechrule
 
+import android.content.Intent
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -12,15 +13,11 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import com.github.jing332.compose.widgets.LoadingDialog
-import com.github.jing332.common.utils.startActivity
 import com.github.jing332.tts_server_android.R
-import com.github.jing332.tts_server_android.compose.MainActivity
 import com.github.jing332.tts_server_android.compose.systts.ConfigImportBottomSheet
 import com.github.jing332.tts_server_android.compose.systts.list.AutoImportResult
 import com.github.jing332.tts_server_android.compose.systts.list.doAutoImport
-import com.github.jing332.tts_server_android.compose.systts.plugin.PluginManagerActivity
-import com.github.jing332.tts_server_android.compose.systts.replace.ReplaceManagerActivity
-import com.github.jing332.tts_server_android.compose.systts.role.KeyManagerActivity
+import com.github.jing332.tts_server_android.compose.systts.list.importTargetIntent
 import com.github.jing332.tts_server_android.ui.systts.ImportType
 import com.github.jing332.tts_server_android.ui.view.AppDialogs.displayErrorDialog
 import com.drake.net.utils.withIO
@@ -39,11 +36,12 @@ fun SpeechRuleImportBottomSheet(onDismissRequest: () -> Unit, ownType: ImportTyp
     var isImporting by remember { mutableStateOf(false) }
     // 导入结果文案（成功/失败原因），非 null 时弹出模态对话框
     var successMsg = remember { mutableStateOf<String?>(null) }
-    // 导入成功后待跳转的管理页（10-07 用户令：点「确定」后跳过去看结果）。
+    // 导入成功后待跳转的目标页（10-07 用户令：点「确定」后跳过去看结果）。
     // doAutoImport 全类型自识别——按实际识别出的类型定目标页。10-15 B 方案：ownType =
     // 打开面板的页面类型（内部菜单），识别类型=ownType 不跳、别的类型才跳；
     // null=外部入口全跳。只有 Success 会设 pendingNav，失败走错误弹窗不跳。
-    var pendingNav = remember { mutableStateOf<Class<*>?>(null) }
+    // ⚠️ 存 Intent 不存 Class：KEY 页必须带 tagRuleId extra（见 importTargetIntent）
+    var pendingNav = remember { mutableStateOf<Intent?>(null) }
 
     // 先取局部 val 再判空：局部 val 支持 smart cast，MutableState.value 属性不支持
     val msgText = successMsg.value
@@ -113,14 +111,8 @@ fun SpeechRuleImportBottomSheet(onDismissRequest: () -> Unit, ownType: ImportTyp
                     is AutoImportResult.Success -> {
                         // doAutoImport 已生成完整文案（含数量），直接展示
                         // 导入成功待跳转（10-07 用户令）：按实际类型跳对应管理页，确定后触发
-                        pendingNav.value = when (result.type) {
-                            ImportType.SPEECH_RULE -> SpeechRuleManagerActivity::class.java
-                            ImportType.PLUGIN -> PluginManagerActivity::class.java
-                            ImportType.REPLACE_RULE -> ReplaceManagerActivity::class.java
-                            ImportType.KEY -> KeyManagerActivity::class.java
-                            ImportType.LIST -> MainActivity::class.java
-                            else -> null
-                        }?.takeIf { ownType == null || result.type != ownType }
+                        pendingNav.value = importTargetIntent(context, result.type)
+                            ?.takeIf { ownType == null || result.type != ownType }
                         successMsg.value = result.typeName
                     }
                 }

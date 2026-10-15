@@ -2,6 +2,7 @@ package com.github.jing332.tts_server_android.compose.systts.list
 
 import android.app.Application
 import android.content.Context
+import android.content.Intent
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -14,7 +15,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import com.github.jing332.common.utils.StringUtils
-import com.github.jing332.common.utils.startActivity
 import com.github.jing332.common.utils.toJsonListString
 import com.github.jing332.compose.widgets.LoadingDialog
 import com.github.jing332.database.dbm
@@ -62,12 +62,13 @@ fun ListImportBottomSheet(onDismissRequest: () -> Unit, ownType: ImportType? = n
     var isImporting by remember { mutableStateOf(false) }
     // 导入结果文案（成功/失败原因），非 null 时弹出模态对话框
     var successMsg = remember { mutableStateOf<String?>(null) }
-    // 导入成功后待跳转的管理页（10-07 用户令：结果弹窗点「确定」后跳过去看结果）。
+    // 导入成功后待跳转的目标页（10-07 用户令：结果弹窗点「确定」后跳过去看结果）。
     // 10-15 B 方案定稿：跳转判「发起页」——ownType = 打开本面板的页面类型（内部 ⋮ 菜单），
     // 识别出的类型 == ownType 时不跳（人本来就在那），导出**别的**类型才跳（含 LIST→主页）；
     // ownType = null 表示外部入口（文件管理器「打开方式」/ ttsrv 链接），一律跳。
     // 只有 Success 分支会设 pendingNav，失败走错误弹窗不跳。
-    var pendingNav = remember { mutableStateOf<Class<*>?>(null) }
+    // ⚠️ 存 Intent 不存 Class：KEY 页必须带 tagRuleId extra（见 importTargetIntent）
+    var pendingNav = remember { mutableStateOf<Intent?>(null) }
 
     // 先取局部 val 再判空：局部 val 支持 smart cast，MutableState.value 属性不支持
     val msgText = successMsg.value
@@ -157,16 +158,10 @@ fun ListImportBottomSheet(onDismissRequest: () -> Unit, ownType: ImportType? = n
                             SystemTtsService.notifyUpdateConfig()
                         }
                         // 导入成功待跳转（仅 Success 走到这）：识别类型=发起页不跳（B 方案），
-                        // 其他类型才跳；外部入口（ownType=null）全跳
-                        pendingNav.value = when (result.type) {
-                            ImportType.SPEECH_RULE -> SpeechRuleManagerActivity::class.java
-                            ImportType.PLUGIN -> PluginManagerActivity::class.java
-                            ImportType.REPLACE_RULE -> ReplaceManagerActivity::class.java
-                            ImportType.KEY -> KeyManagerActivity::class.java
-                            ImportType.LIST -> MainActivity::class.java
-                            else -> null
-                        }?.takeIf { ownType == null || result.type != ownType }
-                        successMsg.value = result.typeName
+                        // 其他类型才跳；外部入口（ownType=null）全跳。目标页 Intent 由
+                        // importTargetIntent 统一构造（KEY 带 tagRuleId，防错目录）
+                        pendingNav.value = importTargetIntent(context, result.type)
+                            ?.takeIf { ownType == null || result.type != ownType }                        successMsg.value = result.typeName
                     }
                 }
             }
@@ -174,9 +169,25 @@ fun ListImportBottomSheet(onDismissRequest: () -> Unit, ownType: ImportType? = n
     }
 }
 
+/**
+ * 导入成功后的跳转目标页（按识别出的类型）——四个导入面板共用（10-15 抽出）。
+ *
+ * ⚠️ 返回 Intent 而非 Class：**KeyManagerActivity 必须带 tagRuleId extra**，
+ * 只传 Class 走 `Context.startActivity(Class)` 会丢 extra → 页面读空 tagRuleId，
+ * 去 /chajian/ 根目录找密钥并往那写「文件说明.txt」（错目录，10-15 自检实锤）。
+ * 其余页面无参，Intent 形式统一后无差别。
+ */
+internal fun importTargetIntent(context: Context, type: ImportType): Intent? = when (type) {
+    ImportType.SPEECH_RULE -> Intent(context, SpeechRuleManagerActivity::class.java)
+    ImportType.PLUGIN -> Intent(context, PluginManagerActivity::class.java)
+    ImportType.REPLACE_RULE -> Intent(context, ReplaceManagerActivity::class.java)
+    ImportType.KEY -> KeyManagerActivity.intent(context, KeyListFile.DEFAULT_TAG_RULE_ID)
+    ImportType.LIST -> Intent(context, MainActivity::class.java)
+    else -> null
+}
+
 /** 自动导入结果 */
-internal sealed class AutoImportResult {
-    // reason：识别不出类型时的可读原因（如「无法判断配置类型…」），用于向用户展示而非只给一句空话
+internal sealed class AutoImportResult {    // reason：识别不出类型时的可读原因（如「无法判断配置类型…」），用于向用户展示而非只给一句空话
     data class EmptyOrUnrecognized(val reason: String) : AutoImportResult()
     data class Truncated(val detail: String) : AutoImportResult()
     data class Success(

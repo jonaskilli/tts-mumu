@@ -32,10 +32,16 @@ class KeyManagerActivity : ComposeActivity() {
         private const val EXTRA_TAG_RULE_ID = "tag_rule_id"
 
         fun start(context: Context, tagRuleId: String) {
-            context.startActivity(
-                Intent(context, KeyManagerActivity::class.java)
-                    .putExtra(EXTRA_TAG_RULE_ID, tagRuleId)
-            )
+            context.startActivity(intent(context, tagRuleId))
         }
+
+        /**
+         * 构造进入本页的 Intent（10-15）：导入面板跳转需要「先建 Intent 后择机启动」，
+         * 只拿 Class 走 `Context.startActivity(Class)` 会丢 extra → tagRuleId 空串，
+         * 页面会去读 /chajian/ 根目录并往那写文件说明.txt（错目录实锤）。
+         */
+        fun intent(context: Context, tagRuleId: String): Intent =
+            Intent(context, KeyManagerActivity::class.java)
+                .putExtra(EXTRA_TAG_RULE_ID, tagRuleId)
     }
 }
