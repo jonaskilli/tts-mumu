@@ -18,7 +18,10 @@ enum class ImportType(val id: String, @StringRes val strResId: Int) {
     LIST("list", R.string.config_list),
     PLUGIN("plugin", R.string.plugin),
     REPLACE_RULE("replaceRule", R.string.replace_rule),
-    SPEECH_RULE("speechRule", R.string.speech_rule)
+    SPEECH_RULE("speechRule", R.string.speech_rule),
+    // 密钥导出文件（密钥列表.json / 老密钥导出_*.json，10-14 起统一自识别）：
+    // 不在 getBottomSheet 出面板（导入即写库+toast），strResId 复用密钥页标题
+    KEY("key", R.string.role_key_title)
 }
 
 object ImportConfigFactory {
@@ -41,6 +44,12 @@ object ImportConfigFactory {
 
             ImportType.SPEECH_RULE -> {
                 { SpeechRuleImportBottomSheet(it) }
+            }
+
+            // KEY 不出面板：doAutoImport 导入即完成（写库+toast），无手动导入入口
+            ImportType.KEY -> {
+                onBadFormat()
+                return { println("bad format") }
             }
 
             else -> {
@@ -78,7 +87,9 @@ object ImportConfigFactory {
             if (this["ruleId"] != null || this["tags"] != null) return ImportType.SPEECH_RULE
             // 替换规则：含 pattern / replacement
             if (this["pattern"] != null || this["replacement"] != null) return ImportType.REPLACE_RULE
-            // 配置列表：含 config（SystemTtsV2）
+            // 密钥导出文件：v2 对象带 keys。
+            // 放 replace-rule 之后：key 老导出对内层 {keyCode,value} 无 pattern，此处不会误接
+            if (this["keys"] is JsonArray) return ImportType.KEY
             if (this["config"] != null) return ImportType.LIST
             // 含 group：GroupWithSystemTts 或 GroupWithReplaceRule
             if (this["group"] != null) {
@@ -97,7 +108,15 @@ object ImportConfigFactory {
 
         return when (element) {
             is JsonObject -> element.detect()
-            is JsonArray -> if (element.isEmpty()) null else (element[0] as? JsonObject)?.detect()
+            is JsonArray -> {
+                if (element.isEmpty()) return null
+                // 插件时代老密钥导出：[["名字",{keyCode,value}],...]——首元素是二元内嵌数组特判
+                val pair = element[0] as? JsonArray
+                if (pair != null && pair.size == 2 && pair[1] is JsonObject &&
+                    (pair[1] as JsonObject)["value"] != null
+                ) return ImportType.KEY
+                (element[0] as? JsonObject)?.detect()
+            }
             else -> null
         }
     }

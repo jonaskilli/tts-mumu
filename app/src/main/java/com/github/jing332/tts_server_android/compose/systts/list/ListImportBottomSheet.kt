@@ -36,10 +36,12 @@ import com.github.jing332.tts_server_android.compose.systts.ConfigImportBottomSh
 import com.github.jing332.tts_server_android.compose.systts.plugin.PluginManagerActivity
 import com.github.jing332.tts_server_android.compose.systts.plugin.parsePluginsJson
 import com.github.jing332.tts_server_android.compose.systts.replace.ReplaceManagerActivity
+import com.github.jing332.tts_server_android.compose.systts.role.KeyManagerActivity
 import com.github.jing332.tts_server_android.compose.systts.speechrule.SpeechRuleManagerActivity
 import com.github.jing332.tts_server_android.constant.AppConst
 import com.github.jing332.tts_server_android.model.rhino.speech_rule.SpeechRuleEngine
 import com.github.jing332.tts_server_android.service.systts.SystemTtsService
+import com.github.jing332.tts_server_android.service.systts.help.KeyListFile
 import com.github.jing332.tts_server_android.ui.systts.ImportConfigFactory
 import com.github.jing332.tts_server_android.ui.systts.ImportType
 import com.github.jing332.tts_server_android.ui.view.AppDialogs.displayErrorDialog
@@ -156,6 +158,7 @@ fun ListImportBottomSheet(onDismissRequest: () -> Unit) {
                             ImportType.SPEECH_RULE -> SpeechRuleManagerActivity::class.java
                             ImportType.PLUGIN -> PluginManagerActivity::class.java
                             ImportType.REPLACE_RULE -> ReplaceManagerActivity::class.java
+                            ImportType.KEY -> KeyManagerActivity::class.java
                             else -> null
                         }
                         successMsg.value = result.typeName
@@ -215,7 +218,7 @@ internal sealed class AutoImportResult {
 
     /**
      * 自动识别 JSON 类型并直接导入，无需手动选择/确认。
-     * 支持：配置列表 / 插件 / 朗读规则 / 替换规则。
+     * 支持：配置列表 / 插件 / 朗读规则 / 替换规则 / 密钥导出文件。
      */
     internal fun doAutoImport(
     json: String,
@@ -230,7 +233,12 @@ internal sealed class AutoImportResult {
     // JS 直存：朗读规则/插件源码是纯 JS 不是 JSON，走下方 JSON 解析必报「无法识别」。
     // 按内容特征（SpeechRuleJS/PluginJS）分流直接落库（10-05 用户：不再跳编辑器手动保存——
     // 原流程 gotoEditorFromJS 预填编辑器还要再点一次保存，纯多余一步）。
-    if (trimmed.contains("SpeechRuleJS") || trimmed.contains("PluginJS")) {
+    // 10-14 收紧：以 { 或 [ 开头的是 JSON（JRead 插件包 code 字段内也含 PluginJS 字样），
+    // 必须先走下方 JSON 解析；曾因无此判定把合法插件 JSON 当纯 JS 直存，
+    // 包内 code 未经 PackageImporter 前置 → 引擎取不到 PluginJS 对象报「Object `PluginJS` not found」。
+    if (!(trimmed.startsWith("{") || trimmed.startsWith("[")) &&
+        (trimmed.contains("SpeechRuleJS") || trimmed.contains("PluginJS"))
+    ) {
         val isRule = trimmed.contains("SpeechRuleJS")
         val typeName = if (isRule) "朗读规则" else "插件"
         return try {
@@ -272,6 +280,8 @@ internal sealed class AutoImportResult {
         )
     }
 
+    // 密钥导出文件（10-14 自识别）：走 KeyListFile 原导入链（parseExportText 兼容
+    // v2 对象与插件时代顶层数组两格式），导入即完成，文案沿用原「打开方式」导入提示
     return when (type) {
         ImportType.LIST -> doImportList(effective, onProgress).let { result ->
             when (result) {
@@ -296,6 +306,22 @@ internal sealed class AutoImportResult {
         ImportType.PLUGIN -> doImportPlugin(effective, type)
         ImportType.SPEECH_RULE -> doImportSpeechRule(effective, type)
         ImportType.REPLACE_RULE -> doImportReplaceRule(effective, type)
+        ImportType.KEY -> {
+            val data = KeyListFile.parseExportText(effective)
+                ?: return AutoImportResult.EmptyOrUnrecognized(
+                    "密钥文件格式无法识别（应为「密钥列表.json」导出格式）"
+                )
+            try {
+                val (added, skipped, ifcAdded) =
+                    KeyListFile.importAll(KeyListFile.DEFAULT_TAG_RULE_ID, data)
+                AutoImportResult.Success(
+                    added, type,
+                    "导入完成：新增 $added 个密钥，跳过 $skipped 个重名，恢复 $ifcAdded 个分组"
+                )
+            } catch (e: Exception) {
+                AutoImportResult.Truncated("密钥导入失败：${e.message}")
+            }
+        }
     }
 }
 

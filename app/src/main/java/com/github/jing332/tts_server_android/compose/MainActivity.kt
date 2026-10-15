@@ -13,7 +13,6 @@ import android.os.Bundle
 import android.os.Environment
 import android.os.SystemClock
 import android.provider.Settings
-import android.util.Log // 👈 使用原生日志
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.appcompat.app.AppCompatActivity
@@ -35,7 +34,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
-import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
@@ -54,7 +52,6 @@ import com.github.jing332.tts_server_android.compose.systts.list.ui.widgets.TtsE
 import com.github.jing332.tts_server_android.compose.theme.AppTheme
 import com.github.jing332.tts_server_android.conf.AppConfig
 import com.github.jing332.tts_server_android.service.systts.SystemTtsService
-import com.github.jing332.tts_server_android.service.systts.help.KeyListFile
 import com.drake.net.utils.withIO
 import com.google.accompanist.permissions.ExperimentalPermissionsApi
 import kotlinx.coroutines.launch
@@ -87,8 +84,9 @@ class MainActivity : ComposeActivity() {
 
         ShortCuts.buildShortCuts(this)
 
-        // 外部「打开方式」进来的密钥文件（onCreate 冷启动 / onNewIntent 热启动都走这里）
-        handleViewIntent(intent)
+        // 外部「打开方式」密钥导入已撤（10-14）：MainActivity 不再接 json VIEW 过滤器
+        //（与 ImportConfigActivity 重复接 json 导致「打开方式」出现两个 U·TTS 图标），
+        // 统一走 ImportConfigActivity 的 doAutoImport 密钥自识别。
 
         // 自动申请管理全部文件权限
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R && !Environment.isExternalStorageManager()) {
@@ -130,30 +128,6 @@ class MainActivity : ComposeActivity() {
 
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
-        handleViewIntent(intent)
-    }
-
-    /** 外部「打开方式」导入密钥（10-07 用户令）：文件管理器点 json → 选本应用 →
-     *  自识别解析（v2 对象 / 插件时代扁平数组）→ 直接合并入密钥库，结果 toast。
-     *  不做确认步骤：导入=合并不覆盖、重名自动跳过，无破坏性（与页内一步导入同口径）。 */
-    private fun handleViewIntent(intent: Intent?) {
-        if (intent?.action != Intent.ACTION_VIEW) return
-        val uri = intent.data ?: return
-        intent.data = null // singleTask 复用实例，清掉防重复触发
-        lifecycleScope.launch {
-            val result = withIO {
-                val text = try {
-                    contentResolver.openInputStream(uri)?.bufferedReader()?.use { it.readText() }
-                } catch (e: Exception) {
-                    Log.w(TAG, "key import open failed: ${e.message}")
-                    null
-                }
-                text?.let { KeyListFile.parseExportText(it) }
-                    ?.let { KeyListFile.importAll(KeyListFile.DEFAULT_TAG_RULE_ID, it) }
-            }
-            if (result == null) toast(R.string.role_list_failed)
-            else toast(R.string.role_key_import_done, result.first, result.second, result.third)
-        }
     }
 }
 

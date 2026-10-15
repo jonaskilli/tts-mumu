@@ -20,6 +20,7 @@ import com.github.jing332.tts_server_android.compose.systts.ConfigImportBottomSh
 import com.github.jing332.tts_server_android.compose.systts.list.AutoImportResult
 import com.github.jing332.tts_server_android.compose.systts.list.doAutoImport
 import com.github.jing332.tts_server_android.compose.systts.replace.ReplaceManagerActivity
+import com.github.jing332.tts_server_android.compose.systts.role.KeyManagerActivity
 import com.github.jing332.tts_server_android.compose.systts.speechrule.SpeechRuleManagerActivity
 import com.github.jing332.tts_server_android.constant.AppConst
 import com.github.jing332.tts_server_android.ui.systts.ImportType
@@ -125,6 +126,7 @@ fun PluginImportBottomSheet(onDismissRequest: () -> Unit) {
                             ImportType.SPEECH_RULE -> SpeechRuleManagerActivity::class.java
                             ImportType.PLUGIN -> PluginManagerActivity::class.java
                             ImportType.REPLACE_RULE -> ReplaceManagerActivity::class.java
+                            ImportType.KEY -> KeyManagerActivity::class.java
                             else -> null
                         }
                         successMsg.value = result.typeName

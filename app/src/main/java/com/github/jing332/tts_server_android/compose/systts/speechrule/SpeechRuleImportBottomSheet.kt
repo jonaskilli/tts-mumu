@@ -19,6 +19,7 @@ import com.github.jing332.tts_server_android.compose.systts.list.AutoImportResul
 import com.github.jing332.tts_server_android.compose.systts.list.doAutoImport
 import com.github.jing332.tts_server_android.compose.systts.plugin.PluginManagerActivity
 import com.github.jing332.tts_server_android.compose.systts.replace.ReplaceManagerActivity
+import com.github.jing332.tts_server_android.compose.systts.role.KeyManagerActivity
 import com.github.jing332.tts_server_android.ui.systts.ImportType
 import com.github.jing332.tts_server_android.ui.view.AppDialogs.displayErrorDialog
 import com.drake.net.utils.withIO
@@ -113,6 +114,7 @@ fun SpeechRuleImportBottomSheet(onDismissRequest: () -> Unit) {
                             ImportType.SPEECH_RULE -> SpeechRuleManagerActivity::class.java
                             ImportType.PLUGIN -> PluginManagerActivity::class.java
                             ImportType.REPLACE_RULE -> ReplaceManagerActivity::class.java
+                            ImportType.KEY -> KeyManagerActivity::class.java
                             else -> null
                         }
                         successMsg.value = result.typeName
