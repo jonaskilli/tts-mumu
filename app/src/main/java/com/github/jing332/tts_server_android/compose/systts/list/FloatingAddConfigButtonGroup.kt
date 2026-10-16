@@ -96,16 +96,8 @@ fun FloatingAddConfigButtonGroup(
             }
         }
     ) {
-        // 10-13 用户令：「添加插件TTS」放第一个（原第一是添加本地TTS）
-        FloatingActionButtonMenuItem(
-            onClick = {
-                addPlugin()
-                expended = false
-            },
-            text = { Text(stringResource(R.string.systts_add_plugin_tts)) },
-            icon = { Icon(Icons.Default.Javascript, null) }
-        )
-        Spacer(Modifier.height(2.dp))
+        // 10-16 用户令：换回原位——「添加本地TTS」第一、「添加插件TTS」第二
+        //（10-13 曾令插件TTS放第一，现撤销）
         FloatingActionButtonMenuItem(
             onClick = {
                 addLocal()
@@ -113,6 +105,15 @@ fun FloatingAddConfigButtonGroup(
             },
             text = { Text(stringResource(R.string.add_local_tts)) },
             icon = { Icon(Icons.Default.PhoneAndroid, null) }
+        )
+        Spacer(Modifier.height(2.dp))
+        FloatingActionButtonMenuItem(
+            onClick = {
+                addPlugin()
+                expended = false
+            },
+            text = { Text(stringResource(R.string.systts_add_plugin_tts)) },
+            icon = { Icon(Icons.Default.Javascript, null) }
         )
         Spacer(Modifier.height(2.dp))
         FloatingActionButtonMenuItem(
