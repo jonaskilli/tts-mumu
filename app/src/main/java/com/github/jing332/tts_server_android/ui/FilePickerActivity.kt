@@ -4,6 +4,7 @@ import android.content.Intent
 import android.net.Uri
 import android.os.Bundle
 import android.os.Parcelable
+import android.provider.DocumentsContract
 import androidx.activity.compose.setContent
 import androidx.activity.result.ActivityResultLauncher
 import androidx.activity.result.contract.ActivityResultContracts
@@ -163,7 +164,18 @@ class FilePickerActivity : ComposeActivity() {
     private fun selectFile() {
         kotlin.runCatching {
             val mimes = reqSelectFile.fileMimes.map { if (it == "*") "*/*" else it }
-            docSelector.launch(mimes.toTypedArray())
+            // 初始定位（10-16）：有 initialUri 就带上，选择器直接落在该目录
+            if (reqSelectFile.initialUri.isNotBlank()) {
+                val intent = Intent(Intent.ACTION_OPEN_DOCUMENT).apply {
+                    addCategory(Intent.CATEGORY_OPENABLE)
+                    type = mimes.firstOrNull() ?: "*/*"
+                    if (mimes.size > 1) putExtra(Intent.EXTRA_MIME_TYPES, mimes.toTypedArray())
+                    putExtra(DocumentsContract.EXTRA_INITIAL_URI, reqSelectFile.initialUri)
+                }
+                docSelector.launch(intent)
+            } else {
+                docSelector.launch(mimes.toTypedArray())
+            }
         }.onFailure {
             toast(R.string.sys_doc_picker_error)
             finish()
@@ -201,5 +213,10 @@ class FilePickerActivity : ComposeActivity() {
     data class RequestSelectDir(val rootUri: Uri = Uri.EMPTY) : IRequestData
 
     @Parcelize
-    data class RequestSelectFile(val fileMimes: List<String> = listOf("*")) : IRequestData
+    // initialUri（10-16）：SAF 初始定位（EXTRA_INITIAL_URI），恢复入口传入备份文件夹
+    // 让系统选择器打开即落在该目录；不支持初始定位的文件管理器自动忽略，无害
+    data class RequestSelectFile(
+        val fileMimes: List<String> = listOf("*"),
+        val initialUri: String = "",
+    ) : IRequestData
 }

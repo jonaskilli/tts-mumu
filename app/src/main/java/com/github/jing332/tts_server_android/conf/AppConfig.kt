@@ -82,6 +82,10 @@ object AppConfig {
     val webDavPass by lazy { mutableDataSaverStateOf(dataSaverPref, "webDavPass", "") }
     val webDavPath by lazy { mutableDataSaverStateOf(dataSaverPref, "webDavPath", "TTS备份") }
 
+    // WebDAV 云端备份保留数量（10-16，参照 U阅 clearOldBackups）：上传成功后按文件名
+    // 时间戳倒序只留最新 N 个，超出删除；0 = 不限不删
+    val webDavKeepCount by lazy { mutableDataSaverStateOf(dataSaverPref, "webDavKeepCount", 10) }
+
     // 本地备份文件夹（10-03 用户令）：SAF 目录树 URI，选定后本地备份直写该目录、
     // 不再每次弹「另存为」。空 = 未设置（备份时仍走系统另存为流程）。
     // FilePickerActivity 选目录时已 takePersistableUriPermission，重启后权限仍有效

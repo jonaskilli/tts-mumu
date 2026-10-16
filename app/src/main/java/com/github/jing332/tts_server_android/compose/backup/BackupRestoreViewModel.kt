@@ -96,4 +96,27 @@ class BackupRestoreViewModel(application: Application) : AndroidViewModel(applic
         val fileUrl = "$dirUrl/$fileName"
         sardine.put(fileUrl, bytes)
     }
+
+    /**
+     * 清理云端旧备份（10-16，参照 U阅 AppWebDav.clearOldBackups）：
+     * 备份文件名自带时间戳，按名称倒序=新到旧，超出 keepCount 的旧备份删除。
+     * keepCount <= 0 = 不限制数量，不删除任何备份。
+     * 只清 .zip 且删除失败不抛（清理是锦上添花，不该让备份流程报错）。
+     */
+    suspend fun clearOldWebDavBackups(keepCount: Int = AppConfig.webDavKeepCount.value): Int = withIO {
+        if (keepCount <= 0) return@withIO 0
+        runCatching {
+            val sardine = getSardine()
+            val dirUrl = webDavDirUrl()
+            if (!sardine.exists(dirUrl)) return@withIO 0
+            val files = sardine.list(dirUrl)
+                .filter { !it.isDirectory && it.name.endsWith(".zip") }
+                .sortedByDescending { it.name }   // 名称含 yyyy-MM-dd_HH-mm-ss，倒序即新→旧
+            var deleted = 0
+            files.drop(keepCount).forEach { res ->
+                runCatching { sardine.delete("$dirUrl/${res.name}") }.onSuccess { deleted++ }
+            }
+            deleted
+        }.getOrDefault(0)
+    }
 }

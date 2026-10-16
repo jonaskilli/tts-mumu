@@ -103,6 +103,9 @@ class BackupRestoreActivity : ComposeActivity() {
                                     val data = vm.backup(profile, types)
                                     if (uploadToWebDav) {
                                         vm.uploadToWebDav(data, backupFileName(profile))
+                                        // 上传成功后清旧备份（10-16 参照 U阅）：超出保留数量的旧 zip 删除，
+                                        // 失败静默（清理不该让备份流程报错）；keepCount=0 不清
+                                        withContext(Dispatchers.IO) { vm.clearOldWebDavBackups() }
                                         Toast.makeText(
                                             context,
                                             context.getString(R.string.backup_uploaded_success),
@@ -169,15 +172,22 @@ class BackupRestoreActivity : ComposeActivity() {
                         title = { Text(stringResource(R.string.restore)) },
                         text = {
                             Column(Modifier.fillMaxWidth()) {
-                                // 从文件恢复：系统单文件选择器，不过滤类型（10-05 用户令「选择不了就别筛选了，
-                                // 去掉这个功能」）。RequestSelectFile 默认 listOf("*") → */* 显示全部文件。
+                                // 从文件恢复：系统单文件选择器（10-16 定稿，参照 U阅 成功经验）——
+                                // 有备份文件夹则 EXTRA_INITIAL_URI 直接定位过去 + application/zip 单 MIME 过滤；
+                                // 单 MIME 多数文件管理器严格认（10-05 撤的是多 MIME 不严格的问题），
+                                // 个别不认的会显示全部文件，无害。没设文件夹时不定位、不过滤，行为同旧版。
                                 val filePicker = rememberLauncherForActivityResult(contract = AppActivityResultContracts.filePickerActivity()) { result ->
                                     showRestoreMenu = false
                                     result?.second?.let { uri -> showFromFileRestoreDialog.value = uri.readBytes(this@BackupRestoreActivity) }
                                 }
                                 ListItem(
                                     modifier = Modifier.clickable {
-                                        filePicker.launch(FilePickerActivity.RequestSelectFile())
+                                        filePicker.launch(
+                                            FilePickerActivity.RequestSelectFile(
+                                                fileMimes = if (AppConfig.backupDirUri.value.isNotBlank()) listOf("application/zip") else listOf("*"),
+                                                initialUri = AppConfig.backupDirUri.value,
+                                            )
+                                        )
                                     },
                                     headlineContent = { Text(stringResource(R.string.file_picker_mode_system)) },
                                     leadingContent = { Icon(Icons.Default.FolderOpen, null) },
@@ -297,6 +307,8 @@ class BackupRestoreActivity : ComposeActivity() {
         var user by remember { mutableStateOf(AppConfig.webDavUser.value) }
         var pass by remember { mutableStateOf(AppConfig.webDavPass.value) }
         var path by remember { mutableStateOf(AppConfig.webDavPath.value) }
+        // 保留数量（10-16 参照 U阅）：0=不限；只允许数字
+        var keepCount by remember { mutableStateOf(AppConfig.webDavKeepCount.value.toString()) }
         val scope = rememberCoroutineScope()
         val context = LocalContext.current
 
@@ -322,6 +334,13 @@ class BackupRestoreActivity : ComposeActivity() {
                         value = path, onValueChange = { path = it }, label = { Text(stringResource(R.string.backup_folder)) },
                         modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)
                     )
+                    OutlinedTextField(
+                        value = keepCount,
+                        onValueChange = { keepCount = it.filter { ch -> ch.isDigit() }.take(3) },
+                        label = { Text(stringResource(R.string.webdav_keep_count)) },
+                        supportingText = { Text(stringResource(R.string.webdav_keep_count_hint)) },
+                        modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)
+                    )
                 }
             },
             buttons = {
@@ -331,6 +350,8 @@ class BackupRestoreActivity : ComposeActivity() {
                     AppConfig.webDavUser.value = user
                     AppConfig.webDavPass.value = pass
                     AppConfig.webDavPath.value = path
+                    // 保留数量：空串/非法输入回落 10；0=不限
+                    AppConfig.webDavKeepCount.value = keepCount.toIntOrNull()?.coerceAtLeast(0) ?: 10
                     scope.launch {
                         runCatching {
                             vm.testWebDav()

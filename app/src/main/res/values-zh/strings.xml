@@ -870,6 +870,8 @@
     <string name="backup_dir_change">更换</string>
     <string name="backup_dir_saved">已保存到备份文件夹：%1$s</string>
     <string name="backup_dir_permission_lost">备份文件夹的访问授权已失效，已改用系统另存为；可重新「选择文件夹」恢复直写</string>
+    <string name="webdav_keep_count">云端备份保留数量</string>
+    <string name="webdav_keep_count_hint">超出数量的旧备份自动删除，0 = 不限制</string>
     <string name="file_picker_mode_system">从文件恢复</string>
     <string name="backup_restore_done">恢复成功（%1$d 个文件）</string>
     <string name="backup_none">无备份数据</string>
