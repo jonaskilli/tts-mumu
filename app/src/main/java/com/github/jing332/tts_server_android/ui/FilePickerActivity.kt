@@ -1,5 +1,6 @@
 package com.github.jing332.tts_server_android.ui
 
+import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import android.os.Bundle
@@ -48,8 +49,19 @@ class FilePickerActivity : ComposeActivity() {
             resultAndFinish(it)
         }
 
+    // 覆写 createIntent 塞 EXTRA_INITIAL_URI（10-16 编译修复）：OpenDocument 契约的 launch
+    // 只收 MIME 数组，自构 Intent 直接 launch 类型不符（268e705 引入的编译错误）。
+    // 初始定位照 SAF 约定走 EXTRA_INITIAL_URI，不支持该 extra 的文件管理器自动忽略，无害。
     private val docSelector =
-        registerForActivityResult(ActivityResultContracts.OpenDocument()) {
+        registerForActivityResult(object : ActivityResultContracts.OpenDocument() {
+            override fun createIntent(context: Context, input: Array<String>): Intent {
+                return super.createIntent(context, input).apply {
+                    if (reqSelectFile.initialUri.isNotBlank()) {
+                        putExtra(DocumentsContract.EXTRA_INITIAL_URI, reqSelectFile.initialUri)
+                    }
+                }
+            }
+        }) {
             it?.grantReadWritePermission(contentResolver)
             resultAndFinish(it)
         }
@@ -164,18 +176,9 @@ class FilePickerActivity : ComposeActivity() {
     private fun selectFile() {
         kotlin.runCatching {
             val mimes = reqSelectFile.fileMimes.map { if (it == "*") "*/*" else it }
-            // 初始定位（10-16）：有 initialUri 就带上，选择器直接落在该目录
-            if (reqSelectFile.initialUri.isNotBlank()) {
-                val intent = Intent(Intent.ACTION_OPEN_DOCUMENT).apply {
-                    addCategory(Intent.CATEGORY_OPENABLE)
-                    type = mimes.firstOrNull() ?: "*/*"
-                    if (mimes.size > 1) putExtra(Intent.EXTRA_MIME_TYPES, mimes.toTypedArray())
-                    putExtra(DocumentsContract.EXTRA_INITIAL_URI, reqSelectFile.initialUri)
-                }
-                docSelector.launch(intent)
-            } else {
-                docSelector.launch(mimes.toTypedArray())
-            }
+            // 初始定位（10-16）：EXTRA_INITIAL_URI 已在 docSelector 的 createIntent 里统一注入，
+            // 这里只管按 MIME 过滤发起
+            docSelector.launch(mimes.toTypedArray())
         }.onFailure {
             toast(R.string.sys_doc_picker_error)
             finish()
