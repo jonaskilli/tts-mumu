@@ -111,8 +111,26 @@ class BackupRestoreActivity : ComposeActivity() {
                                     }
                                     if (saveToLocal) {
                                         val dirUri = AppConfig.backupDirUri.value
+                                        // 直写前先验持久授权是否还有效（10-16）：授权存系统侧，
+                                        // 不随 shared_prefs 走——恢复备份/重装后 URI 在、授权丢，
+                                        // 直接查 children 会 SecurityException。失效即清配置回落「另存为」。
+                                        var dirValid = false
                                         if (dirUri.isNotBlank()) {
-                                            // 已设文件夹：直写该目录（SAF），不再弹「另存为」（10-03 用户令）
+                                            dirValid = withContext(Dispatchers.IO) {
+                                                backupDirPermissionValid(context, Uri.parse(dirUri))
+                                            }
+                                            if (!dirValid) {
+                                                AppConfig.backupDirUri.value = ""
+                                                AppConfig.backupDirLabel.value = ""
+                                                Toast.makeText(
+                                                    context,
+                                                    context.getString(R.string.backup_dir_permission_lost),
+                                                    Toast.LENGTH_LONG,
+                                                ).show()
+                                            }
+                                        }
+                                        if (dirValid) {
+                                            // 已设文件夹且授权有效：直写该目录（SAF），不再弹「另存为」（10-03 用户令）
                                             val label = AppConfig.backupDirLabel.value
                                             withContext(Dispatchers.IO) {
                                                 writeToBackupDir(context, Uri.parse(dirUri), backupFileName(profile), data)
@@ -374,6 +392,29 @@ class BackupRestoreActivity : ComposeActivity() {
             )
         }
     }
+}
+
+/** 校验备份文件夹的 SAF 持久授权是否仍有效（10-16）。
+ *  授权存在系统侧、不随 shared_prefs 走：恢复备份/重装后 URI 还在但授权已丢。
+ *  这里不抛异常，只回答 true/false，由调用方决定清配置回落「另存为」。 */
+private fun backupDirPermissionValid(context: android.content.Context, dirUri: Uri): Boolean {
+    val resolver = context.contentResolver
+    // 1) 系统侧持久授权表里还有没有这条 tree URI
+    val persisted = runCatching {
+        resolver.persistedUriPermissions.any {
+            it.uri.toString() == dirUri.toString() && it.isReadPermission && it.isWritePermission
+        }
+    }.getOrDefault(false)
+    if (!persisted) return false
+    // 2) 实际查一次 children（授权即使登记了也可能因目录被删/恢复出厂失效）。
+    //    查询不抛异常 = 有效；空目录也算有效（cursor 为 null 才算失败）。
+    return runCatching {
+        val treeDocId = DocumentsContract.getTreeDocumentId(dirUri)
+        val childrenUri = DocumentsContract.buildChildDocumentsUriUsingTree(dirUri, treeDocId)
+        resolver.query(
+            childrenUri, arrayOf(DocumentsContract.Document.COLUMN_DOCUMENT_ID), null, null, null
+        ) != null
+    }.getOrDefault(false)
 }
 
 private fun backupDirLabelOf(context: android.content.Context, uri: Uri): String {
