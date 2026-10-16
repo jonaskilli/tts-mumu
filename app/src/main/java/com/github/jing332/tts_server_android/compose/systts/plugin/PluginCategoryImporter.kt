@@ -130,11 +130,13 @@ object PluginCategoryImporter {
             }
 
             // 以插件名建分组（10-16 去重：同名分组复用，不再每次新建——同一插件重复导入
-            // 旧版会产生多个同名分组+整套重复声音）。allGroup 返回 GroupWithSystemTts
-            //（name 在内嵌的 group 上，直接 it.name 编译不过），一次读出内存匹配
+            // 旧版会产生多个同名分组+整套重复声音）。
+            // ⚠️ SystemTtsV2Dao 有两个同名 allGroup：属性 allGroup: List<SystemTtsGroup>
+            //（本处用它，it.name 直接可用）与函数 allGroup(): List<GroupWithSystemTts>。
+            // Kotlin 属性优先解析，写 it.group.name 反而 Unresolved（CI 38898144747 实锤）
             val groupName = plugin.name.ifBlank { "未命名插件" }
             val existingGroup = withContext(Dispatchers.IO) {
-                dbm.systemTtsV2.allGroup.firstOrNull { it.group.name == groupName }
+                dbm.systemTtsV2.allGroup.firstOrNull { it.name == groupName }
             }
             val targetGroupId: Long = if (existingGroup != null) existingGroup.id
             else {
