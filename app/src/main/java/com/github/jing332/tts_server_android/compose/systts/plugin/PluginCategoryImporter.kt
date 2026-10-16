@@ -83,14 +83,14 @@ object PluginCategoryImporter {
     /**
      * @param items 待入库音色（已由弹窗按勾选筛好）
      * @param onProgress 进度回调，可从任意线程安全地更新 Compose 状态
-     * @return 成功插入的配置项数量
+     * @return [ImportResult]：实际新导数量、跳过数量、目标分组（新建或复用）
      */
     suspend fun importVoices(
         context: Context,
         plugin: Plugin,
         items: List<VoiceItem>,
         onProgress: (String) -> Unit = {},
-    ): Int {
+    ): ImportResult {
         val dispatcher = Executors.newSingleThreadExecutor().asCoroutineDispatcher()
         try {
             return withContext(dispatcher) {
@@ -101,12 +101,19 @@ object PluginCategoryImporter {
         }
     }
 
+    /** 导入结果（10-16 去重）：imported=新写入条数；skipped=库里已有被跳过的条数 */
+    data class ImportResult(
+        val imported: Int,
+        val skipped: Int,
+        val groupId: Long,
+    )
+
     private suspend fun importInternal(
         context: Context,
         plugin: Plugin,
         items: List<VoiceItem>,
         onProgress: (String) -> Unit,
-    ): Int {
+    ): ImportResult {
         val engine = TtsPluginUiEngineV2(context, plugin)
         try {
             engine.eval()
@@ -122,13 +129,19 @@ object PluginCategoryImporter {
                 runCatching { SpeechRuleEngine(context, it).apply { eval() } }.getOrNull()
             }
 
-            // 以插件名自动新建分组
+            // 以插件名建分组（10-16 去重：同名分组复用，不再每次新建——同一插件重复导入
+            // 旧版会产生多个同名分组+整套重复声音）。allGroup 返回 GroupWithSystemTts
+            //（name 在内嵌的 group 上，直接 it.name 编译不过），一次读出内存匹配
             val groupName = plugin.name.ifBlank { "未命名插件" }
-            val newGroup = SystemTtsGroup(name = groupName)
-            withContext(Dispatchers.IO) {
-                dbm.systemTtsV2.insertGroup(newGroup)
+            val existingGroup = withContext(Dispatchers.IO) {
+                dbm.systemTtsV2.allGroup.firstOrNull { it.group.name == groupName }
             }
-            val targetGroupId = newGroup.id
+            val targetGroupId: Long = if (existingGroup != null) existingGroup.id
+            else {
+                val newGroup = SystemTtsGroup(name = groupName)
+                withContext(Dispatchers.IO) { dbm.systemTtsV2.insertGroup(newGroup) }
+                newGroup.id
+            }
 
             val baseId = System.currentTimeMillis()
             var idSeq = 0
@@ -136,6 +149,7 @@ object PluginCategoryImporter {
             var orderSeq = 0
             val categoryCountMap = mutableMapOf<String, Int>()
             var processed = 0
+            var skipped = 0
             // 待写批次（10-13 提速）：攒够 IMPORT_BATCH 条走一次 insertAll
             val pending = mutableListOf<SystemTtsV2>()
 
@@ -145,11 +159,19 @@ object PluginCategoryImporter {
             // 而它被放在 forEach 里 ⇒ 整体 O(n²)：导入 300 条要读 300 次全组、累计 4.5 万行。
             // 现在只读一次整组、在内存里 groupBy 计数。语义完全不变
             //（各子分组序号起点仍接库中已有数量、避免重号）。
-            val existingByCategory: Map<String, Int> = withContext(Dispatchers.IO) {
+            val existingTtsList: List<SystemTtsV2> = withContext(Dispatchers.IO) {
                 dbm.systemTtsV2.getTtsListByGroupId(targetGroupId)
-                    .groupingBy { it.categoryPath }.eachCount()
             }
-            categoryCountMap.putAll(existingByCategory)
+            // 已导入声音指纹（10-16 去重）：插件id+池id+声音id，同一插件同一声音只导一次。
+            // 指纹取自 config.source，不拿 displayName 匹配——插件改显示名不该绕过去重
+            val existingFingerprints: Set<String> = existingTtsList.mapNotNull { t ->
+                (t.config as? TtsConfigurationDTO)?.let { c ->
+                    (c.source as? PluginTtsSource)?.let { s ->
+                        if (s.pluginId == plugin.pluginId) "${s.locale}\u0000${s.voice}" else null
+                    }
+                }
+            }.toSet()
+            categoryCountMap.putAll(existingTtsList.groupingBy { it.categoryPath }.eachCount())
 
             items.forEach { item ->
                 val rawName = item.poolName.trim()
@@ -160,10 +182,19 @@ object PluginCategoryImporter {
                 val subGroupName = category ?: rawName.ifBlank { "未分类" }
 
                 processed++
-                onProgress("正在导入 ${processed}：${item.voiceName}")
+                onProgress("正在处理 ${processed}/${items.size}：${item.voiceName}")
+
+                // 已导入跳过（10-16 去重）：指纹命中=这条声音已在库里，不重导。
+                // 指纹在算 category 之前判，省掉跳过项的标签/采样率引擎调用
+                val fingerprint = "${item.poolId}\u0000${item.voiceId}"
+                if (fingerprint in existingFingerprints) {
+                    skipped++
+                    onProgress("跳过已导入 ${processed}/${items.size}：${item.voiceName}")
+                    return@forEach
+                }
 
                 // 各子分组序号起点接库中已有数量，避免重号。
-                // 数量已在循环外一次性查好（见 existingByCategory），这里只做内存自增——
+                // 数量已在循环外一次性查好（见 existingTtsList），这里只做内存自增——
                 // ⚠️ 别再改回「查不到就现场 getByGroup(...).count{}」：那是 O(n²) 的真凶，
                 // 而且逻辑上也不需要（查不到的键=库里本来就没有该分类，起点就是 0）
                 val seq = categoryCountMap.getOrDefault(subGroupName, 0) + 1
@@ -231,7 +262,7 @@ object PluginCategoryImporter {
                 pending.clear()
                 withContext(Dispatchers.IO) { dbm.systemTtsV2.insertAll(batch) }
             }
-            return idSeq
+            return ImportResult(imported = idSeq, skipped = skipped, groupId = targetGroupId)
         } finally {
             runCatching { engine.destroy() }
         }

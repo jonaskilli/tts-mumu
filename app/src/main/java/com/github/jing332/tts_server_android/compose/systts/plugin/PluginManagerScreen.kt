@@ -147,6 +147,8 @@ import com.github.jing332.tts_server_android.compose.SoftSegmentedTextToggle
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.conflate
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.encodeToString
 import org.burnoutcrew.reorderable.detectReorderAfterLongPress
@@ -1499,7 +1501,7 @@ private fun doMarketplaceImport(
                     ?: it.tags.firstOrNull()?.let { t -> PluginCategoryImporter.mapTagCategory(t) }
             )
         }
-        val count = runCatching {
+        val result = runCatching {
             PluginCategoryImporter.importVoices(context, plugin, items) { }
         }.fold(
             onSuccess = { it },
@@ -1508,7 +1510,13 @@ private fun doMarketplaceImport(
                 return@launch
             }
         )
-        context.longToast("已导入 $count 个音色，已自动创建分组「${plugin.name}」")
+        // 10-16 去重口径：新导 + 跳过分开报；全跳过时明确说「没有新增」，不再误导
+        val dupNote = if (result.skipped > 0) "，跳过已导入 ${result.skipped} 个" else ""
+        if (result.imported == 0) {
+            context.longToast("没有新增音色（${result.skipped} 个都已导入过，分组「${plugin.name}」未变动）")
+        } else {
+            context.longToast("已导入 ${result.imported} 个音色$dupNote，分组「${plugin.name}」")
+        }
         onDone()
     }
 }
@@ -1573,6 +1581,9 @@ internal fun ImportByCategoryDialog(
     }
 
     var categories by remember { mutableStateOf<List<CategoryItem>>(emptyList()) }
+    // 各分类的声音数量（10-16 用户令「所有分类都带数量」）：App 侧逐池调 getVoices 预载，
+    // 不依赖插件把数字写进池名；poolId → 数量，没数到的池不显示
+    var poolVoiceCounts by remember { mutableStateOf<Map<String, Int>>(emptyMap()) }
     var selectedPoolIds by remember { mutableStateOf<Set<String>>(emptySet()) }
     // 0=选分类（勾池子）；1=选声音（试听/分类/勾选/导入）。无分类插件直接进 1
     var stage by remember { mutableStateOf(0) }
@@ -1584,6 +1595,8 @@ internal fun ImportByCategoryDialog(
     // 试听时手动分配的分类：voiceKey → 分类名（女童…旁白）
     var categoryOverrides by remember { mutableStateOf<Map<String, String>>(emptyMap()) }
     var loadingVoices by remember { mutableStateOf(false) }
+    // 声音加载失败信息（10-16）：插件 getVoices 抛错不再静默当 0 声音，原样显示
+    var loadError by remember { mutableStateOf<String?>(null) }
     var importing by remember { mutableStateOf(false) }
     var progressText by remember { mutableStateOf("") }
     // 正在试听的声音行下标（-1 = 未试听）；弹窗内上一个/下一个按此下标走
@@ -1609,12 +1622,27 @@ internal fun ImportByCategoryDialog(
         onDispose { runCatching { engine.destroy() } }
     }
 
+    // 引擎数据调用互斥（10-16 数量预载引入的并发面）：Rhino 引擎非线程安全，
+    // 且部分插件 getVoices 有副作用（微软翻译写共享 map q）——数量预载协程与
+    // 「确定→loadVoices」可能同时在跑，全部 getVoices 调用收进同一把 Mutex 串行化
+    val engineDataMutex = remember(plugin.id) { Mutex() }
+
     fun loadVoices(pools: List<CategoryItem>) {
         loadingVoices = true
+        loadError = null
         scope.launch(Dispatchers.IO) {
+            var firstError: Throwable? = null
             val rows = pools.flatMap { p ->
-                runCatching { engine.getVoices(p.poolId) }.getOrNull().orEmpty()
-                    .filter { it.id.isNotBlank() }
+                // 插件 getVoices 抛错不再静默吞成 0 声音（10-16 用户实报「选中分组里面没声音」
+                // 的插件不止一个）：记下首个错误，收尾统一亮出来——根因（网络失败/JS 异常）
+                // 直接可见，不再伪装成「该插件无音色」。
+                // getVoices 收进 engineDataMutex：与数量预载协程串行（Rhino 非线程安全）
+                val voices = runCatching {
+                    engineDataMutex.withLock { engine.getVoices(p.poolId) }
+                }
+                    .onFailure { if (firstError == null) firstError = it }
+                    .getOrNull().orEmpty()
+                voices.filter { it.id.isNotBlank() }
                     .map { VoiceRow(p.poolId, p.poolName, it.id, it.name) }
             }
             withContext(Dispatchers.Main) {
@@ -1624,6 +1652,10 @@ internal fun ImportByCategoryDialog(
                 // 铁律「勾选即入库」只管"勾了就一定导"，不改变"默认勾不勾"。
                 selectedKeys = emptySet()
                 categoryOverrides = emptyMap()
+                // 全部池子都失败且一条声音没拿到 → 亮错误；部分成功照常进列表
+                loadError = if (rows.isEmpty()) {
+                    firstError?.message?.takeIf { it.isNotBlank() } ?: "插件未返回任何音色"
+                } else null
                 loadingVoices = false
                 stage = 1
             }
@@ -1638,7 +1670,10 @@ internal fun ImportByCategoryDialog(
         scope.launch {
             val items = withContext(Dispatchers.IO) {
                 pools.flatMap { p ->
-                    runCatching { engine.getVoices(p.poolId) }.getOrNull().orEmpty()
+                    // 收进 engineDataMutex：与数量预载/试听分类链串行（Rhino 非线程安全）
+                    runCatching {
+                        engineDataMutex.withLock { engine.getVoices(p.poolId) }
+                    }.getOrNull().orEmpty()
                         .filter { it.id.isNotBlank() }
                         .map { v ->
                             PluginCategoryImporter.VoiceItem(
@@ -1660,7 +1695,12 @@ internal fun ImportByCategoryDialog(
                 PluginCategoryImporter.importVoices(context, plugin, items) { progressText = it }
             }
             result.fold(
-                onSuccess = { count -> context.longToast("已导入 $count 个音色，已自动创建分组「${plugin.name}」") },
+                // 10-16 去重口径：新导 + 跳过分开报；全跳过时明确说「没有新增」
+                onSuccess = { r ->
+                    val dupNote = if (r.skipped > 0) "，跳过已导入 ${r.skipped} 个" else ""
+                    if (r.imported == 0) context.longToast("没有新增音色（${r.skipped} 个都已导入过）")
+                    else context.longToast("已导入 ${r.imported} 个音色$dupNote，分组「${plugin.name}」")
+                },
                 onFailure = { e -> context.longToast("导入失败: ${e.message}") }
             )
             importing = false
@@ -1702,7 +1742,25 @@ internal fun ImportByCategoryDialog(
                 CategoryItem(id, name, PluginCategoryImporter.mapTagCategory(name))
             }
             // 无分类插件：跳过勾池子，直接给全量声音列表（伪池 id=""，插件不认则该列表为空）
-            if (categories.isEmpty()) loadVoices(listOf(CategoryItem("", "全部音色", null)))
+            if (categories.isEmpty()) {
+                loadVoices(listOf(CategoryItem("", "全部音色", null)))
+            } else {
+                // 分类数量预载（10-16 用户令「所有分类都带数量」）：后台逐池 getVoices 数一遍，
+                // 出一池刷一池；失败/空池不记（不显示数字，不影响勾选）。
+                // 有分类插件的 loadVoices 只拉勾选的池，这里全量预载与它互不影响
+                scope.launch(Dispatchers.IO) {
+                    categories.forEach { cat ->
+                        runCatching {
+                            engineDataMutex.withLock { engine.getVoices(cat.poolId) }
+                                .count { it.id.isNotBlank() }
+                        }.getOrNull()?.takeIf { it > 0 }?.let { n ->
+                            withContext(Dispatchers.Main) {
+                                poolVoiceCounts = poolVoiceCounts + (cat.poolId to n)
+                            }
+                        }
+                    }
+                }
+            }
         }
     }
 
@@ -1851,9 +1909,19 @@ internal fun ImportByCategoryDialog(
         // 这里若还挂 weight 会把 Column 重新撑满 ⇒ 收高失效，见根 Column 同名注释
         Column(
             Modifier
-                // weight 只给 stage 1（声音列表要贴底动作行）；stage 0 按内容收高，
-                // 模式/确定紧跟分类列表（10-13 晚二次反馈）。
-                .then(if (importing || stage == 0) Modifier else Modifier.weight(1f))
+                // stage 1：weight(1f) 声音列表贴底动作行；stage 0：weight(1f, fill=false)——
+                // 分类少按内容收高、模式/确定紧跟列表（10-13 晚定稿行为不变），
+                // 分类多时列表在限高内滚动、模式/确定恒贴底可见
+                //（10-16 用户实报「分类较多时下方的确定键会看不到」，猫剪豆问 8 池即复现：
+                // 旧写法 stage0 不挂 weight，列表按内容无限撑高，把底部动作行顶出 0.92 面板）；
+                // importing 撤 weight（收高逻辑见根 Column 同名注释）
+                .then(
+                    when {
+                        importing -> Modifier
+                        stage == 0 -> Modifier.weight(1f, fill = false)
+                        else -> Modifier.weight(1f)
+                    }
+                )
                 .fillMaxWidth()
                 .padding(horizontal = 24.dp)
         ) {
@@ -1901,8 +1969,22 @@ internal fun ImportByCategoryDialog(
                                     selectedPoolIds + item.poolId
                                 }
                             },
-                            trailing = item.mappedName?.takeIf { it != item.poolName }?.let { mapped ->
-                                @Composable {
+                            trailing = {
+                                // 数量（10-16 用户令）：预载结果到了就显示 N；池名里已带数字的
+                                // （如通义千问「全部音色(743)」）不重复包一层
+                                poolVoiceCounts[item.poolId]?.let { n ->
+                                    if (!item.poolName.contains("(${n})")) {
+                                        Text(
+                                            "$n",
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                            modifier = Modifier.padding(end = 8.dp)
+                                        )
+                                    }
+                                }
+                                // 池名可映射标准人群名的显示「→ 名」（let 为内联，组合上下文合法；
+                                // 此前包成未调用的 @Composable lambda 不会被渲染，已改直呼）
+                                item.mappedName?.takeIf { it != item.poolName }?.let { mapped ->
                                     Text(
                                         text = "→ $mapped",
                                         style = MaterialTheme.typography.bodySmall,
@@ -1922,7 +2004,32 @@ internal fun ImportByCategoryDialog(
                     Text("正在读取音色…", style = MaterialTheme.typography.bodyMedium)
                 }
             } else if (voices.isEmpty()) {
-                Text("该插件无音色")
+                // 加载失败亮原因（10-16）：不再静默当「无音色」——网络失败/JS 异常原样可见
+                if (loadError != null) {
+                    Column {
+                        Text(
+                            "音色加载失败：$loadError",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.error,
+                        )
+                        Text(
+                            // 有分类：左下是「上一步」可重进；无分类（categories 空）：左下是「取消」，
+                            // 只能重开弹窗——提示语两种都覆盖
+                            if (categories.isNotEmpty()) "可点「上一步」重试；"
+                            else "可关闭弹窗重新进入重试；",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.padding(top = 4.dp)
+                        )
+                        Text(
+                            "插件音色清单要联网拉取的，检查网络后再试",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                } else {
+                    Text("该插件无音色")
+                }
             } else {
                 // 声音列表：每行 🎧 试听 + 勾选；顶部全选行。默认全选（省事流直接导入）
                 // 高度改 fillMaxSize（10-12 用户令「这个下方依然是被遮挡」）：原写死
@@ -2081,7 +2188,12 @@ internal fun ImportByCategoryDialog(
                                 PluginCategoryImporter.importVoices(context, plugin, items) { progressText = it }
                             }
                             result.fold(
-                                onSuccess = { count -> context.longToast("已导入 $count 个音色，已自动创建分组「${plugin.name}」") },
+                                // 10-16 去重口径：新导 + 跳过分开报；全跳过时明确说「没有新增」
+                                onSuccess = { r ->
+                                    val dupNote = if (r.skipped > 0) "，跳过已导入 ${r.skipped} 个" else ""
+                                    if (r.imported == 0) context.longToast("没有新增音色（${r.skipped} 个都已导入过）")
+                                    else context.longToast("已导入 ${r.imported} 个音色$dupNote，分组「${plugin.name}」")
+                                },
                                 onFailure = { e -> context.longToast("导入失败: ${e.message}") }
                             )
                             importing = false
