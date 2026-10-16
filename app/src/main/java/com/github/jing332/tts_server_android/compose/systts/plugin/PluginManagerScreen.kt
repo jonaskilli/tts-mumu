@@ -1689,6 +1689,15 @@ internal fun ImportByCategoryDialog(
         runCatching {
             engine.eval()
             engine.onLoad()
+            // 补数据加载（10-16 实修「勾全部分类 0 个声音」）：编辑页/插件音色列表 VM 都在
+            // eval 之后调 engine.onLoadData()（PluginEditorViewModel.updateSource /
+            // PluginTtsViewModel.load），本弹窗漏了这一步——微软翻译等把音色清单放在
+            // EditorJS.onLoadData 里加载的插件，清单恒空 ⇒ getLocales 只剩兜底 zh-CN、
+            // getVoices 恒空 ⇒ 勾全部分类也拉不出声音。onLoadData 内部吞 NoSuchMethodException，
+            // 未实现该钩子的插件此处为空操作；文件/网络读取放 IO 线程（与 VM 同口径）。
+            // 单独 runCatching：加载失败只当没有额外数据，不让它连带吞掉下面的 getLocales
+            //（外层 runCatching 会整体跳过分类列表，症状反而更看不懂）
+            runCatching { withContext(Dispatchers.IO) { engine.onLoadData() } }
             categories = engine.getLocales().map { (id, name) ->
                 CategoryItem(id, name, PluginCategoryImporter.mapTagCategory(name))
             }
