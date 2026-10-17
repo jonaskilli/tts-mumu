@@ -105,6 +105,16 @@ class NativeResponse private constructor(val rawResponse: Response? = null) :
                     thisObj.js_text(ScriptRuntime.toBoolean(args.getOrNull(0)))
                 }
             )
+            // okhttp 原生写法兼容：自带插件（plugin-azure.js / direct_link_upload.js）用
+            // resp.body().string() / byteStream() 取正文或音频流。ttsrv.httpPost/httpGet
+            // 经 RhinoWrapFactory 统一包成 NativeResponse 后，必须保留 body() 转发到
+            // 原始 Response，否则这类既有插件反而被破坏。返回的 ResponseBody 由 Rhino
+            // 按普通 Java 对象包装，方法照常可调；注意 body 只能消费一次，与 text()/json()
+            // 混用时先取的一方拿走内容。
+            constructor.definePrototypeMethod<NativeResponse>(
+                scope, "body", 0,
+                { _, _, thisObj, _ -> thisObj.rawResponse?.body ?: Undefined.instance }
+            )
 
             defineProperty(scope, CLASS_NAME, constructor, DONTENUM)
             if (sealed) constructor.sealObject()
