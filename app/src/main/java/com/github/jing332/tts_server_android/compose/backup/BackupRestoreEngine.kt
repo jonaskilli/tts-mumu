@@ -53,7 +53,7 @@ internal class BackupRestoreEngine(
             RestoreResult.Success(
                 restartRequired = preferenceRestored,
                 profile = archive.profile,
-                warnings = archive.warnings,
+                warnings = archive.warnings + duplicatePluginIdWarnings(archive.plugins),
             )
         }.getOrElse { throwable ->
             RestoreResult.Failure(
@@ -98,7 +98,6 @@ internal class BackupRestoreEngine(
             AppBackupJson.json.decodeFromString<List<GroupWithReplaceRule>>(it.decodeToString())
         }
         val plugins = payload[PLUGINS_ENTRY]?.let { parseStrictPlugins(it.decodeToString()) }
-        validateDomains(lists, speechRules, replaceRules, plugins)
 
         return ParsedBackupArchive(
             profile = manifest.profile,
@@ -139,7 +138,6 @@ internal class BackupRestoreEngine(
             AppConst.jsonBuilder.decodeFromString<List<GroupWithReplaceRule>>(it.decodeToString())
         }
         val plugins = entries["plugins.json"]?.let { parseStrictPlugins(it.decodeToString()) }
-        validateDomains(lists, speechRules, replaceRules, plugins)
 
         require(preferenceDocuments.isNotEmpty() || lists != null || speechRules != null || replaceRules != null || plugins != null) {
             "备份中未发现可恢复的数据"
@@ -177,22 +175,6 @@ internal class BackupRestoreEngine(
                 require(document.mode == RestoreMode.MERGE) { "分享备份不能覆盖偏好设置" }
                 val allowed = sharePreferenceAllowlist[document.name].orEmpty()
                 require(document.values.keys.all(allowed::contains)) { "分享备份包含不允许的偏好设置" }
-            }
-        }
-    }
-
-    private fun validateDomains(
-        lists: List<GroupWithSystemTts>?,
-        speechRules: List<SpeechRule>?,
-        replaceRules: List<GroupWithReplaceRule>?,
-        plugins: List<Plugin>?,
-    ) {
-        // 朗读规则允许 ruleId 重复（多版本共存，合并按 name 判同一条）；
-        // 列表/替换规则分组 ID 重复也放行：快照按主键落到最后一版，合并路径会重新分配 ID。
-        // 仅插件 pluginId 重复仍拒绝：它是配置项寻址的唯一逻辑键，包内重复无法判定取舍
-        plugins?.let { value ->
-            require(value.map { it.pluginId }.filter(String::isNotBlank).distinct().size == value.count { it.pluginId.isNotBlank() }) {
-                "插件 ID 重复"
             }
         }
     }
@@ -398,6 +380,26 @@ internal class BackupRestoreEngine(
 
     private fun pluginFingerprint(plugin: Plugin): String =
         "${plugin.name}|${plugin.author}|${plugin.version}"
+
+    /**
+     * 包内同 pluginId 的插件全部保留（11-01 用户令），恢复完成后按重复 id 出警告，
+     * 说明各条的处置：指纹相同=被覆盖为一条，指纹不同=`_N` 后缀并存。
+     */
+    private fun duplicatePluginIdWarnings(plugins: List<Plugin>?): List<String> {
+        if (plugins.isNullOrEmpty()) return emptyList()
+        return plugins.filter { it.pluginId.isNotBlank() }
+            .groupBy { it.pluginId }
+            .filterValues { it.size > 1 }
+            .map { (pluginId, dups) ->
+                val distinctFingerprints = dups.map(::pluginFingerprint).distinct()
+                val note = if (distinctFingerprints.size == 1) {
+                    "内容相同已合并为一条"
+                } else {
+                    "内容不同已全部保留（其中 ${distinctFingerprints.size} 条加 _N 后缀并存）"
+                }
+                "备份内插件 ID「$pluginId」出现 ${dups.size} 次：$note"
+            }
+    }
 
     private fun snapshotPreferences(payload: PreferencesPayload): Map<String, Map<String, Any?>> =
         payload.documents.associate { document ->
