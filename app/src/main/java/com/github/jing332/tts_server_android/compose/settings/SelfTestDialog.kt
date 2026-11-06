@@ -28,17 +28,25 @@ import androidx.compose.ui.unit.dp
 import com.github.jing332.database.dbm
 import com.github.jing332.tts.selftest.SystemTtsSelfTest
 import com.github.jing332.tts_server_android.R
+import com.github.jing332.tts_server_android.conf.SysTtsConfig
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.util.Locale
 
+/** 一条待测配置：显示名 + 传给引擎的 voice 名。 */
+private data class TestTarget(val label: String, val voiceName: String)
+
 /**
- * 系统侧调用自检弹窗（2026-11-06 新增，11-06 晚改「测选定配置」）。
+ * 系统侧调用自检弹窗（2026-11-06 新增，当日两轮修正）。
  * 任务书：技术文档\任务书-系统TTS调用自检-20261106.md
  *
- * 流程：列出已启用的语音配置 → 用户点一套 → 用该配置跑真实合成 → 显示结果。
- * 「测哪套」由用户定，而不是盲测系统默认引擎（原设计的缺陷）。
+ * 流程：列出已启用配置 → 用户选一套 → 用该配置跑真实合成 → 显示完整指标。
+ * 修正点（实机反馈驱动）：
+ * 1. 原版盲测系统默认引擎，界面不显示测的谁 → 改为先选配置
+ * 2. 原版硬编码 16000Hz，实机是 24000Hz，间隙时长算错 50% → 改为解析 WAV 头
+ * 3. 用户自设的段间间隔会让「间隙」虚高 → 结果里标注当前设置
+ * 4. 插件文本缓存让延迟虚低 → 强制新鲜合成并标注
  *
  * 纯测量，零行为变更：不改配置、不动合成与播放链。
  */
@@ -46,32 +54,39 @@ import java.util.Locale
 internal fun SelfTestDialog(onDismiss: () -> Unit) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
-    var configs by remember { mutableStateOf<List<Pair<String, String>>>(emptyList()) }
-    var selected by remember { mutableStateOf<Pair<String, String>?>(null) }
+    var targets by remember { mutableStateOf<List<TestTarget>>(emptyList()) }
+    var selected by remember { mutableStateOf<TestTarget?>(null) }
     var running by remember { mutableStateOf(false) }
     var resultText by remember { mutableStateOf("") }
     var errorText by remember { mutableStateOf<String?>(null) }
 
     val tester = remember { SystemTtsSelfTest(context) }
 
-    // 载入已启用配置：显示名 → "displayName_id"（UTTS 用它指定配置的 voice 名格式）
     LaunchedEffect(Unit) {
         val list = withContext(Dispatchers.IO) {
             runCatching {
                 dbm.systemTtsV2.getAllGroupWithTts()
                     .flatMap { group -> group.list }
                     .filter { it.isEnabled }
-                    .map { cfg -> cfg.displayName.ifBlank { "#${cfg.id}" } to "${cfg.displayName}_${cfg.id}" }
+                    .map { cfg ->
+                        TestTarget(
+                            label = cfg.displayName.ifBlank { "#${cfg.id}" },
+                            voiceName = "${cfg.displayName}_${cfg.id}",
+                        )
+                    }
             }.getOrDefault(emptyList())
         }
-        configs = list
+        targets = list
     }
 
-    suspend fun runOnce(voiceName: String) {
+    suspend fun runOnce(target: TestTarget) {
         running = true
         resultText = ""
         errorText = null
-        val (text, err) = withContext(Dispatchers.IO) { buildResultText(tester, context, voiceName) }
+        val pauseMs = runCatching { SysTtsConfig.segmentPauseMs }.getOrDefault(0)
+        val (text, err) = withContext(Dispatchers.IO) {
+            buildResultText(tester, context, target, pauseMs)
+        }
         running = false
         resultText = text
         errorText = err
@@ -85,20 +100,19 @@ internal fun SelfTestDialog(onDismiss: () -> Unit) {
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .heightIn(max = 460.dp)
+                    .heightIn(max = 480.dp)
                     .verticalScroll(rememberScrollState())
             ) {
                 when {
-                    configs.isEmpty() -> Text(stringResource(R.string.selftest_need_config))
+                    targets.isEmpty() -> Text(stringResource(R.string.selftest_need_config))
 
                     running -> {
-                        Text(selected?.first?.let { "正在测：$it" } ?: "")
+                        Text(selected?.let { "正在测：${it.label}" } ?: "")
                         Spacer(Modifier.height(8.dp))
                         Text(stringResource(R.string.selftest_running))
                     }
 
                     resultText.isNotBlank() || errorText != null -> {
-                        // 结果页
                         errorText?.let {
                             Text(
                                 "${stringResource(R.string.selftest_failed)}：$it",
@@ -116,20 +130,19 @@ internal fun SelfTestDialog(onDismiss: () -> Unit) {
                     }
 
                     else -> {
-                        // 选配置页
                         Text(stringResource(R.string.selftest_pick_config))
                         Spacer(Modifier.height(8.dp))
-                        configs.forEach { (label, voiceName) ->
+                        targets.forEach { t ->
                             Text(
-                                "· $label",
+                                "· ${t.label}",
                                 style = MaterialTheme.typography.bodyLarge,
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .clickable {
-                                        selected = label to voiceName
-                                        scope.launch { runOnce(voiceName) }
+                                        selected = t
+                                        scope.launch { runOnce(t) }
                                     }
-                                    .padding(vertical = 6.dp)
+                                    .padding(vertical = 8.dp)
                             )
                         }
                     }
@@ -164,11 +177,16 @@ internal fun SelfTestDialog(onDismiss: () -> Unit) {
 private suspend fun buildResultText(
     tester: SystemTtsSelfTest,
     context: android.content.Context,
-    voiceName: String,
+    target: TestTarget,
+    segmentPauseMs: Int,
 ): Pair<String, String?> {
     val sample = try {
-        // 空 engineName = 系统默认引擎；voiceName 指定 UTTS 内的具体配置
-        tester.measure(engineName = "", text = SELF_TEST_TEXT, voiceName = voiceName)
+        tester.measure(
+            engineName = "",
+            text = SELF_TEST_TEXT,
+            voiceName = target.voiceName,
+            segmentPauseMs = segmentPauseMs,
+        )
     } catch (e: Exception) {
         return "" to "${e.javaClass.simpleName}: ${e.message}"
     }
@@ -177,35 +195,56 @@ private suspend fun buildResultText(
 
     val r = sample.report
     val sb = StringBuilder()
-    sb.appendLine("${context.getString(R.string.selftest_first_audio)}：${sample.firstAudioMs} ms")
-    sb.appendLine("${context.getString(R.string.selftest_total)}：${sample.totalMs} ms")
-    sb.appendLine(
-        "${context.getString(R.string.selftest_audio_size)}：" +
-            String.format(Locale.US, "%.1f KB", sample.pcmBytes / 1024f)
-    )
-    if (r != null) {
-        val gap = if (r.gapCount == 0) {
-            context.getString(R.string.selftest_gap_none)
-        } else {
-            val longest = r.longestGap?.let { "，最长 ${it.durationMs} ms" } ?: ""
-            "${r.gapCount} 处，共 ${r.gapTotalMs} ms$longest"
-        }
-        sb.appendLine("${context.getString(R.string.selftest_gap)}：$gap")
 
-        val noise = if (r.noiseFloorSuspicious) {
-            context.getString(R.string.selftest_noise_suspicious)
-        } else {
-            context.getString(R.string.selftest_noise_normal)
-        }
+    sb.appendLine("— 调用链路 —")
+    sb.appendLine("引擎绑定耗时      : ${sample.bindMs} ms")
+    sb.appendLine(
+        "系统回调 onStart  : " +
+            if (sample.startCallbackMs >= 0) "${sample.startCallbackMs} ms" else "未上报"
+    )
+    sb.appendLine("合成总耗时        : ${sample.synthTotalMs} ms")
+    sb.appendLine("产出音频时长      : ${sample.audioDurationMs} ms")
+    sb.appendLine(
+        "实时率 RTF        : " +
+            if (sample.rtf >= 0) String.format(Locale.US, "%.2f", sample.rtf) + "  (<1 表示快于实时)"
+            else "n/a"
+    )
+
+    sb.appendLine()
+    sb.appendLine("— 音频格式 —")
+    if (r != null) {
+        sb.appendLine("采样率            : ${r.sampleRate} Hz / ${r.channels} ch")
+    } else {
+        sb.appendLine("采样率            : 解析失败（非 WAV 头）")
+    }
+    sb.appendLine("文件大小          : ${sample.wavFileBytes} B")
+
+    if (r != null) {
+        sb.appendLine()
+        sb.appendLine("— 质量检测 —")
         sb.appendLine(
-            "${context.getString(R.string.selftest_noise)}：$noise" +
-                String.format(
-                    Locale.US, "（阈值 %.0f dBFS，实测 %.1f dBFS）",
-                    r.options.noiseFloorWarnDb, r.gapRmsDb
-                )
+            "峰值电平          : " + String.format(Locale.US, "%.3f", r.peak) +
+                "  " + if (r.silent) "静音！" else "正常"
+        )
+        sb.appendLine("底噪 RMS          : " + String.format(Locale.US, "%.5f", r.noiseFloor))
+        sb.appendLine(
+            "不连续跳变        : ${r.discontinuities} 次" +
+                "（比值 " + String.format(Locale.US, "%.3f", r.discontinuityRatio) + "）"
+        )
+        sb.appendLine("削波比例          : " + String.format(Locale.US, "%.4f", r.clippedRatio))
+        sb.appendLine("白噪音            : " + if (r.whiteNoiseSuspected) "疑似" else "未检出")
+
+        sb.appendLine()
+        sb.appendLine("— 静音间隙 —")
+        sb.appendLine("前导静音          : ${r.leadingSilenceMs} ms")
+        sb.appendLine("尾部静音          : ${r.trailingSilenceMs} ms")
+        sb.appendLine("内部间隙          : 最长 ${r.longestInnerGapMs} ms / 合计 ${r.totalInnerSilenceMs} ms")
+        sb.appendLine(
+            "当前段间间隔设置  : ${segmentPauseMs} ms" +
+                if (segmentPauseMs > 0) "（内部间隙的一部分可能来自此项，不是插件停顿）" else ""
         )
     }
     return sb.toString().trimEnd() to null
 }
 
-private const val SELF_TEST_TEXT = "系统自检，用于测量合成速度与音频质量。"
+private const val SELF_TEST_TEXT = "这是一次系统侧调用自检，用来测量首包延迟、静音间隙和底噪。"
