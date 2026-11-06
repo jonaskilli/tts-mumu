@@ -142,11 +142,9 @@ object SystemTtsConfig {
         initialValue = false
     )
 
-    val isExoDecoderEnabled = mutableDataSaverStateOf(
-        dataSaverInterface = dataSaverPref,
-        key = "isExoDecoderEnabled",
-        initialValue = true
-    )
+    // isExoDecoderEnabled 已删（2026-11-06）：全仓无消费点的死配置；
+    // 备份键白名单（BackupRestoreEngine/BackupPayloadFactory）保留该字符串，
+    // 旧备份恢复兼容（写入无人读的键无副作用）。
 
     val isSilenceSkipAudio = mutableDataSaverStateOf(
         dataSaverInterface = dataSaverPref,
