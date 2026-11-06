@@ -140,6 +140,22 @@ internal fun ColumnScope.SysttsSettingsScreen(
         )
     }
 
+    // 系统侧调用自检（2026-11-06 新增）：纯测量，零行为变更。
+    // 任务书：技术文档\任务书-系统TTS调用自检-20261106.md
+    var showSelfTest by remember { mutableStateOf(false) }
+    if (showSelfTest) {
+        SelfTestDialog(onDismiss = { showSelfTest = false })
+    }
+    SettingItem(search, "自检", "selftest", "延迟", "静音", "白噪音", "测试") {
+        BasePreferenceWidget(
+            onClick = { showSelfTest = true },
+            icon = { Icon(Icons.Default.Timer, null) },
+            title = { Text(stringResource(R.string.selftest_title)) },
+            subTitle = { Text(stringResource(R.string.selftest_summary)) },
+            showChevron = false,
+        )
+    }
+
     // 交换试听/编辑按钮位置（10-05 用户令：从「常用」挪回本区，并排在「多语音」之前）
     var wrapButton by remember { AppConfig.isSwapListenAndEditButton }
     SettingItem(search, "交换", "按钮", "button", "试听", "编辑") {
