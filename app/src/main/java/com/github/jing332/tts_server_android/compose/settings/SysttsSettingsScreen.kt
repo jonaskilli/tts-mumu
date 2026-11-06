@@ -140,21 +140,10 @@ internal fun ColumnScope.SysttsSettingsScreen(
         )
     }
 
-    // 系统侧调用自检（2026-11-06 新增）：纯测量，零行为变更。
-    // 任务书：技术文档\任务书-系统TTS调用自检-20261106.md
-    var showSelfTest by remember { mutableStateOf(false) }
-    if (showSelfTest) {
-        SelfTestDialog(onDismiss = { showSelfTest = false })
-    }
-    SettingItem(search, "自检", "selftest", "延迟", "静音", "白噪音", "测试") {
-        BasePreferenceWidget(
-            onClick = { showSelfTest = true },
-            icon = { Icon(Icons.Default.Timer, null) },
-            title = { Text(stringResource(R.string.selftest_title)) },
-            subTitle = { Text(stringResource(R.string.selftest_summary)) },
-            showChevron = false,
-        )
-    }
+    // 系统侧调用自检入口已删（2026-11-06 用户令「还是删了这个键吧，不想要了」）。
+    // 测量核心保留在 lib-tts/selftest/（AudioHealthAnalyzer + SystemTtsSelfTest）：
+    // 它是唯一的音频质量测量工具，将来排障（底噪/削波/断音）时可直接调用，
+    // 不必重写。口径见 技术文档\TTS提速诊断口径与结论.md。
 
     // 交换试听/编辑按钮位置（10-05 用户令：从「常用」挪回本区，并排在「多语音」之前）
     var wrapButton by remember { AppConfig.isSwapListenAndEditButton }
