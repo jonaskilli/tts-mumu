@@ -73,34 +73,13 @@ class SystemTtsSelfTest(private val context: Context) {
     ): Sample = withContext(Dispatchers.IO) {
         val probeText = if (coldCache) "$text${(1000..9999).random()}" else text
 
-        // 1) 构造并等初始化：TextToSpeech(context, OnInitListener, engineName)
-        // 初始化是异步的，onInit 回调可能在构造返回之后；用原子引用持有实例。
+        // 1) 构造并等初始化：TextToSpeech(context, OnInitListener, engineName)。
+        // 用独立函数返回 Pair，避免 try/catch 里 return@withContext 导致整个表达式的
+        // 类型被推断为 Nothing（11-06 CI 实锤：Boolean vs Nothing 冲突）。
         val bindStart = SystemClock.elapsedRealtime()
-        val ttsRef = java.util.concurrent.atomic.AtomicReference<TextToSpeech?>(null)
-        val initOk = try {
-            withTimeout(timeoutMs) {
-                suspendCancellableCoroutine { cont ->
-                    val tts = TextToSpeech(context, { status ->
-                        if (cont.isActive) {
-                            cont.resume(status == TextToSpeech.SUCCESS)
-                        }
-                    }, engineName)
-                    ttsRef.set(tts)
-                }
-            }
-        } catch (e: Exception) {
-            runCatching { ttsRef.get()?.shutdown() }
-            return@withContext Sample(
-                engineName, voiceName, probeText,
-                bindMs = SystemClock.elapsedRealtime() - bindStart,
-                startCallbackMs = -1, synthTotalMs = 0, audioDurationMs = 0,
-                wavFileBytes = 0, report = null, segmentPauseMs = segmentPauseMs,
-                coldCache = coldCache,
-                error = "引擎初始化失败/超时：${e.javaClass.simpleName}",
-            )
-        }
+        val (tts, initOk) = bindEngine(engineName, timeoutMs)
         val bindMs = SystemClock.elapsedRealtime() - bindStart
-        val tts = ttsRef.get()
+
         if (!initOk || tts == null) {
             runCatching { tts?.shutdown() }
             return@withContext Sample(
@@ -109,6 +88,8 @@ class SystemTtsSelfTest(private val context: Context) {
                 error = "系统未能绑定到引擎 ${engineName.ifBlank { "(默认)" }}",
             )
         }
+        // bindEngine 已保证 tts 非空（上面 !initOk || tts == null 的早退分支已 return）
+        val ttsEngine: TextToSpeech = tts
 
         val cacheDir = File(context.externalCacheDir ?: context.cacheDir, "selftest")
         runCatching { cacheDir.mkdirs() }
@@ -119,8 +100,8 @@ class SystemTtsSelfTest(private val context: Context) {
         // 用 engine.voice = it，匹配 it.name == voice）。系统标准引擎忽略此项。
         if (voiceName.isNotBlank()) {
             runCatching {
-                tts.voices?.firstOrNull { it.name == voiceName }?.let { v ->
-                    tts.voice = v
+                ttsEngine.voices?.firstOrNull { it.name == voiceName }?.let { v ->
+                    ttsEngine.voice = v
                 }
             }
         }
@@ -132,7 +113,7 @@ class SystemTtsSelfTest(private val context: Context) {
         val completed = try {
             withTimeout(timeoutMs) {
                 suspendCancellableCoroutine<Boolean> { cont ->
-                    tts.setOnUtteranceProgressListener(object : UtteranceProgressListener() {
+                    ttsEngine.setOnUtteranceProgressListener(object : UtteranceProgressListener() {
                         override fun onStart(uId: String?) {
                             if (startAt < 0) startAt = SystemClock.elapsedRealtime()
                         }
@@ -156,7 +137,7 @@ class SystemTtsSelfTest(private val context: Context) {
                     val bundle = Bundle().apply {
                         putFloat(TextToSpeech.Engine.KEY_PARAM_VOLUME, 1f)
                     }
-                    val ret = tts.synthesizeToFile(probeText, bundle, wavFile, utteranceId)
+                    val ret = ttsEngine.synthesizeToFile(probeText, bundle, wavFile, utteranceId)
                     if (ret != TextToSpeech.SUCCESS) {
                         errorMsg = "synthesizeToFile 返回错误码 $ret"
                         if (cont.isActive) cont.resume(false)
@@ -170,8 +151,7 @@ class SystemTtsSelfTest(private val context: Context) {
 
         val synthTotalMs = SystemClock.elapsedRealtime() - submitAt
         val startMs = if (startAt >= 0) startAt - submitAt else -1L
-        val bindMs = SystemClock.elapsedRealtime() - bindStart - synthTotalMs
-        runCatching { tts.shutdown() }
+        runCatching { ttsEngine.shutdown() }
 
         if (!completed) {
             runCatching { wavFile.delete() }
@@ -200,5 +180,34 @@ class SystemTtsSelfTest(private val context: Context) {
             segmentPauseMs = segmentPauseMs,
             coldCache = coldCache,
         )
+    }
+
+    /**
+     * 构造 TextToSpeech 并等待初始化回调。
+     *
+     * 独立函数且显式声明返回类型：调用处若把「try/catch + early return」写成表达式，
+     * Kotlin 会把 catch 分支推断为 Nothing，导致整个表达式类型冲突
+     * （11-06 CI 实锤：`Argument type mismatch: actual type is 'Boolean', but
+     * 'Nothing' was expected`）。
+     */
+    private suspend fun bindEngine(
+        engineName: String,
+        timeoutMs: Long,
+    ): Pair<TextToSpeech?, Boolean> {
+        val holder = java.util.concurrent.atomic.AtomicReference<TextToSpeech?>(null)
+        return try {
+            val ok = withTimeout(timeoutMs) {
+                suspendCancellableCoroutine<Boolean> { cont ->
+                    val created = TextToSpeech(context, { status ->
+                        if (cont.isActive) cont.resume(status == TextToSpeech.SUCCESS)
+                    }, engineName)
+                    holder.set(created)
+                }
+            }
+            holder.get() to ok
+        } catch (e: Exception) {
+            runCatching { holder.get()?.shutdown() }
+            null to false
+        }
     }
 }
