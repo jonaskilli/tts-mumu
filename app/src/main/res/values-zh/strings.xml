@@ -395,6 +395,7 @@
     <string name="selftest_noise">底噪评估</string>
     <string name="selftest_audio_size">音频大小</string>
     <string name="selftest_note">进程内测量，不含跨进程开销（阅读 App 调用时会多一层）</string>
+    <string name="selftest_cold_note">已强制新鲜合成（文本含随机标记），避免缓存让数字虚高</string>
     <string name="selftest_failed">自检失败</string>
     <string name="selftest_retry">重试</string>
     <string name="selftest_gap_none">无</string>
@@ -404,6 +405,8 @@
     <string name="selftest_stream_on">流式开</string>
     <string name="selftest_stream_off">流式关</string>
     <string name="selftest_stream_current">当前默认</string>
+    <string name="selftest_pick_config">选择要测的语音配置：</string>
+    <string name="selftest_pick_again">换一套配置测</string>
     <string name="use_exo_decoder">使用ExoPlayer解码器</string>
     <string name="use_exo_decoder_summary">ExoPlayer为谷歌开发的媒体播放器，其兼容性更高。开启后将直接用其内部解码器进行音频解码。</string>
     <string name="plugin_not_define_vars">此插件未定义变量</string>

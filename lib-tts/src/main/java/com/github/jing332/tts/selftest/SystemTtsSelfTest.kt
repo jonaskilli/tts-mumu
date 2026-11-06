@@ -57,21 +57,37 @@ class SystemTtsSelfTest(private val context: Context) {
     /**
      * 跑一次真实调用并测量。
      *
-     * @param timeoutMs 整段超时（含合成与读流），默认 60s（与合成链 requestTimeout 同量级）
+     * @param engineName 系统 TTS 引擎包名；空串 = 系统默认引擎
+     * @param voiceName  系统 TTS 的 voice 名。UTTS 用它指定「测哪套配置」，
+     *                   格式 `displayName_id`（见 SystemTtsService.onIsValidVoiceName）；
+     *                   空串 = 该引擎的默认配置
+     * @param timeoutMs  整段超时（含合成与读流），默认 60s（与合成链 requestTimeout 同量级）
+     * @param coldCache  true 时在文本末尾追加随机标记，强制插件走新鲜合成
+     *                   （绕开插件对相同文本的缓存，否则延迟指标会被缓存污染——11-06 实锤：
+     *                   首次自检出 21ms/295ms，明显是命中缓存的数字）
      */
     suspend fun measure(
         engineName: String,
         text: String,
+        voiceName: String = "",
         timeoutMs: Long = 60_000L,
+        coldCache: Boolean = true,
     ): Sample = withContext(Dispatchers.IO) {
         val started = SystemClock.elapsedRealtime()
         val engine = AndroidTtsEngine(context)
+
+        // 防缓存污染：追加随机数字，使文本对插件而言唯一。
+        // 用数字而非字母，避免插件把标记念成奇怪音节；标记会被念出来，故只在测速时用。
+        val probeText = if (coldCache) {
+            val n = (1000..9999).random()
+            "$text$n"
+        } else text
 
         try {
             val initOk = withTimeout(timeoutMs) { engine.init(engineName) }
             if (!initOk) {
                 return@withContext Sample(
-                    engineName = engineName, text = text,
+                    engineName = engineName, text = probeText,
                     firstAudioMs = -1L, totalMs = 0L,
                     pcmBytes = 0, sampleRate = 0, channels = 0, report = null,
                     error = "引擎初始化失败（engineName=$engineName）",
@@ -80,7 +96,7 @@ class SystemTtsSelfTest(private val context: Context) {
 
             val submitAt = SystemClock.elapsedRealtime()
             val streamResult = withTimeout(timeoutMs) {
-                engine.getStream(text = text, params = AudioParams())
+                engine.getStream(text = probeText, voice = voiceName, params = AudioParams())
             }
 
             // michaelbull-result：沿用本仓统一写法（onSuccess/onFailure），
@@ -92,7 +108,7 @@ class SystemTtsSelfTest(private val context: Context) {
             val ins = stream
             if (ins == null) {
                 return@withContext Sample(
-                    engineName = engineName, text = text,
+                    engineName = engineName, text = probeText,
                     firstAudioMs = -1L,
                     totalMs = SystemClock.elapsedRealtime() - started,
                     pcmBytes = 0, sampleRate = 0, channels = 0, report = null,
@@ -112,7 +128,7 @@ class SystemTtsSelfTest(private val context: Context) {
                     ins.read(buffer)
                 } catch (e: Exception) {
                     return@withContext Sample(
-                        engineName = engineName, text = text,
+                        engineName = engineName, text = probeText,
                         firstAudioMs = firstAudioMs,
                         totalMs = SystemClock.elapsedRealtime() - submitAt,
                         pcmBytes = bytes, sampleRate = 0, channels = 0, report = null,
@@ -142,7 +158,7 @@ class SystemTtsSelfTest(private val context: Context) {
             engine.release()
             Sample(
                 engineName = engineName,
-                text = text,
+                text = probeText,
                 firstAudioMs = firstAudioMs,
                 totalMs = totalMs,
                 pcmBytes = bytes,
@@ -152,7 +168,7 @@ class SystemTtsSelfTest(private val context: Context) {
             )
         } catch (e: Exception) {
             Sample(
-                engineName = engineName, text = text,
+                engineName = engineName, text = probeText,
                 firstAudioMs = -1L,
                 totalMs = SystemClock.elapsedRealtime() - started,
                 pcmBytes = 0, sampleRate = 0, channels = 0, report = null,
