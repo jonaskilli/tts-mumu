@@ -70,12 +70,12 @@ object AudioHealthAnalyzer {
         val ch = channels.coerceAtLeast(1)
         val frameBytes = 2 * ch
         val totalFrames = pcm.size / frameBytes
-        val totalMs = if (sampleRate > 0) totalFrames * 1000L / sampleRate else 0L
+        val totalMs = if (sampleRate > 0) totalFrames.toLong() * 1000L / sampleRate.toLong() else 0L
 
         if (totalFrames <= 0) {
             return Report(
                 totalMs = 0L, sampleRate = sampleRate, channels = ch,
-                voicedMs = 0, gapTotalMs = 0, gapCount = 0, longestGap = null,
+                voicedMs = 0L, gapTotalMs = 0L, gapCount = 0, longestGap = null,
                 overallRmsDb = Float.NEGATIVE_INFINITY,
                 gapRmsDb = Float.NEGATIVE_INFINITY,
                 noiseFloorSuspicious = false,
@@ -125,7 +125,7 @@ object AudioHealthAnalyzer {
 
             val isSilent = a <= silenceLinear
             if (isSilent) {
-                if (currentGapStart < 0) currentGapStart = f
+                if (currentGapStart < 0) currentGapStart = f.toLong()
                 currentGapFrames++
                 sumSqGap += a.toDouble() * a
                 gapSampleCount++
@@ -134,8 +134,8 @@ object AudioHealthAnalyzer {
                 // 间隙收尾
                 if (currentGapStart >= 0) {
                     if (currentGapFrames >= minGapFrames) {
-                        val startMs = currentGapStart * 1000L / sampleRate
-                        val durMs = currentGapFrames * 1000L / sampleRate
+                        val startMs = currentGapStart * 1000L / sampleRate.toLong()
+                        val durMs = currentGapFrames * 1000L / sampleRate.toLong()
                         gapCount++
                         gapFramesTotal += currentGapFrames
                         val g = Gap(startMs, durMs)
@@ -149,8 +149,8 @@ object AudioHealthAnalyzer {
         // 末尾未收尾的静音段也算
         if (currentGapStart >= 0) {
             if (currentGapFrames >= minGapFrames) {
-                val startMs = currentGapStart * 1000L / sampleRate
-                val durMs = currentGapFrames * 1000L / sampleRate
+                val startMs = currentGapStart * 1000L / sampleRate.toLong()
+                val durMs = currentGapFrames * 1000L / sampleRate.toLong()
                 gapCount++
                 gapFramesTotal += currentGapFrames
                 val g = Gap(startMs, durMs)
@@ -167,8 +167,8 @@ object AudioHealthAnalyzer {
             totalMs = totalMs,
             sampleRate = sampleRate,
             channels = ch,
-            voicedMs = voicedFrames * 1000L / sampleRate,
-            gapTotalMs = gapFramesTotal * 1000L / sampleRate,
+            voicedMs = voicedFrames * 1000L / sampleRate.toLong(),
+            gapTotalMs = gapFramesTotal * 1000L / sampleRate.toLong(),
             gapCount = gapCount,
             longestGap = longestGap,
             overallRmsDb = overallRmsDb,

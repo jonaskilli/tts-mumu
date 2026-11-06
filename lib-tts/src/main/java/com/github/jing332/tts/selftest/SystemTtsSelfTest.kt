@@ -71,7 +71,9 @@ class SystemTtsSelfTest(private val context: Context) {
             val initOk = withTimeout(timeoutMs) { engine.init(engineName) }
             if (!initOk) {
                 return@withContext Sample(
-                    engineName, text, -1, 0, 0, 0, 0, null,
+                    engineName = engineName, text = text,
+                    firstAudioMs = -1L, totalMs = 0L,
+                    pcmBytes = 0, sampleRate = 0, channels = 0, report = null,
                     error = "引擎初始化失败（engineName=$engineName）",
                 )
             }
@@ -90,9 +92,10 @@ class SystemTtsSelfTest(private val context: Context) {
             val ins = stream
             if (ins == null) {
                 return@withContext Sample(
-                    engineName, text, -1,
-                    SystemClock.elapsedRealtime() - started,
-                    0, 0, 0, null,
+                    engineName = engineName, text = text,
+                    firstAudioMs = -1L,
+                    totalMs = SystemClock.elapsedRealtime() - started,
+                    pcmBytes = 0, sampleRate = 0, channels = 0, report = null,
                     error = "合成失败：${errMsg ?: "未知错误"}",
                 )
             }
@@ -103,14 +106,16 @@ class SystemTtsSelfTest(private val context: Context) {
             var bytes = 0
             val chunks = ArrayList<ByteArray>()
             val buffer = ByteArray(4096)
-            while (isActive) {
+            val readDeadline = submitAt + timeoutMs
+            while (isActive && SystemClock.elapsedRealtime() < readDeadline) {
                 val n = try {
-                    stream.read(buffer)
+                    ins.read(buffer)
                 } catch (e: Exception) {
                     return@withContext Sample(
-                        engineName, text, firstAudioMs,
-                        SystemClock.elapsedRealtime() - submitAt,
-                        bytes, 0, 0, null,
+                        engineName = engineName, text = text,
+                        firstAudioMs = firstAudioMs,
+                        totalMs = SystemClock.elapsedRealtime() - submitAt,
+                        pcmBytes = bytes, sampleRate = 0, channels = 0, report = null,
                         error = "读流出错：${e.message ?: e.javaClass.simpleName}",
                     )
                 }
@@ -146,8 +151,13 @@ class SystemTtsSelfTest(private val context: Context) {
                 report = report,
             )
         } catch (e: Exception) {
-            Sample(engineName, text, -1, SystemClock.elapsedRealtime() - started, 0, 0, 0, null,
-                error = "${e.javaClass.simpleName}: ${e.message}")
+            Sample(
+                engineName = engineName, text = text,
+                firstAudioMs = -1L,
+                totalMs = SystemClock.elapsedRealtime() - started,
+                pcmBytes = 0, sampleRate = 0, channels = 0, report = null,
+                error = "${e.javaClass.simpleName}: ${e.message}",
+            )
         } finally {
             runCatching { engine.release() }
         }
