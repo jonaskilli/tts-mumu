@@ -28,7 +28,10 @@ class GlobalHttp : ScriptableObject() {
         private val TAG = "GlobalHttp"
         private val logger = KotlinLogging.logger(TAG)
 
-        private const val MAX_RETRY_COUNTS = 150
+        // 150→10（2026-11-06 重试风暴刹车）：150 次在失败端点上可空转数分钟，
+        // 外层合成超时（requestTimeout）到前一直转圈。10 次×2s≈22s 封顶，
+        // 仍够常规限流等待；更久的失败交给外层 requestTimeout 快速失败。
+        private const val MAX_RETRY_COUNTS = 10
         private const val RETRY_INTERVAL_MS = 2000L
 
         // 插件按请求传入超时毫秒（与墨听/legado 的 http.get(url, headers, timeoutMs)、
