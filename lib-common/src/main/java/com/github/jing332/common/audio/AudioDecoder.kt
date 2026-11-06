@@ -83,8 +83,23 @@ class AudioDecoder {
 
         /**
          * 获取采样率和MIME
+         *
+         * 限量探测（2026-11-06，参考版 TTS probeAudio 同思路）：大音频只喂前
+         * PROBE_MAX_BYTES 字节给 MediaExtractor（媒体头+必要元数据几乎总在头部），
+         * 探不出退回整包重探，语义与原整包探测一致（探不出同返 (0, "")），
+         * 调用方既有 takeIf{it>0} 兜底不变。试听链数 MB 级音频免整包解析。
          */
         fun getSampleRateAndMime(audio: ByteArray): Pair<Int, String> {
+            val head = if (audio.size > PROBE_MAX_BYTES)
+                getSampleRateAndMimeInternal(audio.copyOf(PROBE_MAX_BYTES))
+            else null
+            if (head != null && head.first > 0) return head
+            return getSampleRateAndMimeInternal(audio)
+        }
+
+        private const val PROBE_MAX_BYTES = 65536
+
+        private fun getSampleRateAndMimeInternal(audio: ByteArray): Pair<Int, String> {
             val formats = getFormats(audio)
 
             var sampleRate = 0
