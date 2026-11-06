@@ -26,6 +26,7 @@ import org.mozilla.javascript.typedarrays.NativeArrayBuffer
 import org.mozilla.javascript.typedarrays.NativeTypedArrayView
 import java.io.ByteArrayInputStream
 import java.io.InputStream
+import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
 
@@ -38,6 +39,20 @@ open class TtsPluginEngineV2(val context: Context, var plugin: Plugin) {
         const val FUNC_ON_STOP = "onStop"
 
         private val executor = Executors.newCachedThreadPool()
+
+        // 插件 getAudio/getAudioV2 返回 URL 时的下载客户端（2026-11-06）：
+        // 原先每次 new OkHttpClient（独立连接池），同一插件的每段合成都要重付
+        // DNS+TLS 握手（移动网络下百 ms~秒级）。按超时毫秒缓存复用
+        // （模式同 lib-script GlobalHttp.timeoutClients），同超时的下载共享连接池。
+        private val urlFetchClients = ConcurrentHashMap<Long, OkHttpClient>()
+
+        private fun urlFetchClient(timeoutMs: Long): OkHttpClient =
+            urlFetchClients.getOrPut(timeoutMs) {
+                OkHttpClient.Builder()
+                    .connectTimeout(timeoutMs, TimeUnit.MILLISECONDS)
+                    .readTimeout(timeoutMs, TimeUnit.MILLISECONDS)
+                    .build()
+            }
 
         /**
          * 在独立线程中执行 block，并通过 CompletableDeferred + withTimeout 确保：
@@ -139,10 +154,8 @@ open class TtsPluginEngineV2(val context: Context, var plugin: Plugin) {
             is CharSequence -> {
                 val str = result.toString()
                 if (str.startsWith("http")) {
-                    val client = OkHttpClient.Builder()
-                        .connectTimeout(timeoutMs, TimeUnit.MILLISECONDS)
-                        .readTimeout(timeoutMs, TimeUnit.MILLISECONDS)
-                        .build()
+                    // 2026-11-06：改用按超时缓存的共享客户端（原每次 new，见 urlFetchClient 注释）
+                    val client = urlFetchClient(timeoutMs)
                     val resp = client.newCall(Request.Builder().url(str).build()).execute()
                     if (!resp.isSuccessful) throw RuntimeException("URL Fetch Error: ${resp.code}")
                     resp.body?.byteStream()
